@@ -143,7 +143,7 @@ def evaluate(context: ModelFitContext) -> None:
 
     eval_df = pd.DataFrame(
         {
-            "group": context.groups,
+            vars.SUBJECT_ID: context.groups,
             "y_true": context.y,
             "y_pred": y_pred,
         }
