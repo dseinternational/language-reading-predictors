@@ -1,0 +1,22 @@
+{
+  "name": "dse-language-reading-predictors",
+  "version": "0.1.0",
+  "description": "Predictors of progress in language and reading skills for children with Down syndrome",
+  "homepage": "https://github.com/dseinternational/language-reading-predictors#readme",
+  "bugs": {
+    "url": "https://github.com/dseinternational/language-reading-predictors/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dseinternational/language-reading-predictors.git"
+  },
+  "license": "AGPL-3.0-or-later",
+  "author": "Down Syndrome Education International",
+  "private": true,
+  "devDependencies": {
+    "cspell": "10.0.0"
+  },
+  "scripts": {
+    "spellcheck": "cspell --show-suggestions --show-context \"**/*.md\" \"docs/**/*.qmd\""
+  }
+}

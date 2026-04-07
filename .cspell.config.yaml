@@ -1,0 +1,43 @@
+---
+$schema: https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json
+version: '0.2'
+language: en-GB
+dictionaryDefinitions:
+    - name: en
+      path: './config/spellcheck/allow-en.txt'
+      addWords: true
+dictionaries:
+    - en
+ignorePaths:
+    - 'node_modules'
+    - 'config/**'
+patterns:
+  - name: markdown_citation
+    pattern: |
+      /
+          \[(?:@[^\s;\]]+)(?:\s*;\s*@[^\s;\]]+)*\]
+      /gmx
+  - name: markdown_inline_math
+    pattern: |
+      /
+          \$[^$\n]+\$
+      /gmx
+  - name: markdown_display_math
+    pattern: |
+      /
+          ^\s*\$\$[^$\n]*
+          [\s\S]*?
+          ^\s*\$\$
+      /gmx
+  - name: markdown_code_block
+    pattern: |
+      /
+          ^(\s*`{3,}).*
+          [\s\S]*?
+          ^\1
+      /gmx
+ignoreRegExpList:
+    - markdown_code_block
+    - markdown_citation
+    - markdown_inline_math
+    - markdown_display_math

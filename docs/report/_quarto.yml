@@ -1,0 +1,81 @@
+project:
+  type: book
+
+  output-dir: ../../output/report
+
+  preview:
+    port: 4201
+    browser: true
+    watch-inputs: true
+
+jupyter: python3
+
+execute:
+  freeze: true
+
+date: now
+
+toc: true
+number-sections: true
+number-depth: 3
+
+bibliography: references.bib
+csl: apa.csl
+
+abstract: "TODO"
+
+book:
+  output-file: modelling-vocabulary-development-report
+  title: "Modelling vocabulary development in children with Down syndrome"
+  abstract: |
+    Families and educators are often interested in information about vocabulary development in children with Down syndrome. Common questions include the range of words understood or spoken at different ages, rates of word learning, and the range of ages at which a minimum number of words may be learned. Answers to these questions are of relevance to everyday teaching practice and early intervention. This exploratory study therefore aims to describe the development of vocabulary knowledge in children with Down syndrome with a focus on practical and interpretable statistics that can inform teaching and support.
+
+    More...
+  author:
+    - name: Frank Buckley
+      orcid: 0000-0002-9708-2705
+      affiliations:
+        - name: Down Syndrome Education International
+          state: Cumbria
+          country: UK
+      roles: writing
+      corresponding: true
+    - name: Sue Buckley
+      orcid: 0000-0002-9044-3088
+      affiliations:
+        - name: Down Syndrome Education International
+          state: Cumbria
+          country: UK
+        - name: University of Portsmouth
+          city: Portsmouth
+          state: Hampshire
+          country: UK
+      roles: writing
+  chapters:
+    - index.qmd
+    - intro.qmd
+    - references.qmd
+
+format:
+  html:
+    code-fold: true
+    theme: default
+  docx:
+    reference-doc: ../template.docx
+  pdf:
+    documentclass: report
+    papersize: a4
+    colorlinks: true
+    link-citations: true
+    fontsize: 12pt
+    mainfont: "Source Sans 3"
+    sansfont: "Source Sans 3"
+    monofont: "Monaspace Neon"
+    monofontoptions: "Scale=0.75"
+    linestretch: 1.25
+    geometry:
+      - top=30mm
+      - left=25mm
+      - right=25mm
+      - bottom=30mm
+    include-in-header: footer.tex

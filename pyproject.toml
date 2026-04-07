@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.28"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dse-language-reading-predictors"
+dynamic = ["version"]
+description = "Predictors of progress in language and reading skills for children with Down syndrome"
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Frank Buckley" }]
+
+dependencies = [
+  "numpy>=2.4.3",
+  "pandas>=3.0.2",
+  "duckdb>=1.5.0",
+  "preliz>=0.18.0",
+  "pymc>=5.28.1,<6.0",
+  "arviz>=0.23.4,<1.0",
+  "matplotlib>=3.10.8",
+  "scipy>=1.17.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "jupyter>=1.1.1",
+  "pytest>=9.0.2",
+]
+
+[tool.hatch.version]
+path = "src/language_reading_predictors/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/language_reading_predictors"]
+
+# Pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
