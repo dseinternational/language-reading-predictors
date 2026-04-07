@@ -2,25 +2,25 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Model LRP01: Random Forest regression predicting word-reading gains,
-excluding outliers (ewrswr_gain >= 15).
+Model LRP02: Random Forest regression predicting word-reading level (ewrswr).
 """
 
 from language_reading_predictors.models.common import ModelConfig, ModelFitContext
 from language_reading_predictors.models import rf_pipeline
 
 CONFIG = ModelConfig(
-    model_id="lrp01",
-    description="Random Forest — word-reading gain predictors (outliers excluded)",
-    target_var="ewrswr_gain",
+    model_id="lrp02",
+    description="Random Forest — word-reading level predictors",
+    target_var="ewrswr",
     predictor_vars=[
         "time",
+        "group",
         "age",
+        "area",
         "attend",
         "hearing",
         "vision",
         "behav",
-        "ewrswr",
         "rowpvt",
         "eowpvt",
         "yarclet",
@@ -50,32 +50,10 @@ CONFIG = ModelConfig(
         criterion="squared_error",
         n_jobs=16,
     ),
-    cv_splits=53,
-    outlier_threshold=15.0,
-    pdp_features=[
-        "age",
-        "attend",
-        "yarclet",
-        "celf",
-        "trog",
-        "eowpvt",
-        "b1exto",
-        "blending",
-        "time",
-        "nonword",
-        "b1reto",
-        "b2reto",
-        "aptinfo",
-        "deappin",
-        "aptgram",
-        "rowpvt",
-        "behav",
-        "b2exto",
-        "vision",
-    ],
+    cv_splits=51,
 )
 
 
 def fit(config: str = "reporting") -> ModelFitContext:
-    """Run the full LRP01 pipeline."""
+    """Run the full LRP02 pipeline."""
     return rf_pipeline.fit(CONFIG, run_config=config)

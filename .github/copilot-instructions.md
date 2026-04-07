@@ -32,7 +32,10 @@ ruff check src/
 npm run spellcheck
 
 # Fit a model (artifacts saved to output/models/{model_id}/)
-python scripts/fit_model.py LRP01
+python scripts/fit_model.py LRP01                      # dev config (fast, default)
+python scripts/fit_model.py LRP01 --config test         # test config (moderate)
+python scripts/fit_model.py LRP01 --config reporting    # full config (production)
+python scripts/fit_model.py all --config dev --render   # all models, then render reports
 
 # Preview research report
 quarto preview docs/report/
