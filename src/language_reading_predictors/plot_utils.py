@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 import math
-import os
 import numpy as np
 import pandas as pd
 import matplotlib.axes as mpaxes
@@ -235,7 +234,7 @@ def plot_gaussian_process_prior(
 
     plt.sca(axs[1])
     plot_kernel_function(kernel_function, color="k")
-    plt.title(f"kernel function")
+    plt.title("kernel function")
     return axs
 
 

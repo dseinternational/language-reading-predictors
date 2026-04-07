@@ -11,6 +11,9 @@ dictionaries:
 ignorePaths:
     - 'node_modules'
     - 'config/**'
+    - 'AGENTS.md'
+    - 'CLAUDE.md'
+    - '.github/copilot-instructions.md'
 patterns:
   - name: markdown_citation
     pattern: |
