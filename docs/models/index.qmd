@@ -45,7 +45,7 @@ for k, v in config["rf_params"].items():
     label = k.replace("_", " ").title()
     rows.append((label, f"{v:,}" if isinstance(v, int) else str(v)))
 rows += [
-    ("Cross-validation", f"Leave-one-group-out (`GroupKFold`, {config['cv_splits']} splits, grouped by `subject_id`)"),
+    ("Cross-validation", f"GroupKFold ({config['cv_splits']} splits, grouped by `subject_id`)"),
     ("Scoring", "Negative root mean squared error"),
     ("Permutation importance repeats", str(config["perm_importance_repeats"])),
     ("Random seed", str(config["random_seed"])),
@@ -76,7 +76,7 @@ target_desc
 
 ## Cross-validation
 
-Group-aware (leave-one-subject-out) cross-validation RMSE scores:
+Group-aware (`GroupKFold`) cross-validation RMSE scores:
 
 ```{python}
 cv_scores = pd.read_csv("cv_scores.csv")
