@@ -1,0 +1,149 @@
+---
+title: "Model output"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 2
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+:::
+
+```{python}
+import json
+import pandas as pd
+pd.set_option("display.float_format", "{:.4f}".format)
+
+with open("config.json") as f:
+    config = json.load(f)
+```
+
+```{python}
+#| output: asis
+print(f"# Model {config['model_id'].upper()}: {config['description']}")
+```
+
+## Model configuration
+
+```{python}
+#| output: asis
+rows = [
+    ("Algorithm", "Random Forest (scikit-learn `RandomForestRegressor`)"),
+    ("Target variable", f"`{config['target_var']}`"
+     + (f" (outliers ≥ {config['outlier_threshold']} excluded)" if config.get('outlier_threshold') else "")),
+]
+for k, v in config["rf_params"].items():
+    label = k.replace("_", " ").title()
+    rows.append((label, f"{v:,}" if isinstance(v, int) else str(v)))
+rows += [
+    ("Cross-validation", f"GroupKFold ({config['cv_splits']} splits, grouped by `subject_id`)"),
+    ("Scoring", "Negative root mean squared error"),
+    ("Permutation importance repeats", str(config["perm_importance_repeats"])),
+    ("Random seed", str(config["random_seed"])),
+]
+print("| Parameter | Value |")
+print("|---|---|")
+for label, val in rows:
+    print(f"| {label} | {val} |")
+print()
+print(": Model hyperparameters {#tbl-config}")
+```
+
+### Predictor variables
+
+```{python}
+#| output: asis
+print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
+```
+
+## Data
+
+### Target variable descriptive statistics
+
+```{python}
+target_desc = pd.read_csv("target_describe.csv", index_col=0)
+target_desc
+```
+
+## Cross-validation
+
+Group-aware (`GroupKFold`) cross-validation RMSE scores:
+
+```{python}
+cv_scores = pd.read_csv("cv_scores.csv")
+
+print(f"Mean RMSE: {cv_scores['rmse'].mean():.4f}")
+print(f"Std  RMSE: {cv_scores['rmse'].std():.4f}")
+print(f"Min  RMSE: {cv_scores['rmse'].min():.4f}")
+print(f"Max  RMSE: {cv_scores['rmse'].max():.4f}")
+```
+
+```{python}
+cv_scores
+```
+
+## In-sample evaluation
+
+```{python}
+eval_df = pd.read_csv("evaluation.csv")
+
+mae = eval_df["y_true"].sub(eval_df["y_pred"]).abs().mean()
+rmse = ((eval_df["y_true"] - eval_df["y_pred"]) ** 2).mean() ** 0.5
+
+print(f"In-sample MAE:  {mae:.4f}")
+print(f"In-sample RMSE: {rmse:.4f}")
+```
+
+## Feature importance
+
+### Permutation importance
+
+Permutation importance measures the decrease in model performance when a single feature's values are randomly shuffled, breaking the relationship between the feature and the target. Features with higher importance contribute more to the model's predictive accuracy.
+
+```{python}
+perm_imp = pd.read_csv("permutation_importance.csv")
+perm_imp
+```
+
+### SHAP analysis
+
+[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values decompose each prediction into the contribution of each feature, providing both global and local interpretability.
+
+#### Global feature importance (bar)
+
+Mean absolute SHAP values across all observations, showing the average magnitude of each feature's contribution to predictions.
+
+![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
+
+#### Clustered feature importance
+
+SHAP bar plot with hierarchical clustering of correlated features (cutoff = 0.4), revealing groups of features that contribute similar information.
+
+![SHAP clustered bar plot](shap_bar_clustered.png){#fig-shap-bar-clustered .lightbox fig-align="left"}
+
+#### Summary (beeswarm) plot
+
+Each point represents a single observation. Position on the x-axis shows the SHAP value (impact on prediction), and colour indicates the feature value (red = high, blue = low).
+
+![SHAP summary plot](shap_summary.png){#fig-shap-summary .lightbox fig-align="left"}
+
+#### Waterfall plot (most representative observation)
+
+SHAP waterfall plot for the most representative observation (lowest combined residual and distance from the median feature vector), showing how each feature pushes the prediction from the base value.
+
+![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
+
+## Partial dependence
+
+Partial dependence plots show the marginal effect of each feature on the predicted target, averaging over the values of all other features. Features are ordered by permutation importance.
+
+![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
