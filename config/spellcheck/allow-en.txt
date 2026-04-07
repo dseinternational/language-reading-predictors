@@ -1,3 +1,14 @@
+asis
+beeswarm
+cutoff
+hyperparameters
+isinstance
+lightbox
 logit
 nonlinear
 orcid
+pred
+RMSE
+rmse
+scikit
+vars
