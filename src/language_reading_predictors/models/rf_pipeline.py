@@ -335,15 +335,28 @@ def save_config(context: ModelFitContext) -> None:
     """Save model configuration as JSON for the report template."""
     cfg = context.config
     run = context.run_config
+
+    effective_rf_params = dict(cfg.rf_params)
+    if run.n_estimators is not None:
+        effective_rf_params["n_estimators"] = run.n_estimators
+    effective_cv_splits = (
+        run.cv_splits if run.cv_splits is not None else cfg.cv_splits
+    )
+    effective_perm_importance_repeats = (
+        run.perm_importance_repeats
+        if run.perm_importance_repeats is not None
+        else cfg.perm_importance_repeats
+    )
+
     config_dict = {
         "model_id": cfg.model_id,
         "description": cfg.description,
         "target_var": cfg.target_var,
         "predictor_vars": cfg.predictor_vars,
-        "rf_params": {k: _json_safe(v) for k, v in cfg.rf_params.items()},
-        "cv_splits": cfg.cv_splits,
+        "rf_params": {k: _json_safe(v) for k, v in effective_rf_params.items()},
+        "cv_splits": effective_cv_splits,
         "outlier_threshold": cfg.outlier_threshold,
-        "perm_importance_repeats": cfg.perm_importance_repeats,
+        "perm_importance_repeats": effective_perm_importance_repeats,
         "random_seed": cfg.random_seed,
         "run_config": run.name,
     }
