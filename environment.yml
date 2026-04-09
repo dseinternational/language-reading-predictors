@@ -7,7 +7,7 @@ dependencies:
   - numba>=0.65.0
   - numpy>=2.4.3
   - nutpie>=0.16.8
-  - pymc>=5.28.3,<6.0
+  - pymc>=5.28.4,<6.0
   - pip
   - pip:
       - --extra-index-url https://download.pytorch.org/whl/cu130
@@ -37,7 +37,7 @@ dependencies:
       - preliz
       - pyarrow
       - pyreadstat
-      - pytest>=9.0.2
+      - pytest>=9.0.3
       - pyxlsb
       - rich
       - ruff>=0.15.9
@@ -45,7 +45,7 @@ dependencies:
       - scipy-stubs
       - scipy>=1.17.1
       - seaborn>=0.13.2
-      - setuptools>=80.10.2
+      - setuptools>=82.0.1
       - shap>=0.51.0
       - statsmodels
       - tabulate
