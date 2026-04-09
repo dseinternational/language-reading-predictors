@@ -14,8 +14,6 @@ authors = [{ name = "Frank Buckley" }]
 dependencies = [
   "numpy>=2.4.3",
   "pandas>=3.0.2",
-  "duckdb>=1.5.0",
-  "preliz>=0.18.0",
   "pymc>=5.28.1,<6.0",
   "arviz>=0.23.4,<1.0",
   "matplotlib>=3.10.8",
