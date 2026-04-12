@@ -59,7 +59,7 @@ over-training signature at n=152 — all 1,200 boosting rounds were being
 fit to noise. RF, with its built-in bagging variance reduction, was the
 clear winner at default hyperparameters.
 
-### 3. Optuna + per-fold early stopping
+### 3. Optuna + inner-split early stopping
 
 Added `scripts/tune_model.py`:
 
@@ -69,13 +69,23 @@ Added `scripts/tune_model.py`:
 - **RF path**: `_rf_objective` uses `cross_val_score` over the
   hyperparameter search space (`n_estimators`, `max_depth`,
   `min_samples_leaf`, `min_samples_split`, `max_features`, `bootstrap`).
-- **LGBM path**: `_lgbm_objective` runs a manual per-fold CV loop with
-  LightGBM's `early_stopping` callback against the held-out fold, then
-  records the mean `best_iteration_` across folds as a study user
-  attribute. This gives a data-driven replacement for `n_estimators`
-  instead of a hand-tuned ceiling.
+- **LGBM path**: `_lgbm_objective` runs a manual per-fold CV loop. Each
+  fold carves an inner `GroupShuffleSplit` slice (20% of groups) out of
+  the training fold for LightGBM's `early_stopping` callback — the outer
+  val fold is never shown to early stopping, so `best_iteration_` and the
+  reported fold RMSE are independent. Mean `best_iteration_` across folds
+  is recorded as the tuned `n_estimators`.
 - Output to `output/tuning/{model_id}/`: `best_params.json` (ready to
   paste into a new `_selectNN` variant), `trials.csv`, `study_summary.json`.
+
+**Leak-aware design.** A first pass of this script used
+`eval_set=[(X_val, y_val)]` and then reported the fold RMSE on that same
+`X_val/y_val`. That made `best_iteration_` and the trial metric mutually
+dependent: iterations were being selected to minimise the very RMSE that
+Optuna then optimised. On n=152 with ~15-obs outer folds the effect was
+non-trivial (see the comparison below). The fix is the inner
+`GroupShuffleSplit`, which keeps the outer val fold honest at the cost of
+~20% fewer points per fold per trial.
 
 Deliberately **not** auto-mutating the registry: tuning produces a
 recommendation, and the user manually registers a new variant with the
@@ -86,27 +96,30 @@ decision is reviewable in git history.
 
 `python scripts/tune_model.py lrp01_lgbm --n-trials 30`
 
-- Search: 30 trials, 10-split GroupKFold, ceiling `n_estimators=2000`,
-  early-stopping rounds=50.
-- Best trial: #11, inner CV RMSE **3.0850 ± 0.5517**.
-- Mean best iteration across folds: **62** — replaces the default 1200.
-- Best params (rounded):
+Both runs used 30 trials, 10-split outer `GroupKFold`, `max_n_estimators=2000`,
+early-stopping rounds=50, seed=47.
 
-  | param                | value       |
-  |----------------------|-------------|
-  | `n_estimators`       | 62          |
-  | `learning_rate`      | 0.1902      |
-  | `num_leaves`         | 46          |
-  | `max_depth`          | 6           |
-  | `min_child_samples`  | 40          |
-  | `subsample`          | 0.7838      |
-  | `subsample_freq`     | 1           |
-  | `colsample_bytree`   | 0.9969      |
-  | `reg_alpha`          | 6.3462      |
-  | `reg_lambda`         | 1.0284      |
+| run                           | best trial | inner CV RMSE | mean best iter |
+|-------------------------------|------------|---------------|----------------|
+| leaked (eval on outer val)    | #11        | 3.0850 ± 0.55 | 62             |
+| honest (inner GroupShuffleSplit) | #12     | **3.2797 ± 0.57** | **21**     |
 
-Registered as `lrp01_lgbm_select01` in `models/lrp01.py` with
-`variant_of="lrp01_lgbm"` and notes recording the study provenance.
+~0.2 RMSE units of optimistic bias and a 3× over-estimate of the right
+`n_estimators`. Best params from the honest run (registered in
+`lrp01_lgbm_select01`):
+
+| param                | value       |
+|----------------------|-------------|
+| `n_estimators`       | 21          |
+| `learning_rate`      | 0.1993      |
+| `num_leaves`         | 46          |
+| `max_depth`          | 12          |
+| `min_child_samples`  | 33          |
+| `subsample`          | 0.9056      |
+| `subsample_freq`     | 1           |
+| `colsample_bytree`   | 0.6738      |
+| `reg_alpha`          | 0.0382      |
+| `reg_lambda`         | 0.0095      |
 
 ### 5. Final comparison (all `--config reporting`)
 
@@ -117,7 +130,13 @@ Refit `lrp01` and fit `lrp01_lgbm_select01`, re-rendered
 |-------------------------|------------------------|--------------|-------------|---------------|----------------|
 | `lrp01`                 | RF (untuned default)   | **3.0106**   | 1.5576      | 2.1425        | 2.7615         |
 | `lrp01_lgbm`            | LGBM (untuned)         | 3.5013       | 1.7159      | 0.0683        | 0.1190         |
-| `lrp01_lgbm_select01`   | LGBM (Optuna-tuned)    | 3.0167       | **1.4298**  | 2.1412        | 2.6967         |
+| `lrp01_lgbm_select01`   | LGBM (Optuna-tuned, honest) | 3.0300  | **1.4286**  | 2.1203        | 2.7008         |
+
+Note: the outer 53-split `GroupKFold` used at fit time is always honest
+regardless of how tuning was done, so the practical difference between
+the leaked and honest tuning runs is small on this dataset
+(3.0167 → 3.0300 outer CV RMSE). The headline story — tuned LGBM ties
+RF and untuned LGBM was over-training — is unchanged.
 
 ## Findings
 

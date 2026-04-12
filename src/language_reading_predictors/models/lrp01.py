@@ -84,19 +84,21 @@ _gain_model(
     ),
 )
 
-# Tuned LightGBM hyperparameters from Optuna (30 trials, 10-split GroupKFold,
-# per-fold early stopping). See output/tuning/lrp01_lgbm/ for the full study.
+# Tuned LightGBM hyperparameters from Optuna (30 trials, 10-split GroupKFold).
+# Early stopping uses an inner GroupShuffleSplit slice of each training fold —
+# the outer val fold is never shown to `early_stopping`, so the reported CV
+# RMSE and `best_iteration_` are independent. See output/tuning/lrp01_lgbm/.
 _LGBM_TUNED_SELECT01: dict[str, float | int] = {
-    "n_estimators": 62,
-    "learning_rate": 0.1902099365526547,
+    "n_estimators": 21,
+    "learning_rate": 0.19927560307078432,
     "num_leaves": 46,
-    "max_depth": 6,
-    "min_child_samples": 40,
-    "subsample": 0.7837529957000218,
+    "max_depth": 12,
+    "min_child_samples": 33,
+    "subsample": 0.9056186653894883,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9969182249863432,
-    "reg_alpha": 6.346153239458831,
-    "reg_lambda": 1.028398001881727,
+    "colsample_bytree": 0.6737858250693828,
+    "reg_alpha": 0.038234494308696715,
+    "reg_lambda": 0.009546754601000738,
     "n_jobs": 16,
     "verbosity": -1,
 }
@@ -113,9 +115,11 @@ _gain_model(
     params=_LGBM_TUNED_SELECT01,
     variant_of="lrp01_lgbm",
     notes=(
-        "Optuna TPE hyperparameter tuning against 10-split GroupKFold with "
-        "per-fold early stopping (50 rounds, ceiling 2000). Best trial #11, "
-        "inner CV RMSE 3.0850 ± 0.5517. Mean best iteration 62 replaces the "
-        "default 1200 — the untuned LGBM was massively over-training at n=152."
+        "Optuna TPE hyperparameter tuning against 10-split GroupKFold. Early "
+        "stopping uses an inner GroupShuffleSplit slice of each training fold "
+        "(20% of groups, 50 rounds patience, ceiling 2000) so the outer val "
+        "fold never leaks into `best_iteration_`. Best trial #12, inner CV "
+        "RMSE 3.2797 ± 0.5703. Mean best iteration 21 replaces the default "
+        "1200 — the untuned LGBM was massively over-training at n=152."
     ),
 )

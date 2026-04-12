@@ -6,9 +6,11 @@ Optuna hyperparameter tuning for language-reading-predictors models.
 
 Uses ``GroupKFold`` CV grouped by ``subject_id`` to match the fit pipeline,
 so selected hyperparameters reflect honest generalisation. For ``LGBM``
-models, each trial's CV loop uses early stopping against the held-out fold
-to discover a data-driven ``n_estimators`` — the mean best iteration across
-folds is saved as the tuned ``n_estimators``.
+models, each trial's CV loop carves an inner ``GroupShuffleSplit`` slice
+out of the training fold for early stopping — the outer val fold is never
+shown to ``early_stopping`` — so ``best_iteration_`` and the fold RMSE are
+independent. The mean best iteration across folds is saved as the tuned
+``n_estimators``.
 
 Writes results to ``output/tuning/{model_id}/``:
 
@@ -38,7 +40,7 @@ import numpy as np
 import optuna
 import pandas as pd
 from rich import print
-from sklearn.model_selection import GroupKFold, cross_val_score
+from sklearn.model_selection import GroupKFold, GroupShuffleSplit, cross_val_score
 from sklearn.pipeline import Pipeline
 
 import language_reading_predictors.data_utils as data_utils
@@ -160,6 +162,7 @@ def _lgbm_objective(
     seed: int,
     early_stopping_rounds: int,
     max_n_estimators: int,
+    early_stopping_fraction: float,
 ) -> Callable[[optuna.Trial], float]:
     from lightgbm import LGBMRegressor, early_stopping, log_evaluation
 
@@ -172,12 +175,27 @@ def _lgbm_objective(
         for tr_idx, val_idx in cv.split(X, y, groups=groups):
             X_tr, y_tr = X.iloc[tr_idx], y.iloc[tr_idx]
             X_val, y_val = X.iloc[val_idx], y.iloc[val_idx]
+            groups_tr = groups.iloc[tr_idx]
+
+            # Carve an inner early-stopping slice out of the training fold so
+            # `best_iteration_` is chosen against held-out subjects that do NOT
+            # appear in the outer val fold. This keeps the fold RMSE honest.
+            inner = GroupShuffleSplit(
+                n_splits=1, test_size=early_stopping_fraction, random_state=seed
+            )
+            inner_tr_idx, inner_es_idx = next(
+                inner.split(X_tr, y_tr, groups=groups_tr)
+            )
+            X_tr_inner = X_tr.iloc[inner_tr_idx]
+            y_tr_inner = y_tr.iloc[inner_tr_idx]
+            X_es = X_tr.iloc[inner_es_idx]
+            y_es = y_tr.iloc[inner_es_idx]
 
             model = LGBMRegressor(**base_params, n_estimators=max_n_estimators)
             model.fit(
-                X_tr,
-                y_tr,
-                eval_set=[(X_val, y_val)],
+                X_tr_inner,
+                y_tr_inner,
+                eval_set=[(X_es, y_es)],
                 callbacks=[
                     early_stopping(stopping_rounds=early_stopping_rounds, verbose=False),
                     log_evaluation(0),
@@ -217,6 +235,7 @@ def tune(
     seed: int,
     early_stopping_rounds: int,
     max_n_estimators: int,
+    early_stopping_fraction: float,
 ) -> None:
     key = model_id.lower()
     if key not in MODELS:
@@ -237,10 +256,18 @@ def tune(
     elif pipeline_name == "LGBMPipeline":
         print(
             f"  Early stopping: {early_stopping_rounds} rounds  "
-            f"max_n_estimators: {max_n_estimators}"
+            f"max_n_estimators: {max_n_estimators}  "
+            f"inner ES fraction: {early_stopping_fraction}"
         )
         objective = _lgbm_objective(
-            X, y, groups, cv_splits, seed, early_stopping_rounds, max_n_estimators,
+            X,
+            y,
+            groups,
+            cv_splits,
+            seed,
+            early_stopping_rounds,
+            max_n_estimators,
+            early_stopping_fraction,
         )
     else:
         print(
@@ -314,6 +341,9 @@ def tune(
         "max_n_estimators": (
             max_n_estimators if pipeline_name == "LGBMPipeline" else None
         ),
+        "early_stopping_fraction": (
+            early_stopping_fraction if pipeline_name == "LGBMPipeline" else None
+        ),
     }
     (out_dir / "study_summary.json").write_text(json.dumps(summary, indent=2))
 
@@ -361,6 +391,16 @@ def main() -> None:
         default=2000,
         help="LGBM ceiling that early stopping caps (ignored for RF).",
     )
+    parser.add_argument(
+        "--early-stopping-fraction",
+        type=float,
+        default=0.2,
+        help=(
+            "LGBM early-stopping slice as a fraction of the outer training "
+            "fold, carved out by GroupShuffleSplit so early stopping does not "
+            "peek at the outer val fold (ignored for RF)."
+        ),
+    )
     args = parser.parse_args()
 
     tune(
@@ -371,6 +411,7 @@ def main() -> None:
         seed=args.seed,
         early_stopping_rounds=args.early_stopping_rounds,
         max_n_estimators=args.max_n_estimators,
+        early_stopping_fraction=args.early_stopping_fraction,
     )
 
 
