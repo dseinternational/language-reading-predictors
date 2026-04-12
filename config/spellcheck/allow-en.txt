@@ -2,6 +2,7 @@ asis
 beeswarm
 bytree
 colsample
+hclust
 cutoff
 dse
 dseinternational
@@ -23,6 +24,7 @@ rmse
 rmtree
 scikit
 shutil
+sklearn
 startswith
 vars
 vcfg

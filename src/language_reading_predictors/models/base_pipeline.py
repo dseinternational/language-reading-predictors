@@ -69,7 +69,15 @@ class EstimatorPipeline:
     # ── pipeline steps ───────────────────────────────────────────────────
 
     def prepare_data(self) -> None:
-        """Load data, optionally exclude outliers, and set X / y / groups."""
+        """Load data, optionally exclude outliers, and set X / y / groups.
+
+        Missing values in the predictor frame are cast from pandas nullable
+        ``pd.NA`` to numpy ``np.nan`` but left unimputed. sklearn
+        RandomForest (>= 1.4) and LightGBM both handle NaN natively, and
+        imputing here would discard informative missingness (e.g.
+        ``agespeak`` is NaN in 80/152 rows and almost certainly correlates
+        with developmental trajectory).
+        """
         _section("Prepare data")
 
         context = self.context
@@ -82,8 +90,10 @@ class EstimatorPipeline:
             df = df[df[cfg.target_var] < cfg.outlier_threshold]
 
         context.df = df
-        context.X = df[cfg.predictor_vars]
-        context.y = df[cfg.target_var]
+        context.X = (
+            df[cfg.predictor_vars].replace({pd.NA: np.nan}).astype("float64")
+        )
+        context.y = df[cfg.target_var].astype("float64")
         context.groups = df[vars.SUBJECT_ID]
 
         print(f"  Observations: {len(df)}")
@@ -212,10 +222,7 @@ class EstimatorPipeline:
         mpl.rcParams["figure.constrained_layout.use"] = False
 
         context = self.context
-        X_shap = context.X.copy()
-        X_shap = X_shap.replace({pd.NA: np.nan})
-        X_shap = X_shap.astype("float64")
-        X_shap = X_shap.fillna(X_shap.mean())
+        X_shap = context.X
 
         estimator = context.pipeline.named_steps[ESTIMATOR_STEP]
         explainer = shap.TreeExplainer(estimator)
@@ -286,7 +293,7 @@ class EstimatorPipeline:
         context = self.context
         cfg = context.config
 
-        X_fp = context.X.astype("float64").copy()
+        X_fp = context.X
 
         if cfg.pdp_features:
             pdp_features = cfg.pdp_features

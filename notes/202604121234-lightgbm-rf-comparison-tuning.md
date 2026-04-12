@@ -96,30 +96,61 @@ decision is reviewable in git history.
 
 `python scripts/tune_model.py lrp01_lgbm --n-trials 30`
 
-Both runs used 30 trials, 10-split outer `GroupKFold`, `max_n_estimators=2000`,
-early-stopping rounds=50, seed=47.
+All three runs used 30 trials, 10-split outer `GroupKFold`,
+`max_n_estimators=2000`, early-stopping rounds=50, seed=47.
 
-| run                           | best trial | inner CV RMSE | mean best iter |
-|-------------------------------|------------|---------------|----------------|
-| leaked (eval on outer val)    | #11        | 3.0850 ± 0.55 | 62             |
-| honest (inner GroupShuffleSplit) | #12     | **3.2797 ± 0.57** | **21**     |
+| run                                  | best trial | inner CV RMSE | mean best iter |
+|--------------------------------------|------------|---------------|----------------|
+| v1 leaked + mean-imputed             | #11        | 3.0850 ± 0.55 | 62             |
+| v2 honest (inner GSS) + mean-imputed | #12        | 3.2797 ± 0.57 | 21             |
+| v3 honest + raw NaN (current)        | #14        | **3.3145 ± 0.54** | **83**     |
 
-~0.2 RMSE units of optimistic bias and a 3× over-estimate of the right
-`n_estimators`. Best params from the honest run (registered in
-`lrp01_lgbm_select01`):
+The leak → honest step cost ~0.2 RMSE units of optimism. The
+imputed → raw-NaN step shifted the best hyperparameters entirely
+(different trial, completely different regularisation regime, mean
+iteration back up to 83) — tuning on imputed data was searching a
+different loss surface than the fit pipeline actually uses. Best params
+from v3 (registered in `lrp01_lgbm_select01`):
 
 | param                | value       |
 |----------------------|-------------|
-| `n_estimators`       | 21          |
-| `learning_rate`      | 0.1993      |
-| `num_leaves`         | 46          |
+| `n_estimators`       | 83          |
+| `learning_rate`      | 0.0619      |
+| `num_leaves`         | 34          |
 | `max_depth`          | 12          |
-| `min_child_samples`  | 33          |
-| `subsample`          | 0.9056      |
+| `min_child_samples`  | 31          |
+| `subsample`          | 0.8360      |
 | `subsample_freq`     | 1           |
-| `colsample_bytree`   | 0.6738      |
-| `reg_alpha`          | 0.0382      |
-| `reg_lambda`         | 0.0095      |
+| `colsample_bytree`   | 0.8787      |
+| `reg_alpha`          | 1.4894      |
+| `reg_lambda`         | 5.2576      |
+
+### 4a. Missing-value handling consistency fix
+
+Second review observation: `base_pipeline.prepare_data()` passed raw NaN
+through to sklearn/LightGBM (both handle NaN natively since sklearn 1.4),
+but `scripts/tune_model.py::_load_frame()` was mean-imputing, and
+`base_pipeline.shap_analysis()` was also mean-imputing its copy of X
+before calling `TreeExplainer`. Three different NaN regimes in one
+pipeline:
+
+- fit / CV: raw NaN (model learns a direction to send missing values at
+  each split)
+- tune: mean-imputed (selects hyperparameters on a different data
+  distribution than the fit sees)
+- SHAP: mean-imputed (explains a synthetic version of the training data)
+
+Fix: make the fit path authoritative and remove imputation from the
+other two. Verified beforehand that `shap.TreeExplainer.shap_values(X)`,
+`TreeExplainer(X)`, and `shap.utils.hclust(X, y)` all accept NaN on
+sklearn 1.8 + shap 0.51, so dropping the SHAP imputation is safe. Kept
+imputation only in `scripts/analyze_predictors.py` where the Spearman
+/ mutual-information / hierarchical-clustering routines genuinely
+require complete data — that's a diagnostics tool, not the fit path.
+
+This is also why the v3 tuning above gave different winning
+hyperparameters than v2: tuning is now searching the same loss surface
+the fit pipeline operates on.
 
 ### 5. Final comparison (all `--config reporting`)
 
@@ -130,13 +161,15 @@ Refit `lrp01` and fit `lrp01_lgbm_select01`, re-rendered
 |-------------------------|------------------------|--------------|-------------|---------------|----------------|
 | `lrp01`                 | RF (untuned default)   | **3.0106**   | 1.5576      | 2.1425        | 2.7615         |
 | `lrp01_lgbm`            | LGBM (untuned)         | 3.5013       | 1.7159      | 0.0683        | 0.1190         |
-| `lrp01_lgbm_select01`   | LGBM (Optuna-tuned, honest) | 3.0300  | **1.4286**  | 2.1203        | 2.7008         |
+| `lrp01_lgbm_select01`   | LGBM (Optuna-tuned, raw NaN) | 3.0438 | **1.4942**  | 2.0502        | 2.6292         |
 
 Note: the outer 53-split `GroupKFold` used at fit time is always honest
-regardless of how tuning was done, so the practical difference between
-the leaked and honest tuning runs is small on this dataset
-(3.0167 → 3.0300 outer CV RMSE). The headline story — tuned LGBM ties
-RF and untuned LGBM was over-training — is unchanged.
+regardless of how tuning was done, so the progression of `select01` CV
+RMSE across the three tuning regimes was small
+(3.0167 → 3.0300 → 3.0438) even though the winning hyperparameters
+changed substantially. The headline story — tuned LGBM essentially ties
+RF (0.033 RMSE gap, well within the cross-fold std) and untuned LGBM
+was massively over-training — is unchanged.
 
 ## Findings
 

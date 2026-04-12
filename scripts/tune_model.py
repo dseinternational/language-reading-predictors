@@ -71,13 +71,18 @@ _LGBM_FIXED: dict[str, Any] = {
 
 
 def _load_frame(cfg: ModelConfig) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
-    """Load data with the same filter rules as the fit pipeline."""
+    """Load data with the same filter rules as the fit pipeline.
+
+    Leaves NaN in place — both sklearn RandomForest (>= 1.4) and LightGBM
+    handle missingness natively, and imputing here would create a
+    tune/fit mismatch: the selected hyperparameters would be chosen on
+    mean-imputed X but then applied by ``base_pipeline`` to raw-NaN X.
+    """
     df = data_utils.load_data()
     df = df[df[cfg.target_var].notna()].copy()
     if cfg.outlier_threshold is not None:
         df = df[df[cfg.target_var] < cfg.outlier_threshold]
-    X = df[cfg.predictor_vars].astype("float64")
-    X = X.replace({pd.NA: np.nan}).fillna(X.mean())
+    X = df[cfg.predictor_vars].replace({pd.NA: np.nan}).astype("float64")
     y = df[cfg.target_var].astype("float64")
     groups = df[V.SUBJECT_ID]
     return X, y, groups

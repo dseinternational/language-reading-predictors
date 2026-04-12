@@ -87,18 +87,19 @@ _gain_model(
 # Tuned LightGBM hyperparameters from Optuna (30 trials, 10-split GroupKFold).
 # Early stopping uses an inner GroupShuffleSplit slice of each training fold —
 # the outer val fold is never shown to `early_stopping`, so the reported CV
-# RMSE and `best_iteration_` are independent. See output/tuning/lrp01_lgbm/.
+# RMSE and `best_iteration_` are independent. Tuning runs on raw NaN (no
+# mean-impute) to match the fit pipeline. See output/tuning/lrp01_lgbm/.
 _LGBM_TUNED_SELECT01: dict[str, float | int] = {
-    "n_estimators": 21,
-    "learning_rate": 0.19927560307078432,
-    "num_leaves": 46,
+    "n_estimators": 83,
+    "learning_rate": 0.061852240742933245,
+    "num_leaves": 34,
     "max_depth": 12,
-    "min_child_samples": 33,
-    "subsample": 0.9056186653894883,
+    "min_child_samples": 31,
+    "subsample": 0.8360372539990215,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6737858250693828,
-    "reg_alpha": 0.038234494308696715,
-    "reg_lambda": 0.009546754601000738,
+    "colsample_bytree": 0.8786907349593146,
+    "reg_alpha": 1.4894437395338633,
+    "reg_lambda": 5.25756227415291,
     "n_jobs": 16,
     "verbosity": -1,
 }
@@ -118,8 +119,9 @@ _gain_model(
         "Optuna TPE hyperparameter tuning against 10-split GroupKFold. Early "
         "stopping uses an inner GroupShuffleSplit slice of each training fold "
         "(20% of groups, 50 rounds patience, ceiling 2000) so the outer val "
-        "fold never leaks into `best_iteration_`. Best trial #12, inner CV "
-        "RMSE 3.2797 ± 0.5703. Mean best iteration 21 replaces the default "
-        "1200 — the untuned LGBM was massively over-training at n=152."
+        "fold never leaks into `best_iteration_`. Tuning runs on raw NaN "
+        "(no mean-impute) to match the fit pipeline. Best trial #14, inner "
+        "CV RMSE 3.3145 ± 0.5423. Mean best iteration 83 replaces the "
+        "default 1200 — the untuned LGBM was massively over-training at n=152."
     ),
 )
