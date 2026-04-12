@@ -29,8 +29,11 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import shap
 from rich import print
+from scipy.cluster import hierarchy
+from scipy.spatial.distance import squareform
 from sklearn.inspection import partial_dependence, permutation_importance
 from sklearn.model_selection import GroupKFold, cross_val_score
 
@@ -215,6 +218,95 @@ class EstimatorPipeline:
 
         print(perm_df.to_string(index=False))
 
+    def correlation_analysis(self) -> None:
+        """Compute distance-correlation matrix, dendrogram, and heatmap.
+
+        Uses the same distance-correlation metric as
+        ``stats_utils.distance_corr_matrix`` and produces:
+
+        - ``distance_corr_matrix.csv`` — full pairwise matrix.
+        - ``distance_corr_dendrogram.png`` — Ward-linkage dendrogram.
+        - ``distance_corr_heatmap.png`` — heatmap reordered by dendrogram leaves.
+        """
+        from language_reading_predictors.stats_utils import distance_corr_matrix
+
+        _section("Distance-correlation analysis")
+
+        context = self.context
+        cfg = context.config
+        X = context.X
+
+        X_corr = X.replace({pd.NA: np.nan}).astype("float64")
+        predictors = list(X_corr.columns)
+
+        print(f"  Computing distance correlation for {len(predictors)} predictors...")
+        dcor_matrix = distance_corr_matrix(X_corr)
+
+        pd.DataFrame(dcor_matrix, index=predictors, columns=predictors).to_csv(
+            context.output_dir / "distance_corr_matrix.csv"
+        )
+
+        # Dissimilarity for clustering
+        dcor_dissim = 1.0 - dcor_matrix
+        np.fill_diagonal(dcor_dissim, 0.0)
+        np.clip(dcor_dissim, 0.0, 1.0, out=dcor_dissim)
+        condensed = squareform(dcor_dissim, checks=False)
+        linkage = hierarchy.ward(condensed)
+
+        # Dendrogram
+        n = len(predictors)
+        fig_dendro, ax_dendro = plt.subplots(figsize=(8, max(6, 0.3 * n)))
+        dendro = hierarchy.dendrogram(
+            linkage,
+            labels=predictors,
+            orientation="right",
+            ax=ax_dendro,
+        )
+        ax_dendro.set_title(
+            f"{cfg.model_id.upper()}: Hierarchical clustering of predictors"
+        )
+        ax_dendro.set_xlabel("Dissimilarity (1 − distance correlation)")
+        fig_dendro.tight_layout()
+        fig_dendro.savefig(
+            context.output_dir / "distance_corr_dendrogram.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+        context.plots["distance_corr_dendrogram"] = fig_dendro
+        plt.close(fig_dendro)
+
+        # Heatmap reordered by dendrogram leaves
+        leaf_order = dendro["leaves"]
+        ordered_matrix = dcor_matrix[leaf_order, :][:, leaf_order]
+        ordered_labels = [predictors[i] for i in leaf_order]
+
+        fig_heat, ax_heat = plt.subplots(
+            figsize=(max(8, 0.35 * n), max(6, 0.3 * n))
+        )
+        sns.heatmap(
+            ordered_matrix,
+            xticklabels=ordered_labels,
+            yticklabels=ordered_labels,
+            cmap="viridis",
+            square=True,
+            cbar_kws={"shrink": 0.6},
+            ax=ax_heat,
+        )
+        ax_heat.set_title(
+            f"{cfg.model_id.upper()}: Distance correlation heatmap"
+        )
+        plt.setp(ax_heat.get_xticklabels(), rotation=45, ha="right")
+        fig_heat.tight_layout()
+        fig_heat.savefig(
+            context.output_dir / "distance_corr_heatmap.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+        context.plots["distance_corr_heatmap"] = fig_heat
+        plt.close(fig_heat)
+
+        print("  Distance-correlation plots saved.")
+
     def shap_analysis(self) -> None:
         """Compute SHAP values and save bar, summary, and waterfall plots."""
         _section("SHAP analysis")
@@ -394,6 +486,14 @@ class EstimatorPipeline:
             "perm_importance_repeats": effective_perm_importance_repeats,
             "random_seed": cfg.random_seed,
             "run_config": run.name,
+            "selection_history": [
+                {
+                    "removed": step.removed,
+                    "added": step.added,
+                    "notes": step.notes,
+                }
+                for step in cfg.selection_history
+            ],
         }
 
         overrides = {}
@@ -407,6 +507,8 @@ class EstimatorPipeline:
             overrides["skip_shap"] = True
         if run.skip_pdp:
             overrides["skip_pdp"] = True
+        if run.skip_correlation:
+            overrides["skip_correlation"] = True
         if overrides:
             config_dict["run_config_overrides"] = overrides
 
@@ -500,6 +602,13 @@ class EstimatorPipeline:
         self.evaluate()
         self.save_metrics()
         self.permutation_importance_analysis()
+
+        if not run.skip_correlation:
+            self.correlation_analysis()
+        else:
+            print(
+                f"\n  [yellow]Correlation analysis skipped (run config: {run.name})[/yellow]"
+            )
 
         if not run.skip_shap:
             self.shap_analysis()

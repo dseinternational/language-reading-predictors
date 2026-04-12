@@ -10,14 +10,18 @@ them unless ``--include-variants`` is passed.
 """
 
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.models.registry import _level_model
+from language_reading_predictors.models.base_model import LevelModel
+from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
+from language_reading_predictors.models.registry import DEFAULT_LGBM_PARAMS
 
-# ── final model ─────────────────────────────────────────────────────────
 
-_level_model(
-    "lrp02",
-    V.EWRSWR,
-    description="LightGBM — word-reading level predictors",
-    include=[V.GROUP, V.AREA],
-    cv_splits=51,
-)
+class LRP02(LevelModel):
+    """Word-reading level predictors — all default level predictors."""
+
+    model_id = "lrp02"
+    target_var = V.EWRSWR
+    description = "LightGBM — word-reading level predictors"
+    include = [V.GROUP, V.AREA]
+    pipeline_cls = LGBMPipeline
+    params = DEFAULT_LGBM_PARAMS
+    cv_splits = 51

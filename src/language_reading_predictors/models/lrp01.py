@@ -2,38 +2,32 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-LRP01 — word-reading gain predictors.
+LRP01: Predictors of word reading gains.
 
-Holds the final ``lrp01`` model and any historical selection variants
-(``lrp01_select01``, ``lrp01_select02``, ...). Variants carry
-``variant_of="lrp01"`` so that ``fit_model.py all`` skips them unless
-``--include-variants`` is passed.
+``LRP01`` is the base model using all default gain predictors.
+``LRP01Select01`` is the first selection variant with Optuna-tuned
+hyperparameters. Additional variants subclass the appropriate ancestor
+to chain feature-selection decisions.
 """
 
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.models.registry import _gain_model
+from language_reading_predictors.models.base_model import GainModel
+from language_reading_predictors.models.common import SelectionStep
+from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
+from language_reading_predictors.models.registry import DEFAULT_LGBM_PARAMS
 
-_PDP_FEATURES = [
-    V.AGE,
-    V.ATTEND,
-    V.YARCLET,
-    V.CELF,
-    V.TROG,
-    V.EOWPVT,
-    V.B1EXTO,
-    V.BLENDING,
-    V.TIME,
-    V.NONWORD,
-    V.B1RETO,
-    V.B2RETO,
-    V.APTINFO,
-    V.DEAPPIN,
-    V.APTGRAM,
-    V.ROWPVT,
-    V.BEHAV,
-    V.B2EXTO,
-    V.VISION,
-]
+
+class LRP01(GainModel):
+    """Word-reading gain predictors — all default gain predictors."""
+
+    model_id = "lrp01"
+    target_var = V.EWRSWR_GAIN
+    description = "LightGBM — word-reading gain predictors (all predictors)"
+    include = [V.EWRSWR]
+    pipeline_cls = LGBMPipeline
+    params = DEFAULT_LGBM_PARAMS
+    cv_splits = 53
+    outlier_threshold = 15.0
 
 
 # Tuned LightGBM hyperparameters from Optuna (30 trials, 10-split GroupKFold).
@@ -63,19 +57,43 @@ _LGBM_TUNED_PARAMS: dict[str, float | int] = {
     "verbosity": -1,
 }
 
+_PDP_FEATURES = [
+    V.AGE,
+    V.ATTEND,
+    V.YARCLET,
+    V.CELF,
+    V.TROG,
+    V.EOWPVT,
+    V.B1EXTO,
+    V.BLENDING,
+    V.TIME,
+    V.NONWORD,
+    V.B1RETO,
+    V.B2RETO,
+    V.APTINFO,
+    V.DEAPPIN,
+    V.APTGRAM,
+    V.ROWPVT,
+    V.BEHAV,
+    V.B2EXTO,
+    V.VISION,
+]
 
-_gain_model(
-    "lrp01",
-    V.EWRSWR_GAIN,
-    description="LightGBM — word-reading gain predictors (outliers excluded)",
-    include=[V.EWRSWR],
-    cv_splits=53,
-    outlier_threshold=15.0,
-    pdp_features=_PDP_FEATURES,
-    params=_LGBM_TUNED_PARAMS,
-    notes=(
-        "Final accepted model. LightGBM with Optuna-tuned hyperparameters "
-        "(tuning round 1, inner CV RMSE 3.3145 ± 0.5423). See notes/ for "
-        "the RF→LGBM consolidation history."
-    ),
-)
+
+class LRP01Select01(LRP01):
+    """Tuned variant with Optuna hyperparameters — same predictor set."""
+
+    model_id = "lrp01_select01"
+    variant_of = "lrp01"
+    description = "LightGBM — word-reading gain predictors (outliers excluded)"
+    params = _LGBM_TUNED_PARAMS
+    pdp_features = _PDP_FEATURES
+    selection_steps = [
+        SelectionStep(
+            notes=(
+                "Final accepted model. LightGBM with Optuna-tuned hyperparameters "
+                "(tuning round 1, inner CV RMSE 3.3145 ± 0.5423). See notes/ for "
+                "the RF→LGBM consolidation history."
+            ),
+        ),
+    ]
