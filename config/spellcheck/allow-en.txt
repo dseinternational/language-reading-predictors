@@ -1,7 +1,14 @@
+aptgram
 asis
 beeswarm
+behav
 bytree
+celf
 colsample
+deappin
+eowpvt
+exto
+GBDT
 hclust
 cutoff
 dse
@@ -25,7 +32,11 @@ rmtree
 scikit
 shutil
 sklearn
+speedup
+spphon
 startswith
+unsuffixed
 vars
 vcfg
 vpreds
+yarclet
