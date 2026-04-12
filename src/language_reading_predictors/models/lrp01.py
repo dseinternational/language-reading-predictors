@@ -86,7 +86,7 @@ _RF_TUNED_SELECT01: dict[str, float | int | bool | str] = {
 _gain_model(
     "lrp01_select01",
     V.EWRSWR_GAIN,
-    description="RandomForest — lrp01 tuning round 1 (Optuna TPE, 30 trials)",
+    description="Random Forest — lrp01 tuning round 1 (Optuna TPE, 30 trials)",
     include=[V.EWRSWR],
     cv_splits=53,
     outlier_threshold=15.0,
