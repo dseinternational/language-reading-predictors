@@ -14,6 +14,24 @@ import pandas as pd
 
 
 @dataclass
+class SelectionStep:
+    """Record of a single feature-selection decision.
+
+    Used to document why features were added or removed between model
+    variants so the full selection history is persisted in ``config.json``.
+    """
+
+    removed: list[str] = field(default_factory=list)
+    """Features removed in this selection step."""
+
+    added: list[str] = field(default_factory=list)
+    """Features added (e.g. composites) in this selection step."""
+
+    notes: str = ""
+    """Free-text rationale for this selection decision."""
+
+
+@dataclass
 class RunConfig:
     """Runtime configuration that overrides model defaults for speed control."""
 
@@ -35,6 +53,9 @@ class RunConfig:
     skip_pdp: bool = False
     """If True, skip partial dependence plots."""
 
+    skip_correlation: bool = False
+    """If True, skip distance-correlation analysis."""
+
     @classmethod
     def from_name(cls, name: str) -> "RunConfig":
         """Create a RunConfig from a preset name."""
@@ -46,6 +67,7 @@ class RunConfig:
                 perm_importance_repeats=5,
                 skip_shap=True,
                 skip_pdp=True,
+                skip_correlation=True,
             ),
             "test": cls(
                 name="test",
@@ -123,6 +145,10 @@ class ModelConfig:
     notes: str = ""
     """Free-text rationale stored in ``config.json`` and surfaced in reports —
     used for selection-decision provenance."""
+
+    selection_history: list[SelectionStep] = field(default_factory=list)
+    """Ordered list of feature-selection decisions leading to this model's
+    predictor set. Persisted in ``config.json`` for provenance."""
 
 
 @dataclass

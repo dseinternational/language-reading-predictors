@@ -4,10 +4,12 @@
 """
 Models package.
 
-Imports ``registry`` first (helpers + empty ``MODELS`` dict), then the
-per-problem modules so their top-level ``_gain_model`` / ``_level_model``
-calls populate the registry at import time.
+Imports ``base_model`` first (defines ``ModelDefinition`` and the global
+``MODELS`` dict), then ``registry`` (shared defaults), then the
+per-problem modules so their class definitions auto-register into
+``MODELS`` at import time.
 """
 
+from language_reading_predictors.models import base_model  # noqa: F401
 from language_reading_predictors.models import registry  # noqa: F401
 from language_reading_predictors.models import lrp01, lrp02  # noqa: F401
