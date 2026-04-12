@@ -20,6 +20,7 @@ This model output is preliminary and likely to change as the model evolves and f
 
 ```{python}
 import json
+from pathlib import Path
 import pandas as pd
 pd.set_option("display.float_format", "{:.4f}".format)
 
@@ -72,6 +73,12 @@ print(": Model hyperparameters {#tbl-config}")
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
+```{python}
+#| output: asis
+if config.get("notes"):
+    print(f"\n**Notes:** {config['notes']}\n")
+```
+
 ## Data
 
 ### Target variable descriptive statistics
@@ -108,6 +115,113 @@ rmse = ((eval_df["y_true"] - eval_df["y_pred"]) ** 2).mean() ** 0.5
 
 print(f"In-sample MAE:  {mae:.4f}")
 print(f"In-sample RMSE: {rmse:.4f}")
+```
+
+## Feature selection and tuning history
+
+Variants of the champions that target this problem — both the Random Forest
+(`lrp01`) and LightGBM (`lrp01_lgbm`) families — are shown below, grouped
+under their parent. Each variant was fitted individually (e.g.
+`python scripts/fit_model.py lrp01_lgbm_select01`); variants that have not
+been fitted yet are silently skipped.
+
+```{python}
+#| output: asis
+_this_model_id = config["model_id"]
+
+
+def _load_json(path):
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return None
+
+
+_sibling_configs = {}
+_sibling_metrics = {}
+_parent_dir = Path("..")
+if _parent_dir.exists():
+    for d in sorted(_parent_dir.iterdir()):
+        if not d.is_dir():
+            continue
+        cfg_json = _load_json(d / "config.json")
+        if cfg_json is None or "model_id" not in cfg_json:
+            continue
+        _sibling_configs[cfg_json["model_id"]] = cfg_json
+        met_json = _load_json(d / "metrics.json")
+        if met_json is not None:
+            _sibling_metrics[cfg_json["model_id"]] = met_json
+
+_champions = sorted(
+    mid
+    for mid, c in _sibling_configs.items()
+    if not c.get("variant_of")
+    and (mid == _this_model_id or mid.startswith(_this_model_id + "_"))
+)
+
+_groups = []
+for champ_id in _champions:
+    variants = sorted(
+        (
+            (mid, c, _sibling_metrics.get(mid))
+            for mid, c in _sibling_configs.items()
+            if c.get("variant_of") == champ_id
+        ),
+        key=lambda t: t[0],
+    )
+    if variants:
+        _groups.append((champ_id, variants))
+
+if not _groups:
+    print("_No variants recorded yet._\n")
+
+
+def _fmt(v):
+    if v is None:
+        return "—"
+    if isinstance(v, float):
+        return f"{v:.4f}"
+    return str(v)
+
+
+for champ_id, variants in _groups:
+    champ_cfg = _sibling_configs[champ_id]
+    champ_metrics = _sibling_metrics.get(champ_id) or {}
+    champ_predictors = set(champ_cfg["predictor_vars"])
+
+    print(f"### {champ_id} ({champ_cfg.get('pipeline_cls', '?')})\n")
+    if champ_cfg.get("notes"):
+        print(f"**Champion notes:** {champ_cfg['notes']}\n")
+
+    columns = [champ_id] + [mid for mid, _, _ in variants]
+    rows = [
+        ("n_predictors", [champ_metrics.get("n_predictors")]
+         + [(m or {}).get("n_predictors") for _, _, m in variants]),
+        ("CV RMSE mean", [champ_metrics.get("cv_rmse_mean")]
+         + [(m or {}).get("cv_rmse_mean") for _, _, m in variants]),
+        ("CV RMSE std", [champ_metrics.get("cv_rmse_std")]
+         + [(m or {}).get("cv_rmse_std") for _, _, m in variants]),
+        ("In-sample MAE", [champ_metrics.get("in_sample_mae")]
+         + [(m or {}).get("in_sample_mae") for _, _, m in variants]),
+        ("In-sample RMSE", [champ_metrics.get("in_sample_rmse")]
+         + [(m or {}).get("in_sample_rmse") for _, _, m in variants]),
+    ]
+
+    print("| Metric | " + " | ".join(columns) + " |")
+    print("|" + "---|" * (len(columns) + 1))
+    for label, values in rows:
+        print(f"| {label} | " + " | ".join(_fmt(v) for v in values) + " |")
+    print()
+
+    print(f"**Predictor changes vs `{champ_id}`:**\n")
+    for mid, vcfg, _ in variants:
+        vpreds = set(vcfg["predictor_vars"])
+        added = sorted(vpreds - champ_predictors)
+        dropped = sorted(champ_predictors - vpreds)
+        print(f"- **{mid}** — {vcfg.get('notes') or '_no notes_'}")
+        print(f"    - Added: {', '.join(f'`{p}`' for p in added) if added else '_none_'}")
+        print(f"    - Dropped: {', '.join(f'`{p}`' for p in dropped) if dropped else '_none_'}")
+    print()
 ```
 
 ## Feature importance

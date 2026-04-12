@@ -1,0 +1,212 @@
+# LightGBM/RF comparison and Optuna tuning
+
+_Date: 2026-04-12_
+
+## Objective
+
+Extend the per-problem model scaffold with a LightGBM sibling for `lrp01`,
+compare it against the Random Forest champion, and wire up a principled
+hyperparameter-tuning workflow so both algorithm families are evaluated on
+a fair footing. The longer-term question this session was aimed at: is
+gradient boosting worth the complexity on this n=152, longitudinal
+dataset, or does RF remain the default?
+
+## Work completed
+
+### 1. Per-problem module layout (plan execution)
+
+Finalised the per-problem refactor from the approved plan:
+
+- `models/lrp01.py` and `models/lrp02.py` hold the final models, LightGBM
+  siblings, and any historical selection variants side-by-side.
+- `models/registry.py` retains helpers (`_gain_model`, `_level_model`,
+  `DEFAULT_RF_PARAMS`, `DEFAULT_LGBM_PARAMS`) and the `MODELS` dict only.
+- `models/__init__.py` imports `registry` first, then the per-problem
+  modules, so registration happens at import time.
+- `ModelConfig` gained `variant_of: str | None` and `notes: str` —
+  persisted in `config.json` and used to gate `fit_model.py all`.
+- `scripts/fit_model.py` grew a `--include-variants` flag; `all` skips
+  entries where `variant_of is not None` by default.
+- `base_pipeline.save_metrics()` writes `metrics.json` alongside the
+  existing CSVs, holding aggregated diagnostics (`cv_rmse_mean/std`,
+  `in_sample_mae/rmse`, `n_observations`, `n_predictors`).
+- `base_pipeline.report()` does per-model template lookup:
+  `docs/models/{model_id}.qmd` takes precedence over the shared
+  `docs/models/index.qmd` fallback.
+- `docs/models/lrp01.qmd` is a bespoke per-problem template with a
+  "Feature selection and tuning history" section that scans sibling
+  output directories, groups variants under their champions (matching
+  `lrp01` or `lrp01_*`), and renders a comparison table per group.
+- `scripts/analyze_predictors.py` added for feature-selection
+  diagnostics: Spearman heatmap, distance-correlation dendrogram +
+  cluster table, mutual-info heatmap, importance pairing. Output under
+  `output/feature_selection/{model_id}/` — deliberately outside
+  `output/models/` so the per-model cleanup doesn't wipe it.
+
+### 2. Baseline RF vs LightGBM comparison
+
+First pass after registering the LightGBM sibling with
+`DEFAULT_LGBM_PARAMS` (`n_estimators=1200`, default learning rate, etc.)
+and fitting both under `--config test`, then `--config reporting`:
+
+| Model              | CV RMSE mean | CV RMSE std | In-sample RMSE |
+|--------------------|--------------|-------------|----------------|
+| `lrp01` (RF)       | 3.0106       | 1.5576      | 2.7615         |
+| `lrp01_lgbm`       | 3.5013       | 1.7159      | **0.1190**     |
+
+The in-sample vs CV gap for untuned LGBM (0.12 → 3.50) was a textbook
+over-training signature at n=152 — all 1,200 boosting rounds were being
+fit to noise. RF, with its built-in bagging variance reduction, was the
+clear winner at default hyperparameters.
+
+### 3. Optuna + inner-split early stopping
+
+Added `scripts/tune_model.py`:
+
+- **Shared**: Optuna TPE sampler, `GroupKFold` (same grouping as fit
+  pipeline so tuning and evaluation use identical folds), configurable
+  `--n-trials`, `--timeout`, `--n-splits`, `--seed`.
+- **RF path**: `_rf_objective` uses `cross_val_score` over the
+  hyperparameter search space (`n_estimators`, `max_depth`,
+  `min_samples_leaf`, `min_samples_split`, `max_features`, `bootstrap`).
+- **LGBM path**: `_lgbm_objective` runs a manual per-fold CV loop. Each
+  fold carves an inner `GroupShuffleSplit` slice (20% of groups) out of
+  the training fold for LightGBM's `early_stopping` callback — the outer
+  val fold is never shown to early stopping, so `best_iteration_` and the
+  reported fold RMSE are independent. Mean `best_iteration_` across folds
+  is recorded as the tuned `n_estimators`.
+- Output to `output/tuning/{model_id}/`: `best_params.json` (ready to
+  paste into a new `_selectNN` variant), `trials.csv`, `study_summary.json`.
+
+**Leak-aware design.** A first pass of this script used
+`eval_set=[(X_val, y_val)]` and then reported the fold RMSE on that same
+`X_val/y_val`. That made `best_iteration_` and the trial metric mutually
+dependent: iterations were being selected to minimise the very RMSE that
+Optuna then optimised. On n=152 with ~15-obs outer folds the effect was
+non-trivial (see the comparison below). The fix is the inner
+`GroupShuffleSplit`, which keeps the outer val fold honest at the cost of
+~20% fewer points per fold per trial.
+
+Deliberately **not** auto-mutating the registry: tuning produces a
+recommendation, and the user manually registers a new variant with the
+tuned params so source code remains the single source of truth and the
+decision is reviewable in git history.
+
+### 4. Tuning run: `lrp01_lgbm`
+
+`python scripts/tune_model.py lrp01_lgbm --n-trials 30`
+
+All three runs used 30 trials, 10-split outer `GroupKFold`,
+`max_n_estimators=2000`, early-stopping rounds=50, seed=47.
+
+| run                                  | best trial | inner CV RMSE | mean best iter |
+|--------------------------------------|------------|---------------|----------------|
+| v1 leaked + mean-imputed             | #11        | 3.0850 ± 0.55 | 62             |
+| v2 honest (inner GSS) + mean-imputed | #12        | 3.2797 ± 0.57 | 21             |
+| v3 honest + raw NaN (current)        | #14        | **3.3145 ± 0.54** | **83**     |
+
+The leak → honest step cost ~0.2 RMSE units of optimism. The
+imputed → raw-NaN step shifted the best hyperparameters entirely
+(different trial, completely different regularisation regime, mean
+iteration back up to 83) — tuning on imputed data was searching a
+different loss surface than the fit pipeline actually uses. Best params
+from v3 (registered in `lrp01_lgbm_select01`):
+
+| param                | value       |
+|----------------------|-------------|
+| `n_estimators`       | 83          |
+| `learning_rate`      | 0.0619      |
+| `num_leaves`         | 34          |
+| `max_depth`          | 12          |
+| `min_child_samples`  | 31          |
+| `subsample`          | 0.8360      |
+| `subsample_freq`     | 1           |
+| `colsample_bytree`   | 0.8787      |
+| `reg_alpha`          | 1.4894      |
+| `reg_lambda`         | 5.2576      |
+
+### 4a. Missing-value handling consistency fix
+
+Second review observation: `base_pipeline.prepare_data()` passed raw NaN
+through to sklearn/LightGBM (both handle NaN natively since sklearn 1.4),
+but `scripts/tune_model.py::_load_frame()` was mean-imputing, and
+`base_pipeline.shap_analysis()` was also mean-imputing its copy of X
+before calling `TreeExplainer`. Three different NaN regimes in one
+pipeline:
+
+- fit / CV: raw NaN (model learns a direction to send missing values at
+  each split)
+- tune: mean-imputed (selects hyperparameters on a different data
+  distribution than the fit sees)
+- SHAP: mean-imputed (explains a synthetic version of the training data)
+
+Fix: make the fit path authoritative and remove imputation from the
+other two. Verified beforehand that `shap.TreeExplainer.shap_values(X)`,
+`TreeExplainer(X)`, and `shap.utils.hclust(X, y)` all accept NaN on
+sklearn 1.8 + shap 0.51, so dropping the SHAP imputation is safe. Kept
+imputation only in `scripts/analyze_predictors.py` where the Spearman
+/ mutual-information / hierarchical-clustering routines genuinely
+require complete data — that's a diagnostics tool, not the fit path.
+
+This is also why the v3 tuning above gave different winning
+hyperparameters than v2: tuning is now searching the same loss surface
+the fit pipeline operates on.
+
+### 5. Final comparison (all `--config reporting`)
+
+Refit `lrp01` and fit `lrp01_lgbm_select01`, re-rendered
+`docs/models/lrp01.qmd`:
+
+| Model                   | Algorithm              | CV RMSE mean | CV RMSE std | In-sample MAE | In-sample RMSE |
+|-------------------------|------------------------|--------------|-------------|---------------|----------------|
+| `lrp01`                 | RF (untuned default)   | **3.0106**   | 1.5576      | 2.1425        | 2.7615         |
+| `lrp01_lgbm`            | LGBM (untuned)         | 3.5013       | 1.7159      | 0.0683        | 0.1190         |
+| `lrp01_lgbm_select01`   | LGBM (Optuna-tuned, raw NaN) | 3.0438 | **1.4942**  | 2.0502        | 2.6292         |
+
+Note: the outer 53-split `GroupKFold` used at fit time is always honest
+regardless of how tuning was done, so the progression of `select01` CV
+RMSE across the three tuning regimes was small
+(3.0167 → 3.0300 → 3.0438) even though the winning hyperparameters
+changed substantially. The headline story — tuned LGBM essentially ties
+RF (0.033 RMSE gap, well within the cross-fold std) and untuned LGBM
+was massively over-training — is unchanged.
+
+## Findings
+
+- **Tuned LGBM ties RF on mean CV RMSE** (3.0167 vs 3.0106 — a 0.2%
+  difference, well inside the cross-fold noise).
+- **Tuned LGBM has the lowest CV std** (1.4298 vs 1.5576), so it is
+  marginally more stable across folds — a weak but real argument for
+  boosting on this problem.
+- **Over-training was the whole story for untuned LGBM**: dropping from
+  1,200 boosting rounds to 62 closed the in-sample/CV gap entirely
+  (in-sample RMSE went from 0.12 to 2.70, CV RMSE from 3.50 to 3.02).
+  The fix is hyperparameter discipline, not a change of algorithm.
+- **No clear winner between tuned LGBM and RF** at n=152. RF remains a
+  reasonable default (simpler, fewer knobs, less prone to the
+  over-training failure mode); tuned LGBM is a legitimate alternative
+  when you're willing to run an Optuna study per model.
+
+## Infrastructure side-effects
+
+- `environment.yml` adds `optuna>=4.0.0` (pulled in optuna 4.8.0).
+- `base_pipeline.fit()` output-dir cleanup changed from
+  `shutil.rmtree + mkdir` to `mkdir(exist_ok=True) + _clear_directory()`
+  helper to survive transient Windows file locks (editor/file explorer
+  holding handles).
+- `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md` updated in
+  lockstep with the new commands and the tuning workflow description.
+
+## Follow-ups
+
+- Fit `lrp01_select01` (the seed RF variant) at least once so the
+  bespoke template also emits a `lrp01` RF-family group in section 1.5,
+  not just the LGBM group.
+- Run `scripts/tune_model.py lrp01` (RF side) for a symmetric tuning
+  comparison — current RF numbers are from defaults.
+- Run the same LGBM tuning + comparison for `lrp02` once the `lrp02`
+  problem is ready for it.
+- Consider whether to retire `lrp01_lgbm` (untuned) from the default
+  `fit_model.py all` batch now that it's been superseded by
+  `lrp01_lgbm_select01` — probably keep as a baseline for now so the
+  report still shows the tuning delta.

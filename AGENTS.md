@@ -32,10 +32,21 @@ ruff check src/
 npm run spellcheck
 
 # Fit a model (artifacts saved to output/models/{model_id}/)
-python scripts/fit_model.py LRP01                      # dev config (fast, default)
-python scripts/fit_model.py LRP01 --config test         # test config (moderate)
-python scripts/fit_model.py LRP01 --config reporting    # full config (production)
-python scripts/fit_model.py all --config dev --render   # all models, then render reports
+python scripts/fit_model.py LRP01                               # dev config (fast, default)
+python scripts/fit_model.py LRP01 --config test                 # test config (moderate)
+python scripts/fit_model.py LRP01 --config reporting            # full config (production)
+python scripts/fit_model.py all --config dev --render           # all final models, render reports
+python scripts/fit_model.py all --include-variants --config dev # include selection variants
+python scripts/fit_model.py lrp01_select01 --config dev         # run a specific variant
+
+# Feature-selection diagnostics (output/feature_selection/{model_id}/)
+python scripts/analyze_predictors.py lrp01
+python scripts/analyze_predictors.py lrp01 --cluster-cutoff 0.4
+
+# Hyperparameter tuning with Optuna (output/tuning/{model_id}/)
+python scripts/tune_model.py lrp01                 # RF, 50 trials, GroupKFold
+python scripts/tune_model.py lrp01_lgbm            # LGBM + per-fold early stopping
+python scripts/tune_model.py lrp01 --n-trials 200 --timeout 1800
 
 # Preview research report
 quarto preview docs/report/
@@ -71,7 +82,25 @@ When adding or renaming variables, update `data_variables.py` first — everythi
 
 ### Models (`models/`)
 
-Each model lives in its own module under `src/language_reading_predictors/models/` (e.g., `model_lrp01.py`). Models expose discrete pipeline functions (`prepare_data`, `configure_model`, `cross_validate`, `fit_model`, `evaluate`, etc.) that accept a shared `ModelFitContext` dataclass from `models/common.py`. This allows individual steps to be called from a notebook for debugging. Each model also exposes a `fit()` entry-point that orchestrates the full pipeline and is called by `scripts/fit_model.py`. Artifacts are saved to `output/models/{model_id}/`.
+Models are organised as **one Python module per problem** (`models/lrp01.py`, `models/lrp02.py`). Each module holds the final model, its LightGBM sibling, and any historical selection variants side-by-side. Shared hyperparameters (`DEFAULT_RF_PARAMS`, `DEFAULT_LGBM_PARAMS`) and helper functions (`_gain_model`, `_level_model`) live in `models/registry.py`; predictor sets come from `Predictors.DEFAULT_GAIN` / `Predictors.DEFAULT_LEVEL` in `data_variables.py`, so adding a variable to a group auto-propagates. `models/__init__.py` imports `registry` first and then the per-problem modules so registration happens at import time; downstream code still imports `MODELS` from `models.registry`.
+
+`ModelConfig` carries two selection-history fields:
+
+- `variant_of: str | None` — if set, this model is a selection variant of another (e.g. `"lrp01"`). Variants are **skipped** by `fit_model.py all` unless `--include-variants` is passed. Explicit model ids always run.
+- `notes: str` — free-text rationale persisted in `config.json` and surfaced in the rendered report.
+
+Pipelines are class-based. The generic steps live on `EstimatorPipeline` in `models/base_pipeline.py` (`prepare_data`, `configure_model`, `cross_validate`, `fit_model`, `evaluate`, `save_metrics`, `permutation_importance_analysis`, `shap_analysis`, `partial_dependence_plots`, `save_config`, `report`, and the `fit()` orchestrator). Each method operates on `self.context` (a `ModelFitContext` from `models/common.py`) so individual steps can still be called from a notebook for debugging. Subclasses override only `configure_model()`: `RFPipeline` in `models/rf_pipeline.py` and `LGBMPipeline` in `models/lgbm_pipeline.py` build a sklearn `Pipeline([("est", estimator)])`. `ModelConfig.model_params` holds the estimator kwargs and `ModelConfig.pipeline_cls` selects which pipeline runs the model. `scripts/fit_model.py` discovers models from the registry and dispatches via `cfg.pipeline_cls(cfg, run_config).fit()`. Artifacts are saved to `output/models/{model_id}/`.
+
+Each fit writes two JSON artifacts alongside the CSVs:
+
+- `config.json` — inputs (model_id, pipeline_cls, variant_of, notes, target, predictors, model_params, cv_splits, ...).
+- `metrics.json` — aggregated outputs (n_observations, n_predictors, cv_rmse_mean/std, in_sample_mae/rmse). This is the file the cross-variant comparison in bespoke templates reads.
+
+Report templates use per-model lookup: `base_pipeline.report()` copies `docs/models/{model_id}.qmd` if it exists, otherwise falls back to the shared `docs/models/index.qmd`. Models that have earned bespoke documentation (e.g. `docs/models/lrp01.qmd` with a "Feature selection history" section that compares variants via their `metrics.json`) get their own template; everything else uses the shared one.
+
+Feature-selection diagnostics are driven by `scripts/analyze_predictors.py`, which runs Spearman correlation, distance-correlation dendrogram + cluster table, mutual-information heatmap, and (if a fitted model exists) joins the current champion's permutation importance onto the cluster assignments. Output lives in `output/feature_selection/{model_id}/` — deliberately outside `output/models/` so `fit()`'s output-directory reset doesn't wipe it.
+
+Hyperparameter tuning is driven by `scripts/tune_model.py`, which runs an Optuna TPE study using the same `GroupKFold` grouping as the fit pipeline. `RFPipeline` models search via `cross_val_score`; `LGBMPipeline` models use a manual per-fold CV loop with early stopping against the held-out fold, recording the mean best iteration across folds as the tuned `n_estimators`. Output lives in `output/tuning/{model_id}/` and contains `best_params.json` (ready to paste into a new `_selectNN` variant or back into the final model), `trials.csv`, and `study_summary.json`. The tuning script does **not** automatically mutate the registry — updating the model config is a manual, reviewable step so the source remains the single source of truth.
 
 ## Notebooks
 
