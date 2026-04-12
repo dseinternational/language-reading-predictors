@@ -69,18 +69,37 @@ _gain_model(
 
 # ── selection variants (historical) ─────────────────────────────────────
 
+# Tuned RandomForest hyperparameters from Optuna (30 trials, 10-split
+# GroupKFold, seed 47, raw NaN to match the fit pipeline). Best trial #22,
+# inner CV RMSE 3.3678 ± 0.5601. See output/tuning/lrp01/ for the full study.
+_RF_TUNED_SELECT01: dict[str, float | int | bool | str] = {
+    "n_estimators": 1800,
+    "max_depth": 11,
+    "min_samples_leaf": 16,
+    "min_samples_split": 4,
+    "max_features": 0.37549488805461834,
+    "bootstrap": False,
+    "criterion": "squared_error",
+    "n_jobs": 16,
+}
+
 _gain_model(
     "lrp01_select01",
     V.EWRSWR_GAIN,
-    description="lrp01 selection round 1 — baseline Predictors.DEFAULT_GAIN",
+    description="RandomForest — lrp01 tuning round 1 (Optuna TPE, 30 trials)",
     include=[V.EWRSWR],
     cv_splits=53,
     outlier_threshold=15.0,
     pdp_features=_PDP_FEATURES,
+    params=_RF_TUNED_SELECT01,
     variant_of="lrp01",
     notes=(
-        "Baseline selection round. No drops — establishes the champion "
-        "permutation-importance ranking used to guide later rounds."
+        "Optuna TPE hyperparameter tuning against 10-split GroupKFold on "
+        "raw NaN (sklearn RF handles missingness natively since 1.4). Best "
+        "trial #22, inner CV RMSE 3.3678 ± 0.5601. The search prefers a "
+        "deeper-but-leaf-constrained forest (max_depth=11, "
+        "min_samples_leaf=16, max_features≈0.38, bootstrap=False, "
+        "n_estimators=1800) over the scikit-learn defaults."
     ),
 )
 
