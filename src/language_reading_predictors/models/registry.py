@@ -7,28 +7,17 @@ Model registry — all model configurations in one place.
 Each model is a ``ModelConfig`` registered via ``_register()``.  Shared
 hyperparameters and predictor sets are defined once; individual models
 override only what differs. ``pipeline_cls`` on each ``ModelConfig``
-selects which estimator pipeline class runs the model (e.g. ``RFPipeline``
-or ``LGBMPipeline``).
+selects which estimator pipeline class runs the model (currently
+``LGBMPipeline`` is the only registered option).
 """
 
 from typing import Any
 
 from language_reading_predictors.data_variables import Predictors
 from language_reading_predictors.models.common import ModelConfig
-from language_reading_predictors.models.rf_pipeline import RFPipeline
+from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── shared defaults ──────────────────────────────────────────────────────
-
-DEFAULT_RF_PARAMS: dict[str, Any] = dict(
-    n_estimators=1200,
-    max_depth=8,
-    min_samples_leaf=16,
-    min_samples_split=4,
-    max_features=0.5,
-    bootstrap=False,
-    criterion="squared_error",
-    n_jobs=16,
-)
 
 DEFAULT_LGBM_PARAMS: dict[str, Any] = dict(
     n_estimators=1200,
@@ -88,7 +77,6 @@ def _predictors(
 def _estimator_label(pipeline_cls: type) -> str:
     """Human-readable estimator name used in default descriptions."""
     return {
-        "RFPipeline": "Random Forest",
         "LGBMPipeline": "LightGBM",
     }.get(pipeline_cls.__name__, pipeline_cls.__name__)
 
@@ -103,7 +91,7 @@ def _gain_model(
     cv_splits: int = 51,
     outlier_threshold: float | None = None,
     pdp_features: list[str] | None = None,
-    pipeline_cls: type = RFPipeline,
+    pipeline_cls: type = LGBMPipeline,
     params: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> ModelConfig:
@@ -120,7 +108,7 @@ def _gain_model(
     if description is None:
         description = f"{_estimator_label(pipeline_cls)} — {base_var} gain predictors"
 
-    model_params = params if params is not None else DEFAULT_RF_PARAMS
+    model_params = params if params is not None else DEFAULT_LGBM_PARAMS
 
     config = ModelConfig(
         model_id=model_id,
@@ -151,7 +139,7 @@ def _level_model(
     exclude: list[str] | None = None,
     cv_splits: int = 51,
     pdp_features: list[str] | None = None,
-    pipeline_cls: type = RFPipeline,
+    pipeline_cls: type = LGBMPipeline,
     params: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> ModelConfig:
@@ -159,7 +147,7 @@ def _level_model(
     if description is None:
         description = f"{_estimator_label(pipeline_cls)} — {target_var} level predictors"
 
-    model_params = params if params is not None else DEFAULT_RF_PARAMS
+    model_params = params if params is not None else DEFAULT_LGBM_PARAMS
 
     config = ModelConfig(
         model_id=model_id,

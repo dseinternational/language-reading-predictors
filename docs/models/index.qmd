@@ -37,10 +37,9 @@ print(f"# Model {config['model_id'].upper()}: {config['description']}")
 ```{python}
 #| output: asis
 _algorithm_labels = {
-    "RFPipeline": "Random Forest (scikit-learn `RandomForestRegressor`)",
     "LGBMPipeline": "LightGBM (`lightgbm.LGBMRegressor`)",
 }
-_pipeline_cls = config.get("pipeline_cls", "RFPipeline")
+_pipeline_cls = config.get("pipeline_cls", "LGBMPipeline")
 _algorithm = _algorithm_labels.get(_pipeline_cls, _pipeline_cls)
 
 rows = [

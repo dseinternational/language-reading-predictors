@@ -38,10 +38,9 @@ print(f"# Model {config['model_id'].upper()}: {config['description']}")
 ```{python}
 #| output: asis
 _algorithm_labels = {
-    "RFPipeline": "Random Forest (scikit-learn `RandomForestRegressor`)",
     "LGBMPipeline": "LightGBM (`lightgbm.LGBMRegressor`)",
 }
-_pipeline_cls = config.get("pipeline_cls", "RFPipeline")
+_pipeline_cls = config.get("pipeline_cls", "LGBMPipeline")
 _algorithm = _algorithm_labels.get(_pipeline_cls, _pipeline_cls)
 
 rows = [
@@ -119,11 +118,10 @@ print(f"In-sample RMSE: {rmse:.4f}")
 
 ## Feature selection and tuning history
 
-Variants of the champions that target this problem — both the Random Forest
-(`lrp01`) and LightGBM (`lrp01_lgbm`) families — are shown below, grouped
-under their parent. Each variant was fitted individually (e.g.
-`python scripts/fit_model.py lrp01_lgbm_select01`); variants that have not
-been fitted yet are silently skipped.
+Selection and tuning variants of `lrp01` are shown below, grouped under
+the champion. Each variant was fitted individually (e.g.
+`python scripts/fit_model.py lrp01_select02`); variants that have not been
+fitted yet are silently skipped.
 
 ```{python}
 #| output: asis

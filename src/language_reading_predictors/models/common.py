@@ -93,9 +93,9 @@ class ModelConfig:
     """Keyword arguments passed to the estimator constructor."""
 
     pipeline_cls: Any = None
-    """Pipeline class used to fit this model (e.g. ``RFPipeline``,
-    ``LGBMPipeline``). Typed as ``Any`` to keep ``common`` free of pipeline
-    imports; registry helpers set this explicitly."""
+    """Pipeline class used to fit this model (currently ``LGBMPipeline``).
+    Typed as ``Any`` to keep ``common`` free of pipeline imports; registry
+    helpers set this explicitly."""
 
     cv_splits: int = 51
     """Number of GroupKFold splits."""

@@ -8,7 +8,7 @@ All steps read configuration from ``self.context.config`` (a ``ModelConfig``)
 so the same code works for any target / predictor / hyperparameter combination.
 Individual methods can be called from a notebook for debugging:
 
-    pipeline = RFPipeline(config, run_config)
+    pipeline = LGBMPipeline(config, run_config)
     pipeline.prepare_data()
     pipeline.configure_model()
     pipeline.cross_validate()
@@ -52,11 +52,12 @@ ESTIMATOR_STEP = "est"
 
 
 class EstimatorPipeline:
-    """Base class for tree-model pipelines (RF, LightGBM, ...).
+    """Base class for tree-model pipelines.
 
     Subclasses implement :meth:`configure_model` to construct the estimator
     and wrap it in a sklearn ``Pipeline`` keyed by :data:`ESTIMATOR_STEP`.
-    All other steps are estimator-agnostic.
+    All other steps are estimator-agnostic. ``LGBMPipeline`` is the only
+    subclass currently registered.
     """
 
     def __init__(self, config: ModelConfig, run_config: RunConfig) -> None:
@@ -72,11 +73,10 @@ class EstimatorPipeline:
         """Load data, optionally exclude outliers, and set X / y / groups.
 
         Missing values in the predictor frame are cast from pandas nullable
-        ``pd.NA`` to numpy ``np.nan`` but left unimputed. sklearn
-        RandomForest (>= 1.4) and LightGBM both handle NaN natively, and
-        imputing here would discard informative missingness (e.g.
-        ``agespeak`` is NaN in 80/152 rows and almost certainly correlates
-        with developmental trajectory).
+        ``pd.NA`` to numpy ``np.nan`` but left unimputed. LightGBM handles
+        NaN natively, and imputing here would discard informative
+        missingness (e.g. ``agespeak`` is NaN in 80/152 rows and almost
+        certainly correlates with developmental trajectory).
         """
         _section("Prepare data")
 

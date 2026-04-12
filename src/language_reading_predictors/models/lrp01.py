@@ -4,18 +4,14 @@
 """
 LRP01 — word-reading gain predictors.
 
-Holds the final ``lrp01`` model, its LightGBM sibling ``lrp01_lgbm``, and
-any historical selection variants (``lrp01_select01``, ``lrp01_select02``,
-...). Variants carry ``variant_of="lrp01"`` so that ``fit_model.py all``
-skips them unless ``--include-variants`` is passed.
+Holds the final ``lrp01`` model and any historical selection variants
+(``lrp01_select01``, ``lrp01_select02``, ...). Variants carry
+``variant_of="lrp01"`` so that ``fit_model.py all`` skips them unless
+``--include-variants`` is passed.
 """
 
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
-from language_reading_predictors.models.registry import (
-    DEFAULT_LGBM_PARAMS,
-    _gain_model,
-)
+from language_reading_predictors.models.registry import _gain_model
 
 _PDP_FEATURES = [
     V.AGE,
@@ -40,75 +36,19 @@ _PDP_FEATURES = [
 ]
 
 
-# ── final model ─────────────────────────────────────────────────────────
-
-_gain_model(
-    "lrp01",
-    V.EWRSWR_GAIN,
-    description="Random Forest — word-reading gain predictors (outliers excluded)",
-    include=[V.EWRSWR],
-    cv_splits=53,
-    outlier_threshold=15.0,
-    pdp_features=_PDP_FEATURES,
-    notes="Final accepted model. See 'Feature selection history' for variants.",
-)
-
-# ── LightGBM sibling ────────────────────────────────────────────────────
-
-_gain_model(
-    "lrp01_lgbm",
-    V.EWRSWR_GAIN,
-    description="LightGBM — word-reading gain predictors (outliers excluded)",
-    include=[V.EWRSWR],
-    cv_splits=53,
-    outlier_threshold=15.0,
-    pdp_features=_PDP_FEATURES,
-    pipeline_cls=LGBMPipeline,
-    params=DEFAULT_LGBM_PARAMS,
-)
-
-# ── selection variants (historical) ─────────────────────────────────────
-
-# Tuned RandomForest hyperparameters from Optuna (30 trials, 10-split
-# GroupKFold, seed 47, raw NaN to match the fit pipeline). Best trial #22,
-# inner CV RMSE 3.3678 ± 0.5601. See output/tuning/lrp01/ for the full study.
-_RF_TUNED_SELECT01: dict[str, float | int | bool | str] = {
-    "n_estimators": 1800,
-    "max_depth": 11,
-    "min_samples_leaf": 16,
-    "min_samples_split": 4,
-    "max_features": 0.37549488805461834,
-    "bootstrap": False,
-    "criterion": "squared_error",
-    "n_jobs": 16,
-}
-
-_gain_model(
-    "lrp01_select01",
-    V.EWRSWR_GAIN,
-    description="Random Forest — lrp01 tuning round 1 (Optuna TPE, 30 trials)",
-    include=[V.EWRSWR],
-    cv_splits=53,
-    outlier_threshold=15.0,
-    pdp_features=_PDP_FEATURES,
-    params=_RF_TUNED_SELECT01,
-    variant_of="lrp01",
-    notes=(
-        "Optuna TPE hyperparameter tuning against 10-split GroupKFold on "
-        "raw NaN (sklearn RF handles missingness natively since 1.4). Best "
-        "trial #22, inner CV RMSE 3.3678 ± 0.5601. The search prefers a "
-        "deeper-but-leaf-constrained forest (max_depth=11, "
-        "min_samples_leaf=16, max_features≈0.38, bootstrap=False, "
-        "n_estimators=1800) over the scikit-learn defaults."
-    ),
-)
-
 # Tuned LightGBM hyperparameters from Optuna (30 trials, 10-split GroupKFold).
 # Early stopping uses an inner GroupShuffleSplit slice of each training fold —
 # the outer val fold is never shown to `early_stopping`, so the reported CV
 # RMSE and `best_iteration_` are independent. Tuning runs on raw NaN (no
-# mean-impute) to match the fit pipeline. See output/tuning/lrp01_lgbm/.
-_LGBM_TUNED_SELECT01: dict[str, float | int] = {
+# mean-impute) to match the fit pipeline. Best trial #14, inner CV RMSE
+# 3.3145 ± 0.5423. Mean best iteration 83 replaces the default 1200 — the
+# untuned LGBM was massively over-training at n=152.
+#
+# RandomForest variant retired 2026-04-12 after timing showed tuned LGBM was
+# ~30× faster end-to-end at equivalent CV RMSE. See
+# notes/202604121234-lightgbm-rf-comparison-tuning.md and
+# notes/202604121451-lightgbm-model-selection.md for the full history.
+_LGBM_TUNED_PARAMS: dict[str, float | int] = {
     "n_estimators": 83,
     "learning_rate": 0.061852240742933245,
     "num_leaves": 34,
@@ -123,24 +63,19 @@ _LGBM_TUNED_SELECT01: dict[str, float | int] = {
     "verbosity": -1,
 }
 
+
 _gain_model(
-    "lrp01_lgbm_select01",
+    "lrp01",
     V.EWRSWR_GAIN,
-    description="LightGBM — lrp01 tuning round 1 (Optuna TPE, 30 trials)",
+    description="LightGBM — word-reading gain predictors (outliers excluded)",
     include=[V.EWRSWR],
     cv_splits=53,
     outlier_threshold=15.0,
     pdp_features=_PDP_FEATURES,
-    pipeline_cls=LGBMPipeline,
-    params=_LGBM_TUNED_SELECT01,
-    variant_of="lrp01_lgbm",
+    params=_LGBM_TUNED_PARAMS,
     notes=(
-        "Optuna TPE hyperparameter tuning against 10-split GroupKFold. Early "
-        "stopping uses an inner GroupShuffleSplit slice of each training fold "
-        "(20% of groups, 50 rounds patience, ceiling 2000) so the outer val "
-        "fold never leaks into `best_iteration_`. Tuning runs on raw NaN "
-        "(no mean-impute) to match the fit pipeline. Best trial #14, inner "
-        "CV RMSE 3.3145 ± 0.5423. Mean best iteration 83 replaces the "
-        "default 1200 — the untuned LGBM was massively over-training at n=152."
+        "Final accepted model. LightGBM with Optuna-tuned hyperparameters "
+        "(tuning round 1, inner CV RMSE 3.3145 ± 0.5423). See notes/ for "
+        "the RF→LGBM consolidation history."
     ),
 )

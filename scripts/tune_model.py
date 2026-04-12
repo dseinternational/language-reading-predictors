@@ -5,10 +5,10 @@
 Optuna hyperparameter tuning for language-reading-predictors models.
 
 Uses ``GroupKFold`` CV grouped by ``subject_id`` to match the fit pipeline,
-so selected hyperparameters reflect honest generalisation. For ``LGBM``
-models, each trial's CV loop carves an inner ``GroupShuffleSplit`` slice
-out of the training fold for early stopping — the outer val fold is never
-shown to ``early_stopping`` — so ``best_iteration_`` and the fold RMSE are
+so selected hyperparameters reflect honest generalisation. Each trial's CV
+loop carves an inner ``GroupShuffleSplit`` slice out of the training fold
+for early stopping — the outer val fold is never shown to
+``early_stopping`` — so ``best_iteration_`` and the fold RMSE are
 independent. The mean best iteration across folds is saved as the tuned
 ``n_estimators``.
 
@@ -21,8 +21,7 @@ Writes results to ``output/tuning/{model_id}/``:
 
 Usage
 -----
-    python scripts/tune_model.py lrp01                       # RF, 50 trials
-    python scripts/tune_model.py lrp01_lgbm                  # LGBM + early stopping
+    python scripts/tune_model.py lrp01                       # 50 trials
     python scripts/tune_model.py lrp01 --n-trials 200
     python scripts/tune_model.py lrp01 --timeout 1800        # cap at 30 min
     python scripts/tune_model.py lrp01 --cv-splits 5 --seed 42
@@ -40,12 +39,10 @@ import numpy as np
 import optuna
 import pandas as pd
 from rich import print
-from sklearn.model_selection import GroupKFold, GroupShuffleSplit, cross_val_score
-from sklearn.pipeline import Pipeline
+from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 
 import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.models.base_pipeline import ESTIMATOR_STEP
 from language_reading_predictors.models.common import ModelConfig
 from language_reading_predictors.models.registry import MODELS
 
@@ -54,11 +51,6 @@ _TUNING_DIR = _ROOT_DIR / "output" / "tuning"
 
 
 # ── fixed (non-tuned) estimator kwargs ──────────────────────────────────
-
-_RF_FIXED: dict[str, Any] = {
-    "criterion": "squared_error",
-    "n_jobs": 16,
-}
 
 _LGBM_FIXED: dict[str, Any] = {
     "subsample_freq": 1,
@@ -102,18 +94,6 @@ def _clear_directory(path: Path) -> None:
 # ── search spaces ───────────────────────────────────────────────────────
 
 
-def _rf_search_space(trial: optuna.Trial, seed: int) -> dict[str, Any]:
-    params = {
-        "n_estimators": trial.suggest_int("n_estimators", 300, 2000, step=100),
-        "max_depth": trial.suggest_int("max_depth", 4, 16),
-        "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 32),
-        "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
-        "max_features": trial.suggest_float("max_features", 0.3, 0.9),
-        "bootstrap": trial.suggest_categorical("bootstrap", [True, False]),
-    }
-    return {**params, **_RF_FIXED, "random_state": seed}
-
-
 def _lgbm_search_space(trial: optuna.Trial, seed: int) -> dict[str, Any]:
     params = {
         "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
@@ -129,34 +109,6 @@ def _lgbm_search_space(trial: optuna.Trial, seed: int) -> dict[str, Any]:
 
 
 # ── objectives ──────────────────────────────────────────────────────────
-
-
-def _rf_objective(
-    X: pd.DataFrame,
-    y: pd.Series,
-    groups: pd.Series,
-    cv_splits: int,
-    seed: int,
-) -> Callable[[optuna.Trial], float]:
-    from sklearn.ensemble import RandomForestRegressor
-
-    def objective(trial: optuna.Trial) -> float:
-        params = _rf_search_space(trial, seed)
-        pipe = Pipeline([(ESTIMATOR_STEP, RandomForestRegressor(**params))])
-        cv = GroupKFold(n_splits=cv_splits)
-        scores = cross_val_score(
-            pipe,
-            X,
-            y,
-            groups=groups,
-            cv=cv,
-            scoring="neg_root_mean_squared_error",
-        )
-        rmses = -scores
-        trial.set_user_attr("cv_rmse_std", float(rmses.std()))
-        return float(rmses.mean())
-
-    return objective
 
 
 def _lgbm_objective(
@@ -250,35 +202,33 @@ def tune(
 
     cfg = MODELS[key]
     pipeline_name = cfg.pipeline_cls.__name__
+    if pipeline_name != "LGBMPipeline":
+        print(
+            f"[bold red]tune_model.py only supports LGBMPipeline; "
+            f"{key} uses {pipeline_name}[/bold red]"
+        )
+        raise SystemExit(1)
+
     X, y, groups = _load_frame(cfg)
 
     print(f"[bold green]Tuning {key} ({pipeline_name})[/bold green]")
     print(f"  Observations: {len(X)}  Predictors: {X.shape[1]}")
     print(f"  CV splits: {cv_splits}  Trials: {n_trials}  Timeout: {timeout}s")
-
-    if pipeline_name == "RFPipeline":
-        objective = _rf_objective(X, y, groups, cv_splits, seed)
-    elif pipeline_name == "LGBMPipeline":
-        print(
-            f"  Early stopping: {early_stopping_rounds} rounds  "
-            f"max_n_estimators: {max_n_estimators}  "
-            f"inner ES fraction: {early_stopping_fraction}"
-        )
-        objective = _lgbm_objective(
-            X,
-            y,
-            groups,
-            cv_splits,
-            seed,
-            early_stopping_rounds,
-            max_n_estimators,
-            early_stopping_fraction,
-        )
-    else:
-        print(
-            f"[bold red]No search space defined for pipeline: {pipeline_name}[/bold red]"
-        )
-        raise SystemExit(1)
+    print(
+        f"  Early stopping: {early_stopping_rounds} rounds  "
+        f"max_n_estimators: {max_n_estimators}  "
+        f"inner ES fraction: {early_stopping_fraction}"
+    )
+    objective = _lgbm_objective(
+        X,
+        y,
+        groups,
+        cv_splits,
+        seed,
+        early_stopping_rounds,
+        max_n_estimators,
+        early_stopping_fraction,
+    )
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     sampler = optuna.samplers.TPESampler(seed=seed)
@@ -299,19 +249,12 @@ def tune(
 
     best = study.best_trial
 
-    if pipeline_name == "RFPipeline":
-        best_full_params: dict[str, Any] = {
-            **best.params,
-            **_RF_FIXED,
-            "random_state": seed,
-        }
-    else:  # LGBMPipeline
-        best_full_params = {
-            **best.params,
-            **_LGBM_FIXED,
-            "random_state": seed,
-            "n_estimators": best.user_attrs.get("mean_best_iteration", max_n_estimators),
-        }
+    best_full_params: dict[str, Any] = {
+        **best.params,
+        **_LGBM_FIXED,
+        "random_state": seed,
+        "n_estimators": best.user_attrs.get("mean_best_iteration", max_n_estimators),
+    }
 
     best_params_out = {
         "model_id": key,
@@ -340,15 +283,9 @@ def tune(
         "best_trial_number": int(best.number),
         "seed": seed,
         "cv_splits": cv_splits,
-        "early_stopping_rounds": (
-            early_stopping_rounds if pipeline_name == "LGBMPipeline" else None
-        ),
-        "max_n_estimators": (
-            max_n_estimators if pipeline_name == "LGBMPipeline" else None
-        ),
-        "early_stopping_fraction": (
-            early_stopping_fraction if pipeline_name == "LGBMPipeline" else None
-        ),
+        "early_stopping_rounds": early_stopping_rounds,
+        "max_n_estimators": max_n_estimators,
+        "early_stopping_fraction": early_stopping_fraction,
     }
     (out_dir / "study_summary.json").write_text(json.dumps(summary, indent=2))
 
@@ -373,7 +310,7 @@ def main() -> None:
         description="Optuna hyperparameter tuning for LRP models."
     )
     parser.add_argument(
-        "model", type=str, help="Model id, e.g. lrp01 or lrp01_lgbm."
+        "model", type=str, help="Model id, e.g. lrp01."
     )
     parser.add_argument("--n-trials", type=int, default=50)
     parser.add_argument(
@@ -388,22 +325,22 @@ def main() -> None:
         "--early-stopping-rounds",
         type=int,
         default=50,
-        help="LGBM early stopping patience (ignored for RF).",
+        help="Early stopping patience.",
     )
     parser.add_argument(
         "--max-n-estimators",
         type=int,
         default=2000,
-        help="LGBM ceiling that early stopping caps (ignored for RF).",
+        help="Ceiling that early stopping caps.",
     )
     parser.add_argument(
         "--early-stopping-fraction",
         type=float,
         default=0.2,
         help=(
-            "LGBM early-stopping slice as a fraction of the outer training "
-            "fold, carved out by GroupShuffleSplit so early stopping does not "
-            "peek at the outer val fold (ignored for RF)."
+            "Early-stopping slice as a fraction of the outer training fold, "
+            "carved out by GroupShuffleSplit so early stopping does not peek "
+            "at the outer val fold."
         ),
     )
     args = parser.parse_args()
