@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Random Forest estimator pipeline.
+LightGBM estimator pipeline.
 
-Thin subclass of :class:`EstimatorPipeline` that plugs a
-``RandomForestRegressor`` into the shared step name ``"est"``. Everything
-else — cross-validation, SHAP, permutation importance, partial dependence,
-config saving, report generation — is inherited unchanged.
+Thin subclass of :class:`EstimatorPipeline` that plugs an
+``LGBMRegressor`` into the shared step name ``"est"``. Everything
+else — cross-validation, SHAP (``TreeExplainer`` supports LightGBM natively),
+permutation importance, partial dependence, config saving, report
+generation — is inherited unchanged.
 """
 
 from rich import print
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
 
 from language_reading_predictors.models.base_pipeline import (
@@ -20,10 +20,12 @@ from language_reading_predictors.models.base_pipeline import (
 )
 
 
-class RFPipeline(EstimatorPipeline):
-    """Random Forest regression pipeline."""
+class LGBMPipeline(EstimatorPipeline):
+    """LightGBM regression pipeline."""
 
     def configure_model(self) -> None:
+        from lightgbm import LGBMRegressor
+
         from language_reading_predictors.models.base_pipeline import _section
 
         _section("Configure model")
@@ -32,17 +34,17 @@ class RFPipeline(EstimatorPipeline):
         cfg = context.config
         run = context.run_config
 
-        rf_params = dict(cfg.model_params)
+        lgbm_params = dict(cfg.model_params)
         if run.n_estimators is not None:
-            rf_params["n_estimators"] = run.n_estimators
+            lgbm_params["n_estimators"] = run.n_estimators
 
-        rf = RandomForestRegressor(
-            **rf_params,
+        lgbm = LGBMRegressor(
+            **lgbm_params,
             random_state=cfg.random_seed,
         )
-        context.pipeline = Pipeline([(ESTIMATOR_STEP, rf)])
+        context.pipeline = Pipeline([(ESTIMATOR_STEP, lgbm)])
 
-        print(f"  RandomForestRegressor: {rf_params}")
+        print(f"  LGBMRegressor: {lgbm_params}")
 
         cv_splits = run.cv_splits if run.cv_splits is not None else cfg.cv_splits
         print(f"  CV: GroupKFold(n_splits={cv_splits})")

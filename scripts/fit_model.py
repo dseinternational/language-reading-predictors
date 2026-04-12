@@ -12,7 +12,7 @@ from multiprocessing import freeze_support
 
 from rich import print
 
-from language_reading_predictors.models import model_lrp01, model_lrp02
+from language_reading_predictors.models.registry import MODELS
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -34,25 +34,41 @@ if __name__ == "__main__":
         default="dev",
         help="Run configuration: dev (fast), test (moderate), reporting (full). Default: dev.",
     )
+    parser.add_argument(
+        "--include-variants",
+        action="store_true",
+        help=(
+            "When model is 'all', also fit selection variants (entries where "
+            "variant_of is set). Ignored for explicit model ids."
+        ),
+    )
 
     freeze_support()
 
     args = parser.parse_args()
 
-    models = {
-        "lrp01": model_lrp01,
-        "lrp02": model_lrp02,
-    }
-
     model_key = args.model.lower()
 
+    def _fit(cfg):
+        from language_reading_predictors.models.common import RunConfig
+
+        return cfg.pipeline_cls(cfg, RunConfig.from_name(args.config)).fit()
+
     if model_key == "all":
-        contexts = [m.fit(args.config) for m in models.values()]
-    elif model_key in models:
-        contexts = [models[model_key].fit(args.config)]
+        models_to_run = [
+            cfg
+            for cfg in MODELS.values()
+            if args.include_variants or cfg.variant_of is None
+        ]
+        if not models_to_run:
+            print("[bold red]No models to run.[/bold red]")
+            exit(1)
+        contexts = [_fit(cfg) for cfg in models_to_run]
+    elif model_key in MODELS:
+        contexts = [_fit(MODELS[model_key])]
     else:
         print(f"[bold red]Unknown model: {args.model}[/bold red]")
-        print(f"Available models: {', '.join(models.keys())}")
+        print(f"Available models: {', '.join(MODELS.keys())}")
         exit(1)
 
     # Summary table when fitting multiple models

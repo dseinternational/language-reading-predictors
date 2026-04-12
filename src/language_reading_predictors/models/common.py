@@ -21,7 +21,7 @@ class RunConfig:
     """Preset name, e.g. 'dev', 'test', 'reporting'."""
 
     n_estimators: int | None = None
-    """Override for RandomForestRegressor n_estimators. None = use model default."""
+    """Override for the estimator's n_estimators. None = use model default."""
 
     cv_splits: int | None = None
     """Override for GroupKFold n_splits. None = use model default."""
@@ -89,10 +89,15 @@ class ModelConfig:
     predictor_vars: list[str]
     """Column names of predictor variables."""
 
-    rf_params: dict[str, Any]
-    """Keyword arguments passed to ``RandomForestRegressor``."""
+    model_params: dict[str, Any]
+    """Keyword arguments passed to the estimator constructor."""
 
-    cv_splits: int
+    pipeline_cls: Any = None
+    """Pipeline class used to fit this model (e.g. ``RFPipeline``,
+    ``LGBMPipeline``). Typed as ``Any`` to keep ``common`` free of pipeline
+    imports; registry helpers set this explicitly."""
+
+    cv_splits: int = 51
     """Number of GroupKFold splits."""
 
     outlier_threshold: float | None = None
@@ -102,9 +107,22 @@ class ModelConfig:
     """Number of repeats for permutation importance."""
 
     pdp_features: list[str] | None = None
-    """Features to include in partial dependence plots (defaults to predictor_vars)."""
+    """Features to include in partial dependence plots. If None, auto-selected
+    from the top ``pdp_top_n`` features by permutation importance."""
+
+    pdp_top_n: int = 15
+    """Number of top features (by permutation importance) to include in partial
+    dependence plots when ``pdp_features`` is not set explicitly."""
 
     random_seed: int = 47
+
+    variant_of: str | None = None
+    """If set, this model is a selection variant of another model (e.g.
+    'lrp01'). Variants are excluded from ``fit_model.py all`` by default."""
+
+    notes: str = ""
+    """Free-text rationale stored in ``config.json`` and surfaced in reports —
+    used for selection-decision provenance."""
 
 
 @dataclass

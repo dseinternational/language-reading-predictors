@@ -19,6 +19,7 @@ dependencies:
       - matplotlib>=3.10.8
       - networkx
       - notebook>=7.5.5
+      - optuna>=4.8.0
       - pandas-stubs
       - pandas>=3.0.2
       - pandoc
@@ -31,8 +32,10 @@ dependencies:
       - scipy-stubs
       - scipy>=1.17.1
       - seaborn>=0.13.2
-      - setuptools>=82.0.1
+      - setuptools>=81.0.0
+      - lightgbm>=4.6.0
       - shap>=0.51.0
-      - torch
+      - torch>=2.11.0
+      - xgboost>=3.2.0
       - -e ../research/src/python #  for now, for local development
       - -e ./
