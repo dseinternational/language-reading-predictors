@@ -8,11 +8,13 @@ Exploratory research study on predictors of progress in language and reading ski
 
 ## Environment Setup
 
-Uses conda with Python 3.14. There is a local dependency on `../research/src/python` (dse_research_utils).
+Uses Python 3.14 with a virtual environment and `requirements.txt`. There is a local dependency on `../research/src/python` (dse_research_utils).
 
 ```bash
-conda env create -f environment.yml
-conda activate dse-language-reading-predictors
+python -m venv .venv
+.venv\Scripts\activate   # Windows
+# source .venv/bin/activate  # macOS / Linux
+pip install -r requirements.txt
 ```
 
 ## Commands
@@ -56,7 +58,7 @@ quarto render docs/report/
 
 ## Architecture
 
-The Python package is in `src/language_reading_predictors/` and is installed in editable mode via conda/pip.
+The Python package is in `src/language_reading_predictors/` and is installed in editable mode via pip.
 
 ### Central data schema (`data_variables.py`)
 

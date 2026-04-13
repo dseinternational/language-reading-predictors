@@ -25,12 +25,15 @@ git clone https://github.com/dseinternational/research.git
 
 #### Fitting models
 
-To fit models, a recent Python installation is required. Some of our dependencies are best installed from [conda-forge](https://conda-forge.org/), for which either [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main) or [Miniforge](https://conda-forge.org/download/) is required.
+To fit models, Python 3.14 or later is required.
 
-Then, to install Python dependencies, from the repository root:
+Then, to create a virtual environment and install Python dependencies, from the repository root:
 
 ```bash
-conda env update -f environment.yml
+python -m venv .venv
+.venv\Scripts\activate   # Windows
+# source .venv/bin/activate  # macOS / Linux
+pip install -r requirements.txt
 ```
 
 #### Creating reports
