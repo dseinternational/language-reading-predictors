@@ -4,15 +4,16 @@ channels:
 dependencies:
   - python=3.14
   - arviz>=0.23.4,<1.0
+  - graphviz
   - numba>=0.65.0
   - numpy>=2.4.3
+  - numpyro>=0.20.1
   - nutpie>=0.16.8
   - pymc>=5.28.4,<6.0
+  - pytorch>=2.10.0
   - pip
   - pip:
-      - --extra-index-url https://download.pytorch.org/whl/cu130
       - dcor
-      - graphviz
       - hatch
       - ipython>=9.12.0
       - jupytext
@@ -35,7 +36,6 @@ dependencies:
       - setuptools>=81.0.0
       - lightgbm>=4.6.0
       - shap>=0.51.0
-      - torch>=2.11.0
       - xgboost>=3.2.0
       - -e ../research/src/python #  for now, for local development
       - -e ./
