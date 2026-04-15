@@ -4,13 +4,14 @@ channels:
 dependencies:
   - python=3.14
   - arviz>=0.23.4,<1.0
-  - graphviz
+  - graphviz>=14.1.2
   - numba>=0.65.0
   - numpy>=2.4.3
   - numpyro>=0.20.1
   - nutpie>=0.16.8
   - pymc>=5.28.4,<6.0
   - pytorch>=2.10.0
+  - xarray>=2026.4.0
   - pip
   - pip:
       - dcor
@@ -25,9 +26,9 @@ dependencies:
       - pandas>=3.0.2
       - pandoc
       - psutil
-      - pyarrow
+      - pyarrow>=23.0.1
       - pytest>=9.0.3
-      - rich
+      - rich>=15.0.0
       - ruff>=0.15.9
       - scikit-learn>=1.8.0
       - scipy-stubs
