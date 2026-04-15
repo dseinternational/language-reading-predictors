@@ -35,7 +35,11 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GroupKFold, cross_validate, cross_val_predict
 from sklearn.inspection import permutation_importance
 
+import dse_research_utils.environment.setup as setup
+import dse_research_utils.metadata.packages as package_metadata
+
 import language_reading_predictors.data_utils as data_utils
+import language_reading_predictors.plot_utils as plot_utils
 import language_reading_predictors.repl_utils as repl_utils
 import language_reading_predictors.stats_utils as stats_utils
 
@@ -43,7 +47,7 @@ from language_reading_predictors.data_variables import Variables as vars
 from language_reading_predictors.data_variables import Predictors as pred
 from language_reading_predictors.data_variables import Categories as cats
 
-
+setup.init_workbook()
 
 RANDOM_SEED = repl_utils.RANDOM_SEED
 np.random.seed(RANDOM_SEED)
@@ -58,8 +62,6 @@ SAVE_PLOTS = True
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 repl_utils.print_environment_info()
-
-print(f"\n--------------------\nOutput directory: {OUTPUT_DIR}\n--------------------\n")
 
 # %%
 df = data_utils.load_data()

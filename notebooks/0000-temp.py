@@ -8,7 +8,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: .venv (3.14.4)
+#     display_name: dse-language-reading-predictors
 #     language: python
 #     name: python3
 # ---

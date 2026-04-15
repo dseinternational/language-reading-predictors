@@ -16,7 +16,7 @@ from pathlib import Path
 from scipy.cluster import hierarchy
 from IPython.display import Image, display
 
-from data_variables import Variables as vars
+from language_reading_predictors.data_variables import Variables as vars
 
 
 HERE = Path(".")
