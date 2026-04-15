@@ -59,7 +59,6 @@ print(f"OUTPUT_DIR: {OUTPUT_DIR}")
 print()
 
 package_list = [
-    "duckdb",
     "matplotlib",
     "numpy",
     "pandas",
