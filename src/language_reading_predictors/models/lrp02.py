@@ -24,6 +24,12 @@ reference point.
 right-skewed (floor at 0, tail to 64); the log transform homogenises
 errors across quartiles. Predictions are inverse-transformed so all
 reported metrics remain in the original ``ewrswr`` units.
+
+``LRP02Select02Log`` crosses the 17-predictor Select02 feature set
+with the log1p target transform and its own log-space MAE tune —
+testing whether restoring the four features the primary dropped
+(``yarcsi``, ``b1exto``, ``hearing``, ``celf``) still helps once the
+target is compressed.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -162,6 +168,26 @@ _LGBM_MAE_PARAMS_LOG: dict[str, float | int | str] = {
     "verbosity": -1,
 }
 
+# MAE-tuned in log1p(y) space on the 17-predictor Select02 set (Optuna
+# 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
+# lgbm_objective=mae, target_transform=log1p). Best trial #102, CV MAE
+# 5.7725 ± 2.5038. n=210. Pinned on ``lrp02_select02_log``.
+_LGBM_MAE_PARAMS_SELECT02_LOG: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 156,
+    "learning_rate": 0.04309025733167006,
+    "num_leaves": 44,
+    "max_depth": 6,
+    "min_child_samples": 4,
+    "subsample": 0.9405679124655911,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.6098925462576346,
+    "reg_alpha": 0.28851697467399,
+    "reg_lambda": 0.008417559747075195,
+    "n_jobs": 16,
+    "verbosity": -1,
+}
+
 
 # ── primary model (exploratory, MAE-tuned) ──────────────────────────────
 
@@ -277,4 +303,40 @@ class LRP02Log(LRP02):
         "with the primary. Uses the same 13-predictor feature set and "
         "MAE-tuned hyperparameters tuned *in log space* (Optuna trial #147, "
         "tuner-inner CV MAE 6.0010)."
+    )
+
+
+# ── log-transform + 17-predictor variant ───────────────────────────────
+
+
+class LRP02Select02Log(LRP02Select02):
+    """Word-reading level predictors — log1p target on the 17-predictor set.
+
+    Inherits `LRP02Select02`'s restoration of ``yarcsi``, ``b1exto``,
+    ``hearing``, and ``celf``, but swaps the pipeline to
+    :class:`LGBMLogPipeline` and pins hyperparameters tuned in log
+    space on the 17-predictor feature set.
+
+    Tests whether the four features the primary dropped retain value
+    once the target is compressed. The `lrp02_log` tuning regime (many
+    slow, shallow-ish trees with moderate regularisation) may not be
+    directly portable to the larger predictor set, so it gets its own
+    Optuna run.
+    """
+
+    model_id = "lrp02_select02_log"
+    variant_of = "lrp02"
+    description = (
+        "LightGBM — word-reading level predictors "
+        "(17 predictors, MAE-tuned in log1p space)"
+    )
+    pipeline_cls = LGBMLogPipeline
+    params = _LGBM_MAE_PARAMS_SELECT02_LOG
+    # Inherits selection_steps from LRP02Select02 (lands at 17 predictors).
+    notes = (
+        "Log-transform variant on the 17-predictor Select02 feature set. "
+        "Restores yarcsi, b1exto, hearing, and celf on top of the primary's "
+        "selection chain (inherited from LRP02Select02), fits log1p(ewrswr), "
+        "and pins hyperparameters tuned on this exact configuration in log "
+        "space (Optuna trial #102, tuner-inner CV MAE 5.7725)."
     )

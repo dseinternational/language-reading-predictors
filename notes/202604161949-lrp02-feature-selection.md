@@ -702,6 +702,112 @@ Notable changes:
   pass of correlation / redundancy review in log space could be
   worthwhile.
 
+## `lrp02_select02_log` — 17-predictor log-space variant
+
+Crosses the 17-predictor Select02 feature set with `log1p` target
+transform. Tests whether the four features the primary dropped
+(`yarcsi`, `b1exto`, `hearing`, `celf`) retain value once the target
+is compressed.
+
+Implementation: `LRP02Select02Log` inherits from `LRP02Select02` (so
+it lands at the 17-predictor feature set via the usual restore-step
+chain) and overrides `pipeline_cls = LGBMLogPipeline` plus
+`params = _LGBM_MAE_PARAMS_SELECT02_LOG`.
+
+### Log-space tune at 17 predictors
+
+Optuna 150 trials on the 17-predictor set in log1p space. Best trial
+#102, tuner-inner CV MAE **5.7725 ± 2.5038** — a material improvement
+over `lrp02_log`'s 6.0010 tuner-inner at the same 150 trials.
+
+| Parameter | `lrp02_log` (13) | `lrp02_select02_log` (17) |
+|---|---|---|
+| n_estimators | 358 | 156 |
+| learning_rate | 0.013 | 0.043 |
+| num_leaves | 36 | 44 |
+| max_depth | 8 | 6 |
+| min_child_samples | 4 | 4 |
+| subsample | 0.693 | 0.941 |
+| colsample_bytree | 0.635 | 0.610 |
+| reg_alpha | 0.011 | **0.289** |
+| reg_lambda | 0.048 | 0.008 |
+
+The 17-predictor log tune lands on a completely different regime —
+fewer, wider, shallower trees with *much* stronger L1 regularisation
+(0.29 vs 0.011). The extra predictors need the L1 to keep spurious
+signal from creeping in.
+
+### Four-way comparison
+
+| Metric | `lrp02` (13) | `lrp02_select02` (17) | `lrp02_log` (13) | `lrp02_select02_log` (17) |
+|---|---|---|---|---|
+| CV MAE | 6.019 ± 1.627 | 5.908 ± 1.622 | **5.581 ± 2.301** | 5.735 ± 2.425 |
+| CV RMSE | 8.242 ± 2.436 | 8.072 ± 2.570 | **8.006 ± 3.384** | 8.050 ± 3.687 |
+| CV R² | 0.355 ± 0.409 | 0.390 ± 0.428 | 0.488 ± 0.238 | **0.495 ± 0.241** |
+| CV MedAE | 3.963 | 3.978 | **3.165** | 3.376 |
+| In-sample R² | 0.968 | 0.976 | 0.974 | **0.988** |
+
+Reading the table:
+
+- **`lrp02_log` (13 predictors) wins three of four mean CV metrics**
+  (MAE, RMSE, MedAE). Its CV MAE of 5.58 is the best across all
+  configurations.
+- **`lrp02_select02_log` (17 predictors) wins CV R²** by 0.007 — well
+  within fold noise (R² std ≈ 0.24 for both).
+- **The 17-predictor log variant fits better in-sample** (R² 0.988 vs
+  0.974) but does not turn that into materially better CV
+  generalisation — classic over-fit signature when extra features
+  don't carry independent signal.
+
+### Quartile-level in-sample MAE (all four)
+
+| Target range | `lrp02` | `lrp02_select02` | `lrp02_log` | `lrp02_select02_log` |
+|---|---|---|---|---|
+| 0–1 | 0.45 | 0.26 | 0.32 | **0.12** |
+| 1–6.5 | 0.43 | 0.35 | 0.30 | **0.16** |
+| 6.5–17 | 1.18 | 0.92 | 0.78 | **0.18** |
+| 17–64 | 2.72 | 2.39 | 2.63 | **1.08** |
+
+The 17-predictor log variant has dramatically better in-sample fit
+across every quartile — but the bigger in-sample gap is mostly
+memorisation, not generalisation (CV metrics barely move).
+
+### Permutation importance under log-tune, 17 predictors
+
+| Rank | Feature | Log-tune imp (17) | Log-tune imp (13) |
+|---|---|---|---|
+| 1 | `yarclet` | 0.232 | 0.269 |
+| 2 | `spphon` | 0.153 | 0.257 |
+| 3 | `erbword` | 0.103 | 0.075 |
+| 4 | `celf` | **0.061** | — (dropped) |
+| 5 | `b1exto` | 0.058 | — (dropped) |
+| 6 | `aptinfo` | 0.054 | 0.100 |
+| 7 | `eowpvt` | 0.047 | 0.107 |
+| 8 | `yarcsi` | 0.045 | — (dropped) |
+| 9 | `agespeak` | 0.040 | 0.041 |
+| 10 | `nonword` | 0.035 | 0.063 |
+
+Notable: **`celf` at 0.061 is moderate-importance in log space**,
+despite being only 0.012 in primary space — where it was dropped at
+Select04. This is an important finding: feature-selection decisions
+made on primary-scale importance rankings may not hold under a
+target transform. The 13-predictor selection is locally optimal for
+the primary but is not the best set in log space.
+
+`b1exto` (0.058) and `yarcsi` (0.045) are also moderate — they were
+dropped at Select03 on dcorr grounds, and in log space they redistribute
+some of the signal but the overall CV improvement is marginal.
+
+### Conclusion on `lrp02_select02_log`
+
+Marginal CV R² improvement (+0.007) over `lrp02_log` that does not
+justify the larger predictor set given the worse CV MAE / RMSE /
+MedAE and the clearer signs of overfitting (in-sample R² 0.988).
+Retained as a reference point for the log-space feature-selection
+question — it surfaces `celf` (and to a lesser extent `b1exto`,
+`yarcsi`) as features worth re-examining if feature selection is
+redone in log space.
+
 ### Where this leaves the portfolio
 
 `lrp02_log` is now the strongest CV performer on three of four
@@ -766,10 +872,18 @@ column order and LightGBM's seeded `colsample_bytree` draws.
 - **`lrp02_log`** (variant, log1p target, 13 predictors, log-space
   tuned): CV MAE 5.581 ± 2.301, CV RMSE 8.006, CV R² 0.488 ± 0.238,
   CV MedAE 3.165. Fits `log1p(ewrswr)` via `TransformedTargetRegressor`,
-  hyperparameters tuned in log space via the new
-  `scripts/tune_model.py --target-transform log1p` flag. **Best CV
-  performance across all metrics (mean) and tighter fold variance on
-  R² and MAE than any other variant.**
+  hyperparameters tuned in log space. **Best CV MAE, RMSE, and MedAE
+  across all variants.**
+- **`lrp02_select02_log`** (variant, log1p target, 17 predictors,
+  log-space tuned): CV MAE 5.735 ± 2.425, CV R² 0.495 ± 0.241, CV
+  MedAE 3.376. Same features as `lrp02_select02` plus the log1p
+  transform with its own log-space tune. Best CV R² by a 0.007
+  margin (within noise) but trails `lrp02_log` on every other CV
+  metric and shows more in-sample overfit (R² 0.988 vs 0.974). Notable
+  finding: `celf` carries 0.061 importance in this log-space 17-feature
+  model despite having been dropped at Select04 on primary-space
+  grounds — suggests the feature selection is not invariant to the
+  target transform.
 - Four `SelectionStep`s on `LRP02` document the 32 → 24 → 17 → 15 → 13
   cuts; one step on `LRP02Select02` adds back the two features dropped
   at Select03.
