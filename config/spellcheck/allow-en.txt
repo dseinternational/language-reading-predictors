@@ -43,7 +43,9 @@ numchil
 Optuna
 optuna
 orcid
+overfit
 overfitting
+pathlib
 pred
 resid
 reto
@@ -57,6 +59,8 @@ sklearn
 speedup
 spphon
 startswith
+timepoint
+tolist
 trog
 unsuffixed
 vars
