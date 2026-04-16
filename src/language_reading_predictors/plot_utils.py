@@ -442,7 +442,8 @@ def plot_heatmap(
     title : str
         Plot title.
     figsize : tuple, optional
-        Figure size. Defaults to ``(max(8, 0.35*n), max(8, 0.35*n))``.
+        Figure size. Defaults to ``(side + 1.5, side)`` where
+        ``side = min(max(3, 0.6 * n), 14)``.
     cmap : str
         Matplotlib colour map name.
     ax : matplotlib.axes.Axes, optional

@@ -83,7 +83,7 @@ if __name__ == "__main__":
         )
         for ctx in contexts:
             cv_rmse = (
-                -ctx.cv_scores.mean() if ctx.cv_scores is not None else float("nan")
+                ctx.cv_scores.mean() if ctx.cv_scores is not None else float("nan")
             )
             print(
                 f"  {ctx.config.model_id.upper():6s}  "

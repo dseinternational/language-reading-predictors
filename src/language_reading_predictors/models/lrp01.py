@@ -7,7 +7,7 @@ LRP01: Predictors of word reading gains.
 ``LRP01`` is the primary (exploratory) model — MAE-tuned with no outlier
 exclusion — designed to identify the most important influences on reading
 gains across the full range of outcomes. ``LRP01Prediction`` is the
-prediction-focused variant with outlier exclusion and RMSE-tuned params.
+prediction-focused variant with RMSE-tuned params and no outlier exclusion.
 
 Both share the same 6-predictor set selected via iterative importance-based
 feature selection under an MAE objective
