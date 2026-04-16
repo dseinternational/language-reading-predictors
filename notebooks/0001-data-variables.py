@@ -23,20 +23,16 @@
 # ## Preparation
 
 # %%
-import datetime, joblib, os, shap, matplotlib, math
+import datetime
+import joblib
+import os
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
 from scipy.cluster import hierarchy
-from scipy.stats import randint, loguniform
 from scipy.spatial.distance import squareform
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import GroupKFold, cross_validate, cross_val_predict
-from sklearn.inspection import permutation_importance
 
 import dse_research_utils.environment.setup as setup
-import dse_research_utils.metadata.packages as package_metadata
 
 import language_reading_predictors.data_utils as data_utils
 import language_reading_predictors.plot_utils as plot_utils
@@ -44,7 +40,6 @@ import language_reading_predictors.repl_utils as repl_utils
 import language_reading_predictors.stats_utils as stats_utils
 
 from language_reading_predictors.data_variables import Variables as vars
-from language_reading_predictors.data_variables import Predictors as pred
 from language_reading_predictors.data_variables import Categories as cats
 
 setup.init_workbook()
@@ -86,7 +81,7 @@ fig, ax = plt.subplots(figsize=(7, 12))
 dendro_0 = hierarchy.dendrogram(dist_linkage_0, labels=predictors_df.columns.to_list(), orientation="right", ax=ax)
 plt.xlabel("Ward linkage distance (increase in within-cluster variance)")
 plt.ylabel("Predictors")
-plt.title(f"Hierarchical clustering of predictors")
+plt.title("Hierarchical clustering of predictors")
 ax.tick_params(axis="y", labelsize=10)
 if SAVE_PLOTS: plt.savefig(f"{OUTPUT_DIR}/hierarchical-clustering.svg", format="svg", bbox_inches="tight")
 plt.show()
@@ -99,7 +94,7 @@ with plt.rc_context({'ytick.labelsize': 12, 'xtick.labelsize': 12, 'axes.titlesi
     plt.set_cmap("viridis")
     ax = plt.axes()
     im = ax.imshow(corr[dendro_0["leaves"], :][:, dendro_0["leaves"]])
-    ax.set_title(f"Correlation heatmap of predictors")
+    ax.set_title("Correlation heatmap of predictors")
     ax.set_xticks(dendro_0_idx)
     ax.set_yticks(dendro_0_idx)
     ax.set_xticklabels(dendro_0["ivl"], rotation="vertical")

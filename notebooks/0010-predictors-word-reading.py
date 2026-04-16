@@ -17,7 +17,6 @@
 # %config InlineBackend.figure_format = 'retina'
 
 # %%
-import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
