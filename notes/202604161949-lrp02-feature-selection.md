@@ -490,6 +490,122 @@ All 13 features at or above the 0.005 noise floor. `eowpvt` rose (0.050
 `deappvo` (0.005) is now borderline — a future candidate if further
 pruning is wanted.
 
+## `lrp02_log` — log1p target-transform variant
+
+The `ewrswr` target is heavily right-skewed (min 0, median 6.5, max 64)
+with a hard floor at 0. In-sample MAE on the primary `lrp02` scales 6×
+across quartiles (0.45 at the floor vs 2.72 in the top quartile), which
+suggests the model is under-fitting the tail where the largest raw
+errors occur. A `log1p` target transform compresses the tail and may
+let the model allocate capacity more evenly.
+
+`lrp02_log` uses the *same* 13-predictor feature set and *same*
+MAE-tuned hyperparameters as the primary, but wraps the LGBM in a
+`TransformedTargetRegressor(func=np.log1p, inverse_func=np.expm1)`. The
+model fits `log1p(y)` internally but predictions are inverse-transformed
+before scoring, so CV / evaluation metrics remain directly comparable
+with the primary in the original `ewrswr` units.
+
+Implementation: new `LGBMLogPipeline` subclass (see
+`models/lgbm_log_pipeline.py`) that overrides `configure_model` to wrap
+the estimator and `shap_analysis` to temporarily swap in the inner
+fitted regressor for `TreeExplainer`.
+
+### Side-by-side metrics
+
+| Metric | `lrp02` (13) | `lrp02_select02` (17) | `lrp02_log` (13, log1p) |
+|---|---|---|---|
+| CV MAE | 6.019 ± 1.627 | 5.908 ± 1.622 | **5.876 ± 2.316** |
+| CV RMSE | 8.242 ± 2.436 | **8.072 ± 2.567** | 8.263 ± 3.338 |
+| CV R² | 0.355 ± 0.409 | 0.390 ± 0.428 | **0.424 ± 0.290** |
+| CV MedAE | 3.963 | 3.978 | **3.408** |
+| In-sample R² | 0.968 | 0.976 | 0.968 |
+
+The log variant wins on the metrics that matter most for generalisation:
+
+- **CV R² rises from 0.355 to 0.424** — the biggest single-step R²
+  improvement since the 17-predictor retune early in the history.
+- **CV R² std falls from 0.41 to 0.29** — much more consistent across
+  folds, i.e. fewer "bad" folds where the model collapses.
+- **CV MedAE drops 14%** (3.96 → 3.41) — median error on a typical
+  observation is materially smaller.
+
+Counter-balance:
+
+- **CV MAE std rises** (1.63 → 2.32). The log-space optimisation
+  creates wider fold-level spread when measured in raw MAE because the
+  compression is non-linear in the original scale. Mean MAE is still
+  better.
+- **CV RMSE is flat** (8.24 vs 8.26). Squared-error loss is still
+  dominated by the top quartile; log transform helps the median but
+  doesn't shrink the tail errors in absolute terms.
+
+### Quartile-level error (in-sample)
+
+Mean absolute error by target quartile, on the same fitted predictions:
+
+| Target range | `lrp02` | `lrp02_log` |
+|---|---|---|
+| 0 – 1 | 0.45 | 0.42 |
+| 1 – 6.5 | 0.43 | 0.43 |
+| 6.5 – 17 | 1.18 | **1.00** |
+| 17 – 64 | 2.72 | **2.42** |
+
+Errors in the top two quartiles fall by 11–15%, while the bottom two
+quartiles are unchanged. The transform helps where it was designed to
+help.
+
+### Permutation importance under the log transform
+
+| Rank | Feature | Importance (log) | Importance (primary) |
+|---|---|---|---|
+| 1 | `yarclet` | 0.277 | 0.137 |
+| 2 | `spphon` | 0.174 | 0.172 |
+| 3 | `eowpvt` | 0.136 | 0.079 |
+| 4 | `nonword` | 0.107 | 0.049 |
+| 5 | `agespeak` | 0.058 | 0.045 |
+| 6 | `aptinfo` | 0.053 | 0.049 |
+| 7 | `erbword` | 0.045 | 0.030 |
+| 8 | `agebooks` | 0.036 | 0.032 |
+| 9 | `mumedupost16` | 0.033 | 0.038 |
+| 10 | `gender` | 0.024 | 0.017 |
+| 11 | `age` | 0.023 | 0.023 |
+| 12 | `numchil` | 0.017 | 0.013 |
+| 13 | `deappvo` | 0.008 | 0.005 |
+
+Rank changes are large and informative:
+
+- `yarclet` takes over rank 1 (0.277 vs 0.137) — letter-sound
+  knowledge is the strongest predictor in log space. This is the "can
+  they decode at all?" signal, which the original-scale model was
+  under-weighting because raw-MAE penalised top-quartile errors more.
+- `eowpvt` and `nonword` roughly double in importance.
+- `spphon` holds rank 2 with near-identical importance — its signal
+  doesn't care about the scale.
+- `deappvo` rose from 0.005 to 0.008 — no longer at the noise floor;
+  may be adding real signal in log space.
+
+The relative ordering of the top 10 is otherwise similar. The log
+transform changes *how much* each feature contributes but not *which*
+features contribute — the 13-predictor selection holds up.
+
+### Caveats
+
+- MAE hyperparameters were tuned on original-scale targets, not on
+  `log1p(y)`. A proper retune under the log transform could improve
+  the variant further.
+- SHAP values from `lrp02_log` are computed on the log-space booster,
+  so their base value and scale are not directly comparable with the
+  primary's SHAP plots.
+
+### Where this leaves the portfolio
+
+`lrp02_log` is now the strongest CV performer on three of four
+metrics (MAE, R², MedAE) and materially more consistent fold-to-fold.
+It is a better starting point than either `lrp02` or `lrp02_select02`
+for further tuning and — given the large rank shifts — worth another
+pass of feature-selection review under the new importance ordering.
+
 ## `lrp02_select02` — 17-predictor reference variant
 
 To preserve the best CV configuration without reverting Select03 on the
@@ -541,8 +657,13 @@ column order and LightGBM's seeded `colsample_bytree` draws.
   predictors, CV MAE 5.908 ± 1.623, CV R² 0.390 ± 0.475. Restores
   `yarcsi`, `b1exto`, `hearing`, and `celf` on top of `lrp02`'s current
   selection history so the variant lands at the Select02 feature set,
-  then pins the 17-predictor tune. Still holds the best CV MAE of any
-  LRP02 configuration.
+  then pins the 17-predictor tune. Reference point for the
+  feature-selection trade-off.
+- **`lrp02_log`** (variant, log1p target, 13 predictors): CV MAE
+  5.876 ± 2.316, CV R² 0.424 ± 0.290, CV MedAE 3.408. Fits
+  `log1p(ewrswr)` via `TransformedTargetRegressor`; same features and
+  hyperparameters as `lrp02`. Currently the best CV R² and CV MedAE
+  across all LRP02 variants.
 - Four `SelectionStep`s on `LRP02` document the 32 → 24 → 17 → 15 → 13
   cuts; one step on `LRP02Select02` adds back the two features dropped
   at Select03.

@@ -13,15 +13,23 @@ The predictor set starts from :attr:`Predictors.DEFAULT_LEVEL` and is
 reduced by iterative importance-based feature selection under the
 MAE-tuned params (see ``notes/202604161949-lrp02-feature-selection.md``).
 
-``LRP02Select02`` is a selection variant that restores two features
-(``yarcsi`` and ``b1exto``) dropped at Select03 and uses the earlier
-17-predictor MAE-tuned hyperparameters. It holds the best CV metrics
-of any LRP02 configuration and is retained as a reference point.
+``LRP02Select02`` is a selection variant that restores four features
+(``yarcsi``, ``b1exto``, ``hearing``, ``celf``) dropped after Select02
+and uses the earlier 17-predictor MAE-tuned hyperparameters. It holds
+the best CV metrics of any LRP02 configuration and is retained as a
+reference point.
+
+``LRP02Log`` is a target-transform variant that fits the same
+13-predictor set on ``log1p(ewrswr)``. The target is heavily
+right-skewed (floor at 0, tail to 64); the log transform homogenises
+errors across quartiles. Predictions are inverse-transformed so all
+reported metrics remain in the original ``ewrswr`` units.
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
 from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
+from language_reading_predictors.models.lgbm_log_pipeline import LGBMLogPipeline
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
@@ -209,4 +217,42 @@ class LRP02Select02(LRP02):
         "this variant restores all four to land back at the Select02 feature "
         "set, where the 17-predictor tune applies. Retained as a reference "
         "point for the correlation-driven pruning trade-off."
+    )
+
+
+# ── log-transform variant ───────────────────────────────────────────────
+
+
+class LRP02Log(LRP02):
+    """Word-reading level predictors — log1p(ewrswr) target variant.
+
+    Same 13-predictor feature set and MAE hyperparameters as the primary
+    ``lrp02``, but fits ``log1p(ewrswr)`` via
+    :class:`sklearn.compose.TransformedTargetRegressor`. Predictions are
+    inverse-transformed so all reported CV / evaluation metrics remain
+    in the original ``ewrswr`` units and are directly comparable with
+    the primary.
+
+    Motivation: ``ewrswr`` is heavily right-skewed (min 0, median 6.5,
+    max 64) with a hard floor at 0. In-sample MAE on the primary model
+    scales 6× across quartiles (0.45 at the floor vs 2.72 in the top
+    quartile). The log transform compresses the tail and may let the
+    model allocate capacity more evenly across the outcome range.
+    """
+
+    model_id = "lrp02_log"
+    variant_of = "lrp02"
+    description = (
+        "LightGBM — word-reading level predictors "
+        "(13 predictors, MAE-tuned, log1p target transform)"
+    )
+    pipeline_cls = LGBMLogPipeline
+    # Inherits params (_LGBM_MAE_PARAMS) and selection_steps from LRP02.
+    notes = (
+        "Log-transform variant of lrp02. Fits log1p(ewrswr) via "
+        "TransformedTargetRegressor so predictions are inverse-transformed "
+        "back to the original scale — CV/evaluation metrics are comparable "
+        "with the primary. Uses the same 13-predictor feature set and the "
+        "same MAE-tuned hyperparameters; the question it tests is whether "
+        "compressing the right tail of ewrswr improves fit quality."
     )

@@ -21,6 +21,7 @@ eowpvt
 erbnw
 erbword
 ewrswr
+expm
 exto
 GBDT
 hclust
