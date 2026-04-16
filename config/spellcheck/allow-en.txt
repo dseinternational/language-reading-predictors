@@ -7,6 +7,7 @@ celf
 colsample
 deappin
 eowpvt
+ewrswr
 exto
 GBDT
 hclust
@@ -16,6 +17,7 @@ dseinternational
 hyperparameters
 isinstance
 iterdir
+iterrows
 LGBM
 lgbm
 lightbox
