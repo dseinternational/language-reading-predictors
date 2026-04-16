@@ -215,6 +215,6 @@ teaching_vars = ([v for v in cats.TEACHING if v in vars.NUMERIC])
 stats_utils.describe_all(df[teaching_vars], 0.05).T
 
 # %%
-fig, axes = plot_utils.plot_histograms(df[teaching_vars], name_lookup=vars.NAMES)
+fig, axes = plot_utils.plot_histograms(df[reading_vars], name_lookup=vars.NAMES)
 if SAVE_PLOTS: plt.savefig(f"{OUTPUT_DIR}/teaching-variables-distributions.svg", format="svg", bbox_inches="tight")
 plt.show()
