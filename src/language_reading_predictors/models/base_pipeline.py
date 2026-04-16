@@ -491,6 +491,9 @@ class EstimatorPipeline:
                     "removed": step.removed,
                     "added": step.added,
                     "notes": step.notes,
+                    "date": step.date,
+                    "metrics_before": step.metrics_before,
+                    "metrics_after": step.metrics_after,
                 }
                 for step in cfg.selection_history
             ],
@@ -549,23 +552,36 @@ class EstimatorPipeline:
     def report(self) -> None:
         """Copy the Quarto report template into the output directory.
 
-        If ``docs/models/{model_id}.qmd`` exists, use that bespoke template;
-        otherwise fall back to the shared ``docs/models/index.qmd``.
+        Template lookup order:
+
+        1. ``docs/models/{model_id}/index.qmd`` — bespoke template for this
+           exact model.
+        2. ``docs/models/{variant_of}/index.qmd`` — bespoke template for the
+           parent model (used by selection variants).
+        3. ``docs/models/index.qmd`` — shared default template.
         """
         _section("Report")
 
         context = self.context
         cfg = context.config
-        per_model_template = _DOCS_DIR / "models" / f"{cfg.model_id}.qmd"
-        template = per_model_template if per_model_template.exists() else _REPORT_TEMPLATE
 
-        if not template.exists():
-            print(f"  [bold red]Report template not found: {template}[/bold red]")
+        candidates = [_DOCS_DIR / "models" / cfg.model_id / "index.qmd"]
+        if cfg.variant_of:
+            candidates.append(_DOCS_DIR / "models" / cfg.variant_of / "index.qmd")
+        candidates.append(_REPORT_TEMPLATE)
+
+        template = next((c for c in candidates if c.exists()), None)
+
+        if template is None:
+            print(
+                f"  [bold red]Report template not found for {cfg.model_id}. "
+                f"Checked: {', '.join(str(c) for c in candidates)}[/bold red]"
+            )
             return
 
         qmd_dest = context.output_dir / "index.qmd"
         shutil.copy(template, qmd_dest)
-        print(f"  Template used: {template.name}")
+        print(f"  Template used: {template.relative_to(_ROOT_DIR)}")
 
         print(f"  Report template copied to: {qmd_dest}")
         print(

@@ -95,7 +95,7 @@ Each fit writes two JSON artifacts alongside the CSVs:
 - `config.json` — inputs (model_id, pipeline_cls, variant_of, notes, target, predictors, model_params, cv_splits, ...).
 - `metrics.json` — aggregated outputs (n_observations, n_predictors, cv_rmse_mean/std, in_sample_mae/rmse). This is the file the cross-variant comparison in bespoke templates reads.
 
-Report templates use per-model lookup: `base_pipeline.report()` copies `docs/models/{model_id}.qmd` if it exists, otherwise falls back to the shared `docs/models/index.qmd`. Models that have earned bespoke documentation (e.g. `docs/models/lrp01.qmd` with a "Feature selection history" section that compares variants via their `metrics.json`) get their own template; everything else uses the shared one.
+Report templates use per-model lookup: `base_pipeline.report()` checks `docs/models/{model_id}/index.qmd` first, then `docs/models/{variant_of}/index.qmd` for selection variants, and falls back to the shared `docs/models/index.qmd`. Models that have earned bespoke documentation (e.g. `docs/models/lrp01/index.qmd` with a "Feature selection history" section that compares variants via their `metrics.json`) get their own template; everything else uses the shared one.
 
 Feature-selection diagnostics are driven by `scripts/analyze_predictors.py`, which runs Spearman correlation, distance-correlation dendrogram + cluster table, mutual-information heatmap, and (if a fitted model exists) joins the current champion's permutation importance onto the cluster assignments. Output lives in `output/feature_selection/{model_id}/` — deliberately outside `output/models/` so `fit()`'s output-directory reset doesn't wipe it.
 
