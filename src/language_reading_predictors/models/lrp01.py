@@ -9,8 +9,9 @@ exclusion — designed to identify the most important influences on reading
 gains across the full range of outcomes. ``LRP01Prediction`` is the
 prediction-focused variant with outlier exclusion and RMSE-tuned params.
 
-Both share the same 15-predictor set selected via iterative importance-based
-feature selection (see ``notes/202604161333-lrp01-feature-selection.md``).
+Both share the same 6-predictor set selected via iterative importance-based
+feature selection under an MAE objective
+(see ``notes/202604161432-lrp01-feature-selection-mae.md``).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -21,97 +22,102 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# These document the 34 → 15 feature-selection history. The steps are
-# defined once and referenced by both the exploratory and prediction models.
+# Documents the 34 → 6 feature-selection history under MAE-tuned params
+# with no outlier exclusion (n=157).
 
 _SELECTION_STEPS = [
-    # Select01: drop 6 zero-importance features (34 → 28)
     SelectionStep(
-        removed=[V.GROUP, V.APTGRAM, V.SPPHON, V.AREA, V.BEHAV, V.VISION],
+        removed=[
+            V.GROUP, V.APTGRAM, V.EARINF, V.SPPHON, V.ERBWORD, V.ROWPVT,
+            V.ERBNW, V.AREA, V.B1RETO, V.NONWORD, V.NUMCHIL, V.BEHAV,
+            V.DEAPPIN, V.YARCSI, V.VISION,
+            V.DEAPPVO, V.APTINFO, V.MUMEDUPOST16,
+        ],
         notes=(
-            "Remove 6 features with exactly zero permutation importance "
-            "in the tuned baseline (dev config, 5-fold CV): group, aptgram, "
-            "spphon, area, behav, vision."
+            "Remove 18 features with zero or negative permutation importance "
+            "in the MAE-tuned baseline (dev config, 5-fold CV, n=157)."
         ),
         date="2026-04-16",
-        metrics_before={"cv_rmse_mean": 3.302, "cv_r2_mean": 0.122},
-        metrics_after={"cv_rmse_mean": 3.294, "cv_r2_mean": 0.129},
+        metrics_before={"cv_mae_mean": 2.996},
+        metrics_after={"cv_mae_mean": 2.967},
     ),
-    # Select02: drop 6 low-importance features (28 → 22)
     SelectionStep(
-        removed=[V.YARCSI, V.ROWPVT, V.EARINF, V.ERBNW, V.NONWORD, V.MUMEDUPOST16],
+        removed=[V.DEAPPFI, V.AGESPEAK, V.TIME, V.EWRSWR, V.AGEBOOKS],
         notes=(
-            "Remove 6 features with importance < 0.002 in select01 "
-            "(dev config, 5-fold CV): yarcsi (0.000), rowpvt (0.001), "
-            "earinf (0.001), erbnw (0.001), nonword (0.001), "
-            "mumedupost16 (0.001)."
+            "Remove 5 features with importance <= 0.0003 or negative: "
+            "deappfi, agespeak, time, ewrswr, agebooks."
         ),
         date="2026-04-16",
-        metrics_before={"cv_rmse_mean": 3.294, "cv_r2_mean": 0.129},
-        metrics_after={"cv_rmse_mean": 3.272, "cv_r2_mean": 0.139},
+        metrics_before={"cv_mae_mean": 2.967},
+        metrics_after={"cv_mae_mean": 2.954},
     ),
-    # Select03: drop 6 low-importance / cluster-redundant (22 → 16)
     SelectionStep(
-        removed=[V.HEARING, V.DADEDUPOST16, V.B1RETO, V.EWRSWR, V.ERBWORD, V.NUMCHIL],
-        notes=(
-            "Remove 6 features: hearing (0.012, singleton), "
-            "dadedupost16 (0.011, singleton), b1reto (0.018, redundant "
-            "with eowpvt in cluster 3), ewrswr (0.017, redundant with "
-            "yarclet in cluster 1), erbword (0.026, redundant with "
-            "deappfi/deappin in cluster 9), numchil (0.020, singleton). "
-            "Importance values from test config 10-fold CV."
-        ),
+        removed=[V.DADEDUPOST16, V.GENDER],
+        notes="Remove dadedupost16 (0.002) and gender (0.001).",
         date="2026-04-16",
-        metrics_before={"cv_rmse_mean": 3.272, "cv_r2_mean": 0.139},
-        metrics_after={"cv_rmse_mean": 3.241, "cv_r2_mean": 0.157},
+        metrics_before={"cv_mae_mean": 2.954},
+        metrics_after={"cv_mae_mean": 2.939},
     ),
-    # Select04: drop agespeak (16 → 15)
     SelectionStep(
-        removed=[V.AGESPEAK],
-        notes="Remove agespeak (importance 0.003, rank 16/16 in select03).",
+        removed=[V.TROG],
+        notes="Remove trog (0.004, rank 9/9).",
         date="2026-04-16",
-        metrics_before={"cv_rmse_mean": 3.241, "cv_r2_mean": 0.157},
-        metrics_after={"cv_rmse_mean": 3.211, "cv_r2_mean": 0.172},
+        metrics_before={"cv_mae_mean": 2.939},
+        metrics_after={"cv_mae_mean": 2.920},
+    ),
+    SelectionStep(
+        removed=[V.EOWPVT],
+        notes="Remove eowpvt (0.004). b1exto and celf cover language.",
+        date="2026-04-16",
+        metrics_before={"cv_mae_mean": 2.920},
+        metrics_after={"cv_mae_mean": 2.899},
+    ),
+    SelectionStep(
+        removed=[V.HEARING],
+        notes="Remove hearing (0.006, rank 7/7).",
+        date="2026-04-16",
+        metrics_before={"cv_mae_mean": 2.899},
+        metrics_after={"cv_mae_mean": 2.893},
     ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# RMSE-tuned on 34 predictors, outliers excluded (Optuna 50 trials,
-# 10-split GroupKFold, seed 47). Best trial #14, CV RMSE 3.3145 ± 0.5423.
-# Used during feature selection and retained for the prediction variant.
-_LGBM_RMSE_TUNED_PARAMS: dict[str, float | int] = {
-    "n_estimators": 83,
-    "learning_rate": 0.061852240742933245,
-    "num_leaves": 34,
-    "max_depth": 12,
-    "min_child_samples": 31,
-    "subsample": 0.8360372539990215,
+# MAE-tuned on 6 predictors, no outlier exclusion (Optuna 50 trials,
+# 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Best trial #42, CV MAE 2.8394 ± 0.8535. n=157.
+_LGBM_MAE_PARAMS: dict[str, float | int] = {
+    "objective": "mae",
+    "n_estimators": 118,
+    "learning_rate": 0.020503143245054957,
+    "num_leaves": 13,
+    "max_depth": 11,
+    "min_child_samples": 30,
+    "subsample": 0.9479940166756426,
     "subsample_freq": 1,
-    "colsample_bytree": 0.8786907349593146,
-    "reg_alpha": 1.4894437395338633,
-    "reg_lambda": 5.25756227415291,
+    "colsample_bytree": 0.6024743488626004,
+    "reg_alpha": 0.0375788355410621,
+    "reg_lambda": 0.0037690200347546363,
     "n_jobs": 16,
     "verbosity": -1,
 }
 
-# MAE-tuned on 15 predictors, no outlier exclusion (Optuna 50 trials,
-# 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
-# Best trial #11, CV MAE 2.8476 ± 0.7610. n=157. Only 29 estimators —
-# a conservative ensemble that does not chase outlier residuals.
-_LGBM_MAE_TUNED_PARAMS: dict[str, float | int] = {
-    "objective": "mae",
-    "n_estimators": 29,
-    "learning_rate": 0.19020993655265472,
-    "num_leaves": 46,
-    "max_depth": 12,
-    "min_child_samples": 40,
-    "subsample": 0.7337465509959111,
+# RMSE-tuned on 6 predictors, no outlier exclusion (Optuna 50 trials,
+# 10-split GroupKFold, seed 47, scoring=rmse, lgbm_objective=regression).
+# Best trial #36, CV RMSE 3.8126 ± 0.9152. n=157.
+_LGBM_RMSE_PARAMS: dict[str, float | int] = {
+    "objective": "regression",
+    "n_estimators": 50,
+    "learning_rate": 0.09226000258126973,
+    "num_leaves": 30,
+    "max_depth": 9,
+    "min_child_samples": 29,
+    "subsample": 0.6347769811026076,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9969182249863432,
-    "reg_alpha": 0.01030462958842614,
-    "reg_lambda": 1.028398001881727,
+    "colsample_bytree": 0.7232328649750049,
+    "reg_alpha": 0.01764013107887275,
+    "reg_lambda": 0.07888648720556594,
     "n_jobs": 16,
     "verbosity": -1,
 }
@@ -135,11 +141,11 @@ class LRP01(GainModel):
     target_var = V.EWRSWR_GAIN
     description = (
         "LightGBM — word-reading gain predictors "
-        "(15 predictors, MAE-tuned, no outlier exclusion)"
+        "(6 predictors, MAE-tuned, no outlier exclusion)"
     )
     include = [V.EWRSWR]
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_TUNED_PARAMS
+    params = _LGBM_MAE_PARAMS
     cv_splits = 53
     outlier_threshold = None
     selection_steps = _SELECTION_STEPS
@@ -147,7 +153,7 @@ class LRP01(GainModel):
         "Exploratory model for identifying important predictors of reading "
         "gains. Uses MAE objective and no outlier exclusion so that importance "
         "rankings reflect the full range of outcomes. See "
-        "notes/202604161333-lrp01-feature-selection.md for the full history."
+        "notes/202604161432-lrp01-feature-selection-mae.md."
     )
 
 
@@ -155,11 +161,11 @@ class LRP01(GainModel):
 
 
 class LRP01Prediction(GainModel):
-    """Word-reading gain predictors — prediction-focused (RMSE-tuned, outliers excluded).
+    """Word-reading gain predictors — prediction-focused (RMSE-tuned, all data).
 
-    Optimised for prediction accuracy on typical cases. Excludes outlier
-    gains (>= 15) and uses RMSE-tuned hyperparameters. Same 15-predictor
-    set as the exploratory model.
+    Optimised for prediction accuracy. Uses RMSE-tuned hyperparameters with
+    the same 6-predictor set and no outlier exclusion. Same data as the
+    exploratory model.
     """
 
     model_id = "lrp01_prediction"
@@ -167,16 +173,16 @@ class LRP01Prediction(GainModel):
     target_var = V.EWRSWR_GAIN
     description = (
         "LightGBM — word-reading gain predictors "
-        "(15 predictors, RMSE-tuned, outliers excluded)"
+        "(6 predictors, RMSE-tuned)"
     )
     include = [V.EWRSWR]
     pipeline_cls = LGBMPipeline
-    params = _LGBM_RMSE_TUNED_PARAMS
+    params = _LGBM_RMSE_PARAMS
     cv_splits = 53
-    outlier_threshold = 15.0
+    outlier_threshold = None
     selection_steps = _SELECTION_STEPS
     notes = (
-        "Prediction-focused variant. Excludes outlier gains >= 15 and uses "
-        "RMSE-tuned hyperparameters for best prediction accuracy on typical "
-        "cases. CV RMSE 3.211 (dev config)."
+        "Prediction-focused variant. Same 6 predictors and data as the "
+        "exploratory model, but RMSE-tuned for best prediction accuracy. "
+        "CV RMSE 3.8126 (inner tuning)."
     )
