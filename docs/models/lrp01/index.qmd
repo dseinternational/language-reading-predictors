@@ -33,21 +33,17 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRP01 models gains in single-word reading ability (EWRSWR) for children with Down
-syndrome across longitudinal timepoints. The target variable is `ewrswr_gain` ---
-the change in EWRSWR score between consecutive assessments. Observations with
-gains $\geq$ 15 are excluded as outliers.
+LRP01 models gains in single-word reading scores (`ewrswr`) across longitudinal timepoints. The target variable is `ewrswr_gain` -- the change in `ewrswr` score between consecutive assessments. Observations with gains $\geq$ 15 are excluded as outliers.
 
-The model uses LightGBM with Optuna-tuned hyperparameters and 34 predictors
-spanning demographics, cognitive ability, language, speech, reading, and
-home-environment measures. Cross-validation is group-aware (`GroupKFold`,
-grouped by `subject_id`) to prevent data leakage across timepoints for the same
-child.
+The model uses LightGBM with tuned hyperparameters and 34 predictors spanning demographics, cognitive ability, language, speech, reading, and home-environment measures. Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent data leakage across timepoints for the same child.
 
-## Model configuration
+## Configuration
+
+### Hyperparameters
 
 ```{python}
 #| output: asis
+#| classes: table-sm
 rows = [
     ("Algorithm", "LightGBM (`lightgbm.LGBMRegressor`)"),
     ("Target variable", f"`ewrswr_gain` (outliers ≥ {config['outlier_threshold']} excluded)"),
@@ -73,19 +69,19 @@ print(": Model hyperparameters {#tbl-config}")
 
 ```{python}
 #| output: asis
-print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
+print(", ".join(f"{v}" for v in config["predictor_vars"]))
 ```
 
-## Data
-
-### Target variable descriptive statistics
+### Target variable
 
 ```{python}
 target_desc = pd.read_csv("target_describe.csv", index_col=0)
 target_desc
 ```
 
-## Cross-validation
+## Validation
+
+### Cross-validation
 
 Group-aware (`GroupKFold`) cross-validation RMSE scores:
 
@@ -102,7 +98,7 @@ print(f"Max  RMSE: {cv_scores['rmse'].max():.4f}")
 cv_scores
 ```
 
-## In-sample evaluation
+### In-sample evaluation
 
 ```{python}
 eval_df = pd.read_csv("evaluation.csv")
@@ -126,20 +122,6 @@ model's predictive accuracy.
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
-```
-
-#### Interpretation
-
-```{python}
-#| output: asis
-_top_n = 10
-_top = perm_imp.head(_top_n)
-print(
-    f"The {_top_n} most important predictors of word-reading gains by "
-    f"permutation importance are: "
-    + ", ".join(f"`{row['feature']}`" for _, row in _top.iterrows())
-    + "."
-)
 ```
 
 <!-- Add model-specific commentary on permutation importance findings here.
