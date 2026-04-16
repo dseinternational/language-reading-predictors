@@ -115,7 +115,13 @@ scatter_plot(vars.NONWORD, vars.EWRSWR)
 # ## Factors influencing non-word reading score
 
 # %%
-scatter_plot(vars.EWRSWR, vars.NONWORD)
+scatter_plot(vars.ROWPVT, vars.NONWORD)
 
 # %%
-scatter_plot(vars.ROWPVT, vars.EWRSWR)
+scatter_plot(vars.YARCLET, vars.NONWORD)
+
+# %%
+scatter_plot(vars.SPPHON, vars.NONWORD)
+
+# %%
+scatter_plot(vars.EWRSWR, vars.NONWORD)
