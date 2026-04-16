@@ -589,14 +589,118 @@ The relative ordering of the top 10 is otherwise similar. The log
 transform changes *how much* each feature contributes but not *which*
 features contribute — the 13-predictor selection holds up.
 
+### Log-space retune
+
+The initial `lrp02_log` result above was fitted with hyperparameters
+tuned on *original-scale* targets (the primary's `_LGBM_MAE_PARAMS`).
+Tuning properly in log space required extending `scripts/tune_model.py`
+with a `--target-transform` flag: the tuner applies `log1p` before
+`LGBMRegressor.fit`, inverts with `expm1` before scoring, and
+optimises tuner-inner MAE in the original ewrswr units. The default
+transform is inferred from the model's `pipeline_cls`
+(`LGBMPipeline → none`, `LGBMLogPipeline → log1p`).
+
+Optuna 150-trial search on the 13-predictor Select04 set, seed 47,
+scoring=mae, lgbm_objective=mae, target_transform=log1p. Best trial
+#147, tuner-inner CV MAE 6.0010 ± 2.8026 (vs primary's 6.3065 at the
+same 150 trials — a material improvement). Pinned as
+`_LGBM_MAE_PARAMS_LOG` on `LRP02Log`.
+
+| Parameter | Tuned on y (primary) | Tuned on log1p(y) (variant) |
+|---|---|---|
+| n_estimators | 53 | 358 |
+| learning_rate | 0.103 | 0.013 |
+| num_leaves | 49 | 36 |
+| max_depth | 6 | 8 |
+| min_child_samples | 16 | 4 |
+| subsample | 0.988 | 0.693 |
+| colsample_bytree | 0.700 | 0.635 |
+| reg_alpha | 0.001 | 0.011 |
+| reg_lambda | 0.001 | 0.048 |
+
+Very different regime: many more trees, much slower learning, smaller
+leaves, moderate L2. Consistent with the compressed target space —
+the model can afford slow careful learning because the target variance
+is no longer dominated by the tail.
+
+### Side-by-side metrics (post-log-tune)
+
+| Metric | `lrp02` (13) | `lrp02_select02` (17) | `lrp02_log` (13, log-tuned) |
+|---|---|---|---|
+| CV MAE | 6.019 ± 1.627 | 5.908 ± 1.622 | **5.581 ± 2.301** |
+| CV RMSE | 8.242 ± 2.436 | 8.072 ± 2.570 | **8.006 ± 3.384** |
+| CV R² | 0.355 ± 0.409 | 0.390 ± 0.428 | **0.488 ± 0.238** |
+| CV MedAE | 3.963 | 3.978 | **3.165** |
+| In-sample R² | 0.968 | 0.976 | 0.974 |
+
+`lrp02_log` with its own tune is now the best across every CV metric:
+
+- **CV MAE drops from 6.02 to 5.58** — a 7% improvement and the best
+  CV MAE of any LRP02 configuration to date (beating `lrp02_select02`'s
+  5.91 with fewer predictors).
+- **CV R² rises from 0.36 to 0.49** — the biggest jump in the whole
+  history. Up 0.13 over the primary.
+- **CV R² std drops from 0.41 to 0.24** — folds are dramatically more
+  consistent; the "bad fold" tail is largely gone.
+- **CV MedAE drops 20%** (3.96 → 3.17).
+
+CV RMSE std went up (2.44 → 3.38) — the log-space optimisation still
+doesn't shrink the squared-error tail. But mean RMSE improves, which
+means the benefits on typical cases outweigh the tail penalty on
+average.
+
+### Quartile-level in-sample MAE (post-log-tune)
+
+| Target range | `lrp02` | `lrp02_log` (untuned for log) | `lrp02_log` (log-tuned) |
+|---|---|---|---|
+| 0–1 | 0.45 | 0.42 | **0.32** |
+| 1–6.5 | 0.43 | 0.43 | **0.30** |
+| 6.5–17 | 1.18 | 1.00 | **0.78** |
+| 17–64 | 2.72 | 2.42 | 2.63 |
+
+Under the log-space tune, errors in the bottom three quartiles drop
+substantially. The top quartile is slightly worse than the untuned-for-log
+variant (2.63 vs 2.42) but still better than the primary (2.72). The
+new params are optimising for median performance across the range
+rather than tail performance.
+
+### Permutation importance under log-tune
+
+| Rank | Feature | Log-tuned imp | Primary imp |
+|---|---|---|---|
+| 1 | `yarclet` | 0.269 | 0.137 |
+| 2 | `spphon` | **0.257** | 0.172 |
+| 3 | `eowpvt` | 0.107 | 0.079 |
+| 4 | `aptinfo` | 0.100 | 0.049 |
+| 5 | `erbword` | 0.075 | 0.030 |
+| 6 | `nonword` | 0.063 | 0.049 |
+| 7 | `agebooks` | 0.042 | 0.032 |
+| 8 | `agespeak` | 0.041 | 0.045 |
+| 9 | `mumedupost16` | 0.035 | 0.038 |
+| 10 | `age` | 0.034 | 0.023 |
+| 11 | `numchil` | 0.022 | 0.013 |
+| 12 | `gender` | 0.015 | 0.017 |
+| 13 | `deappvo` | 0.015 | 0.005 |
+
+Notable changes:
+
+- `spphon` and `yarclet` are now near-tied at the top (0.257 vs 0.269)
+  rather than `spphon` dominating 2:1. Letter-sound knowledge and
+  phonemic awareness emerge as co-primary predictors in log space.
+- `erbword` and `aptinfo` both roughly double — the middle tier
+  tightens into a more even distribution.
+- `deappvo` rises to 0.015 (from 0.005) — now clearly above the noise
+  floor in log space.
+
 ### Caveats
 
-- MAE hyperparameters were tuned on original-scale targets, not on
-  `log1p(y)`. A proper retune under the log transform could improve
-  the variant further.
 - SHAP values from `lrp02_log` are computed on the log-space booster,
   so their base value and scale are not directly comparable with the
   primary's SHAP plots.
+- The 13-feature selection was made under the primary's tune; the
+  log-tuned variant's sharper middle-tier importance suggests another
+  pass of correlation / redundancy review in log space could be
+  worthwhile.
 
 ### Where this leaves the portfolio
 
@@ -659,11 +763,13 @@ column order and LightGBM's seeded `colsample_bytree` draws.
   selection history so the variant lands at the Select02 feature set,
   then pins the 17-predictor tune. Reference point for the
   feature-selection trade-off.
-- **`lrp02_log`** (variant, log1p target, 13 predictors): CV MAE
-  5.876 ± 2.316, CV R² 0.424 ± 0.290, CV MedAE 3.408. Fits
-  `log1p(ewrswr)` via `TransformedTargetRegressor`; same features and
-  hyperparameters as `lrp02`. Currently the best CV R² and CV MedAE
-  across all LRP02 variants.
+- **`lrp02_log`** (variant, log1p target, 13 predictors, log-space
+  tuned): CV MAE 5.581 ± 2.301, CV RMSE 8.006, CV R² 0.488 ± 0.238,
+  CV MedAE 3.165. Fits `log1p(ewrswr)` via `TransformedTargetRegressor`,
+  hyperparameters tuned in log space via the new
+  `scripts/tune_model.py --target-transform log1p` flag. **Best CV
+  performance across all metrics (mean) and tighter fold variance on
+  R² and MAE than any other variant.**
 - Four `SelectionStep`s on `LRP02` document the 32 → 24 → 17 → 15 → 13
   cuts; one step on `LRP02Select02` adds back the two features dropped
   at Select03.

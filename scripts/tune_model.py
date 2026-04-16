@@ -120,6 +120,15 @@ _SCORING_FUNCS: dict[str, Callable[[np.ndarray, np.ndarray], float]] = {
 }
 
 
+# Target transforms: (forward, inverse) functions applied to y before
+# fitting / after predicting. Scoring always happens in the original
+# target space so tuning metrics remain comparable across transforms.
+_TARGET_TRANSFORMS: dict[str, tuple[Callable[[np.ndarray], np.ndarray], Callable[[np.ndarray], np.ndarray]]] = {
+    "none": (lambda y: y, lambda y: y),
+    "log1p": (np.log1p, np.expm1),
+}
+
+
 def _lgbm_objective(
     X: pd.DataFrame,
     y: pd.Series,
@@ -131,10 +140,12 @@ def _lgbm_objective(
     early_stopping_fraction: float,
     scoring: str = "rmse",
     lgbm_objective: str = "regression",
+    target_transform: str = "none",
 ) -> Callable[[optuna.Trial], float]:
     from lightgbm import LGBMRegressor, early_stopping, log_evaluation
 
     score_fn = _SCORING_FUNCS[scoring]
+    forward, inverse = _TARGET_TRANSFORMS[target_transform]
 
     def objective(trial: optuna.Trial) -> float:
         base_params = _lgbm_search_space(trial, seed, lgbm_objective)
@@ -161,17 +172,22 @@ def _lgbm_objective(
             X_es = X_tr.iloc[inner_es_idx]
             y_es = y_tr.iloc[inner_es_idx]
 
+            # Fit in transformed-y space; invert predictions for scoring so
+            # the tuner optimises the original-scale metric.
+            y_tr_fit = forward(y_tr_inner.to_numpy())
+            y_es_fit = forward(y_es.to_numpy())
+
             model = LGBMRegressor(**base_params, n_estimators=max_n_estimators)
             model.fit(
                 X_tr_inner,
-                y_tr_inner,
-                eval_set=[(X_es, y_es)],
+                y_tr_fit,
+                eval_set=[(X_es, y_es_fit)],
                 callbacks=[
                     early_stopping(stopping_rounds=early_stopping_rounds, verbose=False),
                     log_evaluation(0),
                 ],
             )
-            preds = model.predict(X_val)
+            preds = inverse(model.predict(X_val))
             fold_scores.append(score_fn(y_val.to_numpy(), preds))
             best_iters.append(int(model.best_iteration_ or max_n_estimators))
 
@@ -198,6 +214,13 @@ def _make_log_trial(scoring: str):
     return _log_trial
 
 
+_SUPPORTED_PIPELINES = {"LGBMPipeline", "LGBMLogPipeline"}
+_PIPELINE_DEFAULT_TRANSFORM = {
+    "LGBMPipeline": "none",
+    "LGBMLogPipeline": "log1p",
+}
+
+
 def tune(
     model_id: str,
     n_trials: int,
@@ -209,6 +232,7 @@ def tune(
     early_stopping_fraction: float,
     scoring: str = "rmse",
     lgbm_objective: str = "regression",
+    target_transform: str | None = None,
 ) -> None:
     key = model_id.lower()
     if key not in MODELS:
@@ -218,10 +242,19 @@ def tune(
 
     cfg = MODELS[key]
     pipeline_name = cfg.pipeline_cls.__name__
-    if pipeline_name != "LGBMPipeline":
+    if pipeline_name not in _SUPPORTED_PIPELINES:
         print(
-            f"[bold red]tune_model.py only supports LGBMPipeline; "
+            f"[bold red]tune_model.py supports {sorted(_SUPPORTED_PIPELINES)}; "
             f"{key} uses {pipeline_name}[/bold red]"
+        )
+        raise SystemExit(1)
+
+    if target_transform is None:
+        target_transform = _PIPELINE_DEFAULT_TRANSFORM[pipeline_name]
+    if target_transform not in _TARGET_TRANSFORMS:
+        print(
+            f"[bold red]Unknown target_transform {target_transform!r}; "
+            f"supported: {sorted(_TARGET_TRANSFORMS)}[/bold red]"
         )
         raise SystemExit(1)
 
@@ -236,6 +269,7 @@ def tune(
         f"inner ES fraction: {early_stopping_fraction}"
     )
     print(f"  Scoring: {scoring}  LightGBM objective: {lgbm_objective}")
+    print(f"  Target transform: {target_transform}")
     objective = _lgbm_objective(
         X,
         y,
@@ -247,6 +281,7 @@ def tune(
         early_stopping_fraction,
         scoring=scoring,
         lgbm_objective=lgbm_objective,
+        target_transform=target_transform,
     )
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -281,6 +316,7 @@ def tune(
         "model_id": key,
         "pipeline_cls": pipeline_name,
         "scoring": scoring,
+        "target_transform": target_transform,
         f"cv_{scoring}_mean": float(best.value),
         f"cv_{scoring}_std": float(best.user_attrs.get(cv_std_key, float("nan"))),
         "n_trials": len(study.trials),
@@ -300,6 +336,7 @@ def tune(
         "pipeline_cls": pipeline_name,
         "direction": "minimize",
         "scoring": f"cv_{scoring}_mean",
+        "target_transform": target_transform,
         "n_trials": len(study.trials),
         "best_value": float(study.best_value),
         "best_trial_number": int(best.number),
@@ -317,7 +354,7 @@ def tune(
     print(f"  CV {label} mean: {best.value:.4f}")
     cv_std = best.user_attrs.get(cv_std_key, float("nan"))
     print(f"  CV {label} std:  {cv_std:.4f}")
-    if pipeline_name == "LGBMPipeline":
+    if pipeline_name in _SUPPORTED_PIPELINES:
         print(f"  Mean best iteration: {best.user_attrs.get('mean_best_iteration')}")
     print(f"  Params: {json.dumps(best_full_params, indent=2)}")
     print()
@@ -382,6 +419,18 @@ def main() -> None:
             "for RMSE tuning, 'mae' for MAE tuning. Default: regression."
         ),
     )
+    parser.add_argument(
+        "--target-transform",
+        type=str,
+        default=None,
+        choices=sorted(_TARGET_TRANSFORMS.keys()),
+        help=(
+            "Apply a forward transform to y before fitting and inverse to "
+            "predictions before scoring. Defaults based on pipeline_cls "
+            "(LGBMPipeline → none, LGBMLogPipeline → log1p). Set explicitly "
+            "to override."
+        ),
+    )
     args = parser.parse_args()
 
     tune(
@@ -395,6 +444,7 @@ def main() -> None:
         early_stopping_fraction=args.early_stopping_fraction,
         scoring=args.scoring,
         lgbm_objective=args.lgbm_objective,
+        target_transform=args.target_transform,
     )
 
 

@@ -141,6 +141,27 @@ _LGBM_MAE_PARAMS_SELECT02: dict[str, float | int | str] = {
     "verbosity": -1,
 }
 
+# MAE-tuned in log1p(y) space on the 13-predictor Select04 set (Optuna
+# 150 trials, 10-split GroupKFold, seed 47, scoring=mae tuned on
+# inverse-transformed predictions so tuner-inner CV MAE remains in
+# original ewrswr units). Best trial #147, CV MAE 6.0010 ± 2.8026.
+# n=210. Pinned on the ``lrp02_log`` variant.
+_LGBM_MAE_PARAMS_LOG: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 358,
+    "learning_rate": 0.013445072655254693,
+    "num_leaves": 36,
+    "max_depth": 8,
+    "min_child_samples": 4,
+    "subsample": 0.6931709324463539,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.6354537611535218,
+    "reg_alpha": 0.010804887107264944,
+    "reg_lambda": 0.04796741692608438,
+    "n_jobs": 16,
+    "verbosity": -1,
+}
+
 
 # ── primary model (exploratory, MAE-tuned) ──────────────────────────────
 
@@ -244,15 +265,16 @@ class LRP02Log(LRP02):
     variant_of = "lrp02"
     description = (
         "LightGBM — word-reading level predictors "
-        "(13 predictors, MAE-tuned, log1p target transform)"
+        "(13 predictors, MAE-tuned in log1p space)"
     )
     pipeline_cls = LGBMLogPipeline
-    # Inherits params (_LGBM_MAE_PARAMS) and selection_steps from LRP02.
+    params = _LGBM_MAE_PARAMS_LOG
+    # Inherits selection_steps from LRP02 (same 13-predictor set).
     notes = (
         "Log-transform variant of lrp02. Fits log1p(ewrswr) via "
         "TransformedTargetRegressor so predictions are inverse-transformed "
         "back to the original scale — CV/evaluation metrics are comparable "
-        "with the primary. Uses the same 13-predictor feature set and the "
-        "same MAE-tuned hyperparameters; the question it tests is whether "
-        "compressing the right tail of ewrswr improves fit quality."
+        "with the primary. Uses the same 13-predictor feature set and "
+        "MAE-tuned hyperparameters tuned *in log space* (Optuna trial #147, "
+        "tuner-inner CV MAE 6.0010)."
     )
