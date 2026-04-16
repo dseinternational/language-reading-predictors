@@ -186,3 +186,46 @@ class LRP01Prediction(GainModel):
         "exploratory model, but RMSE-tuned for best prediction accuracy. "
         "CV RMSE 3.8126 (inner tuning)."
     )
+
+
+# ── experimental variants ───────────────────────────────────────────────
+
+
+class LRP01ExpEowpvt(LRP01):
+    """Experiment: replace b1exto with eowpvt."""
+
+    model_id = "lrp01_exp_eowpvt"
+    variant_of = "lrp01"
+    description = "LightGBM — swap b1exto for eowpvt"
+    selection_steps = [
+        SelectionStep(
+            removed=[V.B1EXTO],
+            added=[V.EOWPVT],
+            notes=(
+                "Experiment: replace b1exto with eowpvt. Both measure "
+                "expressive vocabulary but eowpvt is a standardised instrument."
+            ),
+            date="2026-04-16",
+        ),
+    ]
+    notes = (
+        "Experiment: replace b1exto (Block 1 expressive vocabulary) with "
+        "eowpvt (Expressive One-Word Picture Vocabulary Test). Both measure "
+        "expressive vocabulary but eowpvt is a standardised instrument."
+    )
+
+
+class LRP01ExpGender(LRP01):
+    """Experiment: add gender back in (7 predictors)."""
+
+    model_id = "lrp01_exp_gender"
+    variant_of = "lrp01"
+    description = "LightGBM — add gender back in"
+    selection_steps = [
+        SelectionStep(
+            added=[V.GENDER],
+            notes="Experiment: add gender back to the 6-predictor set.",
+            date="2026-04-16",
+        ),
+    ]
+    notes = "Experiment: test whether adding gender back improves the model."

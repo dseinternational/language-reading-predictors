@@ -464,7 +464,8 @@ def plot_heatmap(
     idx = np.arange(n)
 
     if ax is None:
-        sz = figsize or (max(8, 0.35 * n), max(8, 0.35 * n))
+        side = min(max(3, 0.6 * n), 14)
+        sz = figsize or (side + 1.5, side)  # extra width for colorbar
         fig, ax = plt.subplots(figsize=sz)
     else:
         fig = ax.get_figure()

@@ -302,7 +302,9 @@ class EstimatorPipeline:
         condensed = squareform(dcor_dissim, checks=False)
         linkage = hierarchy.ward(condensed)
 
-        fig_dendro, ax_dendro = plt.subplots(figsize=(8, max(6, 0.3 * n)))
+        dendro_h = min(max(3, 0.5 * n), 12)
+        dendro_w = min(max(5, 0.4 * n), 10)
+        fig_dendro, ax_dendro = plt.subplots(figsize=(dendro_w, dendro_h))
         hierarchy.dendrogram(linkage, labels=predictors, orientation="right", ax=ax_dendro)
         ax_dendro.set_title("Distance-correlation dissimilarity (Ward linkage)")
         ax_dendro.set_xlabel("Dissimilarity (1 \u2212 distance correlation)")
@@ -471,10 +473,18 @@ class EstimatorPipeline:
             grid = pdp["grid_values"][0]
             avg = pdp["average"][0]
 
-            ax.plot(grid, avg)
+            ax.plot(grid, avg, label="PDP")
+
+            # Add target mean and median as horizontal reference lines
+            y_mean = float(context.y.mean())
+            y_median = float(context.y.median())
+            ax.axhline(y_mean, color="C1", linestyle="--", alpha=0.7, label="Target mean")
+            ax.axhline(y_median, color="C2", linestyle=":", alpha=0.7, label="Target median")
+
             ax.set_title(f"Partial dependence of {feature}")
             ax.set_xlabel(feature)
             ax.set_ylabel(f"Predicted {cfg.target_var}")
+            ax.legend(fontsize=8)
 
         for j in range(n_features, n_rows * n_cols):
             row = j // n_cols
