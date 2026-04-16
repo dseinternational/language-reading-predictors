@@ -29,16 +29,16 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import shap
 from rich import print
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 from sklearn.inspection import partial_dependence, permutation_importance
-from sklearn.model_selection import GroupKFold, cross_val_score
+from sklearn.model_selection import GroupKFold, cross_validate
 
 import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors.data_variables import Variables as vars
+from language_reading_predictors.plot_utils import plot_heatmap
 from language_reading_predictors.models.common import (
     ModelConfig,
     ModelFitContext,
@@ -48,7 +48,6 @@ from language_reading_predictors.models.common import (
 _ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 _DOCS_DIR = _ROOT_DIR / "docs"
 _OUTPUT_DIR = _ROOT_DIR / "output" / "models"
-_REPORT_TEMPLATE = _DOCS_DIR / "models" / "index.qmd"
 
 ESTIMATOR_STEP = "est"
 """Name of the estimator step inside the sklearn ``Pipeline``."""
@@ -125,27 +124,42 @@ class EstimatorPipeline:
         run = context.run_config
         cv_splits = run.cv_splits if run.cv_splits is not None else cfg.cv_splits
         cv = GroupKFold(n_splits=cv_splits)
-        scores = cross_val_score(
+
+        scoring = {
+            "mae": "neg_mean_absolute_error",
+            "rmse": "neg_root_mean_squared_error",
+            "r2": "r2",
+            "medae": "neg_median_absolute_error",
+        }
+
+        cv_results = cross_validate(
             context.pipeline,
             context.X,
             context.y,
             cv=cv,
             groups=context.groups,
-            scoring="neg_root_mean_squared_error",
+            scoring=scoring,
         )
-
-        context.cv_scores = scores
-
-        rmse_scores = -scores
-        print(f"  Group-aware CV RMSE: {rmse_scores}")
-        print(f"  Mean RMSE: {rmse_scores.mean():.4f}")
-        print(f"  Std  RMSE: {rmse_scores.std():.4f}")
 
         scores_df = pd.DataFrame(
-            {"fold": range(1, len(rmse_scores) + 1), "rmse": rmse_scores}
+            {
+                "fold": range(1, cv_splits + 1),
+                "mae": -cv_results["test_mae"],
+                "rmse": -cv_results["test_rmse"],
+                "r2": cv_results["test_r2"],
+                "medae": -cv_results["test_medae"],
+            }
         )
-        scores_df.to_csv(context.output_dir / "cv_scores.csv", index=False)
+
+        context.cv_scores = -cv_results["test_rmse"]
+        context.cv_results = cv_results
         context.dataframes["cv_scores"] = scores_df
+        scores_df.to_csv(context.output_dir / "cv_scores.csv", index=False)
+
+        print(f"  MAE:   {scores_df['mae'].mean():.4f} ± {scores_df['mae'].std():.4f}")
+        print(f"  RMSE:  {scores_df['rmse'].mean():.4f} ± {scores_df['rmse'].std():.4f}")
+        print(f"  R²:    {scores_df['r2'].mean():.4f} ± {scores_df['r2'].std():.4f}")
+        print(f"  MedAE: {scores_df['medae'].mean():.4f} ± {scores_df['medae'].std():.4f}")
 
     def fit_model(self) -> None:
         """Fit the pipeline on the full dataset."""
@@ -160,12 +174,13 @@ class EstimatorPipeline:
         _section("Evaluate")
 
         context = self.context
+        y_true = context.y
         y_pred = context.pipeline.predict(context.X)
 
         eval_df = pd.DataFrame(
             {
                 vars.SUBJECT_ID: context.groups,
-                "y_true": context.y,
+                "y_true": y_true,
                 "y_pred": y_pred,
             }
         )
@@ -178,10 +193,17 @@ class EstimatorPipeline:
 
         eval_df.to_csv(context.output_dir / "evaluation.csv", index=False)
 
-        mae = eval_df["abs_residual"].mean()
-        rmse = np.sqrt(eval_df["sq_error"].mean())
+        mae = float(eval_df["abs_residual"].mean())
+        rmse = float(np.sqrt(eval_df["sq_error"].mean()))
+        medae = float(eval_df["abs_residual"].median())
+        ss_res = eval_df["sq_error"].sum()
+        ss_tot = ((y_true - y_true.mean()) ** 2).sum()
+        r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0 else float("nan")
+
         print(f"  In-sample MAE:  {mae:.4f}")
         print(f"  In-sample RMSE: {rmse:.4f}")
+        print(f"  In-sample R²:   {r2:.4f}")
+        print(f"  In-sample MedAE: {medae:.4f}")
 
     def permutation_importance_analysis(self) -> None:
         """Compute permutation importance and save results."""
@@ -218,94 +240,110 @@ class EstimatorPipeline:
 
         print(perm_df.to_string(index=False))
 
-    def correlation_analysis(self) -> None:
-        """Compute distance-correlation matrix, dendrogram, and heatmap.
+    def feature_selection_diagnostics(self, cluster_cutoff: float = 0.4) -> None:
+        """Compute inter-predictor diagnostics for feature selection.
 
-        Uses the same distance-correlation metric as
-        ``stats_utils.distance_corr_matrix`` and produces:
+        Produces:
 
-        - ``distance_corr_matrix.csv`` — full pairwise matrix.
-        - ``distance_corr_dendrogram.png`` — Ward-linkage dendrogram.
-        - ``distance_corr_heatmap.png`` — heatmap reordered by dendrogram leaves.
+        - ``spearman_matrix.csv`` / ``spearman_heatmap.png``
+        - ``distance_corr_matrix.csv`` / ``distance_corr_heatmap.png``
+        - ``distance_corr_dendrogram.png`` (Ward linkage on 1 − dcor)
+        - ``mutual_info_heatmap.png``
+        - ``cluster_table.csv`` — cluster assignments at *cluster_cutoff*
+        - ``importance_pairing.csv`` — clusters joined with permutation importance
+
+        Must run *after* :meth:`permutation_importance_analysis` so that
+        ``perm_importance_df`` is available for the importance pairing.
         """
-        from language_reading_predictors.stats_utils import distance_corr_matrix
+        from language_reading_predictors.stats_utils import (
+            distance_corr_matrix,
+            mutual_info_dissimilarity,
+            spearman_distance_matrix,
+        )
 
-        _section("Distance-correlation analysis")
+        _section("Feature-selection diagnostics")
 
         context = self.context
         cfg = context.config
-        X = context.X
+        X = context.X.replace({pd.NA: np.nan}).astype("float64")
+        X_filled = X.fillna(X.mean())
+        predictors = list(X.columns)
+        n = len(predictors)
+        out = context.output_dir
 
-        X_corr = X.replace({pd.NA: np.nan}).astype("float64")
-        predictors = list(X_corr.columns)
+        print(f"  Predictors: {n}")
 
-        print(f"  Computing distance correlation for {len(predictors)} predictors...")
-        dcor_matrix = distance_corr_matrix(X_corr)
-
-        pd.DataFrame(dcor_matrix, index=predictors, columns=predictors).to_csv(
-            context.output_dir / "distance_corr_matrix.csv"
+        # ── Spearman ────────────────────────────────────────────────────
+        print("  Spearman correlation matrix...")
+        spearman_dist, spearman_corr = spearman_distance_matrix(X_filled)
+        pd.DataFrame(spearman_corr, index=predictors, columns=predictors).to_csv(
+            out / "spearman_matrix.csv"
         )
+        fig_sp, _ = plot_heatmap(spearman_corr, predictors, "Spearman rank correlation")
+        fig_sp.savefig(out / "spearman_heatmap.png", dpi=300, bbox_inches="tight")
+        context.plots["spearman_heatmap"] = fig_sp
+        plt.close(fig_sp)
 
-        # Dissimilarity for clustering
+        # ── Distance correlation + clustering ───────────────────────────
+        print("  Distance-correlation matrix...")
+        dcor_matrix = distance_corr_matrix(X_filled)
+        pd.DataFrame(dcor_matrix, index=predictors, columns=predictors).to_csv(
+            out / "distance_corr_matrix.csv"
+        )
+        fig_dc, _ = plot_heatmap(dcor_matrix, predictors, "Distance correlation")
+        fig_dc.savefig(out / "distance_corr_heatmap.png", dpi=300, bbox_inches="tight")
+        context.plots["distance_corr_heatmap"] = fig_dc
+        plt.close(fig_dc)
+
+        print("  Distance-correlation dendrogram...")
         dcor_dissim = 1.0 - dcor_matrix
         np.fill_diagonal(dcor_dissim, 0.0)
         np.clip(dcor_dissim, 0.0, 1.0, out=dcor_dissim)
         condensed = squareform(dcor_dissim, checks=False)
         linkage = hierarchy.ward(condensed)
 
-        # Dendrogram
-        n = len(predictors)
         fig_dendro, ax_dendro = plt.subplots(figsize=(8, max(6, 0.3 * n)))
-        dendro = hierarchy.dendrogram(
-            linkage,
-            labels=predictors,
-            orientation="right",
-            ax=ax_dendro,
-        )
-        ax_dendro.set_title(
-            f"{cfg.model_id.upper()}: Hierarchical clustering of predictors"
-        )
-        ax_dendro.set_xlabel("Dissimilarity (1 − distance correlation)")
-        fig_dendro.tight_layout()
-        fig_dendro.savefig(
-            context.output_dir / "distance_corr_dendrogram.png",
-            dpi=300,
-            bbox_inches="tight",
-        )
+        hierarchy.dendrogram(linkage, labels=predictors, orientation="right", ax=ax_dendro)
+        ax_dendro.set_title("Distance-correlation dissimilarity (Ward linkage)")
+        ax_dendro.set_xlabel("Dissimilarity (1 \u2212 distance correlation)")
+        fig_dendro.savefig(out / "distance_corr_dendrogram.png", dpi=300, bbox_inches="tight")
         context.plots["distance_corr_dendrogram"] = fig_dendro
         plt.close(fig_dendro)
 
-        # Heatmap reordered by dendrogram leaves
-        leaf_order = dendro["leaves"]
-        ordered_matrix = dcor_matrix[leaf_order, :][:, leaf_order]
-        ordered_labels = [predictors[i] for i in leaf_order]
+        clusters = hierarchy.fcluster(linkage, t=cluster_cutoff, criterion="distance")
+        cluster_df = (
+            pd.DataFrame({"feature": predictors, "cluster_id": clusters})
+            .sort_values(["cluster_id", "feature"])
+            .reset_index(drop=True)
+        )
+        cluster_df.to_csv(out / "cluster_table.csv", index=False)
 
-        fig_heat, ax_heat = plt.subplots(
-            figsize=(max(8, 0.35 * n), max(6, 0.3 * n))
+        # ── Mutual information ──────────────────────────────────────────
+        print("  Mutual information heatmap...")
+        mi_dissim = mutual_info_dissimilarity(X_filled, random_state=cfg.random_seed)
+        fig_mi, _ = plot_heatmap(
+            1.0 - mi_dissim, predictors, "Mutual information (1 \u2212 dissimilarity)"
         )
-        sns.heatmap(
-            ordered_matrix,
-            xticklabels=ordered_labels,
-            yticklabels=ordered_labels,
-            cmap="viridis",
-            square=True,
-            cbar_kws={"shrink": 0.6},
-            ax=ax_heat,
-        )
-        ax_heat.set_title(
-            f"{cfg.model_id.upper()}: Distance correlation heatmap"
-        )
-        plt.setp(ax_heat.get_xticklabels(), rotation=45, ha="right")
-        fig_heat.tight_layout()
-        fig_heat.savefig(
-            context.output_dir / "distance_corr_heatmap.png",
-            dpi=300,
-            bbox_inches="tight",
-        )
-        context.plots["distance_corr_heatmap"] = fig_heat
-        plt.close(fig_heat)
+        fig_mi.savefig(out / "mutual_info_heatmap.png", dpi=300, bbox_inches="tight")
+        context.plots["mutual_info_heatmap"] = fig_mi
+        plt.close(fig_mi)
 
-        print("  Distance-correlation plots saved.")
+        # ── Importance pairing ──────────────────────────────────────────
+        perm_df = context.perm_importance_df
+        if perm_df is not None:
+            print("  Joining permutation importance onto clusters...")
+            perm_df = perm_df.copy()
+            perm_df["importance_rank"] = (
+                perm_df["importance_mean"].rank(ascending=False, method="min").astype(int)
+            )
+            pairing = cluster_df.merge(
+                perm_df[["feature", "importance_mean", "importance_std", "importance_rank"]],
+                on="feature",
+                how="left",
+            ).sort_values(["cluster_id", "importance_rank"])
+            pairing.to_csv(out / "importance_pairing.csv", index=False)
+
+        print("  Feature-selection diagnostics saved.")
 
     def shap_analysis(self) -> None:
         """Compute SHAP values and save bar, summary, and waterfall plots."""
@@ -419,9 +457,9 @@ class EstimatorPipeline:
         )
 
         n_features = len(features_ordered)
-        n_cols = 3
+        n_cols = 2
         n_rows = math.ceil(n_features / n_cols)
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 4 * n_rows))
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 4 * n_rows))
         axes = axes.reshape(n_rows, n_cols)
 
         for idx, feature in enumerate(features_ordered):
@@ -524,10 +562,17 @@ class EstimatorPipeline:
         cfg = context.config
         run = context.run_config
 
-        rmse_scores = -context.cv_scores if context.cv_scores is not None else None
         eval_df = context.eval_df
+        y_true = context.y
+
         in_sample_mae = float(eval_df["abs_residual"].mean())
         in_sample_rmse = float(np.sqrt(eval_df["sq_error"].mean()))
+        in_sample_medae = float(eval_df["abs_residual"].median())
+        ss_res = eval_df["sq_error"].sum()
+        ss_tot = ((y_true - y_true.mean()) ** 2).sum()
+        in_sample_r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0 else None
+
+        cv_scores_df = context.dataframes.get("cv_scores")
 
         effective_cv_splits = (
             run.cv_splits if run.cv_splits is not None else cfg.cv_splits
@@ -541,10 +586,18 @@ class EstimatorPipeline:
             "n_observations": int(len(context.X)),
             "n_predictors": int(len(cfg.predictor_vars)),
             "cv_splits": effective_cv_splits,
-            "cv_rmse_mean": float(rmse_scores.mean()) if rmse_scores is not None else None,
-            "cv_rmse_std": float(rmse_scores.std()) if rmse_scores is not None else None,
+            "cv_mae_mean": float(cv_scores_df["mae"].mean()) if cv_scores_df is not None else None,
+            "cv_mae_std": float(cv_scores_df["mae"].std()) if cv_scores_df is not None else None,
+            "cv_rmse_mean": float(cv_scores_df["rmse"].mean()) if cv_scores_df is not None else None,
+            "cv_rmse_std": float(cv_scores_df["rmse"].std()) if cv_scores_df is not None else None,
+            "cv_r2_mean": float(cv_scores_df["r2"].mean()) if cv_scores_df is not None else None,
+            "cv_r2_std": float(cv_scores_df["r2"].std()) if cv_scores_df is not None else None,
+            "cv_medae_mean": float(cv_scores_df["medae"].mean()) if cv_scores_df is not None else None,
+            "cv_medae_std": float(cv_scores_df["medae"].std()) if cv_scores_df is not None else None,
             "in_sample_mae": in_sample_mae,
             "in_sample_rmse": in_sample_rmse,
+            "in_sample_r2": in_sample_r2,
+            "in_sample_medae": in_sample_medae,
         }
 
         (context.output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
@@ -558,7 +611,6 @@ class EstimatorPipeline:
            exact model.
         2. ``docs/models/{variant_of}/index.qmd`` — bespoke template for the
            parent model (used by selection variants).
-        3. ``docs/models/index.qmd`` — shared default template.
         """
         _section("Report")
 
@@ -568,7 +620,6 @@ class EstimatorPipeline:
         candidates = [_DOCS_DIR / "models" / cfg.model_id / "index.qmd"]
         if cfg.variant_of:
             candidates.append(_DOCS_DIR / "models" / cfg.variant_of / "index.qmd")
-        candidates.append(_REPORT_TEMPLATE)
 
         template = next((c for c in candidates if c.exists()), None)
 
@@ -620,10 +671,10 @@ class EstimatorPipeline:
         self.permutation_importance_analysis()
 
         if not run.skip_correlation:
-            self.correlation_analysis()
+            self.feature_selection_diagnostics()
         else:
             print(
-                f"\n  [yellow]Correlation analysis skipped (run config: {run.name})[/yellow]"
+                f"\n  [yellow]Feature-selection diagnostics skipped (run config: {run.name})[/yellow]"
             )
 
         if not run.skip_shap:

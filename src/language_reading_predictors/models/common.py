@@ -183,6 +183,7 @@ class ModelFitContext:
 
     pipeline: Any = None
     cv_scores: np.ndarray | None = None
+    cv_results: dict[str, np.ndarray] | None = None
 
     eval_df: pd.DataFrame | None = None
     perm_importance_df: pd.DataFrame | None = None

@@ -39,10 +39,6 @@ python scripts/fit_model.py all --config dev --render           # all final mode
 python scripts/fit_model.py all --include-variants --config dev # include selection variants
 python scripts/fit_model.py lrp01_select01 --config dev         # run a specific variant
 
-# Feature-selection diagnostics (output/feature_selection/{model_id}/)
-python scripts/analyze_predictors.py lrp01
-python scripts/analyze_predictors.py lrp01 --cluster-cutoff 0.4
-
 # Hyperparameter tuning with Optuna (output/tuning/{model_id}/)
 python scripts/tune_model.py lrp01                 # LGBM, 50 trials, GroupKFold
 python scripts/tune_model.py lrp01 --n-trials 200 --timeout 1800
@@ -95,9 +91,9 @@ Each fit writes two JSON artifacts alongside the CSVs:
 - `config.json` — inputs (model_id, pipeline_cls, variant_of, notes, target, predictors, model_params, cv_splits, ...).
 - `metrics.json` — aggregated outputs (n_observations, n_predictors, cv_rmse_mean/std, in_sample_mae/rmse). This is the file the cross-variant comparison in bespoke templates reads.
 
-Report templates use per-model lookup: `base_pipeline.report()` checks `docs/models/{model_id}/index.qmd` first, then `docs/models/{variant_of}/index.qmd` for selection variants, and falls back to the shared `docs/models/index.qmd`. Models that have earned bespoke documentation (e.g. `docs/models/lrp01/index.qmd` with a "Feature selection history" section that compares variants via their `metrics.json`) get their own template; everything else uses the shared one.
+Report templates use per-model lookup: `base_pipeline.report()` checks `docs/models/{model_id}/index.qmd` first, then `docs/models/{variant_of}/index.qmd` for selection variants. Each model that needs a report must have its own template (e.g. `docs/models/lrp01/index.qmd`).
 
-Feature-selection diagnostics are driven by `scripts/analyze_predictors.py`, which runs Spearman correlation, distance-correlation dendrogram + cluster table, mutual-information heatmap, and (if a fitted model exists) joins the current champion's permutation importance onto the cluster assignments. Output lives in `output/feature_selection/{model_id}/` — deliberately outside `output/models/` so `fit()`'s output-directory reset doesn't wipe it.
+Feature-selection diagnostics (Spearman correlation, distance-correlation dendrogram + cluster table, mutual-information heatmap, and importance pairing) are produced as part of every model fit by `EstimatorPipeline.feature_selection_diagnostics()`. Output lives alongside other model artifacts in `output/models/{model_id}/`. The diagnostics are skipped in `dev` run config for speed but run in `test` and `reporting` configs.
 
 Hyperparameter tuning is driven by `scripts/tune_model.py`, which runs an Optuna TPE study using the same `GroupKFold` grouping as the fit pipeline. The tuning loop carves an inner `GroupShuffleSplit` slice out of each training fold for early stopping — the outer val fold is never shown to `early_stopping`, so the reported CV RMSE and `best_iteration_` are independent. The mean best iteration across folds is saved as the tuned `n_estimators`. Output lives in `output/tuning/{model_id}/` and contains `best_params.json` (ready to paste into a new `_selectNN` variant or back into the final model), `trials.csv`, and `study_summary.json`. The tuning script does **not** automatically mutate the registry — updating the model config is a manual, reviewable step so the source remains the single source of truth.
 

@@ -8,10 +8,9 @@ Fits the specified model to the latest data. Saves plots and data to the output 
 import argparse
 import os
 import subprocess
+import dse_research_utils.environment.setup as setup
 from multiprocessing import freeze_support
-
 from rich import print
-
 from language_reading_predictors.models.registry import MODELS
 
 if __name__ == "__main__":
@@ -44,6 +43,8 @@ if __name__ == "__main__":
     )
 
     freeze_support()
+
+    setup.init_script()
 
     args = parser.parse_args()
 
@@ -81,7 +82,9 @@ if __name__ == "__main__":
             "[green]============================================================[/green]"
         )
         for ctx in contexts:
-            cv_rmse = -ctx.cv_scores.mean() if ctx.cv_scores is not None else float("nan")
+            cv_rmse = (
+                -ctx.cv_scores.mean() if ctx.cv_scores is not None else float("nan")
+            )
             print(
                 f"  {ctx.config.model_id.upper():6s}  "
                 f"target={ctx.config.target_var:20s}  "
@@ -92,9 +95,7 @@ if __name__ == "__main__":
         for context in contexts:
             qmd_path = os.path.join(context.output_dir, "index.qmd")
             if os.path.exists(qmd_path):
-                print(
-                    f"\n[bold green]Rendering Quarto output: {qmd_path}[/bold green]"
-                )
+                print(f"\n[bold green]Rendering Quarto output: {qmd_path}[/bold green]")
                 subprocess.run(["quarto", "render", qmd_path], check=True)
             else:
                 print(

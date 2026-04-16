@@ -94,8 +94,11 @@ def _clear_directory(path: Path) -> None:
 # ── search spaces ───────────────────────────────────────────────────────
 
 
-def _lgbm_search_space(trial: optuna.Trial, seed: int) -> dict[str, Any]:
+def _lgbm_search_space(
+    trial: optuna.Trial, seed: int, lgbm_objective: str = "regression"
+) -> dict[str, Any]:
     params = {
+        "objective": lgbm_objective,
         "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
         "num_leaves": trial.suggest_int("num_leaves", 7, 63),
         "max_depth": trial.suggest_int("max_depth", 3, 12),
@@ -111,6 +114,12 @@ def _lgbm_search_space(trial: optuna.Trial, seed: int) -> dict[str, Any]:
 # ── objectives ──────────────────────────────────────────────────────────
 
 
+_SCORING_FUNCS: dict[str, Callable[[np.ndarray, np.ndarray], float]] = {
+    "rmse": lambda y_true, preds: float(np.sqrt(np.mean((y_true - preds) ** 2))),
+    "mae": lambda y_true, preds: float(np.mean(np.abs(y_true - preds))),
+}
+
+
 def _lgbm_objective(
     X: pd.DataFrame,
     y: pd.Series,
@@ -120,14 +129,18 @@ def _lgbm_objective(
     early_stopping_rounds: int,
     max_n_estimators: int,
     early_stopping_fraction: float,
+    scoring: str = "rmse",
+    lgbm_objective: str = "regression",
 ) -> Callable[[optuna.Trial], float]:
     from lightgbm import LGBMRegressor, early_stopping, log_evaluation
 
+    score_fn = _SCORING_FUNCS[scoring]
+
     def objective(trial: optuna.Trial) -> float:
-        base_params = _lgbm_search_space(trial, seed)
+        base_params = _lgbm_search_space(trial, seed, lgbm_objective)
         cv = GroupKFold(n_splits=cv_splits)
 
-        fold_rmses: list[float] = []
+        fold_scores: list[float] = []
         best_iters: list[int] = []
         for tr_idx, val_idx in cv.split(X, y, groups=groups):
             X_tr, y_tr = X.iloc[tr_idx], y.iloc[tr_idx]
@@ -136,7 +149,7 @@ def _lgbm_objective(
 
             # Carve an inner early-stopping slice out of the training fold so
             # `best_iteration_` is chosen against held-out subjects that do NOT
-            # appear in the outer val fold. This keeps the fold RMSE honest.
+            # appear in the outer val fold. This keeps the fold score honest.
             inner = GroupShuffleSplit(
                 n_splits=1, test_size=early_stopping_fraction, random_state=seed
             )
@@ -159,13 +172,12 @@ def _lgbm_objective(
                 ],
             )
             preds = model.predict(X_val)
-            rmse = float(np.sqrt(np.mean((y_val.to_numpy() - preds) ** 2)))
-            fold_rmses.append(rmse)
+            fold_scores.append(score_fn(y_val.to_numpy(), preds))
             best_iters.append(int(model.best_iteration_ or max_n_estimators))
 
         trial.set_user_attr("mean_best_iteration", int(round(float(np.mean(best_iters)))))
-        trial.set_user_attr("cv_rmse_std", float(np.std(fold_rmses)))
-        return float(np.mean(fold_rmses))
+        trial.set_user_attr(f"cv_{scoring}_std", float(np.std(fold_scores)))
+        return float(np.mean(fold_scores))
 
     return objective
 
@@ -173,15 +185,17 @@ def _lgbm_objective(
 # ── study runner ────────────────────────────────────────────────────────
 
 
-def _log_trial(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
-    if trial.state != optuna.trial.TrialState.COMPLETE:
-        return
-    best = study.best_value
-    marker = " [bold green]*[/bold green]" if trial.value == best else ""
-    print(
-        f"  trial {trial.number:3d}: rmse={trial.value:.4f}  "
-        f"(best={best:.4f}){marker}"
-    )
+def _make_log_trial(scoring: str):
+    def _log_trial(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
+        if trial.state != optuna.trial.TrialState.COMPLETE:
+            return
+        best = study.best_value
+        marker = " [bold green]*[/bold green]" if trial.value == best else ""
+        print(
+            f"  trial {trial.number:3d}: {scoring}={trial.value:.4f}  "
+            f"(best={best:.4f}){marker}"
+        )
+    return _log_trial
 
 
 def tune(
@@ -193,6 +207,8 @@ def tune(
     early_stopping_rounds: int,
     max_n_estimators: int,
     early_stopping_fraction: float,
+    scoring: str = "rmse",
+    lgbm_objective: str = "regression",
 ) -> None:
     key = model_id.lower()
     if key not in MODELS:
@@ -219,6 +235,7 @@ def tune(
         f"max_n_estimators: {max_n_estimators}  "
         f"inner ES fraction: {early_stopping_fraction}"
     )
+    print(f"  Scoring: {scoring}  LightGBM objective: {lgbm_objective}")
     objective = _lgbm_objective(
         X,
         y,
@@ -228,6 +245,8 @@ def tune(
         early_stopping_rounds,
         max_n_estimators,
         early_stopping_fraction,
+        scoring=scoring,
+        lgbm_objective=lgbm_objective,
     )
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -239,7 +258,7 @@ def tune(
         objective,
         n_trials=n_trials,
         timeout=timeout,
-        callbacks=[_log_trial],
+        callbacks=[_make_log_trial(scoring)],
         gc_after_trial=True,
     )
 
@@ -250,17 +269,20 @@ def tune(
     best = study.best_trial
 
     best_full_params: dict[str, Any] = {
+        "objective": lgbm_objective,
         **best.params,
         **_LGBM_FIXED,
         "random_state": seed,
         "n_estimators": best.user_attrs.get("mean_best_iteration", max_n_estimators),
     }
 
+    cv_std_key = f"cv_{scoring}_std"
     best_params_out = {
         "model_id": key,
         "pipeline_cls": pipeline_name,
-        "cv_rmse_mean": float(best.value),
-        "cv_rmse_std": float(best.user_attrs.get("cv_rmse_std", float("nan"))),
+        "scoring": scoring,
+        f"cv_{scoring}_mean": float(best.value),
+        f"cv_{scoring}_std": float(best.user_attrs.get(cv_std_key, float("nan"))),
         "n_trials": len(study.trials),
         "seed": seed,
         "cv_splits": cv_splits,
@@ -277,7 +299,7 @@ def tune(
         "model_id": key,
         "pipeline_cls": pipeline_name,
         "direction": "minimize",
-        "scoring": "cv_rmse_mean",
+        "scoring": f"cv_{scoring}_mean",
         "n_trials": len(study.trials),
         "best_value": float(study.best_value),
         "best_trial_number": int(best.number),
@@ -291,9 +313,10 @@ def tune(
 
     print()
     print(f"[bold green]Best trial: #{best.number}[/bold green]")
-    print(f"  CV RMSE mean: {best.value:.4f}")
-    cv_std = best.user_attrs.get("cv_rmse_std", float("nan"))
-    print(f"  CV RMSE std:  {cv_std:.4f}")
+    label = scoring.upper()
+    print(f"  CV {label} mean: {best.value:.4f}")
+    cv_std = best.user_attrs.get(cv_std_key, float("nan"))
+    print(f"  CV {label} std:  {cv_std:.4f}")
     if pipeline_name == "LGBMPipeline":
         print(f"  Mean best iteration: {best.user_attrs.get('mean_best_iteration')}")
     print(f"  Params: {json.dumps(best_full_params, indent=2)}")
@@ -343,6 +366,22 @@ def main() -> None:
             "at the outer val fold."
         ),
     )
+    parser.add_argument(
+        "--scoring",
+        type=str,
+        default="rmse",
+        choices=list(_SCORING_FUNCS.keys()),
+        help="Scoring metric to optimise (default: rmse).",
+    )
+    parser.add_argument(
+        "--lgbm-objective",
+        type=str,
+        default="regression",
+        help=(
+            "LightGBM objective function. Use 'regression' (squared error) "
+            "for RMSE tuning, 'mae' for MAE tuning. Default: regression."
+        ),
+    )
     args = parser.parse_args()
 
     tune(
@@ -354,6 +393,8 @@ def main() -> None:
         early_stopping_rounds=args.early_stopping_rounds,
         max_n_estimators=args.max_n_estimators,
         early_stopping_fraction=args.early_stopping_fraction,
+        scoring=args.scoring,
+        lgbm_objective=args.lgbm_objective,
     )
 
 

@@ -83,15 +83,14 @@ target_desc
 
 ### Cross-validation
 
-Group-aware (`GroupKFold`) cross-validation RMSE scores:
+Group-aware (`GroupKFold`) cross-validation scores:
 
 ```{python}
 cv_scores = pd.read_csv("cv_scores.csv")
 
-print(f"Mean RMSE: {cv_scores['rmse'].mean():.4f}")
-print(f"Std  RMSE: {cv_scores['rmse'].std():.4f}")
-print(f"Min  RMSE: {cv_scores['rmse'].min():.4f}")
-print(f"Max  RMSE: {cv_scores['rmse'].max():.4f}")
+for col in ["mae", "rmse", "r2", "medae"]:
+    label = col.upper() if col != "r2" else "R²"
+    print(f"{label}: {cv_scores[col].mean():.4f} ± {cv_scores[col].std():.4f}")
 ```
 
 ```{python}
@@ -103,11 +102,22 @@ cv_scores
 ```{python}
 eval_df = pd.read_csv("evaluation.csv")
 
-mae = eval_df["y_true"].sub(eval_df["y_pred"]).abs().mean()
-rmse = ((eval_df["y_true"] - eval_df["y_pred"]) ** 2).mean() ** 0.5
+y_true = eval_df["y_true"]
+y_pred = eval_df["y_pred"]
+abs_resid = (y_true - y_pred).abs()
+sq_error = (y_true - y_pred) ** 2
 
-print(f"In-sample MAE:  {mae:.4f}")
-print(f"In-sample RMSE: {rmse:.4f}")
+mae = abs_resid.mean()
+rmse = sq_error.mean() ** 0.5
+medae = abs_resid.median()
+ss_res = sq_error.sum()
+ss_tot = ((y_true - y_true.mean()) ** 2).sum()
+r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
+
+print(f"In-sample MAE:   {mae:.4f}")
+print(f"In-sample RMSE:  {rmse:.4f}")
+print(f"In-sample R²:    {r2:.4f}")
+print(f"In-sample MedAE: {medae:.4f}")
 ```
 
 ## Feature importance
@@ -130,6 +140,43 @@ perm_imp
      - Are any predictors surprisingly high or low?
      - Do any demographic/home-environment variables appear important?
 -->
+
+### Feature-selection diagnostics
+
+The following plots show inter-predictor relationships used to guide feature
+selection.
+
+#### Distance-correlation dendrogram
+
+Distance correlation captures both linear and non-linear associations between
+predictors. The dendrogram (Ward linkage on 1 − distance correlation) groups
+predictors that share information, helping identify redundant features within each
+cluster.
+
+![Distance-correlation dendrogram](distance_corr_dendrogram.png){#fig-dcorr-dendrogram .lightbox fig-align="left"}
+
+#### Distance-correlation heatmap
+
+The heatmap shows pairwise distance correlations (0 = independent, 1 = perfectly
+dependent). Unlike Spearman, distance correlation has no sign — it captures
+association strength regardless of direction.
+
+![Distance-correlation heatmap](distance_corr_heatmap.png){#fig-dcorr-heatmap .lightbox fig-align="left"}
+
+#### Spearman rank correlation
+
+Spearman rank correlations show monotonic relationships between predictors. Strong
+off-diagonal blocks indicate groups of predictors that may be partially redundant.
+
+![Spearman rank correlation heatmap](spearman_heatmap.png){#fig-spearman .lightbox fig-align="left"}
+
+#### Mutual information
+
+Mutual information (displayed as 1 − dissimilarity) captures arbitrary
+dependencies, including non-monotonic relationships that Spearman misses. Higher
+values (warmer colours) indicate stronger shared information.
+
+![Mutual information heatmap](mutual_info_heatmap.png){#fig-mi .lightbox fig-align="left"}
 
 ### SHAP analysis
 
@@ -281,17 +328,28 @@ else:
         return str(v)
 
     columns = [_champion_id] + [mid for mid, _, _ in _variants]
+    def _get(m, key):
+        return (m or {}).get(key)
+
     rows = [
         ("n_predictors", [_champion_metrics.get("n_predictors")]
-         + [(m or {}).get("n_predictors") for _, _, m in _variants]),
-        ("CV RMSE mean", [_champion_metrics.get("cv_rmse_mean")]
-         + [(m or {}).get("cv_rmse_mean") for _, _, m in _variants]),
-        ("CV RMSE std", [_champion_metrics.get("cv_rmse_std")]
-         + [(m or {}).get("cv_rmse_std") for _, _, m in _variants]),
+         + [_get(m, "n_predictors") for _, _, m in _variants]),
+        ("CV MAE", [_champion_metrics.get("cv_mae_mean")]
+         + [_get(m, "cv_mae_mean") for _, _, m in _variants]),
+        ("CV RMSE", [_champion_metrics.get("cv_rmse_mean")]
+         + [_get(m, "cv_rmse_mean") for _, _, m in _variants]),
+        ("CV R²", [_champion_metrics.get("cv_r2_mean")]
+         + [_get(m, "cv_r2_mean") for _, _, m in _variants]),
+        ("CV MedAE", [_champion_metrics.get("cv_medae_mean")]
+         + [_get(m, "cv_medae_mean") for _, _, m in _variants]),
         ("In-sample MAE", [_champion_metrics.get("in_sample_mae")]
-         + [(m or {}).get("in_sample_mae") for _, _, m in _variants]),
+         + [_get(m, "in_sample_mae") for _, _, m in _variants]),
         ("In-sample RMSE", [_champion_metrics.get("in_sample_rmse")]
-         + [(m or {}).get("in_sample_rmse") for _, _, m in _variants]),
+         + [_get(m, "in_sample_rmse") for _, _, m in _variants]),
+        ("In-sample R²", [_champion_metrics.get("in_sample_r2")]
+         + [_get(m, "in_sample_r2") for _, _, m in _variants]),
+        ("In-sample MedAE", [_champion_metrics.get("in_sample_medae")]
+         + [_get(m, "in_sample_medae") for _, _, m in _variants]),
     ]
 
     print("| Metric | " + " | ".join(columns) + " |")
