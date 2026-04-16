@@ -32,6 +32,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.inspection import permutation_importance
 
 import dse_research_utils.environment.setup as setup
+import dse_research_utils.plot.styles as plot_styles
 import dse_research_utils.metadata.packages as package_metadata
 
 import language_reading_predictors.data_utils as data_utils
@@ -71,8 +72,14 @@ package_metadata.report_package_versions(package_list)
 # %%
 df = data_utils.load_data()
 
-# %%
-# no progress: start?
 
 # %%
-df[vars.EWRSWR]
+def scatter_plot(x, y):
+    plt.figure(figsize=plot_styles.FIGSIZE_LG)
+    plt.scatter(df[x], df[y], alpha=0.5)
+    plt.xlabel(vars.get_variable_name(x))
+    plt.ylabel(vars.get_variable_name(y))
+
+
+# %%
+scatter_plot(vars.YARCLET, vars.EWRSWR)
