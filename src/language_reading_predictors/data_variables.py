@@ -984,10 +984,12 @@ class Variables:
         YARCEWR: "Early word recognition score",
         YARCLET: "Letter sounds score",
         YARCSI: "Comprehension skills score",
+        EWRSWR: "Early word reading composite score",
         BEHAV: "Behaviour rating",
         ATTEND: "Intervention sessions attended",
     }
 
+    @staticmethod
     def get_variable_name(var: str) -> str:
         n = Variables.NAMES.get(var)
         return n if n else var
