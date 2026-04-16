@@ -9,6 +9,7 @@ bytree
 celf
 colsample
 dadedupost
+dcorr
 DEAP
 deappin
 deappfi
@@ -35,6 +36,7 @@ lightgbm
 logit
 medae
 mumedupost
+ncol
 nonlinear
 nonword
 numchil
