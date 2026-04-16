@@ -27,7 +27,7 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# Documents the 32 → 15 feature-selection history under MAE-tuned params
+# Documents the 32 → 13 feature-selection history under MAE-tuned params
 # with no outlier exclusion (n=210).
 # See notes/202604161949-lrp02-feature-selection.md for the full rationale.
 
@@ -75,26 +75,40 @@ _SELECTION_STEPS = [
         metrics_before={"cv_mae_mean": 5.800},
         metrics_after={"cv_mae_mean": 6.031},
     ),
+    SelectionStep(
+        removed=[V.HEARING, V.CELF],
+        notes=(
+            "Remove 2 features: hearing (importance 0.003 under the "
+            "15-predictor retune — below the 0.005 noise floor) and celf "
+            "(importance 0.012, the weakest member of language cluster 9; "
+            "dcorr 0.67 with eowpvt (0.050) and 0.63 with aptinfo (0.046), "
+            "both of which rank higher on importance and cover the same "
+            "language construct space)."
+        ),
+        date="2026-04-16",
+        metrics_before={"cv_mae_mean": 6.023},
+        metrics_after={"cv_mae_mean": 6.007},
+    ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 15-predictor Select03 set, no outlier exclusion (Optuna
-# 50 trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
-# Best trial #32, CV MAE 6.5176 ± 2.0444. n=210.
+# MAE-tuned on the 13-predictor Select04 set, no outlier exclusion (Optuna
+# 150 trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Best trial #145, CV MAE 6.3065 ± 2.3839 (tuner inner). n=210.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 83,
-    "learning_rate": 0.04935451138430074,
-    "num_leaves": 33,
-    "max_depth": 3,
-    "min_child_samples": 6,
-    "subsample": 0.9269822414293808,
+    "n_estimators": 53,
+    "learning_rate": 0.1030282991867544,
+    "num_leaves": 49,
+    "max_depth": 6,
+    "min_child_samples": 16,
+    "subsample": 0.9880905470494415,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6374248909658503,
-    "reg_alpha": 0.25157549566014903,
-    "reg_lambda": 0.00600868983112977,
+    "colsample_bytree": 0.6997497470635539,
+    "reg_alpha": 0.001383118016594975,
+    "reg_lambda": 0.0012224991529179404,
     "n_jobs": 16,
     "verbosity": -1,
 }
@@ -135,7 +149,7 @@ class LRP02(LevelModel):
     target_var = V.EWRSWR
     description = (
         "LightGBM — word-reading level predictors "
-        "(15 predictors, MAE-tuned, no outlier exclusion)"
+        "(13 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -175,21 +189,24 @@ class LRP02Select02(LRP02):
     params = _LGBM_MAE_PARAMS_SELECT02
     selection_steps = [
         SelectionStep(
-            added=[V.YARCSI, V.B1EXTO],
+            added=[V.YARCSI, V.B1EXTO, V.HEARING, V.CELF],
             notes=(
-                "Restore yarcsi and b1exto (removed by the primary model at "
-                "Select03) and pin to the MAE-tuned hyperparameters from the "
-                "17-predictor retune (Optuna trial #35)."
+                "Restore features removed by the primary model after "
+                "Select02: yarcsi and b1exto (dropped at Select03) plus "
+                "hearing and celf (dropped at Select04). Lands at the "
+                "17-predictor feature set that was MAE-tuned in Optuna "
+                "trial #35 (the hyperparameters pinned here)."
             ),
             date="2026-04-16",
-            metrics_after={"cv_mae_mean": 5.865},
+            metrics_after={"cv_mae_mean": 5.908},
         ),
     ]
     notes = (
         "17-predictor retuned variant preserving the best CV performance of "
-        "any LRP02 configuration so far (CV MAE 5.865 ± 1.537, CV R² 0.365). "
-        "yarcsi (dcorr 0.75 with spphon) and b1exto (dcorr 0.81 with eowpvt) "
-        "were dropped by the primary model on redundancy grounds, but "
-        "carried enough unique signal that dropping them cost CV performance "
-        "even after retuning. Retained as a reference point."
+        "any LRP02 configuration so far (CV MAE 5.908 ± 1.623, CV R² 0.390). "
+        "The primary model progressively dropped yarcsi and b1exto (Select03, "
+        "redundancy) and hearing and celf (Select04, noise + redundancy); "
+        "this variant restores all four to land back at the Select02 feature "
+        "set, where the 17-predictor tune applies. Retained as a reference "
+        "point for the correlation-driven pruning trade-off."
     )

@@ -409,6 +409,86 @@ importance-based drop candidate.
 | Retuned-17 | 17 | **5.800** | **0.404** | MAE-tuned on 17 | params only |
 | Select03 | 15 | 6.031 | 0.363 | MAE-tuned on 17 | yarcsi, b1exto |
 | Retuned-15 | 15 | 6.023 | 0.386 | MAE-tuned on 15 | params only |
+| Select04 | 13 | 6.007 | 0.392 | MAE-tuned on 15 | hearing, celf |
+| Retuned-13 | 13 | 6.019 | 0.355 | MAE-tuned on 13 (150 trials) | params only |
+
+### Select04: drop hearing and celf (15 → 13)
+
+Redundancy review on the 15-predictor retuned set identified two more
+candidates:
+
+| Feature | Importance (retuned-15) | Rationale |
+|---|---|---|
+| `hearing` | 0.003 | Below the 0.005 informal noise floor; no redundancy, just weak. |
+| `celf` | 0.012 | Weakest member of language cluster 9. dcorr 0.67 with `eowpvt` (0.050) and 0.63 with `aptinfo` (0.046) — both sit above on importance and cover the same construct space. |
+
+Dropping both leaves the language cluster as `aptinfo` + `eowpvt`
+(composite receptive-language measure and standardised expressive
+vocabulary instrument) — still good coverage.
+
+| Metric | Select03 retuned-15 (15) | Select04 (13, 15-tune carried) |
+|---|---|---|
+| CV MAE | 6.023 ± 1.372 | 6.007 ± 1.806 |
+| CV RMSE | 8.159 ± 2.099 | 8.185 ± 2.636 |
+| CV R² | 0.386 ± 0.381 | 0.392 ± 0.401 |
+| In-sample R² | 0.957 | 0.970 |
+
+Effectively flat — both dropped features had negligible real contribution.
+
+### Retuning on the 13-predictor set
+
+Two Optuna rounds (seed 47) on the Select04 set:
+
+| Round | Trials | Tuner-inner CV MAE | Refit CV MAE | Refit CV R² |
+|---|---|---|---|---|
+| first | 50 | 6.7000 ± 2.4204 | 6.202 | 0.338 |
+| second | 150 | 6.3065 ± 2.3839 | **6.019** | 0.355 |
+
+The 50-trial search was materially worse than carrying the 15-tune
+forward. The 150-trial search recovered to rough parity on CV MAE with
+tighter fold variance, and was adopted for `_LGBM_MAE_PARAMS`.
+
+Final retuned params (150 trials, best trial #145):
+
+| Parameter | Tuned on 15 | Tuned on 13 (150 trials) |
+|---|---|---|
+| n_estimators | 83 | 53 |
+| learning_rate | 0.0494 | 0.1030 |
+| num_leaves | 33 | 49 |
+| max_depth | 3 | 6 |
+| min_child_samples | 6 | 16 |
+| subsample | 0.927 | 0.988 |
+| colsample_bytree | 0.637 | 0.700 |
+| reg_alpha | 0.252 | 0.0014 |
+| reg_lambda | 0.006 | 0.0012 |
+
+The 13-tune is a third distinct regime: fewer trees (53), much faster
+learning, wider trees (49 leaves), near-zero regularisation. Different
+from both the 17-tune and the 15-tune.
+
+### Permutation importance after Select04 retune (13 predictors)
+
+| Rank | Feature | Importance |
+|---|---|---|
+| 1 | `spphon` | 0.172 |
+| 2 | `yarclet` | 0.137 |
+| 3 | `eowpvt` | 0.079 |
+| 4 | `nonword` | 0.049 |
+| 5 | `aptinfo` | 0.049 |
+| 6 | `agespeak` | 0.045 |
+| 7 | `mumedupost16` | 0.038 |
+| 8 | `agebooks` | 0.032 |
+| 9 | `erbword` | 0.030 |
+| 10 | `age` | 0.023 |
+| 11 | `gender` | 0.017 |
+| 12 | `numchil` | 0.013 |
+| 13 | `deappvo` | 0.005 |
+
+All 13 features at or above the 0.005 noise floor. `eowpvt` rose (0.050
+→ 0.079) as it fully absorbed `celf`'s signal. `spphon` dropped (0.286
+→ 0.172) as the shallower/wider trees redistribute signal more evenly.
+`deappvo` (0.005) is now borderline — a future candidate if further
+pruning is wanted.
 
 ## `lrp02_select02` — 17-predictor reference variant
 
@@ -425,43 +505,50 @@ class LRP02Select02(LRP02):
     ]
 ```
 
-The variant inherits all three `SelectionStep`s from `LRP02` and then adds a
-fourth that restores `yarcsi` and `b1exto`, landing back on the 17-predictor
-feature set. It pins the hyperparameters from the 17-predictor retune
+The variant inherits all selection steps from `LRP02` (32 → 24 → 17 → 15
+→ 13) and then adds a final step that restores `yarcsi`, `b1exto`,
+`hearing`, and `celf`, landing back at the 17-predictor feature set. It
+pins the hyperparameters from the 17-predictor retune
 (`_LGBM_MAE_PARAMS_SELECT02`) rather than using the primary model's
-15-predictor params. Variants are skipped by `fit_model.py all` unless
+current tune. Variants are skipped by `fit_model.py all` unless
 `--include-variants` is passed, and are fitted explicitly via
 `python scripts/fit_model.py lrp02_select02`.
 
+If further Select steps are added to `LRP02`, remember to also add the
+newly-removed features to the variant's `added` list so the variant
+continues to represent the 17-predictor Select02 configuration.
+
 ### Variant CV metrics
 
-| Metric | `lrp02` (15) | `lrp02_select02` (17) |
+| Metric | `lrp02` (13) | `lrp02_select02` (17) |
 |---|---|---|
-| CV MAE | 6.023 ± 1.372 | **5.865 ± 1.537** |
-| CV RMSE | 8.159 ± 2.099 | **8.032 ± 2.367** |
-| CV R² | 0.386 ± 0.381 | 0.365 ± 0.475 |
-| CV MedAE | 3.979 | 3.872 |
-| In-sample R² | 0.957 | 0.975 |
+| CV MAE | 6.019 ± 1.627 | **5.908 ± 1.623** |
+| CV RMSE | 8.242 ± 2.437 | **8.072 ± 2.570** |
+| CV R² | 0.355 ± 0.409 | **0.390 ± 0.475** |
+| In-sample R² | 0.968 | 0.977 |
 
-The variant reproduces most of the prior retuned-17 performance (small
-drift in CV R² because adding columns via `selection_steps.added` appends
-them, which changes the order consumed by LightGBM's seeded
-`colsample_bytree` draws). CV MAE and RMSE improve on the 15-predictor
-primary; CV R² is slightly lower with higher variance.
+The variant beats the primary on all three CV metrics. Reproduction drift
+from the original 17-retune (CV MAE 5.800 → 5.908) is from
+`selection_steps.added` appending the restored features, which changes
+column order and LightGBM's seeded `colsample_bytree` draws.
 
 ## Current state
 
-- **`lrp02`** (primary, MAE-tuned on 15 predictors): 15 predictors, CV MAE
-  6.023 ± 1.372, CV R² 0.386 ± 0.381. No outlier exclusion, n=210.
+- **`lrp02`** (primary, MAE-tuned on 13 predictors, 150 trials): 13
+  predictors, CV MAE 6.019 ± 1.627, CV R² 0.355 ± 0.409. No outlier
+  exclusion, n=210.
 - **`lrp02_select02`** (variant, MAE-tuned on 17 predictors): 17
-  predictors, CV MAE 5.865 ± 1.537, CV R² 0.365 ± 0.475. Restores
-  `yarcsi` and `b1exto` on top of `lrp02`'s selection history.
-- Three `SelectionStep`s on `LRP02` document the 32 → 24 → 17 → 15 cuts;
-  a fourth step on `LRP02Select02` adds back the two features dropped at
-  Select03.
+  predictors, CV MAE 5.908 ± 1.623, CV R² 0.390 ± 0.475. Restores
+  `yarcsi`, `b1exto`, `hearing`, and `celf` on top of `lrp02`'s current
+  selection history so the variant lands at the Select02 feature set,
+  then pins the 17-predictor tune. Still holds the best CV MAE of any
+  LRP02 configuration.
+- Four `SelectionStep`s on `LRP02` document the 32 → 24 → 17 → 15 → 13
+  cuts; one step on `LRP02Select02` adds back the two features dropped
+  at Select03.
 - Two hyperparameter sets kept in the module: `_LGBM_MAE_PARAMS`
-  (primary, 15-predictor tune) and `_LGBM_MAE_PARAMS_SELECT02` (variant,
-  17-predictor tune).
-- `hearing` (importance 0.003 under the primary model) is the next
-  candidate for a pure-importance drop if we continue pruning the
-  primary.
+  (primary, 13-predictor 150-trial tune) and `_LGBM_MAE_PARAMS_SELECT02`
+  (variant, 17-predictor tune).
+- `deappvo` (importance 0.005 under the primary) is now borderline and
+  would be the next candidate if further pruning is wanted — losing it
+  removes the only remaining DEAP articulation signal from the model.
