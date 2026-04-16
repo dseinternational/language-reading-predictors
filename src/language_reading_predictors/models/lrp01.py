@@ -16,7 +16,7 @@ feature selection under an MAE objective
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import GainModel
-from language_reading_predictors.models.common import SelectionStep
+from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
@@ -149,6 +149,33 @@ class LRP01(GainModel):
     cv_splits = 53
     outlier_threshold = None
     selection_steps = _SELECTION_STEPS
+    shap_scatter_specs = [
+        ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
+        ShapScatterSpec(
+            color_by=V.EWRSWR,
+            description="All predictors, coloured by baseline word-reading (ewrswr)",
+        ),
+        ShapScatterSpec(
+            predictors=[V.AGE],
+            color_by=V.YARCLET,
+            description="age vs yarclet (letter-sound knowledge)",
+        ),
+        ShapScatterSpec(
+            predictors=[V.AGE],
+            color_by=V.CELF,
+            description="age vs celf (receptive language)",
+        ),
+        ShapScatterSpec(
+            predictors=[V.YARCLET],
+            color_by=V.BLENDING,
+            description="yarclet vs blending (phonological prerequisites)",
+        ),
+        ShapScatterSpec(
+            predictors=[V.CELF],
+            color_by=V.B1EXTO,
+            description="celf vs b1exto (receptive vs expressive language)",
+        ),
+    ]
     notes = (
         "Exploratory model for identifying important predictors of reading "
         "gains. Uses MAE objective and no outlier exclusion so that importance "

@@ -20,7 +20,6 @@ This model output is preliminary and likely to change as the model evolves and f
 
 ```{python}
 import json
-from pathlib import Path
 import pandas as pd
 pd.set_option("display.float_format", "{:.4f}".format)
 
@@ -164,6 +163,11 @@ perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
 ```
 
+The box plot below summarises the distribution of the per-repeat decrease in
+R² for each predictor (whiskers and fliers show variability across repeats).
+
+![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
+
 ### Feature-selection diagnostics
 
 The following plots show inter-predictor relationships.
@@ -233,6 +237,60 @@ pushes the prediction from the base value.
 
 ![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
 
+#### SHAP scatter plots by predictor
+
+One scatter per predictor: feature value on the x-axis, SHAP contribution on
+the y-axis. The first set uses SHAP's auto-chosen interaction feature for
+colour; the second colours every plot by baseline word-reading score
+(`ewrswr`) so dependencies with starting reading level are visible.
+
+##### Auto-chosen interaction colouring
+
+::: {layout-ncol=2}
+![age](shap_scatter_age.png){.lightbox}
+
+![attend](shap_scatter_attend.png){.lightbox}
+
+![yarclet](shap_scatter_yarclet.png){.lightbox}
+
+![celf](shap_scatter_celf.png){.lightbox}
+
+![b1exto](shap_scatter_b1exto.png){.lightbox}
+
+![blending](shap_scatter_blending.png){.lightbox}
+:::
+
+##### Coloured by baseline word-reading score (`ewrswr`)
+
+::: {layout-ncol=2}
+![age](shap_scatter_age_by_ewrswr.png){.lightbox}
+
+![attend](shap_scatter_attend_by_ewrswr.png){.lightbox}
+
+![yarclet](shap_scatter_yarclet_by_ewrswr.png){.lightbox}
+
+![celf](shap_scatter_celf_by_ewrswr.png){.lightbox}
+
+![b1exto](shap_scatter_b1exto_by_ewrswr.png){.lightbox}
+
+![blending](shap_scatter_blending_by_ewrswr.png){.lightbox}
+:::
+
+##### Selected dependence pairs
+
+Classical SHAP dependence plots: SHAP value for feature *A* plotted against
+*A*, coloured by another predictor *B* to surface interaction effects.
+
+::: {layout-ncol=2}
+![age × yarclet](shap_scatter_age_by_yarclet.png){.lightbox}
+
+![age × celf](shap_scatter_age_by_celf.png){.lightbox}
+
+![yarclet × blending](shap_scatter_yarclet_by_blending.png){.lightbox}
+
+![celf × b1exto](shap_scatter_celf_by_b1exto.png){.lightbox}
+:::
+
 ## Partial dependence
 
 Partial dependence plots show the marginal effect of each feature on the predicted
@@ -240,132 +298,3 @@ target, averaging over the values of all other features. Features are ordered by
 permutation importance.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
-## Feature selection log
-
-This section documents the history of feature-selection decisions for LRP01.
-
-### Approach
-
-Feature selection was conducted under an MAE-tuned LightGBM model with no outlier
-exclusion ($n = 157$). This exploratory configuration was chosen so that:
-
-1. **All observations contribute** --- children with the largest reading gains are
-   not excluded, ensuring importance rankings reflect the full range of outcomes.
-2. **MAE objective** --- treats all prediction errors linearly, so a few extreme
-   cases do not dominate the loss function or distort hyperparameter tuning.
-
-The initial tuning (50 Optuna trials, 10-split `GroupKFold`, seed 47) on all 34
-predictors found very shallow trees (`max_depth = 3`) with a slow learning rate
---- a conservative ensemble that captures broad patterns. This produced sharp
-feature separation: 18 of 34 features showed zero or negative permutation
-importance in the first evaluation.
-
-### Selection steps (34 → 6 predictors)
-
-Iterative removal based on permutation importance, validated by CV MAE at each
-step. All steps improved or maintained CV MAE.
-
-| Step | Predictors | CV MAE | Removed |
-|---|---|---|---|
-| Baseline | 34 | 2.996 | --- |
-| Step 1 | 16 | 2.967 | 18 zero/negative importance features |
-| Step 2 | 11 | 2.954 | `deappfi`, `agespeak`, `time`, `ewrswr`, `agebooks` |
-| Step 3 | 9 | 2.939 | `dadedupost16`, `gender` |
-| Step 4 | 8 | 2.920 | `trog` |
-| Step 5 | 7 | 2.899 | `eowpvt` |
-| Step 6 | 6 | 2.893 | `hearing` |
-| Retune | 6 | 2.839 | Optuna retune on final set |
-
-Step 7 (dropping `blending` to 5 predictors) was tested and continued to improve
-CV MAE (2.880) but degraded CV MedAE (1.94 → 2.04), suggesting `blending` adds
-value for typical-case predictions. The 6-predictor set was adopted.
-
-See `notes/202604161432-lrp01-feature-selection-mae.md` for the full history.
-
-### Variant comparison
-
-```{python}
-#| output: asis
-def _load_json(path):
-    try:
-        return json.loads(path.read_text())
-    except Exception:
-        return None
-
-
-_sibling_configs = {}
-_sibling_metrics = {}
-_parent_dir = Path("..")
-if _parent_dir.exists():
-    for d in sorted(_parent_dir.iterdir()):
-        if not d.is_dir():
-            continue
-        cfg_json = _load_json(d / "config.json")
-        if cfg_json is None or "model_id" not in cfg_json:
-            continue
-        _sibling_configs[cfg_json["model_id"]] = cfg_json
-        met_json = _load_json(d / "metrics.json")
-        if met_json is not None:
-            _sibling_metrics[cfg_json["model_id"]] = met_json
-
-_champion_id = "lrp01"
-_champion_cfg = _sibling_configs.get(_champion_id)
-_champion_metrics = _sibling_metrics.get(_champion_id, {})
-
-_variants = sorted(
-    (
-        (mid, c, _sibling_metrics.get(mid))
-        for mid, c in _sibling_configs.items()
-        if c.get("variant_of") == _champion_id
-    ),
-    key=lambda t: t[0],
-)
-
-if not _variants:
-    print("_No variants fitted yet._\n")
-else:
-    _champion_predictors = set((_champion_cfg or {}).get("predictor_vars", []))
-
-    def _fmt(v):
-        if v is None:
-            return "\u2014"
-        if isinstance(v, float):
-            return f"{v:.4f}"
-        return str(v)
-
-    columns = [_champion_id] + [mid for mid, _, _ in _variants]
-    def _get(m, key):
-        return (m or {}).get(key)
-
-    rows = [
-        ("n_predictors", [_champion_metrics.get("n_predictors")]
-         + [_get(m, "n_predictors") for _, _, m in _variants]),
-        ("CV MAE", [_champion_metrics.get("cv_mae_mean")]
-         + [_get(m, "cv_mae_mean") for _, _, m in _variants]),
-        ("CV RMSE", [_champion_metrics.get("cv_rmse_mean")]
-         + [_get(m, "cv_rmse_mean") for _, _, m in _variants]),
-        ("CV R²", [_champion_metrics.get("cv_r2_mean")]
-         + [_get(m, "cv_r2_mean") for _, _, m in _variants]),
-        ("CV MedAE", [_champion_metrics.get("cv_medae_mean")]
-         + [_get(m, "cv_medae_mean") for _, _, m in _variants]),
-        ("In-sample MAE", [_champion_metrics.get("in_sample_mae")]
-         + [_get(m, "in_sample_mae") for _, _, m in _variants]),
-        ("In-sample RMSE", [_champion_metrics.get("in_sample_rmse")]
-         + [_get(m, "in_sample_rmse") for _, _, m in _variants]),
-        ("In-sample R²", [_champion_metrics.get("in_sample_r2")]
-         + [_get(m, "in_sample_r2") for _, _, m in _variants]),
-        ("In-sample MedAE", [_champion_metrics.get("in_sample_medae")]
-         + [_get(m, "in_sample_medae") for _, _, m in _variants]),
-    ]
-
-    print("| Metric | " + " | ".join(columns) + " |")
-    print("|" + "---|" * (len(columns) + 1))
-    for label, values in rows:
-        print(f"| {label} | " + " | ".join(_fmt(v) for v in values) + " |")
-    print()
-
-    for mid, vcfg, _ in _variants:
-        print(f"- **{mid}** \u2014 {vcfg.get('notes') or '_no notes_'}")
-    print()
-```

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python scripts/fit_model.py *)",
+      "Bash(python scripts/tune_model.py *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh pr create *)",
+      "Bash(npm run *)",
+      "Bash(ruff check *)"
+    ]
+  },
+  "additionalDirectories": [
+    "../research/",
+    "../vocabulary-growth/"
+  ]
+}

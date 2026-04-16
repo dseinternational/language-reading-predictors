@@ -38,7 +38,10 @@ from sklearn.model_selection import GroupKFold, cross_validate
 
 import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors.data_variables import Variables as vars
-from language_reading_predictors.plot_utils import plot_heatmap
+from language_reading_predictors.plot_utils import (
+    plot_heatmap,
+    save_shap_scatter_plots,
+)
 from language_reading_predictors.models.common import (
     ModelConfig,
     ModelFitContext,
@@ -238,7 +241,47 @@ class EstimatorPipeline:
 
         perm_df.to_csv(context.output_dir / "permutation_importance.csv", index=False)
 
+        repeats_df = pd.DataFrame(
+            result.importances,
+            index=context.X.columns,
+            columns=[f"repeat_{i}" for i in range(result.importances.shape[1])],
+        )
+        repeats_df.index.name = "feature"
+        repeats_df.loc[perm_df["feature"].tolist()].to_csv(
+            context.output_dir / "permutation_importance_repeats.csv"
+        )
+
         print(perm_df.to_string(index=False))
+
+        ordered = perm_df["feature"].tolist()
+        data = [result.importances[list(context.X.columns).index(f)] for f in ordered]
+        fig_h = max(3.0, 0.35 * len(ordered) + 1.5)
+        fig, ax = plt.subplots(figsize=(8, fig_h))
+        ax.boxplot(
+            data,
+            vert=False,
+            labels=ordered,
+            patch_artist=True,
+            boxprops={"facecolor": "white", "edgecolor": "C0"},
+            medianprops={"color": "C2"},
+            whiskerprops={"color": "C0"},
+            capprops={"color": "C0"},
+            flierprops={"marker": "o", "markerfacecolor": "C0", "markeredgecolor": "C0", "markersize": 3},
+        )
+        ax.invert_yaxis()
+        ax.axvline(0.0, color="black", linestyle="--", linewidth=1)
+        ax.set_xlabel("Decrease in R² score")
+        ax.set_ylabel("Predictor variable")
+        ax.set_title("Permutation importances")
+        ax.grid(axis="x", alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(
+            context.output_dir / "permutation_importance.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+        context.plots["permutation_importance"] = fig
+        plt.close(fig)
 
     def feature_selection_diagnostics(self, cluster_cutoff: float = 0.4) -> None:
         """Compute inter-predictor diagnostics for feature selection.
@@ -417,6 +460,118 @@ class EstimatorPipeline:
         plt.close("all")
 
         print("  SHAP plots saved.")
+
+    def shap_scatter_plots(
+        self,
+        predictors: list[str] | None = None,
+        color_by: str | None = None,
+        filename_suffix: str | None = None,
+    ) -> list:
+        """Save one ``shap.plots.scatter`` per predictor (PNG and SVG).
+
+        Call this explicitly (not wired into :meth:`fit`) so multiple sets
+        of scatters can be generated with different ``color_by`` choices.
+
+        Parameters
+        ----------
+        predictors : list[str] | None
+            Features to plot. Defaults to all predictors in ``context.X``.
+            Must be subset of the fitted predictor set.
+        color_by : str | None
+            Column name used to colour each point.
+
+            * If it is a predictor in ``context.X``, the corresponding
+              Explanation slice is used — this produces a classical SHAP
+              dependence plot that surfaces the interaction between the two
+              features.
+            * If it is a column in ``context.df`` but *not* a predictor
+              (e.g. a baseline score not used by the model), the raw values
+              are wrapped in a single-feature Explanation for colouring.
+            * ``None`` (default) falls back to SHAP's auto-interaction
+              colouring.
+        filename_suffix : str | None
+            Suffix appended to output filenames (before the extension), so
+            repeated calls with different ``color_by`` values do not
+            overwrite each other. Defaults to ``f"by_{color_by}"`` when
+            ``color_by`` is set, otherwise empty.
+
+        Returns
+        -------
+        list of Path
+            PNG paths written.
+        """
+        _section("SHAP scatter plots")
+
+        context = self.context
+
+        if context.shap_explainer is None:
+            print("  [yellow]SHAP explainer not available. Run shap_analysis() first.[/yellow]")
+            return []
+
+        explanation = context.shap_explainer(context.X)
+        all_predictors = list(context.X.columns)
+
+        if predictors is None:
+            predictors = all_predictors
+        else:
+            missing = [p for p in predictors if p not in all_predictors]
+            if missing:
+                msg = f"predictors not in fitted model: {missing}"
+                raise ValueError(msg)
+
+        color = None
+        color_name = None
+        suffix = filename_suffix
+        if color_by is not None:
+            if color_by in all_predictors:
+                color = explanation[:, color_by]
+            elif context.df is not None and color_by in context.df.columns:
+                color = context.df[color_by].to_numpy(dtype=float)
+                color_name = color_by
+            else:
+                msg = (
+                    f"color_by '{color_by}' is not a predictor and not a "
+                    "column in context.df"
+                )
+                raise ValueError(msg)
+            if suffix is None:
+                suffix = f"by_{color_by}"
+
+        written = save_shap_scatter_plots(
+            explanation,
+            predictors,
+            context.output_dir,
+            color=color,
+            color_name=color_name,
+            filename_suffix=suffix,
+        )
+        label = f" (coloured by {color_by})" if color_by else ""
+        print(f"  Saved {len(written)} scatter plot(s){label}.")
+        return written
+
+    def run_shap_scatter_specs(self) -> None:
+        """Run every ``ShapScatterSpec`` declared on the model config.
+
+        The model's class-level ``shap_scatter_specs`` list drives what
+        plots get produced — each spec is passed straight to
+        :meth:`shap_scatter_plots`. Empty list → no-op.
+        """
+        context = self.context
+        specs = context.config.shap_scatter_specs
+        if not specs:
+            return
+
+        _section(f"SHAP scatter specs ({len(specs)})")
+        for idx, spec in enumerate(specs, start=1):
+            label = spec.description or (
+                f"colour={spec.color_by}" if spec.color_by else "auto-colour"
+            )
+            print(f"  [{idx}/{len(specs)}] {label}")
+            self.shap_scatter_plots(
+                predictors=spec.predictors,
+                color_by=spec.color_by,
+                filename_suffix=spec.filename_suffix,
+            )
 
     def partial_dependence_plots(self) -> None:
         """Generate partial dependence plots for key features."""
@@ -689,6 +844,7 @@ class EstimatorPipeline:
 
         if not run.skip_shap:
             self.shap_analysis()
+            self.run_shap_scatter_specs()
         else:
             print(f"\n  [yellow]SHAP analysis skipped (run config: {run.name})[/yellow]")
 
