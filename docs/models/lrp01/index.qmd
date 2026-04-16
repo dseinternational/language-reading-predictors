@@ -240,25 +240,8 @@ pushes the prediction from the base value.
 #### SHAP scatter plots by predictor
 
 One scatter per predictor: feature value on the x-axis, SHAP contribution on
-the y-axis. The first set uses SHAP's auto-chosen interaction feature for
-colour; the second colours every plot by baseline word-reading score
-(`ewrswr`) so dependencies with starting reading level are visible.
-
-##### Auto-chosen interaction colouring
-
-::: {layout-ncol=2}
-![age](shap_scatter_age.png){.lightbox}
-
-![attend](shap_scatter_attend.png){.lightbox}
-
-![yarclet](shap_scatter_yarclet.png){.lightbox}
-
-![celf](shap_scatter_celf.png){.lightbox}
-
-![b1exto](shap_scatter_b1exto.png){.lightbox}
-
-![blending](shap_scatter_blending.png){.lightbox}
-:::
+the y-axis, coloured by baseline word-reading score (`ewrswr`) so dependencies
+with starting reading level are visible.
 
 ##### Coloured by baseline word-reading score (`ewrswr`)
 
