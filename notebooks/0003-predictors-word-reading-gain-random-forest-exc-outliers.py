@@ -23,7 +23,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
-import seaborn as sns
 import shap
 
 from sklearn.ensemble import RandomForestRegressor
@@ -381,7 +380,6 @@ C_grid = 0.5 * (c_bins[:-1] + c_bins[1:])
 Y_mesh, C_mesh = np.meshgrid(Y_grid, C_grid)
 
 # %%
-from mpl_toolkits.mplot3d import Axes3D  # needed for 3D projection
 
 fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection="3d")

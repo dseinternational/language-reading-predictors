@@ -110,6 +110,21 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 - The Quarto report (`docs/report/`) uses `execute: freeze: true` — computational output is cached, not re-run on render.
 - Build system is Hatch (`pyproject.toml`). Version is read from `src/language_reading_predictors/__init__.py`.
 
+## Pre-commit checks
+
+Before creating a commit or opening a pull request, both of the following must pass:
+
+```bash
+ruff check src/         # Python lint
+npm run spellcheck      # Markdown + Quarto spelling (British English, en-GB)
+```
+
+If `ruff` reports issues, fix them — do not silence rules or add blanket `noqa` pragmas without justification.
+
+If `cspell` flags a legitimate term (Python identifier, package name, domain term, project acronym, British spelling not in the base dictionary), add it to `config/spellcheck/allow-en.txt` rather than rewording the prose. Only add terms that are genuinely correct — do not use the allow list to paper over actual typos.
+
+Do not bypass these checks with `--no-verify`, skipped CI, or by committing from a different working tree. If either command cannot run (e.g. the conda env is inactive, `npm` is missing), resolve the setup issue rather than proceeding.
+
 ## Licensing
 
 - **Code**: AGPL-3.0
