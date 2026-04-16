@@ -16,7 +16,7 @@ import datetime
 import psutil
 from typing import Any
 
-RANDOM_SEED = 202512
+RANDOM_SEED = 47
 
 
 def get_environment_info() -> dict[str, str | bool | Any]:

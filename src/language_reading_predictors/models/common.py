@@ -14,6 +14,31 @@ import pandas as pd
 
 
 @dataclass
+class ShapScatterSpec:
+    """Declarative spec for a single call to ``shap_scatter_plots``.
+
+    Models declare a list of these on :attr:`ModelDefinition.shap_scatter_specs`
+    so the pipeline can generate all the scatter/dependence plots the model
+    calls for without custom scripting.
+    """
+
+    predictors: list[str] | None = None
+    """Features to plot. ``None`` plots every predictor."""
+
+    color_by: str | None = None
+    """Column used to colour each point. Can be a predictor (classical SHAP
+    dependence plot showing an interaction) or any column present in
+    ``context.df`` (e.g. a baseline score not used by the model)."""
+
+    filename_suffix: str | None = None
+    """Suffix appended to output filenames so each spec writes to distinct
+    files. Defaults to ``f"by_{color_by}"`` when ``color_by`` is set."""
+
+    description: str = ""
+    """Free-text label for console output."""
+
+
+@dataclass
 class SelectionStep:
     """Record of a single feature-selection decision.
 
@@ -146,6 +171,10 @@ class ModelConfig:
     pdp_top_n: int = 15
     """Number of top features (by permutation importance) to include in partial
     dependence plots when ``pdp_features`` is not set explicitly."""
+
+    shap_scatter_specs: list[ShapScatterSpec] = field(default_factory=list)
+    """Ordered list of SHAP scatter/dependence plot sets to generate
+    automatically after ``shap_analysis()``. Leave empty to skip."""
 
     random_seed: int = 47
 

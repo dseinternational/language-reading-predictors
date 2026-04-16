@@ -489,6 +489,106 @@ def plot_heatmap(
     return fig, ax
 
 
+def save_shap_scatter_plots(
+    explanation,
+    predictors: list[str],
+    output_dir: Path,
+    *,
+    color=None,
+    color_name: str | None = None,
+    filename_prefix: str = "shap_scatter",
+    filename_suffix: str | None = None,
+    dpi: int = 300,
+) -> list[Path]:
+    """Save one ``shap.plots.scatter`` per predictor as PNG and SVG.
+
+    The saved filenames follow the pattern::
+
+        {filename_prefix}_{feature}[_{filename_suffix}].{png,svg}
+
+    so repeated calls with different ``color`` values (and different
+    suffixes) can coexist in the same directory without clobbering.
+
+    Parameters
+    ----------
+    explanation : shap.Explanation
+        Full SHAP explanation (n_samples × n_features).
+    predictors : list[str]
+        Feature names to plot — one scatter per name. Must match feature
+        names embedded in ``explanation``.
+    output_dir : Path
+        Directory where PNG and SVG files are written.
+    color : shap.Explanation | array-like | None, optional
+        How to colour each point.
+
+        * ``None`` (default): SHAP's auto-colouring picks the strongest
+          interaction feature.
+        * ``shap.Explanation`` (e.g. ``explanation[:, "other_feature"]``):
+          colour by another feature already in the explanation. This is the
+          classical "SHAP dependence plot" form and surfaces interaction
+          effects between two predictors.
+        * array-like: colour by an external variable (one value per sample).
+          Use ``color_name`` to label the colour bar.
+    color_name : str, optional
+        Colour-bar label. Required when ``color`` is an array-like;
+        ignored when ``color`` is an Explanation (shap reads the name from
+        the Explanation itself).
+    filename_prefix : str
+        Leading component of the output filename.
+    filename_suffix : str, optional
+        Trailing component (e.g. ``"by_ewrswr"``) appended before the file
+        extension. Useful when generating multiple sets with different
+        ``color`` values.
+    dpi : int
+        Resolution of the PNG (SVG is vector and ignores this).
+
+    Returns
+    -------
+    list of Path
+        PNG paths written, in the same order as ``predictors``.
+    """
+    import shap
+
+    resolved_color = None
+    if color is not None:
+        if isinstance(color, shap.Explanation):
+            resolved_color = color
+        else:
+            if color_name is None:
+                msg = "color_name must be provided when color is an array"
+                raise ValueError(msg)
+            arr = np.asarray(color, dtype=float)
+            resolved_color = shap.Explanation(
+                values=arr,
+                base_values=None,
+                data=arr,
+                feature_names=color_name,
+            )
+
+    output_dir = Path(output_dir)
+    suffix = f"_{filename_suffix}" if filename_suffix else ""
+    written: list[Path] = []
+    for feature in predictors:
+        fig = plt.figure()
+        ax = fig.gca()
+        if resolved_color is not None:
+            shap.plots.scatter(
+                explanation[:, feature],
+                color=resolved_color,
+                ax=ax,
+                show=False,
+            )
+        else:
+            shap.plots.scatter(explanation[:, feature], ax=ax, show=False)
+        base = output_dir / f"{filename_prefix}_{feature}{suffix}"
+        png_path = Path(f"{base}.png")
+        fig.savefig(png_path, dpi=dpi, bbox_inches="tight")
+        fig.savefig(f"{base}.svg", bbox_inches="tight")
+        plt.close(fig)
+        written.append(png_path)
+    return written
+
+
 # from https://github.com/pymc-devs/pymc-examples/blob/main/examples/statistical_rethinking_lectures/utils.py
 def save_figure(
     filename: str,

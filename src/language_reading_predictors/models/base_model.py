@@ -30,7 +30,11 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from language_reading_predictors.data_variables import Predictors
-from language_reading_predictors.models.common import ModelConfig, SelectionStep
+from language_reading_predictors.models.common import (
+    ModelConfig,
+    SelectionStep,
+    ShapScatterSpec,
+)
 
 
 # ── global registry ──────────────────────────────────────────────────────
@@ -143,6 +147,11 @@ class ModelDefinition:
     pdp_top_n: ClassVar[int] = 15
     """Number of top features for auto-selected PDP."""
 
+    shap_scatter_specs: ClassVar[list[ShapScatterSpec]] = []
+    """Ordered list of SHAP scatter/dependence plot sets to generate for
+    this model. Empty by default — set on concrete subclasses to declare
+    the plots the model exploration needs."""
+
     random_seed: ClassVar[int] = 47
 
     variant_of: ClassVar[str | None] = None
@@ -210,6 +219,7 @@ class ModelDefinition:
             perm_importance_repeats=cls.perm_importance_repeats,
             pdp_features=cls.pdp_features,
             pdp_top_n=cls.pdp_top_n,
+            shap_scatter_specs=list(cls.shap_scatter_specs),
             random_seed=cls.random_seed,
             variant_of=cls.variant_of,
             notes=cls.notes,
