@@ -1,0 +1,330 @@
+---
+title: "LRP01: Predictors of word-reading gains"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+:::
+
+```{python}
+import json
+from pathlib import Path
+import pandas as pd
+pd.set_option("display.float_format", "{:.4f}".format)
+
+with open("config.json") as f:
+    config = json.load(f)
+
+with open("metrics.json") as f:
+    metrics = json.load(f)
+```
+
+## Overview
+
+LRP01 models gains in single-word reading ability (EWRSWR) for children with Down
+syndrome across longitudinal timepoints. The target variable is `ewrswr_gain` ---
+the change in EWRSWR score between consecutive assessments. Observations with
+gains $\geq$ 15 are excluded as outliers.
+
+The model uses LightGBM with Optuna-tuned hyperparameters and 34 predictors
+spanning demographics, cognitive ability, language, speech, reading, and
+home-environment measures. Cross-validation is group-aware (`GroupKFold`,
+grouped by `subject_id`) to prevent data leakage across timepoints for the same
+child.
+
+## Model configuration
+
+```{python}
+#| output: asis
+rows = [
+    ("Algorithm", "LightGBM (`lightgbm.LGBMRegressor`)"),
+    ("Target variable", f"`ewrswr_gain` (outliers ≥ {config['outlier_threshold']} excluded)"),
+]
+for k, v in config["model_params"].items():
+    label = k.replace("_", " ").title()
+    rows.append((label, f"{v:,}" if isinstance(v, int) else str(v)))
+rows += [
+    ("Cross-validation", f"GroupKFold ({config['cv_splits']} splits, grouped by `subject_id`)"),
+    ("Scoring", "Negative root mean squared error"),
+    ("Permutation importance repeats", str(config["perm_importance_repeats"])),
+    ("Random seed", str(config["random_seed"])),
+]
+print("| Parameter | Value |")
+print("|:---|:---|")
+for label, val in rows:
+    print(f"| {label} | {val} |")
+print()
+print(": Model hyperparameters {#tbl-config}")
+```
+
+### Predictor variables
+
+```{python}
+#| output: asis
+print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
+```
+
+## Data
+
+### Target variable descriptive statistics
+
+```{python}
+target_desc = pd.read_csv("target_describe.csv", index_col=0)
+target_desc
+```
+
+## Cross-validation
+
+Group-aware (`GroupKFold`) cross-validation RMSE scores:
+
+```{python}
+cv_scores = pd.read_csv("cv_scores.csv")
+
+print(f"Mean RMSE: {cv_scores['rmse'].mean():.4f}")
+print(f"Std  RMSE: {cv_scores['rmse'].std():.4f}")
+print(f"Min  RMSE: {cv_scores['rmse'].min():.4f}")
+print(f"Max  RMSE: {cv_scores['rmse'].max():.4f}")
+```
+
+```{python}
+cv_scores
+```
+
+## In-sample evaluation
+
+```{python}
+eval_df = pd.read_csv("evaluation.csv")
+
+mae = eval_df["y_true"].sub(eval_df["y_pred"]).abs().mean()
+rmse = ((eval_df["y_true"] - eval_df["y_pred"]) ** 2).mean() ** 0.5
+
+print(f"In-sample MAE:  {mae:.4f}")
+print(f"In-sample RMSE: {rmse:.4f}")
+```
+
+## Feature importance
+
+### Permutation importance
+
+Permutation importance measures the decrease in model performance when a single
+feature's values are randomly shuffled, breaking the relationship between the
+feature and the target. Features with higher importance contribute more to the
+model's predictive accuracy.
+
+```{python}
+perm_imp = pd.read_csv("permutation_importance.csv")
+perm_imp
+```
+
+#### Interpretation
+
+```{python}
+#| output: asis
+_top_n = 10
+_top = perm_imp.head(_top_n)
+print(
+    f"The {_top_n} most important predictors of word-reading gains by "
+    f"permutation importance are: "
+    + ", ".join(f"`{row['feature']}`" for _, row in _top.iterrows())
+    + "."
+)
+```
+
+<!-- Add model-specific commentary on permutation importance findings here.
+     For example:
+     - Which predictors dominate and why that is (or is not) expected?
+     - Are any predictors surprisingly high or low?
+     - Do any demographic/home-environment variables appear important?
+-->
+
+### SHAP analysis
+
+[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values
+decompose each prediction into the contribution of each feature, providing both
+global and local interpretability.
+
+#### Global feature importance (bar)
+
+Mean absolute SHAP values across all observations, showing the average magnitude
+of each feature's contribution to predictions.
+
+![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
+
+#### Clustered feature importance
+
+SHAP bar plot with hierarchical clustering of correlated features (cutoff = 0.4),
+revealing groups of features that contribute similar information.
+
+![SHAP clustered bar plot](shap_bar_clustered.png){#fig-shap-bar-clustered .lightbox fig-align="left"}
+
+#### Summary (beeswarm) plot
+
+Each point represents a single observation. Position on the x-axis shows the SHAP
+value (impact on prediction), and colour indicates the feature value (red = high,
+blue = low).
+
+![SHAP summary plot](shap_summary.png){#fig-shap-summary .lightbox fig-align="left"}
+
+#### Waterfall plot (most representative observation)
+
+SHAP waterfall plot for the most representative observation (lowest combined
+residual and distance from the median feature vector), showing how each feature
+pushes the prediction from the base value.
+
+![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
+
+#### Interpretation
+
+<!-- Add model-specific commentary on SHAP findings here. For example:
+     - Do the SHAP rankings agree with permutation importance? Where do they
+       diverge, and what might explain it?
+     - What direction do key features push predictions (from the beeswarm)?
+     - Are there notable interaction effects visible in the clustered bar plot?
+     - What does the waterfall plot reveal about the representative case?
+-->
+
+## Partial dependence
+
+Partial dependence plots show the marginal effect of each feature on the predicted
+target, averaging over the values of all other features. Features are ordered by
+permutation importance.
+
+![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
+
+## Feature selection log
+
+This section documents the history of feature-selection and tuning decisions for
+LRP01. Each entry records what changed, why, and the effect on cross-validation
+performance. The code-level record is maintained in `SelectionStep` entries in
+`models/lrp01.py`; the narrative below provides additional context for reporting.
+
+### Baseline (`lrp01`)
+
+All 34 default gain predictors with default LightGBM hyperparameters
+(`n_estimators=1200`, `learning_rate=0.05`). This is the reference point against
+which all variants are compared.
+
+### `lrp01_select01` --- Optuna hyperparameter tuning (2026-04-12) {#sec-select01}
+
+**Change:** Replaced default LightGBM hyperparameters with Optuna-tuned values
+(30 trials, 10-split GroupKFold). No predictor changes.
+
+**Rationale:** The default `n_estimators=1200` was massively over-training at
+$n=152$. Tuning reduced this to 83 iterations and adjusted regularisation. The
+Random Forest code path was retired the same day after tuned LightGBM matched its
+CV RMSE approximately 30$\times$ faster.
+
+**Result:** Inner CV RMSE 3.3145 $\pm$ 0.5423 (best trial #14).
+
+See `notes/202604121234-lightgbm-rf-comparison-tuning.md` and
+`notes/202604121451-lightgbm-model-selection.md` for the full history.
+
+<!-- Add subsequent selection steps below as they are made. Template:
+
+### `lrp01_selectNN` --- Short title (YYYY-MM-DD) {#sec-selectNN}
+
+**Change:** Added/removed: `var1`, `var2`. (Or: hyperparameter change only.)
+
+**Rationale:** Why this change was made, citing evidence (permutation importance,
+SHAP, distance-correlation clustering, domain knowledge, etc.).
+
+**Result:** CV RMSE before → after. Any other relevant metrics.
+-->
+
+### Variant comparison
+
+Selection and tuning variants of LRP01 are shown below. Each variant was fitted
+individually (e.g. `python scripts/fit_model.py lrp01_select01`); variants that
+have not been fitted yet are silently skipped.
+
+```{python}
+#| output: asis
+def _load_json(path):
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return None
+
+
+_sibling_configs = {}
+_sibling_metrics = {}
+_parent_dir = Path("..")
+if _parent_dir.exists():
+    for d in sorted(_parent_dir.iterdir()):
+        if not d.is_dir():
+            continue
+        cfg_json = _load_json(d / "config.json")
+        if cfg_json is None or "model_id" not in cfg_json:
+            continue
+        _sibling_configs[cfg_json["model_id"]] = cfg_json
+        met_json = _load_json(d / "metrics.json")
+        if met_json is not None:
+            _sibling_metrics[cfg_json["model_id"]] = met_json
+
+_champion_id = "lrp01"
+_champion_cfg = _sibling_configs.get(_champion_id)
+_champion_metrics = _sibling_metrics.get(_champion_id, {})
+
+_variants = sorted(
+    (
+        (mid, c, _sibling_metrics.get(mid))
+        for mid, c in _sibling_configs.items()
+        if c.get("variant_of") == _champion_id
+    ),
+    key=lambda t: t[0],
+)
+
+if not _variants:
+    print("_No variants fitted yet._\n")
+else:
+    _champion_predictors = set((_champion_cfg or {}).get("predictor_vars", []))
+
+    def _fmt(v):
+        if v is None:
+            return "\u2014"
+        if isinstance(v, float):
+            return f"{v:.4f}"
+        return str(v)
+
+    columns = [_champion_id] + [mid for mid, _, _ in _variants]
+    rows = [
+        ("n_predictors", [_champion_metrics.get("n_predictors")]
+         + [(m or {}).get("n_predictors") for _, _, m in _variants]),
+        ("CV RMSE mean", [_champion_metrics.get("cv_rmse_mean")]
+         + [(m or {}).get("cv_rmse_mean") for _, _, m in _variants]),
+        ("CV RMSE std", [_champion_metrics.get("cv_rmse_std")]
+         + [(m or {}).get("cv_rmse_std") for _, _, m in _variants]),
+        ("In-sample MAE", [_champion_metrics.get("in_sample_mae")]
+         + [(m or {}).get("in_sample_mae") for _, _, m in _variants]),
+        ("In-sample RMSE", [_champion_metrics.get("in_sample_rmse")]
+         + [(m or {}).get("in_sample_rmse") for _, _, m in _variants]),
+    ]
+
+    print("| Metric | " + " | ".join(columns) + " |")
+    print("|" + "---|" * (len(columns) + 1))
+    for label, values in rows:
+        print(f"| {label} | " + " | ".join(_fmt(v) for v in values) + " |")
+    print()
+
+    print(f"**Predictor changes vs `{_champion_id}`:**\n")
+    for mid, vcfg, _ in _variants:
+        vpreds = set(vcfg["predictor_vars"])
+        added = sorted(vpreds - _champion_predictors)
+        dropped = sorted(_champion_predictors - vpreds)
+        print(f"- **{mid}** \u2014 {vcfg.get('notes') or '_no notes_'}")
+        print(f"    - Added: {', '.join(f'`{p}`' for p in added) if added else '_none_'}")
+        print(f"    - Dropped: {', '.join(f'`{p}`' for p in dropped) if dropped else '_none_'}")
+    print()
+```

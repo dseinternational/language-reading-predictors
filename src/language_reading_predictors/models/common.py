@@ -30,6 +30,17 @@ class SelectionStep:
     notes: str = ""
     """Free-text rationale for this selection decision."""
 
+    date: str = ""
+    """ISO date when this step was taken (e.g. ``"2026-04-16"``)."""
+
+    metrics_before: dict[str, float] = field(default_factory=dict)
+    """CV metrics snapshot before this step (e.g.
+    ``{"cv_rmse_mean": 3.45, "cv_rmse_std": 0.52}``)."""
+
+    metrics_after: dict[str, float] = field(default_factory=dict)
+    """CV metrics snapshot after this step (e.g.
+    ``{"cv_rmse_mean": 3.31, "cv_rmse_std": 0.54}``)."""
+
 
 @dataclass
 class RunConfig:

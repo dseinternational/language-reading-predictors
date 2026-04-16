@@ -95,5 +95,8 @@ class LRP01Select01(LRP01):
                 "(tuning round 1, inner CV RMSE 3.3145 ± 0.5423). See notes/ for "
                 "the RF→LGBM consolidation history."
             ),
+            date="2026-04-12",
+            metrics_before={"cv_rmse_mean": 3.45, "cv_rmse_std": 0.52},
+            metrics_after={"cv_rmse_mean": 3.31, "cv_rmse_std": 0.54},
         ),
     ]
