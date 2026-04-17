@@ -124,7 +124,7 @@ amplitudes / length-scales, beta-binomial concentrations, residual SDs):
 ```{python}
 #| output: asis
 
-mask = summary.index.str.startswith(("b0__", "beta__", "eta__", "ell__", "kappa__", "sigma__"))
+mask = summary.index.str.startswith(("b0__", "beta__", "eta__", "log_ell__", "kappa__", "sigma__"))
 display_cols = ["mean", "sd", "hdi_5%", "hdi_95%", "ess_bulk", "r_hat"]
 cols_present = [c for c in display_cols if c in summary.columns]
 print(summary.loc[mask, cols_present].to_markdown(floatfmt=".3f"))

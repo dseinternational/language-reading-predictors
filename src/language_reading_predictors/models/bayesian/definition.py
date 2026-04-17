@@ -52,10 +52,17 @@ class ParentSpec:
     """Free-text description, used in reports."""
 
     # GP-specific knobs (ignored when kind != "gp")
-    ell_alpha: float = 3.0
-    ell_beta: float = 3.0
-    eta_sigma: float = 0.4
-    n_basis: int = 20
+    #
+    # ``ell`` is log-reparameterised: ``log_ell ~ Normal(ell_log_mu,
+    # ell_log_sigma)``, then ``ell = exp(log_ell)``. The log-space Normal
+    # gives NUTS a nicely uniform geometry and keeps ``ell`` positive
+    # without the heavy right tail of InverseGamma. The default
+    # ``Normal(0, 0.5)`` puts roughly 90 % mass on ``ell in [0.44, 2.27]``,
+    # which matches reasonable length-scales on the standardised input.
+    ell_log_mu: float = 0.0
+    ell_log_sigma: float = 0.35
+    eta_sigma: float = 0.25
+    n_basis: int = 10
 
 
 @dataclass

@@ -77,20 +77,26 @@ class BetaBinomialHSGPPipeline(BayesianPipeline):
                         eta_linpred = eta_linpred + beta * x_lin
                         continue
 
-                    # Linear coefficient on standardised parent.
+                    if p_spec.kind == "gp":
+                        # GP edges: no separate linear coefficient. The GP
+                        # already captures linear trend as a limiting case
+                        # (long length-scale); adding an explicit beta
+                        # creates a funnel between beta and the GP's low-
+                        # frequency basis coefficients.
+                        gp_term = build_gp_edge(
+                            name=edge, x_std=x_std, parent=p_spec
+                        )
+                        eta_linpred = eta_linpred + gp_term
+                        continue
+
+                    # "linear" and "offset": single linear coefficient on
+                    # the standardised parent.
                     beta = pm.Normal(
                         f"beta__{edge}",
                         mu=0.0,
                         sigma=spec_node.beta_sigma,
                     )
                     eta_linpred = eta_linpred + beta * x_std
-
-                    if p_spec.kind == "gp":
-                        gp_term = build_gp_edge(
-                            name=edge, x_std=x_std, parent=p_spec
-                        )
-                        eta_linpred = eta_linpred + gp_term
-                    # "linear" and "offset" → linear-only, no GP term.
 
                 if spec_node.likelihood == "beta_binomial":
                     p = pm.Deterministic(

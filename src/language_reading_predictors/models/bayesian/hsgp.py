@@ -60,9 +60,12 @@ def build_gp_edge(
     # Choose L generously so boundary artefacts don't bite.
     L = max(1.5, 1.5 * float(np.max(np.abs(x_std))), 1.5 * x_range / 2.0)
 
-    ell = pm.InverseGamma(
-        f"ell__{name}", alpha=parent.ell_alpha, beta=parent.ell_beta
+    log_ell = pm.Normal(
+        f"log_ell__{name}",
+        mu=parent.ell_log_mu,
+        sigma=parent.ell_log_sigma,
     )
+    ell = pm.Deterministic(f"ell__{name}", pm.math.exp(log_ell))
     eta = pm.HalfNormal(f"eta__{name}", sigma=parent.eta_sigma)
 
     cov = pm.gp.cov.ExpQuad(1, ls=ell)

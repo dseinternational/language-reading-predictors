@@ -301,7 +301,9 @@ class BayesianPipeline:
         interesting = [
             v
             for v in ctx.summary.index
-            if v.startswith(("b0__", "beta__", "sigma__", "eta__", "ell__"))
+            if v.startswith(
+                ("b0__", "beta__", "sigma__", "eta__", "log_ell__", "kappa__")
+            )
         ]
         if not interesting:
             interesting = list(ctx.summary.index[:20])
