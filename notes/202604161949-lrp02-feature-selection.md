@@ -987,6 +987,118 @@ toward the log variants but the paired tests can't confirm.
    more by "confirm the 13-feature set is appropriate under the new
    importance landscape, where `celf` shows moderate signal".
 
+## `lrp02_prediction` and `lrp02_log_prediction` — RMSE-tuned variants
+
+For parity with the `lrp01` / `lrp01_prediction` split, we added
+RMSE-tuned prediction variants in both raw-target and log-target
+configurations. Both use the same 13-predictor feature set as `lrp02`.
+
+- `LRP02Prediction(LRP02)` — `LGBMPipeline`, `objective="regression"`,
+  RMSE-tuned.
+- `LRP02LogPrediction(LRP02Log)` — `LGBMLogPipeline`,
+  `objective="regression"`, RMSE-tuned in log1p space.
+
+### Tuning
+
+Optuna 150 trials each, scoring=rmse, lgbm_objective=regression. The
+log variant uses the `--target-transform log1p` plumbing auto-inferred
+from `LGBMLogPipeline`. Tuner-inner best values:
+
+| Variant | Tuner-inner CV RMSE |
+|---|---|
+| `lrp02_prediction` | 8.7517 ± 2.8635 |
+| `lrp02_log_prediction` | 8.4455 ± 5.0674 |
+
+The log-space RMSE tune has a huge std (5.07) — squared-error loss
+after `expm1` inversion amplifies any fold-level prediction drift into
+an outsized RMSE penalty.
+
+### Refit comparison
+
+| Metric | `lrp02` (MAE) | **`lrp02_prediction`** (RMSE) | `lrp02_log` (MAE-log) | **`lrp02_log_prediction`** (RMSE-log) |
+|---|---|---|---|---|
+| CV MAE | 6.019 | 6.356 | 5.581 | 6.608 |
+| CV RMSE | 8.242 | 8.505 | 8.006 | 9.355 |
+| CV R² | 0.355 | 0.299 | 0.488 | 0.262 |
+| CV MedAE | 3.963 | 4.570 | 3.165 | 4.130 |
+| In-sample R² | 0.968 | **0.999** | 0.974 | **0.992** |
+
+Both RMSE-tuned variants are **worse on every CV metric** — including
+RMSE itself — than their MAE-tuned siblings. In-sample R² climbs to
+0.999 (raw) and 0.992 (log), signalling heavy overfit: the RMSE
+objective pushes tree capacity toward fitting the training tail
+exactly, which memorises rather than generalises.
+
+### Paired-fold significance
+
+The six-way paired comparison
+(`scripts/compare_variants.py lrp02 lrp02_select02 lrp02_log lrp02_select02_log lrp02_prediction lrp02_log_prediction`)
+produces strong evidence that the RMSE variants are genuinely worse,
+not just noisily different:
+
+| Comparison | Metric | mean diff | paired *t* p | Wilcoxon p | B wins |
+|---|---|---:|---:|---:|---:|
+| `lrp02_log` → `lrp02_log_prediction` | MAE | **+1.027** | **<0.001** | **0.002** | **0/10** |
+| `lrp02_log` → `lrp02_log_prediction` | RMSE | **+1.349** | **<0.001** | **0.002** | **0/10** |
+| `lrp02_log` → `lrp02_log_prediction` | R² | **−0.226** | **0.003** | **0.002** | **0/10** |
+| `lrp02_log` → `lrp02_prediction` | MedAE | **+1.405** | **0.001** | **0.002** | **0/10** |
+| `lrp02_select02_log` → `lrp02_log_prediction` | RMSE | +1.305 | 0.002 | 0.004 | 1/10 |
+| `lrp02_select02` → `lrp02_log_prediction` | RMSE | +1.283 | 0.009 | 0.010 | 2/10 |
+| `lrp02_select02` → `lrp02_log_prediction` | R² | −0.128 | 0.031 | 0.037 | 2/10 |
+
+Eight highly-significant (α=0.01) or strongly-significant (α=0.05)
+results, all against the RMSE-tuned variants. Notably:
+
+- **Nothing beats `lrp02_log` on any metric when RMSE-tuned.** Every
+  RMSE comparison against `lrp02_log` shows 0/10 fold wins for the
+  RMSE variant.
+- **`lrp02_log_prediction` is worse on RMSE than `lrp02_log`**
+  (p<0.001). That is the metric it was tuned for. Squared-error
+  training in log space with `expm1` inversion is simply a bad
+  combination at this sample size.
+
+### In-sample quartile errors (RMSE variants)
+
+| Target range | `lrp02_prediction` | `lrp02_log_prediction` |
+|---|---|---|
+| 0–1 | 0.41 | 0.12 |
+| 1–6.5 | 0.42 | 0.28 |
+| 6.5–17 | 0.39 | 0.74 |
+| 17–64 | 0.41 | 1.66 |
+
+`lrp02_prediction` has suspiciously flat in-sample errors across
+quartiles (0.39–0.42) — the model has memorised each training point,
+which is also why CV metrics collapse.
+
+### Why this mirrors `lrp01_prediction`
+
+The `lrp01` notes already flagged this pattern:
+
+> "The MAE model wins on all CV metrics. The RMSE-tuned variant
+> over-trains heavily (in-sample R² 0.56 vs CV R² −0.26), confirming
+> that the RMSE objective with squared-error loss is too aggressive at
+> n=157 with outliers included."
+
+The same story at `lrp02`'s n=210 with a much longer-tailed target
+(ewrswr max=64 vs ewrswr_gain max≈15). RMSE tuning is a poor fit for
+this family of tasks at the available sample size.
+
+### What the RMSE variants are kept for
+
+- **Parity with the `lrp01` family.** Having the split lets future
+  work re-evaluate if/when sample size grows.
+- **Reference point for importance rankings.** `lrp02_prediction`
+  puts `spphon` at an even larger 0.321 vs 0.286 in the primary,
+  confirming it is the dominant raw-space signal regardless of loss
+  function.
+- **Upper-bound check.** In-sample R² 0.999 is a sanity check that
+  the 13-feature set *can* fit n=210 exactly given enough capacity;
+  the CV gap is then pure generalisation error, not representational
+  limitation.
+
+Neither variant should be promoted to primary. `lrp02_log` remains
+the best all-round model.
+
 ## `lrp02_select02` — 17-predictor reference variant
 
 To preserve the best CV configuration without reverting Select03 on the
@@ -1056,6 +1168,19 @@ column order and LightGBM's seeded `colsample_bytree` draws.
   despite having been dropped at Select04 on primary-space grounds —
   suggests the feature selection is not invariant to the target
   transform.
+- **`lrp02_prediction`** (variant, raw target, 13 predictors,
+  RMSE-tuned): CV MAE 6.356, CV RMSE 8.505, CV R² 0.299, CV MedAE
+  4.570. In-sample R² 0.999. RMSE-tuning over-fits at n=210 with a
+  long-tailed target; paired-fold tests show it is significantly
+  worse than `lrp02_log` on MedAE (t p=0.001, 0/10 folds) and
+  non-significantly worse than `lrp02` on everything. Kept for
+  parity with the lrp01 family.
+- **`lrp02_log_prediction`** (variant, log1p target, 13 predictors,
+  RMSE-tuned in log space): CV MAE 6.608, CV RMSE 9.355, CV R² 0.262.
+  In-sample R² 0.992. Worst CV performer of all six variants;
+  significantly worse than `lrp02_log` on MAE, RMSE, and R² (all
+  p<0.01). Squared-error loss in log space with expm1 inversion is
+  unstable at this sample size. Kept for completeness.
 - Four `SelectionStep`s on `LRP02` document the 32 → 24 → 17 → 15 → 13
   cuts; one step on `LRP02Select02` adds back the two features dropped
   at Select03.
