@@ -21,10 +21,12 @@ eowpvt
 erbnw
 erbword
 ewrswr
+expm
 exto
 GBDT
 hclust
 cutoff
+homoscedasticity
 hyperparameters
 isinstance
 iterdir
