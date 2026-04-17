@@ -4,11 +4,11 @@
 """
 LRP06: Predictors of letter-sound knowledge level.
 
-``LRP06`` is the baseline exploratory model for letter-sound
-knowledge level (``yarclet``). It uses the full
-:attr:`Predictors.DEFAULT_LEVEL` set (with ``yarclet`` excluded as
-the target) with no outlier exclusion so the starting picture is
-unfiltered.
+``LRP06`` is the exploratory model for letter-sound knowledge level
+(``yarclet``). It is MAE-tuned on the full 32-predictor
+:attr:`Predictors.DEFAULT_LEVEL` set (minus the target), with no
+outlier exclusion, designed to identify the most important
+influences on letter-sound knowledge level.
 
 The target is **left-skewed with a ceiling at 32** (``yarclet`` min
 0, max 32, median 21, skewness −0.60, n ≈ 214). The ceiling effect
@@ -19,9 +19,10 @@ transforms are inappropriate here because the skew is in the wrong
 direction; a reflection-log or quantile objective might be
 considered later.
 
-No tuning has been run for LRP06 yet — it runs on a reasonable
-``_LGBM_BASELINE_PARAMS`` dict so later feature-selection variants
-have a documented starting point.
+The predictor set will be reduced by iterative importance-based
+feature selection under the MAE-tuned params (see
+``notes/202604171421-lrp06-feature-selection.md``). This is the
+initial tuned baseline; no feature-selection steps yet.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -42,47 +43,47 @@ _SELECTION_STEPS: list[SelectionStep] = []
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# Baseline — no tuning has been run for LRP06 yet. Reasonable defaults
-# give the feature-selection work a reproducible starting point. Use
-# ``python scripts/tune_model.py lrp06`` to produce a tuned set and
-# replace this dict.
-_LGBM_BASELINE_PARAMS: dict[str, float | int | str] = {
-    "n_estimators": 500,
-    "learning_rate": 0.05,
-    "num_leaves": 15,
-    "max_depth": 6,
-    "min_child_samples": 16,
-    "subsample": 0.8,
+# MAE-tuned on the full 32-predictor DEFAULT_LEVEL set, no outlier
+# exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47,
+# scoring=mae, lgbm_objective=mae). Tuner-inner CV MAE 4.2827 ±
+# 0.9503. n=214.
+_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 55,
+    "learning_rate": 0.056216642069165164,
+    "num_leaves": 20,
+    "max_depth": 10,
+    "min_child_samples": 25,
+    "subsample": 0.7471713662504078,
     "subsample_freq": 1,
-    "colsample_bytree": 0.8,
-    "reg_alpha": 0.1,
-    "reg_lambda": 0.1,
+    "colsample_bytree": 0.9126203830943295,
+    "reg_alpha": 0.003945304557177304,
+    "reg_lambda": 0.12518330653891066,
     "n_jobs": -1,
     "verbosity": -1,
 }
 
 
-# ── primary model (baseline, untuned) ───────────────────────────────────
+# ── primary model (exploratory, MAE-tuned) ──────────────────────────────
 
 
 class LRP06(LevelModel):
-    """Letter-sound knowledge level predictors — baseline (all data, untuned).
+    """Letter-sound knowledge level predictors — exploratory (MAE-tuned, all data).
 
     Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
-    (minus the target ``yarclet``) and a reasonable
-    ``_LGBM_BASELINE_PARAMS`` set. Serves as the starting point for
-    feature-selection and tuning work on the letter-sound knowledge
-    level-prediction task.
+    (minus the target ``yarclet``) with MAE-tuned hyperparameters
+    and no outlier exclusion. The starting point for feature
+    selection on the letter-sound knowledge level-prediction task.
     """
 
     model_id = "lrp06"
     target_var = V.YARCLET
     description = (
         "LightGBM — letter-sound knowledge level predictors "
-        "(baseline, DEFAULT_LEVEL set, untuned)"
+        "(32 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_BASELINE_PARAMS
+    params = _LGBM_MAE_PARAMS
     cv_splits = 51
     outlier_threshold = None
     selection_steps = _SELECTION_STEPS
@@ -90,12 +91,12 @@ class LRP06(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Baseline exploratory model for letter-sound knowledge level "
-        "(yarclet). Uses the full default level predictor set (minus "
-        "the target) without outlier exclusion, and a reasonable "
-        "_LGBM_BASELINE_PARAMS starting point — no feature selection "
-        "or hyperparameter tuning has been applied yet. Note the "
-        "target has a ceiling effect at 32 — many observations cluster "
-        "at the instrument maximum, producing a left-skewed "
-        "distribution."
+        "Exploratory model for identifying important predictors of "
+        "letter-sound knowledge level (yarclet). MAE-tuned on the "
+        "full 32-predictor DEFAULT_LEVEL set without outlier exclusion "
+        "so importance rankings reflect the full range of outcomes. "
+        "Note the target has a ceiling effect at 32 — many "
+        "observations cluster at the instrument maximum, producing a "
+        "left-skewed distribution. Feature-selection variants to "
+        "follow. See notes/202604171421-lrp06-feature-selection.md."
     )
