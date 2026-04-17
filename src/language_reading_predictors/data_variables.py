@@ -685,7 +685,7 @@ class Variables:
         B1EXTAU_GAIN,
         B1EXTO_GAIN,
         B1RENT_GAIN,
-        B1RETAU,
+        B1RETAU_GAIN,
         B1RETO_GAIN,
         B2EXNT_GAIN,
         B2EXTAU_GAIN,
@@ -1035,12 +1035,12 @@ class Predictors:
     included in composites or only measured at t1).
     """
 
-    DEFAULT_LEVEL_NUMERIC = [v for v in DEFAULT_GAIN if v in Variables.NUMERIC]
+    DEFAULT_LEVEL_NUMERIC = [v for v in DEFAULT_LEVEL if v in Variables.NUMERIC]
     """
     All DEFAULT_LEVEL predictor variables that are numeric.
     """
 
-    DEFAULT_LEVEL_CATEGORICAL = [v for v in DEFAULT_GAIN if v in Variables.CATEGORICAL]
+    DEFAULT_LEVEL_CATEGORICAL = [v for v in DEFAULT_LEVEL if v in Variables.CATEGORICAL]
     """
     All DEFAULT_LEVEL variables that are categorical.
     """
@@ -1077,11 +1077,6 @@ class Categories:
         1: "Period 1",
         2: "Period 2",
         3: "Period 3",
-    }
-
-    GENDER = {
-        1: "Male",
-        2: "Female",
     }
 
     BEHAVIOUR = {

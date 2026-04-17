@@ -32,7 +32,7 @@ def get_environment_info() -> dict[str, str | bool | Any]:
         "ram_available": f"{mem.available // (1024 ** 3)} GB",
         "cuda": torch.cuda.is_available(),
         "cuda_device_count": torch.cuda.device_count(),
-        "cuda_device_0": torch.cuda.is_available() and torch.cuda.get_device_name(0),
+        "cuda_device_0": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
         "python": sys.version,
         "numpy": np.__version__,
         "pandas": pd.__version__,

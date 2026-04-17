@@ -187,6 +187,19 @@ def main() -> None:
         f"{len(ref_folds)} folds: {args.models}[/green]\n"
     )
 
+    # Validate that requested metrics exist in all frames.
+    available_metrics = set.intersection(
+        *(set(df.columns) for df in frames.values())
+    )
+    for metric in args.metrics:
+        if metric not in available_metrics:
+            missing_in = [mid for mid, df in frames.items() if metric not in df.columns]
+            print(
+                f"[bold red]Metric {metric!r} not found in: "
+                f"{', '.join(missing_in)}[/bold red]"
+            )
+            raise SystemExit(1)
+
     for metric in args.metrics:
         table = _pairwise_table(frames, metric)
         print(_format_markdown(table, metric))
