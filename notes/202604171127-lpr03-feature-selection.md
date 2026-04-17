@@ -272,43 +272,129 @@ Notable shifts under the retune:
 - **`agespeak` fell to 0.002** — near-noise under the new tune.
 - **`deappfi`, `celf`, `yarclet`** all fell to 0.003–0.004.
 
+## Select02: drop 5 redundant / low-importance features (16 → 11)
+
+After reviewing the six low-importance candidates under the Select01
+retune, five were dropped and one (`agebooks`) retained as a
+borderline case. Evidence summary:
+
+| Feature | Imp (Select01 retune) | Top dcorr partner | Verdict |
+|---|---:|---|---|
+| `agespeak` | 0.002 | weak (max 0.27) | Drop — weakest |
+| `yarclet` | 0.003 | `ewrswr` 0.65, `b1exto` 0.64, `eowpvt` 0.58 | Drop — reading-cluster redundancy |
+| `ewrswr` | 0.004 | `b1exto` 0.66, `eowpvt` 0.65, `yarclet` 0.65 | Drop — redundant with retained language |
+| `deappfi` | 0.004 | `deappin` **0.76** | Drop — strong articulation-pair redundancy |
+| `celf` | 0.004 | `b1exto` / `b1reto` / `eowpvt` / `rowpvt` all 0.63–0.64 | Drop — deep in the language cluster |
+| `agebooks` | 0.006 | `aptgram` 0.33 (weak) | **Keep** — above 0.005 floor, weak correlations, distinct early-life signal |
+
+### Select02 carry-forward (Select01's 16-tune → 11 predictors)
+
+| Metric | Before (16 predictors, 51 trees) | After (11 predictors, same 51 trees) |
+|---|---:|---:|
+| CV MAE | 5.084 ± 0.761 | **4.979 ± 0.756** |
+| CV RMSE | 6.562 | **6.469** |
+| CV R² | 0.084 ± 0.090 | **0.111 ± 0.088** |
+| CV MedAE | 4.377 | **4.279** |
+| In-sample R² | 0.313 | 0.316 |
+
+Every CV metric improved — dropping the 5 features was net-positive
+without any tuning change. `agebooks` rose in importance from 0.006
+to 0.009, vindicating the decision to keep it.
+
+### Retune on 11 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **5.0542 ± 0.6829**.
+
+| Parameter | Tuned on 16 | **Tuned on 11** |
+|---|---:|---:|
+| n_estimators | 51 | 25 |
+| learning_rate | 0.043 | 0.065 |
+| num_leaves | 17 | 48 |
+| max_depth | 8 | 11 |
+| min_child_samples | 16 | 10 |
+| subsample | 0.757 | 0.984 |
+| colsample_bytree | 0.976 | 0.920 |
+| reg_alpha | **1.025** | 0.037 |
+| reg_lambda | **5.770** | 0.007 |
+
+Very different regime: fewer trees, faster learning, much wider
+trees (48 leaves), **much less regularisation** (L1 × 28, L2 × 800
+in the Select01 retune vs the Select02 retune). With only 11
+features and modest signal, the tuner opted for wide short
+ensembles over narrow deep ones.
+
+### Refit under Select02 retuned params
+
+| Metric | Carry-forward (51 trees, Select01 tune) | **Retuned (25 trees, Select02 tune)** |
+|---|---:|---:|
+| CV MAE | 4.979 | 5.037 |
+| CV RMSE | 6.469 | 6.527 |
+| CV R² | 0.111 | 0.087 |
+| **CV MedAE** | 4.279 | **4.215** |
+| In-sample R² | 0.316 | 0.405 |
+
+Mixed picture: the Select02 retune wins on **MedAE** (−0.064) and
+on tuner-inner MAE, but loses slightly on CV MAE (+0.06) and CV R²
+(−0.024). The carry-forward's stronger regularisation happens to
+generalise better on mean metrics but the retune's shorter
+ensemble fits the median case better.
+
+Retained for consistency with the "tuned on this feature set"
+convention. **The MedAE improvement is the useful empirical win,
+mirroring what log-transform did for LRP02.**
+
+### Permutation importance under Select02 retune (11 predictors)
+
+| Rank | Feature | Importance |
+|---|---|---:|
+| 1 | **`eowpvt`** | 0.264 |
+| 2 | `deappvo` | 0.113 |
+| 3 | `aptinfo` | 0.098 |
+| 4 | `trog` | 0.092 |
+| 5 | `age` | 0.075 |
+| 6 | `b1reto` | 0.046 |
+| 7 | `deappin` | 0.043 |
+| 8 | `rowpvt` | 0.038 |
+| 9 | `aptgram` | 0.035 |
+| 10 | `agebooks` | 0.026 |
+| 11 | `b1exto` | 0.011 |
+
+**No features below 0.005** — the noise floor has been cleared.
+All 11 features have measurable importance. `age` rose from 0.023
+(Select01) to 0.075 — big jump; its signal was suppressed when
+more features competed for capacity.
+
 ## Cumulative summary
 
-| Step | Predictors | CV MAE | CV R² | Change |
-|---|---|---|---|---|
-| Baseline (untuned) | 34 | 5.843 | −0.173 | — |
-| MAE-tuned on 34 | 34 | 5.277 | 0.045 | tune only |
-| Select01 (carry-forward) | 16 | 5.154 | 0.058 | drop 18 features |
-| Retuned-16 | 16 | **5.084** | **0.084** | tune on Select01 set |
-
-## Select02 candidates (noise floor under retuned 16)
-
-Five features have fallen to or below 0.005 in the retuned model:
-
-- `agespeak` (0.002)
-- `yarclet` (0.003)
-- `ewrswr` (0.004)
-- `deappfi` (0.004)
-- `celf` (0.004)
-- `agebooks` (0.006, borderline)
-
-All six are well-tolerated by the current model — whether they
-add generalisation benefit is a question for correlation review
-before the next cut.
+| Step | Predictors | CV MAE | CV R² | CV MedAE | Change |
+|---|---|---|---|---|---|
+| Baseline (untuned) | 34 | 5.843 | −0.173 | 4.927 | — |
+| MAE-tuned on 34 | 34 | 5.277 | 0.045 | 4.413 | tune only |
+| Select01 (carry-forward) | 16 | 5.154 | 0.058 | 4.454 | drop 18 features |
+| Retuned-16 | 16 | 5.084 | 0.084 | 4.377 | tune on Select01 |
+| Select02 (carry-forward) | 11 | **4.979** | **0.111** | 4.279 | drop 5 features |
+| **Retuned-11** | **11** | 5.037 | 0.087 | **4.215** | tune on Select02 |
 
 ## Current state
 
-- **`lrp03`** (primary, MAE-tuned on 16 predictors): 16 predictors,
-  CV MAE 5.084 ± 0.761, CV R² 0.084 ± 0.090, CV MedAE 4.377. No
+- **`lrp03`** (primary, MAE-tuned on 11 predictors): 11 predictors,
+  CV MAE 5.037 ± 0.699, CV R² 0.087 ± 0.131, CV MedAE 4.215. No
   outlier exclusion, n=161.
-- One `SelectionStep` on `LRP03` documents the 34 → 16 cut.
-- Open questions for future steps:
-  - **Correlation review:** run the dcorr / Spearman analysis on
-    the 16-predictor set to identify which of the new-noise
-    features (Select02 candidates above) are redundant with
-    retained higher-importance features.
-  - **Signed-log target transform:** milder skew than LRP01 but
-    worth a check. Use `LGBMSignedLogPipeline` when the time comes.
-  - **Quantile α=0.5 objective:** mirrors the LRP02 quantile work.
-  - **RMSE-tuned prediction variant:** parallels
-    `lrp01_prediction` / `lrp02_prediction`.
+- Two `SelectionStep`s on `LRP03` document the 34 → 16 → 11 cut.
+- Feature-selection space is essentially exhausted — all 11
+  retained features have importance above the 0.005 noise floor.
+
+## Next-step candidates
+
+- **Signed-log target transform:** milder skew than LRP01 but
+  worth a check. Use `LGBMSignedLogPipeline`.
+- **Quantile α=0.5 objective:** mirrors the LRP02 quantile work.
+  The MedAE improvement from the Select02 retune suggests direct
+  median-optimising might help further.
+- **RMSE-tuned prediction variant:** parallels
+  `lrp01_prediction` / `lrp02_prediction`.
+- **Further feature cuts?** `b1exto` at 0.011 is the weakest of
+  the 11. With dcorr 0.81 with `eowpvt` (from the LRP02 diagnostic
+  cache) it's the natural Select03 candidate if we want to keep
+  pruning. But going below 11 features at n=161 risks losing
+  construct coverage — probably diminishing returns.

@@ -31,7 +31,7 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# Documents the 34 → 16 feature-selection history under MAE-tuned params
+# Documents the 34 → 11 feature-selection history under MAE-tuned params
 # with no outlier exclusion (n=161).
 # See notes/202604171127-lpr03-feature-selection.md for the full rationale.
 
@@ -66,27 +66,52 @@ _SELECTION_STEPS = [
         metrics_before={"cv_mae_mean": 5.277},
         metrics_after={"cv_mae_mean": 5.154},
     ),
+    SelectionStep(
+        removed=[
+            V.AGESPEAK, V.YARCLET, V.EWRSWR, V.DEAPPFI, V.CELF,
+        ],
+        notes=(
+            "Remove 5 features at the noise floor (importance ≤ 0.004) "
+            "under the Select01 retune: agespeak (0.002, weakest and "
+            "no strong partner); yarclet (0.003, dcorr 0.65 with "
+            "ewrswr and 0.64 with b1exto — redundant in the reading "
+            "cluster); ewrswr (0.004, dcorr 0.66 with b1exto and 0.65 "
+            "with eowpvt — redundant with retained language features); "
+            "deappfi (0.004, dcorr 0.76 with retained deappin — "
+            "articulation pair redundancy); celf (0.004, dcorr 0.63–"
+            "0.64 with eowpvt/b1exto/b1reto/rowpvt — sits inside the "
+            "language cluster). agebooks (0.006) retained as the "
+            "borderline case — above the 0.005 floor with only weak "
+            "correlations (max 0.33 with aptgram) and a distinct "
+            "early-life construct."
+        ),
+        date="2026-04-17",
+        metrics_before={"cv_mae_mean": 5.084},
+        metrics_after={"cv_mae_mean": 4.979},
+    ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 16-predictor Select01 set, no outlier exclusion
+# MAE-tuned on the 11-predictor Select02 set, no outlier exclusion
 # (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 5.0936 ± 0.7111. n=161.
-# Supersedes the original 34-predictor tune (tuner-inner 5.0256).
+# lgbm_objective=mae). Tuner-inner CV MAE 5.0542 ± 0.6829. n=161.
+# Supersedes earlier tunings:
+#   34-predictor (tuner-inner 5.0256)
+#   16-predictor Select01 (tuner-inner 5.0936)
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 51,
-    "learning_rate": 0.042738036224407194,
-    "num_leaves": 17,
-    "max_depth": 8,
-    "min_child_samples": 16,
-    "subsample": 0.7566817674986452,
+    "n_estimators": 25,
+    "learning_rate": 0.06478548258507148,
+    "num_leaves": 48,
+    "max_depth": 11,
+    "min_child_samples": 10,
+    "subsample": 0.9835210793717761,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9761694400423998,
-    "reg_alpha": 1.0246598709380803,
-    "reg_lambda": 5.770364261875859,
+    "colsample_bytree": 0.9203322386497722,
+    "reg_alpha": 0.036771486040166265,
+    "reg_lambda": 0.00745726685285877,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -109,7 +134,7 @@ class LRP03(GainModel):
     target_var = V.EOWPVT_GAIN
     description = (
         "LightGBM — expressive-vocabulary gain predictors "
-        "(16 predictors, MAE-tuned, no outlier exclusion)"
+        "(11 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
