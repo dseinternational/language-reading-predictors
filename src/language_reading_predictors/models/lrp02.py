@@ -30,6 +30,14 @@ with the log1p target transform and its own log-space MAE tune —
 testing whether restoring the four features the primary dropped
 (``yarcsi``, ``b1exto``, ``hearing``, ``celf``) still helps once the
 target is compressed.
+
+``LRP02Prediction`` and ``LRP02LogPrediction`` are RMSE-tuned
+prediction variants of ``LRP02`` and ``LRP02Log`` respectively —
+same 13-predictor feature set but with hyperparameters tuned for
+squared-error loss rather than MAE. Their purpose is parity with the
+``lrp01`` family's primary/prediction split and to supply a model
+optimised for absolute prediction accuracy at the cost of
+importance-ranking robustness.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -164,6 +172,46 @@ _LGBM_MAE_PARAMS_LOG: dict[str, float | int | str] = {
     "colsample_bytree": 0.6354537611535218,
     "reg_alpha": 0.010804887107264944,
     "reg_lambda": 0.04796741692608438,
+    "n_jobs": 16,
+    "verbosity": -1,
+}
+
+# RMSE-tuned on the 13-predictor Select04 set, no outlier exclusion
+# (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=rmse,
+# lgbm_objective=regression). Tuner-inner CV RMSE 8.7517 ± 2.8635.
+# n=210. Pinned on ``lrp02_prediction``.
+_LGBM_RMSE_PARAMS: dict[str, float | int | str] = {
+    "objective": "regression",
+    "n_estimators": 72,
+    "learning_rate": 0.07481599571185549,
+    "num_leaves": 31,
+    "max_depth": 3,
+    "min_child_samples": 4,
+    "subsample": 0.6084742628892493,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.6132093303284623,
+    "reg_alpha": 0.003422478748080231,
+    "reg_lambda": 0.12984738927699754,
+    "n_jobs": 16,
+    "verbosity": -1,
+}
+
+# RMSE-tuned in log1p(y) space on the 13-predictor Select04 set (Optuna
+# 150 trials, 10-split GroupKFold, seed 47, scoring=rmse,
+# lgbm_objective=regression, target_transform=log1p). Tuner-inner CV
+# RMSE 8.4455 ± 5.0674. n=210. Pinned on ``lrp02_log_prediction``.
+_LGBM_RMSE_PARAMS_LOG: dict[str, float | int | str] = {
+    "objective": "regression",
+    "n_estimators": 28,
+    "learning_rate": 0.14065753393164226,
+    "num_leaves": 11,
+    "max_depth": 11,
+    "min_child_samples": 22,
+    "subsample": 0.7793091074697025,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.7795376336231212,
+    "reg_alpha": 0.06759227929609403,
+    "reg_lambda": 0.06485655423178838,
     "n_jobs": 16,
     "verbosity": -1,
 }
@@ -339,4 +387,58 @@ class LRP02Select02Log(LRP02Select02):
         "selection chain (inherited from LRP02Select02), fits log1p(ewrswr), "
         "and pins hyperparameters tuned on this exact configuration in log "
         "space (Optuna trial #102, tuner-inner CV MAE 5.7725)."
+    )
+
+
+# ── RMSE-tuned prediction variants ─────────────────────────────────────
+
+
+class LRP02Prediction(LRP02):
+    """Word-reading level predictors — prediction-focused (RMSE-tuned).
+
+    Same 13-predictor feature set as the primary but with hyperparameters
+    tuned for squared-error loss. Optimised for prediction accuracy at
+    the cost of the importance-ranking robustness of the MAE-tuned
+    exploratory model. Mirrors the ``lrp01`` / ``lrp01_prediction``
+    split.
+    """
+
+    model_id = "lrp02_prediction"
+    variant_of = "lrp02"
+    description = (
+        "LightGBM — word-reading level predictors "
+        "(13 predictors, RMSE-tuned, no outlier exclusion)"
+    )
+    params = _LGBM_RMSE_PARAMS
+    notes = (
+        "Prediction-focused variant. Same 13-predictor feature set and "
+        "selection history as the primary lrp02, but RMSE-tuned via "
+        "Optuna (scoring=rmse, lgbm_objective=regression). Use this "
+        "variant when absolute prediction accuracy on typical cases is "
+        "the priority; use the MAE-tuned primary for importance ranking."
+    )
+
+
+class LRP02LogPrediction(LRP02Log):
+    """Word-reading level predictors — log1p + RMSE-tuned.
+
+    Same 13-predictor feature set as ``LRP02Log`` but with
+    hyperparameters tuned for RMSE (not MAE) in log1p space. Combines
+    the log-transform's benefits on typical-case prediction with an
+    objective that explicitly penalises large squared errors.
+    """
+
+    model_id = "lrp02_log_prediction"
+    variant_of = "lrp02"
+    description = (
+        "LightGBM — word-reading level predictors "
+        "(13 predictors, RMSE-tuned in log1p space)"
+    )
+    params = _LGBM_RMSE_PARAMS_LOG
+    notes = (
+        "Prediction-focused log-transform variant. Same 13-predictor "
+        "feature set and selection history as lrp02_log, but RMSE-tuned "
+        "in log space via Optuna (scoring=rmse, lgbm_objective=regression, "
+        "target_transform=log1p). Predictions inverse-transformed so CV "
+        "metrics remain in original ewrswr units."
     )
