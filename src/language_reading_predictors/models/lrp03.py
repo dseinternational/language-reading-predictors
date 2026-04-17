@@ -31,32 +31,62 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# LRP03 has not yet been through iterative feature selection. When
-# selection variants are introduced, record their rationale here as
-# ``SelectionStep`` entries and chain from ``LRP03`` the same way
-# ``lrp01.py`` does.
+# Documents the 34 → 16 feature-selection history under MAE-tuned params
+# with no outlier exclusion (n=161).
+# See notes/202604171127-lpr03-feature-selection.md for the full rationale.
 
-_SELECTION_STEPS: list[SelectionStep] = []
+_SELECTION_STEPS = [
+    SelectionStep(
+        removed=[
+            # Tier A — exactly 0.000 importance in the 34-predictor tune
+            V.YARCSI, V.SPPHON, V.NONWORD,
+            V.HEARING, V.EARINF,
+            V.NUMCHIL, V.GENDER,
+            # Tier B — 0.001–0.005 importance (below the noise floor)
+            V.BEHAV, V.ATTEND,
+            V.ERBWORD, V.ERBNW,
+            V.MUMEDUPOST16, V.DADEDUPOST16,
+            V.AREA, V.VISION, V.BLENDING,
+            V.TIME, V.GROUP,
+        ],
+        notes=(
+            "Remove 18 features with importance ≤ 0.005 in the full "
+            "34-predictor MAE-tuned baseline. Tier A (7 features, "
+            "importance 0.000): yarcsi, spphon, nonword — all redundant "
+            "with ewrswr (dcorr 0.55–0.80) and individually "
+            "non-contributing; hearing, earinf, numchil, gender — "
+            "weak across the board. Tier B (11 features, 0.001–0.005): "
+            "behav, attend, erbword + erbnw (dcorr 0.84 pair), "
+            "mumedupost16 + dadedupost16 (dcorr 0.56 pair), area, "
+            "vision, blending (dcorr 0.53 with eowpvt), time, group. "
+            "One-shot aggressive cut because the 16-tree tuned model "
+            "had essentially no capacity for these features."
+        ),
+        date="2026-04-17",
+        metrics_before={"cv_mae_mean": 5.277},
+        metrics_after={"cv_mae_mean": 5.154},
+    ),
+]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the full 34-predictor set (DEFAULT_GAIN + eowpvt), no
-# outlier exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47,
-# scoring=mae, lgbm_objective=mae). Tuner-inner CV MAE 5.0256 ± 0.7959.
-# n=161.
+# MAE-tuned on the 16-predictor Select01 set, no outlier exclusion
+# (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
+# lgbm_objective=mae). Tuner-inner CV MAE 5.0936 ± 0.7111. n=161.
+# Supersedes the original 34-predictor tune (tuner-inner 5.0256).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 16,
-    "learning_rate": 0.17211058322522463,
-    "num_leaves": 7,
-    "max_depth": 9,
-    "min_child_samples": 17,
-    "subsample": 0.8502717837231728,
+    "n_estimators": 51,
+    "learning_rate": 0.042738036224407194,
+    "num_leaves": 17,
+    "max_depth": 8,
+    "min_child_samples": 16,
+    "subsample": 0.7566817674986452,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9492076870134684,
-    "reg_alpha": 0.3843221349693716,
-    "reg_lambda": 0.0011002806788511271,
+    "colsample_bytree": 0.9761694400423998,
+    "reg_alpha": 1.0246598709380803,
+    "reg_lambda": 5.770364261875859,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -79,7 +109,7 @@ class LRP03(GainModel):
     target_var = V.EOWPVT_GAIN
     description = (
         "LightGBM — expressive-vocabulary gain predictors "
-        "(34 predictors, MAE-tuned, no outlier exclusion)"
+        "(16 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS

@@ -159,19 +159,154 @@ A conservative Select01 would drop the 7 Tier-A features, retune,
 and re-inspect. A more aggressive cut would drop all 18 Tier-A + B
 features (34 → 16 predictors in one step).
 
+## Select01: drop 18 features in one aggressive cut (34 → 16)
+
+After reviewing candidates and pairwise correlations (notably
+checking that `agebooks` and `agespeak` were not redundant with
+`mumedupost16` — they aren't, dcorr ≤ 0.30 and weak Spearman), the
+decision was to drop **all 18 features at importance ≤ 0.005** in
+a single step rather than staging Tier A first.
+
+Removed (18):
+
+- **Tier A (7, importance 0.000):** `yarcsi`, `spphon`, `nonword`,
+  `hearing`, `earinf`, `numchil`, `gender`. `yarcsi`/`spphon`/`nonword`
+  are additionally redundant with `ewrswr` (dcorr 0.55–0.80).
+- **Tier B (11, importance 0.001–0.005):** `behav`, `attend`,
+  `erbword`, `erbnw` (dcorr 0.84 pair), `mumedupost16`,
+  `dadedupost16` (dcorr 0.56 pair), `area`, `vision`, `blending`
+  (dcorr 0.53 with `eowpvt`), `time`, `group`.
+
+Rationale for aggressive one-shot cut: at 16 trees the MAE-tuned
+model has essentially no capacity for these features, the Tier A/B
+boundary is clean (0.000 vs ≥ 0.001), and several Tier B features
+carry clear redundancy evidence alongside low importance. The LRP02
+staged approach was shaped by a higher-signal target with
+ambiguous importance thresholds — LRP03 doesn't have that.
+
+### Refit with carry-forward params (34-tune → 16 predictors)
+
+| Metric | Before Select01 (34 predictors, 16 trees) | After Select01 (16 predictors, same tune) |
+|---|---:|---:|
+| CV MAE | 5.277 ± 0.743 | **5.154 ± 0.791** |
+| CV RMSE | 6.702 ± 0.909 | 6.658 |
+| CV R² | 0.045 ± 0.094 | 0.058 ± 0.115 |
+| CV MedAE | 4.413 | 4.454 |
+| In-sample R² | 0.365 | 0.388 |
+
+CV MAE dropped by 0.12 with no tuning change — the 18 features
+were pure noise. Importance rankings also shifted: `aptinfo`
+jumped to rank 3 (0.044 → 0.084, roughly doubled), `aptgram`
+doubled (0.027 → 0.065), and `ewrswr` rose to 0.016 as the
+reading signal now routes entirely through it (the three
+redundant partners were dropped).
+
+### Retune on the 16-predictor set
+
+Optuna 150 trials (seed 47, scoring=mae, lgbm_objective=mae).
+Tuner-inner CV MAE **5.0936 ± 0.7111**.
+
+| Parameter | Tuned on 34 | **Tuned on 16** |
+|---|---:|---:|
+| n_estimators | 16 | **51** |
+| learning_rate | 0.172 | 0.043 |
+| num_leaves | 7 | 17 |
+| max_depth | 9 | 8 |
+| min_child_samples | 17 | 16 |
+| subsample | 0.850 | 0.757 |
+| colsample_bytree | 0.949 | 0.976 |
+| reg_alpha | 0.384 | **1.025** |
+| reg_lambda | 0.001 | **5.770** |
+
+A clear regime shift: **more trees, slower learning, much stronger
+regularisation** (L1 × 2.7, L2 × 5000). With the noise features
+gone the model can afford more capacity, but needs stronger
+regularisation on the retained signal to stay generalised.
+
+### Refit under retuned params
+
+| Metric | Carry-forward (16 predictors, tune v1) | **Retuned (16 predictors, tune v2)** |
+|---|---:|---:|
+| CV MAE | 5.154 ± 0.791 | **5.084 ± 0.761** |
+| CV RMSE | 6.658 | **6.562** |
+| **CV R²** | 0.058 ± 0.115 | **0.084 ± 0.090** |
+| CV MedAE | 4.454 | **4.377** |
+| In-sample R² | 0.388 | **0.313** |
+
+Every CV metric improves. **CV R² nearly doubles** from 0.045
+(original baseline) to 0.084. In-sample R² drops 0.39 → 0.31 —
+the stronger regularisation ensures the improvement is honest.
+
+### Permutation importance after retune (16 predictors)
+
+| Rank | Feature | Importance |
+|---|---|---:|
+| 1 | **`eowpvt`** | 0.231 |
+| 2 | `trog` | 0.073 |
+| 3 | `deappvo` | 0.071 |
+| 4 | `aptinfo` | 0.045 |
+| 5 | `age` | 0.028 |
+| 6 | `deappin` | 0.026 |
+| 7 | `b1exto` | 0.021 |
+| 8 | `b1reto` | 0.020 |
+| 9 | `aptgram` | 0.019 |
+| 10 | `rowpvt` | 0.019 |
+| 11 | `agebooks` | 0.006 |
+| 12 | `celf` | 0.004 |
+| 13 | `deappfi` | 0.004 |
+| 14 | `ewrswr` | 0.004 |
+| 15 | `yarclet` | 0.003 |
+| 16 | `agespeak` | 0.002 |
+
+Notable shifts under the retune:
+
+- **`aptgram` fell from 0.065 to 0.019** — dropped from rank 4 to
+  9. The stronger L1 (1.025) penalised it heavily. Interesting
+  because `aptgram` is the grammar-composite measure; it may be
+  highly correlated with other language features.
+- **`rowpvt` rose from 0.003 to 0.019** — now rank 10. The retune
+  rehabilitated it.
+- **`ewrswr` fell from 0.016 to 0.004** — near the noise floor
+  again. The reading-level signal is smaller than it looked
+  when the model was under-regularised.
+- **`agespeak` fell to 0.002** — near-noise under the new tune.
+- **`deappfi`, `celf`, `yarclet`** all fell to 0.003–0.004.
+
+## Cumulative summary
+
+| Step | Predictors | CV MAE | CV R² | Change |
+|---|---|---|---|---|
+| Baseline (untuned) | 34 | 5.843 | −0.173 | — |
+| MAE-tuned on 34 | 34 | 5.277 | 0.045 | tune only |
+| Select01 (carry-forward) | 16 | 5.154 | 0.058 | drop 18 features |
+| Retuned-16 | 16 | **5.084** | **0.084** | tune on Select01 set |
+
+## Select02 candidates (noise floor under retuned 16)
+
+Five features have fallen to or below 0.005 in the retuned model:
+
+- `agespeak` (0.002)
+- `yarclet` (0.003)
+- `ewrswr` (0.004)
+- `deappfi` (0.004)
+- `celf` (0.004)
+- `agebooks` (0.006, borderline)
+
+All six are well-tolerated by the current model — whether they
+add generalisation benefit is a question for correlation review
+before the next cut.
+
 ## Current state
 
-- **`lrp03`** (primary, MAE-tuned on 34 predictors): 34 predictors,
-  CV MAE 5.28 ± 0.74, CV R² 0.045, CV MedAE 4.41. No outlier
-  exclusion, n=161.
-- Tuning baseline established. No feature-selection steps applied
-  yet — this PR is the tuned starting point.
-- Next step: `Select01` drops the zero-importance tier (7 features)
-  and retunes.
+- **`lrp03`** (primary, MAE-tuned on 16 predictors): 16 predictors,
+  CV MAE 5.084 ± 0.761, CV R² 0.084 ± 0.090, CV MedAE 4.377. No
+  outlier exclusion, n=161.
+- One `SelectionStep` on `LRP03` documents the 34 → 16 cut.
 - Open questions for future steps:
-  - **Redundancy review:** LRP02 found dcorr-based drops alongside
-    importance drops; need to rerun correlation diagnostics on LRP03
-    after Select01.
+  - **Correlation review:** run the dcorr / Spearman analysis on
+    the 16-predictor set to identify which of the new-noise
+    features (Select02 candidates above) are redundant with
+    retained higher-importance features.
   - **Signed-log target transform:** milder skew than LRP01 but
     worth a check. Use `LGBMSignedLogPipeline` when the time comes.
   - **Quantile α=0.5 objective:** mirrors the LRP02 quantile work.
