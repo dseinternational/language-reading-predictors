@@ -84,7 +84,10 @@ def _clear_directory(path: Path) -> None:
 
 
 def _lgbm_search_space(
-    trial: optuna.Trial, seed: int, lgbm_objective: str = "regression"
+    trial: optuna.Trial,
+    seed: int,
+    lgbm_objective: str = "regression",
+    alpha: float | None = None,
 ) -> dict[str, Any]:
     params = {
         "objective": lgbm_objective,
@@ -97,6 +100,12 @@ def _lgbm_search_space(
         "reg_alpha": trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
         "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
     }
+    # LightGBM requires `alpha` for objectives that need a quantile /
+    # Huber threshold (e.g. "quantile", "huber"). Pass it through when
+    # the caller supplies one; otherwise omit it to keep the params
+    # dict minimal for default objectives.
+    if alpha is not None:
+        params["alpha"] = alpha
     return {**params, **_LGBM_FIXED, "random_state": seed}
 
 
@@ -106,6 +115,7 @@ def _lgbm_search_space(
 _SCORING_FUNCS: dict[str, Callable[[np.ndarray, np.ndarray], float]] = {
     "rmse": lambda y_true, preds: float(np.sqrt(np.mean((y_true - preds) ** 2))),
     "mae": lambda y_true, preds: float(np.mean(np.abs(y_true - preds))),
+    "medae": lambda y_true, preds: float(np.median(np.abs(y_true - preds))),
 }
 
 
@@ -139,6 +149,7 @@ def _lgbm_objective(
     scoring: str = "rmse",
     lgbm_objective: str = "regression",
     target_transform: str = "none",
+    alpha: float | None = None,
 ) -> Callable[[optuna.Trial], float]:
     from lightgbm import LGBMRegressor, early_stopping, log_evaluation
 
@@ -146,7 +157,7 @@ def _lgbm_objective(
     forward, inverse = _TARGET_TRANSFORMS[target_transform]
 
     def objective(trial: optuna.Trial) -> float:
-        base_params = _lgbm_search_space(trial, seed, lgbm_objective)
+        base_params = _lgbm_search_space(trial, seed, lgbm_objective, alpha=alpha)
         cv = GroupKFold(n_splits=cv_splits)
 
         fold_scores: list[float] = []
@@ -238,6 +249,7 @@ def tune(
     scoring: str = "rmse",
     lgbm_objective: str = "regression",
     target_transform: str | None = None,
+    alpha: float | None = None,
 ) -> None:
     key = model_id.lower()
     if key not in MODELS:
@@ -275,6 +287,8 @@ def tune(
     )
     print(f"  Scoring: {scoring}  LightGBM objective: {lgbm_objective}")
     print(f"  Target transform: {target_transform}")
+    if alpha is not None:
+        print(f"  Alpha (quantile / Huber): {alpha}")
     objective = _lgbm_objective(
         X,
         y,
@@ -287,6 +301,7 @@ def tune(
         scoring=scoring,
         lgbm_objective=lgbm_objective,
         target_transform=target_transform,
+        alpha=alpha,
     )
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -315,6 +330,8 @@ def tune(
         "random_state": seed,
         "n_estimators": best.user_attrs.get("mean_best_iteration", max_n_estimators),
     }
+    if alpha is not None:
+        best_full_params["alpha"] = alpha
 
     cv_std_key = f"cv_{scoring}_std"
     best_params_out = {
@@ -436,6 +453,17 @@ def main() -> None:
             "to override."
         ),
     )
+    parser.add_argument(
+        "--alpha",
+        type=float,
+        default=None,
+        help=(
+            "Quantile (or Huber threshold) parameter for LightGBM "
+            "objectives that require it — e.g. pass 0.5 when "
+            "--lgbm-objective quantile to optimise the median (pinball "
+            "loss at α=0.5)."
+        ),
+    )
     args = parser.parse_args()
 
     tune(
@@ -450,6 +478,7 @@ def main() -> None:
         scoring=args.scoring,
         lgbm_objective=args.lgbm_objective,
         target_transform=args.target_transform,
+        alpha=args.alpha,
     )
 
 
