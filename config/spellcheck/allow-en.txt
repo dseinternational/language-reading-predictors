@@ -66,6 +66,7 @@ pathlib
 pgmpy
 PPC
 ppc
+PPVT
 pred
 pymc
 PyMC
