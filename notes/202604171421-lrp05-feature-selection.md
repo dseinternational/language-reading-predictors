@@ -157,28 +157,148 @@ would also take redundant Tier B — e.g. `spphon` / `yarcsi`
 redundant with `ewrswr` (dcorr 0.78 from earlier LRP02 diagnostics),
 `erbword` / `erbnw` pair-redundant.
 
-## Cumulative
+## Select01: drop 19 low-importance / redundant features (34 → 15)
+
+Aggressive one-shot cut informed by the 34-predictor MAE-tuned
+importance table above.
+
+### Dropped (19)
+
+**Tier A — ≤ 0.005 importance (14):**
+`behav`, `gender`, `area`, `nonword`, `vision`, `earinf`, `hearing`,
+`numchil`, `yarcsi`, `ewrswr`, `erbnw`, `agebooks`, `b1exto`,
+`aptinfo`.
+
+Several dropped despite being top predictors of *level* outcomes
+(e.g. `ewrswr` dominant on LRP06, `b1exto` dominant on LRP04) —
+different story for letter-sound *gains*: the base `yarclet` + time
++ age + attend + articulation features carry the signal.
+
+**Tier B — 0.006-0.010, redundant with retained features (5):**
+- `spphon` (0.009) — reading-cluster redundancy; `ewrswr` already
+  dropped but `spphon` mirrors other phonology signal without
+  contributing.
+- `mumedupost16` (0.009) — dcorr 0.56 with retained `dadedupost16`.
+- `group` (0.009) — weak singleton below the noise floor.
+- `trog` (0.010) — language-cluster redundancy with retained
+  `celf` / `aptgram` alternatives.
+- `aptgram` (0.010) — language-cluster redundancy.
+
+### Retained (15)
+
+`yarclet`, `time`, `age`, `attend`, `deappfi`, `dadedupost16`,
+`eowpvt`, `celf`, `agespeak`, `deappin`, `blending`, `erbword`,
+`b1reto`, `rowpvt`, `deappvo`.
+
+### Select01 carry-forward (34-tune → 15 predictors)
+
+| Metric | Before (34 predictors, 178 trees) | After (15 predictors, same 178 trees) |
+|---|---:|---:|
+| CV MAE | 3.349 ± 0.671 | **3.249 ± 0.715** |
+| CV RMSE | 4.367 | **4.246** |
+| **CV R²** | 0.218 ± 0.105 | **0.257 ± 0.117** |
+| CV MedAE | 2.858 | **2.820** |
+| In-sample R² | 0.499 | 0.497 |
+
+Every CV metric improves. CV R² rises 0.04 (0.218 → 0.257), CV MAE
+drops 0.10, CV MedAE drops 0.04. In-sample R² unchanged — textbook
+sign of removing pure noise without eroding signal.
+
+### Retune on 15 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **3.3082 ± 0.5435**.
+
+| Parameter | Tuned on 34 | **Tuned on 15** |
+|---|---:|---:|
+| n_estimators | 178 | **35** |
+| learning_rate | 0.0169 | **0.176** |
+| num_leaves | 43 | 54 |
+| max_depth | 12 | 11 |
+| min_child_samples | 13 | 7 |
+| subsample | 0.723 | 0.655 |
+| colsample_bytree | 0.869 | 0.779 |
+| reg_alpha | 0.004 | 0.108 |
+| reg_lambda | 0.035 | 0.176 |
+
+Major regime shift: **many fewer trees (35 vs 178), ten times
+faster learning (0.176 vs 0.017), stronger regularisation on both
+L1 and L2**. Same "fewer-faster-wider" pattern seen in LRP04's
+Select01 retune — once the noise features are out, the tuner can
+commit to fewer aggressive trees.
+
+### Refit under Select01 retuned params
+
+| Metric | Carry-forward (178 trees) | **Retuned (35 trees)** |
+|---|---:|---:|
+| CV MAE | **3.249 ± 0.715** | 3.295 ± 0.609 |
+| CV RMSE | **4.246** | 4.276 |
+| CV R² | **0.257 ± 0.117** | 0.237 ± 0.164 |
+| CV MedAE | 2.820 | 2.865 |
+| In-sample R² | 0.497 | 0.708 |
+
+**Carry-forward slightly better on every CV metric.** Retune
+in-sample R² rises (0.499 → 0.708) — tuner-inner optimum has found
+a tighter fit at the cost of generalisation. Retained for the
+"tuned on this feature set" convention, but carry-forward was the
+empirical winner. Same pattern as LRP03 / LRP04 Select02 retunes.
+
+### Permutation importance under retuned model
+
+| Rank | Feature | Importance |
+|---|---|---:|
+| 1 | **`yarclet`** | **0.443** |
+| 2 | `deappvo` | 0.100 |
+| 3 | `age` | 0.091 |
+| 4 | `blending` | 0.077 |
+| 5 | `time` | 0.072 |
+| 6 | `deappfi` | 0.070 |
+| 7 | `eowpvt` | 0.064 |
+| 8 | `celf` | 0.061 |
+| 9 | `attend` | 0.052 |
+| 10 | `b1reto` | 0.039 |
+| 11 | `dadedupost16` | 0.031 |
+| 12 | `deappin` | 0.028 |
+| 13 | `erbword` | 0.027 |
+| 14 | `rowpvt` | 0.027 |
+| 15 | `agespeak` | 0.027 |
+
+All 15 features at substantial importance (min 0.027). No noise
+floor. `yarclet` base level rose from 0.328 to 0.443 as it absorbs
+the dropped noise. **Striking rebalance**: `deappvo` rose from
+0.008 (rank 20) to 0.100 (rank 2) — the articulation-voicing
+signal was masked by noise features in the full set. `age` nearly
+tripled (0.038 → 0.091), `blending` rose from 0.016 to 0.077 —
+blending remains in the picture even without `ewrswr`.
+
+## Cumulative summary
 
 | Step | Predictors | CV MAE | CV R² | CV MedAE |
 |---|---|---|---|---|
 | Baseline (untuned) | 34 | 3.435 | 0.090 | 2.678 |
-| MAE-tuned on 34 | 34 | **3.349** | **0.218** | 2.858 |
+| MAE-tuned on 34 | 34 | 3.349 | 0.218 | 2.858 |
+| Select01 carry-forward | 15 | **3.249** | **0.257** | **2.820** |
+| Retuned-15 | 15 | 3.295 | 0.237 | 2.865 |
+
+Cutting from 34 to 15 predictors dropped CV MAE by 0.10 and raised
+CV R² by 0.04. Carry-forward nearly optimal — retune brought no
+CV benefit.
 
 ## Current state
 
-- **`lrp05`** (primary, MAE-tuned on 34 predictors): 34 predictors,
-  CV MAE 3.349 ± 0.671, CV R² 0.218 ± 0.105, CV MedAE 2.858. No
+- **`lrp05`** (primary, MAE-tuned on 15 predictors): 15 predictors,
+  CV MAE 3.295 ± 0.609, CV R² 0.237 ± 0.164, CV MedAE 2.865. No
   outlier exclusion, n=160.
-- Tuning baseline established. No feature-selection steps applied
-  yet — this PR is the tuned starting point.
+- One `SelectionStep` on `LRP05` documents the 34 → 15 cut.
 
 ## Next-step candidates (future PRs)
 
-- **Select01**: drop Tier A (14 features with importance ≤ 0.005);
-  retune on 20 predictors. Optionally Tier B too (aggressive
-  7-more cut).
-- **Correlation / redundancy review** once the feature set is
-  smaller.
+- **Select02**: no obvious candidates — all 15 retained features at
+  importance ≥ 0.027 with no redundancy signal. Could argue for
+  dropping demographic features (`agespeak`, `dadedupost16`,
+  `rowpvt`) on construct grounds (mirrors LRP04 Select02 logic) if
+  the research question is "what child-level developmental features
+  predict letter-sound gain?".
+- **Correlation / redundancy review** on the 15-predictor set.
 - **Signed-log target transform** (`LGBMSignedLogPipeline`). Milder
   skew than LRP01 but worth a check given the quartile-MAE profile.
 - **Quantile α=0.5 objective** — mirrors LRP02/LRP04 quantile work.

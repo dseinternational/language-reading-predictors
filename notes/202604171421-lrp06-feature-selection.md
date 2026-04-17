@@ -160,28 +160,141 @@ would additionally drop redundant Tier B — with `ewrswr`
 retained, `spphon` / `nonword` / `blending` are all redundant with
 it; with `b1exto` retained, `b1reto` is redundant.
 
-## Cumulative
+## Select01: drop 22 low-importance / redundant features (32 → 10)
+
+Aggressive one-shot cut informed by the 32-predictor MAE-tuned
+importance table above.
+
+### Dropped (22)
+
+**Tier A — ≤ 0.005 importance (18):**
+`area`, `celf`, `hearing`, `gender`, `behav`, `aptinfo`, `yarcsi`,
+`trog`, `aptgram`, `earinf`, `numchil`, `agespeak`, `deappvo`,
+`agebooks`, `mumedupost16`, `erbnw`, `rowpvt`, `deappfi`.
+
+9 of these sat at exactly 0.000 importance under the 55-tree
+MAE-tuned model. **Surprising**: `aptinfo` drops despite being
+top-2 on LRP04 — different construct relationship for letter-sound
+knowledge vs expressive vocabulary. The language composite doesn't
+route to letter-sound level; `ewrswr` absorbs it.
+
+**Tier B — 0.006-0.010, redundant with retained siblings (4):**
+- `spphon` (0.010) — dcorr 0.78 with retained `ewrswr` (0.500)
+- `b1reto` (0.010) — dcorr 0.76 with retained `b1exto` (0.105)
+- `eowpvt` (0.008) — dcorr 0.80 with retained `b1exto` (language
+  cluster)
+- `blending` (0.007) — dcorr 0.55 with retained `ewrswr`
+
+### Retained (10)
+
+`ewrswr`, `b1exto`, `deappin`, `erbword`, `group`, `time`,
+`nonword`, `dadedupost16`, `age`, `vision`.
+
+### Select01 carry-forward (32-tune → 10 predictors)
+
+| Metric | Before (32 predictors, 55 trees) | After (10 predictors, same 55 trees) |
+|---|---:|---:|
+| CV MAE | 4.422 ± 1.074 | **4.238 ± 1.015** |
+| CV RMSE | 5.496 | **5.270** |
+| **CV R²** | 0.539 ± 0.164 | **0.567 ± 0.150** |
+| CV MedAE | 3.875 | **3.481** |
+| In-sample R² | 0.752 | 0.712 |
+
+Clean improvement across every CV metric. CV R² rises 0.028
+(0.539 → 0.567), CV MAE drops 0.18, CV MedAE drops 0.39 — most of
+the gain in the median. In-sample R² drops slightly (0.752 → 0.712)
+as memorisation pressure eases on 10 predictors.
+
+### Retune on 10 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **4.0996 ± 0.8713**.
+
+| Parameter | Tuned on 32 | **Tuned on 10** |
+|---|---:|---:|
+| n_estimators | 55 | **277** |
+| learning_rate | 0.0562 | **0.0157** |
+| num_leaves | 20 | 15 |
+| max_depth | 10 | 10 |
+| min_child_samples | 25 | 21 |
+| subsample | 0.747 | 0.651 |
+| colsample_bytree | 0.913 | 0.640 |
+| reg_alpha | 0.004 | 0.291 |
+| reg_lambda | 0.125 | 0.037 |
+
+Regime shift in the **opposite direction** to LRP05: **many slower
+trees (277 vs 55), 3.5× slower learning (0.016 vs 0.056), stronger
+L1 regularisation, narrower trees (15 vs 20 leaves)**. The tuner
+settled on a conservative many-tree ensemble — makes sense for a
+left-skewed, ceilinged target where averaging over many weak
+learners is better than committing to few strong ones.
+
+### Refit under Select01 retuned params
+
+| Metric | Carry-forward (55 trees) | **Retuned (277 trees)** |
+|---|---:|---:|
+| CV MAE | 4.238 ± 1.015 | **4.086 ± 0.955** |
+| CV RMSE | 5.270 | **5.155** |
+| CV R² | 0.567 ± 0.150 | **0.595 ± 0.131** |
+| CV MedAE | 3.481 | **3.334** |
+| In-sample R² | 0.712 | 0.774 |
+
+**Retune wins across every CV metric**, unlike LRP05's near-tie
+and LRP04 Select02's loss. The slow-many-trees regime is a real
+improvement for the ceilinged target. CV R² 0.595 is the highest
+of any level model to date (LRP02 best 0.59, LRP04 best 0.619 at
+Select01 before the construct-driven Select02 cut).
+
+### Permutation importance under retuned model
+
+| Rank | Feature | Importance |
+|---|---|---:|
+| 1 | **`ewrswr`** | **0.495** |
+| 2 | `b1exto` | 0.160 |
+| 3 | `deappin` | 0.041 |
+| 4 | `nonword` | 0.032 |
+| 5 | `dadedupost16` | 0.024 |
+| 6 | `erbword` | 0.022 |
+| 7 | `time` | 0.022 |
+| 8 | `group` | 0.017 |
+| 9 | `vision` | 0.009 |
+| 10 | `age` | 0.007 |
+
+`ewrswr` essentially unchanged at 0.495 — still overwhelmingly
+dominant, confirming the rank-1 signal is real rather than an
+artefact of noise-feature presence. `b1exto` rose from 0.105 to
+0.160 (absorbs dropped language-cluster siblings). `deappin` rose
+from 0.036 to 0.041, `nonword` from 0.013 to 0.032 (absorbs
+`spphon` / `blending` signal).
+
+Bottom of the table: `vision` (0.009) and `age` (0.007) — both
+well below the next tier and potential Select02 candidates,
+though they're the only non-cognitive/non-reading features left.
+
+## Cumulative summary
 
 | Step | Predictors | CV MAE | CV R² | CV MedAE |
 |---|---|---|---|---|
 | Baseline (untuned) | 32 | 4.833 | 0.444 | 3.916 |
-| MAE-tuned on 32 | 32 | **4.422** | **0.539** | **3.875** |
+| MAE-tuned on 32 | 32 | 4.422 | 0.539 | 3.875 |
+| Select01 carry-forward | 10 | 4.238 | 0.567 | 3.481 |
+| Retuned-10 | 10 | **4.086** | **0.595** | **3.334** |
+
+**Strong result.** Cutting from 32 to 10 predictors and retuning
+dropped CV MAE by 0.34 (7.6%) and raised CV R² by 0.056. Retune
+was the empirical winner — unusual in this programme.
 
 ## Current state
 
-- **`lrp06`** (primary, MAE-tuned on 32 predictors): 32 predictors,
-  CV MAE 4.422 ± 1.074, CV R² 0.539 ± 0.164, CV MedAE 3.875. No
+- **`lrp06`** (primary, MAE-tuned on 10 predictors): 10 predictors,
+  CV MAE 4.086 ± 0.955, CV R² 0.595 ± 0.131, CV MedAE 3.334. No
   outlier exclusion, n=214.
-- Tuning baseline established. No feature-selection steps applied
-  yet — this PR is the tuned starting point.
+- One `SelectionStep` on `LRP06` documents the 32 → 10 cut.
 
 ## Next-step candidates (future PRs)
 
-- **Select01**: drop Tier A (18 features); aggressively add
-  some Tier B (redundant spphon/nonword/b1reto). Target ≤ 10
-  predictors.
-- **Correlation / redundancy review** once the feature set is
-  smaller.
+- **Select02**: drop `vision` + `age` (both < 0.010) for a 8-predictor
+  model — mild redundancy test; unlikely to change metrics much.
+- **Correlation / redundancy review** on the 10-predictor set.
 - **Reflection-log transform** (`log1p(32 − yarclet)`) — worth a
   check given the ceiling / left-skew pathology. Would need a
   custom pipeline class; not high priority.
