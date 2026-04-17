@@ -490,6 +490,77 @@ All 13 features at or above the 0.005 noise floor. `eowpvt` rose (0.050
 `deappvo` (0.005) is now borderline — a future candidate if further
 pruning is wanted.
 
+## Why log space is a good idea (and why MedAE doesn't make it redundant)
+
+### Why log space helps this target
+
+`ewrswr` has three properties that are pathological for an
+additive-error regressor:
+
+1. **Hard floor at 0.** 26% of observations score 0 or 1. `log1p` keeps
+   the floor at 0 (`log1p(0) = 0`) rather than blowing up.
+2. **Heavy right skew.** Median 6.5, max 64 — the top quartile spans
+   47 units, the bottom spans 1.
+3. **Error that scales with magnitude.** A prediction of 30 ± 5 is as
+   "close" as a prediction of 2 ± 0.3, but raw MAE treats ±5 as ~16×
+   worse than ±0.3. Log transforms multiplicative / proportional error
+   into additive error; in log space the residual magnitudes
+   actually match each other.
+
+The upshot: in raw space, the few tail observations dominate the
+training gradient. LightGBM burns a disproportionate share of its
+splitting capacity on them, starving the mid-range where most
+observations live. `log1p` compresses `17 → 2.89` and `64 → 4.17` —
+the tail is still biggest, but not 10× biggest. The model can spend
+capacity proportionally.
+
+### Why this still matters under MedAE
+
+MedAE is robust to outliers **in the reported metric**, but the
+training objective isn't automatically robust to the underlying
+**data distribution**. Two separate questions:
+
+- *"Will my metric blow up because of one bad prediction?"* → MedAE
+  says no.
+- *"Will my model allocate capacity to the tail at the cost of the
+  median?"* → MedAE says yes, and I can't stop it.
+
+Even with `objective=mae`, training gradients in raw space have a
+roughly proportional spread: a tail observation pulls the model with
+~47 units of residual signal; a median observation pulls with ~6.
+The model optimises the bigger pulls first. That's why raw-space
+`lrp02` has in-sample MAE 1.18 at the third quartile and 2.72 at the
+top — it has prioritised getting the tail less-wrong at the cost of
+median precision.
+
+The quartile table is the concrete evidence:
+
+| Target range | `lrp02` | `lrp02_log` (log-tuned) |
+|---|---|---|
+| 0–1 | 0.45 | 0.32 |
+| 1–6.5 | 0.43 | 0.30 |
+| 6.5–17 | 1.18 | **0.78** |
+| 17–64 | 2.72 | 2.63 |
+
+Every quartile improves; the biggest jump (−34%) is in the third
+quartile, which is exactly where MedAE lives. The top quartile is
+**also** slightly better (2.63 vs 2.72) — log-space training didn't
+neglect the tail, it just stopped over-weighting it.
+
+And the CV MedAE result is the summary: **3.17 vs 3.96, a 20%
+reduction**. That's a direct statement about the typical-case
+observation — the observation MedAE is designed to measure. So:
+
+- Log helps *training* because it fixes a training-gradient problem.
+- MedAE measures the downstream benefit (typical-case accuracy).
+- The metric and the transform are complementary, not redundant.
+
+One more consequence worth flagging: CV R² std dropped from 0.41 to
+0.24. MedAE doesn't surface this directly, but it's a clue that
+residual homoscedasticity also stabilises fold-to-fold behaviour —
+folds aren't being yanked around by a single tail-quartile subject
+landing in or out of the validation split.
+
 ## `lrp02_log` — log1p target-transform variant
 
 The `ewrswr` target is heavily right-skewed (min 0, median 6.5, max 64)

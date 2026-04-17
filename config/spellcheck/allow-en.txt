@@ -26,6 +26,7 @@ exto
 GBDT
 hclust
 cutoff
+homoscedasticity
 hyperparameters
 isinstance
 iterdir
