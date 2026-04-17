@@ -7,8 +7,19 @@ Fits the specified model to the latest data. Saves plots and data to the output 
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 from multiprocessing import freeze_support
+
+# Windows consoles default to cp1252 and crash on non-ASCII chars via
+# rich. Prefer UTF-8 so model descriptions can use arrows / en-dashes /
+# accented characters without breaking the run.
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
 
 import dse_research_utils.environment.setup as setup
 from rich import print
@@ -93,13 +104,25 @@ def main():
             "[green]============================================================[/green]"
         )
         for ctx in contexts:
-            cv_rmse = (
-                ctx.cv_scores.mean() if ctx.cv_scores is not None else float("nan")
-            )
+            cv_scores = getattr(ctx, "cv_scores", None)
+            if cv_scores is not None:
+                summary = f"CV RMSE={cv_scores.mean():.4f}"
+            elif getattr(ctx, "trace", None) is not None:
+                # Bayesian pipeline: no CV. Surface divergence count as the
+                # at-a-glance health signal.
+                ss = ctx.trace.sample_stats
+                n_div = (
+                    int(ss.get("diverging").sum().item())
+                    if "diverging" in ss
+                    else 0
+                )
+                summary = f"divergences={n_div}"
+            else:
+                summary = "(no metrics)"
             print(
                 f"  {ctx.config.model_id.upper():6s}  "
                 f"target={ctx.config.target_var:20s}  "
-                f"CV RMSE={cv_rmse:.4f}"
+                f"{summary}"
             )
         for model_id, exc in failed:
             print(f"  [red]{model_id.upper():6s}  FAILED: {exc}[/red]")

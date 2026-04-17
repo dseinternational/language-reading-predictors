@@ -92,6 +92,12 @@ class RunConfig:
     skip_correlation: bool = False
     """If True, skip distance-correlation analysis."""
 
+    # Bayesian-only overrides; None = use the Bayesian pipeline's preset default.
+    draws: int | None = None
+    tune: int | None = None
+    chains: int | None = None
+    target_accept: float | None = None
+
     @classmethod
     def from_name(cls, name: str) -> "RunConfig":
         """Create a RunConfig from a preset name."""
@@ -189,6 +195,10 @@ class ModelConfig:
     selection_history: list[SelectionStep] = field(default_factory=list)
     """Ordered list of feature-selection decisions leading to this model's
     predictor set. Persisted in ``config.json`` for provenance."""
+
+    dag_spec: Any = None
+    """Bayesian models: the :class:`BayesianDAGSpec` declaring nodes, edges,
+    likelihoods, and parent kinds. ``None`` for tree models."""
 
 
 @dataclass

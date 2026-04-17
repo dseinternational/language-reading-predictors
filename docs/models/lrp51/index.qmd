@@ -1,0 +1,158 @@
+---
+title: "LRP51: Bayesian DAG of word-reading gain (t1 → t2)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+This model output is preliminary and likely to change as the model
+evolves and further data are received.
+:::
+
+```{python}
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+pd.set_option("display.float_format", "{:.3f}".format)
+
+HERE = Path(".")
+with open(HERE / "config.json") as fp:
+    config = json.load(fp)
+
+with open(HERE / "diagnostics.json") as fp:
+    diagnostics = json.load(fp)
+
+trace = az.from_netcdf(HERE / "trace.nc")
+summary = pd.read_csv(HERE / "posterior_summary.csv", index_col=0)
+```
+
+## Overview
+
+LRP51 is the first Bayesian model in the project. It estimates word
+reading progress between timepoints t1 and t2 (the `ewrswr` score at t2)
+under an explicit directed graph of influences: age, receptive and
+expressive vocabulary, letter-sound knowledge, intervention group, and
+intervention attendance across the t1–t2 interval.
+
+Each outcome node is modelled as beta-binomial with a node-specific item
+total. Each edge contributes a linear coefficient to its child's
+logit-scale linear predictor; most edges additionally carry an
+HSGP-approximated 1-D Gaussian process capturing variation from the
+central linear trend. The intervention-group edge enters as a single
+binary contrast. Baseline (t1) measurements of each outcome enter as
+offsets, giving a "gain conditional on baseline" interpretation.
+
+This is an **exploratory model**. Data, priors, and per-test item
+totals are preliminary.
+
+## Configuration
+
+### Nodes
+
+```{python}
+#| output: asis
+
+rows = []
+for n in config["dag"]["nodes"]:
+    rows.append({
+        "Node": n["name"],
+        "Outcome (t2)": f"`{n['outcome_column']}`",
+        "Likelihood": n["likelihood"],
+        "N": n["n_trials"] if n["n_trials"] is not None else "—",
+        "Parents": ", ".join(f"{p['name']} ({p['kind']})" for p in n["parents"]),
+    })
+print(pd.DataFrame(rows).to_markdown(index=False))
+```
+
+### Sampler settings
+
+```{python}
+#| output: asis
+
+rc = config["run_config"]
+rows = [
+    ("Run preset", rc["name"]),
+    ("Draws", rc["draws"]),
+    ("Tune", rc["tune"]),
+    ("Chains", rc["chains"]),
+    ("Target accept", rc["target_accept"]),
+    ("Observations", config["n_observations"]),
+    ("Random seed", config["random_seed"]),
+]
+print(pd.DataFrame(rows, columns=["Setting", "Value"]).to_markdown(index=False))
+```
+
+## Diagnostics
+
+```{python}
+#| output: asis
+
+rows = [
+    ("Divergences", diagnostics["divergences"]),
+    ("r_hat max", f"{diagnostics['r_hat_max']:.3f}"),
+    ("ESS min", f"{diagnostics['ess_min']:.0f}"),
+    ("Parameters", diagnostics["n_parameters"]),
+]
+print(pd.DataFrame(rows, columns=["Metric", "Value"]).to_markdown(index=False))
+```
+
+### Trace (intercepts, linear coefficients, HSGP amplitudes / length-scales)
+
+![](trace.png)
+
+### Energy
+
+![](energy.png)
+
+## Posterior summary
+
+Selected fixed-effect coefficients (intercepts, linear slopes, GP
+amplitudes / length-scales, beta-binomial concentrations, residual SDs):
+
+```{python}
+#| output: asis
+
+mask = summary.index.str.startswith(("b0__", "beta__", "eta__", "log_ell__", "kappa__", "sigma__"))
+display_cols = ["mean", "sd", "hdi_5%", "hdi_95%", "ess_bulk", "r_hat"]
+cols_present = [c for c in display_cols if c in summary.columns]
+print(summary.loc[mask, cols_present].to_markdown(floatfmt=".3f"))
+```
+
+## Posterior predictive checks
+
+```{python}
+#| output: asis
+
+for n in config["dag"]["nodes"]:
+    path = HERE / f"ppc_{n['name']}.png"
+    if path.exists():
+        print(f"### Node {n['name']} — {n['outcome_column']}\n")
+        print(f"![](ppc_{n['name']}.png)\n")
+```
+
+## Notes
+
+```{python}
+#| output: asis
+print(config.get("notes", "—"))
+```
+
+## Model identifier
+
+```{python}
+#| output: asis
+print(f"- Model: **{config['model_id']}**")
+print(f"- Pipeline: `{config['pipeline_cls']}`")
+```
