@@ -1,9 +1,12 @@
 agebooks
 agespeak
+bedtimeread
+dadocc
 aptgram
 aptinfo
 asis
 beeswarm
+beeswarms
 behav
 bytree
 celf
@@ -38,12 +41,14 @@ lightgbm
 logit
 medae
 mumedupost
+mumocc
 ncol
 nonlinear
 nonword
 numchil
 Optuna
 optuna
+othertimeread
 orcid
 overfit
 overfitting
