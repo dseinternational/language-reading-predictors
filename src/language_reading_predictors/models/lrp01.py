@@ -12,12 +12,23 @@ prediction-focused variant with RMSE-tuned params and no outlier exclusion.
 Both share the same 6-predictor set selected via iterative importance-based
 feature selection under an MAE objective
 (see ``notes/202604161432-lrp01-feature-selection-mae.md``).
+
+``LRP01Log`` is a target-transform variant that fits ``signed_log1p``
+(``sign(y) * log1p(|y|)``) on the same 6-predictor set. ``ewrswr_gain``
+is moderately right-skewed (−4 to 21, median 2, skewness 1.33) and
+in-sample MAE scales ~7× from the low-positive quartile (0.85) to the
+top (5.95). Unlike ``ewrswr`` in LRP02, gains can be negative, so a
+plain ``log1p`` is undefined — signed-log compresses both tails around
+zero while preserving sign.
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import GainModel
 from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
+from language_reading_predictors.models.lgbm_signed_log_pipeline import (
+    LGBMSignedLogPipeline,
+)
 
 
 # ── predictor selection steps (shared by all variants) ───────────────────
@@ -99,6 +110,30 @@ _LGBM_MAE_PARAMS: dict[str, float | int] = {
     "colsample_bytree": 0.6024743488626004,
     "reg_alpha": 0.0375788355410621,
     "reg_lambda": 0.0037690200347546363,
+    "n_jobs": 16,
+    "verbosity": -1,
+}
+
+# MAE-tuned in signed-log space on the 6-predictor set, no outlier
+# exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47,
+# scoring=mae, lgbm_objective=mae, target_transform=signed_log).
+# The tuner's nominal best trial (#112) picked n_estimators=19; this
+# configuration instead pins trial #13 (tuner-inner CV MAE 2.7784,
+# n_estimators=54, deeper trees, slower learning rate), which refits
+# to a better and tighter 10-fold CV MAE (2.770 ± 0.614 at tuned
+# n_estimators) than trial #112's 19-tree regime. n=157.
+_LGBM_MAE_SIGNED_LOG_PARAMS: dict[str, float | int] = {
+    "objective": "mae",
+    "n_estimators": 54,
+    "learning_rate": 0.052845,
+    "num_leaves": 25,
+    "max_depth": 8,
+    "min_child_samples": 24,
+    "subsample": 0.952465,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.658216,
+    "reg_alpha": 0.002138,
+    "reg_lambda": 0.003652,
     "n_jobs": 16,
     "verbosity": -1,
 }
@@ -256,3 +291,42 @@ class LRP01ExpGender(LRP01):
         ),
     ]
     notes = "Experiment: test whether adding gender back improves the model."
+
+
+# ── signed-log target-transform variant ────────────────────────────────
+
+
+class LRP01Log(LRP01):
+    """Word-reading gain predictors — signed-log target (MAE-tuned).
+
+    Same 6-predictor feature set and MAE objective as the primary, but
+    fits ``sign(y) * log1p(|y|)`` via
+    :class:`LGBMSignedLogPipeline`. Predictions are inverse-transformed
+    so all reported CV / evaluation metrics remain in the original
+    ``ewrswr_gain`` units and are directly comparable with ``lrp01``.
+
+    Motivation: ``ewrswr_gain`` is bounded (−4 to 21) but right-skewed
+    (skewness 1.33), and in-sample MAE in the top quartile (5.95) is
+    ~7× the low-positive quartile (0.85). Compressing both tails with
+    a signed-log transform should let the model allocate capacity more
+    evenly, mirroring the LRP02 log-transform improvement on a signed
+    target.
+    """
+
+    model_id = "lrp01_log"
+    variant_of = "lrp01"
+    description = (
+        "LightGBM — word-reading gain predictors "
+        "(6 predictors, MAE-tuned in signed-log space)"
+    )
+    pipeline_cls = LGBMSignedLogPipeline
+    params = _LGBM_MAE_SIGNED_LOG_PARAMS
+    notes = (
+        "Signed-log target-transform variant of lrp01. Fits "
+        "sign(y) * log1p(|y|) via TransformedTargetRegressor; "
+        "predictions are inverse-transformed back to the original "
+        "ewrswr_gain scale, so CV and in-sample metrics are directly "
+        "comparable with the primary. Tests whether symmetric "
+        "tail-compression improves fit quality on a signed gain "
+        "target, mirroring the LRP02 log-transform benefit."
+    )

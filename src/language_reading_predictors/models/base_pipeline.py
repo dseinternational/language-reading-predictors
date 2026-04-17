@@ -663,7 +663,10 @@ class EstimatorPipeline:
 
         effective_model_params = dict(cfg.model_params)
         if run.n_estimators is not None:
-            effective_model_params["n_estimators"] = run.n_estimators
+            # Match the cap-semantics used by the pipeline classes: the
+            # run's n_estimators is an upper bound, not a replacement.
+            tuned = effective_model_params.get("n_estimators", run.n_estimators)
+            effective_model_params["n_estimators"] = min(tuned, run.n_estimators)
         effective_cv_splits = (
             run.cv_splits if run.cv_splits is not None else cfg.cv_splits
         )
