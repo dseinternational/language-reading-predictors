@@ -126,6 +126,29 @@ for col in ["mae", "rmse", "r2", "medae"]:
 cv_scores
 ```
 
+With narrow test folds the denominator of per-fold R² (within-fold variance
+of the target) is small, so the mean-of-per-fold R² can be dominated by a
+handful of folds and is not a stable generalisation score. The pooled
+metrics below score the stacked out-of-fold predictions against the global
+mean of the target and are the preferred summary.
+
+```{python}
+#| output: asis
+pooled = {k: metrics[k] for k in (
+    "cv_pooled_mae", "cv_pooled_rmse", "cv_pooled_r2", "cv_pooled_medae"
+) if metrics.get(k) is not None}
+labels = {
+    "cv_pooled_mae": "MAE",
+    "cv_pooled_rmse": "RMSE",
+    "cv_pooled_r2": "R²",
+    "cv_pooled_medae": "MedAE",
+}
+print("| Pooled OOF metric | Value |")
+print("|:---|---:|")
+for k, v in pooled.items():
+    print(f"| {labels[k]} | {v:.4f} |")
+```
+
 ### In-sample evaluation
 
 ```{python}
