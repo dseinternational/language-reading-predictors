@@ -987,6 +987,121 @@ toward the log variants but the paired tests can't confirm.
    more by "confirm the 13-feature set is appropriate under the new
    importance landscape, where `celf` shows moderate signal".
 
+## `lrp02_log_select` — log-space-first feature selection
+
+The `lrp02_log` variant carried the primary's 13-predictor set
+(`gender`, `age`, `aptinfo`, `eowpvt`, `erbword`, `nonword`, `spphon`,
+`yarclet`, `deappvo`, `agespeak`, `numchil`, `agebooks`,
+`mumedupost16`) and simply applied the log transform on top. A
+natural question: would re-running feature selection *from scratch
+in log space* produce a different — possibly better — 13-feature
+set? The 17-predictor log-space importance surfaced `celf` (0.061),
+`b1exto` (0.058), and `yarcsi` (0.045) as non-trivial signals that
+the primary-space chain had dropped on raw-importance or
+dcorr-redundancy grounds, suggesting the primary chain is not
+invariant to the target transform.
+
+`LRP02LogSelect` implements the log-space-first path. Starts from
+the 17-predictor Select02 log-space state (inherits from
+`LRP02Select02Log`) and applies two fresh selection steps:
+
+### Log-space Step 1 (17 → 15): drop hearing + gender
+
+Importance-only drop of the two features at or below the 0.005
+informal noise floor in the 17-predictor log-tuned model — matches
+the primary's Select04 philosophy but uses log-space rankings.
+
+Retuned on 15 predictors (Optuna 150 trials in log space, seed 47).
+Tuner-inner CV MAE 5.8169 ± 2.4325. Refit: CV MAE 5.840, CV R² 0.418,
+CV MedAE 3.372.
+
+The rankings then rebalance — notably `celf` falls from 0.061 (at
+17 preds) to **0.020** after removing hearing and gender, suggesting
+its inflated log-space importance in the 17-predictor model was
+partly absorbing signal from the dropped features. `b1exto` climbs
+to 0.082.
+
+### Log-space Step 2 (15 → 13): drop numchil + celf
+
+The two lowest-importance features in the 15-predictor retune:
+`numchil` (0.015) and `celf` (0.020). Brings the feature count to
+13, matching `lrp02_log` for a direct apples-to-apples comparison.
+
+Retuned on 13 predictors (Optuna 150 trials in log space). Tuner-inner
+CV MAE 5.9096 ± 2.4182. Refit: CV MAE 5.749, CV R² 0.409, CV MedAE
+3.449.
+
+The final 13-feature log-first set differs from `lrp02_log` by
+carrying `yarcsi` + `b1exto` instead of `gender` + `numchil`.
+
+### Head-to-head at 13 predictors each
+
+| Metric | `lrp02_log` | `lrp02_log_select` | Δ (select − log) |
+|---|---|---|---|
+| CV MAE | 5.581 ± 2.301 | 5.749 ± **2.081** | +0.168 |
+| CV RMSE | 8.006 | 8.143 | +0.137 |
+| CV R² | 0.488 | 0.409 | −0.079 |
+| CV MedAE | 3.165 | 3.449 | +0.284 |
+| In-sample R² | 0.974 | 0.969 | −0.005 |
+
+Paired-fold tests (same 10 folds, seed 47) confirm the pattern but
+not at significance:
+
+| Metric | mean diff | paired *t* p | Wilcoxon p | log_select wins |
+|---|---|---|---|---|
+| MAE | +0.169 | 0.543 | 0.557 | 3/10 |
+| MedAE | +0.284 | 0.470 | 0.375 | 4/10 |
+| R² | −0.079 | 0.207 | 0.232 | 4/10 |
+| RMSE | +0.137 | 0.688 | 0.770 | 4/10 |
+
+Log-first wins at most 4/10 folds on any metric — a consistent but
+non-significant pattern of being mildly worse. The only metric
+where log-first has an edge is **MAE std** (2.08 vs 2.30) — its
+fold-to-fold variance is the tightest of any log-space variant.
+
+### Takeaway
+
+**The log-space-first selection does not beat the primary's
+feature set at equal feature count.** `lrp02_log` (primary features +
+log transform) wins or ties on every CV metric except MAE std.
+
+This is a useful negative result:
+
+1. The primary-space selection — driven by primary-scale importance
+   and dcorr — turns out to have picked a feature set that remains
+   near-optimal once the log transform is applied.
+2. The log transform itself is the important intervention. The
+   feature-selection **philosophy** — picking which 13 features to
+   keep — is not the bottleneck at this sample size.
+3. `celf`'s apparent 0.061 importance in the 17-predictor log-space
+   variant was largely a redistribution effect. Once `hearing` and
+   `gender` are removed, the model reallocates capacity and `celf`
+   drops to 0.020. The "celf matters in log space" claim was more
+   about the feature vacuum than genuine predictive signal.
+
+### Permutation importance under log-first 13-predictor retune
+
+| Rank | Feature | Importance | Also in `lrp02_log`? |
+|---|---|---|---|
+| 1 | `yarclet` | 0.240 | ✓ |
+| 2 | `spphon` | 0.172 | ✓ |
+| 3 | `erbword` | 0.077 | ✓ |
+| 4 | `aptinfo` | 0.070 | ✓ |
+| 5 | `b1exto` | 0.066 | — (replaces `gender` in `lrp02_log`) |
+| 6 | `eowpvt` | 0.060 | ✓ |
+| 7 | `nonword` | 0.055 | ✓ |
+| 8 | `agespeak` | 0.048 | ✓ |
+| 9 | `agebooks` | 0.044 | ✓ |
+| 10 | `age` | 0.034 | ✓ |
+| 11 | `mumedupost16` | 0.031 | ✓ |
+| 12 | `yarcsi` | 0.030 | — (replaces `numchil` in `lrp02_log`) |
+| 13 | `deappvo` | 0.015 | ✓ |
+
+11 of 13 features are shared between the two 13-predictor log-space
+variants — the disagreement is only on `gender` + `numchil` (kept by
+primary) versus `yarcsi` + `b1exto` (kept by log-first). Neither
+swap is decisively better.
+
 ## `lrp02_prediction` and `lrp02_log_prediction` — RMSE-tuned variants
 
 For parity with the `lrp01` / `lrp01_prediction` split, we added
@@ -1181,6 +1296,14 @@ column order and LightGBM's seeded `colsample_bytree` draws.
   significantly worse than `lrp02_log` on MAE, RMSE, and R² (all
   p<0.01). Squared-error loss in log space with expm1 inversion is
   unstable at this sample size. Kept for completeness.
+- **`lrp02_log_select`** (variant, log1p target, 13 predictors,
+  log-space-first feature selection, log-space tuned): CV MAE 5.749
+  ± 2.081, CV R² 0.409, CV MedAE 3.449. Feature set differs from
+  `lrp02_log` by carrying `yarcsi` + `b1exto` instead of `gender` +
+  `numchil`. Paired-fold tests show no significant edge either way;
+  log-first wins ≤4/10 folds on every CV metric. Useful negative
+  result: log-space-first selection does not improve on the
+  primary-space chain once the log transform is applied.
 - Four `SelectionStep`s on `LRP02` document the 32 → 24 → 17 → 15 → 13
   cuts; one step on `LRP02Select02` adds back the two features dropped
   at Select03.

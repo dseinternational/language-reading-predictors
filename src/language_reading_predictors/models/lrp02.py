@@ -38,6 +38,12 @@ squared-error loss rather than MAE. Their purpose is parity with the
 ``lrp01`` family's primary/prediction split and to supply a model
 optimised for absolute prediction accuracy at the cost of
 importance-ranking robustness.
+
+``LRP02LogSelect`` diverges from the primary's selection chain to
+apply feature selection using log-space importance and redundancy
+criteria. Starts at the 17-predictor Select02 log-space state
+(inherits from ``LRP02Select02Log``) and prunes toward a
+log-space-preferred feature set.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -212,6 +218,29 @@ _LGBM_RMSE_PARAMS_LOG: dict[str, float | int | str] = {
     "colsample_bytree": 0.7795376336231212,
     "reg_alpha": 0.06759227929609403,
     "reg_lambda": 0.06485655423178838,
+    "n_jobs": 16,
+    "verbosity": -1,
+}
+
+# MAE-tuned in log1p(y) space on the 13-predictor log-space-first
+# Select set (Optuna 150 trials, 10-split GroupKFold, seed 47,
+# scoring=mae, lgbm_objective=mae, target_transform=log1p).
+# Tuner-inner CV MAE 5.9096 ± 2.4182. n=210. Pinned on
+# ``lrp02_log_select``. An earlier 15-predictor tune
+# (tuner-inner 5.8169) was superseded by this one after the second
+# log-space selection step.
+_LGBM_MAE_PARAMS_LOG_SELECT: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 159,
+    "learning_rate": 0.0228666627320957,
+    "num_leaves": 12,
+    "max_depth": 12,
+    "min_child_samples": 5,
+    "subsample": 0.653550724374776,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.6293455916115821,
+    "reg_alpha": 0.007594621812491086,
+    "reg_lambda": 0.20355563772815835,
     "n_jobs": 16,
     "verbosity": -1,
 }
@@ -441,4 +470,76 @@ class LRP02LogPrediction(LRP02Log):
         "in log space via Optuna (scoring=rmse, lgbm_objective=regression, "
         "target_transform=log1p). Predictions inverse-transformed so CV "
         "metrics remain in original ewrswr units."
+    )
+
+
+# ── log-space feature-selection variant ────────────────────────────────
+
+
+class LRP02LogSelect(LRP02Select02Log):
+    """Word-reading level predictors — log-space-first feature selection.
+
+    Starts from the 17-predictor Select02 log-space state (inherited
+    from :class:`LRP02Select02Log`) and applies a fresh chain of
+    selection steps based on **log-space** permutation importance and
+    distance-correlation evidence. The earlier primary-space selection
+    chain (32 → 13) dropped `b1exto`, `yarcsi`, `hearing`, and `celf` —
+    but under the log transform `b1exto` (0.058), `yarcsi` (0.045), and
+    especially `celf` (0.061) showed non-trivial importance, suggesting
+    the primary-space selection is not invariant to the target
+    transform.
+
+    This variant investigates what a purely log-space-driven pruning
+    path looks like. The primary `lrp02_log` stays unchanged as a
+    comparability model (same 13 features as `lrp02`).
+    """
+
+    model_id = "lrp02_log_select"
+    variant_of = "lrp02"
+    description = (
+        "LightGBM — word-reading level predictors "
+        "(log-space first-principles selection, MAE-tuned in log1p space)"
+    )
+    params = _LGBM_MAE_PARAMS_LOG_SELECT
+    selection_steps = [
+        SelectionStep(
+            removed=[V.HEARING, V.GENDER],
+            notes=(
+                "Log-space Step 1: remove 2 features at or below the 0.005 "
+                "informal noise floor in the 17-predictor log-tuned model: "
+                "hearing (0.003) and gender (0.006). Matches the primary's "
+                "importance-only cut philosophy but uses log-space rankings."
+            ),
+            date="2026-04-17",
+            metrics_before={"cv_mae_mean": 5.735},
+            metrics_after={"cv_mae_mean": 5.840},
+        ),
+        SelectionStep(
+            removed=[V.NUMCHIL, V.CELF],
+            notes=(
+                "Log-space Step 2: remove the two lowest-importance "
+                "features from the 15-predictor log-tuned model: numchil "
+                "(0.015) and celf (0.020). Note that celf fell from 0.061 "
+                "at 17 predictors to 0.020 after Step 1 — its apparent "
+                "log-space importance in the 17-predictor model was "
+                "partly absorbing the dropped hearing/gender signal. "
+                "Brings the feature count to 13, matching lrp02_log for "
+                "direct comparison."
+            ),
+            date="2026-04-17",
+            metrics_before={"cv_mae_mean": 5.840},
+            metrics_after={"cv_mae_mean": 5.749},
+        ),
+    ]
+    notes = (
+        "Log-space feature-selection variant. Starts from the 17-predictor "
+        "Select02 log-space state and applies its own selection chain "
+        "driven by log-space importance rankings. Two selection steps "
+        "(17 → 15 → 13); each retuned. Final 13-predictor feature set "
+        "differs from lrp02_log by carrying yarcsi + b1exto instead of "
+        "gender + numchil. Paired-fold tests show this log-first set is "
+        "not better than lrp02_log's primary-space features at equal "
+        "count: 3-4/10 folds win on each metric, all p > 0.1. Useful "
+        "negative result — the log transform is the bigger lever; the "
+        "feature-selection philosophy is not."
     )
