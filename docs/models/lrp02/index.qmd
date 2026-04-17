@@ -119,6 +119,29 @@ for col in ["mae", "rmse", "r2", "medae"]:
 cv_scores
 ```
 
+With this many folds each test fold is a single subject's timepoints, so
+per-fold R² is unstable (tiny within-subject variance in the denominator)
+and its mean is not a meaningful generalisation score. MAE, RMSE and MedAE
+aggregate cleanly; the pooled metrics below score the stacked out-of-fold
+predictions against the global mean of the target.
+
+```{python}
+#| output: asis
+pooled = {k: metrics[k] for k in (
+    "cv_pooled_mae", "cv_pooled_rmse", "cv_pooled_r2", "cv_pooled_medae"
+) if metrics.get(k) is not None}
+labels = {
+    "cv_pooled_mae": "MAE",
+    "cv_pooled_rmse": "RMSE",
+    "cv_pooled_r2": "R²",
+    "cv_pooled_medae": "MedAE",
+}
+print("| Pooled OOF metric | Value |")
+print("|:---|---:|")
+for k, v in pooled.items():
+    print(f"| {labels[k]} | {v:.4f} |")
+```
+
 ### In-sample evaluation
 
 ```{python}
