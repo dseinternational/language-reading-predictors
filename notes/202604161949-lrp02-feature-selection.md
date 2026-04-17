@@ -887,6 +887,106 @@ It is a better starting point than either `lrp02` or `lrp02_select02`
 for further tuning and — given the large rank shifts — worth another
 pass of feature-selection review under the new importance ordering.
 
+## Paired-fold significance tests (n=10)
+
+The means tables above raise the natural question: how many of the
+apparent gaps survive a proper paired comparison across folds? All
+four variants share the same `GroupKFold(n_splits=10)` at seed 47, so
+per-fold scores can be paired by fold number.
+
+`scripts/compare_variants.py` (new) runs this analysis — reports mean
+paired difference, paired-*t*, Wilcoxon signed-rank, and B-wins count
+per pair per metric. Usage:
+
+```bash
+python scripts/compare_variants.py lrp02 lrp02_select02 lrp02_log lrp02_select02_log
+```
+
+Results (signs chosen so negative = improvement on error metrics,
+positive = improvement on R²):
+
+### MAE (lower is better)
+
+| A | B | mean(A) | mean(B) | mean(B−A) | std(B−A) | paired *t* p | Wilcoxon p | B wins |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `lrp02` | `lrp02_select02` | 6.019 | 5.908 | −0.111 | 0.861 | 0.694 | 0.770 | 5/10 |
+| `lrp02` | `lrp02_log` | 6.019 | 5.581 | **−0.438** | 1.165 | 0.265 | 0.275 | 7/10 |
+| `lrp02` | `lrp02_select02_log` | 6.019 | 5.735 | −0.284 | 1.517 | 0.568 | 0.557 | 6/10 |
+| `lrp02_select02` | `lrp02_log` | 5.908 | 5.581 | −0.328 | 1.083 | 0.364 | 0.232 | 8/10 |
+| `lrp02_select02` | `lrp02_select02_log` | 5.908 | 5.735 | −0.174 | 1.227 | 0.665 | 0.770 | 6/10 |
+| `lrp02_log` | `lrp02_select02_log` | 5.581 | 5.735 | +0.154 | 0.551 | 0.400 | 0.375 | 4/10 |
+
+### MedAE (lower is better)
+
+| A | B | mean(A) | mean(B) | mean(B−A) | std(B−A) | paired *t* p | Wilcoxon p | B wins |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `lrp02` | `lrp02_select02` | 3.963 | 3.978 | +0.015 | 1.082 | 0.965 | 0.846 | 5/10 |
+| `lrp02` | `lrp02_log` | 3.963 | 3.165 | **−0.798** | 0.805 | **0.012** | **0.020** | 8/10 |
+| `lrp02` | `lrp02_select02_log` | 3.963 | 3.376 | −0.587 | 1.219 | 0.163 | 0.084 | 8/10 |
+| `lrp02_select02` | `lrp02_log` | 3.978 | 3.165 | −0.813 | 1.103 | **0.045** | 0.084 | 6/10 |
+| `lrp02_select02` | `lrp02_select02_log` | 3.978 | 3.376 | −0.602 | 1.817 | 0.322 | 0.193 | 7/10 |
+| `lrp02_log` | `lrp02_select02_log` | 3.165 | 3.376 | +0.211 | 1.090 | 0.555 | 1.000 | 5/10 |
+
+### R² (higher is better)
+
+| A | B | mean(A) | mean(B) | mean(B−A) | std(B−A) | paired *t* p | Wilcoxon p | B wins |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `lrp02` | `lrp02_select02` | 0.355 | 0.390 | +0.035 | 0.194 | 0.583 | 0.770 | 5/10 |
+| `lrp02` | `lrp02_log` | 0.355 | 0.488 | **+0.133** | 0.221 | 0.089 | 0.131 | 6/10 |
+| `lrp02` | `lrp02_select02_log` | 0.355 | 0.495 | +0.139 | 0.267 | 0.133 | 0.193 | 6/10 |
+| `lrp02_select02` | `lrp02_log` | 0.390 | 0.488 | +0.098 | 0.284 | 0.304 | 0.770 | 5/10 |
+| `lrp02_select02` | `lrp02_select02_log` | 0.390 | 0.495 | +0.104 | 0.297 | 0.294 | 0.770 | 5/10 |
+| `lrp02_log` | `lrp02_select02_log` | 0.488 | 0.495 | +0.006 | 0.069 | 0.779 | 0.846 | 5/10 |
+
+### RMSE (lower is better)
+
+| A | B | mean(A) | mean(B) | mean(B−A) | std(B−A) | paired *t* p | Wilcoxon p | B wins |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `lrp02` | `lrp02_select02` | 8.242 | 8.072 | −0.170 | 1.197 | 0.664 | 0.625 | 5/10 |
+| `lrp02` | `lrp02_log` | 8.242 | 8.006 | −0.235 | 1.435 | 0.617 | 0.557 | 6/10 |
+| `lrp02` | `lrp02_select02_log` | 8.242 | 8.050 | −0.192 | 1.949 | 0.763 | 0.625 | 6/10 |
+| `lrp02_select02` | `lrp02_log` | 8.072 | 8.006 | −0.065 | 1.232 | 0.870 | 0.922 | 5/10 |
+| `lrp02_select02` | `lrp02_select02_log` | 8.072 | 8.050 | −0.022 | 1.501 | 0.964 | 0.922 | 5/10 |
+| `lrp02_log` | `lrp02_select02_log` | 8.006 | 8.050 | +0.044 | 0.587 | 0.820 | 1.000 | 5/10 |
+
+### What the paired tests tell us
+
+**The R² gap between `lrp02_log` and `lrp02_select02_log` is pure fold
+noise.** Mean difference +0.006 on R², std 0.069, t p=0.779, Wilcoxon
+p=0.846, B wins 5/10 (coin flip). This settles the question raised by
+the four-way comparison — the 17-predictor log variant is not
+meaningfully better than the 13-predictor log variant on generalisation.
+
+**The MedAE gain from the log transform is statistically significant
+at α=0.05** against the primary (t p=0.012, Wilcoxon p=0.020, B wins
+8/10). It is marginal vs `lrp02_select02` (t p=0.045, Wilcoxon
+p=0.084). This matches the training-gradient story from the
+earlier "why log space" section: log transform reallocates capacity
+toward the median observation, which is exactly what MedAE measures.
+
+**The R² improvement from log transform is borderline** (p=0.089 vs
+primary) — suggestive but not significant at α=0.05 with n=10 folds.
+
+**MAE and RMSE differences are not significant** across any pair.
+With n=10 folds the tests have low power against modest mean gaps
+(~0.4 units) swamped by fold std (~1.1 units). Win counts still lean
+toward the log variants but the paired tests can't confirm.
+
+### Implications
+
+1. `lrp02_select02_log` does **not** have a real edge over `lrp02_log`
+   — same CV R² within fold noise, weaker on MAE/RMSE/MedAE. Future
+   work should prefer `lrp02_log` as the better-performing log-space
+   model; `lrp02_select02_log` stays as an architectural reference
+   for "what happens when we keep the 4 features in log space".
+2. The MedAE significance result hardens the claim that the log
+   transform is a genuine improvement in the typical-case regime,
+   not just a bookkeeping artefact.
+3. Redoing feature selection in log space (the next planned
+   investigation) is now motivated less by "close the R² gap" and
+   more by "confirm the 13-feature set is appropriate under the new
+   importance landscape, where `celf` shows moderate signal".
+
 ## `lrp02_select02` — 17-predictor reference variant
 
 To preserve the best CV configuration without reverting Select03 on the
@@ -948,13 +1048,14 @@ column order and LightGBM's seeded `colsample_bytree` draws.
 - **`lrp02_select02_log`** (variant, log1p target, 17 predictors,
   log-space tuned): CV MAE 5.735 ± 2.425, CV R² 0.495 ± 0.241, CV
   MedAE 3.376. Same features as `lrp02_select02` plus the log1p
-  transform with its own log-space tune. Best CV R² by a 0.007
-  margin (within noise) but trails `lrp02_log` on every other CV
-  metric and shows more in-sample overfit (R² 0.988 vs 0.974). Notable
-  finding: `celf` carries 0.061 importance in this log-space 17-feature
-  model despite having been dropped at Select04 on primary-space
-  grounds — suggests the feature selection is not invariant to the
-  target transform.
+  transform with its own log-space tune. Best CV R² mean by a 0.007
+  margin but paired-fold tests confirm this is pure fold noise
+  (t p=0.779, Wilcoxon p=0.846) — it is not meaningfully better than
+  `lrp02_log` and trails it on every other CV metric. Notable finding:
+  `celf` carries 0.061 importance in this log-space 17-feature model
+  despite having been dropped at Select04 on primary-space grounds —
+  suggests the feature selection is not invariant to the target
+  transform.
 - Four `SelectionStep`s on `LRP02` document the 32 → 24 → 17 → 15 → 13
   cuts; one step on `LRP02Select02` adds back the two features dropped
   at Select03.
