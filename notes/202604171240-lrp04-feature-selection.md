@@ -294,24 +294,138 @@ rose from 0.049 to 0.076, `celf` from 0.048 to 0.069.
 by 0.58 (~9%) and raised CV R² by 0.076. The Select01 carry-forward
 was nearly optimal — retune brought no additional CV benefit.
 
+## Select02: drop b1exto + b1reto (9 → 7) — construct-driven
+
+After Select01 reduced to 9 well-informed predictors, a substantive
+research judgement removed two more features on **construct grounds**
+rather than pure importance / redundancy statistics:
+
+| Feature | Imp (Select01 retune) | Reason |
+|---|---:|---|
+| `b1exto` | **0.164** (rank 1) | Another expressive-vocabulary instrument — same construct as the target `eowpvt`. Keeping it turns the model into a between-tests calibration study rather than an identification of non-vocabulary predictors of expressive vocabulary. Rank-1 importance is largely tautological. |
+| `b1reto` | 0.026 (rank 9) | Receptive-language measure; redundant with the standardised `rowpvt` (retained). With `rowpvt` in place, `b1reto` adds no independent receptive-language signal. |
+
+Dropping the rank-1 feature was expected to hurt CV metrics in
+absolute terms. The trade is worse metrics for a **more
+interpretable model** that answers "what non-vocabulary features
+predict expressive vocabulary?" rather than "how does the b1exto
+vocabulary test calibrate against the eowpvt vocabulary test?".
+
+### Retained (7)
+
+`aptinfo`, `rowpvt`, `ewrswr`, `celf`, `age`, `yarclet`, `deappin`.
+
+### Select02 carry-forward (9-tune → 7 predictors)
+
+| Metric | Before (9 predictors, 69 trees) | After (7 predictors, same 69 trees) |
+|---|---:|---:|
+| CV MAE | 5.572 ± 1.195 | 6.114 ± 1.037 |
+| CV RMSE | 7.005 | 7.528 |
+| CV R² | 0.618 ± 0.237 | 0.564 ± 0.254 |
+| CV MedAE | 4.718 | 5.105 |
+| In-sample R² | 0.924 | 0.917 |
+
+CV MAE rises 0.54 (expected — dropping the #1 feature costs
+predictive power). CV R² falls 0.054 but remains at 0.564 —
+still the strongest LRP02/LRP03/LRP04 R² seen to date.
+
+Importance re-routes dramatically: `aptinfo` doubles from 0.128
+to **0.327** as it absorbs `b1exto`'s signal through their dcorr
+0.80. Every retained feature rises.
+
+### Retune on 7 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **6.1385 ±
+1.1345**.
+
+| Parameter | Tuned on 9 | **Tuned on 7** |
+|---|---:|---:|
+| n_estimators | 69 | 45 |
+| learning_rate | 0.076 | 0.076 |
+| num_leaves | 32 | 30 |
+| max_depth | 5 | 6 |
+| min_child_samples | 6 | 10 |
+| subsample | 0.860 | 0.874 |
+| colsample_bytree | 0.683 | 0.717 |
+| reg_alpha | 0.008 | 0.002 |
+| reg_lambda | **0.146** | 0.003 |
+
+With two fewer features and a smaller leaf count (10 min_child
+vs 6), the tuner dropped L2 regularisation dramatically. Fewer
+trees (45 vs 69).
+
+### Refit under Select02 retuned params
+
+| Metric | Carry-forward (69 trees) | **Retuned (45 trees)** |
+|---|---:|---:|
+| CV MAE | 6.114 | 6.219 |
+| CV RMSE | 7.528 | 7.736 |
+| CV R² | 0.564 | 0.542 |
+| CV MedAE | 5.105 | 5.226 |
+| In-sample R² | 0.917 | 0.874 |
+
+**Retune is slightly worse on every CV metric.** Same pattern as
+LRP03's Select02 retune — the tuner found a less-regularised local
+optimum that doesn't generalise as well. Kept for the "tuned on
+this feature set" convention, but the carry-forward was the
+empirical winner.
+
+### Permutation importance under retuned model
+
+| Rank | Feature | Importance |
+|---|---|---:|
+| 1 | **`aptinfo`** | **0.415** |
+| 2 | `rowpvt` | 0.104 |
+| 3 | `celf` | 0.084 |
+| 4 | `ewrswr` | 0.081 |
+| 5 | `yarclet` | 0.076 |
+| 6 | `age` | 0.057 |
+| 7 | `deappin` | 0.032 |
+
+`aptinfo` is now overwhelmingly the dominant predictor at 0.415
+(2.5× larger than at Select01). Remaining tier (0.08–0.10) includes
+`rowpvt` / `celf` / `ewrswr` / `yarclet`. `age` and `deappin` round
+out the set.
+
+This is a clean, interpretable picture: *language composite
+predicts expressive vocabulary most, supplemented by receptive
+vocabulary, basic concepts, reading, letter-sound knowledge, age,
+and articulation*.
+
+## Cumulative summary
+
+| Step | Predictors | CV MAE | CV R² | CV MedAE |
+|---|---|---|---|---|
+| Baseline (untuned) | 32 | 6.562 | 0.470 | 6.043 |
+| MAE-tuned on 32 | 32 | 6.156 | 0.543 | 5.268 |
+| Select01 carry-forward | 9 | **5.564** | **0.619** | **4.627** |
+| Retuned-9 | 9 | 5.572 | 0.618 | 4.718 |
+| Select02 carry-forward | 7 | 6.114 | 0.564 | 5.105 |
+| Retuned-7 | 7 | 6.219 | 0.542 | 5.226 |
+
+The Select02 drop cost about 0.55 CV MAE — essentially giving back
+the Select01 gain. That's the price of interpretability.
+
 ## Current state
 
-- **`lrp04`** (primary, MAE-tuned on 9 predictors): 9 predictors,
-  CV MAE 5.572 ± 1.195, CV R² 0.618 ± 0.237, CV MedAE 4.718. No
+- **`lrp04`** (primary, MAE-tuned on 7 predictors): 7 predictors,
+  CV MAE 6.219 ± 1.293, CV R² 0.542 ± 0.266, CV MedAE 5.226. No
   outlier exclusion, n=215.
-- One `SelectionStep` on `LRP04` documents the 32 → 9 cut.
-- All 9 retained features have importance ≥ 0.026 — no noise floor
-  candidates for a further pure-importance cut.
+- Two `SelectionStep`s on `LRP04` document the 32 → 9 → 7 cut.
+- Final predictor set is constructed to answer: *what
+  non-expressive-vocabulary features predict expressive-vocabulary
+  level?*
 
 ## Next-step candidates (future PRs)
 
-- **Correlation review on the 9-predictor set:** `b1reto` (0.026)
-  still sits inside the language cluster — worth checking whether
-  it's redundant with the higher-importance partners after the
-  Select01 cut.
-- **log1p target transform** (`LGBMLogPipeline`). Less compelling
-  than on LRP02 given the milder skew (0.63 vs heavy) and lack of
-  floor — but worth a check given the U-shaped quartile-MAE pattern
-  in the 32-predictor model may have shifted.
-- **Quantile α=0.5 objective** — mirrors LRP02 quantile work.
+- **Quantile α=0.5 objective** — mirrors LRP02 quantile work;
+  the carry-forward's 5.105 MedAE and the MedAE-worsening pattern
+  under retune suggests direct median optimisation may help.
 - **RMSE-tuned prediction variant** (`lrp04_prediction`).
+- **log1p target transform** — less compelling given the milder
+  skew and U-shaped error pattern, but could be checked as a
+  sanity test.
+- **`b1exto`-restored variant (`lrp04_with_b1exto`)** — parallel
+  to `lrp02_select02`; preserves the construct-included baseline
+  for reference. Kept as-is, users who want absolute prediction
+  accuracy can refer back to Select01 metrics.

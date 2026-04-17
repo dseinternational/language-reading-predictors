@@ -29,7 +29,7 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# Documents the 32 → 9 feature-selection history under MAE-tuned params
+# Documents the 32 → 7 feature-selection history under MAE-tuned params
 # with no outlier exclusion (n=215).
 # See notes/202604171240-lrp04-feature-selection.md for the full rationale.
 
@@ -68,27 +68,61 @@ _SELECTION_STEPS = [
         metrics_before={"cv_mae_mean": 6.156},
         metrics_after={"cv_mae_mean": 5.564},
     ),
+    SelectionStep(
+        removed=[
+            V.B1EXTO,   # rank 1 importance (0.164) but tautological:
+                        # another expressive-vocabulary test, same
+                        # construct as the target eowpvt. Keeping it
+                        # turns the model into a between-tests
+                        # calibration study rather than an
+                        # identification of non-vocabulary predictors
+                        # of expressive vocabulary.
+            V.B1RETO,   # rank 9 importance (0.026). Dcorr 0.74-0.76
+                        # with retained aptinfo / rowpvt / b1exto. With
+                        # rowpvt retained as the standardised receptive
+                        # vocabulary measure, b1reto adds no
+                        # independent receptive-language signal.
+        ],
+        notes=(
+            "Construct-driven drops: b1exto is another expressive-"
+            "vocabulary instrument — same construct as the target "
+            "eowpvt — so its high importance is largely tautological. "
+            "Removing it reframes the model as 'non-vocabulary "
+            "predictors of expressive vocabulary' rather than "
+            "'between-test calibration'. b1reto is redundant with "
+            "the retained rowpvt (standardised receptive vocabulary "
+            "test), dcorr 0.74. CV metrics are expected to degrade "
+            "because b1exto is the single strongest predictor (0.164) "
+            "— the trade is worse metrics for a more interpretable "
+            "model."
+        ),
+        date="2026-04-17",
+        metrics_before={"cv_mae_mean": 5.572},
+        metrics_after={"cv_mae_mean": 6.114},
+    ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 9-predictor Select01 set, no outlier exclusion
+# MAE-tuned on the 7-predictor Select02 set, no outlier exclusion
 # (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 5.5527 ± 1.2155. n=215.
-# Supersedes the original 32-predictor tune (tuner-inner 6.1434).
+# lgbm_objective=mae). Tuner-inner CV MAE 6.1385 ± 1.1345. n=215.
+# Supersedes earlier tunes:
+#   32-predictor        (tuner-inner 6.1434)
+#   9-predictor Select01 (tuner-inner 5.5527)
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 69,
-    "learning_rate": 0.07553599741644976,
-    "num_leaves": 32,
-    "max_depth": 5,
-    "min_child_samples": 6,
-    "subsample": 0.859517008393526,
+    "n_estimators": 45,
+    "learning_rate": 0.07573022964806482,
+    "num_leaves": 30,
+    "max_depth": 6,
+    "min_child_samples": 10,
+    "subsample": 0.8737230089192473,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6834749241109254,
-    "reg_alpha": 0.007614012937381988,
-    "reg_lambda": 0.14649804504467065,
+    "colsample_bytree": 0.7169131631393786,
+    "reg_alpha": 0.0022764472298362187,
+    "reg_lambda": 0.003357533830874894,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -110,7 +144,7 @@ class LRP04(LevelModel):
     target_var = V.EOWPVT
     description = (
         "LightGBM — expressive-vocabulary level predictors "
-        "(9 predictors, MAE-tuned, no outlier exclusion)"
+        "(7 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
