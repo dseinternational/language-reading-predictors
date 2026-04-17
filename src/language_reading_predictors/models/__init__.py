@@ -12,4 +12,4 @@ per-problem modules so their class definitions auto-register into
 
 from language_reading_predictors.models import base_model  # noqa: F401
 from language_reading_predictors.models import registry  # noqa: F401
-from language_reading_predictors.models import lrp01, lrp02  # noqa: F401
+from language_reading_predictors.models import lrp01, lrp02, lrp03, lrp04  # noqa: F401
