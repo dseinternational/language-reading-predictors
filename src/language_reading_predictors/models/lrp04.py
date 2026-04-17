@@ -17,8 +17,15 @@ is less compelling — but a question for future investigation.
 
 The predictor set will be reduced by iterative importance-based
 feature selection under the MAE-tuned params (see
-``notes/202604171240-lrp04-feature-selection.md``). This is the
-initial tuned baseline; no feature-selection steps yet.
+``notes/202604171240-lrp04-feature-selection.md``).
+
+``LRP04Quantile`` is an objective variant on the same 7-predictor
+final set — trains with LightGBM's ``quantile`` loss at
+``alpha=0.5`` (pinball loss at the median) rather than ``mae``.
+The conditional-median objective is the direct MedAE-minimising
+loss. Mirrors the ``lrp02_quantile`` work; useful for checking
+whether explicit median-optimisation improves typical-case
+prediction.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -127,6 +134,27 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "verbosity": -1,
 }
 
+# Quantile-tuned (α=0.5) on the 7-predictor Select02 set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=medae,
+# lgbm_objective=quantile, alpha=0.5). Tuner-inner CV MedAE 4.3893 ±
+# 0.9941. n=215. Pinned on ``lrp04_quantile``.
+_LGBM_QUANTILE_PARAMS: dict[str, float | int | str] = {
+    "objective": "quantile",
+    "alpha": 0.5,
+    "n_estimators": 34,
+    "learning_rate": 0.10458326951451853,
+    "num_leaves": 51,
+    "max_depth": 6,
+    "min_child_samples": 5,
+    "subsample": 0.6827636661610719,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.6398102039924611,
+    "reg_alpha": 0.4769333673039903,
+    "reg_lambda": 0.23212454287289272,
+    "n_jobs": -1,
+    "verbosity": -1,
+}
+
 
 # ── primary model (exploratory, MAE-tuned) ──────────────────────────────
 
@@ -161,4 +189,35 @@ class LRP04(LevelModel):
         "importance rankings reflect the full range of outcomes. "
         "Feature-selection variants to follow. See "
         "notes/202604171240-lrp04-feature-selection.md."
+    )
+
+
+# ── quantile-objective variant (median prediction) ─────────────────────
+
+
+class LRP04Quantile(LRP04):
+    """Expressive-vocabulary level — quantile α=0.5 objective.
+
+    Same 7-predictor final feature set as `LRP04`; trains with
+    LightGBM's ``objective="quantile"`` at ``alpha=0.5`` instead of
+    ``"mae"``. Both objectives converge on the conditional median in
+    theory, but LightGBM's gradient handling differs (pinball-loss
+    gradient magnitudes are ±α / ±(1−α) rather than ``mae``'s uniform
+    ±1). Tests whether the explicit median objective yields a
+    different — possibly tighter — CV MedAE in practice. Mirrors
+    the LRP02 quantile work.
+    """
+
+    model_id = "lrp04_quantile"
+    variant_of = "lrp04"
+    description = (
+        "LightGBM — expressive-vocabulary level predictors "
+        "(7 predictors, quantile α=0.5, no outlier exclusion)"
+    )
+    params = _LGBM_QUANTILE_PARAMS
+    notes = (
+        "Median-objective variant of lrp04. Uses LightGBM's quantile "
+        "loss at α=0.5 — the direct MedAE-minimising objective. "
+        "Hyperparameters tuned specifically for the quantile objective "
+        "via Optuna."
     )
