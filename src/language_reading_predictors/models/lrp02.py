@@ -44,6 +44,15 @@ apply feature selection using log-space importance and redundancy
 criteria. Starts at the 17-predictor Select02 log-space state
 (inherits from ``LRP02Select02Log``) and prunes toward a
 log-space-preferred feature set.
+
+``LRP02Quantile`` and ``LRP02LogQuantile`` are objective variants that
+train with LightGBM's ``quantile`` loss at ``alpha=0.5`` — the pinball
+loss at the median. The conditional-median objective is the direct
+MedAE-minimising loss; the MAE variants (``objective="mae"``) optimise
+the same *point estimator* in theory but LightGBM's concrete gradient
+handling differs slightly between `mae` and `quantile(0.5)`, so it is
+worth checking empirically whether the explicit median objective gives
+a better CV MedAE.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -218,6 +227,49 @@ _LGBM_RMSE_PARAMS_LOG: dict[str, float | int | str] = {
     "colsample_bytree": 0.7795376336231212,
     "reg_alpha": 0.06759227929609403,
     "reg_lambda": 0.06485655423178838,
+    "n_jobs": 16,
+    "verbosity": -1,
+}
+
+# Quantile-tuned (α=0.5) on the 13-predictor Select04 set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=medae,
+# lgbm_objective=quantile, alpha=0.5). Tuner-inner CV MedAE
+# 3.5689 ± 0.7607. n=210. Pinned on ``lrp02_quantile``.
+_LGBM_QUANTILE_PARAMS: dict[str, float | int | str] = {
+    "objective": "quantile",
+    "alpha": 0.5,
+    "n_estimators": 243,
+    "learning_rate": 0.01326170990571767,
+    "num_leaves": 57,
+    "max_depth": 12,
+    "min_child_samples": 11,
+    "subsample": 0.9916011129877821,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.8440054964789133,
+    "reg_alpha": 0.0012997855434450734,
+    "reg_lambda": 0.07869980269664073,
+    "n_jobs": 16,
+    "verbosity": -1,
+}
+
+# Quantile-tuned (α=0.5) in log1p(y) space on the 13-predictor
+# Select04 set (Optuna 150 trials, 10-split GroupKFold, seed 47,
+# scoring=medae, lgbm_objective=quantile, alpha=0.5,
+# target_transform=log1p). Tuner-inner CV MedAE 2.8961 ± 0.7713.
+# n=210. Pinned on ``lrp02_log_quantile``.
+_LGBM_QUANTILE_PARAMS_LOG: dict[str, float | int | str] = {
+    "objective": "quantile",
+    "alpha": 0.5,
+    "n_estimators": 322,
+    "learning_rate": 0.016693202308250114,
+    "num_leaves": 32,
+    "max_depth": 7,
+    "min_child_samples": 6,
+    "subsample": 0.9595524946260237,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.8127580991616771,
+    "reg_alpha": 0.010598834462173275,
+    "reg_lambda": 0.08639165584266031,
     "n_jobs": 16,
     "verbosity": -1,
 }
@@ -542,4 +594,59 @@ class LRP02LogSelect(LRP02Select02Log):
         "count: 3-4/10 folds win on each metric, all p > 0.1. Useful "
         "negative result — the log transform is the bigger lever; the "
         "feature-selection philosophy is not."
+    )
+
+
+# ── quantile-objective variants (median prediction) ───────────────────
+
+
+class LRP02Quantile(LRP02):
+    """Word-reading level predictors — quantile α=0.5 objective (raw target).
+
+    Same 13-predictor feature set as the primary `LRP02`; trains with
+    LightGBM's ``objective="quantile"`` at ``alpha=0.5`` instead of
+    ``"mae"``. Both objectives converge on the conditional median in
+    theory, but LightGBM's gradient handling is slightly different
+    (pinball-loss gradient magnitudes are ±α / ±(1−α) rather than
+    ``mae``'s uniform ±1). Tests whether the explicit median objective
+    yields a different — possibly tighter — CV MedAE in practice.
+    """
+
+    model_id = "lrp02_quantile"
+    variant_of = "lrp02"
+    description = (
+        "LightGBM — word-reading level predictors "
+        "(13 predictors, quantile α=0.5, no outlier exclusion)"
+    )
+    params = _LGBM_QUANTILE_PARAMS
+    notes = (
+        "Median-objective variant of lrp02. Uses LightGBM's "
+        "quantile loss at α=0.5 — the direct MedAE-minimising "
+        "objective. Hyperparameters to be tuned specifically for the "
+        "quantile objective via Optuna."
+    )
+
+
+class LRP02LogQuantile(LRP02Log):
+    """Word-reading level predictors — quantile α=0.5 in log1p space.
+
+    Same 13-predictor feature set as `LRP02Log` and same log1p target
+    transform; trains with ``objective="quantile"`` at ``alpha=0.5``
+    instead of ``"mae"``. Directly optimises the conditional median
+    of ``log1p(ewrswr)``; predictions are inverse-transformed via
+    `LGBMLogPipeline` so all reported metrics stay in original units.
+    """
+
+    model_id = "lrp02_log_quantile"
+    variant_of = "lrp02"
+    description = (
+        "LightGBM — word-reading level predictors "
+        "(13 predictors, quantile α=0.5 in log1p space)"
+    )
+    params = _LGBM_QUANTILE_PARAMS_LOG
+    notes = (
+        "Median-objective log-transform variant. Same 13-predictor "
+        "feature set and log1p target transform as lrp02_log, but "
+        "trains with quantile α=0.5 (pinball loss at the median). "
+        "Directly MedAE-minimising. Tuned in log space."
     )
