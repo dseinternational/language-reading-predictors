@@ -957,6 +957,69 @@ class Variables:
         TACHANG,  # TA changes between time points
     ]
 
+    CONSTRUCTS: "dict[str, list[str]]" = {
+        "language_composite": ["aptinfo", "aptgram", "celf", "trog"],
+        "expressive_vocabulary": [
+            "eowpvt", "b1exto", "b1extau", "b1exnt",
+            "b2exto", "b2extau", "b2exnt",
+        ],
+        "receptive_vocabulary": [
+            "rowpvt", "b1reto", "b1retau", "b1rent",
+            "b2reto", "b2retau", "b2rent",
+        ],
+        "reading_word": ["ewrswr", "yarcewr"],
+        "reading_decoding": [
+            "yarclet", "nonword", "blending", "spphon", "spraw", "yarcsi",
+        ],
+        "articulation": ["deappin", "deappvo", "deappfi", "deappav", "deapp_c"],
+        "phonological_memory": ["erbword", "erbnw", "erbto"],
+        "speech_sampling": [
+            "lsammax", "lsammlu", "lsamint", "lsamun", "lsamto",
+        ],
+        "health": ["hearing", "earinf", "hearing_c", "vision"],
+        "home_literacy": ["agebooks", "bedtimeread", "othertimeread"],
+        "demographics_family": [
+            "numchil", "mumocc", "dadocc", "mumedupost16", "dadedupost16",
+        ],
+        "demographics_child": ["age", "gender", "agespeak"],
+        "cognition": ["blocks"],
+        "social": ["behav", "sdq"],
+        "intervention": ["attend", "attend_cumul", "tascore", "tachang"],
+        "study_structure": ["time", "group", "area"],
+    }
+    """
+    Predictor-level mapping to construct families for exploration
+    analysis. Each feature belongs to exactly one construct. Use
+    :meth:`construct_of` for the reverse lookup (feature → construct).
+
+    The groupings are finer than the semantic lists on :class:`Categories`
+    (which mix composites with individual tests). They are designed for
+    construct-level aggregation of permutation importance during
+    feature-selection review — dominant *constructs* are more stable
+    across variants than dominant individual features.
+
+    Unknown features (including ``_GAIN`` / ``_NEXT`` suffixed variants)
+    fall through to ``"other"``.
+    """
+
+    @staticmethod
+    def construct_of(feature: str) -> str:
+        """Return the construct family for a predictor.
+
+        Strips ``_GAIN`` / ``_NEXT`` suffixes before lookup so derived
+        variables map to the same construct as their base. Unknown
+        features return ``"other"``.
+        """
+        base = feature
+        for suffix in ("_gain", "_next"):
+            if base.endswith(suffix):
+                base = base[: -len(suffix)]
+                break
+        for construct, members in Variables.CONSTRUCTS.items():
+            if base in members:
+                return construct
+        return "other"
+
     TIME_INVARIANT_BASELINES = [
         HEARING,
         EARINF,

@@ -67,6 +67,26 @@ All data and models are preliminary; findings are for research use.
   plots, partial-dependence plots, distance-correlation dendrograms
   and heatmaps, mutual-information heatmaps, Spearman correlations,
   and importance × cluster tables for each fitted model.
+- **Exploration-layer diagnostics** (added after importance pruning
+  proved to have four distinct failure modes — see
+  *Direction and stability diagnostics* below):
+  - **Construct-level importance** — permutation importance
+    aggregated by construct family (language composite, reading
+    decoding, articulation, demographics, …) via
+    `Variables.CONSTRUCTS`. Reveals which *domains* matter even when
+    the within-construct instrument that wins the race differs
+    across variants.
+  - **SHAP direction diagnostics** — per-feature Spearman rank
+    correlation between feature value and SHAP value. Gives a
+    precise numerical direction of effect and a monotonicity score,
+    less error-prone than hand-reading beeswarms. Produces
+    `shap_direction_diagnostics.csv` per fit.
+  - **Stability selection** — 30 subject-level bootstrap resamples
+    at 80% subject fraction; records per-feature top-5 appearance
+    rate and rank IQR across bootstraps. Separates robustly
+    important predictors from those whose rank is fold-luck, which
+    matters most for the low-R² gain models. Produces
+    `stability_selection.csv`.
 
 ### Sensitivity investigations
 
@@ -150,21 +170,33 @@ timepoints.
 | 4 | `celf` | 0.049 | Basic concept knowledge predicts gains |
 | 6 | `blending` | 0.035 | Phoneme blending skill predicts gains |
 
-### Direction of effects (SHAP beeswarm)
+### Direction of effects and stability
 
-| Predictor | Direction | Notes |
-|---|---|---|
-| `attend` | **+** monotonic | More intervention sessions attended → more gain |
-| `celf` | **+** monotonic | Higher basic-concept score → more gain |
-| `yarclet` | **+** monotonic | Higher letter-sound knowledge → more gain |
-| `age` | **mixed** | High-age observations produce the widest SHAP spread, including several extreme negatives; low-age cluster modestly positive. Direction is not monotonic — older children have more *variable* gain outcomes, not uniformly more. |
-| `b1exto` | **+** monotonic | Higher expressive vocabulary → more gain |
-| `blending` | **+** monotonic | Higher phoneme-blending score → more gain |
+Feature-value × SHAP Spearman correlations (`shap_direction_diagnostics.csv`):
 
-All five cognitive / intervention predictors act in the "more
-capability / more engagement → more gain" direction expected from
-theory. Age is the exception and is the one feature whose direction
-warrants caution when interpreting ranked importance.
+| Predictor | Spearman | Shape | Top-5 appearance (30 bootstraps) |
+|---|---:|---|---:|
+| `attend` | +0.96 | `monotonic_+` | 93% |
+| `celf` | +0.91 | `monotonic_+` | 80% |
+| `yarclet` | +0.82 | `monotonic_+` | 93% |
+| `age` | **−0.90** | **`monotonic_-`** | 93% |
+| `b1exto` | +0.93 | `monotonic_+` | 83% |
+| `blending` | +0.78 | `monotonic_+` | 57% |
+
+Every predictor is cleanly monotonic. The precise direction
+diagnostic corrects the earlier hand-reading of the beeswarm that
+called `age` "mixed" — the Spearman is −0.90, the cleanest-negative
+predictor in the set. **Older children gain less** (regression-to-
+the-mean on reading gain at this sample size, once intervention and
+pre-reading skills are accounted for). `blending` is the least
+stable predictor (57% top-5), consistent with its weakest importance
+magnitude.
+
+**Construct importance** (`construct_importance.csv`): reading
+decoding (total 0.12, `yarclet` + `blending`), demographics-child
+(0.11, `age`), intervention (0.09, `attend`), expressive vocabulary
+(0.05, `b1exto`), language composite (0.05, `celf`) — four roughly
+equal domain drivers with reading-decoding slightly ahead.
 
 ### What this model indicates
 
@@ -228,30 +260,55 @@ where baseline `eowpvt` dominates gain prediction.
 | 9 | `mumedupost16` | 0.036 | Maternal post-16 education |
 | 10 | `age` | 0.034 | Developmental stage |
 
-### Direction of effects (SHAP beeswarm)
+### Direction of effects and stability
 
-| Predictor | Direction | Notes |
-|---|---|---|
-| `yarclet` | **+** strongly monotonic | Widest SHAP range in the plot; letter-sound knowledge is both the biggest driver *and* acts in a clean directional way |
-| `spphon` | **+** strongly monotonic | Same shape as yarclet, slightly smaller range |
-| `eowpvt` | **+** monotonic | Higher expressive vocabulary → higher reading level |
-| `nonword` | **+** monotonic | Higher nonword-reading score → higher reading level |
-| `aptinfo` | **+** monotonic | Higher language composite → higher reading level |
-| `erbword` | **+** monotonic | Higher word repetition → higher reading level |
-| `age` | **+** monotonic (modest) | Older → higher reading level |
-| `agebooks` | **−** monotonic | **Earlier** introduction to books → higher reading level (low feature value = positive SHAP) |
-| `agespeak` | **−** monotonic | **Earlier** first words → higher reading level |
-| `mumedupost16` | **+** monotonic | Maternal post-16 education → higher reading level |
-| `numchil` | **−** small | More siblings → slightly lower reading level (small effect) |
-| `deappvo` | ≈ 0 | Very compressed; negligible direction |
-| `gender` | ≈ 0 | Categorical, very small effect |
+Feature-value × SHAP Spearman correlations + bootstrap stability
+for `lrp02_log`:
 
-Every substantive predictor acts in the theoretically expected
-direction. The two baseline developmental-milestone measures
-(`agebooks`, `agespeak`) have **negative** directions — the *earlier*
-these milestones happen, the higher the reading level later — which
-is consistent with them being retained as markers of overall
-developmental pace rather than as "time spent with books" proxies.
+| Predictor | Spearman | Shape | Top-5 (30 bootstraps) |
+|---|---:|---|---:|
+| `yarclet` | +0.97 | `monotonic_+` | **100%** |
+| `spphon` | +0.87 | `monotonic_+` | 97% |
+| `eowpvt` | +0.93 | `monotonic_+` | 87% |
+| `nonword` | +0.90 | `monotonic_+` | 50% |
+| `aptinfo` | +0.95 | `monotonic_+` | 77% |
+| `erbword` | +0.90 | `monotonic_+` | 63% |
+| `age` | +0.76 | `monotonic_+` | 13% |
+| `agebooks` | **+0.04** | **`non_monotonic`** | 3% |
+| `agespeak` | **+0.11** | **`non_monotonic`** | 10% |
+| `mumedupost16` | **−0.64** | **`noisy_-`** | 0% |
+| `numchil` | −0.58 | `noisy_-` | 0% |
+| `deappvo` | −0.07 | `non_monotonic` | 0% |
+| `gender` | +0.79 | `monotonic_+` | 0% |
+
+The diagnostic corrects several hand-readings from the earlier
+beeswarm pass:
+
+- **`agebooks` and `agespeak` are non-monotonic** (Spearman 0.04,
+  0.11). Earlier text called them "earlier milestones → higher
+  reading level" — the precise rank correlation says there is **no
+  clean directional relationship**. Their importance is genuine but
+  the direction is not informative.
+- **`mumedupost16` is *negatively* directional** (Spearman −0.64),
+  not positive as previously read. Worth checking the variable's
+  coding convention (`1 = post-16 education` vs `1 = none`) before
+  interpreting; the SHAP direction alone reverses the earlier claim.
+- **`deappvo` is non-monotonic** — negligible direction, consistent
+  with its small importance.
+
+Top-6 predictors are stable (top-5 appearance ≥ 50% across 30
+bootstraps); `nonword` and `erbword` sit near that threshold. Every
+feature ranked 8 or lower has top-5 appearance < 15% — their
+importance rank is fold-luck, not signal. **The bottom 7 predictors
+should be treated as a "retained for coverage, not for stable
+signal" tier.**
+
+**Construct importance**: reading decoding (total 0.61 — `yarclet`
++ `spphon` + `nonword`) dominates, followed at equal second by
+expressive vocabulary (0.11 — `eowpvt`) and language composite
+(0.11 — `aptinfo`). Phonological memory (`erbword`, 0.08) is the
+next distinct construct. The single-construct dominance of reading
+decoding is the clearest story in the four models.
 
 ### What this model indicates
 
@@ -302,30 +359,44 @@ against scores ranging 0–64).
 | 10 | `agebooks` | 0.027 | Age at introduction to books |
 | 11 | `b1exto` | 0.011 | Expressive vocabulary (block 1) |
 
-### Direction of effects (SHAP beeswarm)
+### Direction of effects and stability
 
-| Predictor | Direction | Notes |
-|---|---|---|
-| `eowpvt` | **−** strongly monotonic | **Negative**: *lower* baseline vocabulary → more gain. Classic regression-to-the-mean — by far the widest SHAP range in the plot |
-| `aptinfo` | **+** monotonic | Higher language composite → more gain |
-| `trog` | **+** monotonic | Higher receptive grammar → more gain |
-| `deappvo` | **mixed / non-monotonic** | High feature values spread across both positive and negative SHAP tails; low values concentrate near zero. The effect is not cleanly directional — articulation contributes at extremes in both directions |
-| `age` | **+** monotonic | Older children gain more |
-| `deappin` | ≈ 0 / small +  | Small positive effect at high values |
-| `b1reto` | ≈ 0 / small − | Weak negative-leaning signal |
-| `rowpvt` | ≈ 0 | Compressed near zero |
-| `aptgram` | ≈ 0 | Compressed near zero |
-| `agebooks` | small −  | Later book introduction → slight negative — same direction as LRP02 |
-| `b1exto` | ≈ 0 | Compressed near zero |
+For `lrp03`:
 
-The dominant signal is that `eowpvt` acts in the **opposite** direction
-to every other top predictor: **lower** baseline vocabulary → more
-gain. This is the regression-to-the-mean pattern and means that
-LRP03's top predictor is *not* saying "children with more capability
-gain more" — it's saying "children with more headroom gain more". The
-next-tier positive predictors (`aptinfo`, `trog`, `age`) do carry the
-"more capability → more gain" interpretation, but at much smaller
-magnitude.
+| Predictor | Spearman | Shape | Top-5 (30 bootstraps) |
+|---|---:|---|---:|
+| `eowpvt` | **−0.84** | **`monotonic_-`** | **100%** |
+| `aptinfo` | +0.84 | `monotonic_+` | 77% |
+| `trog` | +0.82 | `monotonic_+` | 70% |
+| `deappvo` | +0.67 | `noisy_+` | 73% |
+| `age` | **−0.30** | **`non_monotonic`** | 43% |
+| `deappin` | +0.43 | `noisy_+` | 40% |
+| `b1reto` | +0.58 | `noisy_+` | 37% |
+| `rowpvt` | +0.60 | `noisy_+` | 33% |
+| `aptgram` | −0.22 | `non_monotonic` | 17% |
+| `agebooks` | +0.44 | `noisy_+` | 0% |
+| `b1exto` | +0.62 | `noisy_+` | 10% |
+
+- **`eowpvt`** is the cleanest signal in the entire four-model set:
+  Spearman −0.84, top-5 appearance 100% of bootstraps. Its
+  *negative* direction (lower baseline vocabulary → more gain) is
+  both the strongest and the most robust single finding in LRP03.
+- **`age` is non-monotonic** in LRP03 (Spearman −0.30), overturning
+  the earlier "older children gain more" reading. The direction is
+  not clean.
+- The middle tier (`aptinfo`, `trog`, `deappvo`) is positively
+  directional with 70–77% stability.
+- Six features (`deappin`, `b1reto`, `rowpvt`, `aptgram`,
+  `agebooks`, `b1exto`) have top-5 appearance below 50% — their
+  presence in the final predictor set is borderline and their
+  importance ranking is partly bootstrap luck. For the gain
+  framing, essentially only `eowpvt` + the language composite
+  cluster + articulation-primary are reliably signal.
+
+**Construct importance**: expressive vocabulary (total 0.26 —
+dominated by the `eowpvt` regression-to-mean) and language composite
+(0.23 — `aptinfo` + `trog` + `aptgram`) carry the bulk, followed by
+articulation (0.15), receptive vocabulary (0.08), and age (0.07).
 
 ### What this model indicates
 
@@ -382,23 +453,38 @@ age range, where reading gains depend more on foundational skills
 | 6 | `age` | 0.058 | Developmental stage |
 | 7 | `deappin` | 0.032 | Articulation (initial sounds) |
 
-### Direction of effects (SHAP beeswarm)
+### Direction of effects and stability
 
-| Predictor | Direction | Notes |
-|---|---|---|
-| `aptinfo` | **+** strongly monotonic | Widest SHAP range — dominant positive driver |
-| `rowpvt` | **+** monotonic | Higher receptive vocabulary → higher expressive-vocabulary level |
-| `ewrswr` | **+** monotonic | Higher word-reading → higher expressive vocabulary |
-| `yarclet` | **+** monotonic | Higher letter-sound knowledge → higher expressive vocabulary |
-| `celf` | **+** monotonic | Higher basic-concept score → higher expressive vocabulary |
-| `age` | **+** monotonic | Older children have higher expressive vocabulary |
-| `deappin` | **+** small monotonic | Better articulation → slightly higher expressive vocabulary |
+For `lrp04`:
 
-**All seven predictors act in the expected "more capability / more
-maturity → higher expressive vocabulary" direction.** LRP04 is the
-most directionally clean of the four models — no mixed signals, no
-regression-to-the-mean inversion, just a consistent positive effect
-of every retained feature on the level of expressive vocabulary.
+| Predictor | Spearman | Shape | Top-5 (30 bootstraps) |
+|---|---:|---|---:|
+| `aptinfo` | +0.98 | `monotonic_+` | **100%** |
+| `rowpvt` | +0.95 | `monotonic_+` | 87% |
+| `ewrswr` | +0.86 | `monotonic_+` | **100%** |
+| `yarclet` | +0.96 | `monotonic_+` | 67% |
+| `celf` | +0.80 | `monotonic_+` | 83% |
+| `age` | +0.76 | `monotonic_+` | 53% |
+| `deappin` | **−0.12** | **`non_monotonic`** | 10% |
+
+Six of seven predictors are cleanly monotonic positive. The
+exception is **`deappin`**, which the precise direction diagnostic
+flags as non-monotonic (Spearman −0.12) — overturning the earlier
+beeswarm read that called it "+ small monotonic". `deappin`'s
+top-5 stability is also only 10%, confirming its presence in the
+final predictor set is borderline on every criterion: low
+importance, no clean direction, low stability.
+
+Every other predictor is both directionally clean and ≥ 53% top-5
+stable. `aptinfo` and `ewrswr` appear in the top-5 of every
+single bootstrap (100%) — exceptionally stable.
+
+**Construct importance**: language composite dominates by a huge
+margin (total 0.48 — `aptinfo` + `celf`), followed by receptive
+vocabulary (0.10 — `rowpvt`), reading word (0.08 — `ewrswr`),
+reading decoding (0.07 — `yarclet`). LRP04 is the most
+construct-concentrated model — one domain carries more than all
+others combined.
 
 ### What this model indicates
 
@@ -484,41 +570,97 @@ Ranks are within each model's selected predictor set.
    level; expressive-vocabulary gain is driven by current vocabulary
    level.
 
-### Direction-of-effect patterns across models
+### Direction and stability diagnostics
 
-Reading the SHAP beeswarm plots (`shap_summary.png` in each model's
-output directory) establishes how each predictor's *value* maps to
-its *effect* on the target, which permutation importance alone
-cannot tell:
+The three exploration-layer diagnostics (construct-level importance,
+SHAP direction diagnostics, subject-level stability selection)
+produce a substantially more disciplined picture than permutation
+importance plus hand-read beeswarms alone. They were added to this
+report after the beeswarm pass and they **overturn several of the
+earlier direction calls**:
 
-1. **Level models are directionally clean.** Every retained
-   predictor in LRP04 and every substantive predictor in LRP02
-   acts monotonically in the expected direction (more
-   capability / more maturity / earlier milestones → higher
-   level). No mixed signals, no surprises.
-2. **LRP03's `eowpvt` is the headline asymmetric signal.** It is
-   the top predictor by a large margin *and* acts in the opposite
-   direction to every other top predictor: *lower* baseline
-   vocabulary → more gain (regression-to-the-mean). This is a
-   crucial interpretive point — the dominant importance does not
-   translate to "high baseline vocabulary predicts growth".
-3. **LRP01's `age` direction is complex.** Age is rank #1 by
-   permutation importance but the beeswarm shows high-age
-   observations producing the widest SHAP spread, including
-   several extreme negatives. The effect is not monotonic.
-4. **`agebooks` and `agespeak` act negatively in LRP02.**
-   *Earlier* book introduction and *earlier* first words
-   associate with higher reading level — consistent with their
-   role as developmental-pace indicators rather than as
-   "years of book exposure" proxies.
-5. **Articulation in LRP03 is non-monotonic.** `deappvo`'s SHAP
-   distribution is bimodal — high articulation values appear at
-   both positive and negative tails. Interpret articulation
-   contributions to vocabulary gain with care.
+- **LRP01 `age`** is cleanly monotonic **negative** (Spearman −0.90).
+  The earlier read of "mixed / non-monotonic" was wrong —
+  hand-reading the beeswarm missed that the apparent extreme-
+  negative outliers at high age were in fact the monotonic trend's
+  tail.
+- **LRP02 `agebooks` and `agespeak` are non-monotonic** (Spearman
+  0.04, 0.11) — their importance is genuine but there is no clean
+  direction. The earlier "earlier milestones → higher reading" read
+  was not supported.
+- **LRP02 `mumedupost16` is negatively directional** (Spearman −0.64),
+  not positive as originally read. Coding-convention check needed
+  before interpreting; the SHAP-Spearman disagreement with the
+  earlier hand read is unambiguous.
+- **LRP03 `age` is non-monotonic** (Spearman −0.30), not positive
+  as originally read.
+- **LRP04 `deappin` is non-monotonic** (Spearman −0.12), not the
+  "small monotonic positive" originally read. `deappin` also fails
+  the stability test (10% top-5 appearance).
 
-**Take-home**: permutation importance ranks *how much* each
-feature contributes; SHAP beeswarms tell you *which direction* and
-*how consistently*. Both are required for sound interpretation.
+**Direction-and-stability patterns across models:**
+
+1. **Level models are directionally clean for their substantive
+   predictors** (LRP02 top 7, LRP04 top 6 all monotonic_+; the
+   non-monotonic `agebooks` / `agespeak` / `deappin` are
+   secondary). The core "more capability → higher level" story
+   stands.
+2. **LRP03's `eowpvt` is the cleanest signal in the entire
+   study**: Spearman −0.84, 100% stability. The regression-to-
+   the-mean finding is the most robust single result across the
+   four models.
+3. **LRP01 is uniformly clean and stable**: all 6 predictors
+   monotonic, top 5 at ≥ 80% stability. A weak-R² model with a
+   strong direction-and-stability profile — the right combination
+   for treating it as exploratory.
+4. **Non-monotonic features cluster in the middle-tier predictors**
+   across both level models. They add noise to the interpretive
+   story without changing the top-tier conclusions.
+5. **Stability selection reveals a hard cliff in LRP02.** The top
+   6–7 predictors appear in the top-5 of ≥ 50% of bootstraps;
+   predictors ranked 8 and below appear in the top-5 of < 15%.
+   Their ordering in the single-fit permutation importance is
+   partly fold-luck.
+
+### Construct-level view across models
+
+Aggregating permutation importance by construct family gives a
+much cleaner comparison between models than listing individual
+features:
+
+| Construct | LRP01 (gain) | LRP02 (level) | LRP03 (vocabulary gain) | LRP04 (vocabulary level) |
+|---|---:|---:|---:|---:|
+| Reading decoding | **0.120** | **0.605** | — | 0.074 |
+| Reading word | — | (target) | — | 0.076 |
+| Expressive vocabulary | 0.049 | 0.109 | **0.260** | (target) |
+| Language composite | 0.049 | 0.108 | **0.228** | **0.484** |
+| Receptive vocabulary | — | — | 0.081 | 0.100 |
+| Phonological memory | — | 0.083 | — | — |
+| Articulation | — | 0.015 | **0.153** | 0.032 |
+| Demographics (child) | 0.113 (age) | 0.092 | 0.073 (age) | 0.058 (age) |
+| Home literacy | — | 0.042 | 0.027 | — |
+| Demographics (family) | — | 0.060 | — | — |
+| Intervention | 0.089 (attend) | — | — | — |
+
+Each outcome has a **dominant construct** that carries the
+majority of the model's explanatory power:
+
+- **Word-reading gain (LRP01)**: reading decoding + intervention + age, roughly balanced.
+- **Word-reading level (LRP02)**: reading decoding (5.5× anything else) — cognitive / phonological skills dominate.
+- **Expressive-vocabulary gain (LRP03)**: expressive vocabulary (baseline regression-to-mean) + language composite + articulation.
+- **Expressive-vocabulary level (LRP04)**: language composite (4.8× anything else) — the `aptinfo` domain alone.
+
+The construct view also shows the **informative absences**:
+LRP03 has zero reading-decoding signal; LRP04 has zero articulation
+contribution beyond `deappin` (which is itself non-directional).
+These gaps are as interpretively important as the dominances — they
+mean those domains are genuinely orthogonal at this sample size.
+
+**Take-home**: for exploration, report *construct-level* importance
+first, then zoom into instruments within a dominant construct only
+for substantive clarification. The within-construct substitutions
+(which instrument "won" — `eowpvt` vs `b1exto` vs `aptinfo`) are
+mostly noise; which *domain* won is the stable signal.
 
 ### Target transforms pay off unequally
 

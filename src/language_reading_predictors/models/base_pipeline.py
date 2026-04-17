@@ -321,6 +321,225 @@ class EstimatorPipeline:
         context.plots["permutation_importance"] = fig
         plt.close(fig)
 
+    def construct_importance(self) -> None:
+        """Aggregate permutation importance by construct family.
+
+        Uses :attr:`Variables.CONSTRUCTS` via :meth:`Variables.construct_of`
+        to map each feature to a construct (language composite, expressive
+        vocabulary, receptive vocabulary, reading word, reading decoding,
+        articulation, phonological memory, speech sampling, health, home
+        literacy, demographics family / child, cognition, social,
+        intervention, study structure, or other).
+
+        Saves ``construct_importance.csv`` with per-construct sum, mean,
+        max, and member count. Must run after
+        :meth:`permutation_importance_analysis`.
+
+        Motivation: dominant *constructs* are more stable across variants
+        than dominant individual features — within-construct substitution
+        (e.g. ``b1exto`` ↔ ``eowpvt`` ↔ ``aptinfo``) is mostly noise. The
+        construct-level view surfaces which *domains* matter rather than
+        which specific instrument won the permutation-importance race on
+        this particular fit.
+        """
+        from language_reading_predictors.data_variables import Variables as V
+
+        _section("Construct-level importance")
+
+        context = self.context
+        perm_df = context.perm_importance_df.copy()
+        perm_df["construct"] = perm_df["feature"].map(V.construct_of)
+
+        grouped = (
+            perm_df.groupby("construct")
+            .agg(
+                total_importance=("importance_mean", "sum"),
+                mean_importance=("importance_mean", "mean"),
+                max_importance=("importance_mean", "max"),
+                n_members=("feature", "count"),
+                top_feature=("feature", "first"),
+            )
+            .sort_values("total_importance", ascending=False)
+            .reset_index()
+        )
+
+        context.dataframes["construct_importance"] = grouped
+        grouped.to_csv(context.output_dir / "construct_importance.csv", index=False)
+
+        print(grouped.to_string(index=False))
+
+    def shap_direction_diagnostics(self) -> None:
+        """Per-feature direction and monotonicity diagnostics from SHAP.
+
+        For each feature, compute:
+
+        - ``shap_mean_abs`` — magnitude (basically a SHAP-side mirror of
+          permutation importance; agreement with permutation importance
+          is itself a sanity check).
+        - ``shap_std`` — spread of SHAP values across observations. Large
+          spread with small mean-abs indicates a feature with high-
+          variance but low-consistency effect.
+        - ``feature_shap_spearman`` — Spearman rank correlation between
+          the feature value and its SHAP value. Sign gives the direction
+          of effect; magnitude gives monotonicity. +1 is clean
+          monotonic positive; −1 is clean monotonic negative; near-0 is
+          non-monotonic or bimodal.
+        - ``shape_flag`` — a categorical verdict:
+          ``"monotonic_+"`` / ``"monotonic_-"`` when ``|spearman| > 0.7``,
+          ``"noisy_+"`` / ``"noisy_-"`` when ``0.3 < |spearman| ≤ 0.7``,
+          and ``"non_monotonic"`` otherwise.
+
+        Reads ``context.shap_values`` so must run after
+        :meth:`shap_analysis`. A feature with low permutation importance
+        *and* ``non_monotonic`` / high-spread SHAP is a candidate for
+        drop on direction grounds, even when importance alone would be
+        borderline.
+        """
+        from scipy import stats as _stats
+
+        _section("SHAP direction diagnostics")
+
+        context = self.context
+        shap_vals = context.shap_values
+        if shap_vals is None:
+            print("  [yellow]No SHAP values available — skipped.[/yellow]")
+            return
+
+        X = context.X
+        rows = []
+        for i, feat in enumerate(X.columns):
+            feat_vals = X.iloc[:, i].to_numpy()
+            shap_col = shap_vals[:, i]
+            mask = ~np.isnan(feat_vals)
+            if mask.sum() < 3:
+                spearman = float("nan")
+            else:
+                res = _stats.spearmanr(feat_vals[mask], shap_col[mask])
+                spearman = float(res.correlation) if not np.isnan(res.correlation) else 0.0
+            mean_abs = float(np.mean(np.abs(shap_col)))
+            std = float(np.std(shap_col))
+            if abs(spearman) > 0.7:
+                flag = "monotonic_+" if spearman > 0 else "monotonic_-"
+            elif abs(spearman) > 0.3:
+                flag = "noisy_+" if spearman > 0 else "noisy_-"
+            else:
+                flag = "non_monotonic"
+            rows.append(
+                {
+                    "feature": feat,
+                    "shap_mean_abs": mean_abs,
+                    "shap_std": std,
+                    "feature_shap_spearman": spearman,
+                    "shape_flag": flag,
+                }
+            )
+
+        diag = pd.DataFrame(rows).sort_values("shap_mean_abs", ascending=False)
+        context.dataframes["shap_direction_diagnostics"] = diag
+        diag.to_csv(
+            context.output_dir / "shap_direction_diagnostics.csv", index=False
+        )
+        print(diag.to_string(index=False))
+
+    def stability_selection(
+        self, n_bootstraps: int = 30, subject_fraction: float = 0.8,
+        top_k: int = 5, n_repeats: int = 10,
+    ) -> None:
+        """Subject-level bootstrap stability of permutation importance.
+
+        Draws ``n_bootstraps`` subsamples of subjects (``subject_fraction``
+        of the unique subjects, sampled with replacement), refits the
+        estimator on each subsample, and recomputes permutation
+        importance with ``n_repeats`` repeats. Records:
+
+        - ``appearance_rate_top_k`` — fraction of bootstraps where the
+          feature placed in the top *top_k* by importance;
+        - ``importance_mean`` / ``importance_std`` — bootstrap distribution
+          of per-feature importance;
+        - ``rank_median`` / ``rank_iqr`` — distribution of the feature's
+          rank across bootstraps.
+
+        High appearance rate + low rank IQR → robustly important.
+        Compare against the single-point permutation importance to
+        identify features whose ranking is fold-luck rather than signal
+        — especially useful for the low-R² gain models (LRP01, LRP03)
+        where a single fit's ranking is least stable.
+
+        Gated to reporting configs via ``fit()``; costly for large
+        predictor sets but not ruinous at the current n.
+        """
+        from sklearn.base import clone
+        from sklearn.utils import resample
+
+        _section("Stability selection")
+
+        context = self.context
+        cfg = context.config
+        rng = np.random.default_rng(cfg.random_seed)
+        unique_subjects = np.asarray(context.groups.unique())
+        n_sub = max(1, int(round(len(unique_subjects) * subject_fraction)))
+
+        rank_records: dict[str, list[int]] = {f: [] for f in context.X.columns}
+        imp_records: dict[str, list[float]] = {f: [] for f in context.X.columns}
+        appearance_top: dict[str, int] = {f: 0 for f in context.X.columns}
+
+        print(
+            f"  Bootstraps: {n_bootstraps}, subjects per draw: {n_sub} "
+            f"of {len(unique_subjects)}, perm repeats per draw: {n_repeats}"
+        )
+
+        for b in range(n_bootstraps):
+            seed = int(rng.integers(0, 2**31 - 1))
+            drawn = resample(
+                unique_subjects, replace=True, n_samples=n_sub, random_state=seed,
+            )
+            mask = context.groups.isin(set(drawn.tolist())).to_numpy()
+            X_b = context.X.loc[mask]
+            y_b = context.y.loc[mask]
+
+            est = clone(context.pipeline)
+            est.fit(X_b, y_b)
+            result = permutation_importance(
+                est, X_b, y_b, n_repeats=n_repeats, random_state=seed,
+            )
+
+            # Rank features in this bootstrap (highest importance = rank 1)
+            order = np.argsort(-result.importances_mean)
+            ranks = np.empty_like(order)
+            ranks[order] = np.arange(1, len(order) + 1)
+            for i, feat in enumerate(context.X.columns):
+                rank_records[feat].append(int(ranks[i]))
+                imp_records[feat].append(float(result.importances_mean[i]))
+                if ranks[i] <= top_k:
+                    appearance_top[feat] += 1
+
+        rows = []
+        for feat in context.X.columns:
+            ranks_arr = np.asarray(rank_records[feat])
+            imps_arr = np.asarray(imp_records[feat])
+            rows.append(
+                {
+                    "feature": feat,
+                    "appearance_rate_top_k": appearance_top[feat] / n_bootstraps,
+                    "importance_mean": float(np.mean(imps_arr)),
+                    "importance_std": float(np.std(imps_arr)),
+                    "rank_median": float(np.median(ranks_arr)),
+                    "rank_q25": float(np.quantile(ranks_arr, 0.25)),
+                    "rank_q75": float(np.quantile(ranks_arr, 0.75)),
+                }
+            )
+
+        stab = pd.DataFrame(rows).sort_values(
+            "appearance_rate_top_k", ascending=False
+        )
+        stab.attrs["n_bootstraps"] = n_bootstraps
+        stab.attrs["top_k"] = top_k
+        context.dataframes["stability_selection"] = stab
+        stab.to_csv(
+            context.output_dir / "stability_selection.csv", index=False
+        )
+        print(stab.to_string(index=False))
+
     def feature_selection_diagnostics(self, cluster_cutoff: float = 0.4) -> None:
         """Compute inter-predictor diagnostics for feature selection.
 
@@ -875,6 +1094,7 @@ class EstimatorPipeline:
         self.evaluate()
         self.save_metrics()
         self.permutation_importance_analysis()
+        self.construct_importance()
 
         if not run.skip_correlation:
             self.feature_selection_diagnostics()
@@ -886,8 +1106,17 @@ class EstimatorPipeline:
         if not run.skip_shap:
             self.shap_analysis()
             self.run_shap_scatter_specs()
+            self.shap_direction_diagnostics()
         else:
             print(f"\n  [yellow]SHAP analysis skipped (run config: {run.name})[/yellow]")
+
+        # Stability selection is expensive; reporting config only.
+        if run.name == "reporting":
+            self.stability_selection()
+        else:
+            print(
+                f"\n  [yellow]Stability selection skipped (run config: {run.name})[/yellow]"
+            )
 
         if not run.skip_pdp:
             self.partial_dependence_plots()
