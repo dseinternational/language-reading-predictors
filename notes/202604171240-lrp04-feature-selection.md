@@ -156,30 +156,162 @@ Note: `agebooks` sits exactly on the 0.005 boundary — borderline.
 Could be reviewed after Select01. Each is close enough to the
 noise floor that correlation evidence should decide.
 
-## Cumulative
+## Correlation review on the 32-predictor set
+
+Feature-selection diagnostics identified three redundancy clusters:
+
+- **Language cluster (5 features):** `b1exto`, `aptinfo`, `rowpvt`,
+  `celf`, `b1reto`. All retained (importance 0.021–0.116). Mutual
+  dcorr 0.64–0.80. `b1reto` is the weakest partner (dcorr 0.74–0.76
+  with several retained siblings).
+- **Reading cluster (3 features):** `ewrswr` (0.049, retained),
+  `yarcsi` (0.003), `spphon` (0.003). `spphon` dcorr **0.78** with
+  `ewrswr` and `yarcsi` dcorr 0.68 with `ewrswr` → classic "drop
+  the redundant ones".
+- **Speech-error cluster (3 features):** `aptgram` (0.006),
+  `erbword` (0.005), `erbnw` (0.004). `erbword` ↔ `erbnw` dcorr
+  **0.84** (pair-redundancy). `aptgram` more correlated with
+  `aptinfo` (dcorr **0.76**) than with its cluster siblings.
+- **Articulation pair:** `deappin` (0.009) + `deappfi` (0.009),
+  dcorr **0.77** — pure pair-redundancy.
+
+## Select01: drop 23 features in one aggressive cut (32 → 9)
+
+After reviewing Tier A + B candidates and pairwise correlations,
+and on the user's judgement call to additionally drop three
+demographic/family features (`agespeak`, `dadedupost16`, `numchil`),
+the decision was to drop **23 features** in a single step.
+
+### Removed (23)
+
+**Tier A (17, importance ≤ 0.005):**
+`hearing`, `group`, `area`, `time`, `behav`, `earinf`, `deappvo`,
+`nonword`, `gender`, `mumedupost16`, `spphon`, `yarcsi`, `erbnw`,
+`blending`, `vision`, `erbword`, `agebooks`.
+
+Several with redundancy support:
+- `yarcsi` / `spphon` / `nonword` — dcorr 0.66–0.78 with retained `ewrswr`.
+- `erbword` + `erbnw` — dcorr 0.84 pair, both going.
+- `mumedupost16` — dcorr 0.56 with `dadedupost16`.
+
+**Tier B with redundancy (3):**
+- `aptgram` (0.006, dcorr **0.76 with retained `aptinfo` (0.107)**)
+- `trog` (0.006, dcorr 0.60–0.64 with language cluster)
+- `deappfi` (0.009, dcorr **0.77 with retained `deappin`** — pair)
+
+**Additional demographic/family drops (3):**
+- `agespeak` (0.010), `dadedupost16` (0.009), `numchil` (0.006) —
+  user-specified drops to remove parental-education and family-size
+  signal entirely, on the judgement that the remaining 9 cognitive/
+  language/reading measures carry the task-relevant signal.
+
+### Retained (9)
+
+`b1exto`, `aptinfo`, `rowpvt`, `ewrswr`, `celf`, `age`, `yarclet`,
+`b1reto`, `deappin`.
+
+### Select01 carry-forward (32-tune → 9 predictors)
+
+| Metric | Before (32 predictors, 298 trees) | After (9 predictors, same 298 trees) |
+|---|---:|---:|
+| CV MAE | 6.156 ± 1.115 | **5.564 ± 1.260** |
+| CV RMSE | 7.679 | **7.008** |
+| **CV R²** | 0.543 ± 0.278 | **0.619 ± 0.229** |
+| CV MedAE | 5.268 | **4.627** |
+| In-sample R² | 0.913 | 0.892 |
+
+Dramatic improvement across every CV metric. **CV R² jumps from
+0.543 to 0.619** (+0.076), CV MAE drops 0.59, CV MedAE drops 0.64
+— all with no tuning change. Every retained feature's importance
+rose — textbook sign of removing pure noise and redundancy.
+
+### Retune on 9 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **5.5527 ± 1.2155**.
+
+| Parameter | Tuned on 32 | **Tuned on 9** |
+|---|---:|---:|
+| n_estimators | 298 | **69** |
+| learning_rate | 0.019 | 0.076 |
+| num_leaves | 17 | 32 |
+| max_depth | 3 | 5 |
+| min_child_samples | 4 | 6 |
+| subsample | 0.688 | 0.860 |
+| colsample_bytree | 0.642 | 0.683 |
+| reg_alpha | 0.002 | 0.008 |
+| reg_lambda | 0.003 | **0.146** |
+
+Major regime shift: **many fewer trees (69 vs 298), faster
+learning, wider deeper trees, much more L2 regularisation**. With
+only 9 highly-informative features the model doesn't need 298
+conservative trees — it can commit to fewer wider ones with
+stronger reg.
+
+### Refit under Select01 retuned params
+
+| Metric | Carry-forward (298 trees) | **Retuned (69 trees)** |
+|---|---:|---:|
+| CV MAE | 5.564 ± 1.260 | **5.572 ± 1.195** |
+| CV RMSE | 7.008 | **7.005** |
+| CV R² | 0.619 ± 0.229 | **0.618 ± 0.237** |
+| CV MedAE | **4.627** | 4.718 |
+| In-sample R² | 0.892 | 0.924 |
+
+**Essentially tied.** Carry-forward slightly better on MedAE,
+retune slightly tighter in-sample, CV MAE / RMSE / R² all within
+noise. Retained for the "tuned on this feature set" convention —
+the carry-forward's 298 trees + heavy regularisation happens to
+work well on 9 predictors too.
+
+### Permutation importance under retuned model
+
+| Rank | Feature | Importance |
+|---|---|---:|
+| 1 | **`b1exto`** | **0.164** |
+| 2 | `aptinfo` | 0.128 |
+| 3 | `rowpvt` | 0.086 |
+| 4 | `ewrswr` | 0.076 |
+| 5 | `celf` | 0.069 |
+| 6 | `age` | 0.064 |
+| 7 | `yarclet` | 0.037 |
+| 8 | `deappin` | 0.033 |
+| 9 | `b1reto` | 0.026 |
+
+All 9 features at substantial importance (min 0.026). No noise
+floor. `age` rose from 0.029 (32-predictors) to 0.064 — tripled. `ewrswr`
+rose from 0.049 to 0.076, `celf` from 0.048 to 0.069.
+
+## Cumulative summary
 
 | Step | Predictors | CV MAE | CV R² | CV MedAE |
 |---|---|---|---|---|
 | Baseline (untuned) | 32 | 6.562 | 0.470 | 6.043 |
-| MAE-tuned on 32 | 32 | **6.156** | **0.543** | **5.268** |
+| MAE-tuned on 32 | 32 | 6.156 | 0.543 | 5.268 |
+| Select01 (carry-forward) | 9 | **5.564** | **0.619** | **4.627** |
+| Retuned-9 | 9 | 5.572 | 0.618 | 4.718 |
+
+**Strong result:** cutting from 32 to 9 features dropped CV MAE
+by 0.58 (~9%) and raised CV R² by 0.076. The Select01 carry-forward
+was nearly optimal — retune brought no additional CV benefit.
 
 ## Current state
 
-- **`lrp04`** (primary, MAE-tuned on 32 predictors): 32 predictors,
-  CV MAE 6.156 ± 1.115, CV R² 0.543 ± 0.278, CV MedAE 5.268. No
+- **`lrp04`** (primary, MAE-tuned on 9 predictors): 9 predictors,
+  CV MAE 5.572 ± 1.195, CV R² 0.618 ± 0.237, CV MedAE 4.718. No
   outlier exclusion, n=215.
-- Tuning baseline established. No feature-selection steps applied
-  yet — this PR is the tuned starting point.
-- Next step: `Select01` drops Tier A (17 features); optionally
-  some Tier B based on correlation review.
+- One `SelectionStep` on `LRP04` documents the 32 → 9 cut.
+- All 9 retained features have importance ≥ 0.026 — no noise floor
+  candidates for a further pure-importance cut.
 
 ## Next-step candidates (future PRs)
 
-- **Select01** (feature selection): drop ≤ 0.005 tier, retune on
-  ~15 predictors.
-- **Correlation / redundancy review** once the feature set is
-  smaller.
+- **Correlation review on the 9-predictor set:** `b1reto` (0.026)
+  still sits inside the language cluster — worth checking whether
+  it's redundant with the higher-importance partners after the
+  Select01 cut.
 - **log1p target transform** (`LGBMLogPipeline`). Less compelling
-  than on LRP02 given the milder skew, but worth a check.
+  than on LRP02 given the milder skew (0.63 vs heavy) and lack of
+  floor — but worth a check given the U-shaped quartile-MAE pattern
+  in the 32-predictor model may have shifted.
 - **Quantile α=0.5 objective** — mirrors LRP02 quantile work.
 - **RMSE-tuned prediction variant** (`lrp04_prediction`).
