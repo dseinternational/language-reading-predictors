@@ -34,7 +34,7 @@ from rich import print
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 from sklearn.inspection import partial_dependence, permutation_importance
-from sklearn.model_selection import GroupKFold, cross_validate
+from sklearn.model_selection import GroupKFold, cross_val_predict, cross_validate
 
 import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors.data_variables import Variables as V
@@ -158,6 +158,49 @@ class EstimatorPipeline:
         print(f"  RMSE:  {scores_df['rmse'].mean():.4f} ± {scores_df['rmse'].std():.4f}")
         print(f"  R²:    {scores_df['r2'].mean():.4f} ± {scores_df['r2'].std():.4f}")
         print(f"  MedAE: {scores_df['medae'].mean():.4f} ± {scores_df['medae'].std():.4f}")
+
+        # Pooled out-of-fold metrics: score the stacked OOF predictions
+        # against the global mean of y, rather than averaging per-fold R².
+        # Per-fold R² is meaningless when each fold is a single subject
+        # (near-constant y → tiny SST → huge negative R² from small errors).
+        oof_pred = cross_val_predict(
+            context.pipeline,
+            context.X,
+            context.y,
+            cv=cv,
+            groups=context.groups,
+        )
+        y_true = context.y.to_numpy()
+        residuals = y_true - oof_pred
+        abs_residuals = np.abs(residuals)
+        ss_res = float(np.sum(residuals**2))
+        ss_tot = float(np.sum((y_true - y_true.mean()) ** 2))
+        pooled = {
+            "pooled_mae": float(np.mean(abs_residuals)),
+            "pooled_rmse": float(np.sqrt(np.mean(residuals**2))),
+            "pooled_medae": float(np.median(abs_residuals)),
+            "pooled_r2": float(1.0 - ss_res / ss_tot) if ss_tot > 0 else None,
+        }
+        context.oof_predictions = oof_pred
+        context.pooled_cv_metrics = pooled
+
+        oof_df = pd.DataFrame(
+            {
+                V.SUBJECT_ID: context.groups,
+                "y_true": y_true,
+                "y_pred_oof": oof_pred,
+            }
+        )
+        oof_df["residual"] = oof_df["y_true"] - oof_df["y_pred_oof"]
+        context.dataframes["oof_predictions"] = oof_df
+        oof_df.to_csv(context.output_dir / "oof_predictions.csv", index=False)
+
+        print("  Pooled OOF (vs. global mean):")
+        print(f"    MAE:   {pooled['pooled_mae']:.4f}")
+        print(f"    RMSE:  {pooled['pooled_rmse']:.4f}")
+        if pooled["pooled_r2"] is not None:
+            print(f"    R²:    {pooled['pooled_r2']:.4f}")
+        print(f"    MedAE: {pooled['pooled_medae']:.4f}")
 
     def fit_model(self) -> None:
         """Fit the pipeline on the full dataset."""
@@ -753,6 +796,10 @@ class EstimatorPipeline:
             "cv_r2_std": float(cv_scores_df["r2"].std()) if cv_scores_df is not None else None,
             "cv_medae_mean": float(cv_scores_df["medae"].mean()) if cv_scores_df is not None else None,
             "cv_medae_std": float(cv_scores_df["medae"].std()) if cv_scores_df is not None else None,
+            "cv_pooled_mae": (context.pooled_cv_metrics or {}).get("pooled_mae"),
+            "cv_pooled_rmse": (context.pooled_cv_metrics or {}).get("pooled_rmse"),
+            "cv_pooled_r2": (context.pooled_cv_metrics or {}).get("pooled_r2"),
+            "cv_pooled_medae": (context.pooled_cv_metrics or {}).get("pooled_medae"),
             "in_sample_mae": in_sample_mae,
             "in_sample_rmse": in_sample_rmse,
             "in_sample_r2": in_sample_r2,
