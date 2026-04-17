@@ -110,6 +110,16 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 - The Quarto report (`docs/report/`) uses `execute: freeze: true` — computational output is cached, not re-run on render.
 - Build system is Hatch (`pyproject.toml`). Version is read from `src/language_reading_predictors/__init__.py`.
 
+## Interpreting model results
+
+When describing what a fitted model indicates — whether writing notes, report sections, PR bodies, or commit messages — **inspect the SHAP beeswarm plot (`output/models/{model_id}/shap_summary.png`) alongside the permutation-importance ranking**. Permutation importance tells you *how much* each feature contributes; the beeswarm shows *which direction* the effect runs and *how consistently*. The two frequently disagree in interpretively important ways:
+
+- A predictor can rank #1 on importance while acting in the opposite direction to every other predictor (e.g. LRP03's `eowpvt` — lower baseline vocabulary predicts more gain, a regression-to-the-mean signal).
+- A predictor can rank #1 on importance while having a non-monotonic or mixed-sign effect (e.g. LRP01's `age`).
+- Two predictors with similar importance can have opposite directions (e.g. LRP02's `agebooks` / `agespeak` are negatively directional while `mumedupost16` is positive).
+
+Check each top predictor's beeswarm row for: (i) whether blue (low feature value) and red (high) cluster cleanly on opposite sides of zero (monotonic), (ii) whether the effect is tight or wide, (iii) whether any tails show observations acting opposite to the dominant direction. Report the direction explicitly when describing results — don't leave readers to infer it from importance alone.
+
 ## Pre-commit checks
 
 Before creating a commit or opening a pull request, both of the following must pass:
