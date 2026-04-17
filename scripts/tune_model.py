@@ -42,7 +42,6 @@ from rich import print
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 
 import language_reading_predictors.data_utils as data_utils
-from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.common import ModelConfig
 from language_reading_predictors.models.registry import MODELS
 
@@ -54,7 +53,7 @@ _TUNING_DIR = _ROOT_DIR / "output" / "tuning"
 
 _LGBM_FIXED: dict[str, Any] = {
     "subsample_freq": 1,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -63,20 +62,10 @@ _LGBM_FIXED: dict[str, Any] = {
 
 
 def _load_frame(cfg: ModelConfig) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
-    """Load data with the same filter rules as the fit pipeline.
-
-    Leaves NaN in place — both sklearn RandomForest (>= 1.4) and LightGBM
-    handle missingness natively, and imputing here would create a
-    tune/fit mismatch: the selected hyperparameters would be chosen on
-    mean-imputed X but then applied by ``base_pipeline`` to raw-NaN X.
-    """
-    df = data_utils.load_data()
-    df = df[df[cfg.target_var].notna()].copy()
-    if cfg.outlier_threshold is not None:
-        df = df[df[cfg.target_var] < cfg.outlier_threshold]
-    X = df[cfg.predictor_vars].replace({pd.NA: np.nan}).astype("float64")
-    y = df[cfg.target_var].astype("float64")
-    groups = df[V.SUBJECT_ID]
+    """Load data with the same filter rules as the fit pipeline."""
+    _df, X, y, groups = data_utils.load_and_filter(
+        cfg.target_var, cfg.predictor_vars, cfg.outlier_threshold
+    )
     return X, y, groups
 
 
@@ -88,7 +77,7 @@ def _clear_directory(path: Path) -> None:
             try:
                 entry.unlink()
             except PermissionError:
-                pass
+                print(f"[yellow]Warning: could not delete {entry} (PermissionError)[/yellow]")
 
 
 # ── search spaces ───────────────────────────────────────────────────────
@@ -209,7 +198,9 @@ def _lgbm_objective(
             )
             preds = inverse(model.predict(X_val))
             fold_scores.append(score_fn(y_val.to_numpy(), preds))
-            best_iters.append(int(model.best_iteration_ or max_n_estimators))
+            best_iters.append(
+                int(model.best_iteration_ if model.best_iteration_ is not None else max_n_estimators)
+            )
 
         trial.set_user_attr("mean_best_iteration", int(round(float(np.mean(best_iters)))))
         trial.set_user_attr(f"cv_{scoring}_std", float(np.std(fold_scores)))
@@ -288,7 +279,7 @@ def tune(
 
     print(f"[bold green]Tuning {key} ({pipeline_name})[/bold green]")
     print(f"  Observations: {len(X)}  Predictors: {X.shape[1]}")
-    print(f"  CV splits: {cv_splits}  Trials: {n_trials}  Timeout: {timeout}s")
+    print(f"  CV splits: {cv_splits}  Trials: {n_trials}  Timeout: {timeout or '∞'}s")
     print(
         f"  Early stopping: {early_stopping_rounds} rounds  "
         f"max_n_estimators: {max_n_estimators}  "

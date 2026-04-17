@@ -24,14 +24,9 @@ directly comparable to SHAP values from :class:`LGBMPipeline`.
 """
 
 import numpy as np
-from rich import print
 from sklearn.compose import TransformedTargetRegressor
-from sklearn.pipeline import Pipeline
 
-from language_reading_predictors.models.base_pipeline import (
-    ESTIMATOR_STEP,
-    _section,
-)
+from language_reading_predictors.models.base_pipeline import ESTIMATOR_STEP
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
@@ -50,37 +45,15 @@ def signed_expm1(x):
 class LGBMSignedLogPipeline(LGBMPipeline):
     """LightGBM regression pipeline with signed-log target transformation."""
 
-    def configure_model(self) -> None:
-        from lightgbm import LGBMRegressor
+    _estimator_label: str = "LGBMRegressor (signed-log-wrapped)"
 
-        _section("Configure model")
-
-        context = self.context
-        cfg = context.config
-        run = context.run_config
-
-        lgbm_params = dict(cfg.model_params)
-        if run.n_estimators is not None:
-            # Cap, not replace — see LGBMPipeline.configure_model.
-            tuned = lgbm_params.get("n_estimators", run.n_estimators)
-            lgbm_params["n_estimators"] = min(tuned, run.n_estimators)
-
-        lgbm = LGBMRegressor(
-            **lgbm_params,
-            random_state=cfg.random_seed,
-        )
-        wrapped = TransformedTargetRegressor(
+    def _wrap_estimator(self, lgbm):
+        return TransformedTargetRegressor(
             regressor=lgbm,
             func=signed_log1p,
             inverse_func=signed_expm1,
             check_inverse=False,
         )
-        context.pipeline = Pipeline([(ESTIMATOR_STEP, wrapped)])
-
-        print(f"  LGBMRegressor (signed-log-wrapped): {lgbm_params}")
-
-        cv_splits = run.cv_splits if run.cv_splits is not None else cfg.cv_splits
-        print(f"  CV: GroupKFold(n_splits={cv_splits})")
 
     def shap_analysis(self) -> None:
         """Re-aim SHAP at the underlying LGBM inside the TTR wrapper.

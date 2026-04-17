@@ -209,25 +209,6 @@ def spearman_distance_matrix(X: pd.DataFrame | np.ndarray | list[float]):
     return distance, corr
 
 
-def _compute_pair_dcor(xi, xj):
-    """
-    Helper function for parallel execution.
-    """
-    mask = np.isfinite(xi) & np.isfinite(xj)
-
-    # Not enough data points
-    if mask.sum() < 2:
-        return 0.0
-
-    dc = dcor.distance_correlation(xi[mask], xj[mask])
-
-    # Calculation failed (e.g., constant values)
-    if not np.isfinite(dc):
-        return 0.0
-
-    return dc
-
-
 def distance_corr_matrix(X: pd.DataFrame | np.ndarray | list[float]):
     """
     Compute pairwise distance correlation matrix for all feature pairs.
@@ -239,13 +220,6 @@ def distance_corr_matrix(X: pd.DataFrame | np.ndarray | list[float]):
     ----------
     X : array-like of shape (n_samples, n_features)
         Input data matrix.
-
-    n_jobs : int, optional (default=-1)
-        Number of jobs to run in parallel. -1 means using all processors.
-
-    parallel_threshold : int, optional (default=20)
-        Minimum number of features required to trigger parallel processing.
-        Below this, the function runs serially to avoid multiprocessing overhead.
 
     Returns
     -------
@@ -296,11 +270,6 @@ def distance_corr_dissimilarity(X: pd.DataFrame | np.ndarray | list[float]):
     ----------
     X : array-like of shape (n_samples, n_features)
         Input data matrix.
-    n_jobs : int, optional (default=-1)
-        Number of jobs to run in parallel. -1 means using all processors.
-    parallel_threshold : int, optional (default=20)
-        Minimum number of features required to trigger parallel processing.
-        Below this, the function runs serially to avoid multiprocessing overhead.
 
     Returns
     -------
@@ -350,7 +319,7 @@ def distance_corr_dissimilarity_linkage(X):
     - Uses distance correlation dissimilarity metric
     - Returns condensed form for compatibility with scipy linkage functions
     """
-    dissim = distance_corr_dissimilarity(X)
+    dissim, _corr_matrix = distance_corr_dissimilarity(X)
     condensed = squareform(dissim)
     linkage = hierarchy.ward(condensed)
     return dissim, condensed, linkage

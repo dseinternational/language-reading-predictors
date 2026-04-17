@@ -19,7 +19,7 @@ from IPython.display import Image, display
 from language_reading_predictors.data_variables import Variables as vars
 
 
-HERE = Path(".")
+HERE = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = HERE / "output"
 
 
@@ -33,14 +33,13 @@ def hierarchy_dendrogram(
     return dendro
 
 
-def plot_violinplot_t1_to_t3(data: pd.DataFrame, variable: str):
-    data_t1 = data[data[vars.TIME] == 1][variable].dropna()
-    data_t2 = data[data[vars.TIME] == 2][variable].dropna()
-    data_t3 = data[data[vars.TIME] == 3][variable].dropna()
+def _plot_violinplot(data: pd.DataFrame, variable: str, time_points: list[int]):
+    n = len(time_points)
+    datasets = [data[data[vars.TIME] == t][variable].dropna() for t in time_points]
 
-    fig, axes = plt.subplots(1, 3, figsize=(9, 4), sharey=True)
+    fig, axes = plt.subplots(1, n, figsize=(3 * n, 4), sharey=True)
 
-    for ax, d, t in zip(axes, [data_t1, data_t2, data_t3], [1, 2, 3, 4]):
+    for ax, d, t in zip(axes, datasets, time_points):
         parts = ax.violinplot(
             d,
             showmeans=True,
@@ -55,31 +54,14 @@ def plot_violinplot_t1_to_t3(data: pd.DataFrame, variable: str):
     axes[0].set_ylabel(f"{variable} score")
     plt.suptitle(f"Violin plots of {variable} by time point")
     return fig, axes
+
+
+def plot_violinplot_t1_to_t3(data: pd.DataFrame, variable: str):
+    return _plot_violinplot(data, variable, [1, 2, 3])
 
 
 def plot_violinplot_t1_to_t4(data: pd.DataFrame, variable: str):
-    data_t1 = data[data[vars.TIME] == 1][variable].dropna()
-    data_t2 = data[data[vars.TIME] == 2][variable].dropna()
-    data_t3 = data[data[vars.TIME] == 3][variable].dropna()
-    data_t4 = data[data[vars.TIME] == 4][variable].dropna()
-
-    fig, axes = plt.subplots(1, 4, figsize=(12, 4), sharey=True)
-
-    for ax, d, t in zip(axes, [data_t1, data_t2, data_t3, data_t4], [1, 2, 3, 4]):
-        parts = ax.violinplot(
-            d,
-            showmeans=True,
-            showmedians=True,
-        )
-        parts["cmeans"].set_color("red")
-        parts["cmedians"].set_color("green")
-        parts["cmedians"].set_linewidth(2)
-        ax.set_title(f"Time {t}")
-        ax.set_xticks([])
-
-    axes[0].set_ylabel(f"{variable} score")
-    plt.suptitle(f"Violin plots of {variable} by time point")
-    return fig, axes
+    return _plot_violinplot(data, variable, [1, 2, 3, 4])
 
 
 def plot_histograms(
@@ -133,7 +115,7 @@ def plot_histograms(
 
     axes_flat = axes.flatten()
 
-    for ax, v in zip(axes_flat, data.columns):
+    for ax, v in zip(axes_flat, df.columns):
         series = df[v].dropna().to_numpy(dtype=np.float64)
         bins = min(max_bins, max(2, int(series.max() - series.min())))
 
@@ -285,7 +267,7 @@ def plot_line(xs, ys, **plot_kwargs):
     background_plot_kwargs = {k: v for k, v in plot_kwargs.items()}
     background_plot_kwargs["linewidth"] = linewidth + 2
     background_plot_kwargs["color"] = "white"
-    del background_plot_kwargs["label"]  # no legend label for background
+    background_plot_kwargs.pop("label", None)  # no legend label for background
 
     plt.plot(xs, ys, **background_plot_kwargs, zorder=30)
     plt.plot(xs, ys, **plot_kwargs, zorder=31)
@@ -354,7 +336,7 @@ def plot_graph(graph, **graph_kwargs):
     )
 
     # Set default styling
-    np.random.seed(123)  # for consistent spring-layout
+    np.random.seed(123)  # noqa: NPY002 – global seed needed by nx.spring_layout
     if "layout" in graph_kwargs:
         graph_kwargs["pos"] = graph_kwargs["layout"](G)
 
@@ -413,9 +395,6 @@ def plot_2d_function(xrange, yrange, func, ax=None, **countour_kwargs):
         value.reshape(resolution, resolution),
         **countour_kwargs,
     )
-
-
-OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
 
 
 def plot_heatmap(

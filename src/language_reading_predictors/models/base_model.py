@@ -189,18 +189,18 @@ class ModelDefinition:
             selection_steps=all_history,
         )
 
-        # Resolve pipeline_cls: walk MRO to find the first non-None
+        # Resolve pipeline_cls: walk MRO to find the first explicitly set value
         pipeline_cls = cls.pipeline_cls
         if pipeline_cls is None:
             for ancestor in cls.__mro__:
-                pcls = getattr(ancestor, "pipeline_cls", None)
+                pcls = ancestor.__dict__.get("pipeline_cls")
                 if pcls is not None:
                     pipeline_cls = pcls
                     break
 
         # Resolve params: walk MRO to find the first non-empty
         params = cls.params
-        if not params:
+        if params is None or (not params and "params" not in cls.__dict__):
             for ancestor in cls.__mro__:
                 p = ancestor.__dict__.get("params")
                 if p:
@@ -243,7 +243,8 @@ class GainModel(ModelDefinition):
         # Auto-include the base variable (e.g. ewrswr for ewrswr_gain)
         if hasattr(cls, "target_var") and cls.target_var:
             base_var = cls.target_var.removesuffix("_gain")
-            include = list(cls.__dict__.get("include") or cls.include or [])
+            own_include = cls.__dict__.get("include")
+            include = list(own_include if own_include is not None else cls.include or [])
             if base_var not in include:
                 include.insert(0, base_var)
                 cls.include = include

@@ -4,7 +4,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import RandomizedSearchCV
-from typing_extensions import Any
+from typing import Any
 
 DEFAULT_RF_REGRESSION_SCORING = "neg_mean_absolute_error"
 

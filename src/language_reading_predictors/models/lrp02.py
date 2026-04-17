@@ -146,7 +146,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "colsample_bytree": 0.6997497470635539,
     "reg_alpha": 0.001383118016594975,
     "reg_lambda": 0.0012224991529179404,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -166,7 +166,7 @@ _LGBM_MAE_PARAMS_SELECT02: dict[str, float | int | str] = {
     "colsample_bytree": 0.6831652991793304,
     "reg_alpha": 0.0010143700221596228,
     "reg_lambda": 0.002220144406178582,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -187,7 +187,7 @@ _LGBM_MAE_PARAMS_LOG: dict[str, float | int | str] = {
     "colsample_bytree": 0.6354537611535218,
     "reg_alpha": 0.010804887107264944,
     "reg_lambda": 0.04796741692608438,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -207,7 +207,7 @@ _LGBM_RMSE_PARAMS: dict[str, float | int | str] = {
     "colsample_bytree": 0.6132093303284623,
     "reg_alpha": 0.003422478748080231,
     "reg_lambda": 0.12984738927699754,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -227,7 +227,7 @@ _LGBM_RMSE_PARAMS_LOG: dict[str, float | int | str] = {
     "colsample_bytree": 0.7795376336231212,
     "reg_alpha": 0.06759227929609403,
     "reg_lambda": 0.06485655423178838,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -293,7 +293,7 @@ _LGBM_MAE_PARAMS_LOG_SELECT: dict[str, float | int | str] = {
     "colsample_bytree": 0.6293455916115821,
     "reg_alpha": 0.007594621812491086,
     "reg_lambda": 0.20355563772815835,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -313,7 +313,7 @@ _LGBM_MAE_PARAMS_SELECT02_LOG: dict[str, float | int | str] = {
     "colsample_bytree": 0.6098925462576346,
     "reg_alpha": 0.28851697467399,
     "reg_lambda": 0.008417559747075195,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -345,7 +345,7 @@ class LRP02(LevelModel):
     ]
     notes = (
         "Exploratory model for identifying important predictors of word-reading "
-        "level (ewrswr). MAE-tuned on the current 15-predictor set with no "
+        "level (ewrswr). MAE-tuned on the current 13-predictor set with no "
         "outlier exclusion so importance rankings reflect the full range of "
         "outcomes. See notes/202604161949-lrp02-feature-selection.md."
     )

@@ -6,14 +6,22 @@ Fits the specified model to the latest data. Saves plots and data to the output 
 """
 
 import argparse
-import os
 import subprocess
-import dse_research_utils.environment.setup as setup
+from pathlib import Path
 from multiprocessing import freeze_support
+
+import dse_research_utils.environment.setup as setup
 from rich import print
 from language_reading_predictors.models.registry import MODELS
 
-if __name__ == "__main__":
+
+def _fit(cfg, config_name):
+    from language_reading_predictors.models.common import RunConfig
+
+    return cfg.pipeline_cls(cfg, RunConfig.from_name(config_name)).fit()
+
+
+def main():
     parser = argparse.ArgumentParser(
         description="Fit a language-reading-predictors model."
     )
@@ -50,11 +58,6 @@ if __name__ == "__main__":
 
     model_key = args.model.lower()
 
-    def _fit(cfg):
-        from language_reading_predictors.models.common import RunConfig
-
-        return cfg.pipeline_cls(cfg, RunConfig.from_name(args.config)).fit()
-
     if model_key == "all":
         models_to_run = [
             cfg
@@ -63,17 +66,25 @@ if __name__ == "__main__":
         ]
         if not models_to_run:
             print("[bold red]No models to run.[/bold red]")
-            exit(1)
-        contexts = [_fit(cfg) for cfg in models_to_run]
+            raise SystemExit(1)
     elif model_key in MODELS:
-        contexts = [_fit(MODELS[model_key])]
+        models_to_run = [MODELS[model_key]]
     else:
         print(f"[bold red]Unknown model: {args.model}[/bold red]")
         print(f"Available models: {', '.join(MODELS.keys())}")
-        exit(1)
+        raise SystemExit(1)
+
+    contexts = []
+    failed = []
+    for cfg in models_to_run:
+        try:
+            contexts.append(_fit(cfg, args.config))
+        except Exception as exc:
+            failed.append((cfg.model_id, exc))
+            print(f"[bold red]Error fitting {cfg.model_id}: {exc}[/bold red]")
 
     # Summary table when fitting multiple models
-    if len(contexts) > 1:
+    if len(models_to_run) > 1:
         print(
             "\n[green]============================================================[/green]"
         )
@@ -90,14 +101,23 @@ if __name__ == "__main__":
                 f"target={ctx.config.target_var:20s}  "
                 f"CV RMSE={cv_rmse:.4f}"
             )
+        for model_id, exc in failed:
+            print(f"  [red]{model_id.upper():6s}  FAILED: {exc}[/red]")
 
     if args.render:
         for context in contexts:
-            qmd_path = os.path.join(context.output_dir, "index.qmd")
-            if os.path.exists(qmd_path):
+            qmd_path = Path(context.output_dir) / "index.qmd"
+            if qmd_path.exists():
                 print(f"\n[bold green]Rendering Quarto output: {qmd_path}[/bold green]")
-                subprocess.run(["quarto", "render", qmd_path], check=True)
+                subprocess.run(["quarto", "render", str(qmd_path)], check=True)
             else:
                 print(
                     f"\n[bold yellow]No index.qmd found at {qmd_path}, skipping render.[/bold yellow]"
                 )
+
+    if failed:
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
