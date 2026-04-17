@@ -36,7 +36,11 @@ class LGBMPipeline(EstimatorPipeline):
 
         lgbm_params = dict(cfg.model_params)
         if run.n_estimators is not None:
-            lgbm_params["n_estimators"] = run.n_estimators
+            # Treat run.n_estimators as an upper cap, not a replacement:
+            # models with a tuned n_estimators below the cap should keep
+            # their tune rather than being inflated to the cap value.
+            tuned = lgbm_params.get("n_estimators", run.n_estimators)
+            lgbm_params["n_estimators"] = min(tuned, run.n_estimators)
 
         lgbm = LGBMRegressor(
             **lgbm_params,

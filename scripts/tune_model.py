@@ -123,9 +123,18 @@ _SCORING_FUNCS: dict[str, Callable[[np.ndarray, np.ndarray], float]] = {
 # Target transforms: (forward, inverse) functions applied to y before
 # fitting / after predicting. Scoring always happens in the original
 # target space so tuning metrics remain comparable across transforms.
+def _signed_log1p(y):
+    return np.sign(y) * np.log1p(np.abs(y))
+
+
+def _signed_expm1(x):
+    return np.sign(x) * np.expm1(np.abs(x))
+
+
 _TARGET_TRANSFORMS: dict[str, tuple[Callable[[np.ndarray], np.ndarray], Callable[[np.ndarray], np.ndarray]]] = {
     "none": (lambda y: y, lambda y: y),
     "log1p": (np.log1p, np.expm1),
+    "signed_log": (_signed_log1p, _signed_expm1),
 }
 
 
@@ -214,10 +223,15 @@ def _make_log_trial(scoring: str):
     return _log_trial
 
 
-_SUPPORTED_PIPELINES = {"LGBMPipeline", "LGBMLogPipeline"}
+_SUPPORTED_PIPELINES = {
+    "LGBMPipeline",
+    "LGBMLogPipeline",
+    "LGBMSignedLogPipeline",
+}
 _PIPELINE_DEFAULT_TRANSFORM = {
     "LGBMPipeline": "none",
     "LGBMLogPipeline": "log1p",
+    "LGBMSignedLogPipeline": "signed_log",
 }
 
 
