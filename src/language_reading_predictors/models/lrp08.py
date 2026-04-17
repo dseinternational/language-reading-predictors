@@ -5,21 +5,17 @@
 LRP08: Predictors of receptive vocabulary level.
 
 ``LRP08`` is the exploratory model for receptive vocabulary level
-(``rowpvt``). It is MAE-tuned on the full 32-predictor
-:attr:`Predictors.DEFAULT_LEVEL` set (minus the target), with no
-outlier exclusion, designed to identify the most important
-influences on receptive vocabulary level.
+(``rowpvt``). It is MAE-tuned on the 17-predictor Select01 set
+(down from the original 32-predictor
+:attr:`Predictors.DEFAULT_LEVEL` minus target), with no outlier
+exclusion, designed to identify the most important influences on
+receptive vocabulary level.
 
 The target is **essentially symmetric and near-Gaussian** (``rowpvt``
 min 11, max 82, median 42, mean 41.1, std 14.1, skewness 0.04,
 n ≈ 215). No floor, no ceiling, no heavy tail — the cleanest
 target distribution of any LRP model to date. Transforms are
 unnecessary; standard MAE and RMSE objectives should behave well.
-
-The predictor set will be reduced by iterative importance-based
-feature selection under the MAE-tuned params (see
-``notes/202604171715-lrp08-feature-selection.md``). This is the
-initial tuned baseline; no feature-selection steps yet.
 """
 
 from language_reading_predictors.data_variables import Variables as V  # noqa: F401
@@ -30,32 +26,62 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# LRP08 has not yet been through iterative feature selection. When
-# selection variants are introduced, record their rationale here as
-# ``SelectionStep`` entries and chain from ``LRP08`` the same way
-# ``lrp02.py`` / ``lrp04.py`` / ``lrp06.py`` does.
+# Documents the 32 → 17 feature-selection history under MAE-tuned
+# params with no outlier exclusion (n=215).
+# See notes/202604171715-lrp08-feature-selection.md for the full rationale.
 
-_SELECTION_STEPS: list[SelectionStep] = []
+_SELECTION_STEPS = [
+    SelectionStep(
+        removed=[
+            # Tier A — ≤ 0.005 importance in the 32-predictor MAE tune
+            V.GENDER, V.VISION, V.GROUP, V.EARINF, V.BEHAV,
+            V.TIME, V.YARCSI, V.AREA, V.HEARING, V.BLENDING,
+            V.DEAPPVO, V.AGESPEAK,
+            # Tier B — 0.006 importance, redundant with retained
+            # higher-importance siblings or demographic noise
+            V.APTGRAM,   # dcorr ≈ 0.76 with retained aptinfo (0.067)
+            V.ERBWORD,   # speech pair with retained erbnw (0.009)
+            V.AGEBOOKS,  # demographic noise-floor
+        ],
+        notes=(
+            "Moderate one-shot cut from 32 → 17 predictors. Drops "
+            "12 Tier-A features with importance ≤ 0.005 under the "
+            "118-tree MAE-tuned model plus 3 Tier-B redundant "
+            "features (aptgram shares signal with aptinfo, erbword "
+            "pair-redundant with erbnw, agebooks is near-zero "
+            "demographic noise). Conservative relative to LRP06's "
+            "32→10 cut — LRP08 has a flatter importance distribution "
+            "(top b1reto only 0.095 vs LRP06 ewrswr 0.500) so the "
+            "retained mid-tier features all contribute meaningfully. "
+            "Keeps the full language cluster (b1reto, aptinfo, "
+            "eowpvt, celf, trog, b1exto) and both reading controls "
+            "(ewrswr, yarclet) for construct coverage."
+        ),
+        date="2026-04-17",
+        metrics_before={"cv_mae_mean": 7.075},
+        metrics_after={"cv_mae_mean": 6.966},
+    ),
+]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the full 32-predictor set (DEFAULT_LEVEL minus rowpvt),
-# no outlier exclusion (Optuna 150 trials, 10-split GroupKFold,
-# seed 47, scoring=mae, lgbm_objective=mae). Tuner-inner CV MAE
-# 7.0639 ± 1.6708. n=215.
+# MAE-tuned on the 17-predictor Select01 set, no outlier exclusion
+# (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
+# lgbm_objective=mae). Tuner-inner CV MAE 6.9048 ± 1.4492. n=215.
+# Supersedes the 32-predictor tune (tuner-inner 7.0639).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 118,
-    "learning_rate": 0.05326460861031385,
-    "num_leaves": 20,
-    "max_depth": 9,
-    "min_child_samples": 18,
-    "subsample": 0.7266073045486356,
+    "n_estimators": 216,
+    "learning_rate": 0.02084571088606304,
+    "num_leaves": 22,
+    "max_depth": 8,
+    "min_child_samples": 10,
+    "subsample": 0.7189672525215607,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9618870696184477,
-    "reg_alpha": 0.010880373065807128,
-    "reg_lambda": 0.00393504737305517,
+    "colsample_bytree": 0.8425605377858724,
+    "reg_alpha": 0.004764523961768294,
+    "reg_lambda": 0.6582222408420664,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -77,7 +103,7 @@ class LRP08(LevelModel):
     target_var = V.ROWPVT
     description = (
         "LightGBM — receptive vocabulary level predictors "
-        "(32 predictors, MAE-tuned, no outlier exclusion)"
+        "(17 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -90,10 +116,10 @@ class LRP08(LevelModel):
     notes = (
         "Exploratory model for identifying important predictors of "
         "receptive vocabulary level (rowpvt). MAE-tuned on the "
-        "full 32-predictor DEFAULT_LEVEL set without outlier exclusion "
-        "so importance rankings reflect the full range of outcomes. "
-        "Target is essentially symmetric / near-Gaussian (skew 0.04, "
-        "no floor or ceiling) — cleanest target distribution of any "
-        "LRP model to date. Feature-selection variants to follow. "
+        "17-predictor Select01 set (down from the original 32) "
+        "without outlier exclusion so importance rankings reflect "
+        "the full range of outcomes. Target is essentially symmetric "
+        "/ near-Gaussian (skew 0.04, no floor or ceiling) — cleanest "
+        "target distribution of any LRP model to date. "
         "See notes/202604171715-lrp08-feature-selection.md."
     )

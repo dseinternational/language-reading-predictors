@@ -180,25 +180,152 @@ time-invariant articulation/intervention signal.
 | Baseline (untuned) | 34 | 7.563 | −0.018 | 6.003 |
 | MAE-tuned on 34 | 34 | **7.003** | **0.090** | **5.550** |
 
+## Select01: drop 22 low-importance features (34 → 12)
+
+Aggressive one-shot cut informed by the 34-predictor MAE-tuned
+importance table above. Given the very large zero-importance tail
+(11 features at exactly 0.000 plus 3 with slightly negative
+importance), the cut goes deep — mirroring LRP06's 32 → 10
+aggressive Select01.
+
+### Dropped (22)
+
+**All at ≤ 0.005 importance** (no Tier-B redundancy drops needed —
+the noise floor was deep enough that importance alone settled it):
+
+`gender`, `ewrswr`, `aptinfo`, `spphon`, `yarcsi`, `eowpvt`,
+`behav`, `yarclet`, `time`, `vision`, `earinf`, `nonword`, `area`,
+`group`, `hearing`, `agespeak`, `agebooks`, `aptgram`, `erbnw`,
+`erbword`, `numchil`, `age`.
+
+Striking: `eowpvt`, `aptinfo`, `ewrswr`, `yarclet` — all top
+predictors on their respective tasks — sit at exactly 0.000
+importance here. The **gain / level stories diverge sharply**
+for receptive vocabulary: LRP08's language-cluster picture
+(aptinfo, eowpvt, celf, trog) does not transfer to gain
+prediction. `eowpvt` in particular is redundant with the retained
+`rowpvt` under the few-fast-shallow tune.
+
+### Retained (12)
+
+`rowpvt`, `trog`, `b1exto`, `deappfi`, `attend`, `mumedupost16`,
+`celf`, `deappvo`, `dadedupost16`, `b1reto`, `deappin`, `blending`.
+
+### Select01 carry-forward (34-tune → 12 predictors)
+
+| Metric | Before (34 predictors, 42 trees) | After (12 predictors, same 42 trees) |
+|---|---:|---:|
+| CV MAE | 7.003 ± 1.324 | **6.803 ± 1.450** |
+| CV RMSE | 8.960 | **8.786** |
+| **CV R²** | 0.090 ± 0.164 | **0.126 ± 0.174** |
+| CV MedAE | 5.550 | **5.292** |
+| In-sample R² | 0.275 | 0.351 |
+
+Clean improvement across every CV metric. CV R² rises 0.036
+(0.090 → 0.126), CV MAE drops 0.20, CV MedAE drops 0.26. Still
+modest R² overall — receptive-vocabulary gains remain hard to
+predict — but every metric moves the right way.
+
+### Retune on 12 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **6.7536 ± 1.2224**.
+
+| Parameter | Tuned on 34 | **Tuned on 12** |
+|---|---:|---:|
+| n_estimators | 42 | **31** |
+| learning_rate | 0.180 | 0.143 |
+| num_leaves | 48 | 22 |
+| max_depth | **3** | **6** |
+| min_child_samples | 29 | 9 |
+| subsample | 0.685 | 0.666 |
+| colsample_bytree | 0.968 | 0.820 |
+| reg_alpha | 0.153 | **0.551** |
+| reg_lambda | 0.199 | 0.416 |
+
+Moderate regime shift: **even fewer trees (31 vs 42), slightly
+slower learning, deeper but narrower trees (depth 6 / 22 leaves
+vs depth 3 / 48), smaller min_child_samples, much stronger L1+L2
+regularisation**. With only 12 informative features the tuner can
+afford deeper splits on each but needs stronger regularisation to
+stop overfitting.
+
+### Refit under Select01 retuned params
+
+| Metric | Carry-forward (42 trees) | **Retuned (31 trees)** |
+|---|---:|---:|
+| CV MAE | 6.803 ± 1.450 | **6.757 ± 1.332** |
+| CV RMSE | 8.786 | **8.718** |
+| CV R² | 0.126 ± 0.174 | **0.134 ± 0.198** |
+| CV MedAE | **5.292** | 5.825 |
+| In-sample R² | 0.351 | 0.581 |
+
+**Retune edges out carry-forward on CV MAE / RMSE / R²** by small
+margins, but **carry-forward wins on CV MedAE** by a clear 0.53.
+Same pattern as LRP05 — MAE-tuned params optimise for mean
+absolute error but leak median performance. Kept the retuned
+params for the "tuned on this feature set" convention; the
+carry-forward remains a reasonable alternative if MedAE is the
+priority.
+
+### Permutation importance under retuned model
+
+| Rank | Feature | Importance |
+|---|---|---:|
+| 1 | **`rowpvt`** | **0.514** |
+| 2 | `b1reto` | 0.094 |
+| 3 | `mumedupost16` | 0.082 |
+| 4 | `attend` | 0.078 |
+| 5 | `deappin` | 0.074 |
+| 6 | `deappfi` | 0.066 |
+| 7 | `trog` | 0.061 |
+| 8 | `celf` | 0.059 |
+| 9 | `b1exto` | 0.054 |
+| 10 | `deappvo` | 0.034 |
+| 11 | `dadedupost16` | 0.020 |
+| 12 | `blending` | 0.013 |
+
+All 12 features at substantial importance (min 0.013). No noise
+floor. **Striking rebalance — `b1reto` rose from 0.007 (rank 10)
+to 0.094 (rank 2), a 13× jump.** The receptive-language measure
+was being masked by the 22 noise features; once they were dropped,
+b1reto emerged as a strong independent signal. `mumedupost16`
+tripled (0.015 → 0.082); `attend` quadrupled (0.019 → 0.078);
+`deappin` rose 12× (0.006 → 0.074). Base `rowpvt` rose from
+0.286 to 0.514 as it absorbed residual signal.
+
+## Cumulative summary
+
+| Step | Predictors | CV MAE | CV R² | CV MedAE |
+|---|---|---|---|---|
+| Baseline (untuned) | 34 | 7.563 | −0.018 | 6.003 |
+| MAE-tuned on 34 | 34 | 7.003 | 0.090 | 5.550 |
+| Select01 carry-forward | 12 | 6.803 | 0.126 | **5.292** |
+| Retuned-12 | 12 | **6.757** | **0.134** | 5.825 |
+
+Cutting from 34 to 12 predictors dropped CV MAE by 0.25 (3.5%)
+and raised CV R² by 0.044. Not as dramatic as LRP06's 4.42 → 4.09
+improvement but still a real gain for a harder task.
+
 ## Current state
 
-- **`lrp07`** (primary, MAE-tuned on 34 predictors): 34 predictors,
-  CV MAE 7.003 ± 1.324, CV R² 0.090 ± 0.164, CV MedAE 5.550. No
+- **`lrp07`** (primary, MAE-tuned on 12 predictors): 12 predictors,
+  CV MAE 6.757 ± 1.332, CV R² 0.134 ± 0.198, CV MedAE 5.825. No
   outlier exclusion, n=161.
-- Tuning baseline established. No feature-selection steps applied
-  yet — this PR is the tuned starting point.
+- One `SelectionStep` on `LRP07` documents the 34 → 12 cut.
 
 ## Next-step candidates (future PRs)
 
-- **Select01**: drop Tier A (~15 features) aggressively; retune on
-  ~20 predictors. Given the very large zero-importance tail, the
-  cut could go deeper than LRP05's 19-feature drop.
-- **Correlation / redundancy review** once the feature set is
-  smaller — likely reveals `b1reto`/`b1exto` redundancy and
-  `eowpvt`/`rowpvt` redundancy (the latter already reflected in
-  zero importance).
+- **Select02**: candidates for further drops if desired — `blending`
+  (0.013), `dadedupost16` (0.020), `deappvo` (0.034). But all 12
+  retained features are at meaningful importance, so the case for
+  another cut is weak.
+- **Correlation / redundancy review** on the 12-predictor set —
+  `b1reto`/`b1exto` still both in (dcorr likely moderate);
+  `deappfi`/`deappin`/`deappvo` are the DEAP family, likely
+  correlated.
 - **Signed-log target transform** (`LGBMSignedLogPipeline`).
   Symmetric target may not benefit, but worth the null-result
   check.
 - **Quantile α=0.5 objective** — mirrors LRP02/LRP04 quantile work.
+  Particularly interesting given carry-forward won on CV MedAE.
 - **RMSE-tuned prediction variant** (`lrp07_prediction`).
