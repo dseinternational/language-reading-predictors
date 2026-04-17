@@ -297,6 +297,27 @@ _LGBM_MAE_PARAMS_LOG_SELECT: dict[str, float | int | str] = {
     "verbosity": -1,
 }
 
+# MAE-tuned on the 11-predictor drop-age-measures set, no outlier
+# exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47,
+# scoring=mae, lgbm_objective=mae). Best trial #124, CV MAE
+# 5.5469 ± 1.9213 (tuner inner — 12% better than the 13-predictor
+# primary's 6.3065). n=210. Pinned on ``lrp02_drop_age_measures``.
+_LGBM_MAE_PARAMS_DROP_AGE_MEASURES: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 50,
+    "learning_rate": 0.07924858399504137,
+    "num_leaves": 35,
+    "max_depth": 3,
+    "min_child_samples": 5,
+    "subsample": 0.9105145239479056,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.8564257874540058,
+    "reg_alpha": 0.002400041605324193,
+    "reg_lambda": 0.008756634142830566,
+    "n_jobs": -1,
+    "verbosity": -1,
+}
+
 # MAE-tuned in log1p(y) space on the 17-predictor Select02 set (Optuna
 # 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
 # lgbm_objective=mae, target_transform=log1p). Best trial #102, CV MAE
@@ -594,6 +615,70 @@ class LRP02LogSelect(LRP02Select02Log):
         "count: 3-4/10 folds win on each metric, all p > 0.1. Useful "
         "negative result — the log transform is the bigger lever; the "
         "feature-selection philosophy is not."
+    )
+
+
+# ── 11-predictor drop-age-measures variant ─────────────────────────────
+
+
+class LRP02DropAgeMeasures(LRP02):
+    """Word-reading level predictors — 11-predictor variant, no baseline age measures.
+
+    Drops ``agebooks`` and ``agespeak`` from the primary's 13-predictor
+    set. Motivation: these two features are measured once at baseline
+    (parent report) and repeated across every timepoint for each child
+    in the long format, so they contribute duplicated rows rather than
+    new information. A sensitivity check (unweighted OOF, same
+    hyperparameters) showed that dropping both features improves pooled
+    MAE / RMSE / R² while worsening MedAE — suggesting the two features
+    are net noise on mean-based accuracy but do tighten the typical-case
+    median prediction. See
+    ``notes/202604171220-lrp02-time-invariant-weight-sensitivity.md``.
+
+    Hyperparameters are re-tuned by Optuna on this 11-predictor set
+    under the same regime as the primary (MAE-tuned, 10-split
+    GroupKFold, seed 47) so any improvement is not attributable to
+    reusing a tune fitted for a different feature set.
+    """
+
+    model_id = "lrp02_drop_age_measures"
+    variant_of = "lrp02"
+    description = (
+        "LightGBM — word-reading level predictors "
+        "(11 predictors, agebooks + agespeak dropped, MAE-tuned)"
+    )
+    params = _LGBM_MAE_PARAMS_DROP_AGE_MEASURES
+    selection_steps = [
+        SelectionStep(
+            removed=[V.AGEBOOKS, V.AGESPEAK],
+            notes=(
+                "Drop both time-invariant baseline age measures. "
+                "agebooks (age when introduced to books) and agespeak "
+                "(age at first words) are parent-reported once at "
+                "baseline and replicated across every timepoint in the "
+                "long format. A pooled OOF sensitivity check on the "
+                "13-predictor primary (same hyperparameters, no "
+                "retuning) showed that removing both features "
+                "improves MAE (6.29→6.10), RMSE (9.04→8.75), and R² "
+                "(0.600→0.626) while worsening MedAE (3.68→4.23). "
+                "This variant retunes hyperparameters on the 11-"
+                "predictor set to verify that the improvement "
+                "survives a fresh Optuna run."
+            ),
+            date="2026-04-17",
+            metrics_before={"cv_mae_mean": 6.292, "cv_r2_pooled": 0.600},
+            metrics_after={"cv_mae_mean": 6.097, "cv_r2_pooled": 0.626},
+        ),
+    ]
+    notes = (
+        "11-predictor variant of lrp02 with the two baseline age "
+        "measures (agebooks, agespeak) dropped. The pair contribute "
+        "duplicated rows (constant within-child across timepoints) "
+        "and a sensitivity check suggested they add net noise on "
+        "mean-based metrics. This variant re-tunes hyperparameters "
+        "via Optuna on the reduced feature set to confirm the "
+        "improvement is not an artefact of reusing the 13-predictor "
+        "tune."
     )
 
 

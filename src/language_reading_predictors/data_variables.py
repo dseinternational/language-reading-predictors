@@ -957,6 +957,51 @@ class Variables:
         TACHANG,  # TA changes between time points
     ]
 
+    TIME_INVARIANT_BASELINES = [
+        HEARING,
+        EARINF,
+        HEARING_C,
+        VISION,
+        NUMCHIL,
+        MUMOCC,
+        DADOCC,
+        AGEBOOKS,
+        MUMEDUPOST16,
+        DADEDUPOST16,
+        BEDTIMEREAD,
+        OTHERTIMEREAD,
+        BLOCKS,
+        AGESPEAK,
+    ]
+    """
+    Variables captured once at study baseline (parent report or a single
+    assessment at t1) and replicated across every timepoint in the
+    long-format data.
+
+    These features are time-invariant *within child*: each child
+    contributes the same value across their 3–4 rows. Under
+    ``GroupKFold`` grouping by ``subject_id`` there is no test-set
+    leakage, but during training the model still sees each child's
+    value repeated, which inflates effective training support and can
+    bias tree splits and permutation importance toward these features.
+
+    Treat this list as a *flag*, not a hard exclusion. It exists so
+    that:
+
+    - feature-selection review can identify which predictors in a
+      final set are time-invariant and warrant an extra sensitivity
+      check (drop-and-retune);
+    - level-model reports can surface the time-invariance of a
+      predictor inline alongside its importance;
+    - downstream pipeline options (e.g. inverse-frequency subject
+      weighting) can consume a single canonical list rather than
+      re-deriving it per model.
+
+    The concern is structurally weaker for gain models (where
+    time-invariant features can only explain between-child *trajectory*
+    differences, not within-child change) than for level models.
+    """
+
     NAMES = {
         SUBJECT_ID: "Subject ID",
         TIME: "Time",
