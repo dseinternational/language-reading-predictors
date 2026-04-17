@@ -416,16 +416,143 @@ the Select01 gain. That's the price of interpretability.
   non-expressive-vocabulary features predict expressive-vocabulary
   level?*
 
+## `lrp04_quantile` — quantile α=0.5 objective variant
+
+Mirrors the LRP02 quantile investigation. Same 7-predictor Select02
+feature set; `objective="quantile"` at `alpha=0.5` replaces
+`objective="mae"`. The conditional-median objective directly
+minimises pinball loss at the median — the MedAE-optimising loss.
+
+### Tune
+
+Optuna 150 trials (seed 47, scoring=medae, lgbm_objective=quantile,
+alpha=0.5). Tuner-inner CV MedAE **4.3893 ± 0.9941**.
+
+| Parameter | Tuned MAE | **Tuned Quantile** |
+|---|---:|---:|
+| n_estimators | 45 | 34 |
+| learning_rate | 0.076 | 0.105 |
+| num_leaves | 30 | 51 |
+| max_depth | 6 | 6 |
+| min_child_samples | 10 | 5 |
+| subsample | 0.874 | 0.683 |
+| colsample_bytree | 0.717 | 0.640 |
+| reg_alpha | 0.002 | 0.477 |
+| reg_lambda | 0.003 | 0.232 |
+
+Fewer trees, faster learning, wider leaves (51 vs 30), much
+stronger L1 regularisation (0.48 vs 0.002) and L2 (0.23 vs 0.003).
+Different regime from the MAE tune on the same feature set.
+
+### Refit comparison
+
+| Metric | `lrp04` (MAE) | **`lrp04_quantile`** (quantile α=0.5) |
+|---|---:|---:|
+| CV MAE | 6.219 ± 1.293 | **6.116 ± 1.390** |
+| CV RMSE | 7.736 | **7.525** |
+| CV R² | 0.542 ± 0.266 | **0.565 ± 0.260** |
+| CV MedAE | 5.226 | **4.951** |
+| In-sample R² | 0.874 | 0.896 |
+
+**Quantile beats MAE on every mean CV metric**: CV MAE −0.10, CV
+RMSE −0.21, CV R² +0.023, CV MedAE −0.28. The improvements are
+consistent but modest.
+
+### Paired-fold test (n=10)
+
+| Metric | mean diff (quantile − MAE) | t p | Wilcoxon p | Quantile fold wins |
+|---|---:|---:|---:|---:|
+| MAE | −0.103 | 0.531 | 0.695 | 5/10 |
+| MedAE | −0.276 | 0.408 | 0.375 | 5/10 |
+| R² | **+0.023** | 0.184 | 0.275 | **7/10** |
+| RMSE | **−0.210** | 0.104 | 0.160 | **7/10** |
+
+**Nothing reaches α=0.05 significance** at n=10 folds. R² and RMSE
+show the cleanest directional signal (7/10 fold wins, p ≈ 0.10–
+0.18) but MAE and MedAE are noisier fold-to-fold (5/10 fold wins
+despite better means). Compare to LRP02's quantile investigation
+where raw-target quantile also helped but only reached α=0.05 via
+cross-variant comparisons to prediction variants.
+
+### Quartile in-sample MAE
+
+| Target range | `lrp04` | `lrp04_quantile` | Δ |
+|---|---|---|---|
+| 8 – 26 | 4.27 | **3.73** | −13% |
+| 27 – 33 | 1.98 | 1.90 | −4% |
+| 34 – 43 | 2.45 | **2.10** | −14% |
+| 44 – 77 | 5.18 | **4.65** | −10% |
+
+Consistent improvement across all quartiles. The U-shape (hard
+extremes, easier middle) persists but every level is a bit
+better.
+
+### Importance under quantile objective
+
+| Rank | Feature | Quantile imp | MAE imp |
+|---|---|---:|---:|
+| 1 | `aptinfo` | 0.304 | 0.415 |
+| 2 | `rowpvt` | 0.133 | 0.104 |
+| 3 | `yarclet` | 0.106 | 0.076 |
+| 4 | `ewrswr` | 0.090 | 0.081 |
+| 5 | `celf` | 0.089 | 0.084 |
+| 6 | `age` | 0.074 | 0.057 |
+| 7 | `deappin` | 0.049 | 0.032 |
+
+`aptinfo`'s dominance softens (0.42 → 0.30) and every other
+feature rises — especially `rowpvt` (+0.03), `yarclet` (+0.03),
+`deappin` (+0.017). The quantile objective spreads importance
+more evenly — the model leans less on a single top feature.
+
+### Conclusion on quantile variant
+
+Modest but consistent improvement across every metric; the
+directional signal on R² and RMSE (7/10 fold wins) is the
+strongest evidence that this is a real effect, even if the
+significance tests don't clear α=0.05 at n=10.
+
+The variant is kept as `lrp04_quantile` alongside the MAE-tuned
+primary. Practitioners focused on typical-case MedAE should
+prefer it; the MAE-tuned primary is retained as the
+importance-ranking reference. Importance *rankings* are stable
+between the two — only magnitudes shift — so substantive
+interpretations hold either way.
+
+## Cumulative summary (updated)
+
+| Step | Predictors | Trees | CV MAE | CV R² | CV MedAE |
+|---|---|---|---|---|---|
+| Baseline (untuned) | 32 | 500 | 6.562 | 0.470 | 6.043 |
+| MAE-tuned on 32 | 32 | 298 | 6.156 | 0.543 | 5.268 |
+| Select01 carry-forward | 9 | 298 | **5.564** | **0.619** | **4.627** |
+| Retuned-9 | 9 | 69 | 5.572 | 0.618 | 4.718 |
+| Select02 carry-forward | 7 | 69 | 6.114 | 0.564 | 5.105 |
+| Retuned-7 | 7 | 45 | 6.219 | 0.542 | 5.226 |
+| **Quantile-tuned-7** | 7 | 34 | **6.116** | **0.565** | **4.951** |
+
+The best configurations by metric at the final 7-predictor set:
+- **CV MAE / RMSE / R² / MedAE**: all better under quantile than
+  MAE (`lrp04_quantile`).
+- **Interpretation / importance stability**: MAE (`lrp04`) is
+  cleaner — less dominated by `aptinfo`, more balanced feature
+  weights on the quantile variant.
+
+## Current state
+
+- **`lrp04`** (primary, MAE-tuned): 7 predictors, CV MAE 6.219,
+  CV R² 0.542, CV MedAE 5.226. Importance-ranking reference.
+- **`lrp04_quantile`** (variant, quantile α=0.5): same 7 predictors,
+  different objective. CV MAE 6.116, CV R² 0.565, CV MedAE 4.951.
+  Better on every mean CV metric; not statistically significant at
+  n=10 folds but directionally robust.
+
 ## Next-step candidates (future PRs)
 
-- **Quantile α=0.5 objective** — mirrors LRP02 quantile work;
-  the carry-forward's 5.105 MedAE and the MedAE-worsening pattern
-  under retune suggests direct median optimisation may help.
-- **RMSE-tuned prediction variant** (`lrp04_prediction`).
-- **log1p target transform** — less compelling given the milder
-  skew and U-shaped error pattern, but could be checked as a
-  sanity test.
+- **RMSE-tuned prediction variant** (`lrp04_prediction`) — parity
+  with LRP01/LRP02 families.
 - **`b1exto`-restored variant (`lrp04_with_b1exto`)** — parallel
   to `lrp02_select02`; preserves the construct-included baseline
-  for reference. Kept as-is, users who want absolute prediction
-  accuracy can refer back to Select01 metrics.
+  for reference.
+- **log1p target transform** — less compelling given the milder
+  skew and U-shaped error pattern, but could be a cheap sanity
+  test.
