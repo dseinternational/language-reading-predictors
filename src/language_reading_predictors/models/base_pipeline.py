@@ -37,7 +37,7 @@ from sklearn.inspection import partial_dependence, permutation_importance
 from sklearn.model_selection import GroupKFold, cross_validate
 
 import language_reading_predictors.data_utils as data_utils
-from language_reading_predictors.data_variables import Variables as vars
+from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.plot_utils import (
     plot_heatmap,
     save_shap_scatter_plots,
@@ -87,19 +87,14 @@ class EstimatorPipeline:
 
         context = self.context
         cfg = context.config
-        df = data_utils.load_data()
-
-        df = df[df[cfg.target_var].notna()].copy()
-
-        if cfg.outlier_threshold is not None:
-            df = df[df[cfg.target_var] < cfg.outlier_threshold]
+        df, X, y, groups = data_utils.load_and_filter(
+            cfg.target_var, cfg.predictor_vars, cfg.outlier_threshold
+        )
 
         context.df = df
-        context.X = (
-            df[cfg.predictor_vars].replace({pd.NA: np.nan}).astype("float64")
-        )
-        context.y = df[cfg.target_var].astype("float64")
-        context.groups = df[vars.SUBJECT_ID]
+        context.X = X
+        context.y = y
+        context.groups = groups
 
         print(f"  Observations: {len(df)}")
         if cfg.outlier_threshold is not None:
@@ -182,7 +177,7 @@ class EstimatorPipeline:
 
         eval_df = pd.DataFrame(
             {
-                vars.SUBJECT_ID: context.groups,
+                V.SUBJECT_ID: context.groups,
                 "y_true": y_true,
                 "y_pred": y_pred,
             }
@@ -408,20 +403,21 @@ class EstimatorPipeline:
 
         explanation = explainer(X_shap)
 
-        fig_bar = plt.figure()
+        plt.figure()
         shap.plots.bar(explanation, max_display=12, show=False)
+        fig_bar = plt.gcf()
         fig_bar.savefig(
             context.output_dir / "shap_bar.png", dpi=300, bbox_inches="tight"
         )
         context.plots["shap_bar"] = fig_bar
-        plt.close(fig_bar)
+        plt.close("all")
 
-        plt.figure()
         shap.summary_plot(shap_vals, X_shap, plot_size=0.25, show=False)
-        plt.savefig(
+        fig_summary = plt.gcf()
+        fig_summary.savefig(
             context.output_dir / "shap_summary.png", dpi=300, bbox_inches="tight"
         )
-        context.plots["shap_summary"] = plt.gcf()
+        context.plots["shap_summary"] = fig_summary
         plt.close("all")
 
         eval_df = context.eval_df
@@ -436,16 +432,15 @@ class EstimatorPipeline:
         best_idx = eval_df["representative_score"].idxmin()
         pos_idx = eval_df.index.get_loc(best_idx)
 
-        plt.figure()
         shap.plots.waterfall(explanation[pos_idx], max_display=12, show=False)
-        plt.savefig(
+        fig_waterfall = plt.gcf()
+        fig_waterfall.savefig(
             context.output_dir / "shap_waterfall.png", dpi=300, bbox_inches="tight"
         )
-        context.plots["shap_waterfall"] = plt.gcf()
+        context.plots["shap_waterfall"] = fig_waterfall
         plt.close("all")
 
         clustering = shap.utils.hclust(X_shap, context.y)
-        plt.figure()
         shap.plots.bar(
             explanation,
             clustering=clustering,
@@ -453,10 +448,11 @@ class EstimatorPipeline:
             max_display=15,
             show=False,
         )
-        plt.savefig(
+        fig_clustered = plt.gcf()
+        fig_clustered.savefig(
             context.output_dir / "shap_bar_clustered.png", dpi=300, bbox_inches="tight"
         )
-        context.plots["shap_bar_clustered"] = plt.gcf()
+        context.plots["shap_bar_clustered"] = fig_clustered
         plt.close("all")
 
         print("  SHAP plots saved.")
@@ -661,12 +657,7 @@ class EstimatorPipeline:
         cfg = context.config
         run = context.run_config
 
-        effective_model_params = dict(cfg.model_params)
-        if run.n_estimators is not None:
-            # Match the cap-semantics used by the pipeline classes: the
-            # run's n_estimators is an upper bound, not a replacement.
-            tuned = effective_model_params.get("n_estimators", run.n_estimators)
-            effective_model_params["n_estimators"] = min(tuned, run.n_estimators)
+        effective_model_params = _cap_n_estimators(cfg.model_params, run)
         effective_cv_splits = (
             run.cv_splits if run.cv_splits is not None else cfg.cv_splits
         )
@@ -884,7 +875,23 @@ def _clear_directory(path: Path) -> None:
             try:
                 entry.unlink()
             except PermissionError:
-                pass
+                print(f"[yellow]Warning: could not delete {entry} (PermissionError)[/yellow]")
+
+
+def _cap_n_estimators(
+    model_params: dict, run_config: RunConfig
+) -> dict:
+    """Build effective LGBM params, capping n_estimators to the run config limit.
+
+    Returns a *copy* of ``model_params`` with n_estimators adjusted if needed.
+    The run config value is an upper bound, not a replacement — models with a
+    tuned n_estimators below the cap keep their value.
+    """
+    params = dict(model_params)
+    if run_config.n_estimators is not None:
+        tuned = params.get("n_estimators", run_config.n_estimators)
+        params["n_estimators"] = min(tuned, run_config.n_estimators)
+    return params
 
 
 def _section(title: str) -> None:

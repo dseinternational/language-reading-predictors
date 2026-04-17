@@ -110,7 +110,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int] = {
     "colsample_bytree": 0.6024743488626004,
     "reg_alpha": 0.0375788355410621,
     "reg_lambda": 0.0037690200347546363,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -134,7 +134,7 @@ _LGBM_MAE_SIGNED_LOG_PARAMS: dict[str, float | int] = {
     "colsample_bytree": 0.658216,
     "reg_alpha": 0.002138,
     "reg_lambda": 0.003652,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -153,7 +153,7 @@ _LGBM_RMSE_PARAMS: dict[str, float | int] = {
     "colsample_bytree": 0.7232328649750049,
     "reg_alpha": 0.01764013107887275,
     "reg_lambda": 0.07888648720556594,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
