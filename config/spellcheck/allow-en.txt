@@ -74,6 +74,7 @@ trog
 unsuffixed
 vars
 vcfg
+vocab
 vpreds
 Wilcoxon
 yarclet
