@@ -318,19 +318,76 @@ retune.
   applied to the reduced 19-predictor set.
 - One `SelectionStep` on `LRP09` documents the 34 → 19 cut.
 
+## Post-hoc dcorr audit
+
+The Select01 drops above were argued partly on redundancy, partly
+on importance. A post-hoc check against the actual distance
+correlations computed from data (n=160) verified the claims:
+
+### Drop justifications confirmed
+
+| Dropped | Retained sibling | dcorr | Status |
+|---|---|---:|---|
+| `erbword` | `erbnw` | **0.839** | strong — clean drop |
+| `yarcsi` | `spphon` | **0.753** | strong |
+| `yarcsi` | `ewrswr` | 0.684 | moderate-strong |
+| `dadedupost16` | `mumedupost16` | 0.580 | moderate — borderline |
+| `blending` | `spphon` | 0.558 | moderate |
+| `blending` | `ewrswr` | 0.554 | moderate |
+
+### Drop justifications that were weaker than claimed
+
+| Dropped | Reason given | dcorr check |
+|---|---|---|
+| `agespeak` | "demographic near-noise-floor" | 0.262 with `age` — not actually redundant; the drop is justified on importance alone (0.008) |
+| `time` | "weak time-invariant signal" | 0.440 with `age` — not strongly redundant either; drop is on importance (0.014) |
+
+### Strong redundancies retained (Select02 candidates)
+
+The Select01 cut focused on the dropped-feature side. A dcorr
+audit of the **retained** 19 predictors reveals several strong
+pairs still in the set:
+
+| Pair | dcorr | Importance (retained) |
+|---|---:|---:|
+| **`b1exto` ↔ `eowpvt`** | **0.807** | 0.038 / 0.026 |
+| **`deappfi` ↔ `deappin`** | **0.767** | 0.057 / 0.035 |
+| `b1exto` ↔ `b1reto` | 0.756 | 0.038 / 0.029 |
+| `b1reto` ↔ `rowpvt` | 0.696 | 0.029 / 0.028 |
+| `ewrswr` ↔ `yarclet` | 0.690 | 0.035 / 0.032 |
+| `ewrswr` ↔ `nonword` | 0.666 | 0.035 / 0.015 |
+| `spphon` ↔ `nonword` | 0.642 | 0.028 / 0.015 |
+| `trog` ↔ `aptgram` | 0.545 | 0.043 / 0.021 |
+| `celf` ↔ `trog` | 0.539 | 0.591 / 0.043 |
+
+The two pairs at ≥ 0.76 (`b1exto`/`eowpvt` and `deappfi`/`deappin`)
+are strong enough to warrant Select02 by importance-tiebreak:
+drop `eowpvt` (lower) and `deappin` (lower). The `trog`/`aptgram`
+pair at 0.545 was deliberately retained for grammar-cluster
+construct coverage — a construct argument, not a redundancy
+argument.
+
+## Current state
+
+- **`lrp09`** (primary, carry-forward tuned params on 19
+  predictors): 19 predictors, CV MAE 2.185 ± 0.385, CV R² 0.124
+  ± 0.159, CV MedAE 1.650. No outlier exclusion, n=160.
+- Uses the 34-predictor MAE tune (many-slow-deep + strong L2)
+  applied to the reduced 19-predictor set.
+- One `SelectionStep` on `LRP09` documents the 34 → 19 cut.
+
 ## Next-step candidates (future PRs)
 
-- **Select02**: candidates for further drops — `nonword` (0.015),
-  `aptgram` (0.021), `aptinfo` (0.022), `deappvo` (0.022). But
-  all 19 retained features are at meaningful importance, so a
-  Select02 by importance alone is weak. Construct-driven cuts
-  (e.g. dropping `eowpvt` / `b1exto` as expressive-vocab
-  predictors to answer "what predicts CELF gain beyond
-  vocabulary?") are more motivated.
-- **Correlation / redundancy review** on the 19-predictor set —
-  likely reveals language-cluster (`b1exto` / `b1reto` /
-  `eowpvt` / `rowpvt` / `aptinfo`) and reading-cluster
-  (`ewrswr` / `yarclet` / `spphon` / `nonword`) redundancies.
+- **Select02 (redundancy-driven)**: drop `eowpvt` (dcorr 0.807
+  with retained `b1exto`) and `deappin` (dcorr 0.767 with
+  retained `deappfi`) — importance-tiebreaker drops on the two
+  strongest remaining pairs. Target 17 predictors. Possibly also
+  `nonword` (dcorr 0.666 with `ewrswr`).
+- **Select02 (construct-driven)**: the research-question framing
+  could argue for dropping `eowpvt` / `b1exto` as expressive-
+  vocab predictors, or `b1reto` / `rowpvt` as receptive-vocab
+  predictors, to answer "what predicts CELF gain beyond
+  vocabulary?".
 - **Quantile α=0.5 objective** — mirrors LRP02/LRP04 quantile
   work. CV MedAE already dropped 0.10 under carry-forward;
   quantile may extract further median signal.
