@@ -84,6 +84,7 @@ def test_joint_factory_residual_correlation_flag(tmp_path):
 
 
 def test_mechanism_factory_builds(tmp_path):
+    """Default mechanism build: includes subject random intercept."""
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="all")
     built = build_mechanism_model(
@@ -92,11 +93,29 @@ def test_mechanism_factory_builds(tmp_path):
         outcome_symbol="W",
         confounder_symbols=(),
     )
-    assert any(v.name == "beta_G" for v in built.model.free_RVs)
+    names = {v.name for v in built.model.free_RVs}
+    assert "beta_G" in names
+    assert "sigma_child" in names  # on by default
+    assert "u_child_raw" in names
     assert any(v.name == "f_mech" for v in built.model.deterministics)
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=3)
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_mechanism_factory_without_random_intercept(tmp_path):
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="R",
+        outcome_symbol="W",
+        confounder_symbols=(),
+        use_subject_random_intercept=False,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "sigma_child" not in names
+    assert "u_child_raw" not in names
 
 
 def test_itt_factory_rejects_wrong_phase(tmp_path):

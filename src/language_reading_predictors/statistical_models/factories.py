@@ -374,6 +374,8 @@ def build_mechanism_model(
     confounder_symbols: Iterable[str] = (),
     use_age_gp: bool = False,
     phase_specific_mechanism: bool = False,
+    use_subject_random_intercept: bool = True,
+    sigma_child_prior_sigma: float = 0.5,
 ) -> BuiltModel:
     """
     Mechanism model on the outcome post-score.
@@ -387,6 +389,14 @@ def build_mechanism_model(
 
     The outcome baseline ``adjust_baseline_symbol`` (default ``W_pre``) enters
     linearly on the logit scale.
+
+    ``use_subject_random_intercept`` (default True): add a non-centred
+    child-level random intercept ``u_child = sigma_child * u_child_raw`` with
+    ``u_child_raw ~ Normal(0, 1, dims="child")`` and
+    ``sigma_child ~ HalfNormal(sigma_child_prior_sigma)``. Required for
+    honest standard errors on β_G, γ's, and f_mech because the 157 rows per
+    mechanism fit are three phase-transitions per child and therefore not
+    independent. See notes/202604181800-mechanism-random-intercepts.md.
     """
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
@@ -420,6 +430,7 @@ def build_mechanism_model(
     coords = {
         "obs_id": np.arange(prepared.n_obs),
         "phase": np.arange(prepared.n_phases),
+        "child": np.arange(prepared.n_children),
     }
 
     with pm.Model(coords=coords) as model:
@@ -428,6 +439,7 @@ def build_mechanism_model(
         pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
         pm.Data("mech_post_logit", mech_post_logit, dims="obs_id")
         pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+        pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         alpha_phase = pm.Normal(
@@ -437,6 +449,14 @@ def build_mechanism_model(
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
         eta = alpha + alpha_phase[prepared.phase] + beta_G * prepared.G + gamma_own * own_pre_logit
+
+        if use_subject_random_intercept:
+            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
+            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+            u_child = pm.Deterministic(
+                "u_child", sigma_child * u_child_raw, dims="child"
+            )
+            eta = eta + u_child[prepared.child_idx]
 
         # Confounder linear terms (on logit scale for measures)
         for s in confounder_symbols:

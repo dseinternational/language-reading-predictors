@@ -272,8 +272,11 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         outcome_symbol=spec.outcome_symbol or "W",
         adjust_baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
         confounder_symbols=tuple(s for s in confounders if s in ("G", "A") or len(s) == 1),
-        use_age_gp=spec.extra.get("use_age_gp", True),
+        use_age_gp=spec.extra.get("use_age_gp", False),
         phase_specific_mechanism=spec.extra.get("phase_specific_mechanism", False),
+        use_subject_random_intercept=spec.extra.get(
+            "use_subject_random_intercept", True
+        ),
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -286,7 +289,10 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.compute_log_likelihood_and_loo(ctx)
     _report.write_loo_summary(ctx)
 
-    _diag.summary_diagnostics(ctx, var_names=["alpha", "beta_G", "gamma_own", "kappa"])
+    _mech_vars = ["alpha", "beta_G", "gamma_own", "kappa"]
+    if spec.extra.get("use_subject_random_intercept", True):
+        _mech_vars.append("sigma_child")
+    _diag.summary_diagnostics(ctx, var_names=_mech_vars)
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
     _save_ppc(ctx)
 

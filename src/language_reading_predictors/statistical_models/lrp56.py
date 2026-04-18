@@ -25,11 +25,14 @@ SPEC = ModelSpec(
     mechanism_symbol="R",
     adjustment=["G", "A", "W_pre"],
     # Age GP is off by default — see notes/202604181700-lrp55-age-gp-drop.md.
-    # Re-enable via extra={"use_age_gp": True} for a sensitivity fit.
+    # Subject random intercept is on by default: 157 rows per fit = up to 3
+    # phases × 53 children, so rows are not independent. See
+    # notes/202604181800-mechanism-random-intercepts.md.
     extra={
         "adjust_baseline_symbol": "W",
         "use_age_gp": False,
         "phase_specific_mechanism": False,
+        "use_subject_random_intercept": True,
     },
 )
 
