@@ -11,16 +11,103 @@ import scipy.stats as stats
 import seaborn as sns
 import graphviz as gr
 import networkx as nx
+import dse_research_utils.plot.styles as plot_styles
+
 from typing import Any, Iterable, Literal
 from pathlib import Path
 from scipy.cluster import hierarchy
 from IPython.display import Image, display
-
 from language_reading_predictors.data_variables import Variables as vars
 
 
 HERE = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = HERE / "output"
+
+
+def violin_plot(df: pd.DataFrame, x, y):
+    plt.figure(figsize=plot_styles.FIGSIZE_LG)
+    sns.violinplot(x=df[x], y=df[y])
+    plt.xlabel(vars.get_variable_name(x))
+    plt.ylabel(vars.get_variable_name(y))
+
+
+def scatter_plot(df: pd.DataFrame, x, y, color=None, palette=None, categorical=None):
+    """Scatter plot with automatic continuous/categorical colour handling.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    x, y : column names for the axes
+    color : optional column name to colour points by
+    palette : optional palette specification.
+        - For continuous colour: a matplotlib colormap name (default 'viridis').
+        - For categorical colour: a qualitative colormap name (default 'tab10'),
+          a list/tuple of colours, or a dict mapping category values to colours
+          (e.g. {1: '#1f77b4', 2: '#d62728'}).
+    categorical : optional bool to override auto-detection. Use True to force
+        discrete colours on a numeric column (e.g. 1/2 coded sex), or False
+        to force a gradient on a categorical-dtype column.
+    """
+    plt.figure(figsize=plot_styles.FIGSIZE_LG)
+
+    if color is None:
+        plt.scatter(df[x], df[y], alpha=0.5)
+
+    else:
+        # Decide continuous vs categorical
+        if categorical is None:
+            is_continuous = (
+                pd.api.types.is_numeric_dtype(df[color])
+                and not pd.api.types.is_bool_dtype(df[color])
+                and not isinstance(df[color].dtype, pd.CategoricalDtype)
+            )
+        else:
+            is_continuous = not categorical
+
+        if is_continuous:
+            # Continuous → gradient colormap
+            cmap_name = palette if isinstance(palette, str) else "viridis"
+            sc = plt.scatter(df[x], df[y], c=df[color], alpha=0.5, cmap=cmap_name)
+            plt.colorbar(sc, label=vars.get_variable_name(color))
+
+        else:
+            # Categorical → fixed discrete colours
+            if isinstance(df[color].dtype, pd.CategoricalDtype):
+                categories = list(df[color].cat.categories)
+            else:
+                categories = sorted(df[color].dropna().unique())
+
+            if isinstance(palette, dict):
+                color_map = palette
+            elif isinstance(palette, (list, tuple)):
+                color_map = {
+                    cat: palette[i % len(palette)] for i, cat in enumerate(categories)
+                }
+            else:
+                cmap = plt.get_cmap(palette or "tab10")
+                n = len(categories)
+                if cmap.N >= 256:  # continuous colormap used as qualitative
+                    color_map = {
+                        cat: cmap(i / max(n - 1, 1)) for i, cat in enumerate(categories)
+                    }
+                else:  # qualitative ListedColormap
+                    color_map = {
+                        cat: cmap(i % cmap.N) for i, cat in enumerate(categories)
+                    }
+
+            for cat in categories:
+                mask = df[color] == cat
+                plt.scatter(
+                    df.loc[mask, x],
+                    df.loc[mask, y],
+                    c=[color_map[cat]],
+                    alpha=0.5,
+                    label=str(cat),
+                )
+            plt.legend(title=vars.get_variable_name(color))
+
+    plt.xlabel(vars.get_variable_name(x))
+    plt.ylabel(vars.get_variable_name(y))
 
 
 def hierarchy_dendrogram(
