@@ -1,5 +1,5 @@
 ---
-title: "LRP09: Predictors of receptive-grammar (CELF) gains"
+title: "LRP09: Predictors of basic concept knowledge (CELF) gains"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -32,9 +32,13 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRP09 models **gains in receptive-grammar (CELF)** scores (`celf_gain`) between
-consecutive longitudinal timepoints. The target is `celf_gain` --- the change
-in `celf` score between assessments. All observations are included (no outlier
+LRP09 models **gains in basic concept knowledge (CELF)** scores (`celf_gain`)
+between consecutive longitudinal timepoints. The target is `celf_gain` --- the
+change in `celf` score between assessments. The `celf` score is drawn from the
+Clinical Evaluation of Language Fundamentals Preschool 2nd Ed (Wiig, Secord &
+Semel 2006); in this study only the basic-concept-knowledge subtest (18
+linguistic concepts) was administered, so `celf` is a lexical/semantic concept
+measure --- not a grammar measure. All observations are included (no outlier
 exclusion) so the full range of outcomes informs the model.
 
 The target is **mildly right-skewed** (skew 0.14) with 26% negative and ~17%

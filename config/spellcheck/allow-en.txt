@@ -73,6 +73,9 @@ Optuna
 optuna
 othertimeread
 orcid
+Secord
+Semel
+Wiig
 overfit
 overfitting
 pathlib

@@ -7,12 +7,19 @@ Date: 2026-04-18
 
 ## Motivation
 
-LRP10 predicts CELF receptive-grammar **level** (`celf`) —
+LRP10 predicts CELF **basic concept knowledge level** (`celf`) —
 paralleling LRP02 (word-reading level), LRP04 (expressive-
 vocabulary level), LRP06 (letter-sound knowledge level), and
-LRP08 (receptive-vocabulary level). Baseline started from the
-full `Predictors.DEFAULT_LEVEL` set minus the target (32
-predictors), n=214, with no outlier exclusion.
+LRP08 (receptive-vocabulary level). The `celf` score is drawn
+from the Clinical Evaluation of Language Fundamentals Preschool
+2nd Ed (Wiig, Secord & Semel 2006); in this study only the
+basic-concept-knowledge subtest (18 linguistic concepts) was
+administered, so `celf` is a lexical/semantic concept measure —
+**not** a grammar measure. The grammar measures in this study
+are `trog` (receptive grammar, TROG-2) and `aptgram` (expressive
+grammar, Action Picture Test). Baseline started from the full
+`Predictors.DEFAULT_LEVEL` set minus the target (32 predictors),
+n=214, with no outlier exclusion.
 
 ## Target distribution
 
@@ -76,27 +83,27 @@ severe memorisation (0.995) to tight but honest fit (0.769).
 
 CV R² 0.440 sits below the other level-model headlines (LRP08
 0.524, LRP06 0.595, LRP02 0.59, LRP04 0.542) but ahead of
-LRP02's current primary form (0.314). CELF receptive grammar is
-meaningfully predictable but not as much as word reading or
-letter-sound knowledge at this sample size — likely a consequence
-of the coarse 0–18 scale capping achievable R².
+LRP02's current primary form (0.314). CELF basic concept
+knowledge is meaningfully predictable but not as much as word
+reading or letter-sound knowledge at this sample size — likely a
+consequence of the coarse 0–18 scale capping achievable R².
 
 ## Permutation importance after tuning (32 predictors)
 
 | Rank | Feature | Importance |
 |---|---|---:|
-| 1 | **`eowpvt`** | **0.181** (expressive vocab — top) |
-| 2 | `b1reto` | 0.106 (receptive language) |
-| 3 | `rowpvt` | 0.049 (receptive vocab) |
+| 1 | **`eowpvt`** | **0.181** (expressive vocab — top, natural near-construct match) |
+| 2 | `b1reto` | 0.106 (Block 1 receptive vocab) |
+| 3 | `rowpvt` | 0.049 (standardised receptive vocab) |
 | 4 | `agespeak` | 0.049 |
 | 5 | `aptinfo` | 0.048 (language composite) |
 | 6 | `age` | 0.030 |
-| 7 | `trog` | 0.028 (grammar — near construct match!) |
+| 7 | `trog` | 0.028 (receptive grammar — *not* a CELF construct match) |
 | 8 | `deappin` | 0.025 |
 | 9 | `dadedupost16` | 0.021 |
 | 10 | `mumedupost16` | 0.016 |
 | 11 | `vision` | 0.016 |
-| 12 | `aptgram` | 0.014 (grammar) |
+| 12 | `aptgram` | 0.014 (expressive grammar) |
 | 13 | `erbword` | 0.010 |
 | 14 | `agebooks` | 0.009 |
 | 15 | `yarclet` | 0.008 |
@@ -121,19 +128,25 @@ of the coarse 0–18 scale capping achievable R².
 ### Notable observations
 
 - **`eowpvt` dominant** at 0.181 — expressive vocabulary is the
-  single strongest predictor of receptive-grammar level.
-  Striking: the **grammar measures `trog` (0.028) and `aptgram`
-  (0.014) are much lower-ranked than vocabulary**. The model
-  routes through vocabulary rather than grammar siblings.
+  single strongest predictor of CELF basic concept knowledge.
+  Makes sense: CELF assesses knowledge of 18 linguistic concepts
+  (a lexical/semantic construct), so vocabulary measures are the
+  natural near-construct predictors.
 - **Language cluster dominates the top**: `eowpvt`, `b1reto`,
   `rowpvt`, `aptinfo` take 4 of the top 5 slots. Similar pattern
   to LRP08 (receptive vocabulary) where the language cluster
   also led — contrast with LRP06 (letter-sound knowledge) which
   was reading-dominated.
+- **Grammar measures contribute modestly**: `trog` (0.028, rank
+  7) and `aptgram` (0.014, rank 12) — present but well below the
+  vocabulary tier. As expected: CELF does not tap grammar in
+  this study, so grammar measures predict only via whatever
+  general-language co-variation they share with concept
+  knowledge.
 - **`agespeak` at rank 4 (0.049)** — age at first word is
   unusually high here; typically it sits below 0.02 on other
-  models. Plausibly captures developmental trajectory that
-  maps onto grammar acquisition.
+  models. Plausibly captures a developmental trajectory into
+  concept / word-meaning knowledge.
 - **No reading measure in top 10**: `yarclet` (rank 15), `ewrswr`
   (rank 16), `spphon` (rank 18), `nonword` (rank 24) — all below
   the language tier.
@@ -347,7 +360,8 @@ coherently. Not a concern.
 `agespeak`, and `vision` rose substantially. `ewrswr` had the
 largest relative jump (0.008 → 0.075, ~10×) — with the
 reading-cluster redundancy removed, word-reading level emerged
-as a meaningful receptive-grammar predictor in its own right.
+as a meaningful CELF basic-concept-knowledge predictor in its
+own right.
 `rowpvt`, `aptinfo`, `trog`, `deappin`, and the parental-ed pair
 all roughly doubled.
 
@@ -379,9 +393,9 @@ Drops the two highest-importance retained features — `eowpvt`
 (standardised expressive vocabulary, rank 1 at 0.146) and
 `b1reto` (Block 1 intervention-taught receptive vocabulary,
 rank 2 at 0.133) — to answer the research question "what
-predicts receptive grammar **beyond** vocabulary?". Mirrors
-LRP04's construct-driven Select02 drop of `b1exto`. Note the
-cut retains `rowpvt` (standardised receptive vocabulary) and
+predicts CELF basic concept knowledge **beyond** vocabulary?".
+Mirrors LRP04's construct-driven Select02 drop of `b1exto`. Note
+the cut retains `rowpvt` (standardised receptive vocabulary) and
 `aptinfo` (language composite), so this is not a full vocabulary-
 removal — rather a "drop the strongest two vocabulary handles"
 cut that exercises whether the retained language measures can
@@ -389,8 +403,8 @@ compensate.
 
 Expected to hurt CV R² since these are the top two predictors;
 the trade is worse accuracy for a more interpretable model that
-isolates the grammar-specific signal from the
-vocabulary/language signal.
+isolates the non-strongest-vocabulary contribution to basic
+concept knowledge.
 
 ### Dropped (2)
 
@@ -406,7 +420,9 @@ vocabulary/language signal.
 
 `aptinfo` and `rowpvt` remain as language-domain controls
 (composite and receptive-vocab respectively); `trog` remains as
-the nearest-construct grammar measure.
+the receptive-grammar measure — *not* a construct match for
+CELF basic concept knowledge, but kept as a broader language-
+cluster control.
 
 ### Select02 carry-forward (Select01-tune → 10 predictors)
 
@@ -479,9 +495,10 @@ including Select01.
 | 10 | `vision` | 0.020 | +0.010 |
 
 **Absorbed signal from dropped features**:
-- `rowpvt` jumped **+0.082** — receptive vocabulary absorbed most
-  of `b1reto`'s receptive-language signal plus some of `eowpvt`'s
-  cross-modality vocabulary signal.
+- `rowpvt` jumped **+0.082** — the standardised receptive-vocab
+  measure absorbed most of `b1reto`'s (Block 1 receptive vocab)
+  signal plus some of `eowpvt`'s cross-modality vocabulary
+  signal.
 - `aptinfo` jumped **+0.065** — the language composite absorbed
   partially too.
 - `ewrswr` jumped **+0.068** — word reading stepped up as a
@@ -494,15 +511,19 @@ including Select01.
   permutation importance underestimates in shallow trees.
 - `deappin`, `dadedupost16` also lost some ground.
 
-**Substantive finding**: with expressive vocab and receptive
-language removed, the receptive-grammar level task still routes
-through the remaining vocabulary / language-composite cluster
-(`rowpvt` + `aptinfo`) rather than uncovering a grammar-specific
-signal. `trog` (the nearest construct match) gained only
-+0.014. Receptive grammar, as measured by CELF in this sample,
-is strongly predicted by vocabulary measures of all kinds — the
-model can't isolate a "grammar-beyond-vocabulary" signal because
-the construct is itself strongly covariant with vocabulary.
+**Substantive finding**: with the two strongest vocabulary
+measures removed, the CELF basic-concept-knowledge task still
+routes through the remaining vocabulary cluster (`rowpvt` +
+`aptinfo`) rather than shifting toward the grammar or
+articulation predictors. `trog` (receptive grammar) gained only
++0.014. This is expected rather than surprising: **CELF here
+measures knowledge of 18 basic linguistic concepts (a lexical/
+semantic construct)**, so it's tightly tied to vocabulary by
+design. The model can't find a "concept-knowledge-beyond-
+vocabulary" signal because the construct itself is essentially
+a vocabulary subdomain — any non-vocabulary contribution is
+either absent from the data or diffuse across multiple weak
+predictors.
 
 ## Cumulative summary
 
@@ -530,17 +551,21 @@ rather than an outright worse model.
 - Two `SelectionStep`s document the 32 → 12 → 10 cut.
 - Select02 is a **construct-driven alternative framing** — not
   a strict accuracy improvement. The trade is worse mean
-  prediction for a cleaner "what predicts grammar beyond
-  vocabulary?" interpretation.
+  prediction for a cleaner "what predicts CELF basic concept
+  knowledge beyond the two strongest vocabulary handles?"
+  interpretation.
 
 ## Next-step candidates (future PRs)
 
 - **Select03 (further construct reduction)**: drop `rowpvt` +
-  `aptinfo` — ask "what predicts receptive grammar beyond any
-  language-cluster measure?". Expected to hurt R² substantially
-  (rowpvt+aptinfo sum imp 0.355 under current primary). Would
-  isolate non-language predictors but may collapse to a trivial
-  model.
+  `aptinfo` — ask "what predicts CELF basic concept knowledge
+  beyond any vocabulary / language-composite measure?". Expected
+  to hurt R² substantially (rowpvt + aptinfo sum imp 0.355 under
+  current primary). Would isolate non-vocabulary predictors
+  (grammar, articulation, demographics) but likely collapse to
+  a weak model — CELF measures a lexical/semantic construct, so
+  removing all vocabulary handles leaves little near-construct
+  signal.
 - **Quantile α=0.5 objective** — doubly motivated now: CV MedAE
   already differs 0.126 between retune and carry-forward; a
   quantile-optimised model could beat both on MedAE.
