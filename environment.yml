@@ -43,5 +43,6 @@ dependencies:
       - scipy>=1.17.1
       - seaborn>=0.13.2
       - setuptools>=81.0.0
+      - tabulate>=0.10.0
       - -e ../research/src/python #  for now, for local development
       - -e ./
