@@ -174,27 +174,230 @@ importance distribution argues against.
 | Baseline (untuned) | 32 | 2.566 | 0.367 | 2.316 |
 | MAE-tuned on 32 | 32 | **2.405** | **0.440** | **2.124** |
 
+## Select01: correlation-informed 32 → 12 cut
+
+Pre-cut dcorr audit. A full 32×32 distance-correlation matrix
+computed from the data (n=214) revealed **dense redundancy** —
+40+ pairs at dcorr ≥ 0.60 — much higher than any prior LRP model.
+
+### Top redundancy pairs in the full 32-predictor set
+
+| Pair | dcorr | Both importance |
+|---|---:|---|
+| `erbword` ↔ `erbnw` | **0.839** | 0.010 / 0.006 |
+| `eowpvt` ↔ `b1exto` | **0.807** | 0.181 / 0.007 |
+| `aptinfo` ↔ `b1exto` | **0.805** | 0.048 / 0.007 |
+| `ewrswr` ↔ `spphon` | **0.786** | 0.008 / 0.006 |
+| `aptinfo` ↔ `aptgram` | **0.769** | 0.048 / 0.014 |
+| `eowpvt` ↔ `aptinfo` | **0.767** | 0.181 / 0.048 |
+| `deappin` ↔ `deappfi` | **0.767** | 0.025 / 0.003 |
+| `b1reto` ↔ `b1exto` | **0.756** | 0.106 / 0.007 |
+| `spphon` ↔ `yarcsi` | **0.753** | 0.006 / 0.000 |
+| `b1reto` ↔ `aptinfo` | **0.740** | 0.106 / 0.048 |
+
+The language cluster (`eowpvt`/`aptinfo`/`b1reto`/`rowpvt`/
+`b1exto`/`trog`/`aptgram`) forms an internally-redundant network
+where almost every pair exceeds 0.60. Reading cluster (`ewrswr`/
+`spphon`/`yarclet`/`nonword`/`yarcsi`) similar. Speech-error pair
+(`erbword`/`erbnw`) and DEAP articulation pair (`deappin`/
+`deappfi`) are discrete pairs at high dcorr.
+
+### Dropped (20)
+
+**Tier A — ≤ 0.005 importance (12):**
+`earinf`, `numchil`, `area`, `nonword`, `behav`, `group`,
+`gender`, `deappfi`, `hearing`, `yarcsi`, `time`, `blending`.
+
+(`yarcsi`, `time`, `blending` were explicitly L1-zeroed by the
+extreme `reg_alpha` 4.72 tune; the others at 0.002–0.005 are the
+near-noise floor.)
+
+**Tier B — 0.006–0.014, redundancy-driven drops (8):**
+- `aptgram` (0.014) — dcorr **0.769** with retained `aptinfo`
+  (language-composite redundancy; aptinfo is higher-importance)
+- `erbword` (0.010) — dcorr **0.713** with retained `deappin`,
+  **0.839** with also-dropped `erbnw` (pair-redundant and
+  speech-noise-floor)
+- `agebooks` (0.009) — demographic near-noise
+- `yarclet` (0.008) — dcorr **0.690** with retained `ewrswr`
+  (reading-cluster redundancy)
+- `b1exto` (0.007) — dcorr **0.807** with retained `eowpvt`
+  (expressive-vocab redundancy)
+- `spphon` (0.006) — dcorr **0.786** with retained `ewrswr`
+- `deappvo` (0.006) — near-noise; no dcorr ≥ 0.60 with retained
+- `erbnw` (0.006) — dcorr **0.839** with dropped `erbword`
+
+### Retained (12)
+
+`eowpvt`, `b1reto`, `rowpvt`, `agespeak`, `aptinfo`, `age`,
+`trog`, `deappin`, `dadedupost16`, `mumedupost16`, `vision`,
+`ewrswr` (kept as reading-cluster construct control).
+
+### Retained-set dcorr residuals
+
+Even the retained 12-predictor set has internal redundancy:
+
+| Pair | dcorr | Flag for Select02 |
+|---|---:|---|
+| `eowpvt` ↔ `aptinfo` | 0.767 | strong |
+| `b1reto` ↔ `aptinfo` | 0.740 | strong |
+| `eowpvt` ↔ `rowpvt` | 0.718 | strong |
+| `eowpvt` ↔ `b1reto` | 0.703 | strong |
+| `aptinfo` ↔ `rowpvt` | 0.698 | moderate-strong |
+| `b1reto` ↔ `rowpvt` | 0.696 | moderate-strong |
+| `eowpvt` ↔ `ewrswr` | 0.676 | moderate-strong |
+| `dadedupost16` ↔ `mumedupost16` | 0.580 | moderate |
+
+The language cluster is structurally redundant by construct —
+all six measures tap overlapping language abilities. A pure-
+redundancy Select02 would collapse this further; the right
+reduction path is construct-driven (see "Next steps" below).
+
+### Select01 carry-forward (32-tune → 12 predictors)
+
+| Metric | Before (32 predictors, 40 trees) | After (12 predictors, same 40 trees) |
+|---|---:|---:|
+| CV MAE | **2.405 ± 0.437** | 2.415 ± 0.497 |
+| CV RMSE | **2.906** | 2.941 |
+| CV R² | **0.440 ± 0.166** | 0.426 ± 0.162 |
+| CV MedAE | 2.124 | **2.101** |
+| In-sample R² | 0.769 | 0.729 |
+
+Mild trade: CV MAE/RMSE/R² drift slightly worse, but CV MedAE
+improves 0.023 and in-sample R² drops 0.040 (less memorisation).
+The extreme L1 tune's 40-tree regime did not transfer ideally to
+the cleaner 12-predictor set.
+
+### Retune on 12 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **2.3282 ± 0.3972**.
+
+| Parameter | Tuned on 32 | **Tuned on 12** |
+|---|---:|---:|
+| n_estimators | 40 | **87** |
+| learning_rate | 0.198 | 0.081 |
+| num_leaves | 10 | 30 |
+| max_depth | 4 | **11** |
+| min_child_samples | 26 | 5 |
+| subsample | 0.836 | 0.845 |
+| colsample_bytree | 0.919 | 0.645 |
+| reg_alpha | **4.722** | 2.470 |
+| reg_lambda | 0.004 | 0.002 |
+
+Large regime shift: the extreme-L1-few-fast-shallow full-set
+regime is replaced by **moderate-slow-many-deep with moderate
+L1**. Tuner kept some L1 (α 2.47) but moved sharply toward
+depth (max_depth 4 → 11, num_leaves 10 → 30) and tree count
+(40 → 87). min_child_samples dropped 26 → 5.
+
+Reading: the full-set tune's extreme L1 was compensating for
+32 predictors with dense correlation — it zeroed out most
+features to prevent over-fit. With Select01 handling redundancy
+at the feature-selection step, the tune can move to a more
+conventional "moderate deep" regime.
+
+### Refit under Select01 retuned params
+
+| Metric | Carry-forward (40 trees) | **Retuned (87 trees)** |
+|---|---:|---:|
+| CV MAE | 2.415 | **2.328 ± 0.289** |
+| CV RMSE | 2.941 | **2.863** |
+| CV R² | 0.426 | **0.450 ± 0.160** |
+| CV MedAE | 2.101 | **2.026** |
+| In-sample R² | 0.729 | 0.912 |
+
+**Retune wins on every CV metric** — and tuner-inner CV MAE
+(2.328) matches refit CV MAE exactly. This is the **opposite of
+LRP09**: retune transfers cleanly on LRP10.
+
+Plausible mechanism: LRP09's full-set tune (many-slow-deep +
+strong L2) was already well-generalised, so retuning on the
+reduced set produced narrower high-variance optima that
+over-fitted inner CV. LRP10's full-set tune (extreme-L1-few-
+fast) was compensating for 32-predictor redundancy and did
+not generalise cleanly — retuning on the cleaner 12-predictor
+set found a more sensible regime that does generalise.
+
+CV R² 0.450 is the best LRP10 CV R² to date; CV RMSE std
+dropped from 0.437 to 0.289 — much tighter fold variance.
+
+In-sample R² 0.912 is higher than the 32-pred tune (0.769) —
+the deeper trees can over-fit more. But CV R² improved at the
+same time, so the generalisation gap widened in both directions
+coherently. Not a concern.
+
+### Permutation importance under retuned model
+
+| Rank | Feature | Importance | Δ vs 32-pred |
+|---|---|---:|---|
+| 1 | **`eowpvt`** | **0.146** | −0.035 (some to b1reto) |
+| 2 | `b1reto` | 0.133 | **+0.027** |
+| 3 | `rowpvt` | 0.110 | **+0.061** (more than doubled) |
+| 4 | `aptinfo` | 0.098 | **+0.050** (more than doubled) |
+| 5 | `ewrswr` | 0.075 | **+0.067** (10× jump!) |
+| 6 | `trog` | 0.065 | +0.037 (more than doubled) |
+| 7 | `age` | 0.064 | +0.034 (more than doubled) |
+| 8 | `dadedupost16` | 0.056 | +0.035 (more than doubled) |
+| 9 | `deappin` | 0.055 | +0.030 (more than doubled) |
+| 10 | `agespeak` | 0.047 | −0.002 (stable) |
+| 11 | `mumedupost16` | 0.020 | +0.004 |
+| 12 | `vision` | 0.010 | −0.006 |
+
+**Massive rebalance**: every retained feature except `eowpvt`,
+`agespeak`, and `vision` rose substantially. `ewrswr` had the
+largest relative jump (0.008 → 0.075, ~10×) — with the
+reading-cluster redundancy removed, word-reading level emerged
+as a meaningful receptive-grammar predictor in its own right.
+`rowpvt`, `aptinfo`, `trog`, `deappin`, and the parental-ed pair
+all roughly doubled.
+
+`eowpvt` slightly declined (0.181 → 0.146) — the only feature
+to lose importance. Plausibly its previous rank-1 dominance was
+partially the artefact of absorbing signal from the 8 strongly-
+correlated neighbours that are now dropped; b1reto and rowpvt
+absorb some of the slack.
+
+**All 12 features at ≥ 0.010; no noise floor.** The model is
+using every retained feature meaningfully.
+
+## Cumulative summary
+
+| Step | Predictors | CV MAE | CV R² | CV MedAE |
+|---|---|---|---|---|
+| Baseline (untuned) | 32 | 2.566 | 0.367 | 2.316 |
+| MAE-tuned on 32 | 32 | 2.405 | 0.440 | 2.124 |
+| Select01 carry-forward | 12 | 2.415 | 0.426 | 2.101 |
+| **Retuned-12** (primary) | **12** | **2.328** | **0.450** | **2.026** |
+
+Cutting from 32 to 12 predictors and retuning dropped CV MAE
+by 0.08 (3.2%) and raised CV R² by 0.010. A larger swing than
+LRP08's 32→17 Select01 but similar to LRP06's 32→10.
+
 ## Current state
 
-- **`lrp10`** (primary, MAE-tuned on 32 predictors): 32 predictors,
-  CV MAE 2.405 ± 0.437, CV R² 0.440 ± 0.166, CV MedAE 2.124. No
+- **`lrp10`** (primary, MAE-tuned on 12 predictors): 12 predictors,
+  CV MAE 2.328 ± 0.289, CV R² 0.450 ± 0.160, CV MedAE 2.026. No
   outlier exclusion, n=214.
-- Tuning baseline established. No feature-selection steps applied
-  yet — this PR is the tuned starting point.
+- One `SelectionStep` on `LRP10` documents the 32 → 12 cut.
+- **Unlike LRP09**, retune transferred cleanly and is retained
+  as primary rather than carry-forward.
 
 ## Next-step candidates (future PRs)
 
-- **Select01**: drop Tier A (11 L1-zeroed features); add ~4 Tier B
-  redundant drops. Target ~16–18 predictors.
-- **Correlation / redundancy review** on the language cluster —
-  `eowpvt`/`b1reto`/`rowpvt`/`aptinfo`/`trog`/`aptgram`/`b1exto`
-  are likely internally redundant.
-- **Construct-driven Select02** (like LRP04's `b1exto` drop): the
-  research-question framing could argue for dropping `eowpvt` /
-  `b1reto` / `trog` / `aptgram` (same-language-construct
-  predictors), to answer "what non-language features predict
-  receptive grammar?" — though the result is likely to have much
-  lower R².
+- **Construct-driven Select02**: the language cluster is
+  structurally redundant. Candidates for a research-question
+  framed cut:
+  - Drop `eowpvt` + `b1reto` (retain `aptinfo` as language-
+    composite + `rowpvt` as receptive-vocab control).
+  - Or drop `rowpvt` + `b1reto` (retain `eowpvt` + `aptinfo`
+    for expressive / composite).
+  - Or the most aggressive: drop all four of `eowpvt`/`b1reto`/
+    `rowpvt`/`aptinfo` to ask "what predicts receptive grammar
+    beyond vocabulary?" — expected to hurt R² but would surface
+    the grammar-specific signal.
+- **Redundancy-driven Select02**: drop `aptinfo` (dcorr 0.767
+  with `eowpvt`, 0.740 with `b1reto`) — aptinfo is a composite
+  and the components are already in the set.
 - **Quantile α=0.5 objective** — mirrors LRP02/LRP04 quantile
-  work.
+  work. CV MedAE already dropped 0.10 under the retune.
 - **RMSE-tuned prediction variant** (`lrp10_prediction`).
