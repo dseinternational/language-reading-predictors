@@ -17,11 +17,19 @@
 # %config InlineBackend.figure_format = 'retina'
 
 # %%
+import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pandas as pd
+import seaborn as sns
+import shap
 
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import GroupKFold, cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.inspection import permutation_importance
 
 import dse_research_utils.environment.setup as setup
 import dse_research_utils.plot.styles as plot_styles
@@ -62,11 +70,14 @@ print()
 package_metadata.report_package_versions(package_list)
 
 # %%
-df = data_utils.load_data()
+all_df = data_utils.load_data()
+t1_df = all_df[all_df[vars.TIME] == 1]
+intervention_df = t1_df[t1_df[vars.GROUP] == 1]
+control_df = t1_df[t1_df[vars.GROUP] == 2]
 
 
 # %%
-def scatter_plot(x, y):
+def scatter_plot(df: pd.DataFrame, x, y):
     plt.figure(figsize=plot_styles.FIGSIZE_LG)
     plt.scatter(df[x], df[y], alpha=0.5)
     plt.xlabel(vars.get_variable_name(x))
@@ -74,4 +85,36 @@ def scatter_plot(x, y):
 
 
 # %%
-scatter_plot(vars.YARCLET, vars.EWRSWR)
+def violin_plot(df: pd.DataFrame, x, y):
+    plt.figure(figsize=plot_styles.FIGSIZE_LG)
+    sns.violinplot(x=df[x], y=df[y])
+    plt.xlabel(vars.get_variable_name(x))
+    plt.ylabel(vars.get_variable_name(y))
+
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.EWRSWR_GAIN)
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.ROWPVT_GAIN)
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.B1RETO_GAIN)
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.B1EXTO_GAIN)
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.EOWPVT_GAIN)
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.CELF_GAIN)
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.TROG_GAIN)
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.SPPHON_GAIN)
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.BLENDING_GAIN)
