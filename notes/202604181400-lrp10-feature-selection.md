@@ -373,31 +373,178 @@ Cutting from 32 to 12 predictors and retuning dropped CV MAE
 by 0.08 (3.2%) and raised CV R² by 0.010. A larger swing than
 LRP08's 32→17 Select01 but similar to LRP06's 32→10.
 
+## Select02: construct-driven drop of eowpvt + b1reto (12 → 10)
+
+Drops the two highest-importance retained features — `eowpvt`
+(standardised expressive vocabulary, rank 1 at 0.146) and
+`b1reto` (Block 1 intervention-taught receptive vocabulary,
+rank 2 at 0.133) — to answer the research question "what
+predicts receptive grammar **beyond** vocabulary?". Mirrors
+LRP04's construct-driven Select02 drop of `b1exto`. Note the
+cut retains `rowpvt` (standardised receptive vocabulary) and
+`aptinfo` (language composite), so this is not a full vocabulary-
+removal — rather a "drop the strongest two vocabulary handles"
+cut that exercises whether the retained language measures can
+compensate.
+
+Expected to hurt CV R² since these are the top two predictors;
+the trade is worse accuracy for a more interpretable model that
+isolates the grammar-specific signal from the
+vocabulary/language signal.
+
+### Dropped (2)
+
+| Feature | Select01 importance | Role |
+|---|---:|---|
+| `eowpvt` | 0.146 (rank 1) | Expressive one-word picture vocabulary |
+| `b1reto` | 0.133 (rank 2) | Block 1 Receptive Vocabulary Total |
+
+### Retained (10)
+
+`rowpvt`, `aptinfo`, `ewrswr`, `trog`, `agespeak`, `age`,
+`dadedupost16`, `mumedupost16`, `deappin`, `vision`.
+
+`aptinfo` and `rowpvt` remain as language-domain controls
+(composite and receptive-vocab respectively); `trog` remains as
+the nearest-construct grammar measure.
+
+### Select02 carry-forward (Select01-tune → 10 predictors)
+
+| Metric | Before (12 predictors, 87 trees) | After (10 predictors, same 87 trees) |
+|---|---:|---:|
+| CV MAE | **2.328 ± 0.289** | 2.419 ± 0.457 |
+| CV RMSE | **2.863** | 3.036 |
+| CV R² | **0.450 ± 0.160** | 0.397 ± 0.143 |
+| CV MedAE | 2.026 | **1.799** |
+| In-sample R² | 0.912 | 0.883 |
+
+CV MAE, RMSE, and R² all worsen as expected — the two dropped
+features carried meaningful independent signal. But **CV MedAE
+improves dramatically** (2.026 → 1.799, 0.227 drop) — the best
+LRP10 CV MedAE of any configuration. Median predictions got more
+accurate even as mean error rose; the dropped features were
+helping at the tails more than the centre.
+
+### Retune on 10 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **2.3081 ± 0.4383**.
+
+| Parameter | Tuned on 12 | **Tuned on 10** |
+|---|---:|---:|
+| n_estimators | 87 | **33** |
+| learning_rate | 0.081 | 0.134 |
+| num_leaves | 30 | 29 |
+| max_depth | **11** | **3** |
+| min_child_samples | 5 | 5 |
+| subsample | 0.845 | 0.636 |
+| colsample_bytree | 0.645 | 0.809 |
+| reg_alpha | 2.470 | 0.201 |
+| reg_lambda | 0.002 | 0.012 |
+
+Sharp regime shift back toward **fewer-faster-shallower**:
+33 trees, lr 0.134, depth 3, mild regularisation. Makes sense:
+with the two strongest language predictors gone, the tuner
+backs off ensemble complexity — there's less deep signal to
+extract, so simple wide-shallow trees win.
+
+### Refit under Select02 retuned params
+
+| Metric | Carry-forward (87 trees) | **Retuned (33 trees)** |
+|---|---:|---:|
+| CV MAE | 2.419 | **2.353 ± 0.507** |
+| CV RMSE | 3.036 | **2.968** |
+| CV R² | 0.397 | **0.426 ± 0.145** |
+| CV MedAE | **1.799** | 1.925 |
+| In-sample R² | 0.883 | 0.724 |
+
+**Retune wins on MAE/RMSE/R², carry-forward wins on MedAE** —
+same LRP05/07-pattern trade. Retained retune as primary for
+convention; but note the Select02 carry-forward CV MedAE of
+1.799 is the best LRP10 MedAE of any configuration tested,
+including Select01.
+
+### Permutation importance under retuned Select02 model
+
+| Rank | Feature | Importance | Δ vs Select01 |
+|---|---|---:|---|
+| 1 | **`rowpvt`** | **0.192** | **+0.082** (was 0.110, rank 3) |
+| 2 | `aptinfo` | 0.163 | **+0.065** (was 0.098, rank 4) |
+| 3 | `ewrswr` | 0.143 | **+0.068** (was 0.075, rank 5) |
+| 4 | `trog` | 0.079 | +0.014 (was 0.065) |
+| 5 | `agespeak` | 0.061 | +0.014 (was 0.047) |
+| 6 | `dadedupost16` | 0.036 | −0.020 (was 0.056) |
+| 7 | `mumedupost16` | 0.029 | +0.009 |
+| 8 | `deappin` | 0.028 | −0.027 (was 0.055) |
+| 9 | `age` | 0.026 | **−0.038** (was 0.064) |
+| 10 | `vision` | 0.020 | +0.010 |
+
+**Absorbed signal from dropped features**:
+- `rowpvt` jumped **+0.082** — receptive vocabulary absorbed most
+  of `b1reto`'s receptive-language signal plus some of `eowpvt`'s
+  cross-modality vocabulary signal.
+- `aptinfo` jumped **+0.065** — the language composite absorbed
+  partially too.
+- `ewrswr` jumped **+0.068** — word reading stepped up as a
+  non-language control.
+
+**Signal lost**:
+- `age` dropped **−0.038** — the retune's shallow-tree regime
+  (depth 3) uses fewer splits so age-as-continuous-predictor
+  loses airtime. Probably still operating via interactions that
+  permutation importance underestimates in shallow trees.
+- `deappin`, `dadedupost16` also lost some ground.
+
+**Substantive finding**: with expressive vocab and receptive
+language removed, the receptive-grammar level task still routes
+through the remaining vocabulary / language-composite cluster
+(`rowpvt` + `aptinfo`) rather than uncovering a grammar-specific
+signal. `trog` (the nearest construct match) gained only
++0.014. Receptive grammar, as measured by CELF in this sample,
+is strongly predicted by vocabulary measures of all kinds — the
+model can't isolate a "grammar-beyond-vocabulary" signal because
+the construct is itself strongly covariant with vocabulary.
+
+## Cumulative summary
+
+| Step | Predictors | CV MAE | CV R² | CV MedAE |
+|---|---|---|---|---|
+| Baseline (untuned) | 32 | 2.566 | 0.367 | 2.316 |
+| MAE-tuned on 32 | 32 | 2.405 | 0.440 | 2.124 |
+| Select01 carry-forward | 12 | 2.415 | 0.426 | 2.101 |
+| Select01 retuned-12 | 12 | **2.328** | **0.450** | 2.026 |
+| Select02 carry-forward | 10 | 2.419 | 0.397 | **1.799** |
+| **Select02 retuned-10** (primary) | **10** | 2.353 | 0.426 | 1.925 |
+
+The Select02 drop cost 0.025 CV MAE and 0.024 CV R² relative to
+Select01 retune — real but modest. CV MedAE dropped 0.101 at
+retune or 0.227 at carry-forward — the model does better on the
+median observation without the top two predictors. That trade
+makes Select02 a meaningful alternative framing of the task
+rather than an outright worse model.
+
 ## Current state
 
-- **`lrp10`** (primary, MAE-tuned on 12 predictors): 12 predictors,
-  CV MAE 2.328 ± 0.289, CV R² 0.450 ± 0.160, CV MedAE 2.026. No
-  outlier exclusion, n=214.
-- One `SelectionStep` on `LRP10` documents the 32 → 12 cut.
-- **Unlike LRP09**, retune transferred cleanly and is retained
-  as primary rather than carry-forward.
+- **`lrp10`** (primary, Select02 retuned MAE params on 10
+  predictors): 10 predictors, CV MAE 2.353 ± 0.507, CV R² 0.426
+  ± 0.145, CV MedAE 1.925. No outlier exclusion, n=214.
+- Two `SelectionStep`s document the 32 → 12 → 10 cut.
+- Select02 is a **construct-driven alternative framing** — not
+  a strict accuracy improvement. The trade is worse mean
+  prediction for a cleaner "what predicts grammar beyond
+  vocabulary?" interpretation.
 
 ## Next-step candidates (future PRs)
 
-- **Construct-driven Select02**: the language cluster is
-  structurally redundant. Candidates for a research-question
-  framed cut:
-  - Drop `eowpvt` + `b1reto` (retain `aptinfo` as language-
-    composite + `rowpvt` as receptive-vocab control).
-  - Or drop `rowpvt` + `b1reto` (retain `eowpvt` + `aptinfo`
-    for expressive / composite).
-  - Or the most aggressive: drop all four of `eowpvt`/`b1reto`/
-    `rowpvt`/`aptinfo` to ask "what predicts receptive grammar
-    beyond vocabulary?" — expected to hurt R² but would surface
-    the grammar-specific signal.
-- **Redundancy-driven Select02**: drop `aptinfo` (dcorr 0.767
-  with `eowpvt`, 0.740 with `b1reto`) — aptinfo is a composite
-  and the components are already in the set.
-- **Quantile α=0.5 objective** — mirrors LRP02/LRP04 quantile
-  work. CV MedAE already dropped 0.10 under the retune.
+- **Select03 (further construct reduction)**: drop `rowpvt` +
+  `aptinfo` — ask "what predicts receptive grammar beyond any
+  language-cluster measure?". Expected to hurt R² substantially
+  (rowpvt+aptinfo sum imp 0.355 under current primary). Would
+  isolate non-language predictors but may collapse to a trivial
+  model.
+- **Quantile α=0.5 objective** — doubly motivated now: CV MedAE
+  already differs 0.126 between retune and carry-forward; a
+  quantile-optimised model could beat both on MedAE.
 - **RMSE-tuned prediction variant** (`lrp10_prediction`).
+- **Keep Select01 as a parallel `lrp10_accuracy` variant** — the
+  accuracy-optimal model deserves a separate branch of the
+  registry alongside the construct-reduced `lrp10` primary.
