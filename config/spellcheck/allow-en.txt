@@ -91,6 +91,9 @@ ncol
 nonlinear
 nonword
 numchil
+lsam
+LSAM
+subskill
 Optuna
 optuna
 othertimeread
