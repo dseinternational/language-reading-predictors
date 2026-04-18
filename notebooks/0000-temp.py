@@ -23,21 +23,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
-import seaborn as sns
-import shap
-
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import GroupKFold, cross_val_score
-from sklearn.pipeline import Pipeline
-from sklearn.inspection import permutation_importance
 
 import dse_research_utils.environment.setup as setup
-import dse_research_utils.plot.styles as plot_styles
 import dse_research_utils.metadata.packages as package_metadata
 
 import language_reading_predictors.data_utils as data_utils
 
 from language_reading_predictors.data_variables import Variables as vars
+from language_reading_predictors.plot_utils import scatter_plot, violin_plot
 
 # constrained layout causes issues with some of the SHAP plots
 mpl.rcParams["figure.constrained_layout.use"] = False
@@ -75,22 +68,15 @@ t1_df = all_df[all_df[vars.TIME] == 1]
 intervention_df = t1_df[t1_df[vars.GROUP] == 1]
 control_df = t1_df[t1_df[vars.GROUP] == 2]
 
+# %%
 
 # %%
-def scatter_plot(df: pd.DataFrame, x, y):
-    plt.figure(figsize=plot_styles.FIGSIZE_LG)
-    plt.scatter(df[x], df[y], alpha=0.5)
-    plt.xlabel(vars.get_variable_name(x))
-    plt.ylabel(vars.get_variable_name(y))
-
 
 # %%
-def violin_plot(df: pd.DataFrame, x, y):
-    plt.figure(figsize=plot_styles.FIGSIZE_LG)
-    sns.violinplot(x=df[x], y=df[y])
-    plt.xlabel(vars.get_variable_name(x))
-    plt.ylabel(vars.get_variable_name(y))
+scatter_plot(t1_df, vars.EWRSWR, vars.EWRSWR_GAIN, color=vars.GROUP, categorical=True)
 
+# %%
+scatter_plot(t1_df, vars.YARCLET, vars.EWRSWR_GAIN, color=vars.GROUP, categorical=True)
 
 # %%
 violin_plot(t1_df, vars.GROUP, vars.EWRSWR_GAIN)
@@ -106,6 +92,9 @@ violin_plot(t1_df, vars.GROUP, vars.B1EXTO_GAIN)
 
 # %%
 violin_plot(t1_df, vars.GROUP, vars.EOWPVT_GAIN)
+
+# %%
+violin_plot(t1_df, vars.GROUP, vars.EOWPVT)
 
 # %%
 violin_plot(t1_df, vars.GROUP, vars.CELF_GAIN)
