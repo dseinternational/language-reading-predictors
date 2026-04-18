@@ -29,6 +29,7 @@ YARC
 BFMI
 ELPD
 estimand
+estimands
 nogp
 unmodelled
 linspace
