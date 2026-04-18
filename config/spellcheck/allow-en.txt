@@ -69,6 +69,7 @@ mumocc
 ncol
 nonlinear
 nonword
+nonwords
 numchil
 Optuna
 optuna

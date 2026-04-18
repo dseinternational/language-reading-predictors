@@ -23,4 +23,6 @@ from language_reading_predictors.models import (  # noqa: F401
     lrp08,
     lrp09,
     lrp10,
+    lrp13,
+    lrp14,
 )
