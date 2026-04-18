@@ -167,31 +167,228 @@ A **conservative** Select01 drops Tier A (~8). A **moderate** cut
 features where redundancy is plausible — target ~18–20
 predictors.
 
-## Cumulative
+## Select01: drop 15 low-importance / redundant features (34 → 19)
+
+Moderate one-shot cut informed by the 34-predictor MAE-tuned
+importance table above. Less aggressive than LRP05/LRP07 because
+LRP09's deep-tree many-estimator tune produced a shallower noise
+floor — the retained mid-tier features all contribute
+meaningfully.
+
+### Dropped (15)
+
+**Tier A — ≤ 0.007 importance (8):**
+`area`, `vision`, `numchil`, `earinf`, `behav`, `hearing`, `group`,
+`gender`.
+
+**Tier B — 0.007–0.014, near-noise or redundant (7):**
+- `yarcsi` (0.007) — redundant with retained `yarclet` and
+  `ewrswr`; reading-cluster overlap.
+- `agespeak` (0.008) — demographic near-noise-floor.
+- `agebooks` (0.009) — demographic near-noise-floor.
+- `dadedupost16` (0.012) — dcorr ≈ 0.56 with retained
+  `mumedupost16` (0.016); parental-education pair-redundant.
+- `erbword` (0.013) — pair-redundant with retained `erbnw` (0.017);
+  speech-error pair.
+- `blending` (0.013) — reading-cluster redundancy with retained
+  `ewrswr` / `spphon`.
+- `time` (0.014) — weak time-invariant signal under this tune;
+  notable that time usually matters more for gains but LRP09's
+  tune apparently doesn't depend on it.
+
+### Retained (19)
+
+Full grammar pair `trog` (0.039) + `aptgram` (0.027), full DEAP
+articulation trio `deappfi` / `deappin` / `deappvo`, full language
+cluster (`b1exto`, `b1reto`, `aptinfo`, `eowpvt`, `rowpvt`),
+reading cluster (`ewrswr`, `yarclet`, `spphon`, `nonword`), plus
+`attend`, `age`, `mumedupost16`, `erbnw`, and the base `celf`.
+
+### Select01 carry-forward (34-tune → 19 predictors)
+
+| Metric | Before (34 predictors, 194 trees) | After (19 predictors, same 194 trees) |
+|---|---:|---:|
+| CV MAE | 2.232 ± 0.375 | **2.185 ± 0.385** |
+| CV RMSE | 2.855 | **2.817** |
+| **CV R²** | 0.094 ± 0.199 | **0.124 ± 0.159** |
+| CV MedAE | 1.753 | **1.650** |
+| In-sample R² | 0.628 | 0.625 |
+
+Every CV metric improves. CV R² rises 0.030 (0.094 → 0.124), CV
+MAE drops 0.05, CV MedAE drops 0.10. CV R² std tightens from
+0.199 to 0.159. In-sample R² essentially unchanged — textbook
+sign of removing pure noise without eroding signal.
+
+### Retune on 19 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **2.1754 ± 0.3696**.
+
+| Parameter | Tuned on 34 | Tuned on 19 |
+|---|---:|---:|
+| n_estimators | 194 | 45 |
+| learning_rate | 0.013 | 0.099 |
+| num_leaves | 44 | 52 |
+| max_depth | 12 | 11 |
+| min_child_samples | 5 | 6 |
+| subsample | 0.652 | 0.807 |
+| colsample_bytree | 0.968 | 0.811 |
+| reg_alpha | 0.001 | **1.138** |
+| reg_lambda | **2.240** | 0.139 |
+
+Large regime shift: from **many-slow-deep + strong L2** to
+**fewer-faster-wide + strong L1**. Fewer trees (45 vs 194), 8×
+faster learning, L1 and L2 swap dominance.
+
+### Refit under Select01 retuned params
+
+| Metric | Carry-forward (194 trees) | Retuned (45 trees) |
+|---|---:|---:|
+| CV MAE | **2.185 ± 0.385** | 2.282 ± 0.454 |
+| CV RMSE | **2.817** | 2.902 |
+| CV R² | **0.124 ± 0.159** | 0.061 ± 0.210 |
+| CV MedAE | **1.650** | 1.866 |
+| In-sample R² | 0.625 | 0.726 |
+
+**Carry-forward wins on every CV metric — by clear margins.**
+Tuner-inner CV MAE was 2.175 but actual refit CV MAE is 2.282
+(gap of 0.11) — the retuned optimum did not transfer cleanly to
+the evaluation CV. This is a reversal of the LRP05/07 convention
+where retune narrowly wins; here the gap is large enough that
+**the carry-forward params are retained as the primary** rather
+than the formally retuned params.
+
+Plausible mechanism: the many-slow-deep-with-strong-L2 regime
+found on the full 34-predictor set generalises well because the
+strong L2 and deep trees together regularise the many-correlated-
+predictor problem; when Optuna retunes on the cleaner 19-predictor
+set it finds a narrower high-variance optimum (many wide trees +
+strong L1) that over-fits the inner CV.
+
+### Permutation importance under carry-forward (primary) model
+
+| Rank | Feature | Importance |
+|---|---|---:|
+| 1 | **`celf`** | **0.591** (base level; 0.610 → 0.591) |
+| 2 | `deappfi` | 0.057 (was 0.046) |
+| 3 | `trog` | 0.043 (was 0.039) |
+| 4 | `b1exto` | 0.038 (was 0.031) |
+| 5 | `erbnw` | 0.038 (was 0.017 — 2× jump) |
+| 6 | `attend` | 0.037 (was 0.028) |
+| 7 | `ewrswr` | 0.035 (was 0.029) |
+| 8 | `deappin` | 0.035 (was 0.023) |
+| 9 | `yarclet` | 0.032 (was 0.020) |
+| 10 | `mumedupost16` | 0.032 (was 0.016 — 2× jump) |
+| 11 | `age` | 0.031 |
+| 12 | `b1reto` | 0.029 |
+| 13 | `rowpvt` | 0.028 |
+| 14 | `spphon` | 0.028 |
+| 15 | `eowpvt` | 0.026 |
+| 16 | `deappvo` | 0.022 |
+| 17 | `aptinfo` | 0.022 |
+| 18 | `aptgram` | 0.021 |
+| 19 | `nonword` | 0.015 |
+
+**Every retained feature rose** — textbook sign of noise removal.
+`erbnw` and `mumedupost16` both roughly doubled (rank 17 → 5 and
+rank 19 → 10 respectively). Base `celf` slightly dropped (0.610
+→ 0.591) as other features absorbed shared signal. No noise
+floor — all 19 features at ≥ 0.015.
+
+## Cumulative summary
 
 | Step | Predictors | CV MAE | CV R² | CV MedAE |
 |---|---|---|---|---|
 | Baseline (untuned) | 34 | 2.327 | −0.011 | 1.910 |
-| MAE-tuned on 34 | 34 | **2.232** | **0.094** | **1.753** |
+| MAE-tuned on 34 | 34 | 2.232 | 0.094 | 1.753 |
+| **Select01 carry-forward** (primary) | **19** | **2.185** | **0.124** | **1.650** |
+| Retuned-19 | 19 | 2.282 | 0.061 | 1.866 |
+
+Cutting from 34 to 19 predictors dropped CV MAE by 0.05 and
+raised CV R² by 0.030. Modest gain but consistent across all
+metrics. Retune was worse on every CV metric — the first
+Select01 in this programme where carry-forward clearly beats
+retune.
 
 ## Current state
 
-- **`lrp09`** (primary, MAE-tuned on 34 predictors): 34 predictors,
-  CV MAE 2.232 ± 0.375, CV R² 0.094 ± 0.199, CV MedAE 1.753. No
-  outlier exclusion, n=160.
-- Tuning baseline established. No feature-selection steps applied
-  yet — this PR is the tuned starting point.
+- **`lrp09`** (primary, carry-forward tuned params on 19
+  predictors): 19 predictors, CV MAE 2.185 ± 0.385, CV R² 0.124
+  ± 0.159, CV MedAE 1.650. No outlier exclusion, n=160.
+- Uses the 34-predictor MAE tune (many-slow-deep + strong L2)
+  applied to the reduced 19-predictor set.
+- One `SelectionStep` on `LRP09` documents the 34 → 19 cut.
+
+## Post-hoc dcorr audit
+
+The Select01 drops above were argued partly on redundancy, partly
+on importance. A post-hoc check against the actual distance
+correlations computed from data (n=160) verified the claims:
+
+### Drop justifications confirmed
+
+| Dropped | Retained sibling | dcorr | Status |
+|---|---|---:|---|
+| `erbword` | `erbnw` | **0.839** | strong — clean drop |
+| `yarcsi` | `spphon` | **0.753** | strong |
+| `yarcsi` | `ewrswr` | 0.684 | moderate-strong |
+| `dadedupost16` | `mumedupost16` | 0.580 | moderate — borderline |
+| `blending` | `spphon` | 0.558 | moderate |
+| `blending` | `ewrswr` | 0.554 | moderate |
+
+### Drop justifications that were weaker than claimed
+
+| Dropped | Reason given | dcorr check |
+|---|---|---|
+| `agespeak` | "demographic near-noise-floor" | 0.262 with `age` — not actually redundant; the drop is justified on importance alone (0.008) |
+| `time` | "weak time-invariant signal" | 0.440 with `age` — not strongly redundant either; drop is on importance (0.014) |
+
+### Strong redundancies retained (Select02 candidates)
+
+The Select01 cut focused on the dropped-feature side. A dcorr
+audit of the **retained** 19 predictors reveals several strong
+pairs still in the set:
+
+| Pair | dcorr | Importance (retained) |
+|---|---:|---:|
+| **`b1exto` ↔ `eowpvt`** | **0.807** | 0.038 / 0.026 |
+| **`deappfi` ↔ `deappin`** | **0.767** | 0.057 / 0.035 |
+| `b1exto` ↔ `b1reto` | 0.756 | 0.038 / 0.029 |
+| `b1reto` ↔ `rowpvt` | 0.696 | 0.029 / 0.028 |
+| `ewrswr` ↔ `yarclet` | 0.690 | 0.035 / 0.032 |
+| `ewrswr` ↔ `nonword` | 0.666 | 0.035 / 0.015 |
+| `spphon` ↔ `nonword` | 0.642 | 0.028 / 0.015 |
+| `trog` ↔ `aptgram` | 0.545 | 0.043 / 0.021 |
+| `celf` ↔ `trog` | 0.539 | 0.591 / 0.043 |
+
+The two pairs at ≥ 0.76 (`b1exto`/`eowpvt` and `deappfi`/`deappin`)
+are strong enough to warrant Select02 by importance-tie-break:
+drop `eowpvt` (lower) and `deappin` (lower). The `trog`/`aptgram`
+pair at 0.545 was deliberately retained for grammar-cluster
+construct coverage — a construct argument, not a redundancy
+argument.
+
+## Current state
+
+- **`lrp09`** (primary, carry-forward tuned params on 19
+  predictors): 19 predictors, CV MAE 2.185 ± 0.385, CV R² 0.124
+  ± 0.159, CV MedAE 1.650. No outlier exclusion, n=160.
+- Uses the 34-predictor MAE tune (many-slow-deep + strong L2)
+  applied to the reduced 19-predictor set.
+- One `SelectionStep` on `LRP09` documents the 34 → 19 cut.
 
 ## Next-step candidates (future PRs)
 
-- **Select01**: drop Tier A (~8 features with importance ≤ 0.005);
-  possibly extend to a moderate 34 → ~18 cut adding the 5 lowest
-  Tier B features. Cut will be less aggressive than LRP05/07.
-- **Correlation / redundancy review** once the feature set is
-  smaller — likely reveals grammar-cluster redundancy
-  (`trog` / `aptgram`) and DEAP-family redundancy
-  (`deappfi` / `deappin` / `deappvo`).
-- **Quantile α=0.5 objective** — mirrors LRP02/LRP04/LRP05/LRP07
-  quantile work. Less motivated here since CV MedAE already
-  improved under the MAE tune.
+- **Select02 (redundancy-driven)**: drop `eowpvt` (dcorr 0.807
+  with retained `b1exto`) and `deappin` (dcorr 0.767 with
+  retained `deappfi`) — importance-tie-break drops on the two
+  strongest remaining pairs. Target 17 predictors. Possibly also
+  `nonword` (dcorr 0.666 with `ewrswr`).
+- **Select02 (construct-driven)**: the research-question framing
+  could argue for dropping `eowpvt` / `b1exto` as expressive-
+  vocab predictors, or `b1reto` / `rowpvt` as receptive-vocab
+  predictors, to answer "what predicts CELF gain beyond
+  vocabulary?".
+- **Quantile α=0.5 objective** — mirrors LRP02/LRP04 quantile
+  work. CV MedAE already dropped 0.10 under carry-forward;
+  quantile may extract further median signal.
 - **RMSE-tuned prediction variant** (`lrp09_prediction`).
