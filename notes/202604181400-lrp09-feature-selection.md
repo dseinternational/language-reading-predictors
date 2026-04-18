@@ -361,7 +361,7 @@ pairs still in the set:
 | `celf` ↔ `trog` | 0.539 | 0.591 / 0.043 |
 
 The two pairs at ≥ 0.76 (`b1exto`/`eowpvt` and `deappfi`/`deappin`)
-are strong enough to warrant Select02 by importance-tiebreak:
+are strong enough to warrant Select02 by importance-tie-break:
 drop `eowpvt` (lower) and `deappin` (lower). The `trog`/`aptgram`
 pair at 0.545 was deliberately retained for grammar-cluster
 construct coverage — a construct argument, not a redundancy
@@ -380,7 +380,7 @@ argument.
 
 - **Select02 (redundancy-driven)**: drop `eowpvt` (dcorr 0.807
   with retained `b1exto`) and `deappin` (dcorr 0.767 with
-  retained `deappfi`) — importance-tiebreaker drops on the two
+  retained `deappfi`) — importance-tie-break drops on the two
   strongest remaining pairs. Target 17 predictors. Possibly also
   `nonword` (dcorr 0.666 with `ewrswr`).
 - **Select02 (construct-driven)**: the research-question framing
