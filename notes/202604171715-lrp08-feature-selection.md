@@ -165,30 +165,151 @@ Target Select01 at **~12–15 predictors** to retain the full
 language cluster plus 1–2 speech measures and 1–2 reading
 measures as controls.
 
-## Cumulative
+## Select01: drop 15 low-importance / redundant features (32 → 17)
+
+Moderate one-shot cut informed by the 32-predictor MAE-tuned
+importance table above. Conservative relative to LRP06's 32 → 10 —
+the flatter importance distribution here (top b1reto only 0.095
+vs LRP06 ewrswr 0.500) means more retained features still
+contribute meaningfully, so a larger retained set is justified.
+
+### Dropped (15)
+
+**Tier A — ≤ 0.005 importance (12):**
+`gender`, `vision`, `group`, `earinf`, `behav`, `time`, `yarcsi`,
+`area`, `hearing`, `blending`, `deappvo`, `agespeak`.
+
+**Tier B — 0.006 importance, redundant (3):**
+- `aptgram` (0.006) — dcorr ≈ 0.76 with retained `aptinfo`
+  (0.067); language-cluster redundancy.
+- `erbword` (0.006) — speech-error pair with retained `erbnw`
+  (0.009); pair-redundant.
+- `agebooks` (0.006) — demographic near-noise-floor feature.
+
+### Retained (17)
+
+Full language cluster kept: `b1reto`, `aptinfo`, `eowpvt`, `celf`,
+`trog`, `b1exto`. Plus reading controls `ewrswr`, `yarclet`,
+`nonword`, `spphon` for construct coverage. Plus `age`, `numchil`,
+`deappin`, `deappfi`, `erbnw`, `mumedupost16`, `dadedupost16`.
+
+### Select01 carry-forward (32-tune → 17 predictors)
+
+| Metric | Before (32 predictors, 118 trees) | After (17 predictors, same 118 trees) |
+|---|---:|---:|
+| CV MAE | 7.075 ± 1.546 | **6.966 ± 1.557** |
+| CV RMSE | 8.641 | **8.611** |
+| **CV R²** | 0.505 ± 0.271 | **0.515 ± 0.235** |
+| CV MedAE | 6.264 | **5.943** |
+| In-sample R² | 0.830 | 0.837 |
+
+Every CV metric improves. CV MedAE drops 0.32 (biggest
+improvement); CV R² std tightens from 0.271 to 0.235 (less
+fold-to-fold variance). Carry-forward on 17 predictors also beats
+the **untuned baseline** CV MAE of 6.971.
+
+### Retune on 17 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **6.9048 ± 1.4492**.
+
+| Parameter | Tuned on 32 | **Tuned on 17** |
+|---|---:|---:|
+| n_estimators | 118 | **216** |
+| learning_rate | 0.053 | **0.021** |
+| num_leaves | 20 | 22 |
+| max_depth | 9 | 8 |
+| min_child_samples | 18 | 10 |
+| subsample | 0.727 | 0.719 |
+| colsample_bytree | 0.962 | 0.843 |
+| reg_alpha | 0.011 | 0.005 |
+| reg_lambda | 0.004 | **0.658** |
+
+Regime shift toward **slow many-trees**: almost 2× as many trees
+(216 vs 118), 2.5× slower learning (0.021 vs 0.053), much
+stronger L2 regularisation (0.658 vs 0.004). Similar pattern to
+LRP06's slow-many-trees tune. With 17 informative features the
+tuner settled on a conservative ensemble averaging over many
+weak learners.
+
+### Refit under Select01 retuned params
+
+| Metric | Carry-forward (118 trees) | **Retuned (216 trees)** |
+|---|---:|---:|
+| CV MAE | 6.966 ± 1.557 | **6.912 ± 1.516** |
+| CV RMSE | 8.611 | **8.508** |
+| CV R² | 0.515 ± 0.235 | **0.524 ± 0.253** |
+| CV MedAE | **5.943** | 6.305 |
+| In-sample R² | 0.837 | 0.872 |
+
+**Retune edges out carry-forward on CV MAE / RMSE / R²** by small
+margins, **but carry-forward wins on CV MedAE** by 0.36. Same
+pattern as LRP07 retune. Kept retuned params for the convention;
+the carry-forward is the MedAE-optimal alternative.
+
+### Permutation importance under retuned model
+
+| Rank | Feature | Importance |
+|---|---|---:|
+| 1 | **`b1reto`** | **0.078** |
+| 2 | `eowpvt` | 0.072 |
+| 3 | `aptinfo` | 0.071 |
+| 4 | `celf` | 0.061 |
+| 5 | `trog` | 0.040 |
+| 6 | `b1exto` | 0.038 |
+| 7 | `age` | 0.032 |
+| 8 | `deappin` | 0.029 |
+| 9 | `mumedupost16` | 0.029 |
+| 10 | `numchil` | 0.025 |
+| 11 | `ewrswr` | 0.020 |
+| 12 | `nonword` | 0.018 |
+| 13 | `deappfi` | 0.014 |
+| 14 | `yarclet` | 0.013 |
+| 15 | `erbnw` | 0.012 |
+| 16 | `dadedupost16` | 0.011 |
+| 17 | `spphon` | 0.010 |
+
+All 17 features at ≥ 0.010 — no noise floor. Every retained
+feature rose. Language cluster still dominates the top.
+**Notable**: `b1exto` rose from 0.018 to 0.038 (rank 9 → 6);
+`ewrswr` tripled from 0.006 to 0.020 — with the noise gone,
+word-reading level does contribute independent signal to
+receptive-vocabulary prediction, just modestly.
+
+## Cumulative summary
 
 | Step | Predictors | CV MAE | CV R² | CV MedAE |
 |---|---|---|---|---|
-| Baseline (untuned) | 32 | **6.971** | 0.496 | 6.420 |
-| MAE-tuned on 32 | 32 | 7.075 | **0.505** | **6.264** |
+| Baseline (untuned) | 32 | 6.971 | 0.496 | 6.420 |
+| MAE-tuned on 32 | 32 | 7.075 | 0.505 | 6.264 |
+| Select01 carry-forward | 17 | 6.966 | 0.515 | **5.943** |
+| Retuned-17 | 17 | **6.912** | **0.524** | 6.305 |
+
+Cutting from 32 to 17 predictors and retuning dropped CV MAE by
+0.16 and raised CV R² by 0.019. Modest gain — consistent with
+the baseline observation that the near-Gaussian target doesn't
+reward aggressive changes.
 
 ## Current state
 
-- **`lrp08`** (primary, MAE-tuned on 32 predictors): 32 predictors,
-  CV MAE 7.075 ± 1.546, CV R² 0.505 ± 0.271, CV MedAE 6.264. No
+- **`lrp08`** (primary, MAE-tuned on 17 predictors): 17 predictors,
+  CV MAE 6.912 ± 1.516, CV R² 0.524 ± 0.253, CV MedAE 6.305. No
   outlier exclusion, n=215.
-- Tuning baseline established. Baseline and tuned performance
-  are essentially tied on CV — the near-Gaussian target doesn't
-  reward aggressive tuning.
+- One `SelectionStep` on `LRP08` documents the 32 → 17 cut.
 
 ## Next-step candidates (future PRs)
 
-- **Select01**: drop Tier A (~12 features with importance
-  ≤ 0.005); possibly aggressive addition of Tier B reading /
-  redundant-language features.
+- **Select02**: candidates for further drops — `spphon` (0.010),
+  `dadedupost16` (0.011), `erbnw` (0.012), `yarclet` (0.013),
+  `deappfi` (0.014). A conservative 17 → 12 cut could remove the
+  bottom five features that are clearly below the language tier.
+- **Construct-driven Select02** (like LRP04's `b1exto` drop): the
+  research-question framing could argue for dropping `eowpvt`
+  (same vocabulary test family as target) and/or `b1reto` (same
+  receptive-language construct as target), to answer "what
+  non-vocabulary features predict receptive vocabulary?".
 - **Correlation / redundancy review** on the language cluster —
-  likely reveals `aptinfo`/`aptgram`/`trog`/`celf`/`eowpvt`/`b1reto`/
-  `b1exto` redundancies.
+  `aptinfo`/`trog`/`celf`/`eowpvt`/`b1reto`/`b1exto` likely have
+  internal redundancy.
 - **Log / sqrt transforms are not indicated** — near-Gaussian
   target. Confirm with a null-result check if desired.
 - **Quantile α=0.5 objective** — mirrors LRP02/LRP04 quantile
