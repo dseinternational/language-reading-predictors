@@ -367,27 +367,148 @@ pair at 0.545 was deliberately retained for grammar-cluster
 construct coverage — a construct argument, not a redundancy
 argument.
 
+## Select02: drop eowpvt + deappin (19 → 17) — redundancy-driven
+
+Post-Select01 dcorr audit identified two pairs at dcorr ≥ 0.76
+that Select01 had left in place. Select02 applies
+importance-based tie-break drops on each pair.
+
+### Dropped (2)
+
+| Feature | Importance (Select01) | Paired with | dcorr |
+|---|---:|---|---:|
+| `eowpvt` | 0.026 (rank 15) | `b1exto` (0.038 retained) | **0.807** |
+| `deappin` | 0.035 (rank 8) | `deappfi` (0.057 retained) | **0.767** |
+
+Both drops target the lower-importance sibling in each strong-
+redundancy pair. Construct coverage is preserved: expressive-
+vocab is still represented by `b1exto` (plus receptive `rowpvt`);
+articulation is still represented by `deappfi` + `deappvo`.
+
+Did **not** address remaining moderate-redundancy pairs:
+`ewrswr`/`yarclet` at 0.690 (construct-separable — word-reading
+level vs letter-sound), `b1exto`/`b1reto` at 0.756 (expressive /
+receptive pair — deliberately kept for construct coverage).
+
+### Retained (17)
+
+`celf`, `deappfi`, `spphon`, `aptgram`, `attend`, `trog`, `age`,
+`erbnw`, `ewrswr`, `b1exto`, `yarclet`, `b1reto`,
+`mumedupost16`, `rowpvt`, `aptinfo`, `deappvo`, `nonword`.
+
+### Select02 carry-forward (34-tune → 17 predictors)
+
+| Metric | Before (19 predictors, 194 trees) | After (17 predictors, same 194 trees) |
+|---|---:|---:|
+| CV MAE | **2.185 ± 0.385** | 2.182 ± 0.364 |
+| CV RMSE | **2.817** | 2.819 |
+| CV R² | **0.124 ± 0.159** | 0.117 ± 0.177 |
+| CV MedAE | **1.650** | 1.674 |
+| In-sample R² | 0.625 | 0.635 |
+
+**Essentially a wash on CV metrics** — as expected when dropping
+pure redundancy. CV MAE drops marginally (0.003), CV RMSE
+unchanged, CV R² dips 0.007, CV MedAE rises 0.024. The retained
+siblings absorb the dropped features' signal cleanly. In-sample
+R² rises 0.010 — slightly more memorisation but not enough to
+concern.
+
+The cost-of-cleanup is near-zero; the benefit is a more
+interpretable model where no two predictors carry near-identical
+information.
+
+### Retune on 17 predictors
+
+Optuna 150 trials (seed 47). Tuner-inner CV MAE **2.1439 ±
+0.4035** — best of any tune in the LRP09 history. But the refit
+again under-performed carry-forward on every actual CV metric:
+
+| Metric | Carry-forward (194 trees) | Retuned-17 (31 trees) |
+|---|---:|---:|
+| CV MAE | **2.182** | 2.241 |
+| CV RMSE | **2.819** | 2.943 |
+| CV R² | **0.117** | 0.027 |
+| CV MedAE | **1.674** | 1.774 |
+
+Refit-vs-tuner-inner gap of 0.10 (2.241 vs 2.144) — same pattern
+as Select01 retune. Confirms the LRP09 programmatic observation:
+the many-slow-deep + strong L2 regime generalises to reduced
+sets better than any retune the Optuna tuner produces. **Both
+Select01 and Select02 retain carry-forward as primary.**
+
+### Permutation importance under Select02 (primary)
+
+| Rank | Feature | Importance | Δ vs Select01 |
+|---|---|---:|---:|
+| 1 | **`celf`** | **0.617** | +0.026 |
+| 2 | `deappfi` | 0.059 | +0.002 (absorbed deappin) |
+| 3 | `spphon` | 0.048 | **+0.020** (was rank 14) |
+| 4 | `aptgram` | 0.045 | **+0.024** (was rank 18) |
+| 5 | `attend` | 0.044 | +0.007 |
+| 6 | `trog` | 0.044 | +0.001 |
+| 7 | `age` | 0.041 | +0.010 |
+| 8 | `erbnw` | 0.039 | +0.001 |
+| 9 | `ewrswr` | 0.039 | +0.004 |
+| 10 | `b1exto` | 0.038 | ±0 (did NOT absorb eowpvt) |
+| 11 | `yarclet` | 0.036 | +0.004 |
+| 12 | `b1reto` | 0.031 | +0.002 |
+| 13 | `mumedupost16` | 0.029 | −0.003 |
+| 14 | `rowpvt` | 0.028 | ±0 |
+| 15 | `aptinfo` | 0.028 | +0.006 |
+| 16 | `deappvo` | 0.026 | +0.004 |
+| 17 | `nonword` | 0.022 | +0.007 |
+
+**Notable rebalance**: `spphon` jumped from rank 14 to rank 3,
+`aptgram` from rank 18 to rank 4. Signal picked up when the
+strong-redundancy pairs were removed — plausibly these were
+masked by `eowpvt`/`deappin` via indirect correlation paths.
+
+**Unexpected**: `b1exto` importance did **not** rise after
+`eowpvt` was dropped (both stayed at 0.038). Contrary to the
+usual "retained sibling absorbs dropped feature's signal"
+pattern. Plausibly the model was already using `b1exto` as its
+primary expressive-vocab handle and `eowpvt` was genuinely
+redundant — no new signal to absorb.
+
+**Expected**: `deappfi` did absorb some of `deappin`'s signal
+(0.057 → 0.059, plus `deappvo` rose +0.004). Small absorption,
+consistent with the strong redundancy.
+
+## Cumulative summary
+
+| Step | Predictors | CV MAE | CV R² | CV MedAE |
+|---|---|---|---|---|
+| Baseline (untuned) | 34 | 2.327 | −0.011 | 1.910 |
+| MAE-tuned on 34 | 34 | 2.232 | 0.094 | 1.753 |
+| Select01 carry-forward | 19 | 2.185 | 0.124 | 1.650 |
+| Retuned-19 | 19 | 2.282 | 0.061 | 1.866 |
+| **Select02 carry-forward** (primary) | **17** | **2.182** | 0.117 | 1.674 |
+| Retuned-17 | 17 | 2.241 | 0.027 | 1.774 |
+
+Select02 trades a 0.007 CV R² drop and 0.024 CV MedAE rise for
+the removal of the two strong-redundancy pairs. Clean-up at
+near-zero cost. The overall 34 → 17 cut dropped CV MAE by 0.05
+and raised CV R² by 0.023.
+
 ## Current state
 
-- **`lrp09`** (primary, carry-forward tuned params on 19
-  predictors): 19 predictors, CV MAE 2.185 ± 0.385, CV R² 0.124
-  ± 0.159, CV MedAE 1.650. No outlier exclusion, n=160.
-- Uses the 34-predictor MAE tune (many-slow-deep + strong L2)
-  applied to the reduced 19-predictor set.
-- One `SelectionStep` on `LRP09` documents the 34 → 19 cut.
+- **`lrp09`** (primary, carry-forward tuned params on 17
+  predictors): 17 predictors, CV MAE 2.182 ± 0.364, CV R² 0.117
+  ± 0.177, CV MedAE 1.674. No outlier exclusion, n=160.
+- Two `SelectionStep`s on `LRP09` document the 34 → 19 → 17 cut.
+- Uses the original 34-predictor MAE tune (many-slow-deep +
+  strong L2) applied to the reduced predictor set. Both retunes
+  (on 19 and 17 predictors) under-performed carry-forward — a
+  consistent LRP09 pattern.
 
 ## Next-step candidates (future PRs)
 
-- **Select02 (redundancy-driven)**: drop `eowpvt` (dcorr 0.807
-  with retained `b1exto`) and `deappin` (dcorr 0.767 with
-  retained `deappfi`) — importance-tie-break drops on the two
-  strongest remaining pairs. Target 17 predictors. Possibly also
-  `nonword` (dcorr 0.666 with `ewrswr`).
-- **Select02 (construct-driven)**: the research-question framing
-  could argue for dropping `eowpvt` / `b1exto` as expressive-
-  vocab predictors, or `b1reto` / `rowpvt` as receptive-vocab
-  predictors, to answer "what predicts CELF gain beyond
-  vocabulary?".
+- **Select03 (construct-driven)**: the research-question framing
+  could argue for dropping `b1exto` / `b1reto` / `rowpvt` as
+  vocabulary predictors, or `trog` / `aptgram` as grammar
+  predictors (same construct as target), to answer "what
+  predicts CELF gain beyond language?". Expected to hurt CV
+  metrics significantly.
 - **Quantile α=0.5 objective** — mirrors LRP02/LRP04 quantile
   work. CV MedAE already dropped 0.10 under carry-forward;
   quantile may extract further median signal.

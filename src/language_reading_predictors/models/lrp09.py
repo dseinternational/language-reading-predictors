@@ -68,7 +68,35 @@ _SELECTION_STEPS = [
         ),
         date="2026-04-18",
         metrics_before={"cv_mae_mean": 2.232},
-        metrics_after={"cv_mae_mean": 2.220},
+        metrics_after={"cv_mae_mean": 2.185},
+    ),
+    SelectionStep(
+        removed=[
+            V.EOWPVT,   # dcorr 0.807 with retained b1exto (0.038); imp 0.026
+            V.DEAPPIN,  # dcorr 0.767 with retained deappfi (0.057); imp 0.035
+        ],
+        notes=(
+            "Redundancy-driven Select02: 19 → 17 predictors. Post-"
+            "Select01 dcorr audit (see notes/202604181400-lrp09-"
+            "feature-selection.md) identified two pairs at dcorr "
+            "≥ 0.76 that Select01 had left in place: "
+            "b1exto/eowpvt at 0.807 and deappfi/deappin at 0.767. "
+            "Both drops target the lower-importance sibling in each "
+            "pair (importance-based tie-break). Retained sibling "
+            "should absorb the dropped feature's signal via the "
+            "shared-information structure. Construct coverage is "
+            "preserved: expressive-vocab still represented by b1exto "
+            "(plus receptive rowpvt), articulation still represented "
+            "by deappfi + deappvo (DEAP-fi and DEAP-vo). Does not "
+            "address the remaining moderate-redundancy pairs "
+            "(ewrswr/yarclet 0.690, b1exto/b1reto 0.756) — those "
+            "are either construct-separable (reading level vs "
+            "letter-sound) or deliberately kept for construct "
+            "coverage."
+        ),
+        date="2026-04-18",
+        metrics_before={"cv_mae_mean": 2.185},
+        metrics_after={"cv_mae_mean": 2.182},
     ),
 ]
 
@@ -80,11 +108,13 @@ _SELECTION_STEPS = [
 # GroupKFold, seed 47, scoring=mae, lgbm_objective=mae). Tuner-inner
 # CV MAE 2.2244 ± 0.3661. n=160.
 #
-# Select01 reduction to 19 predictors used these 34-predictor tuned
-# params as a carry-forward (CV MAE 2.185 on 19 preds). A subsequent
-# 19-predictor retune produced different params (45 trees, fast
-# learning) but refit CV MAE was 2.282 — worse than carry-forward on
-# every metric. These carry-forward params are therefore retained.
+# Select01 / Select02 reductions (19, then 17 predictors) both kept
+# these 34-predictor tuned params as carry-forward. Both retunes on
+# reduced sets produced dramatically different params (fewer trees,
+# fast learning) but refit CV MAE was consistently worse than the
+# carry-forward by 0.06-0.10. The many-slow-deep-with-strong-L2
+# regime generalises well to reduced predictor sets; retunes find
+# narrow high-variance optima that over-fit inner CV.
 # See notes/202604181400-lrp09-feature-selection.md for details.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
@@ -120,7 +150,7 @@ class LRP09(GainModel):
     target_var = V.CELF_GAIN
     description = (
         "LightGBM — CELF (receptive grammar) gain predictors "
-        "(19 predictors, MAE-tuned, no outlier exclusion)"
+        "(17 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -133,10 +163,12 @@ class LRP09(GainModel):
     notes = (
         "Exploratory model for identifying important predictors of "
         "CELF receptive-grammar gains (celf_gain). MAE-tuned on the "
-        "19-predictor Select01 set (down from the original 34) "
-        "without outlier exclusion so importance rankings reflect "
-        "the full range of outcomes. Target is mildly right-skewed "
-        "(skew 0.14) with heavier zero pile-up than other gain "
-        "targets (17% zero, vs 3-12% in LRP05/LRP07). "
-        "See notes/202604181400-lrp09-feature-selection.md."
+        "17-predictor Select02 set (down from the original 34 via "
+        "Select01's 34→19 cut and Select02's redundancy-driven 19→17 "
+        "cut of eowpvt and deappin) without outlier exclusion so "
+        "importance rankings reflect the full range of outcomes. "
+        "Target is mildly right-skewed (skew 0.14) with heavier zero "
+        "pile-up than other gain targets (17% zero, vs 3-12% in "
+        "LRP05/LRP07). See "
+        "notes/202604181400-lrp09-feature-selection.md."
     )
