@@ -52,6 +52,8 @@ sizable
 WPPSI
 Nonverbal
 Snowling
+ArviZ
+YYYYMMDDHHMM
 unmodelled
 linspace
 pytest
