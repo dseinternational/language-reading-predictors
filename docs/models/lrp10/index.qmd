@@ -1,5 +1,5 @@
 ---
-title: "LRP10: Predictors of receptive-grammar (CELF) level"
+title: "LRP10: Predictors of basic concept knowledge (CELF) level"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -32,9 +32,13 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRP10 models **CELF receptive-grammar scores** (`celf`) at the observed
-timepoint rather than the change between timepoints. The target is `celf` ---
-a receptive-grammar raw score on a 0–18 scale. All observations are included
+LRP10 models **CELF basic concept knowledge scores** (`celf`) at the observed
+timepoint rather than the change between timepoints. The `celf` score is drawn
+from the Clinical Evaluation of Language Fundamentals Preschool 2nd Ed (Wiig,
+Secord & Semel 2006); in this study only the basic-concept-knowledge subtest
+(18 linguistic concepts) was administered, so `celf` is a lexical/semantic
+concept measure --- not a grammar measure. The target is `celf` --- a
+basic-concept-knowledge raw score on a 0–18 scale. All observations are included
 (no outlier exclusion) so the full range of outcomes informs the model.
 
 The target is **mildly left-skewed** (skew −0.37). The max of 18 is the

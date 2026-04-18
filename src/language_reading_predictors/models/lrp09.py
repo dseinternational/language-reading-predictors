@@ -2,14 +2,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-LRP09: Predictors of receptive-grammar gains (CELF).
+LRP09: Predictors of basic concept knowledge gains (CELF).
 
-``LRP09`` is the exploratory model for receptive-grammar gains
-(``celf_gain``). It is MAE-tuned on the full 34-predictor
-:attr:`Predictors.DEFAULT_GAIN` set (which already includes ``celf``
-as a level predictor — the GainModel's auto-include is a no-op
-here), with no outlier exclusion, designed to identify the most
-important influences on receptive-grammar gains.
+``LRP09`` is the exploratory model for basic concept knowledge
+gains (``celf_gain``). The ``celf`` score is drawn from the
+Clinical Evaluation of Language Fundamentals Preschool 2nd Ed
+(Wiig, Secord & Semel 2006) and in this study only the basic-
+concept-knowledge subtest (18 linguistic concepts) was
+administered — so ``celf`` is a lexical/semantic concept measure,
+NOT a grammar measure (the grammar measures in this study are
+``trog`` for receptive grammar and ``aptgram`` for expressive
+grammar).
+
+LRP09 is MAE-tuned on the full 34-predictor
+:attr:`Predictors.DEFAULT_GAIN` set (which already includes
+``celf`` as a level predictor — the GainModel's auto-include is a
+no-op here), with no outlier exclusion, designed to identify the
+most important influences on basic concept knowledge gains.
 
 The target is **mildly right-skewed** (``celf_gain`` min ≈ −8,
 max ≈ 10, median 1, mean 1.14, std 3.20, skewness 0.14, with ~26%
@@ -61,10 +70,13 @@ _SELECTION_STEPS = [
             "LRP07's 34→12 cut because LRP09's deep-tree many-"
             "estimator tune produced a shallower noise floor (no "
             "features at exactly 0 importance); the retained mid-"
-            "tier features contribute meaningfully. Keeps the full "
-            "grammar pair (trog, aptgram) and full DEAP articulation "
-            "trio (deappfi, deappin, deappvo) for construct "
-            "coverage."
+            "tier features contribute meaningfully. Keeps both "
+            "grammar measures (trog, aptgram) and the full DEAP "
+            "articulation trio (deappfi, deappin, deappvo) for "
+            "language-domain breadth — CELF measures basic concept "
+            "knowledge (semantic/lexical), so grammar measures are "
+            "kept as language-cluster controls rather than as "
+            "construct-matched predictors."
         ),
         date="2026-04-18",
         metrics_before={"cv_mae_mean": 2.232},
@@ -137,19 +149,19 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 
 
 class LRP09(GainModel):
-    """CELF receptive-grammar gain predictors — exploratory (MAE-tuned, all data).
+    """CELF basic concept knowledge gain predictors — exploratory (MAE-tuned, all data).
 
     Uses the full :attr:`Predictors.DEFAULT_GAIN` predictor set
     (``celf`` is already a member, so the GainModel auto-include is
     a no-op) with MAE-tuned hyperparameters and no outlier exclusion.
-    The starting point for feature selection on the CELF gain-
-    prediction task.
+    The starting point for feature selection on the CELF basic
+    concept knowledge gain-prediction task.
     """
 
     model_id = "lrp09"
     target_var = V.CELF_GAIN
     description = (
-        "LightGBM — CELF (receptive grammar) gain predictors "
+        "LightGBM — CELF (basic concept knowledge) gain predictors "
         "(17 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
@@ -162,13 +174,15 @@ class LRP09(GainModel):
     ]
     notes = (
         "Exploratory model for identifying important predictors of "
-        "CELF receptive-grammar gains (celf_gain). MAE-tuned on the "
-        "17-predictor Select02 set (down from the original 34 via "
-        "Select01's 34→19 cut and Select02's redundancy-driven 19→17 "
-        "cut of eowpvt and deappin) without outlier exclusion so "
-        "importance rankings reflect the full range of outcomes. "
-        "Target is mildly right-skewed (skew 0.14) with heavier zero "
-        "pile-up than other gain targets (17% zero, vs 3-12% in "
-        "LRP05/LRP07). See "
+        "CELF basic concept knowledge gains (celf_gain). CELF in this "
+        "study assesses 18 basic linguistic concepts (a lexical / "
+        "semantic measure, NOT a grammar measure — grammar is covered "
+        "by trog and aptgram). MAE-tuned on the 17-predictor Select02 "
+        "set (down from the original 34 via Select01's 34→19 cut and "
+        "Select02's redundancy-driven 19→17 cut of eowpvt and "
+        "deappin) without outlier exclusion so importance rankings "
+        "reflect the full range of outcomes. Target is mildly right-"
+        "skewed (skew 0.14) with heavier zero pile-up than other gain "
+        "targets (17% zero, vs 3-12% in LRP05/LRP07). See "
         "notes/202604181400-lrp09-feature-selection.md."
     )

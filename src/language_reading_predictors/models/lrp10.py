@@ -2,14 +2,27 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-LRP10: Predictors of receptive-grammar level (CELF).
+LRP10: Predictors of basic concept knowledge level (CELF) —
+construct-reduced to isolate non-vocabulary signal.
 
-``LRP10`` is the exploratory model for receptive-grammar level
-(``celf``). It is MAE-tuned on the 12-predictor Select01 set
-(down from the original 32-predictor
-:attr:`Predictors.DEFAULT_LEVEL` minus target), with no outlier
-exclusion, designed to identify the most important influences on
-receptive-grammar level.
+``LRP10`` is the exploratory model for basic concept knowledge
+level (``celf``). The ``celf`` score is drawn from the Clinical
+Evaluation of Language Fundamentals Preschool 2nd Ed (Wiig,
+Secord & Semel 2006) and in this study only the basic-concept-
+knowledge subtest (18 linguistic concepts) was administered — so
+``celf`` is a lexical/semantic concept measure, NOT a grammar
+measure (the grammar measures in this study are ``trog`` for
+receptive grammar and ``aptgram`` for expressive grammar).
+
+LRP10 is MAE-tuned on the 10-predictor Select02 set (down from
+the original 32-predictor :attr:`Predictors.DEFAULT_LEVEL` minus
+target via Select01's 32→12 correlation-informed cut, then
+Select02's construct-driven drop of the top two vocabulary
+predictors ``eowpvt`` and ``b1reto``). No outlier exclusion. The
+Select02 cut deliberately trades prediction accuracy for
+interpretability: the model now answers "what predicts basic
+concept knowledge beyond vocabulary?" rather than a pure accuracy
+optimum.
 
 The target is **mildly left-skewed** (``celf`` min 0, max 18,
 median 11, mean 10.88, std 4.24, skewness −0.37, n ≈ 214). The
@@ -62,36 +75,66 @@ _SELECTION_STEPS = [
             "erbnw/erbword) or where both pair members are near-noise "
             "(deappvo). Retains one reading-cluster representative "
             "(ewrswr at 0.008) as construct control even though it is "
-            "low-importance. Note the retained set still has internal "
-            "redundancy (eowpvt/aptinfo dcorr 0.767, eowpvt/rowpvt "
-            "0.718, b1reto/aptinfo 0.740) — reducing further requires "
-            "construct-driven Select02 cuts."
+            "low-importance. CELF in this study is a basic concept "
+            "knowledge measure (semantic/lexical); vocabulary-cluster "
+            "predictors are the natural near-construct match rather "
+            "than the grammar measures (trog, aptgram). Note the "
+            "retained set still has internal redundancy (eowpvt/"
+            "aptinfo dcorr 0.767, eowpvt/rowpvt 0.718, b1reto/aptinfo "
+            "0.740) — reducing further requires construct-driven "
+            "Select02 cuts."
         ),
         date="2026-04-18",
         metrics_before={"cv_mae_mean": 2.405},
         metrics_after={"cv_mae_mean": 2.415},
+    ),
+    SelectionStep(
+        removed=[
+            V.EOWPVT,   # rank 1 at Select01 (imp 0.146); expressive vocab
+            V.B1RETO,   # rank 2 at Select01 (imp 0.133); receptive language
+        ],
+        notes=(
+            "Construct-driven Select02: drop the two highest-importance "
+            "retained features — eowpvt (standardised expressive "
+            "vocabulary) and b1reto (Block 1 intervention-taught "
+            "receptive vocabulary) — to answer the research question "
+            "'what predicts basic concept knowledge beyond vocabulary?'. "
+            "Mirrors LRP04's construct-driven Select02 drop of b1exto. "
+            "Expected to hurt CV R² significantly since these are the "
+            "top two predictors; the trade is worse metrics for a more "
+            "interpretable model. Not a full vocabulary removal: "
+            "retains rowpvt (standardised receptive vocab), aptinfo "
+            "(language composite), and trog (a receptive grammar "
+            "measure — not a construct match for CELF basic concept "
+            "knowledge, but retained as a language-cluster control). "
+            "Remaining redundancies to watch: rowpvt/aptinfo dcorr "
+            "0.698."
+        ),
+        date="2026-04-18",
+        metrics_before={"cv_mae_mean": 2.328},
+        metrics_after={"cv_mae_mean": 2.419},
     ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 12-predictor Select01 set, no outlier exclusion
+# MAE-tuned on the 10-predictor Select02 set, no outlier exclusion
 # (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 2.3282 ± 0.3972. n=214.
-# Supersedes the 32-predictor tune (tuner-inner 2.4105).
+# lgbm_objective=mae). Tuner-inner CV MAE 2.3081 ± 0.4383. n=214.
+# Supersedes the Select01 12-predictor tune (tuner-inner 2.3282).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 87,
-    "learning_rate": 0.08133302519220838,
-    "num_leaves": 30,
-    "max_depth": 11,
+    "n_estimators": 33,
+    "learning_rate": 0.13379994478142987,
+    "num_leaves": 29,
+    "max_depth": 3,
     "min_child_samples": 5,
-    "subsample": 0.8452803637308646,
+    "subsample": 0.6357163278165666,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6453260102696494,
-    "reg_alpha": 2.470284680568493,
-    "reg_lambda": 0.0024313249182264067,
+    "colsample_bytree": 0.8093621550114668,
+    "reg_alpha": 0.2008169896923847,
+    "reg_lambda": 0.011901823985643604,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -101,19 +144,20 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 
 
 class LRP10(LevelModel):
-    """CELF receptive-grammar level predictors — exploratory (MAE-tuned, all data).
+    """CELF basic concept knowledge level predictors — exploratory (MAE-tuned, all data).
 
     Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
     (minus the target ``celf``) with MAE-tuned hyperparameters and
     no outlier exclusion. The starting point for feature selection
-    on the CELF level-prediction task.
+    on the CELF basic concept knowledge level-prediction task.
     """
 
     model_id = "lrp10"
     target_var = V.CELF
     description = (
-        "LightGBM — CELF (receptive grammar) level predictors "
-        "(12 predictors, MAE-tuned, no outlier exclusion)"
+        "LightGBM — CELF (basic concept knowledge) level predictors "
+        "(10 predictors, MAE-tuned, construct-reduced "
+        "to exclude the top two vocabulary predictors)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -125,11 +169,15 @@ class LRP10(LevelModel):
     ]
     notes = (
         "Exploratory model for identifying important predictors of "
-        "CELF receptive-grammar level (celf). MAE-tuned on the "
-        "12-predictor Select01 set (down from the original 32 via "
-        "an aggressive correlation-informed cut that dropped the "
-        "full zero-importance tail plus 8 Tier-B features redundant "
-        "with retained siblings). Without outlier exclusion so "
+        "CELF basic concept knowledge level (celf) BEYOND the two "
+        "strongest vocabulary handles in the dataset. CELF in this "
+        "study assesses 18 basic linguistic concepts (a lexical / "
+        "semantic measure, NOT a grammar measure — grammar is "
+        "covered by trog and aptgram). Construct-reduced to 10 "
+        "predictors via Select01 (32→12 correlation-informed cut) "
+        "then Select02 (drop eowpvt and b1reto — the top two "
+        "Select01 predictors). Mirrors LRP04's construct-driven "
+        "Select02 drop of b1exto. Without outlier exclusion so "
         "importance rankings reflect the full range of outcomes. "
         "Target is mildly left-skewed (skew −0.37); the max of 18 "
         "is the instrument maximum but there is no strong ceiling "

@@ -7,10 +7,17 @@ Date: 2026-04-18
 
 ## Motivation
 
-LRP09 predicts CELF receptive-grammar **gains** (`celf_gain`) —
-paralleling LRP01 (word-reading gains), LRP03 (expressive-vocabulary
-gains), LRP05 (letter-sound knowledge gains), and LRP07 (receptive-
-vocabulary gains). Baseline started from the full
+LRP09 predicts CELF **basic concept knowledge gains**
+(`celf_gain`) — paralleling LRP01 (word-reading gains), LRP03
+(expressive-vocabulary gains), LRP05 (letter-sound knowledge
+gains), and LRP07 (receptive-vocabulary gains). The `celf` score
+is drawn from the Clinical Evaluation of Language Fundamentals
+Preschool 2nd Ed (Wiig, Secord & Semel 2006); in this study only
+the basic-concept-knowledge subtest (18 linguistic concepts) was
+administered, so `celf` is a lexical/semantic concept measure —
+**not** a grammar measure. The grammar measures in this study
+are `trog` (receptive grammar, TROG-2) and `aptgram` (expressive
+grammar, Action Picture Test). Baseline started from the full
 `Predictors.DEFAULT_GAIN` set (34 predictors; `celf` is already a
 member of that set so the GainModel auto-include is a no-op),
 n=160, with no outlier exclusion.
@@ -89,13 +96,13 @@ scale likely caps R² achievable here.
 |---|---|---:|
 | 1 | **`celf`** | **0.610** (base level — regression-to-mean) |
 | 2 | `deappfi` | 0.046 |
-| 3 | `trog` | 0.039 (grammar — near construct match) |
+| 3 | `trog` | 0.039 (receptive grammar) |
 | 4 | `spphon` | 0.032 |
 | 5 | `b1exto` | 0.031 |
 | 6 | `age` | 0.031 |
 | 7 | `ewrswr` | 0.029 |
 | 8 | `attend` | 0.028 |
-| 9 | `aptgram` | 0.027 (grammar — near construct match) |
+| 9 | `aptgram` | 0.027 (expressive grammar) |
 | 10 | `b1reto` | 0.026 |
 | 11 | `aptinfo` | 0.025 |
 | 12 | `deappin` | 0.023 |
@@ -127,12 +134,15 @@ scale likely caps R² achievable here.
 - **`celf` base level dominates** at 0.610 (down from 0.981 at
   baseline). Tuning redistributed signal away from the base but
   it still carries ~11× the next feature.
-- **Grammar measures `trog` (0.039) and `aptgram` (0.027) are
-  present but not top** — rank 3 and 9 respectively. The nearest-
-  construct predictors contribute but don't dominate. Instead
-  the top non-base features are a diffuse cluster: articulation
-  (`deappfi`), phonology (`spphon`), language (`b1exto`,
-  `ewrswr`), plus `attend` and `age`.
+- **`trog` at rank 3 (0.039)** — receptive grammar contributes
+  but does not dominate the non-base predictors. The top non-
+  base cluster is diffuse: articulation (`deappfi`), receptive
+  grammar (`trog`), phonology (`spphon`), language (`b1exto`,
+  `ewrswr`), plus `attend` and `age`. CELF measures basic
+  concept knowledge (lexical/semantic), so the nearest construct
+  match would be vocabulary measures rather than grammar, but
+  under gain-prediction the base `celf` handles most of the
+  lexical/semantic signal directly.
 - **`deappfi` at rank 2 (0.046)** — articulation quality leads
   the non-base predictors. Consistent with LRP05 and LRP07 where
   articulation is prominent.
@@ -198,11 +208,12 @@ meaningfully.
 
 ### Retained (19)
 
-Full grammar pair `trog` (0.039) + `aptgram` (0.027), full DEAP
-articulation trio `deappfi` / `deappin` / `deappvo`, full language
-cluster (`b1exto`, `b1reto`, `aptinfo`, `eowpvt`, `rowpvt`),
-reading cluster (`ewrswr`, `yarclet`, `spphon`, `nonword`), plus
-`attend`, `age`, `mumedupost16`, `erbnw`, and the base `celf`.
+Both grammar measures `trog` (0.039, receptive) + `aptgram`
+(0.027, expressive), full DEAP articulation trio `deappfi` /
+`deappin` / `deappvo`, full language cluster (`b1exto`, `b1reto`,
+`aptinfo`, `eowpvt`, `rowpvt`), reading cluster (`ewrswr`,
+`yarclet`, `spphon`, `nonword`), plus `attend`, `age`,
+`mumedupost16`, `erbnw`, and the base `celf`.
 
 ### Select01 carry-forward (34-tune → 19 predictors)
 
@@ -363,9 +374,11 @@ pairs still in the set:
 The two pairs at ≥ 0.76 (`b1exto`/`eowpvt` and `deappfi`/`deappin`)
 are strong enough to warrant Select02 by importance-tie-break:
 drop `eowpvt` (lower) and `deappin` (lower). The `trog`/`aptgram`
-pair at 0.545 was deliberately retained for grammar-cluster
-construct coverage — a construct argument, not a redundancy
-argument.
+pair at 0.545 was deliberately retained — both are grammar
+measures (receptive and expressive respectively) and keeping
+both covers the grammar domain of the predictor set. This is a
+predictor-coverage argument, not a construct-match to CELF
+(which measures basic concept knowledge, not grammar).
 
 ## Select02: drop eowpvt + deappin (19 → 17) — redundancy-driven
 
@@ -503,12 +516,14 @@ and raised CV R² by 0.023.
 
 ## Next-step candidates (future PRs)
 
-- **Select03 (construct-driven)**: the research-question framing
-  could argue for dropping `b1exto` / `b1reto` / `rowpvt` as
-  vocabulary predictors, or `trog` / `aptgram` as grammar
-  predictors (same construct as target), to answer "what
-  predicts CELF gain beyond language?". Expected to hurt CV
-  metrics significantly.
+- **Select03 (construct-driven)**: CELF basic concept knowledge
+  is a lexical/semantic construct, so the natural construct-
+  match cut is to drop the vocabulary measures (`b1exto`,
+  `b1reto`, `rowpvt`, `eowpvt` if still retained, `aptinfo`) —
+  asking "what predicts CELF concept-knowledge gain beyond
+  vocabulary?". Alternatively a broader "beyond language" cut
+  would additionally drop `trog` and `aptgram`. Expected to hurt
+  CV metrics significantly.
 - **Quantile α=0.5 objective** — mirrors LRP02/LRP04 quantile
   work. CV MedAE already dropped 0.10 under carry-forward;
   quantile may extract further median signal.
