@@ -1,0 +1,137 @@
+---
+title: "LRP55: Joint ITT model across eight outcomes"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+tau_summary = pd.read_csv(_here / "tau_summary.csv")
+contrast = pd.read_csv(_here / "tau_contrast_matrix.csv", index_col=0)
+```
+
+## Overview
+
+LRP55 estimates the joint posterior over the treatment effects
+$(\tau_W, \tau_R, \tau_E, \tau_L, \tau_P, \tau_B, \tau_F, \tau_T)$ using the RCT
+phase only. The default model is a **linear Beta-Binomial across eight
+outcomes with shared predictor structure and no random effects**: outcome-
+specific intercepts, slopes, own- and cross-baseline couplings, and outcome-
+specific dispersion. No Gaussian process on age, no LKJ residual correlation
+across outcomes.
+
+The joint formulation delivers cross-outcome contrasts and acts as a
+consistency check on LRP52-LRP54.
+
+## Structure
+
+For child $i$ and outcome $k \in \{W, R, E, L, P, B, F, T\}$:
+
+$$
+\eta_{k,i} = \alpha_k + \tau_k G_i
+           + \gamma^{\text{own}}_k\, \text{logit}_*(k_{\text{pre},i}, N_k)
+           + \sum_{j \neq k} \gamma_{k,j}\, \text{logit}_*(j_{\text{pre},i}, N_j).
+$$
+
+Each outcome's observations follow a Beta-Binomial
+$y_{k,i} \sim \mathrm{BetaBinomial}(N_k,\, \mu_{k,i}\kappa_k,\, (1-\mu_{k,i})\kappa_k)$
+with $\mu_{k,i} = \sigma(\eta_{k,i})$ and an outcome-specific dispersion
+$\kappa_k$. Observations with a missing post-score are masked per-outcome.
+
+::: {.callout-note title="Age GP and LKJ residual are both off by default"}
+
+The factory exposes two flags that were both disabled on 2026-04-18:
+
+- `use_age_gp=False` (previously an 8-outcome partial-pooled HSGP). Dropping
+  it eliminated the remaining ~8 % divergent transitions and improved LOO.
+- `use_residual_correlation=False` (previously a non-centred MvNormal
+  residual with `LKJCorr(eta=4)`). With 53 children and 28 free off-diagonal
+  correlations the block was prior-dominated and not identified.
+
+Both flags can be re-enabled per-fit for sensitivity via
+`ModelSpec.extra={"use_age_gp": True, ...}`. See
+`notes/202604181600-lrp52-58-findings.md`,
+`notes/202604181630-lrp55-lkj-drop-and-comparison-fix.md` and
+`notes/202604181700-lrp55-age-gp-drop.md` for the decision trail.
+
+:::
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=40%}
+![tau](prior_tau.svg){width=40%}
+![gamma_own](prior_gamma_own.svg){width=40%}
+![gamma_cross](prior_gamma_cross.svg){width=40%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Per-outcome treatment effects
+
+```{python}
+# | echo: false
+tau_summary
+```
+
+## Pairwise contrasts — $P(\tau_k > \tau_j)$
+
+```{python}
+# | echo: false
+contrast
+```
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

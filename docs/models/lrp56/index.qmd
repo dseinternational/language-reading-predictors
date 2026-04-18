@@ -1,0 +1,118 @@
+---
+title: "LRP56: Mechanism model — receptive vocabulary (R) -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+```
+
+## Overview
+
+LRP56 targets the causal effect $f^R$ of receptive vocabulary on word reading
+using *all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with
+phase-specific intercepts. The mechanism variable enters as a 1-D HSGP on
+$\text{logit}_*(R_{\text{post}}, N_R)$.
+
+## Adjustment set
+
+Backdoor paths from $R_{\text{post}}$ to $W_{\text{post}}$ are blocked by the
+DAG-derived adjustment set:
+
+- $G$ — $G \to R$ and $G \to W$ (linear, one coefficient $\beta_G$).
+- $A$ — $A \to R$ and $A \to W$. The age-GP flag is **off by default**
+  (see `notes/202604181700-lrp55-age-gp-drop.md`); re-enable via
+  `ModelSpec.extra={"use_age_gp": True}` for sensitivity.
+- $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
+
+$E$ is a *descendant* of $R$ (path $R \to E$) that also affects $W$.
+Conditioning on $E$ would block the legitimate indirect path $R \to E \to W$
+and bias $f^R$ toward zero. $E$ is therefore **not** in the adjustment set.
+
+### Identification caveats
+
+- *No unmeasured confounder assumption* (NUCA) for $(R_{\text{post}}, W_{\text{post}})$: strong and not testable.
+- $R_{\text{post}}$ is measured with error; if measurement error is non-negligible, $f^R$ attenuates toward zero (a latent-$R$ extension is out of scope here).
+- Across-phase pooling assumes the structural relationship is stable over time; a phase-specific sensitivity fit is available via the `phase_specific_mechanism` flag.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=40%}
+![tau](prior_tau.svg){width=40%}
+![gamma_own](prior_gamma_own.svg){width=40%}
+![gamma_cross](prior_gamma_cross.svg){width=40%}
+![kappa](prior_kappa.svg){width=40%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Mechanism curve
+
+![Mechanism curve](mechanism_curve.png){.lightbox}
+
+```{python}
+# | echo: false
+mech = pd.read_csv(_here / "mechanism_curve.csv")
+mech.head(15)
+```
+
+The marginal slope of $f^R$ at the sample mean of $\text{logit}_*(R_{\text{post}})$
+is a single-number summary; it can be computed from the posterior draws as the
+centred-difference derivative over the fitted grid.
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

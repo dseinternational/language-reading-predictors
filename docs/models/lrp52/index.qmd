@@ -1,0 +1,134 @@
+---
+title: "LRP52: ITT analysis of word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+tau_summary = pd.read_csv(_here / "tau_summary.csv")
+```
+
+## Overview
+
+LRP52 is the primary intention-to-treat (ITT) analysis for the word-reading outcome
+(`ewrswr`, the YARC EWR + SWR composite). The estimand is the total effect of
+randomised group assignment $G$ on the post-score $W_{\text{post}}$. The RCT phase
+only (time 1 $\rightarrow$ time 2) is used.
+
+## Model
+
+The linear predictor is
+
+$$
+\eta_i = \alpha
+       + \tau\, G_i
+       + \gamma_W\, \text{logit}_*(W_{\mathrm{pre},i}, N_W)
+       + \sum_{k \in \{R,E,L,P,B,F,T\}} \gamma_k\, \text{logit}_*(k_{\mathrm{pre},i}, N_k),
+$$
+
+with Beta-Binomial likelihood $W_{\text{post},i} \sim \text{BetaBinomial}(N_W, \mu_i \kappa, (1-\mu_i)\kappa)$,
+$\mu_i = \sigma(\eta_i)$. Priors follow the shared template in `priors.py`.
+
+::: {.callout-note title="HSGPs on age and own baseline are disabled by default"}
+
+An earlier specification added HSGPs $f_A(A_{\text{std},i})$ on
+standardised age and $f_{W_{\mathrm{pre}}}(\cdot)$ on the logit of the
+own baseline. After the 2026-04-18 sensitivity analysis (see
+`notes/202604181445-lrp52-gp-sensitivity.md`) both are **off** by
+default: LOO preferred the linear model and the HSGP amplitudes
+created a Neal's funnel that produced ~1 % divergences with no gain
+in fit. Re-enable via the `ModelSpec.extra` dict for a sensitivity
+fit.
+
+:::
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=40%}
+![tau](prior_tau.svg){width=40%}
+![gamma_own](prior_gamma_own.svg){width=40%}
+![gamma_cross](prior_gamma_cross.svg){width=40%}
+![kappa](prior_kappa.svg){width=40%}
+
+The eta (GP amplitude) and ell (GP lengthscale) priors are loaded
+for audit purposes but have no effect in the default specification —
+they appear on the prior-panel output only when the corresponding
+HSGP flag is re-enabled.
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Pair plot](pair_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Treatment-effect summary
+
+```{python}
+# | echo: false
+tau_summary
+```
+
+- `tau_logit_*`: posterior mean and $(1-\alpha)/2$, $1-(1-\alpha)/2$ quantiles of $\tau$ on the logit scale.
+- `tau_prob_*`: implied marginal effect on the probability scale, evaluated at the sample-mean baseline ($\alpha$, $\gamma_{\text{own}}$ held at their posterior means). This is a point-estimate *sensitivity* summary, not a causal contrast.
+- `prob_tau_pos`: $P(\tau > 0)$.
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

@@ -1,0 +1,109 @@
+---
+title: "LRP57: Mechanism model — expressive vocabulary (E) -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+```
+
+## Overview
+
+LRP57 targets the causal effect $f^E$ of expressive vocabulary on word reading,
+using all three phase transitions.
+
+## Adjustment set
+
+- $G$ — standard confounder (linear, one coefficient $\beta_G$).
+- $A$ — standard confounder. The age-GP flag is **off by default**
+  (see `notes/202604181700-lrp55-age-gp-drop.md`); re-enable via
+  `ModelSpec.extra={"use_age_gp": True}` for sensitivity.
+- $R$ — *must* be conditioned on: $R \to E$ and $R \to W$, so $R$ opens a backdoor path.
+- $W_{\text{pre}}$ — baseline.
+
+$F$, $L$, $P$, $B$ are either descendants of $E$ or lie on post-$E$ mediation
+paths. Conditioning on them would block legitimate indirect effects and
+attenuate $f^E$, so they are **not** in the adjustment set.
+
+### Identification caveats
+
+- NUCA applies to $(E_{\text{post}}, W_{\text{post}})$ and is not testable.
+- $E_{\text{post}}$ is measured with error; attenuation applies as in LRP56.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=40%}
+![tau](prior_tau.svg){width=40%}
+![gamma_own](prior_gamma_own.svg){width=40%}
+![gamma_cross](prior_gamma_cross.svg){width=40%}
+![kappa](prior_kappa.svg){width=40%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Mechanism curve
+
+![Mechanism curve](mechanism_curve.png){.lightbox}
+
+```{python}
+# | echo: false
+mech = pd.read_csv(_here / "mechanism_curve.csv")
+mech.head(15)
+```
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
