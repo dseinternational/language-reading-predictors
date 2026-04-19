@@ -12,6 +12,11 @@ from multiprocessing import freeze_support
 
 import dse_research_utils.environment.setup as setup
 from rich import print
+
+from language_reading_predictors.models._reporting import (
+    metrics_table,
+    print_table,
+)
 from language_reading_predictors.models.registry import MODELS
 
 
@@ -85,24 +90,52 @@ def main():
 
     # Summary table when fitting multiple models
     if len(models_to_run) > 1:
-        print(
-            "\n[green]============================================================[/green]"
-        )
-        print("[bold green]Summary[/bold green]")
-        print(
-            "[green]============================================================[/green]"
-        )
+        rows = []
         for ctx in contexts:
-            cv_rmse = (
-                ctx.cv_scores.mean() if ctx.cv_scores is not None else float("nan")
-            )
-            print(
-                f"  {ctx.config.model_id.upper():6s}  "
-                f"target={ctx.config.target_var:20s}  "
-                f"CV RMSE={cv_rmse:.4f}"
+            cv_df = ctx.dataframes.get("cv_scores")
+            rows.append(
+                {
+                    "model": ctx.config.model_id.upper(),
+                    "target": ctx.config.target_var,
+                    "n_obs": int(len(ctx.X)) if ctx.X is not None else None,
+                    "cv_rmse": float(cv_df["rmse"].mean()) if cv_df is not None else None,
+                    "cv_rmse_std": float(cv_df["rmse"].std()) if cv_df is not None else None,
+                    "cv_mae": float(cv_df["mae"].mean()) if cv_df is not None else None,
+                    "cv_r2": float(cv_df["r2"].mean()) if cv_df is not None else None,
+                    "status": "ok",
+                }
             )
         for model_id, exc in failed:
-            print(f"  [red]{model_id.upper():6s}  FAILED: {exc}[/red]")
+            rows.append(
+                {
+                    "model": model_id.upper(),
+                    "target": "—",
+                    "n_obs": None,
+                    "cv_rmse": None,
+                    "cv_rmse_std": None,
+                    "cv_mae": None,
+                    "cv_r2": None,
+                    "status": f"FAILED: {type(exc).__name__}",
+                }
+            )
+
+        print()
+        print_table(
+            metrics_table(
+                rows,
+                title=f"Summary ({len(contexts)} fitted, {len(failed)} failed)",
+                columns=[
+                    "model",
+                    "target",
+                    "n_obs",
+                    "cv_rmse",
+                    "cv_rmse_std",
+                    "cv_mae",
+                    "cv_r2",
+                    "status",
+                ],
+            )
+        )
 
     if args.render:
         for context in contexts:

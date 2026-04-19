@@ -18,7 +18,13 @@ import subprocess
 from multiprocessing import freeze_support
 
 from rich import print as rprint
+from rich.panel import Panel
 
+from language_reading_predictors.models._reporting import (
+    metrics_table,
+    print_panel,
+    print_table,
+)
 from language_reading_predictors.statistical_models import (
     lrp52,
     lrp53,
@@ -78,15 +84,75 @@ def main() -> None:
         )
 
     if args.model == "all":
-        to_fit = list(MODELS.values())
+        to_fit = list(MODELS.items())
     elif args.model in MODELS:
-        to_fit = [MODELS[args.model]]
+        to_fit = [(args.model, MODELS[args.model])]
     else:
         rprint(f"[red]Unknown model: {args.model}[/red]")
         rprint(f"[yellow]Available: {', '.join(MODELS)}[/yellow]")
         raise SystemExit(1)
 
-    contexts = [m.fit(args.config) for m in to_fit]
+    rprint()
+    print_panel(
+        Panel(
+            "[bold]Statistical model run[/bold]\n\n"
+            f"[dim]Models:[/dim]     {', '.join(mid.upper() for mid, _ in to_fit)}\n"
+            f"[dim]Run config:[/dim] {args.config}"
+            + (
+                f"\n[dim]Override:[/dim]   target_accept={args.target_accept}"
+                if args.target_accept is not None
+                else ""
+            ),
+            border_style="green",
+            padding=(1, 2),
+        )
+    )
+
+    contexts: list = []
+    failed: list[tuple[str, Exception]] = []
+    for model_id, module in to_fit:
+        try:
+            contexts.append(module.fit(args.config))
+        except Exception as exc:
+            failed.append((model_id, exc))
+            rprint(f"[bold red]Error fitting {model_id}: {exc}[/bold red]")
+
+    if len(to_fit) > 1 or failed:
+        rows = []
+        for ctx in contexts:
+            spec = ctx.spec
+            prepared = ctx.prepared
+            rows.append(
+                {
+                    "model": spec.model_id.upper(),
+                    "kind": spec.kind,
+                    "outcome": spec.outcome_symbol or "-",
+                    "mechanism": spec.mechanism_symbol or "-",
+                    "n_obs": int(prepared.n_obs) if prepared is not None else None,
+                    "loo_elpd": float(ctx.loo.elpd_loo) if ctx.loo is not None else None,
+                    "status": "ok",
+                }
+            )
+        for model_id, exc in failed:
+            rows.append(
+                {
+                    "model": model_id.upper(),
+                    "kind": "-",
+                    "outcome": "-",
+                    "mechanism": "-",
+                    "n_obs": None,
+                    "loo_elpd": None,
+                    "status": f"FAILED: {type(exc).__name__}",
+                }
+            )
+        rprint()
+        print_table(
+            metrics_table(
+                rows,
+                title=f"Summary ({len(contexts)} fitted, {len(failed)} failed)",
+                columns=["model", "kind", "outcome", "mechanism", "n_obs", "loo_elpd", "status"],
+            )
+        )
 
     if args.render:
         for ctx in contexts:
@@ -94,6 +160,9 @@ def main() -> None:
             if os.path.exists(qmd):
                 rprint(f"[bold green]quarto render {qmd}[/bold green]")
                 subprocess.run(["quarto", "render", qmd], check=False)
+
+    if failed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

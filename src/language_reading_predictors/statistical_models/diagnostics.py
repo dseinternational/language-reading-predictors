@@ -24,6 +24,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 
+from language_reading_predictors.models._reporting import (
+    print_table,
+    ranked_dataframe_table,
+)
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
@@ -94,6 +98,25 @@ def summary_diagnostics(
         )
         summary.to_csv(os.path.join(out, "diagnostics.csv"))
         context.tables["diagnostics"] = summary
+
+        hdi_pct = int(round(context.reporting.hdi * 100))
+        hdi_lo = f"hdi_{(100 - hdi_pct) / 2:g}%"
+        hdi_hi = f"hdi_{100 - (100 - hdi_pct) / 2:g}%"
+        wanted = [
+            c
+            for c in ["mean", "sd", hdi_lo, hdi_hi, "ess_bulk", "ess_tail", "r_hat"]
+            if c in summary.columns
+        ]
+        display_df = summary.reset_index().rename(columns={"index": "variable"})
+        print_table(
+            ranked_dataframe_table(
+                display_df,
+                title=f"Posterior diagnostics (HDI {hdi_pct}%)",
+                columns=["variable", *wanted],
+                rank_column=False,
+                precision=3,
+            )
+        )
 
     # Trace
     az.plot_trace(context.trace, combined=True, var_names=var_names or None)
