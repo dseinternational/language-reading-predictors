@@ -6,6 +6,13 @@
 
 Exploratory research study on predictors of progress in language and reading skills for children with Down syndrome, by Down Syndrome Education International. Work in progress — all data and models are preliminary.
 
+The project takes a deliberate **two-step methodology**:
+
+1. **Exploratory analysis with gradient-boosting models** (LightGBM, permutation importance, SHAP) to learn which predictors matter for each outcome.
+2. **Statistical models** (Bayesian, PyMC) for interactions and — where the DAG supports it — causal estimation, with intuitive interpretable estimands and quantified uncertainty.
+
+See `plans/readme.md` for the orientation note covering current methodological choices, what is in the repository, and the planned next phase.
+
 ## Environment Setup
 
 Uses conda with Python 3.14. There is a local dependency on `../research/src/python` (dse_research_utils).
