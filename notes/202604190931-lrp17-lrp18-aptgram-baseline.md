@@ -39,11 +39,14 @@ distribution, closer in shape to LRP09 (`celf_gain`, skew 0.14)
 and LRP11 (`trog_gain`, skew −0.17) than to the heavier-skewed
 targets.
 
-For `aptgram` level: the 1.23 skew is the strongest right-skew
-of any level target in the suite so far (vs `trog` 0.29,
-`blending` 0.01, `nonword` 1.38 on 0–6 scale). The 0–28 range
-is wider than TROG (0–27) and CELF (0–18), so an `lrp18_log`
-variant is a natural follow-up mirroring `lrp02_log`.
+For `aptgram` level: the 1.23 skew is substantial — exceeded
+only by `nonword` (1.38), which is on a narrow 0–6 scale with
+57% zero inflation, and well above the other wide-scale level
+targets (`trog` 0.29, `blending` 0.01). On the wide 0–28 range
+— wider than TROG (0–27) and CELF (0–18) — this makes
+`aptgram` the strongest right-skew among wide-scale level
+targets, so an `lrp18_log` variant is a natural follow-up
+mirroring `lrp02_log`.
 
 ## Baseline vs MAE-tuned (Optuna 150 trials each)
 
