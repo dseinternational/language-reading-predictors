@@ -92,6 +92,7 @@ mumocc
 ncol
 nonlinear
 nonword
+nonwords
 numchil
 lsam
 LSAM
