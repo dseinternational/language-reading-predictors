@@ -32,6 +32,15 @@ import numpy as np
 import pandas as pd
 from rich import print as rprint
 
+from language_reading_predictors.models._reporting import (
+    metrics_table,
+    print_panel,
+    print_table,
+    ranked_dataframe_table,
+    run_summary_panel,
+    section_header,
+    stat_model_header_panel,
+)
 from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
     factories as _factories,
@@ -54,14 +63,62 @@ from language_reading_predictors.statistical_models.preprocessing import (
 # ---------------------------------------------------------------------------
 
 
+def _print_header(ctx: StatisticalFitContext) -> None:
+    """Print the start-of-fit banner panel."""
+    spec = ctx.spec
+    prepared = ctx.prepared
+    rprint()
+    print_panel(
+        stat_model_header_panel(
+            model_id=spec.model_id,
+            title=spec.title,
+            kind=spec.kind,
+            config_name=ctx.reporting.config_name,
+            outcome_symbol=spec.outcome_symbol,
+            mechanism_symbol=spec.mechanism_symbol,
+            adjustment=spec.adjustment or None,
+            n_obs=prepared.n_obs if prepared else None,
+            n_children=prepared.n_children if prepared else None,
+            n_phases=prepared.n_phases if prepared else None,
+        )
+    )
+
+
+def _print_footer(ctx: StatisticalFitContext) -> None:
+    """Print the end-of-fit banner panel."""
+    rprint()
+    print_panel(run_summary_panel(output_dir=ctx.output_dir))
+
+
+def _print_loo_row(ctx: StatisticalFitContext) -> None:
+    """Render the LOO ELPD / p_loo / looic summary as a small table."""
+    if ctx.loo is None:
+        return
+    rows = [
+        {"metric": "elpd_loo", "value": float(ctx.loo.elpd_loo)},
+        {"metric": "se", "value": float(ctx.loo.se)},
+        {"metric": "p_loo", "value": float(ctx.loo.p_loo)},
+    ]
+    looic = getattr(ctx.loo, "looic", None)
+    if looic is not None:
+        rows.append({"metric": "looic", "value": float(looic)})
+    print_table(
+        metrics_table(
+            rows,
+            title="LOO-PSIS",
+            columns=["metric", "value"],
+        )
+    )
+
+
 def _copy_report_template(context: StatisticalFitContext) -> None:
     src = os.path.join(DOCS_DIR, "models", context.spec.model_id, "index.qmd")
     dst = os.path.join(context.output_dir, "index.qmd")
     if os.path.exists(src):
         shutil.copy(src, dst)
-        rprint(f"[green]Report template copied to {dst}[/green]")
+        rprint(f"  Report template copied to {dst}")
     else:
-        rprint(f"[yellow]No report template found at {src}[/yellow]")
+        rprint(f"  [yellow]No report template found at {src}[/yellow]")
 
 
 def _render_model_graph(context: StatisticalFitContext) -> None:
@@ -114,11 +171,14 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     assert spec.outcome_symbol is not None
 
     ctx = make_context(spec, config)
-    rprint(f"\n[bold green]{spec.banner}[/bold green]\n")
 
+    section_header("Prepare data")
     prepared = load_and_prepare(phase_mode="itt")
     ctx.prepared = prepared
 
+    _print_header(ctx)
+
+    section_header("Build model")
     _priors.save_shared_prior_panel(ctx.output_dir)
 
     built = _factories.build_itt_model(
@@ -134,27 +194,30 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     _render_model_graph(ctx)
 
-    rprint("[green]Prior predictive...[/green]")
+    section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
 
-    rprint("[green]Sampling posterior (nutpie)...[/green]")
+    section_header("Sampling posterior (nutpie)")
     _diag.sample_posterior(ctx)
 
-    rprint("[green]LOO-PSIS...[/green]")
+    section_header("LOO-PSIS")
     _diag.compute_log_likelihood_and_loo(ctx)
     _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
 
+    section_header("Summary diagnostics")
     _diag.summary_diagnostics(
         ctx, var_names=["alpha", "tau", "gamma_own", "kappa"]
     )
 
-    rprint("[green]Posterior predictive...[/green]")
+    section_header("Posterior predictive")
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
     _save_ppc(ctx)
 
     _diag.save_trace(ctx)
 
     # Treatment-effect summary on both scales.
+    section_header("Treatment-effect summary")
     summary = _extract_alpha_gamma_means(ctx)
     tau_s = _report.tau_summary_itt(
         ctx.trace,
@@ -163,17 +226,25 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         gamma_own_mean=summary["gamma_own"],
         alpha_mean=summary["alpha"],
     )
-    pd.DataFrame([tau_s]).to_csv(
-        os.path.join(ctx.output_dir, "tau_summary.csv"), index=False
+    tau_df = pd.DataFrame([tau_s])
+    tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
+    ctx.tables["tau_summary"] = tau_df
+    print_table(
+        metrics_table(
+            [{"metric": k, "value": v} for k, v in tau_s.items()],
+            title=f"tau ({spec.outcome_symbol}) - HDI {int(ctx.reporting.hdi * 100)}%",
+            columns=["metric", "value"],
+        )
     )
-    ctx.tables["tau_summary"] = pd.DataFrame([tau_s])
 
     _report.write_run_metadata(
         ctx,
         extra={"loo_elpd": float(ctx.loo.elpd_loo), "tau_summary": tau_s},
     )
 
+    section_header("Report")
     _copy_report_template(ctx)
+    _print_footer(ctx)
     return ctx
 
 
@@ -194,11 +265,14 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     assert spec.kind == "joint"
 
     ctx = make_context(spec, config)
-    rprint(f"\n[bold green]{spec.banner}[/bold green]\n")
 
+    section_header("Prepare data")
     prepared = load_and_prepare(phase_mode="itt")
     ctx.prepared = prepared
 
+    _print_header(ctx)
+
+    section_header("Build model")
     _priors.save_shared_prior_panel(ctx.output_dir)
 
     built = _factories.build_joint_model(
@@ -214,36 +288,51 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     _render_model_graph(ctx)
 
-    rprint("[green]Prior predictive...[/green]")
+    section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post"])
 
-    rprint("[green]Sampling posterior (nutpie)...[/green]")
+    section_header("Sampling posterior (nutpie)")
     _diag.sample_posterior(ctx)
 
-    rprint("[green]LOO-PSIS...[/green]")
+    section_header("LOO-PSIS")
     _diag.compute_log_likelihood_and_loo(ctx)
     _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
 
+    section_header("Summary diagnostics")
     _joint_vars = ["alpha", "tau", "kappa"]
     if spec.extra.get("use_residual_correlation", False):
         _joint_vars.append("sigma_outcome")
     _diag.summary_diagnostics(ctx, var_names=_joint_vars)
-    rprint("[green]Posterior predictive...[/green]")
+
+    section_header("Posterior predictive")
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
     _save_ppc(ctx)
     _diag.save_trace(ctx)
 
+    section_header("Treatment-effect summary")
     outcomes = list(ctx.trace.posterior["outcome"].values)
     tau_df = _report.tau_summary_joint(ctx.trace, outcomes, hdi_prob=ctx.reporting.hdi)
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
     ctx.tables["tau_summary"] = tau_df
+    print_table(
+        ranked_dataframe_table(
+            tau_df,
+            title=f"tau by outcome - HDI {int(ctx.reporting.hdi * 100)}%",
+            columns=["outcome", "tau_mean", "tau_lo", "tau_hi", "prob_pos"],
+            rank_column=False,
+        )
+    )
 
     contrast = _report.tau_contrast_matrix(ctx.trace, outcomes)
     contrast.to_csv(os.path.join(ctx.output_dir, "tau_contrast_matrix.csv"))
     ctx.tables["tau_contrast_matrix"] = contrast
 
     _report.write_run_metadata(ctx, extra={"loo_elpd": float(ctx.loo.elpd_loo)})
+
+    section_header("Report")
     _copy_report_template(ctx)
+    _print_footer(ctx)
     return ctx
 
 
@@ -257,11 +346,14 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     assert spec.mechanism_symbol is not None
 
     ctx = make_context(spec, config)
-    rprint(f"\n[bold green]{spec.banner}[/bold green]\n")
 
+    section_header("Prepare data")
     prepared = load_and_prepare(phase_mode="all")
     ctx.prepared = prepared
 
+    _print_header(ctx)
+
+    section_header("Build model")
     _priors.save_shared_prior_panel(ctx.output_dir)
 
     confounders = [s for s in spec.adjustment if s not in ("W_pre",)]
@@ -284,19 +376,29 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     _render_model_graph(ctx)
 
+    section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+
+    section_header("Sampling posterior (nutpie)")
     _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
     _diag.compute_log_likelihood_and_loo(ctx)
     _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
 
+    section_header("Summary diagnostics")
     _mech_vars = ["alpha", "beta_G", "gamma_own", "kappa"]
     if spec.extra.get("use_subject_random_intercept", True):
         _mech_vars.append("sigma_child")
     _diag.summary_diagnostics(ctx, var_names=_mech_vars)
+
+    section_header("Posterior predictive")
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
     _save_ppc(ctx)
 
     # Mechanism curve: f_mech vs mech_post_logit grid, on both scales.
+    section_header("Mechanism curve")
     _write_mechanism_curve(ctx)
 
     _diag.save_trace(ctx)
@@ -304,7 +406,10 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         ctx,
         extra={"loo_elpd": float(ctx.loo.elpd_loo), "adjustment": spec.adjustment},
     )
+
+    section_header("Report")
     _copy_report_template(ctx)
+    _print_footer(ctx)
     return ctx
 
 

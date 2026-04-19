@@ -47,6 +47,16 @@ from language_reading_predictors.models.common import (
     ModelFitContext,
     RunConfig,
 )
+from language_reading_predictors.models._reporting import (
+    cv_fold_metrics_table,
+    in_sample_metrics_table,
+    model_header_panel,
+    pooled_oof_table,
+    print_panel,
+    print_table,
+    ranked_dataframe_table,
+    run_summary_panel,
+)
 
 _ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 _DOCS_DIR = _ROOT_DIR / "docs"
@@ -154,10 +164,7 @@ class EstimatorPipeline:
         context.dataframes["cv_scores"] = scores_df
         scores_df.to_csv(context.output_dir / "cv_scores.csv", index=False)
 
-        print(f"  MAE:   {scores_df['mae'].mean():.4f} ± {scores_df['mae'].std():.4f}")
-        print(f"  RMSE:  {scores_df['rmse'].mean():.4f} ± {scores_df['rmse'].std():.4f}")
-        print(f"  R²:    {scores_df['r2'].mean():.4f} ± {scores_df['r2'].std():.4f}")
-        print(f"  MedAE: {scores_df['medae'].mean():.4f} ± {scores_df['medae'].std():.4f}")
+        print_table(cv_fold_metrics_table(scores_df))
 
         # Pooled out-of-fold metrics: score the stacked OOF predictions
         # against the global mean of y, rather than averaging per-fold R².
@@ -195,12 +202,7 @@ class EstimatorPipeline:
         context.dataframes["oof_predictions"] = oof_df
         oof_df.to_csv(context.output_dir / "oof_predictions.csv", index=False)
 
-        print("  Pooled OOF (vs. global mean):")
-        print(f"    MAE:   {pooled['pooled_mae']:.4f}")
-        print(f"    RMSE:  {pooled['pooled_rmse']:.4f}")
-        if pooled["pooled_r2"] is not None:
-            print(f"    R²:    {pooled['pooled_r2']:.4f}")
-        print(f"    MedAE: {pooled['pooled_medae']:.4f}")
+        print_table(pooled_oof_table(pooled))
 
     def fit_model(self) -> None:
         """Fit the pipeline on the full dataset."""
@@ -241,10 +243,7 @@ class EstimatorPipeline:
         ss_tot = ((y_true - y_true.mean()) ** 2).sum()
         r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0 else float("nan")
 
-        print(f"  In-sample MAE:  {mae:.4f}")
-        print(f"  In-sample RMSE: {rmse:.4f}")
-        print(f"  In-sample R²:   {r2:.4f}")
-        print(f"  In-sample MedAE: {medae:.4f}")
+        print_table(in_sample_metrics_table(mae, rmse, r2, medae))
 
     def permutation_importance_analysis(self) -> None:
         """Compute permutation importance and save results."""
@@ -289,7 +288,13 @@ class EstimatorPipeline:
             context.output_dir / "permutation_importance_repeats.csv"
         )
 
-        print(perm_df.to_string(index=False))
+        print_table(
+            ranked_dataframe_table(
+                perm_df,
+                title="Permutation importance",
+                columns=["feature", "importance_mean", "importance_std"],
+            )
+        )
 
         ordered = perm_df["feature"].tolist()
         data = [result.importances[list(context.X.columns).index(f)] for f in ordered]
@@ -366,7 +371,20 @@ class EstimatorPipeline:
         context.dataframes["construct_importance"] = grouped
         grouped.to_csv(context.output_dir / "construct_importance.csv", index=False)
 
-        print(grouped.to_string(index=False))
+        print_table(
+            ranked_dataframe_table(
+                grouped,
+                title="Construct importance",
+                columns=[
+                    "construct",
+                    "total_importance",
+                    "mean_importance",
+                    "max_importance",
+                    "n_members",
+                    "top_feature",
+                ],
+            )
+        )
 
     def shap_direction_diagnostics(self) -> None:
         """Per-feature direction and monotonicity diagnostics from SHAP.
@@ -439,7 +457,19 @@ class EstimatorPipeline:
         diag.to_csv(
             context.output_dir / "shap_direction_diagnostics.csv", index=False
         )
-        print(diag.to_string(index=False))
+        print_table(
+            ranked_dataframe_table(
+                diag,
+                title="SHAP direction diagnostics",
+                columns=[
+                    "feature",
+                    "shap_mean_abs",
+                    "shap_std",
+                    "feature_shap_spearman",
+                    "shape_flag",
+                ],
+            )
+        )
 
     def stability_selection(
         self, n_bootstraps: int = 30, subject_fraction: float = 0.8,
@@ -538,7 +568,21 @@ class EstimatorPipeline:
         stab.to_csv(
             context.output_dir / "stability_selection.csv", index=False
         )
-        print(stab.to_string(index=False))
+        print_table(
+            ranked_dataframe_table(
+                stab,
+                title=f"Stability selection (top-{top_k} across {n_bootstraps} bootstraps)",
+                columns=[
+                    "feature",
+                    "appearance_rate_top_k",
+                    "importance_mean",
+                    "importance_std",
+                    "rank_median",
+                    "rank_q25",
+                    "rank_q75",
+                ],
+            )
+        )
 
     def feature_selection_diagnostics(self, cluster_cutoff: float = 0.4) -> None:
         """Compute inter-predictor diagnostics for feature selection.
@@ -1075,13 +1119,18 @@ class EstimatorPipeline:
         config = context.config
         run = context.run_config
 
-        print(
-            "\n[green]============================================================[/green]"
+        print()
+        print_panel(
+            model_header_panel(
+                model_id=config.model_id,
+                description=config.description,
+                pipeline_cls=type(self).__name__,
+                run_config=run.name,
+                target=config.target_var,
+                n_predictors=len(config.predictor_vars),
+                variant_of=config.variant_of,
+            )
         )
-        print(f"[bold green]Model {config.model_id.upper()}: {config.description}[/bold green]")
-        print(f"[bold green]Pipeline: {type(self).__name__}[/bold green]")
-        print(f"[bold green]Run config: {run.name}[/bold green]")
-        print("[green]============================================================[/green]")
 
         output_dir = context.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -1126,11 +1175,8 @@ class EstimatorPipeline:
         self.save_config()
         self.report()
 
-        print(
-            "\n[green]============================================================[/green]"
-        )
-        print(f"[bold green]Done. Artifacts saved to: {output_dir}[/bold green]")
-        print("[green]============================================================[/green]")
+        print()
+        print_panel(run_summary_panel(output_dir=output_dir))
 
         return context
 

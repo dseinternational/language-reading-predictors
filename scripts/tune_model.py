@@ -42,8 +42,15 @@ from rich import print
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 
 import language_reading_predictors.data_utils as data_utils
+from language_reading_predictors.models._reporting import (
+    metrics_table,
+    params_table,
+    print_panel,
+    print_table,
+)
 from language_reading_predictors.models.common import ModelConfig
 from language_reading_predictors.models.registry import MODELS
+from rich.panel import Panel
 
 _ROOT_DIR = Path(__file__).resolve().parent.parent
 _TUNING_DIR = _ROOT_DIR / "output" / "tuning"
@@ -277,18 +284,27 @@ def tune(
 
     X, y, groups = _load_frame(cfg)
 
-    print(f"[bold green]Tuning {key} ({pipeline_name})[/bold green]")
-    print(f"  Observations: {len(X)}  Predictors: {X.shape[1]}")
-    print(f"  CV splits: {cv_splits}  Trials: {n_trials}  Timeout: {timeout or '∞'}s")
-    print(
-        f"  Early stopping: {early_stopping_rounds} rounds  "
-        f"max_n_estimators: {max_n_estimators}  "
-        f"inner ES fraction: {early_stopping_fraction}"
-    )
-    print(f"  Scoring: {scoring}  LightGBM objective: {lgbm_objective}")
-    print(f"  Target transform: {target_transform}")
+    setup_lines = [
+        f"[bold]Tuning {key.upper()}[/bold]  ([dim]{pipeline_name}[/dim])",
+        "",
+        f"[dim]Observations:[/dim]   {len(X):,}",
+        f"[dim]Predictors:[/dim]     {X.shape[1]}",
+        f"[dim]CV splits:[/dim]      {cv_splits}",
+        f"[dim]Trials:[/dim]         {n_trials}",
+        f"[dim]Timeout:[/dim]        {f'{timeout}s' if timeout else '\u221e'}",
+        f"[dim]Scoring:[/dim]        {scoring}  "
+        f"([dim]LGBM objective:[/dim] {lgbm_objective})",
+        f"[dim]Target transform:[/dim] {target_transform}",
+        f"[dim]Early stopping:[/dim] {early_stopping_rounds} rounds  "
+        f"([dim]max n_estimators:[/dim] {max_n_estimators}, "
+        f"[dim]inner ES fraction:[/dim] {early_stopping_fraction})",
+    ]
     if alpha is not None:
-        print(f"  Alpha (quantile / Huber): {alpha}")
+        setup_lines.append(f"[dim]Alpha:[/dim]          {alpha}")
+    print()
+    print_panel(
+        Panel("\n".join(setup_lines), border_style="green", padding=(1, 2))
+    )
     objective = _lgbm_objective(
         X,
         y,
@@ -371,14 +387,31 @@ def tune(
     (out_dir / "study_summary.json").write_text(json.dumps(summary, indent=2))
 
     print()
-    print(f"[bold green]Best trial: #{best.number}[/bold green]")
     label = scoring.upper()
-    print(f"  CV {label} mean: {best.value:.4f}")
     cv_std = best.user_attrs.get(cv_std_key, float("nan"))
-    print(f"  CV {label} std:  {cv_std:.4f}")
+    summary_rows = [
+        {"metric": f"CV {label} mean", "value": float(best.value)},
+        {"metric": f"CV {label} std", "value": float(cv_std)},
+        {"metric": "Best trial number", "value": int(best.number)},
+    ]
     if pipeline_name in _SUPPORTED_PIPELINES:
-        print(f"  Mean best iteration: {best.user_attrs.get('mean_best_iteration')}")
-    print(f"  Params: {json.dumps(best_full_params, indent=2)}")
+        summary_rows.append(
+            {
+                "metric": "Mean best iteration",
+                "value": int(best.user_attrs.get("mean_best_iteration", -1)),
+            }
+        )
+    print_table(
+        metrics_table(
+            summary_rows,
+            title="Best trial",
+            columns=["metric", "value"],
+        )
+    )
+    print()
+    print_table(
+        params_table(best_full_params, title="Best-trial LightGBM params")
+    )
     print()
     print(f"[bold green]Artifacts saved to: {out_dir}[/bold green]")
     print(
