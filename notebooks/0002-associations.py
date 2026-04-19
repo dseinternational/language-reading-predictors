@@ -115,5 +115,14 @@ scatter_plot(vars.YARCLET, vars.NONWORD)
 # %%
 scatter_plot(vars.SPPHON, vars.NONWORD)
 
+# %% [markdown]
+# ## Early word reading
+
+# %%
+scatter_plot(vars.EWRSWR, vars.SPPHON)
+
+# %%
+scatter_plot(vars.EWRSWR, vars.BLENDING)
+
 # %%
 scatter_plot(vars.EWRSWR, vars.NONWORD)
