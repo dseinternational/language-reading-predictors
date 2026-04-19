@@ -1,0 +1,270 @@
+---
+title: "LRP19: Predictors of APT expressive-information gains"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+:::
+
+```{python}
+import json
+import pandas as pd
+pd.set_option("display.float_format", "{:.4f}".format)
+
+with open("config.json") as f:
+    config = json.load(f)
+
+with open("metrics.json") as f:
+    metrics = json.load(f)
+```
+
+## Overview
+
+LRP19 models **gains in APT expressive-information** scores (`aptinfo_gain`)
+between consecutive longitudinal timepoints. `aptinfo` is the information
+raw score from the Action Picture Test (Renfrew, 1997), scoring the
+information content of the child's spoken responses to picture prompts (as
+distinct from their grammatical structure, which is scored separately as
+`aptgram` — LRP17/18). All observations are included (no outlier exclusion).
+
+The target is **mildly right-skewed** (skew 0.25) with ~29% negative and ~4%
+zero observations (n ≈ 160) — unusually low zero-mass for a gain target.
+Pair partner to LRP17 (`aptgram_gain`, expressive grammar).
+
+This is a **baseline exploratory model** for the gain-prediction task. It has
+not yet been through iterative feature selection --- it runs on MAE-tuned
+hyperparameters from an Optuna 150-trial study and the full
+`Predictors.DEFAULT_GAIN` set (`aptinfo` is already a level predictor in that
+set). Later variants will have a documented starting point for comparison.
+
+Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
+prevent data leakage across timepoints for the same child.
+
+## Configuration
+
+### Hyperparameters
+
+```{python}
+#| output: asis
+#| classes: table-sm
+
+_outlier = config.get("outlier_threshold")
+_target_label = f"`{config['target_var']}`"
+if _outlier is not None:
+    _target_label += f" (outliers ≥ {_outlier} excluded)"
+else:
+    _target_label += " (no outlier exclusion)"
+
+rows = [
+    ("Algorithm", "LightGBM (`lightgbm.LGBMRegressor`)"),
+    ("Target variable", _target_label),
+]
+for k, v in config["model_params"].items():
+    label = k.replace("_", " ").title()
+    rows.append((label, f"{v:,}" if isinstance(v, int) else str(v)))
+rows += [
+    ("Cross-validation", f"GroupKFold ({config['cv_splits']} splits, grouped by `subject_id`)"),
+    ("Permutation importance repeats", str(config["perm_importance_repeats"])),
+    ("Random seed", str(config["random_seed"])),
+]
+print("| Parameter | Value |")
+print("|:---|:---|")
+for label, val in rows:
+    print(f"| {label} | {val} |")
+print()
+print(": Model hyperparameters {#tbl-config}")
+```
+
+### Predictor variables
+
+```{python}
+#| output: asis
+print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
+```
+
+The predictor set spans demographics, cognitive assessments, language, speech
+and reading measures. Feature-selection history (what has been removed, when,
+and why) is persisted in `config.json` under `selection_history` and surfaced
+in the notes under `notes/` in the repository.
+
+### Target variable
+
+```{python}
+target_desc = pd.read_csv("target_describe.csv", index_col=0)
+target_desc
+```
+
+## Validation
+
+### Cross-validation
+
+Group-aware (`GroupKFold`) cross-validation scores:
+
+```{python}
+cv_scores = pd.read_csv("cv_scores.csv")
+
+for col in ["mae", "rmse", "r2", "medae"]:
+    label = col.upper() if col != "r2" else "R²"
+    print(f"{label}: {cv_scores[col].mean():.4f} ± {cv_scores[col].std():.4f}")
+```
+
+```{python}
+cv_scores
+```
+
+### In-sample evaluation
+
+```{python}
+eval_df = pd.read_csv("evaluation.csv")
+
+y_true = eval_df["y_true"]
+y_pred = eval_df["y_pred"]
+abs_resid = (y_true - y_pred).abs()
+sq_error = (y_true - y_pred) ** 2
+
+mae = abs_resid.mean()
+rmse = sq_error.mean() ** 0.5
+medae = abs_resid.median()
+ss_res = sq_error.sum()
+ss_tot = ((y_true - y_true.mean()) ** 2).sum()
+r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
+
+print(f"In-sample MAE:   {mae:.4f}")
+print(f"In-sample RMSE:  {rmse:.4f}")
+print(f"In-sample R²:    {r2:.4f}")
+print(f"In-sample MedAE: {medae:.4f}")
+```
+
+## Feature importance
+
+### Permutation importance
+
+Permutation importance measures the decrease in model performance when a single
+feature's values are randomly shuffled, breaking the relationship between the
+feature and the target. Features with higher importance contribute more to the
+model's predictive accuracy.
+
+```{python}
+perm_imp = pd.read_csv("permutation_importance.csv")
+perm_imp
+```
+
+The box plot below summarises the distribution of the per-repeat decrease in
+R² for each predictor (whiskers and fliers show variability across repeats).
+
+![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
+
+### Feature-selection diagnostics
+
+The following plots show inter-predictor relationships and are the main lens
+for identifying redundant predictors in successive feature-selection passes.
+
+#### Distance-correlation dendrogram
+
+Distance correlation captures both linear and non-linear associations between
+predictors. The dendrogram (Ward linkage on 1 − distance correlation) groups
+predictors that share information.
+
+![Distance-correlation dendrogram](distance_corr_dendrogram.png){#fig-dcorr-dendrogram .lightbox fig-align="left"}
+
+#### Distance-correlation heatmap
+
+Pairwise distance correlations (0 = independent, 1 = perfectly dependent).
+Distance correlation has no sign --- it captures association strength regardless
+of direction.
+
+![Distance-correlation heatmap](distance_corr_heatmap.png){#fig-dcorr-heatmap .lightbox fig-align="left"}
+
+#### Spearman rank correlation
+
+Spearman rank correlations show monotonic relationships between predictors.
+
+![Spearman rank correlation heatmap](spearman_heatmap.png){#fig-spearman .lightbox fig-align="left"}
+
+#### Mutual information
+
+Mutual information (displayed as 1 − dissimilarity) captures arbitrary
+dependencies, including non-monotonic relationships that Spearman misses.
+
+![Mutual information heatmap](mutual_info_heatmap.png){#fig-mi .lightbox fig-align="left"}
+
+### SHAP analysis
+
+[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values
+decompose each prediction into the contribution of each feature, providing both
+global and local interpretability.
+
+#### Global feature importance (bar)
+
+Mean absolute SHAP values across all observations, showing the average magnitude
+of each feature's contribution to predictions.
+
+![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
+
+#### Clustered feature importance
+
+SHAP bar plot with hierarchical clustering of correlated features (cutoff = 0.4),
+revealing groups of features that contribute similar information.
+
+![SHAP clustered bar plot](shap_bar_clustered.png){#fig-shap-bar-clustered .lightbox fig-align="left"}
+
+#### Summary (beeswarm) plot
+
+Each point represents a single observation. Position on the x-axis shows the SHAP
+value (impact on prediction), and colour indicates the feature value (red = high,
+blue = low).
+
+![SHAP summary plot](shap_summary.png){#fig-shap-summary .lightbox fig-align="left"}
+
+#### Waterfall plot (most representative observation)
+
+SHAP waterfall plot for the most representative observation (lowest combined
+residual and distance from the median feature vector), showing how each feature
+pushes the prediction from the base value.
+
+![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
+
+#### SHAP scatter plots by predictor
+
+One scatter per predictor: feature value on the x-axis, SHAP contribution on
+the y-axis. Colouring uses SHAP's auto-interaction picker (the strongest
+interacting feature is chosen automatically for each plot).
+
+```{python}
+#| output: asis
+from pathlib import Path
+
+# Order scatters by permutation importance so the strongest signals appear
+# first. Fall back to config order if the file is missing.
+try:
+    order = perm_imp.sort_values("importance_mean", ascending=False)["feature"].tolist()
+except Exception:
+    order = list(config["predictor_vars"])
+
+available = [f for f in order if Path(f"shap_scatter_{f}.png").exists()]
+
+print("::: {layout-ncol=2}")
+for feat in available:
+    print(f"![{feat}](shap_scatter_{feat}.png){{.lightbox}}\n")
+print(":::")
+```
+
+## Partial dependence
+
+Partial dependence plots show the marginal effect of each feature on the predicted
+target, averaging over the values of all other features. Features are ordered by
+permutation importance.
+
+![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
