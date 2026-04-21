@@ -56,6 +56,7 @@ from language_reading_predictors.models._reporting import (
     print_table,
     ranked_dataframe_table,
     run_summary_panel,
+    section_header,
 )
 
 _ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -93,7 +94,7 @@ class EstimatorPipeline:
         missingness (e.g. ``agespeak`` is NaN in 80/152 rows and almost
         certainly correlates with developmental trajectory).
         """
-        _section("Prepare data")
+        section_header("Prepare data")
 
         context = self.context
         cfg = context.config
@@ -108,7 +109,9 @@ class EstimatorPipeline:
 
         print(f"  Observations: {len(df)}")
         if cfg.outlier_threshold is not None:
-            print(f"  Target: {cfg.target_var} (outlier threshold < {cfg.outlier_threshold})")
+            print(
+                f"  Target: {cfg.target_var} (outlier threshold < {cfg.outlier_threshold})"
+            )
         else:
             print(f"  Target: {cfg.target_var}")
         print(f"  Predictors ({len(cfg.predictor_vars)}): {cfg.predictor_vars}")
@@ -125,7 +128,7 @@ class EstimatorPipeline:
 
     def cross_validate(self) -> None:
         """Run group-aware cross-validation and save scores."""
-        _section("Cross-validation")
+        section_header("Cross-validation")
 
         context = self.context
         cfg = context.config
@@ -206,7 +209,7 @@ class EstimatorPipeline:
 
     def fit_model(self) -> None:
         """Fit the pipeline on the full dataset."""
-        _section("Fit model")
+        section_header("Fit model")
 
         context = self.context
         context.pipeline.fit(context.X, context.y)
@@ -214,7 +217,7 @@ class EstimatorPipeline:
 
     def evaluate(self) -> None:
         """Generate predictions, compute residuals, and save evaluation DataFrame."""
-        _section("Evaluate")
+        section_header("Evaluate")
 
         context = self.context
         y_true = context.y
@@ -247,7 +250,7 @@ class EstimatorPipeline:
 
     def permutation_importance_analysis(self) -> None:
         """Compute permutation importance and save results."""
-        _section("Permutation importance")
+        section_header("Permutation importance")
 
         context = self.context
         cfg = context.config
@@ -309,7 +312,12 @@ class EstimatorPipeline:
             medianprops={"color": "C2"},
             whiskerprops={"color": "C0"},
             capprops={"color": "C0"},
-            flierprops={"marker": "o", "markerfacecolor": "C0", "markeredgecolor": "C0", "markersize": 3},
+            flierprops={
+                "marker": "o",
+                "markerfacecolor": "C0",
+                "markeredgecolor": "C0",
+                "markersize": 3,
+            },
         )
         ax.invert_yaxis()
         ax.axvline(0.0, color="black", linestyle="--", linewidth=1)
@@ -349,7 +357,7 @@ class EstimatorPipeline:
         """
         from language_reading_predictors.data_variables import Variables as V
 
-        _section("Construct-level importance")
+        section_header("Construct-level importance")
 
         context = self.context
         perm_df = context.perm_importance_df.copy()
@@ -415,7 +423,7 @@ class EstimatorPipeline:
         """
         from scipy import stats as _stats
 
-        _section("SHAP direction diagnostics")
+        section_header("SHAP direction diagnostics")
 
         context = self.context
         shap_vals = context.shap_values
@@ -433,7 +441,9 @@ class EstimatorPipeline:
                 spearman = float("nan")
             else:
                 res = _stats.spearmanr(feat_vals[mask], shap_col[mask])
-                spearman = float(res.correlation) if not np.isnan(res.correlation) else 0.0
+                spearman = (
+                    float(res.correlation) if not np.isnan(res.correlation) else 0.0
+                )
             mean_abs = float(np.mean(np.abs(shap_col)))
             std = float(np.std(shap_col))
             if abs(spearman) > 0.7:
@@ -454,9 +464,7 @@ class EstimatorPipeline:
 
         diag = pd.DataFrame(rows).sort_values("shap_mean_abs", ascending=False)
         context.dataframes["shap_direction_diagnostics"] = diag
-        diag.to_csv(
-            context.output_dir / "shap_direction_diagnostics.csv", index=False
-        )
+        diag.to_csv(context.output_dir / "shap_direction_diagnostics.csv", index=False)
         print_table(
             ranked_dataframe_table(
                 diag,
@@ -472,8 +480,11 @@ class EstimatorPipeline:
         )
 
     def stability_selection(
-        self, n_bootstraps: int = 30, subject_fraction: float = 0.8,
-        top_k: int = 5, n_repeats: int = 10,
+        self,
+        n_bootstraps: int = 30,
+        subject_fraction: float = 0.8,
+        top_k: int = 5,
+        n_repeats: int = 10,
     ) -> None:
         """Subject-level bootstrap stability of permutation importance.
 
@@ -501,7 +512,7 @@ class EstimatorPipeline:
         from sklearn.base import clone
         from sklearn.utils import resample
 
-        _section("Stability selection")
+        section_header("Stability selection")
 
         context = self.context
         cfg = context.config
@@ -521,7 +532,10 @@ class EstimatorPipeline:
         for b in range(n_bootstraps):
             seed = int(rng.integers(0, 2**31 - 1))
             drawn = resample(
-                unique_subjects, replace=True, n_samples=n_sub, random_state=seed,
+                unique_subjects,
+                replace=True,
+                n_samples=n_sub,
+                random_state=seed,
             )
             mask = context.groups.isin(set(drawn.tolist())).to_numpy()
             X_b = context.X.loc[mask]
@@ -530,7 +544,11 @@ class EstimatorPipeline:
             est = clone(context.pipeline)
             est.fit(X_b, y_b)
             result = permutation_importance(
-                est, X_b, y_b, n_repeats=n_repeats, random_state=seed,
+                est,
+                X_b,
+                y_b,
+                n_repeats=n_repeats,
+                random_state=seed,
             )
 
             # Rank features in this bootstrap (highest importance = rank 1)
@@ -559,15 +577,11 @@ class EstimatorPipeline:
                 }
             )
 
-        stab = pd.DataFrame(rows).sort_values(
-            "appearance_rate_top_k", ascending=False
-        )
+        stab = pd.DataFrame(rows).sort_values("appearance_rate_top_k", ascending=False)
         stab.attrs["n_bootstraps"] = n_bootstraps
         stab.attrs["top_k"] = top_k
         context.dataframes["stability_selection"] = stab
-        stab.to_csv(
-            context.output_dir / "stability_selection.csv", index=False
-        )
+        stab.to_csv(context.output_dir / "stability_selection.csv", index=False)
         print_table(
             ranked_dataframe_table(
                 stab,
@@ -605,7 +619,7 @@ class EstimatorPipeline:
             spearman_distance_matrix,
         )
 
-        _section("Feature-selection diagnostics")
+        section_header("Feature-selection diagnostics")
 
         context = self.context
         cfg = context.config
@@ -649,10 +663,14 @@ class EstimatorPipeline:
         dendro_h = min(max(3, 0.5 * n), 12)
         dendro_w = min(max(5, 0.4 * n), 10)
         fig_dendro, ax_dendro = plt.subplots(figsize=(dendro_w, dendro_h))
-        hierarchy.dendrogram(linkage, labels=predictors, orientation="right", ax=ax_dendro)
+        hierarchy.dendrogram(
+            linkage, labels=predictors, orientation="right", ax=ax_dendro
+        )
         ax_dendro.set_title("Distance-correlation dissimilarity (Ward linkage)")
         ax_dendro.set_xlabel("Dissimilarity (1 \u2212 distance correlation)")
-        fig_dendro.savefig(out / "distance_corr_dendrogram.png", dpi=300, bbox_inches="tight")
+        fig_dendro.savefig(
+            out / "distance_corr_dendrogram.png", dpi=300, bbox_inches="tight"
+        )
         context.plots["distance_corr_dendrogram"] = fig_dendro
         plt.close(fig_dendro)
 
@@ -680,10 +698,14 @@ class EstimatorPipeline:
             print("  Joining permutation importance onto clusters...")
             perm_df = perm_df.copy()
             perm_df["importance_rank"] = (
-                perm_df["importance_mean"].rank(ascending=False, method="min").astype(int)
+                perm_df["importance_mean"]
+                .rank(ascending=False, method="min")
+                .astype(int)
             )
             pairing = cluster_df.merge(
-                perm_df[["feature", "importance_mean", "importance_std", "importance_rank"]],
+                perm_df[
+                    ["feature", "importance_mean", "importance_std", "importance_rank"]
+                ],
                 on="feature",
                 how="left",
             ).sort_values(["cluster_id", "importance_rank"])
@@ -693,7 +715,7 @@ class EstimatorPipeline:
 
     def shap_analysis(self) -> None:
         """Compute SHAP values and save bar, summary, and waterfall plots."""
-        _section("SHAP analysis")
+        section_header("SHAP analysis")
 
         mpl.rcParams["figure.constrained_layout.use"] = False
 
@@ -802,12 +824,14 @@ class EstimatorPipeline:
         list of Path
             PNG paths written.
         """
-        _section("SHAP scatter plots")
+        section_header("SHAP scatter plots")
 
         context = self.context
 
         if context.shap_explainer is None:
-            print("  [yellow]SHAP explainer not available. Run shap_analysis() first.[/yellow]")
+            print(
+                "  [yellow]SHAP explainer not available. Run shap_analysis() first.[/yellow]"
+            )
             return []
 
         explanation = context.shap_explainer(context.X)
@@ -863,7 +887,7 @@ class EstimatorPipeline:
         if not specs:
             return
 
-        _section(f"SHAP scatter specs ({len(specs)})")
+        section_header(f"SHAP scatter specs ({len(specs)})")
         for idx, spec in enumerate(specs, start=1):
             label = spec.description or (
                 f"colour={spec.color_by}" if spec.color_by else "auto-colour"
@@ -877,7 +901,7 @@ class EstimatorPipeline:
 
     def partial_dependence_plots(self) -> None:
         """Generate partial dependence plots for key features."""
-        _section("Partial dependence plots")
+        section_header("Partial dependence plots")
 
         context = self.context
         cfg = context.config
@@ -887,11 +911,9 @@ class EstimatorPipeline:
         if cfg.pdp_features:
             pdp_features = cfg.pdp_features
         else:
-            pdp_features = (
-                context.perm_importance_df
-                .head(cfg.pdp_top_n)["feature"]
-                .tolist()
-            )
+            pdp_features = context.perm_importance_df.head(cfg.pdp_top_n)[
+                "feature"
+            ].tolist()
 
         x_cols = set(context.X.columns)
         missing = [f for f in pdp_features if f not in x_cols]
@@ -935,8 +957,12 @@ class EstimatorPipeline:
             # Add target mean and median as horizontal reference lines
             y_mean = float(context.y.mean())
             y_median = float(context.y.median())
-            ax.axhline(y_mean, color="C1", linestyle="--", alpha=0.7, label="Target mean")
-            ax.axhline(y_median, color="C2", linestyle=":", alpha=0.7, label="Target median")
+            ax.axhline(
+                y_mean, color="C1", linestyle="--", alpha=0.7, label="Target mean"
+            )
+            ax.axhline(
+                y_median, color="C2", linestyle=":", alpha=0.7, label="Target median"
+            )
 
             ax.set_title(f"Partial dependence of {feature}")
             ax.set_xlabel(feature)
@@ -1051,14 +1077,30 @@ class EstimatorPipeline:
             "n_observations": int(len(context.X)),
             "n_predictors": int(len(cfg.predictor_vars)),
             "cv_splits": effective_cv_splits,
-            "cv_mae_mean": float(cv_scores_df["mae"].mean()) if cv_scores_df is not None else None,
-            "cv_mae_std": float(cv_scores_df["mae"].std()) if cv_scores_df is not None else None,
-            "cv_rmse_mean": float(cv_scores_df["rmse"].mean()) if cv_scores_df is not None else None,
-            "cv_rmse_std": float(cv_scores_df["rmse"].std()) if cv_scores_df is not None else None,
-            "cv_r2_mean": float(cv_scores_df["r2"].mean()) if cv_scores_df is not None else None,
-            "cv_r2_std": float(cv_scores_df["r2"].std()) if cv_scores_df is not None else None,
-            "cv_medae_mean": float(cv_scores_df["medae"].mean()) if cv_scores_df is not None else None,
-            "cv_medae_std": float(cv_scores_df["medae"].std()) if cv_scores_df is not None else None,
+            "cv_mae_mean": float(cv_scores_df["mae"].mean())
+            if cv_scores_df is not None
+            else None,
+            "cv_mae_std": float(cv_scores_df["mae"].std())
+            if cv_scores_df is not None
+            else None,
+            "cv_rmse_mean": float(cv_scores_df["rmse"].mean())
+            if cv_scores_df is not None
+            else None,
+            "cv_rmse_std": float(cv_scores_df["rmse"].std())
+            if cv_scores_df is not None
+            else None,
+            "cv_r2_mean": float(cv_scores_df["r2"].mean())
+            if cv_scores_df is not None
+            else None,
+            "cv_r2_std": float(cv_scores_df["r2"].std())
+            if cv_scores_df is not None
+            else None,
+            "cv_medae_mean": float(cv_scores_df["medae"].mean())
+            if cv_scores_df is not None
+            else None,
+            "cv_medae_std": float(cv_scores_df["medae"].std())
+            if cv_scores_df is not None
+            else None,
             "cv_pooled_mae": (context.pooled_cv_metrics or {}).get("pooled_mae"),
             "cv_pooled_rmse": (context.pooled_cv_metrics or {}).get("pooled_rmse"),
             "cv_pooled_r2": (context.pooled_cv_metrics or {}).get("pooled_r2"),
@@ -1081,7 +1123,7 @@ class EstimatorPipeline:
         2. ``docs/models/{variant_of}/index.qmd`` — bespoke template for the
            parent model (used by selection variants).
         """
-        _section("Report")
+        section_header("Report")
 
         context = self.context
         cfg = context.config
@@ -1157,7 +1199,9 @@ class EstimatorPipeline:
             self.run_shap_scatter_specs()
             self.shap_direction_diagnostics()
         else:
-            print(f"\n  [yellow]SHAP analysis skipped (run config: {run.name})[/yellow]")
+            print(
+                f"\n  [yellow]SHAP analysis skipped (run config: {run.name})[/yellow]"
+            )
 
         # Stability selection is expensive; reporting config only.
         if run.name == "reporting":
@@ -1197,12 +1241,12 @@ def _clear_directory(path: Path) -> None:
             try:
                 entry.unlink()
             except PermissionError:
-                print(f"[yellow]Warning: could not delete {entry} (PermissionError)[/yellow]")
+                print(
+                    f"[yellow]Warning: could not delete {entry} (PermissionError)[/yellow]"
+                )
 
 
-def _cap_n_estimators(
-    model_params: dict, run_config: RunConfig
-) -> dict:
+def _cap_n_estimators(model_params: dict, run_config: RunConfig) -> dict:
     """Build effective LGBM params, capping n_estimators to the run config limit.
 
     Returns a *copy* of ``model_params`` with n_estimators adjusted if needed.
@@ -1214,14 +1258,6 @@ def _cap_n_estimators(
         tuned = params.get("n_estimators", run_config.n_estimators)
         params["n_estimators"] = min(tuned, run_config.n_estimators)
     return params
-
-
-def _section(title: str) -> None:
-    print(
-        "\n[green]------------------------------------------------------------[/green]"
-    )
-    print(f"[bold green]{title}[/bold green]")
-    print("[green]------------------------------------------------------------[/green]")
 
 
 def _json_safe(v):

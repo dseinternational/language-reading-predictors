@@ -67,16 +67,24 @@ def hyperparam_search_randomized(
 
 
 def report_cross_validation_scores(model_name: str, scores: dict[str, np.ndarray]):
-    print(
-        f"-------------------- {model_name}: Cross-validation scores --------------------"
-    )
-    for key in scores.keys():
-        if key.startswith("test_"):
-            score = scores[key]
-            key = key[5:]
-            print(
-                f"{key}: Mean={np.abs(np.mean(score))},  SD={np.std(score)}, Scores={np.abs(score)}"
-            )
+    from dse_research_utils.console.console import print_table
+    from dse_research_utils.console.sections import section_header
+    from dse_research_utils.console.tables import metrics_table
+
+    section_header(f"{model_name}: Cross-validation scores")
+    rows = []
+    for key, score in scores.items():
+        if not key.startswith("test_"):
+            continue
+        label = key[5:]
+        rows.append(
+            {
+                "metric": label,
+                "mean": float(np.abs(np.mean(score))),
+                "sd": float(np.std(score)),
+            }
+        )
+    print_table(metrics_table(rows, columns=["metric", "mean", "sd"]))
 
 
 # from https://www.pymc.io/projects/examples/en/latest/statistical_rethinking_lectures/16-Gaussian_Processes.html
