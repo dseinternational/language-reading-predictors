@@ -28,11 +28,13 @@ def get_environment_info() -> dict[str, str | bool | Any]:
         "cpu": platform.processor(),
         "cores": joblib.cpu_count(),
         "physical_cores": joblib.cpu_count(only_physical_cores=True),
-        "ram": f"{mem.total // (1024 ** 3)} GB",
-        "ram_available": f"{mem.available // (1024 ** 3)} GB",
+        "ram": f"{mem.total // (1024**3)} GB",
+        "ram_available": f"{mem.available // (1024**3)} GB",
         "cuda": torch.cuda.is_available(),
         "cuda_device_count": torch.cuda.device_count(),
-        "cuda_device_0": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+        "cuda_device_0": torch.cuda.get_device_name(0)
+        if torch.cuda.is_available()
+        else None,
         "python": sys.version,
         "numpy": np.__version__,
         "pandas": pd.__version__,
@@ -46,7 +48,9 @@ def get_environment_info() -> dict[str, str | bool | Any]:
 
 
 def print_environment_info():
+    from dse_research_utils.console.sections import section_header
+    from dse_research_utils.console.tables import print_key_value_table
+
     info = get_environment_info()
-    print("-------------------- Environment Information --------------------")
-    for key, value in info.items():
-        print(f"{key}: {value}")
+    section_header("Environment Information")
+    print_key_value_table(info, key_header="Field", value_header="Value")

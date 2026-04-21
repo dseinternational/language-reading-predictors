@@ -3,50 +3,47 @@
 
 """Rich-based formatting helpers for model pipeline console output.
 
-Centralises the patterns used across ``base_pipeline``, ``fit_model.py`` and
-``tune_model.py`` so every script reports results consistently:
-
-* ``metrics_table`` — one-row-per-metric summary with optional std column.
-* ``ranked_dataframe_table`` — ranked per-feature tables (permutation
-  importance, construct importance, SHAP direction, stability selection).
-* ``model_header_panel`` — the banner printed at the top of a fit.
-* ``run_summary_panel`` — "Done. Artifacts saved to ..." banner.
+This module preserves the public surface that ``base_pipeline``,
+``statistical_models.pipeline``, and the ``scripts/*`` entry points have
+historically imported from here, but the primitives (banner, section
+header, key/value and dataframe tables, value formatter) now live in
+:mod:`dse_research_utils.console`. The functions below are thin shims that
+delegate to the shared implementation; ML-specific composers
+(``cv_fold_metrics_table``, ``pooled_oof_table``, ``in_sample_metrics_table``,
+``model_header_panel``, ``stat_model_header_panel``) stay here because they
+encode domain-specific content even though they build on shared tables
+underneath.
 """
 
-from __future__ import annotations
-
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import pandas as pd
-from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-_console = Console()
-
-
-def print_table(table: Table) -> None:
-    """Print a rich Table via a shared Console."""
-    _console.print(table)
-
-
-def print_panel(panel: Panel) -> None:
-    """Print a rich Panel via a shared Console."""
-    _console.print(panel)
+from dse_research_utils.console.console import print_panel, print_table
+from dse_research_utils.console.sections import section_header as _section_header
+from dse_research_utils.console.tables import (
+    dataframe_table as _dataframe_table,
+)
+from dse_research_utils.console.tables import (
+    metrics_table as _metrics_table,
+)
+from dse_research_utils.console.tables import (
+    params_table as _params_table,
+)
 
 
 def section_header(title: str) -> None:
-    """Print a green dashed-banner section header.
+    """Print a green rule-based section header.
 
-    Matches the style used across both estimator (``base_pipeline``) and
-    statistical (``statistical_models.pipeline``) pipelines so every
-    script shows the same section dividers.
+    Historically this rendered as a dashed banner on three lines; the shared
+    implementation uses a single rich ``Rule`` with the same title and
+    styling, which is visually tighter but carries the same information.
     """
-    _console.print()
-    _console.print("[green]" + "-" * 60 + "[/green]")
-    _console.print(f"[bold green]{title}[/bold green]")
-    _console.print("[green]" + "-" * 60 + "[/green]")
+    _section_header(title)
 
 
 def metrics_table(
@@ -58,34 +55,11 @@ def metrics_table(
 ) -> Table:
     """Build a key/value-style metrics table.
 
-    Parameters
-    ----------
-    rows
-        Ordered sequence of mappings. Each row is rendered in column order;
-        the first column is typically the metric name (left-aligned), the
-        rest are numeric (right-aligned).
-    title
-        Optional table title, shown above the header row.
-    columns
-        Ordered column names. Inferred from the first row when omitted.
-    precision
-        Decimal places for float values. Integers render as-is; strings pass
-        through untouched.
+    Thin wrapper over
+    :func:`dse_research_utils.console.tables.metrics_table` with identical
+    semantics.
     """
-    if not rows:
-        return Table(title=title)
-    if columns is None:
-        columns = list(rows[0].keys())
-
-    table = Table(title=title, title_style="bold", show_lines=False)
-    for i, col in enumerate(columns):
-        justify = "left" if i == 0 else "right"
-        table.add_column(col, justify=justify, no_wrap=(i == 0))
-
-    for row in rows:
-        rendered = [_fmt(row.get(col), precision) for col in columns]
-        table.add_row(*rendered)
-    return table
+    return _metrics_table(rows, title=title, columns=columns, precision=precision)
 
 
 def ranked_dataframe_table(
@@ -97,62 +71,33 @@ def ranked_dataframe_table(
     max_rows: int | None = None,
     rank_column: bool = True,
 ) -> Table:
-    """Render a ranked DataFrame (permutation importance, SHAP, ...) as a table.
+    """Render a ranked DataFrame as a table.
 
-    Parameters
-    ----------
-    df
-        DataFrame already sorted in the order it should appear.
-    title
-        Optional table title.
-    columns
-        Columns to render. Defaults to every column in ``df``.
-    precision
-        Decimal places for numeric columns.
-    max_rows
-        If set, truncate to the first ``max_rows`` rows and append an
-        ellipsis row indicating how many were hidden.
-    rank_column
-        When True, prepend a ``#`` column with the 1-based row index.
+    Wraps :func:`dse_research_utils.console.tables.dataframe_table` with the
+    ``truncation="head"`` mode (LRP historically truncated to the first
+    ``max_rows`` rather than splitting head/tail).
     """
-    cols = list(columns) if columns is not None else list(df.columns)
-    table = Table(title=title, title_style="bold", show_lines=False)
-
-    if rank_column:
-        table.add_column("#", justify="right", style="dim", no_wrap=True)
-    for i, col in enumerate(cols):
-        justify = "left" if i == 0 else "right"
-        table.add_column(col, justify=justify, no_wrap=(i == 0))
-
-    display_df = df if max_rows is None else df.head(max_rows)
-    for idx, (_, row) in enumerate(display_df.iterrows(), start=1):
-        rendered = [_fmt(row[col], precision) for col in cols]
-        if rank_column:
-            rendered = [str(idx), *rendered]
-        table.add_row(*rendered)
-
-    if max_rows is not None and len(df) > max_rows:
-        filler = ["..."] * (len(cols) + (1 if rank_column else 0))
-        table.add_row(*filler)
-        hidden = len(df) - max_rows
-        table.caption = f"(+{hidden} more row{'s' if hidden != 1 else ''})"
-
-    return table
+    return _dataframe_table(
+        df,
+        title=title,
+        columns=columns,
+        max_rows=max_rows,
+        truncation="head",
+        rank_column="#" if rank_column else None,
+        show_index=False,
+        precision=precision,
+    )
 
 
 def cv_fold_metrics_table(scores_df: pd.DataFrame, *, precision: int = 4) -> Table:
-    """Aggregate CV-fold scores into a single metrics table.
-
-    ``scores_df`` is the per-fold DataFrame saved as ``cv_scores.csv``:
-    one row per fold with columns ``mae``, ``rmse``, ``r2``, ``medae``.
-    """
-    rows = []
+    """Aggregate CV-fold scores into a single metrics table."""
+    rows: list[Mapping[str, Any]] = []
     for col in ("mae", "rmse", "r2", "medae"):
         if col not in scores_df.columns:
             continue
         rows.append(
             {
-                "metric": col.upper() if col != "r2" else "R\u00b2",
+                "metric": col.upper() if col != "r2" else "R²",
                 "mean": float(scores_df[col].mean()),
                 "std": float(scores_df[col].std()),
                 "min": float(scores_df[col].min()),
@@ -169,11 +114,11 @@ def cv_fold_metrics_table(scores_df: pd.DataFrame, *, precision: int = 4) -> Tab
 
 def pooled_oof_table(pooled: Mapping[str, float], *, precision: int = 4) -> Table:
     """Render pooled out-of-fold metrics as a two-column table."""
-    rows = []
+    rows: list[Mapping[str, Any]] = []
     for key, label in (
         ("pooled_mae", "MAE"),
         ("pooled_rmse", "RMSE"),
-        ("pooled_r2", "R\u00b2"),
+        ("pooled_r2", "R²"),
         ("pooled_medae", "MedAE"),
     ):
         value = pooled.get(key)
@@ -195,7 +140,7 @@ def in_sample_metrics_table(
     rows = [
         {"metric": "MAE", "value": mae},
         {"metric": "RMSE", "value": rmse},
-        {"metric": "R\u00b2", "value": r2},
+        {"metric": "R²", "value": r2},
         {"metric": "MedAE", "value": medae},
     ]
     return metrics_table(
@@ -227,20 +172,13 @@ def model_header_panel(
     ]
     if variant_of:
         lines.append(f"[dim]Variant of:[/dim] {variant_of}")
-    return Panel(
-        "\n".join(lines),
-        border_style="green",
-        padding=(1, 2),
-    )
+    return Panel("\n".join(lines), border_style="green", padding=(1, 2))
 
 
-def run_summary_panel(
-    *, output_dir: Path | str, status: str = "Done"
-) -> Panel:
+def run_summary_panel(*, output_dir: Path | str, status: str = "Done") -> Panel:
     """Build the banner panel printed at the end of each fit."""
     return Panel(
-        f"[bold green]{status}[/bold green]\n\n"
-        f"[dim]Artifacts:[/dim] {output_dir}",
+        f"[bold green]{status}[/bold green]\n\n[dim]Artifacts:[/dim] {output_dir}",
         border_style="green",
         padding=(1, 2),
     )
@@ -259,11 +197,7 @@ def stat_model_header_panel(
     n_children: int | None = None,
     n_phases: int | None = None,
 ) -> Panel:
-    """Build the banner panel printed at the start of a statistical-model fit.
-
-    Covers ITT, joint and mechanism model shapes — only the fields that are
-    set render into the panel body.
-    """
+    """Build the banner panel printed at the start of a statistical-model fit."""
     lines = [
         f"[bold]{model_id.upper()}[/bold]: {title}",
         "",
@@ -279,13 +213,9 @@ def stat_model_header_panel(
     if n_obs is not None:
         detail = f"{n_obs:,}"
         if n_children is not None and n_phases is not None:
-            detail += f"  ([dim]{n_children} children \u00d7 {n_phases} phases[/dim])"
+            detail += f"  ([dim]{n_children} children × {n_phases} phases[/dim])"
         lines.append(f"[dim]Observations:[/dim] {detail}")
-    return Panel(
-        "\n".join(lines),
-        border_style="green",
-        padding=(1, 2),
-    )
+    return Panel("\n".join(lines), border_style="green", padding=(1, 2))
 
 
 def params_table(
@@ -294,35 +224,8 @@ def params_table(
     title: str | None = None,
     precision: int = 6,
 ) -> Table:
-    """Render a parameter dict as a two-column table (``param`` / ``value``)."""
-    rows = [{"param": k, "value": params[k]} for k in params]
-    return metrics_table(
-        rows,
-        title=title,
-        columns=["param", "value"],
-        precision=precision,
-    )
-
-
-def _fmt(value: Any, precision: int) -> str:
-    """Format a single cell value for a rich Table."""
-    if value is None:
-        return "\u2014"
-    if isinstance(value, bool):
-        return str(value)
-    if isinstance(value, float):
-        if value != value:  # NaN check
-            return "\u2014"
-        # Use fixed precision for large magnitudes, scientific for tiny values.
-        abs_v = abs(value)
-        if abs_v != 0 and (abs_v < 1e-3 or abs_v >= 1e6):
-            return f"{value:.{precision}e}"
-        return f"{value:.{precision}f}"
-    if isinstance(value, int):
-        return f"{value:,}"
-    if isinstance(value, (list, tuple)):
-        return ", ".join(str(v) for v in value)
-    return str(value)
+    """Render a parameter dict as a two-column (``param``, ``value``) table."""
+    return _params_table(params, title=title, precision=precision)
 
 
 __all__ = [

@@ -18,11 +18,11 @@ Subclasses that wrap the estimator (e.g. with a
 from rich import print
 from sklearn.pipeline import Pipeline
 
+from language_reading_predictors.models._reporting import section_header
 from language_reading_predictors.models.base_pipeline import (
     ESTIMATOR_STEP,
     EstimatorPipeline,
     _cap_n_estimators,
-    _section,
 )
 
 
@@ -42,7 +42,7 @@ class LGBMPipeline(EstimatorPipeline):
     def configure_model(self) -> None:
         from lightgbm import LGBMRegressor
 
-        _section("Configure model")
+        section_header("Configure model")
 
         context = self.context
         cfg = context.config
