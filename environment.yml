@@ -34,10 +34,9 @@ dependencies:
       - orjson>=3.11.8
       - pandas-stubs
       - pandas>=3.0.2
-      - pyarrow>=23.0.1
       - pytest>=9.0.3
       - rich>=15.0.0
-      - ruff>=0.15.9
+      - ruff>=0.15.11
       - scikit-learn>=1.8.0
       - scipy-stubs
       - scipy>=1.17.1
