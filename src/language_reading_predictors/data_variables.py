@@ -1082,7 +1082,7 @@ class Variables:
         EOWPVT: "Expressive vocabulary score",
         ROWPVT: "Receptive vocabulary score",
         TROG: "Receptive grammar score",
-        ERBNW: "Nonword repitition score",
+        ERBNW: "Nonword repetition score",
         ERBTO: "Word and nonword repetition score",
         ERBWORD: "Word repetition score",
         NONWORD: "Nonword reading score",

@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-End-to-end fit pipeline for LRP52-LRP58.
+End-to-end fit pipeline for LRP52-LRP60.
 
-``fit_itt(spec, config)`` is the entry point for the LRP52/53/54 ITT models.
+``fit_itt(spec, config)`` is the entry point for the ITT models.
 ``fit_joint(spec, config)`` is the entry point for LRP55.
 ``fit_mechanism(spec, config)`` is the entry point for LRP56/57/58.
 
@@ -162,7 +162,7 @@ def _save_ppc(context: StatisticalFitContext) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ITT pipeline (LRP52 / LRP53 / LRP54)
+# ITT pipeline (LRP52 / LRP53 / LRP54 / LRP60)
 # ---------------------------------------------------------------------------
 
 
@@ -173,7 +173,8 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ctx = make_context(spec, config)
 
     section_header("Prepare data")
-    prepared = load_and_prepare(phase_mode="itt")
+    adjust_for = tuple(spec.extra.get("adjust_for", ()))
+    prepared = load_and_prepare(phase_mode="itt", covariates=adjust_for)
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -187,6 +188,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_age_gp=spec.extra.get("use_age_gp", True),
         use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", True),
         use_varying_tau=spec.extra.get("use_varying_tau", False),
+        adjust_for=adjust_for,
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -206,8 +208,10 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_loo_row(ctx)
 
     section_header("Summary diagnostics")
+    diag_vars = ["alpha", "tau", "gamma_own", "kappa"]
+    diag_vars.extend(f"gamma_{c}" for c in adjust_for)
     _diag.summary_diagnostics(
-        ctx, var_names=["alpha", "tau", "gamma_own", "kappa"]
+        ctx, var_names=diag_vars
     )
 
     section_header("Posterior predictive")
@@ -239,7 +243,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     _report.write_run_metadata(
         ctx,
-        extra={"loo_elpd": float(ctx.loo.elpd_loo), "tau_summary": tau_s},
+        extra={
+            "loo_elpd": float(ctx.loo.elpd_loo),
+            "tau_summary": tau_s,
+            "adjust_for": list(adjust_for),
+        },
     )
 
     section_header("Report")

@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Model factories for LRP52-LRP58.
+Model factories for LRP52-LRP60.
 
 Three factories are provided:
 
-- :func:`build_itt_model` — LRP52, LRP53, LRP54 (one outcome, RCT phase).
+- :func:`build_itt_model` — LRP52, LRP53, LRP54, LRP60 (one outcome, RCT phase).
 - :func:`build_joint_model` — LRP55 (eight outcomes, RCT phase, LKJ Σ).
 - :func:`build_mechanism_model` — LRP56, LRP57, LRP58 (adjustment-set
   mechanism regressions on ``W_post`` using all phases).
@@ -71,6 +71,7 @@ def build_itt_model(
     use_age_gp: bool = True,
     use_own_baseline_gp: bool = True,
     use_varying_tau: bool = False,
+    adjust_for: Iterable[str] = (),
 ) -> BuiltModel:
     """
     Build the single-outcome ITT model used by LRP52, LRP53, LRP54.
@@ -98,6 +99,10 @@ def build_itt_model(
         If True, the treatment effect is modelled as ``tau0 + g_tauA(A_std)``
         via a :func:`build_tau_modifier` GP with the tight ``HalfNormal(0.3)``
         amplitude prior.
+    adjust_for
+        Standardised non-outcome covariates from ``prepared.covariates`` to add
+        as linear adjustment terms. Coefficients use the same weak
+        ``Normal(0, 0.3)`` prior as cross-baseline couplings.
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
@@ -107,6 +112,13 @@ def build_itt_model(
         raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
 
     own = outcome_symbol
+    adjust_for = tuple(adjust_for)
+    missing_adjusters = [c for c in adjust_for if c not in prepared.covariates]
+    if missing_adjusters:
+        raise KeyError(
+            "Requested adjustment covariates missing from prepared data: "
+            f"{missing_adjusters}"
+        )
     cross = [s for s in ITT_OUTCOMES if s != own]
 
     post = prepared.post_counts[own]
@@ -131,6 +143,9 @@ def build_itt_model(
             cross_pre_data[s] = pm.Data(
                 f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id"
             )
+        adjust_data: dict[str, pt.TensorVariable] = {}
+        for c in adjust_for:
+            adjust_data[c] = pm.Data(f"{c}_std", prepared.covariates[c], dims="obs_id")
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         tau0 = _scalar_prior("tau", _priors.tau_prior)
@@ -144,7 +159,12 @@ def build_itt_model(
         for s in cross:
             cross_contrib = cross_contrib + gamma_cross[s] * cross_pre_data[s]
 
-        eta = alpha + gamma_own * own_pre_d + cross_contrib
+        adjust_contrib: pt.TensorVariable | float = 0.0
+        for c in adjust_for:
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            adjust_contrib = adjust_contrib + gamma_c * adjust_data[c]
+
+        eta = alpha + gamma_own * own_pre_d + cross_contrib + adjust_contrib
 
         if use_age_gp:
             f_A = build_hsgp_1d("f_A", prepared.A_std)
@@ -526,6 +546,7 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
     new.A_std = prepared.A_std[keep]
     new.pre_logit = {s: v[keep] for s, v in prepared.pre_logit.items()}
     new.post_counts = {s: v[keep] for s, v in prepared.post_counts.items()}
+    new.covariates = {s: v[keep] for s, v in prepared.covariates.items()}
     new.n_obs = int(keep.sum())
     new.n_children = int(len(np.unique(new.child_idx)))
     return new

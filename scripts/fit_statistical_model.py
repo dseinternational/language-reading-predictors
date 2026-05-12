@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""CLI entry point for fitting the Bayesian statistical models (LRP52-LRP58).
+"""CLI entry point for fitting the Bayesian statistical models (LRP52-LRP60).
 
 Usage::
 
@@ -33,6 +33,7 @@ from language_reading_predictors.statistical_models import (
     lrp56,
     lrp57,
     lrp58,
+    lrp60,
 )
 
 
@@ -44,12 +45,13 @@ MODELS = {
     "lrp56": lrp56,
     "lrp57": lrp57,
     "lrp58": lrp58,
+    "lrp60": lrp60,
 }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("model", help="Model id (lrp52..lrp58) or 'all'")
+    parser.add_argument("model", help="Model id (lrp52..lrp60) or 'all'")
     parser.add_argument(
         "--config",
         default="dev",

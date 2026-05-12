@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Shared fit context for the LRP52-LRP58 pipelines."""
+"""Shared fit context for the LRP52-LRP60 pipelines."""
 
 from __future__ import annotations
 
