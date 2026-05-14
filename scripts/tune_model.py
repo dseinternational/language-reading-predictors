@@ -206,9 +206,15 @@ def _lgbm_objective(
             )
             preds = inverse(model.predict(X_val))
             fold_scores.append(score_fn(y_val.to_numpy(), preds))
-            best_iters.append(
-                int(model.best_iteration_ if model.best_iteration_ is not None else max_n_estimators)
-            )
+            # best_iteration_ may be None (early stopping never triggered)
+            # or 0 (val never improved past round 0). Either way, the
+            # fold's tuned n_estimators should fall back to the ceiling
+            # so the mean isn't dragged down by a "boost zero rounds"
+            # signal that would produce an untrainable final model.
+            best_iter = model.best_iteration_
+            if not best_iter:  # None or 0
+                best_iter = max_n_estimators
+            best_iters.append(int(best_iter))
 
         trial.set_user_attr("mean_best_iteration", int(round(float(np.mean(best_iters)))))
         trial.set_user_attr(f"cv_{scoring}_std", float(np.std(fold_scores)))
