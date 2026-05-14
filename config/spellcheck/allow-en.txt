@@ -15,6 +15,7 @@ dadedupost
 dcorr
 DEAP
 diag
+dtype
 Anscombe
 Haldane
 HSGP
