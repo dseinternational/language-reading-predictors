@@ -34,7 +34,7 @@ from rich import print
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 from sklearn.inspection import partial_dependence, permutation_importance
-from sklearn.model_selection import GroupKFold, cross_val_predict, cross_validate
+from sklearn.model_selection import GroupKFold, cross_validate
 
 import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors.data_variables import Variables as V
@@ -150,6 +150,8 @@ class EstimatorPipeline:
             cv=cv,
             groups=context.groups,
             scoring=scoring,
+            return_estimator=True,
+            return_indices=True,
         )
 
         scores_df = pd.DataFrame(
@@ -162,34 +164,45 @@ class EstimatorPipeline:
             }
         )
 
-        context.cv_scores = -cv_results["test_rmse"]
         context.cv_results = cv_results
         context.dataframes["cv_scores"] = scores_df
         scores_df.to_csv(context.output_dir / "cv_scores.csv", index=False)
 
         print_table(cv_fold_metrics_table(scores_df))
 
-        # Pooled out-of-fold metrics: score the stacked OOF predictions
-        # against the global mean of y, rather than averaging per-fold R².
-        # Per-fold R² is meaningless when each fold is a single subject
-        # (near-constant y → tiny SST → huge negative R² from small errors).
-        oof_pred = cross_val_predict(
-            context.pipeline,
-            context.X,
-            context.y,
-            cv=cv,
-            groups=context.groups,
-        )
+        # Pooled out-of-fold metrics. OOF predictions are reused from the
+        # per-fold estimators returned by ``cross_validate`` so we do not
+        # refit the model a second time. R² is computed against the
+        # per-fold *training-mean* baseline (a constant predictor that
+        # only sees training data), so the baseline is not contaminated
+        # by the held-out values it is being compared against.
         y_true = context.y.to_numpy()
+        oof_pred = np.full_like(y_true, np.nan, dtype=float)
+        ss_res_total = 0.0
+        ss_tot_total = 0.0
+        train_idx_iter = cv_results["indices"]["train"]
+        test_idx_iter = cv_results["indices"]["test"]
+        for est, tr_idx, val_idx in zip(
+            cv_results["estimator"], train_idx_iter, test_idx_iter
+        ):
+            fold_pred = est.predict(context.X.iloc[val_idx])
+            oof_pred[val_idx] = fold_pred
+            y_train_mean = float(np.mean(y_true[tr_idx]))
+            fold_resid = y_true[val_idx] - fold_pred
+            ss_res_total += float(np.sum(fold_resid**2))
+            ss_tot_total += float(
+                np.sum((y_true[val_idx] - y_train_mean) ** 2)
+            )
+
         residuals = y_true - oof_pred
         abs_residuals = np.abs(residuals)
-        ss_res = float(np.sum(residuals**2))
-        ss_tot = float(np.sum((y_true - y_true.mean()) ** 2))
         pooled = {
             "pooled_mae": float(np.mean(abs_residuals)),
             "pooled_rmse": float(np.sqrt(np.mean(residuals**2))),
             "pooled_medae": float(np.median(abs_residuals)),
-            "pooled_r2": float(1.0 - ss_res / ss_tot) if ss_tot > 0 else None,
+            "pooled_r2": float(1.0 - ss_res_total / ss_tot_total)
+            if ss_tot_total > 0
+            else None,
         }
         context.oof_predictions = oof_pred
         context.pooled_cv_metrics = pooled
