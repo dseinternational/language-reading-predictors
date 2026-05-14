@@ -12,6 +12,11 @@ tmp/
 *.duckdb
 *.db
 
+# Locally-rendered notes — keep the source .md tracked.
+notes/*.pdf
+notes/*.html
+notes/*.docx
+
 /.quarto/
 **/*.quarto_ipynb
 
