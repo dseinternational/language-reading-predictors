@@ -582,6 +582,15 @@ class EstimatorPipeline:
             f"of {len(unique_subjects)}, perm repeats per draw: {n_repeats}"
         )
 
+        # Map each subject to its row indices once; bootstraps then
+        # build a row-index array by *repeating* the indices of each
+        # drawn subject. ``isin``+set would silently collapse the
+        # with-replacement draw back to unique subjects.
+        subject_rows: dict = {
+            s: np.flatnonzero(context.groups.to_numpy() == s)
+            for s in unique_subjects
+        }
+
         for b in range(n_bootstraps):
             seed = int(rng.integers(0, 2**31 - 1))
             drawn = resample(
@@ -590,9 +599,9 @@ class EstimatorPipeline:
                 n_samples=n_sub,
                 random_state=seed,
             )
-            mask = context.groups.isin(set(drawn.tolist())).to_numpy()
-            X_b = context.X.loc[mask]
-            y_b = context.y.loc[mask]
+            row_idx = np.concatenate([subject_rows[s] for s in drawn])
+            X_b = context.X.iloc[row_idx]
+            y_b = context.y.iloc[row_idx]
 
             est = clone(context.pipeline)
             est.fit(X_b, y_b)
