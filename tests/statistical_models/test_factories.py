@@ -97,13 +97,17 @@ def test_joint_factory_builds(tmp_path):
 
 
 def test_joint_factory_residual_correlation_flag(tmp_path):
-    """Opt-in LKJ residual adds u_chol and sigma_outcome."""
+    """Opt-in LKJ residual adds u_chol; sigma_outcome is the LKJ-derived SD."""
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="itt")
     built = build_joint_model(prep, use_residual_correlation=True)
-    names = {v.name for v in built.model.free_RVs}
-    assert "u_chol" in names
-    assert "sigma_outcome" in names
+    free = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+    assert "u_chol" in free
+    # sigma_outcome is now a Deterministic alias of the LKJCholeskyCov SDs
+    # (the previous double-scaled HalfNormal was dropped).
+    assert "sigma_outcome" in dets
+    assert "u_corr" in dets
 
 
 def test_mechanism_factory_builds(tmp_path):
