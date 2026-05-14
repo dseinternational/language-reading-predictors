@@ -775,6 +775,15 @@ class EstimatorPipeline:
 
         print("  Feature-selection diagnostics saved.")
 
+    def _tree_estimator(self):
+        """Return the fitted tree estimator that ``shap.TreeExplainer`` should
+        introspect. The default returns the estimator step. Subclasses that
+        wrap the estimator (e.g. log/signed-log pipelines wrapping in a
+        :class:`TransformedTargetRegressor`) override this to expose the
+        inner booster — they no longer need to mutate ``pipeline.steps``.
+        """
+        return self.context.pipeline.named_steps[ESTIMATOR_STEP]
+
     def shap_analysis(self) -> None:
         """Compute SHAP values and save bar, summary, and waterfall plots."""
         section_header("SHAP analysis")
@@ -784,7 +793,7 @@ class EstimatorPipeline:
         context = self.context
         X_shap = context.X
 
-        estimator = context.pipeline.named_steps[ESTIMATOR_STEP]
+        estimator = self._tree_estimator()
         explainer = shap.TreeExplainer(estimator)
         shap_vals = explainer.shap_values(X_shap)
 
