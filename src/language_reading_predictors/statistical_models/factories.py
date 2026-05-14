@@ -467,11 +467,27 @@ def build_mechanism_model(
 
     with pm.Model(coords=coords) as model:
         pm.Data("A_std", prepared.A_std, dims="obs_id")
-        pm.Data("G", prepared.G.astype(float), dims="obs_id")
-        pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+        G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
         pm.Data("mech_post_logit", mech_post_logit, dims="obs_id")
-        pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
-        pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
+        phase_d = pm.Data(
+            "phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
+        )
+        child_idx_d = pm.Data(
+            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+        )
+        confounder_data: dict[str, pt.TensorVariable] = {}
+        for s in confounder_symbols:
+            if s in {"G", "A"}:
+                continue
+            if s not in prepared.post_counts:
+                raise KeyError(
+                    f"Confounder {s!r} has no post-score in prepared data"
+                )
+            c_val_np = logit_safe(prepared.post_counts[s], prepared.n_trials[s])
+            confounder_data[s] = pm.Data(
+                f"{s}_post_logit", c_val_np, dims="obs_id"
+            )
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         alpha_phase = pm.Normal(
@@ -480,7 +496,12 @@ def build_mechanism_model(
         beta_G = _priors.tau_prior().to_pymc("beta_G")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
-        eta = alpha + alpha_phase[prepared.phase] + beta_G * prepared.G + gamma_own * own_pre_logit
+        eta = (
+            alpha
+            + alpha_phase[phase_d]
+            + beta_G * G_d
+            + gamma_own * own_pre_d
+        )
 
         if use_subject_random_intercept:
             sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
@@ -488,25 +509,23 @@ def build_mechanism_model(
             u_child = pm.Deterministic(
                 "u_child", sigma_child * u_child_raw, dims="child"
             )
-            eta = eta + u_child[prepared.child_idx]
+            eta = eta + u_child[child_idx_d]
 
         # Confounder linear terms (on logit scale for measures)
         for s in confounder_symbols:
-            if s == "G":
-                continue  # already included as beta_G
-            if s == "A":
-                continue  # handled via age GP
-            post = prepared.post_counts[s]
-            N_s = prepared.n_trials[s]
-            c_val = logit_safe(post, N_s)
+            if s in {"G", "A"}:
+                continue  # G already in beta_G; A handled via age GP
             gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
-            eta = eta + gamma_c * c_val
+            eta = eta + gamma_c * confounder_data[s]
 
         if use_age_gp:
             f_A = build_hsgp_1d("f_A", prepared.A_std)
             eta = eta + f_A
 
-        # Mechanism GP (the estimand).
+        # Mechanism GP (the estimand). The HSGP basis size depends on the
+        # numeric range of the input, so it is constructed against the
+        # numpy array; the registered ``mech_post_logit`` Data node is
+        # kept for documentation / introspection.
         if phase_specific_mechanism:
             phase_specific = []
             for p in range(prepared.n_phases):
@@ -514,7 +533,7 @@ def build_mechanism_model(
                     build_hsgp_1d(f"f_mech_phase{p}", mech_post_logit)
                 )
             f_mech = pt.stack(phase_specific, axis=1)[
-                pt.arange(prepared.n_obs), prepared.phase
+                np.arange(prepared.n_obs), phase_d
             ]
         else:
             f_mech = build_hsgp_1d("f_mech", mech_post_logit)
