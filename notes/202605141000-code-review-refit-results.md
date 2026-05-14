@@ -103,6 +103,54 @@ Observations:
 - **Slim, tuned-down models reshuffle less.** LRP04 (7 predictors), LRP08 (17), LRP10 (10), LRP20 (32 but tuned post-Select) sit at ρ ≥ 0.6. Where feature selection has already pruned noisy predictors, OOF and in-sample agree.
 - **Direction interpretation (per CLAUDE.md guidance) should be re-read against the new SHAP beeswarms** alongside these new rankings. SHAP itself is unchanged, but pairing it with the new importance ordering may shift which predictors warrant commentary in each model's `index.qmd`.
 
+## Construct importance
+
+`construct_importance.csv` rolls `importance_mean` up to construct families via `Variables.construct_of`. The new OOF view changes feature ranks (see above), so construct totals re-aggregate. Top-1 construct changed for **4 of 22** models:
+
+| Model | Top-1 (pre) | Top-1 (post) | Rank ρ (constructs) |
+| --- | --- | --- | ---: |
+| **lrp01** | reading_decoding | **intervention** | 0.30 |
+| **lrp10** | language_composite | **receptive_vocabulary** | 0.64 |
+| **lrp12** | receptive_vocabulary | **expressive_vocabulary** | 0.25 |
+| **lrp14** | reading_decoding | **reading_word** | 0.35 |
+
+For these four the *dominant family* claim shifts and any narrative that says "X-related skills are the strongest predictors of Y" should be re-read against the new top-1. The construct distinction matters most for LRP10 (language → receptive vocabulary) and LRP14 (reading decoding → reading word) because those are different theoretical claims.
+
+For the remaining 18 models the top-1 family is preserved, but lower-tier ordering reshuffles in line with the feature-level ranking changes:
+
+- **High agreement (rank ρ ≥ 0.7)**: LRP02, LRP03, LRP04, LRP06, LRP07, LRP19, LRP20. Even the top-3 set is identical for LRP06, LRP08, LRP20.
+- **Moderate agreement (0.4 ≤ ρ < 0.7)**: LRP05, LRP08, LRP09, LRP11, LRP16.
+- **Low or negative agreement (ρ < 0.4)**: LRP13, LRP15, LRP17, LRP18, LRP21, LRP22. These are the wide models (30+ predictors) where the old in-sample importance had been rewarding tree memorisation; expected.
+
+Quick-glance summary of cases worth re-reading per model:
+
+| Model | Pre top-3 | Post top-3 |
+| --- | --- | --- |
+| lrp01 | reading_decoding, demographics_child, intervention | intervention, demographics_child, language_composite |
+| lrp02 | reading_decoding, expressive_vocabulary, demographics_child | reading_decoding, expressive_vocabulary, demographics_child |
+| lrp03 | expressive_vocabulary, language_composite, articulation | expressive_vocabulary, articulation, language_composite |
+| lrp04 | language_composite, receptive_vocabulary, reading_word | language_composite, reading_decoding, reading_word |
+| lrp05 | reading_decoding, articulation, demographics_child | reading_decoding, demographics_child, intervention |
+| lrp06 | reading_word, expressive_vocabulary, study_structure | reading_word, expressive_vocabulary, study_structure |
+| lrp07 | receptive_vocabulary, articulation, language_composite | receptive_vocabulary, articulation, intervention |
+| lrp08 | language_composite, expressive_vocabulary, receptive_vocabulary | language_composite, expressive_vocabulary, receptive_vocabulary |
+| lrp09 | language_composite, reading_decoding, articulation | language_composite, reading_decoding, expressive_vocabulary |
+| lrp10 | language_composite, receptive_vocabulary, reading_word | receptive_vocabulary, reading_word, language_composite |
+| lrp11 | language_composite, expressive_vocabulary, articulation | language_composite, articulation, expressive_vocabulary |
+| lrp12 | receptive_vocabulary, expressive_vocabulary, language_composite | expressive_vocabulary, receptive_vocabulary, social |
+| lrp13 | reading_decoding, phonological_memory, language_composite | reading_decoding, reading_word, phonological_memory |
+| lrp14 | reading_decoding, reading_word, language_composite | reading_word, reading_decoding, language_composite |
+| lrp15 | reading_decoding, expressive_vocabulary, receptive_vocabulary | reading_decoding, expressive_vocabulary, intervention |
+| lrp16 | reading_word, receptive_vocabulary, reading_decoding | reading_word, receptive_vocabulary, reading_decoding |
+| lrp17 | language_composite, phonological_memory, reading_decoding | language_composite, phonological_memory, demographics_child |
+| lrp18 | language_composite, phonological_memory, articulation | language_composite, reading_decoding, receptive_vocabulary |
+| lrp19 | language_composite, receptive_vocabulary, articulation | language_composite, receptive_vocabulary, articulation |
+| lrp20 | language_composite, expressive_vocabulary, receptive_vocabulary | language_composite, expressive_vocabulary, receptive_vocabulary |
+| lrp21 | articulation, phonological_memory, expressive_vocabulary | articulation, reading_word, expressive_vocabulary |
+| lrp22 | articulation, phonological_memory, reading_word | articulation, reading_word, study_structure |
+
+For models where the top-3 set is unchanged (LRP02, LRP06, LRP08, LRP16, LRP19, LRP20), no construct-level narrative needs updating. For the rest, the *families* in play are the same — the relative weight has shifted.
+
 ## Stability selection (reporting config only)
 
 Bootstrap correctness fix (subject row repetition for with-replacement draws). The top-5 by `appearance_rate_top_k` shifts modestly for most models. Maximum per-feature appearance-rate change across the 22 models is 0.30 (LRP01, LRP02, LRP07, LRP19) and the mean change ranges 0.02 to 0.13.
