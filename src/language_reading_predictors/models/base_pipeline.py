@@ -614,8 +614,11 @@ class EstimatorPipeline:
                 random_state=seed,
             )
 
-            # Rank features in this bootstrap (highest importance = rank 1)
-            order = np.argsort(-result.importances_mean)
+            # Rank features in this bootstrap (highest importance = rank 1).
+            # ``kind="stable"`` keeps tie-breaking deterministic across
+            # numpy versions so bootstrap rank IQRs are reproducible
+            # under the project's fixed seed.
+            order = np.argsort(-result.importances_mean, kind="stable")
             ranks = np.empty_like(order)
             ranks[order] = np.arange(1, len(order) + 1)
             for i, feat in enumerate(context.X.columns):
@@ -1333,11 +1336,15 @@ def _cap_n_estimators(model_params: dict, run_config: RunConfig) -> dict:
 
 
 def _json_safe(v):
-    """Convert numpy/non-serialisable values for JSON."""
+    """Recursively convert numpy / non-serialisable values for JSON."""
     if isinstance(v, (np.integer,)):
         return int(v)
     if isinstance(v, (np.floating,)):
         return float(v)
     if isinstance(v, np.ndarray):
-        return v.tolist()
+        return [_json_safe(x) for x in v.tolist()]
+    if isinstance(v, dict):
+        return {k: _json_safe(val) for k, val in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_json_safe(x) for x in v]
     return v

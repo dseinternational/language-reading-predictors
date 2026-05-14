@@ -56,7 +56,7 @@ def hyperparam_search_randomized(
     results = pd.DataFrame(search.cv_results_)
 
     if output_csv is not None:
-        results.to_csv(f"{output_csv}")
+        results.to_csv(f"{output_csv}", index=False)
 
     best_params_idx = results.sort_values(by="rank_test_score")[
         "rank_test_score"

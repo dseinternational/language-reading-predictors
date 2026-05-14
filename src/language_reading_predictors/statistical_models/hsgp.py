@@ -27,8 +27,18 @@ from preliz.distributions.distributions import Continuous
 from language_reading_predictors.statistical_models import priors as _priors
 
 
-def _approx_hsgp_params(x: np.ndarray, ls_range: tuple[float, float]) -> tuple[list[int], list[float]]:
-    """Return ``(m, L)`` sized to cover ``x`` for the given lengthscale range."""
+def _approx_hsgp_params(
+    x: np.ndarray,
+    ls_range: tuple[float, float],
+    c_floor: float | None = None,
+) -> tuple[list[int], list[float]]:
+    """Return ``(m, L)`` sized to cover ``x`` for the given lengthscale range.
+
+    ``c_floor`` (optional) is a minimum boundary factor enforced after
+    :func:`pm.gp.hsgp_approx.approx_hsgp_hyperparams` proposes its own
+    ``c``. PyMC recommends ``c ≥ 1.2``; pass a tighter floor here when
+    callers know the lengthscale prior has a long upper tail.
+    """
     x = np.asarray(x, dtype=float)
     x_min, x_max = float(x.min()), float(x.max())
     m, c = pm.gp.hsgp_approx.approx_hsgp_hyperparams(
@@ -36,6 +46,8 @@ def _approx_hsgp_params(x: np.ndarray, ls_range: tuple[float, float]) -> tuple[l
         lengthscale_range=list(ls_range),
         cov_func="expquad",
     )
+    if c_floor is not None:
+        c = max(float(c), float(c_floor))
     S = max(abs(x_min), abs(x_max))
     return [int(m)], [float(S * c)]
 
@@ -76,7 +88,10 @@ def build_hsgp_1d(
         X = X.reshape(-1, 1)
 
     if ls_range is not None:
-        m_list, L = _approx_hsgp_params(X[:, 0], ls_range)
+        # When the caller supplies an explicit ``c``, treat it as a
+        # minimum floor on the calibrated boundary factor — otherwise
+        # the kwarg was silently ignored.
+        m_list, L = _approx_hsgp_params(X[:, 0], ls_range, c_floor=c)
         m_val = m_list[0]
         L_val = L
     else:
