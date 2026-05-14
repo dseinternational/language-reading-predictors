@@ -262,7 +262,19 @@ class EstimatorPipeline:
         print_table(in_sample_metrics_table(mae, rmse, r2, medae))
 
     def permutation_importance_analysis(self) -> None:
-        """Compute permutation importance and save results."""
+        """Compute group-aware out-of-fold permutation importance.
+
+        For each CV fold, permutation importance is computed on the
+        held-out validation rows using the estimator fitted on the
+        corresponding training rows (reused from :meth:`cross_validate`).
+        Per-fold importance arrays are concatenated, so each feature
+        ends up with ``n_folds * n_repeats`` permutation deltas. This
+        avoids the in-sample optimism that arises when permutation is
+        run against the training set the model has just memorised, and
+        respects the subject-level grouping enforced elsewhere in the
+        pipeline. Scoring is ``neg_root_mean_squared_error`` so the
+        units match the headline CV metric quoted in the report.
+        """
         section_header("Permutation importance")
 
         context = self.context
@@ -273,19 +285,45 @@ class EstimatorPipeline:
             if run.perm_importance_repeats is not None
             else cfg.perm_importance_repeats
         )
-        result = permutation_importance(
-            context.pipeline,
-            context.X,
-            context.y,
-            n_repeats=n_repeats,
-            random_state=cfg.random_seed,
-        )
+
+        cv_results = context.cv_results
+        if cv_results is None or "estimator" not in cv_results:
+            msg = (
+                "permutation_importance_analysis() requires cross_validate() "
+                "to have been called first."
+            )
+            raise RuntimeError(msg)
+
+        fold_importances = []
+        for est, val_idx in zip(
+            cv_results["estimator"], cv_results["indices"]["test"]
+        ):
+            X_val = context.X.iloc[val_idx]
+            y_val = context.y.iloc[val_idx]
+            result = permutation_importance(
+                est,
+                X_val,
+                y_val,
+                n_repeats=n_repeats,
+                random_state=cfg.random_seed,
+                scoring="neg_root_mean_squared_error",
+            )
+            fold_importances.append(result.importances)
+
+        # ``permutation_importance.importances`` is signed so that a
+        # positive value means score *dropped* when the column was
+        # permuted. With ``neg_root_mean_squared_error`` that means a
+        # positive value indicates the unpermuted column contributed
+        # to lower RMSE — i.e. it was useful.
+        all_importances = np.concatenate(fold_importances, axis=1)
+        importances_mean = all_importances.mean(axis=1)
+        importances_std = all_importances.std(axis=1)
 
         perm_df = pd.DataFrame(
             {
                 "feature": context.X.columns,
-                "importance_mean": result.importances_mean,
-                "importance_std": result.importances_std,
+                "importance_mean": importances_mean,
+                "importance_std": importances_std,
             }
         ).sort_values("importance_mean", ascending=False)
 
@@ -294,10 +332,11 @@ class EstimatorPipeline:
 
         perm_df.to_csv(context.output_dir / "permutation_importance.csv", index=False)
 
+        n_total_repeats = all_importances.shape[1]
         repeats_df = pd.DataFrame(
-            result.importances,
+            all_importances,
             index=context.X.columns,
-            columns=[f"repeat_{i}" for i in range(result.importances.shape[1])],
+            columns=[f"repeat_{i}" for i in range(n_total_repeats)],
         )
         repeats_df.index.name = "feature"
         repeats_df.loc[perm_df["feature"].tolist()].to_csv(
@@ -313,7 +352,8 @@ class EstimatorPipeline:
         )
 
         ordered = perm_df["feature"].tolist()
-        data = [result.importances[list(context.X.columns).index(f)] for f in ordered]
+        col_index = {f: i for i, f in enumerate(context.X.columns)}
+        data = [all_importances[col_index[f]] for f in ordered]
         fig_h = max(3.0, 0.35 * len(ordered) + 1.5)
         fig, ax = plt.subplots(figsize=(8, fig_h))
         ax.boxplot(
@@ -334,9 +374,9 @@ class EstimatorPipeline:
         )
         ax.invert_yaxis()
         ax.axvline(0.0, color="black", linestyle="--", linewidth=1)
-        ax.set_xlabel("Decrease in R² score")
+        ax.set_xlabel("Decrease in held-out RMSE when feature is permuted")
         ax.set_ylabel("Predictor variable")
-        ax.set_title("Permutation importances")
+        ax.set_title("Out-of-fold permutation importance")
         ax.grid(axis="x", alpha=0.3)
         fig.tight_layout()
         fig.savefig(
