@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
@@ -335,7 +336,6 @@ def tune(
 
     out_dir = _TUNING_DIR / key
     out_dir.mkdir(parents=True, exist_ok=True)
-    _clear_directory(out_dir)
 
     best = study.best_trial
 
@@ -362,12 +362,10 @@ def tune(
         "cv_splits": cv_splits,
         "params": best_full_params,
     }
-    (out_dir / "best_params.json").write_text(json.dumps(best_params_out, indent=2))
 
     trials_df = study.trials_dataframe(
         attrs=("number", "value", "params", "user_attrs", "state", "duration")
     )
-    trials_df.to_csv(out_dir / "trials.csv", index=False)
 
     summary = {
         "model_id": key,
@@ -384,7 +382,21 @@ def tune(
         "max_n_estimators": max_n_estimators,
         "early_stopping_fraction": early_stopping_fraction,
     }
-    (out_dir / "study_summary.json").write_text(json.dumps(summary, indent=2))
+
+    # Stage all artifacts in a sibling temp directory, then swap them
+    # in once every write has succeeded. This way a crash mid-write
+    # leaves the previous tuning run untouched rather than wiping it.
+    with tempfile.TemporaryDirectory(prefix=f"{key}_", dir=_TUNING_DIR) as tmp:
+        staging = Path(tmp)
+        (staging / "best_params.json").write_text(
+            json.dumps(best_params_out, indent=2)
+        )
+        trials_df.to_csv(staging / "trials.csv", index=False)
+        (staging / "study_summary.json").write_text(json.dumps(summary, indent=2))
+
+        _clear_directory(out_dir)
+        for entry in staging.iterdir():
+            shutil.move(str(entry), out_dir / entry.name)
 
     print()
     label = scoring.upper()
