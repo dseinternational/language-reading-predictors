@@ -266,6 +266,10 @@ def build_joint_model(
         "obs_id": np.arange(N_obs),
         "outcome": list(outcomes),
         "baseline": list(outcomes),
+        # Second outcome axis for outcome×outcome quantities (residual
+        # correlation). Cannot reuse "outcome" because PyMC requires
+        # distinct dim names per axis.
+        "outcome2": list(outcomes),
     }
 
     G_f = prepared.G.astype(float)
@@ -330,22 +334,30 @@ def build_joint_model(
             eta_core = eta_core + f_A
 
         if use_residual_correlation:
-            # Non-centred MvNormal on u_i = (diag(sigma) @ L) z_i.
-            sigma = pm.HalfNormal("sigma_outcome", sigma=0.5, dims="outcome")
-            chol, corr, _sigmas = pm.LKJCholeskyCov(
+            # Non-centred MvNormal on u_i = L z_i where L is the Cholesky
+            # factor of the residual covariance Σ. ``pm.LKJCholeskyCov``
+            # with ``sd_dist=HalfNormal(0.5)`` already bakes per-outcome
+            # standard deviations into ``chol`` (Σ = chol @ chol.T), so
+            # there is no separate outer sigma_outcome term — a previous
+            # version multiplied chol by an independent HalfNormal which
+            # double-scaled Σ and made the block unidentified.
+            chol, corr, sigmas = pm.LKJCholeskyCov(
                 "u_chol",
                 n=K,
                 eta=4.0,
                 sd_dist=pm.HalfNormal.dist(0.5),
                 compute_corr=True,
             )
-            pm.Deterministic("u_corr", corr, dims=("outcome", "baseline"))
+            # u_corr is outcome × outcome (not outcome × baseline) — use
+            # the dedicated ``outcome2`` coord to label the second axis.
+            pm.Deterministic("u_corr", corr, dims=("outcome", "outcome2"))
+            pm.Deterministic("sigma_outcome", sigmas, dims="outcome")
             z_raw = pm.Normal(
                 "u_z", mu=0.0, sigma=1.0, dims=("obs_id", "outcome")
             )
-            L_scaled = sigma[:, None] * chol
+            # u_i = chol @ z_i ⇒ rowwise U = Z @ chol.T.
             u = pm.Deterministic(
-                "u", pt.dot(z_raw, L_scaled.T), dims=("obs_id", "outcome")
+                "u", pt.dot(z_raw, chol.T), dims=("obs_id", "outcome")
             )
             eta = eta_core + u
         else:
