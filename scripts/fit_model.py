@@ -137,18 +137,29 @@ def main():
             )
         )
 
+    render_failed: list[tuple[str, subprocess.CalledProcessError]] = []
     if args.render:
         for context in contexts:
             qmd_path = Path(context.output_dir) / "index.qmd"
-            if qmd_path.exists():
-                print(f"\n[bold green]Rendering Quarto output: {qmd_path}[/bold green]")
-                subprocess.run(["quarto", "render", str(qmd_path)], check=True)
-            else:
+            if not qmd_path.exists():
                 print(
                     f"\n[bold yellow]No index.qmd found at {qmd_path}, skipping render.[/bold yellow]"
                 )
+                continue
+            print(f"\n[bold green]Rendering Quarto output: {qmd_path}[/bold green]")
+            try:
+                subprocess.run(["quarto", "render", str(qmd_path)], check=True)
+            except subprocess.CalledProcessError as exc:
+                # Don't abort the loop on one bad render — the user will
+                # want the other reports built, and we'll surface a
+                # non-zero exit at the end.
+                render_failed.append((context.config.model_id, exc))
+                print(
+                    f"[bold red]Render failed for {context.config.model_id}: "
+                    f"quarto exited {exc.returncode}[/bold red]"
+                )
 
-    if failed:
+    if failed or render_failed:
         raise SystemExit(1)
 
 
