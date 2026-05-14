@@ -885,6 +885,11 @@ class Variables:
         ATTEND,
         ATTEND_CUMUL,
         TACHANG,
+        # BEHAV is documented as an average across rated 10-second
+        # windows (1 = very good, 5 = very challenging), so it is a
+        # continuous score rather than an integer category — keep it
+        # in NUMERIC so configure_data_types casts it to Float64.
+        BEHAV,
         SDQ,
         AGESPEAK,
         NUMCHIL,
@@ -903,7 +908,6 @@ class Variables:
         GENDER,
         VISION,
         HEARING,
-        BEHAV,
         TASCORE,
         EARINF,
         HEARING_C,
