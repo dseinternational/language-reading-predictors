@@ -560,27 +560,37 @@ def build_mechanism_model(
 
 
 def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
-    """Return a copy of ``prepared`` restricted to rows where ``keep`` is True."""
+    """Return a copy of ``prepared`` restricted to rows where ``keep`` is True.
+
+    Built with :func:`dataclasses.replace` so every row-indexed field is
+    bound to a freshly-sliced array and the per-row dicts are rebuilt.
+    Scalars and per-symbol metadata (``column_map``, ``n_trials``,
+    ``age_scaler``, ``covariate_scalers``) are intentionally aliased
+    from the parent — they do not depend on the row set.
+    """
     if bool(keep.all()):
         return prepared
-    from copy import copy
+    from dataclasses import replace
 
-    new = copy(prepared)
-    new.subject_ids = prepared.subject_ids[keep]
-    new.child_idx = prepared.child_idx[keep]
+    subject_ids = prepared.subject_ids[keep]
     # Re-index children so child_idx is dense 0..n_children-1.
-    _, new.child_idx = np.unique(new.subject_ids, return_inverse=True)
-    new.child_idx = new.child_idx.astype(np.int64)
-    new.phase = prepared.phase[keep]
-    new.G = prepared.G[keep]
-    new.A_months = prepared.A_months[keep]
-    new.A_std = prepared.A_std[keep]
-    new.pre_logit = {s: v[keep] for s, v in prepared.pre_logit.items()}
-    new.post_counts = {s: v[keep] for s, v in prepared.post_counts.items()}
-    new.covariates = {s: v[keep] for s, v in prepared.covariates.items()}
-    new.n_obs = int(keep.sum())
-    new.n_children = int(len(np.unique(new.child_idx)))
-    return new
+    _, child_idx = np.unique(subject_ids, return_inverse=True)
+    child_idx = child_idx.astype(np.int64)
+
+    return replace(
+        prepared,
+        subject_ids=subject_ids,
+        child_idx=child_idx,
+        phase=prepared.phase[keep],
+        G=prepared.G[keep],
+        A_months=prepared.A_months[keep],
+        A_std=prepared.A_std[keep],
+        pre_logit={s: v[keep] for s, v in prepared.pre_logit.items()},
+        post_counts={s: v[keep] for s, v in prepared.post_counts.items()},
+        covariates={s: v[keep] for s, v in prepared.covariates.items()},
+        n_obs=int(keep.sum()),
+        n_children=int(len(np.unique(child_idx))),
+    )
 
 
 def _variables_dict(model: pm.Model) -> dict[str, pt.TensorVariable]:
