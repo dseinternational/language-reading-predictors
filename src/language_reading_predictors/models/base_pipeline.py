@@ -494,9 +494,10 @@ class EstimatorPipeline:
                 spearman = float("nan")
             else:
                 res = _stats.spearmanr(feat_vals[mask], shap_col[mask])
-                spearman = (
-                    float(res.correlation) if not np.isnan(res.correlation) else 0.0
-                )
+                # ``.statistic`` is the modern scipy attribute; ``.correlation``
+                # is a deprecated alias scheduled for removal.
+                stat = float(res.statistic)
+                spearman = stat if not np.isnan(stat) else 0.0
             mean_abs = float(np.mean(np.abs(shap_col)))
             std = float(np.std(shap_col))
             if abs(spearman) > 0.7:
