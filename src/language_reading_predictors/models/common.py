@@ -44,6 +44,19 @@ class SelectionStep:
 
     Used to document why features were added or removed between model
     variants so the full selection history is persisted in ``config.json``.
+
+    Reader note (2026-05-14): selection-step ``notes`` written before the
+    2026-05-14 code-review refit were authored against the previous
+    permutation-importance implementation, which scored in-sample with the
+    default R² scorer. Importance values quoted in those notes (e.g.
+    "importance ≤ 0.005", "rank 9 importance (0.026)") refer to that
+    in-sample metric. The refit (PR #60) replaced the calculation with
+    out-of-fold, neg-RMSE-scored, group-aware permutation importance.
+    The historical *decisions* still stand — dropped features remained at
+    or near the noise floor under both views — but the new
+    ``permutation_importance.csv`` is the right evidence base for any
+    future variant that wants to re-evaluate a drop. See
+    ``notes/202605141000-code-review-refit-results.md`` for the deltas.
     """
 
     removed: list[str] = field(default_factory=list)
