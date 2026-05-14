@@ -29,7 +29,8 @@ class Variables:
 
     GENDER = "gender"
     """
-    Gender of the subject (1: Boy, 2: Girl)
+    Gender of the subject (1: Male, 2: Female). See ``Categories.GENDER``
+    for the canonical integer-to-label mapping used in plots and reports.
     """
 
     AGE = "age"
