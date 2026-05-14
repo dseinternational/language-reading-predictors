@@ -95,8 +95,11 @@ def _oof_predict(
     """
     cv = GroupKFold(n_splits=cv_splits)
     oof = np.empty(len(y), dtype=float)
+    # Merge so a ``random_state`` baked into tuned ``params`` does not
+    # clash with the explicit kwarg.
+    fit_params = {**params, "random_state": seed}
     for train_idx, test_idx in cv.split(X, y, groups=groups):
-        est = LGBMRegressor(**params, random_state=seed)
+        est = LGBMRegressor(**fit_params)
         fit_kwargs = {}
         if weights is not None:
             fit_kwargs["sample_weight"] = weights[train_idx]
@@ -113,7 +116,7 @@ def _permutation_importance(
     weights: np.ndarray | None,
     n_repeats: int,
 ) -> pd.DataFrame:
-    est = LGBMRegressor(**params, random_state=seed)
+    est = LGBMRegressor(**{**params, "random_state": seed})
     fit_kwargs = {"sample_weight": weights} if weights is not None else {}
     est.fit(X, y, **fit_kwargs)
     result = permutation_importance(
