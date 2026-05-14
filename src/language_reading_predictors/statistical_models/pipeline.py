@@ -222,13 +222,10 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     # Treatment-effect summary on both scales.
     section_header("Treatment-effect summary")
-    summary = _extract_alpha_gamma_means(ctx)
     tau_s = _report.tau_summary_itt(
         ctx.trace,
         hdi_prob=ctx.reporting.hdi,
         pre_logit_mean=float(prepared.pre_logit[spec.outcome_symbol].mean()),
-        gamma_own_mean=summary["gamma_own"],
-        alpha_mean=summary["alpha"],
     )
     tau_df = pd.DataFrame([tau_s])
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
@@ -254,14 +251,6 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _copy_report_template(ctx)
     _print_footer(ctx)
     return ctx
-
-
-def _extract_alpha_gamma_means(ctx: StatisticalFitContext) -> dict:
-    post = ctx.trace.posterior
-    return {
-        "alpha": float(post["alpha"].mean()),
-        "gamma_own": float(post["gamma_own"].mean()),
-    }
 
 
 # ---------------------------------------------------------------------------
