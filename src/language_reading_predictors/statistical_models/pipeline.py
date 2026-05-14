@@ -236,7 +236,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_table(
         metrics_table(
             [{"metric": k, "value": v} for k, v in tau_s.items()],
-            title=f"tau ({spec.outcome_symbol}) - HDI {int(ctx.reporting.hdi * 100)}%",
+            title=f"tau ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)",
             columns=["metric", "value"],
         )
     )
@@ -326,7 +326,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_table(
         ranked_dataframe_table(
             tau_df,
-            title=f"tau by outcome - HDI {int(ctx.reporting.hdi * 100)}%",
+            title=f"tau by outcome - {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)",
             columns=["outcome", "tau_mean", "tau_lo", "tau_hi", "prob_pos"],
             rank_column=False,
         )

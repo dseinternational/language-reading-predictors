@@ -33,6 +33,10 @@ def tau_summary_itt(
     logit-scale baseline, with the fixed-effects intercept and own-baseline
     contribution held at their posterior means. It is a point-estimate
     sensitivity summary - not a causal contrast.
+
+    ``hdi_prob`` names the *coverage* probability — the returned ``_lo`` /
+    ``_hi`` values are equal-tailed central quantiles, not highest-density
+    intervals. For ArviZ-style HDI use :func:`arviz.hdi` directly.
     """
     draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values
     tau_mean = float(np.mean(draws))
@@ -62,7 +66,11 @@ def tau_summary_joint(
     outcomes: list[str],
     hdi_prob: float,
 ) -> pd.DataFrame:
-    """Return a DataFrame summarising tau_k for each outcome (logit scale)."""
+    """Return a DataFrame summarising tau_k for each outcome (logit scale).
+
+    ``tau_lo`` / ``tau_hi`` are equal-tailed central quantiles at coverage
+    ``hdi_prob``. See :func:`tau_summary_itt` for the convention.
+    """
     draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
     out = []
     lo_q = (1 - hdi_prob) / 2
