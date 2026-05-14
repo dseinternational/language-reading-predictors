@@ -204,7 +204,11 @@ def plot_histograms(
 
     for ax, v in zip(axes_flat, df.columns):
         series = df[v].dropna().to_numpy(dtype=np.float64)
-        bins = min(max_bins, max(2, int(series.max() - series.min())))
+        if series.size == 0:
+            ax.set_visible(False)
+            continue
+        spread = float(series.max() - series.min())
+        bins = min(max_bins, max(2, int(spread)))
 
         sns.histplot(data=series, bins=bins, kde=True, ax=ax)
 
@@ -422,25 +426,32 @@ def plot_graph(graph, **graph_kwargs):
         else graph
     )
 
-    # Set default styling
-    np.random.seed(123)  # noqa: NPY002 – global seed needed by nx.spring_layout
-    if "layout" in graph_kwargs:
-        graph_kwargs["pos"] = graph_kwargs["layout"](G)
+    # Some layout functions (e.g. networkx's spring_layout) consume the
+    # global numpy RNG. Snapshot it so we can seed deterministically for
+    # the layout call and then restore the caller's RNG state — the old
+    # code left the global seed at 123 for the remainder of the session.
+    rng_state = np.random.get_state()
+    try:
+        np.random.seed(123)  # noqa: NPY002 – needed by nx.spring_layout
+        if "layout" in graph_kwargs:
+            graph_kwargs["pos"] = graph_kwargs["layout"](G)
 
-    default_graph_kwargs = {
-        "node_color": "C0",
-        "node_size": 500,
-        "arrowsize": 30,
-        "width": 3,
-        "alpha": 0.7,
-        "connectionstyle": "arc3,rad=0.1",
-        "pos": nx.kamada_kawai_layout(G),
-    }
-    for k, v in default_graph_kwargs.items():
-        if k not in graph_kwargs:
-            graph_kwargs[k] = v
+        default_graph_kwargs = {
+            "node_color": "C0",
+            "node_size": 500,
+            "arrowsize": 30,
+            "width": 3,
+            "alpha": 0.7,
+            "connectionstyle": "arc3,rad=0.1",
+            "pos": nx.kamada_kawai_layout(G),
+        }
+        for k, v in default_graph_kwargs.items():
+            if k not in graph_kwargs:
+                graph_kwargs[k] = v
 
-    nx.draw(G, **graph_kwargs)
+        nx.draw(G, **graph_kwargs)
+    finally:
+        np.random.set_state(rng_state)
     # return the node layout for consistent graphing
     return graph_kwargs["pos"]
 
