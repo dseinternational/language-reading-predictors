@@ -12,7 +12,7 @@ from typing import Any
 import arviz as az
 import pandas as pd
 import pymc as pm
-from arviz import InferenceData
+import xarray as xr
 
 import dse_research_utils.statistics.models.reporting as _reporting
 import dse_research_utils.statistics.models.sampling as _sampling
@@ -55,8 +55,8 @@ class StatisticalFitContext:
     prepared: PreparedData | None = None
     model: pm.Model | None = None
     model_vars: dict[str, Any] | None = None
-    prior_samples: InferenceData | None = None
-    trace: InferenceData | None = None
+    prior_samples: xr.DataTree | None = None
+    trace: xr.DataTree | None = None
     loo: az.ELPDData | None = None
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)
 

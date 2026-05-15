@@ -27,6 +27,7 @@ import os
 
 import arviz as az
 import matplotlib.pyplot as plt
+import xarray as xr
 import numpy as np
 import pandas as pd
 
@@ -164,7 +165,7 @@ def tau_forest(config: str, out_path: str) -> bool:
 
 
 def _mechanism_slope_distribution(
-    trace: az.InferenceData, mech_logit: np.ndarray
+    trace: xr.DataTree, mech_logit: np.ndarray
 ) -> np.ndarray:
     """Posterior draws of the average slope of ``f_mech`` over ``mech_logit``.
 

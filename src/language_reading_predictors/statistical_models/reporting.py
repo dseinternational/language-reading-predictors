@@ -11,7 +11,7 @@ import os
 import arviz as az
 import numpy as np
 import pandas as pd
-from arviz import InferenceData
+import xarray as xr
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.context import (
@@ -20,7 +20,7 @@ from language_reading_predictors.statistical_models.context import (
 
 
 def tau_summary_itt(
-    trace: InferenceData,
+    trace: xr.DataTree,
     *,
     hdi_prob: float,
     pre_logit_mean: float,
@@ -58,7 +58,7 @@ def tau_summary_itt(
 
 
 def tau_summary_joint(
-    trace: InferenceData,
+    trace: xr.DataTree,
     outcomes: list[str],
     hdi_prob: float,
 ) -> pd.DataFrame:
@@ -82,7 +82,7 @@ def tau_summary_joint(
 
 
 def tau_contrast_matrix(
-    trace: InferenceData,
+    trace: xr.DataTree,
     outcomes: list[str],
 ) -> pd.DataFrame:
     """Compute P(tau_k > tau_j) for every outcome pair."""

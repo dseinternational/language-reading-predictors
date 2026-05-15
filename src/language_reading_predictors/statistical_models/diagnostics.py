@@ -94,7 +94,8 @@ def summary_diagnostics(
             context.trace,
             var_names=var_names,
             round_to=3,
-            hdi_prob=context.reporting.hdi,
+            ci_prob=context.reporting.hdi,
+            ci_kind="hdi",
         )
         summary.to_csv(os.path.join(out, "diagnostics.csv"))
         context.tables["diagnostics"] = summary
