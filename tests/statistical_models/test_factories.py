@@ -37,8 +37,19 @@ def _write_synthetic(tmp_path, n_children: int = 25, seed: int = 7):
         sid = f"S{i:03d}"
         age_base = int(rng.integers(60, 110))
         g = int(rng.integers(1, 3))
+        mumedu = int(rng.integers(0, 8))
+        dadedu = int(rng.integers(0, 8))
+        agebooks = int(rng.integers(0, 48))
         for t in (1, 2, 3, 4):
-            row = {V.SUBJECT_ID: sid, V.TIME: t, V.GROUP: g, V.AGE: age_base + 6 * (t - 1)}
+            row = {
+                V.SUBJECT_ID: sid,
+                V.TIME: t,
+                V.GROUP: g,
+                V.AGE: age_base + 6 * (t - 1),
+                V.MUMEDUPOST16: mumedu,
+                V.DADEDUPOST16: dadedu,
+                V.AGEBOOKS: agebooks,
+            }
             for s in ITT_OUTCOMES:
                 m = MEASURES[s]
                 row[m.column] = int(rng.integers(0, m.n_trials + 1))
@@ -60,6 +71,18 @@ def test_itt_factory_builds(tmp_path, outcome):
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
 
 
+def test_itt_factory_builds_with_adjusters(tmp_path):
+    p = _write_synthetic(tmp_path)
+    adjusters = (V.MUMEDUPOST16, V.DADEDUPOST16, V.AGEBOOKS)
+    prep = load_and_prepare(path=p, phase_mode="itt", covariates=adjusters)
+    built = build_itt_model(prep, outcome_symbol="W", adjust_for=adjusters)
+    names = {v.name for v in built.model.free_RVs}
+    assert {f"gamma_{c}" for c in adjusters}.issubset(names)
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=11)
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
 def test_joint_factory_builds(tmp_path):
     """Default build: no LKJ residual (dropped 2026-04-18)."""
     p = _write_synthetic(tmp_path, n_children=20)
@@ -74,13 +97,17 @@ def test_joint_factory_builds(tmp_path):
 
 
 def test_joint_factory_residual_correlation_flag(tmp_path):
-    """Opt-in LKJ residual adds u_chol and sigma_outcome."""
+    """Opt-in LKJ residual adds u_chol; sigma_outcome is the LKJ-derived SD."""
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="itt")
     built = build_joint_model(prep, use_residual_correlation=True)
-    names = {v.name for v in built.model.free_RVs}
-    assert "u_chol" in names
-    assert "sigma_outcome" in names
+    free = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+    assert "u_chol" in free
+    # sigma_outcome is now a Deterministic alias of the LKJCholeskyCov SDs
+    # (the previous double-scaled HalfNormal was dropped).
+    assert "sigma_outcome" in dets
+    assert "u_corr" in dets
 
 
 def test_mechanism_factory_builds(tmp_path):

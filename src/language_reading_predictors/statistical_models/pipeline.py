@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-End-to-end fit pipeline for LRP52-LRP58.
+End-to-end fit pipeline for LRP52-LRP60.
 
-``fit_itt(spec, config)`` is the entry point for the LRP52/53/54 ITT models.
+``fit_itt(spec, config)`` is the entry point for the ITT models.
 ``fit_joint(spec, config)`` is the entry point for LRP55.
 ``fit_mechanism(spec, config)`` is the entry point for LRP56/57/58.
 
@@ -162,7 +162,7 @@ def _save_ppc(context: StatisticalFitContext) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ITT pipeline (LRP52 / LRP53 / LRP54)
+# ITT pipeline (LRP52 / LRP53 / LRP54 / LRP60)
 # ---------------------------------------------------------------------------
 
 
@@ -173,7 +173,8 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ctx = make_context(spec, config)
 
     section_header("Prepare data")
-    prepared = load_and_prepare(phase_mode="itt")
+    adjust_for = tuple(spec.extra.get("adjust_for", ()))
+    prepared = load_and_prepare(phase_mode="itt", covariates=adjust_for)
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -187,6 +188,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_age_gp=spec.extra.get("use_age_gp", True),
         use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", True),
         use_varying_tau=spec.extra.get("use_varying_tau", False),
+        adjust_for=adjust_for,
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -206,8 +208,10 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_loo_row(ctx)
 
     section_header("Summary diagnostics")
+    diag_vars = ["alpha", "tau", "gamma_own", "kappa"]
+    diag_vars.extend(f"gamma_{c}" for c in adjust_for)
     _diag.summary_diagnostics(
-        ctx, var_names=["alpha", "tau", "gamma_own", "kappa"]
+        ctx, var_names=diag_vars
     )
 
     section_header("Posterior predictive")
@@ -218,13 +222,10 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     # Treatment-effect summary on both scales.
     section_header("Treatment-effect summary")
-    summary = _extract_alpha_gamma_means(ctx)
     tau_s = _report.tau_summary_itt(
         ctx.trace,
         hdi_prob=ctx.reporting.hdi,
         pre_logit_mean=float(prepared.pre_logit[spec.outcome_symbol].mean()),
-        gamma_own_mean=summary["gamma_own"],
-        alpha_mean=summary["alpha"],
     )
     tau_df = pd.DataFrame([tau_s])
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
@@ -232,28 +233,24 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_table(
         metrics_table(
             [{"metric": k, "value": v} for k, v in tau_s.items()],
-            title=f"tau ({spec.outcome_symbol}) - HDI {int(ctx.reporting.hdi * 100)}%",
+            title=f"tau ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)",
             columns=["metric", "value"],
         )
     )
 
     _report.write_run_metadata(
         ctx,
-        extra={"loo_elpd": float(ctx.loo.elpd_loo), "tau_summary": tau_s},
+        extra={
+            "loo_elpd": float(ctx.loo.elpd_loo),
+            "tau_summary": tau_s,
+            "adjust_for": list(adjust_for),
+        },
     )
 
     section_header("Report")
     _copy_report_template(ctx)
     _print_footer(ctx)
     return ctx
-
-
-def _extract_alpha_gamma_means(ctx: StatisticalFitContext) -> dict:
-    post = ctx.trace.posterior
-    return {
-        "alpha": float(post["alpha"].mean()),
-        "gamma_own": float(post["gamma_own"].mean()),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +315,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_table(
         ranked_dataframe_table(
             tau_df,
-            title=f"tau by outcome - HDI {int(ctx.reporting.hdi * 100)}%",
+            title=f"tau by outcome - {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)",
             columns=["outcome", "tau_mean", "tau_lo", "tau_hi", "prob_pos"],
             rank_column=False,
         )

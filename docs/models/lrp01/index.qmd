@@ -129,8 +129,9 @@ cv_scores
 With narrow test folds the denominator of per-fold R² (within-fold variance
 of the target) is small, so the mean-of-per-fold R² can be dominated by a
 handful of folds and is not a stable generalisation score. The pooled
-metrics below score the stacked out-of-fold predictions against the global
-mean of the target and are the preferred summary.
+metrics below score the stacked out-of-fold predictions against a
+per-fold *training-mean* baseline (a constant predictor that never saw
+the held-out subject's values) and are the preferred summary.
 
 ```{python}
 #| output: asis
@@ -186,8 +187,14 @@ perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
 ```
 
-The box plot below summarises the distribution of the per-repeat decrease in
-R² for each predictor (whiskers and fliers show variability across repeats).
+The box plot below summarises the distribution of the per-fold,
+per-repeat decrease in held-out RMSE for each predictor. With
+`GroupKFold` grouped by `subject_id`, each fold holds out one subject
+and its timepoints; permutation importance is computed on that
+held-out slice, so the distribution shown is over (folds × repeats)
+rather than over repeats alone. A positive value means permuting the
+feature column made held-out predictions worse; a negative value means
+the model was insensitive to (or marginally helped by) the column.
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 

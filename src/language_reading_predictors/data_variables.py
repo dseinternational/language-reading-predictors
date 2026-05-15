@@ -29,7 +29,8 @@ class Variables:
 
     GENDER = "gender"
     """
-    Gender of the subject (1: Boy, 2: Girl)
+    Gender of the subject (1: Male, 2: Female). See ``Categories.GENDER``
+    for the canonical integer-to-label mapping used in plots and reports.
     """
 
     AGE = "age"
@@ -884,6 +885,11 @@ class Variables:
         ATTEND,
         ATTEND_CUMUL,
         TACHANG,
+        # BEHAV is documented as an average across rated 10-second
+        # windows (1 = very good, 5 = very challenging), so it is a
+        # continuous score rather than an integer category — keep it
+        # in NUMERIC so configure_data_types casts it to Float64.
+        BEHAV,
         SDQ,
         AGESPEAK,
         NUMCHIL,
@@ -902,7 +908,6 @@ class Variables:
         GENDER,
         VISION,
         HEARING,
-        BEHAV,
         TASCORE,
         EARINF,
         HEARING_C,
@@ -1082,7 +1087,7 @@ class Variables:
         EOWPVT: "Expressive vocabulary score",
         ROWPVT: "Receptive vocabulary score",
         TROG: "Receptive grammar score",
-        ERBNW: "Nonword repitition score",
+        ERBNW: "Nonword repetition score",
         ERBTO: "Word and nonword repetition score",
         ERBWORD: "Word repetition score",
         NONWORD: "Nonword reading score",

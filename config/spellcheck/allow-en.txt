@@ -15,6 +15,7 @@ dadedupost
 dcorr
 DEAP
 diag
+dtype
 Anscombe
 Haldane
 HSGP
@@ -133,3 +134,14 @@ vpreds
 Wilcoxon
 yarclet
 yarcsi
+colorlinks
+documentclass
+fontsize
+linestretch
+mainfont
+Monaspace
+monofont
+monofontoptions
+papersize
+sansfont
+scrartcl

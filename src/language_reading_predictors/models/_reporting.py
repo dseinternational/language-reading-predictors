@@ -127,7 +127,7 @@ def pooled_oof_table(pooled: Mapping[str, float], *, precision: int = 4) -> Tabl
         rows.append({"metric": label, "value": float(value)})
     return metrics_table(
         rows,
-        title="Pooled out-of-fold (vs. global mean)",
+        title="Pooled out-of-fold (R² vs. per-fold train mean)",
         columns=["metric", "value"],
         precision=precision,
     )

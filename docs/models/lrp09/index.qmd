@@ -163,8 +163,14 @@ perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
 ```
 
-The box plot below summarises the distribution of the per-repeat decrease in
-R² for each predictor (whiskers and fliers show variability across repeats).
+The box plot below summarises the distribution of the per-fold,
+per-repeat decrease in held-out RMSE for each predictor. With
+`GroupKFold` grouped by `subject_id`, each fold holds out one subject
+and its timepoints; permutation importance is computed on that
+held-out slice, so the distribution shown is over (folds × repeats)
+rather than over repeats alone. A positive value means permuting the
+feature column made held-out predictions worse; a negative value means
+the model was insensitive to (or marginally helped by) the column.
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 

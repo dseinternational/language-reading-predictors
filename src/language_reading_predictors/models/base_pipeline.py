@@ -34,7 +34,7 @@ from rich import print
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 from sklearn.inspection import partial_dependence, permutation_importance
-from sklearn.model_selection import GroupKFold, cross_val_predict, cross_validate
+from sklearn.model_selection import GroupKFold, cross_validate
 
 import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors.data_variables import Variables as V
@@ -150,6 +150,8 @@ class EstimatorPipeline:
             cv=cv,
             groups=context.groups,
             scoring=scoring,
+            return_estimator=True,
+            return_indices=True,
         )
 
         scores_df = pd.DataFrame(
@@ -162,34 +164,45 @@ class EstimatorPipeline:
             }
         )
 
-        context.cv_scores = -cv_results["test_rmse"]
         context.cv_results = cv_results
         context.dataframes["cv_scores"] = scores_df
         scores_df.to_csv(context.output_dir / "cv_scores.csv", index=False)
 
         print_table(cv_fold_metrics_table(scores_df))
 
-        # Pooled out-of-fold metrics: score the stacked OOF predictions
-        # against the global mean of y, rather than averaging per-fold R².
-        # Per-fold R² is meaningless when each fold is a single subject
-        # (near-constant y → tiny SST → huge negative R² from small errors).
-        oof_pred = cross_val_predict(
-            context.pipeline,
-            context.X,
-            context.y,
-            cv=cv,
-            groups=context.groups,
-        )
+        # Pooled out-of-fold metrics. OOF predictions are reused from the
+        # per-fold estimators returned by ``cross_validate`` so we do not
+        # refit the model a second time. R² is computed against the
+        # per-fold *training-mean* baseline (a constant predictor that
+        # only sees training data), so the baseline is not contaminated
+        # by the held-out values it is being compared against.
         y_true = context.y.to_numpy()
+        oof_pred = np.full_like(y_true, np.nan, dtype=float)
+        ss_res_total = 0.0
+        ss_tot_total = 0.0
+        train_idx_iter = cv_results["indices"]["train"]
+        test_idx_iter = cv_results["indices"]["test"]
+        for est, tr_idx, val_idx in zip(
+            cv_results["estimator"], train_idx_iter, test_idx_iter
+        ):
+            fold_pred = est.predict(context.X.iloc[val_idx])
+            oof_pred[val_idx] = fold_pred
+            y_train_mean = float(np.mean(y_true[tr_idx]))
+            fold_resid = y_true[val_idx] - fold_pred
+            ss_res_total += float(np.sum(fold_resid**2))
+            ss_tot_total += float(
+                np.sum((y_true[val_idx] - y_train_mean) ** 2)
+            )
+
         residuals = y_true - oof_pred
         abs_residuals = np.abs(residuals)
-        ss_res = float(np.sum(residuals**2))
-        ss_tot = float(np.sum((y_true - y_true.mean()) ** 2))
         pooled = {
             "pooled_mae": float(np.mean(abs_residuals)),
             "pooled_rmse": float(np.sqrt(np.mean(residuals**2))),
             "pooled_medae": float(np.median(abs_residuals)),
-            "pooled_r2": float(1.0 - ss_res / ss_tot) if ss_tot > 0 else None,
+            "pooled_r2": float(1.0 - ss_res_total / ss_tot_total)
+            if ss_tot_total > 0
+            else None,
         }
         context.oof_predictions = oof_pred
         context.pooled_cv_metrics = pooled
@@ -249,7 +262,19 @@ class EstimatorPipeline:
         print_table(in_sample_metrics_table(mae, rmse, r2, medae))
 
     def permutation_importance_analysis(self) -> None:
-        """Compute permutation importance and save results."""
+        """Compute group-aware out-of-fold permutation importance.
+
+        For each CV fold, permutation importance is computed on the
+        held-out validation rows using the estimator fitted on the
+        corresponding training rows (reused from :meth:`cross_validate`).
+        Per-fold importance arrays are concatenated, so each feature
+        ends up with ``n_folds * n_repeats`` permutation deltas. This
+        avoids the in-sample optimism that arises when permutation is
+        run against the training set the model has just memorised, and
+        respects the subject-level grouping enforced elsewhere in the
+        pipeline. Scoring is ``neg_root_mean_squared_error`` so the
+        units match the headline CV metric quoted in the report.
+        """
         section_header("Permutation importance")
 
         context = self.context
@@ -260,19 +285,45 @@ class EstimatorPipeline:
             if run.perm_importance_repeats is not None
             else cfg.perm_importance_repeats
         )
-        result = permutation_importance(
-            context.pipeline,
-            context.X,
-            context.y,
-            n_repeats=n_repeats,
-            random_state=cfg.random_seed,
-        )
+
+        cv_results = context.cv_results
+        if cv_results is None or "estimator" not in cv_results:
+            msg = (
+                "permutation_importance_analysis() requires cross_validate() "
+                "to have been called first."
+            )
+            raise RuntimeError(msg)
+
+        fold_importances = []
+        for est, val_idx in zip(
+            cv_results["estimator"], cv_results["indices"]["test"]
+        ):
+            X_val = context.X.iloc[val_idx]
+            y_val = context.y.iloc[val_idx]
+            result = permutation_importance(
+                est,
+                X_val,
+                y_val,
+                n_repeats=n_repeats,
+                random_state=cfg.random_seed,
+                scoring="neg_root_mean_squared_error",
+            )
+            fold_importances.append(result.importances)
+
+        # ``permutation_importance.importances`` is signed so that a
+        # positive value means score *dropped* when the column was
+        # permuted. With ``neg_root_mean_squared_error`` that means a
+        # positive value indicates the unpermuted column contributed
+        # to lower RMSE — i.e. it was useful.
+        all_importances = np.concatenate(fold_importances, axis=1)
+        importances_mean = all_importances.mean(axis=1)
+        importances_std = all_importances.std(axis=1)
 
         perm_df = pd.DataFrame(
             {
                 "feature": context.X.columns,
-                "importance_mean": result.importances_mean,
-                "importance_std": result.importances_std,
+                "importance_mean": importances_mean,
+                "importance_std": importances_std,
             }
         ).sort_values("importance_mean", ascending=False)
 
@@ -281,10 +332,11 @@ class EstimatorPipeline:
 
         perm_df.to_csv(context.output_dir / "permutation_importance.csv", index=False)
 
+        n_total_repeats = all_importances.shape[1]
         repeats_df = pd.DataFrame(
-            result.importances,
+            all_importances,
             index=context.X.columns,
-            columns=[f"repeat_{i}" for i in range(result.importances.shape[1])],
+            columns=[f"repeat_{i}" for i in range(n_total_repeats)],
         )
         repeats_df.index.name = "feature"
         repeats_df.loc[perm_df["feature"].tolist()].to_csv(
@@ -300,7 +352,8 @@ class EstimatorPipeline:
         )
 
         ordered = perm_df["feature"].tolist()
-        data = [result.importances[list(context.X.columns).index(f)] for f in ordered]
+        col_index = {f: i for i, f in enumerate(context.X.columns)}
+        data = [all_importances[col_index[f]] for f in ordered]
         fig_h = max(3.0, 0.35 * len(ordered) + 1.5)
         fig, ax = plt.subplots(figsize=(8, fig_h))
         ax.boxplot(
@@ -321,9 +374,9 @@ class EstimatorPipeline:
         )
         ax.invert_yaxis()
         ax.axvline(0.0, color="black", linestyle="--", linewidth=1)
-        ax.set_xlabel("Decrease in R² score")
+        ax.set_xlabel("Decrease in held-out RMSE when feature is permuted")
         ax.set_ylabel("Predictor variable")
-        ax.set_title("Permutation importances")
+        ax.set_title("Out-of-fold permutation importance")
         ax.grid(axis="x", alpha=0.3)
         fig.tight_layout()
         fig.savefig(
@@ -441,9 +494,10 @@ class EstimatorPipeline:
                 spearman = float("nan")
             else:
                 res = _stats.spearmanr(feat_vals[mask], shap_col[mask])
-                spearman = (
-                    float(res.correlation) if not np.isnan(res.correlation) else 0.0
-                )
+                # ``.statistic`` is the modern scipy attribute; ``.correlation``
+                # is a deprecated alias scheduled for removal.
+                stat = float(res.statistic)
+                spearman = stat if not np.isnan(stat) else 0.0
             mean_abs = float(np.mean(np.abs(shap_col)))
             std = float(np.std(shap_col))
             if abs(spearman) > 0.7:
@@ -529,6 +583,15 @@ class EstimatorPipeline:
             f"of {len(unique_subjects)}, perm repeats per draw: {n_repeats}"
         )
 
+        # Map each subject to its row indices once; bootstraps then
+        # build a row-index array by *repeating* the indices of each
+        # drawn subject. ``isin``+set would silently collapse the
+        # with-replacement draw back to unique subjects.
+        subject_rows: dict = {
+            s: np.flatnonzero(context.groups.to_numpy() == s)
+            for s in unique_subjects
+        }
+
         for b in range(n_bootstraps):
             seed = int(rng.integers(0, 2**31 - 1))
             drawn = resample(
@@ -537,9 +600,9 @@ class EstimatorPipeline:
                 n_samples=n_sub,
                 random_state=seed,
             )
-            mask = context.groups.isin(set(drawn.tolist())).to_numpy()
-            X_b = context.X.loc[mask]
-            y_b = context.y.loc[mask]
+            row_idx = np.concatenate([subject_rows[s] for s in drawn])
+            X_b = context.X.iloc[row_idx]
+            y_b = context.y.iloc[row_idx]
 
             est = clone(context.pipeline)
             est.fit(X_b, y_b)
@@ -551,8 +614,11 @@ class EstimatorPipeline:
                 random_state=seed,
             )
 
-            # Rank features in this bootstrap (highest importance = rank 1)
-            order = np.argsort(-result.importances_mean)
+            # Rank features in this bootstrap (highest importance = rank 1).
+            # ``kind="stable"`` keeps tie-breaking deterministic across
+            # numpy versions so bootstrap rank IQRs are reproducible
+            # under the project's fixed seed.
+            order = np.argsort(-result.importances_mean, kind="stable")
             ranks = np.empty_like(order)
             ranks[order] = np.arange(1, len(order) + 1)
             for i, feat in enumerate(context.X.columns):
@@ -713,6 +779,15 @@ class EstimatorPipeline:
 
         print("  Feature-selection diagnostics saved.")
 
+    def _tree_estimator(self):
+        """Return the fitted tree estimator that ``shap.TreeExplainer`` should
+        introspect. The default returns the estimator step. Subclasses that
+        wrap the estimator (e.g. log/signed-log pipelines wrapping in a
+        :class:`TransformedTargetRegressor`) override this to expose the
+        inner booster — they no longer need to mutate ``pipeline.steps``.
+        """
+        return self.context.pipeline.named_steps[ESTIMATOR_STEP]
+
     def shap_analysis(self) -> None:
         """Compute SHAP values and save bar, summary, and waterfall plots."""
         section_header("SHAP analysis")
@@ -722,7 +797,7 @@ class EstimatorPipeline:
         context = self.context
         X_shap = context.X
 
-        estimator = context.pipeline.named_steps[ESTIMATOR_STEP]
+        estimator = self._tree_estimator()
         explainer = shap.TreeExplainer(estimator)
         shap_vals = explainer.shap_values(X_shap)
 
@@ -1261,11 +1336,15 @@ def _cap_n_estimators(model_params: dict, run_config: RunConfig) -> dict:
 
 
 def _json_safe(v):
-    """Convert numpy/non-serialisable values for JSON."""
+    """Recursively convert numpy / non-serialisable values for JSON."""
     if isinstance(v, (np.integer,)):
         return int(v)
     if isinstance(v, (np.floating,)):
         return float(v)
     if isinstance(v, np.ndarray):
-        return v.tolist()
+        return [_json_safe(x) for x in v.tolist()]
+    if isinstance(v, dict):
+        return {k: _json_safe(val) for k, val in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_json_safe(x) for x in v]
     return v

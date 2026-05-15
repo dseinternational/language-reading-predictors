@@ -104,6 +104,10 @@ class PreparedData:
     """``"itt"`` (RCT phase only) or ``"all"`` (three stacked phases)."""
     column_map: dict[str, str] = field(default_factory=dict)
     """Symbol -> column-name map for the subset of outcomes prepared."""
+    covariates: dict[str, np.ndarray] = field(default_factory=dict)
+    """Standardised non-outcome covariates keyed by source column name."""
+    covariate_scalers: dict[str, Standardiser] = field(default_factory=dict)
+    """Mean / SD scalers for entries in :attr:`covariates`."""
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +125,7 @@ def load_and_prepare(
     path: str | Path | None = None,
     phase_mode: str = "itt",
     outcomes: tuple[str, ...] = ITT_OUTCOMES,
+    covariates: tuple[str, ...] = (),
     drop_missing_pre: bool = True,
 ) -> PreparedData:
     """
@@ -137,6 +142,10 @@ def load_and_prepare(
     outcomes
         Symbols (from :data:`measures.ITT_OUTCOMES`) to include as
         pre/post variables.
+    covariates
+        Additional baseline/pre-timepoint columns to include as standardised
+        linear covariates. Rows with missing requested covariates are dropped
+        when ``drop_missing_pre`` is true.
     drop_missing_pre
         If True (default), rows with any missing pre-score or missing group
         are dropped and a warning is printed with the dropped-row count.
@@ -157,12 +166,16 @@ def load_and_prepare(
     else:
         phase_pairs = [(1, 2), (2, 3), (3, 4)]
 
+    covariates = tuple(covariates)
     out_cols = [MEASURES[s].column for s in outcomes]
 
     per_phase_frames: list[pd.DataFrame] = []
 
     for phase_idx, (t_pre, t_post) in enumerate(phase_pairs):
-        pre = df.loc[df[V.TIME] == t_pre, [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols].copy()
+        pre = df.loc[
+            df[V.TIME] == t_pre,
+            [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols + list(covariates),
+        ].copy()
         post = df.loc[df[V.TIME] == t_post, [V.SUBJECT_ID] + out_cols].copy()
         pre = pre.rename(columns={c: f"{c}_pre" for c in out_cols})
         post = post.rename(columns={c: f"{c}_post" for c in out_cols})
@@ -178,7 +191,7 @@ def load_and_prepare(
     n_before = len(merged)
 
     if drop_missing_pre:
-        required = [V.GROUP, V.AGE] + required_pre
+        required = [V.GROUP, V.AGE] + required_pre + list(covariates)
         mask_complete = merged[required].notna().all(axis=1)
         # Also require at least one post outcome to be present.
         mask_any_post = merged[required_post].notna().any(axis=1)
@@ -188,7 +201,7 @@ def load_and_prepare(
     if dropped > 0:
         warnings.warn(
             f"load_and_prepare: dropped {dropped} of {n_before} rows with missing "
-            "pre-score or group assignment.",
+            "pre-score, covariate, or group assignment.",
             stacklevel=2,
         )
 
@@ -216,6 +229,13 @@ def load_and_prepare(
         n_trials_dict[s] = m.n_trials
         column_map[s] = m.column
 
+    covariate_values: dict[str, np.ndarray] = {}
+    covariate_scalers: dict[str, Standardiser] = {}
+    for c in covariates:
+        z, scaler = standardise(merged[c])
+        covariate_values[c] = z
+        covariate_scalers[c] = scaler
+
     phase_arr = merged["phase"].to_numpy(dtype=np.int64)
 
     return PreparedData(
@@ -229,6 +249,8 @@ def load_and_prepare(
         pre_logit=pre_logit,
         post_counts=post_counts,
         n_trials=n_trials_dict,
+        covariates=covariate_values,
+        covariate_scalers=covariate_scalers,
         n_obs=int(len(merged)),
         n_children=int(len(np.unique(child_idx))),
         n_phases=len(phase_pairs),

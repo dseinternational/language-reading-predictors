@@ -87,7 +87,7 @@ turns it into probabilistic statements that a domain reader can act on.
   (LRP01–LRP10) plus variants (log/signed-log, quantile,
   construct-driven Select02, RMSE-tuned prediction).
 - **`src/language_reading_predictors/statistical_models/`** —
-  Bayesian models (LRP52–LRP58): preprocessing, priors, HSGP helpers,
+  Bayesian models (LRP52–LRP60): preprocessing, priors, HSGP helpers,
   likelihood, factories (`build_itt_model`, `build_joint_model`,
   `build_mechanism_model`), pipeline orchestration, and per-model
   thin wrappers.
@@ -102,17 +102,25 @@ turns it into probabilistic statements that a domain reader can act on.
 
 See `CLAUDE.md` for full build / test / render commands.
 
-## Next phase (planned, not yet implemented)
+## Next phase (in progress)
 
 Summarised in `notes/202604181453-review-next-steps.md` alongside
 analytical sketches and open data-dictionary questions. Priority
 ordering:
 
 1. **LRP60** — SES-adjusted ITT (mum / dad education, agebooks) as a
-   confounder check on the LRP52–LRP54 treatment effects.
+   confounder check on the LRP52–LRP54 treatment effects. The first
+   word-reading complete-case implementation now exists; remaining work
+   is a matched complete-case unadjusted comparator and/or covariate
+   imputation before extending the adjustment to other outcomes.
 2. **LRP61** — taught-vocabulary ITT (`b1exto` / `b1reto`) as a
    teaching-gradient outcome and methodological positive control.
-3. **LRP62** — phonological-memory mechanism (`erbword` / `erbnw` → W).
+3. **LRP62** — reading-route analysis for phonics-mediated versus
+   lexical / whole-word-compatible word reading. This should include
+   letter-sound knowledge, blending, phonetic spelling, `nonword`
+   nonword reading, `erbword` word repetition, `erbnw` nonword
+   repetition, taught vocabulary and baseline word reading, without
+   treating any single measure as the pathway.
 4. **LRP63** — articulation mechanism (DEAP composites → W, via L).
 5. **LRP64** — grammar ITT (`aptgram` / `aptinfo`), contingent on
    confirming item maxima from the data dictionary.
@@ -120,6 +128,11 @@ ordering:
    explicitly deferred in the original Bayesian brief until a formal
    decision on phase-wise dose semantics is made (see
    `project_rli_phase_structure.md` in the Claude project memory).
+7. **LRP66+** — selective teaching-practice extensions: differential
+   response to phonics-linked teaching, vocabulary / language routes
+   into word learning, bounded floor/ceiling-aware growth, and
+   reciprocal reading-language progress. These should be small,
+   theory-led models rather than a broad interaction search.
 
 A formal mediation decomposition (NDE / NIE) through L is also a
 candidate for this phase; it was called out as out-of-scope for

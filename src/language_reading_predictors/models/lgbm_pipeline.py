@@ -49,11 +49,10 @@ class LGBMPipeline(EstimatorPipeline):
         run = context.run_config
 
         lgbm_params = _cap_n_estimators(cfg.model_params, run)
-
-        lgbm = LGBMRegressor(
-            **lgbm_params,
-            random_state=cfg.random_seed,
-        )
+        # Merge into a single dict so a ``random_state`` in
+        # ``model_params`` (e.g. pasted from tuned ``best_params.json``)
+        # does not collide with the explicit kwarg below.
+        lgbm = LGBMRegressor(**{**lgbm_params, "random_state": cfg.random_seed})
         context.pipeline = Pipeline([(ESTIMATOR_STEP, self._wrap_estimator(lgbm))])
 
         print(f"  {self._estimator_label}: {lgbm_params}")

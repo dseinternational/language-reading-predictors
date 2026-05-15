@@ -248,7 +248,7 @@ _LGBM_QUANTILE_PARAMS: dict[str, float | int | str] = {
     "colsample_bytree": 0.8440054964789133,
     "reg_alpha": 0.0012997855434450734,
     "reg_lambda": 0.07869980269664073,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 
@@ -270,7 +270,7 @@ _LGBM_QUANTILE_PARAMS_LOG: dict[str, float | int | str] = {
     "colsample_bytree": 0.8127580991616771,
     "reg_alpha": 0.010598834462173275,
     "reg_lambda": 0.08639165584266031,
-    "n_jobs": 16,
+    "n_jobs": -1,
     "verbosity": -1,
 }
 

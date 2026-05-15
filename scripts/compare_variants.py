@@ -80,17 +80,28 @@ def _pairwise_table(
         sa = scores_a.loc[common].to_numpy(dtype=float)
         sb = scores_b.loc[common].to_numpy(dtype=float)
 
-        diff = sb - sa
-        mean_diff = float(np.mean(diff))
-        std_diff = float(np.std(diff, ddof=1)) if len(diff) > 1 else float("nan")
+        # Filter to fold pairs where both metrics are finite. ``ttest_rel``
+        # with ``nan_policy="omit"`` drops NaNs per-vector and breaks
+        # pairing when only one side is missing.
+        valid = np.isfinite(sa) & np.isfinite(sb)
+        sa = sa[valid]
+        sb = sb[valid]
 
-        t_res = stats.ttest_rel(sb, sa, nan_policy="omit")
+        diff = sb - sa
+        mean_diff = float(np.mean(diff)) if diff.size else float("nan")
+        std_diff = float(np.std(diff, ddof=1)) if diff.size > 1 else float("nan")
+
+        if diff.size >= 2:
+            t_res = stats.ttest_rel(sb, sa)
+        else:
+            t_res = type("TT", (), {"pvalue": float("nan")})()  # ad-hoc holder
+
         # Wilcoxon rejects identical vectors; guard for it.
-        if np.all(diff == 0):
+        if diff.size == 0 or np.all(diff == 0):
             w_p = float("nan")
         else:
             try:
-                w_res = stats.wilcoxon(diff, zero_method="wilcox", nan_policy="omit")
+                w_res = stats.wilcoxon(diff, zero_method="wilcox")
                 w_p = float(w_res.pvalue)
             except ValueError:
                 w_p = float("nan")

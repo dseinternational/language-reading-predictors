@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Model factories for LRP52-LRP58.
+Model factories for LRP52-LRP60.
 
 Three factories are provided:
 
-- :func:`build_itt_model` — LRP52, LRP53, LRP54 (one outcome, RCT phase).
+- :func:`build_itt_model` — LRP52, LRP53, LRP54, LRP60 (one outcome, RCT phase).
 - :func:`build_joint_model` — LRP55 (eight outcomes, RCT phase, LKJ Σ).
 - :func:`build_mechanism_model` — LRP56, LRP57, LRP58 (adjustment-set
   mechanism regressions on ``W_post`` using all phases).
@@ -71,6 +71,7 @@ def build_itt_model(
     use_age_gp: bool = True,
     use_own_baseline_gp: bool = True,
     use_varying_tau: bool = False,
+    adjust_for: Iterable[str] = (),
 ) -> BuiltModel:
     """
     Build the single-outcome ITT model used by LRP52, LRP53, LRP54.
@@ -98,6 +99,10 @@ def build_itt_model(
         If True, the treatment effect is modelled as ``tau0 + g_tauA(A_std)``
         via a :func:`build_tau_modifier` GP with the tight ``HalfNormal(0.3)``
         amplitude prior.
+    adjust_for
+        Standardised non-outcome covariates from ``prepared.covariates`` to add
+        as linear adjustment terms. Coefficients use the same weak
+        ``Normal(0, 0.3)`` prior as cross-baseline couplings.
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
@@ -107,6 +112,13 @@ def build_itt_model(
         raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
 
     own = outcome_symbol
+    adjust_for = tuple(adjust_for)
+    missing_adjusters = [c for c in adjust_for if c not in prepared.covariates]
+    if missing_adjusters:
+        raise KeyError(
+            "Requested adjustment covariates missing from prepared data: "
+            f"{missing_adjusters}"
+        )
     cross = [s for s in ITT_OUTCOMES if s != own]
 
     post = prepared.post_counts[own]
@@ -131,6 +143,9 @@ def build_itt_model(
             cross_pre_data[s] = pm.Data(
                 f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id"
             )
+        adjust_data: dict[str, pt.TensorVariable] = {}
+        for c in adjust_for:
+            adjust_data[c] = pm.Data(f"{c}_std", prepared.covariates[c], dims="obs_id")
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         tau0 = _scalar_prior("tau", _priors.tau_prior)
@@ -144,7 +159,12 @@ def build_itt_model(
         for s in cross:
             cross_contrib = cross_contrib + gamma_cross[s] * cross_pre_data[s]
 
-        eta = alpha + gamma_own * own_pre_d + cross_contrib
+        adjust_contrib: pt.TensorVariable | float = 0.0
+        for c in adjust_for:
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            adjust_contrib = adjust_contrib + gamma_c * adjust_data[c]
+
+        eta = alpha + gamma_own * own_pre_d + cross_contrib + adjust_contrib
 
         if use_age_gp:
             f_A = build_hsgp_1d("f_A", prepared.A_std)
@@ -246,6 +266,10 @@ def build_joint_model(
         "obs_id": np.arange(N_obs),
         "outcome": list(outcomes),
         "baseline": list(outcomes),
+        # Second outcome axis for outcome×outcome quantities (residual
+        # correlation). Cannot reuse "outcome" because PyMC requires
+        # distinct dim names per axis.
+        "outcome2": list(outcomes),
     }
 
     G_f = prepared.G.astype(float)
@@ -310,22 +334,30 @@ def build_joint_model(
             eta_core = eta_core + f_A
 
         if use_residual_correlation:
-            # Non-centred MvNormal on u_i = (diag(sigma) @ L) z_i.
-            sigma = pm.HalfNormal("sigma_outcome", sigma=0.5, dims="outcome")
-            chol, corr, _sigmas = pm.LKJCholeskyCov(
+            # Non-centred MvNormal on u_i = L z_i where L is the Cholesky
+            # factor of the residual covariance Σ. ``pm.LKJCholeskyCov``
+            # with ``sd_dist=HalfNormal(0.5)`` already bakes per-outcome
+            # standard deviations into ``chol`` (Σ = chol @ chol.T), so
+            # there is no separate outer sigma_outcome term — a previous
+            # version multiplied chol by an independent HalfNormal which
+            # double-scaled Σ and made the block unidentified.
+            chol, corr, sigmas = pm.LKJCholeskyCov(
                 "u_chol",
                 n=K,
                 eta=4.0,
                 sd_dist=pm.HalfNormal.dist(0.5),
                 compute_corr=True,
             )
-            pm.Deterministic("u_corr", corr, dims=("outcome", "baseline"))
+            # u_corr is outcome × outcome (not outcome × baseline) — use
+            # the dedicated ``outcome2`` coord to label the second axis.
+            pm.Deterministic("u_corr", corr, dims=("outcome", "outcome2"))
+            pm.Deterministic("sigma_outcome", sigmas, dims="outcome")
             z_raw = pm.Normal(
                 "u_z", mu=0.0, sigma=1.0, dims=("obs_id", "outcome")
             )
-            L_scaled = sigma[:, None] * chol
+            # u_i = chol @ z_i ⇒ rowwise U = Z @ chol.T.
             u = pm.Deterministic(
-                "u", pt.dot(z_raw, L_scaled.T), dims=("obs_id", "outcome")
+                "u", pt.dot(z_raw, chol.T), dims=("obs_id", "outcome")
             )
             eta = eta_core + u
         else:
@@ -435,11 +467,27 @@ def build_mechanism_model(
 
     with pm.Model(coords=coords) as model:
         pm.Data("A_std", prepared.A_std, dims="obs_id")
-        pm.Data("G", prepared.G.astype(float), dims="obs_id")
-        pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+        G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
         pm.Data("mech_post_logit", mech_post_logit, dims="obs_id")
-        pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
-        pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
+        phase_d = pm.Data(
+            "phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
+        )
+        child_idx_d = pm.Data(
+            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+        )
+        confounder_data: dict[str, pt.TensorVariable] = {}
+        for s in confounder_symbols:
+            if s in {"G", "A"}:
+                continue
+            if s not in prepared.post_counts:
+                raise KeyError(
+                    f"Confounder {s!r} has no post-score in prepared data"
+                )
+            c_val_np = logit_safe(prepared.post_counts[s], prepared.n_trials[s])
+            confounder_data[s] = pm.Data(
+                f"{s}_post_logit", c_val_np, dims="obs_id"
+            )
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         alpha_phase = pm.Normal(
@@ -448,7 +496,12 @@ def build_mechanism_model(
         beta_G = _priors.tau_prior().to_pymc("beta_G")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
-        eta = alpha + alpha_phase[prepared.phase] + beta_G * prepared.G + gamma_own * own_pre_logit
+        eta = (
+            alpha
+            + alpha_phase[phase_d]
+            + beta_G * G_d
+            + gamma_own * own_pre_d
+        )
 
         if use_subject_random_intercept:
             sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
@@ -456,25 +509,23 @@ def build_mechanism_model(
             u_child = pm.Deterministic(
                 "u_child", sigma_child * u_child_raw, dims="child"
             )
-            eta = eta + u_child[prepared.child_idx]
+            eta = eta + u_child[child_idx_d]
 
         # Confounder linear terms (on logit scale for measures)
         for s in confounder_symbols:
-            if s == "G":
-                continue  # already included as beta_G
-            if s == "A":
-                continue  # handled via age GP
-            post = prepared.post_counts[s]
-            N_s = prepared.n_trials[s]
-            c_val = logit_safe(post, N_s)
+            if s in {"G", "A"}:
+                continue  # G already in beta_G; A handled via age GP
             gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
-            eta = eta + gamma_c * c_val
+            eta = eta + gamma_c * confounder_data[s]
 
         if use_age_gp:
             f_A = build_hsgp_1d("f_A", prepared.A_std)
             eta = eta + f_A
 
-        # Mechanism GP (the estimand).
+        # Mechanism GP (the estimand). The HSGP basis size depends on the
+        # numeric range of the input, so it is constructed against the
+        # numpy array; the registered ``mech_post_logit`` Data node is
+        # kept for documentation / introspection.
         if phase_specific_mechanism:
             phase_specific = []
             for p in range(prepared.n_phases):
@@ -482,7 +533,7 @@ def build_mechanism_model(
                     build_hsgp_1d(f"f_mech_phase{p}", mech_post_logit)
                 )
             f_mech = pt.stack(phase_specific, axis=1)[
-                pt.arange(prepared.n_obs), prepared.phase
+                np.arange(prepared.n_obs), phase_d
             ]
         else:
             f_mech = build_hsgp_1d("f_mech", mech_post_logit)
@@ -509,26 +560,37 @@ def build_mechanism_model(
 
 
 def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
-    """Return a copy of ``prepared`` restricted to rows where ``keep`` is True."""
+    """Return a copy of ``prepared`` restricted to rows where ``keep`` is True.
+
+    Built with :func:`dataclasses.replace` so every row-indexed field is
+    bound to a freshly-sliced array and the per-row dicts are rebuilt.
+    Scalars and per-symbol metadata (``column_map``, ``n_trials``,
+    ``age_scaler``, ``covariate_scalers``) are intentionally aliased
+    from the parent — they do not depend on the row set.
+    """
     if bool(keep.all()):
         return prepared
-    from copy import copy
+    from dataclasses import replace
 
-    new = copy(prepared)
-    new.subject_ids = prepared.subject_ids[keep]
-    new.child_idx = prepared.child_idx[keep]
+    subject_ids = prepared.subject_ids[keep]
     # Re-index children so child_idx is dense 0..n_children-1.
-    _, new.child_idx = np.unique(new.subject_ids, return_inverse=True)
-    new.child_idx = new.child_idx.astype(np.int64)
-    new.phase = prepared.phase[keep]
-    new.G = prepared.G[keep]
-    new.A_months = prepared.A_months[keep]
-    new.A_std = prepared.A_std[keep]
-    new.pre_logit = {s: v[keep] for s, v in prepared.pre_logit.items()}
-    new.post_counts = {s: v[keep] for s, v in prepared.post_counts.items()}
-    new.n_obs = int(keep.sum())
-    new.n_children = int(len(np.unique(new.child_idx)))
-    return new
+    _, child_idx = np.unique(subject_ids, return_inverse=True)
+    child_idx = child_idx.astype(np.int64)
+
+    return replace(
+        prepared,
+        subject_ids=subject_ids,
+        child_idx=child_idx,
+        phase=prepared.phase[keep],
+        G=prepared.G[keep],
+        A_months=prepared.A_months[keep],
+        A_std=prepared.A_std[keep],
+        pre_logit={s: v[keep] for s, v in prepared.pre_logit.items()},
+        post_counts={s: v[keep] for s, v in prepared.post_counts.items()},
+        covariates={s: v[keep] for s, v in prepared.covariates.items()},
+        n_obs=int(keep.sum()),
+        n_children=int(len(np.unique(child_idx))),
+    )
 
 
 def _variables_dict(model: pm.Model) -> dict[str, pt.TensorVariable]:

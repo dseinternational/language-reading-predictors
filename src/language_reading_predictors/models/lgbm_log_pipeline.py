@@ -39,24 +39,9 @@ class LGBMLogPipeline(LGBMPipeline):
             check_inverse=False,
         )
 
-    def shap_analysis(self) -> None:
-        """Re-aim SHAP at the underlying LGBM inside the TTR wrapper.
-
-        The base-class ``shap_analysis`` looks up
-        ``pipeline.named_steps[ESTIMATOR_STEP]`` and passes it directly
-        to ``shap.TreeExplainer``. With a ``TransformedTargetRegressor``
-        in that slot, we need to expose its fitted inner regressor
-        (``.regressor_``) so ``TreeExplainer`` can introspect the
-        booster. We temporarily swap the pipeline step, run the parent
-        SHAP analysis, then restore.
+    def _tree_estimator(self):
+        """Return the LGBM regressor inside the TTR wrapper so
+        :class:`shap.TreeExplainer` can introspect its booster.
         """
-        context = self.context
-        wrapper = context.pipeline.named_steps[ESTIMATOR_STEP]
-        inner = wrapper.regressor_  # fitted LGBMRegressor
-
-        original_steps = context.pipeline.steps
-        context.pipeline.steps = [(ESTIMATOR_STEP, inner)]
-        try:
-            super().shap_analysis()
-        finally:
-            context.pipeline.steps = original_steps
+        wrapper = self.context.pipeline.named_steps[ESTIMATOR_STEP]
+        return wrapper.regressor_

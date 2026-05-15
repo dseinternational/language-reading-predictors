@@ -370,19 +370,38 @@ def mutual_info_dissimilarity(
     - Suitable for feature clustering and selection
     - More robust to non-linear relationships than correlation-based methods
     """
-    n_features = X.shape[1]
+    # Accept DataFrames or ndarrays uniformly.
+    if hasattr(X, "iloc"):
+        n_features = X.shape[1]
+        target_column = lambda i: X.iloc[:, i]  # noqa: E731
+    else:
+        X_arr = np.asarray(X)
+        n_features = X_arr.shape[1]
+        target_column = lambda i: X_arr[:, i]  # noqa: E731
+
     dissim = np.zeros((n_features, n_features))
 
     for i in range(n_features):
         mi_scores = mutual_info_regression(
             X,
-            X.iloc[:, i],
+            target_column(i),
             discrete_features=discrete_features,
             n_neighbors=n_neighbors,
             copy=copy,
             random_state=random_state,
             n_jobs=n_jobs,
         )
-        dissim[i, :] = 1 - mi_scores / mi_scores.max()  # Normalize
+        # When every feature has zero MI against the target column (e.g.
+        # a constant column), the max is zero; treat the row as fully
+        # dissimilar (1.0) rather than dividing by zero.
+        max_mi = float(mi_scores.max())
+        if max_mi > 0:
+            dissim[i, :] = 1.0 - mi_scores / max_mi
+        else:
+            dissim[i, :] = 1.0
 
-    return (dissim + dissim.T) / 2  # Symmetrize
+    dissim = (dissim + dissim.T) / 2  # Symmetrize
+    # Each feature is maximally informative about itself; force the
+    # diagonal so the returned matrix is a proper dissimilarity.
+    np.fill_diagonal(dissim, 0.0)
+    return dissim

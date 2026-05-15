@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
@@ -205,9 +206,15 @@ def _lgbm_objective(
             )
             preds = inverse(model.predict(X_val))
             fold_scores.append(score_fn(y_val.to_numpy(), preds))
-            best_iters.append(
-                int(model.best_iteration_ if model.best_iteration_ is not None else max_n_estimators)
-            )
+            # best_iteration_ may be None (early stopping never triggered)
+            # or 0 (val never improved past round 0). Either way, the
+            # fold's tuned n_estimators should fall back to the ceiling
+            # so the mean isn't dragged down by a "boost zero rounds"
+            # signal that would produce an untrainable final model.
+            best_iter = model.best_iteration_
+            if not best_iter:  # None or 0
+                best_iter = max_n_estimators
+            best_iters.append(int(best_iter))
 
         trial.set_user_attr("mean_best_iteration", int(round(float(np.mean(best_iters)))))
         trial.set_user_attr(f"cv_{scoring}_std", float(np.std(fold_scores)))
@@ -335,7 +342,6 @@ def tune(
 
     out_dir = _TUNING_DIR / key
     out_dir.mkdir(parents=True, exist_ok=True)
-    _clear_directory(out_dir)
 
     best = study.best_trial
 
@@ -362,12 +368,10 @@ def tune(
         "cv_splits": cv_splits,
         "params": best_full_params,
     }
-    (out_dir / "best_params.json").write_text(json.dumps(best_params_out, indent=2))
 
     trials_df = study.trials_dataframe(
         attrs=("number", "value", "params", "user_attrs", "state", "duration")
     )
-    trials_df.to_csv(out_dir / "trials.csv", index=False)
 
     summary = {
         "model_id": key,
@@ -384,7 +388,21 @@ def tune(
         "max_n_estimators": max_n_estimators,
         "early_stopping_fraction": early_stopping_fraction,
     }
-    (out_dir / "study_summary.json").write_text(json.dumps(summary, indent=2))
+
+    # Stage all artifacts in a sibling temp directory, then swap them
+    # in once every write has succeeded. This way a crash mid-write
+    # leaves the previous tuning run untouched rather than wiping it.
+    with tempfile.TemporaryDirectory(prefix=f"{key}_", dir=_TUNING_DIR) as tmp:
+        staging = Path(tmp)
+        (staging / "best_params.json").write_text(
+            json.dumps(best_params_out, indent=2)
+        )
+        trials_df.to_csv(staging / "trials.csv", index=False)
+        (staging / "study_summary.json").write_text(json.dumps(summary, indent=2))
+
+        _clear_directory(out_dir)
+        for entry in staging.iterdir():
+            shutil.move(str(entry), out_dir / entry.name)
 
     print()
     label = scoring.upper()

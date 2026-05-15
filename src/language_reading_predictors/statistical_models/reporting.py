@@ -24,27 +24,40 @@ def tau_summary_itt(
     *,
     hdi_prob: float,
     pre_logit_mean: float,
-    gamma_own_mean: float,
-    alpha_mean: float,
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
 
-    The probability-scale marginal effect is approximated at the sample-mean
-    logit-scale baseline, with the fixed-effects intercept and own-baseline
-    contribution held at their posterior means. It is a point-estimate
-    sensitivity summary - not a causal contrast.
-    """
-    draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values
-    tau_mean = float(np.mean(draws))
-    lower, upper = np.quantile(draws, [(1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2])
+    The probability-scale marginal effect is computed per posterior draw —
+    ``expit(α + γ_own · ȳ_pre + τ) − expit(α + γ_own · ȳ_pre)`` — so the
+    summary represents the posterior distribution of the marginal effect
+    at the sample-mean baseline, not a plug-in of posterior means into a
+    non-linear transform. ``ȳ_pre`` is the data-side scalar baseline
+    averaged over observations.
 
-    baseline_eta = alpha_mean + gamma_own_mean * pre_logit_mean
-    marginal = expit(baseline_eta + draws) - expit(baseline_eta)
+    ``hdi_prob`` names the *coverage* probability — the returned ``_lo`` /
+    ``_hi`` values are equal-tailed central quantiles, not highest-density
+    intervals. For ArviZ-style HDI use :func:`arviz.hdi` directly.
+    """
+    posterior = trace.posterior
+    tau_draws = posterior["tau"].stack(sample=("chain", "draw")).values
+    alpha_draws = posterior["alpha"].stack(sample=("chain", "draw")).values
+    gamma_own_draws = posterior["gamma_own"].stack(sample=("chain", "draw")).values
+
+    tau_mean = float(np.mean(tau_draws))
+    lower, upper = np.quantile(
+        tau_draws, [(1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2]
+    )
+
+    # Per-draw marginal effect, then summarise. Plug-in summaries
+    # (mean of α, γ_own then expit) understate posterior uncertainty
+    # for skewed marginals on the probability scale.
+    baseline_eta = alpha_draws + gamma_own_draws * pre_logit_mean
+    marginal = expit(baseline_eta + tau_draws) - expit(baseline_eta)
     marg_mean = float(np.mean(marginal))
     marg_lo, marg_hi = np.quantile(
         marginal, [(1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2]
     )
-    prob_pos = float(np.mean(draws > 0))
+    prob_pos = float(np.mean(tau_draws > 0))
 
     return {
         "tau_logit_mean": tau_mean,
@@ -62,7 +75,11 @@ def tau_summary_joint(
     outcomes: list[str],
     hdi_prob: float,
 ) -> pd.DataFrame:
-    """Return a DataFrame summarising tau_k for each outcome (logit scale)."""
+    """Return a DataFrame summarising tau_k for each outcome (logit scale).
+
+    ``tau_lo`` / ``tau_hi`` are equal-tailed central quantiles at coverage
+    ``hdi_prob``. See :func:`tau_summary_itt` for the convention.
+    """
     draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
     out = []
     lo_q = (1 - hdi_prob) / 2
