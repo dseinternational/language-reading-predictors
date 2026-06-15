@@ -2,7 +2,7 @@ name: dse-language-reading-predictors
 channels:
   - conda-forge
 dependencies:
-  - python=3.14.5
+  - python=3.14.6
   - arviz>=1.0
   - arviz-base
   - arviz-stats
