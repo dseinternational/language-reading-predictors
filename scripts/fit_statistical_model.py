@@ -33,6 +33,7 @@ from language_reading_predictors.statistical_models import (
     lrp56,
     lrp57,
     lrp58,
+    lrp59,
     lrp60,
 )
 
@@ -45,6 +46,8 @@ MODELS = {
     "lrp56": lrp56,
     "lrp57": lrp57,
     "lrp58": lrp58,
+    # LRP59: ITT-phase mediation (does G raise W via L?). New 'mediation' family.
+    "lrp59": lrp59,
     "lrp60": lrp60,
 }
 

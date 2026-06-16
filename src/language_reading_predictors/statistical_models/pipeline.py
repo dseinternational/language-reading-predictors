@@ -442,3 +442,94 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
         bbox_inches="tight",
     )
     plt.close()
+
+
+# ---------------------------------------------------------------------------
+# Mediation pipeline (LRP59)
+# ---------------------------------------------------------------------------
+
+_MED_COEF_VARS = [
+    "a0", "a_G", "a_L", "a_A", "a_E", "a_R", "kappa_M",
+    "b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_E", "b_R", "kappa_Y",
+]
+
+
+def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
+    assert spec.kind == "mediation"
+    from language_reading_predictors.statistical_models import mediation as _med
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
+    prepared = load_and_prepare(phase_mode="itt")
+    ctx.prepared = prepared
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+
+    confounders = tuple(
+        s for s in spec.adjustment if s not in ("G", "A", "L_t1", "W_pre")
+    )
+    built, med_data = _factories.build_mediation_model(
+        prepared,
+        mediator_symbol=spec.mechanism_symbol or "L",
+        outcome_symbol=spec.outcome_symbol or "W",
+        confounder_symbols=confounders,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["L_post", "y_post"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=_MED_COEF_VARS)
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["L_post", "y_post"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Mediation decomposition (g-formula)")
+    med_df = _med.decompose(
+        ctx.trace,
+        med_data,
+        confounder_symbols=confounders,
+        hdi_prob=ctx.reporting.hdi,
+    )
+    med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
+    ctx.tables["mediation_summary"] = med_df
+    print_table(
+        ranked_dataframe_table(
+            med_df,
+            title=f"Mediation (intervention-helps; words out of {med_data.n_trials_W})",
+            columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "adjustment": spec.adjustment,
+            "n_obs": prepared.n_obs,
+            "mediation": _summary,
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
