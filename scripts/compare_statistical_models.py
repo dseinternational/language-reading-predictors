@@ -95,7 +95,10 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
 
 def tau_forest(config: str, out_path: str) -> bool:
     """Forest plot of LRP55's eight taus, overlaid with LRP52/53/54 univariates."""
-    joint = pd.read_csv(os.path.join(_run_dir(JOINT_ID, config), "tau_summary.csv"))
+    joint_path = os.path.join(_run_dir(JOINT_ID, config), "tau_summary.csv")
+    if not os.path.exists(joint_path):
+        return False  # joint run not fitted — main() reports the skip
+    joint = pd.read_csv(joint_path)
     uni: dict[str, tuple[float, float, float]] = {}
     for model_id, outcome in ITT_IDS:
         p = os.path.join(_run_dir(model_id, config), "tau_summary.csv")

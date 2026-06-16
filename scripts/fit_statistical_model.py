@@ -131,7 +131,7 @@ def main() -> None:
                     "outcome": spec.outcome_symbol or "-",
                     "mechanism": spec.mechanism_symbol or "-",
                     "n_obs": int(prepared.n_obs) if prepared is not None else None,
-                    "loo_elpd": float(ctx.loo.elpd_loo) if ctx.loo is not None else None,
+                    "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
                     "status": "ok",
                 }
             )

@@ -155,9 +155,13 @@ def write_loo_summary(context: StatisticalFitContext) -> None:
 
 
 def loo_delta(loo_a: az.ELPDData, loo_b: az.ELPDData) -> dict[str, float]:
-    """Delta-ELPD between two models using ArviZ compare."""
+    """Delta-ELPD between two models using ArviZ compare.
+
+    arviz 1.x ``az.compare`` reports the ELPD in an ``elpd`` column (the 0.x
+    ``elpd_loo`` was renamed); ``dse`` is unchanged.
+    """
     df = az.compare({"a": loo_a, "b": loo_b})
     return {
-        "d_elpd": float(df.loc["a", "elpd_loo"] - df.loc["b", "elpd_loo"]),
-        "d_se": float(df.loc["a", "dse"] if "dse" in df.columns else np.nan),
+        "d_elpd": float(df.loc["a", "elpd"] - df.loc["b", "elpd"]),
+        "d_se": float(df.loc["a", "dse"]) if "dse" in df.columns else float("nan"),
     }
