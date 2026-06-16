@@ -381,6 +381,8 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             "use_subject_random_intercept", True
         ),
         moderator_symbol=moderator_symbol,
+        moderator_is_covariate=spec.extra.get("moderator_is_covariate", False),
+        include_interaction=spec.extra.get("include_interaction", True),
         linear_mechanism=spec.extra.get("linear_mechanism", False),
     )
     ctx.model = built.model
@@ -407,7 +409,9 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     if spec.extra.get("linear_mechanism", False):
         _mech_vars.append("beta_mech")
     if moderator_symbol is not None:
-        _mech_vars.extend(["gamma_mod", "gamma_int"])
+        _mech_vars.append("gamma_mod")
+        if spec.extra.get("include_interaction", True):
+            _mech_vars.append("gamma_int")
     _diag.summary_diagnostics(ctx, var_names=_mech_vars)
 
     section_header("Posterior predictive")
