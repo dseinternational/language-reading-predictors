@@ -408,6 +408,7 @@ def build_mechanism_model(
     phase_specific_mechanism: bool = False,
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
+    moderator_symbol: str | None = None,
 ) -> BuiltModel:
     """
     Mechanism model on the outcome post-score.
@@ -429,6 +430,22 @@ def build_mechanism_model(
     honest standard errors on β_G, γ's, and f_mech because the 157 rows per
     mechanism fit are three phase-transitions per child and therefore not
     independent. See notes/202604181800-mechanism-random-intercepts.md.
+
+    ``moderator_symbol`` (default None): when set, adds a LINEAR moderation of
+    the mechanism effect by the moderator post-score M. Two standardised terms
+    enter the linear predictor alongside the nonparametric ``f_mech``:
+
+        ... + gamma_mod * z(M) + gamma_int * z(logit L_post) * z(M)
+
+    where ``z(.)`` is the standardised (mean-0, sd-1) transform computed on the
+    kept rows. ``gamma_int > 0`` means letter-sound converts to the outcome
+    *more* strongly for higher-M children. Both coefficients use the regularising
+    ``gamma_cross_prior()`` (Normal(0, 0.3)). The HSGP ``f_mech`` is unchanged
+    (it stays a function of the *raw* ``logit L_post``); the GP-varying-slope
+    refinement is deliberately deferred. The caller is responsible for not also
+    passing the moderator as a plain confounder (else its main effect would be
+    represented twice and be collinear) — the pipeline strips it from
+    ``confounder_symbols`` before calling.
     """
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
@@ -436,12 +453,16 @@ def build_mechanism_model(
         raise KeyError(f"Mechanism {mechanism_symbol!r} missing from prepared data")
     if outcome_symbol not in prepared.pre_logit:
         raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
+    if moderator_symbol is not None and moderator_symbol not in prepared.pre_logit:
+        raise KeyError(f"Moderator {moderator_symbol!r} missing from prepared data")
 
     # Outcome post (target) and mechanism post (predictor) are both needed.
     outcome_post = prepared.post_counts[outcome_symbol]
     mechanism_post = prepared.post_counts[mechanism_symbol]
 
     keep = ~(np.isnan(outcome_post) | np.isnan(mechanism_post))
+    if moderator_symbol is not None:
+        keep = keep & ~np.isnan(prepared.post_counts[moderator_symbol])
     for s in confounder_symbols:
         if s not in prepared.pre_logit and s not in {"G", "A"}:
             raise KeyError(f"Confounder {s!r} not recognised")
@@ -449,7 +470,10 @@ def build_mechanism_model(
             keep = keep & ~np.isnan(prepared.post_counts[s])
     prepared = _subset(prepared, keep)
 
-    from language_reading_predictors.statistical_models.preprocessing import logit_safe
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+        standardise,
+    )
 
     outcome_post = prepared.post_counts[outcome_symbol].astype(np.int64)
     N_outcome = prepared.n_trials[outcome_symbol]
@@ -458,6 +482,21 @@ def build_mechanism_model(
     mech_post_logit = logit_safe(prepared.post_counts[mechanism_symbol], N_mechanism)
 
     own_pre_logit = prepared.pre_logit[adjust_baseline_symbol]
+
+    # Standardised inputs for the LINEAR moderation term, computed on the kept
+    # rows so the mean/sd match the data the model is fit to. ``z_L`` re-uses the
+    # mechanism logit (a *centred* version, so gamma_mod reads as the moderator
+    # effect at the mean of L); ``f_mech`` keeps the raw logit. The keep-mask
+    # above guarantees the moderator post-score has no NaNs at this point.
+    z_L: np.ndarray | None = None
+    z_M: np.ndarray | None = None
+    if moderator_symbol is not None:
+        z_L, _ = standardise(mech_post_logit)
+        moderator_post_logit = logit_safe(
+            prepared.post_counts[moderator_symbol],
+            prepared.n_trials[moderator_symbol],
+        )
+        z_M, _ = standardise(moderator_post_logit)
 
     coords = {
         "obs_id": np.arange(prepared.n_obs),
@@ -476,6 +515,10 @@ def build_mechanism_model(
         child_idx_d = pm.Data(
             "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
         )
+        z_L_d = z_M_d = None
+        if moderator_symbol is not None:
+            z_L_d = pm.Data("z_mech_logit", z_L, dims="obs_id")
+            z_M_d = pm.Data("z_moderator", z_M, dims="obs_id")
         confounder_data: dict[str, pt.TensorVariable] = {}
         for s in confounder_symbols:
             if s in {"G", "A"}:
@@ -517,6 +560,17 @@ def build_mechanism_model(
                 continue  # G already in beta_G; A handled via age GP
             gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
             eta = eta + gamma_c * confounder_data[s]
+
+        # Linear moderation of the mechanism effect by the moderator M.
+        # ``gamma_mod`` is the moderator main effect (also serves as the
+        # adjustment for M when M is a DAG confounder); ``gamma_int`` is the
+        # interaction. Fixed names (never gamma_{M}) so they cannot collide with
+        # the confounder loop above. Both are free RVs with the Normal(0, 0.3)
+        # cross-coupling prior.
+        if moderator_symbol is not None:
+            gamma_mod = _priors.gamma_cross_prior().to_pymc("gamma_mod")
+            gamma_int = _priors.gamma_cross_prior().to_pymc("gamma_int")
+            eta = eta + gamma_mod * z_M_d + gamma_int * (z_L_d * z_M_d)
 
         if use_age_gp:
             f_A = build_hsgp_1d("f_A", prepared.A_std)

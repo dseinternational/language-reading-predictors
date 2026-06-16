@@ -1,0 +1,176 @@
+---
+title: "LRP71: Mechanism model — letter-sound (L) -> word reading (W), moderated by expressive vocabulary (E)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+```
+
+## Overview
+
+LRP71 is the first **interaction** model in the suite. It extends LRP58 — the
+mechanism estimate $f^L$ of letter-sound knowledge on word reading, fit over all
+three phase transitions — with a **linear moderation** by expressive vocabulary
+$E$ (`eowpvt`). The question is the lexical-quality / dual-route hypothesis:
+*does the letter-sound → reading effect depend on a child's vocabulary level?*
+
+The linear predictor adds two standardised terms alongside the existing
+nonparametric $f^L$ and the adjustment terms:
+
+$$
+\eta = \dots + f^{L}(\operatorname{logit} L_{\text{post}})
+       + \gamma_{\text{mod}}\, z(E)
+       + \gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(E)
+$$
+
+where $z(\cdot)$ standardises to mean 0, sd 1 over the fitted rows.
+$\gamma_{\text{int}} > 0$ means letter-sound converts to reading *more* strongly
+for higher-vocabulary children. Both coefficients use the regularising
+$\mathrm{Normal}(0, 0.3)$ cross-coupling prior.
+
+::: {.callout-note title="Reading the interaction"}
+
+- The HSGP $f^L$ is **unchanged** — it is still a flexible function of the *raw*
+  $\operatorname{logit} L_{\text{post}}$. The moderation is the *linear* product
+  term only; a GP-varying-slope version is deferred.
+- Because $z(\operatorname{logit} L)$ is centred, $\gamma_{\text{mod}}$ is the
+  vocabulary main effect *at the mean of letter-sound*, and the $f^L$ mechanism
+  curve is the L → W effect *at the mean of $E$*. With the interaction present,
+  $f^L$ no longer captures the full L effect across all vocabulary levels.
+- With $n \approx 157$ phase-transition rows and this interaction ranking only
+  mid-pack in the SHAP screen, $\gamma_{\text{int}}$ may well be *suggestive,
+  not credible* — an honest, publishable result ("phonics converts to reading
+  largely independently of vocabulary level, within this sample").
+
+:::
+
+## Adjustment set
+
+Identical to LRP58: $\{G, A, E, R, W_{\text{pre}}\}$.
+
+- $G$ — linear confounder (one coefficient $\beta_G$).
+- $A$ — standard confounder; age-GP flag **off by default**.
+- $E$ — confounds $L$ and $W$ ($E \to L$ and $E \to W$). Conditioned on.
+- $R$ — confounds $L$ through $E$ ($R \to E \to L$) and affects $W$.
+- $W_{\text{pre}}$ — baseline word reading.
+
+::: {.callout-important title="E enters as the standardised moderator, not the raw-logit confounder"}
+
+$E$ is both the DAG-required adjuster and the moderator. To avoid a collinear
+duplicate main effect, the pipeline removes $E$ from the plain confounder loop:
+$E$ is represented **only** by $\gamma_{\text{mod}}\, z(E)$ (main effect) and
+$\gamma_{\text{int}}\, z(L)\, z(E)$ (interaction). The standardised main effect
+spans the same column space as the raw-logit confounder term, so the
+DAG-required $E$-adjustment is fully preserved.
+
+:::
+
+::: {.callout-note title="Why eowpvt and not celf"}
+
+The SHAP screen ranked `celf` (basic concepts, symbol $F$) as the strongest
+candidate moderator, but LRP58's DAG treats $F$ as a **descendant of $L$**, so
+conditioning on it would risk collider bias and attenuate $f^L$. `eowpvt` ($E$)
+is the theory-canonical dual-route moderator **and** is already a clean DAG
+adjuster, so it is the first interaction model built. The `celf` model (LRP70)
+is reserved pending a DAG review.
+
+:::
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=40%}
+![tau](prior_tau.svg){width=40%}
+![gamma_own](prior_gamma_own.svg){width=40%}
+![gamma_cross](prior_gamma_cross.svg){width=40%}
+![kappa](prior_kappa.svg){width=40%}
+
+`gamma_mod` and `gamma_int` share the `gamma_cross` prior ($\mathrm{Normal}(0,
+0.3)$).
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Interaction summary
+
+Posterior of the moderation ($\gamma_{\text{int}}$) and the moderator main
+effect ($\gamma_{\text{mod}}$): mean, equal-tailed 95% interval, and $P(>0)$.
+
+```{python}
+# | echo: false
+interaction = pd.read_csv(_here / "interaction_summary.csv")
+interaction.T
+```
+
+## Mechanism curve
+
+The L → W effect at the mean of $E$ (see the note above).
+
+![Mechanism curve](mechanism_curve.png){.lightbox}
+
+```{python}
+# | echo: false
+mech = pd.read_csv(_here / "mechanism_curve.csv")
+mech.head(15)
+```
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+Compare against the LRP58 baseline (no moderation) via
+`scripts/compare_statistical_models.py`, which writes
+`mechanism_loo_compare.csv` under the comparison output directory.
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

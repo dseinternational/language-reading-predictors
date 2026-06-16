@@ -34,6 +34,7 @@ from language_reading_predictors.statistical_models import (
     lrp57,
     lrp58,
     lrp60,
+    lrp71,
 )
 
 
@@ -46,12 +47,16 @@ MODELS = {
     "lrp57": lrp57,
     "lrp58": lrp58,
     "lrp60": lrp60,
+    # LRP70 (celf moderator) is reserved but deferred pending a DAG review of
+    # conditioning on a descendant of L. LRP71 (eowpvt) is the first built
+    # interaction model.
+    "lrp71": lrp71,
 }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("model", help="Model id (lrp52..lrp60) or 'all'")
+    parser.add_argument("model", help="Model id (lrp52..lrp60, lrp71) or 'all'")
     parser.add_argument(
         "--config",
         default="dev",
