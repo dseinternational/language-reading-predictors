@@ -45,6 +45,10 @@ ITT_IDS: list[tuple[str, str]] = [("lrp52", "W"), ("lrp53", "R"), ("lrp54", "E")
 MECH_IDS: list[tuple[str, str]] = [("lrp56", "R"), ("lrp57", "E"), ("lrp58", "L")]
 JOINT_ID = "lrp55"
 
+# Mechanism models compared by PSIS-LOO: the LRP58 baseline (L -> W) against the
+# interaction extensions. LRP70 (celf) is included only if it has been fitted.
+LOO_COMPARE_IDS: list[str] = ["lrp58", "lrp70", "lrp71"]
+
 
 def _run_dir(model_id: str, config: str) -> str:
     return os.path.join(STAT_OUTPUT_DIR, "models", f"{model_id}-{config}")
@@ -267,6 +271,67 @@ def mechanism_forest(config: str, out_path: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Mechanism LOO comparison (LRP58 baseline vs interaction models)
+# ---------------------------------------------------------------------------
+
+
+def mechanism_loo_compare(config: str, out_path: str) -> bool:
+    """Write ``az.compare`` over the available mechanism models (LOO).
+
+    Loads every fitted model in :data:`LOO_COMPARE_IDS` that has a trace with a
+    ``log_likelihood`` group. ``az.compare`` is only a like-for-like
+    elpd-difference when the models share the same observations, so this asserts
+    equal ``obs_id`` sizes; if they differ (e.g. LRP70 drops extra rows for a
+    moderator with more missingness), it falls back to a per-model ``elpd_loo``
+    table rather than a misleading delta. Returns False if fewer than two models
+    are available.
+    """
+    traces: dict[str, az.InferenceData] = {}
+    for mid in LOO_COMPARE_IDS:
+        nc = os.path.join(_run_dir(mid, config), "trace.nc")
+        if not os.path.exists(nc):
+            continue
+        t = az.from_netcdf(nc)
+        # arviz 1.x returns a DataTree whose ``.groups`` is a tuple of paths
+        # like "/log_likelihood" (0.x exposed a ``.groups()`` method of bare
+        # names) — normalise to leaf names for the membership test.
+        group_names = {g.rstrip("/").split("/")[-1] for g in t.groups}
+        if "log_likelihood" not in group_names:
+            print(f"[warn] {mid}: trace has no log_likelihood group; skipping.")
+            continue
+        traces[mid] = t
+
+    if len(traces) < 2:
+        return False
+
+    sizes = {mid: t.posterior.sizes["obs_id"] for mid, t in traces.items()}
+    if len(set(sizes.values())) == 1:
+        cmp = az.compare(traces)  # ic="loo" by default
+        cmp.to_csv(out_path)
+        return True
+
+    # Row sets differ — a shared-observation elpd_diff is not valid.
+    print(
+        f"[warn] mechanism models do not share observations ({sizes}); "
+        "writing per-model elpd_loo instead of az.compare deltas."
+    )
+    rows = []
+    for mid, t in traces.items():
+        loo = az.loo(t)
+        rows.append(
+            {
+                "model": mid,
+                "n_obs": sizes[mid],
+                "elpd_loo": float(loo.elpd),
+                "se": float(loo.se),
+                "p_loo": float(loo.p),
+            }
+        )
+    pd.DataFrame(rows).to_csv(out_path, index=False)
+    return True
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -298,6 +363,12 @@ def main() -> None:
         print(f"Wrote {mech_forest_path}")
     else:
         print("Skipping mechanism forest: one or more mechanism runs missing.")
+
+    loo_compare_path = os.path.join(args.out, "mechanism_loo_compare.csv")
+    if mechanism_loo_compare(args.config, loo_compare_path):
+        print(f"Wrote {loo_compare_path}")
+    else:
+        print("Skipping mechanism LOO compare: fewer than two mechanism runs available.")
 
 
 if __name__ == "__main__":

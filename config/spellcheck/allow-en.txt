@@ -134,6 +134,11 @@ vpreds
 Wilcoxon
 yarclet
 yarcsi
+handoff
+kwargs
+looic
+nonparametric
+savefig
 colorlinks
 documentclass
 fontsize
