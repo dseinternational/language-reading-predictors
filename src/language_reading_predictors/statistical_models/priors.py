@@ -49,6 +49,19 @@ def kappa_prior() -> Continuous:
     return pz.HalfNormal(sigma=50.0)
 
 
+def beta_mech_prior() -> Continuous:
+    """Linear-mechanism slope beta_mech ~ Normal(0, 1).
+
+    Used by ``build_mechanism_model(linear_mechanism=True)`` in place of the
+    HSGP ``f_mech`` on low / floored count outcomes (e.g. nonword decoding,
+    LRP72). The input is the standardised ``z(logit L_post)``, so the slope is
+    the change in the outcome logit per 1 SD of the mechanism on the logit
+    scale; the weakly-informative unit scale lets the data speak for the
+    primary effect while still regularising.
+    """
+    return pz.Normal(mu=0.0, sigma=1.0)
+
+
 def eta_main_prior() -> Continuous:
     """GP amplitude (main effect) eta ~ HalfNormal(0.3).
 

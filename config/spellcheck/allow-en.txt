@@ -138,6 +138,7 @@ handoff
 kwargs
 looic
 nonparametric
+nonzero
 savefig
 colorlinks
 documentclass

@@ -409,6 +409,7 @@ def build_mechanism_model(
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
     moderator_symbol: str | None = None,
+    linear_mechanism: bool = False,
 ) -> BuiltModel:
     """
     Mechanism model on the outcome post-score.
@@ -446,6 +447,15 @@ def build_mechanism_model(
     passing the moderator as a plain confounder (else its main effect would be
     represented twice and be collinear) — the pipeline strips it from
     ``confounder_symbols`` before calling.
+
+    ``linear_mechanism`` (default False): when True the mechanism enters the
+    linear predictor as ``beta_mech * z(logit L_post)`` (a single slope with the
+    ``beta_mech_prior``) instead of the HSGP ``f_mech``. Intended for low /
+    floored count outcomes (e.g. nonword decoding, LRP72) where a nonparametric
+    dose-response is not identifiable. No ``f_mech`` variable is created, so the
+    pipeline's mechanism-curve step is skipped. Orthogonal to
+    ``moderator_symbol``: with both set, the model is
+    ``beta_mech*z(L) + gamma_mod*z(M) + gamma_int*z(L)*z(M)``.
     """
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
@@ -490,8 +500,9 @@ def build_mechanism_model(
     # above guarantees the moderator post-score has no NaNs at this point.
     z_L: np.ndarray | None = None
     z_M: np.ndarray | None = None
-    if moderator_symbol is not None:
+    if moderator_symbol is not None or linear_mechanism:
         z_L, _ = standardise(mech_post_logit)
+    if moderator_symbol is not None:
         moderator_post_logit = logit_safe(
             prepared.post_counts[moderator_symbol],
             prepared.n_trials[moderator_symbol],
@@ -516,8 +527,9 @@ def build_mechanism_model(
             "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
         )
         z_L_d = z_M_d = None
-        if moderator_symbol is not None:
+        if z_L is not None:
             z_L_d = pm.Data("z_mech_logit", z_L, dims="obs_id")
+        if moderator_symbol is not None:
             z_M_d = pm.Data("z_moderator", z_M, dims="obs_id")
         confounder_data: dict[str, pt.TensorVariable] = {}
         for s in confounder_symbols:
@@ -580,7 +592,14 @@ def build_mechanism_model(
         # numeric range of the input, so it is constructed against the
         # numpy array; the registered ``mech_post_logit`` Data node is
         # kept for documentation / introspection.
-        if phase_specific_mechanism:
+        if linear_mechanism:
+            # Linear mechanism: beta_mech * z(logit L) instead of the HSGP.
+            # Used for low / floored count outcomes (e.g. nonword decoding) where
+            # a full GP dose-response is not identifiable. No f_mech variable is
+            # created, so the mechanism-curve step is skipped downstream.
+            beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech")
+            eta = eta + beta_mech * z_L_d
+        elif phase_specific_mechanism:
             phase_specific = []
             for p in range(prepared.n_phases):
                 phase_specific.append(
@@ -589,9 +608,10 @@ def build_mechanism_model(
             f_mech = pt.stack(phase_specific, axis=1)[
                 np.arange(prepared.n_obs), phase_d
             ]
+            eta = eta + f_mech
         else:
             f_mech = build_hsgp_1d("f_mech", mech_post_logit)
-        eta = eta + f_mech
+            eta = eta + f_mech
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _priors.kappa_prior().to_pymc("kappa")
