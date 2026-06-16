@@ -344,7 +344,13 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     ctx = make_context(spec, config)
 
     section_header("Prepare data")
-    prepared = load_and_prepare(phase_mode="all")
+    # A model may restrict the prepared outcomes (e.g. LRP72 uses only L/B/N) so
+    # ``drop_missing_pre`` does not discard rows for measures the model ignores.
+    extra_outcomes = spec.extra.get("outcomes")
+    if extra_outcomes is not None:
+        prepared = load_and_prepare(phase_mode="all", outcomes=tuple(extra_outcomes))
+    else:
+        prepared = load_and_prepare(phase_mode="all")
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -353,7 +359,9 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _priors.save_shared_prior_panel(ctx.output_dir)
 
     moderator_symbol = spec.extra.get("moderator_symbol")
-    confounders = [s for s in spec.adjustment if s not in ("W_pre",)]
+    # Drop the autoregressive baseline (any ``*_pre`` token, e.g. W_pre / N_pre)
+    # from the confounder list — it enters via ``adjust_baseline_symbol``.
+    confounders = [s for s in spec.adjustment if not s.endswith("_pre")]
     if moderator_symbol is not None:
         # The moderator is carried by its standardised main effect + interaction
         # in the factory, so drop it from the plain confounder loop to avoid a
@@ -373,6 +381,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             "use_subject_random_intercept", True
         ),
         moderator_symbol=moderator_symbol,
+        linear_mechanism=spec.extra.get("linear_mechanism", False),
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -395,6 +404,8 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _mech_vars = ["alpha", "beta_G", "gamma_own", "kappa"]
     if spec.extra.get("use_subject_random_intercept", True):
         _mech_vars.append("sigma_child")
+    if spec.extra.get("linear_mechanism", False):
+        _mech_vars.append("beta_mech")
     if moderator_symbol is not None:
         _mech_vars.extend(["gamma_mod", "gamma_int"])
     _diag.summary_diagnostics(ctx, var_names=_mech_vars)

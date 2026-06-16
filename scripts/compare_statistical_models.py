@@ -49,6 +49,11 @@ JOINT_ID = "lrp55"
 # interaction extensions. LRP70 (celf) is included only if it has been fitted.
 LOO_COMPARE_IDS: list[str] = ["lrp58", "lrp70", "lrp71"]
 
+# Phonics route (LRP72): the interaction model vs its no-interaction baseline,
+# same decoding outcome — a clean nested PSIS-LOO test of the L x B interaction.
+# NOT comparable to the LOO_COMPARE_IDS set (different outcome: decoding vs W).
+PHONICS_LOO_IDS: list[str] = ["lrp72", "lrp72base"]
+
 
 def _run_dir(model_id: str, config: str) -> str:
     return os.path.join(STAT_OUTPUT_DIR, "models", f"{model_id}-{config}")
@@ -275,19 +280,17 @@ def mechanism_forest(config: str, out_path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def mechanism_loo_compare(config: str, out_path: str) -> bool:
-    """Write ``az.compare`` over the available mechanism models (LOO).
+def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
+    """Write ``az.compare`` over the fitted models in ``ids`` (LOO).
 
-    Loads every fitted model in :data:`LOO_COMPARE_IDS` that has a trace with a
-    ``log_likelihood`` group. ``az.compare`` is only a like-for-like
-    elpd-difference when the models share the same observations, so this asserts
-    equal ``obs_id`` sizes; if they differ (e.g. LRP70 drops extra rows for a
-    moderator with more missingness), it falls back to a per-model ``elpd_loo``
-    table rather than a misleading delta. Returns False if fewer than two models
-    are available.
+    Loads every model in ``ids`` that has a trace with a ``log_likelihood``
+    group. ``az.compare`` is only a like-for-like elpd-difference when the models
+    share the same observations, so this asserts equal ``obs_id`` sizes; if they
+    differ it falls back to a per-model ``elpd_loo`` table rather than a
+    misleading delta. Returns False if fewer than two models are available.
     """
     traces: dict[str, az.InferenceData] = {}
-    for mid in LOO_COMPARE_IDS:
+    for mid in ids:
         nc = os.path.join(_run_dir(mid, config), "trace.nc")
         if not os.path.exists(nc):
             continue
@@ -312,7 +315,7 @@ def mechanism_loo_compare(config: str, out_path: str) -> bool:
 
     # Row sets differ — a shared-observation elpd_diff is not valid.
     print(
-        f"[warn] mechanism models do not share observations ({sizes}); "
+        f"[warn] models do not share observations ({sizes}); "
         "writing per-model elpd_loo instead of az.compare deltas."
     )
     rows = []
@@ -329,6 +332,16 @@ def mechanism_loo_compare(config: str, out_path: str) -> bool:
         )
     pd.DataFrame(rows).to_csv(out_path, index=False)
     return True
+
+
+def mechanism_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of the LRP58 baseline against its interaction extensions."""
+    return _loo_compare(LOO_COMPARE_IDS, config, out_path)
+
+
+def phonics_route_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP72 against its no-interaction baseline (isolates L x B)."""
+    return _loo_compare(PHONICS_LOO_IDS, config, out_path)
 
 
 # ---------------------------------------------------------------------------
@@ -369,6 +382,12 @@ def main() -> None:
         print(f"Wrote {loo_compare_path}")
     else:
         print("Skipping mechanism LOO compare: fewer than two mechanism runs available.")
+
+    phonics_path = os.path.join(args.out, "phonics_route_loo_compare.csv")
+    if phonics_route_loo_compare(args.config, phonics_path):
+        print(f"Wrote {phonics_path}")
+    else:
+        print("Skipping phonics-route LOO compare: LRP72 / LRP72base runs missing.")
 
 
 if __name__ == "__main__":

@@ -35,6 +35,8 @@ from language_reading_predictors.statistical_models import (
     lrp58,
     lrp60,
     lrp71,
+    lrp72,
+    lrp72base,
 )
 
 
@@ -51,12 +53,16 @@ MODELS = {
     # conditioning on a descendant of L. LRP71 (eowpvt) is the first built
     # interaction model.
     "lrp71": lrp71,
+    # LRP72: phonics route (letter-sound × blending -> decoding). lrp72base is
+    # its no-interaction companion for the PSIS-LOO comparison.
+    "lrp72": lrp72,
+    "lrp72base": lrp72base,
 }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("model", help="Model id (lrp52..lrp60, lrp71) or 'all'")
+    parser.add_argument("model", help="Model id (lrp52..lrp60, lrp71, lrp72) or 'all'")
     parser.add_argument(
         "--config",
         default="dev",
