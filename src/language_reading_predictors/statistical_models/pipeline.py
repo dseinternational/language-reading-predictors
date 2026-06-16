@@ -26,7 +26,6 @@ from __future__ import annotations
 import os
 import shutil
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -91,17 +90,18 @@ def _print_footer(ctx: StatisticalFitContext) -> None:
 
 
 def _print_loo_row(ctx: StatisticalFitContext) -> None:
-    """Render the LOO ELPD / p_loo / looic summary as a small table."""
+    """Render the LOO ELPD / p / se summary as a small table.
+
+    arviz 1.x ``ELPDData`` exposes ``elpd`` / ``se`` / ``p`` (the 0.x
+    ``elpd_loo`` / ``p_loo`` / ``looic`` attributes were removed).
+    """
     if ctx.loo is None:
         return
     rows = [
-        {"metric": "elpd_loo", "value": float(ctx.loo.elpd_loo)},
+        {"metric": "elpd_loo", "value": float(ctx.loo.elpd)},
         {"metric": "se", "value": float(ctx.loo.se)},
-        {"metric": "p_loo", "value": float(ctx.loo.p_loo)},
+        {"metric": "p_loo", "value": float(ctx.loo.p)},
     ]
-    looic = getattr(ctx.loo, "looic", None)
-    if looic is not None:
-        rows.append({"metric": "looic", "value": float(looic)})
     print_table(
         metrics_table(
             rows,
@@ -144,19 +144,18 @@ def _graphviz(model):
 
 
 def _save_ppc(context: StatisticalFitContext) -> None:
+    # arviz 1.x removed az.plot_ppc; the equivalent is arviz_plots.plot_ppc_dist
+    # (returns a PlotCollection with .savefig). Guarded — a PPC plot failure must
+    # not abort the fit.
     try:
-        total_pp = int(
-            context.trace.posterior_predictive.sizes.get("chain", 1)
-            * context.trace.posterior_predictive.sizes.get("draw", 1)
-        )
-        num = max(1, min(100, total_pp))
-        az.plot_ppc(context.trace, num_pp_samples=num)
-        plt.savefig(
+        import arviz_plots as azp
+
+        pc = azp.plot_ppc_dist(context.trace)
+        pc.savefig(
             os.path.join(context.output_dir, "posterior_predictive_check.png"),
             dpi=300,
-            bbox_inches="tight",
         )
-        plt.close()
+        plt.close("all")
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]PPC plot failed: {exc}[/yellow]")
 
@@ -241,7 +240,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _report.write_run_metadata(
         ctx,
         extra={
-            "loo_elpd": float(ctx.loo.elpd_loo),
+            "loo_elpd": float(ctx.loo.elpd),
             "tau_summary": tau_s,
             "adjust_for": list(adjust_for),
         },
@@ -325,7 +324,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     contrast.to_csv(os.path.join(ctx.output_dir, "tau_contrast_matrix.csv"))
     ctx.tables["tau_contrast_matrix"] = contrast
 
-    _report.write_run_metadata(ctx, extra={"loo_elpd": float(ctx.loo.elpd_loo)})
+    _report.write_run_metadata(ctx, extra={"loo_elpd": float(ctx.loo.elpd)})
 
     section_header("Report")
     _copy_report_template(ctx)
@@ -401,7 +400,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.save_trace(ctx)
     _report.write_run_metadata(
         ctx,
-        extra={"loo_elpd": float(ctx.loo.elpd_loo), "adjustment": spec.adjustment},
+        extra={"loo_elpd": float(ctx.loo.elpd), "adjustment": spec.adjustment},
     )
 
     section_header("Report")

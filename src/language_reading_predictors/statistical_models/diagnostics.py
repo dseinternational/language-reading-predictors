@@ -119,34 +119,44 @@ def summary_diagnostics(
             )
         )
 
-    # Trace
-    az.plot_trace(context.trace, combined=True, var_names=var_names or None)
-    plt.savefig(os.path.join(out, "trace_plot.png"), dpi=300, bbox_inches="tight")
-    plt.close()
+    # Diagnostic plots. arviz 1.x routes plotting through arviz_plots, whose
+    # functions return a PlotCollection saved via ``.savefig`` (not the old
+    # matplotlib ``plt.savefig``) and drop several 0.x kwargs (``combined``,
+    # ``kind``, ``divergences``). Each plot is guarded so a backend/API hiccup
+    # degrades to a warning rather than failing the fit — the numeric summary
+    # above is the substantive output.
+    import arviz_plots as azp
+    from rich import print as rprint
 
-    # Energy
-    az.plot_energy(context.trace)
-    plt.savefig(os.path.join(out, "energy_plot.png"), dpi=300, bbox_inches="tight")
-    plt.close()
+    def _save_pc(make, name: str) -> None:
+        try:
+            pc = make()
+            pc.savefig(os.path.join(out, name), dpi=300)
+            plt.close("all")
+        except Exception as exc:  # pragma: no cover
+            rprint(f"[yellow]{name} skipped: {exc}[/yellow]")
 
-    # Posterior
+    _save_pc(
+        lambda: azp.plot_trace(context.trace, var_names=var_names or None),
+        "trace_plot.png",
+    )
+    _save_pc(lambda: azp.plot_energy(context.trace), "energy_plot.png")
+
     if var_names:
-        az.plot_posterior(
-            context.trace.posterior,
-            var_names=var_names,
-            hdi_prob=context.reporting.hdi,
+        _save_pc(
+            lambda: azp.plot_dist(
+                context.trace,
+                var_names=var_names,
+                group="posterior",
+                ci_prob=context.reporting.hdi,
+            ),
+            "posterior_plot.png",
         )
-        plt.savefig(
-            os.path.join(out, "posterior_plot.png"), dpi=300, bbox_inches="tight"
-        )
-        plt.close()
-
         if len(var_names) <= max_vars_for_pairs:
-            az.plot_pair(context.trace, var_names=var_names, kind="kde", divergences=True)
-            plt.savefig(
-                os.path.join(out, "pair_plot.png"), dpi=300, bbox_inches="tight"
+            _save_pc(
+                lambda: azp.plot_pair(context.trace, var_names=var_names),
+                "pair_plot.png",
             )
-            plt.close()
 
 
 def sample_posterior_predictive(
