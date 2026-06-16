@@ -54,6 +54,10 @@ LOO_COMPARE_IDS: list[str] = ["lrp58", "lrp70", "lrp71"]
 # NOT comparable to the LOO_COMPARE_IDS set (different outcome: decoding vs W).
 PHONICS_LOO_IDS: list[str] = ["lrp72", "lrp72base"]
 
+# Age moderation (LRP73): interaction vs no-interaction baseline, same word-reading
+# outcome — a clean nested PSIS-LOO test of the L x age interaction.
+AGE_LOO_IDS: list[str] = ["lrp73", "lrp73base"]
+
 
 def _run_dir(model_id: str, config: str) -> str:
     return os.path.join(STAT_OUTPUT_DIR, "models", f"{model_id}-{config}")
@@ -344,6 +348,11 @@ def phonics_route_loo_compare(config: str, out_path: str) -> bool:
     return _loo_compare(PHONICS_LOO_IDS, config, out_path)
 
 
+def age_moderation_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP73 against its no-interaction baseline (isolates L x age)."""
+    return _loo_compare(AGE_LOO_IDS, config, out_path)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -388,6 +397,12 @@ def main() -> None:
         print(f"Wrote {phonics_path}")
     else:
         print("Skipping phonics-route LOO compare: LRP72 / LRP72base runs missing.")
+
+    age_path = os.path.join(args.out, "age_moderation_loo_compare.csv")
+    if age_moderation_loo_compare(args.config, age_path):
+        print(f"Wrote {age_path}")
+    else:
+        print("Skipping age-moderation LOO compare: LRP73 / LRP73base runs missing.")
 
 
 if __name__ == "__main__":

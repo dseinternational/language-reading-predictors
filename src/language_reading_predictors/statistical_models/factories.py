@@ -409,6 +409,8 @@ def build_mechanism_model(
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
     moderator_symbol: str | None = None,
+    moderator_is_covariate: bool = False,
+    include_interaction: bool = True,
     linear_mechanism: bool = False,
 ) -> BuiltModel:
     """
@@ -456,6 +458,18 @@ def build_mechanism_model(
     pipeline's mechanism-curve step is skipped. Orthogonal to
     ``moderator_symbol``: with both set, the model is
     ``beta_mech*z(L) + gamma_mod*z(M) + gamma_int*z(L)*z(M)``.
+
+    ``moderator_is_covariate`` (default False): treat the moderator as a
+    continuous covariate (currently age) rather than a bounded-count measure.
+    ``z(M)`` is then the standardised ``prepared.A_std`` instead of
+    ``z(logit(M_post/N))``; the measure guard and the moderator NaN keep-mask are
+    skipped. Used by LRP73 (age moderation). Default-off so count moderators
+    (LRP71 E, LRP72 B) are unaffected.
+
+    ``include_interaction`` (default True): when False, only the moderator main
+    effect ``gamma_mod * z(M)`` is added (no ``gamma_int``). Used to build a
+    clean no-interaction baseline (e.g. LRP73base) that differs from the full
+    model by exactly the interaction term, for a nested PSIS-LOO comparison.
     """
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
@@ -463,7 +477,11 @@ def build_mechanism_model(
         raise KeyError(f"Mechanism {mechanism_symbol!r} missing from prepared data")
     if outcome_symbol not in prepared.pre_logit:
         raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
-    if moderator_symbol is not None and moderator_symbol not in prepared.pre_logit:
+    if (
+        moderator_symbol is not None
+        and not moderator_is_covariate
+        and moderator_symbol not in prepared.pre_logit
+    ):
         raise KeyError(f"Moderator {moderator_symbol!r} missing from prepared data")
 
     # Outcome post (target) and mechanism post (predictor) are both needed.
@@ -471,7 +489,7 @@ def build_mechanism_model(
     mechanism_post = prepared.post_counts[mechanism_symbol]
 
     keep = ~(np.isnan(outcome_post) | np.isnan(mechanism_post))
-    if moderator_symbol is not None:
+    if moderator_symbol is not None and not moderator_is_covariate:
         keep = keep & ~np.isnan(prepared.post_counts[moderator_symbol])
     for s in confounder_symbols:
         if s not in prepared.pre_logit and s not in {"G", "A"}:
@@ -503,11 +521,18 @@ def build_mechanism_model(
     if moderator_symbol is not None or linear_mechanism:
         z_L, _ = standardise(mech_post_logit)
     if moderator_symbol is not None:
-        moderator_post_logit = logit_safe(
-            prepared.post_counts[moderator_symbol],
-            prepared.n_trials[moderator_symbol],
-        )
-        z_M, _ = standardise(moderator_post_logit)
+        if moderator_is_covariate:
+            # Continuous covariate moderator (currently age): use the
+            # already-standardised A_std, re-standardised on the kept rows so
+            # gamma_mod reads as the moderator effect at mean L and gamma_int is
+            # unit-free — consistent with the count-moderator path.
+            z_M, _ = standardise(prepared.A_std)
+        else:
+            moderator_post_logit = logit_safe(
+                prepared.post_counts[moderator_symbol],
+                prepared.n_trials[moderator_symbol],
+            )
+            z_M, _ = standardise(moderator_post_logit)
 
     coords = {
         "obs_id": np.arange(prepared.n_obs),
@@ -581,8 +606,10 @@ def build_mechanism_model(
         # cross-coupling prior.
         if moderator_symbol is not None:
             gamma_mod = _priors.gamma_cross_prior().to_pymc("gamma_mod")
-            gamma_int = _priors.gamma_cross_prior().to_pymc("gamma_int")
-            eta = eta + gamma_mod * z_M_d + gamma_int * (z_L_d * z_M_d)
+            eta = eta + gamma_mod * z_M_d
+            if include_interaction:
+                gamma_int = _priors.gamma_cross_prior().to_pymc("gamma_int")
+                eta = eta + gamma_int * (z_L_d * z_M_d)
 
         if use_age_gp:
             f_A = build_hsgp_1d("f_A", prepared.A_std)

@@ -1,0 +1,191 @@
+---
+title: "LRP73: Is the letter-sound (L) -> word-reading (W) effect age-dependent?"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+```
+
+## Overview
+
+LRP73 is the third interaction model. It asks whether the letter-sound → word
+reading effect (LRP58) **depends on age** — a developmental-readiness question:
+does phonics convert to reading differently as children get older? Age was the
+strongest *gain-side* signal in the SHAP screen; this tests it on the better-
+powered reading level/mechanism.
+
+The linear predictor adds an age main effect and an age interaction to the LRP58
+mechanism:
+
+$$
+\eta = \dots + f^{L}(\operatorname{logit} L) + \gamma_{\text{mod}}\,z(\text{age})
+       + \gamma_{\text{int}}\,z(\operatorname{logit} L)\,z(\text{age})
+$$
+
+$\gamma_{\text{int}} > 0$ would mean phonics converts to reading *more* strongly at
+older ages. $W$ is not floored, so the nonparametric $f^{L}$ HSGP is retained
+(unlike LRP72's linear mechanism).
+
+::: {.callout-important title="Sharp prior expectation: age is the most confound-prone moderator"}
+
+The two earlier interaction models found apparent interactions that were really
+**between-child ability confounds**, collapsing once subject random effects +
+adjustment were in (LRP71 phonics×vocab → null; LRP72 blending×letter-sound →
+largely independent). **Age is even more a between-child variable** — most age
+variation is across children, not within a child's four waves. So the honest
+expectation is that any age moderation may also be a between-child artefact. The
+within-child check below is the decisive diagnostic; this report is written to
+test that honestly, not to find a positive.
+
+:::
+
+## Adjustment set
+
+LRP58's $\{G, A, E, R, W_{\text{pre}}\}$.
+
+::: {.callout-note title="LRP73 conditions on age linearly — LRP58 (by default) did not"}
+
+In the mechanism factory, age is only entered when `use_age_gp=True` (off by
+default), so LRP58 as-fit did **not** condition on age despite listing it. Here the
+moderator main effect $\gamma_{\text{mod}}\,z(\text{age})$ **realises the age
+adjustment linearly** — a strict improvement on LRP58's default for this question.
+The moderator is therefore both the age adjustment and the thing whose interaction
+with $L$ we test. $E$ and $R$ enter as confounders; $W_{\text{pre}}$ is the
+autoregressive baseline; $W$ (the outcome) is of course not conditioned on.
+
+:::
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=40%}
+![gamma_cross](prior_gamma_cross.svg){width=40%}
+![kappa](prior_kappa.svg){width=40%}
+
+`gamma_mod` (age main effect) and `gamma_int` (L × age) share the `gamma_cross`
+prior $\mathrm{Normal}(0, 0.3)$.
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Coefficients
+
+```{python}
+# | echo: false
+interaction = pd.read_csv(_here / "interaction_summary.csv")
+interaction.T
+```
+
+![Posterior](posterior_plot.png){.lightbox}
+
+`gamma_int` is the age moderation. In reporting it is
+$\gamma_{\text{int}} = -0.064$ (95% CI $[-0.134, +0.007]$, $P(>0) \approx 0.04$) —
+**negative-leaning but not credible** (the interval includes zero). The age main
+effect $\gamma_{\text{mod}} = -0.086$ ($[-0.189, +0.016]$) is likewise not
+credible. Read together with the within-child check below — which is flat — there
+is **no evidence that phonics converts to reading differently by age** in this
+sample. (Sampling clean: R-hat 1.00, ESS ~22k, 20/36000 divergences.)
+
+## Mechanism curve
+
+The L → W curve $f^{L}$ at the mean age.
+
+![Mechanism curve](mechanism_curve.png){.lightbox}
+
+## Within-child confound check
+
+The decisive diagnostic (`scripts/within_child_interaction_check.py`,
+`output/interaction_screen/within_child_lxage_w.csv`). An OLS of logit(W) on
+$z(\operatorname{logit} L)$, $z(\text{age})$ and their product, fit three ways: a
+naive pooled fit (overstates the interaction via the ~3 rows/child), a
+cluster-robust pooled fit, and a **within-child fixed-effects** fit (subject
+dummies absorb all between-child variation, so the interaction coefficient is the
+*within-child* effect).
+
+For $L \times \text{age} \to W$ the interaction is **weak and not significant even
+pooled** (naive $t \approx -1.2$) and stays small within-child ($t \approx -0.8$)
+— there is no between-child signal to collapse, and none within-child either. The
+companion checks reproduce the same pattern for the other two models
+($L \times E$: null both ways; $L \times B$: a weak pooled positive that flips
+negative within-child). The apparent screen-level age moderation does not survive
+proper modelling.
+
+## PSIS-LOO vs the no-interaction baseline
+
+LRP73base (`docs/models/lrp73base`) is identical but with `include_interaction=
+False` (age main effect, no $L \times \text{age}$). The comparison isolates the
+interaction's predictive value
+(`output/statistical_models/comparison/age_moderation_loo_compare.csv`):
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+The interaction model ranks first, but the ELPD advantage over the
+no-interaction baseline is **modest and within noise** (elpd_diff ≈ 2, dse ≈ 1.5)
+— adding the L × age term does not decisively improve predictive fit, consistent
+with the non-credible `gamma_int`.
+
+## Limitations
+
+- **Age range + wait-list structure.** The sample's age span and the wait-list
+  phase design both constrain what an "age effect" can mean here; within-child age
+  variation is limited to the four assessment waves.
+- This is a developmental-readiness question on observational age variation, not a
+  manipulation of age.
+
+## Interaction-phase context
+
+LRP73 is the third of three interaction models. Taken together — phonics×vocab
+(LRP71, null), blending×letter-sound (LRP72, no super-additivity), and
+letter-sound×age (LRP73) — the pattern is that reading's contributing skills
+combine **largely additively** in this sample, and the raw screen-level
+interactions are between-child ability/age confounds rather than within-child
+synergies. See the dated note for the synthesis.
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
