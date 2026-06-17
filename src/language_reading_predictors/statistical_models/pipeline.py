@@ -458,6 +458,13 @@ _MED_COEF_VARS = [
     "b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_E", "b_R", "kappa_Y",
 ]
 
+# LRP62 (gaussian_composite): the mediator leg is Normal (a_comp / sigma_M) and
+# the observed mediator node is "M_post" rather than the Beta-Binomial "L_post".
+_MED_COEF_VARS_GAUSSIAN = [
+    "a0", "a_G", "a_comp", "a_A", "a_E", "a_R", "sigma_M",
+    "b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_E", "b_R", "kappa_Y",
+]
+
 
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
@@ -479,29 +486,39 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     confounders = tuple(
         s for s in spec.adjustment if s not in ("G", "A", "L_t1", "W_pre")
     )
+    mediator_kind = spec.extra.get("mediator_kind", "beta_binomial")
+    route_symbols = tuple(spec.extra.get("route_symbols", ()))
     built, med_data = _factories.build_mediation_model(
         prepared,
         mediator_symbol=spec.mechanism_symbol or "L",
         outcome_symbol=spec.outcome_symbol or "W",
         confounder_symbols=confounders,
+        mediator_kind=mediator_kind,
+        route_symbols=route_symbols,
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
     ctx.prepared = built.prepared
 
+    # The mediator observed node differs by kind: Beta-Binomial "L_post" vs the
+    # Gaussian composite "M_post"; the coefficient set differs likewise.
+    is_gaussian = mediator_kind == "gaussian_composite"
+    mediator_node = "M_post" if is_gaussian else "L_post"
+    coef_vars = _MED_COEF_VARS_GAUSSIAN if is_gaussian else _MED_COEF_VARS
+
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["L_post", "y_post"])
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=[mediator_node, "y_post"])
 
     section_header("Sampling posterior (nutpie)")
     _diag.sample_posterior(ctx)
 
     section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_MED_COEF_VARS)
+    _diag.summary_diagnostics(ctx, var_names=coef_vars)
 
     section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["L_post", "y_post"])
+    _diag.sample_posterior_predictive(ctx, var_names=[mediator_node, "y_post"])
     _save_ppc(ctx)
     _diag.save_trace(ctx)
 

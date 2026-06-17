@@ -36,6 +36,7 @@ from language_reading_predictors.statistical_models import (
     lrp59,
     lrp60,
     lrp60a,
+    lrp62,
 )
 
 
@@ -52,12 +53,16 @@ MODELS = {
     "lrp60": lrp60,
     # LRP60a: matched complete-case comparator to LRP60 (unadjusted, SES subset).
     "lrp60a": lrp60a,
+    # LRP62: reading-route decomposition (phonics-route composite mediation).
+    "lrp62": lrp62,
 }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("model", help="Model id (lrp52..lrp60, lrp60a) or 'all'")
+    parser.add_argument(
+        "model", help="Model id (lrp52..lrp60, lrp60a, lrp62) or 'all'"
+    )
     parser.add_argument(
         "--config",
         default="dev",

@@ -561,24 +561,38 @@ def build_mechanism_model(
 
 @dataclass
 class MediationData:
-    """Row-aligned phase-0 arrays + mediator standardiser for the g-formula.
+    """Row-aligned phase-0 arrays + mediator metadata for the g-formula.
 
-    Carried on the BuiltModel (``extra``) so the decomposition can re-simulate
-    counterfactuals from the posterior using the exact inputs the model saw.
+    Carried alongside the BuiltModel so :func:`mediation.decompose` can
+    re-simulate counterfactuals from the posterior using the exact inputs the
+    model saw. ``mediator_kind`` selects which mediator sub-model to simulate:
+
+    - ``"beta_binomial"`` (LRP59): a single count mediator (``L_t2`` out of
+      ``n_trials_L``) conditioned on ``logit(L_t1)``; ``med_mean`` / ``med_sd``
+      standardise its logit for the outcome model.
+    - ``"gaussian_composite"`` (LRP62): a continuous standardised phonics-route
+      composite; the baseline composite is ``M_pre_std`` and the mediator is
+      drawn from a Normal, so the count-specific fields are unused.
     """
 
+    # Shared across mediator kinds.
     G: np.ndarray
-    L1_logit: np.ndarray
     W1_logit: np.ndarray
     A_std: np.ndarray
     E1_logit: np.ndarray
     R1_logit: np.ndarray
-    L2_count: np.ndarray
-    W2_count: np.ndarray
-    n_trials_L: int
     n_trials_W: int
-    med_mean: float
-    med_sd: float
+    mediator_kind: str = "beta_binomial"
+    # Beta-Binomial single mediator (LRP59).
+    L1_logit: np.ndarray | None = None
+    L2_count: np.ndarray | None = None
+    W2_count: np.ndarray | None = None
+    n_trials_L: int = 0
+    med_mean: float = 0.0
+    med_sd: float = 1.0
+    # Gaussian composite mediator (LRP62).
+    M_pre_std: np.ndarray | None = None
+    route_symbols: tuple[str, ...] = ()
 
 
 def build_mediation_model(
@@ -587,8 +601,20 @@ def build_mediation_model(
     mediator_symbol: str = "L",
     outcome_symbol: str = "W",
     confounder_symbols: Iterable[str] = ("E", "R"),
+    mediator_kind: str = "beta_binomial",
+    route_symbols: Iterable[str] = (),
 ) -> tuple[BuiltModel, MediationData]:
     """Joint mediator + outcome model for the ITT-phase (phase 0) decomposition.
+
+    ``mediator_kind`` selects the mediator sub-model:
+
+    - ``"beta_binomial"`` (LRP59, default): a single count mediator
+      (``mediator_symbol``, e.g. letter-sound L) — documented below.
+    - ``"gaussian_composite"`` (LRP62): the mediator is an equal-weight
+      standardised-logit composite of ``route_symbols`` (the phonics route,
+      e.g. ``("L", "B")``), modelled as ``Normal(mu_M, sigma_M)``. The outcome
+      model is identical to the LRP59 case; only the mediator leg changes. See
+      :func:`_build_route_composite_model`.
 
     Two Beta-Binomial likelihoods on the logit scale share the randomised
     treatment ``G`` and a baseline-covariate adjustment set:
@@ -614,6 +640,15 @@ def build_mediation_model(
     """
     if prepared.phase_mode != "itt":
         raise ValueError("Mediation factory requires phase_mode='itt'")
+    if mediator_kind == "gaussian_composite":
+        return _build_route_composite_model(
+            prepared,
+            outcome_symbol=outcome_symbol,
+            confounder_symbols=tuple(confounder_symbols),
+            route_symbols=tuple(route_symbols),
+        )
+    if mediator_kind != "beta_binomial":
+        raise ValueError(f"Unknown mediator_kind {mediator_kind!r}")
     needed = {mediator_symbol, outcome_symbol, *confounder_symbols}
     for s in needed:
         if s not in prepared.pre_logit:
@@ -712,6 +747,147 @@ def build_mediation_model(
         n_trials_W=int(N_out),
         med_mean=float(med_scaler.mean),
         med_sd=float(med_scaler.sd),
+    )
+    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return built, med_data
+
+
+# ---------------------------------------------------------------------------
+# LRP62: reading-route composite mediation (Gaussian mediator, ITT phase)
+# ---------------------------------------------------------------------------
+
+
+def _build_route_composite(
+    prepared: PreparedData, route_symbols: tuple[str, ...]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Equal-weight standardised-logit phonics-route composite.
+
+    For each route symbol, the Haldane-logit of the count is standardised on its
+    *post* (t2) distribution and that same scaler is applied to the pre (t1)
+    value, so the baseline and post composites share one scale. Each child's
+    composite is the equal-weight mean across symbols; the post composite is then
+    standardised to mean 0 / SD 1 (the scaler reused for the baseline composite,
+    so ``a_comp`` is a like-for-like autoregressive coupling). Returns
+    ``(C_pre_std, C_post_std)``.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+        standardise,
+    )
+
+    pre_cols, post_cols = [], []
+    for s in route_symbols:
+        post_logit = logit_safe(prepared.post_counts[s], prepared.n_trials[s])
+        z_post, scaler = standardise(post_logit)
+        pre_cols.append(scaler(prepared.pre_logit[s]))  # same scaler maps baseline
+        post_cols.append(z_post)
+    c_pre_raw = np.mean(np.stack(pre_cols, axis=1), axis=1)
+    c_post_raw = np.mean(np.stack(post_cols, axis=1), axis=1)
+    c_post_std, comp_scaler = standardise(c_post_raw)
+    return comp_scaler(c_pre_raw), c_post_std
+
+
+def _build_route_composite_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str,
+    confounder_symbols: tuple[str, ...],
+    route_symbols: tuple[str, ...],
+) -> tuple[BuiltModel, MediationData]:
+    """LRP62 reading-route mediation: a continuous phonics-route composite mediator.
+
+    Same ITT-phase joint design and the *same* Beta-Binomial outcome model as
+    :func:`build_mediation_model`, but the single count mediator is replaced by
+    an equal-weight standardised composite of ``route_symbols`` modelled as
+    ``Normal(mu_M, sigma_M)``. NDE/NIE are still computed by counterfactual
+    simulation in :func:`mediation.decompose` (the ``gaussian_composite`` branch),
+    not from coefficients. Confounders are taken at baseline (cross-world
+    assumption), exactly as in LRP59.
+    """
+    if not route_symbols:
+        raise ValueError("gaussian_composite requires non-empty route_symbols")
+    needed = {outcome_symbol, *route_symbols, *confounder_symbols}
+    for s in needed:
+        if s not in prepared.pre_logit:
+            raise KeyError(f"Symbol {s!r} missing from prepared data")
+
+    # Keep rows with the outcome post and every route post observed.
+    keep = ~np.isnan(prepared.post_counts[outcome_symbol])
+    for s in route_symbols:
+        keep = keep & ~np.isnan(prepared.post_counts[s])
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+
+    N_out = prepared.n_trials[outcome_symbol]
+    W2_count = prepared.post_counts[outcome_symbol].astype(np.int64)
+    c_pre_std, c_post_std = _build_route_composite(prepared, route_symbols)
+
+    W1 = prepared.pre_logit[outcome_symbol]
+    conf_logit = {s: prepared.pre_logit[s] for s in confounder_symbols}
+
+    coords = {"obs_id": np.arange(prepared.n_obs)}
+    G_f = prepared.G.astype(float)
+
+    with pm.Model(coords=coords) as model:
+        G_d = pm.Data("G", G_f, dims="obs_id")
+        Mpre_d = pm.Data("M_pre_std", c_pre_std, dims="obs_id")
+        Mpost_d = pm.Data("M_post_std", c_post_std, dims="obs_id")
+        W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
+        A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        conf_d = {
+            s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
+            for s in confounder_symbols
+        }
+
+        # --- Mediator model: standardised route composite ~ Normal ---
+        a0 = _priors.alpha_prior().to_pymc("a0")
+        a_G = _priors.tau_prior().to_pymc("a_G")
+        a_comp = _priors.gamma_own_prior().to_pymc("a_comp")
+        a_A = _priors.gamma_cross_prior().to_pymc("a_A")
+        mu_M = a0 + a_G * G_d + a_comp * Mpre_d + a_A * A_d
+        for s in confounder_symbols:
+            a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
+            mu_M = mu_M + a_c * conf_d[s]
+        mu_M = pm.Deterministic("mu_M", mu_M, dims="obs_id")
+        sigma_M = _priors.sigma_mediator_prior().to_pymc("sigma_M")
+        pm.Normal("M_post", mu=mu_M, sigma=sigma_M, observed=Mpost_d, dims="obs_id")
+
+        # --- Outcome model: logit(W_t2) (identical to the LRP59 outcome leg) ---
+        b0 = _priors.alpha_prior().to_pymc("b0")
+        b_G = _priors.tau_prior().to_pymc("b_G")
+        b_M = _priors.b_path_prior().to_pymc("b_M")
+        b_GM = _priors.gamma_cross_prior().to_pymc("b_GM")
+        b_W = _priors.gamma_own_prior().to_pymc("b_W")
+        b_A = _priors.gamma_cross_prior().to_pymc("b_A")
+        eta_Y = (
+            b0
+            + b_G * G_d
+            + b_M * Mpost_d
+            + b_GM * (G_d * Mpost_d)
+            + b_W * W1_d
+            + b_A * A_d
+        )
+        for s in confounder_symbols:
+            b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
+            eta_Y = eta_Y + b_c * conf_d[s]
+        eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
+        kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
+        beta_binomial_from_logit(
+            "y_post", eta_Y, n_trials=N_out, kappa=kappa_Y,
+            observed=W2_count, dims="obs_id",
+        )
+
+    med_data = MediationData(
+        G=prepared.G.astype(float),
+        W1_logit=W1,
+        A_std=prepared.A_std,
+        E1_logit=conf_logit.get("E", np.zeros(prepared.n_obs)),
+        R1_logit=conf_logit.get("R", np.zeros(prepared.n_obs)),
+        n_trials_W=int(N_out),
+        mediator_kind="gaussian_composite",
+        W2_count=W2_count,
+        M_pre_std=c_pre_std,
+        route_symbols=route_symbols,
     )
     built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
     return built, med_data
