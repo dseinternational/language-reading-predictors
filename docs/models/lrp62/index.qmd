@@ -1,0 +1,198 @@
+---
+title: "LRP62: How much of the word-reading gain is *phonics-route-compatible*? (reading-route decomposition)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+med = pd.read_csv(_here / "mediation_summary.csv")
+```
+
+## Overview
+
+LRP62 is the robust replacement for LRP59's single-mediator estimate. LRP59 asked
+how much of the intervention's word-reading effect flows specifically through
+**letter-sound** knowledge; that estimate was directionally informative but fragile
+(one measure as "the pathway", a very wide interval). Following the project review
+(`notes/2026-05-12-project-review.md`, sec. 124/167), LRP62 instead asks how much of
+the effect flows through the **phonics route as a whole** — decoding-compatible
+skills used *together* — versus a residual **lexical / whole-word-compatible** path.
+
+We decompose the intervention's total effect on word reading $W$ into the **natural
+indirect effect (NIE)** transmitted through the phonics route, and the **natural
+direct effect (NDE)** — everything else — and report the **phonics-route share**
+$= \text{NIE} / \text{Total}$.
+
+## The phonics-route composite {#sec-composite}
+
+The mediator is an **equal-weight, standardised-logit composite** of the phonics
+measures that have usable spread in the randomised window:
+
+- **Letter-sound knowledge** $L$ (YARC-LSK) and **phoneme blending** $B$.
+- **Phonetic spelling** $P$ is **excluded.** The measurement-sensitivity audit
+  (`scripts/measurement_audit.py`,
+  `notes/202606171000-measurement-sensitivity-audit.md`) found $P$ floored — 78% of
+  children scored zero at t1 and 64% at t2, with only ~36% moving — so it carries
+  little usable signal and would only add noise to the composite. Nonword reading is
+  likewise floored and is post-only, so it cannot serve as a baseline-conditioned
+  mediator.
+
+Each measure's Haldane-logit is standardised on its post distribution (the same
+scaler maps the baseline value), the two are averaged per child, and the composite
+is standardised to mean 0 / SD 1. Because the composite is continuous, the mediator
+leg is a **Normal** model; the outcome leg and the counterfactual NDE/NIE
+decomposition are identical to LRP59.
+
+## Phase 0 only — the key design decision
+
+The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**: group
+1 receives the intervention while group 2 is the wait-list control. After t2 both
+arms are treated, so `group` is no longer a treatment indicator. LRP62 therefore
+uses **the phase-0 transition only** (`phase_mode="itt"`), $n \approx 53$.
+
+Repo sign convention: $G = \text{group} - 1$, so $G=0$ is the intervention arm and
+$G=1$ the wait-list control. All effects below are reported in the
+**intervention-helps** direction (intervention − control), so **positive = the
+intervention raises reading**.
+
+## Causal structure (DAG)
+
+- **Treatment** $G$ (randomised in phase 0).
+- **Mediator** $M$ = the phonics-route composite at t2 (letter-sound + blending),
+  with the baseline composite at t1.
+- **Outcome** $Y = W_{t2}$ (word reading at t2), with baseline $W_{t1}$.
+- Paths: $G \to M \to W_{t2}$ (indirect, phonics route) and $G \to W_{t2}$ (direct,
+  residual / lexical-compatible).
+- Mediator–outcome confounders $C$: age $A$, expressive vocab $E_{t1}$, receptive
+  vocab $R_{t1}$.
+
+A joint model fits both legs simultaneously, including a $G \times M$ interaction so
+the decomposition admits exposure–mediator interaction. **NDE/NIE are computed by
+counterfactual simulation from the posterior (the g-formula), not as a product of
+coefficients.**
+
+## Assumptions — read this first {#sec-assumptions}
+
+The decomposition is causal **only under the following assumptions**; the
+phonics-route share is *not* assumption-free.
+
+- Randomisation in phase 0 delivers **no unmeasured confounding of $G \to Y$ and of
+  $G \to M$** for free.
+- **No unmeasured mediator–outcome (route $\to W$) confounding** — the binding,
+  unverifiable assumption and the main limitation. We adjust for the measured
+  confounders the mechanism programme identified: $A$ (age), $E$ (expressive vocab),
+  $R$ (receptive vocab), plus the baseline composite and $W_{t1}$. Residual
+  confounding by anything unmeasured would bias the NDE/NIE split.
+- Confounders are taken at **baseline (t1), not post (t2)** — the **cross-world**
+  assumption.
+- Consistency and positivity are assumed.
+- **Contemporaneous measurement.** The route composite and word reading are both
+  measured at t2; there is no temporal precedence of mediator over outcome within
+  the window. The decomposition conditions on baselines, but this remains a
+  structural limitation shared with LRP59.
+
+::: {.callout-important title="Triangulation, not a precise causal split"}
+Read the output below as triangulation. With $n \approx 53$, contemporaneous
+mediator/outcome measurement, and the no-unmeasured-confounding assumption, expect
+**wide intervals**. "Most of the word-reading gain is phonics-route-compatible, with
+a residual lexical share that cannot be ruled out" is the honest result — not a
+point percentage. LRP62 supersedes the single-mediator LRP59 as the way to talk
+about "how much is phonics".
+:::
+
+## Decomposition
+
+Effects in the intervention-helps direction, on the word-count scale (out of 90, the
+word-reading test ceiling) and the probability scale. `prob_pos` is
+$P(\text{effect} > 0)$; for the *phonics-route share* it is $P(\text{Total} > 0)$.
+
+```{python}
+# | echo: false
+med.round(3)
+```
+
+- **Total** — the intervention's total effect on word reading (should reconcile in
+  sign and rough magnitude with LRP52's $\tau_W$).
+- **NIE** — transmitted through the phonics route (letter-sound + blending).
+- **NDE** — everything else (the residual, lexical-compatible path).
+- **Proportion mediated** = phonics-route share $= \text{NIE}/\text{Total}$
+  (posterior median + interval; the ratio is unstable when the Total can cross zero,
+  hence $P(\text{Total}>0)$ is reported alongside — the NDE/NIE split is the robust
+  reading).
+
+```{python}
+# | echo: false
+# | output: asis
+_t = med.set_index("quantity")
+nie = _t.loc["NIE", "words_mean"]
+total = _t.loc["total", "words_mean"]
+pm_med = _t.loc["proportion_mediated", "prob_mean"]
+prob_positive = _t.loc["total", "prob_pos"]
+print(
+    f"At the posterior mean, the intervention raises word reading by "
+    f"**{total:.1f} words/90**, of which **{nie:.1f}** is carried by the phonics "
+    f"route (letter-sound + blending) — a phonics-route share of **{pm_med:.0%}** "
+    f"(P(Total>0) = {prob_positive:.2f}). See the interval columns for the (wide) "
+    f"uncertainty."
+)
+```
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Posterior predictive (mediator and outcome)
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## Limitations
+
+- $n \approx 53$ (phase 0 only): the NDE/NIE/share posteriors are **wide**. A wide
+  interval that still points at "mostly phonics-route-compatible" is a legitimate
+  result; do not over-read a precise percentage.
+- The decomposition rests on the no-unmeasured-confounding assumption
+  (@sec-assumptions) and on contemporaneous mediator/outcome measurement — these are
+  the principal threats, not the sample size.
+- The composite weights $L$ and $B$ equally and excludes detection-limited measures
+  (@sec-composite); it is a deliberately simple summary of "the phonics route", not
+  a latent-variable measurement model.
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

@@ -59,37 +59,32 @@ def decompose(
 ) -> pd.DataFrame:
     """Return the NDE / NIE / Total / proportion-mediated posterior summary.
 
-    The mediator is re-simulated ``n_replicates`` times per posterior draw and
-    averaged, to control Monte-Carlo noise from the Beta-Binomial draw; the
-    posterior itself supplies the inferential uncertainty.
+    ``med.mediator_kind`` selects the mediator counterfactual: ``"beta_binomial"``
+    (LRP59, a single count mediator) or ``"gaussian_composite"`` (LRP62, a
+    continuous standardised phonics-route composite). The outcome model and the
+    NDE/NIE/proportion decomposition are identical in both cases. The mediator is
+    re-simulated ``n_replicates`` times per posterior draw and averaged, to
+    control Monte-Carlo noise from the mediator draw; the posterior itself
+    supplies the inferential uncertainty.
     """
     post = trace.posterior
 
     def d(name: str) -> np.ndarray:
         return post[name].stack(_s=("chain", "draw")).values  # (S,)
 
-    a0, a_G, a_L, a_A = d("a0"), d("a_G"), d("a_L"), d("a_A")
+    # --- Outcome model (shared across mediator kinds) ---
     b0, b_G, b_M, b_GM, b_W, b_A = (
         d("b0"), d("b_G"), d("b_M"), d("b_GM"), d("b_W"), d("b_A")
     )
-    kappa_M = d("kappa_M")
-    a_conf = {s: d(f"a_{s}") for s in confounder_symbols}
     b_conf = {s: d(f"b_{s}") for s in confounder_symbols}
 
     # Covariates as (1, n) row vectors for broadcasting against (S, 1) draws.
-    L1 = med.L1_logit[None, :]
     W1 = med.W1_logit[None, :]
     A = med.A_std[None, :]
     conf = {"E": med.E1_logit[None, :], "R": med.R1_logit[None, :]}
-    N_L, N_W = med.n_trials_L, med.n_trials_W
-    S = a0.shape[0]
+    N_W = med.n_trials_W
+    S = b0.shape[0]
     rng = np.random.default_rng(seed)
-
-    def mediator_p(g: float) -> np.ndarray:
-        mu = a0[:, None] + a_G[:, None] * g + a_L[:, None] * L1 + a_A[:, None] * A
-        for s in confounder_symbols:
-            mu = mu + a_conf[s][:, None] * conf[s]
-        return np.clip(_sigmoid(mu), EPSILON, 1 - EPSILON)
 
     def outcome_p(g: float, z_m: np.ndarray) -> np.ndarray:
         eta = (
@@ -104,23 +99,60 @@ def decompose(
             eta = eta + b_conf[s][:, None] * conf[s]
         return _sigmoid(eta)
 
-    p_treat = mediator_p(_TREAT)  # (S, n)
-    p_ctrl = mediator_p(_CTRL)
-    a_beta_t, b_beta_t = p_treat * kappa_M[:, None], (1 - p_treat) * kappa_M[:, None]
-    a_beta_c, b_beta_c = p_ctrl * kappa_M[:, None], (1 - p_ctrl) * kappa_M[:, None]
-
     # E[Y(g_out, M(g'))] averaged over units, accumulated over mediator replicates.
     y_treat_Mtreat = np.zeros(S)
     y_ctrl_Mctrl = np.zeros(S)
     y_treat_Mctrl = np.zeros(S)
-    for _ in range(n_replicates):
-        k_treat = rng.binomial(N_L, rng.beta(a_beta_t, b_beta_t))
-        k_ctrl = rng.binomial(N_L, rng.beta(a_beta_c, b_beta_c))
-        zm_treat = (logit_safe(k_treat, N_L) - med.med_mean) / med.med_sd
-        zm_ctrl = (logit_safe(k_ctrl, N_L) - med.med_mean) / med.med_sd
-        y_treat_Mtreat += outcome_p(_TREAT, zm_treat).mean(axis=1)
-        y_ctrl_Mctrl += outcome_p(_CTRL, zm_ctrl).mean(axis=1)
-        y_treat_Mctrl += outcome_p(_TREAT, zm_ctrl).mean(axis=1)
+
+    if med.mediator_kind == "gaussian_composite":
+        # LRP62: continuous standardised route composite ~ Normal. The mediator
+        # is already on the standardised scale the outcome model consumes, so the
+        # simulated value IS z_m (no logit/Beta-Binomial round-trip).
+        a0, a_G, a_comp, a_A = d("a0"), d("a_G"), d("a_comp"), d("a_A")
+        a_conf = {s: d(f"a_{s}") for s in confounder_symbols}
+        sigma_M = d("sigma_M")
+        Mpre = med.M_pre_std[None, :]
+
+        def mediator_mu(g: float) -> np.ndarray:
+            mu = a0[:, None] + a_G[:, None] * g + a_comp[:, None] * Mpre + a_A[:, None] * A
+            for s in confounder_symbols:
+                mu = mu + a_conf[s][:, None] * conf[s]
+            return mu
+
+        mu_treat, mu_ctrl = mediator_mu(_TREAT), mediator_mu(_CTRL)
+        for _ in range(n_replicates):
+            zm_treat = rng.normal(mu_treat, sigma_M[:, None])
+            zm_ctrl = rng.normal(mu_ctrl, sigma_M[:, None])
+            y_treat_Mtreat += outcome_p(_TREAT, zm_treat).mean(axis=1)
+            y_ctrl_Mctrl += outcome_p(_CTRL, zm_ctrl).mean(axis=1)
+            y_treat_Mctrl += outcome_p(_TREAT, zm_ctrl).mean(axis=1)
+    else:
+        # LRP59: single count mediator ~ Beta-Binomial, standardised logit -> z_m.
+        a0, a_G, a_L, a_A = d("a0"), d("a_G"), d("a_L"), d("a_A")
+        a_conf = {s: d(f"a_{s}") for s in confounder_symbols}
+        kappa_M = d("kappa_M")
+        L1 = med.L1_logit[None, :]
+        N_L = med.n_trials_L
+
+        def mediator_p(g: float) -> np.ndarray:
+            mu = a0[:, None] + a_G[:, None] * g + a_L[:, None] * L1 + a_A[:, None] * A
+            for s in confounder_symbols:
+                mu = mu + a_conf[s][:, None] * conf[s]
+            return np.clip(_sigmoid(mu), EPSILON, 1 - EPSILON)
+
+        p_treat = mediator_p(_TREAT)  # (S, n)
+        p_ctrl = mediator_p(_CTRL)
+        a_beta_t, b_beta_t = p_treat * kappa_M[:, None], (1 - p_treat) * kappa_M[:, None]
+        a_beta_c, b_beta_c = p_ctrl * kappa_M[:, None], (1 - p_ctrl) * kappa_M[:, None]
+        for _ in range(n_replicates):
+            k_treat = rng.binomial(N_L, rng.beta(a_beta_t, b_beta_t))
+            k_ctrl = rng.binomial(N_L, rng.beta(a_beta_c, b_beta_c))
+            zm_treat = (logit_safe(k_treat, N_L) - med.med_mean) / med.med_sd
+            zm_ctrl = (logit_safe(k_ctrl, N_L) - med.med_mean) / med.med_sd
+            y_treat_Mtreat += outcome_p(_TREAT, zm_treat).mean(axis=1)
+            y_ctrl_Mctrl += outcome_p(_CTRL, zm_ctrl).mean(axis=1)
+            y_treat_Mctrl += outcome_p(_TREAT, zm_ctrl).mean(axis=1)
+
     y_treat_Mtreat /= n_replicates
     y_ctrl_Mctrl /= n_replicates
     y_treat_Mctrl /= n_replicates
