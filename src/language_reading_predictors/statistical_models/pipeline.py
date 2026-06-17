@@ -173,7 +173,12 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prepare data")
     adjust_for = tuple(spec.extra.get("adjust_for", ()))
-    prepared = load_and_prepare(phase_mode="itt", covariates=adjust_for)
+    # Optionally restrict to the complete-case subset of some columns *without*
+    # adjusting for them (matched comparator, e.g. LRP60a vs LRP60).
+    restrict_complete = tuple(spec.extra.get("restrict_complete", ()))
+    prepared = load_and_prepare(
+        phase_mode="itt", covariates=adjust_for, restrict_complete=restrict_complete
+    )
     ctx.prepared = prepared
 
     _print_header(ctx)

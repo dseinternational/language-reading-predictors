@@ -34,6 +34,7 @@ from language_reading_predictors.statistical_models import (
     lrp57,
     lrp58,
     lrp60,
+    lrp60a,
 )
 
 
@@ -46,12 +47,14 @@ MODELS = {
     "lrp57": lrp57,
     "lrp58": lrp58,
     "lrp60": lrp60,
+    # LRP60a: matched complete-case comparator to LRP60 (unadjusted, SES subset).
+    "lrp60a": lrp60a,
 }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("model", help="Model id (lrp52..lrp60) or 'all'")
+    parser.add_argument("model", help="Model id (lrp52..lrp60, lrp60a) or 'all'")
     parser.add_argument(
         "--config",
         default="dev",
