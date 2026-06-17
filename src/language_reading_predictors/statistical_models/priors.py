@@ -72,11 +72,6 @@ def ell_prior() -> Continuous:
     return pz.InverseGamma(alpha=3.0, beta=1.0)
 
 
-def sigma_outcome_prior() -> Continuous:
-    """LRP55 outcome-level residual SD sigma_k ~ HalfNormal(0.5)."""
-    return pz.HalfNormal(sigma=0.5)
-
-
 def eta_partial_pool_prior() -> Continuous:
     """LRP55 outcome-specific age-GP amplitude ~ HalfNormal(0.3)."""
     return pz.HalfNormal(sigma=0.3)

@@ -145,3 +145,16 @@ monofontoptions
 papersize
 sansfont
 scrartcl
+numpy
+scipy
+pymc
+matplotlib
+ndarray
+spearmanr
+dcor
+expit
+invlogit
+docstrings
+hyperparam
+idxmin
+importorskip

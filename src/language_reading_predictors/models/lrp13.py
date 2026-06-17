@@ -16,9 +16,9 @@ floor-heavy nonword level distribution (57% zero at any given
 timepoint). Tree models will struggle to predict non-zero gains
 reliably.
 
-No tuning has been run for LRP13 yet — it runs on a reasonable
-``_LGBM_BASELINE_PARAMS`` dict so later feature-selection variants
-have a documented starting point.
+No feature selection has been run for LRP13 yet — the MAE-tuned
+params below (Optuna 150-trial study) are the starting point for
+later feature-selection variants.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -52,13 +52,13 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 
 
 class LRP13(GainModel):
-    """Non-word reading gain predictors — baseline (all data, untuned).
+    """Non-word reading gain predictors — baseline (all data, MAE-tuned).
 
     Uses the full :attr:`Predictors.DEFAULT_GAIN` predictor set
-    (``nonword`` is already a member) with a reasonable
-    ``_LGBM_BASELINE_PARAMS`` set. Serves as the starting point
-    for feature-selection and tuning work on the non-word-reading
-    gain-prediction task.
+    (``nonword`` is already a member) with MAE-tuned hyperparameters
+    and no outlier exclusion. Serves as the starting point for
+    feature-selection work on the non-word-reading gain-prediction
+    task.
     """
 
     model_id = "lrp13"
@@ -80,9 +80,8 @@ class LRP13(GainModel):
         "(nonword_gain). Uses the full default gain predictor set "
         "(nonword is already a level predictor in that set, so the "
         "GainModel auto-include is a no-op) without outlier "
-        "exclusion, and a reasonable _LGBM_BASELINE_PARAMS starting "
-        "point — no feature selection or hyperparameter tuning has "
-        "been applied yet. Target is heavily zero-loaded (~48% zero, "
-        "19% negative) — a different pathology from the other gain "
-        "targets."
+        "exclusion, and MAE-tuned params from an Optuna 150-trial "
+        "study — no feature selection has been applied yet. Target "
+        "is heavily zero-loaded (~48% zero, 19% negative) — a "
+        "different pathology from the other gain targets."
     )

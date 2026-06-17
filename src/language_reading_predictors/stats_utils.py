@@ -1,12 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-import dcor
 import numpy as np
 import pandas as pd
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
-from scipy.stats import kurtosis, shapiro, skew, spearmanr
+from scipy.stats import kurtosis, shapiro, skew
 from sklearn.neighbors import KernelDensity
 from sklearn.feature_selection import mutual_info_regression
 
@@ -188,12 +187,20 @@ def spearman_distance_matrix(X: pd.DataFrame | np.ndarray | list[float]):
     -------
     distance: distance matrix (1 - |correlation|) - ndarray of shape (n_features, n_features)
     corr: correlation matrix - ndarray of shape (n_features, n_features)
+
+    Notes
+    -----
+    Missing values are handled by pairwise-complete deletion (pandas
+    ``min_periods=2``). Both DataFrame and ndarray inputs route through the
+    same code path so the result does not depend on the input container — an
+    earlier version computed the ndarray case with
+    ``scipy.stats.spearmanr(nan_policy="propagate")``, which (a) returned a
+    bare scalar for exactly two columns and (b) zeroed out whole rows/columns
+    whenever a single value was NaN, silently disagreeing with the DataFrame
+    path.
     """
-    if isinstance(X, pd.DataFrame):
-        corr = X.corr(method="spearman", min_periods=2).to_numpy()
-    else:
-        X = np.asarray(X)
-        corr, _ = spearmanr(X, axis=0, nan_policy="propagate")
+    df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+    corr = df.corr(method="spearman", min_periods=2).to_numpy()
 
     # Replace NaNs and infinities
     corr = np.nan_to_num(corr, nan=0.0, posinf=1.0, neginf=-1.0)
@@ -233,6 +240,8 @@ def distance_corr_matrix(X: pd.DataFrame | np.ndarray | list[float]):
     - More computationally expensive than standard correlation (O(n²) for n features)
     - Values range from 0 (independent) to 1 (perfectly dependent)
     """
+    import dcor  # lazy: only this function needs the optional dependency
+
     X = np.asarray(X, dtype=np.float64)
     n = X.shape[1]
     M = np.ones((n, n), dtype=np.float64)

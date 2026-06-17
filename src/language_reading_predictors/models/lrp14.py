@@ -19,9 +19,9 @@ reading targets where zeros are a minority.
 Log or quantile transforms may be more appropriate than a plain
 regression here; plan for a ``lrp14_log`` variant in follow-up PRs.
 
-No tuning has been run for LRP14 yet — it runs on a reasonable
-``_LGBM_BASELINE_PARAMS`` dict so later feature-selection variants
-have a documented starting point.
+No feature selection has been run for LRP14 yet — the MAE-tuned
+params below (Optuna 150-trial study) are the starting point for
+later feature-selection variants.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -55,13 +55,13 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 
 
 class LRP14(LevelModel):
-    """Non-word reading level predictors — baseline (all data, untuned).
+    """Non-word reading level predictors — baseline (all data, MAE-tuned).
 
     Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
-    (minus the target ``nonword``) and a reasonable
-    ``_LGBM_BASELINE_PARAMS`` set. Serves as the starting point for
-    feature-selection and tuning work on the non-word-reading
-    level-prediction task.
+    (minus the target ``nonword``) with MAE-tuned hyperparameters and
+    no outlier exclusion. Serves as the starting point for
+    feature-selection work on the non-word-reading level-prediction
+    task.
     """
 
     model_id = "lrp14"
@@ -81,10 +81,10 @@ class LRP14(LevelModel):
     notes = (
         "Baseline exploratory model for non-word reading level "
         "(nonword). Uses the full default level predictor set "
-        "(minus the target) without outlier exclusion, and a "
-        "reasonable _LGBM_BASELINE_PARAMS starting point — no "
-        "feature selection or hyperparameter tuning has been applied "
-        "yet. Target is heavily floor-loaded (57% at zero, skew 1.38) "
+        "(minus the target) without outlier exclusion, and MAE-tuned "
+        "params from an Optuna 150-trial study — no feature selection "
+        "has been applied yet. Target is heavily floor-loaded (57% at "
+        "zero, skew 1.38) "
         "— most children have not yet started decoding non-words. "
         "Log or quantile transforms may be more appropriate in a "
         "follow-up variant."
