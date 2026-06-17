@@ -150,3 +150,60 @@ def test_itt_factory_rejects_wrong_phase(tmp_path):
     prep = load_and_prepare(path=p, phase_mode="all")
     with pytest.raises(ValueError):
         build_itt_model(prep, outcome_symbol="W")
+
+
+def test_mechanism_factory_adjusts_for_age_linearly(tmp_path):
+    """Age in the adjustment set enters eta as a linear ``gamma_A`` term when the
+    age GP is off. Regression test for the silent age-drop bug that left
+    LRP56-58 / LRP71 / LRP72 unadjusted for the age confounder."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="L",
+        outcome_symbol="W",
+        confounder_symbols=("G", "A"),
+        use_age_gp=False,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_A" in names
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=4)
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_mechanism_factory_age_moderator_not_double_counted(tmp_path):
+    """When age is the moderator (LRP73), the moderator main effect
+    ``gamma_mod * z(age)`` represents age, so no separate ``gamma_A`` is added —
+    the two would be collinear. Mirrors the pipeline, which strips the moderator
+    from ``confounder_symbols``."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="L",
+        outcome_symbol="W",
+        confounder_symbols=("G",),
+        moderator_symbol="A",
+        moderator_is_covariate=True,
+        use_age_gp=False,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_mod" in names
+    assert "gamma_A" not in names
+
+
+def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
+    """With the age GP on, age is represented by ``f_A``, so the linear
+    ``gamma_A`` term is not added (no double adjustment)."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="L",
+        outcome_symbol="W",
+        confounder_symbols=("G", "A"),
+        use_age_gp=True,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_A" not in names
