@@ -33,7 +33,10 @@ from language_reading_predictors.statistical_models import (
     lrp56,
     lrp57,
     lrp58,
+    lrp59,
     lrp60,
+    lrp60a,
+    lrp62,
     lrp71,
     lrp72,
     lrp72base,
@@ -50,7 +53,13 @@ MODELS = {
     "lrp56": lrp56,
     "lrp57": lrp57,
     "lrp58": lrp58,
+    # LRP59: ITT-phase mediation (does G raise W via L?). New 'mediation' family.
+    "lrp59": lrp59,
     "lrp60": lrp60,
+    # LRP60a: matched complete-case comparator to LRP60 (unadjusted, SES subset).
+    "lrp60a": lrp60a,
+    # LRP62: reading-route decomposition (phonics-route composite mediation).
+    "lrp62": lrp62,
     # LRP70 (celf moderator) is reserved but deferred pending a DAG review of
     # conditioning on a descendant of L. LRP71 (eowpvt) is the first built
     # interaction model.
@@ -69,7 +78,8 @@ MODELS = {
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "model", help="Model id (lrp52..lrp60, lrp71, lrp72, lrp73) or 'all'"
+        "model",
+        help="Model id (lrp52..lrp60, lrp60a, lrp62, lrp71, lrp72, lrp73) or 'all'",
     )
     parser.add_argument(
         "--config",

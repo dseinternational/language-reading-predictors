@@ -62,6 +62,30 @@ def beta_mech_prior() -> Continuous:
     return pz.Normal(mu=0.0, sigma=1.0)
 
 
+def b_path_prior() -> Continuous:
+    """Mediator -> outcome slope (b-path) ~ Normal(0, 1).
+
+    Used by the LRP59 mediation outcome model for ``b_M``, the coefficient on the
+    standardised mediator ``z(logit L_t2)``. Weakly-informative on the unit
+    (per-SD) scale so the data identify the key b-path of the decomposition,
+    while still regularising; the treatment and confounder couplings use the
+    tighter ``tau_prior`` / ``gamma_cross_prior``.
+    """
+    return pz.Normal(mu=0.0, sigma=1.0)
+
+
+def sigma_mediator_prior() -> Continuous:
+    """Gaussian-mediator residual SD sigma_M ~ HalfNormal(1.0).
+
+    Used by the LRP62 reading-route model, where the mediator is a continuous
+    standardised phonics-route composite modelled as ``Normal(mu_M, sigma_M)``.
+    The composite-post is standardised (SD 1), so after conditioning on the
+    baseline composite and covariates the residual SD is below 1; HalfNormal(1.0)
+    is weakly-informative on that scale.
+    """
+    return pz.HalfNormal(sigma=1.0)
+
+
 def eta_main_prior() -> Continuous:
     """GP amplitude (main effect) eta ~ HalfNormal(0.3).
 

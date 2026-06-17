@@ -22,6 +22,7 @@ HSGP
 hsgp
 lengthscale
 Missingness
+MCMC
 nutpie
 preliz
 subsetting
@@ -151,3 +152,4 @@ monofontoptions
 papersize
 sansfont
 scrartcl
+handoff
