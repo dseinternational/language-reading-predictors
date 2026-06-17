@@ -349,7 +349,13 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     ctx = make_context(spec, config)
 
     section_header("Prepare data")
-    prepared = load_and_prepare(phase_mode="all")
+    # A model may restrict the prepared outcomes (e.g. LRP72 uses only L/B/N) so
+    # ``drop_missing_pre`` does not discard rows for measures the model ignores.
+    extra_outcomes = spec.extra.get("outcomes")
+    if extra_outcomes is not None:
+        prepared = load_and_prepare(phase_mode="all", outcomes=tuple(extra_outcomes))
+    else:
+        prepared = load_and_prepare(phase_mode="all")
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -357,7 +363,16 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     section_header("Build model")
     _priors.save_shared_prior_panel(ctx.output_dir)
 
-    confounders = [s for s in spec.adjustment if s not in ("W_pre",)]
+    moderator_symbol = spec.extra.get("moderator_symbol")
+    # Drop the autoregressive baseline (any ``*_pre`` token, e.g. W_pre / N_pre)
+    # from the confounder list — it enters via ``adjust_baseline_symbol``.
+    confounders = [s for s in spec.adjustment if not s.endswith("_pre")]
+    if moderator_symbol is not None:
+        # The moderator is carried by its standardised main effect + interaction
+        # in the factory, so drop it from the plain confounder loop to avoid a
+        # collinear duplicate main effect. The standardised term still adjusts
+        # for M, preserving any DAG-required conditioning (e.g. E in LRP71).
+        confounders = [s for s in confounders if s != moderator_symbol]
 
     built = _factories.build_mechanism_model(
         prepared,
@@ -370,6 +385,10 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         use_subject_random_intercept=spec.extra.get(
             "use_subject_random_intercept", True
         ),
+        moderator_symbol=moderator_symbol,
+        moderator_is_covariate=spec.extra.get("moderator_is_covariate", False),
+        include_interaction=spec.extra.get("include_interaction", True),
+        linear_mechanism=spec.extra.get("linear_mechanism", False),
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -392,6 +411,12 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _mech_vars = ["alpha", "beta_G", "gamma_own", "kappa"]
     if spec.extra.get("use_subject_random_intercept", True):
         _mech_vars.append("sigma_child")
+    if spec.extra.get("linear_mechanism", False):
+        _mech_vars.append("beta_mech")
+    if moderator_symbol is not None:
+        _mech_vars.append("gamma_mod")
+        if spec.extra.get("include_interaction", True):
+            _mech_vars.append("gamma_int")
     _diag.summary_diagnostics(ctx, var_names=_mech_vars)
 
     section_header("Posterior predictive")
@@ -402,11 +427,32 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     section_header("Mechanism curve")
     _write_mechanism_curve(ctx)
 
+    meta_extra = {"loo_elpd": float(ctx.loo.elpd), "adjustment": spec.adjustment}
+
+    # Linear-moderation summary (gamma_int / gamma_mod), when a moderator is set.
+    if moderator_symbol is not None:
+        section_header("Interaction summary")
+        gi = _report.gamma_interaction_summary(ctx.trace, hdi_prob=ctx.reporting.hdi)
+        gi_df = pd.DataFrame([gi])
+        gi_df.to_csv(
+            os.path.join(ctx.output_dir, "interaction_summary.csv"), index=False
+        )
+        ctx.tables["interaction_summary"] = gi_df
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in gi.items()],
+                title=(
+                    f"Linear moderation by {moderator_symbol} "
+                    f"- {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)"
+                ),
+                columns=["metric", "value"],
+            )
+        )
+        meta_extra["moderator_symbol"] = moderator_symbol
+        meta_extra["interaction_summary"] = gi
+
     _diag.save_trace(ctx)
-    _report.write_run_metadata(
-        ctx,
-        extra={"loo_elpd": float(ctx.loo.elpd), "adjustment": spec.adjustment},
-    )
+    _report.write_run_metadata(ctx, extra=meta_extra)
 
     section_header("Report")
     _copy_report_template(ctx)

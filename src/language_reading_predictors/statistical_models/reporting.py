@@ -98,6 +98,34 @@ def tau_summary_joint(
     return pd.DataFrame(out)
 
 
+def gamma_interaction_summary(
+    trace: xr.DataTree,
+    *,
+    hdi_prob: float,
+) -> dict[str, float]:
+    """Summarise the linear-moderation coefficients ``gamma_int`` / ``gamma_mod``.
+
+    Reports the posterior mean, equal-tailed central interval at coverage
+    ``hdi_prob`` (same convention as :func:`tau_summary_itt`), and ``P(coef > 0)``
+    for each coefficient present in the trace. ``gamma_int`` is the moderation
+    (>0: the standardised mechanism effect strengthens with the moderator);
+    ``gamma_mod`` is the moderator main effect at the mean of the mechanism.
+    """
+    posterior = trace.posterior
+    lo_q = (1 - hdi_prob) / 2
+    hi_q = 1 - lo_q
+    out: dict[str, float] = {}
+    for name in ("gamma_int", "gamma_mod"):
+        if name not in posterior:
+            continue
+        d = posterior[name].stack(sample=("chain", "draw")).values
+        out[f"{name}_mean"] = float(np.mean(d))
+        out[f"{name}_lo"] = float(np.quantile(d, lo_q))
+        out[f"{name}_hi"] = float(np.quantile(d, hi_q))
+        out[f"prob_{name}_pos"] = float(np.mean(d > 0))
+    return out
+
+
 def tau_contrast_matrix(
     trace: xr.DataTree,
     outcomes: list[str],

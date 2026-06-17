@@ -37,6 +37,11 @@ from language_reading_predictors.statistical_models import (
     lrp60,
     lrp60a,
     lrp62,
+    lrp71,
+    lrp72,
+    lrp72base,
+    lrp73,
+    lrp73base,
 )
 
 
@@ -55,13 +60,26 @@ MODELS = {
     "lrp60a": lrp60a,
     # LRP62: reading-route decomposition (phonics-route composite mediation).
     "lrp62": lrp62,
+    # LRP70 (celf moderator) is reserved but deferred pending a DAG review of
+    # conditioning on a descendant of L. LRP71 (eowpvt) is the first built
+    # interaction model.
+    "lrp71": lrp71,
+    # LRP72: phonics route (letter-sound × blending -> decoding). lrp72base is
+    # its no-interaction companion for the PSIS-LOO comparison.
+    "lrp72": lrp72,
+    "lrp72base": lrp72base,
+    # LRP73: age-moderated letter-sound -> word reading. lrp73base is its
+    # no-interaction companion.
+    "lrp73": lrp73,
+    "lrp73base": lrp73base,
 }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "model", help="Model id (lrp52..lrp60, lrp60a, lrp62) or 'all'"
+        "model",
+        help="Model id (lrp52..lrp60, lrp60a, lrp62, lrp71, lrp72, lrp73) or 'all'",
     )
     parser.add_argument(
         "--config",
