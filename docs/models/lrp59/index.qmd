@@ -1,5 +1,5 @@
 ---
-title: "LRP59: Does the intervention raise word reading *because* it raises letter-sound knowledge? (mediation)"
+title: "LRP59: Does the intervention raise word reading via letter-sound knowledge? (exploratory mediation)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -36,17 +36,29 @@ med = pd.read_csv(_here / "mediation_summary.csv")
 
 ## Overview
 
-LRP59 is the causal capstone of the mechanism programme. The three legs are each
-estimated credibly elsewhere: the intervention raises **letter-sound** knowledge
-$L$ (strongly; LRP55 $\tau_L$), letter-sound predicts **word reading** $W$
-(LRP58), and the intervention raises word reading (LRP52, $\tau_W$). LRP59 asks
-the active-ingredient question DSE needs: **how much of the intervention's effect
-on word reading flows *through* its effect on letter-sound knowledge?**
+Formal mediation was **deferred by design** in the original brief; LRP59 is a
+**first, exploratory attempt** at it — directionally consistent with the
+programme, not a definitive decomposition. The three legs are each estimated
+credibly elsewhere: the intervention raises **letter-sound** knowledge $L$
+(strongly; LRP55 $\tau_L$), letter-sound predicts **word reading** $W$ (LRP58),
+and the intervention raises word reading (LRP52, $\tau_W$). LRP59 asks, as a first
+pass: **how much of the intervention's effect on word reading is associated with
+its effect on letter-sound knowledge?**
 
 We decompose the total effect into the **natural indirect effect (NIE)** — the
 part transmitted by raising $L$ — and the **natural direct effect (NDE)** —
 everything else — and report the **proportion mediated** $= \text{NIE} /
 \text{Total}$.
+
+::: {.callout-note title="Exploratory — superseded by LRP62 as the route estimate"}
+Mediation was deferred by design; this is a first, exploratory pass with a
+**single** mediator. **LRP62 supersedes it as the reading-route estimate**: a
+better-specified phonics-route composite (letter-sound + blending) puts the route
+share **lower (~38%)**, with the direct/residual path **larger** at the posterior
+mean. The defensible conclusion across both is **mixed routes**, not
+phonics-dominant. Read the letter-sound share below as *exploratory and
+directionally consistent*, not a settled active-ingredient claim.
+:::
 
 ## Phase 0 only — the key design decision
 
@@ -95,6 +107,10 @@ proportion mediated is *not* assumption-free.
 - Confounders are taken at **baseline (t1), not post (t2)**: a mediator–outcome
   confounder must not itself be affected by treatment (the **cross-world**
   assumption). Conditioning on post-treatment vocabulary would violate this.
+- **Contemporaneous mediator and outcome — no temporal precedence.** $M = L_{t2}$
+  and $Y = W_{t2}$ are measured at the **same wave**; the model decomposes a
+  *within-wave* association, not a temporally-ordered $L \to W$ effect.
+  Conditioning on baselines mitigates but does not establish that $L$ precedes $W$.
 - Consistency and positivity are assumed.
 
 ::: {.callout-important title="Interpret under these assumptions"}
@@ -133,9 +149,11 @@ pm_med = _t.loc["proportion_mediated", "prob_mean"]
 prob_positive = _t.loc["total", "prob_pos"]
 print(
     f"At the posterior mean, the intervention raises word reading by "
-    f"**{total:.1f} words/90**, of which **{nie:.1f}** is carried by letter-sound "
-    f"knowledge — a proportion mediated of **{pm_med:.0%}** "
-    f"(P(Total>0) = {prob_positive:.2f}). See the interval columns for the (wide) uncertainty."
+    f"**{total:.1f} words/90**, of which **{nie:.1f}** is associated with the "
+    f"letter-sound pathway — an *exploratory* proportion mediated of **{pm_med:.0%}** "
+    f"(P(Total>0) = {prob_positive:.2f}). The interval is wide; LRP62's "
+    f"phonics-route composite puts the share lower (~38%), so read this as "
+    f"directionally consistent, not definitive."
 )
 ```
 
@@ -156,9 +174,15 @@ diag
 
 ## Limitations
 
+- **Exploratory, and superseded by LRP62 for the route estimate.** Mediation was
+  deferred by design; this is a first attempt with a single mediator. LRP62's
+  phonics-route composite puts the share lower (~38%) with the direct path larger
+  — the defensible reading across both is **mixed routes**, not phonics-dominant.
 - $n \approx 53$ (phase 0 only): the NDE/NIE/proportion-mediated posteriors are
-  **wide**. A wide interval that still points clearly at "mostly via
-  letter-sounds" is a legitimate result; do not over-read a precise percentage.
+  **wide**; do not over-read a precise percentage. The robust reading is the
+  NDE/NIE split, not the ratio.
+- **Mediator and outcome are measured at the same wave** (no temporal precedence;
+  @sec-assumptions): a within-wave association is being decomposed.
 - The decomposition rests on the no-unmeasured-$L\to W$-confounding assumption
   (@sec-assumptions); this is the principal threat, not the sample size.
 
