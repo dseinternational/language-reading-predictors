@@ -127,6 +127,7 @@ def load_and_prepare(
     outcomes: tuple[str, ...] = ITT_OUTCOMES,
     covariates: tuple[str, ...] = (),
     drop_missing_pre: bool = True,
+    restrict_complete: tuple[str, ...] = (),
 ) -> PreparedData:
     """
     Load ``rli_data_long.csv`` and build arrays for the model factories.
@@ -149,6 +150,13 @@ def load_and_prepare(
     drop_missing_pre
         If True (default), rows with any missing pre-score or missing group
         are dropped and a warning is printed with the dropped-row count.
+    restrict_complete
+        Columns that must be non-missing for a row to be kept (they join the
+        complete-case mask exactly like ``covariates``), but which are **not**
+        added to ``prepared.covariates`` and so receive no model coefficient.
+        Use this to fit a model on the complete-case subset of some covariates
+        *without* adjusting for them — e.g. a matched unadjusted comparator to a
+        covariate-adjusted run (LRP60a vs LRP60).
 
     Returns
     -------
@@ -167,6 +175,10 @@ def load_and_prepare(
         phase_pairs = [(1, 2), (2, 3), (3, 4)]
 
     covariates = tuple(covariates)
+    restrict_complete = tuple(restrict_complete)
+    # Columns pulled into the frame: adjusted covariates plus complete-case-only
+    # restrictors. Deduplicated, preserving order; a column in both is adjusted.
+    extra_cols = list(dict.fromkeys([*covariates, *restrict_complete]))
     out_cols = [MEASURES[s].column for s in outcomes]
 
     per_phase_frames: list[pd.DataFrame] = []
@@ -174,7 +186,7 @@ def load_and_prepare(
     for phase_idx, (t_pre, t_post) in enumerate(phase_pairs):
         pre = df.loc[
             df[V.TIME] == t_pre,
-            [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols + list(covariates),
+            [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols + extra_cols,
         ].copy()
         post = df.loc[df[V.TIME] == t_post, [V.SUBJECT_ID] + out_cols].copy()
         pre = pre.rename(columns={c: f"{c}_pre" for c in out_cols})
@@ -191,7 +203,7 @@ def load_and_prepare(
     n_before = len(merged)
 
     if drop_missing_pre:
-        required = [V.GROUP, V.AGE] + required_pre + list(covariates)
+        required = [V.GROUP, V.AGE] + required_pre + extra_cols
         mask_complete = merged[required].notna().all(axis=1)
         # Also require at least one post outcome to be present.
         mask_any_post = merged[required_post].notna().any(axis=1)
