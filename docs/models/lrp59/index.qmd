@@ -1,0 +1,194 @@
+---
+title: "LRP59: Does the intervention raise word reading via letter-sound knowledge? (exploratory mediation)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+med = pd.read_csv(_here / "mediation_summary.csv")
+```
+
+## Overview
+
+Formal mediation was **deferred by design** in the original brief; LRP59 is a
+**first, exploratory attempt** at it — directionally consistent with the
+programme, not a definitive decomposition. The three legs are each estimated
+credibly elsewhere: the intervention raises **letter-sound** knowledge $L$
+(strongly; LRP55 $\tau_L$), letter-sound predicts **word reading** $W$ (LRP58),
+and the intervention raises word reading (LRP52, $\tau_W$). LRP59 asks, as a first
+pass: **how much of the intervention's effect on word reading is associated with
+its effect on letter-sound knowledge?**
+
+We decompose the total effect into the **natural indirect effect (NIE)** — the
+part transmitted by raising $L$ — and the **natural direct effect (NDE)** —
+everything else — and report the **proportion mediated** $= \text{NIE} /
+\text{Total}$.
+
+::: {.callout-note title="Exploratory — superseded by LRP62 as the route estimate"}
+Mediation was deferred by design; this is a first, exploratory pass with a
+**single** mediator. **LRP62 supersedes it as the reading-route estimate**: a
+better-specified phonics-route composite (letter-sound + blending) puts the route
+share **lower (~38%)**, with the direct/residual path **larger** at the posterior
+mean. The defensible conclusion across both is **mixed routes**, not
+phonics-dominant. Read the letter-sound share below as *exploratory and
+directionally consistent*, not a settled active-ingredient claim.
+:::
+
+## Phase 0 only — the key design decision
+
+The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**:
+group 1 receives the intervention while group 2 is the wait-list control. After
+t2 both arms are treated, so `group` is no longer a treatment indicator (this is
+exactly why the mechanism models' pooled $\beta_G$ is not a direct effect). LRP59
+therefore uses **the phase-0 transition only** (`phase_mode="itt"`), with `group`
+as the randomised treatment — one row per child, $n \approx 53$.
+
+Repo sign convention: $G = \text{group} - 1$, so $G=0$ is the intervention arm and
+$G=1$ the wait-list control. All effects below are reported in the
+**intervention-helps** direction (intervention − control), so **positive = the
+intervention raises reading**.
+
+## Causal structure (DAG)
+
+- **Treatment** $G$ (randomised in phase 0).
+- **Mediator** $M = L_{t2}$ (letter-sound at t2), with baseline $L_{t1}$.
+- **Outcome** $Y = W_{t2}$ (word reading at t2), with baseline $W_{t1}$.
+- Paths: $G \to L_{t2} \to W_{t2}$ (indirect) and $G \to W_{t2}$ (direct).
+- Mediator–outcome confounders $C$: age $A$, expressive vocab $E_{t1}$, receptive
+  vocab $R_{t1}$ — each $\to L_{t2}$ and $\to W_{t2}$.
+
+A joint model fits both legs simultaneously (two Beta-Binomial likelihoods on the
+logit scale), including a $G \times M$ interaction so the decomposition admits
+exposure–mediator interaction (the general case). **NDE/NIE are computed by
+counterfactual simulation from the posterior (the g-formula), not as a product of
+coefficients** — the latter is valid only on a linear identity scale, not for
+these logit models.
+
+## Assumptions — read this first {#sec-assumptions}
+
+The decomposition is causal **only under the following assumptions**; the
+proportion mediated is *not* assumption-free.
+
+- Randomisation in phase 0 delivers two of the four mediation assumptions for
+  free: **no unmeasured confounding of $G \to Y$ and of $G \to M$.**
+- **No unmeasured mediator–outcome ($L \to W$) confounding** — the binding,
+  unverifiable assumption and the main limitation. We adjust for the measured
+  $L \to W$ confounders the mechanism programme identified: $A$ (age), $E$
+  (expressive vocab — LRP58 found it independently predicts $W$), $R$ (receptive
+  vocab), plus the baselines $L_{t1}, W_{t1}$. Residual confounding by anything
+  unmeasured (e.g. a general "literacy readiness" not captured by these) would
+  bias the split between NDE and NIE.
+- Confounders are taken at **baseline (t1), not post (t2)**: a mediator–outcome
+  confounder must not itself be affected by treatment (the **cross-world**
+  assumption). Conditioning on post-treatment vocabulary would violate this.
+- **Contemporaneous mediator and outcome — no temporal precedence.** $M = L_{t2}$
+  and $Y = W_{t2}$ are measured at the **same wave**; the model decomposes a
+  *within-wave* association, not a temporally-ordered $L \to W$ effect.
+  Conditioning on baselines mitigates but does not establish that $L$ precedes $W$.
+- Consistency and positivity are assumed.
+
+::: {.callout-important title="Interpret under these assumptions"}
+The proportion mediated below is the estimate *given* no unmeasured $L \to W$
+confounding. It is a structured, interpretable decomposition — not proof of
+mechanism. The headline is the estimate **with its full uncertainty**, not a
+point percentage.
+:::
+
+## Decomposition
+
+Effects in the intervention-helps direction, on the word-count scale (out of 90,
+the word-reading test ceiling) and the probability scale. `prob_pos` is
+$P(\text{effect} > 0)$; for *proportion mediated* it is $P(\text{Total} > 0)$.
+
+```{python}
+# | echo: false
+med.round(3)
+```
+
+- **Total** — the intervention's total effect on word reading (should reconcile
+  in sign and rough magnitude with LRP52's $\tau_W$).
+- **NIE** — transmitted by raising letter-sound knowledge.
+- **NDE** — everything else (other paths).
+- **Proportion mediated** $= \text{NIE}/\text{Total}$ (posterior median + interval;
+  the ratio is unstable when the Total can cross zero, hence $P(\text{Total}>0)$ is
+  reported alongside — the NDE/NIE split is the robust reading).
+
+```{python}
+# | echo: false
+# | output: asis
+_t = med.set_index("quantity")
+nie = _t.loc["NIE", "words_mean"]
+total = _t.loc["total", "words_mean"]
+pm_med = _t.loc["proportion_mediated", "prob_mean"]
+prob_positive = _t.loc["total", "prob_pos"]
+print(
+    f"At the posterior mean, the intervention raises word reading by "
+    f"**{total:.1f} words/90**, of which **{nie:.1f}** is associated with the "
+    f"letter-sound pathway — an *exploratory* proportion mediated of **{pm_med:.0%}** "
+    f"(P(Total>0) = {prob_positive:.2f}). The interval is wide; LRP62's "
+    f"phonics-route composite puts the share lower (~38%), so read this as "
+    f"directionally consistent, not definitive."
+)
+```
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Posterior predictive (mediator and outcome)
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## Limitations
+
+- **Exploratory, and superseded by LRP62 for the route estimate.** Mediation was
+  deferred by design; this is a first attempt with a single mediator. LRP62's
+  phonics-route composite puts the share lower (~38%) with the direct path larger
+  — the defensible reading across both is **mixed routes**, not phonics-dominant.
+- $n \approx 53$ (phase 0 only): the NDE/NIE/proportion-mediated posteriors are
+  **wide**; do not over-read a precise percentage. The robust reading is the
+  NDE/NIE split, not the ratio.
+- **Mediator and outcome are measured at the same wave** (no temporal precedence;
+  @sec-assumptions): a within-wave association is being decomposed.
+- The decomposition rests on the no-unmeasured-$L\to W$-confounding assumption
+  (@sec-assumptions); this is the principal threat, not the sample size.
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
