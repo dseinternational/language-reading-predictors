@@ -22,7 +22,7 @@ Conventions
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -270,3 +270,52 @@ def load_and_prepare(
         phase_mode=phase_mode,
         column_map=column_map,
     )
+
+
+def load_and_prepare_lagged_outcome(
+    outcome_symbol: str,
+    *,
+    outcome_time: int,
+    path: str | Path | None = None,
+    outcomes: tuple[str, ...] = ITT_OUTCOMES,
+    covariates: tuple[str, ...] = (),
+) -> PreparedData:
+    """ITT prep, but with ``outcome_symbol``'s post-counts taken from a later wave.
+
+    Built on :func:`load_and_prepare` with ``phase_mode="itt"`` — so baselines are
+    at t1 and the mediator's post is at t2 — but the **outcome** symbol's post
+    counts are replaced with that symbol's scores at ``outcome_time`` (e.g. t3),
+    aligned by subject. This is the temporal-ordering *sensitivity* design for the
+    LRP59/LRP62 mediation models (issue #84): mediator at t2, outcome at a later
+    wave, so the mediator precedes the outcome in time.
+
+    Caveat (carried by the caller into the report): the t2 -> ``outcome_time``
+    increment is **not randomised** — both arms are treated after t2 — so the
+    treatment effect on the later outcome is no longer a clean randomised
+    contrast. Use only as a triangulation point, not a headline estimate.
+
+    Subjects in the ITT base who have no ``outcome_symbol`` score at
+    ``outcome_time`` get ``NaN`` post-counts; the mediation factory drops those
+    rows (its existing missing-outcome mask), so the effective ``n`` may shrink.
+    """
+    if outcome_time <= 2:
+        raise ValueError(
+            "outcome_time must be a post-RCT wave (>2); use load_and_prepare for "
+            "the randomised t2 outcome"
+        )
+    base = load_and_prepare(
+        path=path, phase_mode="itt", outcomes=outcomes, covariates=covariates
+    )
+    csv_path = Path(path) if path is not None else _default_data_path()
+    df = pd.read_csv(csv_path)
+    col = MEASURES[outcome_symbol].column
+    later = (
+        df.loc[df[V.TIME] == outcome_time, [V.SUBJECT_ID, col]]
+        .drop_duplicates(V.SUBJECT_ID)
+        .set_index(V.SUBJECT_ID)[col]
+    )
+    # Align the later-wave outcome to the ITT base rows by subject; missing -> NaN.
+    new_post = later.reindex(base.subject_ids).to_numpy(dtype=float)
+    post_counts = dict(base.post_counts)
+    post_counts[outcome_symbol] = new_post
+    return replace(base, post_counts=post_counts)
