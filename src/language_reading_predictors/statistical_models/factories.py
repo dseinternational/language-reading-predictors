@@ -706,16 +706,21 @@ class MediationData:
     - ``"gaussian_composite"`` (LRP62): a continuous standardised phonics-route
       composite; the baseline composite is ``M_pre_std`` and the mediator is
       drawn from a Normal, so the count-specific fields are unused.
+
+    Confounders are carried generically in ``conf_logit`` (baseline t1 logits
+    keyed by symbol), with ``confounder_symbols`` recording the fitted set, so
+    :func:`mediation.decompose` adjusts for exactly the confounders the model
+    was fitted with — no symbol can drift between the fit and the g-formula.
     """
 
     # Shared across mediator kinds.
     G: np.ndarray
     W1_logit: np.ndarray
     A_std: np.ndarray
-    E1_logit: np.ndarray
-    R1_logit: np.ndarray
+    conf_logit: dict[str, np.ndarray]
     n_trials_W: int
     mediator_kind: str = "beta_binomial"
+    confounder_symbols: tuple[str, ...] = ()
     # Beta-Binomial single mediator (LRP59).
     L1_logit: np.ndarray | None = None
     L2_count: np.ndarray | None = None
@@ -726,6 +731,51 @@ class MediationData:
     # Gaussian composite mediator (LRP62).
     M_pre_std: np.ndarray | None = None
     route_symbols: tuple[str, ...] = ()
+
+
+def _build_outcome_leg(
+    *,
+    mediator_node,
+    G_d,
+    W1_d,
+    A_d,
+    conf_d: dict,
+    confounder_symbols: Iterable[str],
+    N_out,
+    W2_count,
+):
+    """Shared Beta-Binomial outcome leg for the single-mediator-design factories.
+
+    Both LRP59 (:func:`build_mediation_model`) and LRP62
+    (:func:`_build_route_composite_model`) regress ``logit(W_t2)`` on treatment,
+    the standardised post mediator and its ``G`` interaction, baseline word
+    reading, age, and the baseline confounders — identical save for
+    ``mediator_node`` (``z_med`` for LRP59, the route composite for LRP62). Must
+    be called inside an open ``pm.Model`` context so the nodes register.
+    """
+    b0 = _priors.alpha_prior().to_pymc("b0")
+    b_G = _priors.tau_prior().to_pymc("b_G")
+    b_M = _priors.b_path_prior().to_pymc("b_M")
+    b_GM = _priors.gamma_cross_prior().to_pymc("b_GM")
+    b_W = _priors.gamma_own_prior().to_pymc("b_W")
+    b_A = _priors.gamma_cross_prior().to_pymc("b_A")
+    eta_Y = (
+        b0
+        + b_G * G_d
+        + b_M * mediator_node
+        + b_GM * (G_d * mediator_node)
+        + b_W * W1_d
+        + b_A * A_d
+    )
+    for s in confounder_symbols:
+        b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
+        eta_Y = eta_Y + b_c * conf_d[s]
+    eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
+    kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
+    return beta_binomial_from_logit(
+        "y_post", eta_Y, n_trials=N_out, kappa=kappa_Y,
+        observed=W2_count, dims="obs_id",
+    )
 
 
 def build_mediation_model(
@@ -843,28 +893,15 @@ def build_mediation_model(
         )
 
         # --- Outcome model: logit(W_t2) ---
-        b0 = _priors.alpha_prior().to_pymc("b0")
-        b_G = _priors.tau_prior().to_pymc("b_G")
-        b_M = _priors.b_path_prior().to_pymc("b_M")
-        b_GM = _priors.gamma_cross_prior().to_pymc("b_GM")
-        b_W = _priors.gamma_own_prior().to_pymc("b_W")
-        b_A = _priors.gamma_cross_prior().to_pymc("b_A")
-        eta_Y = (
-            b0
-            + b_G * G_d
-            + b_M * z_med_d
-            + b_GM * (G_d * z_med_d)
-            + b_W * W1_d
-            + b_A * A_d
-        )
-        for s in confounder_symbols:
-            b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
-            eta_Y = eta_Y + b_c * conf_d[s]
-        eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
-        kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
-        beta_binomial_from_logit(
-            "y_post", eta_Y, n_trials=N_out, kappa=kappa_Y,
-            observed=W2_count, dims="obs_id",
+        _build_outcome_leg(
+            mediator_node=z_med_d,
+            G_d=G_d,
+            W1_d=W1_d,
+            A_d=A_d,
+            conf_d=conf_d,
+            confounder_symbols=confounder_symbols,
+            N_out=N_out,
+            W2_count=W2_count,
         )
 
     med_data = MediationData(
@@ -872,8 +909,8 @@ def build_mediation_model(
         L1_logit=L1,
         W1_logit=W1,
         A_std=prepared.A_std,
-        E1_logit=conf_logit.get("E", np.zeros(prepared.n_obs)),
-        R1_logit=conf_logit.get("R", np.zeros(prepared.n_obs)),
+        conf_logit={s: conf_logit[s] for s in confounder_symbols},
+        confounder_symbols=tuple(confounder_symbols),
         L2_count=L2_count,
         W2_count=W2_count,
         n_trials_L=int(N_med),
@@ -985,37 +1022,24 @@ def _build_route_composite_model(
         sigma_M = _priors.sigma_mediator_prior().to_pymc("sigma_M")
         pm.Normal("M_post", mu=mu_M, sigma=sigma_M, observed=Mpost_d, dims="obs_id")
 
-        # --- Outcome model: logit(W_t2) (identical to the LRP59 outcome leg) ---
-        b0 = _priors.alpha_prior().to_pymc("b0")
-        b_G = _priors.tau_prior().to_pymc("b_G")
-        b_M = _priors.b_path_prior().to_pymc("b_M")
-        b_GM = _priors.gamma_cross_prior().to_pymc("b_GM")
-        b_W = _priors.gamma_own_prior().to_pymc("b_W")
-        b_A = _priors.gamma_cross_prior().to_pymc("b_A")
-        eta_Y = (
-            b0
-            + b_G * G_d
-            + b_M * Mpost_d
-            + b_GM * (G_d * Mpost_d)
-            + b_W * W1_d
-            + b_A * A_d
-        )
-        for s in confounder_symbols:
-            b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
-            eta_Y = eta_Y + b_c * conf_d[s]
-        eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
-        kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
-        beta_binomial_from_logit(
-            "y_post", eta_Y, n_trials=N_out, kappa=kappa_Y,
-            observed=W2_count, dims="obs_id",
+        # --- Outcome model: logit(W_t2) (shared with the LRP59 outcome leg) ---
+        _build_outcome_leg(
+            mediator_node=Mpost_d,
+            G_d=G_d,
+            W1_d=W1_d,
+            A_d=A_d,
+            conf_d=conf_d,
+            confounder_symbols=confounder_symbols,
+            N_out=N_out,
+            W2_count=W2_count,
         )
 
     med_data = MediationData(
         G=prepared.G.astype(float),
         W1_logit=W1,
         A_std=prepared.A_std,
-        E1_logit=conf_logit.get("E", np.zeros(prepared.n_obs)),
-        R1_logit=conf_logit.get("R", np.zeros(prepared.n_obs)),
+        conf_logit={s: conf_logit[s] for s in confounder_symbols},
+        confounder_symbols=tuple(confounder_symbols),
         n_trials_W=int(N_out),
         mediator_kind="gaussian_composite",
         W2_count=W2_count,

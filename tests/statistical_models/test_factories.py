@@ -20,6 +20,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_itt_model,
     build_joint_model,
     build_mechanism_model,
+    build_mediation_model,
 )
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
@@ -207,3 +208,83 @@ def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
     )
     names = {v.name for v in built.model.free_RVs}
     assert "gamma_A" not in names
+
+
+# ---------------------------------------------------------------------------
+# Mediation factories (LRP59 Beta-Binomial + LRP62 Gaussian composite)
+# ---------------------------------------------------------------------------
+
+# Outcome-leg coefficients shared by both mediation factories (the
+# ``_build_outcome_leg`` helper). Guards the extraction in issue #85: any drift
+# in the shared leg shows up as a missing/renamed RV here.
+_OUTCOME_LEG_RVS = {"b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "kappa_Y"}
+
+
+def test_mediation_factory_builds_beta_binomial(tmp_path):
+    """LRP59: single Beta-Binomial mediator + shared outcome leg builds and
+    draws a prior predictive sample for both observation nodes."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built, med = build_mediation_model(
+        prep, mediator_symbol="L", outcome_symbol="W", confounder_symbols=("E", "R")
+    )
+    names = {v.name for v in built.model.free_RVs}
+    # Shared outcome leg + the confounder coefficients + the Beta-Binomial
+    # mediator leg (a_L / kappa_M).
+    assert _OUTCOME_LEG_RVS.issubset(names)
+    assert {"b_E", "b_R", "a_E", "a_R", "a_L", "kappa_M"}.issubset(names)
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=3)
+    assert pp.prior_predictive["L_post"].shape[-1] == prep.n_obs
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_mediation_factory_builds_gaussian_composite(tmp_path):
+    """LRP62: Gaussian route-composite mediator reuses the *same* outcome leg
+    (a_comp / sigma_M instead of a_L / kappa_M)."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built, med = build_mediation_model(
+        prep,
+        outcome_symbol="W",
+        confounder_symbols=("E", "R"),
+        mediator_kind="gaussian_composite",
+        route_symbols=("L", "B"),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert _OUTCOME_LEG_RVS.issubset(names)
+    assert {"a_comp", "sigma_M"}.issubset(names)
+    assert not {"a_L", "kappa_M"} & names  # the Beta-Binomial mediator leg is absent
+    assert med.mediator_kind == "gaussian_composite"
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=4)
+    assert pp.prior_predictive["M_post"].shape[-1] == prep.n_obs
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_mediation_data_carries_generic_confounders(tmp_path):
+    """``MediationData`` carries confounders generically (issue #85): a
+    ``conf_logit`` dict keyed by symbol plus ``confounder_symbols`` — not the old
+    hardcoded ``E1_logit`` / ``R1_logit`` fields."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    _, med = build_mediation_model(prep, confounder_symbols=("E", "R"))
+    assert med.confounder_symbols == ("E", "R")
+    assert set(med.conf_logit) == {"E", "R"}
+    assert med.conf_logit["E"].shape == (prep.n_obs,)
+    assert not hasattr(med, "E1_logit")
+    assert not hasattr(med, "R1_logit")
+
+
+def test_mediation_factory_custom_confounder_set(tmp_path):
+    """A non-default adjustment set is honoured end to end: the model builds
+    only the requested confounder coefficients and ``MediationData`` records
+    exactly that set (so the g-formula adjusts for the fitted confounders)."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built, med = build_mediation_model(prep, confounder_symbols=("E",))
+    names = {v.name for v in built.model.free_RVs}
+    assert {"b_E", "a_E"}.issubset(names)
+    assert not {"b_R", "a_R"} & names
+    assert med.confounder_symbols == ("E",)
+    assert set(med.conf_logit) == {"E"}
