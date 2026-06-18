@@ -298,10 +298,15 @@ def load_and_prepare_lagged_outcome(
     ``outcome_time`` get ``NaN`` post-counts; the mediation factory drops those
     rows (its existing missing-outcome mask), so the effective ``n`` may shrink.
     """
+    outcomes = tuple(outcomes)
     if outcome_time <= 2:
         raise ValueError(
             "outcome_time must be a post-RCT wave (>2); use load_and_prepare for "
             "the randomised t2 outcome"
+        )
+    if outcome_symbol not in outcomes:
+        raise ValueError(
+            f"outcome_symbol {outcome_symbol!r} must be included in outcomes={outcomes!r}"
         )
     base = load_and_prepare(
         path=path, phase_mode="itt", outcomes=outcomes, covariates=covariates
