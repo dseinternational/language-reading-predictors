@@ -75,7 +75,6 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from language_reading_predictors.plot_utils import draw_causal_graph
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
 
 if TYPE_CHECKING:
@@ -158,6 +157,11 @@ def causal_dag():
     the dashed ``-> gain`` edges from non-verbal MA and behaviour are the
     associations the adjusted model is built to test.
     """
+    # Lazy import: ``plot_utils`` pulls in the plotting stack (networkx etc.),
+    # which the fit path does not need. Keeping it here lets the dispatcher
+    # import ``lrp65`` (and fit) with only the sampler dependencies present.
+    from language_reading_predictors.plot_utils import draw_causal_graph
+
     return draw_causal_graph(
         _EDGE_LIST,
         node_props=_NODE_PROPS,
@@ -200,19 +204,24 @@ def get_spec() -> "ModelSpec":
         outcome_symbol="W",
         adjustment=["L", "lang", "B", "A", "W_pre", "blocks", "behav"],
         extra={
-            # Headline = genuinely between-child (one row per child, T1 -> t4 gain).
+            # Headline = genuinely between-child: one row per child, T1 baselines,
+            # full-study gain (W at last wave conditioned on W_T1). No phase
+            # dimension and no child random intercept (one obs per child).
             "design": "between_child",
             "post_time": 4,
-            # Standardised T1 predictors of interest.
+            # Standardised T1 predictors of interest (letter sounds, blending).
             "predictor_symbols": ["L", "B"],
+            # Equal-weight language composite (receptive + expressive + concepts).
             "language_composite_symbols": ["R", "E", "F"],
             "use_age_predictor": True,
             # Continuous covariates entered to test independent signal.
             "covariates": ["blocks", "behav"],
             # SES sensitivity fit on the SES-complete subset (not the headline model).
             "ses_covariates": ["mumedupost16"],
-            # Off for the between-child design; on only for the pooled variant.
-            "use_subject_random_intercept": False,
+            # Fixed weakly-informative slope prior + the sensitivity sweep that
+            # checks the which-predictors-clear-zero conclusion is stable.
+            "predictor_slope_sigma": 0.5,
+            "prior_sensitivity_sigmas": [0.3, 0.7],
         },
     )
 

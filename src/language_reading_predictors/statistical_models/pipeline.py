@@ -601,3 +601,307 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _copy_report_template(ctx)
     _print_footer(ctx)
     return ctx
+
+
+# ---------------------------------------------------------------------------
+# Adjusted pipeline (LRP65) — between-child baseline predictors of gain
+# ---------------------------------------------------------------------------
+
+# Human-readable labels for the LRP65 predictor keys (for tables / forest plot).
+_ADJ_LABELS = {
+    "L": "Letter sounds (T1)",
+    "lang": "Language composite (T1)",
+    "B": "Blending (T1)",
+    "age": "Age (T1)",
+    "blocks": "Non-verbal MA (T1)",
+    "behav": "Behaviour (T1)",
+    "mumedupost16": "SES: mother post-16 educ.",
+    "dadedupost16": "SES: father post-16 educ.",
+}
+
+
+def _adj_label(key: str) -> str:
+    return _ADJ_LABELS.get(key, key)
+
+
+def _sample_model(model, sampling):
+    """Sample a sub-model (bivariate / sensitivity / prior-sweep) with nutpie.
+
+    Mirrors :func:`diagnostics.sample_posterior` but is standalone, so the sub-fit
+    traces never overwrite the headline ``ctx.trace`` / ``trace.nc``.
+    """
+    import pymc as pm
+
+    with model:
+        return pm.sample(
+            draws=sampling.draws,
+            tune=sampling.tune,
+            chains=sampling.chains,
+            cores=sampling.cores,
+            target_accept=sampling.target_accept,
+            nuts_sampler="nutpie",
+            return_inferencedata=True,
+            random_seed=sampling.random_seed,
+            progressbar=False,
+        )
+
+
+def _beta_summary(trace, name: str, hdi: float) -> dict:
+    """Posterior mean, equal-tailed ``hdi``-coverage interval, and P(>0) for ``name``."""
+    draws = trace.posterior[name].stack(sample=("chain", "draw")).values
+    lo_q, hi_q = (1 - hdi) / 2, 1 - (1 - hdi) / 2
+    return {
+        "mean": float(np.mean(draws)),
+        "lo": float(np.quantile(draws, lo_q)),
+        "hi": float(np.quantile(draws, hi_q)),
+        "prob_pos": float(np.mean(draws > 0)),
+    }
+
+
+def _plot_associations(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float) -> None:
+    y = np.arange(len(df))[::-1]
+    plt.figure(figsize=(7.0, 0.6 * len(df) + 1.6))
+    plt.errorbar(
+        df["adj_mean"], y + 0.12,
+        xerr=[df["adj_mean"] - df["adj_lo"], df["adj_hi"] - df["adj_mean"]],
+        fmt="o", color="#1f77b4", capsize=3, label="adjusted (mutual)",
+    )
+    plt.errorbar(
+        df["biv_mean"], y - 0.12,
+        xerr=[df["biv_mean"] - df["biv_lo"], df["biv_hi"] - df["biv_mean"]],
+        fmt="s", color="#999999", capsize=3, label="bivariate (baseline-only)",
+    )
+    plt.axvline(0.0, color="grey", ls=":", lw=1)
+    plt.yticks(y, df["label"])
+    plt.xlabel(
+        f"Standardised coefficient (per-SD, logit scale); {int(hdi * 100)}% interval"
+    )
+    plt.title("LRP65: baseline predictors of word-reading gain (between-child)")
+    plt.legend(fontsize=8, loc="best")
+    plt.savefig(
+        os.path.join(ctx.output_dir, "predictor_associations.png"),
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close()
+
+
+def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Between-child adjusted fit (LRP65): independent T1 predictors of gain.
+
+    Headline = the mutually-adjusted between-child regression (one row per child,
+    T1 baselines, full-study gain ``W_last | W_T1``). Also fits, per the brief:
+    the bivariate (baseline-only-adjusted) association for each predictor; a
+    prior-sensitivity sweep over the predictor-slope sigma; and a complete-case
+    SES sensitivity fit. Writes ``predictor_associations.csv`` (+ forest plot),
+    ``prior_sensitivity.csv`` and ``ses_sensitivity.csv`` alongside the standard
+    trace / diagnostics / LOO / PPC artefacts.
+    """
+    assert spec.kind == "adjusted"
+    e = spec.extra
+    outcome = spec.outcome_symbol or "W"
+    post_time = int(e.get("post_time", 4))
+    predictor_symbols = list(e.get("predictor_symbols", ["L", "B"]))
+    lang_symbols = tuple(e.get("language_composite_symbols", ["R", "E", "F"]))
+    covariates = list(e.get("covariates", ["blocks", "behav"]))
+    ses_covs = list(e.get("ses_covariates", ["mumedupost16"]))
+    sigma0 = float(e.get("predictor_slope_sigma", 0.5))
+    prior_sens = list(e.get("prior_sensitivity_sigmas", [0.3, 0.7]))
+    use_age = bool(e.get("use_age_predictor", True))
+
+    # Headline predictor key order: skills, language composite, age, covariates.
+    headline = (
+        list(predictor_symbols)
+        + ["lang"]
+        + (["age"] if use_age else [])
+        + covariates
+    )
+
+    # 94% intervals (the brief's convention) rather than the project-wide 95%.
+    ctx = make_context(spec, config, hdi=0.94)
+    hdi = ctx.reporting.hdi
+
+    section_header("Prepare data")
+    measure_outcomes = tuple(
+        dict.fromkeys([outcome, *predictor_symbols, *lang_symbols])
+    )
+    prepared = load_and_prepare(
+        phase_mode="span",
+        post_time=post_time,
+        outcomes=measure_outcomes,
+        covariates=tuple(covariates),
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_adjusted_model(
+        prepared,
+        outcome_symbol=outcome,
+        predictors=headline,
+        language_composite_symbols=lang_symbols,
+        predictor_slope_sigma=sigma0,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    beta_names = [f"beta_{k}" for k in headline]
+    _diag.summary_diagnostics(
+        ctx, var_names=["alpha", "gamma_own", "kappa", *beta_names]
+    )
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    # --- Adjusted vs bivariate associations --------------------------------
+    section_header("Predictor associations (adjusted vs bivariate)")
+    adjusted = {k: _beta_summary(ctx.trace, f"beta_{k}", hdi) for k in headline}
+    bivariate: dict[str, dict] = {}
+    for k in headline:
+        b = _factories.build_adjusted_model(
+            prepared,
+            outcome_symbol=outcome,
+            predictors=[k],
+            language_composite_symbols=lang_symbols,
+            predictor_slope_sigma=sigma0,
+        )
+        t = _sample_model(b.model, ctx.sampling)
+        bivariate[k] = _beta_summary(t, f"beta_{k}", hdi)
+
+    rows = []
+    for k in headline:
+        a, bv = adjusted[k], bivariate[k]
+        rows.append(
+            {
+                "predictor": k,
+                "label": _adj_label(k),
+                "adj_mean": a["mean"],
+                "adj_lo": a["lo"],
+                "adj_hi": a["hi"],
+                "adj_prob_pos": a["prob_pos"],
+                "biv_mean": bv["mean"],
+                "biv_lo": bv["lo"],
+                "biv_hi": bv["hi"],
+                "biv_prob_pos": bv["prob_pos"],
+            }
+        )
+    assoc_df = pd.DataFrame(rows)
+    assoc_df.to_csv(
+        os.path.join(ctx.output_dir, "predictor_associations.csv"), index=False
+    )
+    ctx.tables["predictor_associations"] = assoc_df
+    print_table(
+        ranked_dataframe_table(
+            assoc_df,
+            title=(
+                f"Predictor associations (per-SD, logit; {int(hdi * 100)}% interval)"
+            ),
+            columns=[
+                "label", "adj_mean", "adj_lo", "adj_hi", "adj_prob_pos",
+                "biv_mean", "biv_lo", "biv_hi",
+            ],
+            rank_column=False,
+            precision=3,
+        )
+    )
+    _plot_associations(ctx, assoc_df, hdi)
+
+    # --- Prior sensitivity (does the clear-zero conclusion move?) ----------
+    section_header("Prior sensitivity")
+    ps_rows = []
+    for sig in [sigma0, *prior_sens]:
+        if sig == sigma0:
+            tr = ctx.trace
+        else:
+            b = _factories.build_adjusted_model(
+                prepared,
+                outcome_symbol=outcome,
+                predictors=headline,
+                language_composite_symbols=lang_symbols,
+                predictor_slope_sigma=sig,
+            )
+            tr = _sample_model(b.model, ctx.sampling)
+        for k in headline:
+            ps_rows.append(
+                {"sigma": sig, "predictor": k, **_beta_summary(tr, f"beta_{k}", hdi)}
+            )
+    ps_df = pd.DataFrame(ps_rows)
+    ps_df.to_csv(os.path.join(ctx.output_dir, "prior_sensitivity.csv"), index=False)
+    ctx.tables["prior_sensitivity"] = ps_df
+
+    # --- SES complete-case sensitivity -------------------------------------
+    section_header("SES sensitivity (complete cases)")
+    ses_df = None
+    ses_n = None
+    try:
+        prepared_ses = load_and_prepare(
+            phase_mode="span",
+            post_time=post_time,
+            outcomes=measure_outcomes,
+            covariates=tuple(covariates + ses_covs),
+        )
+        b = _factories.build_adjusted_model(
+            prepared_ses,
+            outcome_symbol=outcome,
+            predictors=headline + ses_covs,
+            language_composite_symbols=lang_symbols,
+            predictor_slope_sigma=sigma0,
+        )
+        t = _sample_model(b.model, ctx.sampling)
+        ses_n = int(b.prepared.n_children)
+        ses_rows = [
+            {
+                "predictor": k,
+                "label": _adj_label(k),
+                "n_children": ses_n,
+                **_beta_summary(t, f"beta_{k}", hdi),
+            }
+            for k in headline + ses_covs
+        ]
+        ses_df = pd.DataFrame(ses_rows)
+        ses_df.to_csv(
+            os.path.join(ctx.output_dir, "ses_sensitivity.csv"), index=False
+        )
+        ctx.tables["ses_sensitivity"] = ses_df
+        rprint(f"  SES sensitivity fit on {ses_n} complete-case children")
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]SES sensitivity fit skipped: {exc}[/yellow]")
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
+            "design": "between_child",
+            "post_time": post_time,
+            "predictors": headline,
+            "predictor_slope_sigma": sigma0,
+            "prior_sensitivity_sigmas": prior_sens,
+            "language_composite_symbols": list(lang_symbols),
+            "n_children": int(prepared.n_children),
+            "ses_n_children": ses_n,
+            "associations": rows,
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx

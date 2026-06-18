@@ -1,0 +1,177 @@
+---
+title: "LRP65: Adjusted model — independent baseline predictors of word-reading gain"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+
+
+def _read(name):
+    p = _here / name
+    return pd.read_csv(p) if p.exists() else None
+
+
+associations = _read("predictor_associations.csv")
+prior_sensitivity = _read("prior_sensitivity.csv")
+ses = _read("ses_sensitivity.csv")
+```
+
+## Overview
+
+LRP65 is the Bayesian "interpretable estimand" follow-up to the LightGBM discovery
+layer (LRP01). It answers the **static, between-child** question raised by the
+descriptive work and the meeting: *do children who start (at wave 1) with more
+letter-sound knowledge / language / blending go on to gain more in word reading?*
+
+The candidate predictors form a correlated general-ability cluster (vocabulary–block
+design $\rho \approx 0.63$; vocabulary–letter-sounds $\approx 0.4$–$0.5$), so a naive
+"throw them all in" regression is multicollinear and "independent predictor" is
+ambiguous. The DAG below fixes the estimand and the adjustment set **before** fitting.
+
+## Estimand and design
+
+::: {.callout-important title="Between-child association — match the design to the estimand"}
+
+The estimand is the **mutually-adjusted between-child association** of each wave-1
+baseline skill with subsequent word-reading gain, holding the other measured baselines
+and $W_{\text{pre}}$ constant, *across children*.
+
+Design: **one row per child** — $x$ = each child's wave-1 (T1) baseline level, $y$ =
+word reading at the last wave conditioned on $W_{\text{T1}}$ (the gain framing). There
+is deliberately **no** child random intercept: with one row per child the coefficients
+are genuinely between-child. A pooled all-phase design with a child random intercept
+would instead estimate the *within-child* association — a different question (handled by
+the deferred cross-lagged model), so it is **not** used here.
+
+These are **associations, not causal effects** (n ≈ 54). The randomised ITT models
+(LRP52/55) carry the causal claim about the programme.
+
+:::
+
+![Causal DAG. Latent general ability `g` (dashed, not fitted) drives the correlated T1 baselines; the dashed edges from non-verbal MA, behaviour and SES to gain are the associations the model is built to test.](dag.svg){#fig-dag .lightbox fig-align="left"}
+
+## Adjustment set and predictors
+
+- **Predictors of interest (standardised T1, per-SD):** letter sounds (`yarclet`), an
+  equal-weight **language composite** (ROWPVT + EOWPVT + CELF), blending, age.
+- **Baseline conditioning:** $W_{\text{pre}}$ (T1 word reading) via $\gamma_{\text{own}}$.
+- **Tested covariates:** non-verbal MA (block design) and behaviour, entered to
+  *demonstrate* whether they carry independent signal. SES is adjudicated in a separate
+  complete-case sensitivity fit (it has notable missingness).
+
+Each predictor's **adjusted** (mutual) coefficient is reported alongside its **bivariate**
+(baseline-only-adjusted) association, so the shared-variance shift is visible.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+Fixed weakly-informative `Normal(0, 0.5)` on the standardised predictor slopes
+(regularising under collinearity and n ≈ 54); the conclusion is checked against
+`sigma` ∈ {0.3, 0.7} below.
+
+![alpha](prior_alpha.svg){width=32%}
+![gamma_own](prior_gamma_own.svg){width=32%}
+![predictor_slope](prior_predictor_slope.svg){width=32%}
+![kappa](prior_kappa.svg){width=32%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Predictor associations (adjusted vs bivariate)
+
+The headline result: each baseline predictor's standardised coefficient on the logit
+scale, mutually adjusted, alongside its bivariate association. Intervals are 94%
+(equal-tailed); `prob_pos` is the posterior probability the coefficient is positive.
+
+![Adjusted vs bivariate associations](predictor_associations.png){#fig-assoc .lightbox}
+
+```{python}
+# | echo: false
+associations
+```
+
+::: {.callout-note title="Prediction to test (not the assumed result)"}
+
+Letter sounds and the language composite are expected to retain credible signal once
+mutually adjusted; non-verbal MA, behaviour and SES are expected to shrink toward zero.
+Wide intervals at n ≈ 54 are the honest result — do not over-interpret a single
+predictor "winning".
+
+:::
+
+## Prior sensitivity
+
+Adjusted coefficients under the headline slope prior and the `sigma` ∈ {0.3, 0.7}
+refits — the which-predictors-clear-zero reading should be stable across these.
+
+```{python}
+# | echo: false
+prior_sensitivity
+```
+
+## SES sensitivity (complete cases)
+
+SES (mother's post-16 education) added to the headline set on the SES-complete subset
+(reduced n, reported in the table).
+
+```{python}
+# | echo: false
+ses
+```
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

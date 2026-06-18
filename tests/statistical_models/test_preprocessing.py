@@ -100,6 +100,26 @@ def test_load_and_prepare_all_phases(tmp_path):
     assert (phase_counts == 15).all()
 
 
+def test_load_and_prepare_span_one_row_per_child(tmp_path):
+    df = _make_synthetic_long(n_children=18, seed=5)
+    # Block design is a t1-only baseline (NaN at later waves), like the real data.
+    df[V.BLOCKS] = np.nan
+    df.loc[df[V.TIME] == 1, V.BLOCKS] = np.arange(18, dtype=float)
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    prep = load_and_prepare(
+        path=p, phase_mode="span", post_time=4, covariates=(V.BLOCKS,)
+    )
+    # One row per child; the t1-only block design survives (span pre = t1).
+    assert prep.phase_mode == "span"
+    assert prep.n_phases == 1
+    assert prep.n_obs == 18
+    assert prep.n_children == 18
+    assert V.BLOCKS in prep.covariates
+    assert prep.covariates[V.BLOCKS].shape == (18,)
+    assert prep.covariates[V.BLOCKS].mean() == pytest.approx(0.0, abs=1e-9)
+
+
 def test_load_and_prepare_drops_missing_pre(tmp_path):
     df = _make_synthetic_long(n_children=10, seed=3)
     # Introduce missing pre-score for one child at t=1.

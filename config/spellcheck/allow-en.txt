@@ -166,3 +166,10 @@ hyperparam
 idxmin
 importorskip
 handoff
+collinear
+collinearity
+multicollinear
+multicollinearity
+Yoder
+Woynaroski
+AJIDD
