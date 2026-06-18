@@ -541,7 +541,7 @@ def build_mechanism_model(
     }
 
     with pm.Model(coords=coords) as model:
-        pm.Data("A_std", prepared.A_std, dims="obs_id")
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
         pm.Data("mech_post_logit", mech_post_logit, dims="obs_id")
@@ -614,6 +614,38 @@ def build_mechanism_model(
         if use_age_gp:
             f_A = build_hsgp_1d("f_A", prepared.A_std)
             eta = eta + f_A
+
+        # Age confounder. ``A`` is a declared confounder for every mechanism
+        # model (the DAG lists it), but the two confounder loops above skip
+        # {"G", "A"} and the age GP is off by default — so without the linear
+        # term here, age would silently never enter ``eta``. That was the bug
+        # that left LRP56-58 / LRP71 / LRP72 unadjusted for the age confounder;
+        # see notes/202606172100-mechanism-age-adjustment.md. When age is the
+        # moderator (LRP73, ``moderator_is_covariate``) its main effect
+        # ``gamma_mod * z(age)`` already represents it, so a second linear term
+        # would be collinear — skip it in that case.
+        age_is_moderator = moderator_symbol == "A" and moderator_is_covariate
+        age_linear_added = (
+            "A" in confounder_symbols and not use_age_gp and not age_is_moderator
+        )
+        if age_linear_added:
+            gamma_A = _priors.gamma_cross_prior().to_pymc("gamma_A")
+            eta = eta + gamma_A * A_std_d
+
+        # Invariant: every declared confounder must reach ``eta``. ``G`` is in
+        # ``beta_G``; measure confounders are added in the loop above; ``A`` is
+        # the age GP, the age-moderator main effect, or the linear ``gamma_A``
+        # term. Raise otherwise, so a future spec cannot silently drop a
+        # declared confounder the way the original age handling did.
+        represented = {"G"} | set(confounder_data)
+        if use_age_gp or age_is_moderator or age_linear_added:
+            represented.add("A")
+        missing = [s for s in confounder_symbols if s not in represented]
+        if missing:
+            raise ValueError(
+                f"Declared confounder(s) {missing!r} have no representation in "
+                "the mechanism-model linear predictor."
+            )
 
         # Mechanism GP (the estimand). The HSGP basis size depends on the
         # numeric range of the input, so it is constructed against the
