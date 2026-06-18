@@ -37,6 +37,7 @@ from language_reading_predictors.statistical_models import (
     lrp60,
     lrp60a,
     lrp62,
+    lrp64,
     lrp71,
     lrp72,
     lrp72base,
@@ -60,6 +61,8 @@ MODELS = {
     "lrp60a": lrp60a,
     # LRP62: reading-route decomposition (phonics-route composite mediation).
     "lrp62": lrp62,
+    # LRP64: two-mediator decomposition (letter-sound + expressive vocab -> W).
+    "lrp64": lrp64,
     # LRP70 (celf moderator) is reserved but deferred pending a DAG review of
     # conditioning on a descendant of L. LRP71 (eowpvt) is the first built
     # interaction model.

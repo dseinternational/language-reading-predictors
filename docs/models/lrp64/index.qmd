@@ -1,0 +1,167 @@
+---
+title: "LRP64: Do letter-sounds and vocabulary act as independent paths to word reading? (two-mediator decomposition)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+med = pd.read_csv(_here / "mediation_summary.csv")
+```
+
+## Overview
+
+The single-mediator [LRP59](../lrp59) (letter-sound only) and the route-composite
+[LRP62](../lrp62) (letter-sound + blending) each collapse the question to one pathway.
+LRP64 asks the **two-mediator** question directly: of the intervention's effect on
+word reading $W$, how much runs through **letter-sound knowledge $L$**, how much
+through **expressive vocabulary $E$**, and how much is direct/residual?
+
+We extend the same g-formula machinery to a $\{L, E\}$ mediator block and report:
+
+- the **joint indirect effect** through the block (the robust headline);
+- a clearly-flagged **exploratory** path-specific split into $\text{NIE}_L$ and
+  $\text{NIE}_E$.
+
+## Phase 0 only — the design
+
+The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**: group 1
+receives the intervention, group 2 is the wait-list control; after t2 both arms are
+treated. LRP64 uses the phase-0 transition only (`phase_mode="itt"`), $n \approx 53$.
+Sign convention: $G = \text{group} - 1$, so $G = 0$ is the intervention arm; all
+effects are in the **intervention-helps** direction.
+
+## Causal structure
+
+- **Treatment** $G$ (randomised). **Mediators** $L_{t2}$ and $E_{t2}$, each a
+  Beta-Binomial leg conditioned on its own baseline. **Outcome** $Y = W_{t2}$
+  (conditioned on $W_{t1}$). The outcome leg includes both $G\times L$ and $G\times E$
+  interactions, so the decomposition admits exposure–mediator interaction.
+- **Mediator–outcome confounder** $C$: receptive vocabulary $R_{t1}$ (expressive vocab
+  is now a *mediator*, not a confounder), plus age $A$. Taken at **baseline (t1)** —
+  the cross-world assumption.
+- The natural (in)direct effects are computed by **counterfactual simulation from the
+  posterior** (the g-formula), not from coefficients.
+
+## Assumptions — read this first {#sec-assumptions}
+
+This is a **decomposition under assumptions, not proof of a causal route.**
+
+- Randomisation in phase 0 secures **no unmeasured confounding of $G\to Y$ and
+  $G\to M$** for free.
+- **No unmeasured mediator–outcome confounding** — the binding, unverifiable
+  assumption and the main limitation. We adjust for $A$, $R$, and the baselines; any
+  residual confounder (e.g. an unmeasured "literacy readiness") would bias the split.
+- **Contemporaneous measurement.** Both mediators and the outcome are at t2 — no
+  temporal precedence within the window. Conditioning on baselines mitigates but does
+  not remove this.
+- **Sight-reading.** Children can read words without decoding, so $W$ does not reveal
+  *how* a child read — only that the score moved.
+- The two mediators are simulated as **conditionally independent given covariates** (no
+  residual $L$–$E$ correlation is modelled), and the path-specific split is
+  **ordering-dependent** (see below).
+- Consistency and positivity are assumed.
+
+::: {.callout-important title="Joint effect robust; path split exploratory"}
+With $n \approx 53$, expect **wide intervals**. The **joint indirect effect** (how much
+flows through the $\{L, E\}$ block at all) is the robust quantity. The $\text{NIE}_L$ /
+$\text{NIE}_E$ split is **exploratory**: it assumes a mediator ordering (default $L$
+before $E$) and the conditional-independence above, and is an attribution under those
+assumptions — not a unique partition.
+:::
+
+## Decomposition
+
+Effects in the intervention-helps direction, on the word-count scale (out of 90) and
+the probability scale. `prob_pos` is $P(\text{effect} > 0)$; for
+`proportion_mediated` it is $P(\text{Total} > 0)$.
+
+```{python}
+# | echo: false
+med.round(3)
+```
+
+- **total** — the intervention's total effect on word reading (should reconcile with
+  LRP52's $\tau_W$ and with LRP59/LRP62's Totals).
+- **NDE** — the direct / residual path (neither mediator moves).
+- **NIE_joint** — the headline: transmitted through the $\{L, E\}$ block.
+- **NIE_L / NIE_E** — exploratory path-specific shares (sum to `NIE_joint`), under the
+  stated ordering. Read $\text{NIE}_E \approx 0$ as "expressive vocab adds little
+  *additional* indirect path once letter-sounds are in the block", **not** as "vocab
+  doesn't matter".
+
+```{python}
+# | echo: false
+# | output: asis
+_t = med.set_index("quantity")
+total = _t.loc["total", "words_mean"]
+nij = _t.loc["NIE_joint", "words_mean"]
+nl = _t.loc["NIE_L", "words_mean"]
+ne = _t.loc["NIE_E", "words_mean"]
+prob_positive = _t.loc["total", "prob_pos"]
+print(
+    f"At the posterior mean, the intervention raises word reading by "
+    f"**{total:.1f} words/90** (P(Total>0) = {prob_positive:.2f}), of which "
+    f"**{nij:.1f}** is "
+    f"carried jointly by the letter-sound + expressive-vocabulary block. Under the "
+    f"exploratory L-before-E split that is ~**{nl:.1f}** via letter-sounds and "
+    f"~**{ne:.1f}** via expressive vocabulary. See the interval columns for the (wide) "
+    f"uncertainty, and @sec-assumptions before reading the split causally."
+)
+```
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+pd.read_csv(_here / "diagnostics.csv", index_col=0)
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Posterior predictive (both mediators and outcome)
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## Limitations
+
+- $n \approx 53$: the posteriors are **wide**; the path split especially so.
+- The decomposition rests on no-unmeasured-confounding and contemporaneous
+  measurement (@sec-assumptions) — the principal threats, not the sample size.
+- The path-specific split is ordering-dependent and assumes conditionally independent
+  mediators; the **joint** indirect effect is the quantity to lead with. The NDE/NIE split
+  is consistent in sign and magnitude with the earlier single-mediator analyses
+  (LRP59, LRP62).
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
