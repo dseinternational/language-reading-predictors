@@ -108,11 +108,12 @@ _EDGE_LIST: list[tuple[str, str]] = [
     ("blend", "wgain"),
     # Baseline coupling / regression to the mean (conditioned on).
     ("wpre", "wgain"),
-    # Span between T1 and the gain endpoint.
-    ("interval", "wgain"),
-    # Edges under test - the model decides whether these are non-zero.
+    # Edges under test - the model decides whether these are non-zero once the
+    # language + letter-sound signal is in. (Follow-up span is uniform - all
+    # children have four waves - so time-between-waves is not a node.)
     ("nvma", "wgain"),
     ("behav", "wgain"),
+    ("ses", "wgain"),
 ]
 
 _NODE_PROPS: dict[str, dict[str, str]] = {
@@ -125,7 +126,6 @@ _NODE_PROPS: dict[str, dict[str, str]] = {
     },
     "ses": {"label": "SES\\n(parental education)"},
     "age": {"label": "Age (T1)"},
-    "interval": {"label": "Time between\\nT1 and endpoint"},
     "ls": {"label": "Letter sounds (T1)\\nYARC-LSK"},
     "lang": {"label": "Language composite (T1)\\nROWPVT+EOWPVT+CELF"},
     "blend": {"label": "Blending (T1)"},
@@ -133,17 +133,21 @@ _NODE_PROPS: dict[str, dict[str, str]] = {
     "behav": {"label": "Behaviour (T1)"},
     "wpre": {"label": "Word reading (T1)\\nW_pre", "shape": "box"},
     "wgain": {
-        "label": "Word-reading gain\\nW_post | W_pre",
+        "label": "Word-reading gain\\n(T1 -> last wave; W_last | W_T1)",
         "shape": "box",
         "style": "filled",
         "fillcolor": "#e8eef7",
     },
 }
 
-# Edges whose presence is the hypothesis under test (drawn dashed).
+# Edges whose presence is the hypothesis under test (drawn dashed): the
+# covariates the descriptives expect to carry no independent signal once
+# language + letter sounds are adjusted for. SES is tested in a separate
+# complete-case sensitivity fit.
 _EDGE_PROPS: dict[tuple[str, str], dict[str, str]] = {
     ("nvma", "wgain"): {"style": "dashed", "color": "grey45"},
     ("behav", "wgain"): {"style": "dashed", "color": "grey45"},
+    ("ses", "wgain"): {"style": "dashed", "color": "grey45"},
 }
 
 
