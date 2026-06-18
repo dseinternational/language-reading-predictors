@@ -7,10 +7,11 @@ findings that need a **modelling decision** before any code change, so they are
 not silently "fixed" in a way that alters a scientific estimand.
 
 Environment caveat: this review was done in a workspace without the conda env,
-so `pytest` / `lightgbm` / `pymc` could not be run here. `ruff check src/
-tests/` passes, `npm run spellcheck` passes, and the new pure-Python tests were
-executed against the real modules (numpy/pandas/scipy/scikit-learn) outside
-pytest. The full suite still needs a run in `dse-language-reading-predictors`.
+so `pytest` / `lightgbm` / `pymc` could not be run here.
+`ruff check src/ tests/` passes, `npm run spellcheck` passes, and the new
+pure-Python tests were executed against the real modules
+(numpy/pandas/scipy/scikit-learn) outside pytest. The full suite still needs a
+run in `dse-language-reading-predictors`.
 
 ## 1. Fixes applied in this PR (safe — no model results change)
 

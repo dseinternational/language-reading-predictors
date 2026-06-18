@@ -85,7 +85,7 @@ def hyperparam_search_randomized(
 
 def cross_validation_score_rows(
     scores: dict[str, np.ndarray],
-) -> list[dict[str, float]]:
+) -> list[dict[str, str | float]]:
     """Build the per-metric summary rows from a ``cross_validate`` result.
 
     Only ``test_*`` entries are summarised. ``neg_*`` error scorers (see
@@ -97,7 +97,7 @@ def cross_validation_score_rows(
     Separated from :func:`report_cross_validation_scores` so the sign logic
     can be unit-tested without the console-rendering dependency.
     """
-    rows: list[dict[str, float]] = []
+    rows: list[dict[str, str | float]] = []
     for key, score in scores.items():
         if not key.startswith("test_"):
             continue
