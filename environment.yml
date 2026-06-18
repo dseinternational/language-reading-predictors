@@ -16,7 +16,8 @@ dependencies:
   - optuna>=4.9.0
   - optuna-integration[lightgbm,shap,scikit-learn,xgboost]
   - pandas-stubs
-  - pandas>=3.0.3
+  - pandas>=3.0.3  
+  - preliz>=0.27.0
   - pymc>=6.0.1
   - scikit-learn>=1.9.0
   - shap>=0.52.0
@@ -33,8 +34,6 @@ dependencies:
       - networkx
       - notebook>=7.5.7
       - orjson>=3.11.9
-      - pandas-stubs
-      - pandas>=3.0.2
       - pytest>=9.1.0
       - rich>=15.0.0
       - ruff>=0.15.17
