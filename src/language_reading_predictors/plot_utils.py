@@ -258,8 +258,10 @@ def plot_gaussian_process(
 ):
     X = X.ravel()
 
-    # Plot GP samples
-    for ii, sample in enumerate(samples):
+    # Plot GP samples (``samples`` is optional — guard the default so the
+    # function does not raise ``TypeError: 'NoneType' is not iterable`` when
+    # called with only a mean/cov).
+    for ii, sample in enumerate(samples or []):
         label = "GP samples" if not ii else None
         plot_line(X, sample, color=f"C{ii}", linewidth=1, label=label)
 

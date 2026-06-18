@@ -17,6 +17,23 @@ DEFAULT_RF_REGRESSION_SCORERS = {
     "Median Absolute Error (MedAE)": "neg_median_absolute_error",
 }
 
+# Metric labels (the suffix after ``test_``) whose sklearn scores are stored
+# negated (``neg_*`` scorers). Their fold means are flipped back to positive
+# for display. Anything not listed here — notably ``r2`` — is reported with
+# its true sign, so a model that is worse than the mean (negative R²) is not
+# disguised as a positive score.
+_NEG_SCORER_LABELS = frozenset(
+    {
+        "mae",
+        "rmse",
+        "medae",
+        "neg_mean_absolute_error",
+        "neg_root_mean_squared_error",
+        "neg_median_absolute_error",
+        "neg_mean_squared_error",
+    }
+)
+
 DEFAULT_RF_REGRESSION_SEARCH_ITERATIONS = 60
 
 DEFAULT_RF_REGRESSION_PERM_IMPORTANCE_REPEATS = 30
@@ -58,12 +75,38 @@ def hyperparam_search_randomized(
     if output_csv is not None:
         results.to_csv(f"{output_csv}", index=False)
 
-    best_params_idx = results.sort_values(by="rank_test_score")[
-        "rank_test_score"
-    ].idxmin()
-    best_params = results.loc[best_params_idx, "params"]
+    # ``best_params_`` is sklearn's own tie-broken best configuration; deriving
+    # it from ``cv_results_`` by hand (sort + idxmin) duplicated that logic and
+    # was fragile under ties in ``rank_test_score``.
+    best_params = search.best_params_
 
     return search, results, best_params
+
+
+def cross_validation_score_rows(
+    scores: dict[str, np.ndarray],
+) -> list[dict[str, str | float]]:
+    """Build the per-metric summary rows from a ``cross_validate`` result.
+
+    Only ``test_*`` entries are summarised. ``neg_*`` error scorers (see
+    :data:`_NEG_SCORER_LABELS`) are flipped back to positive; every other
+    metric — notably ``r2`` — keeps its true sign, so a model that is worse
+    than the mean (negative R²) is reported as negative rather than being
+    ``abs()``'d into a deceptively positive value.
+
+    Separated from :func:`report_cross_validation_scores` so the sign logic
+    can be unit-tested without the console-rendering dependency.
+    """
+    rows: list[dict[str, str | float]] = []
+    for key, score in scores.items():
+        if not key.startswith("test_"):
+            continue
+        label = key[5:]
+        mean = float(np.mean(score))
+        if label in _NEG_SCORER_LABELS:
+            mean = -mean
+        rows.append({"metric": label, "mean": mean, "sd": float(np.std(score))})
+    return rows
 
 
 def report_cross_validation_scores(model_name: str, scores: dict[str, np.ndarray]):
@@ -72,18 +115,7 @@ def report_cross_validation_scores(model_name: str, scores: dict[str, np.ndarray
     from dse_research_utils.console.tables import metrics_table
 
     section_header(f"{model_name}: Cross-validation scores")
-    rows = []
-    for key, score in scores.items():
-        if not key.startswith("test_"):
-            continue
-        label = key[5:]
-        rows.append(
-            {
-                "metric": label,
-                "mean": float(np.abs(np.mean(score))),
-                "sd": float(np.std(score)),
-            }
-        )
+    rows = cross_validation_score_rows(scores)
     print_table(metrics_table(rows, columns=["metric", "mean", "sd"]))
 
 

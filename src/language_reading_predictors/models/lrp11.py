@@ -17,9 +17,9 @@ shape to LRP07 (``rowpvt_gain``, skew 0.04) and LRP05
 (``yarclet_gain``, skew 0.45) than to the heavier-skewed gain
 targets.
 
-No tuning has been run for LRP11 yet — it runs on a reasonable
-``_LGBM_BASELINE_PARAMS`` dict so later feature-selection variants
-have a documented starting point.
+No feature selection has been run for LRP11 yet — the MAE-tuned
+params below (Optuna 150-trial study) are the starting point for
+later feature-selection variants.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -58,16 +58,16 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 }
 
 
-# ── primary model (baseline, untuned) ───────────────────────────────────
+# ── primary model (baseline, MAE-tuned) ─────────────────────────────────
 
 
 class LRP11(GainModel):
-    """TROG-2 receptive-grammar gain predictors — baseline (all data, untuned).
+    """TROG-2 receptive-grammar gain predictors — baseline (all data, MAE-tuned).
 
     Uses the full :attr:`Predictors.DEFAULT_GAIN` predictor set
     (``trog`` is already a member, so the GainModel auto-include
-    is a no-op) with a reasonable ``_LGBM_BASELINE_PARAMS`` set.
-    Serves as the starting point for feature-selection and tuning
+    is a no-op) with MAE-tuned hyperparameters and no outlier
+    exclusion. Serves as the starting point for feature-selection
     work on the TROG gain-prediction task.
     """
 
@@ -90,7 +90,7 @@ class LRP11(GainModel):
         "gains (trog_gain). Uses the full default gain predictor "
         "set (trog is already included as a level predictor so the "
         "GainModel auto-include is a no-op) without outlier "
-        "exclusion, and a reasonable _LGBM_BASELINE_PARAMS starting "
-        "point — no feature selection or hyperparameter tuning has "
-        "been applied yet. Target is mildly left-skewed (skew −0.17)."
+        "exclusion, and MAE-tuned params from an Optuna 150-trial "
+        "study — no feature selection has been applied yet. Target "
+        "is mildly left-skewed (skew −0.17)."
     )

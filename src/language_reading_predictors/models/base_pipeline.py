@@ -359,7 +359,7 @@ class EstimatorPipeline:
         ax.boxplot(
             data,
             vert=False,
-            labels=ordered,
+            tick_labels=ordered,
             patch_artist=True,
             boxprops={"facecolor": "white", "edgecolor": "C0"},
             medianprops={"color": "C2"},

@@ -140,7 +140,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 }
 
 
-# ── primary model (baseline, untuned) ───────────────────────────────────
+# ── primary model (exploratory, MAE-tuned) ──────────────────────────────
 
 
 class LRP10(LevelModel):

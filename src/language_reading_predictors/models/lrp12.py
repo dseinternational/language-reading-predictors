@@ -15,9 +15,9 @@ mean 14.31, std 4.83, skewness 0.29, n ≈ 215) — cleaner
 distribution than most LRP level targets. No floor or ceiling
 pathology visible at this sample range.
 
-No tuning has been run for LRP12 yet — it runs on a reasonable
-``_LGBM_BASELINE_PARAMS`` dict so later feature-selection variants
-have a documented starting point.
+No feature selection has been run for LRP12 yet — the MAE-tuned
+params below (Optuna 150-trial study) are the starting point for
+later feature-selection variants.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -56,17 +56,16 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 }
 
 
-# ── primary model (baseline, untuned) ───────────────────────────────────
+# ── primary model (baseline, MAE-tuned) ─────────────────────────────────
 
 
 class LRP12(LevelModel):
-    """TROG-2 receptive-grammar level predictors — baseline (all data, untuned).
+    """TROG-2 receptive-grammar level predictors — baseline (all data, MAE-tuned).
 
     Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
-    (minus the target ``trog``) and a reasonable
-    ``_LGBM_BASELINE_PARAMS`` set. Serves as the starting point for
-    feature-selection and tuning work on the TROG level-prediction
-    task.
+    (minus the target ``trog``) with MAE-tuned hyperparameters and
+    no outlier exclusion. Serves as the starting point for
+    feature-selection work on the TROG level-prediction task.
     """
 
     model_id = "lrp12"
@@ -86,8 +85,7 @@ class LRP12(LevelModel):
     notes = (
         "Baseline exploratory model for TROG-2 receptive-grammar "
         "level (trog). Uses the full default level predictor set "
-        "(minus the target) without outlier exclusion, and a "
-        "reasonable _LGBM_BASELINE_PARAMS starting point — no "
-        "feature selection or hyperparameter tuning has been applied "
-        "yet. Target is near-Gaussian (skew 0.29)."
+        "(minus the target) without outlier exclusion, and MAE-tuned "
+        "params from an Optuna 150-trial study — no feature selection "
+        "has been applied yet. Target is near-Gaussian (skew 0.29)."
     )
