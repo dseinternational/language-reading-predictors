@@ -66,6 +66,12 @@ predictor" is ambiguous.
   ≈ 0 throughout).
 - **SES sensitivity** ($n = 39$): SES has no independent signal (−0.03, P(>0) ≈ 0.39);
   the language/letter-sound pattern holds (language strengthens to 0.40).
+- **Natural scale (predicted gain, words out of 90, per +1 SD; Tier 1):** language
+  composite ≈ **+3.4** words [−0.3, 8.1]; letter sounds ≈ **+2.3** [−0.7, 5.8]; age
+  (older) ≈ **−2.6** [−4.5, −0.7]; non-verbal MA ≈ **+0.1** (≈ 0); behaviour ≈ −1.4.
+  These translate the per-SD logit coefficients into words for expectations/teaching.
+- **Influence (Tier 1):** max PSIS-LOO Pareto-$\hat{k}$ = 0.62, **0 of 51** children above
+  the ≈ 0.7 threshold — the headline pattern is not driven by a few influential children.
 
 ## Honest reading
 

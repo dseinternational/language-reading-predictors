@@ -43,6 +43,8 @@ def _read(name):
 associations = _read("predictor_associations.csv")
 prior_sensitivity = _read("prior_sensitivity.csv")
 ses = _read("ses_sensitivity.csv")
+predicted_gain = _read("predicted_gain_words.csv")
+influence = _read("influence.csv")
 ```
 
 ## Overview
@@ -72,7 +74,7 @@ are genuinely between-child. A pooled all-phase design with a child random inter
 would instead estimate the *within-child* association — a different question (handled by
 the deferred cross-lagged model), so it is **not** used here.
 
-These are **associations, not causal effects** (n ≈ 54). The randomised ITT models
+These are **associations, not causal effects** (n ≈ 51). The randomised ITT models
 (LRP52/55) carry the causal claim about the programme.
 
 :::
@@ -96,7 +98,7 @@ Each predictor's **adjusted** (mutual) coefficient is reported alongside its **b
 ## Shared priors
 
 Fixed weakly-informative `Normal(0, 0.5)` on the standardised predictor slopes
-(regularising under collinearity and n ≈ 54); the conclusion is checked against
+(regularising under collinearity and n ≈ 51); the conclusion is checked against
 `sigma` ∈ {0.3, 0.7} below.
 
 ![alpha](prior_alpha.svg){width=32%}
@@ -132,10 +134,23 @@ associations
 
 Letter sounds and the language composite are expected to retain credible signal once
 mutually adjusted; non-verbal MA, behaviour and SES are expected to shrink toward zero.
-Wide intervals at n ≈ 54 are the honest result — do not over-interpret a single
+Wide intervals at n ≈ 51 are the honest result — do not over-interpret a single
 predictor "winning".
 
 :::
+
+## Predicted gain on the natural (words) scale
+
+To make the per-SD logit coefficients interpretable for expectations and teaching:
+for two children with the **same** baseline word reading who differ by **one standard
+deviation** on a single predictor (others held at their mean), the model-implied
+difference in word-reading count at the final wave — i.e. the differential gain, **in
+words** out of the test maximum. Computed per posterior draw; 94% intervals.
+
+```{python}
+# | echo: false
+predicted_gain
+```
 
 ## Prior sensitivity
 
@@ -155,6 +170,18 @@ SES (mother's post-16 education) added to the headline set on the SES-complete s
 ```{python}
 # | echo: false
 ses
+```
+
+## Influence (PSIS-LOO Pareto-$\hat{k}$)
+
+At n ≈ 51, a guard against the headline association resting on a few children. The
+per-child Pareto-$\hat{k}$ from PSIS-LOO flags observations the importance sampling
+cannot fit well (above the `good_k` threshold, ≈ 0.7) — i.e. potentially influential
+children. Sorted by descending $\hat{k}$ (top rows shown).
+
+```{python}
+# | echo: false
+influence.head(10) if influence is not None else "No per-observation Pareto-k available."
 ```
 
 ## Posterior predictive

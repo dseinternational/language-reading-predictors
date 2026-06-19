@@ -772,6 +772,72 @@ def _plot_associations(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float)
     plt.close()
 
 
+def _natural_scale_contrasts(
+    ctx: StatisticalFitContext, prepared, headline: list, outcome: str, hdi: float
+) -> pd.DataFrame:
+    """Predicted +1 SD contrast for each predictor on the natural (words) scale.
+
+    For two children with the *same* baseline word reading (held at the sample
+    mean) who differ by one standard deviation on a single predictor (others at
+    their mean), the model-implied difference in word-reading count at the final
+    wave — i.e. the differential gain, in words out of ``N``. Computed per
+    posterior draw then summarised, so the interval carries the full uncertainty.
+    This turns the per-SD logit coefficients into something a teacher can read.
+    """
+    from scipy.special import expit
+
+    post = ctx.trace.posterior
+    N = prepared.n_trials[outcome]
+    mean_pre_logit = float(np.mean(prepared.pre_logit[outcome]))
+
+    def draws(name: str) -> np.ndarray:
+        return post[name].stack(sample=("chain", "draw")).values
+
+    # All standardised predictors at their mean (z = 0); baseline at sample mean.
+    base_eta = draws("alpha") + draws("gamma_own") * mean_pre_logit
+    base_words = N * expit(base_eta)
+
+    lo_q, hi_q = (1 - hdi) / 2, 1 - (1 - hdi) / 2
+    rows = []
+    for k in headline:
+        delta = N * expit(base_eta + draws(f"beta_{k}")) - base_words
+        rows.append(
+            {
+                "predictor": k,
+                "label": _adj_label(k),
+                "delta_words_mean": float(np.mean(delta)),
+                "delta_words_lo": float(np.quantile(delta, lo_q)),
+                "delta_words_hi": float(np.quantile(delta, hi_q)),
+                "prob_pos": float(np.mean(delta > 0)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
+    """Per-child PSIS-LOO Pareto-k, to flag whether a few children drive the fit.
+
+    Returns ``(dataframe, threshold, n_flagged)`` — the per-child k sorted
+    descending (aligned to ``subject_ids``), the ``good_k`` threshold, and how
+    many children exceed it. At n ~ 51 this guards against a headline association
+    resting on 2-3 influential children. Returns ``(None, None, None)`` if the
+    LOO object exposes no per-observation k.
+    """
+    if ctx.loo is None or getattr(ctx.loo, "pareto_k", None) is None:
+        return None, None, None
+    k = np.asarray(ctx.loo.pareto_k).ravel()
+    ids = np.asarray(ctx.prepared.subject_ids)
+    if len(k) != len(ids):
+        return None, None, None
+    thr = float(getattr(ctx.loo, "good_k", 0.7) or 0.7)
+    df = (
+        pd.DataFrame({"subject_id": ids, "pareto_k": k})
+        .sort_values("pareto_k", ascending=False)
+        .reset_index(drop=True)
+    )
+    return df, thr, int((k > thr).sum())
+
+
 def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """Between-child adjusted fit (LRP65): independent T1 predictors of gain.
 
@@ -971,6 +1037,42 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]SES sensitivity fit skipped: {exc}[/yellow]")
 
+    # --- Natural-scale interpretation (predicted gain, in words) -----------
+    section_header("Predicted gain on the natural (words) scale")
+    words_df = _natural_scale_contrasts(ctx, ctx.prepared, headline, outcome, hdi)
+    words_df.to_csv(
+        os.path.join(ctx.output_dir, "predicted_gain_words.csv"), index=False
+    )
+    ctx.tables["predicted_gain_words"] = words_df
+    print_table(
+        ranked_dataframe_table(
+            words_df,
+            title=(
+                f"Predicted differential gain per +1 SD (words out of "
+                f"{ctx.prepared.n_trials[outcome]}; {int(hdi * 100)}% interval)"
+            ),
+            columns=[
+                "label", "delta_words_mean", "delta_words_lo",
+                "delta_words_hi", "prob_pos",
+            ],
+            rank_column=False,
+            precision=2,
+        )
+    )
+
+    # --- Influence (does the fit rest on a few children?) ------------------
+    section_header("Influence (PSIS-LOO Pareto-k)")
+    infl_df, k_thr, n_flagged = _influence_diagnostics(ctx)
+    if infl_df is not None:
+        infl_df.to_csv(os.path.join(ctx.output_dir, "influence.csv"), index=False)
+        ctx.tables["influence"] = infl_df
+        rprint(
+            f"  max Pareto-k = {infl_df['pareto_k'].max():.2f}; "
+            f"{n_flagged} of {len(infl_df)} children exceed k = {k_thr:.2f}"
+        )
+    else:
+        rprint("[yellow]Pareto-k unavailable from LOO; influence check skipped[/yellow]")
+
     _report.write_run_metadata(
         ctx,
         extra={
@@ -984,6 +1086,11 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "n_children": int(prepared.n_children),
             "ses_n_children": ses_n,
             "associations": rows,
+            "predicted_gain_words": words_df.to_dict("records"),
+            "max_pareto_k": (
+                float(infl_df["pareto_k"].max()) if infl_df is not None else None
+            ),
+            "n_pareto_k_flagged": n_flagged,
         },
     )
 
