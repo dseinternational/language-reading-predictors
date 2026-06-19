@@ -32,6 +32,7 @@ _here = Path(".")
 with open(_here / "config.json") as f:
     config = json.load(f)
 med = pd.read_csv(_here / "mediation_summary.csv")
+med_t3 = pd.read_csv(_here / "mediation_summary_t3.csv")
 ```
 
 ## Overview
@@ -48,6 +49,17 @@ We decompose the intervention's total effect on word reading $W$ into the **natu
 indirect effect (NIE)** transmitted through the phonics route, and the **natural
 direct effect (NDE)** — everything else — and report the **phonics-route share**
 $= \text{NIE} / \text{Total}$.
+
+::: {.callout-warning title="Mediator and outcome are measured at the same wave (read before the headline)"}
+The randomised contrast lives in the t1 → t2 window, so the route composite and
+the outcome ($W_{t2}$) are measured **contemporaneously** — temporal precedence of
+the route over word reading is **assumed, not observed**, and reverse/simultaneous
+influence within the wave cannot be ruled out. The phonics-route share is reported
+with this caveat stated alongside it (see the assumptions section). As a
+triangulation point, a **non-randomised sensitivity fit with the outcome at t3**
+(mediator still at t2) is reported in the temporal-ordering sensitivity section
+below.
+:::
 
 ## The phonics-route composite {#sec-composite}
 
@@ -122,7 +134,9 @@ Read the output below as triangulation. With $n \approx 53$, contemporaneous
 mediator/outcome measurement, and the no-unmeasured-confounding assumption, expect
 **wide intervals**. "Most of the word-reading gain is phonics-route-compatible, with
 a residual lexical share that cannot be ruled out" is the honest result — not a
-point percentage. LRP62 supersedes the single-mediator LRP59 as the way to talk
+point percentage. The temporal-ordering sensitivity section below refits with the
+**outcome at t3** (mediator at t2) as a further triangulation point for the
+same-wave caveat. LRP62 supersedes the single-mediator LRP59 as the way to talk
 about "how much is phonics".
 :::
 
@@ -160,6 +174,40 @@ print(
     f"route (letter-sound + blending) — a phonics-route share of **{pm_med:.0%}** "
     f"(P(Total>0) = {prob_positive:.2f}). See the interval columns for the (wide) "
     f"uncertainty."
+)
+```
+
+## Temporal-ordering sensitivity — outcome at t3 {#sec-t3-sensitivity}
+
+The headline above measures the route composite and the outcome $W$ at the **same
+wave** (t2), so it cannot establish that the route precedes word reading. As a
+triangulation point we refit the **identical** model with the **outcome word
+reading at t3** while the mediator (route composite) stays at t2 — so the mediator
+now precedes the outcome in time. The trade-off: the **t2 → t3 increment is no
+longer randomised** (both arms are treated after t2), so the *total* effect here
+is an attenuated, non-randomised contrast. Read the **sign and direction of the
+indirect (phonics-route) effect** — its agreement with the contemporaneous
+headline — as the triangulation, not the magnitudes.
+
+```{python}
+# | echo: false
+med_t3.round(3)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+_t3 = med_t3.set_index("quantity")
+nie3 = _t3.loc["NIE", "words_mean"]
+nde3 = _t3.loc["NDE", "words_mean"]
+pp3 = _t3.loc["NIE", "prob_pos"]
+print(
+    f"With the temporally-ordered t3 outcome, the indirect (phonics-route) effect is "
+    f"**{nie3:.1f} words/90** with P(NIE > 0) = {pp3:.2f}, and the residual/direct "
+    f"path is **{nde3:.1f}**. Compare the *direction* of the phonics-route effect with "
+    f"the contemporaneous (t2) headline above — agreement across the two outcome waves "
+    f"is the triangulation. Intervals are wider here because the t2 → t3 contrast is "
+    f"not randomised, so the magnitudes are not directly comparable to the headline."
 )
 ```
 

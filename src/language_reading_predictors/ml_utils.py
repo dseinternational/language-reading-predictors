@@ -6,11 +6,14 @@ import pandas as pd
 from sklearn.model_selection import RandomizedSearchCV
 from typing import Any
 
-DEFAULT_RF_REGRESSION_SCORING = "neg_mean_absolute_error"
+# Shared defaults for regression hyperparameter search / scoring. These predate
+# the Random-Forest -> LightGBM/GP switch; the old ``DEFAULT_RF_*`` prefix
+# mislabelled them as Random-Forest-specific, so they are named generically.
+DEFAULT_REGRESSION_SCORING = "neg_mean_absolute_error"
 
-DEFAULT_RF_REGRESSION_CRITERION = "squared_error"
+DEFAULT_REGRESSION_CRITERION = "squared_error"
 
-DEFAULT_RF_REGRESSION_SCORERS = {
+DEFAULT_REGRESSION_SCORERS = {
     "Mean Absolute Error (MAE)": "neg_mean_absolute_error",
     "Root Mean Squared Error (RMSE)": "neg_root_mean_squared_error",
     "R-squared (R2)": "r2",
@@ -34,9 +37,9 @@ _NEG_SCORER_LABELS = frozenset(
     }
 )
 
-DEFAULT_RF_REGRESSION_SEARCH_ITERATIONS = 60
+DEFAULT_REGRESSION_SEARCH_ITERATIONS = 60
 
-DEFAULT_RF_REGRESSION_PERM_IMPORTANCE_REPEATS = 30
+DEFAULT_REGRESSION_PERM_IMPORTANCE_REPEATS = 30
 
 
 def hyperparam_search_randomized(
