@@ -54,6 +54,7 @@ from language_reading_predictors.statistical_models.context import (
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
+    load_and_prepare_lagged_outcome,
 )
 
 
@@ -512,6 +513,63 @@ _MED_COEF_VARS_GAUSSIAN = [
 ]
 
 
+_T3_SENSITIVITY_TIME = 3  # post-RCT wave used for the temporal-ordering check
+
+
+def _fit_t3_sensitivity(
+    ctx: StatisticalFitContext,
+    spec: ModelSpec,
+    *,
+    confounders: tuple[str, ...],
+    mediator_kind: str,
+    route_symbols: tuple[str, ...],
+):
+    """Temporal-ordering sensitivity fit for the mediation models (issue #84).
+
+    Refits the *identical* mediation model but with the outcome measured at a
+    later wave (t3) while the mediator stays at t2, so the mediator precedes the
+    outcome in time. The t2 -> t3 increment is **not randomised** (both arms are
+    treated after t2), so this is a triangulation point for the contemporaneous
+    measurement caveat, not a cleaner causal estimate. Returns the g-formula
+    decomposition DataFrame for the t3-outcome variant.
+    """
+    import pymc as pm
+
+    from language_reading_predictors.statistical_models import mediation as _med
+
+    outcome_symbol = spec.outcome_symbol or "W"
+    prepared_t3 = load_and_prepare_lagged_outcome(
+        outcome_symbol, outcome_time=_T3_SENSITIVITY_TIME
+    )
+    built_t3, med_t3 = _factories.build_mediation_model(
+        prepared_t3,
+        mediator_symbol=spec.mechanism_symbol or "L",
+        outcome_symbol=outcome_symbol,
+        confounder_symbols=confounders,
+        mediator_kind=mediator_kind,
+        route_symbols=route_symbols,
+    )
+    s = ctx.sampling
+    with built_t3.model:
+        trace_t3 = pm.sample(
+            draws=s.draws,
+            tune=s.tune,
+            chains=s.chains,
+            cores=s.cores,
+            target_accept=s.target_accept,
+            nuts_sampler="nutpie",
+            return_inferencedata=True,
+            random_seed=s.random_seed,
+            progressbar=False,
+        )
+    return _med.decompose(
+        trace_t3,
+        med_t3,
+        confounder_symbols=confounders,
+        hdi_prob=ctx.reporting.hdi,
+    )
+
+
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
     assert spec.kind == "mediation"
@@ -587,13 +645,41 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         )
     )
 
+    # --- Temporal-ordering sensitivity: outcome at t3, mediator still at t2 ---
+    # Triangulation for the contemporaneous-measurement caveat (issue #84): the
+    # mediator now precedes the outcome in time. NB the t2 -> t3 increment is not
+    # randomised (both arms treated after t2), so read this as triangulation only.
+    section_header("Temporal-ordering sensitivity (outcome at t3)")
+    med_df_t3 = _fit_t3_sensitivity(
+        ctx,
+        spec,
+        confounders=confounders,
+        mediator_kind=mediator_kind,
+        route_symbols=route_symbols,
+    )
+    med_df_t3.to_csv(
+        os.path.join(ctx.output_dir, "mediation_summary_t3.csv"), index=False
+    )
+    ctx.tables["mediation_summary_t3"] = med_df_t3
+    print_table(
+        ranked_dataframe_table(
+            med_df_t3,
+            title="Temporal-ordering sensitivity (outcome W at t3; NOT randomised)",
+            columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
     _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
+    _summary_t3 = {r["quantity"]: r for r in med_df_t3.to_dict("records")}
     _report.write_run_metadata(
         ctx,
         extra={
             "adjustment": spec.adjustment,
             "n_obs": prepared.n_obs,
             "mediation": _summary,
+            "mediation_t3_sensitivity": _summary_t3,
         },
     )
 

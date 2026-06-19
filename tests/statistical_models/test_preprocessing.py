@@ -20,6 +20,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
     standardise,
     load_and_prepare,
+    load_and_prepare_lagged_outcome,
 )
 
 
@@ -155,3 +156,46 @@ def test_load_and_prepare_covariates_are_standardised(tmp_path):
         assert z.mean() == pytest.approx(0.0, abs=1e-10)
         assert z.std(ddof=1) == pytest.approx(1.0, abs=1e-10)
     assert any("dropped" in str(w.message) for w in ws)
+
+
+def test_lagged_outcome_takes_outcome_from_later_wave(tmp_path):
+    """The temporal-ordering sensitivity prep (issue #84): outcome post-counts
+    come from the later wave, while baselines, treatment, and the mediator's
+    post (t2) are exactly the ITT design."""
+    df = _make_synthetic_long(n_children=20, seed=5)
+    # Make the outcome (W = ewrswr) distinguishable by wave.
+    df.loc[df[V.TIME] == 2, V.EWRSWR] = 10
+    df.loc[df[V.TIME] == 3, V.EWRSWR] = 40
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+
+    itt = load_and_prepare(path=p, phase_mode="itt")
+    lagged = load_and_prepare_lagged_outcome("W", outcome_time=3, path=p)
+
+    assert np.all(itt.post_counts["W"] == 10)  # ITT outcome is t2
+    assert np.all(lagged.post_counts["W"] == 40)  # sensitivity outcome is t3
+    # Mediator post (L) stays at t2; baselines / treatment / age are unchanged.
+    assert np.array_equal(lagged.post_counts["L"], itt.post_counts["L"])
+    assert np.allclose(lagged.pre_logit["W"], itt.pre_logit["W"])
+    assert np.array_equal(lagged.G, itt.G)
+    assert np.allclose(lagged.A_std, itt.A_std)
+    assert lagged.n_obs == itt.n_obs
+
+
+def test_lagged_outcome_rejects_randomised_wave(tmp_path):
+    df = _make_synthetic_long(n_children=8, seed=6)
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match="post-RCT wave"):
+        load_and_prepare_lagged_outcome("W", outcome_time=2, path=p)
+
+
+def test_lagged_outcome_missing_later_wave_is_nan(tmp_path):
+    """A subject present in the ITT base but missing the later-wave outcome gets
+    a NaN post-count (the mediation factory then drops that row)."""
+    df = _make_synthetic_long(n_children=10, seed=7)
+    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 3), V.EWRSWR] = np.nan
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    lagged = load_and_prepare_lagged_outcome("W", outcome_time=3, path=p)
+    assert np.isnan(lagged.post_counts["W"]).sum() == 1
