@@ -38,6 +38,7 @@ from language_reading_predictors.statistical_models import (
     lrp60a,
     lrp62,
     lrp65,
+    lrp66,
     lrp71,
     lrp72,
     lrp72base,
@@ -63,6 +64,8 @@ MODELS = {
     "lrp62": lrp62,
     # LRP65: between-child adjusted model — independent T1 predictors of gain.
     "lrp65": lrp65,
+    # LRP66: latent general-ability factor — general vs specific predictors of gain.
+    "lrp66": lrp66,
     # LRP70 (celf moderator) is reserved but deferred pending a DAG review of
     # conditioning on a descendant of L. LRP71 (eowpvt) is the first built
     # interaction model.

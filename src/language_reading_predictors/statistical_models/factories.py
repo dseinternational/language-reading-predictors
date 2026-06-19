@@ -1160,6 +1160,148 @@ def build_adjusted_model(
 
 
 # ---------------------------------------------------------------------------
+# LRP66: latent general-ability factor model (g + specific paths -> gain)
+# ---------------------------------------------------------------------------
+
+
+def build_factor_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    indicator_symbols: Iterable[str] = ("L", "R", "E", "F", "B"),
+    indicator_covariates: Iterable[str] = ("blocks",),
+    language_composite_symbols: Iterable[str] = ("R", "E", "F"),
+    observed_direct: Iterable[str] = ("L", "lang", "age"),
+    use_language_specific: bool = False,
+    language_specific_symbols: Iterable[str] = ("R", "E", "F"),
+    loading_sigma: float = 1.0,
+    predictor_slope_sigma: float = 0.5,
+) -> BuiltModel:
+    """Between-child latent general-ability model (LRP66, Tier 2).
+
+    A one-factor measurement model estimates a latent general ability ``g`` from
+    the standardised T1 skill indicators (Gaussian CFA on the standardised
+    Haldane-logits / standardised covariates), and a structural Beta-Binomial
+    leg regresses word-reading gain (``outcome`` post conditioned on its T1
+    baseline via ``gamma_own``) on ``g`` plus the ``observed_direct`` skills —
+    whose coefficients given ``g`` are the "signal beyond general ability".
+
+    Orientation/scale are fixed by ``g ~ Normal(0, 1)`` and **positive** loadings
+    (``HalfNormal``) — all indicators are positive-manifold cognitive measures, so
+    a common factor raises them all. Indicators are standardised (SD 1), so a
+    loading is the indicator-``g`` correlation and ``lambda^2 + sigma^2 ~ 1``.
+
+    ``use_language_specific`` (robustness arm): the language indicators
+    (``language_specific_symbols``, identified by having >= 2 measures) additionally
+    load on an orthogonal language-specific factor ``s_lang``; the structural leg
+    then carries ``beta_lang_specific * s_lang`` (the latent "beyond-g" language
+    path) and ``"lang"`` is dropped from ``observed_direct`` to avoid double count.
+    Single-indicator skills (letter sounds, blending, block design) cannot support
+    a specific factor, so their "beyond-g" test stays observed-direct.
+
+    This is between-child (one row per child) and small-n (n ~ 51): a latent model
+    here is fragile and priors do real work — read it as triangulation against
+    LRP65, not a definitive decomposition.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import standardise
+
+    if prepared.phase_mode not in {"span", "itt"}:
+        raise ValueError(
+            "Factor (between-child) model requires phase_mode='span' "
+            f"(one row per child); got {prepared.phase_mode!r}"
+        )
+
+    # One row per child: drop children missing the outcome post-score.
+    post = prepared.post_counts[outcome_symbol]
+    keep = ~np.isnan(post)
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[outcome_symbol].astype(np.int64)
+    N = prepared.n_trials[outcome_symbol]
+    own_pre_logit = prepared.pre_logit[outcome_symbol]
+    lang_symbols = tuple(language_composite_symbols)
+
+    # Standardised indicator matrix Z (n_obs, J): count skills (z of T1 logit)
+    # followed by continuous covariates (already standardised on load).
+    ind_names: list[str] = []
+    cols: list[np.ndarray] = []
+    for s in indicator_symbols:
+        if s not in prepared.pre_logit:
+            raise KeyError(f"Indicator {s!r} missing from prepared data")
+        z, _ = standardise(prepared.pre_logit[s])
+        cols.append(z)
+        ind_names.append(s)
+    for c in indicator_covariates:
+        if c not in prepared.covariates:
+            raise KeyError(f"Indicator covariate {c!r} missing from prepared data")
+        cols.append(np.asarray(prepared.covariates[c], dtype=float))
+        ind_names.append(c)
+    Z = np.stack(cols, axis=1)
+    J = len(ind_names)
+
+    observed_direct = tuple(observed_direct)
+    lang_idx = np.array([], dtype=int)
+    if use_language_specific:
+        observed_direct = tuple(k for k in observed_direct if k != "lang")
+        lang_idx = np.array(
+            [ind_names.index(s) for s in language_specific_symbols], dtype=int
+        )
+
+    coords = {"obs_id": np.arange(prepared.n_obs), "indicator": ind_names}
+    with pm.Model(coords=coords) as model:
+        Z_d = pm.Data("Z", Z, dims=("obs_id", "indicator"))
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+
+        # --- Measurement: one-factor (+ optional language-specific) ---
+        g = pm.Normal("g", mu=0.0, sigma=1.0, dims="obs_id")
+        lam = pm.HalfNormal("lambda_load", sigma=loading_sigma, dims="indicator")
+        sigma_ind = pm.HalfNormal("sigma_indicator", sigma=1.0, dims="indicator")
+        mu_Z = lam[None, :] * g[:, None]
+        if use_language_specific:
+            s_lang = pm.Normal("s_lang", mu=0.0, sigma=1.0, dims="obs_id")
+            gam = pm.HalfNormal(
+                "lambda_lang_spec", sigma=loading_sigma, shape=len(lang_idx)
+            )
+            lang_full = pt.set_subtensor(pt.zeros(J)[lang_idx], gam)
+            mu_Z = mu_Z + s_lang[:, None] * lang_full[None, :]
+        pm.Normal(
+            "Z_obs", mu=mu_Z, sigma=sigma_ind[None, :], observed=Z_d,
+            dims=("obs_id", "indicator"),
+        )
+
+        # --- Structural: gain ~ g + observed-direct skills (+ latent lang) ---
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        beta_g = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc("beta_g")
+        eta = alpha + gamma_own * own_pre_d + beta_g * g
+
+        for k in observed_direct:
+            coef_name, vec, _label = _resolve_adjusted_predictor(
+                prepared, k, lang_symbols
+            )
+            x_d = pm.Data(f"x_{coef_name}", vec, dims="obs_id")
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                coef_name
+            )
+            eta = eta + beta * x_d
+
+        if use_language_specific:
+            beta_ls = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                "beta_lang_specific"
+            )
+            eta = eta + beta_ls * s_lang
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
 # Private
 # ---------------------------------------------------------------------------
 

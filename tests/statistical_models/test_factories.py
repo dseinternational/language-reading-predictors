@@ -18,6 +18,7 @@ import pytest
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.factories import (
     build_adjusted_model,
+    build_factor_model,
     build_itt_model,
     build_joint_model,
     build_mechanism_model,
@@ -263,3 +264,46 @@ def test_adjusted_factory_rejects_pooled_phase(tmp_path):
     prep = load_and_prepare(path=p, phase_mode="all")
     with pytest.raises(ValueError):
         build_adjusted_model(prep, predictors=["L"])
+
+
+def test_factor_factory_builds(tmp_path):
+    """LRP66 one-factor model: latent g + loadings + structural beyond-g paths."""
+    p = _write_synthetic(tmp_path, n_children=30)
+    prep = load_and_prepare(
+        path=p,
+        phase_mode="span",
+        post_time=4,
+        outcomes=("W", "L", "R", "E", "F", "B"),
+        covariates=(V.BLOCKS,),
+    )
+    built = build_factor_model(
+        prep,
+        outcome_symbol="W",
+        indicator_symbols=("L", "R", "E", "F", "B"),
+        indicator_covariates=(V.BLOCKS,),
+        observed_direct=("L", "lang", "age"),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    # latent factor, loadings, residual SDs, and the structural paths
+    assert {"g", "lambda_load", "sigma_indicator", "beta_g", "beta_L", "beta_lang"}.issubset(
+        names
+    )
+    # between-child: no phase intercept / no child random intercept
+    assert "alpha_phase" not in names and "sigma_child" not in names
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=4)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_factor_factory_language_specific_arm(tmp_path):
+    """The robustness arm adds an orthogonal language-specific factor + its path."""
+    p = _write_synthetic(tmp_path, n_children=30)
+    prep = load_and_prepare(
+        path=p, phase_mode="span", outcomes=("W", "L", "R", "E", "F", "B"),
+        covariates=(V.BLOCKS,),
+    )
+    built = build_factor_model(prep, use_language_specific=True)
+    names = {v.name for v in built.model.free_RVs}
+    assert {"s_lang", "lambda_lang_spec", "beta_lang_specific"}.issubset(names)
+    # observed language direct term is dropped when the latent specific is used
+    assert "beta_lang" not in names
