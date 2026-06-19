@@ -166,3 +166,11 @@ hyperparam
 idxmin
 importorskip
 handoff
+LCSM
+CLPM
+McArdle
+Yoder
+Woynaroski
+iloc
+coef
+sens
