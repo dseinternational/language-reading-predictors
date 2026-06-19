@@ -8,12 +8,13 @@ Each measure has a short symbol (W, R, E, ...) used throughout the modelling
 code, a column name in ``rli_data_long.csv``, and a test maximum ``n_trials``
 used as the binomial denominator.
 
-All ``n_trials`` values are preliminary and flagged for review. Where the
-nominal test ceiling is known (e.g. YARC-LSK = 32 items), that value is used.
-Where it is not (e.g. SPPHON, a phoneme-level count with variable
-item-stopping), a conservative upper bound above the observed maximum is used
-and called out explicitly. Update this file after confirming values with the
-data dictionary or study team.
+``n_trials`` is the Beta-Binomial denominator, so it scales every
+probability-scale effect; each value is confirmed against a documented test
+ceiling. The standardised measures use their test-manual maxima (e.g.
+YARC-LSK = 32 items, ROWPVT-4 = 190); the two study-specific composites use
+Burgoyne et al. (2012), Table 3 — word reading (EWR + SWR) = 79 and phonetic
+spelling = 92. ``load_and_prepare`` guards at runtime that no observed count
+exceeds its ceiling.
 """
 
 from __future__ import annotations
@@ -38,18 +39,20 @@ class Measure:
 
 
 MEASURES: dict[str, Measure] = {
-    # Word reading composite (YARC EWR + SWR). Observed max 64; conservative
-    # ceiling 90 pending confirmation.
-    "W": Measure("W", V.EWRSWR, 90, "Word reading (EWRSWR)", n_trials_confirmed=False),
+    # Word reading composite (YARC Early Word Recognition + Single Word
+    # Reading). Test maximum 79 (Burgoyne et al. 2012, Table 3, "Single-word
+    # reading (79)"); observed max 64.
+    "W": Measure("W", V.EWRSWR, 79, "Word reading (EWRSWR)", n_trials_confirmed=True),
     # ROWPVT-4: 190 items. Observed max 82.
     "R": Measure("R", V.ROWPVT, 190, "Receptive vocabulary (ROWPVT)", n_trials_confirmed=True),
     # EOWPVT-4: 170 items. Observed max 77.
     "E": Measure("E", V.EOWPVT, 170, "Expressive vocabulary (EOWPVT)", n_trials_confirmed=True),
     # YARC letter-sound knowledge: 32 items. Observed max 32.
     "L": Measure("L", V.YARCLET, 32, "Letter-sound knowledge (YARC-LSK)", n_trials_confirmed=True),
-    # Phonetic spelling (phoneme-level count across 10 words with
-    # variable-stopping). Observed max 92; ceiling 100 pending confirmation.
-    "P": Measure("P", V.SPPHON, 100, "Phonetic spelling (SPPHON)", n_trials_confirmed=False),
+    # Phonetic spelling (phoneme-level count across 10 words with variable
+    # item-stopping). Test maximum 92 (Burgoyne et al. 2012, Table 3,
+    # "Phonetic spelling (92)"); observed max 92.
+    "P": Measure("P", V.SPPHON, 92, "Phonetic spelling (SPPHON)", n_trials_confirmed=True),
     # Blending: 10 items. Observed max 10.
     "B": Measure("B", V.BLENDING, 10, "Phoneme blending", n_trials_confirmed=True),
     # CELF Preschool-2 basic concepts: 18 items. Observed max 18.
