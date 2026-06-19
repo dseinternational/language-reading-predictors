@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Canonical definitions of the bounded-count measures used in LRP52-LRP58.
+Canonical definitions of the bounded-count measures used in the statistical
+models (the eight standardised ITT outcomes plus the taught-vocabulary block
+family targeted by LRP74-LRP76).
 
 Each measure has a short symbol (W, R, E, ...) used throughout the modelling
 code, a column name in ``rli_data_long.csv``, and a test maximum ``n_trials``
@@ -61,11 +63,53 @@ MEASURES: dict[str, Measure] = {
     "T": Measure("T", V.TROG, 32, "Receptive grammar (TROG-2)", n_trials_confirmed=True),
     # Nonword reading: 6 items. Post-only; not used as a baseline.
     "N": Measure("N", V.NONWORD, 6, "Nonword reading", n_trials_confirmed=True),
+    # --- Taught-vocabulary block tests (intervention-fidelity outcomes) -------
+    # Bespoke tests of the words explicitly taught in the intervention (Block 1,
+    # weeks 1-20), tested both ways and split into the directly-taught target
+    # words and a not-taught comparison set. Block 1 is taught in phase 1, so its
+    # baseline is t1 and its randomised post-score is t2 - the ITT window. (Block
+    # 2 is introduced in phase 2 and has no t1 baseline, so it is not modelled
+    # here.) See ``docs/models/lrp74`` and Burgoyne et al. (2012), Table 3.
+    #
+    # Taught tests: "Six words of each type (nouns, adverbs, adjectives,
+    # prepositions)" = 24 items; the paper tabulates the maximum as (24).
+    "TE": Measure(
+        "TE", V.B1EXTAU, 24, "Taught expressive vocabulary, block 1 (b1extau)",
+        n_trials_confirmed=True,
+    ),
+    "TR": Measure(
+        "TR", V.B1RETAU, 24, "Taught receptive vocabulary, block 1 (b1retau)",
+        n_trials_confirmed=True,
+    ),
+    # Not-taught comparison sets. Burgoyne et al. (2012), Table 3, tabulates only
+    # the 24-item taught tests; the not-taught set's item count is not documented.
+    # Observed maximum is 12 for both modalities (consistent with a half-size
+    # 3-words-x-4-types control set), so 12 is used as the denominator and flagged
+    # unconfirmed - probability-scale summaries for these outcomes are therefore
+    # approximate pending the data dictionary.
+    "UE": Measure(
+        "UE", V.B1EXNT, 12, "Not-taught expressive vocabulary, block 1 (b1exnt)",
+        n_trials_confirmed=False,
+    ),
+    "UR": Measure(
+        "UR", V.B1RENT, 12, "Not-taught receptive vocabulary, block 1 (b1rent)",
+        n_trials_confirmed=False,
+    ),
 }
 
 
 ITT_OUTCOMES: tuple[str, ...] = ("W", "R", "E", "L", "P", "B", "F", "T")
-"""Eight outcomes used in LRP52-LRP55 (all bounded counts with pre- and post- values)."""
+"""Eight outcomes used in LRP52-LRP55 (all bounded counts with pre- and post- values).
+
+Deliberately excludes the taught-vocabulary block measures (``TE``/``TR``/
+``UE``/``UR``): they are a separate intervention-fidelity family targeted by
+LRP74-LRP76 and are passed explicitly via ``ModelSpec.extra["outcomes"]`` so the
+eight-outcome joint model (LRP55) stays stable.
+"""
+
+
+TAUGHT_BLOCK1_OUTCOMES: tuple[str, ...] = ("TE", "TR", "UE", "UR")
+"""Block-1 taught-vocabulary family: taught/not-taught x expressive/receptive."""
 
 
 def unconfirmed_ceilings() -> list[str]:

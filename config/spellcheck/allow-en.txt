@@ -73,7 +73,9 @@ eowpvt
 erbnw
 erbword
 ewrswr
+exnt
 expm
+extau
 exto
 GBDT
 hclust
@@ -112,6 +114,7 @@ pathlib
 PPVT
 pred
 resid
+retau
 reto
 RMSE
 rmse
