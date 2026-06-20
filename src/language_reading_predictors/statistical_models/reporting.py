@@ -23,40 +23,69 @@ def tau_summary_itt(
     trace: xr.DataTree,
     *,
     hdi_prob: float,
-    pre_logit_mean: float,
+    G: np.ndarray,
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
 
-    The probability-scale marginal effect is computed per posterior draw —
-    ``expit(α + γ_own · ȳ_pre + τ) − expit(α + γ_own · ȳ_pre)`` — so the
-    summary represents the posterior distribution of the marginal effect
-    at the sample-mean baseline, not a plug-in of posterior means into a
-    non-linear transform. ``ȳ_pre`` is the data-side scalar baseline
-    averaged over observations.
+    Logit scale: the posterior summary of ``tau`` directly.
+
+    Probability scale: the **average marginal effect** of randomised
+    assignment over the fitted sample. For every posterior draw and every
+    observation ``i`` we form the counterfactual baseline linear predictor
+    ``η0_i = η_i − δ_i · G_i`` from the model's stored per-observation ``eta``
+    (the treatment contribution removed; ``δ_i`` is ``tau`` for a constant
+    effect, or ``tau_i`` when the effect varies with age), then average
+    ``expit(η0_i + δ_i) − expit(η0_i)`` over observations. Each observation's
+    effect is therefore evaluated at its *actual* covariate profile —
+    including the cross-baseline, adjuster and GP terms carried in ``eta`` —
+    rather than at a single constructed baseline point, and the average is
+    taken per draw so the posterior uncertainty of the marginal effect is
+    preserved.
+
+    ``G`` is the per-observation treatment indicator from the *fitted* prepared
+    data (``built.prepared.G``), aligned with ``eta``'s ``obs_id`` axis.
 
     ``hdi_prob`` names the *coverage* probability — the returned ``_lo`` /
     ``_hi`` values are equal-tailed central quantiles, not highest-density
     intervals. For ArviZ-style HDI use :func:`arviz.hdi` directly.
     """
     posterior = trace.posterior
-    tau_draws = posterior["tau"].stack(sample=("chain", "draw")).values
-    alpha_draws = posterior["alpha"].stack(sample=("chain", "draw")).values
-    gamma_own_draws = posterior["gamma_own"].stack(sample=("chain", "draw")).values
+    tau_draws = posterior["tau"].stack(sample=("chain", "draw")).values  # (S,)
+    eta = (
+        posterior["eta"]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
 
+    G = np.asarray(G, dtype=float)
+    if G.shape[0] != eta.shape[0]:
+        raise ValueError(
+            f"G has {G.shape[0]} rows but eta has {eta.shape[0]} observations; "
+            "pass built.prepared.G (aligned with the fitted subset)."
+        )
+
+    # Per-observation treatment contribution δ_i: age-varying tau_i if the
+    # model has it, otherwise the constant tau broadcast over observations.
+    if "tau_i" in posterior:
+        delta = (
+            posterior["tau_i"]
+            .stack(sample=("chain", "draw"))
+            .transpose("obs_id", "sample")
+            .values
+        )  # (n_obs, S)
+    else:
+        delta = tau_draws[None, :]  # (1, S)
+
+    eta0 = eta - delta * G[:, None]  # baseline (G=0) linear predictor per obs, per draw
+    # Average marginal effect over observations, per draw.
+    marginal = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
+
+    lo_q, hi_q = (1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2
     tau_mean = float(np.mean(tau_draws))
-    lower, upper = np.quantile(
-        tau_draws, [(1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2]
-    )
-
-    # Per-draw marginal effect, then summarise. Plug-in summaries
-    # (mean of α, γ_own then expit) understate posterior uncertainty
-    # for skewed marginals on the probability scale.
-    baseline_eta = alpha_draws + gamma_own_draws * pre_logit_mean
-    marginal = expit(baseline_eta + tau_draws) - expit(baseline_eta)
+    lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
     marg_mean = float(np.mean(marginal))
-    marg_lo, marg_hi = np.quantile(
-        marginal, [(1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2]
-    )
+    marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
     prob_pos = float(np.mean(tau_draws > 0))
 
     return {

@@ -32,6 +32,7 @@ _here = Path(".")
 with open(_here / "config.json") as f:
     config = json.load(f)
 med = pd.read_csv(_here / "mediation_summary.csv")
+med_t3 = pd.read_csv(_here / "mediation_summary_t3.csv")
 ```
 
 ## Overview
@@ -58,6 +59,17 @@ share **lower (~38%)**, with the direct/residual path **larger** at the posterio
 mean. The defensible conclusion across both is **mixed routes**, not
 phonics-dominant. Read the letter-sound share below as *exploratory and
 directionally consistent*, not a settled active-ingredient claim.
+:::
+
+::: {.callout-warning title="Mediator and outcome are measured at the same wave (read before the headline)"}
+The randomised contrast lives in the t1 → t2 window, so the mediator ($L_{t2}$)
+and the outcome ($W_{t2}$) are measured **contemporaneously** — temporal
+precedence of $L$ over $W$ is **assumed, not observed**, and reverse/simultaneous
+influence within the wave cannot be ruled out. The proportion mediated is reported
+with this caveat stated alongside it (see the assumptions section). As a
+triangulation point, a **non-randomised sensitivity fit with the outcome at t3**
+(mediator still at $t2$, so $L$ precedes $W$ in time) is reported in the
+temporal-ordering sensitivity section below.
 :::
 
 ## Phase 0 only — the key design decision
@@ -115,9 +127,11 @@ proportion mediated is *not* assumption-free.
 
 ::: {.callout-important title="Interpret under these assumptions"}
 The proportion mediated below is the estimate *given* no unmeasured $L \to W$
-confounding. It is a structured, interpretable decomposition — not proof of
-mechanism. The headline is the estimate **with its full uncertainty**, not a
-point percentage.
+confounding **and** the assumed temporal precedence of $L_{t2}$ over the
+contemporaneously-measured $W_{t2}$ (the same-wave caveat above; triangulated in
+the temporal-ordering sensitivity section). It is a structured, interpretable
+decomposition — not proof of mechanism. The headline is the estimate **with its
+full uncertainty**, not a point percentage.
 :::
 
 ## Decomposition
@@ -154,6 +168,39 @@ print(
     f"(P(Total>0) = {prob_positive:.2f}). The interval is wide; LRP62's "
     f"phonics-route composite puts the share lower (~38%), so read this as "
     f"directionally consistent, not definitive."
+)
+```
+
+## Temporal-ordering sensitivity — outcome at t3 {#sec-t3-sensitivity}
+
+The headline above measures the mediator $L$ and the outcome $W$ at the **same
+wave** (t2), so it cannot establish that $L$ precedes $W$. As a triangulation
+point we refit the **identical** model with the **outcome word reading at t3**
+while the mediator stays at $L_{t2}$ — so the mediator now precedes the outcome in
+time. The trade-off: the **t2 → t3 increment is no longer randomised** (both arms
+are treated after t2), so the *total* effect here is an attenuated, non-randomised
+contrast. Read the **sign and direction of the indirect effect** — its agreement
+with the contemporaneous headline — as the triangulation, not the magnitudes.
+
+```{python}
+# | echo: false
+med_t3.round(3)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+_t3 = med_t3.set_index("quantity")
+nie3 = _t3.loc["NIE", "words_mean"]
+nde3 = _t3.loc["NDE", "words_mean"]
+pp3 = _t3.loc["NIE", "prob_pos"]
+print(
+    f"With the temporally-ordered t3 outcome, the indirect (letter-sound) effect is "
+    f"**{nie3:.1f} words/90** with P(NIE > 0) = {pp3:.2f}, and the direct/residual "
+    f"path is **{nde3:.1f}**. Compare the *direction* of the indirect effect with the "
+    f"contemporaneous (t2) headline above — agreement across the two outcome waves is "
+    f"the triangulation. Intervals are wider here because the t2 → t3 contrast is not "
+    f"randomised, so the magnitudes are not directly comparable to the headline."
 )
 ```
 

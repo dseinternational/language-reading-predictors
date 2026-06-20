@@ -284,15 +284,16 @@ def build_joint_model(
             "pre_logit", pre_logit, dims=("obs_id", "baseline")
         )
 
-        # Per-outcome scalar parameters
-        alpha = pm.Normal("alpha", mu=0.0, sigma=1.5, dims="outcome")
-        tau = pm.Normal("tau", mu=0.0, sigma=0.5, dims="outcome")
-        gamma_own = pm.Normal("gamma_own", mu=1.0, sigma=0.5, dims="outcome")
+        # Per-outcome scalar parameters — shared constructors (priors.py) so
+        # LRP55 cannot drift from the ITT / mechanism factories (issue #79).
+        alpha = _priors.alpha_prior().to_pymc("alpha", dims="outcome")
+        tau = _priors.tau_prior().to_pymc("tau", dims="outcome")
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")
 
         # Cross-baseline couplings: (K outcomes) x K baselines; mask the
         # diagonal to enforce "own baseline handled separately".
-        gamma_cross_mat = pm.Normal(
-            "gamma_cross", mu=0.0, sigma=0.3, dims=("outcome", "baseline")
+        gamma_cross_mat = _priors.gamma_cross_prior().to_pymc(
+            "gamma_cross", dims=("outcome", "baseline")
         )
         mask_offdiag = 1.0 - np.eye(K)
         gamma_cross_eff = pm.Deterministic(
@@ -365,7 +366,7 @@ def build_joint_model(
 
         eta = pm.Deterministic("eta", eta, dims=("obs_id", "outcome"))
 
-        kappa = pm.HalfNormal("kappa", sigma=50.0, dims="outcome")
+        kappa = _priors.kappa_prior().to_pymc("kappa", dims="outcome")
 
         mu = pm.math.sigmoid(eta)
         from dse_research_utils.math.constants import EPSILON  # local import
