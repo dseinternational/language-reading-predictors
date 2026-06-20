@@ -230,7 +230,9 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     tau_s = _report.tau_summary_itt(
         ctx.trace,
         hdi_prob=ctx.reporting.hdi,
-        pre_logit_mean=float(prepared.pre_logit[spec.outcome_symbol].mean()),
+        # built.prepared is the (possibly row-subset) frame the model was fit
+        # on, so G aligns with eta's obs_id axis (finding #2 in issue #78).
+        G=built.prepared.G,
     )
     tau_df = pd.DataFrame([tau_s])
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
