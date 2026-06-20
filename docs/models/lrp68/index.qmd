@@ -17,7 +17,7 @@ format:
 
 ::: {.callout-warning title="Warning: Preliminary model output"}
 
-This model output is preliminary and likely to change as the model evolves and further data are received. At n~54 the cross-lagged paths are **expected to be wide** — read the LOO comparison and the *direction* of agreement with LRP65 / LRP67, not precise path magnitudes.
+This model output is preliminary and likely to change as the model evolves and further data are received. **The RI-CLPM is `dev`-tier and not converged (R-hat up to ~1.33, low ESS), so its cross-lagged coefficients are illustrative, not estimates.** At n~54 the cross-lagged paths are **expected to be wide**, and the PSIS-LOO model comparison is **degenerate / unreliable** (every structure carries a Pareto-k warning, `p_loo ~ 180` on 639 cells). Read only the *direction* of agreement with LRP65 / LRP67 — **not** the LOO ranking, and not precise path magnitudes.
 
 :::
 
@@ -80,11 +80,16 @@ edge is $A[W \leftarrow L]$; the reverse / reading-practice edges
 ($A[L \leftarrow W]$, $A[E \leftarrow W]$) are tested by the competing structures.
 :::
 
-## Competing-structure comparison (the deliverable)
+## Competing-structure comparison
 
-We fit four nested structures and compare them by PSIS-LOO. The question is not only
-"how big is a path" but **whether any cross-lagged structure out-predicts pure
-stability (AR-only)**.
+We fit four nested structures and compare them by PSIS-LOO.
+
+::: {.callout-important title="The LOO comparison is degenerate at this n — do not read the ranking"}
+At n~54 every structure carries a Pareto-k warning and `p_loo ~ 180` on 639 cells,
+so PSIS-LOO is **unreliable** and the nominal ELPD ranking is **not trustworthy** —
+the differences are within noise. Read the table below only as "the data do not
+distinguish the structures", **not** as evidence for one structure over another.
+:::
 
 - **ar** — autoregressive only (stability; no cross-lagged paths).
 - **l_to_r** — AR + letter-sounds → reading ($A[W \leftarrow L]$).
@@ -128,6 +133,7 @@ if div:
 
 ## Headline cross-lagged paths (reciprocal)
 
+**Illustrative only — from the not-converged `dev`-tier RI-CLPM (R-hat up to ~1.33).**
 Logit scale; `lo`/`hi` equal-tailed central bounds; `prob_pos` = $P(\text{path} > 0)$.
 
 ```{python}
