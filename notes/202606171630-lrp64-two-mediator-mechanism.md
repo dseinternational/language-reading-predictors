@@ -37,21 +37,28 @@ effect into a path via letter-sound knowledge ($L$), a path via expressive vocab
   effect) is **exploratory**, under a stated mediator ordering ($L$ before $E$) and a
   conditional-independence assumption between mediators.
 
-## Results (preliminary, dev config — reporting config is the source of record)
+## Results (reporting config; words out of 79; 94% HDI; intervention-helps sign)
 
-A preliminary fit (intervention-helps; words out of 90) gave, illustratively:
+Fitted with `python scripts/fit_statistical_model.py lrp64 --config reporting`
+on the **confirmed W=79 ceiling** (#80; branch rebased onto `main`) — 6 chains ×
+6000 tune × 6000 draws, target_accept 0.95, n = 53 (1 of 54 rows dropped for a
+missing pre-score). Convergence is clean: all R-hat ≤ 1.001, `ess_bulk` ≥ 15k,
+no divergence warnings. `mediation_summary.csv` is the source of record.
 
-| Quantity | mean (words/90) | P(>0) |
-| --- | --- | --- |
-| **Total** | ~+3.0 | ~0.98 |
-| NDE (direct / residual) | ~+1.1 | ~0.85 |
-| **NIE_joint** (via L + E block) | ~+1.9 | ~0.99 |
-| NIE_L (exploratory, L-first split) | ~+2.0 | ~1.00 |
-| NIE_E (exploratory, given L) | ~0.0 | ~0.45 |
+| Quantity | mean (words/79) | 94% HDI | P(>0) |
+| --- | --- | --- | --- |
+| **Total** | +2.93 | [+0.52, +5.40] | 0.99 |
+| NDE (direct / residual) | +1.03 | [−0.93, +3.05] | 0.84 |
+| **NIE_joint** (via L + E block) | +1.90 | [+0.40, +3.84] | 0.995 |
+| NIE_L (exploratory, L-first split) | +1.93 | [+0.50, +3.83] | 0.998 |
+| NIE_E (exploratory, given L) | −0.03 | [−0.66, +0.52] | 0.46 |
 
-These reconcile with LRP59 (Total +2.92, NDE +1.09, NIE +1.83) and LRP62 (Total +2.72)
-in sign and rough magnitude. Re-run with `--config reporting` for the committed
-numbers and intervals; `mediation_summary.csv` is the source of record.
+The {L, E} block carries a **credible joint indirect effect** and the
+direct/residual path is not credible on its own. `proportion_mediated` is
+**fragile** at this n — median ≈ 0.65 with a wide 94% HDI [0.15, 1.86] (it can
+exceed 1), so read it via P(Total > 0) = 0.99 rather than as a point estimate.
+These reconcile with LRP59 (Total +2.92) and LRP62 (Total +2.72) in sign and
+magnitude.
 
 ## Interpretation
 
