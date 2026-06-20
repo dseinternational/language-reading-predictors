@@ -104,12 +104,12 @@ misread as the total effect):
 structural_paths
 ```
 
-::: {.callout-note title="Prediction to test (not the assumed result)"}
-General ability is expected to predict gain (`beta_g_total` > 0), but largely **through**
-letter sounds and language: when those enter directly they should retain positive beyond-`g`
-effects while the residual `g` path shrinks — i.e. the "general ability" signal is
+::: {.callout-note title="What the fit shows"}
+General ability predicts gain (`beta_g_total` = 0.41 [0.14, 0.70]), but largely **through**
+letter sounds and language: when those enter directly they retain positive beyond-`g`
+effects while the residual `g` path shrinks to ~0 — i.e. the "general ability" signal is
 substantially the specific letter-sound/language skills (supporting teaching them directly).
-Wide intervals at n ≈ 51 are the honest result.
+Wide intervals at n = 51 are the honest result.
 :::
 
 ## Robustness: latent language-specific factor
