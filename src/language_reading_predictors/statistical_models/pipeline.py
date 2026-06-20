@@ -570,8 +570,6 @@ def _fit_t3_sensitivity(
         confounder_symbols=confounders,
         hdi_prob=ctx.reporting.hdi,
     )
-
-
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
     assert spec.kind == "mediation"
@@ -607,10 +605,13 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     ctx.prepared = built.prepared
 
     # The mediator observed node differs by kind: Beta-Binomial "L_post" vs the
-    # Gaussian composite "M_post"; the coefficient set differs likewise.
+    # Gaussian composite "M_post".
     is_gaussian = mediator_kind == "gaussian_composite"
     mediator_node = "M_post" if is_gaussian else "L_post"
-    coef_vars = _MED_COEF_VARS_GAUSSIAN if is_gaussian else _MED_COEF_VARS
+    # Diagnose every scalar coefficient the model actually built (deterministics
+    # and the observed mediator/outcome nodes are not free RVs), so the list
+    # tracks the fitted confounder set instead of a hand-maintained constant.
+    coef_vars = sorted(rv.name for rv in built.model.free_RVs if rv.ndim == 0)
 
     _render_model_graph(ctx)
 
@@ -632,7 +633,6 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     med_df = _med.decompose(
         ctx.trace,
         med_data,
-        confounder_symbols=confounders,
         hdi_prob=ctx.reporting.hdi,
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)

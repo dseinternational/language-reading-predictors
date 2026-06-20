@@ -52,7 +52,6 @@ def decompose(
     trace: xr.DataTree,
     med: MediationData,
     *,
-    confounder_symbols: tuple[str, ...] = ("E", "R"),
     hdi_prob: float = 0.95,
     n_replicates: int = 50,
     seed: int = 47,
@@ -68,6 +67,10 @@ def decompose(
     supplies the inferential uncertainty.
     """
     post = trace.posterior
+    # Confounders come from the fitted model (via MediationData), so the
+    # g-formula adjusts for exactly the set the outcome/mediator legs included —
+    # the symbols cannot drift between the fit and the counterfactual simulation.
+    confounder_symbols = med.confounder_symbols
 
     def d(name: str) -> np.ndarray:
         return post[name].stack(_s=("chain", "draw")).values  # (S,)
@@ -81,7 +84,7 @@ def decompose(
     # Covariates as (1, n) row vectors for broadcasting against (S, 1) draws.
     W1 = med.W1_logit[None, :]
     A = med.A_std[None, :]
-    conf = {"E": med.E1_logit[None, :], "R": med.R1_logit[None, :]}
+    conf = {s: med.conf_logit[s][None, :] for s in confounder_symbols}
     N_W = med.n_trials_W
     S = b0.shape[0]
     rng = np.random.default_rng(seed)
