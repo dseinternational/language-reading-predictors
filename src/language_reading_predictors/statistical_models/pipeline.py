@@ -16,7 +16,7 @@ Each pipeline:
 4. Runs prior predictive, posterior sampling (nutpie), LOO, posterior
    predictive.
 5. Saves ``trace.nc``, ``config.json``, ``metrics.json`` and the standard
-   diagnostic plots to ``output/statistical_models/{model_id}-{config}/``.
+   diagnostic plots to ``output/statistical_models/models/{model_id}-{config}/``.
 6. Copies ``docs/models/{model_id}/index.qmd`` alongside the artefacts so
    the Quarto report can be rendered in-place.
 """

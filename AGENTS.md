@@ -11,7 +11,7 @@ The project takes a deliberate **two-step methodology**:
 1. **Exploratory analysis with gradient-boosting models** (LightGBM, permutation importance, SHAP) to learn which predictors matter for each outcome.
 2. **Statistical models** (Bayesian, PyMC) for interactions and — where the DAG supports it — causal estimation, with intuitive interpretable estimands and quantified uncertainty.
 
-See `plans/readme.md` for the orientation note covering current methodological choices, what is in the repository, and the planned next phase.
+See `METHODS.md` for the full methodology: the gradient-boosting and Bayesian workflows (fit, tune, select, evaluate, compare, interpret), reporting guidance, conventions, glossary, and references.
 
 ## Environment Setup
 
@@ -82,27 +82,28 @@ When adding or renaming variables, update `data_variables.py` first — everythi
 - **stats_utils.py** — Standardization, descriptive stats with normality tests, distance correlation matrices, mutual information dissimilarity, hierarchical clustering.
 - **plot_utils.py** — Visualization functions. Saves figures to `output/`.
 
-### Models (`models/`)
+### Gradient-boosting models (`models/`)
 
-Models are organised as **one Python module per problem** (`models/lrp01.py`, `models/lrp02.py`). Each module holds the final model and any historical selection variants side-by-side. All models currently use LightGBM (the Random Forest code path was retired on 2026-04-12 after tuned LGBM reached equivalent CV RMSE ~30× faster — see `notes/202604121451-lightgbm-model-selection.md`). Shared hyperparameters (`DEFAULT_LGBM_PARAMS`) and helper functions (`_gain_model`, `_level_model`) live in `models/registry.py`; predictor sets come from `Predictors.DEFAULT_GAIN` / `Predictors.DEFAULT_LEVEL` in `data_variables.py`, so adding a variable to a group auto-propagates. `models/__init__.py` imports `registry` first and then the per-problem modules so registration happens at import time; downstream code still imports `MODELS` from `models.registry`.
+One Python module per problem (`models/lrp01.py`, `models/lrp02.py`), each holding the final model plus its historical selection variants. All use LightGBM (the Random Forest path was retired 2026-04-12 — see `notes/202604121451-lightgbm-model-selection.md`). Shared hyperparameters (`DEFAULT_LGBM_PARAMS`) and helpers (`_gain_model`, `_level_model`) live in `models/registry.py`; predictor sets come from `Predictors.DEFAULT_GAIN` / `Predictors.DEFAULT_LEVEL` in `data_variables.py`, so adding a variable to a group auto-propagates. Models register at import time; downstream code imports `MODELS` from `models.registry`.
 
-`ModelConfig` carries two selection-history fields:
+`ModelConfig` carries two selection-history fields: `variant_of` (marks a selection variant of another model — variants are **skipped** by `fit_model.py all` unless `--include-variants` is passed) and `notes` (free-text rationale persisted to `config.json`).
 
-- `variant_of: str | None` — if set, this model is a selection variant of another (e.g. `"lrp01"`). Variants are **skipped** by `fit_model.py all` unless `--include-variants` is passed. Explicit model ids always run.
-- `notes: str` — free-text rationale persisted in `config.json` and surfaced in the rendered report.
+Pipelines are class-based: `EstimatorPipeline` (`models/base_pipeline.py`) holds the generic steps, subclasses override only `configure_model()`, and `LGBMPipeline` is the only one registered. `scripts/fit_model.py` dispatches via `cfg.pipeline_cls(cfg, run_config).fit()`, writing `config.json`, `metrics.json`, and CSVs to `output/models/{model_id}/`. Feature-selection diagnostics run on every fit but are skipped in `dev` config. Reports are looked up per model at `docs/models/{model_id}/index.qmd` (variants fall back to their parent's template).
 
-Pipelines are class-based. The generic steps live on `EstimatorPipeline` in `models/base_pipeline.py` (`prepare_data`, `configure_model`, `cross_validate`, `fit_model`, `evaluate`, `save_metrics`, `permutation_importance_analysis`, `shap_analysis`, `partial_dependence_plots`, `save_config`, `report`, and the `fit()` orchestrator). Each method operates on `self.context` (a `ModelFitContext` from `models/common.py`) so individual steps can still be called from a notebook for debugging. Subclasses override only `configure_model()`: `LGBMPipeline` in `models/lgbm_pipeline.py` (the only estimator pipeline currently registered) builds a sklearn `Pipeline([("est", estimator)])`. `ModelConfig.model_params` holds the estimator kwargs and `ModelConfig.pipeline_cls` selects which pipeline runs the model. `scripts/fit_model.py` discovers models from the registry and dispatches via `cfg.pipeline_cls(cfg, run_config).fit()`. Artifacts are saved to `output/models/{model_id}/`.
+Hyperparameter tuning (`scripts/tune_model.py`) runs an Optuna TPE study under the same `GroupKFold` grouping, writing `best_params.json` to `output/tuning/{model_id}/`. It does **not** mutate the registry — applying tuned params is a manual, reviewable step.
 
-Each fit writes two JSON artifacts alongside the CSVs:
+### Statistical models (`statistical_models/`)
 
-- `config.json` — inputs (model_id, pipeline_cls, variant_of, notes, target, predictors, model_params, cv_splits, ...).
-- `metrics.json` — aggregated outputs (n_observations, n_predictors, cv_rmse_mean/std, in_sample_mae/rmse). This is the file the cross-variant comparison in bespoke templates reads.
+Step 2 of the methodology: Bayesian models fit with PyMC. One module per model — `lrpNN.py` (LRP52–LRP73 so far) — each defining a `SPEC = ModelSpec(...)` and a `fit(config)` that calls the matching pipeline entry point. Four families, keyed by `ModelSpec.kind`, each with a factory in `factories.py` and a pipeline in `pipeline.py`:
 
-Report templates use per-model lookup: `base_pipeline.report()` checks `docs/models/{model_id}/index.qmd` first, then `docs/models/{variant_of}/index.qmd` for selection variants. Each model that needs a report must have its own template (e.g. `docs/models/lrp01/index.qmd`).
+- **`itt`** — single-outcome intention-to-treat (LRP52–54; LRP60/60a add SES adjustment and a matched comparator) → `build_itt_model` / `fit_itt`.
+- **`joint`** — all eight outcomes jointly, optional LKJ residual correlation (LRP55) → `build_joint_model` / `fit_joint`.
+- **`mechanism`** — adjustment-set dose-response of one measure on another across all phases, with subject random intercepts and optional linear moderation (LRP56–58, 71, 72/72base, 73/73base) → `build_mechanism_model` / `fit_mechanism`.
+- **`mediation`** — g-formula NDE/NIE decomposition by counterfactual simulation (LRP59 count mediator, LRP62 Gaussian reading-route composite) → `build_mediation_model` / `fit_mediation`.
 
-Feature-selection diagnostics (Spearman correlation, distance-correlation dendrogram + cluster table, mutual-information heatmap, and importance pairing) are produced as part of every model fit by `EstimatorPipeline.feature_selection_diagnostics()`. Output lives alongside other model artifacts in `output/models/{model_id}/`. The diagnostics are skipped in `dev` run config for speed but run in `test` and `reporting` configs.
+All use a Beta-Binomial likelihood on bounded post-score counts via a logit linear predictor. Shared priors live in `priors.py` (shared constructors so the factories can't drift), HSGP helpers in `hsgp.py`, the g-formula in `mediation.py`. Each pipeline runs prior-predictive → NUTS (`nutpie`) → posterior-predictive, plus PSIS-LOO (ArviZ) for the `itt`/`joint`/`mechanism` families, then writes `trace.nc`, `config.json`, `metrics.json`, diagnostic plots, and family-specific CSVs (`tau_summary.csv`, `mechanism_curve.csv`, `mediation_summary.csv`, ...) to `output/statistical_models/models/{model_id}-{config}/`, copying `docs/models/{model_id}/index.qmd` alongside.
 
-Hyperparameter tuning is driven by `scripts/tune_model.py`, which runs an Optuna TPE study using the same `GroupKFold` grouping as the fit pipeline. The tuning loop carves an inner `GroupShuffleSplit` slice out of each training fold for early stopping — the outer val fold is never shown to `early_stopping`, so the reported CV RMSE and `best_iteration_` are independent. The mean best iteration across folds is saved as the tuned `n_estimators`. Output lives in `output/tuning/{model_id}/` and contains `best_params.json` (ready to paste into a new `_selectNN` variant or back into the final model), `trials.csv`, and `study_summary.json`. The tuning script does **not** automatically mutate the registry — updating the model config is a manual, reviewable step so the source remains the single source of truth.
+Fit with `scripts/fit_statistical_model.py {model_id|all} --config dev|test|reporting [--render] [--target-accept X]` (the script's `MODELS` dict registers modules; sampling presets come from `dse_research_utils`). `scripts/compare_statistical_models.py` writes cross-model comparisons (ITT-vs-joint τ consistency, τ and mechanism-slope forests, nested PSIS-LOO for interaction models) to `output/statistical_models/comparison/`.
 
 ## Notebooks
 
@@ -117,15 +118,15 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 - The Quarto report (`docs/report/`) uses `execute: freeze: true` — computational output is cached, not re-run on render.
 - Build system is Hatch (`pyproject.toml`). Version is read from `src/language_reading_predictors/__init__.py`.
 
-## Interpreting model results
+## Interpreting & reporting results
 
-When describing what a fitted model indicates — whether writing notes, report sections, PR bodies, or commit messages — **inspect the SHAP beeswarm plot (`output/models/{model_id}/shap_summary.png`) alongside the permutation-importance ranking**. Permutation importance tells you *how much* each feature contributes; the beeswarm shows *which direction* the effect runs and *how consistently*. The two frequently disagree in interpretively important ways:
+Report direction and uncertainty — never a bare ranking or point estimate.
 
-- A predictor can rank #1 on importance while acting in the opposite direction to every other predictor (e.g. LRP03's `eowpvt` — lower baseline vocabulary predicts more gain, a regression-to-the-mean signal).
-- A predictor can rank #1 on importance while having a non-monotonic or mixed-sign effect (e.g. LRP01's `age`).
-- Two predictors with similar importance can have opposite directions (e.g. LRP02's `agebooks` / `agespeak` are negatively directional while `mumedupost16` is positive).
+- **Gradient boosting:** read the SHAP beeswarm (`output/models/{model_id}/shap_summary.png`) with the permutation-importance ranking; the two disagree, so state the direction.
+- **Bayesian:** check convergence (R-hat ≈ 1.00, ESS, ≤ 1 % divergences) *before* interpreting; report the posterior (mean + 95 % credible interval + tail probability, no p-values); negative τ = intervention helps; only τ is causal — observational couplings (`gamma_cross`, `f_mech`, mediator → outcome) are adjusted associations, never "X drives Y".
+- **Notes, issues, PRs:** write for a frequentist-leaning science reader; expand shorthand and read credible intervals in plain words; record decisions a future reader might question as a dated `notes/` note; verify citations and always include DOIs.
 
-Check each top predictor's beeswarm row for: (i) whether blue (low feature value) and red (high) cluster cleanly on opposite sides of zero (monotonic), (ii) whether the effect is tight or wide, (iii) whether any tails show observations acting opposite to the dominant direction. Report the direction explicitly when describing results — don't leave readers to infer it from importance alone.
+Full rationale, workflow, conventions, glossary, and references: **`METHODS.md`**.
 
 ## Pre-commit checks
 

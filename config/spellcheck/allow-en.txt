@@ -182,3 +182,8 @@ Rogosa
 Westfall
 Wysocki
 Yarkoni
+Hoekstra
+Morey
+Psychonomic
+Rouder
+Wagenmakers
