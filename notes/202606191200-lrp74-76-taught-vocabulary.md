@@ -32,9 +32,13 @@ baseline t1, randomised post t2 — the ITT window). Block 2 is introduced in ph
 - **Not-taught = 12** is the *observed maximum* (both modalities top out at 12,
   consistent with a half-size 3-words-×-4-types control set). The paper tabulates
   only the taught tests, so this is flagged `n_trials_confirmed=False`. The
-  logit-scale taught-vs-not-taught difference is robust to it; probability-scale
-  summaries for the not-taught outcomes are approximate pending the data
-  dictionary. (Cf. the active `fix/lrp80` ceiling-confirmation work — W=79, P=92.)
+  *sign* of the taught-vs-not-taught difference is robust to this (taught is a
+  strong effect, not-taught little), but the **magnitude** is not — `tau[UE]`
+  shifts with the assumed not-taught ceiling, so the difference and any
+  probability-scale summary for the not-taught outcomes should be treated as
+  approximate pending the data dictionary. Confirm the ceiling, or refit with an
+  alternative (e.g. N=24) as a sensitivity check, before quoting the size.
+  (Cf. the active `fix/lrp80` ceiling-confirmation work — W=79, P=92.)
 - Data: n=54 (28 control, 26 intervention); all four Block-1 measures complete at
   both t1 and t2, so LRP74/75 lose **zero** cases.
 
@@ -57,7 +61,10 @@ positive *benefit*, i.e. τ < 0._
   are reported as a pair.
 - **LRP76 — joint, taught vs not-taught expressive (`TE` vs `UE`).** The
   generalisation contrast. Two-outcome joint Beta-Binomial; headline parameter is
-  `tau[TE] − tau[UE]` (new `reporting.tau_difference_summary`). A 2×2 LKJ residual
+  `tau[UE] − tau[TE]` (new `reporting.tau_difference_summary`; with negative-τ =
+  benefit, this equals benefit-on-taught minus benefit-on-not-taught, so a
+  *positive* value means the taught words moved more — limited generalisation).
+  A 2×2 LKJ residual
   correlation models within-child taught/not-taught dependence (identifiable at
   K=2, unlike the prior-dominated 8-outcome LRP55 block) — toggle off if it
   destabilises sampling (the difference is then conservative). _Expectation:
