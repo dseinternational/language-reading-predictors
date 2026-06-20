@@ -823,11 +823,12 @@ def build_mediation_model(
     """
     if prepared.phase_mode != "itt":
         raise ValueError("Mediation factory requires phase_mode='itt'")
+    confounder_symbols = tuple(confounder_symbols)
     if mediator_kind == "gaussian_composite":
         return _build_route_composite_model(
             prepared,
             outcome_symbol=outcome_symbol,
-            confounder_symbols=tuple(confounder_symbols),
+            confounder_symbols=confounder_symbols,
             route_symbols=tuple(route_symbols),
         )
     if mediator_kind != "beta_binomial":
@@ -910,7 +911,7 @@ def build_mediation_model(
         W1_logit=W1,
         A_std=prepared.A_std,
         conf_logit={s: conf_logit[s] for s in confounder_symbols},
-        confounder_symbols=tuple(confounder_symbols),
+        confounder_symbols=confounder_symbols,
         L2_count=L2_count,
         W2_count=W2_count,
         n_trials_L=int(N_med),
