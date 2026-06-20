@@ -45,11 +45,11 @@ The target is **mildly left-skewed** (skew −0.37). The max of 18 is the
 instrument maximum but there is no strong ceiling pile-up (unlike LRP06's
 `yarclet` which piles at 32), so transforms are not indicated.
 
-This is a **baseline exploratory model** for the level-prediction task. It has
-not yet been through iterative feature selection or hyperparameter tuning ---
-it runs on a reasonable `_LGBM_BASELINE_PARAMS` dict and the full
-`Predictors.DEFAULT_LEVEL` set (minus the target). Later variants will have a
-documented starting point for comparison.
+This is an **exploratory model** for the level-prediction task. It runs on
+MAE-tuned hyperparameters from an Optuna 150-trial study, with the
+predictor set reduced from the full `Predictors.DEFAULT_LEVEL` set (minus
+the target) by iterative importance-based feature selection. The retained
+predictors and the removal history are shown below.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
 prevent data leakage across timepoints for the same child.

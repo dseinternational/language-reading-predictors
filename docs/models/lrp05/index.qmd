@@ -37,11 +37,11 @@ consecutive longitudinal timepoints. The target is `yarclet_gain` --- the change
 in `yarclet` score between assessments. All observations are included (no outlier
 exclusion) so the full range of outcomes informs the model.
 
-This is a **baseline exploratory model** for the gain-prediction task. It has
-not yet been through iterative feature selection or hyperparameter tuning ---
-it runs on a reasonable `_LGBM_BASELINE_PARAMS` dict and the full
-`Predictors.DEFAULT_GAIN` set (plus the auto-included `yarclet` level). Later
-variants will have a documented starting point for comparison.
+This is an **exploratory model** for the gain-prediction task. It runs on
+MAE-tuned hyperparameters from an Optuna 150-trial study, with the
+predictor set reduced from the full `Predictors.DEFAULT_GAIN` set (plus the
+auto-included `yarclet` level) by iterative importance-based feature
+selection. The retained predictors and the removal history are shown below.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
 prevent data leakage across timepoints for the same child.
