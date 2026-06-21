@@ -123,3 +123,50 @@ class LRP08(LevelModel):
         "target distribution of any LRP model to date. "
         "See notes/202604171715-lrp08-feature-selection.md."
     )
+
+
+# Same-skill variant: MAE-tuned on the 16-predictor set after dropping
+# b1reto — the bespoke taught receptive-vocabulary total, the same skill as
+# the target rowpvt (standardised receptive vocabulary) measured by a
+# different instrument. Tuner-inner CV MAE 7.0424 (vs primary 6.9048).
+_LGBM_MAE_PARAMS_NOCONSTRUCT: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 327,
+    "learning_rate": 0.018242440081518,
+    "num_leaves": 8,
+    "max_depth": 7,
+    "min_child_samples": 9,
+    "subsample": 0.9114594485897592,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.9178401558450036,
+    "reg_alpha": 0.021094559953870867,
+    "reg_lambda": 0.011856003525512828,
+    "n_jobs": -1,
+    "verbosity": -1,
+}
+
+
+class LRP08NoConstruct(LRP08):
+    """rowpvt — same-skill reduced (bespoke receptive-vocab sibling b1reto dropped)."""
+
+    model_id = "lrp08_noconstruct"
+    variant_of = "lrp08"
+    description = (
+        "LightGBM — rowpvt predictors "
+        "(16 predictors, same-skill reduced: receptive-vocab sibling dropped)"
+    )
+    params = _LGBM_MAE_PARAMS_NOCONSTRUCT
+    selection_steps = [
+        SelectionStep(
+            removed=[V.B1RETO],
+            notes=(
+                "Same-skill variant of lrp08: drops b1reto, the bespoke taught receptive-vocabulary total — the same skill as the target rowpvt (standardised receptive vocabulary), measured by a different instrument — to ask what predicts receptive vocabulary beyond a concurrent same-skill measure. Expressive-vocabulary measures (eowpvt, b1exto) and other constructs are kept deliberately, to be seen independently. Caveat: lrp08's primary is still under-pruned (8 dcor >= 0.70 pairs in the expressive-vocab / APT cluster; see notes/202606201500-gb-replication-findings.md), and this variant inherits that residual redundancy — the lrp08 / lrp09 re-prune is a separate follow-up. Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+            ),
+            date="2026-06-21",
+            metrics_before={"cv_mae_mean": 6.9048},
+            metrics_after={"cv_mae_mean": 7.0424},
+        ),
+    ]
+    notes = (
+        "Same-skill variant of lrp08: drops b1reto (bespoke receptive vocabulary, the same skill as the standardised target rowpvt) to ask what predicts receptive vocabulary beyond a concurrent same-skill measure. Expressive-vocabulary and other constructs kept visible. Inherits the primary's residual redundancy (lrp08 re-prune pending). Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+    )

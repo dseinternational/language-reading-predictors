@@ -103,9 +103,9 @@ class LRP20(LevelModel):
     )
 
 
-# Construct-reduced variant: MAE-tuned on the 7-predictor set after
-# additionally dropping same-construct (language_composite) predictors
-# (aptgram). Tuner-inner CV MAE 3.0591.
+# Same-skill variant: MAE-tuned on the 7-predictor set after dropping
+# aptgram — the APT grammar score, taken from the same elicited
+# picture descriptions as the target aptinfo. Tuner-inner CV MAE 3.0591.
 _LGBM_MAE_PARAMS_NOCONSTRUCT: dict[str, float | int | str] = {
     "objective": "mae",
     "n_estimators": 362,
@@ -124,25 +124,25 @@ _LGBM_MAE_PARAMS_NOCONSTRUCT: dict[str, float | int | str] = {
 
 
 class LRP20NoConstruct(LRP20):
-    """aptinfo — construct-reduced (language_composite dropped)."""
+    """aptinfo — same-skill reduced (APT same-sample sibling aptgram dropped)."""
 
     model_id = "lrp20_noconstruct"
     variant_of = "lrp20"
     description = (
         "LightGBM — aptinfo predictors "
-        "(7 predictors, construct-reduced)"
+        "(7 predictors, same-skill reduced: APT sibling dropped)"
     )
     params = _LGBM_MAE_PARAMS_NOCONSTRUCT
     selection_steps = [
         SelectionStep(
             removed=[V.APTGRAM],
             notes=(
-                "Construct-reduced variant of lrp20: drops the same-construct (language_composite) predictors (aptgram) from the primary set to ask what predicts aptinfo beyond its sibling measures. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606201500-gb-replication-findings.md."
+                "Same-skill variant of lrp20: drops aptgram — the Action Picture Test grammar score, scored from the same elicited picture descriptions as the target aptinfo — so the model is not 'predicting' expressive information from a parallel scoring of the same sample. Receptive grammar (trog) and other constructs are kept deliberately, to be seen independently. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
             ),
-            date="2026-06-20",
+            date="2026-06-21",
             metrics_after={"cv_mae_mean": 3.0591},
         ),
     ]
     notes = (
-        "Construct-reduced variant of lrp20: drops the same-construct (language_composite) predictors (aptgram) from the primary set to ask what predicts aptinfo beyond its sibling measures. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606201500-gb-replication-findings.md."
+        "Same-skill variant of lrp20: drops aptgram (APT grammar, scored from the same picture descriptions as aptinfo) to ask what predicts expressive information beyond a parallel scoring of the same test. Receptive grammar (trog) and other constructs kept visible. Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
     )

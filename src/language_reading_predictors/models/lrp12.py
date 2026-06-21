@@ -16,6 +16,11 @@ distribution than most LRP level targets. No floor or ceiling
 pathology visible at this sample range.
 
 Feature selection applied 2026-06-20 (replication): reduced from the full 32-predictor set to 26 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
+
+No construct-reduced variant: receptive grammar (``trog``) has no same-skill
+sibling among the predictors — expressive grammar (``aptgram``) is a different
+modality and concept knowledge (``celf``) a different skill, both kept visible
+deliberately. See notes/202606210930-lrp-same-skill-variants.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -93,49 +98,4 @@ class LRP12(LevelModel):
     ]
     notes = (
         "Exploratory model for trog (level). Feature-selected (2026-06-20 replication) from the full 32-predictor default set to 26 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 2.761 -> 2.792). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
-    )
-
-
-# Construct-reduced variant: MAE-tuned on the 24-predictor set after
-# additionally dropping same-construct (language_composite) predictors
-# (aptgram, celf). Tuner-inner CV MAE 2.8070.
-_LGBM_MAE_PARAMS_NOCONSTRUCT: dict[str, float | int | str] = {
-    "objective": "mae",
-    "n_estimators": 167,
-    "learning_rate": 0.033315341843613074,
-    "num_leaves": 47,
-    "max_depth": 6,
-    "min_child_samples": 36,
-    "subsample": 0.9999349108514803,
-    "subsample_freq": 1,
-    "colsample_bytree": 0.8729078630487287,
-    "reg_alpha": 0.1113584313008453,
-    "reg_lambda": 0.001762766473069607,
-    "n_jobs": -1,
-    "verbosity": -1,
-}
-
-
-class LRP12NoConstruct(LRP12):
-    """trog — construct-reduced (language_composite dropped)."""
-
-    model_id = "lrp12_noconstruct"
-    variant_of = "lrp12"
-    description = (
-        "LightGBM — trog predictors "
-        "(24 predictors, construct-reduced)"
-    )
-    params = _LGBM_MAE_PARAMS_NOCONSTRUCT
-    selection_steps = [
-        SelectionStep(
-            removed=[V.APTGRAM, V.CELF],
-            notes=(
-                "Construct-reduced variant of lrp12: drops the same-construct (language_composite) predictors (aptgram, celf) from the primary set to ask what predicts trog beyond its sibling measures. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606201500-gb-replication-findings.md."
-            ),
-            date="2026-06-20",
-            metrics_after={"cv_mae_mean": 2.8070},
-        ),
-    ]
-    notes = (
-        "Construct-reduced variant of lrp12: drops the same-construct (language_composite) predictors (aptgram, celf) from the primary set to ask what predicts trog beyond its sibling measures. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606201500-gb-replication-findings.md."
     )

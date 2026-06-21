@@ -20,6 +20,11 @@ Log or quantile transforms may be more appropriate than a plain
 regression here; plan for a ``lrp14_log`` variant in follow-up PRs.
 
 Feature selection applied 2026-06-20 (replication): reduced from the full 32-predictor set to 3 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
+
+No construct-reduced variant: ``nonword``'s remaining predictors are
+*different* reading skills (letter-sound knowledge, phonological awareness,
+spelling), which we keep visible rather than treat as concurrent
+same-skill restatements. See notes/202606210930-lrp-same-skill-variants.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -91,49 +96,4 @@ class LRP14(LevelModel):
     ]
     notes = (
         "Exploratory model for nonword (level). Feature-selected (2026-06-20 replication) from the full 32-predictor default set to 3 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 0.892 -> 0.772). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
-    )
-
-
-# Construct-reduced variant: MAE-tuned on the 2-predictor set after
-# additionally dropping same-construct (reading_decoding) predictors
-# (yarclet). Tuner-inner CV MAE 0.7891.
-_LGBM_MAE_PARAMS_NOCONSTRUCT: dict[str, float | int | str] = {
-    "objective": "mae",
-    "n_estimators": 176,
-    "learning_rate": 0.03526461559138239,
-    "num_leaves": 34,
-    "max_depth": 3,
-    "min_child_samples": 8,
-    "subsample": 0.9494031276497659,
-    "subsample_freq": 1,
-    "colsample_bytree": 0.6533258433537965,
-    "reg_alpha": 0.02826884180155375,
-    "reg_lambda": 0.00139661138721428,
-    "n_jobs": -1,
-    "verbosity": -1,
-}
-
-
-class LRP14NoConstruct(LRP14):
-    """nonword — construct-reduced (reading_decoding dropped)."""
-
-    model_id = "lrp14_noconstruct"
-    variant_of = "lrp14"
-    description = (
-        "LightGBM — nonword predictors "
-        "(2 predictors, construct-reduced)"
-    )
-    params = _LGBM_MAE_PARAMS_NOCONSTRUCT
-    selection_steps = [
-        SelectionStep(
-            removed=[V.YARCLET],
-            notes=(
-                "Construct-reduced variant of lrp14: drops the same-construct (reading_decoding) predictors (yarclet) from the primary set to ask what predicts nonword beyond its sibling measures. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606201500-gb-replication-findings.md."
-            ),
-            date="2026-06-20",
-            metrics_after={"cv_mae_mean": 0.7891},
-        ),
-    ]
-    notes = (
-        "Construct-reduced variant of lrp14: drops the same-construct (reading_decoding) predictors (yarclet) from the primary set to ask what predicts nonword beyond its sibling measures. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606201500-gb-replication-findings.md."
     )

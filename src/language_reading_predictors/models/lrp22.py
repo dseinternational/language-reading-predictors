@@ -106,3 +106,51 @@ class LRP22(LevelModel):
     notes = (
         "Exploratory model for deappfi (level). Feature-selected (2026-06-20 replication) from the full 32-predictor default set to 7 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 9.946 -> 9.958). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
     )
+
+
+# Same-skill (null) variant: MAE-tuned on the 6-predictor set after dropping
+# deappin — DEAP initial-consonant accuracy, scored from the same picture-
+# naming sample as the target deappfi. Tuner-inner CV MAE rises 9.958 -> 16.126
+# and the chosen model is ~3 trees: removing the DEAP sibling collapses the
+# signal to ~null (the deappfi finding).
+_LGBM_MAE_PARAMS_NOCONSTRUCT: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 3,
+    "learning_rate": 0.10821526553081377,
+    "num_leaves": 49,
+    "max_depth": 8,
+    "min_child_samples": 6,
+    "subsample": 0.6917683552854258,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.7580400397784406,
+    "reg_alpha": 0.17579698004549832,
+    "reg_lambda": 0.0016202157050561594,
+    "n_jobs": -1,
+    "verbosity": -1,
+}
+
+
+class LRP22NoConstruct(LRP22):
+    """deappfi — same-skill (null) variant: DEAP same-sample sibling deappin dropped."""
+
+    model_id = "lrp22_noconstruct"
+    variant_of = "lrp22"
+    description = (
+        "LightGBM — deappfi predictors "
+        "(6 predictors, same-skill reduced: DEAP sibling dropped -> null)"
+    )
+    params = _LGBM_MAE_PARAMS_NOCONSTRUCT
+    selection_steps = [
+        SelectionStep(
+            removed=[V.DEAPPIN],
+            notes=(
+                "Same-skill (null) variant of lrp22: drops deappin — DEAP initial-consonant accuracy, scored from the same picture-naming sample as the target deappfi (final-consonant accuracy), i.e. a parallel scoring of the same articulation performance. This is the deappfi null result: with the same-instrument DEAP sibling removed, tuner-inner CV MAE rises from 9.96 to 16.13 and the chosen model is ~3 trees (near-constant), confirming there is no non-articulation predictor of final-consonant accuracy at this n. The within-DEAP primary (lrp22) is kept as a convergent-validity reference; this variant documents the null. See notes/202606210930-lrp-same-skill-variants.md."
+            ),
+            date="2026-06-21",
+            metrics_before={"cv_mae_mean": 9.9583},
+            metrics_after={"cv_mae_mean": 16.1262},
+        ),
+    ]
+    notes = (
+        "Same-skill (null) variant of lrp22: drops deappin (DEAP initial-consonant accuracy, same picture-naming sample as the target deappfi). Removing the parallel DEAP scoring collapses CV (tuner-inner MAE 9.96 -> 16.13, ~3-tree near-constant model): no non-articulation predictor of final-consonant accuracy at this n. The within-DEAP primary is kept as a convergent-validity reference. See notes/202606210930-lrp-same-skill-variants.md."
+    )
