@@ -33,39 +33,39 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
         removed=[
-            V.TIME, V.GROUP, V.AREA, V.GENDER, V.AGE, V.APTGRAM, V.APTINFO,
-            V.B1EXTO, V.B1RETO, V.CELF, V.ERBNW, V.ERBWORD, V.NONWORD, V.ROWPVT,
-            V.SPPHON, V.TROG, V.YARCLET, V.YARCSI, V.DEAPPIN, V.DEAPPVO, V.DEAPPFI,
-            V.EWRSWR, V.BEHAV, V.ATTEND, V.AGESPEAK, V.VISION, V.HEARING, V.EARINF,
-            V.NUMCHIL, V.AGEBOOKS, V.MUMEDUPOST16, V.DADEDUPOST16
+            V.ATTEND, V.DEAPPIN, V.ERBWORD, V.APTINFO, V.MUMEDUPOST16,
+            V.DADEDUPOST16, V.SPPHON, V.AREA, V.VISION, V.AGESPEAK, V.EARINF,
+            V.GENDER, V.AGEBOOKS, V.NUMCHIL, V.HEARING, V.BEHAV, V.GROUP, V.YARCSI,
+            V.NONWORD, V.CELF, V.APTGRAM, V.TIME, V.ERBNW, V.EWRSWR, V.AGE,
+            V.YARCLET, V.B1RETO, V.TROG, V.DEAPPFI, V.DEAPPVO, V.B1EXTO, V.ROWPVT
         ],
         notes=(
-            "Feature selection (replication, 2026-06-20): from the full 34-predictor set, a distance-correlation filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative per cluster) plus removal of features at/below the 0.005 importance floor. Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; pooled refit-CV held under matched hyperparameters, then the set was re-tuned. See notes/202606201500-gb-replication-findings.md."
+            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
         ),
-        date="2026-06-20",
-        metrics_before={"cv_mae_mean": 1.4931},
-        metrics_after={"cv_mae_mean": 1.4200},
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 1.5515},
+        metrics_after={"cv_mae_mean": 1.4284},
     ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 2-predictor replication-selected set, no outlier
-# exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 1.4200. Supersedes the full-set tune.
+# MAE-tuned on the 2-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 1.4284.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 9,
-    "learning_rate": 0.13463014786395172,
-    "num_leaves": 61,
+    "n_estimators": 19,
+    "learning_rate": 0.1222943988580933,
+    "num_leaves": 49,
     "max_depth": 10,
-    "min_child_samples": 10,
-    "subsample": 0.6829787335078421,
+    "min_child_samples": 17,
+    "subsample": 0.7939584542266895,
     "subsample_freq": 1,
-    "colsample_bytree": 0.8521400253237552,
-    "reg_alpha": 0.0027170544199376675,
-    "reg_lambda": 0.007080425956928716,
+    "colsample_bytree": 0.8932840140004359,
+    "reg_alpha": 0.3614435822731186,
+    "reg_lambda": 0.6146738201364021,
     "n_jobs": -1,
     "verbosity": -1,
 }

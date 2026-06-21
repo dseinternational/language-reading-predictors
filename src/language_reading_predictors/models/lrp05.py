@@ -34,57 +34,41 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 # with no outlier exclusion (n=160).
 # See notes/202604171421-lrp05-feature-selection.md for the full rationale.
 
-_SELECTION_STEPS = [
+_SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
         removed=[
-            # Tier A — importance ≤ 0.005 in the 34-predictor MAE tune
-            V.BEHAV, V.GENDER, V.AREA, V.NONWORD, V.VISION,
-            V.EARINF, V.HEARING, V.NUMCHIL, V.YARCSI, V.EWRSWR,
-            V.ERBNW, V.AGEBOOKS, V.B1EXTO, V.APTINFO,
-            # Tier B — 0.005-0.010, redundant with retained
-            # higher-importance siblings or with Tier-A drops
-            V.SPPHON,       # reading-cluster redundancy; ewrswr already going
-            V.MUMEDUPOST16, # dcorr 0.56 with dadedupost16 (retained)
-            V.GROUP,        # weak singleton
-            V.TROG,         # language-cluster redundancy
-            V.APTGRAM,      # language-cluster redundancy
+            V.ERBWORD, V.EWRSWR, V.AGEBOOKS, V.GROUP, V.AGESPEAK, V.MUMEDUPOST16,
+            V.EARINF, V.GENDER, V.DEAPPIN, V.NUMCHIL, V.BEHAV, V.AREA, V.VISION,
+            V.HEARING, V.EOWPVT, V.TROG, V.CELF, V.B1RETO, V.YARCSI, V.NONWORD,
+            V.B1EXTO, V.ROWPVT, V.DEAPPVO, V.APTGRAM, V.APTINFO, V.BLENDING
         ],
         notes=(
-            "Aggressive one-shot cut from 34 → 15 predictors. Drops "
-            "14 Tier-A features with importance ≤ 0.005 (essentially "
-            "zero-signal under the 178-tree MAE-tuned model) plus 5 "
-            "Tier-B features at 0.006-0.010 where redundancy or "
-            "construct overlap with retained features justifies the "
-            "drop. Reading measures drop entirely (ewrswr, nonword, "
-            "yarcsi, spphon) — the base yarclet + time + age + attend "
-            "+ speech articulation story dominates letter-sound gain "
-            "prediction at n=160, not other reading scores."
+            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 8 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
         ),
-        date="2026-04-17",
-        metrics_before={"cv_mae_mean": 3.349},
-        metrics_after={"cv_mae_mean": 3.249},
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 3.3941},
+        metrics_after={"cv_mae_mean": 3.3569},
     ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 15-predictor Select01 set, no outlier exclusion
-# (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 3.3082 ± 0.5435. n=160.
-# Supersedes the 34-predictor tune (tuner-inner 3.3963).
+# MAE-tuned on the 8-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 3.3569.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 35,
-    "learning_rate": 0.17619154429377148,
-    "num_leaves": 54,
-    "max_depth": 11,
-    "min_child_samples": 7,
-    "subsample": 0.6553474984702952,
+    "n_estimators": 41,
+    "learning_rate": 0.0853489590463849,
+    "num_leaves": 42,
+    "max_depth": 12,
+    "min_child_samples": 21,
+    "subsample": 0.688114728810087,
     "subsample_freq": 1,
-    "colsample_bytree": 0.7792653744980131,
-    "reg_alpha": 0.10822326112673696,
-    "reg_lambda": 0.17613569608007879,
+    "colsample_bytree": 0.9723492415919919,
+    "reg_alpha": 0.001990819330098672,
+    "reg_lambda": 3.298314330689827,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -107,7 +91,7 @@ class LRP05(GainModel):
     target_var = V.YARCLET_GAIN
     description = (
         "LightGBM — letter-sound knowledge gain predictors "
-        "(15 predictors, MAE-tuned, no outlier exclusion)"
+        "(8 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS

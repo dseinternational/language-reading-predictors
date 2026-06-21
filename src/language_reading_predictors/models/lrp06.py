@@ -37,58 +37,41 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 # with no outlier exclusion (n=214).
 # See notes/202604171421-lrp06-feature-selection.md for the full rationale.
 
-_SELECTION_STEPS = [
+_SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
         removed=[
-            # Tier A — importance ≤ 0.005 in the 32-predictor MAE tune
-            V.AREA, V.CELF, V.HEARING, V.GENDER, V.BEHAV,
-            V.APTINFO, V.YARCSI, V.TROG, V.APTGRAM, V.EARINF,
-            V.NUMCHIL, V.AGESPEAK, V.DEAPPVO, V.AGEBOOKS,
-            V.MUMEDUPOST16, V.ERBNW, V.ROWPVT, V.DEAPPFI,
-            # Tier B — 0.006-0.010, redundant with retained
-            # higher-importance siblings
-            V.SPPHON,   # dcorr 0.78 with retained ewrswr (0.500)
-            V.B1RETO,   # dcorr 0.76 with retained b1exto (0.105)
-            V.EOWPVT,   # dcorr 0.80 with retained b1exto
-            V.BLENDING, # dcorr 0.55 with retained ewrswr
+            V.B1EXTO, V.B1RETO, V.ERBNW, V.SPPHON, V.GROUP, V.CELF, V.APTGRAM,
+            V.MUMEDUPOST16, V.AGESPEAK, V.DADEDUPOST16, V.AGEBOOKS, V.HEARING,
+            V.NUMCHIL, V.AREA, V.GENDER, V.VISION, V.BEHAV, V.EARINF, V.ROWPVT,
+            V.APTINFO, V.TROG, V.YARCSI, V.DEAPPFI, V.DEAPPIN, V.AGE, V.DEAPPVO
         ],
         notes=(
-            "Aggressive one-shot cut from 32 → 10 predictors. Drops "
-            "18 Tier-A features with importance ≤ 0.005 (9 at exactly "
-            "0.000 under the 55-tree MAE-tuned model) plus 4 Tier-B "
-            "features at 0.006-0.010 that are redundant with retained "
-            "higher-importance siblings: spphon/blending (ewrswr "
-            "cluster, dcorr 0.78/0.55), b1reto/eowpvt (language "
-            "cluster, dcorr 0.76/0.80 with b1exto). Surprising: "
-            "aptinfo sits at exactly 0 importance here despite being "
-            "top-2 on LRP04 — different construct relationship for "
-            "letter-sound knowledge vs expressive vocabulary."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. Reduces to 6 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
         ),
-        date="2026-04-17",
-        metrics_before={"cv_mae_mean": 4.422},
-        metrics_after={"cv_mae_mean": 4.238},
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 4.6203},
+        metrics_after={"cv_mae_mean": 4.3643},
     ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 10-predictor Select01 set, no outlier exclusion
-# (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 4.0996 ± 0.8713. n=214.
-# Supersedes the 32-predictor tune (tuner-inner 4.2827).
+# MAE-tuned on the 6-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 4.3643.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 277,
-    "learning_rate": 0.015673816656256778,
-    "num_leaves": 15,
+    "n_estimators": 53,
+    "learning_rate": 0.037371968457437586,
+    "num_leaves": 29,
     "max_depth": 10,
-    "min_child_samples": 21,
-    "subsample": 0.6507936233336762,
+    "min_child_samples": 8,
+    "subsample": 0.7474456109857174,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6399635717298359,
-    "reg_alpha": 0.2906864644733162,
-    "reg_lambda": 0.036855080194016676,
+    "colsample_bytree": 0.9746583954334843,
+    "reg_alpha": 1.6618715685357452,
+    "reg_lambda": 1.2133803578125177,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -110,7 +93,7 @@ class LRP06(LevelModel):
     target_var = V.YARCLET
     description = (
         "LightGBM — letter-sound knowledge level predictors "
-        "(10 predictors, MAE-tuned, no outlier exclusion)"
+        "(6 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS

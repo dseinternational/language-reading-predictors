@@ -15,7 +15,7 @@ mean 14.31, std 4.83, skewness 0.29, n ≈ 215) — cleaner
 distribution than most LRP level targets. No floor or ceiling
 pathology visible at this sample range.
 
-Feature selection applied 2026-06-20 (replication): reduced from the full 32-predictor set to 26 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
+Feature selection applied 2026-06-20 (replication): reduced from the full 32-predictor set to 3 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
 
 No construct-reduced variant: receptive grammar (``trog``) has no same-skill
 sibling among the predictors — expressive grammar (``aptgram``) is a different
@@ -37,35 +37,39 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
         removed=[
-            V.APTINFO, V.B1RETO, V.EOWPVT, V.ERBNW, V.SPPHON, V.DEAPPFI
+            V.B1EXTO, V.B1RETO, V.YARCLET, V.BEHAV, V.BLENDING, V.AGESPEAK, V.TIME,
+            V.DADEDUPOST16, V.NONWORD, V.HEARING, V.EARINF, V.VISION, V.GENDER,
+            V.AREA, V.NUMCHIL, V.MUMEDUPOST16, V.GROUP, V.AGE, V.YARCSI, V.AGEBOOKS,
+            V.CELF, V.SPPHON, V.ERBWORD, V.EWRSWR, V.ROWPVT, V.DEAPPFI, V.ERBNW,
+            V.APTGRAM, V.APTINFO
         ],
         notes=(
-            "Feature selection (replication, 2026-06-20): from the full 32-predictor set, a distance-correlation filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative per cluster) plus removal of features at/below the 0.005 importance floor. Reduces to 26 predictors with no dcor >= 0.70 pairs remaining; pooled refit-CV held under matched hyperparameters, then the set was re-tuned. See notes/202606201500-gb-replication-findings.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
         ),
-        date="2026-06-20",
-        metrics_before={"cv_mae_mean": 2.7606},
-        metrics_after={"cv_mae_mean": 2.7918},
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 2.9616},
+        metrics_after={"cv_mae_mean": 3.2397},
     ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 26-predictor replication-selected set, no outlier
-# exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 2.7918. Supersedes the full-set tune.
+# MAE-tuned on the 3-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 3.2397.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 120,
-    "learning_rate": 0.04287148759795345,
-    "num_leaves": 18,
-    "max_depth": 3,
-    "min_child_samples": 23,
-    "subsample": 0.6893331420047686,
+    "n_estimators": 63,
+    "learning_rate": 0.05588784143996907,
+    "num_leaves": 22,
+    "max_depth": 11,
+    "min_child_samples": 34,
+    "subsample": 0.6520763255591536,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9630779729356636,
-    "reg_alpha": 0.0434106600675856,
-    "reg_lambda": 6.647936941764703,
+    "colsample_bytree": 0.8510963074643223,
+    "reg_alpha": 0.09492393288847721,
+    "reg_lambda": 0.04089242882652475,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -86,7 +90,7 @@ class LRP12(LevelModel):
     target_var = V.TROG
     description = (
         "LightGBM — TROG-2 (receptive grammar) level predictors "
-        "(26 predictors, MAE-tuned, no outlier exclusion)"
+        "(3 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -97,5 +101,5 @@ class LRP12(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for trog (level). Feature-selected (2026-06-20 replication) from the full 32-predictor default set to 26 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 2.761 -> 2.792). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
+        "Exploratory model for trog (level). Feature-selected (2026-06-20 replication) from the full 32-predictor default set to 3 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 2.761 -> 2.792). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
     )

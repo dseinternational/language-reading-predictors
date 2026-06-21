@@ -5,105 +5,78 @@
 LRP08: Predictors of receptive vocabulary level.
 
 ``LRP08`` is the exploratory model for receptive vocabulary level
-(``rowpvt``). It is MAE-tuned on the 17-predictor Select01 set
-(down from the original 32-predictor
-:attr:`Predictors.DEFAULT_LEVEL` minus target), with no outlier
-exclusion, designed to identify the most important influences on
-receptive vocabulary level.
+(``rowpvt``). The target is **essentially symmetric and near-Gaussian**
+(``rowpvt`` min 11, max 82, median 42, mean 41.1, std 14.1, skewness
+0.04, n ≈ 215) — no floor, no ceiling, no heavy tail; the cleanest
+target distribution of any LRP model.
 
-The target is **essentially symmetric and near-Gaussian** (``rowpvt``
-min 11, max 82, median 42, mean 41.1, std 14.1, skewness 0.04,
-n ≈ 215). No floor, no ceiling, no heavy tail — the cleanest
-target distribution of any LRP model to date. Transforms are
-unnecessary; standard MAE and RMSE objectives should behave well.
+Uniform feature selection (2026-06-21): reduced from the full
+32-predictor :attr:`Predictors.DEFAULT_LEVEL` set (minus the target) to
+7 predictors via a distance-correlation redundancy filter (dcor >= 0.70)
+plus an importance noise-floor cut, then re-tuned — superseding the
+earlier 17-predictor hand-selected set and clearing its residual
+redundancy. No same-skill variant: the uniform filter already drops the
+bespoke receptive-vocabulary sibling (``b1reto``). See the SelectionStep
+and notes/202606211200-uniform-gb-fs.md.
 """
 
-from language_reading_predictors.data_variables import Variables as V  # noqa: F401
+from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
 from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# ── predictor selection steps (shared by all variants) ───────────────────
-#
-# Documents the 32 → 17 feature-selection history under MAE-tuned
-# params with no outlier exclusion (n=215).
-# See notes/202604171715-lrp08-feature-selection.md for the full rationale.
-
-_SELECTION_STEPS = [
+_SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
         removed=[
-            # Tier A — ≤ 0.005 importance in the 32-predictor MAE tune
-            V.GENDER, V.VISION, V.GROUP, V.EARINF, V.BEHAV,
-            V.TIME, V.YARCSI, V.AREA, V.HEARING, V.BLENDING,
-            V.DEAPPVO, V.AGESPEAK,
-            # Tier B — 0.006 importance, redundant with retained
-            # higher-importance siblings or demographic noise
-            V.APTGRAM,   # dcorr ≈ 0.76 with retained aptinfo (0.067)
-            V.ERBWORD,   # speech pair with retained erbnw (0.009)
-            V.AGEBOOKS,  # demographic noise-floor
+            V.B1RETO, V.EOWPVT, V.B1EXTO, V.DEAPPFI, V.GENDER, V.GROUP, V.AREA,
+            V.EARINF, V.MUMEDUPOST16, V.DADEDUPOST16, V.AGEBOOKS, V.YARCLET,
+            V.AGESPEAK, V.ERBNW, V.SPPHON, V.VISION, V.NUMCHIL, V.HEARING,
+            V.DEAPPVO, V.YARCSI, V.BEHAV, V.APTGRAM, V.AGE, V.EWRSWR, V.BLENDING
         ],
         notes=(
-            "Moderate one-shot cut from 32 → 17 predictors. Drops "
-            "12 Tier-A features with importance ≤ 0.005 under the "
-            "118-tree MAE-tuned model plus 3 Tier-B redundant "
-            "features (aptgram shares signal with aptinfo, erbword "
-            "pair-redundant with erbnw, agebooks is near-zero "
-            "demographic noise). Conservative relative to LRP06's "
-            "32→10 cut — LRP08 has a flatter importance distribution "
-            "(top b1reto only 0.095 vs LRP06 ewrswr 0.500) so the "
-            "retained mid-tier features all contribute meaningfully. "
-            "Keeps the full language cluster (b1reto, aptinfo, "
-            "eowpvt, celf, trog, b1exto) and both reading controls "
-            "(ewrswr, yarclet) for construct coverage."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 7 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
         ),
-        date="2026-04-17",
-        metrics_before={"cv_mae_mean": 7.075},
-        metrics_after={"cv_mae_mean": 6.966},
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 7.0096},
+        metrics_after={"cv_mae_mean": 7.2648},
     ),
 ]
 
 
-# ── hyperparameter sets ─────────────────────────────────────────────────
-
-# MAE-tuned on the 17-predictor Select01 set, no outlier exclusion
-# (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 6.9048 ± 1.4492. n=215.
-# Supersedes the 32-predictor tune (tuner-inner 7.0639).
+# MAE-tuned on the 7-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 7.2648.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 216,
-    "learning_rate": 0.02084571088606304,
-    "num_leaves": 22,
-    "max_depth": 8,
-    "min_child_samples": 10,
-    "subsample": 0.7189672525215607,
+    "n_estimators": 235,
+    "learning_rate": 0.012246385977646894,
+    "num_leaves": 58,
+    "max_depth": 3,
+    "min_child_samples": 6,
+    "subsample": 0.6471382352609089,
     "subsample_freq": 1,
-    "colsample_bytree": 0.8425605377858724,
-    "reg_alpha": 0.004764523961768294,
-    "reg_lambda": 0.6582222408420664,
+    "colsample_bytree": 0.6827041658949718,
+    "reg_alpha": 0.021220537844795304,
+    "reg_lambda": 0.21769887246316527,
     "n_jobs": -1,
     "verbosity": -1,
 }
 
 
-# ── primary model (exploratory, MAE-tuned) ──────────────────────────────
-
-
 class LRP08(LevelModel):
     """Receptive vocabulary level predictors — exploratory (MAE-tuned, all data).
 
-    Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
-    (minus the target ``rowpvt``) with MAE-tuned hyperparameters
-    and no outlier exclusion. The starting point for feature
-    selection on the receptive vocabulary level-prediction task.
+    Uniform-selected subset of :attr:`Predictors.DEFAULT_LEVEL` (minus the
+    target ``rowpvt``) with MAE-tuned hyperparameters and no outlier
+    exclusion. See the SelectionStep and the module docstring.
     """
 
     model_id = "lrp08"
     target_var = V.ROWPVT
     description = (
         "LightGBM — receptive vocabulary level predictors "
-        "(17 predictors, MAE-tuned, no outlier exclusion)"
+        "(7 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -114,59 +87,11 @@ class LRP08(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for identifying important predictors of "
-        "receptive vocabulary level (rowpvt). MAE-tuned on the "
-        "17-predictor Select01 set (down from the original 32) "
-        "without outlier exclusion so importance rankings reflect "
-        "the full range of outcomes. Target is essentially symmetric "
-        "/ near-Gaussian (skew 0.04, no floor or ceiling) — cleanest "
-        "target distribution of any LRP model to date. "
-        "See notes/202604171715-lrp08-feature-selection.md."
-    )
-
-
-# Same-skill variant: MAE-tuned on the 16-predictor set after dropping
-# b1reto — the bespoke taught receptive-vocabulary total, the same skill as
-# the target rowpvt (standardised receptive vocabulary) measured by a
-# different instrument. Tuner-inner CV MAE 7.0424 (vs primary 6.9048).
-_LGBM_MAE_PARAMS_NOCONSTRUCT: dict[str, float | int | str] = {
-    "objective": "mae",
-    "n_estimators": 327,
-    "learning_rate": 0.018242440081518,
-    "num_leaves": 8,
-    "max_depth": 7,
-    "min_child_samples": 9,
-    "subsample": 0.9114594485897592,
-    "subsample_freq": 1,
-    "colsample_bytree": 0.9178401558450036,
-    "reg_alpha": 0.021094559953870867,
-    "reg_lambda": 0.011856003525512828,
-    "n_jobs": -1,
-    "verbosity": -1,
-}
-
-
-class LRP08NoConstruct(LRP08):
-    """rowpvt — same-skill reduced (bespoke receptive-vocab sibling b1reto dropped)."""
-
-    model_id = "lrp08_noconstruct"
-    variant_of = "lrp08"
-    description = (
-        "LightGBM — rowpvt predictors "
-        "(16 predictors, same-skill reduced: receptive-vocab sibling dropped)"
-    )
-    params = _LGBM_MAE_PARAMS_NOCONSTRUCT
-    selection_steps = [
-        SelectionStep(
-            removed=[V.B1RETO],
-            notes=(
-                "Same-skill variant of lrp08: drops b1reto, the bespoke taught receptive-vocabulary total — the same skill as the target rowpvt (standardised receptive vocabulary), measured by a different instrument — to ask what predicts receptive vocabulary beyond a concurrent same-skill measure. Expressive-vocabulary measures (eowpvt, b1exto) and other constructs are kept deliberately, to be seen independently. Caveat: lrp08's primary is still under-pruned (8 dcor >= 0.70 pairs in the expressive-vocab / APT cluster; see notes/202606201500-gb-replication-findings.md), and this variant inherits that residual redundancy — the lrp08 / lrp09 re-prune is a separate follow-up. Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
-            ),
-            date="2026-06-21",
-            metrics_before={"cv_mae_mean": 6.9048},
-            metrics_after={"cv_mae_mean": 7.0424},
-        ),
-    ]
-    notes = (
-        "Same-skill variant of lrp08: drops b1reto (bespoke receptive vocabulary, the same skill as the standardised target rowpvt) to ask what predicts receptive vocabulary beyond a concurrent same-skill measure. Expressive-vocabulary and other constructs kept visible. Inherits the primary's residual redundancy (lrp08 re-prune pending). Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+        "Exploratory model for receptive vocabulary level (rowpvt). Uniform "
+        "feature selection (2026-06-21) from the full 32-predictor "
+        "DEFAULT_LEVEL set to 7 predictors (distance-correlation redundancy "
+        "filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), "
+        "re-tuned on the reduced set (tuner-inner CV MAE 7.010 -> 7.265). "
+        "Target is near-Gaussian (skew 0.04). Treat the reduced ranking as "
+        "exploratory. See notes/202606211200-uniform-gb-fs.md."
     )

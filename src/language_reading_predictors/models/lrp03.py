@@ -35,83 +35,42 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 # with no outlier exclusion (n=161).
 # See notes/202604171127-lpr03-feature-selection.md for the full rationale.
 
-_SELECTION_STEPS = [
+_SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
         removed=[
-            # Tier A — exactly 0.000 importance in the 34-predictor tune
-            V.YARCSI, V.SPPHON, V.NONWORD,
-            V.HEARING, V.EARINF,
-            V.NUMCHIL, V.GENDER,
-            # Tier B — 0.001–0.005 importance (below the noise floor)
-            V.BEHAV, V.ATTEND,
-            V.ERBWORD, V.ERBNW,
-            V.MUMEDUPOST16, V.DADEDUPOST16,
-            V.AREA, V.VISION, V.BLENDING,
-            V.TIME, V.GROUP,
+            V.APTINFO, V.DEAPPIN, V.ERBWORD, V.ERBNW, V.NONWORD, V.AGESPEAK,
+            V.VISION, V.EARINF, V.GROUP, V.CELF, V.GENDER, V.AREA, V.DADEDUPOST16,
+            V.HEARING, V.NUMCHIL, V.AGEBOOKS, V.MUMEDUPOST16, V.BEHAV, V.DEAPPFI,
+            V.YARCSI, V.B1RETO, V.EWRSWR, V.TIME, V.APTGRAM, V.BLENDING, V.B1EXTO,
+            V.YARCLET, V.SPPHON, V.ROWPVT, V.ATTEND, V.AGE
         ],
         notes=(
-            "Remove 18 features with importance ≤ 0.005 in the full "
-            "34-predictor MAE-tuned baseline. Tier A (7 features, "
-            "importance 0.000): yarcsi, spphon, nonword — all redundant "
-            "with ewrswr (dcorr 0.55–0.80) and individually "
-            "non-contributing; hearing, earinf, numchil, gender — "
-            "weak across the board. Tier B (11 features, 0.001–0.005): "
-            "behav, attend, erbword + erbnw (dcorr 0.84 pair), "
-            "mumedupost16 + dadedupost16 (dcorr 0.56 pair), area, "
-            "vision, blending (dcorr 0.53 with eowpvt), time, group. "
-            "One-shot aggressive cut because the 16-tree tuned model "
-            "had essentially no capacity for these features."
+            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
         ),
-        date="2026-04-17",
-        metrics_before={"cv_mae_mean": 5.277},
-        metrics_after={"cv_mae_mean": 5.154},
-    ),
-    SelectionStep(
-        removed=[
-            V.AGESPEAK, V.YARCLET, V.EWRSWR, V.DEAPPFI, V.CELF,
-        ],
-        notes=(
-            "Remove 5 features at the noise floor (importance ≤ 0.004) "
-            "under the Select01 retune: agespeak (0.002, weakest and "
-            "no strong partner); yarclet (0.003, dcorr 0.65 with "
-            "ewrswr and 0.64 with b1exto — redundant in the reading "
-            "cluster); ewrswr (0.004, dcorr 0.66 with b1exto and 0.65 "
-            "with eowpvt — redundant with retained language features); "
-            "deappfi (0.004, dcorr 0.76 with retained deappin — "
-            "articulation pair redundancy); celf (0.004, dcorr 0.63–"
-            "0.64 with eowpvt/b1exto/b1reto/rowpvt — sits inside the "
-            "language cluster). agebooks (0.006) retained as the "
-            "borderline case — above the 0.005 floor with only weak "
-            "correlations (max 0.33 with aptgram) and a distinct "
-            "early-life construct."
-        ),
-        date="2026-04-17",
-        metrics_before={"cv_mae_mean": 5.084},
-        metrics_after={"cv_mae_mean": 4.979},
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 5.1631},
+        metrics_after={"cv_mae_mean": 5.2216},
     ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 11-predictor Select02 set, no outlier exclusion
-# (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 5.0542 ± 0.6829. n=161.
-# Supersedes earlier tunings:
-#   34-predictor (tuner-inner 5.0256)
-#   16-predictor Select01 (tuner-inner 5.0936)
+# MAE-tuned on the 3-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 5.2216.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 25,
-    "learning_rate": 0.06478548258507148,
-    "num_leaves": 48,
-    "max_depth": 11,
-    "min_child_samples": 10,
-    "subsample": 0.9835210793717761,
+    "n_estimators": 175,
+    "learning_rate": 0.012391770398684195,
+    "num_leaves": 43,
+    "max_depth": 3,
+    "min_child_samples": 16,
+    "subsample": 0.7649062066306234,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9203322386497722,
-    "reg_alpha": 0.036771486040166265,
-    "reg_lambda": 0.00745726685285877,
+    "colsample_bytree": 0.8825720972911073,
+    "reg_alpha": 1.9954223064442116,
+    "reg_lambda": 0.18963037439304298,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -134,7 +93,7 @@ class LRP03(GainModel):
     target_var = V.EOWPVT_GAIN
     description = (
         "LightGBM — expressive-vocabulary gain predictors "
-        "(11 predictors, MAE-tuned, no outlier exclusion)"
+        "(3 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS

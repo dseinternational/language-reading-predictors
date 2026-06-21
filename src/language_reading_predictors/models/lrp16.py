@@ -33,17 +33,17 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
         removed=[
-            V.TIME, V.GROUP, V.AREA, V.GENDER, V.AGE, V.APTGRAM, V.APTINFO,
-            V.B1EXTO, V.B1RETO, V.CELF, V.EOWPVT, V.ERBNW, V.ERBWORD, V.NONWORD,
-            V.SPPHON, V.TROG, V.YARCLET, V.YARCSI, V.DEAPPIN, V.DEAPPVO, V.DEAPPFI,
-            V.BEHAV, V.AGESPEAK, V.VISION, V.HEARING, V.EARINF, V.NUMCHIL,
-            V.AGEBOOKS, V.MUMEDUPOST16, V.DADEDUPOST16
+            V.B1RETO, V.SPPHON, V.ERBWORD, V.YARCSI, V.B1EXTO, V.GROUP, V.AGE,
+            V.CELF, V.TROG, V.NUMCHIL, V.AGESPEAK, V.APTGRAM, V.VISION, V.TIME,
+            V.EARINF, V.AREA, V.MUMEDUPOST16, V.HEARING, V.DEAPPFI, V.AGEBOOKS,
+            V.BEHAV, V.APTINFO, V.GENDER, V.DADEDUPOST16, V.ERBNW, V.DEAPPVO,
+            V.DEAPPIN, V.NONWORD, V.YARCLET, V.EOWPVT
         ],
         notes=(
-            "Feature selection (replication, 2026-06-20): from the full 32-predictor set, a distance-correlation filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative per cluster) plus removal of features at/below the 0.005 importance floor. The standardised instrument was preferred over its intervention-taught sibling (eowpvt<-b1exto / rowpvt<-b1reto) where it did not cost CV. Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; pooled refit-CV held under matched hyperparameters, then the set was re-tuned. See notes/202606201500-gb-replication-findings.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
         ),
-        date="2026-06-20",
-        metrics_before={"cv_mae_mean": 1.7438},
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 1.6942},
         metrics_after={"cv_mae_mean": 1.7634},
     ),
 ]
@@ -51,9 +51,9 @@ _SELECTION_STEPS: list[SelectionStep] = [
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 2-predictor replication-selected set, no outlier
-# exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 1.7634. Supersedes the full-set tune.
+# MAE-tuned on the 2-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 1.7634.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
     "n_estimators": 22,

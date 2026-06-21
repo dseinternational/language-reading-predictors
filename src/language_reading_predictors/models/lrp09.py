@@ -44,102 +44,42 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 # params with no outlier exclusion (n=160).
 # See notes/202604181400-lrp09-feature-selection.md for the full rationale.
 
-_SELECTION_STEPS = [
+_SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
         removed=[
-            # Tier A — ≤ 0.005 importance in the 34-predictor MAE tune
-            V.AREA, V.VISION, V.NUMCHIL, V.EARINF, V.BEHAV, V.HEARING,
-            V.GROUP, V.GENDER,
-            # Tier B — 0.006-0.014, near-noise or redundant with retained
-            V.YARCSI,         # 0.007; redundant with retained yarclet/ewrswr
-            V.AGESPEAK,       # 0.008; demographic near-noise
-            V.AGEBOOKS,       # 0.009; demographic near-noise
-            V.DADEDUPOST16,   # 0.012; dcorr ≈ 0.56 with retained mumedupost16
-            V.ERBWORD,        # 0.013; pair-redundant with retained erbnw (0.017)
-            V.BLENDING,       # 0.013; reading-cluster redundancy with retained ewrswr/spphon
-            V.TIME,           # 0.014; weak time-invariant signal under this tune
+            V.BLENDING, V.HEARING, V.AGEBOOKS, V.VISION, V.BEHAV, V.AGESPEAK,
+            V.DADEDUPOST16, V.EARINF, V.GROUP, V.NUMCHIL, V.AREA, V.MUMEDUPOST16,
+            V.GENDER, V.SPPHON, V.DEAPPFI, V.YARCSI, V.EOWPVT, V.ATTEND, V.ERBNW,
+            V.DEAPPIN, V.ERBWORD, V.B1EXTO, V.B1RETO, V.APTINFO, V.APTGRAM,
+            V.DEAPPVO, V.TROG, V.TIME, V.EWRSWR
         ],
         notes=(
-            "Moderate one-shot cut from 34 → 19 predictors. Drops "
-            "8 Tier-A features (all at ≤ 0.007 importance) plus 7 "
-            "Tier-B features at 0.008-0.014 justified by "
-            "redundancy (yarcsi/blending with ewrswr/yarclet reading "
-            "cluster, erbword with erbnw, dadedupost16 with "
-            "mumedupost16) or demographic noise-floor status "
-            "(agespeak, agebooks, time). Less aggressive than "
-            "LRP07's 34→12 cut because LRP09's deep-tree many-"
-            "estimator tune produced a shallower noise floor (no "
-            "features at exactly 0 importance); the retained mid-"
-            "tier features contribute meaningfully. Keeps both "
-            "grammar measures (trog, aptgram) and the full DEAP "
-            "articulation trio (deappfi, deappin, deappvo) for "
-            "language-domain breadth — CELF measures basic concept "
-            "knowledge (semantic/lexical), so grammar measures are "
-            "kept as language-cluster controls rather than as "
-            "construct-matched predictors."
+            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 5 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
         ),
-        date="2026-04-18",
-        metrics_before={"cv_mae_mean": 2.232},
-        metrics_after={"cv_mae_mean": 2.185},
-    ),
-    SelectionStep(
-        removed=[
-            V.EOWPVT,   # dcorr 0.807 with retained b1exto (0.038); imp 0.026
-            V.DEAPPIN,  # dcorr 0.767 with retained deappfi (0.057); imp 0.035
-        ],
-        notes=(
-            "Redundancy-driven Select02: 19 → 17 predictors. Post-"
-            "Select01 dcorr audit (see notes/202604181400-lrp09-"
-            "feature-selection.md) identified two pairs at dcorr "
-            "≥ 0.76 that Select01 had left in place: "
-            "b1exto/eowpvt at 0.807 and deappfi/deappin at 0.767. "
-            "Both drops target the lower-importance sibling in each "
-            "pair (importance-based tie-break). Retained sibling "
-            "should absorb the dropped feature's signal via the "
-            "shared-information structure. Construct coverage is "
-            "preserved: expressive-vocab still represented by b1exto "
-            "(plus receptive rowpvt), articulation still represented "
-            "by deappfi + deappvo (DEAP-fi and DEAP-vo). Does not "
-            "address the remaining moderate-redundancy pairs "
-            "(ewrswr/yarclet 0.690, b1exto/b1reto 0.756) — those "
-            "are either construct-separable (reading level vs "
-            "letter-sound) or deliberately kept for construct "
-            "coverage."
-        ),
-        date="2026-04-18",
-        metrics_before={"cv_mae_mean": 2.185},
-        metrics_after={"cv_mae_mean": 2.182},
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 2.1621},
+        metrics_after={"cv_mae_mean": 2.1929},
     ),
 ]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the full 34-predictor set (DEFAULT_GAIN, which already
-# includes celf), no outlier exclusion (Optuna 150 trials, 10-split
-# GroupKFold, seed 47, scoring=mae, lgbm_objective=mae). Tuner-inner
-# CV MAE 2.2244 ± 0.3661. n=160.
-#
-# Select01 / Select02 reductions (19, then 17 predictors) both kept
-# these 34-predictor tuned params as carry-forward. Both retunes on
-# reduced sets produced dramatically different params (fewer trees,
-# fast learning) but refit CV MAE was consistently worse than the
-# carry-forward by 0.06-0.10. The many-slow-deep-with-strong-L2
-# regime generalises well to reduced predictor sets; retunes find
-# narrow high-variance optima that over-fit inner CV.
-# See notes/202604181400-lrp09-feature-selection.md for details.
+# MAE-tuned on the 5-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 2.1929.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 194,
-    "learning_rate": 0.012955887984432111,
-    "num_leaves": 44,
-    "max_depth": 12,
-    "min_child_samples": 5,
-    "subsample": 0.6522788933655064,
+    "n_estimators": 274,
+    "learning_rate": 0.014134903867028734,
+    "num_leaves": 37,
+    "max_depth": 4,
+    "min_child_samples": 4,
+    "subsample": 0.9062849094869884,
     "subsample_freq": 1,
-    "colsample_bytree": 0.968420503348316,
-    "reg_alpha": 0.0013680996955281002,
-    "reg_lambda": 2.240185955527313,
+    "colsample_bytree": 0.9681718321490902,
+    "reg_alpha": 0.03608716091718503,
+    "reg_lambda": 0.07485707056926946,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -162,7 +102,7 @@ class LRP09(GainModel):
     target_var = V.CELF_GAIN
     description = (
         "LightGBM — CELF (basic concept knowledge) gain predictors "
-        "(17 predictors, MAE-tuned, no outlier exclusion)"
+        "(5 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
