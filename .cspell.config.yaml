@@ -14,6 +14,10 @@ ignorePaths:
     - 'AGENTS.md'
     - 'CLAUDE.md'
     - '.github/copilot-instructions.md'
+    # Generated artefacts (gitignored) — not source content to spell-check.
+    - 'output/**'
+    - 'outputs/**'
+    - 'figures/**'
 patterns:
   - name: markdown_citation
     pattern: |
