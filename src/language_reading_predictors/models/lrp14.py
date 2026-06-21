@@ -19,9 +19,7 @@ reading targets where zeros are a minority.
 Log or quantile transforms may be more appropriate than a plain
 regression here; plan for a ``lrp14_log`` variant in follow-up PRs.
 
-No feature selection has been run for LRP14 yet — the MAE-tuned
-params below (Optuna 150-trial study) are the starting point for
-later feature-selection variants.
+Feature selection applied 2026-06-20 (replication): reduced from the full 32-predictor set to 3 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -30,25 +28,40 @@ from language_reading_predictors.models.common import SelectionStep, ShapScatter
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-_SELECTION_STEPS: list[SelectionStep] = []
+_SELECTION_STEPS: list[SelectionStep] = [
+    SelectionStep(
+        removed=[
+            V.TIME, V.GROUP, V.AREA, V.GENDER, V.AGE, V.APTGRAM, V.B1EXTO, V.B1RETO,
+            V.CELF, V.EOWPVT, V.ERBNW, V.ERBWORD, V.BLENDING, V.ROWPVT, V.SPPHON,
+            V.TROG, V.YARCSI, V.DEAPPIN, V.DEAPPVO, V.DEAPPFI, V.BEHAV, V.AGESPEAK,
+            V.VISION, V.HEARING, V.EARINF, V.NUMCHIL, V.AGEBOOKS, V.MUMEDUPOST16,
+            V.DADEDUPOST16
+        ],
+        notes=(
+            "Feature selection (replication, 2026-06-20): from the full 32-predictor set, a distance-correlation filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative per cluster) plus removal of features at/below the 0.005 importance floor. Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; pooled refit-CV held under matched hyperparameters, then the set was re-tuned. See notes/202606201500-gb-replication-findings.md."
+        ),
+        date="2026-06-20",
+        metrics_before={"cv_mae_mean": 0.8916},
+        metrics_after={"cv_mae_mean": 0.7724},
+    ),
+]
 
 
-# MAE-tuned on the full 32-predictor set (DEFAULT_LEVEL minus
-# nonword), no outlier exclusion (Optuna 150 trials, 10-split
-# GroupKFold, seed 47, scoring=mae, lgbm_objective=mae). Tuner-inner
-# CV MAE 0.8696 ± 0.3104. n=215.
+# MAE-tuned on the 3-predictor replication-selected set, no outlier
+# exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
+# lgbm_objective=mae). Tuner-inner CV MAE 0.7724. Supersedes the full-set tune.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 156,
-    "learning_rate": 0.04173182097406151,
-    "num_leaves": 19,
-    "max_depth": 8,
-    "min_child_samples": 29,
-    "subsample": 0.8875496084128299,
+    "n_estimators": 68,
+    "learning_rate": 0.08742464937643295,
+    "num_leaves": 39,
+    "max_depth": 3,
+    "min_child_samples": 6,
+    "subsample": 0.9814514819214128,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6482600725432665,
-    "reg_alpha": 0.0028665242167077703,
-    "reg_lambda": 0.09374915139778504,
+    "colsample_bytree": 0.6514974124208813,
+    "reg_alpha": 0.3492206947118945,
+    "reg_lambda": 0.017433408875219325,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -57,18 +70,16 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRP14(LevelModel):
     """Non-word reading level predictors — baseline (all data, MAE-tuned).
 
-    Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
+    Uses a feature-selected subset of :attr:`Predictors.DEFAULT_LEVEL`
     (minus the target ``nonword``) with MAE-tuned hyperparameters and
-    no outlier exclusion. Serves as the starting point for
-    feature-selection work on the non-word-reading level-prediction
-    task.
+    no outlier exclusion. Feature selection was applied (2026-06-20 replication); see the SelectionStep and the module docstring.
     """
 
     model_id = "lrp14"
     target_var = V.NONWORD
     description = (
         "LightGBM — non-word reading level predictors "
-        "(32 predictors, MAE-tuned, no outlier exclusion)"
+        "(3 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -79,13 +90,50 @@ class LRP14(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Baseline exploratory model for non-word reading level "
-        "(nonword). Uses the full default level predictor set "
-        "(minus the target) without outlier exclusion, and MAE-tuned "
-        "params from an Optuna 150-trial study — no feature selection "
-        "has been applied yet. Target is heavily floor-loaded (57% at "
-        "zero, skew 1.38) "
-        "— most children have not yet started decoding non-words. "
-        "Log or quantile transforms may be more appropriate in a "
-        "follow-up variant."
+        "Exploratory model for nonword (level). Feature-selected (2026-06-20 replication) from the full 32-predictor default set to 3 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 0.892 -> 0.772). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
+    )
+
+
+# Construct-reduced variant: MAE-tuned on the 2-predictor set after
+# additionally dropping same-construct (reading_decoding) predictors
+# (yarclet). Tuner-inner CV MAE 0.7891.
+_LGBM_MAE_PARAMS_NOCONSTRUCT: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 176,
+    "learning_rate": 0.03526461559138239,
+    "num_leaves": 34,
+    "max_depth": 3,
+    "min_child_samples": 8,
+    "subsample": 0.9494031276497659,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.6533258433537965,
+    "reg_alpha": 0.02826884180155375,
+    "reg_lambda": 0.00139661138721428,
+    "n_jobs": -1,
+    "verbosity": -1,
+}
+
+
+class LRP14NoConstruct(LRP14):
+    """nonword — construct-reduced (reading_decoding dropped)."""
+
+    model_id = "lrp14_noconstruct"
+    variant_of = "lrp14"
+    description = (
+        "LightGBM — nonword predictors "
+        "(2 predictors, construct-reduced)"
+    )
+    params = _LGBM_MAE_PARAMS_NOCONSTRUCT
+    selection_steps = [
+        SelectionStep(
+            removed=[V.YARCLET],
+            notes=(
+                "Construct-reduced variant of lrp14: drops the same-construct (reading_decoding) predictors (yarclet) from the primary set to ask what predicts nonword beyond its sibling measures. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606201500-gb-replication-findings.md."
+            ),
+            date="2026-06-20",
+            metrics_after={"cv_mae_mean": 0.7891},
+        ),
+    ]
+    notes = (
+        "Construct-reduced variant of lrp14: drops the same-construct (reading_decoding) predictors (yarclet) from the primary set to ask what predicts nonword beyond its sibling measures. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606201500-gb-replication-findings.md."
     )

@@ -16,9 +16,7 @@ floor-heavy nonword level distribution (57% zero at any given
 timepoint). Tree models will struggle to predict non-zero gains
 reliably.
 
-No feature selection has been run for LRP13 yet — the MAE-tuned
-params below (Optuna 150-trial study) are the starting point for
-later feature-selection variants.
+Feature selection applied 2026-06-20 (replication): reduced from the full 34-predictor set to 2 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -27,25 +25,40 @@ from language_reading_predictors.models.common import SelectionStep, ShapScatter
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-_SELECTION_STEPS: list[SelectionStep] = []
+_SELECTION_STEPS: list[SelectionStep] = [
+    SelectionStep(
+        removed=[
+            V.TIME, V.GROUP, V.AREA, V.GENDER, V.AGE, V.APTGRAM, V.APTINFO,
+            V.B1EXTO, V.B1RETO, V.CELF, V.EOWPVT, V.ERBWORD, V.BLENDING, V.ROWPVT,
+            V.SPPHON, V.TROG, V.YARCLET, V.YARCSI, V.DEAPPIN, V.DEAPPVO, V.DEAPPFI,
+            V.EWRSWR, V.BEHAV, V.ATTEND, V.AGESPEAK, V.VISION, V.HEARING, V.EARINF,
+            V.NUMCHIL, V.AGEBOOKS, V.MUMEDUPOST16, V.DADEDUPOST16
+        ],
+        notes=(
+            "Feature selection (replication, 2026-06-20): from the full 34-predictor set, a distance-correlation filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative per cluster) plus removal of features at/below the 0.005 importance floor. Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; pooled refit-CV held under matched hyperparameters, then the set was re-tuned. See notes/202606201500-gb-replication-findings.md."
+        ),
+        date="2026-06-20",
+        metrics_before={"cv_mae_mean": 0.9726},
+        metrics_after={"cv_mae_mean": 0.9273},
+    ),
+]
 
 
-# MAE-tuned on the full 34-predictor set (DEFAULT_GAIN, which already
-# includes nonword), no outlier exclusion (Optuna 150 trials, 10-split
-# GroupKFold, seed 47, scoring=mae, lgbm_objective=mae). Tuner-inner
-# CV MAE 0.9801 ± 0.3358. n=153.
+# MAE-tuned on the 2-predictor replication-selected set, no outlier
+# exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
+# lgbm_objective=mae). Tuner-inner CV MAE 0.9273. Supersedes the full-set tune.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 108,
-    "learning_rate": 0.0674865249242372,
-    "num_leaves": 42,
-    "max_depth": 5,
-    "min_child_samples": 18,
-    "subsample": 0.9714636655718227,
+    "n_estimators": 497,
+    "learning_rate": 0.10508140765367975,
+    "num_leaves": 24,
+    "max_depth": 12,
+    "min_child_samples": 36,
+    "subsample": 0.9087575271581118,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6334050957187943,
-    "reg_alpha": 0.019528666718259695,
-    "reg_lambda": 0.0897529592003205,
+    "colsample_bytree": 0.6803273216004087,
+    "reg_alpha": 5.941599922639021,
+    "reg_lambda": 0.021860911996772987,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -54,18 +67,16 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRP13(GainModel):
     """Non-word reading gain predictors — baseline (all data, MAE-tuned).
 
-    Uses the full :attr:`Predictors.DEFAULT_GAIN` predictor set
+    Uses a feature-selected subset of :attr:`Predictors.DEFAULT_GAIN`
     (``nonword`` is already a member) with MAE-tuned hyperparameters
-    and no outlier exclusion. Serves as the starting point for
-    feature-selection work on the non-word-reading gain-prediction
-    task.
+    and no outlier exclusion. Feature selection was applied (2026-06-20 replication); see the SelectionStep and the module docstring.
     """
 
     model_id = "lrp13"
     target_var = V.NONWORD_GAIN
     description = (
         "LightGBM — non-word reading gain predictors "
-        "(34 predictors, MAE-tuned, no outlier exclusion)"
+        "(2 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -76,12 +87,5 @@ class LRP13(GainModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Baseline exploratory model for non-word reading gains "
-        "(nonword_gain). Uses the full default gain predictor set "
-        "(nonword is already a level predictor in that set, so the "
-        "GainModel auto-include is a no-op) without outlier "
-        "exclusion, and MAE-tuned params from an Optuna 150-trial "
-        "study — no feature selection has been applied yet. Target "
-        "is heavily zero-loaded (~48% zero, 19% negative) — a "
-        "different pathology from the other gain targets."
+        "Exploratory model for nonword_gain (gain). Feature-selected (2026-06-20 replication) from the full 34-predictor default set to 2 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 0.973 -> 0.927). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
     )

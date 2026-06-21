@@ -24,9 +24,7 @@ DEAP measures have been used as predictors across every other
 model in the suite but never as targets until LRP21/22. First
 articulation-domain target.
 
-No feature selection has been run for LRP22 yet — the MAE-tuned
-params below are the starting point for later feature-selection
-variants.
+Feature selection applied 2026-06-20 (replication): reduced from the full 32-predictor set to 7 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -37,29 +35,44 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# LRP22 has not yet been through iterative feature selection.
+# Feature selection (2026-06-20 replication): distance-correlation
+# redundancy filter + importance noise-floor cut; see the SelectionStep.
 
-_SELECTION_STEPS: list[SelectionStep] = []
+_SELECTION_STEPS: list[SelectionStep] = [
+    SelectionStep(
+        removed=[
+            V.GROUP, V.AREA, V.GENDER, V.AGE, V.APTGRAM, V.APTINFO, V.B1EXTO,
+            V.B1RETO, V.CELF, V.EOWPVT, V.ERBNW, V.ERBWORD, V.NONWORD, V.BLENDING,
+            V.ROWPVT, V.SPPHON, V.YARCSI, V.DEAPPVO, V.BEHAV, V.VISION, V.HEARING,
+            V.EARINF, V.NUMCHIL, V.AGEBOOKS, V.MUMEDUPOST16
+        ],
+        notes=(
+            "Feature selection (replication, 2026-06-20): from the full 32-predictor set, a distance-correlation filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative per cluster) plus removal of features at/below the 0.005 importance floor. Reduces to 7 predictors with no dcor >= 0.70 pairs remaining; pooled refit-CV held under matched hyperparameters, then the set was re-tuned. See notes/202606201500-gb-replication-findings.md."
+        ),
+        date="2026-06-20",
+        metrics_before={"cv_mae_mean": 9.9456},
+        metrics_after={"cv_mae_mean": 9.9583},
+    ),
+]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the full 32-predictor set (DEFAULT_LEVEL minus deappfi),
-# no outlier exclusion (Optuna 150 trials, 10-split GroupKFold,
-# seed 47, scoring=mae, lgbm_objective=mae). Tuner-inner CV MAE
-# 9.6719 ± 1.3824. n=207.
+# MAE-tuned on the 7-predictor replication-selected set, no outlier
+# exclusion (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
+# lgbm_objective=mae). Tuner-inner CV MAE 9.9583. Supersedes the full-set tune.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 385,
-    "learning_rate": 0.011170674378747147,
-    "num_leaves": 7,
-    "max_depth": 7,
-    "min_child_samples": 16,
-    "subsample": 0.9825474567123886,
+    "n_estimators": 125,
+    "learning_rate": 0.03930092267917853,
+    "num_leaves": 59,
+    "max_depth": 9,
+    "min_child_samples": 11,
+    "subsample": 0.7527306921042428,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9030132868657452,
-    "reg_alpha": 0.014779086055498235,
-    "reg_lambda": 8.093500291393644,
+    "colsample_bytree": 0.9080847854288628,
+    "reg_alpha": 0.030835094299706333,
+    "reg_lambda": 0.06855294982918957,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -71,17 +84,16 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRP22(LevelModel):
     """DEAP fine-articulation level predictors — baseline (all data, MAE-tuned).
 
-    Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
+    Uses a feature-selected subset of :attr:`Predictors.DEFAULT_LEVEL`
     (minus the target ``deappfi``) with MAE-tuned hyperparameters
-    and no outlier exclusion. Serves as the starting point for
-    feature-selection work on the deappfi level-prediction task.
+    and no outlier exclusion. Feature selection was applied (2026-06-20 replication); see the SelectionStep and the module docstring.
     """
 
     model_id = "lrp22"
     target_var = V.DEAPPFI
     description = (
         "LightGBM — DEAP fine-articulation level predictors "
-        "(32 predictors, MAE-tuned, no outlier exclusion)"
+        "(7 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -92,12 +104,5 @@ class LRP22(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Baseline exploratory model for DEAP fine-articulation "
-        "level (deappfi). Uses the full default level predictor set "
-        "(minus the target) without outlier exclusion, and MAE-tuned "
-        "params from an Optuna 150-trial study — no feature "
-        "selection has been applied yet. Target is left-skewed with "
-        "ceiling effects (skew −0.87) on a 0-100 percentage scale. "
-        "First articulation-domain target in the suite (DEAP used "
-        "only as predictor in LRP01-LRP20)."
+        "Exploratory model for deappfi (level). Feature-selected (2026-06-20 replication) from the full 32-predictor default set to 7 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 9.946 -> 9.958). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
     )
