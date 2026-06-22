@@ -83,7 +83,7 @@ MODELS = {
     "lrp74": lrp74,
     "lrp75": lrp75,
     # LRP76: taught vs not-taught expressive vocabulary - the within-data
-    # generalisation contrast (tau[TE] - tau[UE]).
+    # generalisation contrast (tau[UE] - tau[TE]).
     "lrp76": lrp76,
 }
 

@@ -178,7 +178,7 @@ def tau_difference_summary(
     pair: tuple[str, str],
     *,
     hdi_prob: float,
-) -> dict[str, float]:
+) -> dict[str, float | str]:
     """Summarise the difference ``tau[a] - tau[b]`` between two joint outcomes.
 
     The difference is computed per posterior draw and then summarised, so the
