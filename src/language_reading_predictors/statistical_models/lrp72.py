@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRP72 - the phonics route: letter-sound (L) × phoneme blending (B) -> decoding.
+"""LRP72 - the code-based route: letter-sound (L) × phoneme blending (B) -> decoding.
 
 Second model in the interaction family (after LRP71). Tests the dual-route /
 triangle-model hypothesis that the two phonological prerequisites — phoneme
@@ -30,7 +30,7 @@ Design choices:
   (autoregressive). **Word reading `W` is deliberately excluded**: it is a
   sibling/descendant of decoding, so conditioning on it is over-control / a
   collider risk (same error class as the celf/LRP70 issue). Vocabulary/concepts
-  are not plausible confounders of the phonics -> decoding path. L and B are
+  are not plausible confounders of the code-based-route -> decoding path. L and B are
   treated as parallel prerequisites; the interaction estimand does not require
   resolving whether L precedes B. Documented in the report.
 
@@ -51,7 +51,7 @@ SPEC = ModelSpec(
     model_id="lrp72",
     kind="mechanism",
     title=(
-        "Phonics route: letter-sound (L) moderated by phoneme blending (B) "
+        "Code-based route: letter-sound (L) moderated by phoneme blending (B) "
         "-> decoding (nonword)"
     ),
     outcome_symbol="N",

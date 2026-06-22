@@ -14,7 +14,7 @@ covariate):
 
     eta = ... + f_mech(logit L) + gamma_mod·z(age) + gamma_int·z(logit L)·z(age)
 
-`gamma_int > 0` would mean phonics converts to reading *more* strongly at older
+`gamma_int > 0` would mean the code-based route converts to reading *more* strongly at older
 ages. W is not floored, so the nonparametric `f_mech` HSGP is kept (unlike LRP72).
 
 Adjustment set: LRP58's {G, A, E, R, W_pre}. NOTE: in the mechanism factory age
@@ -25,7 +25,7 @@ improvement on LRP58's default for this question. Documented in the report.
 
 **Sharp prior expectation.** The two prior interaction models both showed an
 apparent interaction that was really a *between-child ability confound*, which
-collapsed once subject random effects + adjustment were in (LRP71 phonics×vocab
+collapsed once subject random effects + adjustment were in (LRP71 code-based×vocab
 null; LRP72 blending×letter-sound largely independent). Age is *even more* a
 between-child variable — most age variation is across children, not within a
 child's four waves — so LRP73 is the most confound-prone of the three. The honest
