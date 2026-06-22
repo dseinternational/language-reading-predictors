@@ -22,7 +22,9 @@ gain **beyond** `g` (the actionable "direct teaching target vs ability marker?" 
   to LRP65 (reuses `phase_mode="span"`).
 - **Measurement:** one-factor Gaussian CFA. `g ~ Normal(0,1)` (scale fixed) with **positive**
   loadings (orientation fixed; all positive-manifold) on the standardised T1 skills — letter
-  sounds, ROWPVT, EOWPVT, CELF, blending, non-verbal MA.
+  sounds, ROWPVT, EOWPVT, CELF, blending, non-verbal MA. This is the **reflective-`g`
+  specialisation of the shared DAG v5** (`notes/202606221200-shared-dag-v5.md`): `g` is fitted
+  as a reflective factor of the baseline skills (no edge changes from v5).
 - **Structural (Beta-Binomial on `W_post | W_pre`):** two estimands —
   `beta_g_total` (gain ~ g + age, no observed skills) and `beta_g_residual / beta_L /
   beta_lang` (gain ~ g + observed skills + age). The latter give effects *beyond g*.

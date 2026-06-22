@@ -70,7 +70,7 @@ specific-skill effects are less attenuated than LRP65's observed predictors.
 
 :::
 
-![Causal DAG. Latent general ability `g` (now *fitted*) loads on the T1 skills and has a general-ability path to gain; the dashed skill → gain edges are the beyond-`g` associations the model estimates.](dag.svg){#fig-dag .lightbox fig-align="left"}
+![Causal DAG. Latent general ability `g` (now *fitted*) loads on the T1 skills and has a general-ability path to gain; the dashed skill → gain edges are the beyond-`g` associations the model estimates. A reflective-`g` specialisation of the shared DAG v5 (`notes/202606221200-shared-dag-v5.md`).](dag.svg){#fig-dag .lightbox fig-align="left"}
 
 ## Measurement: how much does each skill reflect `g`?
 
