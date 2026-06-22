@@ -44,6 +44,9 @@ from language_reading_predictors.statistical_models import (
     lrp72base,
     lrp73,
     lrp73base,
+    lrp74,
+    lrp75,
+    lrp76,
 )
 
 
@@ -74,6 +77,14 @@ MODELS = {
     # no-interaction companion.
     "lrp73": lrp73,
     "lrp73base": lrp73base,
+    # LRP74/LRP75: ITT on the directly-taught vocabulary block tests (the
+    # intervention-fidelity "positive control") - expressive (TE) and receptive
+    # (TR). The trial moved taught expressive but not taught receptive vocabulary.
+    "lrp74": lrp74,
+    "lrp75": lrp75,
+    # LRP76: taught vs not-taught expressive vocabulary - the within-data
+    # generalisation contrast (tau[UE] - tau[TE]).
+    "lrp76": lrp76,
 }
 
 
@@ -81,7 +92,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "model",
-        help="Model id (lrp52..lrp60, lrp60a, lrp62, lrp71, lrp72, lrp73) or 'all'",
+        help=(
+            "Model id (lrp52..lrp60, lrp60a, lrp62, lrp71, lrp72, lrp73, "
+            "lrp74..lrp76) or 'all'"
+        ),
     )
     parser.add_argument(
         "--config",
