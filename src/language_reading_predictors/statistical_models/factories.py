@@ -894,6 +894,122 @@ def build_dose_response_model(
 
 
 # ---------------------------------------------------------------------------
+# LRP83: within-control crossover factory (#104 Phase 3)
+# ---------------------------------------------------------------------------
+
+
+def build_crossover_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    adjust_baseline_symbol: str = "W",
+    control_group_code: int = 1,
+    adjust_age: bool = True,
+    use_subject_random_intercept: bool = True,
+    sigma_child_prior_sigma: float = 0.5,
+) -> BuiltModel:
+    """Waitlist-as-own-control crossover model (#104 Phase 3).
+
+    A within-subject, design-based estimate of the intervention effect that
+    triangulates the randomised period-1 ITT. Restricts to the **waitlist
+    control arm** (``G == control_group_code``; the preprocessing coding maps
+    dataset group 2 [Wait] -> 1) and uses all three period transitions, where
+    those children are **off** intervention in period 1 and **on** from period 2
+    after crossover. The design follows Snowling / Gertz / Bayliss et al. and is
+    less rigorous than the two-arm contrast (see the maturation caveat).
+
+    Linear predictor (Beta-Binomial conditional change on the outcome post-count,
+    ``adjust_baseline_symbol`` baseline; never raw change scores):
+
+        eta = alpha + beta_on * on + gamma_own * logit(W_pre)
+            + gamma_A * z(age)            # optional, partial maturation control
+            + u_child                     # subject random intercept
+
+    where ``on = 1[period >= 2]`` is the crossover indicator and ``beta_on`` is
+    the estimand (the within-control on-vs-off effect), on the same logit scale
+    and with the same ``tau``-style prior as the ITT effect.
+
+    **No period intercepts.** For the waitlist arm ``on`` is *identical* to
+    "period >= 2", so a free per-period intercept would absorb the crossover
+    effect entirely and leave ``beta_on`` non-identified. The smooth time trend
+    is instead carried by the linear age term, leaving ``beta_on`` as the
+    discrete jump at crossover beyond that trend.
+
+    **Maturation caveat (carried into the report).** Because ``on`` and period
+    coincide for controls, ``beta_on`` equals the intervention effect *only*
+    under a no-strong-(differential)-maturation assumption: any non-age-smooth
+    change coinciding with crossover (a testing / seasonal effect) is absorbed
+    into ``beta_on``. It is a triangulation point, not a clean randomised
+    contrast.
+    """
+    if prepared.phase_mode != "all":
+        raise ValueError("Crossover factory requires phase_mode='all'")
+    if outcome_symbol not in prepared.pre_logit:
+        raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
+    if adjust_baseline_symbol not in prepared.pre_logit:
+        raise KeyError(
+            f"Baseline {adjust_baseline_symbol!r} missing from prepared data"
+        )
+
+    outcome_post = prepared.post_counts[outcome_symbol]
+    keep = (prepared.G == control_group_code) & ~np.isnan(outcome_post)
+    if int(keep.sum()) == 0:
+        raise ValueError(
+            f"No control rows (G == {control_group_code}) with a non-missing "
+            f"{outcome_symbol} post-score."
+        )
+    prepared = _subset(prepared, keep)
+
+    outcome_post = prepared.post_counts[outcome_symbol].astype(np.int64)
+    N_outcome = prepared.n_trials[outcome_symbol]
+    own_pre_logit = prepared.pre_logit[adjust_baseline_symbol]
+    on = (prepared.phase >= 1).astype(float)
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "child": np.arange(prepared.n_children),
+    }
+
+    with pm.Model(coords=coords) as model:
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+        on_d = pm.Data("on_intervention", on, dims="obs_id")
+        child_idx_d = pm.Data(
+            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+        )
+
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        beta_on = _priors.tau_prior().to_pymc("beta_on")
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+
+        eta = alpha + beta_on * on_d + gamma_own * own_pre_d
+
+        if adjust_age:
+            gamma_A = _priors.gamma_cross_prior().to_pymc("gamma_A")
+            eta = eta + gamma_A * A_std_d
+
+        if use_subject_random_intercept:
+            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
+            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
+            eta = eta + u_child[child_idx_d]
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+
+        beta_binomial_from_logit(
+            "y_post",
+            eta,
+            n_trials=N_outcome,
+            kappa=kappa,
+            observed=outcome_post,
+            dims="obs_id",
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
 # LRP59: mediation factory (joint mediator + outcome, ITT phase)
 # ---------------------------------------------------------------------------
 
