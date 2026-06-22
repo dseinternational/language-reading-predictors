@@ -736,13 +736,10 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     ctx.model_vars = built.variables
     ctx.prepared = built.prepared
 
-    coef_vars = [
-        "aL0", "aL_G", "aL_L", "aL_A", "kappa_L",
-        "aE0", "aE_G", "aE_E", "aE_A", "kappa_E",
-        "b0", "b_G", "b_L", "b_E", "b_GL", "b_GE", "b_W", "b_A", "kappa_Y",
-    ]
-    for s in confounders:
-        coef_vars.extend([f"aL_{s}", f"aE_{s}", f"b_{s}"])
+    # Diagnose every scalar coefficient the model actually built, so the list
+    # tracks the fitted confounder set instead of a hand-maintained constant
+    # (mirrors fit_mediation).
+    coef_vars = sorted(rv.name for rv in built.model.free_RVs if rv.ndim == 0)
 
     _render_model_graph(ctx)
 
@@ -791,8 +788,9 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         ctx,
         extra={
             "adjustment": spec.adjustment,
-            "n_obs": prepared.n_obs,
+            "n_obs": ctx.prepared.n_obs,
             "mediators": list(mediators),
+            "n_trials_W": med_data.n_trials_W,
             "mediation": _summary,
         },
     )

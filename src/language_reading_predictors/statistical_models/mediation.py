@@ -320,6 +320,10 @@ def decompose_two_mediator(
     total = y_TT_TT - y_CC_CC
     nde = y_TT_CC - y_CC_CC
     nie_joint = y_TT_TT - y_TT_CC
+    if order not in (("L", "E"), ("E", "L")):
+        raise ValueError(
+            f"order must be ('L', 'E') or ('E', 'L'); got {order!r}"
+        )
     if order == ("L", "E"):
         nie_L = y_T_Lt_Ec - y_TT_CC  # move L first (E at control)
         nie_E = y_TT_TT - y_T_Lt_Ec  # then move E (L at treated)

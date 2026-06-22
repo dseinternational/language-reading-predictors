@@ -1116,6 +1116,14 @@ def build_two_mediator_model(
         raise ValueError("Two-mediator factory requires phase_mode='itt'")
     confounder_symbols = tuple(confounder_symbols)
     mL, mE = mediator_symbols
+    # The PyMC node and coefficient names below are hard-coded to the L/E legs
+    # (L_pre_logit, z_L, aL_*, b_L, ...), so only the ('L', 'E') pair is
+    # supported; other symbols would silently mislabel the fitted variables.
+    if (mL, mE) != ("L", "E"):
+        raise NotImplementedError(
+            "build_two_mediator_model hard-codes L/E variable names; "
+            f"mediator_symbols must be ('L', 'E'), got {mediator_symbols!r}"
+        )
     needed = {outcome_symbol, mL, mE, *confounder_symbols}
     for s in needed:
         if s not in prepared.pre_logit:

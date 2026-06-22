@@ -307,4 +307,4 @@ def test_two_mediator_factory_builds(tmp_path):
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=5)
     for node in ("L_post", "E_post", "y_post"):
-        assert pp.prior_predictive[node].shape[-1] == prep.n_obs
+        assert pp.prior_predictive[node].shape[-1] == built.prepared.n_obs

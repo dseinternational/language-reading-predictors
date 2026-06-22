@@ -97,7 +97,7 @@ assumptions — not a unique partition.
 
 ## Decomposition
 
-Effects in the intervention-helps direction, on the word-count scale (out of 90) and
+Effects in the intervention-helps direction, on the word-count scale and
 the probability scale. `prob_pos` is $P(\text{effect} > 0)$; for
 `proportion_mediated` it is $P(\text{Total} > 0)$.
 
@@ -119,6 +119,7 @@ med.round(3)
 # | echo: false
 # | output: asis
 _t = med.set_index("quantity")
+n_W = config["extra"].get("n_trials_W", 79)
 total = _t.loc["total", "words_mean"]
 nij = _t.loc["NIE_joint", "words_mean"]
 nl = _t.loc["NIE_L", "words_mean"]
@@ -126,7 +127,7 @@ ne = _t.loc["NIE_E", "words_mean"]
 prob_positive = _t.loc["total", "prob_pos"]
 print(
     f"At the posterior mean, the intervention raises word reading by "
-    f"**{total:.1f} words/90** (P(Total>0) = {prob_positive:.2f}), of which "
+    f"**{total:.1f} words/{n_W:g}** (P(Total>0) = {prob_positive:.2f}), of which "
     f"**{nij:.1f}** is "
     f"carried jointly by the letter-sound + expressive-vocabulary block. Under the "
     f"exploratory L-before-E split that is ~**{nl:.1f}** via letter-sounds and "
