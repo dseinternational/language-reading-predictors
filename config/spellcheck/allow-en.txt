@@ -193,3 +193,4 @@ Wagenmakers
 noconstruct
 waitlist
 LOSO
+worktree

@@ -708,6 +708,186 @@ def build_mechanism_model(
 
 
 # ---------------------------------------------------------------------------
+# LRP77: period-resolved dose-response factory (#104 Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def build_dose_response_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    adjust_baseline_symbol: str = "W",
+    dose_covariate: str = "attend",
+    dose_stage_covariate: str | None = "attend_cumul",
+    period_varying_dose: bool = True,
+    use_subject_random_intercept: bool = True,
+    adjust_group: bool = True,
+    adjust_age: bool = True,
+    ability_adjust_symbols: Iterable[str] = (),
+    sigma_child_prior_sigma: float = 0.5,
+) -> BuiltModel:
+    """Period-resolved dose-response on the outcome post-score (#104 Phase 2).
+
+    Estimand: how the intervention **dose** (per-period sessions attended)
+    relates to word-reading **conditional change** — the outcome post-count
+    modelled Beta-Binomial conditional on its own baseline logit — and whether
+    that dose-gain slope **varies by period**.
+
+    Uses all three phase transitions (``prepared.phase_mode == "all"``) with
+    phase-specific intercepts. The linear predictor is
+
+        eta = alpha + alpha_phase[p]
+            + beta_G * G                      # arm (G=1 = waitlist control)
+            + gamma_own * logit(W_pre)        # autoregression / RTM
+            + gamma_A * z(age)                # maturation precision covariate
+            + u_child[child]                  # subject random intercept
+            + dose_term                       # the estimand (see below)
+            + gamma_dose_stage * z(attend_cumul)   # dose-stage control
+            + sum_s gamma_s_pre * logit(s_pre)     # optional ability adjusters
+
+    ``dose_term`` is ``beta_dose_phase[p] * z(attend)`` with partial-pooled
+    per-period slopes ``beta_dose_phase = mu_dose + sigma_dose * z_p`` when
+    ``period_varying_dose`` is True (the headline model), or a single pooled
+    ``beta_dose * z(attend)`` when False (the nested comparator). The dose enters
+    standardised, so the slope is the outcome-logit change per 1 SD of
+    per-period dose.
+
+    Causal note (DAG v5): for the dose -> outcome edge, ``G`` (intervention arm)
+    is the sole backdoor confounder; ``W_pre`` is the regression-to-the-mean
+    baseline and ``age`` a precision covariate. The full sample (including the
+    waitlist controls' zero-dose period-1 rows) anchors the slope at dose = 0.
+    The model assumes **no ability -> dose** edge; ``ability_adjust_symbols``
+    (the sensitivity fit) conditions on the baseline-skill cluster to probe it.
+
+    Parameters mirror :func:`build_mechanism_model`'s backbone options
+    (``use_subject_random_intercept``, ``adjust_baseline_symbol``). ``G`` and the
+    age covariate are toggled by ``adjust_group`` / ``adjust_age``;
+    ``dose_stage_covariate=None`` drops the cumulative-dose control.
+    """
+    if prepared.phase_mode != "all":
+        raise ValueError("Dose-response factory requires phase_mode='all'")
+    if outcome_symbol not in prepared.pre_logit:
+        raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
+    if adjust_baseline_symbol not in prepared.pre_logit:
+        raise KeyError(
+            f"Baseline {adjust_baseline_symbol!r} missing from prepared data"
+        )
+    if dose_covariate not in prepared.covariates:
+        raise KeyError(
+            f"Dose covariate {dose_covariate!r} missing from prepared.covariates; "
+            "pass it via load_and_prepare(covariates=...)"
+        )
+    if dose_stage_covariate is not None and dose_stage_covariate not in prepared.covariates:
+        raise KeyError(
+            f"Dose-stage covariate {dose_stage_covariate!r} missing from "
+            "prepared.covariates"
+        )
+    ability_adjust_symbols = tuple(ability_adjust_symbols)
+    for s in ability_adjust_symbols:
+        if s not in prepared.pre_logit:
+            raise KeyError(
+                f"Ability-adjuster {s!r} has no pre-score; add it to "
+                "load_and_prepare(outcomes=...)"
+            )
+
+    outcome_post = prepared.post_counts[outcome_symbol]
+    keep = ~np.isnan(outcome_post)
+    prepared = _subset(prepared, keep)
+
+    outcome_post = prepared.post_counts[outcome_symbol].astype(np.int64)
+    N_outcome = prepared.n_trials[outcome_symbol]
+    own_pre_logit = prepared.pre_logit[adjust_baseline_symbol]
+    dose = prepared.covariates[dose_covariate]
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "phase": np.arange(prepared.n_phases),
+        "child": np.arange(prepared.n_children),
+    }
+
+    with pm.Model(coords=coords) as model:
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+        phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+        child_idx_d = pm.Data(
+            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+        )
+        dose_d = pm.Data(f"{dose_covariate}_std", dose, dims="obs_id")
+        dose_stage_d = None
+        if dose_stage_covariate is not None:
+            dose_stage_d = pm.Data(
+                f"{dose_stage_covariate}_std",
+                prepared.covariates[dose_stage_covariate],
+                dims="obs_id",
+            )
+        ability_data: dict[str, pt.TensorVariable] = {}
+        for s in ability_adjust_symbols:
+            ability_data[s] = pm.Data(
+                f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id"
+            )
+
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha_phase = pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase")
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+
+        eta = alpha + alpha_phase[phase_d] + gamma_own * own_pre_d
+
+        if adjust_group:
+            beta_G = _priors.tau_prior().to_pymc("beta_G")
+            eta = eta + beta_G * G_d
+        if adjust_age:
+            gamma_A = _priors.gamma_cross_prior().to_pymc("gamma_A")
+            eta = eta + gamma_A * A_std_d
+
+        if use_subject_random_intercept:
+            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
+            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
+            eta = eta + u_child[child_idx_d]
+
+        # Dose effect (the estimand). Standardised dose -> slope is per-1-SD.
+        if period_varying_dose:
+            mu_dose = _priors.beta_mech_prior().to_pymc("mu_dose")
+            sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
+            beta_dose_phase_raw = pm.Normal(
+                "beta_dose_phase_raw", mu=0.0, sigma=1.0, dims="phase"
+            )
+            beta_dose_phase = pm.Deterministic(
+                "beta_dose_phase", mu_dose + sigma_dose * beta_dose_phase_raw, dims="phase"
+            )
+            eta = eta + beta_dose_phase[phase_d] * dose_d
+        else:
+            beta_dose = _priors.beta_mech_prior().to_pymc("beta_dose")
+            eta = eta + beta_dose * dose_d
+
+        # Dose-stage control (prior cumulative dose), so a dose-stage effect is
+        # not misread as a period effect.
+        if dose_stage_d is not None:
+            gamma_dose_stage = _priors.gamma_cross_prior().to_pymc("gamma_dose_stage")
+            eta = eta + gamma_dose_stage * dose_stage_d
+
+        # Baseline-skill (ability) adjusters - the no-g->dose sensitivity fit.
+        for s in ability_adjust_symbols:
+            gamma_s = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}_pre")
+            eta = eta + gamma_s * ability_data[s]
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+
+        beta_binomial_from_logit(
+            "y_post",
+            eta,
+            n_trials=N_outcome,
+            kappa=kappa,
+            observed=outcome_post,
+            dims="obs_id",
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
 # LRP59: mediation factory (joint mediator + outcome, ITT phase)
 # ---------------------------------------------------------------------------
 

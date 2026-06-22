@@ -29,6 +29,7 @@ from language_reading_predictors.models._reporting import (
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models import (
     lrp52,
+    lrp52d,
     lrp53,
     lrp54,
     lrp55,
@@ -47,6 +48,9 @@ from language_reading_predictors.statistical_models import (
     lrp74,
     lrp75,
     lrp76,
+    lrp77,
+    lrp77a,
+    lrp77base,
 )
 
 
@@ -85,6 +89,14 @@ MODELS = {
     # LRP76: taught vs not-taught expressive vocabulary - the within-data
     # generalisation contrast (tau[UE] - tau[TE]).
     "lrp76": lrp76,
+    # LRP77 (#104 Phase 2): period-resolved dose-response on word reading.
+    # lrp77base is the pooled-dose comparator (LOO); lrp77a the ability-adjusted
+    # sensitivity fit (no-g->dose assumption).
+    "lrp77": lrp77,
+    "lrp77base": lrp77base,
+    "lrp77a": lrp77a,
+    # LRP52d: period-1 ITT (W) entering group + dose - dose-absorbs-group restatement.
+    "lrp52d": lrp52d,
 }
 
 

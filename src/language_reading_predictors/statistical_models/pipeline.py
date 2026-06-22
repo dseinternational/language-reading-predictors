@@ -555,6 +555,160 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Dose-response pipeline (LRP77, #104 Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Period-resolved dose-response fit (#104 Phase 2).
+
+    Reuses the mechanism-family backbone (Beta-Binomial conditional change,
+    phase intercepts, subject random intercept) but the focal predictor is the
+    per-period intervention **dose** (``attend``), entered with partial-pooled
+    period-specific slopes. See :func:`factories.build_dose_response_model`.
+    """
+    assert spec.kind == "dose_response"
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    dose_cov = spec.extra.get("dose_covariate", "attend")
+    dose_stage_cov = spec.extra.get("dose_stage_covariate", "attend_cumul")
+    ability = tuple(spec.extra.get("ability_adjust_symbols", ()))
+    outcomes = tuple(spec.extra.get("outcomes", (spec.outcome_symbol or "W",)))
+    cov_cols = tuple(c for c in (dose_cov, dose_stage_cov) if c)
+    prepared = load_and_prepare(
+        phase_mode="all", outcomes=outcomes, covariates=cov_cols
+    )
+    ctx.prepared = prepared
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+
+    period_varying = spec.extra.get("period_varying_dose", True)
+    built = _factories.build_dose_response_model(
+        prepared,
+        outcome_symbol=spec.outcome_symbol or "W",
+        adjust_baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
+        dose_covariate=dose_cov,
+        dose_stage_covariate=dose_stage_cov,
+        period_varying_dose=period_varying,
+        use_subject_random_intercept=spec.extra.get(
+            "use_subject_random_intercept", True
+        ),
+        ability_adjust_symbols=ability,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    dose_vars = ["alpha", "gamma_own", "kappa"]
+    if spec.extra.get("use_subject_random_intercept", True):
+        dose_vars.append("sigma_child")
+    dose_vars.append("beta_G")
+    dose_vars.append("gamma_A")
+    if period_varying:
+        dose_vars.extend(["mu_dose", "sigma_dose", "beta_dose_phase"])
+    else:
+        dose_vars.append("beta_dose")
+    if dose_stage_cov is not None:
+        dose_vars.append("gamma_dose_stage")
+    dose_vars.extend(f"gamma_{s}_pre" for s in ability)
+    _diag.summary_diagnostics(ctx, var_names=dose_vars)
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _save_ppc(ctx)
+
+    section_header("Dose-slope summary")
+    _write_dose_slope_summary(ctx, period_varying=period_varying)
+
+    _diag.save_trace(ctx)
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "adjustment": spec.adjustment,
+            "period_varying_dose": period_varying,
+            "ability_adjust_symbols": list(ability),
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+def _summarise_draws(values: np.ndarray, hdi: float) -> dict[str, float]:
+    """Mean, equal-tailed CI and P(>0) for a 1-D array of posterior draws."""
+    lo_q = (1.0 - hdi) / 2.0
+    return {
+        "mean": float(np.mean(values)),
+        "lo": float(np.quantile(values, lo_q)),
+        "hi": float(np.quantile(values, 1.0 - lo_q)),
+        "p_pos": float(np.mean(values > 0.0)),
+    }
+
+
+def _write_dose_slope_summary(
+    ctx: StatisticalFitContext, *, period_varying: bool
+) -> None:
+    """Posterior dose slope (overall + per-period) on the per-1-SD logit scale."""
+    post = ctx.trace.posterior
+    hdi = ctx.reporting.hdi
+    rows: list[dict[str, object]] = []
+
+    def _draws(name: str) -> np.ndarray:
+        return post[name].stack(sample=("chain", "draw")).values
+
+    if period_varying:
+        rows.append({"term": "dose_overall", **_summarise_draws(_draws("mu_dose"), hdi)})
+        bdp = _draws("beta_dose_phase")  # (phase, sample)
+        for p in range(bdp.shape[0]):
+            rows.append(
+                {"term": f"dose_period{p + 1}", **_summarise_draws(bdp[p], hdi)}
+            )
+        rows.append(
+            {"term": "sigma_dose_between_period", **_summarise_draws(_draws("sigma_dose"), hdi)}
+        )
+    else:
+        rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), hdi)})
+
+    df = pd.DataFrame(rows)
+    df.to_csv(os.path.join(ctx.output_dir, "dose_slope_summary.csv"), index=False)
+    ctx.tables["dose_slope_summary"] = df
+    print_table(
+        metrics_table(
+            [
+                {"metric": r["term"], "value": r["mean"], "lo": r["lo"], "hi": r["hi"]}
+                for r in rows
+            ],
+            title=(
+                f"Dose slope (logit / 1 SD dose) - {int(hdi * 100)}% CI (equal-tailed)"
+            ),
+            columns=["metric", "value", "lo", "hi"],
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
 # Mediation pipeline (LRP59)
 # ---------------------------------------------------------------------------
 
