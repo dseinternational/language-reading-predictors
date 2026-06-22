@@ -188,3 +188,5 @@ Psychonomic
 Rouder
 Wagenmakers
 noconstruct
+waitlist
+LOSO
