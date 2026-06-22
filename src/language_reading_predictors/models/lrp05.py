@@ -16,10 +16,7 @@ The target is signed with a mild right tail (``yarclet_gain`` min ≈
 zero observations, n ≈ 160). Similar shape to ``eowpvt_gain``
 (LRP03) and milder than ``ewrswr_gain`` (LRP01).
 
-The predictor set will be reduced by iterative importance-based
-feature selection under the MAE-tuned params (see
-``notes/202604171421-lrp05-feature-selection.md``). This is the
-initial tuned baseline; no feature-selection steps yet.
+Uniform feature selection (2026-06-21) reduced the predictor set to the SelectionStep below via a distance-correlation redundancy filter plus an importance noise-floor cut; see ``notes/202606211200-uniform-gb-fs.md``.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -30,9 +27,8 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# Documents the 34 → 15 feature-selection history under MAE-tuned params
-# with no outlier exclusion (n=160).
-# See notes/202604171421-lrp05-feature-selection.md for the full rationale.
+# Uniform feature-selection history (see the SelectionStep below).
+# See notes/202606211200-uniform-gb-fs.md for the full rationale.
 
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
@@ -102,10 +98,5 @@ class LRP05(GainModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for identifying important predictors of "
-        "letter-sound knowledge gains (yarclet_gain). MAE-tuned on "
-        "the full 34-predictor set (DEFAULT_GAIN + yarclet) without "
-        "outlier exclusion so importance rankings reflect the full "
-        "range of outcomes. Feature-selection variants to follow. "
-        "See notes/202604171421-lrp05-feature-selection.md."
+        "Exploratory model for yarclet_gain (gain). Uniform feature selection (2026-06-21) from the full 34-predictor DEFAULT_GAIN set to 8 predictors (distance-correlation redundancy filter + importance noise-floor cut; baseline force-kept; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 3.394 -> 3.357). Gain models are near-noise (baseline-driven regression to the mean) - treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )

@@ -70,9 +70,22 @@ def upload_to_blob_storage(
 
     container_url = _container_url()
     parsed = urlparse(container_url.rstrip("/"))
+    if parsed.query or parsed.fragment:
+        raise RuntimeError(
+            f"{_ENV_VAR} must be a plain container URL with no query string or "
+            f"fragment (e.g. no SAS token): {container_url!r}. Authenticate via "
+            "DefaultAzureCredential (az login / managed identity) instead."
+        )
     account_url = f"{parsed.scheme}://{parsed.netloc}"
-    container_name = parsed.path.lstrip("/")
-    base_url = container_url.rstrip("/")
+    path_parts = [p for p in parsed.path.split("/") if p]
+    if len(path_parts) != 1:
+        raise RuntimeError(
+            f"{_ENV_VAR} must be 'https://<account>.blob.core.windows.net/"
+            f"<container>' — account plus a single container, no extra path: "
+            f"{container_url!r}."
+        )
+    container_name = path_parts[0]
+    base_url = f"{account_url}/{container_name}"
 
     if run_id is None:
         run_id = str(uuid.uuid7())

@@ -26,10 +26,7 @@ negative and ~17% zero observations, n ≈ 160). The zero pile-up
 is heavier than in LRP07 / LRP05 gains (17% vs 3%/12%) —
 consistent with the coarser 0-18 CELF raw-score scale.
 
-The predictor set will be reduced by iterative importance-based
-feature selection under the MAE-tuned params (see
-``notes/202604181400-lrp09-feature-selection.md``). This is the
-initial tuned baseline; no feature-selection steps yet.
+Uniform feature selection (2026-06-21) reduced the predictor set to the SelectionStep below via a distance-correlation redundancy filter plus an importance noise-floor cut; see ``notes/202606211200-uniform-gb-fs.md``.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -42,7 +39,7 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 #
 # Documents the 34 → 19 feature-selection history under MAE-tuned
 # params with no outlier exclusion (n=160).
-# See notes/202604181400-lrp09-feature-selection.md for the full rationale.
+# See notes/202606211200-uniform-gb-fs.md for the full rationale.
 
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
@@ -113,16 +110,5 @@ class LRP09(GainModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for identifying important predictors of "
-        "CELF basic concept knowledge gains (celf_gain). CELF in this "
-        "study assesses 18 basic linguistic concepts (a lexical / "
-        "semantic measure, NOT a grammar measure — grammar is covered "
-        "by trog and aptgram). MAE-tuned on the 17-predictor Select02 "
-        "set (down from the original 34 via Select01's 34→19 cut and "
-        "Select02's redundancy-driven 19→17 cut of eowpvt and "
-        "deappin) without outlier exclusion so importance rankings "
-        "reflect the full range of outcomes. Target is mildly right-"
-        "skewed (skew 0.14) with heavier zero pile-up than other gain "
-        "targets (17% zero, vs 3-12% in LRP05/LRP07). See "
-        "notes/202604181400-lrp09-feature-selection.md."
+        "Exploratory model for celf_gain (gain). Uniform feature selection (2026-06-21) from the full 34-predictor DEFAULT_GAIN set to 5 predictors (distance-correlation redundancy filter + importance noise-floor cut; baseline force-kept; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.162 -> 2.193). Gain models are near-noise (baseline-driven regression to the mean) - treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )

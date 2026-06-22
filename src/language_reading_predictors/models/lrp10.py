@@ -2,34 +2,27 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-LRP10: Predictors of basic concept knowledge level (CELF) —
-construct-reduced to isolate non-vocabulary signal.
+LRP10: Predictors of basic concept knowledge level (CELF).
 
-``LRP10`` is the exploratory model for basic concept knowledge
-level (``celf``). The ``celf`` score is drawn from the Clinical
-Evaluation of Language Fundamentals Preschool 2nd Ed (Wiig,
-Secord & Semel 2006) and in this study only the basic-concept-
-knowledge subtest (18 linguistic concepts) was administered — so
-``celf`` is a lexical/semantic concept measure, NOT a grammar
-measure (the grammar measures in this study are ``trog`` for
-receptive grammar and ``aptgram`` for expressive grammar).
+``LRP10`` is the exploratory model for basic concept knowledge level
+(``celf``). The ``celf`` score is drawn from the Clinical Evaluation of
+Language Fundamentals Preschool 2nd Ed (Wiig, Secord & Semel 2006); in
+this study only the basic-concept-knowledge subtest (18 linguistic
+concepts) was administered — so ``celf`` is a lexical/semantic concept
+measure, NOT a grammar measure (grammar is covered by ``trog`` for
+receptive and ``aptgram`` for expressive grammar).
 
-LRP10 is MAE-tuned on the 10-predictor Select02 set (down from
-the original 32-predictor :attr:`Predictors.DEFAULT_LEVEL` minus
-target via Select01's 32→12 correlation-informed cut, then
-Select02's construct-driven drop of the top two vocabulary
-predictors ``eowpvt`` and ``b1reto``). No outlier exclusion. The
-Select02 cut deliberately trades prediction accuracy for
-interpretability: the model now answers "what predicts basic
-concept knowledge beyond vocabulary?" rather than a pure accuracy
-optimum.
+The target is **mildly left-skewed** (``celf`` min 0, max 18, median 11,
+mean 10.88, std 4.24, skewness −0.37, n ≈ 214). The max of 18 is the
+instrument maximum but the 95th percentile is below it, so there is no
+strong ceiling pathology.
 
-The target is **mildly left-skewed** (``celf`` min 0, max 18,
-median 11, mean 10.88, std 4.24, skewness −0.37, n ≈ 214). The
-max of 18 is the instrument maximum but the 95th percentile is
-below it, so there is no strong ceiling pathology (unlike LRP06's
-``yarclet`` which piles at 32). Transforms are unlikely to be
-required.
+Uniform feature selection (2026-06-21): reduced from the full
+32-predictor :attr:`Predictors.DEFAULT_LEVEL` set (minus the target) to
+3 predictors via a distance-correlation redundancy filter (dcor >= 0.70)
+plus an importance noise-floor cut, then re-tuned. This supersedes the
+earlier Select01/Select02 construct-driven hand selection. See the
+SelectionStep and notes/202606211200-uniform-gb-fs.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -37,12 +30,6 @@ from language_reading_predictors.models.base_model import LevelModel
 from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
-
-# ── predictor selection steps (shared by all variants) ───────────────────
-#
-# Documents the 32 → 12 feature-selection history under MAE-tuned
-# params with no outlier exclusion (n=214).
-# See notes/202604181400-lrp10-feature-selection.md for the full rationale.
 
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
@@ -62,8 +49,6 @@ _SELECTION_STEPS: list[SelectionStep] = [
     ),
 ]
 
-
-# ── hyperparameter sets ─────────────────────────────────────────────────
 
 # MAE-tuned on the 3-predictor uniform-selected set (Optuna 150
 # trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
@@ -85,24 +70,19 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 }
 
 
-# ── primary model (exploratory, MAE-tuned) ──────────────────────────────
-
-
 class LRP10(LevelModel):
     """CELF basic concept knowledge level predictors — exploratory (MAE-tuned, all data).
 
-    Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
-    (minus the target ``celf``) with MAE-tuned hyperparameters and
-    no outlier exclusion. The starting point for feature selection
-    on the CELF basic concept knowledge level-prediction task.
+    Uniform-selected subset of :attr:`Predictors.DEFAULT_LEVEL` (minus the
+    target ``celf``) with MAE-tuned hyperparameters and no outlier
+    exclusion. See the SelectionStep and the module docstring.
     """
 
     model_id = "lrp10"
     target_var = V.CELF
     description = (
         "LightGBM — CELF (basic concept knowledge) level predictors "
-        "(3 predictors, MAE-tuned, construct-reduced "
-        "to exclude the top two vocabulary predictors)"
+        "(3 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -113,19 +93,11 @@ class LRP10(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for identifying important predictors of "
-        "CELF basic concept knowledge level (celf) BEYOND the two "
-        "strongest vocabulary handles in the dataset. CELF in this "
-        "study assesses 18 basic linguistic concepts (a lexical / "
-        "semantic measure, NOT a grammar measure — grammar is "
-        "covered by trog and aptgram). Construct-reduced to 10 "
-        "predictors via Select01 (32→12 correlation-informed cut) "
-        "then Select02 (drop eowpvt and b1reto — the top two "
-        "Select01 predictors). Mirrors LRP04's construct-driven "
-        "Select02 drop of b1exto. Without outlier exclusion so "
-        "importance rankings reflect the full range of outcomes. "
-        "Target is mildly left-skewed (skew −0.37); the max of 18 "
-        "is the instrument maximum but there is no strong ceiling "
-        "effect (unlike LRP06's yarclet which piles at 32). See "
-        "notes/202604181400-lrp10-feature-selection.md."
+        "Exploratory model for basic concept knowledge level (celf). Uniform "
+        "feature selection (2026-06-21) from the full 32-predictor "
+        "DEFAULT_LEVEL set to 3 predictors (distance-correlation redundancy "
+        "filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), "
+        "re-tuned on the reduced set (tuner-inner CV MAE 2.496 -> 2.567). CELF "
+        "here is a lexical/semantic concept measure, not grammar. Treat the "
+        "reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )

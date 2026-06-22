@@ -24,7 +24,7 @@ the floor improve.
 DEAP measures have been used as predictors across every other
 model in the suite but never as targets until LRP21/22.
 
-Feature selection applied 2026-06-20 (replication): reduced from the full 34-predictor set to 6 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
+Uniform feature selection (2026-06-21): reduced from the full 34-predictor set to 6 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -35,7 +35,7 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# Feature selection (2026-06-20 replication): distance-correlation
+# Feature selection (2026-06-21 uniform): distance-correlation
 # redundancy filter + importance noise-floor cut; see the SelectionStep.
 
 _SELECTION_STEPS: list[SelectionStep] = [
@@ -88,7 +88,7 @@ class LRP21(GainModel):
     Uses a feature-selected subset of :attr:`Predictors.DEFAULT_GAIN`
     (``deappfi`` is already a member, so the GainModel auto-include
     is a no-op) with MAE-tuned hyperparameters and no outlier
-    exclusion. Feature selection was applied (2026-06-20 replication); see the SelectionStep and the module docstring.
+    exclusion. Feature selection was applied (2026-06-21 uniform); see the SelectionStep and the module docstring.
     """
 
     model_id = "lrp21"
@@ -106,5 +106,5 @@ class LRP21(GainModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for deappfi_gain (gain). Feature-selected (2026-06-20 replication) from the full 34-predictor default set to 6 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 8.231 -> 8.269). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
+        "Exploratory model for deappfi_gain (gain). Uniform feature selection (2026-06-21) from the full 34-predictor DEFAULT_GAIN set to 6 predictors (distance-correlation redundancy filter + importance noise-floor cut; baseline force-kept; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 8.722 -> 8.294). Gain models are near-noise (baseline-driven regression to the mean) - treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )

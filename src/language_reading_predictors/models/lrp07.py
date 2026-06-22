@@ -5,11 +5,11 @@
 LRP07: Predictors of receptive vocabulary gains.
 
 ``LRP07`` is the exploratory model for receptive vocabulary gains
-(``rowpvt_gain``). It is MAE-tuned on the 12-predictor Select01 set
-(down from the original 34-predictor
-:attr:`Predictors.DEFAULT_GAIN` + ``rowpvt`` base), with no outlier
-exclusion, designed to identify the most important influences on
-receptive vocabulary gains.
+(``rowpvt_gain``). It is MAE-tuned on a uniform-selected subset of
+:attr:`Predictors.DEFAULT_GAIN` (with the ``rowpvt`` baseline force-kept)
+and no outlier exclusion, designed to identify the most important
+influences on receptive vocabulary gains. Uniform feature selection
+(2026-06-21); see the SelectionStep and notes/202606211200-uniform-gb-fs.md.
 
 The target is **essentially symmetric** (``rowpvt_gain`` min ≈ −20,
 max ≈ 34, median 5, mean 3.84, skewness 0.04, with ~29% negative
@@ -25,9 +25,8 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# Documents the 34 → 12 feature-selection history under MAE-tuned
-# params with no outlier exclusion (n=161).
-# See notes/202604171715-lrp07-feature-selection.md for the full rationale.
+# Uniform feature-selection history (see the SelectionStep below and
+# notes/202606211200-uniform-gb-fs.md).
 
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
@@ -98,11 +97,5 @@ class LRP07(GainModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for identifying important predictors of "
-        "receptive vocabulary gains (rowpvt_gain). MAE-tuned on the "
-        "12-predictor Select01 set (down from DEFAULT_GAIN + rowpvt's "
-        "original 34) without outlier exclusion so importance "
-        "rankings reflect the full range of outcomes. Target is "
-        "essentially symmetric (skew 0.04) — cleanest gain target so "
-        "far. See notes/202604171715-lrp07-feature-selection.md."
+        "Exploratory model for rowpvt_gain (gain). Uniform feature selection (2026-06-21) from the full 34-predictor DEFAULT_GAIN set to 2 predictors (distance-correlation redundancy filter + importance noise-floor cut; baseline force-kept; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 7.224 -> 7.143). Gain models are near-noise (baseline-driven regression to the mean) - treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )

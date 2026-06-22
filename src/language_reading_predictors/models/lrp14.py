@@ -19,7 +19,7 @@ reading targets where zeros are a minority.
 Log or quantile transforms may be more appropriate than a plain
 regression here; plan for a ``lrp14_log`` variant in follow-up PRs.
 
-Feature selection applied 2026-06-20 (replication): reduced from the full 32-predictor set to 3 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
+Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 3 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
 
 No construct-reduced variant: ``nonword``'s remaining predictors are
 *different* reading skills (letter-sound knowledge, phonological awareness,
@@ -77,7 +77,7 @@ class LRP14(LevelModel):
 
     Uses a feature-selected subset of :attr:`Predictors.DEFAULT_LEVEL`
     (minus the target ``nonword``) with MAE-tuned hyperparameters and
-    no outlier exclusion. Feature selection was applied (2026-06-20 replication); see the SelectionStep and the module docstring.
+    no outlier exclusion. Feature selection was applied (2026-06-21 uniform); see the SelectionStep and the module docstring.
     """
 
     model_id = "lrp14"
@@ -95,5 +95,5 @@ class LRP14(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for nonword (level). Feature-selected (2026-06-20 replication) from the full 32-predictor default set to 3 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 0.892 -> 0.772). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
+        "Exploratory model for nonword (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 3 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 0.914 -> 0.762). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )

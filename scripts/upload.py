@@ -71,7 +71,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    targets = resolve_targets(args.model)
+    targets = resolve_targets(args.model.lower())
     if not targets:
         _console.print(f"[bold red]No model output directories found for: {args.model}[/bold red]")
         _console.print("Run fit_model.py / fit_statistical_model.py first.")

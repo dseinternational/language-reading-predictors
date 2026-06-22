@@ -19,10 +19,7 @@ transforms are inappropriate here because the skew is in the wrong
 direction; a reflection-log or quantile objective might be
 considered later.
 
-The predictor set will be reduced by iterative importance-based
-feature selection under the MAE-tuned params (see
-``notes/202604171421-lrp06-feature-selection.md``). This is the
-initial tuned baseline; no feature-selection steps yet.
+Uniform feature selection (2026-06-21) reduced the predictor set to the SelectionStep below via a distance-correlation redundancy filter plus an importance noise-floor cut; see ``notes/202606211200-uniform-gb-fs.md``.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -33,9 +30,8 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# Documents the 32 → 10 feature-selection history under MAE-tuned params
-# with no outlier exclusion (n=214).
-# See notes/202604171421-lrp06-feature-selection.md for the full rationale.
+# Uniform feature-selection history (see the SelectionStep below).
+# See notes/202606211200-uniform-gb-fs.md for the full rationale.
 
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
@@ -104,12 +100,5 @@ class LRP06(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for identifying important predictors of "
-        "letter-sound knowledge level (yarclet). MAE-tuned on the "
-        "full 32-predictor DEFAULT_LEVEL set without outlier exclusion "
-        "so importance rankings reflect the full range of outcomes. "
-        "Note the target has a ceiling effect at 32 — many "
-        "observations cluster at the instrument maximum, producing a "
-        "left-skewed distribution. Feature-selection variants to "
-        "follow. See notes/202604171421-lrp06-feature-selection.md."
+        "Exploratory model for yarclet (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 6 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 4.620 -> 4.364). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )

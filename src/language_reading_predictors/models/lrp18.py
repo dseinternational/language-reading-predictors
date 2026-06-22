@@ -22,7 +22,7 @@ receptive grammar asymmetry that is a live question in DS
 language research. The right-skew motivates a later log-transform
 variant (mirroring LRP02's ``lrp02_log``).
 
-Feature selection applied 2026-06-20 (replication): reduced from the full 32-predictor set to 4 predictors via a distance-correlation redundancy filter (dcor >= 0.70, keep the highest-importance representative) plus an importance noise-floor cut, then re-tuned on the reduced set. See the SelectionStep below and notes/202606201500-gb-replication-findings.md.
+Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 4 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -33,7 +33,7 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# Feature selection (2026-06-20 replication): distance-correlation
+# Feature selection (2026-06-21 uniform): distance-correlation
 # redundancy filter + importance noise-floor cut; see the SelectionStep.
 
 _SELECTION_STEPS: list[SelectionStep] = [
@@ -85,7 +85,7 @@ class LRP18(LevelModel):
 
     Uses a feature-selected subset of :attr:`Predictors.DEFAULT_LEVEL`
     (minus the target ``aptgram``) with MAE-tuned hyperparameters
-    and no outlier exclusion. Feature selection was applied (2026-06-20 replication); see the SelectionStep and the module docstring.
+    and no outlier exclusion. Feature selection was applied (2026-06-21 uniform); see the SelectionStep and the module docstring.
     """
 
     model_id = "lrp18"
@@ -103,7 +103,7 @@ class LRP18(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for aptgram (level). Feature-selected (2026-06-20 replication) from the full 32-predictor default set to 4 predictors via a distance-correlation redundancy filter (no dcor >= 0.70 pairs remain) plus an importance noise-floor cut, then re-tuned on the reduced set (tuner-inner CV MAE 2.535 -> 2.325). Only the dominant predictor is robustly above the importance noise floor; treat the reduced ranking as exploratory. See the SelectionStep and notes/202606201500-gb-replication-findings.md."
+        "Exploratory model for aptgram (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 4 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.557 -> 2.325). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )
 
 

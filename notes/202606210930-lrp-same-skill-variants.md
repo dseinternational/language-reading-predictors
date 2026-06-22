@@ -70,16 +70,15 @@ tuner-inner CV MAE (10-fold):
 
 | variant | outcome | drops (same skill) | pooled OOF R² | tuner MAE |
 |---|---|---|---|---|
-| `lrp08_noconstruct` | receptive vocab (`rowpvt`) | `b1reto` | 0.64 → 0.65 | 6.90 → 7.04 |
-| `lrp18_noconstruct` | expressive grammar (`aptgram`) | `aptinfo` | 0.68 → 0.48 | 2.33 → 3.32 |
+| `lrp04_noconstruct` | expressive vocab (`eowpvt`) | `b1exto` | 0.70 → 0.65 | 6.16 → 7.08 |
+| `lrp18_noconstruct` | expressive grammar (`aptgram`) | `aptinfo` | 0.70 → 0.48 | 2.33 → 3.32 |
 | `lrp20_noconstruct` | expressive info (`aptinfo`) | `aptgram` | 0.80 → 0.75 | 2.69 → 3.06 |
 | `lrp22_noconstruct` | final-consonant articulation (`deappfi`) | `deappin` | 0.55 → −0.03 | 9.96 → 16.13 |
 
-- **lrp08**: receptive vocabulary is *still* well-predicted (R² ≈ unchanged)
-  after dropping the bespoke receptive sibling — the signal is carried by
-  expressive-vocabulary and broader language measures (`aptinfo`, `eowpvt`,
-  `trog`, `celf`), not by a parallel receptive-vocab test. The most informative
-  of the four variants.
+- **lrp04**: expressive vocabulary stays well-predicted (0.70 → 0.65) after
+  dropping the bespoke expressive sibling `b1exto` — the signal is carried by
+  other constructs (receptive vocabulary, reading, articulation), not by a
+  parallel expressive-vocab test. The most informative of the four variants.
 - **lrp18 / lrp20**: dropping the APT same-sample sibling costs ≈ 0.20 / 0.05 of
   R². The remainder is genuine cross-skill signal (top remaining predictors
   `erbnw`, `b1exto`); `trog` and other constructs stay visible.
@@ -87,8 +86,9 @@ tuner-inner CV MAE (10-fold):
 
 `lrp18`/`lrp20` variants existed already and drop exactly the right APT sibling;
 only their rationale wording was corrected (they were mislabelled
-"language_composite"-reduced — they never dropped `celf`/`trog`). `lrp08`/`lrp22`
-variants are new (re-tuned 2026-06-21).
+"language_composite"-reduced — they never dropped `celf`/`trog`). The `lrp04` and
+`lrp22` variants are new; the variant **set** was re-derived by the subsequent
+uniform feature-selection pass (`notes/202606211200-uniform-gb-fs.md`).
 
 ### deappfi (lrp22) — the null is the finding
 
@@ -103,21 +103,22 @@ reference and this variant documents the null — rather than reducing the prima
 
 - `lrp02` (`ewrswr`): word-reading composite; its EWR/SWR components are excluded
   as composite members, so no same-skill sibling is present.
-- `lrp04` (`eowpvt`): the primary already dropped `b1exto` (2026-04 construct
-  decision), so it is *already* same-skill-clean — no separate variant needed.
+- `lrp08` (`rowpvt`): the uniform feature selection already drops the bespoke
+  receptive sibling `b1reto`, so the primary is same-skill-clean — no variant
+  needed.
 - `lrp06` (`yarclet`), `lrp10` (`celf`), `lrp12` (`trog`), `lrp14` (`nonword`),
   `lrp16` (`blending`): their R² comes from *different* skills, which are kept
-  visible. Specifically removed in this pass: **`lrp12_noconstruct`** (had
-  dropped expressive grammar + concept knowledge from receptive grammar) and
-  **`lrp14_noconstruct`** (had dropped letter-sound knowledge from nonword) —
-  both dropped different-skill measures and so contradicted the same-skill rule.
+  visible. The earlier coarse-construct **`lrp12_noconstruct`** and
+  **`lrp14_noconstruct`** variants were removed (they dropped different-skill
+  measures — expressive grammar / concept knowledge from receptive grammar, and
+  letter-sound knowledge from nonword).
 
 ## Caveats
 
-- `lrp08`'s primary is still **under-pruned** (8 dcor ≥ 0.70 pairs in the
-  expressive-vocabulary / APT cluster — see the replication note's open
-  "re-prune LRP08/LRP09" item). `lrp08_noconstruct` inherits that residual
-  redundancy; the lrp08/lrp09 re-prune remains a separate follow-up.
+- The variant **set** documented here was re-derived by the later uniform
+  feature-selection pass (`notes/202606211200-uniform-gb-fs.md`): `lrp04` gained
+  a variant and `lrp08` lost the need for one (uniform pruning drops `b1reto`,
+  and also cleared lrp08's earlier redundancy).
 - Same exploratory caveats as the primaries: gain models untouched here; reduced
   *rankings* are reliable only for the top one or two predictors; the pinned
   hyperparameters are CV-equivalent optima, not unique.
@@ -130,6 +131,6 @@ conda run -n dse-language-reading-predictors --no-capture-output \
   python output/replication/tune_variants.py
 # fit + render the four affected variants (reporting config):
 conda run -n dse-language-reading-predictors --no-capture-output \
-  python scripts/fit_model.py lrp08_noconstruct --config reporting --render
+  python scripts/fit_model.py lrp04_noconstruct --config reporting --render
 #   ... lrp22_noconstruct / lrp18_noconstruct / lrp20_noconstruct
 ```
