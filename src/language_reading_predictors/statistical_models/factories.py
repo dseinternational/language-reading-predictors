@@ -704,7 +704,7 @@ class MediationData:
     - ``"beta_binomial"`` (LRP59): a single count mediator (``L_t2`` out of
       ``n_trials_L``) conditioned on ``logit(L_t1)``; ``med_mean`` / ``med_sd``
       standardise its logit for the outcome model.
-    - ``"gaussian_composite"`` (LRP62): a continuous standardised phonics-route
+    - ``"gaussian_composite"`` (LRP62): a continuous standardised code-based-route
       composite; the baseline composite is ``M_pre_std`` and the mediator is
       drawn from a Normal, so the count-specific fields are unused.
 
@@ -795,7 +795,7 @@ def build_mediation_model(
     - ``"beta_binomial"`` (LRP59, default): a single count mediator
       (``mediator_symbol``, e.g. letter-sound L) — documented below.
     - ``"gaussian_composite"`` (LRP62): the mediator is an equal-weight
-      standardised-logit composite of ``route_symbols`` (the phonics route,
+      standardised-logit composite of ``route_symbols`` (the code-based route,
       e.g. ``("L", "B")``), modelled as ``Normal(mu_M, sigma_M)``. The outcome
       model is identical to the LRP59 case; only the mediator leg changes. See
       :func:`_build_route_composite_model`.
@@ -932,7 +932,7 @@ def build_mediation_model(
 def _build_route_composite(
     prepared: PreparedData, route_symbols: tuple[str, ...]
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Equal-weight standardised-logit phonics-route composite.
+    """Equal-weight standardised-logit code-based-route composite.
 
     For each route symbol, the Haldane-logit of the count is standardised on its
     *post* (t2) distribution and that same scaler is applied to the pre (t1)
@@ -966,7 +966,7 @@ def _build_route_composite_model(
     confounder_symbols: tuple[str, ...],
     route_symbols: tuple[str, ...],
 ) -> tuple[BuiltModel, MediationData]:
-    """LRP62 reading-route mediation: a continuous phonics-route composite mediator.
+    """LRP62 reading-route mediation: a continuous code-based-route composite mediator.
 
     Same ITT-phase joint design and the *same* Beta-Binomial outcome model as
     :func:`build_mediation_model`, but the single count mediator is replaced by

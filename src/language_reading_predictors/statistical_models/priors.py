@@ -78,7 +78,7 @@ def sigma_mediator_prior() -> Continuous:
     """Gaussian-mediator residual SD sigma_M ~ HalfNormal(1.0).
 
     Used by the LRP62 reading-route model, where the mediator is a continuous
-    standardised phonics-route composite modelled as ``Normal(mu_M, sigma_M)``.
+    standardised code-based-route composite modelled as ``Normal(mu_M, sigma_M)``.
     The composite-post is standardised (SD 1), so after conditioning on the
     baseline composite and covariates the residual SD is below 1; HalfNormal(1.0)
     is weakly-informative on that scale.
