@@ -60,7 +60,7 @@ def decompose(
 
     ``med.mediator_kind`` selects the mediator counterfactual: ``"beta_binomial"``
     (LRP59, a single count mediator) or ``"gaussian_composite"`` (LRP62, a
-    continuous standardised phonics-route composite). The outcome model and the
+    continuous standardised code-based-route composite). The outcome model and the
     NDE/NIE/proportion decomposition are identical in both cases. The mediator is
     re-simulated ``n_replicates`` times per posterior draw and averaged, to
     control Monte-Carlo noise from the mediator draw; the posterior itself
