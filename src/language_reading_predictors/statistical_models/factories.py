@@ -1142,7 +1142,7 @@ def build_adjusted_model(
     """
     if prepared.phase_mode not in {"span", "itt"}:
         raise ValueError(
-            "Adjusted (between-child) model requires phase_mode='span' "
+            "Adjusted (between-child) model requires phase_mode in {'span', 'itt'} "
             f"(one row per child); got {prepared.phase_mode!r}"
         )
     if outcome_symbol not in prepared.pre_logit:

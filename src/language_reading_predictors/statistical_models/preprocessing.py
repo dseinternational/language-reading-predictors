@@ -183,6 +183,11 @@ def load_and_prepare(
     if phase_mode == "itt":
         phase_pairs = [(1, 2)]
     elif phase_mode == "span":
+        if int(post_time) <= 1:
+            raise ValueError(
+                "phase_mode='span' pairs t1 with a later wave, so post_time must "
+                f"be > 1; got {post_time!r}"
+            )
         phase_pairs = [(1, int(post_time))]
     else:
         phase_pairs = [(1, 2), (2, 3), (3, 4)]

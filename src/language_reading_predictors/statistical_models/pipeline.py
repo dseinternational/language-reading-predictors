@@ -1085,7 +1085,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "predictor_slope_sigma": sigma0,
             "prior_sensitivity_sigmas": prior_sens,
             "language_composite_symbols": list(lang_symbols),
-            "n_children": int(prepared.n_children),
+            "n_children": int(ctx.prepared.n_children),
             "ses_n_children": ses_n,
             "associations": rows,
             "predicted_gain_words": words_df.to_dict("records"),
