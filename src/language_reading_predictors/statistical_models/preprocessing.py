@@ -249,8 +249,23 @@ def load_and_prepare(
     column_map: dict[str, str] = {}
     for s in outcomes:
         m = MEASURES[s]
-        pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
+        pre_raw = merged[f"{m.column}_pre"].to_numpy(dtype=float)
         post_counts[s] = merged[f"{m.column}_post"].to_numpy()  # may contain NaN
+        # Beta-Binomial ceiling guard (#80): a pre/post count above n_trials
+        # would silently produce a NaN/-inf log-likelihood (and an invalid
+        # logit for the pre covariate). Fail loudly, naming the measure.
+        for which, arr in (
+            ("pre", pre_raw),
+            ("post", np.asarray(post_counts[s], dtype=float)),
+        ):
+            finite = arr[np.isfinite(arr)]
+            if finite.size and finite.max() > m.n_trials:
+                raise ValueError(
+                    f"Measure {s!r} ({m.column}_{which}) has value "
+                    f"{finite.max():g} above its n_trials ceiling {m.n_trials}; "
+                    "fix measures.py or check the source data."
+                )
+        pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
         n_trials_dict[s] = m.n_trials
         column_map[s] = m.column
 

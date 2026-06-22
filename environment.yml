@@ -3,6 +3,10 @@ channels:
   - conda-forge
 dependencies:
   - python=3.14.6
+  - arviz>=1.2.0
+  - arviz-base>=1.2.0
+  - arviz-stats>=1.2.0
+  - arviz-plots>=1.2.0
   - h5netcdf
   - graphviz>=14.1.2
   - lightgbm>=4.6.0
@@ -20,10 +24,8 @@ dependencies:
   - xgboost>=3.2.0
   - pip
   - pip:
-      - arviz>=1.2
-      - arviz-base
-      - arviz-stats
-      - arviz-plots
+      - azure-identity
+      - azure-storage-blob
       - dcor
       - hatch
       - ipython>=9.14.1
@@ -36,9 +38,9 @@ dependencies:
       - preliz>=0.27.0
       - pytest>=9.1.0
       - rich>=15.0.0
-      - ruff>=0.15.17
+      - ruff>=0.15.18
       - scipy-stubs
-      - scipy>=1.17.1
+      - scipy>=1.18.0
       - seaborn>=0.13.2
       - setuptools>=82.0.1
       - tabulate>=0.10.0

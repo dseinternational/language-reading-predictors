@@ -7,6 +7,7 @@ Fits the specified model to the latest data. Saves plots and data to the output 
 
 import argparse
 import subprocess
+import uuid
 from pathlib import Path
 from multiprocessing import freeze_support
 
@@ -18,6 +19,7 @@ from language_reading_predictors.models._reporting import (
     print_table,
 )
 from language_reading_predictors.models.registry import MODELS
+from language_reading_predictors.storage import upload_to_blob_storage
 
 
 def _fit(cfg, config_name):
@@ -53,6 +55,16 @@ def main():
             "When model is 'all', also fit selection variants (entries where "
             "variant_of is set). Ignored for explicit model ids."
         ),
+    )
+    parser.add_argument(
+        "--upload",
+        action="store_true",
+        help="Upload model output to Azure Blob Storage after fitting.",
+    )
+    parser.add_argument(
+        "--include-traces",
+        action="store_true",
+        help="Include .nc trace files in the upload (GB models have none).",
     )
 
     freeze_support()
@@ -158,6 +170,16 @@ def main():
                     f"[bold red]Render failed for {context.config.model_id}: "
                     f"quarto exited {exc.returncode}[/bold red]"
                 )
+
+    if args.upload:
+        run_id = str(uuid.uuid7())
+        for context in contexts:
+            upload_to_blob_storage(
+                str(context.output_dir),
+                context.config.model_id,
+                include_traces=args.include_traces,
+                run_id=run_id,
+            )
 
     if failed or render_failed:
         raise SystemExit(1)

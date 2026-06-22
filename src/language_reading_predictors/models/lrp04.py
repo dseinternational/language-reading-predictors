@@ -5,27 +5,20 @@
 LRP04: Predictors of expressive-vocabulary level.
 
 ``LRP04`` is the exploratory model for expressive-vocabulary level
-(``eowpvt``). It is MAE-tuned on the full 32-predictor
-:attr:`Predictors.DEFAULT_LEVEL` set (minus the target), with no
-outlier exclusion, designed to identify the most important
-influences on expressive-vocabulary level.
+(``eowpvt``). The target is mildly right-skewed (``eowpvt`` min 8, max
+77, median 33, skewness 0.63, n ≈ 215) with no hard floor at 0.
 
-The target is mildly right-skewed (``eowpvt`` min 8, max 77,
-median 33, skewness 0.63, n ≈ 215). No hard floor at 0 (unlike
-``ewrswr`` in LRP02), so the motivation for a ``log1p`` transform
-is less compelling — but a question for future investigation.
+Uniform feature selection (2026-06-21): reduced from the full
+32-predictor :attr:`Predictors.DEFAULT_LEVEL` set (minus the target) to
+7 predictors via a distance-correlation redundancy filter (dcor >= 0.70)
+plus an importance noise-floor cut, then re-tuned. See the SelectionStep
+and notes/202606211200-uniform-gb-fs.md.
 
-The predictor set will be reduced by iterative importance-based
-feature selection under the MAE-tuned params (see
-``notes/202604171240-lrp04-feature-selection.md``).
-
-``LRP04Quantile`` is an objective variant on the same 7-predictor
-final set — trains with LightGBM's ``quantile`` loss at
-``alpha=0.5`` (pinball loss at the median) rather than ``mae``.
-The conditional-median objective is the direct MedAE-minimising
-loss. Mirrors the ``lrp02_quantile`` work; useful for checking
-whether explicit median-optimisation improves typical-case
-prediction.
+``LRP04NoConstruct`` is the same-skill variant: it additionally drops
+``b1exto`` (a bespoke expressive-vocabulary test — the same skill as the
+standardised target ``eowpvt``) to ask what predicts expressive
+vocabulary beyond a concurrent same-skill measure. See
+notes/202606210930-lrp-same-skill-variants.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -34,138 +27,50 @@ from language_reading_predictors.models.common import SelectionStep, ShapScatter
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# ── predictor selection steps (shared by all variants) ───────────────────
-#
-# Documents the 32 → 7 feature-selection history under MAE-tuned params
-# with no outlier exclusion (n=215).
-# See notes/202604171240-lrp04-feature-selection.md for the full rationale.
-
-_SELECTION_STEPS = [
+_SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
         removed=[
-            # Tier A — importance ≤ 0.005 in the 32-predictor MAE tune
-            V.HEARING, V.GROUP, V.AREA, V.TIME, V.BEHAV, V.EARINF,
-            V.DEAPPVO, V.NONWORD, V.GENDER, V.MUMEDUPOST16,
-            V.SPPHON, V.YARCSI, V.ERBNW, V.BLENDING, V.VISION,
-            V.ERBWORD, V.AGEBOOKS,
-            # Tier B with redundancy support
-            V.APTGRAM,          # dcorr 0.76 with retained aptinfo (0.107)
-            V.TROG,             # dcorr 0.60-0.64 with language cluster
-            V.DEAPPFI,          # dcorr 0.77 with retained deappin (pair)
-            # Additional demographic/family drops
-            V.AGESPEAK,
-            V.DADEDUPOST16,
-            V.NUMCHIL,
+            V.APTINFO, V.B1RETO, V.NUMCHIL, V.DEAPPIN, V.ERBWORD, V.VISION, V.GROUP,
+            V.GENDER, V.EARINF, V.HEARING, V.AGESPEAK, V.MUMEDUPOST16,
+            V.DADEDUPOST16, V.AGEBOOKS, V.AREA, V.DEAPPVO, V.YARCSI, V.BEHAV,
+            V.SPPHON, V.AGE, V.TROG, V.NONWORD, V.APTGRAM, V.ERBNW, V.BLENDING
         ],
         notes=(
-            "Aggressive one-shot cut from 32 → 9 predictors. Drops 17 "
-            "Tier-A features with importance ≤ 0.005 (several with "
-            "redundancy support: yarcsi/spphon/nonword dcorr 0.66-0.78 "
-            "with retained ewrswr; erbword+erbnw dcorr 0.84 pair). Adds "
-            "three Tier-B drops that have both low-ish importance and "
-            "strong redundancy with retained higher-importance partners: "
-            "aptgram (dcorr 0.76 with aptinfo), trog (dcorr 0.60-0.64 "
-            "with language cluster), deappfi (dcorr 0.77 with deappin — "
-            "keep one of the articulation pair). Finally drops three "
-            "demographic/family features on importance grounds: "
-            "agespeak (0.010), dadedupost16 (0.009, redundant with "
-            "already-Tier-A mumedupost16), numchil (0.006)."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 7 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
         ),
-        date="2026-04-17",
-        metrics_before={"cv_mae_mean": 6.156},
-        metrics_after={"cv_mae_mean": 5.564},
-    ),
-    SelectionStep(
-        removed=[
-            V.B1EXTO,   # rank 1 importance (0.164) but tautological:
-                        # another expressive-vocabulary test, same
-                        # construct as the target eowpvt. Keeping it
-                        # turns the model into a between-tests
-                        # calibration study rather than an
-                        # identification of non-vocabulary predictors
-                        # of expressive vocabulary.
-            V.B1RETO,   # rank 9 importance (0.026). Dcorr 0.74-0.76
-                        # with retained aptinfo / rowpvt / b1exto. With
-                        # rowpvt retained as the standardised receptive
-                        # vocabulary measure, b1reto adds no
-                        # independent receptive-language signal.
-        ],
-        notes=(
-            "Construct-driven drops: b1exto is another expressive-"
-            "vocabulary instrument — same construct as the target "
-            "eowpvt — so its high importance is largely tautological. "
-            "Removing it reframes the model as 'non-vocabulary "
-            "predictors of expressive vocabulary' rather than "
-            "'between-test calibration'. b1reto is redundant with "
-            "the retained rowpvt (standardised receptive vocabulary "
-            "test), dcorr 0.74. CV metrics are expected to degrade "
-            "because b1exto is the single strongest predictor (0.164) "
-            "— the trade is worse metrics for a more interpretable "
-            "model."
-        ),
-        date="2026-04-17",
-        metrics_before={"cv_mae_mean": 5.572},
-        metrics_after={"cv_mae_mean": 6.114},
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 6.0503},
+        metrics_after={"cv_mae_mean": 6.1592},
     ),
 ]
 
 
-# ── hyperparameter sets ─────────────────────────────────────────────────
-
-# MAE-tuned on the 7-predictor Select02 set, no outlier exclusion
-# (Optuna 150 trials, 10-split GroupKFold, seed 47, scoring=mae,
-# lgbm_objective=mae). Tuner-inner CV MAE 6.1385 ± 1.1345. n=215.
-# Supersedes earlier tunes:
-#   32-predictor        (tuner-inner 6.1434)
-#   9-predictor Select01 (tuner-inner 5.5527)
+# MAE-tuned on the 7-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 6.1592.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 45,
-    "learning_rate": 0.07573022964806482,
-    "num_leaves": 30,
-    "max_depth": 6,
-    "min_child_samples": 10,
-    "subsample": 0.8737230089192473,
+    "n_estimators": 68,
+    "learning_rate": 0.08572327409762025,
+    "num_leaves": 18,
+    "max_depth": 3,
+    "min_child_samples": 4,
+    "subsample": 0.871675111170649,
     "subsample_freq": 1,
-    "colsample_bytree": 0.7169131631393786,
-    "reg_alpha": 0.0022764472298362187,
-    "reg_lambda": 0.003357533830874894,
+    "colsample_bytree": 0.9388695366733577,
+    "reg_alpha": 0.001037151277752068,
+    "reg_lambda": 0.019926160950819845,
     "n_jobs": -1,
     "verbosity": -1,
 }
-
-# Quantile-tuned (α=0.5) on the 7-predictor Select02 set (Optuna 150
-# trials, 10-split GroupKFold, seed 47, scoring=medae,
-# lgbm_objective=quantile, alpha=0.5). Tuner-inner CV MedAE 4.3893 ±
-# 0.9941. n=215. Pinned on ``lrp04_quantile``.
-_LGBM_QUANTILE_PARAMS: dict[str, float | int | str] = {
-    "objective": "quantile",
-    "alpha": 0.5,
-    "n_estimators": 34,
-    "learning_rate": 0.10458326951451853,
-    "num_leaves": 51,
-    "max_depth": 6,
-    "min_child_samples": 5,
-    "subsample": 0.6827636661610719,
-    "subsample_freq": 1,
-    "colsample_bytree": 0.6398102039924611,
-    "reg_alpha": 0.4769333673039903,
-    "reg_lambda": 0.23212454287289272,
-    "n_jobs": -1,
-    "verbosity": -1,
-}
-
-
-# ── primary model (exploratory, MAE-tuned) ──────────────────────────────
 
 
 class LRP04(LevelModel):
     """Expressive-vocabulary level predictors — exploratory (MAE-tuned, all data).
 
-    Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
-    (minus the target ``eowpvt``) with MAE-tuned hyperparameters and
-    no outlier exclusion. The starting point for feature selection
-    on the expressive-vocabulary level-prediction task.
+    Uniform-selected subset of :attr:`Predictors.DEFAULT_LEVEL` (minus the
+    target ``eowpvt``) with MAE-tuned hyperparameters and no outlier
+    exclusion. See the SelectionStep and the module docstring.
     """
 
     model_id = "lrp04"
@@ -183,41 +88,57 @@ class LRP04(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for identifying important predictors of "
-        "expressive-vocabulary level (eowpvt). MAE-tuned on the full "
-        "32-predictor DEFAULT_LEVEL set without outlier exclusion so "
-        "importance rankings reflect the full range of outcomes. "
-        "Feature-selection variants to follow. See "
-        "notes/202604171240-lrp04-feature-selection.md."
+        "Exploratory model for expressive-vocabulary level (eowpvt). Uniform "
+        "feature selection (2026-06-21) from the full 32-predictor "
+        "DEFAULT_LEVEL set to 7 predictors (distance-correlation redundancy "
+        "filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), "
+        "re-tuned on the reduced set (tuner-inner CV MAE 6.050 -> 6.159). "
+        "Treat the reduced ranking as exploratory. See "
+        "notes/202606211200-uniform-gb-fs.md."
     )
 
 
-# ── quantile-objective variant (median prediction) ─────────────────────
+# Same-skill variant: MAE-tuned on the 6-predictor set after dropping
+# b1exto — a bespoke expressive-vocabulary test, the same skill as the
+# standardised target eowpvt. Tuner-inner CV MAE 7.0809 (vs primary 6.159).
+_LGBM_MAE_PARAMS_NOCONSTRUCT: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 130,
+    "learning_rate": 0.017675250240582925,
+    "num_leaves": 44,
+    "max_depth": 7,
+    "min_child_samples": 8,
+    "subsample": 0.9143924972566979,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.6197667976554718,
+    "reg_alpha": 0.0018637589742316375,
+    "reg_lambda": 0.004928294665389766,
+    "n_jobs": -1,
+    "verbosity": -1,
+}
 
 
-class LRP04Quantile(LRP04):
-    """Expressive-vocabulary level — quantile α=0.5 objective.
+class LRP04NoConstruct(LRP04):
+    """eowpvt — same-skill reduced (bespoke expressive-vocab sibling b1exto dropped)."""
 
-    Same 7-predictor final feature set as `LRP04`; trains with
-    LightGBM's ``objective="quantile"`` at ``alpha=0.5`` instead of
-    ``"mae"``. Both objectives converge on the conditional median in
-    theory, but LightGBM's gradient handling differs (pinball-loss
-    gradient magnitudes are ±α / ±(1−α) rather than ``mae``'s uniform
-    ±1). Tests whether the explicit median objective yields a
-    different — possibly tighter — CV MedAE in practice. Mirrors
-    the LRP02 quantile work.
-    """
-
-    model_id = "lrp04_quantile"
+    model_id = "lrp04_noconstruct"
     variant_of = "lrp04"
     description = (
-        "LightGBM — expressive-vocabulary level predictors "
-        "(7 predictors, quantile α=0.5, no outlier exclusion)"
+        "LightGBM — eowpvt predictors "
+        "(6 predictors, same-skill reduced: expressive-vocab sibling dropped)"
     )
-    params = _LGBM_QUANTILE_PARAMS
+    params = _LGBM_MAE_PARAMS_NOCONSTRUCT
+    selection_steps = [
+        SelectionStep(
+            removed=[V.B1EXTO],
+            notes=(
+                "Same-skill variant of lrp04: drops b1exto, a bespoke taught expressive-vocabulary test — the same skill as the target eowpvt (standardised expressive vocabulary), measured by a different instrument — to ask what predicts expressive vocabulary beyond a concurrent same-skill measure. Other constructs (receptive vocabulary, reading, articulation) are kept deliberately, to be seen independently. Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+            ),
+            date="2026-06-21",
+            metrics_before={"cv_mae_mean": 6.1592},
+            metrics_after={"cv_mae_mean": 7.0809},
+        ),
+    ]
     notes = (
-        "Median-objective variant of lrp04. Uses LightGBM's quantile "
-        "loss at α=0.5 — the direct MedAE-minimising objective. "
-        "Hyperparameters tuned specifically for the quantile objective "
-        "via Optuna."
+        "Same-skill variant of lrp04: drops b1exto (bespoke expressive vocabulary, the same skill as the standardised target eowpvt) to ask what predicts expressive vocabulary beyond a concurrent same-skill measure. Other constructs kept visible. Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
     )
