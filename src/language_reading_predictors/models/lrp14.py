@@ -19,9 +19,12 @@ reading targets where zeros are a minority.
 Log or quantile transforms may be more appropriate than a plain
 regression here; plan for a ``lrp14_log`` variant in follow-up PRs.
 
-No feature selection has been run for LRP14 yet — the MAE-tuned
-params below (Optuna 150-trial study) are the starting point for
-later feature-selection variants.
+Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 3 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
+
+No construct-reduced variant: ``nonword``'s remaining predictors are
+*different* reading skills (letter-sound knowledge, phonological awareness,
+spelling), which we keep visible rather than treat as concurrent
+same-skill restatements. See notes/202606210930-lrp-same-skill-variants.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -30,25 +33,40 @@ from language_reading_predictors.models.common import SelectionStep, ShapScatter
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-_SELECTION_STEPS: list[SelectionStep] = []
+_SELECTION_STEPS: list[SelectionStep] = [
+    SelectionStep(
+        removed=[
+            V.SPPHON, V.APTGRAM, V.DEAPPVO, V.B1RETO, V.GENDER, V.HEARING,
+            V.AGEBOOKS, V.VISION, V.AGESPEAK, V.EARINF, V.NUMCHIL, V.AREA, V.TIME,
+            V.BEHAV, V.DADEDUPOST16, V.B1EXTO, V.MUMEDUPOST16, V.GROUP, V.CELF,
+            V.ROWPVT, V.DEAPPFI, V.AGE, V.DEAPPIN, V.YARCSI, V.EOWPVT, V.TROG,
+            V.ERBNW, V.ERBWORD, V.BLENDING
+        ],
+        notes=(
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+        ),
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 0.9136},
+        metrics_after={"cv_mae_mean": 0.7618},
+    ),
+]
 
 
-# MAE-tuned on the full 32-predictor set (DEFAULT_LEVEL minus
-# nonword), no outlier exclusion (Optuna 150 trials, 10-split
-# GroupKFold, seed 47, scoring=mae, lgbm_objective=mae). Tuner-inner
-# CV MAE 0.8696 ± 0.3104. n=215.
+# MAE-tuned on the 3-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 0.7618.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 156,
-    "learning_rate": 0.04173182097406151,
-    "num_leaves": 19,
-    "max_depth": 8,
-    "min_child_samples": 29,
-    "subsample": 0.8875496084128299,
+    "n_estimators": 112,
+    "learning_rate": 0.04472739204117363,
+    "num_leaves": 32,
+    "max_depth": 3,
+    "min_child_samples": 5,
+    "subsample": 0.71049510667404,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6482600725432665,
-    "reg_alpha": 0.0028665242167077703,
-    "reg_lambda": 0.09374915139778504,
+    "colsample_bytree": 0.6226024174727751,
+    "reg_alpha": 3.6677170651291187,
+    "reg_lambda": 0.007696110642370069,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -57,18 +75,16 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRP14(LevelModel):
     """Non-word reading level predictors — baseline (all data, MAE-tuned).
 
-    Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
+    Uses a feature-selected subset of :attr:`Predictors.DEFAULT_LEVEL`
     (minus the target ``nonword``) with MAE-tuned hyperparameters and
-    no outlier exclusion. Serves as the starting point for
-    feature-selection work on the non-word-reading level-prediction
-    task.
+    no outlier exclusion. Feature selection was applied (2026-06-21 uniform); see the SelectionStep and the module docstring.
     """
 
     model_id = "lrp14"
     target_var = V.NONWORD
     description = (
         "LightGBM — non-word reading level predictors "
-        "(32 predictors, MAE-tuned, no outlier exclusion)"
+        "(3 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -79,13 +95,5 @@ class LRP14(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Baseline exploratory model for non-word reading level "
-        "(nonword). Uses the full default level predictor set "
-        "(minus the target) without outlier exclusion, and MAE-tuned "
-        "params from an Optuna 150-trial study — no feature selection "
-        "has been applied yet. Target is heavily floor-loaded (57% at "
-        "zero, skew 1.38) "
-        "— most children have not yet started decoding non-words. "
-        "Log or quantile transforms may be more appropriate in a "
-        "follow-up variant."
+        "Exploratory model for nonword (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 3 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 0.914 -> 0.762). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )
