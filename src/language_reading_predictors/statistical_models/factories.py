@@ -1207,7 +1207,7 @@ def build_factor_model(
 
     if prepared.phase_mode not in {"span", "itt"}:
         raise ValueError(
-            "Factor (between-child) model requires phase_mode='span' "
+            "Factor (between-child) model requires phase_mode in {'span', 'itt'} "
             f"(one row per child); got {prepared.phase_mode!r}"
         )
 
@@ -1287,10 +1287,10 @@ def build_factor_model(
             eta = eta + beta * x_d
 
         if use_language_specific:
-            beta_ls = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                "beta_lang_specific"
-            )
-            eta = eta + beta_ls * s_lang
+            beta_lang_specific = _priors.predictor_slope_prior(
+                predictor_slope_sigma
+            ).to_pymc("beta_lang_specific")
+            eta = eta + beta_lang_specific * s_lang
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _priors.kappa_prior().to_pymc("kappa")
