@@ -26,6 +26,9 @@ predictor" is ambiguous.
 - **Estimand (locked):** the mutually-adjusted **between-child** association of each
   wave-1 baseline with word-reading gain. DAG drawn first (latent general ability
   `g`, drawn not fitted, drives the correlated baselines); see PR #87 / `docs/models/lrp65/dag.svg`.
+  This DAG is a **subset of the shared DAG v5** (`notes/202606221200-shared-dag-v5.md`):
+  age acts *through* `g` (no direct age→skill edges) and the intervention/dose arm
+  is omitted because LRP65 is a between-child predictor model, not ITT.
 - **Design (locked):** genuinely between-child — **one row per child** ($n = 51$; 2 of 53 children dropped for a missing baseline covariate),
   $x$ = T1 baseline levels, $y$ = word reading at the last wave conditioned on
   $W_{\text{T1}}$ (Beta-Binomial, EWRSWR, $N=90$). **No** child random intercept (a

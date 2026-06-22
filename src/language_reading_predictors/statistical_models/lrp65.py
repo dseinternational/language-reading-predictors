@@ -95,11 +95,11 @@ _EDGE_LIST: list[tuple[str, str]] = [
     ("g", "wpre"),
     # SES sits upstream of general ability / the home environment.
     ("ses", "g"),
-    # Developmental level: age drives the T1 skill levels and the baseline.
-    ("age", "ls"),
-    ("age", "lang"),
-    ("age", "blend"),
-    ("age", "wpre"),
+    # Age acts *through* general ability (developmental level), not directly on
+    # the individual skills — the apparent direct age->skill link was an
+    # over-adjustment artefact (shared DAG v5). A direct age->gain edge remains
+    # (younger children gain more, net of baseline).
+    ("age", "g"),
     ("age", "wgain"),
     # The starting skills that carry the gain signal.
     ("ls", "wgain"),
