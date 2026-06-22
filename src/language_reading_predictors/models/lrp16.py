@@ -16,9 +16,7 @@ of the cleanest distributions in the suite. The coarse 0–10
 scale may cap achievable R² (similar to CELF's 0–18 scale in
 LRP10).
 
-No feature selection has been run for LRP16 yet — the MAE-tuned
-params below are the starting point for later feature-selection
-variants.
+Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 2 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -29,34 +27,45 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
-# LRP16 has not yet been through iterative feature selection.
+# Feature selection (2026-06-21 uniform): distance-correlation
+# redundancy filter + importance noise-floor cut; see the SelectionStep.
 
-_SELECTION_STEPS: list[SelectionStep] = []
+_SELECTION_STEPS: list[SelectionStep] = [
+    SelectionStep(
+        removed=[
+            V.B1RETO, V.SPPHON, V.ERBWORD, V.YARCSI, V.B1EXTO, V.GROUP, V.AGE,
+            V.CELF, V.TROG, V.NUMCHIL, V.AGESPEAK, V.APTGRAM, V.VISION, V.TIME,
+            V.EARINF, V.AREA, V.MUMEDUPOST16, V.HEARING, V.DEAPPFI, V.AGEBOOKS,
+            V.BEHAV, V.APTINFO, V.GENDER, V.DADEDUPOST16, V.ERBNW, V.DEAPPVO,
+            V.DEAPPIN, V.NONWORD, V.YARCLET, V.EOWPVT
+        ],
+        notes=(
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+        ),
+        date="2026-06-21",
+        metrics_before={"cv_mae_mean": 1.6942},
+        metrics_after={"cv_mae_mean": 1.7634},
+    ),
+]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the full 32-predictor set (DEFAULT_LEVEL minus blending),
-# no outlier exclusion (Optuna 150 trials, 10-split GroupKFold,
-# seed 47, scoring=mae, lgbm_objective=mae). Tuner-inner CV MAE
-# 1.7000 ± 0.4065. n=215.
-#
-# Tuned CV MAE is slightly *worse* than the 500-tree baseline
-# (1.7000 vs 1.6570) — unusual for this suite, likely because the
-# coarse 0–10 target admits little headroom for a shallower tune
-# to find. See notes/202604182100-lrp15-lrp16-blending-baseline.md.
+# MAE-tuned on the 2-predictor uniform-selected set (Optuna 150
+# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
+# Tuner-inner CV MAE 1.7634.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 104,
-    "learning_rate": 0.023145759415568873,
-    "num_leaves": 34,
-    "max_depth": 4,
-    "min_child_samples": 33,
-    "subsample": 0.610302836120071,
+    "n_estimators": 22,
+    "learning_rate": 0.04124036041929963,
+    "num_leaves": 24,
+    "max_depth": 10,
+    "min_child_samples": 30,
+    "subsample": 0.6144702261058946,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9183475839745446,
-    "reg_alpha": 0.007417570178866872,
-    "reg_lambda": 0.5356836718169591,
+    "colsample_bytree": 0.6370488804588129,
+    "reg_alpha": 0.1825346247915465,
+    "reg_lambda": 0.0010070378924338585,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -68,17 +77,16 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRP16(LevelModel):
     """Phoneme-blending level predictors — baseline (all data, MAE-tuned).
 
-    Uses the full :attr:`Predictors.DEFAULT_LEVEL` predictor set
+    Uses a feature-selected subset of :attr:`Predictors.DEFAULT_LEVEL`
     (minus the target ``blending``) with MAE-tuned hyperparameters
-    and no outlier exclusion. Serves as the starting point for
-    feature-selection work on the blending level-prediction task.
+    and no outlier exclusion. Feature selection was applied (2026-06-21 uniform); see the SelectionStep and the module docstring.
     """
 
     model_id = "lrp16"
     target_var = V.BLENDING
     description = (
         "LightGBM — phoneme-blending level predictors "
-        "(32 predictors, MAE-tuned, no outlier exclusion)"
+        "(2 predictors, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
@@ -89,13 +97,5 @@ class LRP16(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Baseline exploratory model for phoneme-blending level "
-        "(blending). Uses the full default level predictor set "
-        "(minus the target) without outlier exclusion, and MAE-tuned "
-        "params from an Optuna 150-trial study — no feature "
-        "selection has been applied yet. Target is essentially "
-        "symmetric (skew 0.01) on a coarse 0-10 scale; coarse scale "
-        "may cap achievable R² (similar to CELF's 0-18 scale in "
-        "LRP10). MAE-tuned CV is marginally worse than the 500-tree "
-        "baseline here — unusual for this suite."
+        "Exploratory model for blending (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 2 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 1.694 -> 1.763). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )
