@@ -22,7 +22,7 @@ SPEC = ModelSpec(
     model_id="lrp72base",
     kind="mechanism",
     title=(
-        "Phonics route baseline (no interaction): letter-sound (L) + blending (B) "
+        "Code-based route baseline (no interaction): letter-sound (L) + blending (B) "
         "main effects -> decoding (nonword)"
     ),
     outcome_symbol="N",

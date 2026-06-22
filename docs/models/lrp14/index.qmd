@@ -44,8 +44,8 @@ Phonological decoding is a late-emerging skill in this population. Log or
 quantile transforms may be appropriate in follow-up variants.
 
 This is a **baseline exploratory model** for the level-prediction task. It has
-not yet been through iterative feature selection or hyperparameter tuning ---
-it runs on a reasonable `_LGBM_BASELINE_PARAMS` dict and the full
+not yet been through iterative feature selection --- it runs on MAE-tuned
+hyperparameters from an Optuna 150-trial study and the full
 `Predictors.DEFAULT_LEVEL` set (minus the target). Later variants will have a
 documented starting point for comparison.
 

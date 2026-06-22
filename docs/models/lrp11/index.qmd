@@ -44,8 +44,8 @@ The target is **mildly left-skewed** (skew −0.17) with 34% negative and ~8%
 zero observations.
 
 This is a **baseline exploratory model** for the gain-prediction task. It has
-not yet been through iterative feature selection or hyperparameter tuning ---
-it runs on a reasonable `_LGBM_BASELINE_PARAMS` dict and the full
+not yet been through iterative feature selection --- it runs on MAE-tuned
+hyperparameters from an Optuna 150-trial study and the full
 `Predictors.DEFAULT_GAIN` set (`trog` is already a level predictor in that
 set). Later variants will have a documented starting point for comparison.
 
