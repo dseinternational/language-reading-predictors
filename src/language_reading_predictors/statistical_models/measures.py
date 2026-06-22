@@ -11,7 +11,7 @@ used as the binomial denominator.
 ``n_trials`` is the Beta-Binomial denominator, so it scales every
 probability-scale effect; each value is confirmed against a documented test
 ceiling. The standardised measures use their test-manual maxima (e.g.
-YARC-LSK = 32 items, ROWPVT-4 = 190); the two study-specific composites use
+YARC-LSK = 32 items, ROWPVT = 170); the two study-specific composites use
 Burgoyne et al. (2012), Table 3 — word reading (EWR + SWR) = 79 and phonetic
 spelling = 92. ``load_and_prepare`` guards at runtime that no observed count
 exceeds its ceiling.
@@ -43,8 +43,8 @@ MEASURES: dict[str, Measure] = {
     # Reading). Test maximum 79 (Burgoyne et al. 2012, Table 3, "Single-word
     # reading (79)"); observed max 64.
     "W": Measure("W", V.EWRSWR, 79, "Word reading (EWRSWR)", n_trials_confirmed=True),
-    # ROWPVT-4: 190 items. Observed max 82.
-    "R": Measure("R", V.ROWPVT, 190, "Receptive vocabulary (ROWPVT)", n_trials_confirmed=True),
+    # ROWPVT (Brownell 2000): 170 items. Observed max 82.
+    "R": Measure("R", V.ROWPVT, 170, "Receptive vocabulary (ROWPVT)", n_trials_confirmed=True),
     # EOWPVT-4: 170 items. Observed max 77.
     "E": Measure("E", V.EOWPVT, 170, "Expressive vocabulary (EOWPVT)", n_trials_confirmed=True),
     # YARC letter-sound knowledge: 32 items. Observed max 32.
