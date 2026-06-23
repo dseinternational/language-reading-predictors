@@ -172,6 +172,47 @@ def tau_contrast_matrix(
     return pd.DataFrame(M, index=outcomes, columns=outcomes)
 
 
+def tau_difference_summary(
+    trace: xr.DataTree,
+    outcomes: list[str],
+    pair: tuple[str, str],
+    *,
+    hdi_prob: float,
+) -> dict[str, float | str]:
+    """Summarise the difference ``tau[a] - tau[b]`` between two joint outcomes.
+
+    The difference is computed per posterior draw and then summarised, so the
+    reported interval propagates the full joint posterior (including any residual
+    correlation between the two outcomes) rather than combining two marginal
+    summaries. ``pair = (a, b)`` names the contrast ``tau[a] - tau[b]``.
+
+    Sign convention: ``tau`` is the coefficient on ``G = group - 1``, and group 2
+    is the waiting-control arm in the randomised window, so a *negative* ``tau``
+    means the intervention raised that outcome (see
+    ``notes/202604181600-lrp52-58-findings.md``). For the LRP76 generalisation
+    contrast the pair is therefore ``("UE", "TE")``: ``tau_UE - tau_TE`` equals
+    the intervention benefit on taught words minus the benefit on not-taught
+    words, so a *positive* difference means the directly-taught words moved
+    *more* than the not-taught comparison words - i.e. limited generalisation.
+
+    ``_lo`` / ``_hi`` are equal-tailed central quantiles at coverage ``hdi_prob``
+    (same convention as :func:`tau_summary_itt`).
+    """
+    a, b = pair
+    draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
+    ia, ib = outcomes.index(a), outcomes.index(b)
+    diff = draws[ia] - draws[ib]
+    lo_q = (1 - hdi_prob) / 2
+    hi_q = 1 - lo_q
+    return {
+        "contrast": f"{a}_minus_{b}",
+        "diff_logit_mean": float(np.mean(diff)),
+        "diff_logit_lo": float(np.quantile(diff, lo_q)),
+        "diff_logit_hi": float(np.quantile(diff, hi_q)),
+        "prob_diff_pos": float(np.mean(diff > 0)),
+    }
+
+
 def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None) -> None:
     """Persist a ``config.json`` and basic metrics for the report."""
     out = context.output_dir

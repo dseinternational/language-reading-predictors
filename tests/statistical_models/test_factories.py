@@ -26,6 +26,7 @@ from language_reading_predictors.statistical_models.factories import (
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
+    TAUGHT_BLOCK1_OUTCOMES,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
@@ -58,7 +59,7 @@ def _write_synthetic(tmp_path, n_children: int = 25, seed: int = 7):
                 row[V.BLOCKS] = blocks
             if t in (1, 2, 3):
                 row[V.BEHAV] = float(rng.integers(1, 6))
-            for s in ITT_OUTCOMES:
+            for s in (*ITT_OUTCOMES, *TAUGHT_BLOCK1_OUTCOMES):
                 m = MEASURES[s]
                 row[m.column] = int(rng.integers(0, m.n_trials + 1))
             row[V.NONWORD] = int(rng.integers(0, 7))
@@ -89,6 +90,92 @@ def test_itt_factory_builds_with_adjusters(tmp_path):
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=11)
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_taught_block1_measures_registered():
+    """The taught-vocabulary family is defined with honest denominators and kept
+    out of ITT_OUTCOMES (so the eight-outcome joint model stays stable)."""
+    assert TAUGHT_BLOCK1_OUTCOMES == ("TE", "TR", "UE", "UR")
+    assert not set(TAUGHT_BLOCK1_OUTCOMES) & set(ITT_OUTCOMES)
+    assert MEASURES["TE"].n_trials == 24 and MEASURES["TE"].n_trials_confirmed
+    assert MEASURES["TR"].n_trials == 24 and MEASURES["TR"].n_trials_confirmed
+    # Not-taught ceilings are observed-max and flagged unconfirmed.
+    assert MEASURES["UE"].n_trials == 12 and not MEASURES["UE"].n_trials_confirmed
+    assert MEASURES["UR"].n_trials == 12 and not MEASURES["UR"].n_trials_confirmed
+
+
+def test_itt_factory_taught_outcome_with_cross_symbols(tmp_path):
+    """LRP74-style: an ITT outcome outside ITT_OUTCOMES, conditioned only on its
+    own baseline plus a chosen cross-baseline (the matched standardised vocab)."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("TE", "E"))
+    built = build_itt_model(prep, outcome_symbol="TE", cross_symbols=("E",))
+    names = {v.name for v in built.model.free_RVs}
+    assert {"tau", "gamma_own", "gamma_E"}.issubset(names)
+    # Only the requested cross-baseline enters - not all eight ITT baselines.
+    assert "gamma_W" not in names and "gamma_R" not in names
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=12)
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_itt_factory_default_cross_is_all_itt_outcomes(tmp_path):
+    """Regression: with cross_symbols=None (the default), the LRP52-LRP54
+    behaviour of conditioning on every other ITT outcome is preserved."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built = build_itt_model(prep, outcome_symbol="W")  # cross_symbols defaults None
+    names = {v.name for v in built.model.free_RVs}
+    assert {f"gamma_{s}" for s in ITT_OUTCOMES if s != "W"}.issubset(names)
+
+
+def test_itt_factory_rejects_unknown_cross_symbol(tmp_path):
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("TE", "E"))
+    with pytest.raises(KeyError):
+        build_itt_model(prep, outcome_symbol="TE", cross_symbols=("E", "R"))
+
+
+def test_joint_factory_two_outcome_taught_contrast(tmp_path):
+    """LRP76-style: a two-outcome joint model (taught vs not-taught) with the
+    within-child residual correlation block, which is identifiable at K=2."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("TE", "UE"))
+    built = build_joint_model(
+        prep, outcomes=("TE", "UE"), use_residual_correlation=True
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "tau" in names and "u_chol" in names
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=13)
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs * 2
+
+
+def test_tau_difference_summary_contrast():
+    """The taught-minus-not-taught difference parameter is summarised per draw
+    from the joint posterior (unit test on a synthetic trace)."""
+    import xarray as xr
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.reporting import (
+        tau_difference_summary,
+    )
+
+    rng = np.random.default_rng(0)
+    n_draws = 800
+    te = rng.normal(0.8, 0.2, size=(1, n_draws))
+    ue = rng.normal(0.1, 0.2, size=(1, n_draws))
+    tau = xr.DataArray(
+        np.stack([te, ue], axis=-1),
+        dims=("chain", "draw", "outcome"),
+        coords={"outcome": ["TE", "UE"]},
+    )
+    trace = SimpleNamespace(posterior=xr.Dataset({"tau": tau}))
+    s = tau_difference_summary(trace, ["TE", "UE"], ("TE", "UE"), hdi_prob=0.95)
+    assert s["contrast"] == "TE_minus_UE"
+    assert s["diff_logit_mean"] > 0.4
+    assert 0.9 < s["prob_diff_pos"] <= 1.0
+    assert s["diff_logit_lo"] < s["diff_logit_mean"] < s["diff_logit_hi"]
 
 
 def test_joint_factory_builds(tmp_path):

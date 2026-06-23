@@ -202,9 +202,12 @@ def test_lagged_outcome_missing_later_wave_is_nan(tmp_path):
     assert np.isnan(lagged.post_counts["W"]).sum() == 1
 
 
-def test_measure_ceilings_all_confirmed():
-    """#80: every measure's n_trials is a documented ceiling (W=79, P=92)."""
-    assert unconfirmed_ceilings() == []
+def test_measure_ceilings_documented():
+    """#80: ITT-outcome ceilings are documented (W=79, P=92). The only
+    unconfirmed ceilings are the not-taught taught-vocabulary measures (UE/UR),
+    whose item counts are not tabulated in the paper (LRP74-76; pending the data
+    dictionary) — see ``measures.py`` and the LRP74-76 note."""
+    assert set(unconfirmed_ceilings()) == {"UE", "UR"}
     assert MEASURES["W"].n_trials == 79
     assert MEASURES["P"].n_trials == 92
 
