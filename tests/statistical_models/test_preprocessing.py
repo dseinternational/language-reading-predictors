@@ -15,6 +15,7 @@ from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
+    unconfirmed_ceilings,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
@@ -199,3 +200,24 @@ def test_lagged_outcome_missing_later_wave_is_nan(tmp_path):
     df.to_csv(p, index=False)
     lagged = load_and_prepare_lagged_outcome("W", outcome_time=3, path=p)
     assert np.isnan(lagged.post_counts["W"]).sum() == 1
+
+
+def test_measure_ceilings_documented():
+    """#80: ITT-outcome ceilings are documented (W=79, P=92). The only
+    unconfirmed ceilings are the not-taught taught-vocabulary measures (UE/UR),
+    whose item counts are not tabulated in the paper (LRP74-76; pending the data
+    dictionary) — see ``measures.py`` and the LRP74-76 note."""
+    assert set(unconfirmed_ceilings()) == {"UE", "UR"}
+    assert MEASURES["W"].n_trials == 79
+    assert MEASURES["P"].n_trials == 92
+
+
+def test_load_and_prepare_rejects_count_above_ceiling(tmp_path):
+    """#80: a count above n_trials raises a clear error naming the measure."""
+    df = _make_synthetic_long(n_children=10, seed=5)
+    over = MEASURES["W"].n_trials + 5
+    df.loc[df[V.SUBJECT_ID] == "S000", V.EWRSWR] = over
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match=r"ewrswr.*ceiling"):
+        load_and_prepare(path=p, phase_mode="itt")

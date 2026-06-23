@@ -1,0 +1,88 @@
+# Copyright (c) 2026 Down Syndrome Education International and contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""
+LRP24: Predictors of taught-vocabulary achievement level.
+
+``LRP24`` is the exploratory model for *taught* expressive-vocabulary level
+(``b1extau`` — the Block 1 directly-taught expressive vocabulary score). It is
+the taught-vocabulary analogue of :mod:`lrp04` (standardised expressive-vocabulary
+level, ``eowpvt``), completing the gain + achievement-level inventory for taught
+vocabulary.
+
+The target is mildly right-skewed (``b1extau`` min 0, max 19, median 8, mean
+8.16, skewness 0.35, n ≈ 215) — comparable to ``eowpvt`` (skew 0.63), so the
+plain MAE LightGBM pipeline with no outlier exclusion used by LRP04 carries over.
+
+Predictor set: :attr:`Predictors.DEFAULT_LEVEL` (target ``b1extau`` is already
+excluded — it is in ``DEFAULT_EXCLUDED``) **minus** ``b1exto``. The Block 1
+expressive *total* ``b1exto`` equals taught + not-taught (``b1extau + b1exnt``),
+so it contains the target directly and must be removed to avoid leakage — the
+only deviation from the LRP04 predictor set. (LRP04 additionally dropped
+``b1reto`` as redundant with ``rowpvt``; here ``b1reto`` is retained for the
+initial baseline and left to feature selection, since for a *taught*-vocabulary
+target it carries non-tautological receptive-vocabulary signal.)
+
+Status: initial exploratory baseline. Hyperparameters are borrowed from the
+LRP04 standardised analogue; a target-specific Optuna tune
+(``scripts/tune_model.py lrp24``) and iterative feature selection are follow-ups.
+"""
+
+from language_reading_predictors.data_variables import Variables as V
+from language_reading_predictors.models.base_model import LevelModel
+from language_reading_predictors.models.common import ShapScatterSpec
+from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
+
+
+# ── hyperparameter set ───────────────────────────────────────────────────
+#
+# Borrowed from LRP04 (MAE-tuned on eowpvt level) as a starting baseline for the
+# closely-matched taught-vocabulary level target. Retune for this target before
+# any quantitative reporting (scripts/tune_model.py lrp24).
+_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
+    "objective": "mae",
+    "n_estimators": 45,
+    "learning_rate": 0.07573022964806482,
+    "num_leaves": 30,
+    "max_depth": 6,
+    "min_child_samples": 10,
+    "subsample": 0.8737230089192473,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.7169131631393786,
+    "reg_alpha": 0.0022764472298362187,
+    "reg_lambda": 0.003357533830874894,
+    "n_jobs": -1,
+    "verbosity": -1,
+}
+
+
+class LRP24(LevelModel):
+    """Taught expressive-vocabulary level predictors — exploratory (MAE, all data).
+
+    Uses :attr:`Predictors.DEFAULT_LEVEL` (minus the target ``b1extau`` and the
+    tautological total ``b1exto``) with no outlier exclusion. The starting point
+    for feature selection on the taught-vocabulary level-prediction task.
+    """
+
+    model_id = "lrp24"
+    target_var = V.B1EXTAU
+    description = (
+        "LightGBM — taught expressive-vocabulary level predictors "
+        "(DEFAULT_LEVEL minus b1exto, MAE, no outlier exclusion)"
+    )
+    pipeline_cls = LGBMPipeline
+    params = _LGBM_MAE_PARAMS
+    cv_splits = 51
+    outlier_threshold = None
+    exclude = [V.B1EXTO]
+    selection_steps = []
+    shap_scatter_specs = [
+        ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
+    ]
+    notes = (
+        "Exploratory model for predictors of taught expressive-vocabulary level "
+        "(b1extau), the taught-vocabulary analogue of lrp04. b1exto (Block 1 "
+        "expressive total = taught + not-taught) is excluded to avoid target "
+        "leakage. Hyperparameters borrowed from lrp04 pending a target-specific "
+        "tune; feature-selection variants to follow."
+    )

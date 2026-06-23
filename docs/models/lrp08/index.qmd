@@ -43,11 +43,11 @@ or ceiling) — the cleanest target distribution of any LRP model to date.
 Transforms are unnecessary; standard MAE and RMSE objectives should behave
 well.
 
-This is a **baseline exploratory model** for the level-prediction task. It has
-not yet been through iterative feature selection or hyperparameter tuning ---
-it runs on a reasonable `_LGBM_BASELINE_PARAMS` dict and the full
-`Predictors.DEFAULT_LEVEL` set (minus the target). Later variants will have a
-documented starting point for comparison.
+This is an **exploratory model** for the level-prediction task. It runs on
+MAE-tuned hyperparameters from an Optuna 150-trial study, with the
+predictor set reduced from the full `Predictors.DEFAULT_LEVEL` set (minus
+the target) by iterative importance-based feature selection. The retained
+predictors and the removal history are shown below.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
 prevent data leakage across timepoints for the same child.

@@ -83,7 +83,12 @@ class PreparedData:
     phase: np.ndarray
     """Phase index (0 = t1->t2, 1 = t2->t3, 2 = t3->t4). shape (n_obs,)."""
     G: np.ndarray
-    """Group indicator (0 = control arm, 1 = intervention arm). shape (n_obs,)."""
+    """Group indicator. shape (n_obs,). Dataset group 1 (*Initial intervention*,
+    the immediate arm) maps to ``0`` and group 2 (*Wait for intervention*, the
+    waitlist control) maps to ``1`` (see :func:`load_and_prepare`). So a model's
+    group coefficient is on the **waitlist** indicator: e.g. an ITT ``tau < 0``
+    means the immediate-intervention arm scores higher, and ``P(tau > 0)`` is
+    ``P(waitlist higher)``, not ``P(treatment helps)``."""
     A_months: np.ndarray
     """Age in months at the pre-timepoint of each phase. shape (n_obs,)."""
     A_std: np.ndarray
@@ -183,6 +188,11 @@ def load_and_prepare(
     if phase_mode == "itt":
         phase_pairs = [(1, 2)]
     elif phase_mode == "span":
+        if int(post_time) <= 1:
+            raise ValueError(
+                "phase_mode='span' pairs t1 with a later wave, so post_time must "
+                f"be > 1; got {post_time!r}"
+            )
         phase_pairs = [(1, int(post_time))]
     else:
         phase_pairs = [(1, 2), (2, 3), (3, 4)]
@@ -233,7 +243,9 @@ def load_and_prepare(
     subject_ids = merged[V.SUBJECT_ID].to_numpy()
     _, child_idx = np.unique(subject_ids, return_inverse=True)
 
-    # Group: dataset uses 1 = control, 2 = intervention; map to 0/1.
+    # Group: dataset uses 1 = immediate ("Initial intervention"), 2 = waitlist
+    # control ("Wait for intervention"); map to 0/1, so G == 1 is the waitlist
+    # control arm (see the ``G`` field docstring for the tau-sign consequence).
     G = (merged[V.GROUP].to_numpy(dtype=int) - 1).astype(np.int64)
     if not set(np.unique(G)).issubset({0, 1}):
         raise ValueError(
@@ -249,8 +261,23 @@ def load_and_prepare(
     column_map: dict[str, str] = {}
     for s in outcomes:
         m = MEASURES[s]
-        pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
+        pre_raw = merged[f"{m.column}_pre"].to_numpy(dtype=float)
         post_counts[s] = merged[f"{m.column}_post"].to_numpy()  # may contain NaN
+        # Beta-Binomial ceiling guard (#80): a pre/post count above n_trials
+        # would silently produce a NaN/-inf log-likelihood (and an invalid
+        # logit for the pre covariate). Fail loudly, naming the measure.
+        for which, arr in (
+            ("pre", pre_raw),
+            ("post", np.asarray(post_counts[s], dtype=float)),
+        ):
+            finite = arr[np.isfinite(arr)]
+            if finite.size and finite.max() > m.n_trials:
+                raise ValueError(
+                    f"Measure {s!r} ({m.column}_{which}) has value "
+                    f"{finite.max():g} above its n_trials ceiling {m.n_trials}; "
+                    "fix measures.py or check the source data."
+                )
+        pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
         n_trials_dict[s] = m.n_trials
         column_map[s] = m.column
 

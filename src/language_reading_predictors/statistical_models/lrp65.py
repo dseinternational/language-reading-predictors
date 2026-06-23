@@ -40,8 +40,9 @@ So the headline design is genuinely between-child: **one row per child**,
 predictors are each child's **T1** baselines, outcome is the full-study gain
 ``W_t4 | W_t1`` (Beta-Binomial on the EWRSWR count), and there is **no** child
 random intercept. The pooled cross-phase variant (all phases, child random
-intercept) is available behind a flag but answers the within+between question and
-would need the estimand reworded. Settle between-child T1 vs pooled cross-phase
+intercept) is not implemented here (the adjusted-model factory rejects pooled
+data); it would answer the within+between question and need the estimand
+reworded. Settle between-child T1 vs pooled cross-phase
 (and the gain window) at the DAG review, with Frank.
 
 DAG-derived adjustment set
@@ -95,11 +96,11 @@ _EDGE_LIST: list[tuple[str, str]] = [
     ("g", "wpre"),
     # SES sits upstream of general ability / the home environment.
     ("ses", "g"),
-    # Developmental level: age drives the T1 skill levels and the baseline.
-    ("age", "ls"),
-    ("age", "lang"),
-    ("age", "blend"),
-    ("age", "wpre"),
+    # Age acts *through* general ability (developmental level), not directly on
+    # the individual skills — the apparent direct age->skill link was an
+    # over-adjustment artefact (shared DAG v5). A direct age->gain edge remains
+    # (younger children gain more, net of baseline).
+    ("age", "g"),
     ("age", "wgain"),
     # The starting skills that carry the gain signal.
     ("ls", "wgain"),

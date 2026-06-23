@@ -16,7 +16,7 @@ Each pipeline:
 4. Runs prior predictive, posterior sampling (nutpie), LOO, posterior
    predictive.
 5. Saves ``trace.nc``, ``config.json``, ``metrics.json`` and the standard
-   diagnostic plots to ``output/statistical_models/{model_id}-{config}/``.
+   diagnostic plots to ``output/statistical_models/models/{model_id}-{config}/``.
 6. Copies ``docs/models/{model_id}/index.qmd`` alongside the artefacts so
    the Quarto report can be rendered in-place.
 """
@@ -177,9 +177,31 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Optionally restrict to the complete-case subset of some columns *without*
     # adjusting for them (matched comparator, e.g. LRP60a vs LRP60).
     restrict_complete = tuple(spec.extra.get("restrict_complete", ()))
-    prepared = load_and_prepare(
-        phase_mode="itt", covariates=adjust_for, restrict_complete=restrict_complete
-    )
+    # An ITT model whose outcome is outside ``ITT_OUTCOMES`` (e.g. the taught-
+    # vocabulary block measures, LRP74/LRP75) overrides the prepared outcome set
+    # so only the outcome and its chosen cross-baselines are loaded - this keeps
+    # the complete-case mask from dropping rows for the eight standardised
+    # outcomes the model never uses. ``cross_symbols`` selects the cross-baseline
+    # set (default = every other ITT outcome).
+    extra_outcomes = spec.extra.get("outcomes")
+    cross_symbols = spec.extra.get("cross_symbols")
+    if extra_outcomes is not None:
+        extra_outcomes = tuple(extra_outcomes)
+        if spec.outcome_symbol not in extra_outcomes:
+            raise ValueError(
+                f"outcome_symbol {spec.outcome_symbol!r} must be included in "
+                f"outcomes={extra_outcomes!r}"
+            )
+        prepared = load_and_prepare(
+            phase_mode="itt",
+            outcomes=extra_outcomes,
+            covariates=adjust_for,
+            restrict_complete=restrict_complete,
+        )
+    else:
+        prepared = load_and_prepare(
+            phase_mode="itt", covariates=adjust_for, restrict_complete=restrict_complete
+        )
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -194,6 +216,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", True),
         use_varying_tau=spec.extra.get("use_varying_tau", False),
         adjust_for=adjust_for,
+        cross_symbols=cross_symbols,
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -230,7 +253,9 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     tau_s = _report.tau_summary_itt(
         ctx.trace,
         hdi_prob=ctx.reporting.hdi,
-        pre_logit_mean=float(prepared.pre_logit[spec.outcome_symbol].mean()),
+        # built.prepared is the (possibly row-subset) frame the model was fit
+        # on, so G aligns with eta's obs_id axis (finding #2 in issue #78).
+        G=built.prepared.G,
     )
     tau_df = pd.DataFrame([tau_s])
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
@@ -269,7 +294,14 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ctx = make_context(spec, config)
 
     section_header("Prepare data")
-    prepared = load_and_prepare(phase_mode="itt")
+    # A joint model may target an explicit outcome set (e.g. the taught-vs-not-
+    # taught contrast in LRP76); load exactly those so the complete-case mask is
+    # not driven by the eight standardised outcomes. Defaults to ITT_OUTCOMES.
+    joint_outcomes = spec.extra.get("outcomes")
+    if joint_outcomes is not None:
+        prepared = load_and_prepare(phase_mode="itt", outcomes=tuple(joint_outcomes))
+    else:
+        prepared = load_and_prepare(phase_mode="itt")
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -330,7 +362,33 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     contrast.to_csv(os.path.join(ctx.output_dir, "tau_contrast_matrix.csv"))
     ctx.tables["tau_contrast_matrix"] = contrast
 
-    _report.write_run_metadata(ctx, extra={"loo_elpd": float(ctx.loo.elpd)})
+    meta_extra: dict = {"loo_elpd": float(ctx.loo.elpd)}
+
+    # Headline difference parameter for a two-outcome contrast (LRP76: taught vs
+    # not-taught). ``difference = (a, b)`` reports the posterior of tau[a]-tau[b].
+    difference = spec.extra.get("difference")
+    if difference is not None:
+        pair = tuple(difference)
+        section_header("Treatment-effect difference")
+        diff_s = _report.tau_difference_summary(
+            ctx.trace, outcomes, pair, hdi_prob=ctx.reporting.hdi
+        )
+        diff_df = pd.DataFrame([diff_s])
+        diff_df.to_csv(os.path.join(ctx.output_dir, "tau_difference.csv"), index=False)
+        ctx.tables["tau_difference"] = diff_df
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in diff_s.items()],
+                title=(
+                    f"tau[{pair[0]}] - tau[{pair[1]}] "
+                    f"- {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)"
+                ),
+                columns=["metric", "value"],
+            )
+        )
+        meta_extra["tau_difference"] = diff_s
+
+    _report.write_run_metadata(ctx, extra=meta_extra)
 
     section_header("Report")
     _copy_report_template(ctx)
@@ -568,8 +626,6 @@ def _fit_t3_sensitivity(
         confounder_symbols=confounders,
         hdi_prob=ctx.reporting.hdi,
     )
-
-
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
     assert spec.kind == "mediation"
@@ -605,10 +661,13 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     ctx.prepared = built.prepared
 
     # The mediator observed node differs by kind: Beta-Binomial "L_post" vs the
-    # Gaussian composite "M_post"; the coefficient set differs likewise.
+    # Gaussian composite "M_post".
     is_gaussian = mediator_kind == "gaussian_composite"
     mediator_node = "M_post" if is_gaussian else "L_post"
-    coef_vars = _MED_COEF_VARS_GAUSSIAN if is_gaussian else _MED_COEF_VARS
+    # Diagnose every scalar coefficient the model actually built (deterministics
+    # and the observed mediator/outcome nodes are not free RVs), so the list
+    # tracks the fitted confounder set instead of a hand-maintained constant.
+    coef_vars = sorted(rv.name for rv in built.model.free_RVs if rv.ndim == 0)
 
     _render_model_graph(ctx)
 
@@ -630,7 +689,6 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     med_df = _med.decompose(
         ctx.trace,
         med_data,
-        confounder_symbols=confounders,
         hdi_prob=ctx.reporting.hdi,
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
@@ -1083,7 +1141,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "predictor_slope_sigma": sigma0,
             "prior_sensitivity_sigmas": prior_sens,
             "language_composite_symbols": list(lang_symbols),
-            "n_children": int(prepared.n_children),
+            "n_children": int(ctx.prepared.n_children),
             "ses_n_children": ses_n,
             "associations": rows,
             "predicted_gain_words": words_df.to_dict("records"),

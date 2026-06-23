@@ -23,40 +23,69 @@ def tau_summary_itt(
     trace: xr.DataTree,
     *,
     hdi_prob: float,
-    pre_logit_mean: float,
+    G: np.ndarray,
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
 
-    The probability-scale marginal effect is computed per posterior draw —
-    ``expit(α + γ_own · ȳ_pre + τ) − expit(α + γ_own · ȳ_pre)`` — so the
-    summary represents the posterior distribution of the marginal effect
-    at the sample-mean baseline, not a plug-in of posterior means into a
-    non-linear transform. ``ȳ_pre`` is the data-side scalar baseline
-    averaged over observations.
+    Logit scale: the posterior summary of ``tau`` directly.
+
+    Probability scale: the **average marginal effect** of randomised
+    assignment over the fitted sample. For every posterior draw and every
+    observation ``i`` we form the counterfactual baseline linear predictor
+    ``η0_i = η_i − δ_i · G_i`` from the model's stored per-observation ``eta``
+    (the treatment contribution removed; ``δ_i`` is ``tau`` for a constant
+    effect, or ``tau_i`` when the effect varies with age), then average
+    ``expit(η0_i + δ_i) − expit(η0_i)`` over observations. Each observation's
+    effect is therefore evaluated at its *actual* covariate profile —
+    including the cross-baseline, adjuster and GP terms carried in ``eta`` —
+    rather than at a single constructed baseline point, and the average is
+    taken per draw so the posterior uncertainty of the marginal effect is
+    preserved.
+
+    ``G`` is the per-observation treatment indicator from the *fitted* prepared
+    data (``built.prepared.G``), aligned with ``eta``'s ``obs_id`` axis.
 
     ``hdi_prob`` names the *coverage* probability — the returned ``_lo`` /
     ``_hi`` values are equal-tailed central quantiles, not highest-density
     intervals. For ArviZ-style HDI use :func:`arviz.hdi` directly.
     """
     posterior = trace.posterior
-    tau_draws = posterior["tau"].stack(sample=("chain", "draw")).values
-    alpha_draws = posterior["alpha"].stack(sample=("chain", "draw")).values
-    gamma_own_draws = posterior["gamma_own"].stack(sample=("chain", "draw")).values
+    tau_draws = posterior["tau"].stack(sample=("chain", "draw")).values  # (S,)
+    eta = (
+        posterior["eta"]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
 
+    G = np.asarray(G, dtype=float)
+    if G.shape[0] != eta.shape[0]:
+        raise ValueError(
+            f"G has {G.shape[0]} rows but eta has {eta.shape[0]} observations; "
+            "pass built.prepared.G (aligned with the fitted subset)."
+        )
+
+    # Per-observation treatment contribution δ_i: age-varying tau_i if the
+    # model has it, otherwise the constant tau broadcast over observations.
+    if "tau_i" in posterior:
+        delta = (
+            posterior["tau_i"]
+            .stack(sample=("chain", "draw"))
+            .transpose("obs_id", "sample")
+            .values
+        )  # (n_obs, S)
+    else:
+        delta = tau_draws[None, :]  # (1, S)
+
+    eta0 = eta - delta * G[:, None]  # baseline (G=0) linear predictor per obs, per draw
+    # Average marginal effect over observations, per draw.
+    marginal = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
+
+    lo_q, hi_q = (1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2
     tau_mean = float(np.mean(tau_draws))
-    lower, upper = np.quantile(
-        tau_draws, [(1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2]
-    )
-
-    # Per-draw marginal effect, then summarise. Plug-in summaries
-    # (mean of α, γ_own then expit) understate posterior uncertainty
-    # for skewed marginals on the probability scale.
-    baseline_eta = alpha_draws + gamma_own_draws * pre_logit_mean
-    marginal = expit(baseline_eta + tau_draws) - expit(baseline_eta)
+    lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
     marg_mean = float(np.mean(marginal))
-    marg_lo, marg_hi = np.quantile(
-        marginal, [(1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2]
-    )
+    marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
     prob_pos = float(np.mean(tau_draws > 0))
 
     return {
@@ -141,6 +170,47 @@ def tau_contrast_matrix(
             else:
                 M[i, j] = float(np.mean(draws[i] > draws[j]))
     return pd.DataFrame(M, index=outcomes, columns=outcomes)
+
+
+def tau_difference_summary(
+    trace: xr.DataTree,
+    outcomes: list[str],
+    pair: tuple[str, str],
+    *,
+    hdi_prob: float,
+) -> dict[str, float | str]:
+    """Summarise the difference ``tau[a] - tau[b]`` between two joint outcomes.
+
+    The difference is computed per posterior draw and then summarised, so the
+    reported interval propagates the full joint posterior (including any residual
+    correlation between the two outcomes) rather than combining two marginal
+    summaries. ``pair = (a, b)`` names the contrast ``tau[a] - tau[b]``.
+
+    Sign convention: ``tau`` is the coefficient on ``G = group - 1``, and group 2
+    is the waiting-control arm in the randomised window, so a *negative* ``tau``
+    means the intervention raised that outcome (see
+    ``notes/202604181600-lrp52-58-findings.md``). For the LRP76 generalisation
+    contrast the pair is therefore ``("UE", "TE")``: ``tau_UE - tau_TE`` equals
+    the intervention benefit on taught words minus the benefit on not-taught
+    words, so a *positive* difference means the directly-taught words moved
+    *more* than the not-taught comparison words - i.e. limited generalisation.
+
+    ``_lo`` / ``_hi`` are equal-tailed central quantiles at coverage ``hdi_prob``
+    (same convention as :func:`tau_summary_itt`).
+    """
+    a, b = pair
+    draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
+    ia, ib = outcomes.index(a), outcomes.index(b)
+    diff = draws[ia] - draws[ib]
+    lo_q = (1 - hdi_prob) / 2
+    hi_q = 1 - lo_q
+    return {
+        "contrast": f"{a}_minus_{b}",
+        "diff_logit_mean": float(np.mean(diff)),
+        "diff_logit_lo": float(np.quantile(diff, lo_q)),
+        "diff_logit_hi": float(np.quantile(diff, hi_q)),
+        "prob_diff_pos": float(np.mean(diff > 0)),
+    }
 
 
 def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None) -> None:
