@@ -11,7 +11,7 @@ dependencies:
   - graphviz>=14.1.2
   - lightgbm>=4.6.0
   - numba>=0.65.1
-  - numpy>=2.4.6
+  - numpy>=2.5.0
   - nutpie>=0.16.10
   - optuna>=4.9.0
   - optuna-integration[lightgbm,shap,scikit-learn,xgboost]
@@ -33,10 +33,10 @@ dependencies:
       - jupytext
       - matplotlib>=3.11.0
       - networkx
-      - notebook>=7.5.7
+      - notebook>=7.6.0
       - orjson>=3.11.9
       - preliz>=0.27.0
-      - pytest>=9.1.0
+      - pytest>=9.1.1
       - rich>=15.0.0
       - ruff>=0.15.18
       - scipy-stubs
