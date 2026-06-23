@@ -728,8 +728,13 @@ def build_dose_response_model(
 ) -> BuiltModel:
     """Period-resolved dose-response on the outcome post-score (#104 Phase 2).
 
+    Outcome-generic: the target is ``outcome_symbol`` (default ``"W"``, word
+    reading — its lead use in LRP77; reused for letter sounds ``"L"`` in LRP86)
+    and the autoregressive baseline is ``adjust_baseline_symbol`` (default the
+    same measure).
+
     Estimand: how the intervention **dose** (per-period sessions attended)
-    relates to word-reading **conditional change** — the outcome post-count
+    relates to the outcome's **conditional change** — the outcome post-count
     modelled Beta-Binomial conditional on its own baseline logit — and whether
     that dose-gain slope **varies by period**.
 
@@ -738,7 +743,7 @@ def build_dose_response_model(
 
         eta = alpha + alpha_phase[p]
             + beta_G * G                      # arm (G=1 = waitlist control)
-            + gamma_own * logit(W_pre)        # autoregression / RTM
+            + gamma_own * logit(outcome_pre)  # autoregression / RTM
             + gamma_A * z(age)                # maturation precision covariate
             + u_child[child]                  # subject random intercept
             + dose_term                       # the estimand (see below)
@@ -753,8 +758,9 @@ def build_dose_response_model(
     per-period dose.
 
     Causal note (DAG v5): for the dose -> outcome edge, ``G`` (intervention arm)
-    is the sole backdoor confounder; ``W_pre`` is the regression-to-the-mean
-    baseline and ``age`` a precision covariate. The full sample (including the
+    is the sole backdoor confounder; the outcome's own baseline is the
+    regression-to-the-mean control and ``age`` a precision covariate. The full
+    sample (including the
     waitlist controls' zero-dose period-1 rows) anchors the slope at dose = 0.
     The model assumes **no ability -> dose** edge; ``ability_adjust_symbols``
     (the sensitivity fit) conditions on the baseline-skill cluster to probe it.
