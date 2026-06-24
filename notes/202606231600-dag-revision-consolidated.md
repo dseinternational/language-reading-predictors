@@ -60,10 +60,10 @@ RG -> EG
 | `RV` / `EV` | Standardised receptive / expressive vocabulary (rowpvt / eowpvt) | transfer measures |
 | `RW` | Word + nonword repetition (erbto) — phonological memory | capacity |
 | `LF` | Language fundamentals (CELF basic concepts) | |
-| `RG` / `EG` | Receptive / expressive grammar (TROG / APT-grammar) | |
-| `EI` | Expressive information (APT-information) | |
-| `SP` | Speech production / articulation (DEAP, deapp_c) | outcome (sink) |
-| `LS` | Letter–sound knowledge | direct teaching target |
+| `RG` / `EG` | Receptive / expressive grammar (trog / aptgram) | |
+| `EI` | Expressive information (aptinfo) | |
+| `SP` | Speech production / articulation (deapp_c) | outcome (sink) |
+| `LS` | Letter–sound knowledge (yarclet) | direct teaching target |
 | `PA` | Phonological awareness / blending | direct teaching target |
 | `NW` | Nonword reading (decoding) | |
 | `PS` | Phonetic spelling | |

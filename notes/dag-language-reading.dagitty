@@ -6,6 +6,27 @@
 // GA latent (general ability, age-residualised); IG randomised exposure;
 // WR outcome. Verified acyclic (19 nodes). Roots: A, GA, IG.
 // ITT IG->WR identified by the empty adjustment set.
+//
+// Node definitions (symbol - construct (measure)):
+//   A  - Age
+//   GA - General Ability [latent]
+//   IG - Intervention Group [exposure]
+//   IS - Intervention Sessions (attend)
+//   RV - Receptive Vocabulary (rowpvt)
+//   EV - Expressive Vocabulary (eowpvt)
+//   LF - Language Fundamentals
+//   RG - Receptive Grammar (trog)
+//   RW - Word Repetition (word+nonword: erbto)
+//   EI - Expressive Information (aptinfo)
+//   EG - Expressive Grammar (aptgram)
+//   SP - Speech Production (deapp_c)
+//   LS - Letter Sound Knowledge (yarclet)
+//   NW - Non-word Reading
+//   PA - Phonological Awareness / 'blending'
+//   PS - Phonetic Spelling
+//   WR - Word Reading [outcome]
+//   TE - Taught Expressive (b1/b2, as available)
+//   TR - Taught Receptive (b1/b2, as available)
 
 dag {
 GA [latent]
