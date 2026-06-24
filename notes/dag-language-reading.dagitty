@@ -1,16 +1,21 @@
-// Language & reading causal DAG — Down Syndrome Education International
+// Language & reading causal BASE DAG — Down Syndrome Education International
 // LOCKED 2026-06-23. See notes/202606231600-dag-revision-consolidated.md for the
 // full deliberation, cautions, and identification implications.
 // Paste into https://www.dagitty.net/dags.html to render/inspect.
 //
-// GA latent (general ability, age-residualised); IG randomised exposure;
-// WR outcome. Verified acyclic (19 nodes). Roots: A, GA, IG.
-// ITT IG->WR identified by the empty adjustment set.
+// AUTHORITATIVE BASE graph: encodes causal STRUCTURE only. Exposure / outcome
+// roles are NOT fixed here — they are assigned per analysis (e.g. ITT: IG
+// exposure, WR outcome; mechanism: a skill exposure, WR outcome; dose-response:
+// IS exposure, WR outcome; mediation: IG exposure with a skill mediator). Only
+// GA [latent] is annotated, because being unobserved is a structural property,
+// not an analysis-specific role.
+//
+// Verified acyclic (19 nodes). Roots: A, GA, IG.
 //
 // Node definitions (symbol - construct (measure)):
 //   A  - Age
 //   GA - General Ability [latent]
-//   IG - Intervention Group [exposure]
+//   IG - Intervention Group (randomised)
 //   IS - Intervention Sessions (attend)
 //   RV - Receptive Vocabulary (rowpvt)
 //   EV - Expressive Vocabulary (eowpvt)
@@ -24,14 +29,12 @@
 //   NW - Non-word Reading
 //   PA - Phonological Awareness / 'blending'
 //   PS - Phonetic Spelling
-//   WR - Word Reading [outcome]
+//   WR - Word Reading
 //   TE - Taught Expressive (b1/b2, as available)
 //   TR - Taught Receptive (b1/b2, as available)
 
 dag {
 GA [latent]
-IG [exposure]
-WR [outcome]
 A  -> { IS TR TE PA LS WR PS RV EV LF RG RW EI EG SP NW }
 GA -> { IS TR TE PA LS WR PS RV EV LF RG RW EI EG SP NW }
 IG -> { IS TR TE PA LS WR PS EI EG }

@@ -26,11 +26,16 @@ Machine-readable copy (paste into dagitty.net): [`notes/dag-language-reading.dag
 
 ## The locked DAG
 
+This is the **authoritative base graph** — it encodes causal **structure only**.
+Exposure / outcome roles are **not** fixed here; they are assigned per analysis (ITT:
+`IG` exposure, `WR` outcome; mechanism: a skill exposure, `WR` outcome; dose-response:
+`IS` exposure, `WR` outcome; mediation: `IG` exposure with a skill mediator). Only
+`GA [latent]` is annotated, because being unobserved is a structural property, not an
+analysis-specific role.
+
 ```
 dag {
 GA [latent]
-IG [exposure]
-WR [outcome]
 A  -> { IS TR TE PA LS WR PS RV EV LF RG RW EI EG SP NW }
 GA -> { IS TR TE PA LS WR PS RV EV LF RG RW EI EG SP NW }
 IG -> { IS TR TE PA LS WR PS EI EG }
@@ -54,7 +59,7 @@ RG -> EG
 |---|---|---|
 | `A` | Age | observed root (maturation + cumulative exposure) |
 | `GA` | General ability | **latent** root (age-residualised) |
-| `IG` | Intervention group | randomised **exposure** (root) |
+| `IG` | Intervention group | randomised assignment (root); ITT exposure |
 | `IS` | Intervention sessions / attendance ("attend") | dose |
 | `TR` / `TE` | Taught receptive / expressive vocabulary (LRP74–76) | direct teaching targets |
 | `RV` / `EV` | Standardised receptive / expressive vocabulary (rowpvt / eowpvt) | transfer measures |
@@ -67,7 +72,7 @@ RG -> EG
 | `PA` | Phonological awareness / blending | direct teaching target |
 | `NW` | Nonword reading (decoding) | |
 | `PS` | Phonetic spelling | |
-| `WR` | Word reading | **outcome** |
+| `WR` | Word reading | primary outcome (most analyses) |
 
 ### Verified structure (networkx; `output/replication/scratch/dag_v3_check.py`)
 
