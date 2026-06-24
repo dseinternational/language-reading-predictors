@@ -1,0 +1,28 @@
+// Language & reading causal DAG — Down Syndrome Education International
+// LOCKED 2026-06-23. See notes/202606231600-dag-revision-consolidated.md for the
+// full deliberation, cautions, and identification implications.
+// Paste into https://www.dagitty.net/dags.html to render/inspect.
+//
+// GA latent (general ability, age-residualised); IG randomised exposure;
+// WR outcome. Verified acyclic (19 nodes). Roots: A, GA, IG.
+// ITT IG->WR identified by the empty adjustment set.
+
+dag {
+GA [latent]
+IG [exposure]
+WR [outcome]
+A  -> { IS TR TE PA LS WR PS RV EV LF RG RW EI EG SP NW }
+GA -> { IS TR TE PA LS WR PS RV EV LF RG RW EI EG SP NW }
+IG -> { IS TR TE PA LS WR PS EI EG }
+IS -> { TR TE PA LS WR PS EI EG }
+TR -> { TE RV EV LF RG WR }
+TE -> { EV EG EI PA SP }
+RW -> EV
+RV -> { EV LF RG WR }
+EV -> { EG EI PA SP }
+LS -> { NW PA PS WR }
+NW -> WR
+PA -> { NW WR PS }
+PS -> { WR }
+RG -> EG
+}
