@@ -197,3 +197,8 @@ Wagenmakers
 noconstruct
 waitlist
 LOSO
+LRPITT
+PYTHONPATH
+worktree
+worktrees
+hyperparams
