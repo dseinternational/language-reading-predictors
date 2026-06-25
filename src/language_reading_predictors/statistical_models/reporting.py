@@ -208,6 +208,61 @@ def proportion_at_zero_ppc(
     }
 
 
+def did_summary(
+    trace: xr.DataTree,
+    *,
+    hdi_prob: float,
+    n_trials: int,
+    dose: bool = False,
+) -> dict[str, float]:
+    """Summarise the waitlist-crossover / difference-in-differences effect (kind="did").
+
+    For the binary model ``delta`` is the treatment effect on the logit scale, and
+    ``delta_items_*`` is the average marginal effect of toggling ``Treated`` 0 -> 1
+    across the fitted rows (per draw), times ``n_trials`` — directly comparable to
+    the ITT ``tau_summary_itt`` items figures. ``beta_period`` is the period
+    (time / maturation) anchor estimated from the immediate arm. Equal-tailed
+    central intervals at coverage ``hdi_prob``. With ``dose=True`` the key
+    coefficient is ``beta_dose`` (effect per 1 SD of intervention sessions) and no
+    items translation is produced.
+    """
+    posterior = trace.posterior
+    lo_q = (1 - hdi_prob) / 2
+    hi_q = 1 - lo_q
+
+    def _summ(name: str) -> dict[str, float]:
+        d = posterior[name].stack(sample=("chain", "draw")).values
+        return {
+            f"{name}_mean": float(np.mean(d)),
+            f"{name}_lo": float(np.quantile(d, lo_q)),
+            f"{name}_hi": float(np.quantile(d, hi_q)),
+            f"prob_{name}_pos": float(np.mean(d > 0)),
+        }
+
+    out: dict[str, float] = {}
+    out.update(_summ("beta_period"))
+    if dose:
+        out.update(_summ("beta_dose"))
+        return out
+
+    out.update(_summ("delta"))
+    # Items-scale average marginal effect: toggle Treated 0 -> 1 per fitted row.
+    delta = posterior["delta"].stack(sample=("chain", "draw")).values  # (S,)
+    eta_base = (
+        posterior["eta_base"]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
+    from scipy.special import expit  # local import
+
+    eff = (expit(eta_base + delta[None, :]) - expit(eta_base)).mean(axis=0) * n_trials
+    out["delta_items_mean"] = float(np.mean(eff))
+    out["delta_items_lo"] = float(np.quantile(eff, lo_q))
+    out["delta_items_hi"] = float(np.quantile(eff, hi_q))
+    return out
+
+
 def tau_summary_joint(
     trace: xr.DataTree,
     outcomes: list[str],

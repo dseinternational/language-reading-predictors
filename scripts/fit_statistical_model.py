@@ -64,6 +64,12 @@ from language_reading_predictors.statistical_models import (
     lrpitt22,
     lrpitt23,
     lrpitt24,
+    lrpdid01,
+    lrpdid02,
+    lrpdid03,
+    lrpdid04,
+    lrpdid05,
+    lrpdid06,
 )
 
 
@@ -114,6 +120,18 @@ MODELS = {
     "lrpitt22": lrpitt22,  # E  expressive-vocab  (base lrpitt06)
     "lrpitt23": lrpitt23,  # L  letter-sounds     (base lrpitt07)
     "lrpitt24": lrpitt24,  # W  word-reading      (base lrpitt10)
+    # LRPDID01-06: waitlist-crossover / difference-in-differences family (new
+    # 'did' kind). Within-person replication of the randomised ITT effect using
+    # the waitlist arm's P1 (untreated) vs P2 (crossover) periods, each child its
+    # own control, the immediate arm anchoring the time trend. Beta-Binomial logit
+    # so the ceiling is respected. 01 W, 02 L, 03 B, 04 TE, 05 R; 06 = W
+    # dose-response (sessions) sensitivity variant of 01.
+    "lrpdid01": lrpdid01,  # W  word-reading      (vs lrpitt10)
+    "lrpdid02": lrpdid02,  # L  letter-sounds     (vs lrpitt07)
+    "lrpdid03": lrpdid03,  # B  blending          (vs lrpitt08)
+    "lrpdid04": lrpdid04,  # TE taught-expressive (vs lrpitt02)
+    "lrpdid05": lrpdid05,  # R  receptive-vocab   (vs lrpitt05)
+    "lrpdid06": lrpdid06,  # W  dose-response     (variant of lrpdid01)
     "lrp56": lrp56,
     "lrp57": lrp57,
     "lrp58": lrp58,

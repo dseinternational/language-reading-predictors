@@ -6,6 +6,7 @@ End-to-end fit pipeline for the statistical models.
 
 ``fit_itt(spec, config)`` is the entry point for the ITT models.
 ``fit_joint(spec, config)`` is the entry point for the joint models (LRPITT12, LRPITT15/15b).
+``fit_did(spec, config)`` is the entry point for the waitlist-crossover / DiD models.
 ``fit_mechanism(spec, config)`` is the entry point for LRP56/57/58.
 
 Each pipeline:
@@ -639,6 +640,112 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         meta_extra["tau_difference"] = diff_s
 
     _report.write_run_metadata(ctx, extra=meta_extra)
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# Waitlist-crossover / difference-in-differences pipeline (kind="did")
+# ---------------------------------------------------------------------------
+
+
+def _did_diag_vars(spec: ModelSpec) -> list[str]:
+    """Scalar coefficients to summarise for a crossover/DiD fit, given the spec."""
+    dose = bool(spec.extra.get("dose", False))
+    v = ["alpha", "beta_period", "beta_dose" if dose else "delta", "gamma_own", "kappa"]
+    if spec.extra.get("use_age", True):
+        v.append("gamma_A")
+    if spec.extra.get("use_child_re", True):
+        v.append("sigma_child")
+    return v
+
+
+def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    assert spec.kind == "did"
+    assert spec.outcome_symbol is not None
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    sym = spec.outcome_symbol
+    dose = bool(spec.extra.get("dose", False))
+    # Phase-stacked frame; load only this outcome so the complete-case mask does
+    # not drop rows for measures the model never uses. The dose variant also needs
+    # the per-period intervention-session count.
+    outcomes = tuple(spec.extra.get("outcomes", (sym,)))
+    covariates = ("attend",) if dose else ()
+    prepared = load_and_prepare(
+        phase_mode="all", outcomes=outcomes, covariates=covariates
+    )
+    ctx.prepared = prepared
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_did_model(
+        prepared,
+        outcome_symbol=sym,
+        periods=tuple(spec.extra.get("periods", (0, 1))),
+        use_child_re=spec.extra.get("use_child_re", True),
+        use_age=spec.extra.get("use_age", True),
+        dose=dose,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=_did_diag_vars(spec))
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Crossover / DiD treatment-effect summary")
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    did_s = _report.did_summary(
+        ctx.trace,
+        hdi_prob=ctx.reporting.hdi,
+        n_trials=MEASURES[sym].n_trials,
+        dose=dose,
+    )
+    did_df = pd.DataFrame([did_s])
+    did_df.to_csv(os.path.join(ctx.output_dir, "did_summary.csv"), index=False)
+    ctx.tables["did_summary"] = did_df
+    print_table(
+        metrics_table(
+            [{"metric": k, "value": v} for k, v in did_s.items()],
+            title=(
+                f"crossover/DiD effect ({sym}) - {int(ctx.reporting.hdi * 100)}% CI "
+                "(equal-tailed); positive = intervention helps"
+            ),
+            columns=["metric", "value"],
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={"loo_elpd": float(ctx.loo.elpd), "did_summary": did_s, "dose": dose},
+    )
 
     section_header("Report")
     _copy_report_template(ctx)

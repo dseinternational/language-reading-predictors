@@ -856,6 +856,144 @@ def build_mechanism_model(
 
 
 # ---------------------------------------------------------------------------
+# Waitlist-crossover / difference-in-differences factory (kind="did")
+# ---------------------------------------------------------------------------
+
+
+def build_did_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str,
+    periods: Iterable[int] = (0, 1),
+    use_child_re: bool = True,
+    use_age: bool = True,
+    dose: bool = False,
+) -> BuiltModel:
+    """Waitlist-crossover / difference-in-differences model for one outcome.
+
+    Stacks the early phase transitions (P1 = t1->t2, P2 = t2->t3) for **both**
+    arms and asks whether being *currently treated* lifts the period gain, with
+    each child as their own control (a child random intercept). Under the trial's
+    waitlist design the only **untreated** cell is the waitlist arm in P1; the
+    immediate arm is treated in both periods and so anchors the period
+    (time / maturation) trend. The treatment coefficient ``delta`` is therefore a
+    difference-in-differences estimate of the ITT effect, identified jointly by
+    the period-1 between-arm contrast and the waitlist's own P1->P2 crossover.
+
+    Requires ``prepared.phase_mode == "all"`` (the phase-stacked frame). Built on
+    the same Beta-Binomial-on-logit / ANCOVA convention as the ITT suite, so the
+    logit link absorbs ceiling effects: an immediate-arm child near the top of a
+    bounded test makes a small P2 gain *expected*, not a spurious negative trend
+    (the failure mode of a raw-gain difference-in-differences).
+
+    Linear predictor (binary, ``dose=False``):
+
+        eta_{i,p} = alpha + beta_period * [p == P2]
+                  + delta * Treated_{i,p}
+                  + gamma_own * logit(pre_{i,p})
+                  [ + gamma_A * A_std_{i,p}    if use_age ]
+                  [ + u_child_i                if use_child_re ]
+
+    where ``Treated_{i,p} = 1`` when child *i* is receiving the intervention in
+    period *p* (immediate: both periods; waitlist: P2 only). With ``dose=True`` the
+    binary ``delta * Treated`` is replaced by ``beta_dose * z(attend)`` (the
+    standardised intervention-session count for that period) — a dose-response
+    sensitivity; the caller must have loaded ``covariates=("attend",)``.
+
+    Parameters
+    ----------
+    periods
+        Phase indices to keep (default ``(0, 1)`` = P1, P2). ``beta_period`` is
+        the P2-vs-P1 contrast.
+    use_child_re
+        Add the non-centred child random intercept (the own-control). Default True.
+    use_age
+        Add a linear standardised-age precision term. Default True.
+    dose
+        Use the standardised session count as a continuous treatment intensity
+        instead of the binary treated indicator.
+    """
+    if prepared.phase_mode != "all":
+        raise ValueError("build_did_model requires phase_mode='all'")
+    own = outcome_symbol
+    if own not in prepared.post_counts or own not in prepared.pre_logit:
+        raise KeyError(f"Outcome {own!r} missing pre/post in prepared data")
+    periods = tuple(int(p) for p in periods)
+    if dose and "attend" not in prepared.covariates:
+        raise KeyError("dose=True requires the 'attend' covariate to be loaded")
+
+    post = prepared.post_counts[own]
+    keep = np.isin(prepared.phase, periods) & ~np.isnan(post)
+    if dose:
+        keep = keep & np.isfinite(prepared.covariates["attend"])
+    prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[own].astype(np.int64)
+    pre_logit = prepared.pre_logit[own]
+    # P2 indicator (time); Treated indicator (immediate both periods, waitlist P2).
+    is_p2 = (prepared.phase >= 1).astype(float)
+    treated = ((prepared.G == 1) | (prepared.phase >= 1)).astype(float)
+    n_trials = prepared.n_trials[own]
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "child": np.arange(prepared.n_children),
+    }
+    with pm.Model(coords=coords) as model:
+        period_d = pm.Data("period", is_p2, dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", pre_logit, dims="obs_id")
+
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        beta_period = _priors.tau_prior().to_pymc("beta_period")
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+
+        eta = alpha + beta_period * period_d + gamma_own * own_pre_d
+
+        if use_age:
+            A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
+            eta = eta + gamma_A * A_std_d
+
+        if use_child_re:
+            sigma_child = pm.HalfNormal("sigma_child", sigma=0.5)
+            u_child = pm.Deterministic(
+                "u_child",
+                sigma_child * pm.Normal("u_child_raw", 0.0, 1.0, dims="child"),
+                dims="child",
+            )
+            child_idx_d = pm.Data(
+                "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+            )
+            eta = eta + u_child[child_idx_d]
+
+        # Linear predictor without the treatment term, so the pipeline can read
+        # the off-treatment baseline for the average-marginal-effect translation.
+        eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
+
+        if dose:
+            z_attend = pm.Data("z_attend", prepared.covariates["attend"], dims="obs_id")
+            beta_dose = _priors.tau_prior().to_pymc("beta_dose")
+            eta_full = eta_base + beta_dose * z_attend
+        else:
+            treated_d = pm.Data("treated", treated, dims="obs_id")
+            delta = _priors.tau_prior().to_pymc("delta")
+            eta_full = eta_base + delta * treated_d
+
+        eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
+        kappa = _scalar_prior("kappa", _priors.kappa_prior)
+        beta_binomial_from_logit(
+            "y_post",
+            eta_full,
+            n_trials=n_trials,
+            kappa=kappa,
+            observed=post,
+            dims="obs_id",
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
 # LRP59: mediation factory (joint mediator + outcome, ITT phase)
 # ---------------------------------------------------------------------------
 

@@ -17,6 +17,7 @@ import pytest
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.factories import (
+    build_did_model,
     build_itt_model,
     build_joint_model,
     build_mechanism_model,
@@ -557,3 +558,47 @@ def test_mediation_factory_custom_confounder_set(tmp_path):
     assert not {"b_R", "a_R"} & names
     assert med.confounder_symbols == ("E",)
     assert set(med.conf_logit) == {"E"}
+
+
+# ---------------------------------------------------------------------------
+# Waitlist-crossover / difference-in-differences factory (kind="did")
+# ---------------------------------------------------------------------------
+
+
+def test_did_factory_builds(tmp_path):
+    """Default DiD build: child RE + period anchor + binary treated indicator."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    built = build_did_model(prep, outcome_symbol="W")
+    names = {v.name for v in built.model.free_RVs}
+    assert {"alpha", "beta_period", "delta", "gamma_own", "gamma_A", "kappa",
+            "sigma_child"}.issubset(names)
+    assert "eta_base" in {v.name for v in built.model.deterministics}
+    # Only P1/P2 are kept; phase 2 (t3->t4) is dropped.
+    assert set(np.unique(built.prepared.phase)).issubset({0, 1})
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=31)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_did_factory_toggles_and_dose(tmp_path):
+    """Toggling off child RE and age drops their RVs; dose swaps delta -> beta_dose."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    base = build_did_model(prep, outcome_symbol="W", use_child_re=False, use_age=False)
+    bnames = {v.name for v in base.model.free_RVs}
+    assert "delta" in bnames
+    assert "sigma_child" not in bnames and "gamma_A" not in bnames
+
+    # Dose variant needs an 'attend' covariate; inject a synthetic standardised one.
+    prep.covariates["attend"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    dosed = build_did_model(prep, outcome_symbol="W", dose=True)
+    dnames = {v.name for v in dosed.model.free_RVs}
+    assert "beta_dose" in dnames and "delta" not in dnames
+
+
+def test_did_factory_requires_all_phase_mode(tmp_path):
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    with pytest.raises(ValueError):
+        build_did_model(prep, outcome_symbol="W")
