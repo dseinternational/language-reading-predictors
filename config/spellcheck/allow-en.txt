@@ -206,3 +206,7 @@ lrpitt
 offfloor
 CACE
 dedup
+colwidths
+linkcolor
+mathrm
+operatorname

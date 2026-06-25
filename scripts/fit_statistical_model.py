@@ -56,6 +56,14 @@ from language_reading_predictors.statistical_models import (
     lrpitt14b,
     lrpitt15,
     lrpitt15b,
+    lrpitt17,
+    lrpitt18,
+    lrpitt19,
+    lrpitt20,
+    lrpitt21,
+    lrpitt22,
+    lrpitt23,
+    lrpitt24,
 )
 
 
@@ -89,6 +97,23 @@ MODELS = {
     "lrpitt14b": lrpitt14b,
     "lrpitt15": lrpitt15,
     "lrpitt15b": lrpitt15b,
+    # LRPITT17-24: general-ability robustness companions. Each adds block design
+    # (the baseline nonverbal-ability measure, t1-only) as a linear precision
+    # covariate on top of the own baseline + linear age, asking whether the ITT
+    # effect survives the immediate arm's mild (~0.27 SD) baseline-ability
+    # head-start. Block design is complete, so no rows drop and no matched
+    # comparator is needed: each is a same-sample adjusted-vs-unadjusted contrast
+    # with its base model. Ordered by the suite reference order; covers the
+    # vocabulary family (TR/TE/UR/UE/R/E) and the two reading anchors (L, W).
+    # (16 reserved for the deferred descriptive trajectory.)
+    "lrpitt17": lrpitt17,  # TR taught-receptive  (base lrpitt01)
+    "lrpitt18": lrpitt18,  # TE taught-expressive (base lrpitt02)
+    "lrpitt19": lrpitt19,  # UR not-taught-recept (base lrpitt03)
+    "lrpitt20": lrpitt20,  # UE not-taught-expr   (base lrpitt04)
+    "lrpitt21": lrpitt21,  # R  receptive-vocab   (base lrpitt05)
+    "lrpitt22": lrpitt22,  # E  expressive-vocab  (base lrpitt06)
+    "lrpitt23": lrpitt23,  # L  letter-sounds     (base lrpitt07)
+    "lrpitt24": lrpitt24,  # W  word-reading      (base lrpitt10)
     "lrp56": lrp56,
     "lrp57": lrp57,
     "lrp58": lrp58,
