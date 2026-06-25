@@ -212,8 +212,8 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     built = _factories.build_itt_model(
         prepared,
         outcome_symbol=spec.outcome_symbol,
-        use_age_gp=spec.extra.get("use_age_gp", True),
-        use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", True),
+        use_age_gp=spec.extra.get("use_age_gp", False),
+        use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", False),
         use_varying_tau=spec.extra.get("use_varying_tau", False),
         adjust_for=adjust_for,
         cross_symbols=cross_symbols,
@@ -482,7 +482,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
     _save_ppc(ctx)
 
-    # Mechanism curve: f_mech vs mech_post_logit grid, on both scales.
+    # Mechanism curve: f_mech vs mech_post_logit grid (logit-contribution scale only).
     section_header("Mechanism curve")
     _write_mechanism_curve(ctx)
 
