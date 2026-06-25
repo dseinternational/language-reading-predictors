@@ -8,9 +8,9 @@ scripts/fit_statistical_model.py all``). Produces, under
 ``output/statistical_models/comparison/``:
 
 - ``itt_vs_joint_tau.csv`` — per-outcome tau from the LRPITT single-outcome
-  fits alongside tau_k from LRP55 (consistency check), on the shared
+  fits alongside tau_k from the LRPITT12 joint (consistency check), on the shared
   (non-floored) outcomes W, R, E, L, B.
-- ``tau_forest.png`` — forest plot of the eight LRP55 taus, overlaid with
+- ``tau_forest.png`` — forest plot of the LRPITT12 joint taus, overlaid with
   the LRPITT single-outcome taus on those shared outcomes.
 - ``mechanism_forest.png`` — forest plot of the marginal slope of each
   mechanism GP (LRP56 R->W, LRP57 E->W, LRP58 L->W). Slopes are computed
@@ -42,7 +42,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
 )
 
 
-# Single-outcome ITT models (LRPITT suite, #119) overlaid on the LRP55 joint, on
+# Single-outcome ITT models (LRPITT suite, #119) overlaid on the LRPITT12 joint, on
 # the outcomes the joint also carries. The floored outcomes P (lrpitt09) and N
 # (lrpitt11) are excluded from the graded overlay: their PRIMARY estimand is the
 # binary off-floor effect, read from their own reports rather than compared to the
@@ -55,7 +55,7 @@ ITT_IDS: list[tuple[str, str]] = [
     ("lrpitt08", "B"),
 ]
 MECH_IDS: list[tuple[str, str]] = [("lrp56", "R"), ("lrp57", "E"), ("lrp58", "L")]
-JOINT_ID = "lrp55"
+JOINT_ID = "lrpitt12"
 
 # Mechanism models compared by PSIS-LOO: the LRP58 baseline (L -> W) against the
 # interaction extensions. LRP70 (celf) is included only if it has been fitted.
@@ -119,7 +119,7 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
 
 
 def tau_forest(config: str, out_path: str) -> bool:
-    """Forest plot of LRP55's eight taus, overlaid with the LRPITT single-outcome
+    """Forest plot of the LRPITT12 joint taus, overlaid with the LRPITT single-outcome
     fits on the shared (non-floored) outcomes."""
     joint_path = os.path.join(_run_dir(JOINT_ID, config), "tau_summary.csv")
     if not os.path.exists(joint_path):
@@ -150,7 +150,7 @@ def tau_forest(config: str, out_path: str) -> bool:
         ],
         fmt="o",
         color="#1f77b4",
-        label="LRP55 (joint)",
+        label="LRPITT12 (joint)",
         capsize=3,
     )
     # Univariate overlay, offset vertically for readability.

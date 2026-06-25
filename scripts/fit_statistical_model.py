@@ -28,20 +28,16 @@ from language_reading_predictors.models._reporting import (
 )
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models import (
-    lrp55,
     lrp56,
     lrp57,
     lrp58,
     lrp59,
-    lrp60,
-    lrp60a,
     lrp62,
     lrp71,
     lrp72,
     lrp72base,
     lrp73,
     lrp73base,
-    lrp76,
     lrpitt01,
     lrpitt02,
     lrpitt03,
@@ -53,6 +49,13 @@ from language_reading_predictors.statistical_models import (
     lrpitt09,
     lrpitt10,
     lrpitt11,
+    lrpitt12,
+    lrpitt13,
+    lrpitt13b,
+    lrpitt14,
+    lrpitt14b,
+    lrpitt15,
+    lrpitt15b,
 )
 
 
@@ -74,15 +77,23 @@ MODELS = {
     "lrpitt09": lrpitt09,
     "lrpitt10": lrpitt10,
     "lrpitt11": lrpitt11,
-    "lrp55": lrp55,
+    # LRPITT12-15: companions (issue #119). 12 = joint over the ten baseline-
+    # bearing suite outcomes (migrates LRP55; N read from LRPITT11). 13/13b =
+    # SES-adjusted W/L with 14/14b matched complete-case comparators (migrate
+    # LRP60/60a). 15/15b = taught-vs-not-taught generalisation contrast,
+    # expressive/receptive (migrates LRP76).
+    "lrpitt12": lrpitt12,
+    "lrpitt13": lrpitt13,
+    "lrpitt13b": lrpitt13b,
+    "lrpitt14": lrpitt14,
+    "lrpitt14b": lrpitt14b,
+    "lrpitt15": lrpitt15,
+    "lrpitt15b": lrpitt15b,
     "lrp56": lrp56,
     "lrp57": lrp57,
     "lrp58": lrp58,
     # LRP59: ITT-phase mediation (does G raise W via L?). New 'mediation' family.
     "lrp59": lrp59,
-    "lrp60": lrp60,
-    # LRP60a: matched complete-case comparator to LRP60 (unadjusted, SES subset).
-    "lrp60a": lrp60a,
     # LRP62: reading-route decomposition (phonics-route composite mediation).
     "lrp62": lrp62,
     # LRP70 (celf moderator) is reserved but deferred pending a DAG review of
@@ -97,9 +108,6 @@ MODELS = {
     # no-interaction companion.
     "lrp73": lrp73,
     "lrp73base": lrp73base,
-    # LRP76: taught vs not-taught generalisation contrast (migrates to LRPITT15
-    # in #119 PR3).
-    "lrp76": lrp76,
 }
 
 
@@ -108,8 +116,8 @@ def main() -> None:
     parser.add_argument(
         "model",
         help=(
-            "Model id (lrpitt01..lrpitt11, lrp55..lrp60, lrp60a, lrp62, lrp71, "
-            "lrp72, lrp73, lrp76) or 'all'"
+            "Model id (lrpitt01..lrpitt15b, lrp56..lrp59, lrp62, lrp71, lrp72, "
+            "lrp73) or 'all'"
         ),
     )
     parser.add_argument(

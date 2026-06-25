@@ -1,5 +1,5 @@
 ---
-title: "LRP76: Taught vs not-taught expressive vocabulary (generalisation contrast)"
+title: "LRPITT15: Taught vs not-taught expressive vocabulary (generalisation contrast)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -40,27 +40,22 @@ difference = pd.read_csv(_here / "tau_difference.csv")
 
 ## Overview
 
-LRP76 is the within-data test of the trial's "**gains are largest in
-directly-taught skills, with little generalisation**" finding. Two Block 1
-*expressive* vocabulary outcomes are modelled jointly over the randomised window
-(t1 $\rightarrow$ t2):
+LRPITT15 is the within-data test of the trial's "**gains are largest in
+directly-taught skills, with little generalisation**" finding, on the *expressive*
+modality. Two Block 1 expressive vocabulary outcomes are modelled jointly over the
+randomised window (t1 $\rightarrow$ t2):
 
 - `TE` — directly-taught target words (`b1extau`, $N = 24$);
 - `UE` — not-taught comparison words (`b1exnt`, $N = 12$).
 
 The headline quantity is the **difference in intervention benefit**,
-$\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$. Because $\tau$ is the coefficient on the
-intervention indicator ($G = 2 - \text{group}$; group 1 receives the intervention
-from t1), a *positive* $\tau$ is a benefit, so $\tau_{\mathrm{TE}} -
-\tau_{\mathrm{UE}}$ equals the benefit on **taught** words minus the benefit on
-**not-taught** words. A clearly positive difference means the programme raised the
-words it *taught* more than untaught words — i.e. limited transfer/generalisation,
-consistent with Burgoyne et al. (2012).
-
-This complements the standardised-vocabulary nulls (LRP53/LRP54) and the
-per-outcome taught models (LRP74/LRP75): the broader story is that the programme
-**teaches what it teaches (expressively), with little transfer** — to untaught
-words, to receptive knowledge of the taught words, or to standardised vocabulary.
+$\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$. **Sign convention:** $\tau$ is the
+coefficient on the intervention indicator ($G = 1$ = intervention), so a positive
+$\tau$ is a benefit and $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$ is *benefit on
+taught minus benefit on not-taught*. A clearly positive difference means the
+programme raised the words it *taught* more than untaught words — limited
+transfer/generalisation, consistent with Burgoyne et al. (2012). The receptive
+companion is LRPITT15b; the per-outcome models are LRPITT02 (TE) and LRPITT04 (UE).
 
 ## Structure
 
@@ -74,26 +69,21 @@ $$
 
 with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. The two
 outcomes are measured on the **same children** in the same window, so a 2×2 LKJ
-residual correlation (`use_residual_correlation`) is included by default to model
-the within-child taught/not-taught dependence; this is identifiable here (unlike
-the prior-dominated eight-outcome block in LRP55) and keeps the difference
+residual correlation is included by default to model the within-child
+taught/not-taught dependence (identifiable at $K = 2$), keeping the difference
 interval from being needlessly inflated.
 
 ::: {.callout-note title="Denominators and caveats"}
 
 - Taught ($\mathrm{TE}$): $N = 24$ — documented (Burgoyne et al., 2012, Table 3).
-- Not-taught ($\mathrm{UE}$): $N = 12$ — **observed maximum, not documented**. The
-  paper tabulates only the 24-item taught tests; the not-taught comparison set's
-  item count is inferred from the data (observed max 12, consistent with a
-  half-size control set) and flagged unconfirmed. The logit-scale *difference* is
-  robust to this, but the probability-scale interpretation of $\mathrm{UE}$ is
-  approximate pending the data dictionary.
+- Not-taught ($\mathrm{UE}$): $N = 12$ — **observed maximum, not documented** and
+  flagged unconfirmed. The logit-scale *difference* is robust to this, but the
+  probability-scale interpretation of $\mathrm{UE}$ is approximate.
 - $n \approx 54$; the causal claim is limited to the randomised window. The two
   outcomes are on different scales, so the difference is a *differential
   logit-scale effect*, not a difference in raw words.
 - Sensitivity: if the residual-correlation block destabilises sampling, set
-  `use_residual_correlation=False` (the difference is then conservative — it
-  ignores the positive within-child correlation that would tighten it).
+  `use_residual_correlation=False` (the difference is then conservative).
 
 :::
 
@@ -119,16 +109,6 @@ diag
 
 ## Per-outcome treatment effects
 
-::: {.callout-important title="Sign convention: positive τ = intervention benefit"}
-
-Each $\tau_k$ is the coefficient on $G = 2 - \text{group}$ ($G = 1$ = immediate
-intervention in the randomised window), so a **positive $\tau_k$ means the
-intervention raised outcome $k$** (suite-wide convention). The expectation is
-$\tau_{\mathrm{TE}} > 0$ (taught words raised) and $\tau_{\mathrm{UE}}$ closer to
-zero (untaught words largely unmoved).
-
-:::
-
 ```{python}
 # | echo: false
 tau_summary
@@ -142,7 +122,7 @@ difference
 ```
 
 - `diff_logit_*`: posterior mean and equal-tailed interval of $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$ on the logit scale. Since $\tau$ is the benefit, this is *benefit on taught $-$ benefit on not-taught*; **positive ⇒ taught moved more** (limited generalisation).
-- `prob_diff_pos`: $P(\tau_{\mathrm{TE}} > \tau_{\mathrm{UE}})$ — the probability that the directly-taught words moved more than the untaught words.
+- `prob_diff_pos`: $P(\tau_{\mathrm{TE}} > \tau_{\mathrm{UE}})$.
 
 ### Pairwise contrast — $P(\tau_k > \tau_j)$
 
