@@ -23,14 +23,17 @@ SPEC = ModelSpec(
     model_id="lrpitt15",
     kind="joint",
     title="Generalisation contrast (expressive): taught vs not-taught vocabulary, block 1",
-    # Two-outcome joint Beta-Binomial over the randomised window; the 2x2 LKJ
-    # residual correlation models the within-child taught/not-taught dependence
-    # (identifiable at K=2, unlike the prior-dominated larger joints) so the
-    # difference interval is not needlessly inflated. ``difference=("TE","UE")``
-    # asks the pipeline to summarise tau[TE] - tau[UE].
+    # Two-outcome joint Beta-Binomial over the randomised window.
+    # ``difference=("TE","UE")`` asks the pipeline to summarise tau[TE] - tau[UE].
+    # LKJ residual correlation is OFF: once the baselines are conditioned on, the
+    # within-child taught/not-taught residual SD sits at ~0 (the boundary), which
+    # left sigma_outcome poorly mixed (R-hat ~1.01) for no gain in the difference.
+    # Dropping it is the documented conservative fallback (the difference is then
+    # marginally wider, ignoring a near-zero correlation) and converges cleanly;
+    # the receptive companion LRPITT15b uses the same specification.
     extra={
         "outcomes": ("TE", "UE"),
-        "use_residual_correlation": True,
+        "use_residual_correlation": False,
         "difference": ("TE", "UE"),
     },
 )

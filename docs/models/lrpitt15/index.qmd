@@ -67,11 +67,12 @@ $$
            + \sum_{j \neq k} \gamma_{k,j}\, \text{logit}_*(j_{\text{pre},i}, N_j),
 $$
 
-with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. The two
-outcomes are measured on the **same children** in the same window, so a 2×2 LKJ
-residual correlation is included by default to model the within-child
-taught/not-taught dependence (identifiable at $K = 2$), keeping the difference
-interval from being needlessly inflated.
+with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. A 2×2 LKJ
+residual correlation (for the within-child taught/not-taught dependence) is
+**off**: once the baselines are conditioned on, the residual SD sits at ~0 (the
+boundary), so the block only destabilised the variance component (R-hat ≈ 1.01)
+for no gain. Dropping it is the conservative choice — a near-zero correlation that
+would otherwise tighten the difference is ignored — and it converges cleanly.
 
 ::: {.callout-note title="Denominators and caveats"}
 
@@ -82,8 +83,9 @@ interval from being needlessly inflated.
 - $n \approx 54$; the causal claim is limited to the randomised window. The two
   outcomes are on different scales, so the difference is a *differential
   logit-scale effect*, not a difference in raw words.
-- Sensitivity: if the residual-correlation block destabilises sampling, set
-  `use_residual_correlation=False` (the difference is then conservative).
+- The difference is conservative with respect to the (near-zero) within-child
+  residual correlation; `use_residual_correlation=True` remains available as a
+  sensitivity fit but mixes poorly here.
 
 :::
 

@@ -64,9 +64,11 @@ $$
            + \sum_{j \neq k} \gamma_{k,j}\, \text{logit}_*(j_{\text{pre},i}, N_j),
 $$
 
-with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$, and a 2×2
-LKJ residual correlation modelling the within-child taught/not-taught dependence
-(identifiable at $K = 2$).
+with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. As in
+LRPITT15, the 2×2 LKJ residual correlation is **off**: the within-child residual
+SD sits at ~0 once baselines are conditioned on, so the block only destabilised
+the variance component for no gain. Dropping it is the conservative choice and
+converges cleanly.
 
 ::: {.callout-note title="Denominators and caveats"}
 
@@ -76,8 +78,9 @@ LKJ residual correlation modelling the within-child taught/not-taught dependence
   probability-scale interpretation of $\mathrm{UR}$ is approximate.
 - $n \approx 54$; the causal claim is limited to the randomised window. The
   difference is a *differential logit-scale effect*, not a difference in raw words.
-- Sensitivity: if the residual-correlation block destabilises sampling, set
-  `use_residual_correlation=False`.
+- The difference is conservative with respect to the (near-zero) within-child
+  residual correlation; `use_residual_correlation=True` remains available as a
+  sensitivity fit but mixes poorly here.
 
 :::
 

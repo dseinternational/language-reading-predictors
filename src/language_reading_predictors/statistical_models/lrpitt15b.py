@@ -17,9 +17,14 @@ SPEC = ModelSpec(
     model_id="lrpitt15b",
     kind="joint",
     title="Generalisation contrast (receptive): taught vs not-taught vocabulary, block 1",
+    # LKJ residual correlation is OFF (same spec as LRPITT15): the within-child
+    # residual SD sits at ~0 once baselines are conditioned on, so the LKJ block
+    # only destabilised the sigma_outcome variance component (R-hat ~1.01) for no
+    # gain. Dropping it is the documented conservative fallback and converges
+    # cleanly.
     extra={
         "outcomes": ("TR", "UR"),
-        "use_residual_correlation": True,
+        "use_residual_correlation": False,
         "difference": ("TR", "UR"),
     },
 )
