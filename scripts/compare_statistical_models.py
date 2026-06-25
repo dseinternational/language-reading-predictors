@@ -1,16 +1,17 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Cross-model comparison report for LRP52-LRP58.
+"""Cross-model comparison report for the statistical models.
 
-Run after all seven models have been fitted (``python
+Run after the models have been fitted (``python
 scripts/fit_statistical_model.py all``). Produces, under
 ``output/statistical_models/comparison/``:
 
-- ``itt_vs_joint_tau.csv`` — per-outcome tau from LRP52/53/54 univariate
-  fits alongside tau_k from LRP55 (consistency check).
+- ``itt_vs_joint_tau.csv`` — per-outcome tau from the LRPITT single-outcome
+  fits alongside tau_k from LRP55 (consistency check), on the shared
+  (non-floored) outcomes W, R, E, L, B.
 - ``tau_forest.png`` — forest plot of the eight LRP55 taus, overlaid with
-  the three univariate LRP52/53/54 taus on the shared outcomes (W, R, E).
+  the LRPITT single-outcome taus on those shared outcomes.
 - ``mechanism_forest.png`` — forest plot of the marginal slope of each
   mechanism GP (LRP56 R->W, LRP57 E->W, LRP58 L->W). Slopes are computed
   from each model's actual posterior ``f_mech`` samples on its own
@@ -41,7 +42,18 @@ from language_reading_predictors.statistical_models.preprocessing import (
 )
 
 
-ITT_IDS: list[tuple[str, str]] = [("lrp52", "W"), ("lrp53", "R"), ("lrp54", "E")]
+# Single-outcome ITT models (LRPITT suite, #119) overlaid on the LRP55 joint, on
+# the outcomes the joint also carries. The floored outcomes P (lrpitt09) and N
+# (lrpitt11) are excluded from the graded overlay: their PRIMARY estimand is the
+# binary off-floor effect, read from their own reports rather than compared to the
+# joint's graded tau. F/T have no standalone ITT in the suite.
+ITT_IDS: list[tuple[str, str]] = [
+    ("lrpitt10", "W"),
+    ("lrpitt05", "R"),
+    ("lrpitt06", "E"),
+    ("lrpitt07", "L"),
+    ("lrpitt08", "B"),
+]
 MECH_IDS: list[tuple[str, str]] = [("lrp56", "R"), ("lrp57", "E"), ("lrp58", "L")]
 JOINT_ID = "lrp55"
 
@@ -107,7 +119,8 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
 
 
 def tau_forest(config: str, out_path: str) -> bool:
-    """Forest plot of LRP55's eight taus, overlaid with LRP52/53/54 univariates."""
+    """Forest plot of LRP55's eight taus, overlaid with the LRPITT single-outcome
+    fits on the shared (non-floored) outcomes."""
     joint_path = os.path.join(_run_dir(JOINT_ID, config), "tau_summary.csv")
     if not os.path.exists(joint_path):
         return False  # joint run not fitted — main() reports the skip
@@ -159,7 +172,7 @@ def tau_forest(config: str, out_path: str) -> bool:
             xerr=[uni_lo, uni_hi],
             fmt="s",
             color="#ff7f0e",
-            label="LRP52/53/54 (univariate)",
+            label="LRPITT (single-outcome)",
             capsize=3,
         )
     ax.axvline(0.0, color="k", lw=0.75, ls="--")

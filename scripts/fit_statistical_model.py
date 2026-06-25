@@ -5,9 +5,9 @@
 
 Usage::
 
-    python scripts/fit_statistical_model.py lrp52 --config dev
+    python scripts/fit_statistical_model.py lrpitt07 --config dev
     python scripts/fit_statistical_model.py all --config dev
-    python scripts/fit_statistical_model.py lrp52 --config reporting --render
+    python scripts/fit_statistical_model.py lrpitt10 --config reporting --render
 """
 
 from __future__ import annotations
@@ -28,9 +28,6 @@ from language_reading_predictors.models._reporting import (
 )
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models import (
-    lrp52,
-    lrp53,
-    lrp54,
     lrp55,
     lrp56,
     lrp57,
@@ -44,16 +41,39 @@ from language_reading_predictors.statistical_models import (
     lrp72base,
     lrp73,
     lrp73base,
-    lrp74,
-    lrp75,
     lrp76,
+    lrpitt01,
+    lrpitt02,
+    lrpitt03,
+    lrpitt04,
+    lrpitt05,
+    lrpitt06,
+    lrpitt07,
+    lrpitt08,
+    lrpitt09,
+    lrpitt10,
+    lrpitt11,
 )
 
 
 MODELS = {
-    "lrp52": lrp52,
-    "lrp53": lrp53,
-    "lrp54": lrp54,
+    # LRPITT01-11: the uniform DAG-faithful ITT suite (issue #119). One outcome
+    # each, RCT phase; cross-baselines dropped (the ITT effect is identified by
+    # the empty adjustment set), own baseline + linear age as precision terms.
+    # P (09) and N (11) take the floor-rule branch (binary off-floor PRIMARY +
+    # graded SECONDARY). Supersede LRP52 (W), LRP53 (R), LRP54 (E), LRP74 (TE),
+    # LRP75 (TR), which have been deleted.
+    "lrpitt01": lrpitt01,
+    "lrpitt02": lrpitt02,
+    "lrpitt03": lrpitt03,
+    "lrpitt04": lrpitt04,
+    "lrpitt05": lrpitt05,
+    "lrpitt06": lrpitt06,
+    "lrpitt07": lrpitt07,
+    "lrpitt08": lrpitt08,
+    "lrpitt09": lrpitt09,
+    "lrpitt10": lrpitt10,
+    "lrpitt11": lrpitt11,
     "lrp55": lrp55,
     "lrp56": lrp56,
     "lrp57": lrp57,
@@ -77,13 +97,8 @@ MODELS = {
     # no-interaction companion.
     "lrp73": lrp73,
     "lrp73base": lrp73base,
-    # LRP74/LRP75: ITT on the directly-taught vocabulary block tests (the
-    # intervention-fidelity "positive control") - expressive (TE) and receptive
-    # (TR). The trial moved taught expressive but not taught receptive vocabulary.
-    "lrp74": lrp74,
-    "lrp75": lrp75,
-    # LRP76: taught vs not-taught expressive vocabulary - the within-data
-    # generalisation contrast (tau[UE] - tau[TE]).
+    # LRP76: taught vs not-taught generalisation contrast (migrates to LRPITT15
+    # in #119 PR3).
     "lrp76": lrp76,
 }
 
@@ -93,8 +108,8 @@ def main() -> None:
     parser.add_argument(
         "model",
         help=(
-            "Model id (lrp52..lrp60, lrp60a, lrp62, lrp71, lrp72, lrp73, "
-            "lrp74..lrp76) or 'all'"
+            "Model id (lrpitt01..lrpitt11, lrp55..lrp60, lrp60a, lrp62, lrp71, "
+            "lrp72, lrp73, lrp76) or 'all'"
         ),
     )
     parser.add_argument(

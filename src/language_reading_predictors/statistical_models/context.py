@@ -25,7 +25,7 @@ from language_reading_predictors.statistical_models.preprocessing import Prepare
 class ModelSpec:
     """Description of a single model run - lives on the context.
 
-    ``model_id`` is ``"lrp52"`` etc. ``kind`` is ``"itt"``, ``"joint"``
+    ``model_id`` is ``"lrpitt07"`` etc. ``kind`` is ``"itt"``, ``"joint"``
     or ``"mechanism"``. ``title`` is the long human-readable title shown on
     the report. ``extra`` is a free-form dict of model-specific settings that
     the pipeline passes to the factory.
