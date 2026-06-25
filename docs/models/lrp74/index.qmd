@@ -133,15 +133,15 @@ diag
 
 ## Treatment-effect summary
 
-::: {.callout-important title="Sign convention: negative τ = intervention benefit"}
+::: {.callout-important title="Sign convention: positive τ = intervention benefit"}
 
-$\tau$ is the coefficient on $G = \text{group} - 1$, and group 2 is the
-**waiting-control** arm in the randomised window (group 1 receives intervention
-from t1). So a **negative $\tau$ means the intervention *raised* taught expressive
+$\tau$ is the coefficient on $G = 2 - \text{group}$, so $G = 1$ is the
+**immediate-intervention** arm (taught from t1) and $G = 0$ the waiting-control
+arm. So a **positive $\tau$ means the intervention *raised* taught expressive
 vocabulary**, and the probability of a beneficial effect is
-$P(\tau < 0) = 1 - \texttt{prob\_tau\_pos}$. This matches the suite-wide convention
-(see `notes/202604181600-lrp52-58-findings.md`); the trial's expected positive
-control therefore appears here as $\tau < 0$.
+$P(\tau > 0) = \texttt{prob\_tau\_pos}$. This matches the suite-wide convention
+(see METHODS.md); the trial's expected positive control therefore appears here as
+$\tau > 0$.
 
 :::
 
@@ -150,9 +150,9 @@ control therefore appears here as $\tau < 0$.
 tau_summary
 ```
 
-- `tau_logit_*`: posterior mean and equal-tailed interval of $\tau$ on the logit scale ($\tau < 0$ ⇒ benefit).
-- `tau_prob_*`: implied marginal effect on the probability scale (control minus intervention) at the sample-mean baseline; the intervention benefit in words is $-\,\texttt{tau\_prob\_mean} \times 24$.
-- `prob_tau_pos`: $P(\tau > 0)$; the probability the intervention *helped* is $1 - \texttt{prob\_tau\_pos}$.
+- `tau_logit_*`: posterior mean and equal-tailed interval of $\tau$ on the logit scale ($\tau > 0$ ⇒ benefit).
+- `tau_prob_*`: implied marginal effect on the probability scale (intervention minus control) at the sample-mean baseline; the intervention benefit in words is $\texttt{tau\_prob\_mean} \times 24$.
+- `prob_tau_pos`: $P(\tau > 0)$; the probability the intervention *helped*.
 
 ## LOO-PSIS
 

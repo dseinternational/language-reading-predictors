@@ -186,14 +186,14 @@ def tau_difference_summary(
     correlation between the two outcomes) rather than combining two marginal
     summaries. ``pair = (a, b)`` names the contrast ``tau[a] - tau[b]``.
 
-    Sign convention: ``tau`` is the coefficient on ``G = group - 1``, and group 2
-    is the waiting-control arm in the randomised window, so a *negative* ``tau``
-    means the intervention raised that outcome (see
-    ``notes/202604181600-lrp52-58-findings.md``). For the LRP76 generalisation
-    contrast the pair is therefore ``("UE", "TE")``: ``tau_UE - tau_TE`` equals
-    the intervention benefit on taught words minus the benefit on not-taught
-    words, so a *positive* difference means the directly-taught words moved
-    *more* than the not-taught comparison words - i.e. limited generalisation.
+    Sign convention: ``tau`` is the coefficient on ``G = 2 - group``, and group 1
+    receives the intervention from t1, so a *positive* ``tau`` means the
+    intervention raised that outcome (see the "Sign convention" section of
+    METHODS.md). For the LRP76 generalisation contrast the pair is therefore
+    ``("TE", "UE")``: ``tau_TE - tau_UE`` equals the intervention benefit on
+    taught words minus the benefit on not-taught words, so a *positive* difference
+    means the directly-taught words moved *more* than the not-taught comparison
+    words - i.e. limited generalisation.
 
     ``_lo`` / ``_hi`` are equal-tailed central quantiles at coverage ``hdi_prob``
     (same convention as :func:`tau_summary_itt`).
