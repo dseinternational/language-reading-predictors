@@ -15,10 +15,10 @@ under each treatment counterfactual from the mediator model, push it through the
 outcome model, and average the resulting outcome probability over the observed
 covariate distribution. This yields full posteriors for every quantity.
 
-Repo sign convention: ``G = group - 1`` with ``G = 0`` = initial-intervention arm
-and ``G = 1`` = wait-list control in phase 0. Effects are reported in the
+Repo sign convention: ``G = 2 - group`` with ``G = 1`` = immediate-intervention
+arm and ``G = 0`` = wait-list control in phase 0. Effects are reported in the
 **intervention-helps** direction (intervention minus control), so positive =
-intervention raises reading. With ``treat = 0`` (intervention) and ``ctrl = 1``
+intervention raises reading. With ``treat = 1`` (intervention) and ``ctrl = 0``
 (control), and ``M(g)`` the mediator simulated under arm ``g``:
 
     Total = E[Y(treat, M(treat))] - E[Y(ctrl, M(ctrl))]
@@ -40,8 +40,8 @@ from dse_research_utils.math.constants import EPSILON
 from language_reading_predictors.statistical_models.factories import MediationData
 from language_reading_predictors.statistical_models.preprocessing import logit_safe
 
-_TREAT = 0.0  # initial-intervention arm (G = 0)
-_CTRL = 1.0  # wait-list control arm (G = 1)
+_TREAT = 1.0  # immediate-intervention arm (G = 1)
+_CTRL = 0.0  # wait-list control arm (G = 0)
 
 
 def _sigmoid(x: np.ndarray) -> np.ndarray:

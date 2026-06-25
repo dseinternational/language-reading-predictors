@@ -166,7 +166,7 @@ def tau_forest(config: str, out_path: str) -> bool:
     ax.set_yticks(y)
     ax.set_yticklabels(outcomes)
     ax.invert_yaxis()
-    ax.set_xlabel(r"$\tau$ (logit scale, coefficient on $G=1$ = control)")
+    ax.set_xlabel(r"$\tau$ (logit scale, coefficient on $G=1$ = intervention; positive = benefit)")
     ax.set_title("Treatment effect by outcome")
     ax.legend(loc="lower left", fontsize=9)
     plt.tight_layout()

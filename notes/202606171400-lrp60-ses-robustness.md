@@ -4,6 +4,12 @@
 > AI-assisted analysis. Numbers reproducible from `fit_statistical_model.py`
 > (reporting config); interpretation should be reviewed by the study team.
 
+> [!NOTE]
+> **Sign convention superseded.** These results (e.g. "τ = −0.62 is beneficial")
+> were computed under the original `G = group − 1` coding, where *negative* τ =
+> intervention benefit. The repo has since standardised on `G = 2 − group`, so
+> **positive τ = benefit** (see METHODS.md); the magnitudes are unchanged, the sign flips.
+
 Date: 2026-06-17
 
 ## Context

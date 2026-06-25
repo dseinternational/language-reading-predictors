@@ -123,7 +123,7 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 Report direction and uncertainty — never a bare ranking or point estimate.
 
 - **Gradient boosting:** read the SHAP beeswarm (`output/models/{model_id}/shap_summary.png`) with the permutation-importance ranking; the two disagree, so state the direction.
-- **Bayesian:** check convergence (R-hat ≈ 1.00, ESS, ≤ 1 % divergences) *before* interpreting; report the posterior (mean + 95 % credible interval + tail probability, no p-values); negative τ = intervention helps; only τ is causal — observational couplings (`gamma_cross`, `f_mech`, mediator → outcome) are adjusted associations, never "X drives Y".
+- **Bayesian:** check convergence (R-hat ≈ 1.00, ESS, ≤ 1 % divergences) *before* interpreting; report the posterior (mean + 95 % credible interval + tail probability, no p-values); positive τ = intervention helps; only τ is causal — observational couplings (`gamma_cross`, `f_mech`, mediator → outcome) are adjusted associations, never "X drives Y".
 - **Notes, issues, PRs:** write for a frequentist-leaning science reader; expand shorthand and read credible intervals in plain words; record decisions a future reader might question as a dated `notes/` note; verify citations and always include DOIs.
 
 Full rationale, workflow, conventions, glossary, and references: **`METHODS.md`**.
