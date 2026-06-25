@@ -77,7 +77,7 @@ def tau_summary_itt(
     else:
         delta = tau_draws[None, :]  # (1, S)
 
-    eta0 = eta - delta * G[:, None]  # baseline (G=0) linear predictor per obs, per draw
+    eta0 = eta - delta * G[:, None]  # untreated baseline (G=0 = control) per obs, per draw
     # Average marginal effect over observations, per draw.
     marginal = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
 
