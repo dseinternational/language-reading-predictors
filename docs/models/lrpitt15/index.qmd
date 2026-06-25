@@ -64,7 +64,7 @@ For child $i$ and outcome $k \in \{\mathrm{TE}, \mathrm{UE}\}$:
 $$
 \eta_{k,i} = \alpha_k + \tau_k G_i
            + \gamma^{\text{own}}_k\, \text{logit}_*(k_{\text{pre},i}, N_k)
-           + \sum_{j \neq k} \gamma_{k,j}\, \text{logit}_*(j_{\text{pre},i}, N_j),
+           + \gamma^{A}_k\, A_{\text{std},i},
 $$
 
 with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. A 2×2 LKJ

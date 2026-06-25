@@ -31,8 +31,12 @@ SPEC = ModelSpec(
     title="Joint ITT model over the LRPITT suite outcomes (TR, TE, UR, UE, R, E, L, B, P, W)",
     extra={
         "outcomes": LRPITT12_OUTCOMES,
+        # DAG-faithful, mirroring the single-outcome suite: own baseline + linear
+        # age as precision terms, no cross-baselines (so the joint tau_k reproduce
+        # the single-outcome tau_k within MC error). LKJ residual + age GP off.
+        "use_cross_baselines": False,
+        "use_age_linear": True,
         "use_age_gp": False,
-        "partial_pool_age_gp": True,
         "use_residual_correlation": False,
     },
 )

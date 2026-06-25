@@ -46,9 +46,10 @@ single-outcome LRPITT models — the joint $\tau_k$ should reproduce each
 single-outcome $\tau_k$ within Monte Carlo error.
 
 The model is a **linear Beta-Binomial across ten outcomes** with shared predictor
-structure: outcome-specific intercepts, treatment effects, own- and cross-baseline
-couplings, and outcome-specific dispersion; no age GP and no LKJ residual
-correlation by default.
+structure mirroring the single-outcome suite: outcome-specific intercepts,
+treatment effects, own-baseline + linear-age **precision** terms (no
+cross-baselines — the ITT effect is identified by the empty adjustment set), and
+outcome-specific dispersion; no age GP and no LKJ residual correlation.
 
 ::: {.callout-note title="Outcome set: ten of the eleven suite measures"}
 
@@ -72,7 +73,7 @@ For child $i$ and outcome $k$:
 $$
 \eta_{k,i} = \alpha_k + \tau_k G_i
            + \gamma^{\text{own}}_k\, \text{logit}_*(k_{\text{pre},i}, N_k)
-           + \sum_{j \neq k} \gamma_{k,j}\, \text{logit}_*(j_{\text{pre},i}, N_j),
+           + \gamma^{A}_k\, A_{\text{std},i},
 $$
 
 with a per-outcome Beta-Binomial likelihood, $\mu_{k,i} = \sigma(\eta_{k,i})$, and

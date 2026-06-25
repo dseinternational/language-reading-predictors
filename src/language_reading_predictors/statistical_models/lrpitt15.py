@@ -33,6 +33,10 @@ SPEC = ModelSpec(
     # the receptive companion LRPITT15b uses the same specification.
     extra={
         "outcomes": ("TE", "UE"),
+        # DAG-faithful spec, mirroring the single-outcome suite (own baseline +
+        # linear age, no cross-baselines).
+        "use_cross_baselines": False,
+        "use_age_linear": True,
         "use_residual_correlation": False,
         "difference": ("TE", "UE"),
     },

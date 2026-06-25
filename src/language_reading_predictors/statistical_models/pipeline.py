@@ -561,6 +561,8 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_age_gp=spec.extra.get("use_age_gp", False),
         partial_pool_age_gp=spec.extra.get("partial_pool_age_gp", True),
         use_residual_correlation=spec.extra.get("use_residual_correlation", False),
+        use_cross_baselines=spec.extra.get("use_cross_baselines", True),
+        use_age_linear=spec.extra.get("use_age_linear", False),
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -580,7 +582,9 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_loo_row(ctx)
 
     section_header("Summary diagnostics")
-    _joint_vars = ["alpha", "tau", "kappa"]
+    _joint_vars = ["alpha", "tau", "gamma_own", "kappa"]
+    if spec.extra.get("use_age_linear", False):
+        _joint_vars.append("gamma_A")
     if spec.extra.get("use_residual_correlation", False):
         _joint_vars.append("sigma_outcome")
     _diag.summary_diagnostics(ctx, var_names=_joint_vars)

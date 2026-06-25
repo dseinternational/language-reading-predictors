@@ -346,6 +346,40 @@ def test_itt_factory_tau_moderator_baseline(tmp_path):
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
 
 
+def test_joint_factory_dag_faithful_flags(tmp_path):
+    """The DAG-faithful joint (LRPITT12 / the generalisation contrasts) drops the
+    cross-baseline matrix and adds a per-outcome linear age term, mirroring the
+    single-outcome suite so the joint tau_k reproduce the single-outcome tau_k."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built = build_joint_model(prep, use_cross_baselines=False, use_age_linear=True)
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_A" in names  # per-outcome linear age
+    assert "gamma_own" in names  # own baseline retained
+    assert "gamma_cross" not in names  # cross-baseline matrix dropped
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=14)
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs * len(ITT_OUTCOMES)
+
+
+def test_joint_factory_cross_baselines_on_by_default(tmp_path):
+    """Regression: the legacy LRP55 behaviour (cross-baseline matrix on, no linear
+    age) is preserved by default."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built = build_joint_model(prep)
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_cross" in names
+    assert "gamma_A" not in names
+
+
+def test_joint_factory_age_gp_and_linear_mutually_exclusive(tmp_path):
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    with pytest.raises(ValueError):
+        build_joint_model(prep, use_age_gp=True, use_age_linear=True)
+
+
 def test_mechanism_factory_builds(tmp_path):
     """Default mechanism build: includes subject random intercept."""
     p = _write_synthetic(tmp_path, n_children=15)

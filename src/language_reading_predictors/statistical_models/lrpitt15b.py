@@ -24,6 +24,10 @@ SPEC = ModelSpec(
     # cleanly.
     extra={
         "outcomes": ("TR", "UR"),
+        # DAG-faithful spec, mirroring the single-outcome suite (own baseline +
+        # linear age, no cross-baselines).
+        "use_cross_baselines": False,
+        "use_age_linear": True,
         "use_residual_correlation": False,
         "difference": ("TR", "UR"),
     },

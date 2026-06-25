@@ -351,6 +351,8 @@ def build_joint_model(
     use_age_gp: bool = False,
     partial_pool_age_gp: bool = True,
     use_residual_correlation: bool = False,
+    use_cross_baselines: bool = True,
+    use_age_linear: bool = False,
 ) -> BuiltModel:
     """
     Build the joint Beta-Binomial model (LRPITT12; the LRPITT15/15b contrasts).
@@ -359,11 +361,22 @@ def build_joint_model(
 
         eta_{k,i} = alpha_k + tau_k * G_i
                     + gamma_own_k * logit(k_pre_i, N_k)
-                    + sum_{j != k} gamma_{k,j} * logit(j_pre_i, N_j)
-                    [ + f_A_k(A_std_i)         if use_age_gp ]
-                    [ + u_{k,i}                if use_residual_correlation ]
+                    [ + sum_{j != k} gamma_{k,j} * logit(j_pre_i, N_j)  if use_cross_baselines ]
+                    [ + gamma_A_k * A_std_i                            if use_age_linear ]
+                    [ + f_A_k(A_std_i)                                 if use_age_gp ]
+                    [ + u_{k,i}                                        if use_residual_correlation ]
 
     with per-outcome Beta-Binomial likelihood on the post-score count.
+
+    ``use_cross_baselines`` (default True): include the off-diagonal cross-baseline
+    couplings (the historical LRP55 behaviour). The DAG-faithful LRPITT joint
+    (LRPITT12) and the generalisation contrasts (LRPITT15/15b) set this **False**,
+    so the joint mirrors the single-outcome suite — the ITT effect is identified by
+    the empty adjustment set, with own baseline + linear age as precision terms.
+
+    ``use_age_linear`` (default False): add a per-outcome linear age term
+    ``gamma_A_k * A_std_i`` (the suite's age precision term); mutually exclusive
+    with ``use_age_gp``.
 
     ``use_age_gp`` (default False): when True, adds an HSGP on standardised
     age. With ``partial_pool_age_gp=True`` this is a partial-pooled age GP
@@ -390,6 +403,10 @@ def build_joint_model(
             raise KeyError(f"Outcome {s!r} missing from prepared data")
     if prepared.phase_mode != "itt":
         raise ValueError("joint model requires phase_mode='itt'")
+    if use_age_gp and use_age_linear:
+        raise ValueError(
+            "use_age_gp and use_age_linear are mutually exclusive in the joint model."
+        )
 
     K = len(outcomes)
     N_obs = prepared.n_obs
@@ -432,29 +449,37 @@ def build_joint_model(
         tau = _priors.tau_prior().to_pymc("tau", dims="outcome")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")
 
-        # Cross-baseline couplings: (K outcomes) x K baselines; mask the
-        # diagonal to enforce "own baseline handled separately".
-        gamma_cross_mat = _priors.gamma_cross_prior().to_pymc(
-            "gamma_cross", dims=("outcome", "baseline")
-        )
-        mask_offdiag = 1.0 - np.eye(K)
-        gamma_cross_eff = pm.Deterministic(
-            "gamma_cross_eff",
-            gamma_cross_mat * mask_offdiag,
-            dims=("outcome", "baseline"),
-        )
-
         # Own-baseline contribution: (N_obs, K) - elementwise by outcome index.
         own_contrib = gamma_own[None, :] * pre_logit_data
-        # Cross-baseline contribution: sum over baselines for each outcome.
-        cross_contrib = pt.dot(pre_logit_data, gamma_cross_eff.T)
 
         eta_core = (
             alpha[None, :]
             + tau[None, :] * pt.shape_padright(G_d)
             + own_contrib
-            + cross_contrib
         )
+
+        # Cross-baseline couplings: (K outcomes) x K baselines; mask the diagonal
+        # to enforce "own baseline handled separately". The DAG-faithful LRPITT
+        # joint (LRPITT12) and the generalisation contrasts drop these so the joint
+        # mirrors the single-outcome suite; kept available for a richer
+        # sensitivity fit (the historical LRP55 behaviour).
+        if use_cross_baselines:
+            gamma_cross_mat = _priors.gamma_cross_prior().to_pymc(
+                "gamma_cross", dims=("outcome", "baseline")
+            )
+            mask_offdiag = 1.0 - np.eye(K)
+            gamma_cross_eff = pm.Deterministic(
+                "gamma_cross_eff",
+                gamma_cross_mat * mask_offdiag,
+                dims=("outcome", "baseline"),
+            )
+            # Cross-baseline contribution: sum over baselines for each outcome.
+            eta_core = eta_core + pt.dot(pre_logit_data, gamma_cross_eff.T)
+
+        # Linear age main effect (per outcome), mirroring the single-outcome suite.
+        if use_age_linear:
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A", dims="outcome")
+            eta_core = eta_core + gamma_A[None, :] * prepared.A_std[:, None]
 
         if use_age_gp:
             if partial_pool_age_gp:
