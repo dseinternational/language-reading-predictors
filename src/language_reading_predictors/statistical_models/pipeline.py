@@ -623,7 +623,6 @@ def _fit_t3_sensitivity(
     return _med.decompose(
         trace_t3,
         med_t3,
-        confounder_symbols=confounders,
         hdi_prob=ctx.reporting.hdi,
     )
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
