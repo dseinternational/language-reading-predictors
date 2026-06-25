@@ -128,6 +128,22 @@ Report direction and uncertainty — never a bare ranking or point estimate.
 
 Full rationale, workflow, conventions, glossary, and references: **`METHODS.md`**.
 
+## AI-authored content labelling
+
+Content drafted or substantially edited by an AI tool **must** carry a visible label identifying it as AI-authored. This applies to **document drafts, pull requests, issues, and comments on pull requests and issues** — and to similar prose such as `notes/` entries, release notes, and discussion posts.
+
+Prefix the content with a GitHub-style alert that names the specific tool and model:
+
+```
+> [!WARNING]
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+```
+
+- Substitute the tool and model you actually are (e.g. `Claude Code/Opus 4.8`, `GitHub Copilot`).
+- Put the label at the very top, before the substantive text.
+- In plain-text contexts that do not render GitHub alerts, use an equivalent leading line: `Note: Drafted by a LLM-based AI tool (<tool>/<model>).`
+- Do not remove or hide a label that another tool has added.
+
 ## Pre-commit checks
 
 Before creating a commit or opening a pull request, both of the following must pass:
