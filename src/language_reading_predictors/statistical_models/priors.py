@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Named prior constructors shared across LRP52-LRP58.
+Named prior constructors shared across the statistical models.
 
 Every factory calls the same function so priors cannot drift between models.
 Priors are defined as ``preliz`` distributions; call ``.to_pymc(name)`` inside
@@ -126,7 +126,7 @@ def ell_prior() -> Continuous:
 
 
 def eta_partial_pool_prior() -> Continuous:
-    """LRP55 outcome-specific age-GP amplitude ~ HalfNormal(0.3)."""
+    """Joint-model outcome-specific age-GP amplitude ~ HalfNormal(0.3)."""
     return pz.HalfNormal(sigma=0.3)
 
 

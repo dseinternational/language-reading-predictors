@@ -2,12 +2,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Model factories for LRP52-LRP60.
+Model factories for the statistical models.
 
 Three factories are provided:
 
-- :func:`build_itt_model` — LRP52, LRP53, LRP54, LRP60 (one outcome, RCT phase).
-- :func:`build_joint_model` — LRP55 (eight outcomes, RCT phase, LKJ Σ).
+- :func:`build_itt_model` — the LRPITT ITT suite (one outcome, RCT phase) and its
+  SES-adjusted companions; the floored outcomes use its ``bernoulli_offfloor``
+  likelihood mode for the off-floor primary estimand.
+- :func:`build_joint_model` — the joint model (LRPITT12) and the two-outcome
+  generalisation contrasts (LRPITT15/15b), RCT phase, optional LKJ Σ.
 - :func:`build_mechanism_model` — LRP56, LRP57, LRP58 (adjustment-set
   mechanism regressions on ``W_post`` using all phases).
 
@@ -63,7 +66,7 @@ class BuiltModel:
 
 
 # ---------------------------------------------------------------------------
-# LRP52-LRP54: ITT factory
+# ITT factory (LRPITT suite)
 # ---------------------------------------------------------------------------
 
 
@@ -84,7 +87,8 @@ def build_itt_model(
     tau_moderator_interaction: bool = True,
 ) -> BuiltModel:
     """
-    Build the single-outcome ITT model used by LRP52-LRP54 and the LRPITT suite.
+    Build the single-outcome ITT model used by the LRPITT suite (and its SES
+    companions).
 
     The linear predictor is
 
@@ -129,7 +133,7 @@ def build_itt_model(
     cross_symbols
         Symbols whose baselines enter as cross-baseline couplings (the
         ``sum_{k != own} gamma_k`` term). ``None`` (default) reproduces the
-        LRP52-LRP54 behaviour of conditioning on every *other* ITT outcome
+        legacy behaviour of conditioning on every *other* ITT outcome
         (``ITT_OUTCOMES``). Pass an explicit (possibly empty) iterable to
         condition on a chosen subset instead. The LRPITT suite passes ``()`` —
         under the locked DAG the ITT effect is identified by the empty adjustment
@@ -336,7 +340,7 @@ def build_itt_model(
 
 
 # ---------------------------------------------------------------------------
-# LRP55: joint model
+# Joint model (LRPITT12 joint; LRPITT15/15b generalisation contrasts)
 # ---------------------------------------------------------------------------
 
 
@@ -349,7 +353,7 @@ def build_joint_model(
     use_residual_correlation: bool = False,
 ) -> BuiltModel:
     """
-    Build the LRP55 joint Beta-Binomial model.
+    Build the joint Beta-Binomial model (LRPITT12; the LRPITT15/15b contrasts).
 
     For each child i and outcome k, the model is
 
@@ -385,7 +389,7 @@ def build_joint_model(
         if s not in prepared.pre_logit:
             raise KeyError(f"Outcome {s!r} missing from prepared data")
     if prepared.phase_mode != "itt":
-        raise ValueError("LRP55 joint model requires phase_mode='itt'")
+        raise ValueError("joint model requires phase_mode='itt'")
 
     K = len(outcomes)
     N_obs = prepared.n_obs
@@ -423,7 +427,7 @@ def build_joint_model(
         )
 
         # Per-outcome scalar parameters — shared constructors (priors.py) so
-        # LRP55 cannot drift from the ITT / mechanism factories (issue #79).
+        # the joint model cannot drift from the ITT / mechanism factories (issue #79).
         alpha = _priors.alpha_prior().to_pymc("alpha", dims="outcome")
         tau = _priors.tau_prior().to_pymc("tau", dims="outcome")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")

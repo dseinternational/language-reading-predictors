@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Post-fit reporting helpers shared across LRP52-LRP58."""
+"""Post-fit reporting helpers shared across the statistical models."""
 
 from __future__ import annotations
 
@@ -298,7 +298,7 @@ def tau_difference_summary(
     Sign convention: ``tau`` is the coefficient on ``G = 2 - group``, and group 1
     receives the intervention from t1, so a *positive* ``tau`` means the
     intervention raised that outcome (see the "Sign convention" section of
-    METHODS.md). For the LRP76 generalisation contrast the pair is therefore
+    METHODS.md). For the LRPITT15/15b generalisation contrast the pair is therefore
     ``("TE", "UE")``: ``tau_TE - tau_UE`` equals the intervention benefit on
     taught words minus the benefit on not-taught words, so a *positive* difference
     means the directly-taught words moved *more* than the not-taught comparison

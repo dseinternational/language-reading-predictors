@@ -12,6 +12,7 @@ robustness checks. LRP76 is the taught-vs-not-taught generalisation contrast.
 
 Shared conventions are defined in ``preprocessing``, ``priors``, ``hsgp``,
 ``likelihood`` and ``diagnostics``. Individual model modules (the ``lrpitt01`` ...
-``lrpitt11`` ITT suite, ``lrp55`` ... ``lrp60``, and the mechanism/mediation
-models) are thin wrappers around factories in ``factories.py``.
+``lrpitt11`` ITT suite, the ``lrpitt12`` ... ``lrpitt15b`` companions, and the
+``lrp56`` ... ``lrp73`` mechanism/mediation models) are thin wrappers around
+factories in ``factories.py``.
 """

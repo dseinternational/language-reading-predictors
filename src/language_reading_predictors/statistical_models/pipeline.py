@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-End-to-end fit pipeline for LRP52-LRP60.
+End-to-end fit pipeline for the statistical models.
 
 ``fit_itt(spec, config)`` is the entry point for the ITT models.
-``fit_joint(spec, config)`` is the entry point for LRP55.
+``fit_joint(spec, config)`` is the entry point for the joint models (LRPITT12, LRPITT15/15b).
 ``fit_mechanism(spec, config)`` is the entry point for LRP56/57/58.
 
 Each pipeline:
@@ -188,7 +188,7 @@ def _save_proportion_at_zero_plot(
 
 
 # ---------------------------------------------------------------------------
-# ITT pipeline (LRP52 / LRP53 / LRP54 / LRP60 / LRPITT suite)
+# ITT pipeline (LRPITT suite + SES companions)
 # ---------------------------------------------------------------------------
 
 
@@ -231,10 +231,10 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Prepare data")
     adjust_for = tuple(spec.extra.get("adjust_for", ()))
     # Optionally restrict to the complete-case subset of some columns *without*
-    # adjusting for them (matched comparator, e.g. LRP60a vs LRP60).
+    # adjusting for them (matched comparator, e.g. LRPITT14 vs LRPITT13).
     restrict_complete = tuple(spec.extra.get("restrict_complete", ()))
     # An ITT model whose outcome is outside ``ITT_OUTCOMES`` (e.g. the taught-
-    # vocabulary block measures, LRP74/LRP75) overrides the prepared outcome set
+    # vocabulary block measures, the taught LRPITT models) overrides the prepared outcome set
     # so only the outcome and its chosen cross-baselines are loaded - this keeps
     # the complete-case mask from dropping rows for the eight standardised
     # outcomes the model never uses. ``cross_symbols`` selects the cross-baseline
@@ -530,7 +530,7 @@ def _fit_itt_floor_rule(
 
 
 # ---------------------------------------------------------------------------
-# Joint pipeline (LRP55)
+# Joint pipeline (LRPITT12 joint; LRPITT15/15b contrasts)
 # ---------------------------------------------------------------------------
 
 
@@ -541,7 +541,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prepare data")
     # A joint model may target an explicit outcome set (e.g. the taught-vs-not-
-    # taught contrast in LRP76); load exactly those so the complete-case mask is
+    # taught contrast in LRPITT15/15b); load exactly those so the complete-case mask is
     # not driven by the eight standardised outcomes. Defaults to ITT_OUTCOMES.
     joint_outcomes = spec.extra.get("outcomes")
     if joint_outcomes is not None:
@@ -610,7 +610,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     meta_extra: dict = {"loo_elpd": float(ctx.loo.elpd)}
 
-    # Headline difference parameter for a two-outcome contrast (LRP76: taught vs
+    # Headline difference parameter for a two-outcome contrast (LRPITT15/15b: taught vs
     # not-taught). ``difference = (a, b)`` reports the posterior of tau[a]-tau[b].
     difference = spec.extra.get("difference")
     if difference is not None:

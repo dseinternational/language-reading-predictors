@@ -7,7 +7,7 @@ Measurement-sensitivity audit of the RLI outcome measures.
 Motivation
 ----------
 
-The ITT models (LRP52-LRP55) show a robust word-reading and letter-sound
+The ITT models (LRPITT suite) show a robust word-reading and letter-sound
 effect but no credible vocabulary effect. Before that null is read as "the
 vocabulary component does not work", we need to know whether each outcome even
 had the *range and reliability* to register a change in the randomised window

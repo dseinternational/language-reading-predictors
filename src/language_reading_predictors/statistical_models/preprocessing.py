@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Preprocessing helpers shared across LRP52-LRP58.
+Preprocessing helpers shared across the statistical models.
 
 - ``logit_safe`` applies a Haldane-Anscombe corrected logit to a count/total pair.
 - ``standardise`` z-scores a vector and returns the scaler for inverse transforms.
@@ -12,7 +12,7 @@ Preprocessing helpers shared across LRP52-LRP58.
 Conventions
 -----------
 - RCT (randomised) phase is ``time in {1, 2}`` — that is, the pre-score is
-  ``time == 1`` and the post-score is ``time == 2``. LRP52-LRP55 use this
+  ``time == 1`` and the post-score is ``time == 2``. the ITT models use this
   phase only.
 - Mechanism models (LRP56-LRP58) stack all three phase transitions
   ``(t1 -> t2, t2 -> t3, t3 -> t4)`` with a phase indicator.
@@ -173,7 +173,7 @@ def load_and_prepare(
         added to ``prepared.covariates`` and so receive no model coefficient.
         Use this to fit a model on the complete-case subset of some covariates
         *without* adjusting for them — e.g. a matched unadjusted comparator to a
-        covariate-adjusted run (LRP60a vs LRP60).
+        covariate-adjusted run (LRPITT14 vs LRPITT13).
 
     Returns
     -------

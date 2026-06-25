@@ -94,10 +94,10 @@ Hyperparameter tuning (`scripts/tune_model.py`) runs an Optuna TPE study under t
 
 ### Statistical models (`statistical_models/`)
 
-Step 2 of the methodology: Bayesian models fit with PyMC. One module per model — `lrpNN.py` (LRP52–LRP73 so far) — each defining a `SPEC = ModelSpec(...)` and a `fit(config)` that calls the matching pipeline entry point. Four families, keyed by `ModelSpec.kind`, each with a factory in `factories.py` and a pipeline in `pipeline.py`:
+Step 2 of the methodology: Bayesian models fit with PyMC. One module per model — `lrpittNN.py` (the DAG-faithful ITT suite + companions) and `lrpNN.py` (mechanism/mediation models) — each defining a `SPEC = ModelSpec(...)` and a `fit(config)` that calls the matching pipeline entry point. Four families, keyed by `ModelSpec.kind`, each with a factory in `factories.py` and a pipeline in `pipeline.py`:
 
-- **`itt`** — single-outcome intention-to-treat (LRP52–54; LRP60/60a add SES adjustment and a matched comparator) → `build_itt_model` / `fit_itt`.
-- **`joint`** — all eight outcomes jointly, optional LKJ residual correlation (LRP55) → `build_joint_model` / `fit_joint`.
+- **`itt`** — single-outcome intention-to-treat: the uniform DAG-faithful **LRPITT01–11** suite (own baseline + linear age as *precision* terms, no cross-baselines — the ITT effect is identified by the empty adjustment set), with **LRPITT13/13b/14/14b** adding SES adjustment + matched complete-case comparators. Heavily-floored outcomes (P, N) take a pre-specified **floor rule**: a binary off-floor primary estimand plus a flagged graded secondary. → `build_itt_model` / `fit_itt`.
+- **`joint`** — the suite outcomes jointly, optional LKJ residual correlation (**LRPITT12**; the taught-vs-not-taught generalisation contrasts **LRPITT15/15b**) → `build_joint_model` / `fit_joint`.
 - **`mechanism`** — adjustment-set dose-response of one measure on another across all phases, with subject random intercepts and optional linear moderation (LRP56–58, 71, 72/72base, 73/73base) → `build_mechanism_model` / `fit_mechanism`.
 - **`mediation`** — g-formula NDE/NIE decomposition by counterfactual simulation (LRP59 count mediator, LRP62 Gaussian reading-route composite) → `build_mediation_model` / `fit_mediation`.
 

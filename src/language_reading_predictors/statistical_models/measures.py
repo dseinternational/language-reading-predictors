@@ -4,7 +4,7 @@
 """
 Canonical definitions of the bounded-count measures used in the statistical
 models (the eight standardised ITT outcomes plus the taught-vocabulary block
-family targeted by LRP74-LRP76).
+family modelled by the LRPITT taught/not-taught models, LRPITT01-04/15/15b).
 
 Each measure has a short symbol (W, R, E, ...) used throughout the modelling
 code, a column name in ``rli_data_long.csv``, and a test maximum ``n_trials``
@@ -99,12 +99,13 @@ MEASURES: dict[str, Measure] = {
 
 
 ITT_OUTCOMES: tuple[str, ...] = ("W", "R", "E", "L", "P", "B", "F", "T")
-"""Eight outcomes used in LRP52-LRP55 (all bounded counts with pre- and post- values).
+"""The eight standardised ITT outcomes (all bounded counts with pre- and post- values).
 
-Deliberately excludes the taught-vocabulary block measures (``TE``/``TR``/
-``UE``/``UR``): they are a separate intervention-fidelity family targeted by
-LRP74-LRP76 and are passed explicitly via ``ModelSpec.extra["outcomes"]`` so the
-eight-outcome joint model (LRP55) stays stable.
+Used as the cross-baseline default in :func:`factories.build_itt_model` and the
+default outcome set of :func:`factories.build_joint_model`. Deliberately excludes
+the taught-vocabulary block measures (``TE``/``TR``/``UE``/``UR``) and nonword
+(``N``); the LRPITT suite passes its own outcome set explicitly via
+``ModelSpec.extra["outcomes"]`` (see :data:`LRPITT_OUTCOMES`).
 """
 
 

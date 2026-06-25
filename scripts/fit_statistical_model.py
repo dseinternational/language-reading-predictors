@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""CLI entry point for fitting the Bayesian statistical models (LRP52-LRP60).
+"""CLI entry point for fitting the Bayesian statistical models.
 
 Usage::
 
