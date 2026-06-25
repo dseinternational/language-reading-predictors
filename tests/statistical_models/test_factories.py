@@ -198,6 +198,154 @@ def test_joint_factory_residual_correlation_flag(tmp_path):
     assert "u_corr" in dets
 
 
+# ---------------------------------------------------------------------------
+# LRPITT suite (#119): age-linear, own-baseline toggle, off-floor likelihood,
+# tau-moderator plumbing
+# ---------------------------------------------------------------------------
+
+
+def test_itt_factory_age_linear_adds_gamma_A(tmp_path):
+    """``use_age_linear`` adds a plain linear ``gamma_A`` age term (the LRPITT
+    suite's age precision term, in place of the off-by-default age GP)."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built = build_itt_model(
+        prep,
+        outcome_symbol="W",
+        use_age_gp=False,
+        use_own_baseline_gp=False,
+        cross_symbols=(),
+        use_age_linear=True,
+    )
+    assert "gamma_A" in {v.name for v in built.model.free_RVs}
+    # Default (legacy LRP52 behaviour) has no linear age term.
+    base = build_itt_model(
+        prep, outcome_symbol="W", use_age_gp=False, use_own_baseline_gp=False
+    )
+    assert "gamma_A" not in {v.name for v in base.model.free_RVs}
+
+
+def test_itt_factory_age_gp_and_linear_mutually_exclusive(tmp_path):
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    with pytest.raises(ValueError):
+        build_itt_model(
+            prep, outcome_symbol="W", use_age_gp=True, use_age_linear=True
+        )
+
+
+def test_itt_factory_age_only_drops_own_baseline(tmp_path):
+    """``use_own_baseline=False`` drops ``gamma_own`` and never indexes
+    ``pre_logit[own]`` — so a post-only / floored outcome can be modelled
+    age-only even without a baseline."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("N",))
+    del prep.pre_logit["N"]  # simulate a genuinely post-only baseline
+    built = build_itt_model(
+        prep,
+        outcome_symbol="N",
+        use_age_gp=False,
+        use_own_baseline_gp=False,
+        cross_symbols=(),
+        use_age_linear=True,
+        use_own_baseline=False,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_own" not in names
+    assert {"tau", "gamma_A"}.issubset(names)
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=21)
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_itt_factory_bernoulli_offfloor(tmp_path):
+    """The floor-rule PRIMARY: a Bernoulli on the binary off-floor indicator,
+    age-only, with no ``kappa`` and a ``y_offfloor`` observed node."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("N",))
+    built = build_itt_model(
+        prep,
+        outcome_symbol="N",
+        likelihood="bernoulli_offfloor",
+        use_age_gp=False,
+        use_own_baseline_gp=False,
+        cross_symbols=(),
+        use_age_linear=True,
+        use_own_baseline=False,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"alpha", "tau", "gamma_A"}.issubset(names)
+    assert "kappa" not in names and "gamma_own" not in names
+    obs = {v.name for v in built.model.observed_RVs}
+    assert obs == {"y_offfloor"}
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=22)
+    yof = pp.prior_predictive["y_offfloor"].values
+    assert set(np.unique(yof)).issubset({0, 1})
+
+
+def test_itt_factory_bad_likelihood_raises(tmp_path):
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    with pytest.raises(ValueError):
+        build_itt_model(prep, outcome_symbol="W", likelihood="poisson")
+
+
+def test_itt_factory_tau_moderator_covariate(tmp_path):
+    """Part B plumbing: an age tau-moderator adds ``gamma_tau_mod`` +
+    ``gamma_tau_int``; the no-interaction baseline drops ``gamma_tau_int``."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built = build_itt_model(
+        prep,
+        outcome_symbol="W",
+        use_age_gp=False,
+        use_own_baseline_gp=False,
+        cross_symbols=(),
+        use_age_linear=True,
+        tau_moderator_symbol="A",
+        tau_moderator_is_covariate=True,
+    )
+    assert {"gamma_tau_mod", "gamma_tau_int"}.issubset(
+        {v.name for v in built.model.free_RVs}
+    )
+    base = build_itt_model(
+        prep,
+        outcome_symbol="W",
+        use_age_gp=False,
+        use_own_baseline_gp=False,
+        cross_symbols=(),
+        use_age_linear=True,
+        tau_moderator_symbol="A",
+        tau_moderator_is_covariate=True,
+        tau_moderator_interaction=False,
+    )
+    bnames = {v.name for v in base.model.free_RVs}
+    assert "gamma_tau_mod" in bnames and "gamma_tau_int" not in bnames
+
+
+def test_itt_factory_tau_moderator_baseline(tmp_path):
+    """A baseline-ability tau-moderator uses the pre-randomisation baseline logit
+    ``pre_logit[symbol]`` and builds a valid model."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built = build_itt_model(
+        prep,
+        outcome_symbol="W",
+        use_age_gp=False,
+        use_own_baseline_gp=False,
+        cross_symbols=(),
+        use_age_linear=True,
+        tau_moderator_symbol="E",
+    )
+    assert {"gamma_tau_mod", "gamma_tau_int"}.issubset(
+        {v.name for v in built.model.free_RVs}
+    )
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=23)
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
 def test_mechanism_factory_builds(tmp_path):
     """Default mechanism build: includes subject random intercept."""
     p = _write_synthetic(tmp_path, n_children=15)

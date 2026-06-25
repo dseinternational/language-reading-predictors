@@ -44,6 +44,22 @@ def gamma_cross_prior() -> Continuous:
     return pz.Normal(mu=0.0, sigma=0.3)
 
 
+def gamma_age_prior() -> Continuous:
+    """Linear age main-effect coupling gamma_A ~ Normal(0, 0.3).
+
+    Used by the LRPITT suite (``build_itt_model(use_age_linear=True)``) for the
+    plain linear age term ``gamma_A * A_std``. Age is a *precision* covariate
+    only — under the locked DAG the ITT effect ``tau`` is identified by the empty
+    adjustment set, so age (like the own baseline) sharpens ``tau`` without
+    licensing the causal claim. ``A_std`` is unit-SD standardised age, so the
+    same weakly-regularising ``Normal(0, 0.3)`` scale as the cross-baseline
+    couplings is appropriate; a dedicated constructor (rather than reusing
+    ``gamma_cross_prior``) documents the term and surfaces it in the report
+    prior panel.
+    """
+    return pz.Normal(mu=0.0, sigma=0.3)
+
+
 def kappa_prior() -> Continuous:
     """Beta-binomial concentration kappa ~ HalfNormal(50)."""
     return pz.HalfNormal(sigma=50.0)
@@ -124,6 +140,7 @@ SHARED_PRIORS: dict[str, "callable[[], Continuous]"] = {
     "tau": tau_prior,
     "gamma_own": gamma_own_prior,
     "gamma_cross": gamma_cross_prior,
+    "gamma_age": gamma_age_prior,
     "kappa": kappa_prior,
     "eta_main": eta_main_prior,
     "eta_tau": eta_tau_prior,

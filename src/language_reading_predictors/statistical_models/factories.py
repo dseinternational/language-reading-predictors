@@ -34,7 +34,10 @@ from language_reading_predictors.statistical_models.likelihood import (
     beta_binomial_from_logit,
 )
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
-from language_reading_predictors.statistical_models.preprocessing import PreparedData
+from language_reading_predictors.statistical_models.preprocessing import (
+    PreparedData,
+    standardise,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -73,20 +76,33 @@ def build_itt_model(
     use_varying_tau: bool = False,
     adjust_for: Iterable[str] = (),
     cross_symbols: Iterable[str] | None = None,
+    use_age_linear: bool = False,
+    use_own_baseline: bool = True,
+    likelihood: str = "beta_binomial",
+    tau_moderator_symbol: str | None = None,
+    tau_moderator_is_covariate: bool = False,
+    tau_moderator_interaction: bool = True,
 ) -> BuiltModel:
     """
-    Build the single-outcome ITT model used by LRP52, LRP53, LRP54.
+    Build the single-outcome ITT model used by LRP52-LRP54 and the LRPITT suite.
 
     The linear predictor is
 
         eta_i = alpha
               + tau * G_i
-              + gamma_own * logit(y_pre_i, N_own)
-              + sum_{k != own} gamma_k * logit(k_pre_i, N_k)
-              + f_A(A_std_i)                          # optional HSGP
-              + f_ypre(logit(y_pre_i, N_own))         # optional HSGP
+              + gamma_own * logit(y_pre_i, N_own)     # if use_own_baseline
+              + gamma_A * A_std_i                      # if use_age_linear
+              + sum_{k in cross} gamma_k * logit(k_pre_i, N_k)
+              + sum_c gamma_c * z(c_i)                 # adjust_for covariates
+              + f_A(A_std_i)                           # optional HSGP
+              + f_ypre(logit(y_pre_i, N_own))          # optional HSGP
+              + gamma_tau_mod * z(M_i)                 # optional tau-moderator main
+              + gamma_tau_int * G_i * z(M_i)           # optional tau-moderator interaction
 
-    with Beta-Binomial likelihood on the post-score count (``N_own`` trials).
+    The observation node is a Beta-Binomial on the post count (``likelihood=
+    "beta_binomial"``) or, for the floored-outcome floor rule, a Bernoulli on the
+    binary "off-floor at t2" indicator ``post > 0`` (``likelihood=
+    "bernoulli_offfloor"``).
 
     Parameters
     ----------
@@ -115,20 +131,67 @@ def build_itt_model(
         ``sum_{k != own} gamma_k`` term). ``None`` (default) reproduces the
         LRP52-LRP54 behaviour of conditioning on every *other* ITT outcome
         (``ITT_OUTCOMES``). Pass an explicit (possibly empty) iterable to
-        condition on a chosen subset instead - used by the taught-vocabulary
-        models (LRP74/LRP75), whose outcome is outside ``ITT_OUTCOMES`` and which
-        condition only on the matched standardised-vocabulary baseline rather
-        than all eight (parsimony at n~54). Every requested symbol must be in
+        condition on a chosen subset instead. The LRPITT suite passes ``()`` —
+        under the locked DAG the ITT effect is identified by the empty adjustment
+        set, so cross-baselines are dropped. Every requested symbol must be in
         ``prepared.pre_logit``; ``own`` is removed if present.
+    use_age_linear
+        If True, add a plain linear age main effect ``gamma_A * A_std``
+        (``gamma_age_prior``). A precision term only (the DAG identifies ``tau``
+        without it). Mutually exclusive with ``use_age_gp`` (the GP already
+        absorbs the smooth age effect) — setting both raises ``ValueError``. The
+        LRPITT suite uses this in place of the (off-by-default) age GP.
+    use_own_baseline
+        If True (default), add the own-baseline precision term
+        ``gamma_own * logit(y_pre)``. Set False for the age-only specification
+        used by the floor-rule outcomes (``P``/``N``) and post-only outcomes
+        (``N``): the factory then never indexes ``prepared.pre_logit[own]``, so
+        a degenerate or missing baseline cannot enter or drop rows.
+    likelihood
+        ``"beta_binomial"`` (default) models the graded post count. The floor
+        rule (#119) uses ``"bernoulli_offfloor"`` for its PRIMARY estimand: a
+        Bernoulli/logistic ``tau`` on the binary off-floor indicator
+        ``post > 0`` (no ``kappa``), which targets where the randomised signal
+        verifiably lives for heavily-floored outcomes.
+    tau_moderator_symbol, tau_moderator_is_covariate, tau_moderator_interaction
+        Part B (HTE) plumbing: moderate ``tau`` by a **pre-randomisation**
+        quantity ``M`` (so the interaction stays randomisation-respecting). With
+        ``tau_moderator_is_covariate=True`` the moderator is ``"A"`` (age,
+        ``A_std``) or a key of ``prepared.covariates`` (e.g. SES); otherwise it
+        is an outcome symbol whose **baseline logit** ``prepared.pre_logit[M]``
+        is used. ``M`` is standardised on the fitted (kept) rows, enters as a
+        main effect ``gamma_tau_mod * z(M)``, and — when
+        ``tau_moderator_interaction`` (default) — an interaction
+        ``gamma_tau_int * G * z(M)``; both use the regularising
+        ``Normal(0, 0.3)`` prior. Set ``tau_moderator_interaction=False`` for the
+        nested no-interaction baseline used in the PSIS-LOO comparison.
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
             f"build_itt_model expects phase_mode='itt', got {prepared.phase_mode!r}"
         )
-    if outcome_symbol not in prepared.pre_logit:
-        raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
+    if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(
+            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
+            f"got {likelihood!r}"
+        )
+    if use_age_gp and use_age_linear:
+        raise ValueError(
+            "use_age_gp and use_age_linear are mutually exclusive: the age GP "
+            "already absorbs the smooth age effect; choose one."
+        )
 
     own = outcome_symbol
+    need_own_pre = use_own_baseline or use_own_baseline_gp
+    if own not in prepared.post_counts:
+        raise KeyError(f"Outcome {own!r} missing from prepared data (post_counts)")
+    if need_own_pre and own not in prepared.pre_logit:
+        raise KeyError(
+            f"Outcome {own!r} has no baseline in prepared data, but "
+            "use_own_baseline / use_own_baseline_gp is set. Load it with a "
+            "pre-score, or pass use_own_baseline=False for an age-only model."
+        )
+
     adjust_for = tuple(adjust_for)
     missing_adjusters = [c for c in adjust_for if c not in prepared.covariates]
     if missing_adjusters:
@@ -146,6 +209,24 @@ def build_itt_model(
                 f"Cross-baseline symbols missing from prepared data: {missing_cross}"
             )
 
+    # Validate the tau-moderator (Part B). It must be a pre-randomisation
+    # quantity — a baseline logit or a covariate — never a post-outcome.
+    if tau_moderator_symbol is not None:
+        if tau_moderator_is_covariate:
+            if (
+                tau_moderator_symbol != "A"
+                and tau_moderator_symbol not in prepared.covariates
+            ):
+                raise KeyError(
+                    f"tau moderator covariate {tau_moderator_symbol!r} not in "
+                    "prepared.covariates (and is not 'A' for age)"
+                )
+        elif tau_moderator_symbol not in prepared.pre_logit:
+            raise KeyError(
+                f"tau moderator baseline {tau_moderator_symbol!r} not in "
+                "prepared.pre_logit"
+            )
+
     post = prepared.post_counts[own]
     if np.any(np.isnan(post)):
         keep = ~np.isnan(post)
@@ -154,15 +235,28 @@ def build_itt_model(
             post = prepared.post_counts[own]
 
     post = post.astype(np.int64)
-    y_pre_logit = prepared.pre_logit[own]
+    y_pre_logit = prepared.pre_logit[own] if need_own_pre else None
+
+    # Resolve the moderator vector on the kept rows (after the post NaN drop) so
+    # gamma_tau_mod reads as the effect at the mean of the fitted sample.
+    z_M: np.ndarray | None = None
+    if tau_moderator_symbol is not None:
+        if tau_moderator_is_covariate:
+            raw_M = (
+                prepared.A_std
+                if tau_moderator_symbol == "A"
+                else prepared.covariates[tau_moderator_symbol]
+            )
+        else:
+            raw_M = prepared.pre_logit[tau_moderator_symbol]
+        z_M, _ = standardise(raw_M)
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     G_f = prepared.G.astype(float)
 
     with pm.Model(coords=coords) as model:
-        pm.Data("A_std", prepared.A_std, dims="obs_id")
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         G_d = pm.Data("G", G_f, dims="obs_id")
-        own_pre_d = pm.Data("own_pre_logit", y_pre_logit, dims="obs_id")
         cross_pre_data: dict[str, pt.TensorVariable] = {}
         for s in cross:
             cross_pre_data[s] = pm.Data(
@@ -171,25 +265,31 @@ def build_itt_model(
         adjust_data: dict[str, pt.TensorVariable] = {}
         for c in adjust_for:
             adjust_data[c] = pm.Data(f"{c}_std", prepared.covariates[c], dims="obs_id")
+        z_M_d = (
+            pm.Data("z_tau_moderator", z_M, dims="obs_id") if z_M is not None else None
+        )
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         tau0 = _scalar_prior("tau", _priors.tau_prior)
-        gamma_own = _scalar_prior("gamma_own", _priors.gamma_own_prior)
 
-        gamma_cross: dict[str, pt.TensorVariable] = {}
+        eta: pt.TensorVariable | float = alpha
+
+        if use_own_baseline:
+            own_pre_d = pm.Data("own_pre_logit", y_pre_logit, dims="obs_id")
+            gamma_own = _scalar_prior("gamma_own", _priors.gamma_own_prior)
+            eta = eta + gamma_own * own_pre_d
+
         for s in cross:
-            gamma_cross[s] = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
+            gamma_s = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
+            eta = eta + gamma_s * cross_pre_data[s]
 
-        cross_contrib: pt.TensorVariable | float = 0.0
-        for s in cross:
-            cross_contrib = cross_contrib + gamma_cross[s] * cross_pre_data[s]
-
-        adjust_contrib: pt.TensorVariable | float = 0.0
         for c in adjust_for:
             gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
-            adjust_contrib = adjust_contrib + gamma_c * adjust_data[c]
+            eta = eta + gamma_c * adjust_data[c]
 
-        eta = alpha + gamma_own * own_pre_d + cross_contrib + adjust_contrib
+        if use_age_linear:
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
+            eta = eta + gamma_A * A_std_d
 
         if use_age_gp:
             f_A = build_hsgp_1d("f_A", prepared.A_std)
@@ -198,6 +298,12 @@ def build_itt_model(
             f_ypre = build_hsgp_1d("f_ypre", y_pre_logit)
             eta = eta + f_ypre
 
+        # Treatment effect, with the optional linear tau-moderator (Part B). The
+        # moderator main effect enters once; the interaction is the G * z(M) term.
+        if z_M_d is not None:
+            gamma_tau_mod = _priors.gamma_cross_prior().to_pymc("gamma_tau_mod")
+            eta = eta + gamma_tau_mod * z_M_d
+
         if use_varying_tau:
             g_tauA = build_tau_modifier("g_tauA", prepared.A_std)
             tau_i = pm.Deterministic("tau_i", tau0 + g_tauA, dims="obs_id")
@@ -205,18 +311,25 @@ def build_itt_model(
         else:
             eta = eta + tau0 * G_d
 
+        if z_M_d is not None and tau_moderator_interaction:
+            gamma_tau_int = _priors.gamma_cross_prior().to_pymc("gamma_tau_int")
+            eta = eta + gamma_tau_int * (G_d * z_M_d)
+
         eta = pm.Deterministic("eta", eta, dims="obs_id")
 
-        kappa = _scalar_prior("kappa", _priors.kappa_prior)
-
-        beta_binomial_from_logit(
-            "y_post",
-            eta,
-            n_trials=prepared.n_trials[own],
-            kappa=kappa,
-            observed=post,
-            dims="obs_id",
-        )
+        if likelihood == "beta_binomial":
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post",
+                eta,
+                n_trials=prepared.n_trials[own],
+                kappa=kappa,
+                observed=post,
+                dims="obs_id",
+            )
+        else:  # bernoulli_offfloor: PRIMARY estimand for the floor rule
+            off_floor = (post > 0).astype(np.int64)
+            pm.Bernoulli("y_offfloor", logit_p=eta, observed=off_floor, dims="obs_id")
 
     variables = _variables_dict(model)
     return BuiltModel(model=model, variables=variables, prepared=prepared)

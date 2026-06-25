@@ -112,6 +112,23 @@ TAUGHT_BLOCK1_OUTCOMES: tuple[str, ...] = ("TE", "TR", "UE", "UR")
 """Block-1 taught-vocabulary family: taught/not-taught x expressive/receptive."""
 
 
+LRPITT_OUTCOMES: tuple[str, ...] = (
+    "TR", "TE", "UR", "UE", "R", "E", "L", "B", "P", "W", "N",
+)
+"""The eleven RCT-phase outcomes of the uniform DAG-faithful ITT suite (#119),
+in LRPITT01-LRPITT11 order: taught/not-taught receptive & expressive vocabulary,
+standardised receptive & expressive vocabulary, letter sounds, blending,
+phonetic spelling, word reading, and nonword reading.
+
+This is a *reference ordering* for the suite (the forest plot, the joint model's
+outcome set, docs); each single-outcome model still loads only its own symbol
+(plus any cross/moderator symbol) via ``ModelSpec.extra["outcomes"]`` so the
+shared complete-case mask never drops rows for measures the model ignores. In
+particular ``N`` (nonword) is post-only and floored, so it must not be co-loaded
+with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
+"""
+
+
 def unconfirmed_ceilings() -> list[str]:
     """Return the symbols of measures whose ``n_trials`` is not documented."""
     return [m.symbol for m in MEASURES.values() if not m.n_trials_confirmed]

@@ -133,6 +133,7 @@ def load_and_prepare(
     covariates: tuple[str, ...] = (),
     drop_missing_pre: bool = True,
     restrict_complete: tuple[str, ...] = (),
+    pre_required: tuple[str, ...] | None = None,
 ) -> PreparedData:
     """
     Load ``rli_data_long.csv`` and build arrays for the model factories.
@@ -153,8 +154,19 @@ def load_and_prepare(
         linear covariates. Rows with missing requested covariates are dropped
         when ``drop_missing_pre`` is true.
     drop_missing_pre
-        If True (default), rows with any missing pre-score or missing group
-        are dropped and a warning is printed with the dropped-row count.
+        If True (default), rows with any missing pre-score (for the symbols in
+        ``pre_required``) or missing group are dropped and a warning is printed
+        with the dropped-row count.
+    pre_required
+        Symbols whose pre-score must be non-missing for a row to be kept. ``None``
+        (default) requires every symbol in ``outcomes`` (the historical
+        behaviour). Pass a subset — possibly ``()`` — to exempt an outcome whose
+        baseline the model never uses, so its missing pre-scores do not silently
+        drop rows. Used by the floored / post-only outcomes (e.g. nonword ``N``,
+        whose age-only LRPITT model carries no own baseline): load with
+        ``outcomes=("N",), pre_required=()`` so the 4 missing ``nonword`` t1
+        values are kept, while the GROUP/AGE and post-presence checks still
+        apply. Every symbol listed must also be in ``outcomes``.
     restrict_complete
         Columns that must be non-missing for a row to be kept (they join the
         complete-case mask exactly like ``covariates``), but which are **not**
@@ -202,7 +214,17 @@ def load_and_prepare(
 
     merged = pd.concat(per_phase_frames, axis=0, ignore_index=True)
 
-    required_pre = [f"{MEASURES[s].column}_pre" for s in outcomes]
+    if pre_required is None:
+        pre_required_syms: tuple[str, ...] = tuple(outcomes)
+    else:
+        pre_required_syms = tuple(pre_required)
+        unknown = [s for s in pre_required_syms if s not in outcomes]
+        if unknown:
+            raise ValueError(
+                f"pre_required symbols must be a subset of outcomes; "
+                f"{unknown} not in {outcomes!r}"
+            )
+    required_pre = [f"{MEASURES[s].column}_pre" for s in pre_required_syms]
     required_post = [f"{MEASURES[s].column}_post" for s in outcomes]
 
     n_before = len(merged)

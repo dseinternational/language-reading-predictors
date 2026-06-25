@@ -99,6 +99,115 @@ def tau_summary_itt(
     }
 
 
+def tau_summary_offfloor(
+    trace: xr.DataTree,
+    *,
+    hdi_prob: float,
+    G: np.ndarray,
+) -> dict[str, float]:
+    """Summarise the binary off-floor treatment effect (floor-rule PRIMARY, #119).
+
+    For the ``bernoulli_offfloor`` model, ``expit(eta)`` is ``Pr(post > 0 at t2)``
+    (the probability of coming off the floor), so the marginal-effect machinery of
+    :func:`tau_summary_itt` returns exactly the off-floor quantities: the logit
+    scale is the log-odds of coming off the floor, and the probability scale is
+    the average **risk difference** in off-floor probability between the
+    intervention and control arms. The keys match :func:`tau_summary_itt` (so the
+    report and CSV share a schema); the off-floor interpretation is documented in
+    the floored-outcome report.
+    """
+    return tau_summary_itt(trace, hdi_prob=hdi_prob, G=G)
+
+
+def offfloor_mover_table(prepared, symbol: str) -> pd.DataFrame:
+    """Per-arm off-floor "mover" counts for a floored outcome (floor-rule, #119).
+
+    Returns, for each randomised arm, the number of children with a non-missing
+    post-score, how many came **off the floor** (``post > 0`` at t2), how many
+    stayed at the floor, and the off-floor proportion. ``prepared.G`` uses the
+    positive-benefit coding (1 = intervention, 0 = wait-list control).
+    """
+    post = np.asarray(prepared.post_counts[symbol], dtype=float)
+    G = np.asarray(prepared.G, dtype=int)
+    rows = []
+    for g, label in ((1, "intervention"), (0, "control")):
+        mask = (G == g) & np.isfinite(post)
+        n = int(mask.sum())
+        off = int(np.sum(post[mask] > 0))
+        rows.append(
+            {
+                "arm": label,
+                "n": n,
+                "off_floor": off,
+                "at_floor": n - off,
+                "prop_off_floor": (off / n) if n else float("nan"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def tau_moderation_summary(
+    trace: xr.DataTree,
+    *,
+    hdi_prob: float,
+) -> dict[str, float]:
+    """Summarise the ITT tau-moderator coefficients ``gamma_tau_int`` / ``gamma_tau_mod``.
+
+    Part B (HTE) analogue of :func:`gamma_interaction_summary`, but for the
+    treatment-moderator path of :func:`factories.build_itt_model`: ``gamma_tau_int``
+    is the effect modification (how the treatment effect ``tau`` changes per 1 SD
+    of the pre-randomisation moderator), and ``gamma_tau_mod`` is the moderator's
+    main effect. Equal-tailed central interval at coverage ``hdi_prob`` and
+    ``P(coef > 0)`` for each coefficient present in the trace.
+    """
+    posterior = trace.posterior
+    lo_q = (1 - hdi_prob) / 2
+    hi_q = 1 - lo_q
+    out: dict[str, float] = {}
+    for name in ("gamma_tau_int", "gamma_tau_mod"):
+        if name not in posterior:
+            continue
+        d = posterior[name].stack(sample=("chain", "draw")).values
+        out[f"{name}_mean"] = float(np.mean(d))
+        out[f"{name}_lo"] = float(np.quantile(d, lo_q))
+        out[f"{name}_hi"] = float(np.quantile(d, hi_q))
+        out[f"prob_{name}_pos"] = float(np.mean(d > 0))
+    return out
+
+
+def proportion_at_zero_ppc(
+    prepared,
+    symbol: str,
+    trace: xr.DataTree,
+    *,
+    node: str = "y_post",
+) -> dict[str, float]:
+    """Posterior-predictive check on the proportion-at-zero (floor-rule diagnostic).
+
+    Compares the observed fraction of zero post-scores to the posterior-predictive
+    distribution of that fraction under the graded Beta-Binomial model — the check
+    that reveals whether the graded model reproduces the floor (it typically does
+    not for ``P``/``N``, which is the motivation for the binary primary estimand).
+    Returns the observed proportion, the predictive mean, an equal-tailed interval
+    placeholder, and the posterior-predictive p-value ``P(rep >= observed)``; the
+    per-draw replicated proportions are returned under ``"rep"`` for plotting.
+    """
+    post = np.asarray(prepared.post_counts[symbol], dtype=float)
+    finite = post[np.isfinite(post)]
+    obs_p0 = float(np.mean(finite == 0.0)) if finite.size else float("nan")
+    pp = trace.posterior_predictive[node]
+    yrep = (
+        pp.stack(sample=("chain", "draw")).transpose("sample", "obs_id").values
+    )  # (S, n_obs)
+    rep_p0 = np.mean(yrep == 0.0, axis=1)  # (S,)
+    return {
+        "obs_prop_at_zero": obs_p0,
+        "ppc_mean_prop_at_zero": float(np.mean(rep_p0)),
+        "ppc_p_value": float(np.mean(rep_p0 >= obs_p0)),
+        "rep": rep_p0,
+    }
+
+
 def tau_summary_joint(
     trace: xr.DataTree,
     outcomes: list[str],

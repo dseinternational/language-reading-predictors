@@ -161,9 +161,65 @@ def _save_ppc(context: StatisticalFitContext) -> None:
         rprint(f"[yellow]PPC plot failed: {exc}[/yellow]")
 
 
+def _save_proportion_at_zero_plot(
+    ctx: StatisticalFitContext, symbol: str, ppc0: dict
+) -> None:
+    """Plot the proportion-at-zero PPC: replicated distribution vs observed."""
+    try:
+        rep = ppc0["rep"]
+        obs = ppc0["obs_prop_at_zero"]
+        plt.figure(figsize=(6, 4))
+        plt.hist(rep, bins=30, color="#1f77b4", alpha=0.6, density=True)
+        plt.axvline(obs, color="#d62728", lw=2, label=f"observed = {obs:.2f}")
+        plt.xlabel(f"proportion of {symbol} post-scores at zero")
+        plt.ylabel("posterior-predictive density")
+        plt.title(
+            f"Proportion-at-zero PPC ({symbol}); p = {ppc0['ppc_p_value']:.2f}"
+        )
+        plt.legend()
+        plt.savefig(
+            os.path.join(ctx.output_dir, "proportion_at_zero_ppc.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+        plt.close()
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Proportion-at-zero PPC plot failed: {exc}[/yellow]")
+
+
 # ---------------------------------------------------------------------------
-# ITT pipeline (LRP52 / LRP53 / LRP54 / LRP60)
+# ITT pipeline (LRP52 / LRP53 / LRP54 / LRP60 / LRPITT suite)
 # ---------------------------------------------------------------------------
+
+
+def _itt_diag_vars(
+    spec: ModelSpec,
+    adjust_for: tuple[str, ...],
+    *,
+    likelihood: str = "beta_binomial",
+) -> list[str]:
+    """Scalar coefficients to summarise for an ITT fit, conditional on the spec.
+
+    The own-baseline (``gamma_own``) is only present when ``use_own_baseline``;
+    the linear age term (``gamma_A``) only when ``use_age_linear``; the
+    Beta-Binomial concentration (``kappa``) only for the graded likelihood (the
+    binary off-floor model has none); plus any adjuster / tau-moderator
+    coefficients. Listing a missing RV would crash ``summary_diagnostics``.
+    """
+    extra = spec.extra
+    dvars = ["alpha", "tau"]
+    if extra.get("use_own_baseline", True):
+        dvars.append("gamma_own")
+    if extra.get("use_age_linear", False):
+        dvars.append("gamma_A")
+    if likelihood == "beta_binomial":
+        dvars.append("kappa")
+    dvars.extend(f"gamma_{c}" for c in adjust_for)
+    if extra.get("tau_moderator_symbol") is not None:
+        dvars.append("gamma_tau_mod")
+        if extra.get("tau_moderator_interaction", True):
+            dvars.append("gamma_tau_int")
+    return dvars
 
 
 def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -185,6 +241,13 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # set (default = every other ITT outcome).
     extra_outcomes = spec.extra.get("outcomes")
     cross_symbols = spec.extra.get("cross_symbols")
+    # Post-only / age-only outcomes (e.g. nonword N) exempt their baseline from
+    # the complete-case mask via ``pre_required`` so missing pre-scores on a
+    # baseline the model never uses do not silently drop rows (#119).
+    pre_required = spec.extra.get("pre_required")
+    if pre_required is not None:
+        pre_required = tuple(pre_required)
+    drop_missing_pre = bool(spec.extra.get("drop_missing_pre", True))
     if extra_outcomes is not None:
         extra_outcomes = tuple(extra_outcomes)
         if spec.outcome_symbol not in extra_outcomes:
@@ -197,10 +260,16 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             outcomes=extra_outcomes,
             covariates=adjust_for,
             restrict_complete=restrict_complete,
+            drop_missing_pre=drop_missing_pre,
+            pre_required=pre_required,
         )
     else:
         prepared = load_and_prepare(
-            phase_mode="itt", covariates=adjust_for, restrict_complete=restrict_complete
+            phase_mode="itt",
+            covariates=adjust_for,
+            restrict_complete=restrict_complete,
+            drop_missing_pre=drop_missing_pre,
+            pre_required=pre_required,
         )
     ctx.prepared = prepared
 
@@ -208,6 +277,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Build model")
     _priors.save_shared_prior_panel(ctx.output_dir)
+
+    # Heavily-floored outcomes (P, N) take the pre-specified floor-rule branch:
+    # a binary off-floor estimand as PRIMARY plus a graded SECONDARY (#119).
+    if spec.extra.get("floor_rule", False):
+        return _fit_itt_floor_rule(ctx, spec, prepared, adjust_for)
 
     built = _factories.build_itt_model(
         prepared,
@@ -217,6 +291,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_varying_tau=spec.extra.get("use_varying_tau", False),
         adjust_for=adjust_for,
         cross_symbols=cross_symbols,
+        use_age_linear=spec.extra.get("use_age_linear", False),
+        use_own_baseline=spec.extra.get("use_own_baseline", True),
+        tau_moderator_symbol=spec.extra.get("tau_moderator_symbol"),
+        tau_moderator_is_covariate=spec.extra.get("tau_moderator_is_covariate", False),
+        tau_moderator_interaction=spec.extra.get("tau_moderator_interaction", True),
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -236,11 +315,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_loo_row(ctx)
 
     section_header("Summary diagnostics")
-    diag_vars = ["alpha", "tau", "gamma_own", "kappa"]
-    diag_vars.extend(f"gamma_{c}" for c in adjust_for)
-    _diag.summary_diagnostics(
-        ctx, var_names=diag_vars
-    )
+    _diag.summary_diagnostics(ctx, var_names=_itt_diag_vars(spec, adjust_for))
 
     section_header("Posterior predictive")
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
@@ -273,6 +348,177 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         extra={
             "loo_elpd": float(ctx.loo.elpd),
             "tau_summary": tau_s,
+            "adjust_for": list(adjust_for),
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+def _fit_itt_floor_rule(
+    ctx: StatisticalFitContext,
+    spec: ModelSpec,
+    prepared,
+    adjust_for: tuple[str, ...],
+) -> StatisticalFitContext:
+    """Floor-rule fit for heavily-floored outcomes P / N (#119).
+
+    Fits two age-only models on the same prepared data: the PRIMARY binary
+    off-floor estimand (Bernoulli on ``post > 0``) and a flagged,
+    detection-limited SECONDARY graded Beta-Binomial. Writes ``tau_summary.csv``
+    (off-floor, primary), the per-arm mover table, the proportion-at-zero PPC,
+    and ``tau_summary_graded.csv``. The floor rule is pre-specified and arm-blind.
+    """
+    import pymc as pm
+
+    from language_reading_predictors.statistical_models import floor as _floor
+
+    own = spec.outcome_symbol
+
+    # Pre-specification gate: the floor rule is fixed before fitting and applied
+    # arm-blind, so the outcome must actually qualify (>= 40% at zero at t2).
+    p0 = _floor.proportion_at_zero(prepared, own)
+    if not _floor.is_floored(prepared, own):
+        raise ValueError(
+            f"floor_rule set for {own!r}, but only {p0:.0%} of its post-scores "
+            f"are at zero at t2 (threshold {_floor.FLOOR_THRESHOLD:.0%}); the "
+            "floor rule is pre-specified and arm-blind - remove floor_rule or "
+            "check the data."
+        )
+    rprint(
+        f"  Floor rule: {own} is {p0:.0%} floored at t2 "
+        f"(>= {_floor.FLOOR_THRESHOLD:.0%}); binary off-floor estimand is PRIMARY, "
+        "graded Beta-Binomial is SECONDARY (detection-limited)."
+    )
+
+    common = dict(
+        outcome_symbol=own,
+        use_age_gp=spec.extra.get("use_age_gp", False),
+        use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", False),
+        use_age_linear=spec.extra.get("use_age_linear", True),
+        use_own_baseline=spec.extra.get("use_own_baseline", False),
+        cross_symbols=spec.extra.get("cross_symbols", ()),
+        adjust_for=adjust_for,
+    )
+
+    # ----- PRIMARY: binary off-floor (Bernoulli on post > 0) -----
+    section_header("Build model (PRIMARY: binary off-floor)")
+    built = _factories.build_itt_model(
+        prepared, likelihood="bernoulli_offfloor", **common
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_offfloor", "eta"])
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(
+        ctx,
+        var_names=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
+    )
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_offfloor"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Off-floor treatment-effect summary (PRIMARY)")
+    off = _report.tau_summary_offfloor(
+        ctx.trace, hdi_prob=ctx.reporting.hdi, G=built.prepared.G
+    )
+    pd.DataFrame([off]).to_csv(
+        os.path.join(ctx.output_dir, "tau_summary.csv"), index=False
+    )
+    ctx.tables["tau_summary"] = pd.DataFrame([off])
+    print_table(
+        metrics_table(
+            [{"metric": k, "value": v} for k, v in off.items()],
+            title=(
+                f"off-floor tau ({own}) - {int(ctx.reporting.hdi * 100)}% CI "
+                "(equal-tailed); positive = intervention raises Pr(off-floor)"
+            ),
+            columns=["metric", "value"],
+        )
+    )
+
+    movers = _report.offfloor_mover_table(built.prepared, own)
+    movers.to_csv(os.path.join(ctx.output_dir, "offfloor_movers.csv"), index=False)
+    ctx.tables["offfloor_movers"] = movers
+    print_table(
+        ranked_dataframe_table(
+            movers,
+            title=f"Off-floor movers by arm ({own})",
+            columns=["arm", "n", "off_floor", "at_floor", "prop_off_floor"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # ----- SECONDARY: graded Beta-Binomial (detection-limited) -----
+    section_header("Build model (SECONDARY: graded Beta-Binomial, detection-limited)")
+    built_g = _factories.build_itt_model(prepared, likelihood="beta_binomial", **common)
+    s = ctx.sampling
+    with built_g.model:
+        trace_g = pm.sample(
+            draws=s.draws,
+            tune=s.tune,
+            chains=s.chains,
+            cores=s.cores,
+            target_accept=s.target_accept,
+            nuts_sampler="nutpie",
+            return_inferencedata=True,
+            random_seed=s.random_seed,
+            progressbar=False,
+        )
+        trace_g = pm.sample_posterior_predictive(
+            trace_g,
+            var_names=["y_post"],
+            extend_inferencedata=True,
+            random_seed=s.random_seed,
+            progressbar=False,
+        )
+
+    graded = _report.tau_summary_itt(
+        trace_g, hdi_prob=ctx.reporting.hdi, G=built_g.prepared.G
+    )
+    pd.DataFrame([graded]).to_csv(
+        os.path.join(ctx.output_dir, "tau_summary_graded.csv"), index=False
+    )
+    ctx.tables["tau_summary_graded"] = pd.DataFrame([graded])
+
+    # Proportion-at-zero PPC on the graded model: does the graded Beta-Binomial
+    # reproduce the observed floor? (Usually not - the motivation for the binary
+    # primary estimand.)
+    ppc0 = _report.proportion_at_zero_ppc(built_g.prepared, own, trace_g)
+    _save_proportion_at_zero_plot(ctx, own, ppc0)
+    pd.DataFrame([{k: v for k, v in ppc0.items() if k != "rep"}]).to_csv(
+        os.path.join(ctx.output_dir, "proportion_at_zero_ppc.csv"), index=False
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "floor_rule": {
+                "outcome": own,
+                "proportion_at_zero": p0,
+                "threshold": _floor.FLOOR_THRESHOLD,
+            },
+            "tau_offfloor_primary": off,
+            "tau_graded_secondary": graded,
+            "proportion_at_zero_ppc": {k: v for k, v in ppc0.items() if k != "rep"},
             "adjust_for": list(adjust_for),
         },
     )
