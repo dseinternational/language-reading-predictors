@@ -135,7 +135,7 @@ Content drafted or substantially edited by an AI tool **must** carry a visible l
 Prefix the content with a GitHub-style alert that names the specific tool and model:
 
 ```
-> [!WARNING]
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 ```
 
