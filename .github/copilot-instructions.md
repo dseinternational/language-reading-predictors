@@ -132,17 +132,30 @@ Full rationale, workflow, conventions, glossary, and references: **`METHODS.md`*
 
 Content drafted or substantially edited by an AI tool **must** carry a visible label identifying it as AI-authored. This applies to **document drafts, pull requests, issues, and comments on pull requests and issues** — and to similar prose such as `notes/` entries, release notes, and discussion posts.
 
-Prefix the content with a GitHub-style alert that names the specific tool and model:
+Put the label at the very top, before the substantive text, naming the specific tool and model you actually are (e.g. `Claude Code/Opus 4.8`, `GitHub Copilot`). Use the form that renders in the target — the GitHub alert and Quarto callout syntaxes are **not** interchangeable:
+
+**GitHub** (pull requests, issues, comments, Markdown viewed on GitHub) — a GitHub alert:
 
 ```
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 ```
 
-- Substitute the tool and model you actually are (e.g. `Claude Code/Opus 4.8`, `GitHub Copilot`).
-- Put the label at the very top, before the substantive text.
-- In plain-text contexts that do not render GitHub alerts, use an equivalent leading line: `Note: Drafted by a LLM-based AI tool (<tool>/<model>).`
-- Do not remove or hide a label that another tool has added.
+**Quarto** (`.qmd` documents — e.g. `docs/report/`, `docs/models/`) — a Quarto callout, because Quarto renders its own `::: {.callout-note}` blocks and does **not** understand GitHub `> [!NOTE]` alerts (they would show as a plain blockquote):
+
+```
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+```
+
+**Plain text** (or anything that renders neither) — an equivalent leading line:
+
+```
+Note: Drafted by a LLM-based AI tool (<tool>/<model>).
+```
+
+Do not remove or hide a label that another tool has added.
 
 ## Pre-commit checks
 
