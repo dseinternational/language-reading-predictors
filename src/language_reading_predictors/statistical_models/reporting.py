@@ -176,46 +176,35 @@ def odds_string(prob: float) -> str:
     return f"{o:.0f}:1" if o >= 1 else f"1:{1 / o:.0f}"
 
 
-def rope_summary(
-    trace: xr.DataTree,
+def _rope_card(
+    effect_draws: np.ndarray,
+    items: np.ndarray,
     *,
-    G: np.ndarray,
-    n_trials: int,
     delta: float,
-    ci_prob: float = 0.95,
+    ci_prob: float,
 ) -> dict[str, float | str]:
-    """ROPE-anchored continuous report card for an ITT treatment effect.
+    """Assemble the ROPE report card from logit-effect and items-effect draws.
 
-    Built on :func:`_itt_ame_draws`, so it shares the average-marginal-effect core
-    with :func:`tau_summary_itt`. Reports the effect on the logit scale (``tau``)
-    and the items scale (the average marginal effect × ``n_trials``) as a **median**
-    with a 50 % and a ``ci_prob`` (default 95 %) equal-tailed interval, plus:
-
-    - ``pd`` — ``P(τ > 0)``, the probability of direction;
-    - ``prob_benefit_ge_delta`` — ``P(items effect > δ)``, the probability of a
-      *meaningful* benefit, where ``delta`` is the minimally-important difference
-      (the ROPE half-width) on the items scale;
-    - ``prob_in_rope`` — ``P(|items effect| < δ)``, practically negligible;
-    - ``prob_harm_ge_delta`` — ``P(items effect < −δ)``;
-    - ``direction_label`` / ``benefit_label`` — the round-odds evidence labels
-      (:func:`evidence_label`) for the direction and meaningful-benefit claims.
-
-    See ``notes/202606261304-evidence-strength-and-rope-reporting.md`` for the
-    rationale (sign-vs-size, the median convention, the δ choice). The point
-    estimate is the **median** because it is transformation-invariant across the
-    logit and items scales.
+    The formatting core shared by every ROPE report so they emit an identical
+    ``rope_summary.csv`` schema: :func:`rope_summary` (ITT ``tau`` and the gain
+    family's ``beta_trt``) and :func:`level_t2_marginal_effect`'s consumer (the
+    level family's t2 randomised contrast). ``effect_draws`` are the logit-scale
+    effect draws ``(S,)`` (used for the ``pd`` direction probability), ``items`` the
+    matching items-scale average marginal effect per draw ``(S,)``, ``delta`` the
+    items-scale ROPE half-width. The point estimate is the **median** because it is
+    transformation-invariant across the logit and items scales. The ``tau_logit_*``
+    keys are retained verbatim across families (as :func:`tau_summary_offfloor`
+    already reuses the ``tau`` schema) so one CSV layout serves the whole suite.
     """
-    tau_draws, ame_prob = _itt_ame_draws(trace, G=G)
-    items = ame_prob * float(n_trials)
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
-    pd_ = float(np.mean(tau_draws > 0))
+    pd_ = float(np.mean(effect_draws > 0))
     p_benefit = float(np.mean(items >= delta))
     return {
-        "tau_logit_median": float(np.median(tau_draws)),
-        "tau_logit_lo50": float(np.quantile(tau_draws, 0.25)),
-        "tau_logit_hi50": float(np.quantile(tau_draws, 0.75)),
-        "tau_logit_lo": float(np.quantile(tau_draws, lo_q)),
-        "tau_logit_hi": float(np.quantile(tau_draws, hi_q)),
+        "tau_logit_median": float(np.median(effect_draws)),
+        "tau_logit_lo50": float(np.quantile(effect_draws, 0.25)),
+        "tau_logit_hi50": float(np.quantile(effect_draws, 0.75)),
+        "tau_logit_lo": float(np.quantile(effect_draws, lo_q)),
+        "tau_logit_hi": float(np.quantile(effect_draws, hi_q)),
         "items_median": float(np.median(items)),
         "items_lo50": float(np.quantile(items, 0.25)),
         "items_hi50": float(np.quantile(items, 0.75)),
@@ -229,6 +218,47 @@ def rope_summary(
         "direction_label": evidence_label(pd_),
         "benefit_label": evidence_label(p_benefit),
     }
+
+
+def rope_summary(
+    trace: xr.DataTree,
+    *,
+    G: np.ndarray,
+    n_trials: int,
+    delta: float,
+    ci_prob: float = 0.95,
+    term: str = "tau",
+    varying_term: str = "tau_i",
+    eta_name: str = "eta",
+) -> dict[str, float | str]:
+    """ROPE-anchored continuous report card for a randomised treatment effect.
+
+    Built on :func:`_itt_ame_draws`, so it shares the average-marginal-effect core
+    with :func:`tau_summary_itt`. Reports the effect on the logit scale (``term``)
+    and the items scale (the average marginal effect × ``n_trials``) as a **median**
+    with a 50 % and a ``ci_prob`` (default 95 %) equal-tailed interval, plus:
+
+    - ``pd`` — ``P(effect > 0)``, the probability of direction;
+    - ``prob_benefit_ge_delta`` — ``P(items effect > δ)``, the probability of a
+      *meaningful* benefit, where ``delta`` is the minimally-important difference
+      (the ROPE half-width) on the items scale;
+    - ``prob_in_rope`` — ``P(|items effect| < δ)``, practically negligible;
+    - ``prob_harm_ge_delta`` — ``P(items effect < −δ)``;
+    - ``direction_label`` / ``benefit_label`` — the round-odds evidence labels
+      (:func:`evidence_label`) for the direction and meaningful-benefit claims.
+
+    ``term`` / ``varying_term`` / ``G`` select the randomised effect: the ITT suite
+    uses the defaults (``tau`` with the age-varying ``tau_i``, ``G`` the arm
+    indicator); the gain-factor family passes ``term="beta_trt"``, ``varying_term=""``
+    and ``G`` the on-intervention indicator. See
+    ``notes/202606261304-evidence-strength-and-rope-reporting.md`` for the rationale
+    (sign-vs-size, the median convention, the δ choice).
+    """
+    effect_draws, ame_prob = _itt_ame_draws(
+        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name
+    )
+    items = ame_prob * float(n_trials)
+    return _rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
 
 
 def offfloor_mover_table(prepared, symbol: str) -> pd.DataFrame:
@@ -539,3 +569,171 @@ def loo_delta(loo_a: az.ELPDData, loo_b: az.ELPDData) -> dict[str, float]:
         "d_elpd": float(df.loc["a", "elpd"] - df.loc["b", "elpd"]),
         "d_se": float(df.loc["a", "dse"]) if "dse" in df.columns else float("nan"),
     }
+
+
+def factor_summary(
+    trace: xr.DataTree,
+    coef_names: list[str],
+    *,
+    ci_prob: float,
+    causal_terms: tuple[str, ...] = (),
+) -> pd.DataFrame:
+    """Per-coefficient posterior summary for a factor model (LRPGF / LRPLF, #127).
+
+    One row per coefficient in ``coef_names`` present in the trace: posterior
+    ``mean``, equal-tailed central interval at coverage ``ci_prob`` (``lo``/``hi``,
+    same convention as :func:`tau_summary_itt`), and ``prob_positive`` =
+    ``P(coef > 0)``. The ``role`` column labels each term **causal** (the
+    randomised treatment terms named in ``causal_terms``) or **association** —
+    under the locked DAG every non-randomised coefficient is an adjusted
+    association confounded by latent general ability and must never be read as
+    "drives".
+    """
+    posterior = trace.posterior
+    lo_q = (1 - ci_prob) / 2
+    hi_q = 1 - lo_q
+
+    def _row(term: str, base: str, d: np.ndarray) -> dict[str, object]:
+        causal = term in causal_terms or base in causal_terms
+        return {
+            "term": term,
+            "role": "causal" if causal else "association",
+            "mean": float(np.mean(d)),
+            "lo": float(np.quantile(d, lo_q)),
+            "hi": float(np.quantile(d, hi_q)),
+            "prob_positive": float(np.mean(d > 0)),
+        }
+
+    rows: list[dict[str, object]] = []
+    for name in coef_names:
+        if name not in posterior:
+            continue
+        da = posterior[name]
+        extra_dims = [dd for dd in da.dims if dd not in ("chain", "draw")]
+        if not extra_dims:
+            d = da.stack(sample=("chain", "draw")).values.ravel()
+            rows.append(_row(name, name, d))
+        else:
+            # Vector coefficient (e.g. the level model's per-timepoint b_grp_time):
+            # one row per element, so an element can be labelled causal on its own
+            # (e.g. only the t2 group contrast is the clean randomised effect).
+            dim = extra_dims[0]
+            for i in range(int(da.sizes[dim])):
+                d = da.isel({dim: i}).stack(sample=("chain", "draw")).values.ravel()
+                rows.append(_row(f"{name}[{i}]", name, d))
+    return pd.DataFrame(rows)
+
+
+def treatment_marginal_effect(
+    trace: xr.DataTree,
+    *,
+    trt: np.ndarray,
+    n_trials: int,
+    term: str = "beta_trt",
+    eta_name: str = "eta",
+    ci_prob: float = 0.95,
+) -> dict[str, float]:
+    """Items-scale average marginal effect of the treatment term (LRPGF, #127).
+
+    A thin wrapper over the shared counterfactual-AME core :func:`_itt_ame_draws`
+    (#130): the gain model's treatment term ``term`` (``beta_trt``) plays the role of
+    the ITT ``tau`` and the on-intervention indicator ``trt`` the role of ``G``, with
+    no age-varying term. Per draw the core forms ``eta0 = eta - term*trt`` (all off)
+    and averages ``expit(eta0 + term) - expit(eta0)`` over observations; this folds
+    onto that core so the two parameterisations of the same quantity cannot drift.
+
+    Reported on the probability and items scales (``n_trials`` × probability) with an
+    equal-tailed ``ci_prob`` interval. Point estimates are the **median** —
+    transformation-invariant across the logit and items scales, matching the ROPE
+    convention adopted in #130 (notes/202606261304-evidence-strength-and-rope-
+    reporting.md). ``prob_trt_pos`` is ``P(term > 0)`` on the logit scale.
+    """
+    b, ame_prob = _itt_ame_draws(
+        trace, G=trt, term=term, varying_term="", eta_name=eta_name
+    )
+    ame_items = float(n_trials) * ame_prob
+    lo_q = (1 - ci_prob) / 2
+    hi_q = 1 - lo_q
+    return {
+        "trt_prob_median": float(np.median(ame_prob)),
+        "trt_prob_lo": float(np.quantile(ame_prob, lo_q)),
+        "trt_prob_hi": float(np.quantile(ame_prob, hi_q)),
+        "trt_items_median": float(np.median(ame_items)),
+        "trt_items_lo": float(np.quantile(ame_items, lo_q)),
+        "trt_items_hi": float(np.quantile(ame_items, hi_q)),
+        "prob_trt_pos": float(np.mean(b > 0)),
+    }
+
+
+def level_t2_marginal_effect(
+    trace: xr.DataTree,
+    *,
+    phase: np.ndarray,
+    G: np.ndarray,
+    t2_phase: int = 1,
+    contrast_term: str = "b_grp_time",
+    interaction_term: str = "gamma_grp_ability",
+    ability: np.ndarray | None = None,
+    eta_name: str = "eta",
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-draw t2 randomised contrast and its items-scale AME (LRPLF, #127).
+
+    The level model enters group as a per-timepoint vector ``b_grp_time[t]`` because
+    the trial is a waitlist crossover; **only the t2 element is a clean randomised
+    contrast** (later timepoints are post-crossover associations). This isolates that
+    one causal effect on the items scale.
+
+    Unlike the gain family's single ``beta_trt * trt`` term, the level model's group
+    contribution at t2 is ``(b_grp_time[t2] + gamma_grp_ability * ability) * G`` — it
+    also carries the group×ability interaction — so the plain ``eta - term*G`` removal
+    of :func:`_itt_ame_draws` does not apply. Restricting to the t2 rows, per draw we
+    net out the *full* group contribution to recover the untreated baseline
+    ``eta0 = eta - (b_grp_time[t2] + gamma_grp_ability*ability)*G``, add it back at
+    ``G=1``, and average ``expit(eta1) - expit(eta0)`` over the t2 rows.
+
+    Returns ``(contrast_draws, ame_prob)`` — the logit-scale ``b_grp_time[t2]`` draws
+    ``(S,)`` (the term flagged causal in the report) and the probability-scale average
+    marginal effect per draw ``(S,)``, ready for :func:`_rope_card`. ``ability`` is the
+    standardised ability covariate aligned with ``eta``'s ``obs_id`` axis (pass
+    ``None`` when the model has no group×ability term).
+    """
+    posterior = trace.posterior
+    phase = np.asarray(phase)
+    G = np.asarray(G, dtype=float)
+    mask = phase == t2_phase
+    if not mask.any():
+        raise ValueError(f"No rows at t2_phase={t2_phase}; phases present: {np.unique(phase)}")
+
+    eta = (
+        posterior[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
+    if eta.shape[0] != phase.shape[0]:
+        raise ValueError(
+            f"phase has {phase.shape[0]} rows but eta has {eta.shape[0]} observations; "
+            "pass built.prepared.phase (aligned with the fitted subset)."
+        )
+
+    bgt = posterior[contrast_term]
+    extra = [d for d in bgt.dims if d not in ("chain", "draw")]
+    if not extra:
+        raise ValueError(f"{contrast_term!r} is not a per-timepoint vector; t2 contrast undefined")
+    contrast_draws = (
+        bgt.isel({extra[0]: t2_phase}).stack(sample=("chain", "draw")).values
+    )  # (S,)
+
+    # δ_i per t2 row and draw: the constant t2 contrast, plus the group×ability slope
+    # times each row's ability if the interaction is in the model.
+    delta_rows = contrast_draws[None, :]  # (1, S)
+    if interaction_term in posterior and ability is not None:
+        g_ab = posterior[interaction_term].stack(sample=("chain", "draw")).values.ravel()  # (S,)
+        ab_t2 = np.asarray(ability, dtype=float)[mask]  # (m,)
+        delta_rows = contrast_draws[None, :] + np.outer(ab_t2, g_ab)  # (m, S)
+
+    eta_t2 = eta[mask]  # (m, S)
+    G_t2 = G[mask]  # (m,)
+    eta0 = eta_t2 - delta_rows * G_t2[:, None]  # untreated baseline at the t2 profile
+    ame_prob = (expit(eta0 + delta_rows) - expit(eta0)).mean(axis=0)  # (S,)
+    return contrast_draws, ame_prob

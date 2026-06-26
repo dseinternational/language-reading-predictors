@@ -191,20 +191,32 @@ def _save_proportion_at_zero_plot(
 def _save_rope_plot(
     ctx: StatisticalFitContext,
     symbol: str,
-    G: np.ndarray,
+    G: np.ndarray | None,
     n_trials: int,
     delta: float,
+    *,
+    term: str = "tau",
+    varying_term: str = "tau_i",
+    items: np.ndarray | None = None,
 ) -> None:
-    """ROPE-anchored figure for an ITT outcome: the items-scale posterior with the
-    region of practical equivalence, and ``P(effect > delta)`` as the
+    """ROPE-anchored figure for a randomised effect: the items-scale posterior with
+    the region of practical equivalence, and ``P(effect > delta)`` as the
     minimally-important difference rises. Single-outcome version of the note figure
     (notes/202606261304-evidence-strength-and-rope-reporting.md).
+
+    The ITT/gain path recomputes the items draws from ``_itt_ame_draws`` (``term`` /
+    ``varying_term`` / ``G`` select the effect); the level family passes its t2
+    contrast items draws directly via ``items`` (its AME nets out a group×ability
+    interaction the generic core cannot reconstruct).
     """
     try:
         from scipy.stats import gaussian_kde
 
-        _, ame_prob = _report._itt_ame_draws(ctx.trace, G=G)
-        items = ame_prob * float(n_trials)
+        if items is None:
+            _, ame_prob = _report._itt_ame_draws(
+                ctx.trace, G=G, term=term, varying_term=varying_term
+            )
+            items = ame_prob * float(n_trials)
         med = float(np.median(items))
         xmax = float(np.quantile(items, 0.995)) + 0.5
         xmin = min(-delta - 0.5, float(np.quantile(items, 0.005)))
@@ -1193,6 +1205,336 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         },
     )
 
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# Gain-factors / level-factors pipelines (LRPGF / LRPLF, #127)
+# ---------------------------------------------------------------------------
+
+
+def _gf_coef_names(spec: ModelSpec) -> list[str]:
+    """Factor coefficients to report in the LRPGF factor table (interpretable
+    terms only; nuisance alpha/alpha_phase/kappa/sigma_child are excluded)."""
+    extra = spec.extra
+    treated_only = bool(extra.get("treated_only", False))
+    names: list[str] = []
+    if not treated_only:
+        names.append("beta_trt")
+    names += ["gamma_own", "gamma_A"]
+    if extra.get("ability_covariate"):
+        names.append("gamma_ability")
+    names += [f"gamma_{s}" for s in extra.get("skill_symbols", ())]
+    for pair in extra.get("interactions", ()):
+        a, b = tuple(pair)
+        if treated_only and "trt" in (a, b):
+            continue
+        names.append(f"gamma_int_{a}_{b}")
+    return names
+
+
+def _gf_diag_vars(spec: ModelSpec) -> list[str]:
+    # No kappa under the off-floor Bernoulli likelihood.
+    tail = (
+        ["sigma_child"]
+        if spec.extra.get("likelihood") == "bernoulli_offfloor"
+        else ["kappa", "sigma_child"]
+    )
+    return ["alpha", *_gf_coef_names(spec), *tail]
+
+
+def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    assert spec.kind == "gain_factors"
+    assert spec.outcome_symbol is not None
+    ctx = make_context(spec, config)
+    extra = spec.extra
+
+    section_header("Prepare data")
+    skill_symbols = tuple(extra.get("skill_symbols", ()))
+    ability_covariate = extra.get("ability_covariate")
+    interactions = tuple(tuple(p) for p in extra.get("interactions", ()))
+    treated_only = bool(extra.get("treated_only", False))
+    likelihood = extra.get("likelihood", "beta_binomial")
+    off_floor = likelihood == "bernoulli_offfloor"
+    obs_node = "y_offfloor" if off_floor else "y_post"
+    baseline_covariates = (ability_covariate,) if ability_covariate else ()
+    prepared = load_and_prepare(
+        phase_mode="all",
+        outcomes=(spec.outcome_symbol, *skill_symbols),
+        baseline_covariates=baseline_covariates,
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_gain_factors_model(
+        prepared,
+        outcome_symbol=spec.outcome_symbol,
+        skill_symbols=skill_symbols,
+        ability_covariate=ability_covariate,
+        interactions=interactions,
+        treated_only=treated_only,
+        likelihood=likelihood,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=[obs_node, "eta"])
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=_gf_diag_vars(spec))
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Factor summary")
+    fs = _report.factor_summary(
+        ctx.trace, _gf_coef_names(spec), ci_prob=ctx.reporting.hdi,
+        causal_terms=("beta_trt",),
+    )
+    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
+    ctx.tables["factor_summary"] = fs
+    print_table(
+        ranked_dataframe_table(
+            fs,
+            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
+            columns=["term", "role", "mean", "lo", "hi", "prob_positive"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    meta_extra = {"loo_elpd": float(ctx.loo.elpd), "treated_only": treated_only}
+    # Items-scale marginal effect of the treatment term. Skipped when
+    # treated_only (the on-intervention indicator is then constant and beta_trt
+    # is absent).
+    if not treated_only:
+        trt = ((built.prepared.G == 1) | (built.prepared.phase >= 1)).astype(float)
+        # Off-floor models are Bernoulli on Pr(post > 0); the "items" scale then
+        # collapses to the off-floor risk difference (n_trials = 1).
+        n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
+        tme = _report.treatment_marginal_effect(
+            ctx.trace,
+            trt=trt,
+            n_trials=n_marg,
+            ci_prob=ctx.reporting.hdi,
+        )
+        pd.DataFrame([tme]).to_csv(
+            os.path.join(ctx.output_dir, "treatment_marginal.csv"), index=False
+        )
+        ctx.tables["treatment_marginal"] = pd.DataFrame([tme])
+        meta_extra["treatment_marginal"] = tme
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in tme.items()],
+                title="Treatment items-scale marginal effect",
+                columns=["metric", "value"],
+            )
+        )
+
+        # ROPE-anchored continuous report for the one causal term (beta_trt),
+        # mirroring fit_itt (notes/202606261304-evidence-strength-and-rope-
+        # reporting.md): separates direction (pd) from a *meaningful* benefit
+        # (P(items >= delta)). Emitted only for graded outcomes with an agreed
+        # items-scale delta (ROPE_DELTA -> W/R/E/L/B). The floored outcome P and the
+        # not-yet-agreed F/T are absent from ROPE_DELTA and so skipped, exactly as
+        # the ITT path leaves them (their probability-scale delta is the same
+        # education-lead follow-up #130 records).
+        from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+
+        delta_items = ROPE_DELTA.get(spec.outcome_symbol)
+        if delta_items is not None and not off_floor:
+            rope_s = _report.rope_summary(
+                ctx.trace,
+                G=trt,
+                n_trials=n_marg,
+                delta=delta_items,
+                ci_prob=ctx.reporting.hdi,
+                term="beta_trt",
+                varying_term="",
+            )
+            rope_df = pd.DataFrame([rope_s])
+            rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
+            ctx.tables["rope_summary"] = rope_df
+            meta_extra["rope_summary"] = rope_s
+            print_table(
+                metrics_table(
+                    [{"metric": k, "value": v} for k, v in rope_s.items()],
+                    title=f"ROPE summary ({spec.outcome_symbol}, delta={delta_items:g} items)",
+                    columns=["metric", "value"],
+                )
+            )
+            _save_rope_plot(
+                ctx, spec.outcome_symbol, trt, n_marg, delta_items,
+                term="beta_trt", varying_term="",
+            )
+
+    _report.write_run_metadata(ctx, extra=meta_extra)
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+def _lf_coef_names(spec: ModelSpec) -> list[str]:
+    extra = spec.extra
+    names = ["b_grp_time" if extra.get("group_by_time", True) else "beta_grp", "gamma_A"]
+    if extra.get("ability_covariate"):
+        names.append(
+            "gamma_ability_time" if extra.get("ability_by_time", True) else "gamma_ability"
+        )
+        if extra.get("group_ability", True):
+            names.append("gamma_grp_ability")
+    return names
+
+
+def _lf_diag_vars(spec: ModelSpec) -> list[str]:
+    tail = (
+        ["sigma_child"]
+        if spec.extra.get("likelihood") == "bernoulli_offfloor"
+        else ["kappa", "sigma_child"]
+    )
+    return ["alpha", "alpha_time", *_lf_coef_names(spec), *tail]
+
+
+def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    assert spec.kind == "level_factors"
+    assert spec.outcome_symbol is not None
+    ctx = make_context(spec, config)
+    extra = spec.extra
+
+    section_header("Prepare data")
+    ability_covariate = extra.get("ability_covariate")
+    likelihood = extra.get("likelihood", "beta_binomial")
+    off_floor = likelihood == "bernoulli_offfloor"
+    obs_node = "y_offfloor" if off_floor else "y_post"
+    baseline_covariates = (ability_covariate,) if ability_covariate else ()
+    prepared = load_and_prepare(
+        phase_mode="levels",
+        outcomes=(spec.outcome_symbol,),
+        baseline_covariates=baseline_covariates,
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_level_factors_model(
+        prepared,
+        outcome_symbol=spec.outcome_symbol,
+        ability_covariate=ability_covariate,
+        group_by_time=bool(extra.get("group_by_time", True)),
+        ability_by_time=bool(extra.get("ability_by_time", True)),
+        group_ability=bool(extra.get("group_ability", True)),
+        likelihood=likelihood,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=[obs_node, "eta"])
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=_lf_diag_vars(spec))
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Factor summary")
+    # Only the t2 group contrast (b_grp_time[1]) is the clean randomised effect;
+    # the other timepoints are post-crossover (see the level-model caveat).
+    causal = ("b_grp_time[1]",) if extra.get("group_by_time", True) else ()
+    fs = _report.factor_summary(
+        ctx.trace, _lf_coef_names(spec), ci_prob=ctx.reporting.hdi, causal_terms=causal
+    )
+    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
+    ctx.tables["factor_summary"] = fs
+    print_table(
+        ranked_dataframe_table(
+            fs,
+            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
+            columns=["term", "role", "mean", "lo", "hi", "prob_positive"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    meta_extra = {"loo_elpd": float(ctx.loo.elpd)}
+    # ROPE-anchored continuous report for the one causal term — the t2 randomised
+    # contrast b_grp_time[1] (notes/202606261304-...). The level model enters group
+    # as a per-timepoint vector and also carries a group×ability interaction, so the
+    # t2 items-scale AME nets both group terms out at the t2 rows
+    # (reporting.level_t2_marginal_effect) rather than reusing the gain core. Emitted
+    # only for graded outcomes with an agreed delta (ROPE_DELTA -> W/R/E/L/B) and when
+    # the t2 contrast exists (group_by_time); P (off-floor) and F/T are skipped, as in
+    # the ITT path.
+    from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+
+    delta_items = ROPE_DELTA.get(spec.outcome_symbol)
+    if delta_items is not None and not off_floor and extra.get("group_by_time", True):
+        ability = (
+            built.prepared.covariates[ability_covariate]
+            if ability_covariate is not None
+            else None
+        )
+        contrast_draws, ame_prob = _report.level_t2_marginal_effect(
+            ctx.trace,
+            phase=built.prepared.phase,
+            G=built.prepared.G,
+            ability=ability,
+        )
+        n_marg = int(built.prepared.n_trials[spec.outcome_symbol])
+        items = ame_prob * n_marg
+        rope_s = _report._rope_card(
+            contrast_draws, items, delta=delta_items, ci_prob=ctx.reporting.hdi
+        )
+        rope_df = pd.DataFrame([rope_s])
+        rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
+        ctx.tables["rope_summary"] = rope_df
+        meta_extra["rope_summary"] = rope_s
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in rope_s.items()],
+                title=f"ROPE summary (t2 contrast, {spec.outcome_symbol}, delta={delta_items:g} items)",
+                columns=["metric", "value"],
+            )
+        )
+        _save_rope_plot(ctx, spec.outcome_symbol, None, n_marg, delta_items, items=items)
+
+    _report.write_run_metadata(ctx, extra=meta_extra)
     section_header("Report")
     _copy_report_template(ctx)
     _print_footer(ctx)
