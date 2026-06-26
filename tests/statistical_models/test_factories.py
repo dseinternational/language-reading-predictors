@@ -17,6 +17,7 @@ import pytest
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.factories import (
+    build_aligned_model,
     build_did_model,
     build_gain_factors_model,
     build_itt_model,
@@ -834,3 +835,86 @@ def test_gf_lf_diag_vars_match_offfloor_builds(tmp_path):
     }))
     assert "kappa" not in l_diag
     assert not (set(l_diag) - l_names)
+
+
+# ---------------------------------------------------------------------------
+# Aligned-40-week per-protocol family (LRPAL, issue #127 follow-on)
+# ---------------------------------------------------------------------------
+
+
+def _prep_aligned(tmp_path, **kw):
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare_aligned,
+    )
+    return load_and_prepare_aligned(path=_write_synthetic(tmp_path, **kw))
+
+
+def test_aligned_factory_builds(tmp_path):
+    """Cross-sectional onset-aligned ANCOVA: cohort + own onset baseline + age,
+    Beta-Binomial, and NO child random intercept (one row per child)."""
+    prep = _prep_aligned(tmp_path, n_children=24)
+    assert prep.phase_mode == "aligned" and prep.n_phases == 1
+    built = build_aligned_model(prep, outcome_symbol="W")
+    names = {v.name for v in built.model.free_RVs}
+    assert {"alpha", "beta_cohort", "gamma_own", "gamma_A", "kappa"}.issubset(names)
+    assert "sigma_child" not in names  # one row per child -> no random intercept
+    assert "gamma_ability" not in names and "gamma_dose" not in names
+    assert {v.name for v in built.model.observed_RVs} == {"y_post"}
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=51)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_aligned_factory_ability_dose_and_no_cohort(tmp_path):
+    """Ability and dose each add a coefficient; use_cohort=False drops beta_cohort."""
+    prep = _prep_aligned(tmp_path, n_children=24)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    prep.covariates["dose"] = np.linspace(1.0, -1.0, prep.n_obs)
+    built = build_aligned_model(
+        prep, outcome_symbol="W", ability_covariate="blocks", use_dose=True
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_ability", "gamma_dose", "beta_cohort"}.issubset(names)
+    base = build_aligned_model(
+        prep, outcome_symbol="W", ability_covariate="blocks", use_cohort=False
+    )
+    assert "beta_cohort" not in {v.name for v in base.model.free_RVs}
+
+
+def test_aligned_factory_bernoulli_offfloor(tmp_path):
+    prep = _prep_aligned(tmp_path, n_children=24)
+    built = build_aligned_model(
+        prep, outcome_symbol="P", likelihood="bernoulli_offfloor"
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "kappa" not in names
+    assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
+
+
+def test_aligned_factory_rejects_dose_without_covariate_and_wrong_phase(tmp_path):
+    prep = _prep_aligned(tmp_path, n_children=15)
+    with pytest.raises(KeyError):
+        build_aligned_model(prep, outcome_symbol="W", use_dose=True)  # no 'dose'
+    itt = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="itt")
+    with pytest.raises(ValueError):
+        build_aligned_model(itt, outcome_symbol="W")
+
+
+def test_al_diag_vars_match_build(tmp_path):
+    """_al_diag_vars names only RVs the aligned factory builds: kappa present,
+    no sigma_child (no random intercept)."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.pipeline import _al_diag_vars
+
+    prep = _prep_aligned(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_aligned_model(prep, outcome_symbol="W", ability_covariate="blocks")
+    diag = _al_diag_vars(
+        SimpleNamespace(extra={"ability_covariate": "blocks", "use_cohort": True})
+    )
+    built_names = {v.name for v in built.model.free_RVs} | {
+        v.name for v in built.model.deterministics
+    }
+    assert not (set(diag) - built_names)
+    assert "kappa" in diag and "sigma_child" not in diag

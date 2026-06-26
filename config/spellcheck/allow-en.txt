@@ -98,6 +98,7 @@ logit
 LRPITT
 LRPGF
 LRPLF
+LRPAL
 medae
 mumedupost
 mumocc
@@ -152,6 +153,7 @@ kwargs
 looic
 nonparametric
 nonzero
+parameterisation
 savefig
 colorlinks
 documentclass
@@ -210,6 +212,7 @@ lrpitt
 lrpdid
 lrpgf
 lrplf
+lrpal
 offfloor
 CACE
 dedup
