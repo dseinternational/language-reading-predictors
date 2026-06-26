@@ -41,7 +41,7 @@ We use two processes for exploring predictors of language and reading outcomes:
 
 **Compare.** PSIS-LOO via ArviZ: prefer the higher-`elpd` model only when the difference clears its standard error (`elpd_diff` against `dse`). The interaction models are tested against their own no-interaction baselines as clean nested comparisons; `scripts/compare_statistical_models.py` collects the cross-model views.
 
-**Interpret.** Report the **posterior**, not a point estimate: the median (or mean) with its 95 % credible interval and the relevant tail probability (e.g. `P(τ > 0)`). There are no p-values. Give both the logit scale (the natural parameter) and the probability scale at sample-mean baseline. A credible interval spanning zero means no credible effect — but report where the posterior mass sits rather than collapsing to "significant / not".
+**Interpret.** Report the **posterior**, not a point estimate: the **median** (preferred over the mean — it is transformation-invariant across the logit and probability scales) with its 95 % equal-tailed credible interval. There are no p-values. Distinguish two questions: *direction* — the tail probability `P(τ > 0)` — and *magnitude* — `P(benefit ≥ δ)` against a pre-specified minimally-important difference δ (a region of practical equivalence), because a high `P(τ > 0)` can sit on a practically negligible effect. Give both the logit scale (the natural parameter) and the probability / items scale at sample-mean baseline. A credible interval spanning zero means no credible effect — but report where the posterior mass sits rather than collapsing to "significant / not". At this study's sample size a significant-looking point estimate is on average magnitude-inflated (a Type-M / winner's-curse effect), so lead with the interval, not the point. See `notes/202606261304-evidence-strength-and-rope-reporting.md`.
 
 ## Causal interpretation and its limits
 
@@ -55,6 +55,7 @@ Write for a numerate reader who knows frequentist statistics but is newer to Bay
 
 - **Translate the Bayesian parts.** Expand shorthand on first use (τ = treatment effect, `gamma_own` = baseline coupling, `f_mech` = mechanism curve). Read an equal-tailed 95% credible interval in plain words — "given the model and data, the value lies in [a, b] with 95% probability" — prefer a posterior tail probability (`P(τ > 0) = 0.97`) to anything that reads like a p-value, and restate the sign convention wherever τ appears.
 - **Pair every estimate with its uncertainty** — never a bare posterior mean or a bare importance rank.
+- **Avoid verbal evidence labels ("strong", "moderate") wherever possible** — report the odds and probabilities and let them speak. Where prose forces a label, append the word *evidence* and name the claim ("strong evidence that the intervention helps"), show the odds beside it, and use the round-odds ladder in `notes/202606261304-evidence-strength-and-rope-reporting.md` — run separately for *direction* (`pd`) and *meaningful benefit* (`P(benefit ≥ δ)`). A label must never connote effect *size*.
 - **Cite primary sources, verify them before committing them to text, and always include a DOI** when one exists.
 
 ## Conventions
@@ -63,13 +64,16 @@ Write for a numerate reader who knows frequentist statistics but is newer to Bay
 - **`GroupKFold` by `subject_id`** wherever longitudinal leakage would otherwise inflate performance.
 - **Mechanism-model β_G is not a direct-effect estimate** — both arms are on intervention during phases 1 and 2, so the pooled β_G averages over phases where group is no longer a treatment contrast (documented in each mechanism report).
 - **RLI intervention scope** — the intervention targets vocabulary and grammar as well as reading, so null effects on receptive/expressive vocabulary are substantive findings, not by-design predictions.
-- **Decisions a future reader might question get a dated note in `notes/`** before they leave your head — the question, the choice, the rationale, the result. Mark AI-drafted notes with the `> [!WARNING]` admonition existing notes carry.
+- **Decisions a future reader might question get a dated note in `notes/`** before they leave your head — the question, the choice, the rationale, the result. Mark AI-drafted notes with a `> [!NOTE]` admonition naming the tool and model (per the AI-authorship rule in `CLAUDE.md`).
 
 ## Glossary
 
 - **Posterior** — the distribution of a parameter after combining prior and data; summarised by a mean/median, a credible interval, and tail probabilities.
 - **Credible interval (CrI)** — a range holding the parameter with stated probability *given the model and data* (the reading people wrongly attach to a confidence interval).
 - **Posterior tail probability** — e.g. `P(τ > 0)`, the posterior mass on one side of a value; used in place of a p-value.
+- **Probability of direction (`pd`)** — the same quantity as the posterior tail probability `P(τ > 0)`; answers existence/direction, not magnitude. For symmetric posteriors `p ≈ 2(1 − pd)`, so a `pd` threshold is a p-value threshold in disguise.
+- **ROPE / minimally-important difference (δ)** — a band [−δ, +δ] around zero wide enough that an effect inside it is practically equivalent to none (the frequentist SESOI / clinical MID); `P(|effect| < δ)` is its coverage, `P(effect > δ)` the probability of a meaningful benefit.
+- **Type-S / Type-M error** — among effects declared "significant", the rate of wrong *sign* (S) and the average *magnitude* exaggeration (M); both worsen at low power.
 - **τ (tau)** — the ITT treatment effect (positive ⇒ intervention helps).
 - **`gamma_own` / `gamma_cross`** — a measure's own-baseline coupling / its cross-baseline couplings, on the logit scale.
 - **`f_mech`** — the nonparametric dose-response curve in a mechanism model.
