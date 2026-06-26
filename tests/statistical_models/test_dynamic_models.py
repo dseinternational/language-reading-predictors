@@ -43,7 +43,7 @@ def _write_panel_csv(tmp_path, n_children: int = 20, seed: int = 3):
                     V.TIME: t,
                     V.GROUP: g,
                     V.AGE: age0 + 6 * (t - 1),
-                    V.EWRSWR: int(rng.integers(0, 91)),
+                    V.EWRSWR: int(rng.integers(0, 80)),
                     V.YARCLET: int(rng.integers(0, 33)),
                     V.EOWPVT: int(rng.integers(0, 171)),
                     V.ATTEND: int(rng.integers(0, 10)),
@@ -69,7 +69,7 @@ def test_load_wave_panel_shapes_mask_and_denominators(tmp_path):
     assert panel.n_children == 20
     assert panel.n_waves == 4
     assert panel.outcomes == ("W", "L", "E")
-    for s, denom in (("W", 90), ("L", 32), ("E", 170)):
+    for s, denom in (("W", 79), ("L", 32), ("E", 170)):
         assert panel.counts[s].shape == (20, 4)
         assert panel.n_trials[s] == denom
         # logit is NaN exactly where the count is missing.

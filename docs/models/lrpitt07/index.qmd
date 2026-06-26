@@ -1,0 +1,125 @@
+---
+title: "LRPITT07: ITT analysis of letter-sound knowledge (YARC-LSK) (L)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+tau_summary = pd.read_csv(_here / "tau_summary.csv")
+```
+
+## Overview
+
+LRPITT07 is the intention-to-treat (ITT) analysis for letter-sound knowledge (YARC-LSK) (`yarclet`). The
+estimand is the total effect of randomised group assignment $G$ on the post-score
+$L_{\text{post}}$, using the RCT phase only (time 1 $\rightarrow$ time 2).
+Letter sounds carried the strongest treatment effect in the earlier joint model.
+
+::: {.callout-note title="Identification and sign convention"}
+
+Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
+identified by the **empty adjustment set**. The own baseline $\gamma_{\text{own}}$
+and linear age $\gamma_A$ are **precision terms only** — they sharpen $\tau$ but are
+not what licenses the causal interpretation, and no cross-baseline conditioning is
+used. Attendance / sessions are never conditioned on (a DAG collider).
+**Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
+the intervention raises the outcome.
+
+:::
+
+## Model
+
+$$
+\eta_i = \alpha + \tau\, G_i
+       + \gamma_{\text{own}}\, \text{logit}_*(L_{\mathrm{pre},i}, N)
+       + \gamma_A\, A_{\text{std},i},
+$$
+
+with Beta-Binomial likelihood $L_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
+$\mu_i = \sigma(\eta_i)$, $N = 32$. Priors follow the shared template in `priors.py`.
+HSGPs on age and own baseline are off by default (the 2026-04-18 sensitivity
+verdict, `notes/202604181445-lrp52-gp-sensitivity.md`).
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=32%}
+![tau](prior_tau.svg){width=32%}
+![gamma_own](prior_gamma_own.svg){width=32%}
+![gamma_age](prior_gamma_age.svg){width=32%}
+![kappa](prior_kappa.svg){width=32%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Treatment-effect summary
+
+```{python}
+# | echo: false
+tau_summary
+```
+
+- `tau_logit_*`: posterior mean and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the logit scale.
+- `tau_prob_*`: average marginal effect on the probability scale (risk difference), averaged over the fitted sample per posterior draw.
+- `prob_tau_pos`: $P(\tau > 0) = P(\text{intervention helps})$.
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

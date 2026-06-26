@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Shared fit context for the LRP52-LRP60 pipelines."""
+"""Shared fit context for the statistical-model pipelines."""
 
 from __future__ import annotations
 
@@ -28,8 +28,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
 class ModelSpec:
     """Description of a single model run - lives on the context.
 
-    ``model_id`` is ``"lrp52"`` etc. ``kind`` is ``"itt"``, ``"joint"``
-    or ``"mechanism"``. ``title`` is the long human-readable title shown on
+    ``model_id`` is ``"lrpitt07"`` etc. ``kind`` is ``"itt"``, ``"joint"``,
+    ``"mechanism"``, ``"mediation"`` or ``"did"`` (waitlist-crossover). ``title``
+    is the long human-readable title shown on
     the report. ``extra`` is a free-form dict of model-specific settings that
     the pipeline passes to the factory.
     """
@@ -75,14 +76,14 @@ def make_context(
     spec: ModelSpec,
     config: str = "dev",
     *,
-    hdi: float = 0.95,
+    ci_prob: float = 0.95,
     random_seed: int = 47,
 ) -> StatisticalFitContext:
     reporting = _reporting.ReportingConfiguration(
         model_name=spec.model_id,
         config_name=config,
         output_root_dir=_env.STAT_OUTPUT_DIR,
-        hdi=hdi,
+        hdi=ci_prob,
     )
     sampling = _sampling.get_sampling_configuration(config, random_seed=random_seed)
     ctx = StatisticalFitContext(spec=spec, reporting=reporting, sampling=sampling)

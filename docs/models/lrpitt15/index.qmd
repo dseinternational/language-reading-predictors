@@ -1,0 +1,153 @@
+---
+title: "LRPITT15: Taught vs not-taught expressive vocabulary (generalisation contrast)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+tau_summary = pd.read_csv(_here / "tau_summary.csv")
+contrast = pd.read_csv(_here / "tau_contrast_matrix.csv", index_col=0)
+difference = pd.read_csv(_here / "tau_difference.csv")
+```
+
+## Overview
+
+LRPITT15 is the within-data test of the trial's "**gains are largest in
+directly-taught skills, with little generalisation**" finding, on the *expressive*
+modality. Two Block 1 expressive vocabulary outcomes are modelled jointly over the
+randomised window (t1 $\rightarrow$ t2):
+
+- `TE` — directly-taught target words (`b1extau`, $N = 24$);
+- `UE` — not-taught comparison words (`b1exnt`, $N = 12$).
+
+The headline quantity is the **difference in intervention benefit**,
+$\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$. **Sign convention:** $\tau$ is the
+coefficient on the intervention indicator ($G = 1$ = intervention), so a positive
+$\tau$ is a benefit and $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$ is *benefit on
+taught minus benefit on not-taught*. A clearly positive difference means the
+programme raised the words it *taught* more than untaught words — limited
+transfer/generalisation, consistent with Burgoyne et al. (2012). The receptive
+companion is LRPITT15b; the per-outcome models are LRPITT02 (TE) and LRPITT04 (UE).
+
+## Structure
+
+For child $i$ and outcome $k \in \{\mathrm{TE}, \mathrm{UE}\}$:
+
+$$
+\eta_{k,i} = \alpha_k + \tau_k G_i
+           + \gamma^{\text{own}}_k\, \text{logit}_*(k_{\text{pre},i}, N_k)
+           + \gamma^{A}_k\, A_{\text{std},i},
+$$
+
+with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. A 2×2 LKJ
+residual correlation (for the within-child taught/not-taught dependence) is
+**off**: once the baselines are conditioned on, the residual SD sits at ~0 (the
+boundary), so the block only destabilised the variance component (R-hat ≈ 1.01)
+for no gain. Dropping it is the conservative choice — a near-zero correlation that
+would otherwise tighten the difference is ignored — and it converges cleanly.
+
+::: {.callout-note title="Denominators and caveats"}
+
+- Taught ($\mathrm{TE}$): $N = 24$ — documented (Burgoyne et al., 2012, Table 3).
+- Not-taught ($\mathrm{UE}$): $N = 12$ — **observed maximum, not documented** and
+  flagged unconfirmed. The logit-scale *difference* is robust to this, but the
+  probability-scale interpretation of $\mathrm{UE}$ is approximate.
+- $n \approx 54$; the causal claim is limited to the randomised window. The two
+  outcomes are on different scales, so the difference is a *differential
+  logit-scale effect*, not a difference in raw words.
+- The difference is conservative with respect to the (near-zero) within-child
+  residual correlation; `use_residual_correlation=True` remains available as a
+  sensitivity fit but mixes poorly here.
+
+:::
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=40%}
+![tau](prior_tau.svg){width=40%}
+![gamma_own](prior_gamma_own.svg){width=40%}
+![gamma_cross](prior_gamma_cross.svg){width=40%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Per-outcome treatment effects
+
+```{python}
+# | echo: false
+tau_summary
+```
+
+## Generalisation contrast — $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$
+
+```{python}
+# | echo: false
+difference
+```
+
+- `diff_logit_*`: posterior mean and equal-tailed interval of $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$ on the logit scale. Since $\tau$ is the benefit, this is *benefit on taught $-$ benefit on not-taught*; **positive ⇒ taught moved more** (limited generalisation).
+- `prob_diff_pos`: $P(\tau_{\mathrm{TE}} > \tau_{\mathrm{UE}})$.
+
+### Pairwise contrast — $P(\tau_k > \tau_j)$
+
+```{python}
+# | echo: false
+contrast
+```
+
+## Posterior predictive check
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
