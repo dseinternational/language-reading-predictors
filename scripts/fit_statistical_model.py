@@ -72,7 +72,25 @@ from language_reading_predictors.statistical_models import (
     lrpdid06,
     lrpgf01,
     lrpgf01b,
+    lrpgf02,
+    lrpgf02b,
+    lrpgf03,
+    lrpgf03b,
+    lrpgf04,
+    lrpgf04b,
+    lrpgf06,
+    lrpgf06b,
+    lrpgf07,
+    lrpgf07b,
+    lrpgf08,
+    lrpgf08b,
     lrplf01,
+    lrplf02,
+    lrplf03,
+    lrplf04,
+    lrplf06,
+    lrplf07,
+    lrplf08,
 )
 
 
@@ -159,9 +177,30 @@ MODELS = {
     # randomised group / on-intervention term is causal, every other coefficient
     # is an adjusted association (SES excluded as non-DAG / redundant). W exemplar:
     # lrpgf01 (gain), lrpgf01b (gain, treated-only), lrplf01 (level).
+    # Gain factors (01=W, 02=R, 03=E, 04=L, 06=B, 07=F, 08=T) + treated-only (b);
+    # 05=P (phonetic spelling) is the floored off-floor case, added separately.
     "lrpgf01": lrpgf01,
     "lrpgf01b": lrpgf01b,
+    "lrpgf02": lrpgf02,
+    "lrpgf02b": lrpgf02b,
+    "lrpgf03": lrpgf03,
+    "lrpgf03b": lrpgf03b,
+    "lrpgf04": lrpgf04,
+    "lrpgf04b": lrpgf04b,
+    "lrpgf06": lrpgf06,
+    "lrpgf06b": lrpgf06b,
+    "lrpgf07": lrpgf07,
+    "lrpgf07b": lrpgf07b,
+    "lrpgf08": lrpgf08,
+    "lrpgf08b": lrpgf08b,
+    # Level factors (same outcome numbering; no treated-only / own-baseline).
     "lrplf01": lrplf01,
+    "lrplf02": lrplf02,
+    "lrplf03": lrplf03,
+    "lrplf04": lrplf04,
+    "lrplf06": lrplf06,
+    "lrplf07": lrplf07,
+    "lrplf08": lrplf08,
 }
 
 

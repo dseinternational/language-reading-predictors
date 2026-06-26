@@ -1,0 +1,115 @@
+---
+title: "LRPGF07b: Gain factors for CELF basic concepts (F), treated-only"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+factor_summary = pd.read_csv(_here / "factor_summary.csv")
+```
+
+## Overview
+
+LRPGF07b is a treated-only **gain-factors** model for CELF basic concepts (`celf`): what is associated with how much children gain across the three period transitions (ANCOVA - the period post-count given its pre-count - Beta-Binomial logit, child random intercept). It conditions on the own baseline, age, cognitive ability (block design), the upstream DAG skill receptive vocabulary (R), with focal interactions group$\times$ability, group$\times$own-baseline, age$\times$ability.
+
+::: {.callout-important title="Causal labelling (DAG guardrails)"}
+
+Once restricted to on-intervention rows the treatment indicator is constant, so it and its interactions are dropped: every coefficient here is an **adjusted association** among the treated (confounded by latent GA), never a treatment effect. Intervention sessions/dose are never conditioned on (a DAG collider). SES is excluded (not a DAG node; statistically redundant).
+
+:::
+
+## Model
+
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the period post-count, $N = 18$, with
+$\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks})  + $\sum_s\gamma_s\operatorname{logit}_*(s_{\text{pre}})$ for $s\in\{R\}$ + \sum\text{interactions} + u_{\text{child}}$. Priors: shared template in `priors.py`.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Priors
+
+![alpha](prior_alpha.svg){width=24%}
+![tau (treatment)](prior_tau.svg){width=24%}
+![gamma_own](prior_gamma_own.svg){width=24%}
+![gamma_age](prior_gamma_age.svg){width=24%}
+![gamma_cross](prior_gamma_cross.svg){width=24%}
+![kappa](prior_kappa.svg){width=24%}
+
+## Prior-predictive check
+
+![Prior predictive](prior_predictive_check.png){.lightbox}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior-predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Findings
+
+### Factor summary
+
+```{python}
+# | echo: false
+factor_summary
+```
+
+`role` flags the randomised on-intervention term **causal** and all else **association**; `mean`/`lo`/`hi` are the posterior mean and equal-tailed 95% CrI (logit scale); `prob_positive` = $P(\text{coef}>0)$. Interactions are expected to be weakly identified (wide CrI) at $n\approx54$.
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
