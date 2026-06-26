@@ -130,11 +130,7 @@ a region of practical equivalence (ROPE) on the items scale — set per outcome 
 r = rope_summary.iloc[0]
 
 
-def _odds(p):
-    p = min(max(float(p), 1e-9), 1 - 1e-9)
-    o = p / (1 - p)
-    return f"{o:.0f}:1" if o >= 1 else f"1:{1 / o:.0f}"
-
+from language_reading_predictors.statistical_models.reporting import odds_string as _odds
 
 print(
     f"The intervention raised letter-sound knowledge by a median of "
