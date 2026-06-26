@@ -76,6 +76,7 @@ earinf
 eowpvt
 erbnw
 erbword
+erbto
 ewrswr
 exnt
 expm
@@ -105,6 +106,11 @@ nonwords
 numchil
 lsam
 LSAM
+lsammlu
+lsammax
+lsamint
+lsamun
+lsamto
 subskill
 Optuna
 optuna
