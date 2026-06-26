@@ -12,7 +12,7 @@ Preprocessing helpers shared across the statistical models.
 Conventions
 -----------
 - RCT (randomised) phase is ``time in {1, 2}`` — that is, the pre-score is
-  ``time == 1`` and the post-score is ``time == 2``. the ITT models use this
+  ``time == 1`` and the post-score is ``time == 2``. The ITT models use this
   phase only.
 - Mechanism models (LRP56-LRP58) stack all three phase transitions
   ``(t1 -> t2, t2 -> t3, t3 -> t4)`` with a phase indicator.
@@ -164,7 +164,7 @@ def load_and_prepare(
         baseline the model never uses, so its missing pre-scores do not silently
         drop rows. Used by the floored / post-only outcomes (e.g. nonword ``N``,
         whose age-only LRPITT model carries no own baseline): load with
-        ``outcomes=("N",), pre_required=()`` so the 4 missing ``nonword`` t1
+        ``outcomes=("N",), pre_required=()`` so its missing ``nonword`` t1
         values are kept, while the GROUP/AGE and post-presence checks still
         apply. Every symbol listed must also be in ``outcomes``.
     restrict_complete

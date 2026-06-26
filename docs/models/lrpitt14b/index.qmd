@@ -1,5 +1,5 @@
 ---
-title: "LRPITT14B: Unadjusted ITT on the SES complete-case subset, letter-sound knowledge (matched comparator to LRPITT13b)"
+title: "LRPITT14b: Unadjusted ITT on the SES complete-case subset, letter-sound knowledge (matched comparator to LRPITT13b)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

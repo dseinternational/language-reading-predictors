@@ -1,5 +1,5 @@
 ---
-title: "LRPITT13B: SES-adjusted ITT effect of group assignment on letter-sound knowledge (L)"
+title: "LRPITT13b: SES-adjusted ITT effect of group assignment on letter-sound knowledge (L)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

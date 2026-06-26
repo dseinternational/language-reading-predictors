@@ -188,9 +188,9 @@ def proportion_at_zero_ppc(
     distribution of that fraction under the graded Beta-Binomial model — the check
     that reveals whether the graded model reproduces the floor (it typically does
     not for ``P``/``N``, which is the motivation for the binary primary estimand).
-    Returns the observed proportion, the predictive mean, an equal-tailed interval
-    placeholder, and the posterior-predictive p-value ``P(rep >= observed)``; the
-    per-draw replicated proportions are returned under ``"rep"`` for plotting.
+    Returns the observed proportion, the predictive mean, and the
+    posterior-predictive p-value ``P(rep >= observed)``; the per-draw replicated
+    proportions are returned under ``"rep"`` for plotting.
     """
     post = np.asarray(prepared.post_counts[symbol], dtype=float)
     finite = post[np.isfinite(post)]
