@@ -26,8 +26,8 @@ We use two processes for exploring predictors of language and reading outcomes:
 
 **Purpose:** estimate interpretable quantities with full uncertainty. Four families, each a factory in `factories.py` and a pipeline entry in `pipeline.py`:
 
-- **ITT** — the randomised-phase treatment effect (τ) on one outcome.
-- **Joint** — one posterior over all eight outcomes' treatment effects, enabling cross-outcome contrasts such as "is τ_L more positive than τ_W?".
+- **ITT** — the randomised-phase treatment effect (τ) on one outcome (the uniform DAG-faithful **LRPITT01–11** suite; the own baseline and linear age are *precision* terms only — the ITT effect is identified by the empty adjustment set — and no cross-baselines enter). Heavily-floored outcomes (phonetic spelling, nonword reading) use a pre-specified, arm-blind **floor rule** (≥ 40 % of post-scores at zero at t2): a binary "off-floor" primary estimand (`Pr(post > 0)`), with the graded effect demoted to a flagged, detection-limited secondary read only beside per-arm mover counts.
+- **Joint** — one posterior over the suite outcomes' treatment effects, enabling cross-outcome contrasts such as "is τ_L more positive than τ_W?".
 - **Mechanism** — a dose-response curve `f_mech` of one measure on another (e.g. letter-sound → word reading), conditioned on a DAG-derived adjustment set and a per-child random intercept.
 - **Mediation** — a natural direct/indirect decomposition (NDE/NIE) through a mediator by counterfactual g-formula simulation from the posterior, not from coefficients.
 

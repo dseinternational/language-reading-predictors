@@ -55,7 +55,7 @@ def decompose(
     trace: xr.DataTree,
     med: MediationData,
     *,
-    hdi_prob: float = 0.95,
+    ci_prob: float = 0.95,
     n_replicates: int = 50,
     seed: int = 47,
 ) -> pd.DataFrame:
@@ -167,7 +167,7 @@ def decompose(
     nde = y_treat_Mctrl - y_ctrl_Mctrl
     nie = y_treat_Mtreat - y_treat_Mctrl
 
-    lo_q, hi_q = (1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
 
     def row(name: str, draws: np.ndarray) -> dict:
         return {

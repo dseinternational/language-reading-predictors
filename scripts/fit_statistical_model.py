@@ -1,13 +1,13 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""CLI entry point for fitting the Bayesian statistical models (LRP52-LRP60).
+"""CLI entry point for fitting the Bayesian statistical models.
 
 Usage::
 
-    python scripts/fit_statistical_model.py lrp52 --config dev
+    python scripts/fit_statistical_model.py lrpitt07 --config dev
     python scripts/fit_statistical_model.py all --config dev
-    python scripts/fit_statistical_model.py lrp52 --config reporting --render
+    python scripts/fit_statistical_model.py lrpitt10 --config reporting --render
 """
 
 from __future__ import annotations
@@ -28,16 +28,10 @@ from language_reading_predictors.models._reporting import (
 )
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models import (
-    lrp52,
-    lrp53,
-    lrp54,
-    lrp55,
     lrp56,
     lrp57,
     lrp58,
     lrp59,
-    lrp60,
-    lrp60a,
     lrp62,
     lrp64,
     lrp71,
@@ -45,25 +39,105 @@ from language_reading_predictors.statistical_models import (
     lrp72base,
     lrp73,
     lrp73base,
-    lrp74,
-    lrp75,
-    lrp76,
+    lrpitt01,
+    lrpitt02,
+    lrpitt03,
+    lrpitt04,
+    lrpitt05,
+    lrpitt06,
+    lrpitt07,
+    lrpitt08,
+    lrpitt09,
+    lrpitt10,
+    lrpitt11,
+    lrpitt12,
+    lrpitt13,
+    lrpitt13b,
+    lrpitt14,
+    lrpitt14b,
+    lrpitt15,
+    lrpitt15b,
+    lrpitt17,
+    lrpitt18,
+    lrpitt19,
+    lrpitt20,
+    lrpitt21,
+    lrpitt22,
+    lrpitt23,
+    lrpitt24,
+    lrpdid01,
+    lrpdid02,
+    lrpdid03,
+    lrpdid04,
+    lrpdid05,
+    lrpdid06,
 )
 
 
 MODELS = {
-    "lrp52": lrp52,
-    "lrp53": lrp53,
-    "lrp54": lrp54,
-    "lrp55": lrp55,
+    # LRPITT01-11: the uniform DAG-faithful ITT suite (issue #119). One outcome
+    # each, RCT phase; cross-baselines dropped (the ITT effect is identified by
+    # the empty adjustment set), own baseline + linear age as precision terms.
+    # P (09) and N (11) take the floor-rule branch (binary off-floor PRIMARY +
+    # graded SECONDARY). Supersede LRP52 (W), LRP53 (R), LRP54 (E), LRP74 (TE),
+    # LRP75 (TR), which have been deleted.
+    "lrpitt01": lrpitt01,
+    "lrpitt02": lrpitt02,
+    "lrpitt03": lrpitt03,
+    "lrpitt04": lrpitt04,
+    "lrpitt05": lrpitt05,
+    "lrpitt06": lrpitt06,
+    "lrpitt07": lrpitt07,
+    "lrpitt08": lrpitt08,
+    "lrpitt09": lrpitt09,
+    "lrpitt10": lrpitt10,
+    "lrpitt11": lrpitt11,
+    # LRPITT12-15: companions (issue #119). 12 = joint over the ten baseline-
+    # bearing suite outcomes (migrates LRP55; N read from LRPITT11). 13/13b =
+    # SES-adjusted W/L with 14/14b matched complete-case comparators (migrate
+    # LRP60/60a). 15/15b = taught-vs-not-taught generalisation contrast,
+    # expressive/receptive (migrates LRP76).
+    "lrpitt12": lrpitt12,
+    "lrpitt13": lrpitt13,
+    "lrpitt13b": lrpitt13b,
+    "lrpitt14": lrpitt14,
+    "lrpitt14b": lrpitt14b,
+    "lrpitt15": lrpitt15,
+    "lrpitt15b": lrpitt15b,
+    # LRPITT17-24: general-ability robustness companions. Each adds block design
+    # (the baseline nonverbal-ability measure, t1-only) as a linear precision
+    # covariate on top of the own baseline + linear age, asking whether the ITT
+    # effect survives the immediate arm's mild (~0.27 SD) baseline-ability
+    # head-start. Block design is complete, so no rows drop and no matched
+    # comparator is needed: each is a same-sample adjusted-vs-unadjusted contrast
+    # with its base model. Ordered by the suite reference order; covers the
+    # vocabulary family (TR/TE/UR/UE/R/E) and the two reading anchors (L, W).
+    # (16 reserved for the deferred descriptive trajectory.)
+    "lrpitt17": lrpitt17,  # TR taught-receptive  (base lrpitt01)
+    "lrpitt18": lrpitt18,  # TE taught-expressive (base lrpitt02)
+    "lrpitt19": lrpitt19,  # UR not-taught-recept (base lrpitt03)
+    "lrpitt20": lrpitt20,  # UE not-taught-expr   (base lrpitt04)
+    "lrpitt21": lrpitt21,  # R  receptive-vocab   (base lrpitt05)
+    "lrpitt22": lrpitt22,  # E  expressive-vocab  (base lrpitt06)
+    "lrpitt23": lrpitt23,  # L  letter-sounds     (base lrpitt07)
+    "lrpitt24": lrpitt24,  # W  word-reading      (base lrpitt10)
+    # LRPDID01-06: waitlist-crossover / difference-in-differences family (new
+    # 'did' kind). Within-person replication of the randomised ITT effect using
+    # the waitlist arm's P1 (untreated) vs P2 (crossover) periods, each child its
+    # own control, the immediate arm anchoring the time trend. Beta-Binomial logit
+    # so the ceiling is respected. 01 W, 02 L, 03 B, 04 TE, 05 R; 06 = W
+    # dose-response (sessions) sensitivity variant of 01.
+    "lrpdid01": lrpdid01,  # W  word-reading      (vs lrpitt10)
+    "lrpdid02": lrpdid02,  # L  letter-sounds     (vs lrpitt07)
+    "lrpdid03": lrpdid03,  # B  blending          (vs lrpitt08)
+    "lrpdid04": lrpdid04,  # TE taught-expressive (vs lrpitt02)
+    "lrpdid05": lrpdid05,  # R  receptive-vocab   (vs lrpitt05)
+    "lrpdid06": lrpdid06,  # W  dose-response     (variant of lrpdid01)
     "lrp56": lrp56,
     "lrp57": lrp57,
     "lrp58": lrp58,
     # LRP59: ITT-phase mediation (does G raise W via L?). New 'mediation' family.
     "lrp59": lrp59,
-    "lrp60": lrp60,
-    # LRP60a: matched complete-case comparator to LRP60 (unadjusted, SES subset).
-    "lrp60a": lrp60a,
     # LRP62: reading-route decomposition (phonics-route composite mediation).
     "lrp62": lrp62,
     # LRP64: two-mediator decomposition (letter-sound + expressive vocab -> W).
@@ -80,14 +154,6 @@ MODELS = {
     # no-interaction companion.
     "lrp73": lrp73,
     "lrp73base": lrp73base,
-    # LRP74/LRP75: ITT on the directly-taught vocabulary block tests (the
-    # intervention-fidelity "positive control") - expressive (TE) and receptive
-    # (TR). The trial moved taught expressive but not taught receptive vocabulary.
-    "lrp74": lrp74,
-    "lrp75": lrp75,
-    # LRP76: taught vs not-taught expressive vocabulary - the within-data
-    # generalisation contrast (tau[UE] - tau[TE]).
-    "lrp76": lrp76,
 }
 
 
@@ -96,8 +162,8 @@ def main() -> None:
     parser.add_argument(
         "model",
         help=(
-            "Model id (lrp52..lrp60, lrp60a, lrp62, lrp71, lrp72, lrp73, "
-            "lrp74..lrp76) or 'all'"
+            "Model id (lrpitt01..lrpitt15b, lrp56..lrp59, lrp62, lrp71, lrp72, "
+            "lrp73) or 'all'"
         ),
     )
     parser.add_argument(
