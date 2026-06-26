@@ -21,6 +21,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
     standardise,
     load_and_prepare,
+    load_and_prepare_aligned,
     load_and_prepare_lagged_outcome,
 )
 
@@ -288,3 +289,65 @@ def test_load_and_prepare_rejects_covariate_baseline_overlap(tmp_path):
             covariates=(V.AGEBOOKS,),
             baseline_covariates=(V.AGEBOOKS,),
         )
+
+
+# ---------------------------------------------------------------------------
+# load_and_prepare_aligned: onset-aligned per-protocol single gain (LRPAL)
+# ---------------------------------------------------------------------------
+
+
+def test_load_and_prepare_aligned(tmp_path):
+    """One row per child, no phases, group recoded to the intervention indicator."""
+    df = _make_synthetic_long(n_children=20, seed=21)
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    prep = load_and_prepare_aligned(path=p)
+    assert prep.phase_mode == "aligned"
+    assert prep.n_phases == 1
+    assert prep.n_obs == prep.n_children == 20
+    assert bool((prep.phase == 0).all())
+    assert set(np.unique(prep.G)).issubset({0, 1})
+    assert set(prep.post_counts) == set(ITT_OUTCOMES)
+    assert set(prep.pre_logit) == set(ITT_OUTCOMES)
+
+
+def test_load_and_prepare_aligned_onset_windows(tmp_path):
+    """The crux: the immediate arm's aligned post is t3, the wait-list arm's is t4.
+
+    With each score set equal to its wave index, the loaded post-count reveals
+    which wave the aligned window ended on per arm.
+    """
+    rows = []
+    for i in range(8):
+        grp = 1 if i % 2 == 0 else 2  # alternate immediate / wait-list
+        for t in (1, 2, 3, 4):
+            row = {
+                V.SUBJECT_ID: f"S{i:03d}", V.TIME: t, V.GROUP: grp,
+                V.AGE: 80 + 6 * (t - 1),
+            }
+            for s in ITT_OUTCOMES:
+                row[MEASURES[s].column] = t  # score == wave index
+            rows.append(row)
+    p = tmp_path / "rli.csv"
+    pd.DataFrame(rows).to_csv(p, index=False)
+    prep = load_and_prepare_aligned(path=p)
+    post = prep.post_counts["W"]
+    # G == 1 immediate -> aligned post from t3 (==3); G == 0 wait-list -> t4 (==4)
+    assert set(post[prep.G == 1].astype(int)) == {3}
+    assert set(post[prep.G == 0].astype(int)) == {4}
+
+
+def test_load_and_prepare_aligned_ability_merged_from_t1(tmp_path):
+    """Ability (a t1-only baseline) is merged from t1 for BOTH arms, so even the
+    wait-list arm (onset t2) gets a finite, standardised value and no row drops."""
+    df = _make_synthetic_long(n_children=12, seed=22)
+    df[V.BLOCKS] = np.nan
+    t1 = df[V.TIME] == 1
+    df.loc[t1, V.BLOCKS] = np.linspace(10.0, 40.0, int(t1.sum()))  # t1-only, varying
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    prep = load_and_prepare_aligned(path=p, ability_covariate=V.BLOCKS)
+    assert prep.n_obs == 12  # nothing dropped despite blocks blank at t2-t4
+    z = prep.covariates[V.BLOCKS]
+    assert np.all(np.isfinite(z))  # filled for every child incl. wait-list onset rows
+    assert z.mean() == pytest.approx(0.0, abs=1e-10)
