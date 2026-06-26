@@ -24,12 +24,15 @@ We use two processes for exploring predictors of language and reading outcomes:
 
 ## 2. Bayesian statistical models
 
-**Purpose:** estimate interpretable quantities with full uncertainty. Four families, each a factory in `factories.py` and a pipeline entry in `pipeline.py`:
+**Purpose:** estimate interpretable quantities with full uncertainty. Seven families, each a factory in `factories.py` and a pipeline entry in `pipeline.py`:
 
 - **ITT** — the randomised-phase treatment effect (τ) on one outcome (the uniform DAG-faithful **LRPITT01–11** suite; the own baseline and linear age are *precision* terms only — the ITT effect is identified by the empty adjustment set — and no cross-baselines enter). Heavily-floored outcomes (phonetic spelling, nonword reading) use a pre-specified, arm-blind **floor rule** (≥ 40 % of post-scores at zero at t2): a binary "off-floor" primary estimand (`Pr(post > 0)`), with the graded effect demoted to a flagged, detection-limited secondary read only beside per-arm mover counts.
 - **Joint** — one posterior over the suite outcomes' treatment effects, enabling cross-outcome contrasts such as "is τ_L more positive than τ_W?".
 - **Mechanism** — a dose-response curve `f_mech` of one measure on another (e.g. letter-sound → word reading), conditioned on a DAG-derived adjustment set and a per-child random intercept.
 - **Mediation** — a natural direct/indirect decomposition (NDE/NIE) through a mediator by counterfactual g-formula simulation from the posterior, not from coefficients.
+- **DiD** — a within-person replication of the randomised τ (the **LRPDID01–06** family): the wait-list arm's own untreated → crossover transition, each child its own control, with the immediate arm anchoring the maturation trend.
+- **Gain factors** — a DAG-focused ANCOVA of a period's post-score on its own pre-score (the **LRPGF01–08** family, one model per outcome, each with a treated-only companion), with a per-child random intercept repairing latent general ability. Only the randomised on-intervention term is causal; every other covariate (own baseline, age, cognitive ability, upstream DAG skills, focal interactions) is reported as an explicit *adjusted association*, never as "X drives Y". SES is excluded — not a DAG node, and statistically redundant. Phonetic spelling inherits the ITT floor rule (an off-floor `Pr(post > 0)` Bernoulli, the treatment marginal an off-floor risk difference).
+- **Level factors** — the companion *levels* view (the **LRPLF01–08** family): the score at each timepoint, with group-by-time and ability-by-time as per-timepoint coefficient vectors. Only the t2 group contrast is a clean randomised effect; later timepoints are post-crossover and reported as associations.
 
 **Likelihood and priors.** A Beta-Binomial likelihood on the bounded post-score count via a logit linear predictor. Priors come from shared constructors in `priors.py` (so the factories cannot drift apart); smooth nonlinear terms use Hilbert-space Gaussian-process approximations (`hsgp.py`).
 
