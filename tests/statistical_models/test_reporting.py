@@ -13,8 +13,10 @@ import xarray as xr
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
+    evidence_label,
     offfloor_mover_table,
     proportion_at_zero_ppc,
+    rope_summary,
     tau_moderation_summary,
     tau_summary_itt,
     tau_summary_offfloor,
@@ -58,6 +60,71 @@ def _ame_by_loop(eta, delta, G):
             diffs.append(expit(eta0 + d_i) - expit(eta0))
         per_draw.append(np.mean(diffs))
     return float(np.mean(per_draw))
+
+
+def test_evidence_label_round_odds_boundaries():
+    # Boundaries are inclusive-below the next tier: [.75,.91)=suggestive, etc.
+    assert evidence_label(0.60) == "inconclusive"
+    assert evidence_label(0.75) == "suggestive"
+    assert evidence_label(0.90) == "suggestive"
+    assert evidence_label(0.91) == "moderate"
+    assert evidence_label(0.96) == "moderate"
+    assert evidence_label(0.97) == "strong"
+    assert evidence_label(0.985) == "strong"
+    assert evidence_label(0.99) == "very strong"
+    assert evidence_label(0.999) == "very strong"
+
+
+def test_rope_delta_registry():
+    from language_reading_predictors.statistical_models.measures import (
+        ROPE_DELTA,
+        ROPE_DELTA_PROB,
+        rope_delta,
+    )
+
+    assert rope_delta("L") == 2.0
+    assert rope_delta("W") == 1.0
+    assert set(ROPE_DELTA_PROB) == {"P", "N"}
+    # Floored / not-yet-agreed outcomes have no items delta.
+    for missing in ("P", "N", "F", "T"):
+        assert missing not in ROPE_DELTA
+        with pytest.raises(KeyError):
+            rope_delta(missing)
+
+
+def test_rope_summary_matches_reference():
+    rng = np.random.default_rng(0)
+    n_chain, n_draw, n_obs = 2, 400, 12
+    eta = rng.normal(0.0, 1.0, (n_chain, n_draw, n_obs))
+    tau = rng.normal(0.4, 0.2, (n_chain, n_draw))
+    G = (rng.random(n_obs) > 0.5).astype(float)
+    n_trials, delta = 30, 1.5
+
+    out = rope_summary(_trace(eta, tau), G=G, n_trials=n_trials, delta=delta, ci_prob=0.9)
+
+    # Reference: per-draw items average marginal effect (all-on vs all-off).
+    tau_flat = tau.reshape(-1)  # (S,)
+    eta_flat = eta.reshape(-1, n_obs)  # (S, n_obs), same sample order as the stack
+    eta0 = eta_flat - tau_flat[:, None] * G[None, :]
+    ame = (expit(eta0 + tau_flat[:, None]) - expit(eta0)).mean(axis=1)  # (S,)
+    items = ame * n_trials
+
+    assert out["items_median"] == pytest.approx(float(np.median(items)))
+    assert out["pd"] == pytest.approx(float(np.mean(tau_flat > 0)))
+    assert out["prob_benefit_ge_delta"] == pytest.approx(float(np.mean(items > delta)))
+    assert out["prob_in_rope"] == pytest.approx(float(np.mean(np.abs(items) < delta)))
+    assert out["prob_harm_ge_delta"] == pytest.approx(float(np.mean(items < -delta)))
+    assert out["delta_items"] == delta
+    # Nested intervals are ordered.
+    assert (
+        out["tau_logit_lo"]
+        <= out["tau_logit_lo50"]
+        <= out["tau_logit_median"]
+        <= out["tau_logit_hi50"]
+        <= out["tau_logit_hi"]
+    )
+    assert out["direction_label"] == evidence_label(out["pd"])
+    assert out["benefit_label"] == evidence_label(out["prob_benefit_ge_delta"])
 
 
 def test_tau_summary_itt_constant_tau_average_marginal_effect():

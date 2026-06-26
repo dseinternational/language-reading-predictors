@@ -188,6 +188,68 @@ def _save_proportion_at_zero_plot(
         rprint(f"[yellow]Proportion-at-zero PPC plot failed: {exc}[/yellow]")
 
 
+def _save_rope_plot(
+    ctx: StatisticalFitContext,
+    symbol: str,
+    G: np.ndarray,
+    n_trials: int,
+    delta: float,
+) -> None:
+    """ROPE-anchored figure for an ITT outcome: the items-scale posterior with the
+    region of practical equivalence, and ``P(effect > delta)`` as the
+    minimally-important difference rises. Single-outcome version of the note figure
+    (notes/202606261304-evidence-strength-and-rope-reporting.md).
+    """
+    try:
+        from scipy.stats import gaussian_kde
+
+        _, ame_prob = _report._itt_ame_draws(ctx.trace, G=G)
+        items = ame_prob * float(n_trials)
+        med = float(np.median(items))
+        xmax = float(np.quantile(items, 0.995)) + 0.5
+        xmin = min(-delta - 0.5, float(np.quantile(items, 0.005)))
+        xs = np.linspace(xmin, xmax, 300)
+        kde = gaussian_kde(items)
+
+        fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(11, 4.2))
+        ax_l.axvspan(
+            -delta, delta, color="#bdbdbd", alpha=0.30,
+            label=f"ROPE (|effect| < {delta:g})",
+        )
+        ax_l.axvline(0, color="#444444", lw=1.0, ls=":")
+        ax_l.plot(xs, kde(xs), color="#1b7837", lw=2.2)
+        ax_l.fill_between(xs, kde(xs), color="#1b7837", alpha=0.12)
+        ax_l.axvline(med, color="#1b7837", lw=1.2, label=f"median {med:+.1f}")
+        ax_l.set_xlabel("treatment effect (extra items correct)")
+        ax_l.set_ylabel("posterior density")
+        ax_l.set_title(f"{symbol}: effect on the items scale, with ROPE")
+        ax_l.legend(fontsize=8, frameon=False)
+
+        dgrid = np.linspace(0.0, max(xmax, delta + 0.5), 200)
+        pex = np.array([float((items > d).mean()) for d in dgrid])
+        ax_r.plot(dgrid, pex, color="#2166ac", lw=2.2)
+        ax_r.axvline(delta, color="#888888", lw=1.0, ls="--", label=f"delta = {delta:g}")
+        ax_r.axhline(0.975, color="#cccccc", lw=1.0, ls=":")
+        ax_r.set_ylim(0, 1.02)
+        ax_r.set_xlabel("minimally-important difference, delta (items)")
+        ax_r.set_ylabel("P(effect > delta)")
+        ax_r.set_title("Probability of a meaningful benefit")
+        ax_r.legend(fontsize=8, frameon=False)
+
+        for ax in (ax_l, ax_r):
+            for sp in ("top", "right"):
+                ax.spines[sp].set_visible(False)
+        fig.tight_layout()
+        fig.savefig(
+            os.path.join(ctx.output_dir, "rope_summary.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+        plt.close(fig)
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]ROPE plot failed: {exc}[/yellow]")
+
+
 # ---------------------------------------------------------------------------
 # ITT pipeline (LRPITT suite + SES companions)
 # ---------------------------------------------------------------------------
@@ -343,6 +405,40 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             columns=["metric", "value"],
         )
     )
+
+    # ROPE-anchored continuous summary on the items scale
+    # (notes/202606261304-evidence-strength-and-rope-reporting.md). Emitted for
+    # graded outcomes with an agreed minimally-important difference (delta);
+    # floored outcomes (P/N) take the floor-rule path and a probability-scale
+    # delta, which is not yet wired.
+    from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+
+    delta_items = ROPE_DELTA.get(spec.outcome_symbol)
+    if delta_items is not None:
+        rope_s = _report.rope_summary(
+            ctx.trace,
+            G=built.prepared.G,
+            n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
+            delta=delta_items,
+            ci_prob=ctx.reporting.hdi,
+        )
+        rope_df = pd.DataFrame([rope_s])
+        rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
+        ctx.tables["rope_summary"] = rope_df
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in rope_s.items()],
+                title=f"ROPE summary ({spec.outcome_symbol}, delta={delta_items:g} items)",
+                columns=["metric", "value"],
+            )
+        )
+        _save_rope_plot(
+            ctx,
+            spec.outcome_symbol,
+            built.prepared.G,
+            int(built.prepared.n_trials[spec.outcome_symbol]),
+            delta_items,
+        )
 
     _report.write_run_metadata(
         ctx,

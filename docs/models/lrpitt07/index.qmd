@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 ::: {.callout-warning title="Warning: Preliminary model output"}
 
 This model output is preliminary and likely to change as the model evolves and further data are received.
@@ -36,6 +40,7 @@ with open(_here / "config.json") as f:
     config = json.load(f)
 trace = az.from_netcdf(_here / "trace.nc")
 tau_summary = pd.read_csv(_here / "tau_summary.csv")
+rope_summary = pd.read_csv(_here / "rope_summary.csv")
 ```
 
 ## Overview
@@ -108,6 +113,61 @@ tau_summary
 - `tau_logit_*`: posterior mean and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the logit scale.
 - `tau_prob_*`: average marginal effect on the probability scale (risk difference), averaged over the fitted sample per posterior draw.
 - `prob_tau_pos`: $P(\tau > 0) = P(\text{intervention helps})$.
+
+## Reporting: direction, magnitude, and practical significance
+
+This follows `notes/202606261304-evidence-strength-and-rope-reporting.md` and the
+`METHODS.md` "Interpret" rule: report the **median** effect
+(transformation-invariant across the logit and items scales) with intervals, and
+separate **direction** (is there a benefit?) from **magnitude** (is it big enough to
+matter?). Magnitude is judged against a minimally-important difference $\delta$ —
+a region of practical equivalence (ROPE) on the items scale — set per outcome in
+`measures.ROPE_DELTA` (provisional, owned by the education lead).
+
+```{python}
+# | echo: false
+# | output: asis
+r = rope_summary.iloc[0]
+
+
+def _odds(p):
+    p = min(max(float(p), 1e-9), 1 - 1e-9)
+    o = p / (1 - p)
+    return f"{o:.0f}:1" if o >= 1 else f"1:{1 / o:.0f}"
+
+
+print(
+    f"The intervention raised letter-sound knowledge by a median of "
+    f"**{r.items_median:+.1f} items** "
+    f"(50% CrI {r.items_lo50:+.1f} to {r.items_hi50:+.1f}; "
+    f"95% CrI {r.items_lo:+.1f} to {r.items_hi:+.1f}). "
+    f"**Direction** — evidence it helps: "
+    f"pd = {r.pd:.3f} ({_odds(r.pd)}, *{r.direction_label} evidence*). "
+    f"**Magnitude** — evidence the benefit is at least "
+    f"$\\delta$ = {r.delta_items:g} items: "
+    f"P = {r.prob_benefit_ge_delta:.3f} "
+    f"({_odds(r.prob_benefit_ge_delta)}, *{r.benefit_label} evidence*); "
+    f"probability practically negligible (inside the ROPE): {r.prob_in_rope:.3f}."
+)
+```
+
+```{python}
+# | echo: false
+rope_summary.T
+```
+
+![ROPE-anchored posterior of the effect, and the probability of a benefit of at least delta items](rope_summary.png){.lightbox}
+
+::: {.callout-note title="Reading the evidence labels"}
+
+The round-odds labels (*inconclusive / suggestive / moderate / strong / very
+strong*) qualify the **evidence**, never the effect *size*, and are run separately
+for the direction and the meaningful-benefit claims. They are a last-resort handle
+for prose — the odds and probabilities are the real quantities. At this study's
+sample size the point estimate is, on average, magnitude-inflated (a Type-M /
+winner's-curse effect), so lead with the interval, not the point.
+
+:::
 
 ## LOO-PSIS
 

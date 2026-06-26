@@ -130,6 +130,48 @@ with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
 """
 
 
+# --- ROPE half-widths (minimally-important difference, delta) -----------------
+# Per-outcome delta on the *items* scale, adopted 2026-06-26
+# (notes/202606261304-evidence-strength-and-rope-reporting.md): delta = half a
+# period's natural maturation gain, floored at 1 item and rounded. Provisional and
+# owned by the education lead. Consumed by ``reporting.rope_summary`` to report
+# ``P(benefit >= delta)``. F/T (concepts/grammar) are outside the ITT suite and not
+# yet agreed, so they are deliberately absent (a look-up raises).
+ROPE_DELTA: dict[str, float] = {
+    "L": 2.0,
+    "W": 1.0,
+    "R": 2.0,
+    "E": 2.0,
+    "TR": 1.0,
+    "TE": 1.0,
+    "UR": 1.0,
+    "UE": 1.0,
+    "B": 1.0,
+}
+
+# Floored outcomes: the ITT estimand is the probability of coming off the floor, so
+# delta is a *risk difference* in P(off-floor), not an items count. Placeholder
+# pending the education lead.
+ROPE_DELTA_PROB: dict[str, float] = {
+    "P": 0.10,
+    "N": 0.10,
+}
+
+
+def rope_delta(symbol: str) -> float:
+    """Items-scale ROPE half-width (minimally-important difference) for an outcome.
+
+    Raises ``KeyError`` for outcomes whose items delta is not agreed (F/T) or which
+    use a probability-scale delta instead (P/N, see :data:`ROPE_DELTA_PROB`).
+    """
+    if symbol not in ROPE_DELTA:
+        raise KeyError(
+            f"No items-scale ROPE delta set for {symbol!r}; floored outcomes use "
+            "ROPE_DELTA_PROB and F/T are not yet agreed."
+        )
+    return ROPE_DELTA[symbol]
+
+
 def unconfirmed_ceilings() -> list[str]:
     """Return the symbols of measures whose ``n_trials`` is not documented."""
     return [m.symbol for m in MEASURES.values() if not m.n_trials_confirmed]
