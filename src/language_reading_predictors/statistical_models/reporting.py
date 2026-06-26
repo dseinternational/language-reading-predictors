@@ -22,7 +22,7 @@ from language_reading_predictors.statistical_models.context import (
 def tau_summary_itt(
     trace: xr.DataTree,
     *,
-    hdi_prob: float,
+    ci_prob: float,
     G: np.ndarray,
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
@@ -45,7 +45,7 @@ def tau_summary_itt(
     ``G`` is the per-observation treatment indicator from the *fitted* prepared
     data (``built.prepared.G``), aligned with ``eta``'s ``obs_id`` axis.
 
-    ``hdi_prob`` names the *coverage* probability — the returned ``_lo`` /
+    ``ci_prob`` names the *coverage* probability — the returned ``_lo`` /
     ``_hi`` values are equal-tailed central quantiles, not highest-density
     intervals. For ArviZ-style HDI use :func:`arviz.hdi` directly.
     """
@@ -81,7 +81,7 @@ def tau_summary_itt(
     # Average marginal effect over observations, per draw.
     marginal = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
 
-    lo_q, hi_q = (1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_mean = float(np.mean(tau_draws))
     lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
     marg_mean = float(np.mean(marginal))
@@ -102,7 +102,7 @@ def tau_summary_itt(
 def tau_summary_offfloor(
     trace: xr.DataTree,
     *,
-    hdi_prob: float,
+    ci_prob: float,
     G: np.ndarray,
 ) -> dict[str, float]:
     """Summarise the binary off-floor treatment effect (floor-rule PRIMARY, #119).
@@ -116,7 +116,7 @@ def tau_summary_offfloor(
     report and CSV share a schema); the off-floor interpretation is documented in
     the floored-outcome report.
     """
-    return tau_summary_itt(trace, hdi_prob=hdi_prob, G=G)
+    return tau_summary_itt(trace, ci_prob=ci_prob, G=G)
 
 
 def offfloor_mover_table(prepared, symbol: str) -> pd.DataFrame:
@@ -149,7 +149,7 @@ def offfloor_mover_table(prepared, symbol: str) -> pd.DataFrame:
 def tau_moderation_summary(
     trace: xr.DataTree,
     *,
-    hdi_prob: float,
+    ci_prob: float,
 ) -> dict[str, float]:
     """Summarise the ITT tau-moderator coefficients ``gamma_tau_int`` / ``gamma_tau_mod``.
 
@@ -157,11 +157,11 @@ def tau_moderation_summary(
     treatment-moderator path of :func:`factories.build_itt_model`: ``gamma_tau_int``
     is the effect modification (how the treatment effect ``tau`` changes per 1 SD
     of the pre-randomisation moderator), and ``gamma_tau_mod`` is the moderator's
-    main effect. Equal-tailed central interval at coverage ``hdi_prob`` and
+    main effect. Equal-tailed central interval at coverage ``ci_prob`` and
     ``P(coef > 0)`` for each coefficient present in the trace.
     """
     posterior = trace.posterior
-    lo_q = (1 - hdi_prob) / 2
+    lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
     out: dict[str, float] = {}
     for name in ("gamma_tau_int", "gamma_tau_mod"):
@@ -211,7 +211,7 @@ def proportion_at_zero_ppc(
 def did_summary(
     trace: xr.DataTree,
     *,
-    hdi_prob: float,
+    ci_prob: float,
     n_trials: int,
     dose: bool = False,
 ) -> dict[str, float]:
@@ -222,12 +222,12 @@ def did_summary(
     across the fitted rows (per draw), times ``n_trials`` — directly comparable to
     the ITT ``tau_summary_itt`` items figures. ``beta_period`` is the period
     (time / maturation) anchor estimated from the immediate arm. Equal-tailed
-    central intervals at coverage ``hdi_prob``. With ``dose=True`` the key
+    central intervals at coverage ``ci_prob``. With ``dose=True`` the key
     coefficient is ``beta_dose`` (effect per 1 SD of intervention sessions) and no
     items translation is produced.
     """
     posterior = trace.posterior
-    lo_q = (1 - hdi_prob) / 2
+    lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
 
     def _summ(name: str) -> dict[str, float]:
@@ -266,16 +266,16 @@ def did_summary(
 def tau_summary_joint(
     trace: xr.DataTree,
     outcomes: list[str],
-    hdi_prob: float,
+    ci_prob: float,
 ) -> pd.DataFrame:
     """Return a DataFrame summarising tau_k for each outcome (logit scale).
 
     ``tau_lo`` / ``tau_hi`` are equal-tailed central quantiles at coverage
-    ``hdi_prob``. See :func:`tau_summary_itt` for the convention.
+    ``ci_prob``. See :func:`tau_summary_itt` for the convention.
     """
     draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
     out = []
-    lo_q = (1 - hdi_prob) / 2
+    lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
     for k, s in enumerate(outcomes):
         d = draws[k]
@@ -294,18 +294,18 @@ def tau_summary_joint(
 def gamma_interaction_summary(
     trace: xr.DataTree,
     *,
-    hdi_prob: float,
+    ci_prob: float,
 ) -> dict[str, float]:
     """Summarise the linear-moderation coefficients ``gamma_int`` / ``gamma_mod``.
 
     Reports the posterior mean, equal-tailed central interval at coverage
-    ``hdi_prob`` (same convention as :func:`tau_summary_itt`), and ``P(coef > 0)``
+    ``ci_prob`` (same convention as :func:`tau_summary_itt`), and ``P(coef > 0)``
     for each coefficient present in the trace. ``gamma_int`` is the moderation
     (>0: the standardised mechanism effect strengthens with the moderator);
     ``gamma_mod`` is the moderator main effect at the mean of the mechanism.
     """
     posterior = trace.posterior
-    lo_q = (1 - hdi_prob) / 2
+    lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
     out: dict[str, float] = {}
     for name in ("gamma_int", "gamma_mod"):
@@ -341,7 +341,7 @@ def tau_difference_summary(
     outcomes: list[str],
     pair: tuple[str, str],
     *,
-    hdi_prob: float,
+    ci_prob: float,
 ) -> dict[str, float | str]:
     """Summarise the difference ``tau[a] - tau[b]`` between two joint outcomes.
 
@@ -359,14 +359,14 @@ def tau_difference_summary(
     means the directly-taught words moved *more* than the not-taught comparison
     words - i.e. limited generalisation.
 
-    ``_lo`` / ``_hi`` are equal-tailed central quantiles at coverage ``hdi_prob``
+    ``_lo`` / ``_hi`` are equal-tailed central quantiles at coverage ``ci_prob``
     (same convention as :func:`tau_summary_itt`).
     """
     a, b = pair
     draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
     ia, ib = outcomes.index(a), outcomes.index(b)
     diff = draws[ia] - draws[ib]
-    lo_q = (1 - hdi_prob) / 2
+    lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
     return {
         "contrast": f"{a}_minus_{b}",
@@ -393,7 +393,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,
         "dropped_rows": context.prepared.dropped_rows if context.prepared else None,
-        "hdi": context.reporting.hdi,
+        "ci_prob": context.reporting.hdi,
         "sampling": {
             "draws": context.sampling.draws,
             "tune": context.sampling.tune,

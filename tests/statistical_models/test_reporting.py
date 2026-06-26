@@ -60,7 +60,7 @@ def test_tau_summary_itt_constant_tau_average_marginal_effect():
     tau = np.array([[0.4, 0.6]])
     G = np.array([1.0, 0.0, 1.0])
 
-    out = tau_summary_itt(_trace(eta, tau), hdi_prob=0.9, G=G)
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.9, G=G)
 
     assert out["tau_prob_mean"] == pytest.approx(_ame_by_loop(eta, tau, G))
     assert out["tau_logit_mean"] == pytest.approx(float(np.mean(tau)))
@@ -74,8 +74,8 @@ def test_tau_summary_itt_operating_point_comes_from_full_eta():
     # the operating point rather than a single own-baseline mean.
     tau = np.array([[0.5]])
     G = np.array([1.0, 1.0])
-    near_floor = tau_summary_itt(_trace(np.array([[[-2.0, -2.0]]]), tau), hdi_prob=0.9, G=G)
-    near_mid = tau_summary_itt(_trace(np.array([[[0.0, 0.0]]]), tau), hdi_prob=0.9, G=G)
+    near_floor = tau_summary_itt(_trace(np.array([[[-2.0, -2.0]]]), tau), ci_prob=0.9, G=G)
+    near_mid = tau_summary_itt(_trace(np.array([[[0.0, 0.0]]]), tau), ci_prob=0.9, G=G)
     assert near_floor["tau_prob_mean"] != pytest.approx(near_mid["tau_prob_mean"])
     # Logit-scale summary is the operating-point-invariant tau itself.
     assert near_floor["tau_logit_mean"] == pytest.approx(near_mid["tau_logit_mean"])
@@ -87,7 +87,7 @@ def test_tau_summary_itt_varying_tau_uses_tau_i():
     tau_i = np.array([[[0.3, 0.7, 0.5]]])  # per-obs effect -> drives the AME
     G = np.array([1.0, 0.0, 1.0])
 
-    out = tau_summary_itt(_trace(eta, tau, tau_i=tau_i), hdi_prob=0.9, G=G)
+    out = tau_summary_itt(_trace(eta, tau, tau_i=tau_i), ci_prob=0.9, G=G)
 
     assert out["tau_prob_mean"] == pytest.approx(_ame_by_loop(eta, tau_i, G))
     assert out["tau_logit_mean"] == pytest.approx(0.5)
@@ -97,4 +97,4 @@ def test_tau_summary_itt_rejects_misaligned_G():
     eta = np.array([[[0.0, 1.0, -0.5]]])  # 3 observations
     tau = np.array([[0.4]])
     with pytest.raises(ValueError, match="aligned with the fitted subset"):
-        tau_summary_itt(_trace(eta, tau), hdi_prob=0.9, G=np.array([1.0, 0.0]))
+        tau_summary_itt(_trace(eta, tau), ci_prob=0.9, G=np.array([1.0, 0.0]))

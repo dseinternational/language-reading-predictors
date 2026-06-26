@@ -108,4 +108,4 @@ HTE and CACE/dose models are **deferred** to a later milestone.
   measures, confirmed APT ceilings, aptinfo half-mark fix).
 - Confirm the UR/UE (= 12) item ceilings against the data dictionary.
 - Joint-with-N via a per-outcome own-baseline mask in `build_joint_model`.
-- Report-boilerplate dedup (#82) and the `hdi_prob → ci_prob` rename (#101).
+- Report-boilerplate dedup (#82). _(The `hdi_prob → ci_prob` rename, #101, is done in this PR.)_

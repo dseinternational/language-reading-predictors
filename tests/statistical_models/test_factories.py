@@ -165,7 +165,7 @@ def test_tau_difference_summary_contrast():
         coords={"outcome": ["TE", "UE"]},
     )
     trace = SimpleNamespace(posterior=xr.Dataset({"tau": tau}))
-    s = tau_difference_summary(trace, ["TE", "UE"], ("TE", "UE"), hdi_prob=0.95)
+    s = tau_difference_summary(trace, ["TE", "UE"], ("TE", "UE"), ci_prob=0.95)
     assert s["contrast"] == "TE_minus_UE"
     assert s["diff_logit_mean"] > 0.4
     assert 0.9 < s["prob_diff_pos"] <= 1.0

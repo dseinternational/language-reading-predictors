@@ -73,14 +73,14 @@ def make_context(
     spec: ModelSpec,
     config: str = "dev",
     *,
-    hdi: float = 0.95,
+    ci_prob: float = 0.95,
     random_seed: int = 47,
 ) -> StatisticalFitContext:
     reporting = _reporting.ReportingConfiguration(
         model_name=spec.model_id,
         config_name=config,
         output_root_dir=_env.STAT_OUTPUT_DIR,
-        hdi=hdi,
+        hdi=ci_prob,
     )
     sampling = _sampling.get_sampling_configuration(config, random_seed=random_seed)
     ctx = StatisticalFitContext(spec=spec, reporting=reporting, sampling=sampling)

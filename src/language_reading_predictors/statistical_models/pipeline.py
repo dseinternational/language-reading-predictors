@@ -328,7 +328,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Treatment-effect summary")
     tau_s = _report.tau_summary_itt(
         ctx.trace,
-        hdi_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.hdi,
         # built.prepared is the (possibly row-subset) frame the model was fit
         # on, so G aligns with eta's obs_id axis (finding #2 in issue #78).
         G=built.prepared.G,
@@ -437,7 +437,7 @@ def _fit_itt_floor_rule(
 
     section_header("Off-floor treatment-effect summary (PRIMARY)")
     off = _report.tau_summary_offfloor(
-        ctx.trace, hdi_prob=ctx.reporting.hdi, G=built.prepared.G
+        ctx.trace, ci_prob=ctx.reporting.hdi, G=built.prepared.G
     )
     pd.DataFrame([off]).to_csv(
         os.path.join(ctx.output_dir, "tau_summary.csv"), index=False
@@ -492,7 +492,7 @@ def _fit_itt_floor_rule(
         )
 
     graded = _report.tau_summary_itt(
-        trace_g, hdi_prob=ctx.reporting.hdi, G=built_g.prepared.G
+        trace_g, ci_prob=ctx.reporting.hdi, G=built_g.prepared.G
     )
     pd.DataFrame([graded]).to_csv(
         os.path.join(ctx.output_dir, "tau_summary_graded.csv"), index=False
@@ -597,7 +597,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Treatment-effect summary")
     outcomes = list(ctx.trace.posterior["outcome"].values)
-    tau_df = _report.tau_summary_joint(ctx.trace, outcomes, hdi_prob=ctx.reporting.hdi)
+    tau_df = _report.tau_summary_joint(ctx.trace, outcomes, ci_prob=ctx.reporting.hdi)
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
     ctx.tables["tau_summary"] = tau_df
     print_table(
@@ -622,7 +622,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         pair = tuple(difference)
         section_header("Treatment-effect difference")
         diff_s = _report.tau_difference_summary(
-            ctx.trace, outcomes, pair, hdi_prob=ctx.reporting.hdi
+            ctx.trace, outcomes, pair, ci_prob=ctx.reporting.hdi
         )
         diff_df = pd.DataFrame([diff_s])
         diff_df.to_csv(os.path.join(ctx.output_dir, "tau_difference.csv"), index=False)
@@ -724,7 +724,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     did_s = _report.did_summary(
         ctx.trace,
-        hdi_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.hdi,
         n_trials=MEASURES[sym].n_trials,
         dose=dose,
     )
@@ -848,7 +848,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Linear-moderation summary (gamma_int / gamma_mod), when a moderator is set.
     if moderator_symbol is not None:
         section_header("Interaction summary")
-        gi = _report.gamma_interaction_summary(ctx.trace, hdi_prob=ctx.reporting.hdi)
+        gi = _report.gamma_interaction_summary(ctx.trace, ci_prob=ctx.reporting.hdi)
         gi_df = pd.DataFrame([gi])
         gi_df.to_csv(
             os.path.join(ctx.output_dir, "interaction_summary.csv"), index=False
@@ -980,7 +980,7 @@ def _fit_t3_sensitivity(
     return _med.decompose(
         trace_t3,
         med_t3,
-        hdi_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.hdi,
     )
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
@@ -1045,7 +1045,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     med_df = _med.decompose(
         ctx.trace,
         med_data,
-        hdi_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.hdi,
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
     ctx.tables["mediation_summary"] = med_df
