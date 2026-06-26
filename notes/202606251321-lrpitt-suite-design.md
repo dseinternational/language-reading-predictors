@@ -55,10 +55,9 @@ a **binary "off-floor at t2" estimand** (`Pr(post > 0)`, Bernoulli/logistic τ) 
 **detection-limited SECONDARY** read beside per-arm off-floor mover counts. P and N
 are treated **identically** (the rule removes per-outcome researcher choice).
 Diagnostics: a proportion-at-zero PPC + the mover table. This implements the
-issue's floor-rule branch (the full deliberation is referenced as
-`notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md`, which is not yet
-committed to the repo — confirm/commit it). The "uniformity-purist" fallback was
-**not** adopted.
+issue's floor-rule branch (the full deliberation is in
+`notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md`). The
+"uniformity-purist" fallback was **not** adopted.
 
 Word reading (W, ~40% floored at *baseline* but not at the t2 post-score) does not
 trip the rule and stays a graded own-baseline model.

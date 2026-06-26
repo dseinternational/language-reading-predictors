@@ -27,7 +27,6 @@ SPEC = ModelSpec(
         "use_own_baseline": True,
         "adjust_for": (),
         "restrict_complete": SES_ADJUSTERS,
-        "variant_of": "lrpitt13b",
     },
 )
 

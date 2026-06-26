@@ -347,6 +347,67 @@ def test_itt_factory_tau_moderator_baseline(tmp_path):
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
 
 
+def _assert_itt_diag_vars_subset(built, *, extra, adjust_for=(), likelihood="beta_binomial"):
+    """``_itt_diag_vars`` must only name RVs the factory actually builds, else
+    ``summary_diagnostics`` (``az.summary``) raises ``KeyError`` at diagnostics time."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.pipeline import _itt_diag_vars
+
+    spec = SimpleNamespace(extra=extra)
+    diag = _itt_diag_vars(spec, adjust_for, likelihood=likelihood)
+    built_names = {v.name for v in built.model.free_RVs} | {
+        v.name for v in built.model.deterministics
+    }
+    missing = set(diag) - built_names
+    assert not missing, f"_itt_diag_vars names RVs the model never builds: {missing}"
+    return set(diag)
+
+
+def test_itt_diag_vars_match_graded_build(tmp_path):
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built = build_itt_model(
+        prep, outcome_symbol="W", use_age_gp=False, use_own_baseline_gp=False,
+        cross_symbols=(),
+    )
+    diag = _assert_itt_diag_vars_subset(built, extra={})
+    assert {"alpha", "tau", "gamma_own", "kappa"}.issubset(diag)
+
+
+def test_itt_diag_vars_match_offfloor_age_only_build(tmp_path):
+    # A desync here would silently crash diagnostics on the age-only /
+    # bernoulli_offfloor floored fits (P, N) — the case this guards.
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("N",))
+    built = build_itt_model(
+        prep, outcome_symbol="N", likelihood="bernoulli_offfloor",
+        use_age_gp=False, use_own_baseline_gp=False, cross_symbols=(),
+        use_age_linear=True, use_own_baseline=False,
+    )
+    diag = _assert_itt_diag_vars_subset(
+        built,
+        extra={"use_own_baseline": False, "use_age_linear": True},
+        likelihood="bernoulli_offfloor",
+    )
+    assert {"alpha", "tau", "gamma_A"}.issubset(diag)
+    assert "kappa" not in diag and "gamma_own" not in diag
+
+
+def test_itt_diag_vars_match_tau_moderator_build(tmp_path):
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built = build_itt_model(
+        prep, outcome_symbol="W", use_age_gp=False, use_own_baseline_gp=False,
+        cross_symbols=(), use_age_linear=True,
+        tau_moderator_symbol="A", tau_moderator_is_covariate=True,
+    )
+    diag = _assert_itt_diag_vars_subset(
+        built, extra={"use_age_linear": True, "tau_moderator_symbol": "A"}
+    )
+    assert {"gamma_tau_mod", "gamma_tau_int"}.issubset(diag)
+
+
 def test_joint_factory_dag_faithful_flags(tmp_path):
     """The DAG-faithful joint (LRPITT12 / the generalisation contrasts) drops the
     cross-baseline matrix and adds a per-outcome linear age term, mirroring the
