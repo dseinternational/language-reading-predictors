@@ -14,6 +14,10 @@ colsample
 dadedupost
 dcorr
 DEAP
+erbto
+bifactor
+residualised
+dagitty
 diag
 dtype
 Anscombe
@@ -73,7 +77,9 @@ eowpvt
 erbnw
 erbword
 ewrswr
+exnt
 expm
+extau
 exto
 GBDT
 hclust
@@ -88,6 +94,7 @@ lgbm
 lightbox
 lightgbm
 logit
+LRPITT
 medae
 mumedupost
 mumocc
@@ -112,6 +119,7 @@ pathlib
 PPVT
 pred
 resid
+retau
 reto
 RMSE
 rmse
@@ -187,3 +195,11 @@ Morey
 Psychonomic
 Rouder
 Wagenmakers
+noconstruct
+waitlist
+LOSO
+LRPITT
+PYTHONPATH
+worktree
+worktrees
+hyperparams

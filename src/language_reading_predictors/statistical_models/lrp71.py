@@ -11,7 +11,7 @@ adjustment {G, A, E, R, W_pre}) with
 
 so the letter-sound -> reading effect can scale with a child's vocabulary level
 (the lexical-quality / dual-route hypothesis). ``gamma_int > 0`` would mean
-phonics converts to reading *more* strongly for higher-vocabulary children.
+the code-based route converts to reading *more* strongly for higher-vocabulary children.
 
 Adjustment set is kept identical to LRP58. E is already a DAG-required adjuster
 there, so conditioning on it as a moderator is clean (unlike celf/F, a

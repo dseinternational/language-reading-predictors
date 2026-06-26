@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess
+import uuid
 from multiprocessing import freeze_support
 
 from rich import print as rprint
@@ -25,6 +26,7 @@ from language_reading_predictors.models._reporting import (
     print_panel,
     print_table,
 )
+from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models import (
     lrp52,
     lrp53,
@@ -43,6 +45,9 @@ from language_reading_predictors.statistical_models import (
     lrp72base,
     lrp73,
     lrp73base,
+    lrp74,
+    lrp75,
+    lrp76,
 )
 
 
@@ -75,6 +80,14 @@ MODELS = {
     # no-interaction companion.
     "lrp73": lrp73,
     "lrp73base": lrp73base,
+    # LRP74/LRP75: ITT on the directly-taught vocabulary block tests (the
+    # intervention-fidelity "positive control") - expressive (TE) and receptive
+    # (TR). The trial moved taught expressive but not taught receptive vocabulary.
+    "lrp74": lrp74,
+    "lrp75": lrp75,
+    # LRP76: taught vs not-taught expressive vocabulary - the within-data
+    # generalisation contrast (tau[UE] - tau[TE]).
+    "lrp76": lrp76,
 }
 
 
@@ -82,7 +95,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "model",
-        help="Model id (lrp52..lrp60, lrp60a, lrp62, lrp71, lrp72, lrp73) or 'all'",
+        help=(
+            "Model id (lrp52..lrp60, lrp60a, lrp62, lrp71, lrp72, lrp73, "
+            "lrp74..lrp76) or 'all'"
+        ),
     )
     parser.add_argument(
         "--config",
@@ -99,6 +115,16 @@ def main() -> None:
         type=float,
         default=None,
         help="Override NUTS target_accept (default: preset from --config)",
+    )
+    parser.add_argument(
+        "--upload",
+        action="store_true",
+        help="Upload model output to Azure Blob Storage after fitting.",
+    )
+    parser.add_argument(
+        "--include-traces",
+        action="store_true",
+        help="Include trace files (.nc) in the upload (excluded by default).",
     )
     args = parser.parse_args()
 
@@ -194,6 +220,16 @@ def main() -> None:
             if os.path.exists(qmd):
                 rprint(f"[bold green]quarto render {qmd}[/bold green]")
                 subprocess.run(["quarto", "render", qmd], check=False)
+
+    if args.upload:
+        run_id = str(uuid.uuid7())
+        for ctx in contexts:
+            upload_to_blob_storage(
+                str(ctx.output_dir),
+                os.path.basename(str(ctx.output_dir)),
+                include_traces=args.include_traces,
+                run_id=run_id,
+            )
 
     if failed:
         raise SystemExit(1)

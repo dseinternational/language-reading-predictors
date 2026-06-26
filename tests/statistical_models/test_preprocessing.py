@@ -91,6 +91,28 @@ def test_load_and_prepare_itt(tmp_path):
     assert set(np.unique(prep.G)).issubset({0, 1})
 
 
+def test_group_recode_intervention_is_positive(tmp_path):
+    """Sign-convention guard (positive = intervention benefit).
+
+    The immediate-intervention arm (``group == 1``) must recode to ``G == 1``
+    and the wait-list control (``group == 2``) to ``G == 0``, so every
+    coefficient on ``G`` (tau, tau_i/tau_k, beta_G, b_G, b_GM, a_G) reads
+    *positive* when the intervention raises the outcome. Guards the
+    ``G = 2 - group`` recode in :func:`load_and_prepare` against silent
+    reversal. See the "Sign convention" section of METHODS.md.
+    """
+    for group_code, expected_g in ((1, 1), (2, 0)):
+        df = _make_synthetic_long(n_children=8, seed=group_code)
+        df[V.GROUP] = group_code
+        p = tmp_path / f"rli_group{group_code}.csv"
+        df.to_csv(p, index=False)
+        prep = load_and_prepare(path=p, phase_mode="itt")
+        assert set(np.unique(prep.G)) == {expected_g}, (
+            f"group=={group_code} must recode to G=={expected_g} "
+            "(positive = intervention benefit)"
+        )
+
+
 def test_load_and_prepare_all_phases(tmp_path):
     df = _make_synthetic_long(n_children=15, seed=2)
     p = tmp_path / "rli.csv"
@@ -182,9 +204,12 @@ def test_lagged_outcome_missing_later_wave_is_nan(tmp_path):
     assert np.isnan(lagged.post_counts["W"]).sum() == 1
 
 
-def test_measure_ceilings_all_confirmed():
-    """#80: every measure's n_trials is a documented ceiling (W=79, P=92)."""
-    assert unconfirmed_ceilings() == []
+def test_measure_ceilings_documented():
+    """#80: ITT-outcome ceilings are documented (W=79, P=92). The only
+    unconfirmed ceilings are the not-taught taught-vocabulary measures (UE/UR),
+    whose item counts are not tabulated in the paper (LRP74-76; pending the data
+    dictionary) — see ``measures.py`` and the LRP74-76 note."""
+    assert set(unconfirmed_ceilings()) == {"UE", "UR"}
     assert MEASURES["W"].n_trials == 79
     assert MEASURES["P"].n_trials == 92
 
