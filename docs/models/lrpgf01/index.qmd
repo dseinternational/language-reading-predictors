@@ -39,6 +39,7 @@ with open(_here / "config.json") as f:
     config = json.load(f)
 factor_summary = pd.read_csv(_here / "factor_summary.csv")
 treatment_marginal = pd.read_csv(_here / "treatment_marginal.csv")
+rope_summary = pd.read_csv(_here / "rope_summary.csv")
 ```
 
 ## Overview
@@ -154,7 +155,62 @@ treatment_marginal
 
 Average marginal effect of being on intervention, on the probability scale
 (`trt_prob_*`) and the items scale (`trt_items_*` = expected additional words read
-out of 79), averaged over the fitted sample per posterior draw.
+out of 79), averaged over the fitted sample per posterior draw. The point estimate
+is the **median** (transformation-invariant across the logit and items scales);
+`prob_trt_pos` = $P(\beta_{\text{trt}} > 0)$ on the logit scale.
+
+### Reporting: direction, magnitude, and practical significance
+
+This follows `notes/202606261304-evidence-strength-and-rope-reporting.md` and the
+`METHODS.md` "Interpret" rule, applied here to the model's **one causal term**, the
+randomised on-intervention effect (`beta_trt`): report the **median** effect with
+intervals, and separate **direction** (is there a benefit?) from **magnitude** (is
+it big enough to matter?). Magnitude is judged against a minimally-important
+difference $\delta$ — a region of practical equivalence (ROPE) on the items scale —
+set per outcome in `measures.ROPE_DELTA` (provisional, owned by the education lead).
+The non-randomised factor-summary coefficients above are adjusted associations and
+do **not** receive this causal report.
+
+```{python}
+# | echo: false
+# | output: asis
+r = rope_summary.iloc[0]
+
+
+from language_reading_predictors.statistical_models.reporting import odds_string as _odds
+
+print(
+    f"Being on intervention raised word reading by a median of "
+    f"**{r.items_median:+.1f} items** "
+    f"(50% CrI {r.items_lo50:+.1f} to {r.items_hi50:+.1f}; "
+    f"95% CrI {r.items_lo:+.1f} to {r.items_hi:+.1f}). "
+    f"**Direction** — evidence it helps: "
+    f"pd = {r.pd:.3f} ({_odds(r.pd)}, *{r.direction_label} evidence*). "
+    f"**Magnitude** — evidence the benefit is at least "
+    f"$\\delta$ = {r.delta_items:g} items: "
+    f"P = {r.prob_benefit_ge_delta:.3f} "
+    f"({_odds(r.prob_benefit_ge_delta)}, *{r.benefit_label} evidence*); "
+    f"probability practically negligible (inside the ROPE): {r.prob_in_rope:.3f}."
+)
+```
+
+```{python}
+# | echo: false
+rope_summary.T
+```
+
+![ROPE-anchored posterior of the on-intervention effect, and the probability of a benefit of at least delta items](rope_summary.png){.lightbox}
+
+::: {.callout-note title="Reading the evidence labels"}
+
+The round-odds labels (*inconclusive / suggestive / moderate / strong / very
+strong*) qualify the **evidence**, never the effect *size*, and are run separately
+for the direction and the meaningful-benefit claims. They are a last-resort handle
+for prose — the odds and probabilities are the real quantities. At this study's
+sample size the point estimate is, on average, magnitude-inflated (a Type-M /
+winner's-curse effect), so lead with the interval, not the point.
+
+:::
 
 ## LOO-PSIS
 

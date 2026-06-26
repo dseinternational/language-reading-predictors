@@ -38,6 +38,7 @@ _here = Path(".")
 with open(_here / "config.json") as f:
     config = json.load(f)
 factor_summary = pd.read_csv(_here / "factor_summary.csv")
+rope_summary = pd.read_csv(_here / "rope_summary.csv")
 ```
 
 ## Overview
@@ -131,6 +132,60 @@ factor_summary
   cross term. All non-t2 terms are adjusted associations under the DAG.
 - `mean` / `lo` / `hi` = posterior mean and equal-tailed 95% credible interval
   (logit scale); `prob_positive` = $P(\text{coef} > 0)$.
+
+### Reporting: the t2 contrast — direction, magnitude, practical significance
+
+Following `notes/202606261304-evidence-strength-and-rope-reporting.md` and the
+`METHODS.md` "Interpret" rule, the **one causal term** — the t2 randomised contrast
+`b_grp_time[1]` — gets a ROPE-anchored items-scale report (the post-crossover
+timepoints do **not**). Because group enters as a per-timepoint vector and carries a
+group $\times$ ability interaction, the items-scale effect is the average marginal
+effect of randomised assignment **at t2 only**, netting out both group terms at each
+child's t2 profile (`reporting.level_t2_marginal_effect`). Magnitude is judged
+against a minimally-important difference $\delta$ on the items scale
+(`measures.ROPE_DELTA`, provisional, owned by the education lead). `tau_logit_*` is
+the t2 contrast on the logit scale.
+
+```{python}
+# | echo: false
+# | output: asis
+r = rope_summary.iloc[0]
+
+
+from language_reading_predictors.statistical_models.reporting import odds_string as _odds
+
+print(
+    f"At t2 (the clean randomised contrast), the immediate arm's word reading was a "
+    f"median of **{r.items_median:+.1f} items** above the wait-list "
+    f"(50% CrI {r.items_lo50:+.1f} to {r.items_hi50:+.1f}; "
+    f"95% CrI {r.items_lo:+.1f} to {r.items_hi:+.1f}). "
+    f"**Direction** — evidence it helps: "
+    f"pd = {r.pd:.3f} ({_odds(r.pd)}, *{r.direction_label} evidence*). "
+    f"**Magnitude** — evidence the benefit is at least "
+    f"$\\delta$ = {r.delta_items:g} items: "
+    f"P = {r.prob_benefit_ge_delta:.3f} "
+    f"({_odds(r.prob_benefit_ge_delta)}, *{r.benefit_label} evidence*); "
+    f"probability practically negligible (inside the ROPE): {r.prob_in_rope:.3f}."
+)
+```
+
+```{python}
+# | echo: false
+rope_summary.T
+```
+
+![ROPE-anchored posterior of the t2 randomised contrast, and the probability of a benefit of at least delta items](rope_summary.png){.lightbox}
+
+::: {.callout-note title="Reading the evidence labels"}
+
+The round-odds labels (*inconclusive / suggestive / moderate / strong / very
+strong*) qualify the **evidence**, never the effect *size*, and are run separately
+for the direction and the meaningful-benefit claims. At this study's sample size the
+point estimate is, on average, magnitude-inflated (a Type-M / winner's-curse
+effect), so lead with the interval, not the point. Only the t2 contrast is causal;
+later-timepoint divergence is a post-crossover association.
+
+:::
 
 ## LOO-PSIS
 

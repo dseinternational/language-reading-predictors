@@ -191,20 +191,32 @@ def _save_proportion_at_zero_plot(
 def _save_rope_plot(
     ctx: StatisticalFitContext,
     symbol: str,
-    G: np.ndarray,
+    G: np.ndarray | None,
     n_trials: int,
     delta: float,
+    *,
+    term: str = "tau",
+    varying_term: str = "tau_i",
+    items: np.ndarray | None = None,
 ) -> None:
-    """ROPE-anchored figure for an ITT outcome: the items-scale posterior with the
-    region of practical equivalence, and ``P(effect > delta)`` as the
+    """ROPE-anchored figure for a randomised effect: the items-scale posterior with
+    the region of practical equivalence, and ``P(effect > delta)`` as the
     minimally-important difference rises. Single-outcome version of the note figure
     (notes/202606261304-evidence-strength-and-rope-reporting.md).
+
+    The ITT/gain path recomputes the items draws from ``_itt_ame_draws`` (``term`` /
+    ``varying_term`` / ``G`` select the effect); the level family passes its t2
+    contrast items draws directly via ``items`` (its AME nets out a group×ability
+    interaction the generic core cannot reconstruct).
     """
     try:
         from scipy.stats import gaussian_kde
 
-        _, ame_prob = _report._itt_ame_draws(ctx.trace, G=G)
-        items = ame_prob * float(n_trials)
+        if items is None:
+            _, ame_prob = _report._itt_ame_draws(
+                ctx.trace, G=G, term=term, varying_term=varying_term
+            )
+            items = ame_prob * float(n_trials)
         med = float(np.median(items))
         xmax = float(np.quantile(items, 0.995)) + 0.5
         xmin = min(-delta - 0.5, float(np.quantile(items, 0.005)))
@@ -1339,6 +1351,43 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             )
         )
 
+        # ROPE-anchored continuous report for the one causal term (beta_trt),
+        # mirroring fit_itt (notes/202606261304-evidence-strength-and-rope-
+        # reporting.md): separates direction (pd) from a *meaningful* benefit
+        # (P(items >= delta)). Emitted only for graded outcomes with an agreed
+        # items-scale delta (ROPE_DELTA -> W/R/E/L/B). The floored outcome P and the
+        # not-yet-agreed F/T are absent from ROPE_DELTA and so skipped, exactly as
+        # the ITT path leaves them (their probability-scale delta is the same
+        # education-lead follow-up #130 records).
+        from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+
+        delta_items = ROPE_DELTA.get(spec.outcome_symbol)
+        if delta_items is not None and not off_floor:
+            rope_s = _report.rope_summary(
+                ctx.trace,
+                G=trt,
+                n_trials=n_marg,
+                delta=delta_items,
+                ci_prob=ctx.reporting.hdi,
+                term="beta_trt",
+                varying_term="",
+            )
+            rope_df = pd.DataFrame([rope_s])
+            rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
+            ctx.tables["rope_summary"] = rope_df
+            meta_extra["rope_summary"] = rope_s
+            print_table(
+                metrics_table(
+                    [{"metric": k, "value": v} for k, v in rope_s.items()],
+                    title=f"ROPE summary ({spec.outcome_symbol}, delta={delta_items:g} items)",
+                    columns=["metric", "value"],
+                )
+            )
+            _save_rope_plot(
+                ctx, spec.outcome_symbol, trt, n_marg, delta_items,
+                term="beta_trt", varying_term="",
+            )
+
     _report.write_run_metadata(ctx, extra=meta_extra)
     section_header("Report")
     _copy_report_template(ctx)
@@ -1443,7 +1492,49 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         )
     )
 
-    _report.write_run_metadata(ctx, extra={"loo_elpd": float(ctx.loo.elpd)})
+    meta_extra = {"loo_elpd": float(ctx.loo.elpd)}
+    # ROPE-anchored continuous report for the one causal term — the t2 randomised
+    # contrast b_grp_time[1] (notes/202606261304-...). The level model enters group
+    # as a per-timepoint vector and also carries a group×ability interaction, so the
+    # t2 items-scale AME nets both group terms out at the t2 rows
+    # (reporting.level_t2_marginal_effect) rather than reusing the gain core. Emitted
+    # only for graded outcomes with an agreed delta (ROPE_DELTA -> W/R/E/L/B) and when
+    # the t2 contrast exists (group_by_time); P (off-floor) and F/T are skipped, as in
+    # the ITT path.
+    from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+
+    delta_items = ROPE_DELTA.get(spec.outcome_symbol)
+    if delta_items is not None and not off_floor and extra.get("group_by_time", True):
+        ability = (
+            built.prepared.covariates[ability_covariate]
+            if ability_covariate is not None
+            else None
+        )
+        contrast_draws, ame_prob = _report.level_t2_marginal_effect(
+            ctx.trace,
+            phase=built.prepared.phase,
+            G=built.prepared.G,
+            ability=ability,
+        )
+        n_marg = int(built.prepared.n_trials[spec.outcome_symbol])
+        items = ame_prob * n_marg
+        rope_s = _report._rope_card(
+            contrast_draws, items, delta=delta_items, ci_prob=ctx.reporting.hdi
+        )
+        rope_df = pd.DataFrame([rope_s])
+        rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
+        ctx.tables["rope_summary"] = rope_df
+        meta_extra["rope_summary"] = rope_s
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in rope_s.items()],
+                title=f"ROPE summary (t2 contrast, {spec.outcome_symbol}, delta={delta_items:g} items)",
+                columns=["metric", "value"],
+            )
+        )
+        _save_rope_plot(ctx, spec.outcome_symbol, None, n_marg, delta_items, items=items)
+
+    _report.write_run_metadata(ctx, extra=meta_extra)
     section_header("Report")
     _copy_report_template(ctx)
     _print_footer(ctx)

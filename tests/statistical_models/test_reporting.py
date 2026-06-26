@@ -14,12 +14,14 @@ from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
     evidence_label,
+    level_t2_marginal_effect,
     offfloor_mover_table,
     proportion_at_zero_ppc,
     rope_summary,
     tau_moderation_summary,
     tau_summary_itt,
     tau_summary_offfloor,
+    treatment_marginal_effect,
 )
 
 
@@ -244,6 +246,135 @@ def test_tau_moderation_summary_skips_absent_coeffs():
     )
     assert "gamma_tau_mod_mean" in out
     assert not any(k.startswith("gamma_tau_int") for k in out)
+
+
+def _trace_named(eta, **scalars):
+    """Trace with ``eta`` (chain, draw, obs) plus named scalar (chain, draw) vars."""
+    n_chain, n_draw, n_obs = eta.shape
+    data = {"eta": (("chain", "draw", "obs_id"), eta)}
+    for name, arr in scalars.items():
+        data[name] = (("chain", "draw"), arr)
+    ds = xr.Dataset(
+        data,
+        coords={
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs),
+        },
+    )
+    return SimpleNamespace(posterior=ds)
+
+
+def test_treatment_marginal_effect_folds_onto_core_and_reports_median():
+    # The gain-family treatment AME is the same counterfactual as the ITT core,
+    # parameterised by term=beta_trt / G=trt. Folding onto _itt_ame_draws must
+    # reproduce the hand-rolled all-on-vs-all-off AME, and the point estimate is
+    # now the MEDIAN (transformation-invariant), per #130.
+    eta = np.array([[[0.0, 1.0, -0.5], [0.2, -1.0, 0.3], [0.4, 0.1, -0.2]]])
+    beta = np.array([[0.4, 0.6, 0.5]])
+    trt = np.array([1.0, 0.0, 1.0])
+    n_trials = 20
+
+    out = treatment_marginal_effect(
+        _trace_named(eta, beta_trt=beta), trt=trt, n_trials=n_trials, ci_prob=0.9
+    )
+
+    b = beta.reshape(-1)  # (S,)
+    e = eta.reshape(-1, 3)  # (S, n_obs)
+    eta0 = e - b[:, None] * trt[None, :]
+    ame = (expit(eta0 + b[:, None]) - expit(eta0)).mean(axis=1)  # (S,)
+    assert out["trt_prob_median"] == pytest.approx(float(np.median(ame)))
+    assert out["trt_items_median"] == pytest.approx(float(np.median(ame * n_trials)))
+    assert out["prob_trt_pos"] == pytest.approx(float(np.mean(b > 0)))
+    # Median keys replace the old _mean keys.
+    assert "trt_items_mean" not in out and "trt_prob_mean" not in out
+
+
+def test_rope_summary_accepts_named_treatment_term():
+    # rope_summary is reusable for the gain family by naming term=beta_trt; the
+    # numbers must match an explicit reference and the default-term path.
+    rng = np.random.default_rng(1)
+    eta = rng.normal(0.0, 1.0, (2, 300, 8))
+    beta = rng.normal(0.4, 0.2, (2, 300))
+    G = (rng.random(8) > 0.5).astype(float)
+    n_trials, delta = 25, 1.0
+
+    out = rope_summary(
+        _trace_named(eta, beta_trt=beta),
+        G=G, n_trials=n_trials, delta=delta, ci_prob=0.9,
+        term="beta_trt", varying_term="",
+    )
+    b = beta.reshape(-1)
+    e = eta.reshape(-1, 8)
+    eta0 = e - b[:, None] * G[None, :]
+    items = (expit(eta0 + b[:, None]) - expit(eta0)).mean(axis=1) * n_trials
+    assert out["items_median"] == pytest.approx(float(np.median(items)))
+    assert out["pd"] == pytest.approx(float(np.mean(b > 0)))
+    assert out["prob_benefit_ge_delta"] == pytest.approx(float(np.mean(items >= delta)))
+    # Renaming the var to the default name reproduces the same card.
+    same = rope_summary(
+        _trace_named(eta, tau=beta), G=G, n_trials=n_trials, delta=delta, ci_prob=0.9
+    )
+    assert out["items_median"] == pytest.approx(same["items_median"])
+
+
+def test_level_t2_marginal_effect_nets_group_ability_interaction():
+    # The level t2 AME must net out BOTH the t2 contrast and the group×ability
+    # interaction over the t2 rows only. Build a trace with a per-timepoint
+    # b_grp_time vector and a scalar gamma_grp_ability, then compare to a loop.
+    n_chain, n_draw, n_obs, n_phase = 1, 4, 6, 4
+    rng = np.random.default_rng(2)
+    eta = rng.normal(0.0, 1.0, (n_chain, n_draw, n_obs))
+    b_grp = rng.normal(0.3, 0.2, (n_chain, n_draw, n_phase))
+    g_ab = rng.normal(-0.1, 0.1, (n_chain, n_draw))
+    phase = np.array([0, 1, 2, 3, 1, 0])  # two rows at t2 (phase == 1)
+    G = np.array([1.0, 1.0, 0.0, 1.0, 0.0, 1.0])
+    ability = np.array([0.5, -1.0, 0.2, 0.3, 0.8, -0.4])
+
+    ds = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), eta),
+            "b_grp_time": (("chain", "draw", "phase"), b_grp),
+            "gamma_grp_ability": (("chain", "draw"), g_ab),
+        },
+        coords={
+            "chain": np.arange(n_chain), "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs), "phase": np.arange(n_phase),
+        },
+    )
+    contrast, ame = level_t2_marginal_effect(
+        SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability
+    )
+
+    b_flat = b_grp.reshape(-1, n_phase)  # (S, phase)
+    g_flat = g_ab.reshape(-1)  # (S,)
+    e_flat = eta.reshape(-1, n_obs)  # (S, obs)
+    rows = np.where(phase == 1)[0]
+    ref = []
+    for s in range(n_draw):
+        diffs = []
+        for i in rows:
+            d_i = b_flat[s, 1] + g_flat[s] * ability[i]
+            e0 = e_flat[s, i] - d_i * G[i]
+            diffs.append(expit(e0 + d_i) - expit(e0))
+        ref.append(np.mean(diffs))
+    assert contrast == pytest.approx(b_flat[:, 1])  # logit contrast = b_grp_time[t2]
+    assert ame == pytest.approx(np.array(ref))
+
+
+def test_level_t2_marginal_effect_requires_t2_rows():
+    eta = np.zeros((1, 2, 3))
+    ds = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), eta),
+            "b_grp_time": (("chain", "draw", "phase"), np.zeros((1, 2, 4))),
+        },
+        coords={"chain": [0], "draw": [0, 1], "obs_id": np.arange(3), "phase": np.arange(4)},
+    )
+    with pytest.raises(ValueError, match="No rows at t2_phase"):
+        level_t2_marginal_effect(
+            SimpleNamespace(posterior=ds), phase=np.array([0, 2, 3]), G=np.ones(3)
+        )
 
 
 def test_proportion_at_zero_ppc():

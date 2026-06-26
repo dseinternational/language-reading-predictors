@@ -118,6 +118,32 @@ floor; there is **no `kappa`**; and the treatment marginal collapses to an
 **off-floor risk difference** (`n_trials = 1`, so the items scale equals the
 probability scale). The same branch is available to the level family.
 
+### Decision 6 — reporting follows the ROPE convention (#130)
+
+The causal term is reported the same way the ITT suite reports `tau` after
+[#130](https://github.com/dseinternational/language-reading-predictors/pull/130)
+(`notes/202606261304-evidence-strength-and-rope-reporting.md`): the **median** effect
+on the items scale (transformation-invariant) with intervals, and **direction**
+(`pd`) separated from **magnitude** (`P(items effect ≥ δ)` against the
+minimally-important difference `measures.ROPE_DELTA`). The two families share #130's
+machinery rather than re-deriving it:
+
+- **Gain** — `beta_trt` is the same counterfactual average marginal effect as the
+  ITT `tau`, so `reporting.treatment_marginal_effect` folds onto the shared
+  `_itt_ame_draws` core and the ROPE card comes straight from `reporting.rope_summary`
+  (parameterised by `term="beta_trt"`).
+- **Level** — the t2 contrast `b_grp_time[1]` enters as one element of a
+  per-timepoint vector **and** carries a group×ability interaction, so its items-scale
+  AME nets out both group terms at the t2 rows only
+  (`reporting.level_t2_marginal_effect`) before reusing the same ROPE card.
+
+The ROPE block is emitted only for graded outcomes with an agreed items-scale δ
+(W/R/E/L/B). The floored outcome P (off-floor risk difference) and the not-yet-agreed
+F/T are left for the same education-lead δ follow-up the ITT suite records — their
+factor summaries still report the on-intervention coefficient and (gain) the
+off-floor risk difference. Only the randomised term gets this causal report; every
+other coefficient stays an adjusted association.
+
 ## What this is — and is not
 
 - **Causal:** only the randomised on-intervention term (gain `beta_trt`; level
