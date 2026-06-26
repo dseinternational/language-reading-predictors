@@ -223,3 +223,51 @@ def test_load_and_prepare_rejects_count_above_ceiling(tmp_path):
     df.to_csv(p, index=False)
     with pytest.raises(ValueError, match=r"ewrswr.*ceiling"):
         load_and_prepare(path=p, phase_mode="itt")
+
+
+# ---------------------------------------------------------------------------
+# levels phase mode + baseline_covariates broadcast (LRPLF / LRPGF, issue #127)
+# ---------------------------------------------------------------------------
+
+
+def test_load_and_prepare_levels(tmp_path):
+    """``levels`` yields one row per (child, timepoint t1-t4): four phases, the
+    score at each timepoint as the post outcome, and no autoregressive pre."""
+    df = _make_synthetic_long(n_children=15, seed=6)
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    prep = load_and_prepare(path=p, phase_mode="levels")
+    assert prep.n_phases == 4
+    assert prep.n_obs == 15 * 4
+    assert (np.bincount(prep.phase, minlength=4) == 15).all()
+    assert prep.pre_logit == {}  # levels has no pre-score
+    assert set(prep.post_counts) == set(ITT_OUTCOMES)
+    assert set(np.unique(prep.G)).issubset({0, 1})
+
+
+def test_load_and_prepare_levels_rejects_pre_required(tmp_path):
+    df = _make_synthetic_long(n_children=8, seed=7)
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match="pre_required"):
+        load_and_prepare(path=p, phase_mode="levels", pre_required=("W",))
+
+
+def test_baseline_covariate_broadcast_from_t1(tmp_path):
+    """A t1-only baseline (here AGEBOOKS, blanked at t2-t4) is broadcast across
+    every row by subject merge — so no rows drop and the covariate is finite and
+    standardised on every (child, phase) row. This is what lets the gain model
+    use t1 ability/SES in ``all`` mode without collapsing to one phase."""
+    for mode, n_phases in (("all", 3), ("levels", 4)):
+        df = _make_synthetic_long(n_children=12, seed=8)
+        df.loc[df[V.TIME] != 1, V.AGEBOOKS] = np.nan  # genuine t1-only baseline
+        p = tmp_path / f"rli_{mode}.csv"
+        df.to_csv(p, index=False)
+        prep = load_and_prepare(
+            path=p, phase_mode=mode, baseline_covariates=(V.AGEBOOKS,)
+        )
+        assert prep.n_obs == 12 * n_phases  # broadcast -> no rows dropped
+        z = prep.covariates[V.AGEBOOKS]
+        assert np.all(np.isfinite(z))  # filled on every row
+        assert z.mean() == pytest.approx(0.0, abs=1e-10)  # standardised
+        assert z.std(ddof=1) == pytest.approx(1.0, abs=1e-10)
