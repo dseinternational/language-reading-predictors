@@ -241,9 +241,16 @@ def _calibration_plot(model_id: str, out_dir: Path, pooled_r2: float | None) -> 
     return path
 
 
-def _direction_table(out_dir: Path, top_n: int) -> pd.DataFrame:
-    """Top predictors by permutation importance, paired with SHAP direction."""
+def _direction_table(out_dir: Path, top_n: int, members: list[str] | None = None) -> pd.DataFrame:
+    """Top predictors by permutation importance, paired with SHAP direction.
+
+    ``members`` (when given) restricts the table to that predictor set — used by the
+    ``--from-ranking`` fallback so the table never describes predictors outside the set
+    actually used.
+    """
     perm = pd.read_csv(out_dir / "permutation_importance.csv")
+    if members is not None:
+        perm = perm[perm["feature"].isin(members)]
     perm = perm.sort_values("importance_mean", ascending=False).reset_index(drop=True)
     perm["rank"] = perm.index + 1
 
@@ -261,12 +268,43 @@ def _direction_table(out_dir: Path, top_n: int) -> pd.DataFrame:
     return merged.head(top_n)
 
 
+def _direction_table_from_ranking(
+    member_file: Path, members: list[str], top_n: int
+) -> pd.DataFrame:
+    """Direction table sourced from the ranking's per-member artefact.
+
+    For ``--from-ranking`` the printed/JSON top-predictor table must describe the
+    predictors actually used, not the committed fitted model's subset.
+    ``predictor_ranking.csv`` carries per-member ``perm_imp_mean`` and a SHAP ``sign``
+    (+/-/0); the continuous Spearman ρ is not retained, so ``feature_shap_spearman`` is
+    left NaN and the direction comes from the sign. Returns the same columns as
+    :func:`_direction_table`.
+    """
+    rk = pd.read_csv(member_file)
+    rk = rk[rk["member"].isin(members)].copy()
+    rk = rk.sort_values("perm_imp_mean", ascending=False).reset_index(drop=True)
+    out = pd.DataFrame(
+        {
+            "feature": rk["member"],
+            "importance_mean": rk["perm_imp_mean"],
+            "feature_shap_spearman": np.nan,
+            "shape_flag": rk["sign"].astype(str) if "sign" in rk.columns else "—",
+        }
+    )
+    out["rank"] = out.index + 1
+    return out.head(top_n)
+
+
 _FLAG_DIRECTION = {
     "monotonic_+": "higher → more gain",
     "monotonic_-": "higher → less gain",
     "noisy_+": "higher → more gain (noisy)",
     "noisy_-": "higher → less gain (noisy)",
     "non_monotonic": "mixed / non-monotonic",
+    # ranking-sourced direction (predictor_ranking.csv carries only the SHAP-sign):
+    "+": "higher → higher outcome",
+    "-": "higher → lower outcome",
+    "0": "no clear direction",
 }
 
 
@@ -278,6 +316,7 @@ def _markdown_summary(
     base_skill: dict | None,
     dropped: list[str],
     directions: pd.DataFrame,
+    direction_source: str = "committed_model",
 ) -> str:
     r2 = metrics.get("cv_pooled_r2")
     rmse = metrics.get("cv_pooled_rmse")
@@ -327,6 +366,8 @@ def _markdown_summary(
         )
     lines += [
         "",
+        f"**Top predictors** (importance/direction source: {direction_source})",
+        "",
         "| rank | predictor | perm. importance | SHAP–feature ρ | direction |",
         "|---:|---|---:|---:|---|",
     ]
@@ -341,6 +382,18 @@ def _markdown_summary(
         )
     lines.append("")
     return "\n".join(lines)
+
+
+def _truthy(s: pd.Series) -> pd.Series:
+    """Coerce a possibly-string CSV column to bool.
+
+    ``pd.read_csv`` can load a written boolean column as strings ("True"/"False"); a
+    plain ``.astype(bool)`` then treats the non-empty "False" as ``True``. Map the
+    common textual/numeric truthy spellings explicitly instead.
+    """
+    if s.dtype == bool:
+        return s
+    return s.astype(str).str.strip().str.lower().isin({"true", "1", "1.0", "yes"})
 
 
 def _predictors_from_ranking(
@@ -375,7 +428,7 @@ def _predictors_from_ranking(
         elif {"member", "cluster_rank"} <= cols:  # predictor_ranking.csv
             d = df.copy()
             if exclude_same_skill and "same_skill_of_outcome" in cols:
-                d = d[~d["same_skill_of_outcome"].astype(bool)]
+                d = d[~_truthy(d["same_skill_of_outcome"])]
             d = d.sort_values(["cluster_rank", "perm_imp_mean"], ascending=[True, False])
             reps = d.groupby("cluster_rank", sort=True).head(1)
             preds = (reps.head(top_k) if top_k else reps)["member"].tolist()
@@ -386,7 +439,7 @@ def _predictors_from_ranking(
             raise SystemExit(f"{path}: top-k mode needs a per-member ranking (predictor_ranking.csv)")
         d = df.copy()
         if exclude_same_skill and "same_skill_of_outcome" in cols:
-            d = d[~d["same_skill_of_outcome"].astype(bool)]
+            d = d[~_truthy(d["same_skill_of_outcome"])]
         d = d.sort_values("perm_imp_mean", ascending=False)
         preds = (d.head(top_k) if top_k else d)["member"].tolist()
     else:
@@ -448,9 +501,29 @@ def _readout(
         )
 
     calib_path = _calibration_plot(model_id, out_dir, metrics.get("cv_pooled_r2"))
-    directions = _direction_table(out_dir, top_n)
+    if ranking_path is not None:
+        # Source the direction table from the ranking so it describes the predictors
+        # actually used, not the committed fitted model's subset. predictor_ranking.csv
+        # (the per-member detail) sits beside whichever ranking CSV was passed.
+        rp = Path(ranking_path)
+        member_file = (
+            rp if rp.name == "predictor_ranking.csv"
+            else rp.parent / "predictor_ranking.csv"
+        )
+        if member_file.exists():
+            directions = _direction_table_from_ranking(member_file, full_predictors, top_n)
+            direction_source = f"ranking:{member_file.name}"
+        else:
+            directions = _direction_table(out_dir, top_n, members=full_predictors)
+            direction_source = (
+                "committed_model (per-member ranking not found; filtered to predictors used)"
+            )
+    else:
+        directions = _direction_table(out_dir, top_n)
+        direction_source = "committed_model"
     md = _markdown_summary(
-        model_id, metrics, baseline, full_skill, base_skill, dropped, directions
+        model_id, metrics, baseline, full_skill, base_skill, dropped, directions,
+        direction_source,
     )
 
     summary = {
@@ -466,6 +539,7 @@ def _readout(
         "baseline_pooled_rmse": baseline["baseline_pooled_rmse"],
         "baseline_pooled_r2": baseline["baseline_pooled_r2"],
         "predictor_source": str(ranking_path) if ranking_path else "config.predictor_vars",
+        "direction_source": direction_source,
         "predictors_used": full_predictors,
         "full_set_skill": full_skill,
         "baseline_only_skill": base_skill,
