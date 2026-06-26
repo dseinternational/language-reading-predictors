@@ -94,6 +94,7 @@ lgbm
 lightbox
 lightgbm
 logit
+LRPITT
 medae
 mumedupost
 mumocc
@@ -197,3 +198,8 @@ Wagenmakers
 noconstruct
 waitlist
 LOSO
+LRPITT
+PYTHONPATH
+worktree
+worktrees
+hyperparams

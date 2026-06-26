@@ -112,14 +112,14 @@ diag
 
 ## Treatment-effect summary
 
-::: {.callout-important title="Sign convention: negative τ = intervention benefit"}
+::: {.callout-important title="Sign convention: positive τ = intervention benefit"}
 
-$\tau$ is the coefficient on $G = \text{group} - 1$, and group 2 is the
-**waiting-control** arm in the randomised window. So a **negative $\tau$ means the
-intervention raised taught receptive vocabulary**, and the probability of benefit
-is $P(\tau < 0) = 1 - \texttt{prob\_tau\_pos}$ (suite-wide convention; see
-`notes/202604181600-lrp52-58-findings.md`). The expectation here is a $\tau$
-*closer to zero* than LRP74 — the expressive/receptive asymmetry.
+$\tau$ is the coefficient on $G = 2 - \text{group}$, so $G = 1$ is the
+**immediate-intervention** arm and $G = 0$ the waiting-control arm. So a
+**positive $\tau$ means the intervention raised taught receptive vocabulary**, and
+the probability of benefit is $P(\tau > 0) = \texttt{prob\_tau\_pos}$ (suite-wide
+convention; see METHODS.md). The expectation here is a $\tau$ *closer to zero* than
+LRP74 — the expressive/receptive asymmetry.
 
 :::
 
@@ -128,9 +128,9 @@ is $P(\tau < 0) = 1 - \texttt{prob\_tau\_pos}$ (suite-wide convention; see
 tau_summary
 ```
 
-- `tau_logit_*`: posterior mean and equal-tailed interval of $\tau$ on the logit scale ($\tau < 0$ ⇒ benefit).
-- `tau_prob_*`: implied marginal effect on the probability scale; the intervention benefit in words is $-\,\texttt{tau\_prob\_mean} \times 24$.
-- `prob_tau_pos`: $P(\tau > 0)$; the probability the intervention helped is $1 - \texttt{prob\_tau\_pos}$.
+- `tau_logit_*`: posterior mean and equal-tailed interval of $\tau$ on the logit scale ($\tau > 0$ ⇒ benefit).
+- `tau_prob_*`: implied marginal effect on the probability scale; the intervention benefit in words is $\texttt{tau\_prob\_mean} \times 24$.
+- `prob_tau_pos`: $P(\tau > 0)$; the probability the intervention helped.
 
 ## LOO-PSIS
 
