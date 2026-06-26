@@ -2,12 +2,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Model factories for LRP52-LRP60.
+Model factories for the statistical models.
 
 Three factories are provided:
 
-- :func:`build_itt_model` — LRP52, LRP53, LRP54, LRP60 (one outcome, RCT phase).
-- :func:`build_joint_model` — LRP55 (eight outcomes, RCT phase, LKJ Σ).
+- :func:`build_itt_model` — the LRPITT ITT suite (one outcome, RCT phase) and its
+  SES-adjusted companions; the floored outcomes use its ``bernoulli_offfloor``
+  likelihood mode for the off-floor primary estimand.
+- :func:`build_joint_model` — the joint model (LRPITT12) and the two-outcome
+  generalisation contrasts (LRPITT15/15b), RCT phase, optional LKJ Σ.
 - :func:`build_mechanism_model` — LRP56, LRP57, LRP58 (adjustment-set
   mechanism regressions on ``W_post`` using all phases).
 
@@ -34,7 +37,10 @@ from language_reading_predictors.statistical_models.likelihood import (
     beta_binomial_from_logit,
 )
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
-from language_reading_predictors.statistical_models.preprocessing import PreparedData
+from language_reading_predictors.statistical_models.preprocessing import (
+    PreparedData,
+    standardise,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +66,7 @@ class BuiltModel:
 
 
 # ---------------------------------------------------------------------------
-# LRP52-LRP54: ITT factory
+# ITT factory (LRPITT suite)
 # ---------------------------------------------------------------------------
 
 
@@ -68,25 +74,39 @@ def build_itt_model(
     prepared: PreparedData,
     *,
     outcome_symbol: str,
-    use_age_gp: bool = True,
-    use_own_baseline_gp: bool = True,
+    use_age_gp: bool = False,
+    use_own_baseline_gp: bool = False,
     use_varying_tau: bool = False,
     adjust_for: Iterable[str] = (),
     cross_symbols: Iterable[str] | None = None,
+    use_age_linear: bool = False,
+    use_own_baseline: bool = True,
+    likelihood: str = "beta_binomial",
+    tau_moderator_symbol: str | None = None,
+    tau_moderator_is_covariate: bool = False,
+    tau_moderator_interaction: bool = True,
 ) -> BuiltModel:
     """
-    Build the single-outcome ITT model used by LRP52, LRP53, LRP54.
+    Build the single-outcome ITT model used by the LRPITT suite (and its SES
+    companions).
 
     The linear predictor is
 
         eta_i = alpha
               + tau * G_i
-              + gamma_own * logit(y_pre_i, N_own)
-              + sum_{k != own} gamma_k * logit(k_pre_i, N_k)
-              + f_A(A_std_i)                          # optional HSGP
-              + f_ypre(logit(y_pre_i, N_own))         # optional HSGP
+              + gamma_own * logit(y_pre_i, N_own)     # if use_own_baseline
+              + gamma_A * A_std_i                      # if use_age_linear
+              + sum_{k in cross} gamma_k * logit(k_pre_i, N_k)
+              + sum_c gamma_c * z(c_i)                 # adjust_for covariates
+              + f_A(A_std_i)                           # optional HSGP
+              + f_ypre(logit(y_pre_i, N_own))          # optional HSGP
+              + gamma_tau_mod * z(M_i)                 # optional tau-moderator main
+              + gamma_tau_int * G_i * z(M_i)           # optional tau-moderator interaction
 
-    with Beta-Binomial likelihood on the post-score count (``N_own`` trials).
+    The observation node is a Beta-Binomial on the post count (``likelihood=
+    "beta_binomial"``) or, for the floored-outcome floor rule, a Bernoulli on the
+    binary "off-floor at t2" indicator ``post > 0`` (``likelihood=
+    "bernoulli_offfloor"``).
 
     Parameters
     ----------
@@ -95,7 +115,13 @@ def build_itt_model(
     outcome_symbol
         Target measure (``"W"``, ``"R"``, ``"E"``, ...).
     use_age_gp, use_own_baseline_gp
-        Toggles for the two HSGP main effects.
+        Toggles for the two HSGP main effects. **Default False** — the
+        2026-04-18 LRP52 sensitivity fit found LOO did not prefer them and the
+        GP amplitudes produced an ``eta -> basis-weight`` funnel (~1-8 %
+        divergences); they are kept as opt-in flags for per-outcome sensitivity
+        fits. This matches the ``build_joint_model`` / ``build_mechanism_model``
+        default-off convention, so a spec that omits the flags no longer
+        silently fits two unidentifiable GPs (notes/202604181445-lrp52-gp-sensitivity.md).
     use_varying_tau
         If True, the treatment effect is modelled as ``tau0 + g_tauA(A_std)``
         via a :func:`build_tau_modifier` GP with the tight ``HalfNormal(0.3)``
@@ -107,22 +133,69 @@ def build_itt_model(
     cross_symbols
         Symbols whose baselines enter as cross-baseline couplings (the
         ``sum_{k != own} gamma_k`` term). ``None`` (default) reproduces the
-        LRP52-LRP54 behaviour of conditioning on every *other* ITT outcome
+        legacy behaviour of conditioning on every *other* ITT outcome
         (``ITT_OUTCOMES``). Pass an explicit (possibly empty) iterable to
-        condition on a chosen subset instead - used by the taught-vocabulary
-        models (LRP74/LRP75), whose outcome is outside ``ITT_OUTCOMES`` and which
-        condition only on the matched standardised-vocabulary baseline rather
-        than all eight (parsimony at n~54). Every requested symbol must be in
+        condition on a chosen subset instead. The LRPITT suite passes ``()`` —
+        under the locked DAG the ITT effect is identified by the empty adjustment
+        set, so cross-baselines are dropped. Every requested symbol must be in
         ``prepared.pre_logit``; ``own`` is removed if present.
+    use_age_linear
+        If True, add a plain linear age main effect ``gamma_A * A_std``
+        (``gamma_age_prior``). A precision term only (the DAG identifies ``tau``
+        without it). Mutually exclusive with ``use_age_gp`` (the GP already
+        absorbs the smooth age effect) — setting both raises ``ValueError``. The
+        LRPITT suite uses this in place of the (off-by-default) age GP.
+    use_own_baseline
+        If True (default), add the own-baseline precision term
+        ``gamma_own * logit(y_pre)``. Set False for the age-only specification
+        used by the floor-rule outcomes (``P``/``N``) and post-only outcomes
+        (``N``): the factory then never indexes ``prepared.pre_logit[own]``, so
+        a degenerate or missing baseline cannot enter or drop rows.
+    likelihood
+        ``"beta_binomial"`` (default) models the graded post count. The floor
+        rule (#119) uses ``"bernoulli_offfloor"`` for its PRIMARY estimand: a
+        Bernoulli/logistic ``tau`` on the binary off-floor indicator
+        ``post > 0`` (no ``kappa``), which targets where the randomised signal
+        verifiably lives for heavily-floored outcomes.
+    tau_moderator_symbol, tau_moderator_is_covariate, tau_moderator_interaction
+        Part B (HTE) plumbing: moderate ``tau`` by a **pre-randomisation**
+        quantity ``M`` (so the interaction stays randomisation-respecting). With
+        ``tau_moderator_is_covariate=True`` the moderator is ``"A"`` (age,
+        ``A_std``) or a key of ``prepared.covariates`` (e.g. SES); otherwise it
+        is an outcome symbol whose **baseline logit** ``prepared.pre_logit[M]``
+        is used. ``M`` is standardised on the fitted (kept) rows, enters as a
+        main effect ``gamma_tau_mod * z(M)``, and — when
+        ``tau_moderator_interaction`` (default) — an interaction
+        ``gamma_tau_int * G * z(M)``; both use the regularising
+        ``Normal(0, 0.3)`` prior. Set ``tau_moderator_interaction=False`` for the
+        nested no-interaction baseline used in the PSIS-LOO comparison.
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
             f"build_itt_model expects phase_mode='itt', got {prepared.phase_mode!r}"
         )
-    if outcome_symbol not in prepared.pre_logit:
-        raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
+    if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(
+            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
+            f"got {likelihood!r}"
+        )
+    if use_age_gp and use_age_linear:
+        raise ValueError(
+            "use_age_gp and use_age_linear are mutually exclusive: the age GP "
+            "already absorbs the smooth age effect; choose one."
+        )
 
     own = outcome_symbol
+    need_own_pre = use_own_baseline or use_own_baseline_gp
+    if own not in prepared.post_counts:
+        raise KeyError(f"Outcome {own!r} missing from prepared data (post_counts)")
+    if need_own_pre and own not in prepared.pre_logit:
+        raise KeyError(
+            f"Outcome {own!r} has no baseline in prepared data, but "
+            "use_own_baseline / use_own_baseline_gp is set. Load it with a "
+            "pre-score, or pass use_own_baseline=False for an age-only model."
+        )
+
     adjust_for = tuple(adjust_for)
     missing_adjusters = [c for c in adjust_for if c not in prepared.covariates]
     if missing_adjusters:
@@ -140,6 +213,24 @@ def build_itt_model(
                 f"Cross-baseline symbols missing from prepared data: {missing_cross}"
             )
 
+    # Validate the tau-moderator (Part B). It must be a pre-randomisation
+    # quantity — a baseline logit or a covariate — never a post-outcome.
+    if tau_moderator_symbol is not None:
+        if tau_moderator_is_covariate:
+            if (
+                tau_moderator_symbol != "A"
+                and tau_moderator_symbol not in prepared.covariates
+            ):
+                raise KeyError(
+                    f"tau moderator covariate {tau_moderator_symbol!r} not in "
+                    "prepared.covariates (and is not 'A' for age)"
+                )
+        elif tau_moderator_symbol not in prepared.pre_logit:
+            raise KeyError(
+                f"tau moderator baseline {tau_moderator_symbol!r} not in "
+                "prepared.pre_logit"
+            )
+
     post = prepared.post_counts[own]
     if np.any(np.isnan(post)):
         keep = ~np.isnan(post)
@@ -148,15 +239,28 @@ def build_itt_model(
             post = prepared.post_counts[own]
 
     post = post.astype(np.int64)
-    y_pre_logit = prepared.pre_logit[own]
+    y_pre_logit = prepared.pre_logit[own] if need_own_pre else None
+
+    # Resolve the moderator vector on the kept rows (after the post NaN drop) so
+    # gamma_tau_mod reads as the effect at the mean of the fitted sample.
+    z_M: np.ndarray | None = None
+    if tau_moderator_symbol is not None:
+        if tau_moderator_is_covariate:
+            raw_M = (
+                prepared.A_std
+                if tau_moderator_symbol == "A"
+                else prepared.covariates[tau_moderator_symbol]
+            )
+        else:
+            raw_M = prepared.pre_logit[tau_moderator_symbol]
+        z_M, _ = standardise(raw_M)
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     G_f = prepared.G.astype(float)
 
     with pm.Model(coords=coords) as model:
-        pm.Data("A_std", prepared.A_std, dims="obs_id")
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         G_d = pm.Data("G", G_f, dims="obs_id")
-        own_pre_d = pm.Data("own_pre_logit", y_pre_logit, dims="obs_id")
         cross_pre_data: dict[str, pt.TensorVariable] = {}
         for s in cross:
             cross_pre_data[s] = pm.Data(
@@ -165,25 +269,31 @@ def build_itt_model(
         adjust_data: dict[str, pt.TensorVariable] = {}
         for c in adjust_for:
             adjust_data[c] = pm.Data(f"{c}_std", prepared.covariates[c], dims="obs_id")
+        z_M_d = (
+            pm.Data("z_tau_moderator", z_M, dims="obs_id") if z_M is not None else None
+        )
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         tau0 = _scalar_prior("tau", _priors.tau_prior)
-        gamma_own = _scalar_prior("gamma_own", _priors.gamma_own_prior)
 
-        gamma_cross: dict[str, pt.TensorVariable] = {}
+        eta: pt.TensorVariable | float = alpha
+
+        if use_own_baseline:
+            own_pre_d = pm.Data("own_pre_logit", y_pre_logit, dims="obs_id")
+            gamma_own = _scalar_prior("gamma_own", _priors.gamma_own_prior)
+            eta = eta + gamma_own * own_pre_d
+
         for s in cross:
-            gamma_cross[s] = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
+            gamma_s = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
+            eta = eta + gamma_s * cross_pre_data[s]
 
-        cross_contrib: pt.TensorVariable | float = 0.0
-        for s in cross:
-            cross_contrib = cross_contrib + gamma_cross[s] * cross_pre_data[s]
-
-        adjust_contrib: pt.TensorVariable | float = 0.0
         for c in adjust_for:
             gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
-            adjust_contrib = adjust_contrib + gamma_c * adjust_data[c]
+            eta = eta + gamma_c * adjust_data[c]
 
-        eta = alpha + gamma_own * own_pre_d + cross_contrib + adjust_contrib
+        if use_age_linear:
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
+            eta = eta + gamma_A * A_std_d
 
         if use_age_gp:
             f_A = build_hsgp_1d("f_A", prepared.A_std)
@@ -192,6 +302,12 @@ def build_itt_model(
             f_ypre = build_hsgp_1d("f_ypre", y_pre_logit)
             eta = eta + f_ypre
 
+        # Treatment effect, with the optional linear tau-moderator (Part B). The
+        # moderator main effect enters once; the interaction is the G * z(M) term.
+        if z_M_d is not None:
+            gamma_tau_mod = _priors.gamma_cross_prior().to_pymc("gamma_tau_mod")
+            eta = eta + gamma_tau_mod * z_M_d
+
         if use_varying_tau:
             g_tauA = build_tau_modifier("g_tauA", prepared.A_std)
             tau_i = pm.Deterministic("tau_i", tau0 + g_tauA, dims="obs_id")
@@ -199,25 +315,32 @@ def build_itt_model(
         else:
             eta = eta + tau0 * G_d
 
+        if z_M_d is not None and tau_moderator_interaction:
+            gamma_tau_int = _priors.gamma_cross_prior().to_pymc("gamma_tau_int")
+            eta = eta + gamma_tau_int * (G_d * z_M_d)
+
         eta = pm.Deterministic("eta", eta, dims="obs_id")
 
-        kappa = _scalar_prior("kappa", _priors.kappa_prior)
-
-        beta_binomial_from_logit(
-            "y_post",
-            eta,
-            n_trials=prepared.n_trials[own],
-            kappa=kappa,
-            observed=post,
-            dims="obs_id",
-        )
+        if likelihood == "beta_binomial":
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post",
+                eta,
+                n_trials=prepared.n_trials[own],
+                kappa=kappa,
+                observed=post,
+                dims="obs_id",
+            )
+        else:  # bernoulli_offfloor: PRIMARY estimand for the floor rule
+            off_floor = (post > 0).astype(np.int64)
+            pm.Bernoulli("y_offfloor", logit_p=eta, observed=off_floor, dims="obs_id")
 
     variables = _variables_dict(model)
     return BuiltModel(model=model, variables=variables, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
-# LRP55: joint model
+# Joint model (LRPITT12 joint; LRPITT15/15b generalisation contrasts)
 # ---------------------------------------------------------------------------
 
 
@@ -228,19 +351,32 @@ def build_joint_model(
     use_age_gp: bool = False,
     partial_pool_age_gp: bool = True,
     use_residual_correlation: bool = False,
+    use_cross_baselines: bool = True,
+    use_age_linear: bool = False,
 ) -> BuiltModel:
     """
-    Build the LRP55 joint Beta-Binomial model.
+    Build the joint Beta-Binomial model (LRPITT12; the LRPITT15/15b contrasts).
 
     For each child i and outcome k, the model is
 
         eta_{k,i} = alpha_k + tau_k * G_i
                     + gamma_own_k * logit(k_pre_i, N_k)
-                    + sum_{j != k} gamma_{k,j} * logit(j_pre_i, N_j)
-                    [ + f_A_k(A_std_i)         if use_age_gp ]
-                    [ + u_{k,i}                if use_residual_correlation ]
+                    [ + sum_{j != k} gamma_{k,j} * logit(j_pre_i, N_j)  if use_cross_baselines ]
+                    [ + gamma_A_k * A_std_i                            if use_age_linear ]
+                    [ + f_A_k(A_std_i)                                 if use_age_gp ]
+                    [ + u_{k,i}                                        if use_residual_correlation ]
 
     with per-outcome Beta-Binomial likelihood on the post-score count.
+
+    ``use_cross_baselines`` (default True): include the off-diagonal cross-baseline
+    couplings (the historical LRP55 behaviour). The DAG-faithful LRPITT joint
+    (LRPITT12) and the generalisation contrasts (LRPITT15/15b) set this **False**,
+    so the joint mirrors the single-outcome suite — the ITT effect is identified by
+    the empty adjustment set, with own baseline + linear age as precision terms.
+
+    ``use_age_linear`` (default False): add a per-outcome linear age term
+    ``gamma_A_k * A_std_i`` (the suite's age precision term); mutually exclusive
+    with ``use_age_gp``.
 
     ``use_age_gp`` (default False): when True, adds an HSGP on standardised
     age. With ``partial_pool_age_gp=True`` this is a partial-pooled age GP
@@ -266,7 +402,11 @@ def build_joint_model(
         if s not in prepared.pre_logit:
             raise KeyError(f"Outcome {s!r} missing from prepared data")
     if prepared.phase_mode != "itt":
-        raise ValueError("LRP55 joint model requires phase_mode='itt'")
+        raise ValueError("joint model requires phase_mode='itt'")
+    if use_age_gp and use_age_linear:
+        raise ValueError(
+            "use_age_gp and use_age_linear are mutually exclusive in the joint model."
+        )
 
     K = len(outcomes)
     N_obs = prepared.n_obs
@@ -304,34 +444,42 @@ def build_joint_model(
         )
 
         # Per-outcome scalar parameters — shared constructors (priors.py) so
-        # LRP55 cannot drift from the ITT / mechanism factories (issue #79).
+        # the joint model cannot drift from the ITT / mechanism factories (issue #79).
         alpha = _priors.alpha_prior().to_pymc("alpha", dims="outcome")
         tau = _priors.tau_prior().to_pymc("tau", dims="outcome")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")
 
-        # Cross-baseline couplings: (K outcomes) x K baselines; mask the
-        # diagonal to enforce "own baseline handled separately".
-        gamma_cross_mat = _priors.gamma_cross_prior().to_pymc(
-            "gamma_cross", dims=("outcome", "baseline")
-        )
-        mask_offdiag = 1.0 - np.eye(K)
-        gamma_cross_eff = pm.Deterministic(
-            "gamma_cross_eff",
-            gamma_cross_mat * mask_offdiag,
-            dims=("outcome", "baseline"),
-        )
-
         # Own-baseline contribution: (N_obs, K) - elementwise by outcome index.
         own_contrib = gamma_own[None, :] * pre_logit_data
-        # Cross-baseline contribution: sum over baselines for each outcome.
-        cross_contrib = pt.dot(pre_logit_data, gamma_cross_eff.T)
 
         eta_core = (
             alpha[None, :]
             + tau[None, :] * pt.shape_padright(G_d)
             + own_contrib
-            + cross_contrib
         )
+
+        # Cross-baseline couplings: (K outcomes) x K baselines; mask the diagonal
+        # to enforce "own baseline handled separately". The DAG-faithful LRPITT
+        # joint (LRPITT12) and the generalisation contrasts drop these so the joint
+        # mirrors the single-outcome suite; kept available for a richer
+        # sensitivity fit (the historical LRP55 behaviour).
+        if use_cross_baselines:
+            gamma_cross_mat = _priors.gamma_cross_prior().to_pymc(
+                "gamma_cross", dims=("outcome", "baseline")
+            )
+            mask_offdiag = 1.0 - np.eye(K)
+            gamma_cross_eff = pm.Deterministic(
+                "gamma_cross_eff",
+                gamma_cross_mat * mask_offdiag,
+                dims=("outcome", "baseline"),
+            )
+            # Cross-baseline contribution: sum over baselines for each outcome.
+            eta_core = eta_core + pt.dot(pre_logit_data, gamma_cross_eff.T)
+
+        # Linear age main effect (per outcome), mirroring the single-outcome suite.
+        if use_age_linear:
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A", dims="outcome")
+            eta_core = eta_core + gamma_A[None, :] * prepared.A_std[:, None]
 
         if use_age_gp:
             if partial_pool_age_gp:
@@ -1003,6 +1151,144 @@ def build_crossover_model(
             n_trials=N_outcome,
             kappa=kappa,
             observed=outcome_post,
+            dims="obs_id",
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
+# Waitlist-crossover / difference-in-differences factory (kind="did")
+# ---------------------------------------------------------------------------
+
+
+def build_did_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str,
+    periods: Iterable[int] = (0, 1),
+    use_child_re: bool = True,
+    use_age: bool = True,
+    dose: bool = False,
+) -> BuiltModel:
+    """Waitlist-crossover / difference-in-differences model for one outcome.
+
+    Stacks the early phase transitions (P1 = t1->t2, P2 = t2->t3) for **both**
+    arms and asks whether being *currently treated* lifts the period gain, with
+    each child as their own control (a child random intercept). Under the trial's
+    waitlist design the only **untreated** cell is the waitlist arm in P1; the
+    immediate arm is treated in both periods and so anchors the period
+    (time / maturation) trend. The treatment coefficient ``delta`` is therefore a
+    difference-in-differences estimate of the ITT effect, identified jointly by
+    the period-1 between-arm contrast and the waitlist's own P1->P2 crossover.
+
+    Requires ``prepared.phase_mode == "all"`` (the phase-stacked frame). Built on
+    the same Beta-Binomial-on-logit / ANCOVA convention as the ITT suite, so the
+    logit link absorbs ceiling effects: an immediate-arm child near the top of a
+    bounded test makes a small P2 gain *expected*, not a spurious negative trend
+    (the failure mode of a raw-gain difference-in-differences).
+
+    Linear predictor (binary, ``dose=False``):
+
+        eta_{i,p} = alpha + beta_period * [p == P2]
+                  + delta * Treated_{i,p}
+                  + gamma_own * logit(pre_{i,p})
+                  [ + gamma_A * A_std_{i,p}    if use_age ]
+                  [ + u_child_i                if use_child_re ]
+
+    where ``Treated_{i,p} = 1`` when child *i* is receiving the intervention in
+    period *p* (immediate: both periods; waitlist: P2 only). With ``dose=True`` the
+    binary ``delta * Treated`` is replaced by ``beta_dose * z(attend)`` (the
+    standardised intervention-session count for that period) — a dose-response
+    sensitivity; the caller must have loaded ``covariates=("attend",)``.
+
+    Parameters
+    ----------
+    periods
+        Phase indices to keep (default ``(0, 1)`` = P1, P2). ``beta_period`` is
+        the P2-vs-P1 contrast.
+    use_child_re
+        Add the non-centred child random intercept (the own-control). Default True.
+    use_age
+        Add a linear standardised-age precision term. Default True.
+    dose
+        Use the standardised session count as a continuous treatment intensity
+        instead of the binary treated indicator.
+    """
+    if prepared.phase_mode != "all":
+        raise ValueError("build_did_model requires phase_mode='all'")
+    own = outcome_symbol
+    if own not in prepared.post_counts or own not in prepared.pre_logit:
+        raise KeyError(f"Outcome {own!r} missing pre/post in prepared data")
+    periods = tuple(int(p) for p in periods)
+    if dose and "attend" not in prepared.covariates:
+        raise KeyError("dose=True requires the 'attend' covariate to be loaded")
+
+    post = prepared.post_counts[own]
+    keep = np.isin(prepared.phase, periods) & ~np.isnan(post)
+    if dose:
+        keep = keep & np.isfinite(prepared.covariates["attend"])
+    prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[own].astype(np.int64)
+    pre_logit = prepared.pre_logit[own]
+    # P2 indicator (time); Treated indicator (immediate both periods, waitlist P2).
+    is_p2 = (prepared.phase >= 1).astype(float)
+    treated = ((prepared.G == 1) | (prepared.phase >= 1)).astype(float)
+    n_trials = prepared.n_trials[own]
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "child": np.arange(prepared.n_children),
+    }
+    with pm.Model(coords=coords) as model:
+        period_d = pm.Data("period", is_p2, dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", pre_logit, dims="obs_id")
+
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        beta_period = _priors.tau_prior().to_pymc("beta_period")
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+
+        eta = alpha + beta_period * period_d + gamma_own * own_pre_d
+
+        if use_age:
+            A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
+            eta = eta + gamma_A * A_std_d
+
+        if use_child_re:
+            sigma_child = pm.HalfNormal("sigma_child", sigma=0.5)
+            u_child = pm.Deterministic(
+                "u_child",
+                sigma_child * pm.Normal("u_child_raw", 0.0, 1.0, dims="child"),
+                dims="child",
+            )
+            child_idx_d = pm.Data(
+                "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+            )
+            eta = eta + u_child[child_idx_d]
+
+        # Linear predictor without the treatment term, so the pipeline can read
+        # the off-treatment baseline for the average-marginal-effect translation.
+        eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
+
+        if dose:
+            z_attend = pm.Data("z_attend", prepared.covariates["attend"], dims="obs_id")
+            beta_dose = _priors.tau_prior().to_pymc("beta_dose")
+            eta_full = eta_base + beta_dose * z_attend
+        else:
+            treated_d = pm.Data("treated", treated, dims="obs_id")
+            delta = _priors.tau_prior().to_pymc("delta")
+            eta_full = eta_base + delta * treated_d
+
+        eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
+        kappa = _scalar_prior("kappa", _priors.kappa_prior)
+        beta_binomial_from_logit(
+            "y_post",
+            eta_full,
+            n_trials=n_trials,
+            kappa=kappa,
+            observed=post,
             dims="obs_id",
         )
 

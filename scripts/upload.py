@@ -8,7 +8,7 @@ Targets:
     upload.py gb               # every output/models/<id> dir
     upload.py stat             # every output/statistical_models/models/<id>-<cfg> dir
     upload.py lrp18            # a single GB model
-    upload.py lrp52            # a single statistical model (all its -<config> dirs)
+    upload.py lrpitt10         # a single statistical model (all its -<config> dirs)
 
 Requires DSERESEARCH_BLOB_CONTAINER_URL and Azure auth (az login / managed
 identity). Writes the full list of uploaded URLs to --urls-file.

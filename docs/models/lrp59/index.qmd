@@ -81,8 +81,8 @@ exactly why the mechanism models' pooled $\beta_G$ is not a direct effect). LRP5
 therefore uses **the phase-0 transition only** (`phase_mode="itt"`), with `group`
 as the randomised treatment — one row per child, $n \approx 53$.
 
-Repo sign convention: $G = \text{group} - 1$, so $G=0$ is the intervention arm and
-$G=1$ the wait-list control. All effects below are reported in the
+Repo sign convention: $G = 2 - \text{group}$, so $G=1$ is the intervention arm and
+$G=0$ the wait-list control. All effects below are reported in the
 **intervention-helps** direction (intervention − control), so **positive = the
 intervention raises reading**.
 

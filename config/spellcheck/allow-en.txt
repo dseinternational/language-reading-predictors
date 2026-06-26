@@ -14,6 +14,10 @@ colsample
 dadedupost
 dcorr
 DEAP
+erbto
+bifactor
+residualised
+dagitty
 diag
 dtype
 Anscombe
@@ -90,6 +94,7 @@ lgbm
 lightbox
 lightgbm
 logit
+LRPITT
 medae
 mumedupost
 mumocc
@@ -193,5 +198,17 @@ Wagenmakers
 noconstruct
 waitlist
 LOSO
+PYTHONPATH
 worktree
 Bayliss
+worktrees
+hyperparams
+lrpitt
+lrpdid
+offfloor
+CACE
+dedup
+colwidths
+linkcolor
+mathrm
+operatorname

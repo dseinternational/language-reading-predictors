@@ -26,14 +26,14 @@ We use two processes for exploring predictors of language and reading outcomes:
 
 **Purpose:** estimate interpretable quantities with full uncertainty. Four families, each a factory in `factories.py` and a pipeline entry in `pipeline.py`:
 
-- **ITT** — the randomised-phase treatment effect (τ) on one outcome.
-- **Joint** — one posterior over all eight outcomes' treatment effects, enabling cross-outcome contrasts such as "is τ_L more negative than τ_W?".
+- **ITT** — the randomised-phase treatment effect (τ) on one outcome (the uniform DAG-faithful **LRPITT01–11** suite; the own baseline and linear age are *precision* terms only — the ITT effect is identified by the empty adjustment set — and no cross-baselines enter). Heavily-floored outcomes (phonetic spelling, nonword reading) use a pre-specified, arm-blind **floor rule** (≥ 40 % of post-scores at zero at t2): a binary "off-floor" primary estimand (`Pr(post > 0)`), with the graded effect demoted to a flagged, detection-limited secondary read only beside per-arm mover counts.
+- **Joint** — one posterior over the suite outcomes' treatment effects, enabling cross-outcome contrasts such as "is τ_L more positive than τ_W?".
 - **Mechanism** — a dose-response curve `f_mech` of one measure on another (e.g. letter-sound → word reading), conditioned on a DAG-derived adjustment set and a per-child random intercept.
 - **Mediation** — a natural direct/indirect decomposition (NDE/NIE) through a mediator by counterfactual g-formula simulation from the posterior, not from coefficients.
 
 **Likelihood and priors.** A Beta-Binomial likelihood on the bounded post-score count via a logit linear predictor. Priors come from shared constructors in `priors.py` (so the factories cannot drift apart); smooth nonlinear terms use Hilbert-space Gaussian-process approximations (`hsgp.py`).
 
-**Sign convention:** `G = 1` is the wait-list (control) arm after the `group − 1` recode, so **negative τ means the intervention raises the outcome**. Priors are tightened only when the posterior shows the looser prior is prior-dominant.
+**Sign convention:** `G = 1` is the immediate-intervention arm after the `2 − group` recode (`group == 1` = immediate intervention, `group == 2` = wait-list control), so **positive τ means the intervention raises the outcome**. Priors are tightened only when the posterior shows the looser prior is prior-dominant.
 
 **Fit.** NUTS via `nutpie`, with `dev` / `test` / `reporting` sampling presets (the last is 6 chains × 6000 draws); `--target-accept` overrides when a funnel needs it.
 
@@ -70,7 +70,7 @@ Write for a numerate reader who knows frequentist statistics but is newer to Bay
 - **Posterior** — the distribution of a parameter after combining prior and data; summarised by a mean/median, a credible interval, and tail probabilities.
 - **Credible interval (CrI)** — a range holding the parameter with stated probability *given the model and data* (the reading people wrongly attach to a confidence interval).
 - **Posterior tail probability** — e.g. `P(τ > 0)`, the posterior mass on one side of a value; used in place of a p-value.
-- **τ (tau)** — the ITT treatment effect (negative ⇒ intervention helps).
+- **τ (tau)** — the ITT treatment effect (positive ⇒ intervention helps).
 - **`gamma_own` / `gamma_cross`** — a measure's own-baseline coupling / its cross-baseline couplings, on the logit scale.
 - **`f_mech`** — the nonparametric dose-response curve in a mechanism model.
 - **ITT (intention-to-treat)** — analyse children by the arm they were randomised to.
