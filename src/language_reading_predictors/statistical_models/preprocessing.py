@@ -199,6 +199,19 @@ def load_and_prepare(
             f"phase_mode must be 'itt', 'all' or 'levels', got {phase_mode!r}"
         )
 
+    # A column can be a per-row covariate/restrict_complete OR a time-invariant t1
+    # baseline_covariate, not both: the baseline merge below joins on subject and
+    # would suffix any duplicate column (``_x``/``_y``), after which the later
+    # standardise / complete-case lookups by bare name would raise ``KeyError``.
+    # Fail fast with a clear message instead.
+    both = set(baseline_covariates) & (set(covariates) | set(restrict_complete))
+    if both:
+        raise ValueError(
+            "columns cannot be both a time-invariant baseline_covariate and a "
+            f"per-row covariate/restrict_complete: {sorted(both)}; list each "
+            "column in exactly one role."
+        )
+
     csv_path = Path(path) if path is not None else _default_data_path()
     df = pd.read_csv(csv_path)
 

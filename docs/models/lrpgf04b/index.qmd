@@ -97,7 +97,7 @@ diag
 factor_summary
 ```
 
-`role` flags the randomised on-intervention term **causal** and all else **association**; `mean`/`lo`/`hi` are the posterior mean and equal-tailed 95% CrI (logit scale); `prob_positive` = $P(\text{coef}>0)$. Interactions are expected to be weakly identified (wide CrI) at $n\approx54$.
+`role` is **association** for every row — this is a treated-only model (restricted to on-intervention rows, so the treatment indicator is constant and no randomised on-intervention term is estimated); `mean`/`lo`/`hi` are the posterior mean and equal-tailed 95% CrI (logit scale); `prob_positive` = $P(\text{coef}>0)$. Interactions are expected to be weakly identified (wide CrI) at $n\approx54$.
 
 ## LOO-PSIS
 

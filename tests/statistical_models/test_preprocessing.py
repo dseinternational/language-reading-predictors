@@ -271,3 +271,20 @@ def test_baseline_covariate_broadcast_from_t1(tmp_path):
         assert np.all(np.isfinite(z))  # filled on every row
         assert z.mean() == pytest.approx(0.0, abs=1e-10)  # standardised
         assert z.std(ddof=1) == pytest.approx(1.0, abs=1e-10)
+
+
+def test_load_and_prepare_rejects_covariate_baseline_overlap(tmp_path):
+    """A column listed as both a per-row covariate and a t1 baseline_covariate is
+    rejected up front (#127/#128): the baseline merge would suffix the duplicate
+    (``_x``/``_y``) and the later lookup would ``KeyError``, so the loader fails fast
+    with a clear message naming the offending column."""
+    df = _make_synthetic_long(n_children=8, seed=9)
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match="exactly one role"):
+        load_and_prepare(
+            path=p,
+            phase_mode="all",
+            covariates=(V.AGEBOOKS,),
+            baseline_covariates=(V.AGEBOOKS,),
+        )
