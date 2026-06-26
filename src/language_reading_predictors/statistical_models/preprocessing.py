@@ -370,3 +370,154 @@ def load_and_prepare_lagged_outcome(
     post_counts = dict(base.post_counts)
     post_counts[outcome_symbol] = new_post
     return replace(base, post_counts=post_counts)
+
+
+# ---------------------------------------------------------------------------
+# Wave-panel container + loader (LRP67 LCSM, LRP68 RI-CLPM)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class WavePanel:
+    """Rectangular child x wave panel for the longitudinal dynamic models.
+
+    Unlike :class:`PreparedData` (stacked adjacent-wave transition *pairs*), this
+    is a ``(n_children, n_waves)`` panel: one cell per child per wave for each
+    measure, with an explicit boolean observation mask for the scattered missing
+    cells. The latent change-score model (LRP67) and the RI-CLPM (LRP68) need all
+    four waves per child laid out as a panel rather than as pre/post pairs.
+
+    Symbols follow :data:`measures.MEASURES`: ``W`` = word reading (ewrswr),
+    ``L`` = letter-sound knowledge (yarclet), ``E`` = expressive vocabulary
+    (eowpvt). (The handoff's R / L / V map to W / L / E here; ``R`` is already
+    receptive vocabulary in ``MEASURES`` and is *not* reused.)
+    """
+
+    subject_ids: np.ndarray
+    """Subject identifier per child row. shape (n_children,)."""
+    n_children: int
+    n_waves: int
+    waves: np.ndarray
+    """Wave labels, ascending (e.g. ``[1, 2, 3, 4]``). shape (n_waves,)."""
+    outcomes: tuple[str, ...]
+    """Measure symbols included, in the column order used by the factories."""
+    counts: dict[str, np.ndarray]
+    """Symbol -> observed count, NaN where missing. shape (n_children, n_waves)."""
+    obs_mask: dict[str, np.ndarray]
+    """Symbol -> True where a count is observed. shape (n_children, n_waves)."""
+    logit: dict[str, np.ndarray]
+    """Symbol -> Haldane-corrected logit of the count, NaN where missing."""
+    n_trials: dict[str, int]
+    """Binomial denominator per symbol (copied from ``MEASURES``)."""
+    age_months: np.ndarray
+    """Age in months per cell, linearly interpolated within child over waves to
+    fill the occasional missing cell. shape (n_children, n_waves)."""
+    age_std: np.ndarray
+    """Standardised ``age_months`` (mean / sd over all cells)."""
+    age_scaler: Standardiser
+    dose: np.ndarray
+    """Intervention sessions (``attend``) per wave, missing -> 0 (no recorded
+    sessions). shape (n_children, n_waves)."""
+    dose_std: np.ndarray
+    """Standardised ``dose``."""
+    dose_scaler: Standardiser
+    column_map: dict[str, str] = field(default_factory=dict)
+    """Symbol -> source column name."""
+
+    @property
+    def n_obs(self) -> int:
+        """Total child-wave cells (``n_children * n_waves``).
+
+        Named to match :class:`PreparedData` so the shared pipeline header and
+        ``reporting.write_run_metadata`` treat a panel as a drop-in container.
+        """
+        return self.n_children * self.n_waves
+
+    @property
+    def n_phases(self) -> int:
+        """Number of wave-to-wave transitions (``n_waves - 1``)."""
+        return self.n_waves - 1
+
+    @property
+    def dropped_rows(self) -> int:
+        """Always 0 — missing cells are masked in the factory, not dropped."""
+        return 0
+
+
+def load_wave_panel(
+    path: str | Path | None = None,
+    outcomes: tuple[str, ...] = ("W", "L", "E"),
+) -> WavePanel:
+    """Pivot ``rli_data_long.csv`` into a child x wave :class:`WavePanel`.
+
+    For each measure symbol in ``outcomes`` a ``(n_children, n_waves)`` array of
+    observed counts is built (NaN where a child is missing that wave) together
+    with a boolean ``obs_mask`` and the Haldane-corrected logit. ``age`` is
+    interpolated within child across waves to fill the occasional missing cell;
+    ``attend`` (dose) missings are treated as zero recorded sessions. Age and
+    dose are standardised over all cells.
+
+    Masked cells are **not** dropped — the dynamic-model factories observe only
+    the unmasked cells (see :func:`factories.build_lcsm_model`), so a child with
+    one missing score still contributes its other waves. This matters at n~54.
+    """
+    csv_path = Path(path) if path is not None else _default_data_path()
+    df = pd.read_csv(csv_path)
+
+    waves = np.sort(df[V.TIME].dropna().unique()).astype(int)
+    subject_ids = np.sort(df[V.SUBJECT_ID].unique())
+    n_children = int(subject_ids.size)
+    n_waves = int(waves.size)
+
+    def _pivot(column: str) -> np.ndarray:
+        wide = df.pivot_table(
+            index=V.SUBJECT_ID, columns=V.TIME, values=column, aggfunc="first"
+        ).reindex(index=subject_ids, columns=waves)
+        return wide.to_numpy(dtype=float)
+
+    counts: dict[str, np.ndarray] = {}
+    obs_mask: dict[str, np.ndarray] = {}
+    logit: dict[str, np.ndarray] = {}
+    n_trials: dict[str, int] = {}
+    column_map: dict[str, str] = {}
+    for s in outcomes:
+        m = MEASURES[s]
+        c = _pivot(m.column)
+        present = ~np.isnan(c)
+        lg = np.full_like(c, np.nan)
+        lg[present] = logit_safe(c[present], m.n_trials)
+        counts[s] = c
+        obs_mask[s] = present
+        logit[s] = lg
+        n_trials[s] = m.n_trials
+        column_map[s] = m.column
+
+    # Age: interpolate within child across waves (monotonic ~6-month steps) so
+    # the rare missing cell is filled in both directions, then standardise.
+    age_months = pd.DataFrame(_pivot(V.AGE), columns=waves).interpolate(
+        axis=1, limit_direction="both"
+    ).to_numpy(dtype=float)
+    age_std, age_scaler = standardise(age_months)
+
+    # Dose: intervention sessions per wave; missing -> 0 recorded sessions.
+    dose = np.nan_to_num(_pivot(V.ATTEND), nan=0.0)
+    dose_std, dose_scaler = standardise(dose)
+
+    return WavePanel(
+        subject_ids=subject_ids,
+        n_children=n_children,
+        n_waves=n_waves,
+        waves=waves,
+        outcomes=tuple(outcomes),
+        counts=counts,
+        obs_mask=obs_mask,
+        logit=logit,
+        n_trials=n_trials,
+        age_months=age_months,
+        age_std=age_std,
+        age_scaler=age_scaler,
+        dose=dose,
+        dose_std=dose_std,
+        dose_scaler=dose_scaler,
+        column_map=column_map,
+    )

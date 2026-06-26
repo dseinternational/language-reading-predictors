@@ -18,7 +18,10 @@ import dse_research_utils.statistics.models.reporting as _reporting
 import dse_research_utils.statistics.models.sampling as _sampling
 
 from language_reading_predictors.statistical_models import environment as _env
-from language_reading_predictors.statistical_models.preprocessing import PreparedData
+from language_reading_predictors.statistical_models.preprocessing import (
+    PreparedData,
+    WavePanel,
+)
 
 
 @dataclass
@@ -53,7 +56,7 @@ class StatisticalFitContext:
     spec: ModelSpec
     reporting: _reporting.ReportingConfiguration
     sampling: _sampling.SamplingConfiguration
-    prepared: PreparedData | None = None
+    prepared: PreparedData | WavePanel | None = None
     model: pm.Model | None = None
     model_vars: dict[str, Any] | None = None
     prior_samples: xr.DataTree | None = None

@@ -1,0 +1,216 @@
+---
+title: "LRP68: Within-child cross-lagged dynamics (constrained RI-CLPM)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received. **The RI-CLPM is `dev`-tier and not converged (R-hat up to ~1.33, low ESS), so its cross-lagged coefficients are illustrative, not estimates.** At n~54 the cross-lagged paths are **expected to be wide**, and the PSIS-LOO model comparison is **degenerate / unreliable** (every structure carries a Pareto-k warning, `p_loo ~ 180` on 639 cells). Read only the *direction* of agreement with LRP65 / LRP67 — **not** the LOO ranking, and not precise path magnitudes.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+extra = config.get("extra", {})
+loo = pd.read_csv(_here / "loo_compare.csv", index_col=0)
+cross = pd.read_csv(_here / "cross_lagged_summary.csv")
+sens = pd.read_csv(_here / "prior_sensitivity.csv")
+```
+
+## Overview
+
+LRP68 is the **within-child** triangulation of LRP67 (latent change) and LRP65
+(between-child). A random-intercept cross-lagged panel model (RI-CLPM) separates
+each child's **stable trait** (a between-child random intercept per measure) from
+their **within-child fluctuations**, and asks the cross-lagged question directly:
+
+> When a child is temporarily **above their own expected letter-sounds**, do they
+> make greater **subsequent reading** gains?
+
+That is the path $A[W \leftarrow L]$ below. Crucially, the trait absorbs the stable
+between-child differences, so a cross-lagged path is **not** just "good readers are
+good at everything" — it is within-child, over time.
+
+::: {.callout-note title="Symbol mapping"}
+W = reading (`ewrswr`, denom 90), L = letter-sounds (`yarclet`, 32), E = expressive
+vocabulary (`eowpvt`, 170). `R` is **not** reading here (it is receptive vocabulary,
+`rowpvt`). The handoff's "L → R" is `A[W ← L]`.
+:::
+
+## Model and constraints
+
+On the logit scale, with observed scores modelled directly (no measurement-error /
+latent-indicator layer — deliberately, at this sample size):
+
+$$
+m_m[i,t] = u_m[i] + w_m[i,t] + d^{\text{age}}_m\,\text{age}[i,t] + d^{\text{dose}}_m\,\text{dose}[i,t],
+\qquad
+w[i,t] = A\, w[i,t-1] + \text{innovation}[i,t].
+$$
+
+$u_m[i]$ is the stable trait; $w$ the within-child deviation; $A[\text{target},
+\text{source}]$ the **time-invariant** autoregressive (diagonal) and cross-lagged
+(off-diagonal) matrix, pooled across the three transitions. Cross-lagged paths carry
+a regularising $\mathrm{Normal}(0, 0.5)$ prior (sensitivity below).
+
+::: {.callout-note title="Coherence with the shared DAG"}
+The cross-lagged paths are the shared causal DAG's developmental edges
+(**language → letter-sounds → reading**) unrolled over time. The headline forward
+edge is $A[W \leftarrow L]$; the reverse / reading-practice edges
+($A[L \leftarrow W]$, $A[E \leftarrow W]$) are tested by the competing structures.
+:::
+
+## Competing-structure comparison
+
+We fit four nested structures and compare them by PSIS-LOO.
+
+::: {.callout-important title="The LOO comparison is degenerate at this n — do not read the ranking"}
+At n~54 every structure carries a Pareto-k warning and `p_loo ~ 180` on 639 cells,
+so PSIS-LOO is **unreliable** and the nominal ELPD ranking is **not trustworthy** —
+the differences are within noise. Read the table below only as "the data do not
+distinguish the structures", **not** as evidence for one structure over another.
+:::
+
+- **ar** — autoregressive only (stability; no cross-lagged paths).
+- **l_to_r** — AR + letter-sounds → reading ($A[W \leftarrow L]$).
+- **r_driven** — AR + reading → letter-sounds / vocabulary (reverse / practice).
+- **reciprocal** — all cross-lagged paths (the headline model below).
+
+```{python}
+# | echo: false
+loo
+```
+
+```{python}
+# | echo: false
+# | output: asis
+beats = extra.get("beats_ar", {})
+if beats:
+    any_beat = False
+    for st, d in beats.items():
+        sign = "+" if d["d_elpd"] >= 0 else ""
+        better = d["d_elpd"] > 0
+        any_beat = any_beat or better
+        print(
+            f"- **{st}** vs AR-only: ΔELPD = {sign}{d['d_elpd']:.1f} "
+            f"(dSE = {d['d_se']:.1f}) — {'favours cross-lagged' if better else 'no gain over AR'}."
+        )
+    print(
+        "\n**Headline reading:** "
+        + (
+            "at least one cross-lagged structure out-predicts AR-only, but read the dSE — "
+            if any_beat
+            else "no cross-lagged structure clearly out-predicts AR-only — "
+        )
+        + "at n~54 the ELPD differences are typically within ~1–2 SE, i.e. the data do "
+        "not strongly distinguish the structures. That itself is an honest, reportable "
+        "finding."
+    )
+div = extra.get("divergences", {})
+if div:
+    print("\nDivergences by structure: " + ", ".join(f"{k}={v}" for k, v in div.items()) + ".")
+```
+
+## Headline cross-lagged paths (reciprocal)
+
+**Illustrative only — from the not-converged `dev`-tier RI-CLPM (R-hat up to ~1.33).**
+Logit scale; `lo`/`hi` equal-tailed central bounds; `prob_pos` = $P(\text{path} > 0)$.
+
+```{python}
+# | echo: false
+cross.round(3)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+hl = cross[cross["coefficient"].str.contains(r"\[W<-L\]")]
+if len(hl):
+    r = hl.iloc[0]
+    print(
+        f"The headline **letter-sounds → reading** path `A[W←L]`: mean {r['mean']:.3f} "
+        f"[{r['lo']:.3f}, {r['hi']:.3f}], P(>0) = {r['prob_pos']:.2f}. "
+        "A wide interval that spans (or barely clears) zero is the expected, honest "
+        "within-child result at this sample size — the value is in its agreement in "
+        "*direction* with the between-child (LRP65) and latent-change (LRP67) estimates."
+    )
+```
+
+## Cross-lagged prior sensitivity
+
+The headline `A[W←L]` refit under cross-lagged prior SDs 0.3 / 0.5 / 0.7. Stability of
+the sign and rough magnitude across these is the relevant check (not a change in the
+posterior mean of a few hundredths).
+
+```{python}
+# | echo: false
+sens.round(3)
+```
+
+## Sampling diagnostics (headline)
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+These models are, by design, the most demanding in the project at n~54 (the
+trait/within-deviation decomposition is weakly identified). Watch R-hat, ESS and
+divergences. **If the RI-CLPM will not sample cleanly even constrained, that is
+reported as the finding** rather than forced — see the run metadata for per-structure
+divergences.
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## Convergence across approaches
+
+::: {.callout-important title="The deliverable is convergence, not a path coefficient"}
+Read LRP68 alongside LRP67 (latent change `g_L`) and LRP65 (between-child
+letter-sounds → reading). The defensible conclusion is whether the **direction**
+`letter-sounds → reading over time` is supported across all three approaches — beyond
+mere stability (AR-only) here — not the value of any single cross-lagged coefficient.
+The dated note synthesises the three.
+:::
+
+## Limitations
+
+- **n~54**, four waves, three within-child transitions: cross-lagged posteriors are
+  wide and the RI-CLPM is weakly identified at this scale.
+- **Observed scores**, no measurement-error correction: within-child fluctuations
+  include measurement noise, which attenuates cross-lagged estimates.
+- **Time-invariant** paths pool over transitions; **associational, not causal**.
+- Reference for the process-measure → later-outcome framing: Yoder, Woynaroski, Fey,
+  Warren & Gardner (2015).
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
