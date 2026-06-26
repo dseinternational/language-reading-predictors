@@ -1436,6 +1436,7 @@ def build_gain_factors_model(
     ability_covariate: str | None = None,
     interactions: Iterable[tuple[str, str]] = (),
     treated_only: bool = False,
+    likelihood: str = "beta_binomial",
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
 ) -> BuiltModel:
@@ -1476,6 +1477,11 @@ def build_gain_factors_model(
     """
     if prepared.phase_mode != "all":
         raise ValueError("build_gain_factors_model requires phase_mode='all'")
+    if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(
+            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
+            f"got {likelihood!r}"
+        )
     own = outcome_symbol
     if own not in prepared.post_counts or own not in prepared.pre_logit:
         raise KeyError(f"Outcome {own!r} needs pre+post scores in prepared data")
@@ -1572,11 +1578,17 @@ def build_gain_factors_model(
             eta = eta + u_child[child_idx_d]
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
-        kappa = _scalar_prior("kappa", _priors.kappa_prior)
-        beta_binomial_from_logit(
-            "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
-            observed=post, dims="obs_id",
-        )
+        if likelihood == "beta_binomial":
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                observed=post, dims="obs_id",
+            )
+        else:  # bernoulli_offfloor: PRIMARY estimand for floored outcomes (e.g. P)
+            pm.Bernoulli(
+                "y_offfloor", logit_p=eta,
+                observed=(post > 0).astype(np.int64), dims="obs_id",
+            )
 
     return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
 
@@ -1589,6 +1601,7 @@ def build_level_factors_model(
     group_by_time: bool = True,
     ability_by_time: bool = True,
     group_ability: bool = True,
+    likelihood: str = "beta_binomial",
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
 ) -> BuiltModel:
@@ -1618,6 +1631,11 @@ def build_level_factors_model(
     """
     if prepared.phase_mode != "levels":
         raise ValueError("build_level_factors_model requires phase_mode='levels'")
+    if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(
+            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
+            f"got {likelihood!r}"
+        )
     own = outcome_symbol
     if own not in prepared.post_counts:
         raise KeyError(f"Outcome {own!r} missing from prepared data (post_counts)")
@@ -1684,10 +1702,16 @@ def build_level_factors_model(
             eta = eta + u_child[child_idx_d]
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
-        kappa = _scalar_prior("kappa", _priors.kappa_prior)
-        beta_binomial_from_logit(
-            "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
-            observed=post, dims="obs_id",
-        )
+        if likelihood == "beta_binomial":
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                observed=post, dims="obs_id",
+            )
+        else:  # bernoulli_offfloor: PRIMARY estimand for floored outcomes (e.g. P)
+            pm.Bernoulli(
+                "y_offfloor", logit_p=eta,
+                observed=(post > 0).astype(np.int64), dims="obs_id",
+            )
 
     return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)

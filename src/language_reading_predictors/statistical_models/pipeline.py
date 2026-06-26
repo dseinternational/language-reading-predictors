@@ -1129,7 +1129,13 @@ def _gf_coef_names(spec: ModelSpec) -> list[str]:
 
 
 def _gf_diag_vars(spec: ModelSpec) -> list[str]:
-    return ["alpha", *_gf_coef_names(spec), "kappa", "sigma_child"]
+    # No kappa under the off-floor Bernoulli likelihood.
+    tail = (
+        ["sigma_child"]
+        if spec.extra.get("likelihood") == "bernoulli_offfloor"
+        else ["kappa", "sigma_child"]
+    )
+    return ["alpha", *_gf_coef_names(spec), *tail]
 
 
 def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -1143,6 +1149,9 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     ability_covariate = extra.get("ability_covariate")
     interactions = tuple(tuple(p) for p in extra.get("interactions", ()))
     treated_only = bool(extra.get("treated_only", False))
+    likelihood = extra.get("likelihood", "beta_binomial")
+    off_floor = likelihood == "bernoulli_offfloor"
+    obs_node = "y_offfloor" if off_floor else "y_post"
     baseline_covariates = (ability_covariate,) if ability_covariate else ()
     prepared = load_and_prepare(
         phase_mode="all",
@@ -1161,6 +1170,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         ability_covariate=ability_covariate,
         interactions=interactions,
         treated_only=treated_only,
+        likelihood=likelihood,
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -1169,8 +1179,8 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol)
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=[obs_node, "eta"])
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
     section_header("Sampling posterior (nutpie)")
     _diag.sample_posterior(ctx)
@@ -1184,7 +1194,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _diag.summary_diagnostics(ctx, var_names=_gf_diag_vars(spec))
 
     section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
     _save_ppc(ctx)
     _diag.save_trace(ctx)
 
@@ -1211,10 +1221,13 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # is absent).
     if not treated_only:
         trt = ((built.prepared.G == 1) | (built.prepared.phase >= 1)).astype(float)
+        # Off-floor models are Bernoulli on Pr(post > 0); the "items" scale then
+        # collapses to the off-floor risk difference (n_trials = 1).
+        n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
         tme = _report.treatment_marginal_effect(
             ctx.trace,
             trt=trt,
-            n_trials=built.prepared.n_trials[spec.outcome_symbol],
+            n_trials=n_marg,
             ci_prob=ctx.reporting.hdi,
         )
         pd.DataFrame([tme]).to_csv(
@@ -1250,7 +1263,12 @@ def _lf_coef_names(spec: ModelSpec) -> list[str]:
 
 
 def _lf_diag_vars(spec: ModelSpec) -> list[str]:
-    return ["alpha", "alpha_time", *_lf_coef_names(spec), "kappa", "sigma_child"]
+    tail = (
+        ["sigma_child"]
+        if spec.extra.get("likelihood") == "bernoulli_offfloor"
+        else ["kappa", "sigma_child"]
+    )
+    return ["alpha", "alpha_time", *_lf_coef_names(spec), *tail]
 
 
 def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -1261,6 +1279,9 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Prepare data")
     ability_covariate = extra.get("ability_covariate")
+    likelihood = extra.get("likelihood", "beta_binomial")
+    off_floor = likelihood == "bernoulli_offfloor"
+    obs_node = "y_offfloor" if off_floor else "y_post"
     baseline_covariates = (ability_covariate,) if ability_covariate else ()
     prepared = load_and_prepare(
         phase_mode="levels",
@@ -1279,6 +1300,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         group_by_time=bool(extra.get("group_by_time", True)),
         ability_by_time=bool(extra.get("ability_by_time", True)),
         group_ability=bool(extra.get("group_ability", True)),
+        likelihood=likelihood,
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -1287,8 +1309,8 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol)
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=[obs_node, "eta"])
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
     section_header("Sampling posterior (nutpie)")
     _diag.sample_posterior(ctx)
@@ -1302,7 +1324,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _diag.summary_diagnostics(ctx, var_names=_lf_diag_vars(spec))
 
     section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
     _save_ppc(ctx)
     _diag.save_trace(ctx)
 

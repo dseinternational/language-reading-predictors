@@ -78,6 +78,8 @@ from language_reading_predictors.statistical_models import (
     lrpgf03b,
     lrpgf04,
     lrpgf04b,
+    lrpgf05,
+    lrpgf05b,
     lrpgf06,
     lrpgf06b,
     lrpgf07,
@@ -88,6 +90,7 @@ from language_reading_predictors.statistical_models import (
     lrplf02,
     lrplf03,
     lrplf04,
+    lrplf05,
     lrplf06,
     lrplf07,
     lrplf08,
@@ -177,8 +180,11 @@ MODELS = {
     # randomised group / on-intervention term is causal, every other coefficient
     # is an adjusted association (SES excluded as non-DAG / redundant). W exemplar:
     # lrpgf01 (gain), lrpgf01b (gain, treated-only), lrplf01 (level).
-    # Gain factors (01=W, 02=R, 03=E, 04=L, 06=B, 07=F, 08=T) + treated-only (b);
-    # 05=P (phonetic spelling) is the floored off-floor case, added separately.
+    # Gain factors (01=W, 02=R, 03=E, 04=L, 05=P, 06=B, 07=F, 08=T) + treated-only
+    # (b). 05=P (phonetic spelling) is heavily floored: it takes the floor-rule
+    # branch (likelihood="bernoulli_offfloor"), a Bernoulli on the off-floor
+    # indicator, so there is no kappa and the treatment marginal is a risk
+    # difference.
     "lrpgf01": lrpgf01,
     "lrpgf01b": lrpgf01b,
     "lrpgf02": lrpgf02,
@@ -187,6 +193,8 @@ MODELS = {
     "lrpgf03b": lrpgf03b,
     "lrpgf04": lrpgf04,
     "lrpgf04b": lrpgf04b,
+    "lrpgf05": lrpgf05,
+    "lrpgf05b": lrpgf05b,
     "lrpgf06": lrpgf06,
     "lrpgf06b": lrpgf06b,
     "lrpgf07": lrpgf07,
@@ -198,6 +206,7 @@ MODELS = {
     "lrplf02": lrplf02,
     "lrplf03": lrplf03,
     "lrplf04": lrplf04,
+    "lrplf05": lrplf05,
     "lrplf06": lrplf06,
     "lrplf07": lrplf07,
     "lrplf08": lrplf08,

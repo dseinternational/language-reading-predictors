@@ -204,6 +204,8 @@ def save_prior_predictive_plot(
         rep = np.asarray(pp.values, dtype=float).ravel()
         obs = np.asarray(context.prepared.post_counts[outcome_symbol], dtype=float)
         obs = obs[np.isfinite(obs)]
+        if node == "y_offfloor":
+            obs = (obs > 0).astype(float)  # off-floor indicator, to match the node
         plt.figure(figsize=(6, 4))
         plt.hist(
             rep, bins=40, density=True, color="#1f77b4", alpha=0.55,

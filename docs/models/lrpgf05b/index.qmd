@@ -1,0 +1,127 @@
+---
+title: "LRPGF05b: Gain factors for phonetic spelling (P), off-floor, treated-only"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+factor_summary = pd.read_csv(_here / "factor_summary.csv")
+```
+
+## Overview
+
+LRPGF05b is the **treated-only** companion to LRPGF05 (phonetic spelling, `spphon`),
+restricted to on-intervention rows.
+
+::: {.callout-important title="Off-floor likelihood; no treatment contrast"}
+
+Phonetic spelling is heavily floored, so the likelihood is a **Bernoulli on the
+off-floor indicator** (period post $> 0$). Restricted to on-intervention rows the
+treatment indicator is constant and is dropped: this reports the **adjusted
+associations** (own baseline, age, ability, skills L/B, age $\times$ ability) of
+coming off the phonetic-spelling floor *among the treated*. All coefficients are
+off-floor log-odds; under the DAG they are associations (GA-confounded), never
+treatment effects. SES excluded (non-DAG / redundant).
+
+:::
+
+## Model
+
+$$
+(P_{\text{post}} > 0) \sim \operatorname{Bernoulli}(\operatorname{expit}(\eta)),\quad
+\eta = \alpha + \alpha_{\text{period}} + \gamma_{\text{own}}\operatorname{logit}_*(P_{\text{pre}})
+  + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks})
+  + \sum_{s\in\{L,B\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
+  + \gamma_{\text{int}}(\text{age}\times\text{ability}) + u_{\text{child}},
+$$
+
+on the on-intervention rows only (no `kappa` under the Bernoulli). Priors: shared template in `priors.py`.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Priors
+
+![alpha](prior_alpha.svg){width=24%}
+![gamma_own](prior_gamma_own.svg){width=24%}
+![gamma_age](prior_gamma_age.svg){width=24%}
+![gamma_cross](prior_gamma_cross.svg){width=24%}
+
+## Prior-predictive check
+
+![Prior predictive](prior_predictive_check.png){.lightbox}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior-predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Findings
+
+### Factor summary (off-floor log-odds, among the treated)
+
+```{python}
+# | echo: false
+factor_summary
+```
+
+All terms are adjusted associations (no randomised contrast). Coefficients are off-floor log-odds; `mean`/`lo`/`hi` = posterior mean + equal-tailed 95% CrI; `prob_positive` = $P(\text{coef} > 0)$.
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
