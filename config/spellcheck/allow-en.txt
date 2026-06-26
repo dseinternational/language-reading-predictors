@@ -200,6 +200,7 @@ waitlist
 LOSO
 PYTHONPATH
 worktree
+Bayliss
 worktrees
 hyperparams
 lrpitt

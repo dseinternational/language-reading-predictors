@@ -75,6 +75,10 @@ AGE_LOO_IDS: list[str] = ["lrp73", "lrp73base"]
 # test of whether the dose-gain slope varies by period.
 DOSE_LOO_IDS: list[str] = ["lrp77", "lrp77base"]
 
+# Letter-sound dose-response (LRP86, #104 Phase 3): the same nested test on the
+# letter-sound outcome (does the L dose-gain slope vary by period?).
+DOSE_LOO_IDS_LETTERSOUND: list[str] = ["lrp86", "lrp86base"]
+
 
 def _run_dir(model_id: str, config: str) -> str:
     return os.path.join(STAT_OUTPUT_DIR, "models", f"{model_id}-{config}")
@@ -376,6 +380,11 @@ def dose_response_loo_compare(config: str, out_path: str) -> bool:
     return _loo_compare(DOSE_LOO_IDS, config, out_path)
 
 
+def lettersound_dose_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP86 against its pooled-dose comparator (letter sounds)."""
+    return _loo_compare(DOSE_LOO_IDS_LETTERSOUND, config, out_path)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -432,6 +441,12 @@ def main() -> None:
         print(f"Wrote {dose_path}")
     else:
         print("Skipping dose-response LOO compare: LRP77 / LRP77base runs missing.")
+
+    ls_dose_path = os.path.join(args.out, "lettersound_dose_loo_compare.csv")
+    if lettersound_dose_loo_compare(args.config, ls_dose_path):
+        print(f"Wrote {ls_dose_path}")
+    else:
+        print("Skipping letter-sound dose LOO compare: LRP86 / LRP86base runs missing.")
 
 
 if __name__ == "__main__":

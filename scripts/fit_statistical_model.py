@@ -42,6 +42,9 @@ from language_reading_predictors.statistical_models import (
     lrp77,
     lrp77a,
     lrp77base,
+    lrp83,
+    lrp86,
+    lrp86base,
     lrpitt01,
     lrpitt02,
     lrpitt03,
@@ -163,6 +166,13 @@ MODELS = {
     "lrp77a": lrp77a,
     # LRP52d: period-1 ITT (W) entering group + dose - dose-absorbs-group restatement.
     "lrp52d": lrp52d,
+    # LRP83 (#104 Phase 3): within-control crossover (W) - waitlist as own control,
+    # a design-based triangulation of the ITT.
+    "lrp83": lrp83,
+    # LRP86 (#104 Phase 3): dose-response generalised to letter sounds (L);
+    # lrp86base is its pooled-dose comparator (LOO + credible pooled slope).
+    "lrp86": lrp86,
+    "lrp86base": lrp86base,
 }
 
 

@@ -1066,6 +1066,127 @@ def _write_dose_slope_summary(
 
 
 # ---------------------------------------------------------------------------
+# Crossover pipeline (LRP83, #104 Phase 3)
+# ---------------------------------------------------------------------------
+
+
+def fit_crossover(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Within-control crossover fit (#104 Phase 3).
+
+    Waitlist-as-own-control design: the control arm's off period (period 1) vs
+    its on periods (2-3), within child. See
+    :func:`factories.build_crossover_model`.
+    """
+    assert spec.kind == "crossover"
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    outcomes = tuple(spec.extra.get("outcomes", (spec.outcome_symbol or "W",)))
+    prepared = load_and_prepare(phase_mode="all", outcomes=outcomes)
+    ctx.prepared = prepared
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+
+    built = _factories.build_crossover_model(
+        prepared,
+        outcome_symbol=spec.outcome_symbol or "W",
+        adjust_baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
+        adjust_age=spec.extra.get("adjust_age", True),
+        use_subject_random_intercept=spec.extra.get(
+            "use_subject_random_intercept", True
+        ),
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    xover_vars = ["alpha", "beta_on", "gamma_own", "kappa"]
+    if spec.extra.get("adjust_age", True):
+        xover_vars.append("gamma_A")
+    if spec.extra.get("use_subject_random_intercept", True):
+        xover_vars.append("sigma_child")
+    _diag.summary_diagnostics(ctx, var_names=xover_vars)
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _save_ppc(ctx)
+
+    section_header("Crossover-effect summary")
+    _write_crossover_summary(ctx)
+
+    _diag.save_trace(ctx)
+    _report.write_run_metadata(
+        ctx,
+        extra={"loo_elpd": float(ctx.loo.elpd), "n_children": built.prepared.n_children},
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+def _write_crossover_summary(ctx: StatisticalFitContext) -> None:
+    """Crossover effect ``beta_on`` on the logit scale + a probability-scale AME.
+
+    The marginal effect averages ``expit(eta0 + beta_on) - expit(eta0)`` over the
+    fitted control rows per draw, where ``eta0 = eta - beta_on * on`` is each
+    row's off-intervention linear predictor — the same per-observation
+    construction as the ITT ``tau`` summary, so the two effects are comparable.
+    """
+    post = ctx.trace.posterior
+    hdi = ctx.reporting.hdi
+    beta = post["beta_on"].stack(sample=("chain", "draw")).values  # (sample,)
+    eta = post["eta"].stack(sample=("chain", "draw")).values  # (obs, sample)
+    on = (ctx.prepared.phase >= 1).astype(float)[:, None]  # (obs, 1)
+
+    eta0 = eta - beta[None, :] * on
+    ame = (_expit(eta0 + beta[None, :]) - _expit(eta0)).mean(axis=0)  # (sample,)
+
+    rows = [
+        {"term": "beta_on_logit", **_summarise_draws(beta, hdi)},
+        {"term": "ame_prob", **_summarise_draws(ame, hdi)},
+    ]
+    df = pd.DataFrame(rows)
+    df.to_csv(os.path.join(ctx.output_dir, "crossover_summary.csv"), index=False)
+    ctx.tables["crossover_summary"] = df
+    print_table(
+        metrics_table(
+            [
+                {"metric": r["term"], "value": r["mean"], "lo": r["lo"], "hi": r["hi"]}
+                for r in rows
+            ],
+            title=(
+                f"Within-control crossover effect - {int(hdi * 100)}% CI (equal-tailed)"
+            ),
+            columns=["metric", "value", "lo", "hi"],
+        )
+    )
+
+
+def _expit(x: np.ndarray) -> np.ndarray:
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+# ---------------------------------------------------------------------------
 # Mediation pipeline (LRP59)
 # ---------------------------------------------------------------------------
 

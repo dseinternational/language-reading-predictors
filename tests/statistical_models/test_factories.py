@@ -17,6 +17,7 @@ import pytest
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.factories import (
+    build_crossover_model,
     build_did_model,
     build_dose_response_model,
     build_itt_model,
@@ -613,6 +614,36 @@ def test_dose_response_factory_requires_dose_covariate(tmp_path):
     prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W",))
     with pytest.raises(KeyError):
         build_dose_response_model(prep, outcome_symbol="W")
+
+
+# ---------------------------------------------------------------------------
+# Crossover factory (LRP83, #104 Phase 3)
+# ---------------------------------------------------------------------------
+
+
+def test_crossover_factory_builds(tmp_path):
+    """Builds on the control arm only, with beta_on and no period intercepts."""
+    p = _write_synthetic(tmp_path, n_children=24)
+    prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W",))
+    built = build_crossover_model(prep, outcome_symbol="W")
+    free = {v.name for v in built.model.free_RVs}
+    assert {"beta_on", "gamma_own", "gamma_A", "sigma_child"}.issubset(free)
+    # No period intercepts (would absorb the crossover effect) and no group term
+    # (single arm).
+    assert "alpha_phase" not in free
+    assert "beta_G" not in free
+    # Restricted to the control arm (G == 1): fewer rows than the full sample.
+    assert built.prepared.n_obs < prep.n_obs
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=6)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_crossover_factory_rejects_wrong_phase(tmp_path):
+    p = _write_synthetic(tmp_path, n_children=12)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("W",))
+    with pytest.raises(ValueError):
+        build_crossover_model(prep, outcome_symbol="W")
 
 
 # ---------------------------------------------------------------------------

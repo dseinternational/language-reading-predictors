@@ -1,0 +1,92 @@
+---
+title: "LRP86base: Dose-response (pooled dose slope) — letter-sounds comparator to LRP86"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+```
+
+## Overview
+
+LRP86base is the **pooled-dose companion** to [LRP86](../lrp86/) (letter-sound
+knowledge $L$, $N = 32$): a single pooled dose slope $\beta_{\text{dose}}$ instead
+of partial-pooled per-period slopes, identical otherwise. Two uses: the nested
+**PSIS-LOO** test of whether the $L$ dose–gain slope varies by period (almost
+certainly not, as for word reading), and the **credible pooled dose-slope
+estimate** — the headline "does dose help letter sounds?" number, since the
+period-varying model's overall slope carries an inflated CI from its
+partial-pooling hyper-prior. See [LRP86](../lrp86/) for the estimand, adjustment
+set and expectations (Phase 1 implied a weak/null letter-sound dose effect).
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Pooled dose slope
+
+```{python}
+# | echo: false
+dose = pd.read_csv(_here / "dose_slope_summary.csv")
+dose
+```
+
+`dose_pooled` is the single dose slope on the logit scale per 1 SD of per-period
+dose; `p_pos` is $P(\text{slope} > 0)$. Compare against the word-reading pooled
+slope in the LRP77base report.
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

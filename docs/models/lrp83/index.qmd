@@ -1,0 +1,142 @@
+---
+title: "LRP83: Within-control crossover — word reading (W), waitlist as own control"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+```
+
+## Overview
+
+LRP83 is the [#104](https://github.com/dseinternational/language-reading-predictors/issues/104)
+Phase-3 **within-control crossover** — a design-based estimate of the
+intervention effect that triangulates the randomised period-1 ITT (LRP52) and the
+dose-response (LRP77). It restricts to the **waitlist control arm**, which is off
+intervention in period 1 and on from period 2 after crossover, and estimates the
+within-child on-vs-off effect on word-reading conditional change. The design
+follows Snowling / Gertz / Bayliss et al.
+
+**Estimand.** `beta_on`, the crossover effect, on the same logit scale and with
+the same `tau`-style prior as the ITT — so the two are directly comparable.
+Outcome: Beta-Binomial post-count of $W$ conditional on its own baseline logit
+($N = 79$); conditional change, not a raw change score.
+
+$$
+\eta = \alpha + \beta_{\text{on}}\,\text{on}
+     + \gamma_{\text{own}}\,\text{logit}(W_{\text{pre}})
+     + \gamma_A\,z(\text{age})
+     + u_{\text{child}}
+$$
+
+where $\text{on} = \mathbb{1}[\text{period} \ge 2]$. A subject random intercept
+makes each control its own baseline.
+
+**No period intercepts — by design.** For the waitlist arm `on` is *identical* to
+"period $\ge 2$", so a free per-period intercept would absorb the crossover
+effect and leave $\beta_{\text{on}}$ non-identified. The smooth time trend is
+carried by the linear age term, leaving $\beta_{\text{on}}$ as the discrete jump
+at crossover beyond that trend.
+
+## Causal warrant and the maturation caveat
+
+This is **less rigorous than the two-arm ITT** and is a triangulation point, not a
+clean randomised contrast. Because `on` and period coincide for the controls,
+$\beta_{\text{on}}$ equals the intervention effect **only under a
+no-strong-(differential)-maturation assumption**: any non-age-smooth change that
+coincides with crossover (a testing or seasonal effect) is absorbed into
+$\beta_{\text{on}}$. The linear age term controls smooth maturation; it cannot
+rule out a discrete period-2 jump unrelated to treatment.
+
+Read $\beta_{\text{on}}$ **alongside** the randomised ITT (LRP52, between-arm) and
+the dose-response (LRP77, all-periods): convergent signs across all three — each
+with different assumptions — are the strength of the conclusion, not any one fit.
+Note the sign conventions differ: here $\beta_{\text{on}} > 0$ means *on
+intervention scores higher*; the ITT $\tau$ is coded on the waitlist indicator, so
+*benefit there is $\tau < 0$*.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=40%}
+![beta_on (tau prior)](prior_tau.svg){width=40%}
+![gamma_own](prior_gamma_own.svg){width=40%}
+![gamma_cross](prior_gamma_cross.svg){width=40%}
+![kappa](prior_kappa.svg){width=40%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Crossover effect (the estimand)
+
+```{python}
+# | echo: false
+crossover = pd.read_csv(_here / "crossover_summary.csv")
+crossover
+```
+
+- `beta_on_logit`: the on-vs-off effect on the logit scale (mean, equal-tailed CI,
+  $P(>0)$). Positive = higher word reading when on intervention.
+- `ame_prob`: the probability-scale average marginal effect — averaging
+  $\text{expit}(\eta_0 + \beta_{\text{on}}) - \text{expit}(\eta_0)$ over the fitted
+  control rows, the same construction as the ITT $\tau$ summary so the two are
+  comparable.
+
+Expect a **wide interval**: only ~25 control children contribute. The value is
+directional triangulation of the ITT, not a precise estimate.
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
