@@ -2,6 +2,14 @@
 
 _2026-06-19_
 
+> [!NOTE]
+> **Sign convention superseded.** This note uses the original `G = group − 1`
+> coding (*negative* τ = benefit; the headline contrast written as
+> `tau[UE] − tau[TE]`). The repo has since standardised on `G = 2 − group`, so
+> **positive τ = benefit** and the LRP76 contrast is now `tau[TE] − tau[UE]` (see
+> METHODS.md). Magnitudes and conclusions are unchanged; the signs and the
+> contrast operand order flip.
+
 ## Why
 
 The suite's vocabulary models so far use only the **standardised** tests

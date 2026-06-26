@@ -94,12 +94,13 @@ Hyperparameter tuning (`scripts/tune_model.py`) runs an Optuna TPE study under t
 
 ### Statistical models (`statistical_models/`)
 
-Step 2 of the methodology: Bayesian models fit with PyMC. One module per model — `lrpNN.py` (LRP52–LRP73 so far) — each defining a `SPEC = ModelSpec(...)` and a `fit(config)` that calls the matching pipeline entry point. Four families, keyed by `ModelSpec.kind`, each with a factory in `factories.py` and a pipeline in `pipeline.py`:
+Step 2 of the methodology: Bayesian models fit with PyMC. One module per model — `lrpittNN.py` (the DAG-faithful ITT suite + companions), `lrpdidNN.py` (the waitlist-crossover / DiD family) and `lrpNN.py` (mechanism/mediation models) — each defining a `SPEC = ModelSpec(...)` and a `fit(config)` that calls the matching pipeline entry point. Five families, keyed by `ModelSpec.kind`, each with a factory in `factories.py` and a pipeline in `pipeline.py`:
 
-- **`itt`** — single-outcome intention-to-treat (LRP52–54; LRP60/60a add SES adjustment and a matched comparator) → `build_itt_model` / `fit_itt`.
-- **`joint`** — all eight outcomes jointly, optional LKJ residual correlation (LRP55) → `build_joint_model` / `fit_joint`.
+- **`itt`** — single-outcome intention-to-treat: the uniform DAG-faithful **LRPITT01–11** suite (own baseline + linear age as *precision* terms, no cross-baselines — the ITT effect is identified by the empty adjustment set), with **LRPITT13/13b/14/14b** adding SES adjustment + matched complete-case comparators, and **LRPITT17–24** adding a general-ability (block-design) robustness adjustment across the vocabulary family (TR/TE/UR/UE/R/E) and the reading anchors (W, L). Heavily-floored outcomes (P, N) take a pre-specified **floor rule**: a binary off-floor primary estimand plus a flagged graded secondary. → `build_itt_model` / `fit_itt`.
+- **`joint`** — the suite outcomes jointly, optional LKJ residual correlation (**LRPITT12**; the taught-vs-not-taught generalisation contrasts **LRPITT15/15b**) → `build_joint_model` / `fit_joint`.
 - **`mechanism`** — adjustment-set dose-response of one measure on another across all phases, with subject random intercepts and optional linear moderation (LRP56–58, 71, 72/72base, 73/73base) → `build_mechanism_model` / `fit_mechanism`.
 - **`mediation`** — g-formula NDE/NIE decomposition by counterfactual simulation (LRP59 count mediator, LRP62 Gaussian reading-route composite) → `build_mediation_model` / `fit_mediation`.
+- **`did`** — waitlist-crossover / difference-in-differences (**LRPDID01–06**): a within-person replication of the randomised ITT effect, stacking the waitlist arm's untreated P1 vs its crossover P2 with each child as its own control and the immediate arm anchoring the time/maturation trend (Beta-Binomial logit, so the ceiling is respected; optional session-dose response) → `build_did_model` / `fit_did`.
 
 All use a Beta-Binomial likelihood on bounded post-score counts via a logit linear predictor. Shared priors live in `priors.py` (shared constructors so the factories can't drift), HSGP helpers in `hsgp.py`, the g-formula in `mediation.py`. Each pipeline runs prior-predictive → NUTS (`nutpie`) → posterior-predictive, plus PSIS-LOO (ArviZ) for the `itt`/`joint`/`mechanism` families, then writes `trace.nc`, `config.json`, `metrics.json`, diagnostic plots, and family-specific CSVs (`tau_summary.csv`, `mechanism_curve.csv`, `mediation_summary.csv`, ...) to `output/statistical_models/models/{model_id}-{config}/`, copying `docs/models/{model_id}/index.qmd` alongside.
 
@@ -123,10 +124,39 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 Report direction and uncertainty — never a bare ranking or point estimate.
 
 - **Gradient boosting:** read the SHAP beeswarm (`output/models/{model_id}/shap_summary.png`) with the permutation-importance ranking; the two disagree, so state the direction.
-- **Bayesian:** check convergence (R-hat ≈ 1.00, ESS, ≤ 1 % divergences) *before* interpreting; report the posterior (mean + 95 % credible interval + tail probability, no p-values); negative τ = intervention helps; only τ is causal — observational couplings (`gamma_cross`, `f_mech`, mediator → outcome) are adjusted associations, never "X drives Y".
+- **Bayesian:** check convergence (R-hat ≈ 1.00, ESS, ≤ 1 % divergences) *before* interpreting; report the posterior (mean + 95 % credible interval + tail probability, no p-values); positive τ = intervention helps; only τ is causal — observational couplings (`gamma_cross`, `f_mech`, mediator → outcome) are adjusted associations, never "X drives Y".
 - **Notes, issues, PRs:** write for a frequentist-leaning science reader; expand shorthand and read credible intervals in plain words; record decisions a future reader might question as a dated `notes/` note; verify citations and always include DOIs.
 
 Full rationale, workflow, conventions, glossary, and references: **`METHODS.md`**.
+
+## AI-authored content labelling
+
+Content drafted or substantially edited by an AI tool **must** carry a visible label identifying it as AI-authored. This applies to **document drafts, pull requests, issues, and comments on pull requests and issues** — and to similar prose such as `notes/` entries, release notes, and discussion posts.
+
+Put the label at the very top, before the substantive text, naming the specific tool and model you actually are (e.g. `Claude Code/Opus 4.8`, `GitHub Copilot`). Use the form that renders in the target — the GitHub alert and Quarto callout syntaxes are **not** interchangeable:
+
+**GitHub** (pull requests, issues, comments, Markdown viewed on GitHub) — a GitHub alert:
+
+```
+> [!NOTE]
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+```
+
+**Quarto** (`.qmd` documents — e.g. `docs/report/`, `docs/models/`) — a Quarto callout, because Quarto renders its own `::: {.callout-note}` blocks and does **not** understand GitHub `> [!NOTE]` alerts (they would show as a plain blockquote):
+
+```
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+```
+
+**Plain text** (or anything that renders neither) — an equivalent leading line:
+
+```
+Note: Drafted by a LLM-based AI tool (<tool>/<model>).
+```
+
+Do not remove or hide a label that another tool has added.
 
 ## Pre-commit checks
 

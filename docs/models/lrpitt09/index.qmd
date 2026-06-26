@@ -1,0 +1,175 @@
+---
+title: "LRPITT09: ITT analysis of phonetic spelling (P) — floor-rule branch"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+tau_offfloor = pd.read_csv(_here / "tau_summary.csv")  # PRIMARY (binary off-floor)
+movers = pd.read_csv(_here / "offfloor_movers.csv")
+tau_graded = pd.read_csv(_here / "tau_summary_graded.csv")  # SECONDARY (graded)
+zero_ppc = pd.read_csv(_here / "proportion_at_zero_ppc.csv")
+```
+
+## Overview
+
+LRPITT09 is the intention-to-treat (ITT) analysis for phonetic spelling
+(`spphon`). The estimand is the total effect of randomised group assignment $G$ on
+the outcome, using the RCT phase only (time 1 $\rightarrow$ time 2). Phonetic
+spelling is heavily floored at t2 (~78% of post-scores at zero), so it takes the
+pre-specified **floor-rule branch** (issue #119).
+
+::: {.callout-important title="Floored outcome — the binary off-floor estimand is PRIMARY"}
+
+An outcome with $\geq 40\%$ of its post-scores at zero at t2 (computed **arm-blind**
+and fixed **before** fitting) is leveraged, on the graded scale, by a handful of
+dispersed tail values rather than by the arm contrast. Under the floor rule this
+model therefore:
+
+- drops the degenerate own baseline and uses an **age-only** predictor;
+- reports the **binary "off-floor at t2"** effect, $\Pr(\text{post} > 0)$, as the
+  **PRIMARY** estimand — this is where the randomised signal verifiably lives; and
+- retains the graded Beta-Binomial $\tau$ only as a flagged, **detection-limited
+  SECONDARY**, read alongside the per-arm mover counts and never on its own.
+
+:::
+
+::: {.callout-note title="Identification and sign convention"}
+
+Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
+identified by the **empty adjustment set**; linear age is a precision term only.
+**Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
+the intervention raises the outcome — here, raises the probability of coming off
+the floor.
+
+:::
+
+## Model
+
+PRIMARY (binary off-floor), with $\eta_i = \alpha + \tau\,G_i + \gamma_A\,A_{\text{std},i}$:
+
+$$
+[\,P_{\text{post},i} > 0\,] \sim \text{Bernoulli}\big(\sigma(\eta_i)\big).
+$$
+
+SECONDARY (graded, detection-limited): the *same* age-only $\eta_i$ with a
+Beta-Binomial likelihood on the count, $P_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $N = 92$.
+
+![Model diagram (primary)](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=32%}
+![tau](prior_tau.svg){width=32%}
+![gamma_age](prior_gamma_age.svg){width=32%}
+
+(The primary off-floor model has no own-baseline or Beta-Binomial concentration
+term; `gamma_own`/`kappa` enter only the graded secondary.)
+
+## Sampling diagnostics (primary)
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Off-floor treatment effect (PRIMARY)
+
+```{python}
+# | echo: false
+tau_offfloor
+```
+
+- `tau_logit_*`: posterior mean and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the **log-odds-of-off-floor** scale.
+- `tau_prob_*`: the average marginal effect on the **probability of coming off the floor** (risk difference), per posterior draw.
+- `prob_tau_pos`: $P(\tau > 0) = P(\text{intervention raises off-floor probability})$.
+
+### Off-floor movers by arm
+
+```{python}
+# | echo: false
+movers
+```
+
+## Proportion-at-zero posterior predictive check
+
+Does the graded Beta-Binomial reproduce the observed floor? (Typically not — the
+motivation for the binary primary estimand.)
+
+![Proportion at zero PPC](proportion_at_zero_ppc.png){.lightbox}
+
+```{python}
+# | echo: false
+zero_ppc
+```
+
+## Graded Beta-Binomial effect (SECONDARY)
+
+::: {.callout-warning title="Detection-limited — read only beside the mover counts"}
+
+The graded $\tau$ below is reported for completeness only. With most post-scores at
+the floor it is leveraged by a few dispersed tail values, not by the arm contrast;
+interpret it solely alongside the off-floor primary and the per-arm mover table.
+
+:::
+
+```{python}
+# | echo: false
+tau_graded
+```
+
+## Posterior predictive check (primary)
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS (primary)
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
