@@ -71,10 +71,11 @@ def build_itt_model(
     prepared: PreparedData,
     *,
     outcome_symbol: str,
-    use_age_gp: bool = True,
-    use_own_baseline_gp: bool = True,
+    use_age_gp: bool = False,
+    use_own_baseline_gp: bool = False,
     use_varying_tau: bool = False,
     adjust_for: Iterable[str] = (),
+    cross_symbols: Iterable[str] | None = None,
 ) -> BuiltModel:
     """
     Build the single-outcome ITT model used by LRP52, LRP53, LRP54.
@@ -97,7 +98,13 @@ def build_itt_model(
     outcome_symbol
         Target measure (``"W"``, ``"R"``, ``"E"``, ...).
     use_age_gp, use_own_baseline_gp
-        Toggles for the two HSGP main effects.
+        Toggles for the two HSGP main effects. **Default False** — the
+        2026-04-18 LRP52 sensitivity fit found LOO did not prefer them and the
+        GP amplitudes produced an ``eta -> basis-weight`` funnel (~1-8 %
+        divergences); they are kept as opt-in flags for per-outcome sensitivity
+        fits. This matches the ``build_joint_model`` / ``build_mechanism_model``
+        default-off convention, so a spec that omits the flags no longer
+        silently fits two unidentifiable GPs (notes/202604181445-lrp52-gp-sensitivity.md).
     use_varying_tau
         If True, the treatment effect is modelled as ``tau0 + g_tauA(A_std)``
         via a :func:`build_tau_modifier` GP with the tight ``HalfNormal(0.3)``
@@ -106,6 +113,16 @@ def build_itt_model(
         Standardised non-outcome covariates from ``prepared.covariates`` to add
         as linear adjustment terms. Coefficients use the same weak
         ``Normal(0, 0.3)`` prior as cross-baseline couplings.
+    cross_symbols
+        Symbols whose baselines enter as cross-baseline couplings (the
+        ``sum_{k != own} gamma_k`` term). ``None`` (default) reproduces the
+        LRP52-LRP54 behaviour of conditioning on every *other* ITT outcome
+        (``ITT_OUTCOMES``). Pass an explicit (possibly empty) iterable to
+        condition on a chosen subset instead - used by the taught-vocabulary
+        models (LRP74/LRP75), whose outcome is outside ``ITT_OUTCOMES`` and which
+        condition only on the matched standardised-vocabulary baseline rather
+        than all eight (parsimony at n~54). Every requested symbol must be in
+        ``prepared.pre_logit``; ``own`` is removed if present.
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
@@ -122,7 +139,15 @@ def build_itt_model(
             "Requested adjustment covariates missing from prepared data: "
             f"{missing_adjusters}"
         )
-    cross = [s for s in ITT_OUTCOMES if s != own]
+    if cross_symbols is None:
+        cross = [s for s in ITT_OUTCOMES if s != own]
+    else:
+        cross = [s for s in cross_symbols if s != own]
+        missing_cross = [s for s in cross if s not in prepared.pre_logit]
+        if missing_cross:
+            raise KeyError(
+                f"Cross-baseline symbols missing from prepared data: {missing_cross}"
+            )
 
     post = prepared.post_counts[own]
     if np.any(np.isnan(post)):

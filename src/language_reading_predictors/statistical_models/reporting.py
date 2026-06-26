@@ -77,7 +77,7 @@ def tau_summary_itt(
     else:
         delta = tau_draws[None, :]  # (1, S)
 
-    eta0 = eta - delta * G[:, None]  # baseline (G=0) linear predictor per obs, per draw
+    eta0 = eta - delta * G[:, None]  # untreated baseline (G=0 = control) per obs, per draw
     # Average marginal effect over observations, per draw.
     marginal = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
 
@@ -170,6 +170,47 @@ def tau_contrast_matrix(
             else:
                 M[i, j] = float(np.mean(draws[i] > draws[j]))
     return pd.DataFrame(M, index=outcomes, columns=outcomes)
+
+
+def tau_difference_summary(
+    trace: xr.DataTree,
+    outcomes: list[str],
+    pair: tuple[str, str],
+    *,
+    hdi_prob: float,
+) -> dict[str, float | str]:
+    """Summarise the difference ``tau[a] - tau[b]`` between two joint outcomes.
+
+    The difference is computed per posterior draw and then summarised, so the
+    reported interval propagates the full joint posterior (including any residual
+    correlation between the two outcomes) rather than combining two marginal
+    summaries. ``pair = (a, b)`` names the contrast ``tau[a] - tau[b]``.
+
+    Sign convention: ``tau`` is the coefficient on ``G = 2 - group``, and group 1
+    receives the intervention from t1, so a *positive* ``tau`` means the
+    intervention raised that outcome (see the "Sign convention" section of
+    METHODS.md). For the LRP76 generalisation contrast the pair is therefore
+    ``("TE", "UE")``: ``tau_TE - tau_UE`` equals the intervention benefit on
+    taught words minus the benefit on not-taught words, so a *positive* difference
+    means the directly-taught words moved *more* than the not-taught comparison
+    words - i.e. limited generalisation.
+
+    ``_lo`` / ``_hi`` are equal-tailed central quantiles at coverage ``hdi_prob``
+    (same convention as :func:`tau_summary_itt`).
+    """
+    a, b = pair
+    draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
+    ia, ib = outcomes.index(a), outcomes.index(b)
+    diff = draws[ia] - draws[ib]
+    lo_q = (1 - hdi_prob) / 2
+    hi_q = 1 - lo_q
+    return {
+        "contrast": f"{a}_minus_{b}",
+        "diff_logit_mean": float(np.mean(diff)),
+        "diff_logit_lo": float(np.quantile(diff, lo_q)),
+        "diff_logit_hi": float(np.quantile(diff, hi_q)),
+        "prob_diff_pos": float(np.mean(diff > 0)),
+    }
 
 
 def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None) -> None:

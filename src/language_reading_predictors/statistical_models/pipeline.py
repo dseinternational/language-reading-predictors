@@ -180,9 +180,31 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Optionally restrict to the complete-case subset of some columns *without*
     # adjusting for them (matched comparator, e.g. LRP60a vs LRP60).
     restrict_complete = tuple(spec.extra.get("restrict_complete", ()))
-    prepared = load_and_prepare(
-        phase_mode="itt", covariates=adjust_for, restrict_complete=restrict_complete
-    )
+    # An ITT model whose outcome is outside ``ITT_OUTCOMES`` (e.g. the taught-
+    # vocabulary block measures, LRP74/LRP75) overrides the prepared outcome set
+    # so only the outcome and its chosen cross-baselines are loaded - this keeps
+    # the complete-case mask from dropping rows for the eight standardised
+    # outcomes the model never uses. ``cross_symbols`` selects the cross-baseline
+    # set (default = every other ITT outcome).
+    extra_outcomes = spec.extra.get("outcomes")
+    cross_symbols = spec.extra.get("cross_symbols")
+    if extra_outcomes is not None:
+        extra_outcomes = tuple(extra_outcomes)
+        if spec.outcome_symbol not in extra_outcomes:
+            raise ValueError(
+                f"outcome_symbol {spec.outcome_symbol!r} must be included in "
+                f"outcomes={extra_outcomes!r}"
+            )
+        prepared = load_and_prepare(
+            phase_mode="itt",
+            outcomes=extra_outcomes,
+            covariates=adjust_for,
+            restrict_complete=restrict_complete,
+        )
+    else:
+        prepared = load_and_prepare(
+            phase_mode="itt", covariates=adjust_for, restrict_complete=restrict_complete
+        )
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -193,10 +215,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     built = _factories.build_itt_model(
         prepared,
         outcome_symbol=spec.outcome_symbol,
-        use_age_gp=spec.extra.get("use_age_gp", True),
-        use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", True),
+        use_age_gp=spec.extra.get("use_age_gp", False),
+        use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", False),
         use_varying_tau=spec.extra.get("use_varying_tau", False),
         adjust_for=adjust_for,
+        cross_symbols=cross_symbols,
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -274,7 +297,14 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ctx = make_context(spec, config)
 
     section_header("Prepare data")
-    prepared = load_and_prepare(phase_mode="itt")
+    # A joint model may target an explicit outcome set (e.g. the taught-vs-not-
+    # taught contrast in LRP76); load exactly those so the complete-case mask is
+    # not driven by the eight standardised outcomes. Defaults to ITT_OUTCOMES.
+    joint_outcomes = spec.extra.get("outcomes")
+    if joint_outcomes is not None:
+        prepared = load_and_prepare(phase_mode="itt", outcomes=tuple(joint_outcomes))
+    else:
+        prepared = load_and_prepare(phase_mode="itt")
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -335,7 +365,33 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     contrast.to_csv(os.path.join(ctx.output_dir, "tau_contrast_matrix.csv"))
     ctx.tables["tau_contrast_matrix"] = contrast
 
-    _report.write_run_metadata(ctx, extra={"loo_elpd": float(ctx.loo.elpd)})
+    meta_extra: dict = {"loo_elpd": float(ctx.loo.elpd)}
+
+    # Headline difference parameter for a two-outcome contrast (LRP76: taught vs
+    # not-taught). ``difference = (a, b)`` reports the posterior of tau[a]-tau[b].
+    difference = spec.extra.get("difference")
+    if difference is not None:
+        pair = tuple(difference)
+        section_header("Treatment-effect difference")
+        diff_s = _report.tau_difference_summary(
+            ctx.trace, outcomes, pair, hdi_prob=ctx.reporting.hdi
+        )
+        diff_df = pd.DataFrame([diff_s])
+        diff_df.to_csv(os.path.join(ctx.output_dir, "tau_difference.csv"), index=False)
+        ctx.tables["tau_difference"] = diff_df
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in diff_s.items()],
+                title=(
+                    f"tau[{pair[0]}] - tau[{pair[1]}] "
+                    f"- {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)"
+                ),
+                columns=["metric", "value"],
+            )
+        )
+        meta_extra["tau_difference"] = diff_s
+
+    _report.write_run_metadata(ctx, extra=meta_extra)
 
     section_header("Report")
     _copy_report_template(ctx)
@@ -429,7 +485,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
     _save_ppc(ctx)
 
-    # Mechanism curve: f_mech vs mech_post_logit grid, on both scales.
+    # Mechanism curve: f_mech vs mech_post_logit grid (logit-contribution scale only).
     section_header("Mechanism curve")
     _write_mechanism_curve(ctx)
 
@@ -570,7 +626,6 @@ def _fit_t3_sensitivity(
     return _med.decompose(
         trace_t3,
         med_t3,
-        confounder_symbols=confounders,
         hdi_prob=ctx.reporting.hdi,
     )
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:

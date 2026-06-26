@@ -613,6 +613,35 @@ class Variables:
     Cumulative attendance up to current time point.
     """
 
+    PERIOD = "period"
+    """
+    Gain-interval index. A gain recorded at baseline wave ``t`` covers
+    period ``t`` (``t`` in {1, 2, 3}; the ``*_gain`` columns are NaN at t4).
+    Numerically equal to :attr:`TIME`, but kept as a separate,
+    canonically-named column so period-resolved analyses (and the Bayesian
+    follow-ups in #104) share a single definition rather than each
+    re-deriving it from ``time``.
+
+    Derived in :func:`data_utils.load_data` (it is not a raw CSV column) and
+    deliberately **absent** from :attr:`ALL` / :attr:`NUMERIC` /
+    :attr:`CATEGORICAL` so it does not silently enter the default predictor
+    sets. See :data:`Categories.TIME_PERIOD` for the 1-3 label mapping.
+    """
+
+    ON_INTERVENTION = "on_intervention"
+    """
+    Whether the child was receiving the intervention during the period.
+
+    The immediate group (``group == 1``) is on intervention from period 1;
+    the waitlist group (``group == 2``) is off in period 1 only and on once
+    it crosses over (``period >= 2``). Equivalently, a row is **off**
+    intervention iff ``(group == 2) & (period == 1)``.
+
+    Derived in :func:`data_utils.load_data`; like :attr:`PERIOD` it is
+    deliberately absent from :attr:`ALL` / :attr:`NUMERIC` /
+    :attr:`CATEGORICAL`.
+    """
+
     ALL = [
         SUBJECT_ID,
         TIME,
