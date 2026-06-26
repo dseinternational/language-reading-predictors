@@ -19,6 +19,60 @@ from language_reading_predictors.statistical_models.context import (
 )
 
 
+def _itt_ame_draws(
+    trace: xr.DataTree,
+    *,
+    G: np.ndarray,
+    term: str = "tau",
+    varying_term: str = "tau_i",
+    eta_name: str = "eta",
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-draw treatment effect and its probability-scale average marginal effect.
+
+    Shared counterfactual-AME core for the ITT report helpers. For every posterior
+    draw and observation ``i`` it forms the untreated baseline linear predictor
+    ``η0_i = η_i − δ_i·G_i`` (the treatment contribution removed from the model's
+    stored ``eta``) and averages ``expit(η0_i + δ_i) − expit(η0_i)`` over
+    observations. ``δ_i`` is the constant ``term`` (``tau``) broadcast over
+    observations, or the per-observation ``varying_term`` (``tau_i``) when the model
+    carries an age-varying effect.
+
+    Returns ``(term_draws, ame_prob)`` — the logit-scale effect draws ``(S,)`` and
+    the probability-scale average marginal effect per draw ``(S,)``. Both
+    :func:`tau_summary_itt` and :func:`rope_summary` build on this so the two cannot
+    drift; it is the same quantity as ``treatment_marginal_effect`` (#128,
+    parameterised by ``term``/``trt``), which should fold onto this helper at merge.
+    """
+    posterior = trace.posterior
+    term_draws = posterior[term].stack(sample=("chain", "draw")).values  # (S,)
+    eta = (
+        posterior[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
+    G = np.asarray(G, dtype=float)
+    if G.shape[0] != eta.shape[0]:
+        raise ValueError(
+            f"G has {G.shape[0]} rows but eta has {eta.shape[0]} observations; "
+            "pass built.prepared.G (aligned with the fitted subset)."
+        )
+    # Per-observation treatment contribution δ_i: age-varying ``varying_term`` if the
+    # model has it, otherwise the constant ``term`` broadcast over observations.
+    if varying_term and varying_term in posterior:
+        delta = (
+            posterior[varying_term]
+            .stack(sample=("chain", "draw"))
+            .transpose("obs_id", "sample")
+            .values
+        )  # (n_obs, S)
+    else:
+        delta = term_draws[None, :]  # (1, S)
+    eta0 = eta - delta * G[:, None]  # untreated baseline (G=0 = control) per obs/draw
+    ame_prob = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
+    return term_draws, ame_prob
+
+
 def tau_summary_itt(
     trace: xr.DataTree,
     *,
@@ -49,37 +103,7 @@ def tau_summary_itt(
     ``_hi`` values are equal-tailed central quantiles, not highest-density
     intervals. For ArviZ-style HDI use :func:`arviz.hdi` directly.
     """
-    posterior = trace.posterior
-    tau_draws = posterior["tau"].stack(sample=("chain", "draw")).values  # (S,)
-    eta = (
-        posterior["eta"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )  # (n_obs, S)
-
-    G = np.asarray(G, dtype=float)
-    if G.shape[0] != eta.shape[0]:
-        raise ValueError(
-            f"G has {G.shape[0]} rows but eta has {eta.shape[0]} observations; "
-            "pass built.prepared.G (aligned with the fitted subset)."
-        )
-
-    # Per-observation treatment contribution δ_i: age-varying tau_i if the
-    # model has it, otherwise the constant tau broadcast over observations.
-    if "tau_i" in posterior:
-        delta = (
-            posterior["tau_i"]
-            .stack(sample=("chain", "draw"))
-            .transpose("obs_id", "sample")
-            .values
-        )  # (n_obs, S)
-    else:
-        delta = tau_draws[None, :]  # (1, S)
-
-    eta0 = eta - delta * G[:, None]  # untreated baseline (G=0 = control) per obs, per draw
-    # Average marginal effect over observations, per draw.
-    marginal = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
+    tau_draws, marginal = _itt_ame_draws(trace, G=G)
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_mean = float(np.mean(tau_draws))
@@ -117,6 +141,94 @@ def tau_summary_offfloor(
     the floored-outcome report.
     """
     return tau_summary_itt(trace, ci_prob=ci_prob, G=G)
+
+
+# --- Evidence ladder + ROPE-anchored continuous report -----------------------
+# notes/202606261304-evidence-strength-and-rope-reporting.md
+
+_EVIDENCE_LADDER: tuple[tuple[float, str], ...] = (
+    (0.75, "inconclusive"),
+    (0.91, "suggestive"),
+    (0.97, "moderate"),
+    (0.99, "strong"),
+)
+
+
+def evidence_label(prob: float) -> str:
+    """Round-odds evidence label for a posterior probability of a *named claim*.
+
+    The boundaries are round odds (3:1 / 10:1 / 30:1 / 100:1), deliberately *not*
+    the ``p = 0.05 / 0.025 / 0.01`` images, so they do not smuggle the significance
+    grid back in. ``prob`` must already be oriented toward the claim (e.g. ``pd``
+    for direction, ``P(benefit ≥ δ)`` for magnitude); the label qualifies the
+    *evidence*, never the effect size. See the note above.
+    """
+    for threshold, label in _EVIDENCE_LADDER:
+        if prob < threshold:
+            return label
+    return "very strong"
+
+
+def odds_string(prob: float) -> str:
+    """A posterior probability as approximate whole-number odds, e.g. ``"19:1"``."""
+    p = min(max(float(prob), 1e-9), 1 - 1e-9)
+    o = p / (1 - p)
+    return f"{o:.0f}:1" if o >= 1 else f"1:{1 / o:.0f}"
+
+
+def rope_summary(
+    trace: xr.DataTree,
+    *,
+    G: np.ndarray,
+    n_trials: int,
+    delta: float,
+    ci_prob: float = 0.95,
+) -> dict[str, float | str]:
+    """ROPE-anchored continuous report card for an ITT treatment effect.
+
+    Built on :func:`_itt_ame_draws`, so it shares the average-marginal-effect core
+    with :func:`tau_summary_itt`. Reports the effect on the logit scale (``tau``)
+    and the items scale (the average marginal effect × ``n_trials``) as a **median**
+    with a 50 % and a ``ci_prob`` (default 95 %) equal-tailed interval, plus:
+
+    - ``pd`` — ``P(τ > 0)``, the probability of direction;
+    - ``prob_benefit_ge_delta`` — ``P(items effect > δ)``, the probability of a
+      *meaningful* benefit, where ``delta`` is the minimally-important difference
+      (the ROPE half-width) on the items scale;
+    - ``prob_in_rope`` — ``P(|items effect| < δ)``, practically negligible;
+    - ``prob_harm_ge_delta`` — ``P(items effect < −δ)``;
+    - ``direction_label`` / ``benefit_label`` — the round-odds evidence labels
+      (:func:`evidence_label`) for the direction and meaningful-benefit claims.
+
+    See ``notes/202606261304-evidence-strength-and-rope-reporting.md`` for the
+    rationale (sign-vs-size, the median convention, the δ choice). The point
+    estimate is the **median** because it is transformation-invariant across the
+    logit and items scales.
+    """
+    tau_draws, ame_prob = _itt_ame_draws(trace, G=G)
+    items = ame_prob * float(n_trials)
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    pd_ = float(np.mean(tau_draws > 0))
+    p_benefit = float(np.mean(items >= delta))
+    return {
+        "tau_logit_median": float(np.median(tau_draws)),
+        "tau_logit_lo50": float(np.quantile(tau_draws, 0.25)),
+        "tau_logit_hi50": float(np.quantile(tau_draws, 0.75)),
+        "tau_logit_lo": float(np.quantile(tau_draws, lo_q)),
+        "tau_logit_hi": float(np.quantile(tau_draws, hi_q)),
+        "items_median": float(np.median(items)),
+        "items_lo50": float(np.quantile(items, 0.25)),
+        "items_hi50": float(np.quantile(items, 0.75)),
+        "items_lo": float(np.quantile(items, lo_q)),
+        "items_hi": float(np.quantile(items, hi_q)),
+        "delta_items": float(delta),
+        "pd": pd_,
+        "prob_benefit_ge_delta": p_benefit,
+        "prob_in_rope": float(np.mean(np.abs(items) <= delta)),
+        "prob_harm_ge_delta": float(np.mean(items <= -delta)),
+        "direction_label": evidence_label(pd_),
+        "benefit_label": evidence_label(p_benefit),
+    }
 
 
 def offfloor_mover_table(prepared, symbol: str) -> pd.DataFrame:
