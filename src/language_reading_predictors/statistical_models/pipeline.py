@@ -1101,3 +1101,113 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _copy_report_template(ctx)
     _print_footer(ctx)
     return ctx
+
+
+# ---------------------------------------------------------------------------
+# Two-mediator decomposition pipeline (LRP64)
+# ---------------------------------------------------------------------------
+
+
+def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """ITT-phase two-mediator decomposition (LRP64): G -> W via letter-sound and vocab.
+
+    Mirrors :func:`fit_mediation` but builds the two-mediator joint model
+    (:func:`factories.build_two_mediator_model`) and runs the two-mediator
+    g-formula (:func:`mediation.decompose_two_mediator`), reporting the joint
+    indirect effect as the headline plus the (ordering-dependent) path-specific
+    indirect effects.
+    """
+    assert spec.kind == "mediation_multi"
+    from language_reading_predictors.statistical_models import mediation as _med
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
+    prepared = load_and_prepare(phase_mode="itt")
+    ctx.prepared = prepared
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+
+    mediators = tuple(spec.extra.get("mediators", ("L", "E")))
+    confounders = tuple(
+        s
+        for s in spec.adjustment
+        if s not in ("G", "A", "W_pre", "L_t1", "E_t1")
+    )
+    built, med_data = _factories.build_two_mediator_model(
+        prepared,
+        outcome_symbol=spec.outcome_symbol or "W",
+        mediator_symbols=mediators,
+        confounder_symbols=confounders,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    # Diagnose every scalar coefficient the model actually built, so the list
+    # tracks the fitted confounder set instead of a hand-maintained constant
+    # (mirrors fit_mediation).
+    coef_vars = sorted(rv.name for rv in built.model.free_RVs if rv.ndim == 0)
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(
+        ctx, draws=1000, var_names=["L_post", "E_post", "y_post"]
+    )
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=coef_vars)
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(
+        ctx, var_names=["L_post", "E_post", "y_post"]
+    )
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Two-mediator decomposition (g-formula)")
+    med_df = _med.decompose_two_mediator(
+        ctx.trace,
+        med_data,
+        hdi_prob=ctx.reporting.hdi,
+        order=tuple(spec.extra.get("order", ("L", "E"))),
+    )
+    med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
+    ctx.tables["mediation_summary"] = med_df
+    print_table(
+        ranked_dataframe_table(
+            med_df,
+            title=(
+                f"Two-mediator decomposition (intervention-helps; words out of "
+                f"{med_data.n_trials_W})"
+            ),
+            columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "adjustment": spec.adjustment,
+            "n_obs": ctx.prepared.n_obs,
+            "mediators": list(mediators),
+            "n_trials_W": med_data.n_trials_W,
+            "mediation": _summary,
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
