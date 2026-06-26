@@ -1,0 +1,166 @@
+---
+title: "LRP66: Latent general-ability model — general vs specific predictors of word-reading gain"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+
+
+def _read(name):
+    p = _here / name
+    return pd.read_csv(p) if p.exists() else None
+
+
+loadings = _read("loadings.csv")
+structural_paths = _read("structural_paths.csv")
+latent_robustness = _read("latent_robustness.csv")
+```
+
+## Overview
+
+LRP66 is the Tier 2 follow-up to LRP65. LRP65 used **mutual adjustment** to ask which
+baseline skills go with word-reading gain. But mutual adjustment cannot cleanly separate
+*"this child has high general ability"* from *"this child is specifically good at letter
+sounds"* when the skills are noisy indicators of one shared factor. LRP66 fits the latent
+**general ability** `g` that the LRP65 DAG only drew, and splits the question in two:
+
+- **How much of "who gains" is general ability?** (`g → gain`)
+- **Does a specific skill predict gain *beyond* `g`?** (letter sounds / language given `g`) —
+  the actionable *"direct teaching target, or just an ability marker?"* question.
+
+## Estimand and design
+
+::: {.callout-important title="Between-child, small-n — triangulation, not a definitive decomposition"}
+
+Same between-child design as LRP65: **one row per child** (n ≈ 51), outcome = word reading
+at the last wave conditioned on $W_{\text{T1}}$. These are **associations, not causal
+effects**. A latent model at this n is fragile and the priors do real work — read LRP66 as
+**triangulation against LRP65**: agreement strengthens the story; divergence is itself the
+finding. Building `g` from several indicators partly corrects for measurement noise, so the
+specific-skill effects are less attenuated than LRP65's observed predictors.
+
+:::
+
+![Causal DAG. Latent general ability `g` (now *fitted*) loads on the T1 skills and has a general-ability path to gain; the dashed skill → gain edges are the beyond-`g` associations the model estimates. A reflective-`g` specialisation of the shared DAG v5 (`notes/202606221200-shared-dag-v5.md`).](dag.svg){#fig-dag .lightbox fig-align="left"}
+
+## Measurement: how much does each skill reflect `g`?
+
+A one-factor Gaussian CFA: `g ~ Normal(0, 1)` with **positive** loadings on the standardised
+T1 skills (all positive-manifold measures). A loading is the indicator–`g` correlation;
+**communality** is the share of that skill's variance explained by `g`.
+
+```{python}
+# | echo: false
+loadings
+```
+
+::: {.callout-note}
+Expect every skill — including **non-verbal MA** — to load substantially on `g`. A heavy
+non-verbal-MA loading is exactly why it collapsed under adjustment in LRP65: its bivariate
+link to gain runs through shared general ability.
+:::
+
+## Structural paths: general ability vs beyond-`g`
+
+Two complementary estimands (reported together so the collinear headline `beta_g` is not
+misread as the total effect):
+
+- **`beta_g_total`** — `gain ~ g` (+ age), no observed skills: the **total** general-ability
+  association.
+- **`beta_g_residual` / `beta_L` / `beta_lang`** — `gain ~ g + observed skills` (+ age): each
+  skill's effect **beyond `g`**, and the general-ability path net of the skills' specifics.
+
+```{python}
+# | echo: false
+structural_paths
+```
+
+::: {.callout-note title="What the fit shows"}
+General ability predicts gain (`beta_g_total` = 0.41 [0.14, 0.70]), but largely **through**
+letter sounds and language: when those enter directly they retain positive beyond-`g`
+effects while the residual `g` path shrinks to ~0 — i.e. the "general ability" signal is
+substantially the specific letter-sound/language skills (supporting teaching them directly).
+Wide intervals at n = 51 are the honest result.
+:::
+
+## Robustness: latent language-specific factor
+
+A bifactor variant where the three language measures additionally load on an orthogonal
+language-specific factor, whose beyond-`g` effect is `beta_lang_specific`. This is the
+gold-standard decomposition but **fragile at this n** — it is fit at a higher `target_accept`
+and read as a sensitivity check. The divergence count is in the run metadata; treat wide /
+unstable estimates here as "n too small to identify this cleanly", not as evidence.
+
+```{python}
+# | echo: false
+latent_robustness if latent_robustness is not None else "Latent robustness arm unavailable."
+```
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=32%}
+![gamma_own](prior_gamma_own.svg){width=32%}
+![predictor_slope](prior_predictor_slope.svg){width=32%}
+![kappa](prior_kappa.svg){width=32%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS (structural outcome)
+
+```{python}
+# | echo: false
+# | output: asis
+_loo = _here / "loo.txt"
+print("```\n" + (_loo.read_text() if _loo.exists() else "LOO unavailable.") + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

@@ -1512,3 +1512,269 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _copy_report_template(ctx)
     _print_footer(ctx)
     return ctx
+
+
+# ---------------------------------------------------------------------------
+# Factor pipeline (LRP66) — latent general ability vs specific skills
+# ---------------------------------------------------------------------------
+
+_FACTOR_INDICATOR_LABELS = {
+    "L": "Letter sounds",
+    "R": "Receptive vocab (ROWPVT)",
+    "E": "Expressive vocab (EOWPVT)",
+    "F": "CELF concepts",
+    "B": "Blending",
+    "blocks": "Non-verbal MA (block design)",
+}
+
+
+def _factor_loadings_table(trace, hdi: float) -> pd.DataFrame:
+    """Loading, residual SD and communality (share of the skill explained by g)."""
+    post = trace.posterior
+    lo_q, hi_q = (1 - hdi) / 2, 1 - (1 - hdi) / 2
+    names = [str(x) for x in post["lambda_load"]["indicator"].values]
+    rows = []
+    for name in names:
+        lam = post["lambda_load"].sel(indicator=name).stack(s=("chain", "draw")).values
+        sig = post["sigma_indicator"].sel(indicator=name).stack(s=("chain", "draw")).values
+        comm = lam**2 / (lam**2 + sig**2)
+        rows.append(
+            {
+                "indicator": name,
+                "label": _FACTOR_INDICATOR_LABELS.get(name, name),
+                "loading_mean": float(np.mean(lam)),
+                "loading_lo": float(np.quantile(lam, lo_q)),
+                "loading_hi": float(np.quantile(lam, hi_q)),
+                "resid_sd_mean": float(np.mean(sig)),
+                "communality_mean": float(np.mean(comm)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def fit_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Latent general-ability fit (LRP66): general vs specific predictors of gain.
+
+    Headline = the one-factor measurement model (g from the T1 skills) + a
+    structural leg regressing word-reading gain on g plus the observed-direct
+    skills (their coefficients given g = "beyond general ability"). Writes
+    ``loadings.csv`` (how much each skill reflects g) and ``structural_paths.csv``
+    (g -> gain and the beyond-g skill effects). A fragile latent language-specific
+    robustness arm is fit at a higher ``target_accept`` and written to
+    ``latent_robustness.csv`` with its divergence count — sensitivity, not headline.
+    """
+    assert spec.kind == "factor"
+    import arviz as az
+    import pymc as pm
+
+    e = spec.extra
+    outcome = spec.outcome_symbol or "W"
+    post_time = int(e.get("post_time", 4))
+    indicator_symbols = list(e.get("indicator_symbols", ["L", "R", "E", "F", "B"]))
+    indicator_covs = list(e.get("indicator_covariates", ["blocks"]))
+    lang_symbols = tuple(e.get("language_composite_symbols", ["R", "E", "F"]))
+    observed_direct = list(e.get("observed_direct", ["L", "lang", "age"]))
+    sigma0 = float(e.get("predictor_slope_sigma", 0.5))
+    lang_spec_symbols = tuple(e.get("language_specific_symbols", ["R", "E", "F"]))
+    lat_ta = float(e.get("latent_target_accept", 0.99))
+
+    ctx = make_context(spec, config, ci_prob=0.94)
+    hdi = ctx.reporting.hdi
+
+    section_header("Prepare data")
+    measure_outcomes = tuple(
+        dict.fromkeys([outcome, *indicator_symbols, *lang_symbols])
+    )
+    prepared = load_and_prepare(
+        phase_mode="span", post_time=post_time,
+        outcomes=measure_outcomes, covariates=tuple(indicator_covs),
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_factor_model(
+        prepared,
+        outcome_symbol=outcome,
+        indicator_symbols=tuple(indicator_symbols),
+        indicator_covariates=tuple(indicator_covs),
+        language_composite_symbols=lang_symbols,
+        observed_direct=tuple(observed_direct),
+        predictor_slope_sigma=sigma0,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    # LOO on the structural outcome only — the factor model also has the
+    # measurement node ``Z_obs``, so compute the log-likelihood for ``y_post``.
+    section_header("LOO-PSIS (structural outcome)")
+    try:
+        with ctx.model:
+            ctx.trace = pm.compute_log_likelihood(
+                ctx.trace, var_names=["y_post"], extend_inferencedata=True
+            )
+        ctx.loo = az.loo(ctx.trace, var_name="y_post")
+        _report.write_loo_summary(ctx)
+        _print_loo_row(ctx)
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]LOO skipped: {exc}[/yellow]")
+
+    struct_names = ["beta_g"] + [
+        _factories._resolve_adjusted_predictor(ctx.prepared, k, lang_symbols)[0]
+        for k in observed_direct
+    ]
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(
+        ctx,
+        var_names=[
+            "alpha", "gamma_own", "kappa", "lambda_load", "sigma_indicator",
+            *struct_names,
+        ],
+    )
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    # --- Loadings: how strongly each skill reflects g ----------------------
+    section_header("Factor loadings")
+    loadings = _factor_loadings_table(ctx.trace, hdi)
+    loadings.to_csv(os.path.join(ctx.output_dir, "loadings.csv"), index=False)
+    ctx.tables["loadings"] = loadings
+    print_table(
+        ranked_dataframe_table(
+            loadings,
+            title="Loadings on g (communality = share of the skill explained by g)",
+            columns=[
+                "label", "loading_mean", "loading_lo", "loading_hi",
+                "communality_mean",
+            ],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # --- Structural paths: two complementary estimands ---------------------
+    #   * beta_g_total  — gain ~ g (+ age), no observed skills: the *total*
+    #     general-ability association ("how much is general ability").
+    #   * beta_g_residual / beta_L / beta_lang — gain ~ g + observed skills:
+    #     each skill's effect *beyond g*, and the general-ability path net of
+    #     the skills' specific contributions. Reporting both avoids reading the
+    #     (collinear) headline beta_g as the total g effect.
+    section_header("Structural paths (general ability vs beyond-g)")
+    beta_g_total = None
+    try:
+        g_only = _factories.build_factor_model(
+            prepared,
+            outcome_symbol=outcome,
+            indicator_symbols=tuple(indicator_symbols),
+            indicator_covariates=tuple(indicator_covs),
+            language_composite_symbols=lang_symbols,
+            observed_direct=tuple(k for k in observed_direct if k not in ("L", "lang")),
+            predictor_slope_sigma=sigma0,
+        )
+        gt = _sample_model(g_only.model, ctx.sampling)
+        beta_g_total = _beta_summary(gt, "beta_g", hdi)
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]g-only (total) path fit skipped: {exc}[/yellow]")
+
+    sp_rows = []
+    if beta_g_total is not None:
+        sp_rows.append({"path": "beta_g_total", **beta_g_total})
+    _headline_label = {"beta_g": "beta_g_residual"}
+    sp_rows += [
+        {"path": _headline_label.get(n, n), **_beta_summary(ctx.trace, n, hdi)}
+        for n in struct_names
+    ]
+    sp_df = pd.DataFrame(sp_rows)
+    sp_df.to_csv(os.path.join(ctx.output_dir, "structural_paths.csv"), index=False)
+    ctx.tables["structural_paths"] = sp_df
+    print_table(
+        ranked_dataframe_table(
+            sp_df,
+            title=f"Structural paths (per-SD logit; {int(hdi * 100)}% interval)",
+            columns=["path", "mean", "lo", "hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # --- Robustness: latent language-specific factor (fragile at this n) ----
+    section_header("Robustness: latent language-specific factor")
+    lat_df = None
+    lat_div = None
+    try:
+        b = _factories.build_factor_model(
+            prepared,
+            outcome_symbol=outcome,
+            indicator_symbols=tuple(indicator_symbols),
+            indicator_covariates=tuple(indicator_covs),
+            language_composite_symbols=lang_symbols,
+            observed_direct=tuple(observed_direct),
+            use_language_specific=True,
+            language_specific_symbols=lang_spec_symbols,
+            predictor_slope_sigma=sigma0,
+        )
+        s = ctx.sampling
+        with b.model:
+            lt = pm.sample(
+                draws=s.draws, tune=s.tune, chains=s.chains, cores=s.cores,
+                target_accept=lat_ta, nuts_sampler="nutpie",
+                return_inferencedata=True, random_seed=s.random_seed,
+                progressbar=False,
+            )
+        lat_div = int(lt.sample_stats.diverging.sum())
+        lat_names = (
+            ["beta_g"]
+            + [
+                _factories._resolve_adjusted_predictor(b.prepared, k, lang_symbols)[0]
+                for k in observed_direct if k != "lang"
+            ]
+            + ["beta_lang_specific"]
+        )
+        lat_df = pd.DataFrame(
+            [{"path": n, **_beta_summary(lt, n, hdi)} for n in lat_names]
+        )
+        lat_df.to_csv(
+            os.path.join(ctx.output_dir, "latent_robustness.csv"), index=False
+        )
+        ctx.tables["latent_robustness"] = lat_df
+        rprint(
+            f"  latent language-specific arm: {lat_div} divergences "
+            f"(target_accept={lat_ta}) — read as fragile sensitivity, not headline"
+        )
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Latent robustness arm skipped: {exc}[/yellow]")
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
+            "design": "between_child",
+            "post_time": post_time,
+            "observed_direct": observed_direct,
+            "loadings": loadings.to_dict("records"),
+            "structural_paths": sp_rows,
+            "latent_divergences": lat_div,
+            "latent_robustness": (
+                lat_df.to_dict("records") if lat_df is not None else None
+            ),
+            "n_children": int(ctx.prepared.n_children),
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
