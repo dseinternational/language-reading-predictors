@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Preprocessing helpers shared across LRP52-LRP58.
+Preprocessing helpers shared across the statistical models.
 
 - ``logit_safe`` applies a Haldane-Anscombe corrected logit to a count/total pair.
 - ``standardise`` z-scores a vector and returns the scaler for inverse transforms.
@@ -12,7 +12,7 @@ Preprocessing helpers shared across LRP52-LRP58.
 Conventions
 -----------
 - RCT (randomised) phase is ``time in {1, 2}`` — that is, the pre-score is
-  ``time == 1`` and the post-score is ``time == 2``. LRP52-LRP55 use this
+  ``time == 1`` and the post-score is ``time == 2``. The ITT models use this
   phase only.
 - Mechanism models (LRP56-LRP58) stack all three phase transitions
   ``(t1 -> t2, t2 -> t3, t3 -> t4)`` with a phase indicator.
@@ -135,6 +135,7 @@ def load_and_prepare(
     drop_missing_pre: bool = True,
     restrict_complete: tuple[str, ...] = (),
     post_time: int = 4,
+    pre_required: tuple[str, ...] | None = None,
 ) -> PreparedData:
     """
     Load ``rli_data_long.csv`` and build arrays for the model factories.
@@ -159,15 +160,26 @@ def load_and_prepare(
         linear covariates. Rows with missing requested covariates are dropped
         when ``drop_missing_pre`` is true.
     drop_missing_pre
-        If True (default), rows with any missing pre-score or missing group
-        are dropped and a warning is printed with the dropped-row count.
+        If True (default), rows with any missing pre-score (for the symbols in
+        ``pre_required``) or missing group are dropped and a warning is printed
+        with the dropped-row count.
+    pre_required
+        Symbols whose pre-score must be non-missing for a row to be kept. ``None``
+        (default) requires every symbol in ``outcomes`` (the historical
+        behaviour). Pass a subset — possibly ``()`` — to exempt an outcome whose
+        baseline the model never uses, so its missing pre-scores do not silently
+        drop rows. Used by the floored / post-only outcomes (e.g. nonword ``N``,
+        whose age-only LRPITT model carries no own baseline): load with
+        ``outcomes=("N",), pre_required=()`` so its missing ``nonword`` t1
+        values are kept, while the GROUP/AGE and post-presence checks still
+        apply. Every symbol listed must also be in ``outcomes``.
     restrict_complete
         Columns that must be non-missing for a row to be kept (they join the
         complete-case mask exactly like ``covariates``), but which are **not**
         added to ``prepared.covariates`` and so receive no model coefficient.
         Use this to fit a model on the complete-case subset of some covariates
         *without* adjusting for them — e.g. a matched unadjusted comparator to a
-        covariate-adjusted run (LRP60a vs LRP60).
+        covariate-adjusted run (LRPITT14 vs LRPITT13).
     post_time
         The post wave for ``phase_mode="span"`` (default 4 = last wave). Ignored
         for the other modes.
@@ -220,7 +232,17 @@ def load_and_prepare(
 
     merged = pd.concat(per_phase_frames, axis=0, ignore_index=True)
 
-    required_pre = [f"{MEASURES[s].column}_pre" for s in outcomes]
+    if pre_required is None:
+        pre_required_syms: tuple[str, ...] = tuple(outcomes)
+    else:
+        pre_required_syms = tuple(pre_required)
+        unknown = [s for s in pre_required_syms if s not in outcomes]
+        if unknown:
+            raise ValueError(
+                f"pre_required symbols must be a subset of outcomes; "
+                f"{unknown} not in {outcomes!r}"
+            )
+    required_pre = [f"{MEASURES[s].column}_pre" for s in pre_required_syms]
     required_post = [f"{MEASURES[s].column}_post" for s in outcomes]
 
     n_before = len(merged)

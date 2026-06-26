@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-End-to-end fit pipeline for LRP52-LRP60.
+End-to-end fit pipeline for the statistical models.
 
 ``fit_itt(spec, config)`` is the entry point for the ITT models.
-``fit_joint(spec, config)`` is the entry point for LRP55.
+``fit_joint(spec, config)`` is the entry point for the joint models (LRPITT12, LRPITT15/15b).
+``fit_did(spec, config)`` is the entry point for the waitlist-crossover / DiD models.
 ``fit_mechanism(spec, config)`` is the entry point for LRP56/57/58.
 
 Each pipeline:
@@ -161,9 +162,65 @@ def _save_ppc(context: StatisticalFitContext) -> None:
         rprint(f"[yellow]PPC plot failed: {exc}[/yellow]")
 
 
+def _save_proportion_at_zero_plot(
+    ctx: StatisticalFitContext, symbol: str, ppc0: dict
+) -> None:
+    """Plot the proportion-at-zero PPC: replicated distribution vs observed."""
+    try:
+        rep = ppc0["rep"]
+        obs = ppc0["obs_prop_at_zero"]
+        plt.figure(figsize=(6, 4))
+        plt.hist(rep, bins=30, color="#1f77b4", alpha=0.6, density=True)
+        plt.axvline(obs, color="#d62728", lw=2, label=f"observed = {obs:.2f}")
+        plt.xlabel(f"proportion of {symbol} post-scores at zero")
+        plt.ylabel("posterior-predictive density")
+        plt.title(
+            f"Proportion-at-zero PPC ({symbol}); p = {ppc0['ppc_p_value']:.2f}"
+        )
+        plt.legend()
+        plt.savefig(
+            os.path.join(ctx.output_dir, "proportion_at_zero_ppc.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+        plt.close()
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Proportion-at-zero PPC plot failed: {exc}[/yellow]")
+
+
 # ---------------------------------------------------------------------------
-# ITT pipeline (LRP52 / LRP53 / LRP54 / LRP60)
+# ITT pipeline (LRPITT suite + SES companions)
 # ---------------------------------------------------------------------------
+
+
+def _itt_diag_vars(
+    spec: ModelSpec,
+    adjust_for: tuple[str, ...],
+    *,
+    likelihood: str = "beta_binomial",
+) -> list[str]:
+    """Scalar coefficients to summarise for an ITT fit, conditional on the spec.
+
+    The own-baseline (``gamma_own``) is only present when ``use_own_baseline``;
+    the linear age term (``gamma_A``) only when ``use_age_linear``; the
+    Beta-Binomial concentration (``kappa``) only for the graded likelihood (the
+    binary off-floor model has none); plus any adjuster / tau-moderator
+    coefficients. Listing a missing RV would crash ``summary_diagnostics``.
+    """
+    extra = spec.extra
+    dvars = ["alpha", "tau"]
+    if extra.get("use_own_baseline", True):
+        dvars.append("gamma_own")
+    if extra.get("use_age_linear", False):
+        dvars.append("gamma_A")
+    if likelihood == "beta_binomial":
+        dvars.append("kappa")
+    dvars.extend(f"gamma_{c}" for c in adjust_for)
+    if extra.get("tau_moderator_symbol") is not None:
+        dvars.append("gamma_tau_mod")
+        if extra.get("tau_moderator_interaction", True):
+            dvars.append("gamma_tau_int")
+    return dvars
 
 
 def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -175,16 +232,23 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Prepare data")
     adjust_for = tuple(spec.extra.get("adjust_for", ()))
     # Optionally restrict to the complete-case subset of some columns *without*
-    # adjusting for them (matched comparator, e.g. LRP60a vs LRP60).
+    # adjusting for them (matched comparator, e.g. LRPITT14 vs LRPITT13).
     restrict_complete = tuple(spec.extra.get("restrict_complete", ()))
     # An ITT model whose outcome is outside ``ITT_OUTCOMES`` (e.g. the taught-
-    # vocabulary block measures, LRP74/LRP75) overrides the prepared outcome set
+    # vocabulary block measures, the taught LRPITT models) overrides the prepared outcome set
     # so only the outcome and its chosen cross-baselines are loaded - this keeps
     # the complete-case mask from dropping rows for the eight standardised
     # outcomes the model never uses. ``cross_symbols`` selects the cross-baseline
     # set (default = every other ITT outcome).
     extra_outcomes = spec.extra.get("outcomes")
     cross_symbols = spec.extra.get("cross_symbols")
+    # Post-only / age-only outcomes (e.g. nonword N) exempt their baseline from
+    # the complete-case mask via ``pre_required`` so missing pre-scores on a
+    # baseline the model never uses do not silently drop rows (#119).
+    pre_required = spec.extra.get("pre_required")
+    if pre_required is not None:
+        pre_required = tuple(pre_required)
+    drop_missing_pre = bool(spec.extra.get("drop_missing_pre", True))
     if extra_outcomes is not None:
         extra_outcomes = tuple(extra_outcomes)
         if spec.outcome_symbol not in extra_outcomes:
@@ -197,10 +261,16 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             outcomes=extra_outcomes,
             covariates=adjust_for,
             restrict_complete=restrict_complete,
+            drop_missing_pre=drop_missing_pre,
+            pre_required=pre_required,
         )
     else:
         prepared = load_and_prepare(
-            phase_mode="itt", covariates=adjust_for, restrict_complete=restrict_complete
+            phase_mode="itt",
+            covariates=adjust_for,
+            restrict_complete=restrict_complete,
+            drop_missing_pre=drop_missing_pre,
+            pre_required=pre_required,
         )
     ctx.prepared = prepared
 
@@ -208,6 +278,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Build model")
     _priors.save_shared_prior_panel(ctx.output_dir)
+
+    # Heavily-floored outcomes (P, N) take the pre-specified floor-rule branch:
+    # a binary off-floor estimand as PRIMARY plus a graded SECONDARY (#119).
+    if spec.extra.get("floor_rule", False):
+        return _fit_itt_floor_rule(ctx, spec, prepared, adjust_for)
 
     built = _factories.build_itt_model(
         prepared,
@@ -217,6 +292,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_varying_tau=spec.extra.get("use_varying_tau", False),
         adjust_for=adjust_for,
         cross_symbols=cross_symbols,
+        use_age_linear=spec.extra.get("use_age_linear", False),
+        use_own_baseline=spec.extra.get("use_own_baseline", True),
+        tau_moderator_symbol=spec.extra.get("tau_moderator_symbol"),
+        tau_moderator_is_covariate=spec.extra.get("tau_moderator_is_covariate", False),
+        tau_moderator_interaction=spec.extra.get("tau_moderator_interaction", True),
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -236,11 +316,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_loo_row(ctx)
 
     section_header("Summary diagnostics")
-    diag_vars = ["alpha", "tau", "gamma_own", "kappa"]
-    diag_vars.extend(f"gamma_{c}" for c in adjust_for)
-    _diag.summary_diagnostics(
-        ctx, var_names=diag_vars
-    )
+    _diag.summary_diagnostics(ctx, var_names=_itt_diag_vars(spec, adjust_for))
 
     section_header("Posterior predictive")
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
@@ -252,7 +328,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Treatment-effect summary")
     tau_s = _report.tau_summary_itt(
         ctx.trace,
-        hdi_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.hdi,
         # built.prepared is the (possibly row-subset) frame the model was fit
         # on, so G aligns with eta's obs_id axis (finding #2 in issue #78).
         G=built.prepared.G,
@@ -283,8 +359,179 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     return ctx
 
 
+def _fit_itt_floor_rule(
+    ctx: StatisticalFitContext,
+    spec: ModelSpec,
+    prepared,
+    adjust_for: tuple[str, ...],
+) -> StatisticalFitContext:
+    """Floor-rule fit for heavily-floored outcomes P / N (#119).
+
+    Fits two age-only models on the same prepared data: the PRIMARY binary
+    off-floor estimand (Bernoulli on ``post > 0``) and a flagged,
+    detection-limited SECONDARY graded Beta-Binomial. Writes ``tau_summary.csv``
+    (off-floor, primary), the per-arm mover table, the proportion-at-zero PPC,
+    and ``tau_summary_graded.csv``. The floor rule is pre-specified and arm-blind.
+    """
+    import pymc as pm
+
+    from language_reading_predictors.statistical_models import floor as _floor
+
+    own = spec.outcome_symbol
+
+    # Pre-specification gate: the floor rule is fixed before fitting and applied
+    # arm-blind, so the outcome must actually qualify (>= 40% at zero at t2).
+    p0 = _floor.proportion_at_zero(prepared, own)
+    if not _floor.is_floored(prepared, own):
+        raise ValueError(
+            f"floor_rule set for {own!r}, but only {p0:.0%} of its post-scores "
+            f"are at zero at t2 (threshold {_floor.FLOOR_THRESHOLD:.0%}); the "
+            "floor rule is pre-specified and arm-blind - remove floor_rule or "
+            "check the data."
+        )
+    rprint(
+        f"  Floor rule: {own} is {p0:.0%} floored at t2 "
+        f"(>= {_floor.FLOOR_THRESHOLD:.0%}); binary off-floor estimand is PRIMARY, "
+        "graded Beta-Binomial is SECONDARY (detection-limited)."
+    )
+
+    common = dict(
+        outcome_symbol=own,
+        use_age_gp=spec.extra.get("use_age_gp", False),
+        use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", False),
+        use_age_linear=spec.extra.get("use_age_linear", True),
+        use_own_baseline=spec.extra.get("use_own_baseline", False),
+        cross_symbols=spec.extra.get("cross_symbols", ()),
+        adjust_for=adjust_for,
+    )
+
+    # ----- PRIMARY: binary off-floor (Bernoulli on post > 0) -----
+    section_header("Build model (PRIMARY: binary off-floor)")
+    built = _factories.build_itt_model(
+        prepared, likelihood="bernoulli_offfloor", **common
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_offfloor", "eta"])
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(
+        ctx,
+        var_names=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
+    )
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_offfloor"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Off-floor treatment-effect summary (PRIMARY)")
+    off = _report.tau_summary_offfloor(
+        ctx.trace, ci_prob=ctx.reporting.hdi, G=built.prepared.G
+    )
+    pd.DataFrame([off]).to_csv(
+        os.path.join(ctx.output_dir, "tau_summary.csv"), index=False
+    )
+    ctx.tables["tau_summary"] = pd.DataFrame([off])
+    print_table(
+        metrics_table(
+            [{"metric": k, "value": v} for k, v in off.items()],
+            title=(
+                f"off-floor tau ({own}) - {int(ctx.reporting.hdi * 100)}% CI "
+                "(equal-tailed); positive = intervention raises Pr(off-floor)"
+            ),
+            columns=["metric", "value"],
+        )
+    )
+
+    movers = _report.offfloor_mover_table(built.prepared, own)
+    movers.to_csv(os.path.join(ctx.output_dir, "offfloor_movers.csv"), index=False)
+    ctx.tables["offfloor_movers"] = movers
+    print_table(
+        ranked_dataframe_table(
+            movers,
+            title=f"Off-floor movers by arm ({own})",
+            columns=["arm", "n", "off_floor", "at_floor", "prop_off_floor"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # ----- SECONDARY: graded Beta-Binomial (detection-limited) -----
+    section_header("Build model (SECONDARY: graded Beta-Binomial, detection-limited)")
+    built_g = _factories.build_itt_model(prepared, likelihood="beta_binomial", **common)
+    s = ctx.sampling
+    with built_g.model:
+        trace_g = pm.sample(
+            draws=s.draws,
+            tune=s.tune,
+            chains=s.chains,
+            cores=s.cores,
+            target_accept=s.target_accept,
+            nuts_sampler="nutpie",
+            return_inferencedata=True,
+            random_seed=s.random_seed,
+            progressbar=False,
+        )
+        trace_g = pm.sample_posterior_predictive(
+            trace_g,
+            var_names=["y_post"],
+            extend_inferencedata=True,
+            random_seed=s.random_seed,
+            progressbar=False,
+        )
+
+    graded = _report.tau_summary_itt(
+        trace_g, ci_prob=ctx.reporting.hdi, G=built_g.prepared.G
+    )
+    pd.DataFrame([graded]).to_csv(
+        os.path.join(ctx.output_dir, "tau_summary_graded.csv"), index=False
+    )
+    ctx.tables["tau_summary_graded"] = pd.DataFrame([graded])
+
+    # Proportion-at-zero PPC on the graded model: does the graded Beta-Binomial
+    # reproduce the observed floor? (Usually not - the motivation for the binary
+    # primary estimand.)
+    ppc0 = _report.proportion_at_zero_ppc(built_g.prepared, own, trace_g)
+    _save_proportion_at_zero_plot(ctx, own, ppc0)
+    pd.DataFrame([{k: v for k, v in ppc0.items() if k != "rep"}]).to_csv(
+        os.path.join(ctx.output_dir, "proportion_at_zero_ppc.csv"), index=False
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "floor_rule": {
+                "outcome": own,
+                "proportion_at_zero": p0,
+                "threshold": _floor.FLOOR_THRESHOLD,
+            },
+            "tau_offfloor_primary": off,
+            "tau_graded_secondary": graded,
+            "proportion_at_zero_ppc": {k: v for k, v in ppc0.items() if k != "rep"},
+            "adjust_for": list(adjust_for),
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
 # ---------------------------------------------------------------------------
-# Joint pipeline (LRP55)
+# Joint pipeline (LRPITT12 joint; LRPITT15/15b contrasts)
 # ---------------------------------------------------------------------------
 
 
@@ -295,7 +542,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prepare data")
     # A joint model may target an explicit outcome set (e.g. the taught-vs-not-
-    # taught contrast in LRP76); load exactly those so the complete-case mask is
+    # taught contrast in LRPITT15/15b); load exactly those so the complete-case mask is
     # not driven by the eight standardised outcomes. Defaults to ITT_OUTCOMES.
     joint_outcomes = spec.extra.get("outcomes")
     if joint_outcomes is not None:
@@ -315,6 +562,8 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_age_gp=spec.extra.get("use_age_gp", False),
         partial_pool_age_gp=spec.extra.get("partial_pool_age_gp", True),
         use_residual_correlation=spec.extra.get("use_residual_correlation", False),
+        use_cross_baselines=spec.extra.get("use_cross_baselines", True),
+        use_age_linear=spec.extra.get("use_age_linear", False),
     )
     ctx.model = built.model
     ctx.model_vars = built.variables
@@ -334,7 +583,9 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_loo_row(ctx)
 
     section_header("Summary diagnostics")
-    _joint_vars = ["alpha", "tau", "kappa"]
+    _joint_vars = ["alpha", "tau", "gamma_own", "kappa"]
+    if spec.extra.get("use_age_linear", False):
+        _joint_vars.append("gamma_A")
     if spec.extra.get("use_residual_correlation", False):
         _joint_vars.append("sigma_outcome")
     _diag.summary_diagnostics(ctx, var_names=_joint_vars)
@@ -346,7 +597,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Treatment-effect summary")
     outcomes = list(ctx.trace.posterior["outcome"].values)
-    tau_df = _report.tau_summary_joint(ctx.trace, outcomes, hdi_prob=ctx.reporting.hdi)
+    tau_df = _report.tau_summary_joint(ctx.trace, outcomes, ci_prob=ctx.reporting.hdi)
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
     ctx.tables["tau_summary"] = tau_df
     print_table(
@@ -364,14 +615,14 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     meta_extra: dict = {"loo_elpd": float(ctx.loo.elpd)}
 
-    # Headline difference parameter for a two-outcome contrast (LRP76: taught vs
+    # Headline difference parameter for a two-outcome contrast (LRPITT15/15b: taught vs
     # not-taught). ``difference = (a, b)`` reports the posterior of tau[a]-tau[b].
     difference = spec.extra.get("difference")
     if difference is not None:
         pair = tuple(difference)
         section_header("Treatment-effect difference")
         diff_s = _report.tau_difference_summary(
-            ctx.trace, outcomes, pair, hdi_prob=ctx.reporting.hdi
+            ctx.trace, outcomes, pair, ci_prob=ctx.reporting.hdi
         )
         diff_df = pd.DataFrame([diff_s])
         diff_df.to_csv(os.path.join(ctx.output_dir, "tau_difference.csv"), index=False)
@@ -389,6 +640,112 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         meta_extra["tau_difference"] = diff_s
 
     _report.write_run_metadata(ctx, extra=meta_extra)
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# Waitlist-crossover / difference-in-differences pipeline (kind="did")
+# ---------------------------------------------------------------------------
+
+
+def _did_diag_vars(spec: ModelSpec) -> list[str]:
+    """Scalar coefficients to summarise for a crossover/DiD fit, given the spec."""
+    dose = bool(spec.extra.get("dose", False))
+    v = ["alpha", "beta_period", "beta_dose" if dose else "delta", "gamma_own", "kappa"]
+    if spec.extra.get("use_age", True):
+        v.append("gamma_A")
+    if spec.extra.get("use_child_re", True):
+        v.append("sigma_child")
+    return v
+
+
+def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    assert spec.kind == "did"
+    assert spec.outcome_symbol is not None
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    sym = spec.outcome_symbol
+    dose = bool(spec.extra.get("dose", False))
+    # Phase-stacked frame; load only this outcome so the complete-case mask does
+    # not drop rows for measures the model never uses. The dose variant also needs
+    # the per-period intervention-session count.
+    outcomes = tuple(spec.extra.get("outcomes", (sym,)))
+    covariates = ("attend",) if dose else ()
+    prepared = load_and_prepare(
+        phase_mode="all", outcomes=outcomes, covariates=covariates
+    )
+    ctx.prepared = prepared
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_did_model(
+        prepared,
+        outcome_symbol=sym,
+        periods=tuple(spec.extra.get("periods", (0, 1))),
+        use_child_re=spec.extra.get("use_child_re", True),
+        use_age=spec.extra.get("use_age", True),
+        dose=dose,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=_did_diag_vars(spec))
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Crossover / DiD treatment-effect summary")
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    did_s = _report.did_summary(
+        ctx.trace,
+        ci_prob=ctx.reporting.hdi,
+        n_trials=MEASURES[sym].n_trials,
+        dose=dose,
+    )
+    did_df = pd.DataFrame([did_s])
+    did_df.to_csv(os.path.join(ctx.output_dir, "did_summary.csv"), index=False)
+    ctx.tables["did_summary"] = did_df
+    print_table(
+        metrics_table(
+            [{"metric": k, "value": v} for k, v in did_s.items()],
+            title=(
+                f"crossover/DiD effect ({sym}) - {int(ctx.reporting.hdi * 100)}% CI "
+                "(equal-tailed); positive = intervention helps"
+            ),
+            columns=["metric", "value"],
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={"loo_elpd": float(ctx.loo.elpd), "did_summary": did_s, "dose": dose},
+    )
 
     section_header("Report")
     _copy_report_template(ctx)
@@ -491,7 +848,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Linear-moderation summary (gamma_int / gamma_mod), when a moderator is set.
     if moderator_symbol is not None:
         section_header("Interaction summary")
-        gi = _report.gamma_interaction_summary(ctx.trace, hdi_prob=ctx.reporting.hdi)
+        gi = _report.gamma_interaction_summary(ctx.trace, ci_prob=ctx.reporting.hdi)
         gi_df = pd.DataFrame([gi])
         gi_df.to_csv(
             os.path.join(ctx.output_dir, "interaction_summary.csv"), index=False
@@ -623,7 +980,7 @@ def _fit_t3_sensitivity(
     return _med.decompose(
         trace_t3,
         med_t3,
-        hdi_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.hdi,
     )
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
@@ -688,7 +1045,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     med_df = _med.decompose(
         ctx.trace,
         med_data,
-        hdi_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.hdi,
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
     ctx.tables["mediation_summary"] = med_df
@@ -927,7 +1284,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
 
     # 94% intervals (the brief's convention) rather than the project-wide 95%.
-    ctx = make_context(spec, config, hdi=0.94)
+    ctx = make_context(spec, config, ci_prob=0.94)
     hdi = ctx.reporting.hdi
 
     section_header("Prepare data")

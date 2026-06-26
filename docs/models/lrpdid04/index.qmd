@@ -1,0 +1,146 @@
+---
+title: "LRPDID04: Waitlist-crossover (DiD) ITT effect on taught expressive vocabulary, block 1 (b1extau) (TE)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+did_summary = pd.read_csv(_here / "did_summary.csv")
+```
+
+## Overview
+
+LRPDID04 is the **waitlist-crossover / difference-in-differences** analysis for
+taught expressive vocabulary, block 1 (b1extau) (`b1extau`) - a within-person replication of the randomised ITT effect
+estimated by LRPITT02. It stacks the two early periods (P1 = t1->t2, P2 = t2->t3)
+for both arms; each child is their **own control** (a child random intercept), and
+the immediate arm - treated in both periods - anchors the time/maturation trend.
+
+::: {.callout-note title="What this estimand is, and is not"}
+
+The waitlist arm is the **only untreated cell** (P1) and crosses to the
+intervention in P2. The treatment coefficient is a **difference-in-differences**:
+the waitlist's P1->P2 gain jump *over and above* the immediate arm's P1->P2 change.
+It is identified jointly by the period-1 between-arm contrast and the waitlist's own
+crossover, with stable child traits differenced out by the random intercept.
+
+It is **not** a second randomised experiment: the P2 contrast is not randomised, so
+identification leans on the parallel-trends assumption and the immediate arm as an
+(imperfect, also-treated) time anchor. Read it as **triangulation** of the RCT, not
+an independent replication; the two share the waitlist-P1 untreated cell.
+
+:::
+
+::: {.callout-note title="Sign convention and the ceiling"}
+
+Positive => the intervention helps. The Beta-Binomial **logit** link absorbs
+ceiling effects: an immediate-arm child near the top of a bounded test makes a
+small P2 gain *expected*, not a spurious negative time trend - which is exactly the
+failure mode of a raw-gain DiD on the count scale.
+
+:::
+
+## Model
+
+$$
+\eta_{i,p} = \alpha + \beta_{\text{period}}\,[p = \text{P2}]
+           + \delta\,\text{Treated}_{i,p}
+           + \gamma_{\text{own}}\,\text{logit}_*(TE_{\mathrm{pre},i,p}, N)
+           + \gamma_A\,A_{\text{std},i,p} + u_{\text{child},i},
+$$
+
+with Beta-Binomial likelihood on the period post-count, $N = 24$. ``Treated`` is
+1 when the child is receiving the intervention that period (immediate: both;
+waitlist: P2 only). Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=32%}
+![tau](prior_tau.svg){width=32%}
+![gamma_own](prior_gamma_own.svg){width=32%}
+![gamma_age](prior_gamma_age.svg){width=32%}
+![kappa](prior_kappa.svg){width=32%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Crossover / DiD treatment-effect summary
+
+```{python}
+# | echo: false
+did_summary
+```
+
+- `delta_*`: the difference-in-differences treatment effect on the logit scale
+  (mean, equal-tailed central interval at coverage `ci_prob`).
+- `delta_items_*`: the average marginal effect on the test-item scale (toggling
+  ``Treated`` 0 -> 1 across the fitted rows), comparable to the ITT `tau_*` items.
+- `beta_period_*`: the period (time/maturation) anchor from the immediate arm.
+- `prob_*_pos`: posterior probability the coefficient is positive.
+- For the **dose** variant the key coefficient is `beta_dose` (effect per 1 SD of
+  intervention sessions) and no items translation is produced.
+
+Compare `delta` (or `beta_dose`) against the randomised single-outcome effect in
+LRPITT02: agreement is the triangulation this model is for.
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

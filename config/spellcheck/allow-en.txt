@@ -205,8 +205,16 @@ Wagenmakers
 noconstruct
 waitlist
 LOSO
-LRPITT
 PYTHONPATH
 worktree
 worktrees
 hyperparams
+lrpitt
+lrpdid
+offfloor
+CACE
+dedup
+colwidths
+linkcolor
+mathrm
+operatorname
