@@ -95,6 +95,14 @@ from language_reading_predictors.statistical_models import (
     lrplf07,
     lrplf08,
     lrpal01,
+    lrpal01d,
+    lrpal02,
+    lrpal03,
+    lrpal04,
+    lrpal05,
+    lrpal06,
+    lrpal07,
+    lrpal08,
 )
 
 
@@ -215,8 +223,19 @@ MODELS = {
     # Aligns both arms by intervention onset (immediate t1->t3, wait-list t2->t4)
     # for one cross-sectional Beta-Binomial ANCOVA per child (no child RE). The
     # cohort contrast is NOT randomised (per-protocol, confounded by age-at-onset
-    # / timing) -- every coefficient is an association. 01 = W exemplar.
+    # / timing) -- every coefficient is an association. Outcome numbering matches
+    # the factor families (01=W, 02=R, 03=E, 04=L, 05=P off-floor, 06=B, 07=F,
+    # 08=T); 01d = W cumulative-session dose sensitivity variant (dose is a
+    # collider -- a sensitivity read, not a primary adjustment).
     "lrpal01": lrpal01,
+    "lrpal01d": lrpal01d,
+    "lrpal02": lrpal02,
+    "lrpal03": lrpal03,
+    "lrpal04": lrpal04,
+    "lrpal05": lrpal05,
+    "lrpal06": lrpal06,
+    "lrpal07": lrpal07,
+    "lrpal08": lrpal08,
 }
 
 

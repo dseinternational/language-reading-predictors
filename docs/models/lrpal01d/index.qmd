@@ -1,0 +1,143 @@
+---
+title: "LRPAL01d: Aligned-40-week dose sensitivity variant for word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+factor_summary = pd.read_csv(_here / "factor_summary.csv")
+cohort_marginal = pd.read_csv(_here / "cohort_marginal.csv")
+```
+
+## Overview
+
+LRPAL01d is the **dose sensitivity variant** of [LRPAL01](../lrpal01/) for word
+reading (`ewrswr`): the same onset-aligned per-protocol ANCOVA, with the
+cumulative sessions delivered over the aligned window added as a covariate
+(`gamma_dose`).
+
+::: {.callout-important title="Dose is a collider — sensitivity only"}
+
+Cumulative sessions are a **collider** on the DAG (a descendant of both group —
+the immediate arm accrues sessions earlier — and ability — more able / available
+children attend more), so conditioning on dose can open a back-door. This model
+is therefore a **sensitivity** read, **not** a primary adjustment set: interpret
+`gamma_dose` as a within-arm dose-response *association*, expected to be weak or
+inconclusive once onset baseline, age-at-onset and ability are in the model, and
+never as a causal dose effect. As in LRPAL01 the cohort term is non-randomised, so
+**every** coefficient here is an association.
+
+:::
+
+## Model
+
+$$
+W_{\text{post(aligned)}} \sim \operatorname{BetaBinomial}(n, \operatorname{expit}(\eta), \kappa),\quad
+\eta = \alpha + \beta_{\text{cohort}}\,\text{immediate}
+  + \gamma_{\text{own}}\operatorname{logit}_*(W_{\text{onset}})
+  + \gamma_A A_{\text{onset,std}} + \gamma_{\text{ability}}z(\text{blocks})
+  + \gamma_{\text{dose}}z(\text{sessions}).
+$$
+
+One row per child (no random intercept). Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Priors
+
+![alpha](prior_alpha.svg){width=24%}
+![tau (cohort)](prior_tau.svg){width=24%}
+![gamma_own](prior_gamma_own.svg){width=24%}
+![gamma_age](prior_gamma_age.svg){width=24%}
+
+## Prior-predictive check
+
+![Prior predictive](prior_predictive_check.png){.lightbox}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior-predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Findings
+
+### Factor summary (all associations)
+
+```{python}
+# | echo: false
+factor_summary
+```
+
+`gamma_dose` is the within-arm cumulative-session association (the sensitivity
+term of interest); every `role` is **association**. `mean`/`lo`/`hi` = posterior
+mean + equal-tailed 95% CrI; `prob_positive` = $P(\text{coef} > 0)$.
+
+### Cohort marginal (per-protocol, NOT randomised)
+
+```{python}
+# | echo: false
+cohort_marginal
+```
+
+The items-scale immediate-vs-wait-list difference at the aligned endpoints, with
+dose adjusted — a per-protocol association, not the randomised treatment effect.
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
