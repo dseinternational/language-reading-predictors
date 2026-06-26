@@ -127,6 +127,17 @@ cohort_marginal
 The items-scale immediate-vs-wait-list difference at the aligned endpoints, with
 dose adjusted — a per-protocol association, not the randomised treatment effect.
 
+**Reading these tables.** Per the project's reporting conventions (`METHODS.md`,
+"Interpret"), lead with the **interval**, not the point estimate, and read
+`prob_positive` / `prob_trt_pos` as evidence of **direction, not magnitude**. At this
+design's small per-arm sample (~26–28) a point estimate is on average
+magnitude-inflated (a Type-M / winner's-curse effect), so the posterior mean is not a
+number to quote on its own. A ROPE-anchored **magnitude** read (`P(|effect| ≥ δ)`
+against a minimally-important difference, as now reported for the randomised ITT
+suite) is **deliberately deferred** for this per-protocol family — applying a
+"meaningful benefit" ROPE to a confounded association would mis-frame it; see
+`notes/202606261343-lrpal-aligned-design.md`.
+
 ## LOO-PSIS
 
 ```{python}

@@ -99,6 +99,44 @@ risk difference. Same rule as the ITT suite and the gain/level factor families.
   and LRPDID (within-person) effects with a per-protocol, dose-aligned view.
 - **Dose is never a primary adjustment** — collider; sensitivity variant only.
 
+## Reporting (ROPE conventions, and a deliberate deferral)
+
+The ROPE-anchored evidence reporting adopted for the suite
+(`notes/202606261304-evidence-strength-and-rope-reporting.md`) prefers the
+**median**, **leads with the interval** rather than the point, separates
+**direction** (`P(coef > 0)`) from **magnitude** (`P(|effect| ≥ δ)` against a
+minimally-important difference δ / region of practical equivalence), and flags the
+**Type-M / winner's-curse** inflation of point estimates at small samples. The LRPAL
+reports adopt the **prose** side of this in full: direction is labelled as direction,
+the interval leads, and the Type-M caveat is stated — per-arm *n* is only ~26–28, so
+the warning bites harder here than in the pooled suite.
+
+The ROPE/δ **magnitude card** itself (`reporting.rope_summary` + `rope_summary.png`,
+emitted by `fit_itt`) is **deliberately not wired into `fit_aligned`**, for three
+reasons:
+
+1. **It would mis-frame a confounded association as a treatment benefit.**
+   `rope_summary` reports `P(benefit ≥ δ)` for the randomised ITT effect; LRPAL's
+   `beta_cohort` is a per-protocol cohort association (Decision 1), not a treatment
+   effect, so a "probability of a *meaningful benefit*" card on it would contradict
+   the model's own causal stance.
+2. **The plumbing is not there yet.** `rope_summary` is hard-wired to the ITT
+   `tau`/`tau_i`/`eta` parameterisation; the aligned term is `beta_cohort`. The
+   term-parameterised average-marginal-effect core (the `_itt_ame_draws` ↔
+   `treatment_marginal_effect` fold flagged for merge in the ROPE note) is the
+   prerequisite, and that is itself a post-merge follow-up.
+3. **Half of LRPAL's outcomes have no agreed δ.** `measures.ROPE_DELTA` covers
+   W/R/E/L/B but **deliberately omits F and T** (a lookup raises), and P (`lrpal05`)
+   has only a placeholder `ROPE_DELTA_PROB = 0.10` (an off-floor risk-difference δ) —
+   both pending the education lead.
+
+Revisit when the ITT ROPE block is rolled out beyond the `lrpitt07` exemplar. If a
+magnitude read is added to LRPAL then, it must be framed as the size of an
+**association**, against an association-appropriate δ — never as a treatment benefit.
+Separately, the tabulated point in `factor_summary` is still the posterior **mean**
+(the shared helper has not been converted to median-first); that conversion is a
+suite-wide change, out of scope here.
+
 ## Validation (dev config)
 
 - **`lrpal01` (W):** `beta_cohort` = +0.19 (items ≈ +1.9 words, CrI −1.2..+5.0,

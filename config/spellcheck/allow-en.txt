@@ -153,6 +153,7 @@ kwargs
 looic
 nonparametric
 nonzero
+parameterisation
 savefig
 colorlinks
 documentclass
