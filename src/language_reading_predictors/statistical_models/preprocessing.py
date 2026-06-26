@@ -84,11 +84,11 @@ class PreparedData:
     """Phase index (0 = t1->t2, 1 = t2->t3, 2 = t3->t4). shape (n_obs,)."""
     G: np.ndarray
     """Group indicator. shape (n_obs,). Dataset group 1 (*Initial intervention*,
-    the immediate arm) maps to ``0`` and group 2 (*Wait for intervention*, the
-    waitlist control) maps to ``1`` (see :func:`load_and_prepare`). So a model's
-    group coefficient is on the **waitlist** indicator: e.g. an ITT ``tau < 0``
+    the immediate arm) maps to ``1`` and group 2 (*Wait for intervention*, the
+    waitlist control) maps to ``0`` (see :func:`load_and_prepare`). So a model's
+    group coefficient is on the **intervention** indicator: e.g. an ITT ``tau > 0``
     means the immediate-intervention arm scores higher, and ``P(tau > 0)`` is
-    ``P(waitlist higher)``, not ``P(treatment helps)``."""
+    ``P(treatment helps)``."""
     A_months: np.ndarray
     """Age in months at the pre-timepoint of each phase. shape (n_obs,)."""
     A_std: np.ndarray
@@ -243,10 +243,12 @@ def load_and_prepare(
     subject_ids = merged[V.SUBJECT_ID].to_numpy()
     _, child_idx = np.unique(subject_ids, return_inverse=True)
 
-    # Group: dataset uses 1 = immediate ("Initial intervention"), 2 = waitlist
-    # control ("Wait for intervention"); map to 0/1, so G == 1 is the waitlist
-    # control arm (see the ``G`` field docstring for the tau-sign consequence).
-    G = (merged[V.GROUP].to_numpy(dtype=int) - 1).astype(np.int64)
+    # Group: dataset uses 1 = immediate-intervention, 2 = wait-list control.
+    # Recode so G = 1 is the intervention arm and G = 0 the control arm. This
+    # gives the "positive = intervention benefit" sign convention for every
+    # coefficient on G (tau, tau_i/tau_k, beta_G, b_G, b_GM, a_G). See the
+    # "Sign convention" section of METHODS.md.
+    G = (2 - merged[V.GROUP].to_numpy(dtype=int)).astype(np.int64)
     if not set(np.unique(G)).issubset({0, 1}):
         raise ValueError(
             f"Group codes outside {{1, 2}} after prep: found {np.unique(merged[V.GROUP])}"

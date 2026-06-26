@@ -83,7 +83,7 @@ with the same Beta-Binomial word-reading likelihood,
 $W_{\text{post},i} \sim \text{BetaBinomial}(N_W, \mu_i \kappa, (1-\mu_i)\kappa)$ and
 $\mu_i = \sigma(\eta_i)$. No SES coefficients are present; the SES columns enter
 *only* through the complete-case restriction. Sign convention as for the other ITT
-models: **negative $\tau$ = intervention benefit**.
+models: **positive $\tau$ = intervention benefit**.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
