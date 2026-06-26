@@ -1,0 +1,148 @@
+---
+title: "LRPLF01: Level factors for word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+factor_summary = pd.read_csv(_here / "factor_summary.csv")
+```
+
+## Overview
+
+LRPLF01 is a **level-factors** model for word reading (`ewrswr`): what is associated
+with the word-reading score *level* at each of the four timepoints (t1–t4),
+modelled on the logit scale with a Beta-Binomial likelihood and a child random
+intercept. Unlike the gain model it is **not autoregressive** — there is no own
+baseline; per-timepoint intercepts absorb the maturation trend.
+
+::: {.callout-important title="Causal labelling + the level-model crossover caveat"}
+
+Under the locked study DAG every non-randomised coefficient is an **adjusted
+association** confounded by latent general ability (the child random intercept
+repairs the time-invariant part) — "associated with", never "drives". **Crucially,
+the group effect is modelled as `group × time` (a per-timepoint group coefficient
+`b_grp_time[t]`, read as trajectory divergence) because after t2 the waitlist
+crosses over: the group difference across the four timepoints is *not* a clean ITT
+contrast.** The clean randomised contrast lives **only at t2** (`b_grp_time[1]`,
+labelled *causal* in the table below); the t3/t4 group coefficients are
+post-crossover and are cohort/timing associations, not treatment effects. SES is
+excluded (non-DAG / redundant).
+
+:::
+
+**DAG factor set:** group $\times$ time · age (per timepoint) · cognitive ability
+(block design) $\times$ time · group $\times$ ability · child random intercept.
+
+## Model
+
+$$
+\operatorname{logit}\mu_{i,t} = \alpha + \alpha_{\text{time}[t]}
+  + b_{\text{grp}[t]}\,\text{group}_i
+  + \gamma_A A_{\text{std},t}
+  + g_{\text{ability}[t]}\,z(\text{blocks})
+  + \gamma_{\text{grp\_ability}}\,\text{group}_i\,z(\text{blocks})
+  + u_{\text{child}[i]},
+$$
+
+with $W_t \sim \operatorname{BetaBinomial}(N, \mu\kappa, (1-\mu)\kappa)$, $N = 79$.
+The per-timepoint group ($b_{\text{grp}[t]}$) and ability ($g_{\text{ability}[t]}$)
+coefficients are the `group × time` and `ability × time` interactions; $t=1$ is t2,
+the clean randomised contrast. Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Priors
+
+![alpha](prior_alpha.svg){width=24%}
+![tau (group)](prior_tau.svg){width=24%}
+![gamma_age](prior_gamma_age.svg){width=24%}
+![gamma_cross (ability / interactions)](prior_gamma_cross.svg){width=24%}
+![kappa](prior_kappa.svg){width=24%}
+
+## Prior-predictive check
+
+![Prior predictive](prior_predictive_check.png){.lightbox}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior-predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Findings
+
+### Factor summary
+
+```{python}
+# | echo: false
+factor_summary
+```
+
+- `b_grp_time[t]` is the group effect at timepoint $t$ (0 = t1 … 3 = t4). Only
+  `b_grp_time[1]` (t2) is the **clean randomised contrast** (labelled *causal*); the
+  others are post-crossover cohort/timing associations.
+- `g_ability_time[t]` (reported as `gamma_ability_time[t]`) is the ability
+  association at each timepoint; `gamma_grp_ability` is the group $\times$ ability
+  cross term. All non-t2 terms are adjusted associations under the DAG.
+- `mean` / `lo` / `hi` = posterior mean and equal-tailed 95% credible interval
+  (logit scale); `prob_positive` = $P(\text{coef} > 0)$.
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

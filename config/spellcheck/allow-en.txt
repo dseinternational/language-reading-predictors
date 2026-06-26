@@ -95,6 +95,8 @@ lightbox
 lightgbm
 logit
 LRPITT
+LRPGF
+LRPLF
 medae
 mumedupost
 mumocc
@@ -204,6 +206,8 @@ worktrees
 hyperparams
 lrpitt
 lrpdid
+lrpgf
+lrplf
 offfloor
 CACE
 dedup
