@@ -18,7 +18,7 @@ Models are refit (``--draws`` posterior draws; a quick dev-style sample by
 default) rather than read from disk, so the script is self-contained. It uses
 :func:`reporting.rope_summary` and the adopted minimally-important differences
 :data:`measures.ROPE_DELTA`. Figures are written to
-``output/statistical_models/design_analysis/`` (git-ignored); ``--refresh-note``
+``output/statistical_models/models/design_analysis/`` (git-ignored); ``--refresh-note``
 also copies them into ``notes/assets/`` to update the committed note.
 
 Usage::
