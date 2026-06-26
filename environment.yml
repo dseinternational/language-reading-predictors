@@ -11,7 +11,7 @@ dependencies:
   - graphviz>=14.1.2
   - lightgbm>=4.6.0
   - numba>=0.65.1
-  - numpy>=2.5.0
+  - numpy>=2.4.3
   - nutpie>=0.16.10
   - optuna>=4.9.0
   - optuna-integration[lightgbm,shap,scikit-learn,xgboost]
@@ -38,7 +38,7 @@ dependencies:
       - preliz>=0.27.0
       - pytest>=9.1.1
       - rich>=15.0.0
-      - ruff>=0.15.18
+      - ruff>=0.15.20
       - scipy-stubs
       - scipy>=1.18.0
       - seaborn>=0.13.2

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Shared sampling / diagnostics helpers for LRP52-LRP58.
+"""Shared sampling / diagnostics helpers for the statistical models.
 
 Each LRP model runs the same diagnostic suite:
 

@@ -6,7 +6,7 @@ Hilbert-space Gaussian-process (HSGP) helpers.
 
 Two constructors are exposed:
 
-- :func:`build_hsgp_1d` — 1D HSGP with default amplitude ~HalfNormal(1.0) and
+- :func:`build_hsgp_1d` — 1D HSGP with default amplitude ~HalfNormal(0.3) and
   InverseGamma(3, 1) lengthscale. Used for age main effects and own-baseline
   main effects.
 - :func:`build_tau_modifier` — 1D HSGP with tighter amplitude ~HalfNormal(0.3).
@@ -76,7 +76,7 @@ def build_hsgp_1d(
         HSGP basis size and boundary factor. If ``ls_range`` is supplied they
         are recomputed via :func:`pm.gp.hsgp_approx.approx_hsgp_hyperparams`.
     amplitude_prior
-        preliz distribution for eta. Defaults to ``HalfNormal(1.0)``.
+        preliz distribution for eta. Defaults to ``HalfNormal(0.3)`` (``eta_main_prior``).
     lengthscale_prior
         preliz distribution for ell. Defaults to ``InverseGamma(3, 1)``.
     ls_range

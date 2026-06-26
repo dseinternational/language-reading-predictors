@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Preprocessing helpers shared across LRP52-LRP58.
+Preprocessing helpers shared across the statistical models.
 
 - ``logit_safe`` applies a Haldane-Anscombe corrected logit to a count/total pair.
 - ``standardise`` z-scores a vector and returns the scaler for inverse transforms.
@@ -12,7 +12,7 @@ Preprocessing helpers shared across LRP52-LRP58.
 Conventions
 -----------
 - RCT (randomised) phase is ``time in {1, 2}`` — that is, the pre-score is
-  ``time == 1`` and the post-score is ``time == 2``. LRP52-LRP55 use this
+  ``time == 1`` and the post-score is ``time == 2``. The ITT models use this
   phase only.
 - Mechanism models (LRP56-LRP58) stack all three phase transitions
   ``(t1 -> t2, t2 -> t3, t3 -> t4)`` with a phase indicator.
@@ -84,11 +84,11 @@ class PreparedData:
     """Phase index (0 = t1->t2, 1 = t2->t3, 2 = t3->t4). shape (n_obs,)."""
     G: np.ndarray
     """Group indicator. shape (n_obs,). Dataset group 1 (*Initial intervention*,
-    the immediate arm) maps to ``0`` and group 2 (*Wait for intervention*, the
-    waitlist control) maps to ``1`` (see :func:`load_and_prepare`). So a model's
-    group coefficient is on the **waitlist** indicator: e.g. an ITT ``tau < 0``
+    the immediate arm) maps to ``1`` and group 2 (*Wait for intervention*, the
+    waitlist control) maps to ``0`` (see :func:`load_and_prepare`). So a model's
+    group coefficient is on the **intervention** indicator: e.g. an ITT ``tau > 0``
     means the immediate-intervention arm scores higher, and ``P(tau > 0)`` is
-    ``P(waitlist higher)``, not ``P(treatment helps)``."""
+    ``P(treatment helps)``."""
     A_months: np.ndarray
     """Age in months at the pre-timepoint of each phase. shape (n_obs,)."""
     A_std: np.ndarray
@@ -135,6 +135,7 @@ def load_and_prepare(
     drop_missing_pre: bool = True,
     restrict_complete: tuple[str, ...] = (),
     post_time: int = 4,
+    pre_required: tuple[str, ...] | None = None,
 ) -> PreparedData:
     """
     Load ``rli_data_long.csv`` and build arrays for the model factories.
@@ -159,15 +160,26 @@ def load_and_prepare(
         linear covariates. Rows with missing requested covariates are dropped
         when ``drop_missing_pre`` is true.
     drop_missing_pre
-        If True (default), rows with any missing pre-score or missing group
-        are dropped and a warning is printed with the dropped-row count.
+        If True (default), rows with any missing pre-score (for the symbols in
+        ``pre_required``) or missing group are dropped and a warning is printed
+        with the dropped-row count.
+    pre_required
+        Symbols whose pre-score must be non-missing for a row to be kept. ``None``
+        (default) requires every symbol in ``outcomes`` (the historical
+        behaviour). Pass a subset — possibly ``()`` — to exempt an outcome whose
+        baseline the model never uses, so its missing pre-scores do not silently
+        drop rows. Used by the floored / post-only outcomes (e.g. nonword ``N``,
+        whose age-only LRPITT model carries no own baseline): load with
+        ``outcomes=("N",), pre_required=()`` so its missing ``nonword`` t1
+        values are kept, while the GROUP/AGE and post-presence checks still
+        apply. Every symbol listed must also be in ``outcomes``.
     restrict_complete
         Columns that must be non-missing for a row to be kept (they join the
         complete-case mask exactly like ``covariates``), but which are **not**
         added to ``prepared.covariates`` and so receive no model coefficient.
         Use this to fit a model on the complete-case subset of some covariates
         *without* adjusting for them — e.g. a matched unadjusted comparator to a
-        covariate-adjusted run (LRP60a vs LRP60).
+        covariate-adjusted run (LRPITT14 vs LRPITT13).
     post_time
         The post wave for ``phase_mode="span"`` (default 4 = last wave). Ignored
         for the other modes.
@@ -220,7 +232,17 @@ def load_and_prepare(
 
     merged = pd.concat(per_phase_frames, axis=0, ignore_index=True)
 
-    required_pre = [f"{MEASURES[s].column}_pre" for s in outcomes]
+    if pre_required is None:
+        pre_required_syms: tuple[str, ...] = tuple(outcomes)
+    else:
+        pre_required_syms = tuple(pre_required)
+        unknown = [s for s in pre_required_syms if s not in outcomes]
+        if unknown:
+            raise ValueError(
+                f"pre_required symbols must be a subset of outcomes; "
+                f"{unknown} not in {outcomes!r}"
+            )
+    required_pre = [f"{MEASURES[s].column}_pre" for s in pre_required_syms]
     required_post = [f"{MEASURES[s].column}_post" for s in outcomes]
 
     n_before = len(merged)
@@ -243,10 +265,12 @@ def load_and_prepare(
     subject_ids = merged[V.SUBJECT_ID].to_numpy()
     _, child_idx = np.unique(subject_ids, return_inverse=True)
 
-    # Group: dataset uses 1 = immediate ("Initial intervention"), 2 = waitlist
-    # control ("Wait for intervention"); map to 0/1, so G == 1 is the waitlist
-    # control arm (see the ``G`` field docstring for the tau-sign consequence).
-    G = (merged[V.GROUP].to_numpy(dtype=int) - 1).astype(np.int64)
+    # Group: dataset uses 1 = immediate-intervention, 2 = wait-list control.
+    # Recode so G = 1 is the intervention arm and G = 0 the control arm. This
+    # gives the "positive = intervention benefit" sign convention for every
+    # coefficient on G (tau, tau_i/tau_k, beta_G, b_G, b_GM, a_G). See the
+    # "Sign convention" section of METHODS.md.
+    G = (2 - merged[V.GROUP].to_numpy(dtype=int)).astype(np.int64)
     if not set(np.unique(G)).issubset({0, 1}):
         raise ValueError(
             f"Group codes outside {{1, 2}} after prep: found {np.unique(merged[V.GROUP])}"

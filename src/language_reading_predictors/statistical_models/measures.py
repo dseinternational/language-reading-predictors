@@ -4,7 +4,7 @@
 """
 Canonical definitions of the bounded-count measures used in the statistical
 models (the eight standardised ITT outcomes plus the taught-vocabulary block
-family targeted by LRP74-LRP76).
+family modelled by the LRPITT taught/not-taught models, LRPITT01-04/15/15b).
 
 Each measure has a short symbol (W, R, E, ...) used throughout the modelling
 code, a column name in ``rli_data_long.csv``, and a test maximum ``n_trials``
@@ -69,7 +69,7 @@ MEASURES: dict[str, Measure] = {
     # words and a not-taught comparison set. Block 1 is taught in phase 1, so its
     # baseline is t1 and its randomised post-score is t2 - the ITT window. (Block
     # 2 is introduced in phase 2 and has no t1 baseline, so it is not modelled
-    # here.) See ``docs/models/lrp74`` and Burgoyne et al. (2012), Table 3.
+    # here.) See ``docs/models/lrpitt02`` and Burgoyne et al. (2012), Table 3.
     #
     # Taught tests: "Six words of each type (nouns, adverbs, adjectives,
     # prepositions)" = 24 items; the paper tabulates the maximum as (24).
@@ -99,17 +99,35 @@ MEASURES: dict[str, Measure] = {
 
 
 ITT_OUTCOMES: tuple[str, ...] = ("W", "R", "E", "L", "P", "B", "F", "T")
-"""Eight outcomes used in LRP52-LRP55 (all bounded counts with pre- and post- values).
+"""The eight standardised ITT outcomes (all bounded counts with pre- and post- values).
 
-Deliberately excludes the taught-vocabulary block measures (``TE``/``TR``/
-``UE``/``UR``): they are a separate intervention-fidelity family targeted by
-LRP74-LRP76 and are passed explicitly via ``ModelSpec.extra["outcomes"]`` so the
-eight-outcome joint model (LRP55) stays stable.
+Used as the cross-baseline default in :func:`factories.build_itt_model` and the
+default outcome set of :func:`factories.build_joint_model`. Deliberately excludes
+the taught-vocabulary block measures (``TE``/``TR``/``UE``/``UR``) and nonword
+(``N``); the LRPITT suite passes its own outcome set explicitly via
+``ModelSpec.extra["outcomes"]`` (see :data:`LRPITT_OUTCOMES`).
 """
 
 
 TAUGHT_BLOCK1_OUTCOMES: tuple[str, ...] = ("TE", "TR", "UE", "UR")
 """Block-1 taught-vocabulary family: taught/not-taught x expressive/receptive."""
+
+
+LRPITT_OUTCOMES: tuple[str, ...] = (
+    "TR", "TE", "UR", "UE", "R", "E", "L", "B", "P", "W", "N",
+)
+"""The eleven RCT-phase outcomes of the uniform DAG-faithful ITT suite (#119),
+in LRPITT01-LRPITT11 order: taught/not-taught receptive & expressive vocabulary,
+standardised receptive & expressive vocabulary, letter sounds, blending,
+phonetic spelling, word reading, and nonword reading.
+
+This is a *reference ordering* for the suite (the forest plot, the joint model's
+outcome set, docs); each single-outcome model still loads only its own symbol
+(plus any cross/moderator symbol) via ``ModelSpec.extra["outcomes"]`` so the
+shared complete-case mask never drops rows for measures the model ignores. In
+particular ``N`` (nonword) is post-only and floored, so it must not be co-loaded
+with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
+"""
 
 
 def unconfirmed_ceilings() -> list[str]:
