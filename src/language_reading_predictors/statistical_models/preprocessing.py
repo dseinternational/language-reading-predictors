@@ -434,3 +434,143 @@ def load_and_prepare_lagged_outcome(
     post_counts = dict(base.post_counts)
     post_counts[outcome_symbol] = new_post
     return replace(base, post_counts=post_counts)
+
+
+def load_and_prepare_aligned(
+    *,
+    path: str | Path | None = None,
+    outcomes: tuple[str, ...] = ITT_OUTCOMES,
+    ability_covariate: str | None = None,
+    include_dose: bool = False,
+) -> PreparedData:
+    """Per-protocol onset-aligned single-gain frame: one row per child.
+
+    Aligns both arms by intervention onset across ~two periods (~the 40-week RLI
+    program): the immediate arm (group 1) onsets at t1 -> aligned window t1->t3;
+    the wait-list arm (group 2) onsets at t2 (post-crossover) -> aligned window
+    t2->t4. Each child contributes ONE row -- ``pre`` = score at onset, ``post``
+    = score at onset + two periods, ``A`` = age-at-onset, ``G`` = cohort
+    (immediate vs wait-list) -- with cognitive ability (block design, recorded at
+    t1) and, optionally, the cumulative sessions delivered over the window as a
+    dose covariate.
+
+    The cohort contrast is **not randomised**: it compares the two arms at their
+    own aligned endpoints, so it is confounded by age-at-onset and cohort/timing
+    (see the LRPAL design note). ``phase`` is all-zero and ``n_phases == 1``; with
+    one row per child the aligned factory uses no child random intercept.
+
+    Ability (block design) is a t1-only baseline, so it is merged from t1 for
+    *both* arms -- not read from the wait-list arm's t2 onset row.
+    """
+    outcomes = tuple(outcomes)
+    csv_path = Path(path) if path is not None else _default_data_path()
+    df = pd.read_csv(csv_path)
+
+    windows = {1: (1, 3), 2: (2, 4)}  # group -> (onset pre_t, aligned post_t)
+    out_cols = [MEASURES[s].column for s in outcomes]
+
+    rows: list[dict] = []
+    for sid, sd in df.groupby(V.SUBJECT_ID):
+        grp = int(sd[V.GROUP].iloc[0])
+        if grp not in windows:
+            continue
+        pre_t, post_t = windows[grp]
+        pre = sd.loc[sd[V.TIME] == pre_t]
+        post = sd.loc[sd[V.TIME] == post_t]
+        if pre.empty or post.empty:
+            continue
+        pre_r, post_r = pre.iloc[0], post.iloc[0]
+        row = {
+            V.SUBJECT_ID: sid,
+            V.GROUP: grp,
+            V.AGE: pre_r[V.AGE],  # age-at-onset
+            "phase": 0,
+        }
+        for col in out_cols:
+            row[f"{col}_pre"] = pre_r.get(col, np.nan)
+            row[f"{col}_post"] = post_r.get(col, np.nan)
+        if include_dose:
+            row["dose"] = post_r.get(V.ATTEND_CUMUL, np.nan)
+        rows.append(row)
+    merged = pd.DataFrame(rows)
+
+    # Ability (block design) is t1-only -> merge from t1 for every child.
+    if ability_covariate is not None:
+        ability_t1 = (
+            df.loc[df[V.TIME] == 1, [V.SUBJECT_ID, ability_covariate]]
+            .drop_duplicates(V.SUBJECT_ID)
+        )
+        merged = merged.merge(ability_t1, on=V.SUBJECT_ID, how="left")
+
+    required = [V.GROUP, V.AGE]
+    if ability_covariate is not None:
+        required.append(ability_covariate)
+    required_post = [f"{c}_post" for c in out_cols]
+    n_before = len(merged)
+    mask = merged[required].notna().all(axis=1) & merged[required_post].notna().any(axis=1)
+    merged = merged[mask].reset_index(drop=True)
+    dropped = n_before - len(merged)
+    if dropped > 0:
+        warnings.warn(
+            f"load_and_prepare_aligned: dropped {dropped} of {n_before} children "
+            "with missing onset/aligned score, ability, or group.",
+            stacklevel=2,
+        )
+
+    subject_ids = merged[V.SUBJECT_ID].to_numpy()
+    _, child_idx = np.unique(subject_ids, return_inverse=True)
+    G = (2 - merged[V.GROUP].to_numpy(dtype=int)).astype(np.int64)
+    A_months = merged[V.AGE].to_numpy(dtype=float)
+    A_std, age_scaler = standardise(A_months)
+
+    pre_logit: dict[str, np.ndarray] = {}
+    post_counts: dict[str, np.ndarray] = {}
+    n_trials_dict: dict[str, int] = {}
+    column_map: dict[str, str] = {}
+    for s in outcomes:
+        m = MEASURES[s]
+        post_counts[s] = merged[f"{m.column}_post"].to_numpy()
+        pre_arr = merged[f"{m.column}_pre"].to_numpy(dtype=float)
+        for which, arr in (("post", post_counts[s].astype(float)), ("pre", pre_arr)):
+            finite = arr[np.isfinite(arr)]
+            if finite.size and finite.max() > m.n_trials:
+                raise ValueError(
+                    f"Measure {s!r} ({m.column}_{which}) has value {finite.max():g} "
+                    f"above its n_trials ceiling {m.n_trials}; fix measures.py or data."
+                )
+        pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
+        n_trials_dict[s] = m.n_trials
+        column_map[s] = m.column
+
+    covariate_values: dict[str, np.ndarray] = {}
+    covariate_scalers: dict[str, Standardiser] = {}
+    cov_cols = []
+    if ability_covariate is not None:
+        cov_cols.append(ability_covariate)
+    if include_dose:
+        cov_cols.append("dose")
+    for c in cov_cols:
+        z, scaler = standardise(merged[c])
+        covariate_values[c] = z
+        covariate_scalers[c] = scaler
+
+    return PreparedData(
+        subject_ids=subject_ids,
+        child_idx=child_idx.astype(np.int64),
+        phase=merged["phase"].to_numpy(dtype=np.int64),
+        G=G,
+        A_months=A_months,
+        A_std=A_std,
+        age_scaler=age_scaler,
+        pre_logit=pre_logit,
+        post_counts=post_counts,
+        n_trials=n_trials_dict,
+        covariates=covariate_values,
+        covariate_scalers=covariate_scalers,
+        n_obs=int(len(merged)),
+        n_children=int(len(np.unique(child_idx))),
+        n_phases=1,
+        dropped_rows=dropped,
+        phase_mode="aligned",
+        column_map=column_map,
+    )

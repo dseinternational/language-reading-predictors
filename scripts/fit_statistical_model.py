@@ -94,6 +94,7 @@ from language_reading_predictors.statistical_models import (
     lrplf06,
     lrplf07,
     lrplf08,
+    lrpal01,
 )
 
 
@@ -210,6 +211,12 @@ MODELS = {
     "lrplf06": lrplf06,
     "lrplf07": lrplf07,
     "lrplf08": lrplf08,
+    # LRPAL: aligned-40-week per-protocol single-gain family (new 'aligned' kind).
+    # Aligns both arms by intervention onset (immediate t1->t3, wait-list t2->t4)
+    # for one cross-sectional Beta-Binomial ANCOVA per child (no child RE). The
+    # cohort contrast is NOT randomised (per-protocol, confounded by age-at-onset
+    # / timing) -- every coefficient is an association. 01 = W exemplar.
+    "lrpal01": lrpal01,
 }
 
 
