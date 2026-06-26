@@ -209,7 +209,7 @@ def rope_summary(
     items = ame_prob * float(n_trials)
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     pd_ = float(np.mean(tau_draws > 0))
-    p_benefit = float(np.mean(items > delta))
+    p_benefit = float(np.mean(items >= delta))
     return {
         "tau_logit_median": float(np.median(tau_draws)),
         "tau_logit_lo50": float(np.quantile(tau_draws, 0.25)),
@@ -224,8 +224,8 @@ def rope_summary(
         "delta_items": float(delta),
         "pd": pd_,
         "prob_benefit_ge_delta": p_benefit,
-        "prob_in_rope": float(np.mean(np.abs(items) < delta)),
-        "prob_harm_ge_delta": float(np.mean(items < -delta)),
+        "prob_in_rope": float(np.mean(np.abs(items) <= delta)),
+        "prob_harm_ge_delta": float(np.mean(items <= -delta)),
         "direction_label": evidence_label(pd_),
         "benefit_label": evidence_label(p_benefit),
     }

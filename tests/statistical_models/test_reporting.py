@@ -111,9 +111,9 @@ def test_rope_summary_matches_reference():
 
     assert out["items_median"] == pytest.approx(float(np.median(items)))
     assert out["pd"] == pytest.approx(float(np.mean(tau_flat > 0)))
-    assert out["prob_benefit_ge_delta"] == pytest.approx(float(np.mean(items > delta)))
-    assert out["prob_in_rope"] == pytest.approx(float(np.mean(np.abs(items) < delta)))
-    assert out["prob_harm_ge_delta"] == pytest.approx(float(np.mean(items < -delta)))
+    assert out["prob_benefit_ge_delta"] == pytest.approx(float(np.mean(items >= delta)))
+    assert out["prob_in_rope"] == pytest.approx(float(np.mean(np.abs(items) <= delta)))
+    assert out["prob_harm_ge_delta"] == pytest.approx(float(np.mean(items <= -delta)))
     assert out["delta_items"] == delta
     # Nested intervals are ordered.
     assert (
