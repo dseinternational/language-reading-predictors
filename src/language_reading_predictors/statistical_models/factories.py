@@ -1358,6 +1358,139 @@ def _build_route_composite_model(
 
 
 # ---------------------------------------------------------------------------
+# LRP65: between-child adjusted model (T1 baselines -> word-reading gain)
+# ---------------------------------------------------------------------------
+
+
+def _t1_language_composite(
+    prepared: PreparedData, symbols: Iterable[str]
+) -> np.ndarray:
+    """Equal-weight standardised-logit language composite at T1.
+
+    Each symbol's Haldane-logit baseline is standardised; the equal-weight mean
+    is then standardised again so the composite is a unit-SD predictor. The
+    pooled-framing analogue is LRP62's ``_build_route_composite``; that helper
+    standardises on the *post* distribution and carries a paired baseline, which
+    the T1-only between-child design does not need.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        standardise,
+    )
+
+    cols = []
+    for s in symbols:
+        if s not in prepared.pre_logit:
+            raise KeyError(f"Language-composite symbol {s!r} not in prepared data")
+        z, _ = standardise(prepared.pre_logit[s])
+        cols.append(z)
+    comp = np.mean(np.stack(cols, axis=1), axis=1)
+    z_comp, _ = standardise(comp)
+    return z_comp
+
+
+def _resolve_adjusted_predictor(
+    prepared: PreparedData, key: str, language_symbols: tuple[str, ...]
+) -> tuple[str, np.ndarray, str]:
+    """Map an LRP65 predictor key to ``(coef_name, standardised_vector, label)``.
+
+    Keys: a measure symbol (``"L"``, ``"B"``) -> standardised T1 logit;
+    ``"lang"`` -> the language composite; ``"age"`` -> the standardised T1 age;
+    a covariate column already on ``prepared.covariates`` (``"blocks"``,
+    ``"behav"``, ``"mumedupost16"``) -> that standardised covariate. Every key
+    maps to coefficient ``beta_<key>``.
+    """
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.preprocessing import (
+        standardise,
+    )
+
+    coef = f"beta_{key}"
+    if key == "lang":
+        return coef, _t1_language_composite(prepared, language_symbols), (
+            "Language composite (" + "+".join(language_symbols) + ", T1)"
+        )
+    if key == "age":
+        return coef, np.asarray(prepared.A_std, dtype=float), "Age (T1)"
+    if key in prepared.covariates:
+        return coef, np.asarray(prepared.covariates[key], dtype=float), f"{key} (T1)"
+    if key in prepared.pre_logit:
+        z, _ = standardise(prepared.pre_logit[key])
+        label = MEASURES[key].label if key in MEASURES else key
+        return coef, z, f"{label} (T1)"
+    raise KeyError(f"Unknown LRP65 predictor key {key!r}")
+
+
+def build_adjusted_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    predictors: Iterable[str] = ("L", "lang", "B", "age", "blocks", "behav"),
+    language_composite_symbols: Iterable[str] = ("R", "E", "F"),
+    predictor_slope_sigma: float = 0.5,
+) -> BuiltModel:
+    """Between-child adjusted model: standardised T1 baselines -> word-reading gain.
+
+    One row per child (``prepared.phase_mode == "span"``). The outcome post-score
+    (``outcome_symbol`` at the span's later wave) is conditioned on its own T1
+    baseline via ``gamma_own`` - the gain framing shared with the mechanism
+    models. Each predictor enters as a single **standardised** linear term with a
+    fixed weakly-informative ``Normal(0, predictor_slope_sigma)`` slope. There is
+    **no** phase intercept and **no** child random intercept: with one row per
+    child the coefficients are genuinely between-child associations (a random
+    intercept would tilt them toward the within-child question - see the LRP65
+    docstring). Passing a single-element ``predictors`` gives the bivariate
+    (baseline-only-adjusted) association used for the shared-variance comparison.
+
+        eta_i = alpha + gamma_own * logit(W_pre_i) + sum_k beta_k * z_{k,i}
+
+    with a Beta-Binomial likelihood on the outcome post-count.
+    """
+    if prepared.phase_mode not in {"span", "itt"}:
+        raise ValueError(
+            "Adjusted (between-child) model requires phase_mode in {'span', 'itt'} "
+            f"(one row per child); got {prepared.phase_mode!r}"
+        )
+    if outcome_symbol not in prepared.pre_logit:
+        raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
+
+    # One row per child: drop children missing the outcome post-score.
+    post = prepared.post_counts[outcome_symbol]
+    keep = ~np.isnan(post)
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[outcome_symbol].astype(np.int64)
+    N = prepared.n_trials[outcome_symbol]
+    own_pre_logit = prepared.pre_logit[outcome_symbol]
+    language_symbols = tuple(language_composite_symbols)
+    resolved = [
+        _resolve_adjusted_predictor(prepared, k, language_symbols) for k in predictors
+    ]
+
+    coords = {"obs_id": np.arange(prepared.n_obs)}
+    with pm.Model(coords=coords) as model:
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        eta = alpha + gamma_own * own_pre_d
+
+        for coef_name, vec, _label in resolved:
+            x_d = pm.Data(f"x_{coef_name}", vec, dims="obs_id")
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                coef_name
+            )
+            eta = eta + beta * x_d
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
 # Private
 # ---------------------------------------------------------------------------
 

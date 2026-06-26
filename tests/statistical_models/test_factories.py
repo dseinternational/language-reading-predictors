@@ -17,6 +17,7 @@ import pytest
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.factories import (
+    build_adjusted_model,
     build_did_model,
     build_itt_model,
     build_joint_model,
@@ -43,6 +44,7 @@ def _write_synthetic(tmp_path, n_children: int = 25, seed: int = 7):
         mumedu = int(rng.integers(0, 8))
         dadedu = int(rng.integers(0, 8))
         agebooks = int(rng.integers(0, 48))
+        blocks = int(rng.integers(5, 40))  # block design — a single t1 assessment
         for t in (1, 2, 3, 4):
             row = {
                 V.SUBJECT_ID: sid,
@@ -53,6 +55,11 @@ def _write_synthetic(tmp_path, n_children: int = 25, seed: int = 7):
                 V.DADEDUPOST16: dadedu,
                 V.AGEBOOKS: agebooks,
             }
+            # Block design is t1-only (NaN at later waves); behaviour is t1-t3.
+            if t == 1:
+                row[V.BLOCKS] = blocks
+            if t in (1, 2, 3):
+                row[V.BEHAV] = float(rng.integers(1, 6))
             for s in (*ITT_OUTCOMES, *TAUGHT_BLOCK1_OUTCOMES):
                 m = MEASURES[s]
                 row[m.column] = int(rng.integers(0, m.n_trials + 1))
@@ -541,6 +548,53 @@ def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
     assert "gamma_A" not in names
 
 
+def test_adjusted_factory_builds(tmp_path):
+    """Between-child adjusted build: standardised T1 predictors, no random intercept."""
+    p = _write_synthetic(tmp_path, n_children=30)
+    prep = load_and_prepare(
+        path=p,
+        phase_mode="span",
+        post_time=4,
+        outcomes=("W", "L", "B", "R", "E", "F"),
+        covariates=(V.BLOCKS, V.BEHAV),
+    )
+    built = build_adjusted_model(
+        prep,
+        outcome_symbol="W",
+        predictors=["L", "lang", "B", "age", V.BLOCKS, V.BEHAV],
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {
+        "beta_L", "beta_lang", "beta_B", "beta_age",
+        f"beta_{V.BLOCKS}", f"beta_{V.BEHAV}",
+    }.issubset(names)
+    assert "gamma_own" in names
+    # Genuinely between-child: no phase intercept, no child random intercept.
+    assert "alpha_phase" not in names
+    assert "sigma_child" not in names and "u_child_raw" not in names
+    assert built.prepared.n_phases == 1
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=4)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_adjusted_factory_bivariate_single_predictor(tmp_path):
+    """A single-element predictor list yields just that one slope (bivariate fit)."""
+    p = _write_synthetic(tmp_path, n_children=25)
+    prep = load_and_prepare(
+        path=p, phase_mode="span", outcomes=("W", "L", "B", "R", "E", "F")
+    )
+    built = build_adjusted_model(prep, predictors=["lang"])
+    betas = {v.name for v in built.model.free_RVs if v.name.startswith("beta_")}
+    assert betas == {"beta_lang"}
+
+
+def test_adjusted_factory_rejects_pooled_phase(tmp_path):
+    """The between-child factory must refuse pooled all-phase data."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    with pytest.raises(ValueError):
+        build_adjusted_model(prep, predictors=["L"])
 # ---------------------------------------------------------------------------
 # Mediation factories (LRP59 Beta-Binomial + LRP62 Gaussian composite)
 # ---------------------------------------------------------------------------

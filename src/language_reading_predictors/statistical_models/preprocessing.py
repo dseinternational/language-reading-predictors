@@ -106,7 +106,8 @@ class PreparedData:
     dropped_rows: int
     """Number of rows dropped due to missing pre-scores or group."""
     phase_mode: str
-    """``"itt"`` (RCT phase only) or ``"all"`` (three stacked phases)."""
+    """``"itt"`` (RCT phase only), ``"all"`` (three stacked phases), or
+    ``"span"`` (one row per child: t1 baseline paired with a single later wave)."""
     column_map: dict[str, str] = field(default_factory=dict)
     """Symbol -> column-name map for the subset of outcomes prepared."""
     covariates: dict[str, np.ndarray] = field(default_factory=dict)
@@ -133,6 +134,7 @@ def load_and_prepare(
     covariates: tuple[str, ...] = (),
     drop_missing_pre: bool = True,
     restrict_complete: tuple[str, ...] = (),
+    post_time: int = 4,
     pre_required: tuple[str, ...] | None = None,
 ) -> PreparedData:
     """
@@ -145,7 +147,11 @@ def load_and_prepare(
     phase_mode
         ``"itt"`` keeps only the randomised phase (t1 -> t2). ``"all"`` stacks
         all three adjacent-time transitions (t1->t2, t2->t3, t3->t4) and adds
-        a phase index.
+        a phase index. ``"span"`` pairs the wave-1 baseline with a single later
+        wave ``post_time`` (default t4), giving **one row per child** — the
+        between-child design used by LRP65 (T1 baselines -> full-study gain).
+        Because the pre-timepoint is t1, baseline-only covariates such as block
+        design (administered at t1) are available without any broadcast.
     outcomes
         Symbols (from :data:`measures.ITT_OUTCOMES`) to include as
         pre/post variables.
@@ -174,13 +180,18 @@ def load_and_prepare(
         Use this to fit a model on the complete-case subset of some covariates
         *without* adjusting for them — e.g. a matched unadjusted comparator to a
         covariate-adjusted run (LRPITT14 vs LRPITT13).
+    post_time
+        The post wave for ``phase_mode="span"`` (default 4 = last wave). Ignored
+        for the other modes.
 
     Returns
     -------
     PreparedData
     """
-    if phase_mode not in {"itt", "all"}:
-        raise ValueError(f"phase_mode must be 'itt' or 'all', got {phase_mode!r}")
+    if phase_mode not in {"itt", "all", "span"}:
+        raise ValueError(
+            f"phase_mode must be 'itt', 'all', or 'span', got {phase_mode!r}"
+        )
 
     csv_path = Path(path) if path is not None else _default_data_path()
     df = pd.read_csv(csv_path)
@@ -188,6 +199,13 @@ def load_and_prepare(
     phase_pairs: list[tuple[int, int]]
     if phase_mode == "itt":
         phase_pairs = [(1, 2)]
+    elif phase_mode == "span":
+        if int(post_time) <= 1:
+            raise ValueError(
+                "phase_mode='span' pairs t1 with a later wave, so post_time must "
+                f"be > 1; got {post_time!r}"
+            )
+        phase_pairs = [(1, int(post_time))]
     else:
         phase_pairs = [(1, 2), (2, 3), (3, 4)]
 
