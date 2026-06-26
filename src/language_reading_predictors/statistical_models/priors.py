@@ -78,6 +78,20 @@ def beta_mech_prior() -> Continuous:
     return pz.Normal(mu=0.0, sigma=1.0)
 
 
+def sigma_dose_phase_prior() -> Continuous:
+    """Between-period SD of the dose slope sigma_dose ~ HalfNormal(0.5).
+
+    Used by ``build_dose_response_model(period_varying_dose=True)`` for the
+    partial-pooled, period-specific dose slopes
+    ``beta_dose_phase = mu_dose + sigma_dose * z_phase`` (#104 Phase 2). The
+    slope is on the per-1-SD-of-dose logit scale (the dose mean ``mu_dose`` uses
+    the unit-scale :func:`beta_mech_prior`), so a HalfNormal(0.5) keeps the
+    three period slopes shrunk toward the pooled effect unless the data show
+    real period variation — appropriate given the weak Phase-1 dose signal.
+    """
+    return pz.HalfNormal(sigma=0.5)
+
+
 def b_path_prior() -> Continuous:
     """Mediator -> outcome slope (b-path) ~ Normal(0, 1).
 
