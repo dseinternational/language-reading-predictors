@@ -68,8 +68,8 @@ def build_itt_model(
     prepared: PreparedData,
     *,
     outcome_symbol: str,
-    use_age_gp: bool = True,
-    use_own_baseline_gp: bool = True,
+    use_age_gp: bool = False,
+    use_own_baseline_gp: bool = False,
     use_varying_tau: bool = False,
     adjust_for: Iterable[str] = (),
     cross_symbols: Iterable[str] | None = None,
@@ -95,7 +95,13 @@ def build_itt_model(
     outcome_symbol
         Target measure (``"W"``, ``"R"``, ``"E"``, ...).
     use_age_gp, use_own_baseline_gp
-        Toggles for the two HSGP main effects.
+        Toggles for the two HSGP main effects. **Default False** — the
+        2026-04-18 LRP52 sensitivity fit found LOO did not prefer them and the
+        GP amplitudes produced an ``eta -> basis-weight`` funnel (~1-8 %
+        divergences); they are kept as opt-in flags for per-outcome sensitivity
+        fits. This matches the ``build_joint_model`` / ``build_mechanism_model``
+        default-off convention, so a spec that omits the flags no longer
+        silently fits two unidentifiable GPs (notes/202604181445-lrp52-gp-sensitivity.md).
     use_varying_tau
         If True, the treatment effect is modelled as ``tau0 + g_tauA(A_std)``
         via a :func:`build_tau_modifier` GP with the tight ``HalfNormal(0.3)``

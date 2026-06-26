@@ -49,10 +49,10 @@ directly-taught skills, with little generalisation**" finding. Two Block 1
 - `UE` — not-taught comparison words (`b1exnt`, $N = 12$).
 
 The headline quantity is the **difference in intervention benefit**,
-$\tau_{\mathrm{UE}} - \tau_{\mathrm{TE}}$. Because $\tau$ is the coefficient on the
-waiting-control indicator ($G = \text{group} - 1$; group 2 waits for
-intervention), a *negative* $\tau$ is a benefit, so $\tau_{\mathrm{UE}} -
-\tau_{\mathrm{TE}}$ equals the benefit on **taught** words minus the benefit on
+$\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$. Because $\tau$ is the coefficient on the
+intervention indicator ($G = 2 - \text{group}$; group 1 receives the intervention
+from t1), a *positive* $\tau$ is a benefit, so $\tau_{\mathrm{TE}} -
+\tau_{\mathrm{UE}}$ equals the benefit on **taught** words minus the benefit on
 **not-taught** words. A clearly positive difference means the programme raised the
 words it *taught* more than untaught words — i.e. limited transfer/generalisation,
 consistent with Burgoyne et al. (2012).
@@ -119,12 +119,12 @@ diag
 
 ## Per-outcome treatment effects
 
-::: {.callout-important title="Sign convention: negative τ = intervention benefit"}
+::: {.callout-important title="Sign convention: positive τ = intervention benefit"}
 
-Each $\tau_k$ is the coefficient on $G = \text{group} - 1$ (group 2 = waiting
-control in the randomised window), so a **negative $\tau_k$ means the intervention
-raised outcome $k$** (suite-wide convention). The expectation is
-$\tau_{\mathrm{TE}} < 0$ (taught words raised) and $\tau_{\mathrm{UE}}$ closer to
+Each $\tau_k$ is the coefficient on $G = 2 - \text{group}$ ($G = 1$ = immediate
+intervention in the randomised window), so a **positive $\tau_k$ means the
+intervention raised outcome $k$** (suite-wide convention). The expectation is
+$\tau_{\mathrm{TE}} > 0$ (taught words raised) and $\tau_{\mathrm{UE}}$ closer to
 zero (untaught words largely unmoved).
 
 :::
@@ -134,15 +134,15 @@ zero (untaught words largely unmoved).
 tau_summary
 ```
 
-## Generalisation contrast — $\tau_{\mathrm{UE}} - \tau_{\mathrm{TE}}$
+## Generalisation contrast — $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$
 
 ```{python}
 # | echo: false
 difference
 ```
 
-- `diff_logit_*`: posterior mean and equal-tailed interval of $\tau_{\mathrm{UE}} - \tau_{\mathrm{TE}}$ on the logit scale. Since $-\tau$ is the benefit, this is *benefit on taught $-$ benefit on not-taught*; **positive ⇒ taught moved more** (limited generalisation).
-- `prob_diff_pos`: $P(\tau_{\mathrm{UE}} > \tau_{\mathrm{TE}})$ — the probability that the directly-taught words moved more than the untaught words.
+- `diff_logit_*`: posterior mean and equal-tailed interval of $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$ on the logit scale. Since $\tau$ is the benefit, this is *benefit on taught $-$ benefit on not-taught*; **positive ⇒ taught moved more** (limited generalisation).
+- `prob_diff_pos`: $P(\tau_{\mathrm{TE}} > \tau_{\mathrm{UE}})$ — the probability that the directly-taught words moved more than the untaught words.
 
 ### Pairwise contrast — $P(\tau_k > \tau_j)$
 
