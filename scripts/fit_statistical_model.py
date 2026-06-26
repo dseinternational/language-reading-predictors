@@ -70,6 +70,9 @@ from language_reading_predictors.statistical_models import (
     lrpdid04,
     lrpdid05,
     lrpdid06,
+    lrpgf01,
+    lrpgf01b,
+    lrplf01,
 )
 
 
@@ -151,6 +154,14 @@ MODELS = {
     # no-interaction companion.
     "lrp73": lrp73,
     "lrp73base": lrp73base,
+    # LRPGF / LRPLF: DAG-focused gain-factors / level-factors families (issue
+    # #127). Beta-Binomial-on-logit with a child random intercept; only the
+    # randomised group / on-intervention term is causal, every other coefficient
+    # is an adjusted association (SES excluded as non-DAG / redundant). W exemplar:
+    # lrpgf01 (gain), lrpgf01b (gain, treated-only), lrplf01 (level).
+    "lrpgf01": lrpgf01,
+    "lrpgf01b": lrpgf01b,
+    "lrplf01": lrplf01,
 }
 
 

@@ -1101,3 +1101,232 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _copy_report_template(ctx)
     _print_footer(ctx)
     return ctx
+
+
+# ---------------------------------------------------------------------------
+# Gain-factors / level-factors pipelines (LRPGF / LRPLF, #127)
+# ---------------------------------------------------------------------------
+
+
+def _gf_coef_names(spec: ModelSpec) -> list[str]:
+    """Factor coefficients to report in the LRPGF factor table (interpretable
+    terms only; nuisance alpha/alpha_phase/kappa/sigma_child are excluded)."""
+    extra = spec.extra
+    treated_only = bool(extra.get("treated_only", False))
+    names: list[str] = []
+    if not treated_only:
+        names.append("beta_trt")
+    names += ["gamma_own", "gamma_A"]
+    if extra.get("ability_covariate"):
+        names.append("gamma_ability")
+    names += [f"gamma_{s}" for s in extra.get("skill_symbols", ())]
+    for pair in extra.get("interactions", ()):
+        a, b = tuple(pair)
+        if treated_only and "trt" in (a, b):
+            continue
+        names.append(f"gamma_int_{a}_{b}")
+    return names
+
+
+def _gf_diag_vars(spec: ModelSpec) -> list[str]:
+    return ["alpha", *_gf_coef_names(spec), "kappa", "sigma_child"]
+
+
+def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    assert spec.kind == "gain_factors"
+    assert spec.outcome_symbol is not None
+    ctx = make_context(spec, config)
+    extra = spec.extra
+
+    section_header("Prepare data")
+    skill_symbols = tuple(extra.get("skill_symbols", ()))
+    ability_covariate = extra.get("ability_covariate")
+    interactions = tuple(tuple(p) for p in extra.get("interactions", ()))
+    treated_only = bool(extra.get("treated_only", False))
+    baseline_covariates = (ability_covariate,) if ability_covariate else ()
+    prepared = load_and_prepare(
+        phase_mode="all",
+        outcomes=(spec.outcome_symbol, *skill_symbols),
+        baseline_covariates=baseline_covariates,
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_gain_factors_model(
+        prepared,
+        outcome_symbol=spec.outcome_symbol,
+        skill_symbols=skill_symbols,
+        ability_covariate=ability_covariate,
+        interactions=interactions,
+        treated_only=treated_only,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol)
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=_gf_diag_vars(spec))
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Factor summary")
+    fs = _report.factor_summary(
+        ctx.trace, _gf_coef_names(spec), ci_prob=ctx.reporting.hdi,
+        causal_terms=("beta_trt",),
+    )
+    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
+    ctx.tables["factor_summary"] = fs
+    print_table(
+        ranked_dataframe_table(
+            fs,
+            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
+            columns=["term", "role", "mean", "lo", "hi", "prob_positive"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    meta_extra = {"loo_elpd": float(ctx.loo.elpd), "treated_only": treated_only}
+    # Items-scale marginal effect of the treatment term. Skipped when
+    # treated_only (the on-intervention indicator is then constant and beta_trt
+    # is absent).
+    if not treated_only:
+        trt = ((built.prepared.G == 1) | (built.prepared.phase >= 1)).astype(float)
+        tme = _report.treatment_marginal_effect(
+            ctx.trace,
+            trt=trt,
+            n_trials=built.prepared.n_trials[spec.outcome_symbol],
+            ci_prob=ctx.reporting.hdi,
+        )
+        pd.DataFrame([tme]).to_csv(
+            os.path.join(ctx.output_dir, "treatment_marginal.csv"), index=False
+        )
+        ctx.tables["treatment_marginal"] = pd.DataFrame([tme])
+        meta_extra["treatment_marginal"] = tme
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in tme.items()],
+                title="Treatment items-scale marginal effect",
+                columns=["metric", "value"],
+            )
+        )
+
+    _report.write_run_metadata(ctx, extra=meta_extra)
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+def _lf_coef_names(spec: ModelSpec) -> list[str]:
+    extra = spec.extra
+    names = ["b_grp_time" if extra.get("group_by_time", True) else "beta_grp", "gamma_A"]
+    if extra.get("ability_covariate"):
+        names.append(
+            "gamma_ability_time" if extra.get("ability_by_time", True) else "gamma_ability"
+        )
+        if extra.get("group_ability", True):
+            names.append("gamma_grp_ability")
+    return names
+
+
+def _lf_diag_vars(spec: ModelSpec) -> list[str]:
+    return ["alpha", "alpha_time", *_lf_coef_names(spec), "kappa", "sigma_child"]
+
+
+def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    assert spec.kind == "level_factors"
+    assert spec.outcome_symbol is not None
+    ctx = make_context(spec, config)
+    extra = spec.extra
+
+    section_header("Prepare data")
+    ability_covariate = extra.get("ability_covariate")
+    baseline_covariates = (ability_covariate,) if ability_covariate else ()
+    prepared = load_and_prepare(
+        phase_mode="levels",
+        outcomes=(spec.outcome_symbol,),
+        baseline_covariates=baseline_covariates,
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_level_factors_model(
+        prepared,
+        outcome_symbol=spec.outcome_symbol,
+        ability_covariate=ability_covariate,
+        group_by_time=bool(extra.get("group_by_time", True)),
+        ability_by_time=bool(extra.get("ability_by_time", True)),
+        group_ability=bool(extra.get("group_ability", True)),
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol)
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=_lf_diag_vars(spec))
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Factor summary")
+    # Only the t2 group contrast (b_grp_time[1]) is the clean randomised effect;
+    # the other timepoints are post-crossover (see the level-model caveat).
+    causal = ("b_grp_time[1]",) if extra.get("group_by_time", True) else ()
+    fs = _report.factor_summary(
+        ctx.trace, _lf_coef_names(spec), ci_prob=ctx.reporting.hdi, causal_terms=causal
+    )
+    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
+    ctx.tables["factor_summary"] = fs
+    print_table(
+        ranked_dataframe_table(
+            fs,
+            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
+            columns=["term", "role", "mean", "lo", "hi", "prob_positive"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    _report.write_run_metadata(ctx, extra={"loo_elpd": float(ctx.loo.elpd)})
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx

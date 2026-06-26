@@ -177,3 +177,48 @@ def save_trace(context: StatisticalFitContext, filename: str = "trace.nc") -> st
     path = os.path.join(context.output_dir, filename)
     context.trace.to_netcdf(path)
     return path
+
+
+def save_prior_predictive_plot(
+    context: StatisticalFitContext,
+    outcome_symbol: str,
+    *,
+    node: str = "y_post",
+) -> None:
+    """Surface the prior-predictive check in the report (#127 / #125).
+
+    ``run_prior_predictive`` samples the prior into ``context.prior_samples`` but
+    nothing previously plotted or persisted it. This overlays the prior-predictive
+    distribution of the outcome count against the observed counts and writes
+    ``prior_predictive_check.png`` to the output dir, so the report's
+    "Prior-predictive check" section populates. Guarded — a plotting failure must
+    not abort the fit.
+    """
+    from rich import print as rprint
+
+    if context.prior_samples is None or context.prepared is None:
+        rprint("[yellow]No prior samples to plot[/yellow]")
+        return
+    try:
+        pp = context.prior_samples.prior_predictive[node]
+        rep = np.asarray(pp.values, dtype=float).ravel()
+        obs = np.asarray(context.prepared.post_counts[outcome_symbol], dtype=float)
+        obs = obs[np.isfinite(obs)]
+        plt.figure(figsize=(6, 4))
+        plt.hist(
+            rep, bins=40, density=True, color="#1f77b4", alpha=0.55,
+            label="prior predictive",
+        )
+        plt.hist(obs, bins=20, density=True, color="#d62728", alpha=0.55, label="observed")
+        plt.xlabel(f"{outcome_symbol} count")
+        plt.ylabel("density")
+        plt.title("Prior-predictive check")
+        plt.legend()
+        plt.savefig(
+            os.path.join(context.output_dir, "prior_predictive_check.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+        plt.close()
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Prior-predictive plot failed: {exc}[/yellow]")

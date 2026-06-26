@@ -427,3 +427,101 @@ def loo_delta(loo_a: az.ELPDData, loo_b: az.ELPDData) -> dict[str, float]:
         "d_elpd": float(df.loc["a", "elpd"] - df.loc["b", "elpd"]),
         "d_se": float(df.loc["a", "dse"]) if "dse" in df.columns else float("nan"),
     }
+
+
+def factor_summary(
+    trace: xr.DataTree,
+    coef_names: list[str],
+    *,
+    ci_prob: float,
+    causal_terms: tuple[str, ...] = (),
+) -> pd.DataFrame:
+    """Per-coefficient posterior summary for a factor model (LRPGF / LRPLF, #127).
+
+    One row per coefficient in ``coef_names`` present in the trace: posterior
+    ``mean``, equal-tailed central interval at coverage ``ci_prob`` (``lo``/``hi``,
+    same convention as :func:`tau_summary_itt`), and ``prob_positive`` =
+    ``P(coef > 0)``. The ``role`` column labels each term **causal** (the
+    randomised treatment terms named in ``causal_terms``) or **association** —
+    under the locked DAG every non-randomised coefficient is an adjusted
+    association confounded by latent general ability and must never be read as
+    "drives".
+    """
+    posterior = trace.posterior
+    lo_q = (1 - ci_prob) / 2
+    hi_q = 1 - lo_q
+
+    def _row(term: str, base: str, d: np.ndarray) -> dict[str, object]:
+        causal = term in causal_terms or base in causal_terms
+        return {
+            "term": term,
+            "role": "causal" if causal else "association",
+            "mean": float(np.mean(d)),
+            "lo": float(np.quantile(d, lo_q)),
+            "hi": float(np.quantile(d, hi_q)),
+            "prob_positive": float(np.mean(d > 0)),
+        }
+
+    rows: list[dict[str, object]] = []
+    for name in coef_names:
+        if name not in posterior:
+            continue
+        da = posterior[name]
+        extra_dims = [dd for dd in da.dims if dd not in ("chain", "draw")]
+        if not extra_dims:
+            d = da.stack(sample=("chain", "draw")).values.ravel()
+            rows.append(_row(name, name, d))
+        else:
+            # Vector coefficient (e.g. the level model's per-timepoint b_grp_time):
+            # one row per element, so an element can be labelled causal on its own
+            # (e.g. only the t2 group contrast is the clean randomised effect).
+            dim = extra_dims[0]
+            for i in range(int(da.sizes[dim])):
+                d = da.isel({dim: i}).stack(sample=("chain", "draw")).values.ravel()
+                rows.append(_row(f"{name}[{i}]", name, d))
+    return pd.DataFrame(rows)
+
+
+def treatment_marginal_effect(
+    trace: xr.DataTree,
+    *,
+    trt: np.ndarray,
+    n_trials: int,
+    term: str = "beta_trt",
+    eta_name: str = "eta",
+    ci_prob: float = 0.95,
+) -> dict[str, float]:
+    """Items-scale average marginal effect of the treatment term (LRPGF, #127).
+
+    The gain model's logit predictor contains ``term * trt`` (``trt`` = the
+    on-intervention indicator). Per posterior draw, the counterfactual
+    operating point is ``eta0 = eta - term * trt`` (all off) and
+    ``eta1 = eta0 + term`` (all on); the average marginal effect is the mean over
+    observations of ``expit(eta1) - expit(eta0)``, reported on the probability
+    scale and the items scale (``n_trials`` x probability) with an equal-tailed
+    interval. ``prob_trt_pos`` is ``P(term > 0)`` on the logit scale.
+    """
+    post = trace.posterior
+    eta = (
+        post[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("sample", "obs_id")
+        .values
+    )  # (S, n_obs)
+    b = post[term].stack(sample=("chain", "draw")).values.ravel()  # (S,)
+    trt = np.asarray(trt, dtype=float)  # (n_obs,)
+    eta0 = eta - b[:, None] * trt[None, :]
+    eta1 = eta0 + b[:, None]
+    ame_prob = (expit(eta1) - expit(eta0)).mean(axis=1)  # (S,)
+    ame_items = n_trials * ame_prob
+    lo_q = (1 - ci_prob) / 2
+    hi_q = 1 - lo_q
+    return {
+        "trt_prob_mean": float(np.mean(ame_prob)),
+        "trt_prob_lo": float(np.quantile(ame_prob, lo_q)),
+        "trt_prob_hi": float(np.quantile(ame_prob, hi_q)),
+        "trt_items_mean": float(np.mean(ame_items)),
+        "trt_items_lo": float(np.quantile(ame_items, lo_q)),
+        "trt_items_hi": float(np.quantile(ame_items, hi_q)),
+        "prob_trt_pos": float(np.mean(b > 0)),
+    }
