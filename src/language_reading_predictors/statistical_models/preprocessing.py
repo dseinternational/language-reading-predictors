@@ -81,7 +81,9 @@ class PreparedData:
     child_idx: np.ndarray
     """Integer child index in ``0..n_children-1``. shape (n_obs,)."""
     phase: np.ndarray
-    """Phase index (0 = t1->t2, 1 = t2->t3, 2 = t3->t4). shape (n_obs,)."""
+    """Phase index. For ``itt``/``all`` the transition (0 = t1->t2, 1 = t2->t3,
+    2 = t3->t4); for ``levels`` the timepoint index (0 = t1 ... 3 = t4).
+    shape (n_obs,)."""
     G: np.ndarray
     """Group indicator. shape (n_obs,). Dataset group 1 (*Initial intervention*,
     the immediate arm) maps to ``1`` and group 2 (*Wait for intervention*, the
@@ -106,7 +108,8 @@ class PreparedData:
     dropped_rows: int
     """Number of rows dropped due to missing pre-scores or group."""
     phase_mode: str
-    """``"itt"`` (RCT phase only) or ``"all"`` (three stacked phases)."""
+    """``"itt"`` (RCT phase only), ``"all"`` (three stacked transitions), or
+    ``"levels"`` (four per-timepoint score rows)."""
     column_map: dict[str, str] = field(default_factory=dict)
     """Symbol -> column-name map for the subset of outcomes prepared."""
     covariates: dict[str, np.ndarray] = field(default_factory=dict)
@@ -131,6 +134,7 @@ def load_and_prepare(
     phase_mode: str = "itt",
     outcomes: tuple[str, ...] = ITT_OUTCOMES,
     covariates: tuple[str, ...] = (),
+    baseline_covariates: tuple[str, ...] = (),
     drop_missing_pre: bool = True,
     restrict_complete: tuple[str, ...] = (),
     pre_required: tuple[str, ...] | None = None,
@@ -145,14 +149,25 @@ def load_and_prepare(
     phase_mode
         ``"itt"`` keeps only the randomised phase (t1 -> t2). ``"all"`` stacks
         all three adjacent-time transitions (t1->t2, t2->t3, t3->t4) and adds
-        a phase index.
+        a phase index. ``"levels"`` returns one row per (child, timepoint t1-t4)
+        with the score at each timepoint as the (post) outcome and no own
+        baseline; group + the t1 baselines broadcast across the four rows, age is
+        the per-timepoint age, and ``phase`` carries the timepoint index.
     outcomes
         Symbols (from :data:`measures.ITT_OUTCOMES`) to include as
         pre/post variables.
     covariates
-        Additional baseline/pre-timepoint columns to include as standardised
-        linear covariates. Rows with missing requested covariates are dropped
-        when ``drop_missing_pre`` is true.
+        Additional pre-timepoint columns to include as standardised linear
+        covariates, taken from the per-transition pre row (``itt``/``all``) or
+        the per-timepoint row (``levels``). Rows with missing requested
+        covariates are dropped when ``drop_missing_pre`` is true.
+    baseline_covariates
+        Time-invariant baseline columns recorded once at t1 (e.g. cognitive
+        ability, SES) to include as standardised linear covariates, **broadcast
+        from t1 across every row** so they apply to all transitions / timepoints.
+        Use this for t1-only baselines in ``"all"``/``"levels"`` mode (where a
+        per-row pull would be NaN after t1). Missing values trigger complete-case
+        dropping like ``covariates``.
     drop_missing_pre
         If True (default), rows with any missing pre-score (for the symbols in
         ``pre_required``) or missing group are dropped and a warning is printed
@@ -179,58 +194,92 @@ def load_and_prepare(
     -------
     PreparedData
     """
-    if phase_mode not in {"itt", "all"}:
-        raise ValueError(f"phase_mode must be 'itt' or 'all', got {phase_mode!r}")
+    if phase_mode not in {"itt", "all", "levels"}:
+        raise ValueError(
+            f"phase_mode must be 'itt', 'all' or 'levels', got {phase_mode!r}"
+        )
 
     csv_path = Path(path) if path is not None else _default_data_path()
     df = pd.read_csv(csv_path)
 
-    phase_pairs: list[tuple[int, int]]
-    if phase_mode == "itt":
-        phase_pairs = [(1, 2)]
-    else:
-        phase_pairs = [(1, 2), (2, 3), (3, 4)]
-
     covariates = tuple(covariates)
+    baseline_covariates = tuple(baseline_covariates)
     restrict_complete = tuple(restrict_complete)
     # Columns pulled into the frame: adjusted covariates plus complete-case-only
     # restrictors. Deduplicated, preserving order; a column in both is adjusted.
     extra_cols = list(dict.fromkeys([*covariates, *restrict_complete]))
     out_cols = [MEASURES[s].column for s in outcomes]
 
-    per_phase_frames: list[pd.DataFrame] = []
+    # ``itt``/``all`` are autoregressive (pre -> post over a transition); ``levels``
+    # is not (the score at each timepoint is the outcome, no own baseline).
+    has_pre = phase_mode in {"itt", "all"}
 
-    for phase_idx, (t_pre, t_post) in enumerate(phase_pairs):
-        pre = df.loc[
-            df[V.TIME] == t_pre,
-            [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols + extra_cols,
-        ].copy()
-        post = df.loc[df[V.TIME] == t_post, [V.SUBJECT_ID] + out_cols].copy()
-        pre = pre.rename(columns={c: f"{c}_pre" for c in out_cols})
-        post = post.rename(columns={c: f"{c}_post" for c in out_cols})
-        merged = pre.merge(post, on=V.SUBJECT_ID, how="inner")
-        merged["phase"] = phase_idx
-        per_phase_frames.append(merged)
-
-    merged = pd.concat(per_phase_frames, axis=0, ignore_index=True)
-
-    if pre_required is None:
-        pre_required_syms: tuple[str, ...] = tuple(outcomes)
+    if has_pre:
+        phase_pairs: list[tuple[int, int]]
+        phase_pairs = [(1, 2)] if phase_mode == "itt" else [(1, 2), (2, 3), (3, 4)]
+        per_phase_frames: list[pd.DataFrame] = []
+        for phase_idx, (t_pre, t_post) in enumerate(phase_pairs):
+            pre = df.loc[
+                df[V.TIME] == t_pre,
+                [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols + extra_cols,
+            ].copy()
+            post = df.loc[df[V.TIME] == t_post, [V.SUBJECT_ID] + out_cols].copy()
+            pre = pre.rename(columns={c: f"{c}_pre" for c in out_cols})
+            post = post.rename(columns={c: f"{c}_post" for c in out_cols})
+            m_frame = pre.merge(post, on=V.SUBJECT_ID, how="inner")
+            m_frame["phase"] = phase_idx
+            per_phase_frames.append(m_frame)
+        merged = pd.concat(per_phase_frames, axis=0, ignore_index=True)
+        n_phases = len(phase_pairs)
     else:
-        pre_required_syms = tuple(pre_required)
-        unknown = [s for s in pre_required_syms if s not in outcomes]
-        if unknown:
-            raise ValueError(
-                f"pre_required symbols must be a subset of outcomes; "
-                f"{unknown} not in {outcomes!r}"
-            )
-    required_pre = [f"{MEASURES[s].column}_pre" for s in pre_required_syms]
+        # ``levels``: one row per (child, timepoint t1-t4); the score at each
+        # timepoint is the outcome "level". Age + any per-timepoint covariates
+        # come from the timepoint row; group and the t1-only baselines enter via
+        # ``baseline_covariates`` (broadcast below). ``phase`` is the timepoint index.
+        timepoints = [1, 2, 3, 4]
+        per_tp_frames: list[pd.DataFrame] = []
+        for tp_idx, t in enumerate(timepoints):
+            frame = df.loc[
+                df[V.TIME] == t,
+                [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols + extra_cols,
+            ].copy()
+            frame = frame.rename(columns={c: f"{c}_post" for c in out_cols})
+            frame["phase"] = tp_idx
+            per_tp_frames.append(frame)
+        merged = pd.concat(per_tp_frames, axis=0, ignore_index=True)
+        n_phases = len(timepoints)
+
+    # Time-invariant t1 baselines (e.g. cognitive ability, SES) are recorded once
+    # and broadcast from t1 across every row, so they apply to all transitions /
+    # timepoints rather than only the pre-t1 row.
+    if baseline_covariates:
+        bc = df.loc[
+            df[V.TIME] == 1, [V.SUBJECT_ID, *baseline_covariates]
+        ].drop_duplicates(V.SUBJECT_ID)
+        merged = merged.merge(bc, on=V.SUBJECT_ID, how="left")
+
+    if has_pre:
+        if pre_required is None:
+            pre_required_syms: tuple[str, ...] = tuple(outcomes)
+        else:
+            pre_required_syms = tuple(pre_required)
+            unknown = [s for s in pre_required_syms if s not in outcomes]
+            if unknown:
+                raise ValueError(
+                    f"pre_required symbols must be a subset of outcomes; "
+                    f"{unknown} not in {outcomes!r}"
+                )
+        required_pre = [f"{MEASURES[s].column}_pre" for s in pre_required_syms]
+    else:
+        if pre_required:
+            raise ValueError("pre_required is not supported for phase_mode='levels'")
+        required_pre = []
     required_post = [f"{MEASURES[s].column}_post" for s in outcomes]
 
     n_before = len(merged)
 
     if drop_missing_pre:
-        required = [V.GROUP, V.AGE] + required_pre + extra_cols
+        required = [V.GROUP, V.AGE] + required_pre + extra_cols + list(baseline_covariates)
         mask_complete = merged[required].notna().all(axis=1)
         # Also require at least one post outcome to be present.
         mask_any_post = merged[required_post].notna().any(axis=1)
@@ -240,7 +289,7 @@ def load_and_prepare(
     if dropped > 0:
         warnings.warn(
             f"load_and_prepare: dropped {dropped} of {n_before} rows with missing "
-            "pre-score, covariate, or group assignment.",
+            "score, covariate, or group assignment.",
             stacklevel=2,
         )
 
@@ -267,15 +316,16 @@ def load_and_prepare(
     column_map: dict[str, str] = {}
     for s in outcomes:
         m = MEASURES[s]
-        pre_raw = merged[f"{m.column}_pre"].to_numpy(dtype=float)
         post_counts[s] = merged[f"{m.column}_post"].to_numpy()  # may contain NaN
         # Beta-Binomial ceiling guard (#80): a pre/post count above n_trials
         # would silently produce a NaN/-inf log-likelihood (and an invalid
         # logit for the pre covariate). Fail loudly, naming the measure.
-        for which, arr in (
-            ("pre", pre_raw),
-            ("post", np.asarray(post_counts[s], dtype=float)),
-        ):
+        checks: list[tuple[str, np.ndarray]] = [
+            ("post", np.asarray(post_counts[s], dtype=float))
+        ]
+        if has_pre:
+            checks.append(("pre", merged[f"{m.column}_pre"].to_numpy(dtype=float)))
+        for which, arr in checks:
             finite = arr[np.isfinite(arr)]
             if finite.size and finite.max() > m.n_trials:
                 raise ValueError(
@@ -283,13 +333,14 @@ def load_and_prepare(
                     f"{finite.max():g} above its n_trials ceiling {m.n_trials}; "
                     "fix measures.py or check the source data."
                 )
-        pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
+        if has_pre:
+            pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
         n_trials_dict[s] = m.n_trials
         column_map[s] = m.column
 
     covariate_values: dict[str, np.ndarray] = {}
     covariate_scalers: dict[str, Standardiser] = {}
-    for c in covariates:
+    for c in (*covariates, *baseline_covariates):
         z, scaler = standardise(merged[c])
         covariate_values[c] = z
         covariate_scalers[c] = scaler
@@ -311,7 +362,7 @@ def load_and_prepare(
         covariate_scalers=covariate_scalers,
         n_obs=int(len(merged)),
         n_children=int(len(np.unique(child_idx))),
-        n_phases=len(phase_pairs),
+        n_phases=n_phases,
         dropped_rows=dropped,
         phase_mode=phase_mode,
         column_map=column_map,
