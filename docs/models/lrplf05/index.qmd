@@ -15,30 +15,11 @@ format:
       - repo
 ---
 
-::: {.callout-note}
-Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
-:::
+{{< include _partials/_header.qmd >}}
 
-::: {.callout-warning title="Warning: Preliminary model output"}
+{{< include _partials/_setup.qmd >}}
 
-This model output is preliminary and likely to change as the model evolves and further data are received.
-
-If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
-
-:::
-
-```{python}
-# | echo: false
-import json
-from pathlib import Path
-
-import pandas as pd
-
-_here = Path(".")
-with open(_here / "config.json") as f:
-    config = json.load(f)
-factor_summary = pd.read_csv(_here / "factor_summary.csv")
-```
+{{< include _partials/_convergence.qmd >}}
 
 ## Overview
 
@@ -69,57 +50,12 @@ No `kappa` under the Bernoulli. Priors: shared template in `priors.py`.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
-## Priors
+{{< include _partials/_priors.qmd >}}
 
-![alpha](prior_alpha.svg){width=24%}
-![tau (group)](prior_tau.svg){width=24%}
-![gamma_age](prior_gamma_age.svg){width=24%}
-![gamma_cross](prior_gamma_cross.svg){width=24%}
+{{< include _partials/_prior_predictive.qmd >}}
 
-## Prior-predictive check
+{{< include _partials/_diagnostics.qmd >}}
 
-![Prior predictive](prior_predictive_check.png){.lightbox}
+{{< include _partials/_results_factors.qmd >}}
 
-## Sampling diagnostics
-
-```{python}
-# | echo: false
-diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
-diag
-```
-
-![Trace](trace_plot.png){.lightbox}
-
-![Energy](energy_plot.png){.lightbox}
-
-![Posterior](posterior_plot.png){.lightbox}
-
-## Posterior-predictive check
-
-![Posterior predictive](posterior_predictive_check.png){.lightbox}
-
-## Findings
-
-### Factor summary (off-floor log-odds)
-
-```{python}
-# | echo: false
-factor_summary
-```
-
-`b_grp_time[t]` is the group off-floor log-odds at timepoint $t$ (0=t1 ... 3=t4); only `b_grp_time[1]` (t2) is the clean randomised contrast (**causal**). `gamma_ability_time[t]` is the ability association by timepoint; `gamma_grp_ability` the group $\times$ ability cross term. `mean`/`lo`/`hi` = posterior mean + equal-tailed 95% CrI; `prob_positive` = $P(\text{coef} > 0)$.
-
-## LOO-PSIS
-
-```{python}
-# | echo: false
-# | output: asis
-print("```\n" + open(_here / "loo.txt").read() + "\n```")
-```
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
+{{< include _partials/_footer.qmd >}}

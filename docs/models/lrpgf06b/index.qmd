@@ -15,30 +15,11 @@ format:
       - repo
 ---
 
-::: {.callout-note}
-Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
-:::
+{{< include _partials/_header.qmd >}}
 
-::: {.callout-warning title="Warning: Preliminary model output"}
+{{< include _partials/_setup.qmd >}}
 
-This model output is preliminary and likely to change as the model evolves and further data are received.
-
-If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
-
-:::
-
-```{python}
-# | echo: false
-import json
-from pathlib import Path
-
-import pandas as pd
-
-_here = Path(".")
-with open(_here / "config.json") as f:
-    config = json.load(f)
-factor_summary = pd.read_csv(_here / "factor_summary.csv")
-```
+{{< include _partials/_convergence.qmd >}}
 
 ## Overview
 
@@ -53,63 +34,16 @@ Once restricted to on-intervention rows the treatment indicator is constant, so 
 ## Model
 
 Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the period post-count, $N = 10$, with
-$\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks})  + $\sum_s\gamma_s\operatorname{logit}_*(s_{\text{pre}})$ for $s\in\{L\}$ + \sum\text{interactions} + u_{\text{child}}$. Priors: shared template in `priors.py`.
+$\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s\in\{L\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}}) + \sum\text{interactions} + u_{\text{child}}$. Priors: shared template in `priors.py`.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
-## Priors
+{{< include _partials/_priors.qmd >}}
 
-![alpha](prior_alpha.svg){width=24%}
-![tau (treatment)](prior_tau.svg){width=24%}
-![gamma_own](prior_gamma_own.svg){width=24%}
-![gamma_age](prior_gamma_age.svg){width=24%}
-![gamma_cross](prior_gamma_cross.svg){width=24%}
-![kappa](prior_kappa.svg){width=24%}
+{{< include _partials/_prior_predictive.qmd >}}
 
-## Prior-predictive check
+{{< include _partials/_diagnostics.qmd >}}
 
-![Prior predictive](prior_predictive_check.png){.lightbox}
+{{< include _partials/_results_factors.qmd >}}
 
-## Sampling diagnostics
-
-```{python}
-# | echo: false
-diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
-diag
-```
-
-![Trace](trace_plot.png){.lightbox}
-
-![Energy](energy_plot.png){.lightbox}
-
-![Posterior](posterior_plot.png){.lightbox}
-
-## Posterior-predictive check
-
-![Posterior predictive](posterior_predictive_check.png){.lightbox}
-
-## Findings
-
-### Factor summary
-
-```{python}
-# | echo: false
-factor_summary
-```
-
-`role` is **association** for every row — this is a treated-only model (restricted to on-intervention rows, so the treatment indicator is constant and no randomised on-intervention term is estimated); `mean`/`lo`/`hi` are the posterior mean and equal-tailed 95% CrI (logit scale); `prob_positive` = $P(\text{coef}>0)$. Interactions are expected to be weakly identified (wide CrI) at $n\approx54$.
-
-## LOO-PSIS
-
-```{python}
-# | echo: false
-# | output: asis
-print("```\n" + open(_here / "loo.txt").read() + "\n```")
-```
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
+{{< include _partials/_footer.qmd >}}

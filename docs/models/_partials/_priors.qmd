@@ -1,0 +1,77 @@
+## Priors
+
+The priors below are documented in `priors.py` (the single source of truth, so
+they cannot drift between models). The **role** column separates the *causal*
+prior (the randomised effect) from *precision* terms (which sharpen it but do not
+license the causal claim), *association* couplings (adjusted, never "drives"),
+*nuisance* terms (intercept / dispersion / random-intercept scale), and any *GP*
+amplitudes / lengthscales.
+
+```{python}
+# | echo: false
+priors_table if priors_table is not None else "No priors table available."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Panels for the priors this model actually registered (the dead panels are
+# pruned at fit time; #125 Area 1).
+_seen = set()
+if priors_table is not None and "panel" in priors_table.columns:
+    for _pan in priors_table["panel"].dropna():
+        if _pan and _pan not in _seen and _has(f"prior_{_pan}.svg"):
+            _seen.add(_pan)
+            print(f"![{_pan}](prior_{_pan}.svg){{width=32%}}")
+```
+
+### Prior pushforward to the estimand scale
+
+```{python}
+# | echo: false
+# | output: asis
+# What the prior on the effect implies on the items scale *before* seeing data
+# (#125 Area 1/2 estimand check).
+_pf = _csv("prior_pushforward.csv")
+if _pf is not None:
+    _r = _pf.iloc[0]
+    print(
+        f"Before seeing data, the prior on the treatment effect implies an "
+        f"items-scale average marginal effect with median "
+        f"**{_r.prior_items_median:+.1f}**, a 50% range "
+        f"{_r.prior_items_lo50:+.1f} to {_r.prior_items_hi50:+.1f}, and a 95% range "
+        f"{_r.prior_items_lo:+.1f} to {_r.prior_items_hi:+.1f} "
+        f"(denominator {int(_r.n_trials)}). A well-calibrated prior is wide but not "
+        f"absurd — it should not concentrate mass on implausibly large effects."
+    )
+else:
+    print("_No prior pushforward available for this model._")
+```
+
+### Prior vs posterior
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("prior_posterior.png", "Prior vs posterior overlay"))
+```
+
+::: {.callout-note collapse="true" title="Power-scaling prior/likelihood sensitivity (psense)"}
+
+Sensitivity of each parameter to power-scaling its prior and likelihood
+(Kallioinen et al. 2024); a `✓` flags no concern. Recommended-but-secondary at
+this sample size.
+
+```{python}
+# | echo: false
+_ps = _csv("psense_summary.csv", index_col=0)
+_ps if _ps is not None else "No psense summary."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("psense.png", "Power-scaling sensitivity"))
+```
+
+:::

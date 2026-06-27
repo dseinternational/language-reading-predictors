@@ -15,33 +15,11 @@ format:
       - repo
 ---
 
-::: {.callout-note}
-Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
-:::
+{{< include _partials/_header.qmd >}}
 
-::: {.callout-warning title="Warning: Preliminary model output"}
+{{< include _partials/_setup.qmd >}}
 
-This model output is preliminary and likely to change as the model evolves and further data are received.
-
-If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
-
-:::
-
-```{python}
-# | echo: false
-import json
-from pathlib import Path
-
-import arviz as az
-import pandas as pd
-
-_here = Path(".")
-with open(_here / "config.json") as f:
-    config = json.load(f)
-trace = az.from_netcdf(_here / "trace.nc")
-tau_summary = pd.read_csv(_here / "tau_summary.csv")
-rope_summary = pd.read_csv(_here / "rope_summary.csv")
-```
+{{< include _partials/_convergence.qmd >}}
 
 ## Overview
 
@@ -77,105 +55,12 @@ verdict, `notes/202604181445-lrp52-gp-sensitivity.md`).
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
-## Shared priors
+{{< include _partials/_priors.qmd >}}
 
-![alpha](prior_alpha.svg){width=32%}
-![tau](prior_tau.svg){width=32%}
-![gamma_own](prior_gamma_own.svg){width=32%}
-![gamma_age](prior_gamma_age.svg){width=32%}
-![kappa](prior_kappa.svg){width=32%}
+{{< include _partials/_prior_predictive.qmd >}}
 
-## Sampling diagnostics
+{{< include _partials/_diagnostics.qmd >}}
 
-```{python}
-# | echo: false
-diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
-diag
-```
+{{< include _partials/_results_itt.qmd >}}
 
-![Trace](trace_plot.png){.lightbox}
-
-![Energy](energy_plot.png){.lightbox}
-
-![Posterior](posterior_plot.png){.lightbox}
-
-## Posterior predictive check
-
-![Posterior predictive](posterior_predictive_check.png){.lightbox}
-
-## Treatment-effect summary
-
-```{python}
-# | echo: false
-tau_summary
-```
-
-- `tau_logit_*`: posterior mean and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the logit scale.
-- `tau_prob_*`: average marginal effect on the probability scale (risk difference), averaged over the fitted sample per posterior draw.
-- `prob_tau_pos`: $P(\tau > 0) = P(\text{intervention helps})$.
-
-## Reporting: direction, magnitude, and practical significance
-
-This follows `notes/202606261304-evidence-strength-and-rope-reporting.md` and the
-`METHODS.md` "Interpret" rule: report the **median** effect
-(transformation-invariant across the logit and items scales) with intervals, and
-separate **direction** (is there a benefit?) from **magnitude** (is it big enough to
-matter?). Magnitude is judged against a minimally-important difference $\delta$ —
-a region of practical equivalence (ROPE) on the items scale — set per outcome in
-`measures.ROPE_DELTA` (provisional, owned by the education lead).
-
-```{python}
-# | echo: false
-# | output: asis
-r = rope_summary.iloc[0]
-
-
-from language_reading_predictors.statistical_models.reporting import odds_string as _odds
-
-print(
-    f"The intervention raised letter-sound knowledge by a median of "
-    f"**{r.items_median:+.1f} items** "
-    f"(50% CrI {r.items_lo50:+.1f} to {r.items_hi50:+.1f}; "
-    f"95% CrI {r.items_lo:+.1f} to {r.items_hi:+.1f}). "
-    f"**Direction** — evidence it helps: "
-    f"pd = {r.pd:.3f} ({_odds(r.pd)}, *{r.direction_label} evidence*). "
-    f"**Magnitude** — evidence the benefit is at least "
-    f"$\\delta$ = {r.delta_items:g} items: "
-    f"P = {r.prob_benefit_ge_delta:.3f} "
-    f"({_odds(r.prob_benefit_ge_delta)}, *{r.benefit_label} evidence*); "
-    f"probability practically negligible (inside the ROPE): {r.prob_in_rope:.3f}."
-)
-```
-
-```{python}
-# | echo: false
-rope_summary.T
-```
-
-![ROPE-anchored posterior of the effect, and the probability of a benefit of at least delta items](rope_summary.png){.lightbox}
-
-::: {.callout-note title="Reading the evidence labels"}
-
-The round-odds labels (*inconclusive / suggestive / moderate / strong / very
-strong*) qualify the **evidence**, never the effect *size*, and are run separately
-for the direction and the meaningful-benefit claims. They are a last-resort handle
-for prose — the odds and probabilities are the real quantities. At this study's
-sample size the point estimate is, on average, magnitude-inflated (a Type-M /
-winner's-curse effect), so lead with the interval, not the point.
-
-:::
-
-## LOO-PSIS
-
-```{python}
-# | echo: false
-# | output: asis
-print("```\n" + open(_here / "loo.txt").read() + "\n```")
-```
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
+{{< include _partials/_footer.qmd >}}

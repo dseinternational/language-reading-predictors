@@ -62,8 +62,10 @@ is sub-additive (diminishing returns / partial substitutability).
 Decoding is a low, 57%-floored 0–6 count, so a nonparametric HSGP dose-response on
 $\operatorname{logit} L$ is not identifiable. The mechanism enters as a single
 linear slope $\beta_{\text{mech}}\,z(\operatorname{logit} L)$
-(`linear_mechanism=True`). There is therefore no `f_mech` curve; the estimands are
-the three coefficients above.
+(`linear_mechanism=True`), so there is no nonparametric `f_mech` curve; the estimands
+are the three coefficients above. In its place the *Mechanism curve* section below
+plots the **linear** main-effect band $\beta_{\text{mech}}\,z(\operatorname{logit} L)$
+— the letter-sound dose-response at average blending.
 
 :::
 
@@ -152,6 +154,22 @@ qualifications:
   routes contributing largely independently** (additively), with at most modest,
   link-ambiguous evidence of diminishing returns — not with super-additive
   synergy.
+
+## Mechanism curve
+
+The linear dose-response of letter-sound knowledge on decoding: the posterior band
+$\beta_{\text{mech}}\,z(\operatorname{logit} L)$, holding the adjustment set fixed and
+evaluated at **average blending** (the interaction $\gamma_{\text{int}}$ tilts this
+slope at other blending levels). A straight line by construction — the band is the
+posterior uncertainty in the slope, not curvature.
+
+![Mechanism curve](mechanism_curve.png){.lightbox}
+
+```{python}
+# | echo: false
+mech = pd.read_csv(_here / "mechanism_curve.csv")
+mech.head(15)
+```
 
 ## PSIS-LOO vs the no-interaction baseline
 
