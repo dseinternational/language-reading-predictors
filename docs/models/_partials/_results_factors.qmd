@@ -1,0 +1,97 @@
+## Results
+
+The factor model reports **one** causal coefficient — the randomised
+on-intervention / t2 group contrast — alongside a vector of *adjusted
+associations*. Under the locked DAG every non-randomised coefficient is
+confounded by latent general ability and must be read as *associated with*,
+never *drives*.
+
+```{python}
+# | echo: false
+factor_summary = _csv("factor_summary.csv")
+factor_summary
+```
+
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import odds_string as _odds
+
+if factor_summary is not None and "role" in factor_summary.columns:
+    _causal = factor_summary[factor_summary.role == "causal"]
+    if len(_causal):
+        _r = _causal.iloc[0]
+        _lab = (
+            f", *{_r.direction_label} evidence*"
+            if "direction_label" in factor_summary.columns
+            else ""
+        )
+        print(
+            f"**Causal (randomised) term — `{_r.term}`:** posterior mean "
+            f"{_r['mean']:+.3f} on the logit scale "
+            f"(95% CrI {_r['lo']:+.3f} to {_r['hi']:+.3f}); "
+            f"P(> 0) = {_r.prob_positive:.3f} ({_odds(_r.prob_positive)}{_lab}). "
+            f"This is the only coefficient identified by randomisation."
+        )
+    else:
+        print(
+            "_This is a factor-association model with no randomised treatment term — "
+            "every coefficient below is an adjusted association among the treated._"
+        )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Items-scale treatment effect (gain family) and the causal-term forest.
+treatment_marginal = _csv("treatment_marginal.csv")
+if treatment_marginal is not None:
+    _t = treatment_marginal.iloc[0]
+    print(
+        f"On the items scale the treatment average marginal effect is a median of "
+        f"**{_t.trt_items_median:+.1f} items** "
+        f"(95% CrI {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
+        f"P(> 0) = {_t.prob_trt_pos:.3f}.\n"
+    )
+print(_img("tau_forest.png", "Posterior of the causal term (forest, reference line at 0)"))
+```
+
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import rope_markdown
+
+_rope = _csv("rope_summary.csv")
+if _rope is not None:
+    print(rope_markdown(_rope, outcome_label))
+```
+
+```{python}
+# | echo: false
+_rope.T if _rope is not None else None
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("rope_summary.png", "ROPE-anchored posterior and P(benefit ≥ δ)"))
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Adjusted associations, clearly fenced (METHODS.md causal-vs-association discipline).
+if factor_summary is not None and "role" in factor_summary.columns:
+    _assoc = factor_summary[factor_summary.role != "causal"]
+    if len(_assoc):
+        _cols = [c for c in ["term", "mean", "lo", "hi", "prob_positive"] if c in _assoc.columns]
+        print('::: {.callout-important title="Adjusted associations — not causal"}\n')
+        print(
+            "Under the locked DAG every coefficient below is an adjusted association "
+            "confounded by latent general ability (and, for the level model, by the "
+            "post-crossover cohort/timing structure after t2). Read as *associated "
+            "with*, never *drives*.\n"
+        )
+        print(_assoc[_cols].to_markdown(index=False))
+        print("\n:::")
+```

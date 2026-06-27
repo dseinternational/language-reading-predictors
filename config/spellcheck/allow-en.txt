@@ -234,3 +234,10 @@ Isager
 Shachar
 Lüdecke
 iloc
+assoc
+deterministics
+dropna
+Gabry
+lengthscales
+psense
+ypre

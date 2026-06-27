@@ -16,10 +16,13 @@ Each pipeline:
 3. Writes prior-panel plots.
 4. Runs prior predictive, posterior sampling (nutpie), LOO, posterior
    predictive.
-5. Saves ``trace.nc``, ``config.json``, ``metrics.json`` and the standard
+5. Saves ``trace.nc`` (with the prior / prior_predictive / log_prior groups
+   attached — issue #125 step 0b), ``config.json``, ``diagnostics_summary.json``
+   (the pass/fail convergence gate), ``priors_table.csv`` and the standard
    diagnostic plots to ``output/statistical_models/models/{model_id}-{config}/``.
-6. Copies ``docs/models/{model_id}/index.qmd`` alongside the artefacts so
-   the Quarto report can be rendered in-place.
+6. Copies ``docs/models/{model_id}/index.qmd`` and the shared
+   ``docs/models/_partials/`` alongside the artefacts so the Quarto report can be
+   rendered in-place.
 """
 
 from __future__ import annotations
@@ -121,6 +124,40 @@ def _copy_report_template(context: StatisticalFitContext) -> None:
         rprint(f"  Report template copied to {dst}")
     else:
         rprint(f"  [yellow]No report template found at {src}[/yellow]")
+
+    # Copy the shared Quarto partials alongside the report so ``{{< include
+    # _partials/... >}}`` resolves at render time in the output dir (issue #125
+    # step 0a). Quarto resolves includes relative to the rendered file.
+    partials_src = os.path.join(DOCS_DIR, "models", "_partials")
+    partials_dst = os.path.join(context.output_dir, "_partials")
+    if os.path.isdir(partials_src):
+        shutil.copytree(partials_src, partials_dst, dirs_exist_ok=True)
+
+
+def _emit_priors(context: StatisticalFitContext) -> None:
+    """Write the pruned prior panel + ``priors_table.csv`` (issue #125 Area 1).
+
+    Only the priors the model actually registered are panelled (no more 4–6 dead
+    panels per model), and ``priors_table.csv`` documents every parameter's
+    distribution, role (causal / precision / association / nuisance / GP) and
+    rationale, driven by the built model so it cannot drift from the source.
+    """
+    model = context.model
+    # Clear stale prior-PDF panels from a previous run so only the used set
+    # remains (one file per named prior; not the prior-predictive / overlay PNGs).
+    for key in _priors.ALL_PRIORS:
+        for ext in ("png", "svg"):
+            stale = os.path.join(context.output_dir, f"prior_{key}.{ext}")
+            try:
+                os.remove(stale)
+            except OSError:
+                pass
+    _priors.save_shared_prior_panel(
+        context.output_dir, used=_priors.used_prior_keys(model)
+    )
+    table = _priors.priors_table(model)
+    table.to_csv(os.path.join(context.output_dir, "priors_table.csv"), index=False)
+    context.tables["priors_table"] = table
 
 
 def _render_model_graph(context: StatisticalFitContext) -> None:
@@ -262,6 +299,96 @@ def _save_rope_plot(
         rprint(f"[yellow]ROPE plot failed: {exc}[/yellow]")
 
 
+def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
+    """Heatmap of the joint pairwise contrast matrix P(tau_k > tau_j) (#125 Area 4)."""
+    try:
+        import numpy as _np
+
+        labels = list(contrast.index)
+        M = contrast.to_numpy(dtype=float)
+        fig, ax = plt.subplots(figsize=(1.1 + 0.6 * len(labels), 1.0 + 0.6 * len(labels)))
+        im = ax.imshow(M, cmap="RdBu_r", vmin=0.0, vmax=1.0)
+        ax.set_xticks(range(len(labels)), labels, rotation=45, ha="right", fontsize=8)
+        ax.set_yticks(range(len(labels)), labels, fontsize=8)
+        for i in range(len(labels)):
+            for j in range(len(labels)):
+                if _np.isfinite(M[i, j]):
+                    ax.text(j, i, f"{M[i, j]:.2f}", ha="center", va="center", fontsize=7)
+        ax.set_title("P(row tau > column tau)", fontsize=9)
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        fig.tight_layout()
+        fig.savefig(
+            os.path.join(ctx.output_dir, "contrast_heatmap.png"), dpi=300, bbox_inches="tight"
+        )
+        plt.close(fig)
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Contrast heatmap failed: {exc}[/yellow]")
+
+
+def _emit_itt_extras(
+    ctx: StatisticalFitContext,
+    built,
+    *,
+    n_trials: int,
+    overlay_vars: list[str],
+    term: str = "tau",
+    varying_term: str = "tau_i",
+) -> None:
+    """Area 1/4 extras for an ITT-style fit (issue #125).
+
+    Writes ``prior_pushforward.csv`` (the estimand-scale prior check), the causal
+    forest, the prior-vs-posterior overlay, and power-scaling sensitivity. Reads
+    the persisted ``prior`` group (on ``ctx.prior_samples``) and the full trace,
+    so call after ``save_trace``. ``n_trials=1`` gives the risk-difference scale
+    for the binary off-floor model.
+    """
+    try:
+        pf = _report.prior_pushforward(
+            ctx.prior_samples,
+            G=built.prepared.G,
+            n_trials=n_trials,
+            term=term,
+            varying_term=varying_term,
+            ci_prob=ctx.reporting.hdi,
+        )
+        pd.DataFrame([pf]).to_csv(
+            os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
+        )
+        ctx.tables["prior_pushforward"] = pd.DataFrame([pf])
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]prior pushforward skipped: {exc}[/yellow]")
+    _save_forest_plot(ctx, [term])
+    _diag.save_prior_posterior_plot(ctx, var_names=overlay_vars)
+    _diag.run_psense(ctx, var_names=[term])
+
+
+def _save_forest_plot(
+    ctx: StatisticalFitContext,
+    var_names: list[str],
+    *,
+    name: str = "tau_forest.png",
+) -> None:
+    """Forest plot of the causal term(s) with a reference line at 0 (#125 Area 4).
+
+    For a single-outcome model ``var_names=["tau"]`` shows the one effect; for the
+    joint model the vector ``tau`` forests every outcome's effect in one panel —
+    the single most communicative artifact for the suite. Guarded.
+    """
+    try:
+        import arviz_plots as azp
+
+        tr = _diag.thin_for_plots(ctx.trace)
+        pc = azp.plot_forest(tr, var_names=var_names, combined=True)
+        try:
+            azp.add_lines(pc, values=0)
+        except Exception:
+            pass  # the forest itself is the substantive output
+        pc.savefig(os.path.join(ctx.output_dir, name), dpi=300)
+        plt.close("all")
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Forest plot ({name}) failed: {exc}[/yellow]")
+
+
 # ---------------------------------------------------------------------------
 # ITT pipeline (LRPITT suite + SES companions)
 # ---------------------------------------------------------------------------
@@ -351,7 +478,6 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
 
     # Heavily-floored outcomes (P, N) take the pre-specified floor-rule branch:
     # a binary off-floor estimand as PRIMARY plus a graded SECONDARY (#119).
@@ -376,10 +502,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ctx.model_vars = built.variables
     ctx.prepared = built.prepared
 
+    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+    _diag.run_prior_predictive(ctx, draws=1000)
 
     section_header("Sampling posterior (nutpie)")
     _diag.sample_posterior(ctx)
@@ -396,7 +523,21 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
     _save_ppc(ctx)
 
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=_itt_diag_vars(spec, adjust_for))
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol)
+    _diag.run_extended_diagnostics(ctx, causal_term="tau")
+
     _diag.save_trace(ctx)
+
+    # Area 1/4 extras that read the attached prior group or the full trace:
+    # the prior pushforward to the items scale (estimand-scale prior check), the
+    # tau forest, the prior-vs-posterior overlay, and power-scaling sensitivity.
+    n_trials_own = int(built.prepared.n_trials[spec.outcome_symbol])
+    _emit_itt_extras(
+        ctx, built, n_trials=n_trials_own,
+        overlay_vars=_itt_diag_vars(spec, adjust_for),
+    )
 
     # Treatment-effect summary on both scales.
     section_header("Treatment-effect summary")
@@ -521,10 +662,11 @@ def _fit_itt_floor_rule(
     ctx.model = built.model
     ctx.model_vars = built.variables
     ctx.prepared = built.prepared
+    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_offfloor", "eta"])
+    _diag.run_prior_predictive(ctx, draws=1000)
     section_header("Sampling posterior (nutpie)")
     _diag.sample_posterior(ctx)
     section_header("LOO-PSIS")
@@ -541,7 +683,22 @@ def _fit_itt_floor_rule(
     section_header("Posterior predictive")
     _diag.sample_posterior_predictive(ctx, var_names=["y_offfloor"])
     _save_ppc(ctx)
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(
+        ctx,
+        var_names=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
+    )
+    _diag.save_prior_predictive_plot(ctx, own)
+    _diag.run_extended_diagnostics(ctx, causal_term="tau")
     _diag.save_trace(ctx)
+
+    # Off-floor estimand is a risk difference (Pr off-floor), so the items scale is
+    # n_trials = 1; no age-varying term in the floor-rule model.
+    _emit_itt_extras(
+        ctx, built, n_trials=1, varying_term="",
+        overlay_vars=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
+    )
 
     section_header("Off-floor treatment-effect summary (PRIMARY)")
     off = _report.tau_summary_offfloor(
@@ -574,6 +731,31 @@ def _fit_itt_floor_rule(
             precision=3,
         )
     )
+
+    # ROPE-anchored card on the off-floor RISK-DIFFERENCE scale (issue #125 Area 4;
+    # #130 follow-up). delta is a probability (risk difference), n_trials = 1; the
+    # value is the provisional ROPE_DELTA_PROB pending education-lead sign-off.
+    from language_reading_predictors.statistical_models.measures import ROPE_DELTA_PROB
+
+    delta_prob = ROPE_DELTA_PROB.get(own)
+    if delta_prob is not None:
+        rope_s = _report.rope_summary(
+            ctx.trace,
+            G=built.prepared.G,
+            n_trials=1,
+            delta=delta_prob,
+            ci_prob=ctx.reporting.hdi,
+            varying_term="",
+        )
+        rope_s["provisional_delta"] = True
+        rope_s["delta_scale"] = "risk_difference"
+        pd.DataFrame([rope_s]).to_csv(
+            os.path.join(ctx.output_dir, "rope_summary.csv"), index=False
+        )
+        ctx.tables["rope_summary"] = pd.DataFrame([rope_s])
+        _save_rope_plot(
+            ctx, own, built.prepared.G, 1, delta_prob, varying_term=""
+        )
 
     # ----- SECONDARY: graded Beta-Binomial (detection-limited) -----
     section_header("Build model (SECONDARY: graded Beta-Binomial, detection-limited)")
@@ -662,7 +844,6 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
 
     built = _factories.build_joint_model(
         prepared,
@@ -677,10 +858,11 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ctx.model_vars = built.variables
     ctx.prepared = built.prepared
 
+    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post"])
+    _diag.run_prior_predictive(ctx, draws=1000)
 
     section_header("Sampling posterior (nutpie)")
     _diag.sample_posterior(ctx)
@@ -701,7 +883,14 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Posterior predictive")
     _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
     _save_ppc(ctx)
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=_joint_vars)
+    _diag.run_extended_diagnostics(ctx, causal_term="tau")
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=_joint_vars)
+    # One forest of every outcome's tau — the single most communicative joint artifact.
+    _save_forest_plot(ctx, ["tau"])
 
     section_header("Treatment-effect summary")
     outcomes = list(ctx.trace.posterior["outcome"].values)
@@ -720,6 +909,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     contrast = _report.tau_contrast_matrix(ctx.trace, outcomes)
     contrast.to_csv(os.path.join(ctx.output_dir, "tau_contrast_matrix.csv"))
     ctx.tables["tau_contrast_matrix"] = contrast
+    _save_contrast_heatmap(ctx, contrast)
 
     meta_extra: dict = {"loo_elpd": float(ctx.loo.elpd)}
 
@@ -1270,7 +1460,6 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
     built = _factories.build_gain_factors_model(
         prepared,
         outcome_symbol=spec.outcome_symbol,
@@ -1284,10 +1473,11 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     ctx.model_vars = built.variables
     ctx.prepared = built.prepared
 
+    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=[obs_node, "eta"])
+    _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
     section_header("Sampling posterior (nutpie)")
@@ -1304,7 +1494,16 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     section_header("Posterior predictive")
     _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
     _save_ppc(ctx)
+
+    section_header("Extended diagnostics")
+    _causal_gf = None if treated_only else "beta_trt"
+    _diag.write_diagnostics_summary(ctx, var_names=_gf_diag_vars(spec))
+    _diag.run_extended_diagnostics(ctx, causal_term=_causal_gf)
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=_gf_diag_vars(spec))
+    if _causal_gf is not None:
+        _save_forest_plot(ctx, [_causal_gf])
+        _diag.run_psense(ctx, var_names=[_causal_gf])
 
     section_header("Factor summary")
     fs = _report.factor_summary(
@@ -1351,17 +1550,33 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             )
         )
 
+        # Prior pushforward on the same scale (estimand-scale prior check, #125).
+        try:
+            pf = _report.prior_pushforward(
+                ctx.prior_samples, G=trt, n_trials=n_marg,
+                term="beta_trt", varying_term="", ci_prob=ctx.reporting.hdi,
+            )
+            pd.DataFrame([pf]).to_csv(
+                os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
+            )
+            ctx.tables["prior_pushforward"] = pd.DataFrame([pf])
+        except Exception as exc:  # pragma: no cover
+            rprint(f"[yellow]prior pushforward skipped: {exc}[/yellow]")
+
         # ROPE-anchored continuous report for the one causal term (beta_trt),
         # mirroring fit_itt (notes/202606261304-evidence-strength-and-rope-
         # reporting.md): separates direction (pd) from a *meaningful* benefit
-        # (P(items >= delta)). Emitted only for graded outcomes with an agreed
-        # items-scale delta (ROPE_DELTA -> W/R/E/L/B). The floored outcome P and the
-        # not-yet-agreed F/T are absent from ROPE_DELTA and so skipped, exactly as
-        # the ITT path leaves them (their probability-scale delta is the same
-        # education-lead follow-up #130 records).
-        from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+        # (P(items >= delta)). Graded outcomes with an agreed items-scale delta
+        # (ROPE_DELTA -> W/R/E/L/B) use the items scale; the floored outcome P (off-
+        # floor) uses the provisional risk-difference delta (ROPE_DELTA_PROB, #130
+        # follow-up); F/T have no agreed delta and are skipped.
+        from language_reading_predictors.statistical_models.measures import (
+            ROPE_DELTA,
+            ROPE_DELTA_PROB,
+        )
 
         delta_items = ROPE_DELTA.get(spec.outcome_symbol)
+        delta_prob = ROPE_DELTA_PROB.get(spec.outcome_symbol)
         if delta_items is not None and not off_floor:
             rope_s = _report.rope_summary(
                 ctx.trace,
@@ -1385,6 +1600,24 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             )
             _save_rope_plot(
                 ctx, spec.outcome_symbol, trt, n_marg, delta_items,
+                term="beta_trt", varying_term="",
+            )
+        elif off_floor and delta_prob is not None:
+            # Off-floor risk-difference ROPE (provisional delta), matching the
+            # floored ITT path (#125 Area 4; #130 follow-up).
+            rope_s = _report.rope_summary(
+                ctx.trace, G=trt, n_trials=1, delta=delta_prob,
+                ci_prob=ctx.reporting.hdi, term="beta_trt", varying_term="",
+            )
+            rope_s["provisional_delta"] = True
+            rope_s["delta_scale"] = "risk_difference"
+            pd.DataFrame([rope_s]).to_csv(
+                os.path.join(ctx.output_dir, "rope_summary.csv"), index=False
+            )
+            ctx.tables["rope_summary"] = pd.DataFrame([rope_s])
+            meta_extra["rope_summary"] = rope_s
+            _save_rope_plot(
+                ctx, spec.outcome_symbol, trt, 1, delta_prob,
                 term="beta_trt", varying_term="",
             )
 
@@ -1437,7 +1670,6 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
     built = _factories.build_level_factors_model(
         prepared,
         outcome_symbol=spec.outcome_symbol,
@@ -1451,10 +1683,11 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     ctx.model_vars = built.variables
     ctx.prepared = built.prepared
 
+    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=[obs_node, "eta"])
+    _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
     section_header("Sampling posterior (nutpie)")
@@ -1471,7 +1704,15 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     section_header("Posterior predictive")
     _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
     _save_ppc(ctx)
+
+    section_header("Extended diagnostics")
+    _causal_lf = "b_grp_time" if extra.get("group_by_time", True) else "beta_grp"
+    _diag.write_diagnostics_summary(ctx, var_names=_lf_diag_vars(spec))
+    _diag.run_extended_diagnostics(ctx, causal_term=_causal_lf)
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag_vars(spec))
+    _save_forest_plot(ctx, [_causal_lf])
+    _diag.run_psense(ctx, var_names=[_causal_lf])
 
     section_header("Factor summary")
     # Only the t2 group contrast (b_grp_time[1]) is the clean randomised effect;

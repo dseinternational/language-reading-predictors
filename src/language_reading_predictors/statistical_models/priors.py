@@ -13,8 +13,10 @@ for the Quarto report.
 from __future__ import annotations
 
 import os
+import re
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import preliz as pz
 from preliz.distributions.distributions import Continuous
 
@@ -148,6 +150,174 @@ SHARED_PRIORS: dict[str, "callable[[], Continuous]"] = {
 }
 
 
+# Constructors used by some factories but absent from :data:`SHARED_PRIORS`
+# (so they were never panelled before #125). Added here so a model that uses them
+# gets a panel and a priors-table row.
+_EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
+    "beta_mech": beta_mech_prior,
+    "b_path": b_path_prior,
+    "sigma_mediator": sigma_mediator_prior,
+    "eta_partial_pool": eta_partial_pool_prior,
+}
+
+ALL_PRIORS: dict[str, "callable[[], Continuous]"] = {**SHARED_PRIORS, **_EXTRA_PRIORS}
+
+
+# Role of each named prior in the DAG-faithful workflow (issue #125 Area 1): only
+# the *causal* prior backs an effect identified by randomisation; *precision*
+# priors sharpen it without licensing a causal claim; *association* priors back
+# adjusted (confounded) couplings; *nuisance* priors are the intercept /
+# dispersion / random-intercept scale; *gp* priors parameterise the optional
+# Gaussian-process terms.
+_ROLE_BY_CTOR: dict[str, str] = {
+    "alpha": "nuisance",
+    "tau": "causal",
+    "gamma_own": "precision",
+    "gamma_cross": "association",
+    "gamma_age": "precision",
+    "kappa": "nuisance",
+    "beta_mech": "association",
+    "b_path": "association",
+    "sigma_mediator": "nuisance",
+    "eta_main": "gp",
+    "eta_tau": "gp",
+    "ell": "gp",
+    "eta_partial_pool": "gp",
+}
+
+# Map a registered PyMC RV name to the shared-prior constructor that built it.
+# Several RVs share one constructor (``tau_prior`` backs every randomised effect
+# term; ``gamma_cross_prior`` backs every adjusted coupling), so role assignment
+# is by constructor, not RV name. Names not listed fall back by prefix.
+_RV_TO_CTOR: dict[str, str] = {
+    "alpha": "alpha",
+    "tau": "tau",
+    "beta_G": "tau",
+    "beta_period": "tau",
+    "delta": "tau",
+    "beta_dose": "tau",
+    "beta_trt": "tau",
+    "b_grp_time": "tau",
+    "beta_grp": "tau",
+    "a_G": "tau",
+    "b_G": "tau",
+    "gamma_own": "gamma_own",
+    "a_L": "gamma_own",
+    "a_comp": "gamma_own",
+    "b_W": "gamma_own",
+    "gamma_A": "gamma_age",
+    "kappa": "kappa",
+    "kappa_M": "kappa",
+    "kappa_Y": "kappa",
+    "beta_mech": "beta_mech",
+    "b_M": "b_path",
+    "sigma_M": "sigma_mediator",
+    "eta_main": "eta_main",
+    "eta_tau": "eta_tau",
+    "ell": "ell",
+    "eta_partial_pool": "eta_partial_pool",
+}
+
+# Inline priors created directly in the factories (not via a named constructor),
+# so they would be invisible to a SHARED_PRIORS-only table. Documented here.
+_INLINE_PRIORS: dict[str, dict[str, str]] = {
+    "alpha_phase": {
+        "role": "nuisance",
+        "distribution": "Normal(0, 0.5)",
+        "rationale": "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5).",
+    },
+    "alpha_time": {
+        "role": "nuisance",
+        "distribution": "Normal(0, 0.5)",
+        "rationale": "Per-timepoint intercept offset alpha_time ~ Normal(0, 0.5).",
+    },
+    "sigma_child": {
+        "role": "nuisance",
+        "distribution": "HalfNormal(0.5)",
+        "rationale": "Child random-intercept SD sigma_child ~ HalfNormal(0.5).",
+    },
+}
+
+
+def _first_docline(ctor) -> str:
+    """First line of a constructor's docstring (the prior's rationale)."""
+    return (ctor.__doc__ or "").strip().split("\n")[0].strip()
+
+
+def _dist_from_doc(ctor) -> str:
+    """Extract the distribution signature (e.g. ``Normal(0, 0.5)``) from the doc."""
+    line = _first_docline(ctor)
+    m = re.search(r"~\s*([A-Za-z]+\([^)]*\))", line)
+    return m.group(1) if m else ""
+
+
+def _ctor_key_for_rv(rv_name: str) -> str | None:
+    """Constructor key backing an RV, by exact name then by prefix fallback."""
+    base = rv_name.split("[")[0]
+    if base in _RV_TO_CTOR:
+        return _RV_TO_CTOR[base]
+    # Adjusted couplings are all gamma_cross-scaled (covariate, moderator,
+    # skill, mediator b-paths share the weakly-informative cross prior).
+    if base.startswith(("gamma", "b_", "a_")):
+        return "gamma_cross"
+    return None
+
+
+def prior_info_for_rv(rv_name: str) -> dict[str, str]:
+    """``{parameter, distribution, role, rationale, panel}`` for a registered RV.
+
+    ``panel`` is the basename (without ``prior_`` / extension) of the prior-PDF
+    panel for this parameter, or ``""`` for inline / unmapped priors that have no
+    panel — the report maps a table row to ``prior_{panel}.svg``.
+    """
+    base = rv_name.split("[")[0]
+    if base in _INLINE_PRIORS:
+        info = _INLINE_PRIORS[base]
+        return {"parameter": rv_name, **info, "panel": ""}
+    key = _ctor_key_for_rv(rv_name)
+    if key is None:
+        return {
+            "parameter": rv_name,
+            "distribution": "(model prior)",
+            "role": "other",
+            "rationale": "",
+            "panel": "",
+        }
+    ctor = ALL_PRIORS[key]
+    return {
+        "parameter": rv_name,
+        "distribution": _dist_from_doc(ctor),
+        "role": _ROLE_BY_CTOR[key],
+        "rationale": _first_docline(ctor),
+        "panel": key,
+    }
+
+
+def used_prior_keys(model) -> list[str]:
+    """Constructor keys actually registered by ``model`` (for panel pruning)."""
+    keys: list[str] = []
+    for rv in list(model.free_RVs) + list(getattr(model, "deterministics", [])):
+        key = _ctor_key_for_rv(rv.name)
+        if key is not None and key in ALL_PRIORS and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def priors_table(model) -> pd.DataFrame:
+    """Per-model prior table with a ``role`` column (issue #125 Area 1).
+
+    One row per registered free RV (vector coefficients collapse to one row),
+    driven by the *actual* model so it never lists priors the model did not use
+    and captures the inline ``alpha_phase`` / ``alpha_time`` / ``sigma_child``
+    priors a SHARED_PRIORS-only table would miss. Columns: ``parameter``,
+    ``distribution``, ``role``, ``rationale``.
+    """
+    rows = [prior_info_for_rv(rv.name) for rv in model.free_RVs]
+    return pd.DataFrame(
+        rows, columns=["parameter", "distribution", "role", "rationale", "panel"]
+    )
+
+
 def plot_and_save(dist: Continuous, output_dir: str, name: str) -> str:
     """Plot a prior PDF and save as ``{name}.png`` + ``{name}.svg``."""
     os.makedirs(output_dir, exist_ok=True)
@@ -167,9 +337,23 @@ def plot_and_save(dist: Continuous, output_dir: str, name: str) -> str:
     return png
 
 
-def save_shared_prior_panel(output_dir: str) -> list[str]:
-    """Plot every prior in :data:`SHARED_PRIORS` and return the generated files."""
+def save_shared_prior_panel(
+    output_dir: str, used: list[str] | None = None
+) -> list[str]:
+    """Plot the priors the model uses and return the generated files.
+
+    ``used`` is a list of constructor keys (from :func:`used_prior_keys`); when
+    given, only those panels are written (pruning the 4–6 dead panels per model
+    that the old all-of-:data:`SHARED_PRIORS` behaviour produced, and adding
+    panels for the previously-unpanelled ``beta_mech`` / ``b_path`` /
+    ``sigma_mediator`` / ``eta_partial_pool``). When ``None``, every shared prior
+    is plotted (back-compatible default).
+    """
+    keys = list(SHARED_PRIORS) if used is None else used
     paths: list[str] = []
-    for name, ctor in SHARED_PRIORS.items():
+    for name in keys:
+        ctor = ALL_PRIORS.get(name)
+        if ctor is None:
+            continue
         paths.append(plot_and_save(ctor(), output_dir, f"prior_{name}"))
     return paths
