@@ -58,6 +58,7 @@ from language_reading_predictors.statistical_models.context import (
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
+    load_and_prepare_aligned,
     load_and_prepare_lagged_outcome,
 )
 
@@ -1774,6 +1775,132 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             )
         )
         _save_rope_plot(ctx, spec.outcome_symbol, None, n_marg, delta_items, items=items)
+
+    _report.write_run_metadata(ctx, extra=meta_extra)
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+def _al_coef_names(spec: ModelSpec) -> list[str]:
+    """Interpretable LRPAL coefficients (alpha/kappa excluded)."""
+    extra = spec.extra
+    names: list[str] = []
+    if extra.get("use_cohort", True):
+        names.append("beta_cohort")
+    names += ["gamma_own", "gamma_A"]
+    if extra.get("ability_covariate"):
+        names.append("gamma_ability")
+    if extra.get("use_dose", False):
+        names.append("gamma_dose")
+    return names
+
+
+def _al_diag_vars(spec: ModelSpec) -> list[str]:
+    # No child random intercept (one row per child); no kappa off-floor.
+    tail = [] if spec.extra.get("likelihood") == "bernoulli_offfloor" else ["kappa"]
+    return ["alpha", *_al_coef_names(spec), *tail]
+
+
+def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    assert spec.kind == "aligned"
+    assert spec.outcome_symbol is not None
+    ctx = make_context(spec, config)
+    extra = spec.extra
+
+    section_header("Prepare data")
+    ability_covariate = extra.get("ability_covariate")
+    use_cohort = bool(extra.get("use_cohort", True))
+    use_dose = bool(extra.get("use_dose", False))
+    likelihood = extra.get("likelihood", "beta_binomial")
+    off_floor = likelihood == "bernoulli_offfloor"
+    obs_node = "y_offfloor" if off_floor else "y_post"
+    prepared = load_and_prepare_aligned(
+        outcomes=(spec.outcome_symbol,),
+        ability_covariate=ability_covariate,
+        include_dose=use_dose,
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_aligned_model(
+        prepared,
+        outcome_symbol=spec.outcome_symbol,
+        ability_covariate=ability_covariate,
+        use_cohort=use_cohort,
+        use_dose=use_dose,
+        likelihood=likelihood,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=[obs_node, "eta"])
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=_al_diag_vars(spec))
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    section_header("Factor summary")
+    # Per-protocol design: NOTHING is a clean randomised effect, so no term is
+    # flagged causal -- every coefficient (cohort included) is an association.
+    fs = _report.factor_summary(
+        ctx.trace, _al_coef_names(spec), ci_prob=ctx.reporting.hdi, causal_terms=()
+    )
+    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
+    ctx.tables["factor_summary"] = fs
+    print_table(
+        ranked_dataframe_table(
+            fs,
+            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
+            columns=["term", "role", "mean", "lo", "hi", "prob_positive"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    meta_extra = {"loo_elpd": float(ctx.loo.elpd)}
+    # Items-scale cohort contrast (immediate vs wait-list at aligned endpoints).
+    # This is a PER-PROTOCOL association, NOT a randomised treatment effect --
+    # confounded by age-at-onset and cohort/timing (see the LRPAL design note).
+    if use_cohort:
+        cohort = built.prepared.G.astype(float)
+        n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
+        cme = _report.treatment_marginal_effect(
+            ctx.trace, trt=cohort, n_trials=n_marg, term="beta_cohort",
+            ci_prob=ctx.reporting.hdi,
+        )
+        pd.DataFrame([cme]).to_csv(
+            os.path.join(ctx.output_dir, "cohort_marginal.csv"), index=False
+        )
+        ctx.tables["cohort_marginal"] = pd.DataFrame([cme])
+        meta_extra["cohort_marginal"] = cme
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in cme.items()],
+                title="Per-protocol cohort marginal (NOT randomised)",
+                columns=["metric", "value"],
+            )
+        )
 
     _report.write_run_metadata(ctx, extra=meta_extra)
     section_header("Report")
