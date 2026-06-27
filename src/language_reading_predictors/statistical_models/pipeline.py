@@ -390,6 +390,30 @@ def _save_forest_plot(
         rprint(f"[yellow]Forest plot ({name}) failed: {exc}[/yellow]")
 
 
+def _save_association_forest(
+    ctx: StatisticalFitContext,
+    coef_names: list[str],
+    causal_terms: tuple[str, ...],
+) -> None:
+    """Forest of a factor model's adjusted-association coefficients (#125 Area 4).
+
+    Companion to the single causal-term forest: shows every *non-randomised*
+    predictor's posterior coefficient (the adjusted associations) so the cross-skill
+    predictor->outcome relationships are visible, not only tabulated. Excludes any RV
+    that carries a causal element — e.g. the level model's ``b_grp_time`` vector, whose
+    t2 entry is the one randomised contrast — so the causal/association split stays
+    clean. Guarded via :func:`_save_forest_plot`.
+    """
+    assoc = [
+        c
+        for c in coef_names
+        if c in ctx.trace.posterior
+        and not any(ct == c or ct.startswith(c + "[") for ct in causal_terms)
+    ]
+    if assoc:
+        _save_forest_plot(ctx, assoc, name="association_forest.png")
+
+
 # ---------------------------------------------------------------------------
 # ITT pipeline (LRPITT suite + SES companions)
 # ---------------------------------------------------------------------------
@@ -1176,17 +1200,43 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
 
 def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
+    """Posterior adjusted dose-response of the mechanism predictor on the outcome.
+
+    With the HSGP ``f_mech`` on (the default) this is the non-parametric curve. When
+    the model uses the linear slope instead (``linear_mechanism=True``, so no
+    ``f_mech`` variable exists) it falls back to the straight
+    ``beta_mech * z(logit(predictor))`` band — the predictor's linear logit
+    contribution (at the mean of any moderator) — so the adjusted predictor->outcome
+    relationship is still shown rather than left implicit in a coefficient. Both
+    branches hold the adjustment set fixed and write the identical CSV/PNG schema.
+    Guarded by the caller.
+    """
     post = ctx.trace.posterior
-    if "f_mech" not in post:
-        return
-    f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
 
     from language_reading_predictors.statistical_models.measures import MEASURES
-    from language_reading_predictors.statistical_models.preprocessing import logit_safe
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+        standardise,
+    )
 
     sym = ctx.spec.mechanism_symbol
     N = MEASURES[sym].n_trials
     mech_logit = logit_safe(ctx.prepared.post_counts[sym], N)
+
+    if "f_mech" in post:
+        f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
+        kind = "GP"
+    elif "beta_mech" in post:
+        # Linear mechanism: the predictor enters as beta_mech * z(logit), with z the
+        # same standardisation the factory applied. Build the per-observation logit
+        # contribution so the band mirrors the GP branch (an exact straight line).
+        z_L, _ = standardise(mech_logit)
+        b = post["beta_mech"].stack(sample=("chain", "draw")).values  # (n_sample,)
+        f = z_L[:, None] * b[None, :]  # (n_obs, n_sample)
+        kind = "linear"
+    else:
+        return
+
     order = np.argsort(mech_logit)
     x = mech_logit[order]
     f_ord = f[order]
@@ -1196,12 +1246,13 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     pd.DataFrame(
         {"mech_logit": x, "f_mean": mean, "f_lo": lo, "f_hi": hi}
     ).to_csv(os.path.join(ctx.output_dir, "mechanism_curve.csv"), index=False)
+    outcome = ctx.spec.outcome_symbol or "W"
     plt.figure(figsize=(6, 4))
     plt.plot(x, mean, color="#1f77b4", lw=2)
     plt.fill_between(x, lo, hi, color="#1f77b4", alpha=0.2)
-    plt.xlabel(f"logit({ctx.spec.mechanism_symbol}_post)")
-    plt.ylabel(r"$f^{mech}$ (logit contribution)")
-    plt.title(f"Mechanism curve: {ctx.spec.mechanism_symbol} -> W")
+    plt.xlabel(f"logit({sym}_post)")
+    plt.ylabel("predictor logit contribution")
+    plt.title(f"Mechanism curve ({kind}): {sym} -> {outcome}")
     plt.savefig(
         os.path.join(ctx.output_dir, "mechanism_curve.png"),
         dpi=300,
@@ -1513,6 +1564,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
     ctx.tables["factor_summary"] = fs
+    _save_association_forest(ctx, _gf_coef_names(spec), ("beta_trt",))
     print_table(
         ranked_dataframe_table(
             fs,
@@ -1724,6 +1776,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
     ctx.tables["factor_summary"] = fs
+    _save_association_forest(ctx, _lf_coef_names(spec), causal)
     print_table(
         ranked_dataframe_table(
             fs,

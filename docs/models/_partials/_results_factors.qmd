@@ -95,3 +95,15 @@ if factor_summary is not None and "role" in factor_summary.columns:
         print(_assoc[_cols].to_markdown(index=False))
         print("\n:::")
 ```
+
+```{python}
+# | echo: false
+# | output: asis
+# Forest of the adjusted-association coefficients — the visual companion to the
+# table above, so the cross-skill predictor->outcome relationships are seen, not
+# only tabulated. Empty string when the plot is absent (e.g. a treated-only model).
+print(_img(
+    "association_forest.png",
+    "Adjusted-association coefficients (forest, reference line at 0) — not causal",
+))
+```
