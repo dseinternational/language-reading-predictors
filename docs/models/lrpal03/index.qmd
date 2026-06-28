@@ -112,6 +112,8 @@ diag
 factor_summary
 ```
 
+![Adjusted-association coefficients (forest, reference line at 0)](association_forest.png){.lightbox}
+
 Every `role` is **association** -- the per-protocol design identifies no causal
 term. `beta_cohort` is the immediate-vs-wait-list contrast at the aligned
 endpoints; `mean`/`lo`/`hi` = posterior mean + equal-tailed 95% CrI;

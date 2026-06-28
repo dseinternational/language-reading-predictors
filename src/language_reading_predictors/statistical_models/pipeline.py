@@ -1921,6 +1921,8 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
     ctx.tables["factor_summary"] = fs
+    # Per-protocol: every term is an association, so the forest shows them all.
+    _save_association_forest(ctx, _al_coef_names(spec), ())
     print_table(
         ranked_dataframe_table(
             fs,

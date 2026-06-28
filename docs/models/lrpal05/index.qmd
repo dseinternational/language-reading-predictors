@@ -114,6 +114,8 @@ diag
 factor_summary
 ```
 
+![Adjusted-association coefficients — off-floor log-odds (forest, reference line at 0)](association_forest.png){.lightbox}
+
 All coefficients are off-floor log-odds and every `role` is **association** (the
 per-protocol design identifies no causal term). `mean`/`lo`/`hi` = posterior mean +
 equal-tailed 95% CrI; `prob_positive` = $P(\text{coef} > 0)$.

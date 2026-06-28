@@ -118,6 +118,8 @@ diag
 factor_summary
 ```
 
+![Adjusted-association coefficients (forest, reference line at 0)](association_forest.png){.lightbox}
+
 `beta_cohort` is the per-protocol immediate-vs-wait-list contrast at the aligned
 endpoints; `gamma_own`/`gamma_A`/`gamma_ability` are the onset-baseline, age and
 ability associations. Every `role` is **association** — the per-protocol design
