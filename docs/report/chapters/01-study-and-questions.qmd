@@ -1,0 +1,27 @@
+# The study and the questions {#sec-study}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
+:::
+
+*[Scaffold]* Sets up the study and frames each research question as an **estimand** — a precisely-defined quantity the models target.
+
+## Background {#sec-study-background}
+
+*[Scaffold]* Language and reading development in children with Down syndrome; why families and educators need interpretable, practical evidence. The intervention (RLI) targets vocabulary, grammar and reading — so a null vocabulary effect is a *finding*, not a design prediction. *Source:* `METHODS.md`; project background.
+
+## The data {#sec-study-data}
+
+*[Scaffold]* The randomised waitlist-crossover trial [@burgoyne2012rli]; sample size (n ≈ 54); four measurement points; the measures (vocabulary, grammar, speech, early reading) and that outcomes are **raw bounded counts**, not age-normed scores. *Source:* `data_variables.py`; measurement audit `notes/202606171000-measurement-sensitivity-audit.md`.
+
+## The questions as estimands {#sec-study-estimands}
+
+*[Scaffold]*
+
+- **Q1 — Does the intervention help?** The randomised ITT effect $\tau$ on word reading and the other taught outcomes (@sec-itt).
+- **Q2 — Which skills move, and does the benefit transfer?** Taught vs standardised measures; cross-outcome contrasts (@sec-joint).
+- **Q3 — Through what routes?** Mechanism / mediation analyses, flagged throughout as **adjusted associations** (@sec-mechanism, @sec-mediation).
+
+## Two-step approach {#sec-study-approach}
+
+*[Scaffold]* Why gradient boosting first (predictor screening) and Bayesian models second (interpretable effects with uncertainty); pointer to @sec-methods.

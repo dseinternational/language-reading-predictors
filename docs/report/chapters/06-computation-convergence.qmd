@@ -1,0 +1,23 @@
+# Computation and convergence {#sec-computation}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
+:::
+
+*[Scaffold]* The evidence that the posteriors are trustworthy *before* any estimate is read. One worked example, then a roll-up across all reported models.
+
+## Sampler and software {#sec-computation-software}
+
+*[Scaffold]* PyMC + `nutpie` (NUTS); chains, tuning and post-warmup draws, `target_accept`, random seeds, versions. *Source:* `config.json`, `environment.py`.
+
+## Convergence diagnostics {#sec-computation-convergence}
+
+*[Scaffold]* R-hat ≈ 1.00, bulk and tail **ESS**, divergent transitions (< 1% target); **Monte Carlo standard error (MCSE)** so numerical uncertainty is visible; a **stability check** (summaries unchanged after doubling iterations). *Source:* `diagnostics.py` / `diagnostics.csv`, `trace_plot.png`, `energy_plot.png`.
+
+::: {.callout-note title="Interval convention here"}
+The per-parameter diagnostic table uses ArviZ's **highest-density interval** for its display; every *estimand* interval elsewhere in the report is **equal-tailed** (@sec-bridge).
+:::
+
+## Roll-up across models {#sec-computation-roll-up}
+
+*[Scaffold]* A single table — every reported model × {min ESS, max R-hat, % divergences} — auto-generated from the per-model diagnostics so non-convergence cannot hide. *Source:* `compare_statistical_models.py`.

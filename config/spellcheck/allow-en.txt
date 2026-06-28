@@ -237,3 +237,14 @@ Isager
 Shachar
 Lüdecke
 iloc
+BARG
+Depaoli
+MCSE
+NeurIPS
+NHST
+Schoot
+WAMBS
+Vehtari
+operationalise
+operationalises
+operationalisation

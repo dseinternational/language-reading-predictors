@@ -1,0 +1,146 @@
+# A reader's guide to Bayesian results {#sec-bridge}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+This chapter is a self-contained guide to reading the results in Parts IV–VI. It
+assumes you are comfortable with p-values, confidence intervals and effect sizes, and
+newer to Bayesian methods; each Bayesian idea is introduced in those terms first.
+Nothing here is novel statistics — it is the standard effect-existence-versus-
+significance argument [@makowski2019], a retrospective design analysis
+[@gelman2014design], and a region of practical equivalence [@kruschke2018rope], applied
+to this study and turned into a house rule.
+
+## Why Bayesian, and how to read a posterior {#sec-bridge-why}
+
+A frequentist analysis returns a point estimate and a standard error. A Bayesian model
+returns a whole *distribution* for the unknown effect — the **posterior** — given the
+data and the model. Every number we report is a summary of that distribution.
+
+- The **posterior median** is the central estimate (the analogue of a point estimate).
+  We use the median rather than the mean because it is *transformation-invariant*: the
+  median on the log-odds scale maps to the median on the items scale, whereas the mean
+  does not. This matters because we report each effect on two scales (below).
+- The **posterior standard deviation** plays the role of the standard error.
+- The **95% credible interval (CrI)** is the central range holding 95% of the posterior.
+  We report **equal-tailed** intervals (the 2.5th to 97.5th percentile) throughout; the
+  only exception is the per-parameter convergence table in @sec-computation, which
+  displays a highest-density interval.
+
+Two scales appear together for every treatment effect. The **logit (log-odds) scale**
+is the model's natural parameter, written $\tau$. The **items scale** is the practically
+meaningful one: the average number of extra test items a child gets correct because of
+the intervention (computed per posterior draw by toggling each child's randomised
+assignment and averaging the change in expected items-correct, so it carries the full
+uncertainty). Throughout, **positive $\tau$ means the intervention raised the outcome**,
+and **only $\tau$ is causal** — it is identified by randomisation (@sec-dag); every other
+coefficient in the report is an adjusted association.
+
+## Five translations for the frequentist reader {#sec-bridge-translations}
+
+1. **A credible interval is not a confidence interval.** A 95% CrI genuinely licenses
+   the sentence everyone *wishes* they could say of a confidence interval: "given the
+   data and the model, there is a 95% probability the effect lies in this range." A
+   confidence interval is a property of the *procedure* over hypothetical repeated
+   samples and does not license that statement about this one interval.
+2. **A posterior tail probability is not a p-value.** We quote
+   $\text{pd} = P(\tau > 0)$, the share of the posterior above zero — informally, "the
+   probability the intervention helped." A p-value is $P(\text{data this extreme}\mid
+   \text{null is true})$ — a different conditional, and not the probability that any
+   hypothesis is true.
+3. **A ROPE decision is not a significance test.** Practical conclusions come from where
+   the posterior sits relative to a pre-stated *region of practical equivalence* around
+   zero — an explicit, magnitude-based judgement — not from crossing $p = 0.05$.
+4. **There is no "statistical significance."** We report estimates with their
+   uncertainty and a magnitude decision; we deliberately avoid the binary
+   significant/non-significant vocabulary and the ritual it implies [@amrhein2019].
+5. **Evidence can support a null, not only fail to reject it.** A frequentist test can
+   only fail to reject; a Bayesian analysis can report *positive* evidence that an effect
+   is practically negligible — the posterior mass inside the ROPE. This matters here for
+   honestly reporting the near-zero and floored effects.
+
+## The probability-of-direction trap {#sec-bridge-pd}
+
+It is tempting to treat $\text{pd}$ as a clean Bayesian replacement for the p-value. It
+is not — it is almost a *re-expression* of it. For approximately symmetric posteriors
+under weak priors (our case), $p \approx 2\,(1 - \text{pd})$ [@makowski2019]: so
+$\text{pd} = 0.975 \approx p = 0.05$, and $\text{pd} = 0.90 \approx p = 0.20$. A threshold
+on $\text{pd}$ is therefore a p-value threshold wearing Bayesian clothes, and — like the
+p-value — it answers only **existence and sign**, never **magnitude**. On a small sample
+you can have $\text{pd} = 0.99$ for an effect too small to matter, or $\text{pd} = 0.85$
+for an important one. This is why the report never stops at $\text{pd}$: every effect is
+reported for **direction and magnitude separately**.
+
+## Direction, magnitude, and the evidence ladder {#sec-bridge-evidence}
+
+**Magnitude** is judged against a **minimally-important difference** $\delta$ — the
+smallest effect of interest, set on the items scale per outcome. (Frequentists meet the
+same idea as the smallest effect size of interest in equivalence testing
+[@lakens2018], or a clinical minimally-important difference.) A band $[-\delta, +\delta]$
+around zero is the **region of practical equivalence (ROPE)**: an effect inside it is
+"practically the same as none." The $\delta$ values are a domain judgement, **provisional**
+and owned by the education lead (@sec-priors).
+
+Each effect is then reported as a small card, not a single number:
+
+- the effect on the **items scale**, posterior **median** with a **50% and a 95%**
+  credible interval (two intervals, so no single boundary carries the decision);
+- **direction** — $\text{pd} = P(\tau > 0)$;
+- **meaningful benefit** — $P(\text{benefit} \ge \delta)$, plus the ROPE coverage
+  $P(|\text{effect}| < \delta)$;
+- a **magnitude-reliability flag** where the effect is imprecisely estimated (next
+  section).
+
+Where prose forces a verbal label, we use one odds-based ladder, applied to whichever
+probability the claim is about, and we always append the word *evidence* (the label
+qualifies the *evidence*, never the effect's *size*) and show the odds beside it. The
+round-number odds boundaries are deliberately **not** the $p = 0.05/0.025/0.01$ images,
+so they do not smuggle the significance grid back in:
+
+| Posterior probability | Approx. odds | Evidence label |
+|---|---|---|
+| 0.50 – 0.75 | up to 3 : 1 | inconclusive |
+| 0.75 – 0.91 | 3 : 1 – 10 : 1 | suggestive |
+| 0.91 – 0.97 | 10 : 1 – 30 : 1 | moderate |
+| 0.97 – 0.99 | 30 : 1 – 100 : 1 | strong |
+| > 0.99 | > 100 : 1 | very strong |
+
+: The evidence ladder. Run separately for *direction* and *meaningful benefit*, which routinely differ. {#tbl-evidence-ladder}
+
+## Small-sample honesty: Type-S and Type-M {#sec-bridge-small-sample}
+
+With about 54 children, the binding risk is not only that we miss real effects (the
+classical worry) but that **even our apparent hits are unreliable in sign and inflated
+in size**. When attention is restricted to estimates that clear a bar — the 95% interval
+excludes zero — we are selecting on a noisy quantity, and selection on noise has a
+systematic consequence: among the survivors, the magnitude is on average too *large*,
+and, where power is low, the *sign* can be wrong. This is the "winner's curse," measured
+by a retrospective **design analysis** [@gelman2014design]: the **Type-S** (sign) error
+rate and the **Type-M** (magnitude exaggeration) ratio.
+
+The key number: a genuinely real effect sitting exactly on the conventional "strong" cut
+(estimate $= 1.96$ standard errors from zero, i.e. the 95% interval just excludes zero)
+is still, on average, exaggerated **≈ 1.4×** when it clears the bar. Clearing the bar
+certifies **direction**, not **size**. So we **lead with the interval, not the point
+estimate**, and flag effects whose precision is low.
+
+The distinction this protects is best seen in two of the study's own outcomes (a preview
+of @sec-itt; figures are preliminary dev-configuration fits). Under the old "is the 95%
+interval clear of zero?" habit, letter–sound knowledge and word reading were
+*indistinguishable* — both "strong." The direction-and-magnitude view separates them:
+
+| | Letter sounds (32-item test) | Word reading (79-item test) |
+|---|---|---|
+| Effect (items, median; 95% CrI) | +3.6 items [+1.3, +5.7] | +2.4 items [+0.3, +4.4] |
+| Direction ($\text{pd}$) | 0.999 (very strong evidence it helps) | 0.989 (strong evidence it helps) |
+| Meaningful benefit | $P(\ge 2\text{ items}) = 0.91$ | $P(\ge 2\text{ items}) = 0.64$ |
+| In-ROPE ($\pm$ 2 items) | 0.09 | 0.36 |
+| Magnitude reliability (Type-M) | ≈ 1.07 (well powered) | ≈ 1.28 (point estimate optimistic) |
+
+In plain words: letter sounds is a *meaningful* effect that is also well-powered, so its
+size can be trusted. Word reading is *near-certain in direction but uncertain in size* —
+a benefit is almost surely present, but there is a real (≈ 36%) chance it is smaller than
+two items, and the point estimate is itself mildly inflated. "Meaningful" versus "real
+but maybe small" is exactly the distinction a single $\text{pd}$ threshold discards — and
+the reason the results chapters report the whole card.

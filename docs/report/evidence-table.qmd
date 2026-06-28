@@ -1,0 +1,15 @@
+# Evidence at a glance {#sec-evidence .unnumbered}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — the table will be generated from the model CSVs.
+:::
+
+*[Scaffold]* A single table with **one row per outcome**, intended as the spine a reader can take in without the chapter sequence (and a seed for the plain-language publication). Columns:
+
+| Outcome | ITT effect $\tau$ (items, 95% CrI) | $P(\tau>0)$ | $P(\text{benefit} \ge \delta)$ | Within-person (DiD) | Evidence label |
+|---|---|---|---|---|---|
+| Word reading | *[from CSV]* | | | | |
+| Letter–sound knowledge | | | | | |
+| … | | | | | |
+
+*To be auto-generated* by a shared code chunk reading `tau_summary.csv`, `rope_summary.csv` and `did_summary.csv` across the ITT suite, so the table and the per-chapter numbers cannot drift. Evidence labels qualify the *evidence*, never the effect size (@sec-bridge).

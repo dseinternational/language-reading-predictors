@@ -1,0 +1,31 @@
+# Methods {#sec-methods}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
+:::
+
+*[Scaffold]* The full statistical specification. Code is **described, not shown** (the report is print-first); runnable code lives in the repository and is pointed to from @sec-reproducibility.
+
+## Likelihood and scale {#sec-methods-likelihood}
+
+*[Scaffold]* Beta-Binomial likelihood on the bounded post-score count via a logit linear predictor; why raw counts (not age-normed scores); reporting on both the logit and the items / probability scale at sample-mean baseline. *Source:* `likelihood.py`, `pipeline.py`, `METHODS.md` §2.
+
+## Priors {#sec-methods-priors}
+
+*[Scaffold]* The shared prior panel and its justification (weakly-informative; shared constructors so factories cannot drift); HSGP smooth terms where used. Prior-predictive checks summarised in @sec-ppc, plots in @sec-priors. *Source:* `priors.py`, `hsgp.py`.
+
+## Sign convention {#sec-methods-sign}
+
+*[Scaffold]* $G=1$ is the immediate-intervention arm; **positive $\tau$ = intervention raises the outcome**.
+
+## The floor rule {#sec-methods-floor}
+
+*[Scaffold]* For heavily-floored outcomes (phonetic spelling, nonword reading): a binary off-floor primary estimand $P(\text{post}>0)$, with the graded effect demoted to a flagged secondary read beside per-arm mover counts. *Source:* `floor.py`, `notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md`.
+
+## Estimation, convergence and comparison thresholds {#sec-methods-estimation}
+
+*[Scaffold]* NUTS via `nutpie`; sampling presets (dev/test/reporting); convergence thresholds (R-hat ≈ 1.00, ESS, < 1% divergences) checked *before* interpretation; PSIS-LOO with `elpd_diff` against its SE; GroupKFold for the exploratory step.
+
+::: {.callout-note title="Two reporting choices to state explicitly"}
+*[Scaffold]* (1) **Bayes factors are not used** — direction and magnitude come from posterior tail probabilities and a ROPE, not BFs. (2) **Validation:** the status of fake-data / simulation-based calibration checks.
+:::

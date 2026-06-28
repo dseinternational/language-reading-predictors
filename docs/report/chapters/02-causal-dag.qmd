@@ -1,0 +1,53 @@
+# The causal model: the locked DAG {#sec-dag}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). The figure is final; the surrounding prose is a scaffold to be written by the authors.
+:::
+
+*[Scaffold]* The agreed causal diagram (DAG) that governs which estimates may be read causally. This chapter is the report's interpretive backbone.
+
+## The diagram {#sec-dag-figure}
+
+@fig-dag shows the locked structure (machine-readable source: `notes/dag-language-reading.dagitty`; full deliberation: `notes/202606231600-dag-revision-consolidated.md`). It encodes causal **structure only** — exposure and outcome roles are assigned per analysis. Node shape and colour mark role: the **randomised** intervention group (green), the **dose / collider** (orange diamond), the **latent** general-ability node (dashed), and the **primary outcome**, word reading (blue).
+
+<!-- Figure generated from images/dag-language-reading.dot (committed source; the
+     regenerate command is in that file's header). Kept as a static image so the
+     book build spawns no render-time diagram subprocess. -->
+![The locked language-and-reading causal DAG. Green edges are the randomised intervention (IG); orange edges are intervention sessions / dose (IS, a collider — never adjusted for); black edges are the hypothesised skill-to-skill structure. Age (A) and latent general ability (GA) are common causes of *every* measured skill (including IS and WR); those edges are omitted for legibility and are precisely why only the randomised contrast is causal (@sec-dag-identification). See @tbl-dag-nodes for the node key.](../images/dag-language-reading.png){#fig-dag fig-alt="Directed acyclic graph of the language-and-reading causal model: a randomised intervention group and a dose/collider node at the top, taught and standardised vocabulary and language skills through the middle, and word reading as the primary outcome at the bottom." width=100%}
+
+| Symbol | Construct (measure) | Role |
+|--------|---------------------|------|
+| `A` | Age | observed root (maturation + cumulative exposure) |
+| `GA` | General ability | **latent** root (age-residualised) |
+| `IG` | Intervention group | randomised root; ITT exposure |
+| `IS` | Intervention sessions / attendance | dose (**collider**) |
+| `TR` / `TE` | Taught receptive / expressive vocabulary | teaching targets |
+| `RV` / `EV` | Standardised receptive / expressive vocabulary (rowpvt / eowpvt) | transfer measures |
+| `RW` | Word + nonword repetition (erbto) | phonological memory |
+| `LF` | Language fundamentals (CELF) | |
+| `RG` / `EG` | Receptive / expressive grammar (trog / aptgram) | |
+| `EI` | Expressive information (aptinfo) | |
+| `SP` | Speech production (deapp_c) | outcome (sink) |
+| `LS` | Letter–sound knowledge (yarclet) | teaching target |
+| `PA` | Phonological awareness / blending | teaching target |
+| `NW` | Nonword reading (decoding) | |
+| `PS` | Phonetic spelling | |
+| `WR` | Word reading | primary outcome |
+
+: Node key for @fig-dag. {#tbl-dag-nodes}
+
+## How the intervention effect is identified {#sec-dag-identification}
+
+*[Scaffold]* The intervention group is a randomised root, so the total effect on word reading is identified by the **empty adjustment set**; the own baseline and linear age are *precision* terms, not what licenses the causal claim. Because `A` and `GA` do not point into `IG`, randomisation d-separates the intervention from the latent confounder — this is why the ITT survives while every skill-to-skill association does not.
+
+## The three traps {#sec-dag-traps}
+
+*[Scaffold]*
+
+1. **Dose is a collider** — `IS` has parents `{A, GA, IG}`, so conditioning on sessions reopens the latent-`GA` backdoor; never adjust for dose, and read dose→skill couplings as confounded associations, not effects.
+2. **Skill→skill couplings are confounded** by latent general ability — adjusted associations, never "X drives Y".
+3. **No modelled path to word reading** from grammar / expressive language (`RG`, `EG`, `EI`, `LF`) or speech (`SP`) — an effect of those on word reading is structurally null by design; they remain valid *outcomes* of the intervention.
+
+## Cautions and deferred decisions {#sec-dag-cautions}
+
+*[Scaffold]* The contestable edges (phonetic-spelling direction; speech ⇄ vocabulary, entangled with speech-gated measurement of expressive vocabulary; the broad taught-vocabulary fan-out) and the open measurement-model questions (correlated domain factors in place of a single `GA`). *Source:* the DAG note's cautions register and open-decisions list.

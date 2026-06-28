@@ -1,0 +1,14 @@
+# Reproducibility and data availability {#sec-reproducibility}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — to be completed before release.
+:::
+
+*[Scaffold]*
+
+- **Code and data** — repository location and a persistent identifier; the central data schema (`data_variables.py`).
+- **Environment** — `environment.yml`, package versions, random seeds.
+- **Archived posteriors** — the per-model `trace.nc`, so results can be re-summarised without re-fitting.
+- **Fit commands** — `scripts/fit_statistical_model.py {id} --config reporting`, `scripts/compare_statistical_models.py`.
+- **Validation** — fake-data / simulation-based calibration status (@sec-methods).
+- **Licensing** — code AGPL-3.0; documentation and data CC BY 4.0.

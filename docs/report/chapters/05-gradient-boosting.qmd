@@ -1,0 +1,74 @@
+# Step 1: gradient-boosting discovery {#sec-gb}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Figures and per-model detail are preliminary.
+:::
+
+The first step screened, for each outcome, which predictors carry out-of-sample signal,
+using gradient-boosted trees [@ke2017lightgbm] with permutation importance and SHAP
+attributions [@lundberg2017shap], cross-validated by child (`GroupKFold` on
+`subject_id`) so that repeated measures on the same child cannot leak between folds. This
+chapter reports what that screen found — and, just as importantly, its limits. The
+headline is an honest negative, and stating it plainly is what licenses the discipline of
+the Bayesian step that follows.
+
+## A predictor screen, not inference {#sec-gb-role}
+
+Gradient boosting here is a *measurement* of predictability, not a model of cause. A high
+importance on a baseline or change-score variable says that variable helps predict the
+outcome out of sample; it says nothing about whether changing it would change anything.
+No causal reading is taken from this step — that is the job of the DAG-faithful Bayesian
+models (@sec-dag, @sec-itt) — and a predictive importance on a `_gain` or `_next`
+variable in particular is never a causal claim.
+
+## The honest negative {#sec-gb-negative}
+
+An independent replication of the whole gradient-boosting suite (refitting tuning,
+training and feature selection from scratch; `notes/202606201500-gb-replication-findings.md`)
+reproduced the recorded numbers and surfaced three structural facts that govern how the
+step may be read.
+
+**Change-score ("gain") models carry almost no signal.** Pooled out-of-fold $R^2$ across
+the eleven gain models is 0.07–0.25 (median ≈ 0.14); the eleven concurrent-level models
+reach 0.36–0.80 (median ≈ 0.61). A difference score removes the stable between-child
+variation that makes a level predictable, leaving mostly measurement noise — so any
+ranking of "predictors of progress" is built on models barely better than predicting the
+average.
+
+**What does predict a gain is, mechanically, the baseline of the same skill.** In nine of
+the eleven gain models the single dominant predictor — usually the *only* one above the
+noise floor — is the baseline value of the very measure whose change is being predicted.
+That is regression to the mean (a gain is post minus pre, and pre is in the predictor
+set), not a substantive driver of change. In plain terms: once you know where a child
+started, the other measures add little to predicting how much they move.
+
+**The level models' higher $R^2$ is concurrent correlation, not developmental
+prediction.** Their top predictor is repeatedly a co-administered, same-construct test —
+at the extreme a *sibling subtest of the same instrument* measured in the same session.
+These relationships are useful as convergent-validity checks but are misleading if read
+as influences on attainment.
+
+Underlying all three, permutation importance is statistically fragile at this sample
+size: across all 22 models, *no* predictor has an out-of-fold importance more than one
+standard deviation above zero. The defensible statement is "one feature is the dominant
+signal; the rest is noise at this $n$," not a ranked list of secondary predictors.
+
+## Reading SHAP for direction only {#sec-gb-shap}
+
+Where the screen is read at all, it is read for *direction* and *consistency*, not for a
+precise ranking. The SHAP beeswarm is interpreted alongside the importance ranking — the
+two often disagree, and the beeswarm shows whether low and high values of a predictor
+separate cleanly across zero and whether any tail runs against the dominant direction.
+The direction is always stated explicitly; it is never inferred from an importance
+magnitude alone.
+
+## What it licensed forward {#sec-gb-forward}
+
+The screen did its job by clearing the ground. It established that, at this sample size,
+the data do not support claims about non-baseline predictors of change, and that
+apparent "prediction" of attainment is largely concurrent test correlation. That negative
+is precisely why the second step does not hunt for predictors at all: it estimates a
+small number of pre-specified, interpretable quantities — above all the randomised
+treatment effect — under an explicit causal model, and reports them with full
+uncertainty. The exploratory step tells us what the data *cannot* establish on their own;
+the Bayesian step makes the one claim the design *can* support.

@@ -1,0 +1,15 @@
+# Executive summary {.unnumbered}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — to be written once results are finalised. Designed to double as the seed for the separate plain-language publication.
+:::
+
+*[Scaffold]* A plain, self-contained summary of the study and its headline findings, readable on its own:
+
+- **The question.** What develops, how far the intervention helps, and which earlier skills predict later progress, for children with Down syndrome.
+- **The study.** Re-analysis of a randomised waitlist-crossover trial of a structured reading and language intervention [@burgoyne2012rli], across vocabulary, grammar, speech and early reading at four timepoints.
+- **The approach, in a sentence.** Exploratory predictor screening (gradient boosting), then Bayesian estimation of interpretable effects with full uncertainty; only the randomised contrast is read causally.
+- **What we found.** *[Headline randomised findings with their uncertainty — to be completed from `tau_summary.csv` / `rope_summary.csv`. Lead with the most robust positive result.]*
+- **What it means, and what it does not.** *[Practical reading; the limits — small sample, adjusted associations are not mechanisms.]*
+
+See the [evidence-at-a-glance table](evidence-table.qmd) for the per-outcome picture, and @sec-meaning for the full synthesis.

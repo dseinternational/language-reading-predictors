@@ -22,15 +22,16 @@ number-depth: 3
 bibliography: references.bib
 csl: apa.csl
 
-abstract: "TODO"
-
 book:
-  output-file: modelling-vocabulary-development-report
-  title: "Modelling vocabulary development in children with Down syndrome"
+  output-file: language-reading-development-report
+  title: "Modelling language and reading development in children with Down syndrome"
+  subtitle: "Predictors of progress and the effect of intervention — an exploratory Bayesian study"
   abstract: |
-    Families and educators are often interested in information about vocabulary development in children with Down syndrome. Common questions include the range of words understood or spoken at different ages, rates of word learning, and the range of ages at which a minimum number of words may be learned. Answers to these questions are of relevance to everyday teaching practice and early intervention. This exploratory study therefore aims to describe the development of vocabulary knowledge in children with Down syndrome with a focus on practical and interpretable statistics that can inform teaching and support.
+    Children with Down syndrome typically show delayed and uneven development of spoken language and reading. Families and educators want practical, interpretable evidence: which skills can be expected to progress, how far targeted teaching helps, and which earlier skills predict later progress. This exploratory study re-analyses longitudinal data from a randomised waitlist-crossover trial of a structured reading and language intervention (Burgoyne et al., 2012), spanning vocabulary, grammar, speech and early reading across four measurement points.
 
-    More...
+    We follow a deliberate two-step approach. Gradient-boosting models first screen which predictors carry out-of-sample signal; Bayesian models (PyMC) then estimate interpretable quantities — the randomised intervention effect, dose–response and mediation — with full uncertainty, reported as posterior credible intervals and probabilities rather than p-values. An agreed causal diagram (DAG) governs interpretation: only the randomised contrast is read as causal, while every other relationship is reported as an adjusted association, never as one skill "driving" another.
+
+    A plain-language summary of the headline findings and their uncertainty will be inserted once results are finalised. All data and models are preliminary and are shared for transparency and discussion.
   author:
     - name: Frank Buckley
       orcid: 0000-0002-9708-2705
@@ -53,15 +54,51 @@ book:
       roles: writing
   chapters:
     - index.qmd
-    - intro.qmd
+    - summary.qmd
+    - evidence-table.qmd
+    - part: "Question, design, and causal frame"
+      chapters:
+        - chapters/01-study-and-questions.qmd
+        - chapters/02-causal-dag.qmd
+        - chapters/03-bayesian-bridge.qmd
+    - part: "Methods and the exploratory step"
+      chapters:
+        - chapters/04-methods.qmd
+        - chapters/05-gradient-boosting.qmd
+    - part: "Did the models behave?"
+      chapters:
+        - chapters/06-computation-convergence.qmd
+        - chapters/07-predictive-checks.qmd
+    - part: "The causal core"
+      chapters:
+        - chapters/08-itt-effects.qmd
+        - chapters/09-joint-consistency.qmd
+    - part: "Does the headline survive?"
+      chapters:
+        - chapters/10-robustness.qmd
+    - part: "Outer rings: adjusted associations"
+      chapters:
+        - chapters/11-alternative-views.qmd
+        - chapters/12-mechanism-moderation.qmd
+        - chapters/13-mediation.qmd
+    - part: "Comparison and synthesis"
+      chapters:
+        - chapters/14-model-comparison.qmd
+        - chapters/15-what-it-means.qmd
+        - chapters/16-limitations.qmd
     - references.qmd
+  appendices:
+    - appendices/appendix-a-glossary.qmd
+    - appendices/appendix-b-model-catalogue.qmd
+    - appendices/appendix-c-priors-rope.qmd
+    - appendices/appendix-d-reproducibility.qmd
 
+# PDF is the canonical (print-first) deliverable; HTML is a convenience build and
+# must depend on nothing interactive (no code-fold / folded callouts). DOCX was
+# removed in Phase 0 — there is no reference template and the tiered design does not
+# survive a Word export; re-add a `docx:` block with a `reference-doc` if a
+# stakeholder needs it. See notes/202606261500-technical-report-plan.md.
 format:
-  html:
-    code-fold: true
-    theme: default
-  docx:
-    reference-doc: ../template.docx
   pdf:
     documentclass: report
     papersize: a4
@@ -79,3 +116,5 @@ format:
       - right=25mm
       - bottom=30mm
     include-in-header: footer.tex
+  html:
+    theme: default

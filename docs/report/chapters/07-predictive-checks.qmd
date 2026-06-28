@@ -1,0 +1,19 @@
+# Predictive checks and fit {#sec-ppc}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
+:::
+
+*[Scaffold]* Whether the model can generate data like the data — before and after seeing it.
+
+## Prior-predictive checks {#sec-ppc-prior}
+
+*[Scaffold]* Priors cover the observed outcome range without concentrating implausibly. *Source:* `prior_predictive_check.png`.
+
+## Posterior-predictive checks {#sec-ppc-posterior}
+
+*[Scaffold]* Replicated data overlaid on observed; systematic misfit flagged. The Beta-Binomial respects the count bounds. *Source:* `posterior_predictive_check.png`.
+
+## The floor diagnostic {#sec-ppc-floor}
+
+*[Scaffold]* The proportion-at-zero check — the graded model does **not** reproduce the floor for phonetic spelling / nonword reading, which is what motivates the binary off-floor estimand (@sec-methods-floor). *Source:* `proportion_at_zero_ppc`, the floored-outcome models.

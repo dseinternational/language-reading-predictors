@@ -1,0 +1,18 @@
+# Full model catalogue {#sec-catalogue}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — to be generated from the model configs/CSVs.
+:::
+
+*[Scaffold]* A roll-up of all eight families (~90 models) with, per model: id, family/`kind`, estimand, **causal status**, outcome(s), and a link to its companion page at `docs/models/{id}/index.qmd`.
+
+*To be auto-generated* by re-reading each model's `config.json` / summary CSVs.
+
+::: {.callout-note}
+Build note: re-read the CSVs into this report rather than transcluding the per-model `.qmd` — those pages carry their own front matter and relative paths and will not include cleanly.
+:::
+
+| id | family | estimand | causal status | outcome | page |
+|---|---|---|---|---|---|
+| LRPITT01 | itt | … | precision-adjusted ITT $\tau$ | taught receptive vocab | `docs/models/lrpitt01/` |
+| … | | | | | |

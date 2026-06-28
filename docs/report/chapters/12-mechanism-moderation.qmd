@@ -1,0 +1,23 @@
+# Mechanism and moderation {#sec-mechanism}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
+:::
+
+::: {.callout-important title="Causal status — [ASSOCIATION]"}
+Every slope here is an **adjusted association** (latent general ability + same-wave measurement). The per-child random intercept is a partial repair, not full adjustment. Never "X drives Y".
+:::
+
+*[Scaffold]* Dose-response of one measure on another, and whether effects are moderated. *Source:* `mechanism_curve.csv`, interaction summaries, `*_loo_compare.csv`.
+
+## Mechanism slopes {#sec-mechanism-slopes}
+
+*[Scaffold]* e.g. letter-sound → word reading (LRP56–58), adjusted for a DAG-derived set and a subject random intercept; report as "associated with, after adjusting for stable level".
+
+## Moderation {#sec-mechanism-moderation}
+
+*[Scaffold]* Linear moderation models (LRP71, 72, 73) tested against their no-interaction baselines as clean nested PSIS-LOO comparisons; weakly identified at this sample size.
+
+::: {.callout-note}
+*[Scaffold]* The pooled group coefficient $\beta_G$ in a mechanism model is **not** a treatment contrast — both arms are on intervention through phases 1–2 (memory `project_rli_phase_structure`).
+:::

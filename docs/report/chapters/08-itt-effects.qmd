@@ -1,0 +1,37 @@
+# The headline ITT effects {#sec-itt}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
+:::
+
+::: {.callout-important title="Causal status — [CAUSAL]"}
+The randomised intention-to-treat effect $\tau$ is the one quantity in this report identified as **causal** (empty adjustment set under the DAG; @sec-dag). Every section below reports it as: a plain-language lead, then the formal numbers, then detail in footnotes. Headline model per outcome; the rest of the suite is catalogued in @sec-catalogue. *(Outcome → model-id mapping to be confirmed against the registry.)*
+:::
+
+*[Scaffold]* The core result: does the intervention raise each taught outcome? *Source for all sections:* `tau_summary.csv`, `rope_summary.csv` from the LRPITT suite.
+
+## Word reading {#sec-itt-wr}
+
+*[Scaffold]* The primary outcome. Plain lead → median items + 95% CrI + $P(\tau>0)$ + $P(\text{benefit}\ge\delta)$ + evidence label.
+
+## Letter–sound knowledge {#sec-itt-ls}
+
+*[Scaffold]*
+
+## Blending / phonological awareness {#sec-itt-pa}
+
+*[Scaffold]*
+
+## Receptive and expressive vocabulary {#sec-itt-vocab}
+
+::: {.callout-warning}
+*[Scaffold]* Read a near-zero standardised-vocabulary effect as a **substantive transfer finding** — not a measurement failure, and not "the model ignores vocabulary." The intervention targets vocabulary; limited transfer to standardised tests is itself the result. *Source:* `notes/202606171000-measurement-sensitivity-audit.md`; memory `project_rli_intervention_scope`.
+:::
+
+## Grammar and expressive language {#sec-itt-grammar}
+
+*[Scaffold]* Valid intervention outcomes, but with no modelled path to word reading (@sec-dag-traps).
+
+## Floored outcomes: phonetic spelling and nonword reading {#sec-itt-floored}
+
+*[Scaffold]* The floor rule applied: binary off-floor primary $P(\text{post}>0)$ + flagged graded secondary, reported beside per-arm mover counts. *Source:* `offfloor_movers.csv`, `tau_summary_graded.csv`.
