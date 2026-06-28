@@ -98,13 +98,13 @@ antagonism. Interpret $\gamma_{\text{int}}$'s sign with that in mind.
 
 :::
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 ## Shared priors
 
-![alpha](prior_alpha.svg){width=40%}
-![gamma_cross](prior_gamma_cross.svg){width=40%}
-![kappa](prior_kappa.svg){width=40%}
+![alpha](prior_alpha.png){width=40%}
+![gamma_cross](prior_gamma_cross.png){width=40%}
+![kappa](prior_kappa.png){width=40%}
 
 `beta_mech` (the linear mechanism slope) uses a weakly-informative
 $\mathrm{Normal}(0, 1)$ on the standardised $z(\operatorname{logit} L)$;

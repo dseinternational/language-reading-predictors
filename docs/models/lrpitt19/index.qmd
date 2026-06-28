@@ -72,7 +72,7 @@ The block-design adjuster enters as a linear $\gamma_{\text{blocks}}$ term (the 
 weak $\text{Normal}(0, 0.3)$ prior as cross-baseline couplings); HSGPs are off by
 default.
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 {{< include _partials/_priors.qmd >}}
 

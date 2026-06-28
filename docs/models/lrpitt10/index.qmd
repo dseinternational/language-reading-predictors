@@ -58,7 +58,7 @@ post-score (t2), so the floor rule (which gates on the t2 post-score) does not
 trip and the graded own-baseline specification is retained; the baseline floor
 simply makes $\gamma_{\text{own}}$ less informative.
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 {{< include _partials/_priors.qmd >}}
 

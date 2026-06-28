@@ -47,7 +47,7 @@ with Beta-Binomial likelihood $W_{\text{post},i} \sim \text{BetaBinomial}(N, \mu
 $\mu_i = \sigma(\eta_i)$, $N = 79$. Priors follow the shared template in `priors.py`.
 No covariate adjustment; the fit is restricted to the SES complete-case rows. HSGPs are off by default.
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 {{< include _partials/_priors.qmd >}}
 

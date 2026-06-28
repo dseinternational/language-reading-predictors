@@ -69,7 +69,7 @@ The LKJ residual-correlation and age-GP flags are off by default (both
 prior-dominated / divergence-inducing at this scale; re-enable via
 `ModelSpec.extra` for a sensitivity fit).
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 {{< include _partials/_priors.qmd >}}
 

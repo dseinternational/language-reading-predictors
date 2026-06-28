@@ -67,7 +67,7 @@ converges cleanly.
 
 :::
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 {{< include _partials/_priors.qmd >}}
 

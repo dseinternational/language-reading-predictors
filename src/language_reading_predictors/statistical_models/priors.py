@@ -319,7 +319,11 @@ def priors_table(model) -> pd.DataFrame:
 
 
 def plot_and_save(dist: Continuous, output_dir: str, name: str) -> str:
-    """Plot a prior PDF and save as ``{name}.png`` + ``{name}.svg``."""
+    """Plot a prior PDF and save as ``{name}.png``.
+
+    PNG only: the reports prefer raster images so model-output pages stay quick
+    to browse (no large SVGs to render in the viewer).
+    """
     os.makedirs(output_dir, exist_ok=True)
     fig = plt.figure(figsize=(5, 3))
     try:
@@ -329,10 +333,8 @@ def plot_and_save(dist: Continuous, output_dir: str, name: str) -> str:
         ax = plt.gca()
         dist.plot_pdf(pointinterval=False, ax=ax)
     png = os.path.join(output_dir, f"{name}.png")
-    svg = os.path.join(output_dir, f"{name}.svg")
     plt.title(name)
     plt.savefig(png, dpi=300, bbox_inches="tight")
-    plt.savefig(svg, bbox_inches="tight")
     plt.close(fig)
     return png
 

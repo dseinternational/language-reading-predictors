@@ -65,7 +65,7 @@ $$
 SECONDARY (graded, detection-limited): the *same* age-only $\eta_i$ with a
 Beta-Binomial likelihood on the count, $P_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $N = 92$.
 
-![Model diagram (primary)](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram (primary)](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 {{< include _partials/_priors.qmd >}}
 

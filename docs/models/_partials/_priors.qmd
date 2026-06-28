@@ -20,9 +20,9 @@ priors_table if priors_table is not None else "No priors table available."
 _seen = set()
 if priors_table is not None and "panel" in priors_table.columns:
     for _pan in priors_table["panel"].dropna():
-        if _pan and _pan not in _seen and _has(f"prior_{_pan}.svg"):
+        if _pan and _pan not in _seen and _has(f"prior_{_pan}.png"):
             _seen.add(_pan)
-            print(f"![{_pan}](prior_{_pan}.svg){{width=32%}}")
+            print(f"![{_pan}](prior_{_pan}.png){{width=32%}}")
 ```
 
 ### Prior pushforward to the estimand scale

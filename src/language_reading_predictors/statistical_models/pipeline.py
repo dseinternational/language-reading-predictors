@@ -166,7 +166,7 @@ def _render_model_graph(context: StatisticalFitContext) -> None:
         g = _graphviz(context.model)
         g.render(
             filename=os.path.join(context.output_dir, "model_graph"),
-            format="svg",
+            format="png",
             cleanup=True,
         )
     except Exception as exc:  # pragma: no cover
@@ -178,6 +178,9 @@ def _graphviz(model):
 
     g = pm.model_to_graphviz(model)
     g.graph_attr["fontname"] = "Helvetica"
+    # Raster PNG output (not SVG): the DAG's many nodes/edges make a large SVG
+    # slow to browse, so render to PNG and bump DPI to keep the lightbox legible.
+    g.graph_attr["dpi"] = "150"
     g.node_attr["fontname"] = "Helvetica"
     g.edge_attr["fontname"] = "Helvetica"
     return g

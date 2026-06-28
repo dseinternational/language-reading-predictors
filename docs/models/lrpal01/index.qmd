@@ -78,14 +78,14 @@ $$
 is age at the arm's onset timepoint. One row per child (no random intercept).
 Priors follow the shared template in `priors.py`.
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 ## Priors
 
-![alpha](prior_alpha.svg){width=24%}
-![tau (cohort)](prior_tau.svg){width=24%}
-![gamma_own](prior_gamma_own.svg){width=24%}
-![gamma_age](prior_gamma_age.svg){width=24%}
+![alpha](prior_alpha.png){width=24%}
+![tau (cohort)](prior_tau.png){width=24%}
+![gamma_own](prior_gamma_own.png){width=24%}
+![gamma_age](prior_gamma_age.png){width=24%}
 
 ## Prior-predictive check
 

@@ -53,7 +53,7 @@ $\mu_i = \sigma(\eta_i)$, $N = 10$. Priors follow the shared template in `priors
 HSGPs on age and own baseline are off by default (the 2026-04-18 sensitivity
 verdict, `notes/202604181445-lrp52-gp-sensitivity.md`).
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 {{< include _partials/_priors.qmd >}}
 
