@@ -4,9 +4,9 @@
 Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
 :::
 
-::: {.callout-important title="Causal status — [CAUSAL]"}
-The joint model estimates the same randomised $\tau$ for every outcome at once; all contrasts below are between **causal** effects.
-:::
+{{< include ../_caveats-causal.qmd >}}
+
+The joint model estimates the same randomised effect for every outcome at once, so all contrasts below are between **causal** effects.
 
 *[Scaffold]* One posterior over the suite, enabling cross-outcome comparison. *Source:* the joint model (LRPITT12), `tau_forest.png`, ITT-vs-joint consistency CSVs.
 

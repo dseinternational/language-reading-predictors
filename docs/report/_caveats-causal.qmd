@@ -1,0 +1,14 @@
+<!--
+Transcluded standing caveat for [CAUSAL] results. Stated once, reused everywhere —
+edit HERE only. Included via {{< include ../_caveats-causal.qmd >}} (from a chapter in
+chapters/) or {{< include _caveats-causal.qmd >}} (from a top-level file).
+-->
+
+::: {.callout-important title="Causal status — [CAUSAL]"}
+The estimate(s) here are identified by **randomisation**. Under the locked DAG
+(@sec-dag) the intervention group is a randomised root, so the intention-to-treat effect
+is the one quantity the design licenses as **causal**. The own baseline and linear age
+are **precision** terms — they sharpen the estimate but are *not* what licenses the
+causal reading — and intervention sessions / dose are **never** conditioned on (a DAG
+collider). A **positive** effect means the intervention raised the outcome.
+:::

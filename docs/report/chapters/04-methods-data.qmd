@@ -1,0 +1,27 @@
+# Methods: data {#sec-methods-data}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
+:::
+
+*[Scaffold]* The dataset and how it enters the models.
+
+## The trial and design {#sec-methods-data-trial}
+
+*[Scaffold]* The randomised waitlist-crossover trial of the reading and language
+intervention [@burgoyne2012rli]; the immediate vs wait-list arms and the crossover; the
+four measurement waves; n ≈ 54. Cross-reference the design overview in @sec-study.
+
+## Measures and scale {#sec-methods-data-measures}
+
+*[Scaffold]* Each outcome is a **raw bounded count** (number of items correct), not an
+age-normed score — so the maturation/exposure signal is fully present and the
+Beta-Binomial likelihood (@sec-methods-likelihood) is the natural fit. List the
+measures (vocabulary, grammar, speech, early reading), each with its item total. *Source:*
+`data_variables.py`; measurement audit `notes/202606171000-measurement-sensitivity-audit.md`.
+
+## Missing data, leakage, and exclusions {#sec-methods-data-missing}
+
+*[Scaffold]* No outlier exclusion unless justified on the model page; the complete-case
+caveat for the SES-adjusted comparators (@sec-robustness); GroupKFold by `subject_id` for
+the exploratory step (@sec-gb) so repeated measures on a child cannot leak across folds.

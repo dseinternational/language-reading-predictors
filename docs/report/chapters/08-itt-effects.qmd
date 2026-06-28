@@ -4,9 +4,9 @@
 Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
 :::
 
-::: {.callout-important title="Causal status — [CAUSAL]"}
-The randomised intention-to-treat effect $\tau$ is the one quantity in this report identified as **causal** (empty adjustment set under the DAG; @sec-dag). Every section below reports it as: a plain-language lead, then the formal numbers, then detail in footnotes. Headline model per outcome; the rest of the suite is catalogued in @sec-catalogue. *(Outcome → model-id mapping to be confirmed against the registry.)*
-:::
+{{< include ../_caveats-causal.qmd >}}
+
+Every section below reports the effect as a plain-language lead, then the formal numbers (the mandated sentence-shape), then detail in footnotes; the headline model per outcome is named, with the rest of the suite in @sec-catalogue. *(Outcome → model-id mapping to be confirmed against the register.)*
 
 *[Scaffold]* The core result: does the intervention raise each taught outcome? *Source for all sections:* `tau_summary.csv`, `rope_summary.csv` from the LRPITT suite.
 

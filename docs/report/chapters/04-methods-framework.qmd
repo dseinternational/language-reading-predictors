@@ -1,0 +1,36 @@
+# Methods: the modelling framework {#sec-methods}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
+:::
+
+*[Scaffold]* The canonical estimation engine that every model in this report specialises;
+the model-specific chapters and appendices are written as *deltas* from it. Code is
+**described, not shown** (the report is print-first); runnable code lives in the
+repository and is pointed to from @sec-reproducibility.
+
+## Likelihood and scale {#sec-methods-likelihood}
+
+*[Scaffold]* A **Beta-Binomial likelihood** on the bounded post-score count via a **logit**
+linear predictor; reporting on both the logit scale (the natural parameter) and the
+items / probability scale (the average marginal effect at sample-mean baseline). *Source:*
+`likelihood.py`, `pipeline.py`, `METHODS.md` §2.
+
+## Priors {#sec-methods-priors}
+
+*[Scaffold]* The shared, weakly-informative prior panel and its justification (shared
+constructors so the factories cannot drift); HSGP smooth terms where used. Prior-predictive
+checks are summarised in @sec-ppc and the prior plots in @sec-priors. *Source:* `priors.py`,
+`hsgp.py`.
+
+## Sign convention {#sec-methods-sign}
+
+*[Scaffold]* `G = 1` is the immediate-intervention arm; **positive means the intervention
+raised the outcome**. Restated wherever an effect appears.
+
+## The floor rule {#sec-methods-floor}
+
+*[Scaffold]* For heavily-floored outcomes (phonetic spelling, nonword reading): a binary
+**off-floor** primary estimand $\Pr(\text{post} > 0)$, with the graded effect demoted to a
+flagged, detection-limited secondary read reported beside per-arm mover counts. *Source:*
+`floor.py`, `notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md`.

@@ -63,7 +63,9 @@ book:
         - chapters/03-bayesian-bridge.qmd
     - part: "Methods and the exploratory step"
       chapters:
-        - chapters/04-methods.qmd
+        - chapters/04-methods-data.qmd
+        - chapters/04-methods-framework.qmd
+        - chapters/04-methods-workflow.qmd
         - chapters/05-gradient-boosting.qmd
     - part: "Did the models behave?"
       chapters:

@@ -1,18 +1,71 @@
-# Full model catalogue {#sec-catalogue}
+# Model register and status {#sec-catalogue}
 
 ::: {.callout-note}
-Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — to be generated from the model configs/CSVs.
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — the factual columns should be code-generated (see the note at the end); the status column is editorial.
 :::
 
-*[Scaffold]* A roll-up of all eight families (~90 models) with, per model: id, family/`kind`, estimand, **causal status**, outcome(s), and a link to its companion page at `docs/models/{id}/index.qmd`.
+The single answer to "how many models, and which estimate do I trust." Every model in
+the suite is listed with its family, outcome, causal status, and role, linking to its
+companion page at `docs/models/{id}/index.qmd`.
 
-*To be auto-generated* by re-reading each model's `config.json` / summary CSVs.
+## Status taxonomy {#sec-register}
 
-::: {.callout-note}
-Build note: re-read the CSVs into this report rather than transcluding the per-model `.qmd` — those pages carry their own front matter and relative paths and will not include cleanly.
-:::
+- **Model of record (causal)** — the authoritative model for a randomised question; the
+  only models the headline **causal** claims draw numbers from.
+- **Joint** — the cross-outcome model used for consistency and contrasts.
+- **Robustness** — checks on whether a model-of-record effect survives an alternative
+  sample, adjustment, or specification (never a new effect).
+- **Association (secondary)** — adjusted-association models (mechanism, mediation,
+  factor, per-protocol); **no coefficient is causal** beyond the single randomised term,
+  if any (@sec-dag-traps).
+- **Companion** — a no-interaction or treated-only model that exists only to support a
+  comparison (e.g. a nested PSIS-LOO baseline).
+- **Superseded** — replaced by a later model and retained only for provenance.
+- **Reserved / deferred** — specified but not built; recorded for the roadmap.
 
-| id | family | estimand | causal status | outcome | page |
+## The register
+
+| Family | Models | Kind | Outcome(s) | Status | Role |
 |---|---|---|---|---|---|
-| LRPITT01 | itt | … | precision-adjusted ITT $\tau$ | taught receptive vocab | `docs/models/lrpitt01/` |
-| … | | | | | |
+| ITT suite | LRPITT01–11 | `itt` | TR, TE, UR, UE, R, E, L, B, P\*, W, N\* | **Model of record (causal)** | the randomised ITT effect per outcome (@sec-itt) |
+| Joint | LRPITT12 | `joint` | the ten baseline-bearing outcomes | **Joint** | cross-outcome consistency + contrasts (@sec-joint) |
+| SES + comparators | LRPITT13/13b/14/14b | `itt` | W, L | **Robustness** | SES adjustment + matched complete-case (@sec-robustness) |
+| Generalisation | LRPITT15/15b | `joint` | taught vs not-taught | **Robustness** | taught-minus-untaught contrast (@sec-joint) |
+| General-ability | LRPITT17–24 | `itt` | TR, TE, UR, UE, R, E, L, W | **Robustness** | block-design adjustment (@sec-robustness) |
+| Within-person DiD | LRPDID01–05 | `did` | W, L, B, TE, R | **Robustness** | waitlist-crossover replication (@sec-robustness) |
+| Dose sensitivity | LRPDID06 | `did` | W (sessions) | **Robustness** | dose read — collider, sensitivity only |
+| Mechanism | LRP56/57/58 | `mechanism` | → reading | **Association** | adjusted dose-response slopes (@sec-mechanism) |
+| Moderation | LRP71, 72(/base), 73(/base) | `mechanism` | reading routes | **Association** / **Companion** | moderation + nested LOO baselines |
+| Mediation | LRP59, LRP62 | `mediation` | W via L / reading route | **Association** | g-formula, triangulation only (@sec-mediation) |
+| Gain factors | LRPGF01–08 (+`b`) | `gain_factors` | W, R, E, L, P\*, B, F, T | **Association** / **Companion** | ANCOVA; only the on-intervention term is causal (@sec-alternative-views) |
+| Level factors | LRPLF01–08 | `level_factors` | W, R, E, L, P\*, B, F, T | **Association** | levels view; only the t2 group contrast is randomised |
+| Aligned per-protocol | LRPAL01–08 (+`01d`) | `aligned` | W, R, E, L, P\*, B, F, T | **Association** | onset-aligned; no term is causal (age-at-onset confound) |
+
+\* Floored outcomes (P phonetic spelling, N nonword reading) take the floor rule: a binary
+off-floor primary estimand plus a flagged graded secondary (@sec-methods-floor).
+
+## Supersession map
+
+The current suite replaced an earlier generation (now deleted; recorded here for
+provenance):
+
+- **LRPITT01–11** supersede LRP52 (W), LRP53 (R), LRP54 (E), LRP74 (TE), LRP75 (TR) —
+  which conditioned on cross-baselines the DAG shows are unnecessary.
+- **LRPITT12** supersedes LRP55 (joint).
+- **LRPITT13/14** supersede LRP60/60a (SES).
+- **LRPITT15** supersedes LRP76 (generalisation).
+
+## Reserved / deferred
+
+- **LRP16** — a descriptive developmental-trajectory model, deferred (the trajectory
+  question is the subject of the companion vocabulary-growth report).
+- **LRP70** — a CELF-moderated mechanism, deferred pending a DAG review of conditioning
+  on a descendant of letter-sound knowledge.
+
+::: {.callout-note title="To be code-generated"}
+The factual columns above are currently hand-maintained from the model registry in
+`scripts/fit_statistical_model.py`. They should be **generated** from a lightweight
+`statistical_models/definitions.py` (model id, kind, outcome, status — with no heavy
+imports), mirroring the vocabulary-growth report's `definitions.py`, so the register
+cannot drift from the code. See `notes/202606281200-dse-report-house-style.md`.
+:::

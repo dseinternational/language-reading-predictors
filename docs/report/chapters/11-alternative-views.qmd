@@ -4,9 +4,9 @@
 Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
 :::
 
-::: {.callout-important title="Causal status — [ASSOCIATION]"}
-Beyond the single randomised treatment term in each family, **every coefficient here is an adjusted association** confounded by latent general ability — read as "associated with", never "drives" (@sec-dag-traps).
-:::
+{{< include ../_caveats-association.qmd >}}
+
+Beyond the single randomised treatment term in each family, every coefficient here is an adjusted association (@sec-dag-traps).
 
 *[Scaffold]* The gain- and level-factor families and the onset-aligned per-protocol view — different lenses on the same data. *Source:* `factor_summary.csv`, `treatment_marginal.csv`, `cohort_marginal.csv`.
 

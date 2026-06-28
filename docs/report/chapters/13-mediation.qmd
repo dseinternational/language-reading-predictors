@@ -4,9 +4,9 @@
 Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — an outline of intended content and its source artifacts, not finished prose.
 :::
 
-::: {.callout-important title="Causal status — [ASSOCIATION]"}
-Natural direct/indirect effects are **not point-identified** here (latent general ability + same-wave mediator). This chapter is **triangulation only** — a route-compatibility check, not a route-isolating decomposition.
-:::
+{{< include ../_caveats-association.qmd >}}
+
+In addition, the natural direct/indirect effects are **not point-identified** here (latent general ability + same-wave mediator): this chapter is **triangulation only** — a route-compatibility check, not a route-isolating decomposition.
 
 *[Scaffold]* How much of the word-reading effect is *compatible with* flowing through a reading-route mediator. *Source:* `mediation_summary.csv` and its temporal-ordering sensitivity variant.
 
