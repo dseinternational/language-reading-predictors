@@ -21,6 +21,7 @@ dependencies:
       - azure-storage-blob
       - dcor
       - h5netcdf
+      - h5py # h5netcdf backend; required for DataTree trace.nc group I/O
       - hatch
       - ipython>=9.14.1
       - ipywidgets>=8.1.8

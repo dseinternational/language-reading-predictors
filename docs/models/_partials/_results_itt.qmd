@@ -1,0 +1,73 @@
+## Results
+
+```{python}
+# | echo: false
+tau_summary = _csv("tau_summary.csv")
+tau_summary
+```
+
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import odds_string as _odds
+
+if tau_summary is not None:
+    _t = tau_summary.iloc[0]
+    _items = f" (≈ **{_t.tau_prob_mean * n_trials:+.1f} items**)" if n_trials else ""
+    _lab = (
+        f", *{_t.direction_label} evidence*"
+        if "direction_label" in tau_summary.columns
+        else ""
+    )
+    print(
+        f"On the probability scale the average marginal effect of the intervention on "
+        f"{outcome_label} is **{_t.tau_prob_mean:+.3f}** (risk difference){_items} "
+        f"(95% CrI {_t.tau_prob_lo:+.3f} to {_t.tau_prob_hi:+.3f}). "
+        f"P(intervention helps) = {_t.prob_tau_pos:.3f} ({_odds(_t.prob_tau_pos)}{_lab})."
+    )
+    if not n_trials_confirmed:
+        print(
+            "\n\n_Items-scale figures for this outcome are approximate — the test "
+            "ceiling (`n_trials`) is unconfirmed._"
+        )
+```
+
+- `tau_logit_*`: posterior mean and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the logit scale.
+- `tau_prob_*`: average marginal effect on the probability scale (risk difference), averaged over the fitted sample per posterior draw.
+- `prob_tau_pos`: $P(\tau > 0) = P(\text{intervention helps})$; `direction_label` is the round-odds evidence label for that claim.
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("tau_forest.png", "Posterior of the treatment effect (forest, reference line at 0)"))
+```
+
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import rope_markdown
+
+_rope = _csv("rope_summary.csv")
+if _rope is not None:
+    print(rope_markdown(_rope, outcome_label))
+```
+
+```{python}
+# | echo: false
+_rope.T if _rope is not None else None
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("rope_summary.png", "ROPE-anchored posterior and P(benefit ≥ δ)"))
+if _rope is not None:
+    print(
+        '::: {.callout-note title="Reading the evidence labels"}\n\n'
+        "The round-odds labels (*inconclusive / suggestive / moderate / strong / very "
+        "strong*) qualify the **evidence**, never the effect *size*, and are run "
+        "separately for the direction and meaningful-benefit claims. At this study's "
+        "sample size the point estimate is, on average, magnitude-inflated (a Type-M / "
+        "winner's-curse effect), so lead with the interval, not the point.\n\n:::"
+    )
+```

@@ -26,6 +26,7 @@ def _itt_ame_draws(
     term: str = "tau",
     varying_term: str = "tau_i",
     eta_name: str = "eta",
+    group: str = "posterior",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Per-draw treatment effect and its probability-scale average marginal effect.
 
@@ -42,8 +43,14 @@ def _itt_ame_draws(
     :func:`tau_summary_itt` and :func:`rope_summary` build on this so the two cannot
     drift; it is the same quantity as ``treatment_marginal_effect`` (#128,
     parameterised by ``term``/``trt``), which should fold onto this helper at merge.
+
+    ``group`` selects the inference group: ``"posterior"`` (default) for the
+    estimate, or ``"prior"`` to push the *prior* through the same transform for the
+    prior-predictive estimand check (issue #125 Area 1/2). The prior group must
+    carry ``term`` and ``eta_name`` — it does, since :func:`run_prior_predictive`
+    now samples all free RVs + deterministics.
     """
-    posterior = trace.posterior
+    posterior = getattr(trace, group)
     term_draws = posterior[term].stack(sample=("chain", "draw")).values  # (S,)
     eta = (
         posterior[eta_name]
@@ -120,6 +127,7 @@ def tau_summary_itt(
         "tau_prob_lo": float(marg_lo),
         "tau_prob_hi": float(marg_hi),
         "prob_tau_pos": prob_pos,
+        "direction_label": evidence_label(prob_pos),
     }
 
 
@@ -174,6 +182,47 @@ def odds_string(prob: float) -> str:
     p = min(max(float(prob), 1e-9), 1 - 1e-9)
     o = p / (1 - p)
     return f"{o:.0f}:1" if o >= 1 else f"1:{1 / o:.0f}"
+
+
+def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = True) -> str:
+    """Render the ROPE report card as report markdown (issue #125 Area 4).
+
+    Shared by the ITT and factor result partials so the direction-vs-magnitude
+    prose cannot drift between archetypes. Reads the single-row ``rope_summary``
+    frame and handles both the items scale and the floored-outcome risk-difference
+    scale (``delta_scale == "risk_difference"``, reported in percentage points and
+    flagged provisional when ``provisional_delta`` is set).
+    """
+    r = rope.iloc[0]
+    cols = set(rope.columns)
+    is_rd = "delta_scale" in cols and str(r.get("delta_scale")) == "risk_difference"
+    unit = "percentage points (risk difference)" if is_rd else "items"
+    scale = 100.0 if is_rd else 1.0
+    prov = ""
+    if "provisional_delta" in cols and bool(r.get("provisional_delta")):
+        prov = " *(provisional δ, pending education-lead sign-off)*"
+    parts: list[str] = []
+    if with_title:
+        parts.append("## Reporting: direction, magnitude, and practical significance\n")
+    parts.append(
+        "Following `notes/202606261304-evidence-strength-and-rope-reporting.md` and the "
+        '`METHODS.md` "Interpret" rule: report the **median** effect with intervals, and '
+        "separate **direction** (is there a benefit?) from **magnitude** (is it big enough "
+        f"to matter?), judged against a minimally-important difference δ on the {unit} scale.\n"
+    )
+    parts.append(
+        f"The intervention changed {outcome_label} by a median of "
+        f"**{r['items_median'] * scale:+.1f} {unit}**{prov} "
+        f"(50% CrI {r['items_lo50'] * scale:+.1f} to {r['items_hi50'] * scale:+.1f}; "
+        f"95% CrI {r['items_lo'] * scale:+.1f} to {r['items_hi'] * scale:+.1f}). "
+        f"**Direction** — evidence it helps: pd = {r['pd']:.3f} "
+        f"({odds_string(r['pd'])}, *{r['direction_label']} evidence*). "
+        f"**Magnitude** — evidence the benefit is at least δ = {r['delta_items'] * scale:g} "
+        f"{unit}: P = {r['prob_benefit_ge_delta']:.3f} "
+        f"({odds_string(r['prob_benefit_ge_delta'])}, *{r['benefit_label']} evidence*); "
+        f"probability inside the ROPE (practically negligible): {r['prob_in_rope']:.3f}.\n"
+    )
+    return "\n".join(parts)
 
 
 def _rope_card(
@@ -259,6 +308,50 @@ def rope_summary(
     )
     items = ame_prob * float(n_trials)
     return _rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
+
+
+def prior_pushforward(
+    trace: xr.DataTree,
+    *,
+    G: np.ndarray,
+    n_trials: int,
+    term: str = "tau",
+    varying_term: str = "tau_i",
+    eta_name: str = "eta",
+    ci_prob: float = 0.95,
+) -> dict[str, float]:
+    """Push the **prior** on the effect through the items-scale AME (issue #125 Area 1/2).
+
+    The estimand-scale prior-predictive check: before seeing data, what does the
+    prior on the treatment term (``Normal(0, 0.5)`` on the logit) imply for the
+    items-scale average marginal effect? A well-calibrated prior should be wide but
+    not absurd (it should not put substantial mass on, say, +40 words). Reuses the
+    shared :func:`_itt_ame_draws` core on the persisted ``prior`` group, so the
+    prior is pushed through the *same* transform as the posterior estimate.
+    Requires the prior group to carry ``term`` and ``eta_name`` (it does — see
+    :func:`diagnostics.run_prior_predictive`).
+    """
+    effect_draws, ame_prob = _itt_ame_draws(
+        trace,
+        G=G,
+        term=term,
+        varying_term=varying_term,
+        eta_name=eta_name,
+        group="prior",
+    )
+    items = ame_prob * float(n_trials)
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    return {
+        "prior_logit_median": float(np.median(effect_draws)),
+        "prior_logit_lo": float(np.quantile(effect_draws, lo_q)),
+        "prior_logit_hi": float(np.quantile(effect_draws, hi_q)),
+        "prior_items_median": float(np.median(items)),
+        "prior_items_lo50": float(np.quantile(items, 0.25)),
+        "prior_items_hi50": float(np.quantile(items, 0.75)),
+        "prior_items_lo": float(np.quantile(items, lo_q)),
+        "prior_items_hi": float(np.quantile(items, hi_q)),
+        "n_trials": int(n_trials),
+    }
 
 
 def offfloor_mover_table(prepared, symbol: str) -> pd.DataFrame:
@@ -374,11 +467,13 @@ def did_summary(
 
     def _summ(name: str) -> dict[str, float]:
         d = posterior[name].stack(sample=("chain", "draw")).values
+        prob_pos = float(np.mean(d > 0))
         return {
             f"{name}_mean": float(np.mean(d)),
             f"{name}_lo": float(np.quantile(d, lo_q)),
             f"{name}_hi": float(np.quantile(d, hi_q)),
-            f"prob_{name}_pos": float(np.mean(d > 0)),
+            f"prob_{name}_pos": prob_pos,
+            f"{name}_direction_label": evidence_label(prob_pos),
         }
 
     out: dict[str, float] = {}
@@ -595,13 +690,15 @@ def factor_summary(
 
     def _row(term: str, base: str, d: np.ndarray) -> dict[str, object]:
         causal = term in causal_terms or base in causal_terms
+        prob_pos = float(np.mean(d > 0))
         return {
             "term": term,
             "role": "causal" if causal else "association",
             "mean": float(np.mean(d)),
             "lo": float(np.quantile(d, lo_q)),
             "hi": float(np.quantile(d, hi_q)),
-            "prob_positive": float(np.mean(d > 0)),
+            "prob_positive": prob_pos,
+            "direction_label": evidence_label(prob_pos),
         }
 
     rows: list[dict[str, object]] = []
