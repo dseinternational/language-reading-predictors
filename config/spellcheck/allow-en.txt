@@ -248,3 +248,10 @@ Vehtari
 operationalise
 operationalises
 operationalisation
+assoc
+deterministics
+dropna
+Gabry
+lengthscales
+psense
+ypre

@@ -72,14 +72,14 @@ $$
 
 One row per child (no random intercept). Priors follow the shared template in `priors.py`.
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 ## Priors
 
-![alpha](prior_alpha.svg){width=24%}
-![tau (cohort)](prior_tau.svg){width=24%}
-![gamma_own](prior_gamma_own.svg){width=24%}
-![gamma_age](prior_gamma_age.svg){width=24%}
+![alpha](prior_alpha.png){width=24%}
+![tau (cohort)](prior_tau.png){width=24%}
+![gamma_own](prior_gamma_own.png){width=24%}
+![gamma_age](prior_gamma_age.png){width=24%}
 
 ## Prior-predictive check
 
@@ -111,6 +111,8 @@ diag
 # | echo: false
 factor_summary
 ```
+
+![Adjusted-association coefficients (forest, reference line at 0)](association_forest.png){.lightbox}
 
 Every `role` is **association** -- the per-protocol design identifies no causal
 term. `beta_cohort` is the immediate-vs-wait-list contrast at the aligned
