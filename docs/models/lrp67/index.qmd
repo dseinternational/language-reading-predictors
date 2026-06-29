@@ -56,7 +56,7 @@ The codebase `MEASURES` symbols differ from the handoff's R / L / V:
 
 | Construct | Symbol here | Measure | Denominator |
 | --- | --- | --- | --- |
-| Reading | **W** | `ewrswr` | 90 |
+| Reading | **W** | `ewrswr` | 79 |
 | Letter-sounds | **L** | `yarclet` | 32 |
 | Expressive vocabulary | **E** | `eowpvt` | 170 |
 

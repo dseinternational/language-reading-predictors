@@ -28,7 +28,7 @@ see :func:`factories.build_lcsm_model`):
 
 Symbol mapping (codebase ``MEASURES`` vs the meeting handoff's R / L / V):
 
-    handoff R (reading)        -> W  (ewrswr,  denominator 90)
+    handoff R (reading)        -> W  (ewrswr,  denominator 79)
     handoff L (letter-sounds)  -> L  (yarclet, denominator 32)
     handoff V (vocabulary)     -> E  (eowpvt,  denominator 170)
 

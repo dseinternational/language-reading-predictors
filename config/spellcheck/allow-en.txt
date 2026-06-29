@@ -190,7 +190,6 @@ coef
 sens
 AMPPS
 autoregressive
-CLPM
 Erlbaum
 Gottman
 Grasman
