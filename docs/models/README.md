@@ -40,13 +40,13 @@ intervention benefit (`G = 2 − group`).
 | 2 | Level factors (`lrplf`) | 8 | Companion levels view: group×time and ability×time per timepoint |
 | 2 | Waitlist-crossover / DiD (`lrpdid`) | 6 | Within-person replication of the ITT via the waitlist crossover |
 | 2 | Aligned per-protocol (`lrpal`) | 9 | Onset-aligned single 40-week gain per child (associational) |
-| 2 | Mechanism (`lrp56–58`, `71–73`) | 8 | Adjusted dose-response of one skill on another |
+| 2 | Mechanism (`lrp56–58`, `71–73` incl. `72base`/`73base`) | 8 | Adjusted dose-response of one skill on another |
 | 2 | Mediation (`lrp59`, `62`, `64`) | 3 | How much of a reading gain runs through a given skill |
-| 2 | Predictor / dynamics (`lrp65`, `67`, `77`) | 5 | Baseline predictors, within-child change, and dose–response of word reading |
+| 2 | Predictor / dynamics (`lrp65`, `67`, `77` incl. `77a`/`77base`) | 5 | Baseline predictors, within-child change, and dose–response of word reading |
 
 Counts are of base models on `main`. Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below; Layer 1 adds
-four `_noconstruct` variants (`lrp04`, `lrp18`, `lrp20`, `lrp22`) on top of the 42 base
+four `_noconstruct` variants (`lrp04_noconstruct`, `lrp18_noconstruct`, `lrp20_noconstruct`, `lrp22_noconstruct`) on top of the 42 base
 modules.
 
 ## Outcome symbols (Layer 2)
@@ -65,8 +65,8 @@ Beta-Binomial trial ceiling.
 | `F` | Basic concept knowledge (CELF) | 18 | |
 | `T` | Receptive grammar (TROG-2) | 32 | |
 | `N` | Nonword reading | 6 | Floored and post-only (no t1 baseline) |
-| `TR` / `TE` | Taught receptive / expressive vocabulary (block 1) | | Curated word set taught by RLI |
-| `UR` / `UE` | Not-taught receptive / expressive vocabulary (block 1) | | Generalisation comparators |
+| `TR` / `TE` | Taught receptive / expressive vocabulary (block 1) | — | Curated word set taught by RLI |
+| `UR` / `UE` | Not-taught receptive / expressive vocabulary (block 1) | — | Generalisation comparators |
 
 ---
 
@@ -104,7 +104,7 @@ correlation.
 | `lrp21` | `lrp22` | DEAP fine articulation (`deappfi`) |
 | `lrp23` | `lrp24` | Taught vocabulary (`b1extau` gain / level) |
 
-Four level models carry a `_noconstruct` variant (`lrp04`, `lrp18`, `lrp20`, `lrp22`) that
+Four level models carry a `_noconstruct` variant (`lrp04_noconstruct`, `lrp18_noconstruct`, `lrp20_noconstruct`, `lrp22_noconstruct`) that
 drops the same-skill sibling to expose how much of the ranking is concurrent same-construct
 correlation (`notes/202606210930-lrp-same-skill-variants.md`).
 
