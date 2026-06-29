@@ -1,5 +1,8 @@
 # LRP64 — letter-sounds vs vocabulary: a two-mediator decomposition of word reading
 
+> [!NOTE]
+> Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+
 > [!WARNING]
 > AI-assisted analysis. Headline numbers are produced by
 > `python scripts/fit_statistical_model.py lrp64 --config reporting` (writes
