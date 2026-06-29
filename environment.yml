@@ -23,7 +23,7 @@ dependencies:
       - h5netcdf
       - h5py # h5netcdf backend; required for DataTree trace.nc group I/O
       - hatch
-      - ipython>=9.14.1
+      - ipython>=9.15.0
       - ipywidgets>=8.1.8
       - jupytext
       - lightgbm>=4.6.0
@@ -34,7 +34,7 @@ dependencies:
       - optuna>=4.9.0
       - orjson>=3.11.9
       - pandas-stubs
-      - pandas>=3.0.3
+      - pandas>=3.0.4
       - preliz>=0.27.0
       - pytest>=9.1.1
       - rich>=15.0.0
@@ -46,6 +46,6 @@ dependencies:
       - shap>=0.52.0
       - tabulate>=0.10.0
       - xarray>=2026.4.0
-      - xgboost>=3.2.0
+      - xgboost>=3.3.0
       - -e ../research/src/python #  for now, for local development
       - -e ./
