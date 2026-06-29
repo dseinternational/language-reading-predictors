@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by a LLM-based AI tool (GitHub Copilot).
+:::
+
 ::: {.callout-warning title="Warning: Preliminary model output"}
 
 This model output is preliminary and likely to change as the model evolves and further data are received.

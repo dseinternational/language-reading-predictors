@@ -996,7 +996,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
 
 def _did_diag_vars(spec: ModelSpec) -> list[str]:
-    """Scalar coefficients to summarise for a crossover/DiD fit, given the spec."""
+    """Coefficients to summarise for a crossover/DiD fit, given the spec."""
     dose = bool(spec.extra.get("dose", False))
     period_varying = dose and bool(spec.extra.get("period_varying_dose", False))
     if not dose:
