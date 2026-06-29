@@ -21,7 +21,7 @@ Uniform feature selection (2026-06-21): reduced from the full 32-predictor set t
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
-from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
@@ -90,12 +90,8 @@ class LRP16(LevelModel):
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    cv_splits = 51
-    outlier_threshold = None
     selection_steps = _SELECTION_STEPS
-    shap_scatter_specs = [
-        ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
-    ]
+    shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for blending (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 2 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 1.694 -> 1.763). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
     )

@@ -81,7 +81,6 @@ class LRP01(GainModel):
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
     cv_splits = 53
-    outlier_threshold = None
     selection_steps = _SELECTION_STEPS
     shap_scatter_specs = [
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
