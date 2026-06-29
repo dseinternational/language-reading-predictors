@@ -1929,12 +1929,16 @@ def build_correlated_factor_model(
     Replaces the single latent general ability ``g`` of the (closed) LRP66 with
     **correlated domain factors** - vocabulary / code / grammar - each measured by
     its standardised T1 skill indicators, with an LKJ prior on the factor
-    correlation matrix. Factor variances are fixed to 1 and loadings are positive,
-    so a loading is the indicator-factor correlation and its square is the
-    indicator's **communality** (share explained by its domain factor). A
-    structural Beta-Binomial leg regresses the outcome gain (``outcome`` post
-    conditioned on its T1 baseline via ``gamma_own``) on the latent factors,
-    giving **measurement-error-corrected** factor->gain slopes.
+    correlation matrix. Factor variances are fixed to 1 and loadings are positive.
+    Because the indicator residual variance ``sigma_indicator`` is free, a loading
+    ``lambda`` is a coefficient on the unit-variance factor, **not** in general a
+    correlation; the indicator-factor **correlation** is ``lambda / sqrt(lambda**2
+    + sigma**2)`` (the standardised loading, equal to ``sqrt(communality)``) and
+    the **communality** ``lambda**2 / (lambda**2 + sigma**2)`` is the share of the
+    indicator explained by its domain factor. A structural Beta-Binomial leg
+    regresses the outcome gain (``outcome`` post conditioned on its T1 baseline via
+    ``gamma_own``) on the latent factors, giving **measurement-error-corrected**
+    factor->gain slopes.
 
     Identification-neutral but a better measurement match than a single ``g`` for
     the observed same-construct clustering (the locked DAG's deferred option,
@@ -2007,7 +2011,9 @@ def build_correlated_factor_model(
         # --- Measurement: correlated unit-variance domain factors ---
         # LKJ correlation matrix; factor variances are fixed to 1 by transforming
         # standard normals through the correlation's Cholesky (the LKJCholeskyCov
-        # sds are unused), so loadings are indicator-factor correlations.
+        # sds are unused). The residual variance sigma_indicator is free, so a
+        # loading is a coefficient on the unit-variance factor; the standardised
+        # loading / indicator-factor correlation is reported as sqrt(communality).
         _, corr, _ = pm.LKJCholeskyCov(
             "factor_cov",
             n=D,

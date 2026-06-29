@@ -2912,6 +2912,11 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     for j, name in enumerate(str(s) for s in post["indicator"].values):
         lam_d = post["lambda_load"].isel(indicator=j).values.reshape(-1)
         com_d = post["communality"].isel(indicator=j).values.reshape(-1)
+        # The residual variance sigma is free, so the loading lambda is a
+        # coefficient on the unit-variance factor, NOT in general a correlation.
+        # The standardised loading / indicator-factor correlation is
+        # lambda / sqrt(lambda**2 + sigma**2) = sqrt(communality).
+        corr_d = np.sqrt(com_d)
         load_rows.append(
             {
                 "indicator": name,
@@ -2919,6 +2924,9 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                 "loading_mean": float(np.mean(lam_d)),
                 "loading_lo": float(np.quantile(lam_d, lo_q)),
                 "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
+                "correlation_mean": float(np.mean(corr_d)),
+                "correlation_lo": float(np.quantile(corr_d, lo_q)),
+                "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
                 "communality_mean": float(np.mean(com_d)),
                 "communality_lo": float(np.quantile(com_d, lo_q)),
                 "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
@@ -2930,9 +2938,9 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     print_table(
         ranked_dataframe_table(
             load_df,
-            title=f"Loadings + communalities - {int(hdi * 100)}% CI (equal-tailed)",
+            title=f"Loadings, correlations + communalities - {int(hdi * 100)}% CI (equal-tailed)",
             columns=[
-                "indicator", "domain", "loading_mean",
+                "indicator", "domain", "loading_mean", "correlation_mean",
                 "communality_mean", "communality_lo", "communality_hi",
             ],
             rank_column=False,

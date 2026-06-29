@@ -22,9 +22,12 @@ child, `phase_mode="span"`):
 - **Measurement.** Correlated latent factors over the standardised T1 skill
   indicators, with an **LKJ** prior on the factor correlation matrix. Factor
   variances are **fixed to 1** (standard normals pushed through the correlation's
-  Cholesky) and loadings are positive (`HalfNormal`, fixing orientation), so a
-  loading is the indicator-factor correlation and its square is the indicator's
-  **communality**.
+  Cholesky) and loadings are positive (`HalfNormal`, fixing orientation). The
+  indicator residual variance is **free**, so a loading `lambda` is a coefficient
+  on the unit-variance factor, **not** in general a correlation; the report
+  carries the indicator-factor **correlation**
+  (`lambda / sqrt(lambda^2 + sigma^2)` = `sqrt(communality)`) and the
+  **communality** (`lambda^2 / (lambda^2 + sigma^2)`) alongside it.
 - **Structural.** Word-reading gain (`W` post conditioned on `W` T1 via
   `gamma_own`) regressed on the latent factors (+ non-verbal MA `blocks` + age),
   giving **measurement-error-corrected** factor->gain slopes.

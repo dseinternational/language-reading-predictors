@@ -15,13 +15,7 @@ format:
       - repo
 ---
 
-::: {.callout-warning title="Warning: Preliminary model output"}
-
-This model output is preliminary and likely to change as the model evolves and further data are received.
-
-If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
-
-:::
+{{< include _partials/_header.qmd >}}
 
 ```{python}
 # | echo: false
@@ -70,8 +64,11 @@ reporting-tier re-fit gives the final magnitudes.
 
 ## Model
 
-**Measurement** (correlated unit-variance factors; loadings positive so a loading
-is an indicator-factor correlation and $\lambda^2$ is the communality):
+**Measurement** (correlated unit-variance factors; loadings positive for
+orientation). The residual variance $\sigma_j$ is free, so a loading $\lambda_j$
+is a coefficient on the unit-variance factor; the indicator-factor **correlation**
+is $\lambda_j / \sqrt{\lambda_j^2 + \sigma_j^2} = \sqrt{\text{communality}}$ and the
+**communality** is $\lambda_j^2 / (\lambda_j^2 + \sigma_j^2)$:
 
 $$
 \mathbf{f}_i \sim \mathcal{N}(\mathbf{0}, \Omega), \quad \Omega \sim \text{LKJ}(\eta),
@@ -125,9 +122,14 @@ diag
 loadings
 ```
 
-- `loading_*`: the indicator-factor loading (a correlation, since factors and
-  indicators are standardised; mean + equal-tailed central interval).
-- `communality_*`: $\lambda^2 / (\lambda^2 + \sigma^2)$ - the share of that
+- `loading_*`: the loading $\lambda_j$ - a coefficient on the unit-variance
+  factor (mean + equal-tailed central interval). With the residual variance free
+  it is **not** in general a correlation.
+- `correlation_*`: the standardised loading / indicator-factor correlation,
+  $\lambda_j / \sqrt{\lambda_j^2 + \sigma_j^2} = \sqrt{\text{communality}}$ - this
+  is the bounded [0, 1] quantity to read as "how strongly the indicator marks its
+  factor".
+- `communality_*`: $\lambda_j^2 / (\lambda_j^2 + \sigma_j^2)$ - the share of that
   indicator explained by its domain factor.
 
 ## Factor correlation matrix
