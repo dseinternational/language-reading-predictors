@@ -9,7 +9,7 @@ identical otherwise, so a PSIS-LOO comparison (``compare_statistical_models.py``
 answers the headline question directly - **does letting the dose-gain slope vary
 by period improve predictive fit?** Given the weak Phase-1 dose structure, the
 period-varying model is expected to shrink toward this one; LOO is interpreted
-cautiously at this n (the LRP68 caveat).
+cautiously at this n because the dynamic companions were not estimable.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

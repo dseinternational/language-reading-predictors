@@ -34,6 +34,22 @@ def test_prior_info_roles_and_distribution():
     assert priors.prior_info_for_rv("kappa")["distribution"] == "HalfNormal(50)"
 
 
+def test_prior_info_context_overrides():
+    info = priors.prior_info_for_rv(
+        "beta_dose",
+        ctor_overrides={"beta_dose": "beta_mech"},
+        role_overrides={"beta_dose": "association"},
+    )
+    assert info["role"] == "association"
+    assert info["panel"] == "beta_mech"
+    assert info["distribution"] == "Normal(0, 1)"
+
+    sigma = priors.prior_info_for_rv("sigma_dose")
+    assert sigma["role"] == "nuisance"
+    assert sigma["panel"] == "sigma_dose"
+    assert sigma["distribution"] == "HalfNormal(0.5)"
+
+
 def test_prior_info_panel_mapping():
     assert priors.prior_info_for_rv("gamma_A")["panel"] == "gamma_age"
     assert priors.prior_info_for_rv("tau")["panel"] == "tau"
@@ -54,6 +70,23 @@ def test_used_prior_keys_prunes_unused():
     assert "gamma_cross" not in keys
 
 
+def test_used_prior_keys_skips_inline_noncentred_offsets():
+    model = SimpleNamespace(
+        free_RVs=[
+            _rv("mu_dose"),
+            _rv("sigma_dose"),
+            _rv("beta_dose_phase_raw"),
+        ],
+        deterministics=[_rv("beta_dose_phase")],
+    )
+    keys = priors.used_prior_keys(
+        model,
+        ctor_overrides={"mu_dose": "tau", "beta_dose_phase": "tau"},
+    )
+    assert keys == ["tau", "sigma_dose"]
+    assert priors.prior_info_for_rv("beta_dose_phase_raw")["panel"] == ""
+
+
 def test_priors_table_columns_and_rows():
     model = SimpleNamespace(
         free_RVs=[_rv("alpha"), _rv("tau"), _rv("gamma_own"), _rv("gamma_A"), _rv("kappa")],
@@ -66,3 +99,20 @@ def test_priors_table_columns_and_rows():
     assert by_param.loc["tau", "role"] == "causal"
     assert by_param.loc["gamma_A", "role"] == "precision"
     assert by_param.loc["tau", "panel"] == "tau"
+
+
+def test_priors_table_applies_context_overrides():
+    model = SimpleNamespace(
+        free_RVs=[_rv("alpha"), _rv("beta_dose"), _rv("mu_dose"), _rv("sigma_dose")],
+        deterministics=[],
+    )
+    df = priors.priors_table(
+        model,
+        ctor_overrides={"beta_dose": "beta_mech", "mu_dose": "beta_mech"},
+        role_overrides={"beta_dose": "association", "mu_dose": "association"},
+    )
+    by_param = df.set_index("parameter")
+    assert by_param.loc["beta_dose", "panel"] == "beta_mech"
+    assert by_param.loc["beta_dose", "role"] == "association"
+    assert by_param.loc["mu_dose", "panel"] == "beta_mech"
+    assert by_param.loc["sigma_dose", "panel"] == "sigma_dose"

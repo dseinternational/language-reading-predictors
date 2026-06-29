@@ -525,6 +525,8 @@ def load_and_prepare_aligned(
     required = [V.GROUP, V.AGE]
     if ability_covariate is not None:
         required.append(ability_covariate)
+    if include_dose:
+        required.append("dose")
     required_post = [f"{c}_post" for c in out_cols]
     n_before = len(merged)
     mask = merged[required].notna().all(axis=1) & merged[required_post].notna().any(axis=1)
@@ -597,7 +599,7 @@ def load_and_prepare_aligned(
 
 
 # ---------------------------------------------------------------------------
-# Wave-panel container + loader (LRP67 LCSM, LRP68 RI-CLPM)
+# Wave-panel container + loader (LRP67 LCSM)
 # ---------------------------------------------------------------------------
 
 
@@ -608,8 +610,8 @@ class WavePanel:
     Unlike :class:`PreparedData` (stacked adjacent-wave transition *pairs*), this
     is a ``(n_children, n_waves)`` panel: one cell per child per wave for each
     measure, with an explicit boolean observation mask for the scattered missing
-    cells. The latent change-score model (LRP67) and the RI-CLPM (LRP68) need all
-    four waves per child laid out as a panel rather than as pre/post pairs.
+    cells. The latent change-score model (LRP67) needs all four waves per child
+    laid out as a panel rather than as pre/post pairs.
 
     Symbols follow :data:`measures.MEASURES`: ``W`` = word reading (ewrswr),
     ``L`` = letter-sound knowledge (yarclet), ``E`` = expressive vocabulary

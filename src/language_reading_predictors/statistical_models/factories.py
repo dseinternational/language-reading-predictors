@@ -2004,7 +2004,7 @@ def build_gain_factors_model(
             + gamma_ability * z(ability)           # observed GA handle (blocks)
             + sum_s gamma_s * logit(skill_pre_s)   # upstream DAG skills (adjusted assoc.)
             + sum interactions                     # focal, pre-specified
-            + u_child[i]                           # GA repair (RI-CLPM)
+            + u_child[i]                           # partial GA repair
 
     ``OnIntervention`` is derived from the data: the immediate arm (``G == 1``) is
     on from period 1; the waitlist (``G == 0``) is off in period 1 only and on once
@@ -2167,7 +2167,7 @@ def build_level_factors_model(
             + gamma_A * A_std_t            # age at t (precision)
             + g_ability[t] * z(ability)    # ability x time (observed GA handle)
             + gamma_grp_ability * group * z(ability)   # group x ability
-            + u_child[i]                   # GA repair (RI-CLPM)
+            + u_child[i]                   # partial GA repair
 
     **Level-model caveat (baked into the parameterisation + report):** after t2
     the waitlist crosses over, so the group effect across the four timepoints is
@@ -2360,7 +2360,7 @@ def build_aligned_model(
 
 
 # ---------------------------------------------------------------------------
-# Longitudinal dynamic factories (LRP67 LCSM, LRP68 RI-CLPM)
+# Longitudinal dynamic factory (LRP67 LCSM)
 # ---------------------------------------------------------------------------
 
 
