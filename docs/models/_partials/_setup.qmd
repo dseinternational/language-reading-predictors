@@ -1,0 +1,57 @@
+```{python}
+# | echo: false
+# Shared setup for every statistical-model report (issue #125 step 0a). Loads
+# config + trace, derives the outcome label from `measures`, and defines small
+# helpers (`_has`, `_csv`, `_json`, `_img`) so the result partials can guard on
+# artifacts that only some archetypes emit. Included once, before any other
+# partial, so its names are visible in the shared kernel namespace.
+import json
+from pathlib import Path
+
+import arviz as az
+import numpy as np  # noqa: F401  (available to downstream partials)
+import pandas as pd
+
+from language_reading_predictors.statistical_models import measures as _measures
+
+_here = Path(".")
+
+with open(_here / "config.json") as _f:
+    config = json.load(_f)
+
+trace = az.from_netcdf(_here / "trace.nc")
+
+
+def _has(name: str) -> bool:
+    return (_here / name).exists()
+
+
+def _csv(name: str, **kw):
+    return pd.read_csv(_here / name, **kw) if _has(name) else None
+
+
+def _json(name: str):
+    if not _has(name):
+        return None
+    with open(_here / name) as _fh:
+        return json.load(_fh)
+
+
+def _img(path: str, alt: str = "", attrs: str = "{.lightbox}") -> str:
+    """Markdown image, or empty string when the file is absent (asis-safe)."""
+    return f"![{alt}]({path}){attrs}\n\n" if _has(path) else ""
+
+
+_symbol = config.get("outcome_symbol")
+_measure = _measures.MEASURES.get(_symbol) if _symbol else None
+outcome_label = (
+    _measure.label
+    if _measure is not None
+    else (config.get("title") or _symbol or "the outcome")
+)
+n_trials = _measure.n_trials if _measure is not None else None
+n_trials_confirmed = _measure.n_trials_confirmed if _measure is not None else True
+
+diag_summary = _json("diagnostics_summary.json") or {}
+priors_table = _csv("priors_table.csv")
+```

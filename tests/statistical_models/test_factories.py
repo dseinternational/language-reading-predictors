@@ -18,10 +18,13 @@ import pytest
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.factories import (
     build_crossover_model,
+    build_aligned_model,
     build_did_model,
     build_dose_response_model,
+    build_gain_factors_model,
     build_itt_model,
     build_joint_model,
+    build_level_factors_model,
     build_mechanism_model,
     build_mediation_model,
 )
@@ -768,3 +771,255 @@ def test_did_factory_requires_all_phase_mode(tmp_path):
     prep = load_and_prepare(path=p, phase_mode="itt")
     with pytest.raises(ValueError):
         build_did_model(prep, outcome_symbol="W")
+
+
+# ---------------------------------------------------------------------------
+# Gain-factors / level-factors families (LRPGF / LRPLF, issue #127)
+# ---------------------------------------------------------------------------
+
+
+def _prep_all(tmp_path, **kw):
+    return load_and_prepare(path=_write_synthetic(tmp_path, **kw), phase_mode="all")
+
+
+def _prep_levels(tmp_path, **kw):
+    return load_and_prepare(path=_write_synthetic(tmp_path, **kw), phase_mode="levels")
+
+
+def test_gain_factors_factory_builds(tmp_path):
+    """Core gain build: period anchor + own baseline + age + treatment, a child
+    random intercept and a Beta-Binomial likelihood."""
+    prep = _prep_all(tmp_path, n_children=20)
+    built = build_gain_factors_model(prep, outcome_symbol="W")
+    names = {v.name for v in built.model.free_RVs}
+    assert {"alpha", "alpha_phase", "beta_trt", "gamma_own", "gamma_A", "kappa",
+            "sigma_child"}.issubset(names)
+    assert {v.name for v in built.model.observed_RVs} == {"y_post"}
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=41)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_gain_factors_skills_ability_interactions(tmp_path):
+    """Skills, an ability covariate and focal interactions each add a coefficient
+    (gamma_<skill> / gamma_ability / gamma_int_<a>_<b>)."""
+    prep = _prep_all(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_gain_factors_model(
+        prep,
+        outcome_symbol="W",
+        skill_symbols=("L", "R"),
+        ability_covariate="blocks",
+        interactions=(("trt", "ability"), ("age", "ability")),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_L", "gamma_R", "gamma_ability",
+            "gamma_int_trt_ability", "gamma_int_age_ability"}.issubset(names)
+
+
+def test_gain_factors_treated_only_drops_treatment(tmp_path):
+    """treated_only restricts to on-intervention rows; the then-constant beta_trt
+    and every trt interaction drop out while non-trt interactions survive."""
+    prep = _prep_all(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_gain_factors_model(
+        prep,
+        outcome_symbol="W",
+        ability_covariate="blocks",
+        interactions=(("trt", "ability"), ("age", "ability")),
+        treated_only=True,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "beta_trt" not in names
+    assert "gamma_int_trt_ability" not in names
+    assert "gamma_int_age_ability" in names
+    # every retained row is on intervention
+    on = (built.prepared.G == 1) | (built.prepared.phase >= 1)
+    assert on.all()
+
+
+def test_gain_factors_bernoulli_offfloor(tmp_path):
+    """The floor rule: a Bernoulli on the off-floor indicator, no kappa, a
+    y_offfloor node taking only 0/1."""
+    prep = _prep_all(tmp_path, n_children=20)
+    built = build_gain_factors_model(
+        prep, outcome_symbol="P", likelihood="bernoulli_offfloor"
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "kappa" not in names
+    assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=42)
+    yof = pp.prior_predictive["y_offfloor"].values
+    assert set(np.unique(yof)).issubset({0, 1})
+
+
+def test_gain_factors_rejects_bad_likelihood_and_phase(tmp_path):
+    prep = _prep_all(tmp_path, n_children=15)
+    with pytest.raises(ValueError):
+        build_gain_factors_model(prep, outcome_symbol="W", likelihood="poisson")
+    itt = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="itt")
+    with pytest.raises(ValueError):
+        build_gain_factors_model(itt, outcome_symbol="W")
+
+
+def test_level_factors_factory_builds(tmp_path):
+    """Level build: per-timepoint intercepts + group x time + ability x time +
+    group x ability over the four timepoints, with no own baseline."""
+    prep = _prep_levels(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks")
+    names = {v.name for v in built.model.free_RVs}
+    assert {"alpha", "alpha_time", "b_grp_time", "gamma_A", "gamma_ability_time",
+            "gamma_grp_ability", "kappa", "sigma_child"}.issubset(names)
+    assert "gamma_own" not in names  # levels carries no own baseline
+    assert built.prepared.n_phases == 4
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=43)
+    # group x time is a per-timepoint vector over the four timepoints
+    assert pp.prior["b_grp_time"].shape[-1] == 4
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_level_factors_bernoulli_offfloor(tmp_path):
+    prep = _prep_levels(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_level_factors_model(
+        prep, outcome_symbol="P", ability_covariate="blocks",
+        likelihood="bernoulli_offfloor",
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "kappa" not in names
+    assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
+
+
+def test_level_factors_group_ability_requires_ability(tmp_path):
+    prep = _prep_levels(tmp_path, n_children=15)
+    with pytest.raises(ValueError):
+        build_level_factors_model(prep, outcome_symbol="W", group_ability=True)
+
+
+def test_level_factors_requires_levels_phase_mode(tmp_path):
+    prep = _prep_all(tmp_path, n_children=15)
+    with pytest.raises(ValueError):
+        build_level_factors_model(prep, outcome_symbol="W", group_ability=False)
+
+
+def test_gf_lf_diag_vars_match_offfloor_builds(tmp_path):
+    """_gf_diag_vars / _lf_diag_vars must name only RVs the off-floor factories
+    build (kappa dropped), else summary_diagnostics raises KeyError at run time."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.pipeline import (
+        _gf_diag_vars,
+        _lf_diag_vars,
+    )
+
+    gp = _prep_all(tmp_path, n_children=15)
+    g_built = build_gain_factors_model(
+        gp, outcome_symbol="P", likelihood="bernoulli_offfloor"
+    )
+    g_names = {v.name for v in g_built.model.free_RVs} | {
+        v.name for v in g_built.model.deterministics
+    }
+    g_diag = _gf_diag_vars(SimpleNamespace(extra={"likelihood": "bernoulli_offfloor"}))
+    assert "kappa" not in g_diag
+    assert not (set(g_diag) - g_names)
+
+    lp = _prep_levels(tmp_path, n_children=15)
+    lp.covariates["blocks"] = np.linspace(-1.0, 1.0, lp.n_obs)
+    l_built = build_level_factors_model(
+        lp, outcome_symbol="P", ability_covariate="blocks",
+        likelihood="bernoulli_offfloor",
+    )
+    l_names = {v.name for v in l_built.model.free_RVs} | {
+        v.name for v in l_built.model.deterministics
+    }
+    l_diag = _lf_diag_vars(SimpleNamespace(extra={
+        "likelihood": "bernoulli_offfloor", "ability_covariate": "blocks",
+    }))
+    assert "kappa" not in l_diag
+    assert not (set(l_diag) - l_names)
+
+
+# ---------------------------------------------------------------------------
+# Aligned-40-week per-protocol family (LRPAL, issue #127 follow-on)
+# ---------------------------------------------------------------------------
+
+
+def _prep_aligned(tmp_path, **kw):
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare_aligned,
+    )
+    return load_and_prepare_aligned(path=_write_synthetic(tmp_path, **kw))
+
+
+def test_aligned_factory_builds(tmp_path):
+    """Cross-sectional onset-aligned ANCOVA: cohort + own onset baseline + age,
+    Beta-Binomial, and NO child random intercept (one row per child)."""
+    prep = _prep_aligned(tmp_path, n_children=24)
+    assert prep.phase_mode == "aligned" and prep.n_phases == 1
+    built = build_aligned_model(prep, outcome_symbol="W")
+    names = {v.name for v in built.model.free_RVs}
+    assert {"alpha", "beta_cohort", "gamma_own", "gamma_A", "kappa"}.issubset(names)
+    assert "sigma_child" not in names  # one row per child -> no random intercept
+    assert "gamma_ability" not in names and "gamma_dose" not in names
+    assert {v.name for v in built.model.observed_RVs} == {"y_post"}
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=51)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_aligned_factory_ability_dose_and_no_cohort(tmp_path):
+    """Ability and dose each add a coefficient; use_cohort=False drops beta_cohort."""
+    prep = _prep_aligned(tmp_path, n_children=24)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    prep.covariates["dose"] = np.linspace(1.0, -1.0, prep.n_obs)
+    built = build_aligned_model(
+        prep, outcome_symbol="W", ability_covariate="blocks", use_dose=True
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_ability", "gamma_dose", "beta_cohort"}.issubset(names)
+    base = build_aligned_model(
+        prep, outcome_symbol="W", ability_covariate="blocks", use_cohort=False
+    )
+    assert "beta_cohort" not in {v.name for v in base.model.free_RVs}
+
+
+def test_aligned_factory_bernoulli_offfloor(tmp_path):
+    prep = _prep_aligned(tmp_path, n_children=24)
+    built = build_aligned_model(
+        prep, outcome_symbol="P", likelihood="bernoulli_offfloor"
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "kappa" not in names
+    assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
+
+
+def test_aligned_factory_rejects_dose_without_covariate_and_wrong_phase(tmp_path):
+    prep = _prep_aligned(tmp_path, n_children=15)
+    with pytest.raises(KeyError):
+        build_aligned_model(prep, outcome_symbol="W", use_dose=True)  # no 'dose'
+    itt = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="itt")
+    with pytest.raises(ValueError):
+        build_aligned_model(itt, outcome_symbol="W")
+
+
+def test_al_diag_vars_match_build(tmp_path):
+    """_al_diag_vars names only RVs the aligned factory builds: kappa present,
+    no sigma_child (no random intercept)."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.pipeline import _al_diag_vars
+
+    prep = _prep_aligned(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_aligned_model(prep, outcome_symbol="W", ability_covariate="blocks")
+    diag = _al_diag_vars(
+        SimpleNamespace(extra={"ability_covariate": "blocks", "use_cohort": True})
+    )
+    built_names = {v.name for v in built.model.free_RVs} | {
+        v.name for v in built.model.deterministics
+    }
+    assert not (set(diag) - built_names)
+    assert "kappa" in diag and "sigma_child" not in diag

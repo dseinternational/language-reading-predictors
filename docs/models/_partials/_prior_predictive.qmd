@@ -1,0 +1,21 @@
+## Prior-predictive check
+
+Does the prior generate physically-possible outcomes before seeing the data
+(Gabry et al. 2019)? The prior-predictive distribution of the outcome count is
+overlaid on the observed counts.
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("prior_predictive_check.png", "Prior-predictive vs observed"))
+if not _has("prior_predictive_check.png"):
+    print("_No prior-predictive plot available for this model._")
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Floored outcomes (P / N): can the prior even produce the observed ~64–78% floor?
+# The shown justification for the binary off-floor primary estimand.
+print(_img("prior_proportion_at_zero.png", "Prior proportion-at-zero check"))
+```

@@ -83,15 +83,15 @@ with Beta-Binomial likelihood on the period post-count, $N = 79$. ``Treated`` is
 1 when the child is receiving the intervention that period (immediate: both;
 waitlist: P2 only). Priors follow the shared template in `priors.py`.
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 ## Shared priors
 
-![alpha](prior_alpha.svg){width=32%}
-![tau](prior_tau.svg){width=32%}
-![gamma_own](prior_gamma_own.svg){width=32%}
-![gamma_age](prior_gamma_age.svg){width=32%}
-![kappa](prior_kappa.svg){width=32%}
+![alpha](prior_alpha.png){width=32%}
+![tau](prior_tau.png){width=32%}
+![gamma_own](prior_gamma_own.png){width=32%}
+![gamma_age](prior_gamma_age.png){width=32%}
+![kappa](prior_kappa.png){width=32%}
 
 ## Sampling diagnostics
 
