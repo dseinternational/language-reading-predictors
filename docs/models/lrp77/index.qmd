@@ -1,0 +1,176 @@
+---
+title: "LRP77: Period-resolved dose-response — intervention dose -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+```
+
+## Overview
+
+LRP77 is the gated [#104](https://github.com/dseinternational/language-reading-predictors/issues/104)
+Phase-2 follow-up to the period-resolved gradient-boosting diagnostic
+(`notes/202606221146-period-resolved-gb-diagnostic.md`). Phase 1 found the
+structure in the near-noise word-reading gain models sits on the **dose /
+intervention-status axis**, with a weak positive dose signal that concentrates in
+the on-treatment periods. This model quantifies that one signal with honest
+uncertainty.
+
+**Estimand.** How word-reading *conditional change* relates to the per-period
+intervention **dose** (`attend`, sessions attended that period), with partial
+pooling across the three periods, and whether that dose–gain slope **varies by
+period**. The outcome is the Beta-Binomial post-count of $W$ conditional on its
+own baseline logit ($N = 79$) — conditional change, **not** a raw change score
+(Lord's paradox / regression to the mean). All three phase transitions
+(t1$\to$t2, t2$\to$t3, t3$\to$t4) are stacked with phase-specific intercepts; the
+dose enters standardised, so the slope is the outcome-logit change per 1 SD of
+per-period dose:
+
+$$
+\eta = \alpha + \alpha_{\text{phase}[p]}
+     + \beta_G\,G
+     + \gamma_{\text{own}}\,\text{logit}(W_{\text{pre}})
+     + \gamma_A\,z(\text{age})
+     + u_{\text{child}}
+     + \beta_{\text{dose}[p]}\,z(\text{attend})
+     + \gamma_{\text{stage}}\,z(\text{attend\_cumul})
+$$
+
+with $\beta_{\text{dose}[p]} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$
+(partial-pooled period slopes).
+
+## Adjustment set (locked DAG)
+
+The focal edge is $\text{dose} \to \text{outcome}$. Sessions is the locked DAG's
+`IS` node; this is the ID-3 **observational** dose-response (adjust $\{IG, A\}$,
+never condition on `IS` itself). Dose has one parent, `intervention`, so the
+back-door set is $\{G, W_{\text{pre}}, A\}$ — but for distinct reasons:
+
+- **$G$ — the sole confounder.** Conditioning on the arm blocks the only back-door
+  $\text{dose} \leftarrow \text{intervention} \to \text{outcome}$. **Coding:
+  $G = 2 - \text{group}$, so $G = 1$ is the immediate-intervention arm and $G = 0$
+  the waitlist control; positive effects = intervention benefit** (the `#117` sign
+  convention).
+- **$W_{\text{pre}}$ — not a dose confounder.** The autoregression / RTM control
+  that makes this *conditional change*; parameterisation, not back-door blocking.
+- **age — not a dose confounder.** v5 has $\text{age} \to \text{outcome}$ but no
+  $\text{age} \to \text{dose}$, so age is a precision / maturation covariate only.
+
+**Cumulative dose** (`attend_cumul`, prior sessions) enters as a control so a
+dose-stage effect is not misread as a period effect (it is 0 for everyone in
+period 1).
+
+**Sample.** All gain rows are kept, including the waitlist controls' period-1
+`attend == 0` rows — the **zero-dose anchor** that identifies the slope.
+
+### The load-bearing assumption: no `ability -> dose`
+
+v5 deliberately omits $g \to \text{dose}$. But Frank's 2012 caveat — "the children
+least able to learn tended to show the poorest attendance" — is exactly that
+edge. **Dose is not randomised** (only `intervention` is), so randomisation does
+not rescue this. If $g \to \text{dose}$ holds, $g$ is a common cause of dose and
+outcome and $\{G\}$ no longer identifies the dose effect. Two safeguards: the
+subject random intercept $u_{\text{child}}$ absorbs *stable* child differences,
+and the ability-adjusted sensitivity fit **LRP77a** conditions on the
+baseline-skill cluster (letter-sounds, expressive vocabulary, blending). If the
+dose slope survives there, the assumption is defensible; if it collapses, the
+dose signal is substantially ability-confounded.
+
+### Causal warrant and expectations
+
+This is **adjusted association**, not "dose drives gains" — only the period-1 ITT
+(now `lrpitt10`) is randomised. Phase-1 best strata reached only $R^2$ 0.1–0.3;
+the deliverable is a calibrated dose slope with credible intervals, not a strong
+predictor. Do not condition on anything downstream of dose.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.svg){width=40%}
+![tau / beta_G](prior_tau.svg){width=40%}
+![gamma_own](prior_gamma_own.svg){width=40%}
+![gamma_cross](prior_gamma_cross.svg){width=40%}
+![kappa](prior_kappa.svg){width=40%}
+
+The dose mean $\mu_{\text{dose}}$ uses the unit-scale `beta_mech` prior
+$\mathcal{N}(0, 1)$; the between-period slope SD $\sigma_{\text{dose}}$ uses
+`HalfNormal(0.5)` (`priors.sigma_dose_phase_prior`).
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Dose slope (the estimand)
+
+```{python}
+# | echo: false
+dose = pd.read_csv(_here / "dose_slope_summary.csv")
+dose
+```
+
+`dose_overall` ($\mu_{\text{dose}}$) is the pooled slope; `dose_period1..3` are
+the partial-pooled per-period slopes; `sigma_dose_between_period` is their spread.
+All are on the **logit scale per 1 SD of per-period dose**; `p_pos` is
+$P(\text{slope} > 0)$. A positive slope means more sessions in a period predict a
+larger conditional gain. Read the per-period slopes against
+`sigma_dose_between_period`: small $\sigma_{\text{dose}}$ with similar period
+slopes means the dose–gain relationship does **not** vary materially by period
+(the period slopes shrink toward the pooled effect). Whether period variation
+improves predictive fit is settled by the LRP77 vs **LRP77base** PSIS-LOO
+comparison.
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
