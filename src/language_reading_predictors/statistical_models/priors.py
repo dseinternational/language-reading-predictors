@@ -146,6 +146,18 @@ def eta_partial_pool_prior() -> Continuous:
     return pz.HalfNormal(sigma=0.3)
 
 
+def predictor_slope_prior(sigma: float = 0.5) -> Continuous:
+    """LRP65 standardised-predictor slope ~ Normal(0, sigma) (default 0.5).
+
+    Per-SD coefficient on a standardised baseline predictor in the between-child
+    adjusted model (letter sounds, language composite, blending, age, and the
+    tested covariates). Fixed weakly-informative and regularising, given the
+    collinear general-ability cluster and n ~ 51; the which-predictors-clear-zero
+    conclusion is checked against ``sigma`` in {0.3, 0.7}.
+    """
+    return pz.Normal(mu=0.0, sigma=sigma)
+
+
 # ---------------------------------------------------------------------------
 # Registry - used to render the prior panel in every report
 # ---------------------------------------------------------------------------
@@ -158,6 +170,7 @@ SHARED_PRIORS: dict[str, "callable[[], Continuous]"] = {
     "gamma_cross": gamma_cross_prior,
     "gamma_age": gamma_age_prior,
     "kappa": kappa_prior,
+    "predictor_slope": predictor_slope_prior,
     "eta_main": eta_main_prior,
     "eta_tau": eta_tau_prior,
     "ell": ell_prior,
