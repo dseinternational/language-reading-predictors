@@ -37,7 +37,10 @@ import pandas as pd
 import xarray as xr
 from dse_research_utils.math.constants import EPSILON
 
-from language_reading_predictors.statistical_models.factories import MediationData
+from language_reading_predictors.statistical_models.factories import (
+    MediationData,
+    TwoMediatorData,
+)
 from language_reading_predictors.statistical_models.preprocessing import logit_safe
 
 _TREAT = 1.0  # immediate-intervention arm (G = 1)
@@ -185,6 +188,173 @@ def decompose(
     # decomposition itself (NDE/NIE) is the robust reading.
     with np.errstate(divide="ignore", invalid="ignore"):
         prop = nie / total
+    prop = prop[np.isfinite(prop)]
+    rows.append(
+        {
+            "quantity": "proportion_mediated",
+            "prob_mean": float(np.median(prop)),
+            "prob_lo": float(np.quantile(prop, lo_q)),
+            "prob_hi": float(np.quantile(prop, hi_q)),
+            "words_mean": np.nan,
+            "words_lo": np.nan,
+            "words_hi": np.nan,
+            "prob_pos": float(np.mean(total > 0)),  # P(Total > 0) for context
+        }
+    )
+    return pd.DataFrame(rows)
+
+
+def decompose_two_mediator(
+    trace: xr.DataTree,
+    med: TwoMediatorData,
+    *,
+    hdi_prob: float = 0.95,
+    n_replicates: int = 50,
+    seed: int = 47,
+    order: tuple[str, str] = ("L", "E"),
+) -> pd.DataFrame:
+    """Two-mediator g-formula decomposition for LRP64 (letter-sound L + vocab E -> W).
+
+    Returns posteriors for, on the response (word-count / probability) scale:
+
+    - ``total`` — the intervention's total effect on word reading.
+    - ``NDE`` — the direct / residual path (neither mediator moves).
+    - ``NIE_joint`` — the **headline**: the joint indirect effect through the
+      ``{L, E}`` block (both mediators allowed to respond). This is the robust,
+      assumption-light quantity (the same philosophy as LRP62's route composite).
+    - ``NIE_L`` / ``NIE_E`` — the **exploratory** path-specific indirect effects,
+      under the mediator ``order`` (default L before E): ``NIE_L`` moves L from its
+      control to its treated draw with E held at control, then ``NIE_E`` moves E
+      with L held at treated. They sum exactly to ``NIE_joint`` but the split
+      depends on the order and on the cross-world / conditional-independence
+      assumptions — read as ordering-dependent, not a unique attribution.
+    - ``proportion_mediated`` — ``NIE_joint / total`` (median + interval).
+
+    Each mediator is re-simulated from its Beta-Binomial leg under each treatment
+    arm, with common random draws reused across counterfactual cells to reduce
+    Monte-Carlo noise. Sign convention as :func:`decompose` (intervention-helps;
+    ``G=1`` intervention, ``G=0`` control, per ``G = 2 - group``). The two mediators are simulated as
+    conditionally independent given the covariates (no residual L-E correlation is
+    modelled) — a simplifying assumption stated in the report.
+    """
+    post = trace.posterior
+
+    def d(name: str) -> np.ndarray:
+        return post[name].stack(_s=("chain", "draw")).values
+
+    confs = med.confounder_symbols
+
+    # Outcome model.
+    b0, b_G, b_L, b_E, b_GL, b_GE, b_W, b_A = (
+        d("b0"), d("b_G"), d("b_L"), d("b_E"), d("b_GL"), d("b_GE"), d("b_W"), d("b_A")
+    )
+    b_conf = {s: d(f"b_{s}") for s in confs}
+    # Mediator legs.
+    aL0, aL_G, aL_L, aL_A = d("aL0"), d("aL_G"), d("aL_L"), d("aL_A")
+    aL_conf = {s: d(f"aL_{s}") for s in confs}
+    kappa_L = d("kappa_L")
+    aE0, aE_G, aE_E, aE_A = d("aE0"), d("aE_G"), d("aE_E"), d("aE_A")
+    aE_conf = {s: d(f"aE_{s}") for s in confs}
+    kappa_E = d("kappa_E")
+
+    A = med.A_std[None, :]
+    W1 = med.W1_logit[None, :]
+    L1 = med.L1_logit[None, :]
+    E1 = med.E1_logit[None, :]
+    conf = {s: med.conf1_logit[s][None, :] for s in confs}
+    N_W = med.n_trials_W
+    N_L = med.n_trials_L
+    N_E = med.n_trials_E
+    S = b0.shape[0]
+    rng = np.random.default_rng(seed)
+
+    def outcome_p(g: float, zL: np.ndarray, zE: np.ndarray) -> np.ndarray:
+        eta = (
+            b0[:, None]
+            + b_G[:, None] * g
+            + b_L[:, None] * zL
+            + b_E[:, None] * zE
+            + b_GL[:, None] * (g * zL)
+            + b_GE[:, None] * (g * zE)
+            + b_W[:, None] * W1
+            + b_A[:, None] * A
+        )
+        for s in confs:
+            eta = eta + b_conf[s][:, None] * conf[s]
+        return _sigmoid(eta)
+
+    def mediator_p(a0, a_G, a_base, a_A, a_conf, base, g):
+        mu = a0[:, None] + a_G[:, None] * g + a_base[:, None] * base + a_A[:, None] * A
+        for s in confs:
+            mu = mu + a_conf[s][:, None] * conf[s]
+        return np.clip(_sigmoid(mu), EPSILON, 1 - EPSILON)
+
+    pL_t = mediator_p(aL0, aL_G, aL_L, aL_A, aL_conf, L1, _TREAT)
+    pL_c = mediator_p(aL0, aL_G, aL_L, aL_A, aL_conf, L1, _CTRL)
+    pE_t = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _TREAT)
+    pE_c = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _CTRL)
+
+    def zdraw(p, kappa, N, mean, sd):
+        k = rng.binomial(N, rng.beta(p * kappa[:, None], (1 - p) * kappa[:, None]))
+        return (logit_safe(k, N) - mean) / sd
+
+    # Counterfactual cells (g_out, L-arm, E-arm); common draws across cells.
+    y_TT_TT = np.zeros(S)  # treat outcome, both mediators treated
+    y_TT_CC = np.zeros(S)  # treat outcome, both mediators control
+    y_CC_CC = np.zeros(S)  # control outcome, both mediators control
+    y_T_Lt_Ec = np.zeros(S)  # treat outcome, L treated, E control
+    y_T_Lc_Et = np.zeros(S)  # treat outcome, L control, E treated
+    for _ in range(n_replicates):
+        zL_t = zdraw(pL_t, kappa_L, N_L, med.zL_mean, med.zL_sd)
+        zL_c = zdraw(pL_c, kappa_L, N_L, med.zL_mean, med.zL_sd)
+        zE_t = zdraw(pE_t, kappa_E, N_E, med.zE_mean, med.zE_sd)
+        zE_c = zdraw(pE_c, kappa_E, N_E, med.zE_mean, med.zE_sd)
+        y_TT_TT += outcome_p(_TREAT, zL_t, zE_t).mean(axis=1)
+        y_TT_CC += outcome_p(_TREAT, zL_c, zE_c).mean(axis=1)
+        y_CC_CC += outcome_p(_CTRL, zL_c, zE_c).mean(axis=1)
+        y_T_Lt_Ec += outcome_p(_TREAT, zL_t, zE_c).mean(axis=1)
+        y_T_Lc_Et += outcome_p(_TREAT, zL_c, zE_t).mean(axis=1)
+    for arr in (y_TT_TT, y_TT_CC, y_CC_CC, y_T_Lt_Ec, y_T_Lc_Et):
+        arr /= n_replicates
+
+    total = y_TT_TT - y_CC_CC
+    nde = y_TT_CC - y_CC_CC
+    nie_joint = y_TT_TT - y_TT_CC
+    if order not in (("L", "E"), ("E", "L")):
+        raise ValueError(
+            f"order must be ('L', 'E') or ('E', 'L'); got {order!r}"
+        )
+    if order == ("L", "E"):
+        nie_L = y_T_Lt_Ec - y_TT_CC  # move L first (E at control)
+        nie_E = y_TT_TT - y_T_Lt_Ec  # then move E (L at treated)
+    else:
+        nie_E = y_T_Lc_Et - y_TT_CC  # move E first (L at control)
+        nie_L = y_TT_TT - y_T_Lc_Et  # then move L (E at treated)
+
+    lo_q, hi_q = (1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2
+
+    def row(name: str, draws: np.ndarray) -> dict:
+        return {
+            "quantity": name,
+            "prob_mean": float(np.mean(draws)),
+            "prob_lo": float(np.quantile(draws, lo_q)),
+            "prob_hi": float(np.quantile(draws, hi_q)),
+            "words_mean": float(np.mean(draws) * N_W),
+            "words_lo": float(np.quantile(draws, lo_q) * N_W),
+            "words_hi": float(np.quantile(draws, hi_q) * N_W),
+            "prob_pos": float(np.mean(draws > 0)),
+        }
+
+    rows = [
+        row("total", total),
+        row("NDE", nde),
+        row("NIE_joint", nie_joint),
+        row("NIE_L", nie_L),
+        row("NIE_E", nie_E),
+    ]
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        prop = nie_joint / total
     prop = prop[np.isfinite(prop)]
     rows.append(
         {

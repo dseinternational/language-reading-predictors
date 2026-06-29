@@ -20,12 +20,14 @@ from language_reading_predictors.statistical_models.factories import (
     build_adjusted_model,
     build_aligned_model,
     build_did_model,
+    build_dose_response_model,
     build_gain_factors_model,
     build_itt_model,
     build_joint_model,
     build_level_factors_model,
     build_mechanism_model,
     build_mediation_model,
+    build_two_mediator_model,
 )
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
@@ -67,6 +69,9 @@ def _write_synthetic(tmp_path, n_children: int = 25, seed: int = 7):
                 m = MEASURES[s]
                 row[m.column] = int(rng.integers(0, m.n_trials + 1))
             row[V.NONWORD] = int(rng.integers(0, 7))
+            # Intervention dose covariates (used by the dose-response factory).
+            row[V.ATTEND] = int(rng.integers(0, 90))
+            row[V.ATTEND_CUMUL] = int(rng.integers(0, 200))
             rows.append(row)
     p = tmp_path / "rli.csv"
     pd.DataFrame(rows).to_csv(p, index=False)
@@ -599,6 +604,76 @@ def test_adjusted_factory_rejects_pooled_phase(tmp_path):
     with pytest.raises(ValueError):
         build_adjusted_model(prep, predictors=["L"])
 # ---------------------------------------------------------------------------
+# Dose-response factory (LRP77, #104 Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def test_dose_response_factory_builds_period_varying(tmp_path):
+    """Default build: partial-pooled per-period dose slopes + design adjusters."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(
+        path=p, phase_mode="all", outcomes=("W",), covariates=("attend", "attend_cumul")
+    )
+    built = build_dose_response_model(prep, outcome_symbol="W", period_varying_dose=True)
+    free = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+    # period-varying dose slope (partial pooled), arm, age, dose-stage, subject RI
+    assert {"mu_dose", "sigma_dose", "beta_dose_phase_raw", "beta_G", "gamma_A",
+            "gamma_dose_stage", "sigma_child"}.issubset(free)
+    assert "beta_dose_phase" in dets
+    assert "beta_dose" not in free  # pooled slope only in the comparator
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=5)
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_dose_response_factory_pooled_slope(tmp_path):
+    """``period_varying_dose=False`` gives a single pooled slope, no phase slopes."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(
+        path=p, phase_mode="all", outcomes=("W",), covariates=("attend", "attend_cumul")
+    )
+    built = build_dose_response_model(prep, outcome_symbol="W", period_varying_dose=False)
+    free = {v.name for v in built.model.free_RVs}
+    assert "beta_dose" in free
+    assert "mu_dose" not in free
+    assert not any(v.name == "beta_dose_phase" for v in built.model.deterministics)
+
+
+def test_dose_response_factory_ability_adjusters(tmp_path):
+    """The sensitivity fit adds a ``gamma_{s}_pre`` term per baseline-skill symbol."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(
+        path=p,
+        phase_mode="all",
+        outcomes=("W", "L", "E", "B"),
+        covariates=("attend", "attend_cumul"),
+    )
+    built = build_dose_response_model(
+        prep, outcome_symbol="W", ability_adjust_symbols=("L", "E", "B")
+    )
+    free = {v.name for v in built.model.free_RVs}
+    assert {"gamma_L_pre", "gamma_E_pre", "gamma_B_pre"}.issubset(free)
+
+
+def test_dose_response_factory_rejects_wrong_phase(tmp_path):
+    p = _write_synthetic(tmp_path, n_children=12)
+    prep = load_and_prepare(
+        path=p, phase_mode="itt", outcomes=("W",), covariates=("attend", "attend_cumul")
+    )
+    with pytest.raises(ValueError):
+        build_dose_response_model(prep, outcome_symbol="W")
+
+
+def test_dose_response_factory_requires_dose_covariate(tmp_path):
+    """A missing dose covariate is a clear KeyError, not a late failure."""
+    p = _write_synthetic(tmp_path, n_children=12)
+    prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W",))
+    with pytest.raises(KeyError):
+        build_dose_response_model(prep, outcome_symbol="W")
+
+
+# ---------------------------------------------------------------------------
 # Mediation factories (LRP59 Beta-Binomial + LRP62 Gaussian composite)
 # ---------------------------------------------------------------------------
 
@@ -676,6 +751,25 @@ def test_mediation_factory_custom_confounder_set(tmp_path):
     assert not {"b_R", "a_R"} & names
     assert med.confounder_symbols == ("E",)
     assert set(med.conf_logit) == {"E"}
+
+
+def test_two_mediator_factory_builds(tmp_path):
+    """LRP64: two-mediator joint model builds with both mediator legs + interactions."""
+    p = _write_synthetic(tmp_path, n_children=25)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built, med = build_two_mediator_model(
+        prep, outcome_symbol="W", mediator_symbols=("L", "E"), confounder_symbols=("R",)
+    )
+    names = {v.name for v in built.model.free_RVs}
+    # Two mediator legs, the outcome paths, the interactions, and the R confounder.
+    assert {"aL_G", "aE_G", "b_L", "b_E", "b_GL", "b_GE", "b_R"}.issubset(names)
+    assert med.mediator_symbols == ("L", "E")
+    assert med.n_trials_L == MEASURES["L"].n_trials
+    assert med.n_trials_E == MEASURES["E"].n_trials
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=5)
+    for node in ("L_post", "E_post", "y_post"):
+        assert pp.prior_predictive[node].shape[-1] == built.prepared.n_obs
 
 
 # ---------------------------------------------------------------------------
