@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Codex/GPT-5).
+:::
+
 ::: {.callout-warning title="Warning: Preliminary model output"}
 
 This model output is preliminary and likely to change as the model evolves and further data are received.
@@ -48,8 +52,8 @@ Its sole purpose is the nested **PSIS-LOO** comparison against LRP77
 (`scripts/compare_statistical_models.py`): *does letting the dose–gain slope vary
 by period improve predictive fit?* Given the weak Phase-1 dose structure, LRP77
 is expected to shrink toward this model and LOO to be near-indistinguishable; LOO
-is read cautiously at this $n$ (the LRP68 caveat). See the LRP77 report for the
-full estimand, the locked-DAG adjustment set, the no-`ability -> dose`
+is read cautiously at this $n$ because dynamic companions were not estimable. See
+the LRP77 report for the full estimand, the locked-DAG adjustment set, the no-`ability -> dose`
 assumption, the $G = 2 - \text{group}$ coding (G=1 = intervention), and the expectations caveat.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}

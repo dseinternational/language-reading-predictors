@@ -47,9 +47,9 @@ change-score model (LCSM)**: for each wave-to-wave transition, does a child's
 prior-wave **letter-sound** and **vocabulary** standing predict their subsequent
 **reading** change?
 
-This is "Approach 4" (process-over-time) from the modelling meeting, and one leg of
-a three-way triangulation: between-child (LRP65), latent change (LRP67), and the
-within-child RI-CLPM (LRP68).
+This is "Approach 4" (process-over-time) from the modelling meeting, and one
+longitudinal triangulation point beside the between-child LRP65 model. The
+RI-CLPM companion was dropped as not estimable at this sample size.
 
 ::: {.callout-note title="Symbol mapping (read before the table)"}
 The codebase `MEASURES` symbols differ from the handoff's R / L / V:
@@ -130,11 +130,12 @@ print(
 ```
 
 ::: {.callout-important title="Triangulation, not a single coefficient"}
-At n~54 the intervals are wide. The result that matters is **convergence**: does the
-direction of `g_L` (letter-sounds → reading change) agree with the between-child
-LRP65 finding and the within-child RI-CLPM (LRP68, `A[W,L]`)? The dated note
-synthesises the three. A consistent positive direction across approaches is the
-honest, defensible reading — not a point estimate of `g_L`.
+At n~54 the intervals are wide. The result that matters is **triangulation**: does
+the direction of `g_L` (letter-sounds → reading change) agree with the
+between-child LRP65 finding, while respecting that the RI-CLPM companion was
+dropped as not estimable? The dated note synthesises the dynamic-model decision.
+A consistent positive direction across the surviving approaches is the honest,
+defensible reading — not a point estimate of `g_L`.
 :::
 
 ## Sampling diagnostics

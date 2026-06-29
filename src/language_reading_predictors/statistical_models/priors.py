@@ -182,6 +182,7 @@ SHARED_PRIORS: dict[str, "callable[[], Continuous]"] = {
 # gets a panel and a priors-table row.
 _EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
     "beta_mech": beta_mech_prior,
+    "sigma_dose": sigma_dose_phase_prior,
     "b_path": b_path_prior,
     "sigma_mediator": sigma_mediator_prior,
     "eta_partial_pool": eta_partial_pool_prior,
@@ -203,7 +204,9 @@ _ROLE_BY_CTOR: dict[str, str] = {
     "gamma_cross": "association",
     "gamma_age": "precision",
     "kappa": "nuisance",
+    "predictor_slope": "association",
     "beta_mech": "association",
+    "sigma_dose": "nuisance",
     "b_path": "association",
     "sigma_mediator": "nuisance",
     "eta_main": "gp",
@@ -237,6 +240,8 @@ _RV_TO_CTOR: dict[str, str] = {
     "kappa_M": "kappa",
     "kappa_Y": "kappa",
     "beta_mech": "beta_mech",
+    "mu_dose": "beta_mech",
+    "sigma_dose": "sigma_dose",
     "b_M": "b_path",
     "sigma_M": "sigma_mediator",
     "eta_main": "eta_main",
@@ -263,6 +268,13 @@ _INLINE_PRIORS: dict[str, dict[str, str]] = {
         "distribution": "HalfNormal(0.5)",
         "rationale": "Child random-intercept SD sigma_child ~ HalfNormal(0.5).",
     },
+    "beta_dose_phase_raw": {
+        "role": "nuisance",
+        "distribution": "Normal(0, 1)",
+        "rationale": (
+            "Standard-normal non-centred period-dose offset; scaled by sigma_dose."
+        ),
+    },
 }
 
 
@@ -278,11 +290,23 @@ def _dist_from_doc(ctor) -> str:
     return m.group(1) if m else ""
 
 
-def _ctor_key_for_rv(rv_name: str) -> str | None:
+def _ctor_key_for_rv(
+    rv_name: str,
+    *,
+    ctor_overrides: dict[str, str] | None = None,
+) -> str | None:
     """Constructor key backing an RV, by exact name then by prefix fallback."""
     base = rv_name.split("[")[0]
+    if base in _INLINE_PRIORS:
+        return None
+    if ctor_overrides is not None and base in ctor_overrides:
+        return ctor_overrides[base]
     if base in _RV_TO_CTOR:
         return _RV_TO_CTOR[base]
+    # LRP65-style adjusted predictor slopes are named beta_{predictor}. Exact
+    # beta_* entries above win first (beta_G, beta_trt, beta_period, ...).
+    if base.startswith("beta_"):
+        return "predictor_slope"
     # Adjusted couplings are all gamma_cross-scaled (covariate, moderator,
     # skill, mediator b-paths share the weakly-informative cross prior).
     if base.startswith(("gamma", "b_", "a_")):
@@ -290,7 +314,12 @@ def _ctor_key_for_rv(rv_name: str) -> str | None:
     return None
 
 
-def prior_info_for_rv(rv_name: str) -> dict[str, str]:
+def prior_info_for_rv(
+    rv_name: str,
+    *,
+    ctor_overrides: dict[str, str] | None = None,
+    role_overrides: dict[str, str] | None = None,
+) -> dict[str, str]:
     """``{parameter, distribution, role, rationale, panel}`` for a registered RV.
 
     ``panel`` is the basename (without ``prior_`` / extension) of the prior-PDF
@@ -301,7 +330,7 @@ def prior_info_for_rv(rv_name: str) -> dict[str, str]:
     if base in _INLINE_PRIORS:
         info = _INLINE_PRIORS[base]
         return {"parameter": rv_name, **info, "panel": ""}
-    key = _ctor_key_for_rv(rv_name)
+    key = _ctor_key_for_rv(rv_name, ctor_overrides=ctor_overrides)
     if key is None:
         return {
             "parameter": rv_name,
@@ -314,23 +343,32 @@ def prior_info_for_rv(rv_name: str) -> dict[str, str]:
     return {
         "parameter": rv_name,
         "distribution": _dist_from_doc(ctor),
-        "role": _ROLE_BY_CTOR[key],
+        "role": (role_overrides or {}).get(base, _ROLE_BY_CTOR[key]),
         "rationale": _first_docline(ctor),
         "panel": key,
     }
 
 
-def used_prior_keys(model) -> list[str]:
+def used_prior_keys(
+    model,
+    *,
+    ctor_overrides: dict[str, str] | None = None,
+) -> list[str]:
     """Constructor keys actually registered by ``model`` (for panel pruning)."""
     keys: list[str] = []
     for rv in list(model.free_RVs) + list(getattr(model, "deterministics", [])):
-        key = _ctor_key_for_rv(rv.name)
+        key = _ctor_key_for_rv(rv.name, ctor_overrides=ctor_overrides)
         if key is not None and key in ALL_PRIORS and key not in keys:
             keys.append(key)
     return keys
 
 
-def priors_table(model) -> pd.DataFrame:
+def priors_table(
+    model,
+    *,
+    ctor_overrides: dict[str, str] | None = None,
+    role_overrides: dict[str, str] | None = None,
+) -> pd.DataFrame:
     """Per-model prior table with a ``role`` column (issue #125 Area 1).
 
     One row per registered free RV (vector coefficients collapse to one row),
@@ -339,7 +377,14 @@ def priors_table(model) -> pd.DataFrame:
     priors a SHARED_PRIORS-only table would miss. Columns: ``parameter``,
     ``distribution``, ``role``, ``rationale``.
     """
-    rows = [prior_info_for_rv(rv.name) for rv in model.free_RVs]
+    rows = [
+        prior_info_for_rv(
+            rv.name,
+            ctor_overrides=ctor_overrides,
+            role_overrides=role_overrides,
+        )
+        for rv in model.free_RVs
+    ]
     return pd.DataFrame(
         rows, columns=["parameter", "distribution", "role", "rationale", "panel"]
     )

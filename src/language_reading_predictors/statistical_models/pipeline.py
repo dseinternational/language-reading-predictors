@@ -7,7 +7,10 @@ End-to-end fit pipeline for the statistical models.
 ``fit_itt(spec, config)`` is the entry point for the ITT models.
 ``fit_joint(spec, config)`` is the entry point for the joint models (LRPITT12, LRPITT15/15b).
 ``fit_did(spec, config)`` is the entry point for the waitlist-crossover / DiD models.
-``fit_mechanism(spec, config)`` is the entry point for LRP56/57/58.
+``fit_mechanism(spec, config)`` is the entry point for LRP56/57/58 and companions.
+``fit_dose_response(spec, config)`` is the entry point for LRP77 variants.
+``fit_gain_factors`` / ``fit_level_factors`` / ``fit_aligned`` cover the factor
+families, and ``fit_adjusted`` / ``fit_lcsm`` cover the LRP65/LRP67 companions.
 
 Each pipeline:
 
@@ -154,12 +157,80 @@ def _emit_priors(context: StatisticalFitContext) -> None:
                 os.remove(stale)
             except OSError:
                 pass
+    ctor_overrides, role_overrides = _prior_table_overrides(context)
     _priors.save_shared_prior_panel(
-        context.output_dir, used=_priors.used_prior_keys(model)
+        context.output_dir,
+        used=_priors.used_prior_keys(model, ctor_overrides=ctor_overrides),
     )
-    table = _priors.priors_table(model)
+    table = _priors.priors_table(
+        model,
+        ctor_overrides=ctor_overrides,
+        role_overrides=role_overrides,
+    )
     table.to_csv(os.path.join(context.output_dir, "priors_table.csv"), index=False)
     context.tables["priors_table"] = table
+
+
+def _prior_table_overrides(
+    context: StatisticalFitContext,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Context-specific prior-table corrections for reused RV names.
+
+    Some factories reuse a PyMC variable name with a different prior constructor
+    or a different reporting role. Keep the model code stable and teach the
+    artifact writer about those contextual meanings here.
+    """
+    ctor: dict[str, str] = {}
+    role: dict[str, str] = {}
+    spec = context.spec
+
+    if spec.kind == "dose_response":
+        ctor.update(
+            {
+                "beta_dose": "beta_mech",
+                "beta_dose_phase": "beta_mech",
+                "mu_dose": "beta_mech",
+                "sigma_dose": "sigma_dose",
+            }
+        )
+        role.update(
+            {
+                "beta_dose": "association",
+                "beta_dose_phase": "association",
+                "mu_dose": "association",
+                "sigma_dose": "nuisance",
+                "beta_G": "association",
+            }
+        )
+    elif spec.kind == "did" and spec.extra.get("dose", False):
+        if spec.extra.get("period_varying_dose", False):
+            ctor.update(
+                {
+                    "mu_dose": "tau",
+                    "beta_dose_phase": "tau",
+                    "sigma_dose": "sigma_dose",
+                }
+            )
+            role.update(
+                {
+                    "mu_dose": "association",
+                    "beta_dose_phase": "association",
+                    "sigma_dose": "nuisance",
+                }
+            )
+        else:
+            ctor["beta_dose"] = "tau"
+            role["beta_dose"] = "association"
+    elif spec.kind == "aligned":
+        ctor["beta_cohort"] = "tau"
+        role["beta_cohort"] = "association"
+    elif spec.kind == "adjusted" and context.model is not None:
+        for rv in context.model.free_RVs:
+            if rv.name.startswith("beta_"):
+                ctor[rv.name] = "predictor_slope"
+                role[rv.name] = "association"
+
+    return ctor, role
 
 
 def _render_model_graph(context: StatisticalFitContext) -> None:
@@ -260,6 +331,18 @@ def _save_rope_plot(
             )
             items = ame_prob * float(n_trials)
         med = float(np.median(items))
+        risk_difference = n_trials == 1 and delta <= 1
+        effect_label = (
+            "treatment effect (risk difference)"
+            if risk_difference
+            else "treatment effect (extra items correct)"
+        )
+        delta_label = (
+            "minimally-important difference, delta (probability)"
+            if risk_difference
+            else "minimally-important difference, delta (items)"
+        )
+        scale_title = "risk-difference scale" if risk_difference else "items scale"
         xmax = float(np.quantile(items, 0.995)) + 0.5
         xmin = min(-delta - 0.5, float(np.quantile(items, 0.005)))
         xs = np.linspace(xmin, xmax, 300)
@@ -274,9 +357,9 @@ def _save_rope_plot(
         ax_l.plot(xs, kde(xs), color="#1b7837", lw=2.2)
         ax_l.fill_between(xs, kde(xs), color="#1b7837", alpha=0.12)
         ax_l.axvline(med, color="#1b7837", lw=1.2, label=f"median {med:+.1f}")
-        ax_l.set_xlabel("treatment effect (extra items correct)")
+        ax_l.set_xlabel(effect_label)
         ax_l.set_ylabel("posterior density")
-        ax_l.set_title(f"{symbol}: effect on the items scale, with ROPE")
+        ax_l.set_title(f"{symbol}: effect on the {scale_title}, with ROPE")
         ax_l.legend(fontsize=8, frameon=False)
 
         dgrid = np.linspace(0.0, max(xmax, delta + 0.5), 200)
@@ -285,7 +368,7 @@ def _save_rope_plot(
         ax_r.axvline(delta, color="#888888", lw=1.0, ls="--", label=f"delta = {delta:g}")
         ax_r.axhline(0.975, color="#cccccc", lw=1.0, ls=":")
         ax_r.set_ylim(0, 1.02)
-        ax_r.set_xlabel("minimally-important difference, delta (items)")
+        ax_r.set_xlabel(delta_label)
         ax_r.set_ylabel("P(effect > delta)")
         ax_r.set_title("Probability of a meaningful benefit")
         ax_r.legend(fontsize=8, frameon=False)
@@ -468,10 +551,11 @@ def _itt_diag_vars(
 
 
 def _attach_built(ctx: StatisticalFitContext, built) -> None:
-    """Attach a freshly built model to the context (model, variables, prepared)."""
+    """Attach a freshly built model and emit its prior artifacts."""
     ctx.model = built.model
     ctx.model_vars = built.variables
     ctx.prepared = built.prepared
+    _emit_priors(ctx)
 
 
 def _run_sampling_and_loo(
@@ -583,7 +667,6 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     _attach_built(ctx, built)
 
-    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
@@ -730,7 +813,6 @@ def _fit_itt_floor_rule(
         prepared, likelihood="bernoulli_offfloor", **common
     )
     _attach_built(ctx, built)
-    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
@@ -914,7 +996,6 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     _attach_built(ctx, built)
 
-    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
@@ -1036,7 +1117,6 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
     built = _factories.build_did_model(
         prepared,
         outcome_symbol=sym,
@@ -1051,7 +1131,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+    _diag.run_prior_predictive(ctx, draws=1000)
 
     _run_sampling_and_loo(ctx)
 
@@ -1059,7 +1139,13 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.summary_diagnostics(ctx, var_names=_did_diag_vars(spec))
 
     _run_ppc(ctx)
+
+    section_header("Extended diagnostics")
+    _did_effect = "mu_dose" if period_varying else ("beta_dose" if dose else "delta")
+    _diag.write_diagnostics_summary(ctx, var_names=_did_diag_vars(spec))
+    _diag.run_extended_diagnostics(ctx, causal_term=_did_effect)
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=_did_diag_vars(spec))
 
     if period_varying:
         # Period-resolved dose readout (#135): partial-pooled per-period dose
@@ -1136,8 +1222,6 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
-
     moderator_symbol = spec.extra.get("moderator_symbol")
     # Drop the autoregressive baseline (any ``*_pre`` token, e.g. W_pre / N_pre)
     # from the confounder list — it enters via ``adjust_baseline_symbol``.
@@ -1170,12 +1254,14 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+    _diag.run_prior_predictive(ctx, draws=1000)
 
     _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _mech_vars = ["alpha", "beta_G", "gamma_own", "kappa"]
+    if "A" in confounders and not spec.extra.get("use_age_gp", False):
+        _mech_vars.append("gamma_A")
     if spec.extra.get("use_subject_random_intercept", True):
         _mech_vars.append("sigma_child")
     if spec.extra.get("linear_mechanism", False):
@@ -1187,6 +1273,10 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.summary_diagnostics(ctx, var_names=_mech_vars)
 
     _run_ppc(ctx)
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=_mech_vars)
+    _diag.run_extended_diagnostics(ctx)
 
     # Mechanism curve: f_mech vs mech_post_logit grid (logit-contribution scale only).
     section_header("Mechanism curve")
@@ -1217,6 +1307,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         meta_extra["interaction_summary"] = gi
 
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=_mech_vars)
     _report.write_run_metadata(ctx, extra=meta_extra)
 
     return _finalize_report(ctx)
@@ -1315,9 +1406,10 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
 
     period_varying = spec.extra.get("period_varying_dose", True)
+    adjust_group = spec.extra.get("adjust_group", True)
+    adjust_age = spec.extra.get("adjust_age", True)
     built = _factories.build_dose_response_model(
         prepared,
         outcome_symbol=spec.outcome_symbol or "W",
@@ -1328,6 +1420,8 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         use_subject_random_intercept=spec.extra.get(
             "use_subject_random_intercept", True
         ),
+        adjust_group=adjust_group,
+        adjust_age=adjust_age,
         ability_adjust_symbols=ability,
     )
     _attach_built(ctx, built)
@@ -1335,7 +1429,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+    _diag.run_prior_predictive(ctx, draws=1000)
 
     _run_sampling_and_loo(ctx)
 
@@ -1343,8 +1437,10 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     dose_vars = ["alpha", "gamma_own", "kappa"]
     if spec.extra.get("use_subject_random_intercept", True):
         dose_vars.append("sigma_child")
-    dose_vars.append("beta_G")
-    dose_vars.append("gamma_A")
+    if adjust_group:
+        dose_vars.append("beta_G")
+    if adjust_age:
+        dose_vars.append("gamma_A")
     if period_varying:
         dose_vars.extend(["mu_dose", "sigma_dose", "beta_dose_phase"])
     else:
@@ -1356,10 +1452,16 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     _run_ppc(ctx)
 
+    section_header("Extended diagnostics")
+    _dose_effect = "mu_dose" if period_varying else "beta_dose"
+    _diag.write_diagnostics_summary(ctx, var_names=dose_vars)
+    _diag.run_extended_diagnostics(ctx, causal_term=_dose_effect)
+
     section_header("Dose-slope summary")
     _write_dose_slope_summary(ctx, period_varying=period_varying)
 
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=dose_vars)
     _report.write_run_metadata(
         ctx,
         extra={
@@ -1511,7 +1613,6 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
 
     confounders = tuple(
         s for s in spec.adjustment if s not in ("G", "A", "L_t1", "W_pre")
@@ -1540,7 +1641,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=[mediator_node, "y_post"])
+    _diag.run_prior_predictive(ctx, draws=1000)
 
     _run_sampling_and_loo(ctx, compute_loo=False)
 
@@ -1548,7 +1649,12 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
 
     _run_ppc(ctx, var_names=[mediator_node, "y_post"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=coef_vars)
+    _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=coef_vars)
 
     section_header("Mediation decomposition (g-formula)")
     med_df = _med.decompose(
@@ -1679,7 +1785,6 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     )
     _attach_built(ctx, built)
 
-    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
@@ -1877,7 +1982,6 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     )
     _attach_built(ctx, built)
 
-    _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
@@ -2008,7 +2112,6 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
     built = _factories.build_aligned_model(
         prepared,
         outcome_symbol=spec.outcome_symbol,
@@ -2022,7 +2125,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=[obs_node, "eta"])
+    _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
     _run_sampling_and_loo(ctx)
@@ -2031,7 +2134,12 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.summary_diagnostics(ctx, var_names=_al_diag_vars(spec))
 
     _run_ppc(ctx, var_names=[obs_node])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=_al_diag_vars(spec))
+    _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=_al_diag_vars(spec))
 
     section_header("Factor summary")
     # Per-protocol design: NOTHING is a clean randomised effect, so no term is
@@ -2108,7 +2216,6 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
 
     mediators = tuple(spec.extra.get("mediators", ("L", "E")))
     confounders = tuple(
@@ -2132,9 +2239,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(
-        ctx, draws=1000, var_names=["L_post", "E_post", "y_post"]
-    )
+    _diag.run_prior_predictive(ctx, draws=1000)
 
     _run_sampling_and_loo(ctx, compute_loo=False)
 
@@ -2142,7 +2247,12 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
 
     _run_ppc(ctx, var_names=["L_post", "E_post", "y_post"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=coef_vars)
+    _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=coef_vars)
 
     section_header("Two-mediator decomposition (g-formula)")
     med_df = _med.decompose_two_mediator(
@@ -2379,7 +2489,6 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
     built = _factories.build_adjusted_model(
         prepared,
         outcome_symbol=outcome,
@@ -2392,7 +2501,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+    _diag.run_prior_predictive(ctx, draws=1000)
 
     _run_sampling_and_loo(ctx)
 
@@ -2403,7 +2512,13 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
 
     _run_ppc(ctx)
+    _adjusted_diag_vars = ["alpha", "gamma_own", "kappa", *beta_names]
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=_adjusted_diag_vars)
+    _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=_adjusted_diag_vars)
 
     # --- Adjusted vs bivariate associations --------------------------------
     section_header("Predictor associations (adjusted vs bivariate)")
@@ -2639,7 +2754,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         diag_vars.append("sigma_proc")
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_obs"])
+    _diag.run_prior_predictive(ctx, draws=1000)
 
     _run_sampling_and_loo(ctx)
 
@@ -2647,7 +2762,14 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["y_obs"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(
+        ctx, causal_term=diag_vars[0] if diag_vars else None
+    )
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     # Reading-change coupling table — the headline "what predicts reading
     # change" output and the basis for the LRP65 (between-child) sanity-check.

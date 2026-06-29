@@ -85,7 +85,7 @@ This is a **decomposition under assumptions, not proof of a causal route.**
   **latent general ability $GA$** confounds the mediator→outcome paths, so the
   NDE/NIE and the $\text{NIE}_L$/$\text{NIE}_E$ split are **adjusted associations,
   not point-identified**. We adjust for $A$, $R$, and the baselines, but $GA$ is
-  latent and unadjustable — and, unlike the gain-/level-factor and RI-CLPM families,
+  latent and unadjustable — and, unlike the gain-/level-factor families,
   this between-child phase-0 mediation carries **no subject random intercept**, so it
   cannot even apply the partial latent-ability repair that intercept provides. Lead
   with the joint indirect effect; keep the $\text{NIE}_L$/$\text{NIE}_E$ split

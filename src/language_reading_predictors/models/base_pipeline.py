@@ -545,7 +545,8 @@ class EstimatorPipeline:
         Draws ``n_bootstraps`` subsamples of subjects (``subject_fraction``
         of the unique subjects, sampled with replacement), refits the
         estimator on each subsample, and recomputes permutation
-        importance with ``n_repeats`` repeats. Records:
+        importance on the out-of-bag subjects with ``n_repeats`` repeats.
+        Records:
 
         - ``appearance_rate_top_k`` — fraction of bootstraps where the
           feature placed in the top *top_k* by importance;
@@ -592,6 +593,7 @@ class EstimatorPipeline:
             for s in unique_subjects
         }
 
+        completed_bootstraps = 0
         for b in range(n_bootstraps):
             seed = int(rng.integers(0, 2**31 - 1))
             drawn = resample(
@@ -603,16 +605,26 @@ class EstimatorPipeline:
             row_idx = np.concatenate([subject_rows[s] for s in drawn])
             X_b = context.X.iloc[row_idx]
             y_b = context.y.iloc[row_idx]
+            oob_subjects = np.setdiff1d(unique_subjects, np.unique(drawn))
+            if oob_subjects.size == 0:
+                continue
+            eval_idx = np.flatnonzero(context.groups.isin(oob_subjects).to_numpy())
+            if eval_idx.size == 0:
+                continue
+            X_eval = context.X.iloc[eval_idx]
+            y_eval = context.y.iloc[eval_idx]
 
             est = clone(context.pipeline)
             est.fit(X_b, y_b)
             result = permutation_importance(
                 est,
-                X_b,
-                y_b,
+                X_eval,
+                y_eval,
                 n_repeats=n_repeats,
                 random_state=seed,
+                scoring="neg_root_mean_squared_error",
             )
+            completed_bootstraps += 1
 
             # Rank features in this bootstrap (highest importance = rank 1).
             # ``kind="stable"`` keeps tie-breaking deterministic across
@@ -627,6 +639,11 @@ class EstimatorPipeline:
                 if ranks[i] <= top_k:
                     appearance_top[feat] += 1
 
+        if completed_bootstraps == 0:
+            raise RuntimeError(
+                "No out-of-bag subjects were available for stability selection."
+            )
+
         rows = []
         for feat in context.X.columns:
             ranks_arr = np.asarray(rank_records[feat])
@@ -634,7 +651,7 @@ class EstimatorPipeline:
             rows.append(
                 {
                     "feature": feat,
-                    "appearance_rate_top_k": appearance_top[feat] / n_bootstraps,
+                    "appearance_rate_top_k": appearance_top[feat] / completed_bootstraps,
                     "importance_mean": float(np.mean(imps_arr)),
                     "importance_std": float(np.std(imps_arr)),
                     "rank_median": float(np.median(ranks_arr)),
@@ -645,13 +662,17 @@ class EstimatorPipeline:
 
         stab = pd.DataFrame(rows).sort_values("appearance_rate_top_k", ascending=False)
         stab.attrs["n_bootstraps"] = n_bootstraps
+        stab.attrs["n_bootstraps_completed"] = completed_bootstraps
         stab.attrs["top_k"] = top_k
         context.dataframes["stability_selection"] = stab
         stab.to_csv(context.output_dir / "stability_selection.csv", index=False)
         print_table(
             ranked_dataframe_table(
                 stab,
-                title=f"Stability selection (top-{top_k} across {n_bootstraps} bootstraps)",
+                title=(
+                    f"Stability selection (top-{top_k} across "
+                    f"{completed_bootstraps} OOB bootstraps)"
+                ),
                 columns=[
                     "feature",
                     "appearance_rate_top_k",
@@ -828,10 +849,19 @@ class EstimatorPipeline:
         dist_from_median = (X_shap - median_vec).abs().sum(axis=1)
         eval_df = eval_df.copy()
         eval_df["dist_from_median"] = dist_from_median.values
-        eval_df["representative_score"] = (
-            eval_df["abs_residual"] / eval_df["abs_residual"].max()
-            + eval_df["dist_from_median"] / eval_df["dist_from_median"].max()
+        max_abs_residual = float(eval_df["abs_residual"].max())
+        max_dist_from_median = float(eval_df["dist_from_median"].max())
+        residual_component = (
+            0.0
+            if max_abs_residual <= 0
+            else eval_df["abs_residual"] / max_abs_residual
         )
+        distance_component = (
+            0.0
+            if max_dist_from_median <= 0
+            else eval_df["dist_from_median"] / max_dist_from_median
+        )
+        eval_df["representative_score"] = residual_component + distance_component
         best_idx = eval_df["representative_score"].idxmin()
         pos_idx = eval_df.index.get_loc(best_idx)
 

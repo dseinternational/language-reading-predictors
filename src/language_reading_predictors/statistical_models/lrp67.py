@@ -38,8 +38,8 @@ in this module's notation.
 
 Exploratory at n~54: intervals will be wide. The deliverable is whether the
 *direction* of ``g_L`` (letter-sounds -> reading change) agrees with LRP65
-(between-child) and LRP68 (within-child RI-CLPM) - convergence across approaches,
-not any single coefficient. See the dated note and the LRP68 LOO comparison.
+(between-child) as a triangulation point, not any single coefficient. The RI-CLPM
+companion was dropped as not estimable at this sample size; see the dated note.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

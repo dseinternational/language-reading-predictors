@@ -269,8 +269,8 @@ def main() -> None:
     parser.add_argument(
         "model",
         help=(
-            "Model id (lrpitt01..lrpitt15b, lrp56..lrp59, lrp62, lrp71, lrp72, "
-            "lrp73) or 'all'"
+            "Model id (for example lrpitt01, lrpdid01, lrpgf01, lrplf01, "
+            "lrpal01, lrp77, lrp65, lrp67) or 'all'"
         ),
     )
     parser.add_argument(
