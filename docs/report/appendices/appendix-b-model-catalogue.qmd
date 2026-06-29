@@ -25,24 +25,59 @@ companion page at `docs/models/{id}/index.qmd`.
 
 ## The register
 
-| Family | Models | Kind | Outcome(s) | Status | Role |
-|---|---|---|---|---|---|
-| ITT suite | LRPITT01–11 | `itt` | TR, TE, UR, UE, R, E, L, B, P\*, W, N\* | **Model of record (causal)** | the randomised ITT effect per outcome (@sec-itt) |
-| Joint | LRPITT12 | `joint` | the ten baseline-bearing outcomes | **Joint** | cross-outcome consistency + contrasts (@sec-joint) |
-| SES + comparators | LRPITT13/13b/14/14b | `itt` | W, L | **Robustness** | SES adjustment + matched complete-case (@sec-robustness) |
-| Generalisation | LRPITT15/15b | `joint` | taught vs not-taught | **Robustness** | taught-minus-untaught contrast (@sec-joint) |
-| General-ability | LRPITT17–24 | `itt` | TR, TE, UR, UE, R, E, L, W | **Robustness** | block-design adjustment (@sec-robustness) |
-| Within-person DiD | LRPDID01–05 | `did` | W, L, B, TE, R | **Robustness** | waitlist-crossover replication (@sec-robustness) |
-| Dose sensitivity | LRPDID06 | `did` | W (sessions) | **Robustness** | dose read — collider, sensitivity only |
-| Mechanism | LRP56/57/58 | `mechanism` | → reading | **Association** | adjusted dose-response slopes (@sec-mechanism) |
-| Moderation | LRP71, 72(/base), 73(/base) | `mechanism` | reading routes | **Association** / **Companion** | moderation + nested LOO baselines |
-| Mediation | LRP59, LRP62 | `mediation` | W via L / reading route | **Association** | g-formula, triangulation only (@sec-mediation) |
-| Gain factors | LRPGF01–08 (+`b`) | `gain_factors` | W, R, E, L, P\*, B, F, T | **Association** / **Companion** | ANCOVA; only the on-intervention term is causal (@sec-alternative-views) |
-| Level factors | LRPLF01–08 | `level_factors` | W, R, E, L, P\*, B, F, T | **Association** | levels view; only the t2 group contrast is randomised |
-| Aligned per-protocol | LRPAL01–08 (+`01d`) | `aligned` | W, R, E, L, P\*, B, F, T | **Association** | onset-aligned; no term is causal (age-at-onset confound) |
+One row per fitted model, generated from `statistical_models/definitions.py` so it
+cannot drift from the code. Outcomes marked *(floored)* take the floor rule
+(@sec-methods-floor); see @sec-itt, @sec-robustness, @sec-mechanism, @sec-mediation
+and @sec-alternative-views for where each family is reported.
 
-\* Floored outcomes (P phonetic spelling, N nonword reading) take the floor rule: a binary
-off-floor primary estimand plus a flagged graded secondary (@sec-methods-floor).
+```{python}
+#| label: tbl-model-register
+#| tbl-cap: "The model register — every fitted model, its family, outcome, and status. Generated from statistical_models/definitions.py."
+#| echo: false
+try:
+    import pandas as pd
+    from language_reading_predictors.statistical_models.definitions import (
+        MODEL_REGISTRY,
+        Status,
+    )
+
+    _ORDER = {
+        s: i
+        for i, s in enumerate(
+            [
+                Status.MODEL_OF_RECORD,
+                Status.JOINT,
+                Status.ROBUSTNESS,
+                Status.ASSOCIATION,
+                Status.COMPANION,
+            ]
+        )
+    }
+    _rows = [
+        {
+            "Model": d.model_id.upper(),
+            "Family": d.family,
+            "Kind": d.kind,
+            "Outcome": (d.outcome_label or "—") + (" (floored)" if d.floored else ""),
+            "Status": d.status.value,
+            "Role": d.role,
+        }
+        for d in sorted(
+            MODEL_REGISTRY.values(),
+            key=lambda d: (_ORDER.get(d.status, 99), d.family, d.model_id),
+        )
+    ]
+    _register = pd.DataFrame(_rows).set_index("Model")
+except Exception as _exc:  # pragma: no cover - environment dependent
+    from IPython.display import Markdown
+
+    _register = Markdown(
+        "> **Register pending** — generated from "
+        "`language_reading_predictors.statistical_models.definitions`; renders once "
+        f"that module is importable in this environment (`{type(_exc).__name__}`)."
+    )
+_register
+```
 
 ## Supersession map
 
@@ -62,10 +97,10 @@ provenance):
 - **LRP70** — a CELF-moderated mechanism, deferred pending a DAG review of conditioning
   on a descendant of letter-sound knowledge.
 
-::: {.callout-note title="To be code-generated"}
-The factual columns above are currently hand-maintained from the model registry in
-`scripts/fit_statistical_model.py`. They should be **generated** from a lightweight
-`statistical_models/definitions.py` (model id, kind, outcome, status — with no heavy
-imports), mirroring the vocabulary-growth report's `definitions.py`, so the register
-cannot drift from the code. See `notes/202606281200-dse-report-house-style.md`.
+::: {.callout-note title="Generated, not hand-maintained"}
+The register table is generated from `statistical_models/definitions.py` — a pure-data
+module (model id, kind, outcome, family, status; no heavy imports) — so it cannot drift
+from the code; `tests/test_model_definitions.py` guards the registry against the model
+modules and their `SPEC`s. The supersession and reserved lists above mirror that module's
+`SUPERSEDED` / `RESERVED` constants. See `notes/202606281200-dse-report-house-style.md`.
 :::
