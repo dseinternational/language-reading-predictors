@@ -18,9 +18,11 @@ post-count of W conditional on its own baseline logit (``adjust_baseline_symbol`
 = ``W``, ``n_trials`` = 79) - conditional change, never raw change scores
 (Lord's paradox / regression to the mean).
 
-Causal structure (shared DAG v5)
---------------------------------
-The focal edge is ``sessions (dose) -> outcome``. In v5 dose has exactly one
+Causal structure (locked DAG; notes/202606231600-dag-revision-consolidated.md)
+------------------------------------------------------------------------------
+The focal edge is ``sessions (dose) -> outcome``. Sessions is the locked DAG's
+``IS`` node; this is the ID-3 **observational** dose-response (adjust ``{IG, A}``,
+never condition on ``IS`` itself), labelled an adjusted association. Dose has one
 parent, ``intervention``, so the back-door adjustment set is ``{G, W_pre, A}``
 but as: **G (arm) is the sole confounder** (blocks ``dose <- intervention ->
 outcome``); **W_pre** is the regression-to-the-mean / autoregression control
@@ -43,7 +45,8 @@ Caveats (carried into the report)
 ---------------------------------
 Adjusted association, not "dose drives gains". Phase-1 best strata reached only
 R^2 0.1-0.3; the deliverable is a calibrated dose slope with credible intervals,
-not a strong predictor. Group is coded G=1 = waitlist control (see the report).
+not a strong predictor. Group is coded ``G = 2 - group`` (G=1 = immediate-intervention,
+G=0 = waitlist control; positive = benefit), per the #117 sign convention.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

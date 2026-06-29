@@ -5,15 +5,16 @@
 diagnostic (`notes/202606221146-period-resolved-gb-diagnostic.md`, PR #106). Two
 pieces: (1) a period-resolved Bayesian **dose-response** on word-reading
 conditional change (LRP77, + a pooled comparator LRP77base and an ability-adjusted
-sensitivity fit LRP77a); (2) a period-1 **ITT restatement** that makes the
-dose-absorbs-group finding explicit (LRP52d). The within-control crossover and
+sensitivity fit LRP77a). A period-1 ITT-plus-dose restatement was **dropped on
+review** — it conditions on the `IS` dose collider (see the caution below). The within-control crossover and
 any fan-out across other outcomes are out of scope. Fits at `--config reporting`
 (max R-hat 1.002, min ESS ~4k, 0 divergences).
 
-> **Provenance caveats (stacking).** Built on the #106 branch (the
-> `period`/`on_intervention` schema is not yet on `main`) and cites shared DAG v5
-> from a worktree note (not yet committed). Re-derive the adjustment set if v5
-> changes on merge. See PR description.
+> **Provenance.** Re-synced onto current `main` (the `period`/`on_intervention`
+> schema and #106's diagnostic are merged) and cites the **locked DAG**
+> (`notes/202606231600-dag-revision-consolidated.md`). The reporting-tier figures
+> below predate the `#117` sign flip and need a re-fit under `G = 2 − group` to
+> refresh (the report template reads them from CSV, so re-rendering refreshes them).
 
 ## What was fitted
 
@@ -31,8 +32,6 @@ controls' period-1 zero-dose rows** (the anchor that identifies the slope).
   the nested PSIS-LOO comparator.
 - **LRP77a** — LRP77 + baseline-skill cluster (L, E, B) — the no-`g`->dose
   sensitivity fit.
-- **LRP52d** — period-1 ITT for W entering both `group` and the period-1 dose
-  (`fit_itt` + `adjust_for`), vs LRP52 (group only).
 
 ## Results
 
@@ -83,23 +82,16 @@ ability; LRP77a adds the time-varying baseline-skill adjustment on top.)
 
 ### ITT restatement: dose absorbs the randomised group contrast
 
-Group is coded **G = 1 = waitlist control, G = 0 = immediate intervention** (so a
-negative tau means the immediate arm scores higher — see the coding flag below).
-
-| model | tau (group), logit | 95% CI | gamma_attend (dose) | 95% CI |
-|---|---|---|---|---|
-| LRP52 (group only) | **-0.429** | [-0.785, -0.080] | — | — |
-| LRP52d (group + period-1 dose) | -0.132 | [-0.813, 0.550] | 0.184 | [-0.18, 0.55] |
-
-The period-1 ITT shows a **credible treatment benefit**: LRP52 tau = -0.43, CI
-excludes 0 (immediate > waitlist; probability-scale AME -0.036, i.e. the immediate
-arm ~3.6 percentage points higher; P(immediate higher) = 0.99). When the period-1
-**dose** is entered alongside group (LRP52d), tau attenuates to -0.13 (CI now
-straddles 0) and the positive dose term (gamma_attend +0.18) takes up the slack:
-under the period-1 collinearity (controls have `attend == 0`) the continuous dose
-absorbs the binary randomised contrast. **The randomised group tau (LRP52) is the
-primary causal estimand; the dose is the mechanism it runs through** — they are
-two expressions of one contrast, not independent effects.
+> **Why there is no fitted "ITT + period-1 dose" model here (dropped on review).**
+> Entering the period-1 dose alongside `group` in the ITT (the former LRP52d) is a
+> DAG violation, not a restatement: dose is the locked DAG's `IS` node — both a
+> *mediator* of `IG → WR` and a `GA`-collider (`IG → IS ← GA`). ID-1 is explicit:
+> the ITT's minimal adjustment set is ∅ and conditioning on `IS` *"would bias even
+> the ITT."* The period-1 collinearity that makes the dose appear to "absorb" the
+> randomised contrast (controls have `attend == 0`) **is** that bias, not an
+> insight. The randomised word-reading ITT is now `lrpitt10` (positive τ =
+> intervention benefit under `G = 2 − group`); only the DAG-legal ID-3
+> **observational** dose-response (LRP77, below) is kept as a fitted deliverable.
 
 ## Decision / reading
 
@@ -128,5 +120,5 @@ triangulation is specifically wanted.
   file in flight).
 - **No raw change scores / confirmed ceilings only** (W = 79, confirmed) — both
   honoured.
-- **Reproduce:** `python scripts/fit_statistical_model.py {lrp77,lrp77base,lrp77a,lrp52d} --config reporting --render`
+- **Reproduce:** `python scripts/fit_statistical_model.py {lrp77,lrp77base,lrp77a} --config reporting --render`
   then `python scripts/compare_statistical_models.py --config reporting`.

@@ -68,18 +68,18 @@ $$
 with $\beta_{\text{dose}[p]} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$
 (partial-pooled period slopes).
 
-## Adjustment set (shared DAG v5)
+## Adjustment set (locked DAG)
 
-The focal edge is $\text{dose} \to \text{outcome}$. In DAG v5 dose has exactly
-one parent, `intervention`, so the back-door set is $\{G, W_{\text{pre}}, A\}$ —
-but for distinct reasons:
+The focal edge is $\text{dose} \to \text{outcome}$. Sessions is the locked DAG's
+`IS` node; this is the ID-3 **observational** dose-response (adjust $\{IG, A\}$,
+never condition on `IS` itself). Dose has one parent, `intervention`, so the
+back-door set is $\{G, W_{\text{pre}}, A\}$ — but for distinct reasons:
 
 - **$G$ — the sole confounder.** Conditioning on the arm blocks the only back-door
   $\text{dose} \leftarrow \text{intervention} \to \text{outcome}$. **Coding:
-  $G = 1$ is the waitlist control, $G = 0$ the immediate-intervention arm**
-  (`preprocessing.py` maps dataset group 2 [Wait] $\to 1$, group 1 [Initial
-  intervention] $\to 0$; its inline comment is inverted — read the code, not the
-  comment).
+  $G = 2 - \text{group}$, so $G = 1$ is the immediate-intervention arm and $G = 0$
+  the waitlist control; positive effects = intervention benefit** (the `#117` sign
+  convention).
 - **$W_{\text{pre}}$ — not a dose confounder.** The autoregression / RTM control
   that makes this *conditional change*; parameterisation, not back-door blocking.
 - **age — not a dose confounder.** v5 has $\text{age} \to \text{outcome}$ but no
@@ -108,7 +108,7 @@ dose signal is substantially ability-confounded.
 ### Causal warrant and expectations
 
 This is **adjusted association**, not "dose drives gains" — only the period-1 ITT
-(LRP52 / LRP52d) is randomised. Phase-1 best strata reached only $R^2$ 0.1–0.3;
+(now `lrpitt10`) is randomised. Phase-1 best strata reached only $R^2$ 0.1–0.3;
 the deliverable is a calibrated dose slope with credible intervals, not a strong
 predictor. Do not condition on anything downstream of dose.
 

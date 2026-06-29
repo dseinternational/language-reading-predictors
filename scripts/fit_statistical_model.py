@@ -28,7 +28,6 @@ from language_reading_predictors.models._reporting import (
 )
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models import (
-    lrp52d,
     lrp56,
     lrp57,
     lrp58,
@@ -194,8 +193,6 @@ MODELS = {
     "lrp77": lrp77,
     "lrp77base": lrp77base,
     "lrp77a": lrp77a,
-    # LRP52d: period-1 ITT (W) entering group + dose - dose-absorbs-group restatement.
-    "lrp52d": lrp52d,
     # LRPGF / LRPLF: DAG-focused gain-factors / level-factors families (issue
     # #127). Beta-Binomial-on-logit with a child random intercept; only the
     # randomised group / on-intervention term is causal, every other coefficient
