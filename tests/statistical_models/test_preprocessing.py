@@ -371,3 +371,28 @@ def test_load_and_prepare_aligned_ability_merged_from_t1(tmp_path):
     z = prep.covariates[V.BLOCKS]
     assert np.all(np.isfinite(z))  # filled for every child incl. wait-list onset rows
     assert z.mean() == pytest.approx(0.0, abs=1e-10)
+
+
+def test_load_and_prepare_aligned_requires_dose_when_requested(tmp_path):
+    """Dose variants drop rows with missing aligned-window cumulative sessions."""
+    df = _make_synthetic_long(n_children=12, seed=23)
+    dose_by_child = {
+        sid: 80.0 + i for i, sid in enumerate(sorted(df[V.SUBJECT_ID].unique()))
+    }
+    df[V.ATTEND_CUMUL] = df[V.SUBJECT_ID].map(dose_by_child)
+    sid = df[V.SUBJECT_ID].iloc[0]
+    grp = int(df.loc[df[V.SUBJECT_ID] == sid, V.GROUP].iloc[0])
+    aligned_post_t = 3 if grp == 1 else 4
+    df.loc[
+        (df[V.SUBJECT_ID] == sid) & (df[V.TIME] == aligned_post_t),
+        V.ATTEND_CUMUL,
+    ] = np.nan
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+
+    with pytest.warns(UserWarning, match="dropped 1"):
+        prep = load_and_prepare_aligned(path=p, include_dose=True)
+
+    assert prep.n_obs == 11
+    assert "dose" in prep.covariates
+    assert np.all(np.isfinite(prep.covariates["dose"]))
