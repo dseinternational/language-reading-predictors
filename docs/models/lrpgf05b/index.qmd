@@ -1,0 +1,63 @@
+---
+title: "LRPGF05b: Gain factors for phonetic spelling (P), off-floor, treated-only"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPGF05b is the **treated-only** companion to LRPGF05 (phonetic spelling, `spphon`),
+restricted to on-intervention rows.
+
+::: {.callout-important title="Off-floor likelihood; no treatment contrast"}
+
+Phonetic spelling is heavily floored, so the likelihood is a **Bernoulli on the
+off-floor indicator** (period post $> 0$). Restricted to on-intervention rows the
+treatment indicator is constant and is dropped: this reports the **adjusted
+associations** (own baseline, age, ability, skills L/B, age $\times$ ability) of
+coming off the phonetic-spelling floor *among the treated*. All coefficients are
+off-floor log-odds; under the DAG they are associations (GA-confounded), never
+treatment effects. SES excluded (non-DAG / redundant).
+
+:::
+
+## Model
+
+$$
+(P_{\text{post}} > 0) \sim \operatorname{Bernoulli}(\operatorname{expit}(\eta)),\quad
+\eta = \alpha + \alpha_{\text{period}} + \gamma_{\text{own}}\operatorname{logit}_*(P_{\text{pre}})
+  + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks})
+  + \sum_{s\in\{L,B\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
+  + \gamma_{\text{int}}(\text{age}\times\text{ability}) + u_{\text{child}},
+$$
+
+on the on-intervention rows only (no `kappa` under the Bernoulli). Priors: shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_factors.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

@@ -1,0 +1,50 @@
+```{python}
+# | echo: false
+# | output: asis
+# Convergence gate, rendered FIRST (METHODS.md: check convergence before reading
+# any estimate). Reads diagnostics_summary.json written by diagnostics.py.
+d = diag_summary
+if not d:
+    print(":::{.callout-note}\nNo `diagnostics_summary.json` was found for this fit.\n:::")
+else:
+    passed = d.get("passed")
+    thr = d.get("thresholds", {})
+    box = "callout-tip" if passed else "callout-warning"
+    head = (
+        "Convergence: PASS — diagnostics within thresholds"
+        if passed
+        else "Convergence: REVIEW — at least one diagnostic is outside threshold"
+    )
+    mr, me = d.get("max_rhat"), d.get("min_ess")
+    bf = d.get("bfmi_per_chain")
+    bf_s = ", ".join(f"{x:.2f}" for x in bf) if bf else "n/a"
+    lines = [f'::: {{.{box} title="{head}"}}', ""]
+    lines.append(f"- **Divergences:** {d.get('divergences')} (target 0)")
+    lines.append(
+        f"- **Max R-hat:** {mr:.4f} (target ≤ {thr.get('rhat_max')})"
+        if mr is not None
+        else "- **Max R-hat:** n/a"
+    )
+    lines.append(
+        f"- **Min ESS:** {me:.0f} (target ≥ {thr.get('ess_threshold')})"
+        if me is not None
+        else "- **Min ESS:** n/a"
+    )
+    lines.append(f"- **BFMI per chain:** {bf_s} (target ≥ {thr.get('bfmi_threshold')})")
+    fails = []
+    if d.get("rhat_failing"):
+        fails.append("R-hat — " + ", ".join(d["rhat_failing"]))
+    if d.get("ess_failing"):
+        fails.append("ESS — " + ", ".join(d["ess_failing"]))
+    if fails:
+        lines += ["", "**Parameters needing attention:** " + "; ".join(fails)]
+    if not passed:
+        lines += [
+            "",
+            "Per `METHODS.md`, treat the estimates below as provisional until the gate passes "
+            "(in `dev` config the short chains often miss the ESS target — refit in "
+            "`reporting` config before interpreting).",
+        ]
+    lines += ["", ":::"]
+    print("\n".join(lines))
+```
