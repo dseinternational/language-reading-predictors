@@ -1,0 +1,69 @@
+---
+title: "LRPGF01b: Gain factors for word reading (W) — treated-only companion"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPGF01b is the **treated-only** companion to LRPGF01 ("gains while on
+intervention"): the same gain-factors model for word reading (`ewrswr`) restricted
+to on-intervention period rows (it excludes the waitlist arm's untreated period 1).
+
+::: {.callout-important title="No treatment contrast — this is a factor-association model"}
+
+Once restricted to on-intervention rows, the on-intervention indicator is constant,
+so the treatment term and its interactions are **dropped**: there is no randomised
+contrast here. This model reports the **adjusted associations** of the remaining
+factors (own baseline, age, cognitive ability, skills L/R, age $\times$ ability)
+with word-reading gains *among the treated*. Under the locked DAG every coefficient
+is confounded by latent general ability (the child random intercept repairs the
+time-invariant part) — read as "associated with", never "drives". SES is excluded
+(non-DAG / redundant). Compare these associations with LRPGF01.
+
+:::
+
+## Model
+
+$$
+\operatorname{logit}\mu_{i,p} = \alpha + \alpha_{\text{period}[p]}
+  + \gamma_{\text{own}}\operatorname{logit}_*(W_{\text{pre}})
+  + \gamma_A A_{\text{std}}
+  + \gamma_{\text{ability}}\,z(\text{blocks})
+  + \sum_{s\in\{L,R\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
+  + \gamma_{\text{int}}\,(\text{age}\times\text{ability})
+  + u_{\text{child}[i]},
+$$
+
+on the on-intervention rows only, with
+$W_{\text{post}} \sim \operatorname{BetaBinomial}(N, \mu\kappa, (1-\mu)\kappa)$,
+$N = 79$. Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_factors.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

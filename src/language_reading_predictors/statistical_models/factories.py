@@ -1409,6 +1409,407 @@ def _variables_dict(model: pm.Model) -> dict[str, pt.TensorVariable]:
 
 
 # ---------------------------------------------------------------------------
+# LRPGF / LRPLF: gain-factors and level-factors factories (#127)
+#
+# DAG-focused exploratory factor models (Beta-Binomial-on-logit, child random
+# intercept). Under the locked DAG (notes/202606231600-dag-revision-consolidated.md)
+# only the randomised group / on-intervention term is causal; every other
+# coefficient is an adjusted association confounded by latent general ability
+# (GA), which the child random intercept repairs up to shrinkage. Cognitive
+# ability (``blocks``) is the observed handle on GA. SES is intentionally NOT a
+# factor: it is not a DAG node and was found statistically redundant, so it is
+# excluded from the core sets (it can be added later as a robustness companion,
+# as for the ITT suite's lrpitt13). Attendance / dose (``IS``) is a DAG collider
+# and is never conditioned on.
+# ---------------------------------------------------------------------------
+
+
+def _interaction_product(term_vecs: dict[str, np.ndarray], a: str, b: str) -> np.ndarray:
+    """Elementwise product of two named (already-standardised) factor terms."""
+    return np.asarray(term_vecs[a], dtype=float) * np.asarray(term_vecs[b], dtype=float)
+
+
+def build_gain_factors_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str,
+    skill_symbols: Iterable[str] = (),
+    ability_covariate: str | None = None,
+    interactions: Iterable[tuple[str, str]] = (),
+    treated_only: bool = False,
+    likelihood: str = "beta_binomial",
+    use_subject_random_intercept: bool = True,
+    sigma_child_prior_sigma: float = 0.5,
+) -> BuiltModel:
+    """Gain-factors model (LRPGF): what is associated with how much children gain.
+
+    Repeated measures over the three period transitions (``phase_mode="all"``):
+    the outcome is the period post-count given its pre-count (an ANCOVA "gain").
+    Linear predictor (logit scale):
+
+        eta = alpha + alpha_phase[p]
+            + beta_trt * OnIntervention           # causal (ITT) — period-1 contrast ~ tau
+            + gamma_own * logit(own_pre)          # own baseline (precision)
+            + gamma_A * A_std                      # age (precision)
+            + gamma_ability * z(ability)           # observed GA handle (blocks)
+            + sum_s gamma_s * logit(skill_pre_s)   # upstream DAG skills (adjusted assoc.)
+            + sum interactions                     # focal, pre-specified
+            + u_child[i]                           # GA repair (RI-CLPM)
+
+    ``OnIntervention`` is derived from the data: the immediate arm (``G == 1``) is
+    on from period 1; the waitlist (``G == 0``) is off in period 1 only and on once
+    it crosses over (``phase >= 1``). Its coefficient is identified almost entirely
+    by the period-1 (randomised) contrast, so ``beta_trt`` reproduces the ITT
+    ``tau`` (a verification anchor).
+
+    ``treated_only=True`` excludes the waitlist arm's untreated period 1 ("gains
+    while on intervention"). Every remaining row is then on-intervention, so the
+    treatment term and any treatment interaction are constant — they are dropped
+    automatically (the model becomes the factor-association model among the
+    treated).
+
+    ``skill_symbols`` are the outcome's measured, repeated-available DAG-upstream
+    skills (e.g. L, R for word reading), entered as their period baseline logit.
+    ``ability_covariate`` is a ``prepared.covariates`` key (``blocks``).
+    ``interactions`` is a set of ``(term_a, term_b)`` pairs over the controlled
+    vocabulary ``{"trt", "age", "ability", "own", <skill symbols>}``; each adds a
+    ``gamma_int_<a>_<b>`` coefficient on the product of the two standardised terms.
+    All non-causal coefficients are adjusted associations under the DAG.
+    """
+    if prepared.phase_mode != "all":
+        raise ValueError("build_gain_factors_model requires phase_mode='all'")
+    if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(
+            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
+            f"got {likelihood!r}"
+        )
+    own = outcome_symbol
+    if own not in prepared.post_counts or own not in prepared.pre_logit:
+        raise KeyError(f"Outcome {own!r} needs pre+post scores in prepared data")
+    skill_symbols = tuple(skill_symbols)
+    for s in skill_symbols:
+        if s not in prepared.pre_logit:
+            raise KeyError(f"Skill {s!r} has no baseline in prepared data")
+    if ability_covariate is not None and ability_covariate not in prepared.covariates:
+        raise KeyError(f"ability_covariate {ability_covariate!r} not in prepared.covariates")
+
+    valid_terms = {"trt", "age", "own", *skill_symbols}
+    if ability_covariate is not None:
+        valid_terms.add("ability")
+    interactions = tuple(tuple(p) for p in interactions)
+    for pair in interactions:
+        for k in pair:
+            if k not in valid_terms:
+                raise KeyError(f"interaction term {k!r} not available; have {sorted(valid_terms)}")
+
+    # Drop rows missing the outcome post, the own baseline, or any skill baseline.
+    keep = ~np.isnan(prepared.post_counts[own]) & ~np.isnan(prepared.pre_logit[own])
+    for s in skill_symbols:
+        keep = keep & ~np.isnan(prepared.pre_logit[s])
+    on_intervention = (prepared.G == 1) | (prepared.phase >= 1)
+    if treated_only:
+        keep = keep & on_intervention
+    prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[own].astype(np.int64)
+    trt = ((prepared.G == 1) | (prepared.phase >= 1)).astype(float)
+    # In treated_only the treatment indicator is constant -> not identified; drop
+    # it and any interaction involving it.
+    include_trt = not treated_only
+    active_interactions = [
+        pair for pair in interactions if include_trt or "trt" not in pair
+    ]
+
+    term_vecs: dict[str, np.ndarray] = {"trt": trt, "age": prepared.A_std}
+    if ability_covariate is not None:
+        term_vecs["ability"] = prepared.covariates[ability_covariate]  # already z-scored
+    term_vecs["own"], _ = standardise(prepared.pre_logit[own])
+    for s in skill_symbols:
+        term_vecs[s], _ = standardise(prepared.pre_logit[s])
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "phase": np.arange(prepared.n_phases),
+        "child": np.arange(prepared.n_children),
+    }
+    with pm.Model(coords=coords) as model:
+        phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+        child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", prepared.pre_logit[own], dims="obs_id")
+        trt_d = pm.Data("on_intervention", trt, dims="obs_id") if include_trt else None
+        ability_d = (
+            pm.Data(f"{ability_covariate}_std", term_vecs["ability"], dims="obs_id")
+            if ability_covariate is not None
+            else None
+        )
+        skill_d = {
+            s: pm.Data(f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id")
+            for s in skill_symbols
+        }
+        int_d = {
+            pair: pm.Data(f"int_{pair[0]}_{pair[1]}", _interaction_product(term_vecs, *pair), dims="obs_id")
+            for pair in active_interactions
+        }
+
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha_phase = pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase")
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
+
+        eta = alpha + alpha_phase[phase_d] + gamma_own * own_pre_d + gamma_A * A_std_d
+
+        if include_trt:
+            beta_trt = _priors.tau_prior().to_pymc("beta_trt")
+            eta = eta + beta_trt * trt_d
+        if ability_d is not None:
+            gamma_ability = _priors.gamma_cross_prior().to_pymc("gamma_ability")
+            eta = eta + gamma_ability * ability_d
+        for s in skill_symbols:
+            gamma_s = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
+            eta = eta + gamma_s * skill_d[s]
+        for pair in active_interactions:
+            gi = _priors.gamma_cross_prior().to_pymc(f"gamma_int_{pair[0]}_{pair[1]}")
+            eta = eta + gi * int_d[pair]
+
+        if use_subject_random_intercept:
+            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
+            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
+            eta = eta + u_child[child_idx_d]
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        if likelihood == "beta_binomial":
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                observed=post, dims="obs_id",
+            )
+        else:  # bernoulli_offfloor: PRIMARY estimand for floored outcomes (e.g. P)
+            pm.Bernoulli(
+                "y_offfloor", logit_p=eta,
+                observed=(post > 0).astype(np.int64), dims="obs_id",
+            )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+def build_level_factors_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str,
+    ability_covariate: str | None = None,
+    group_by_time: bool = True,
+    ability_by_time: bool = True,
+    group_ability: bool = True,
+    likelihood: str = "beta_binomial",
+    use_subject_random_intercept: bool = True,
+    sigma_child_prior_sigma: float = 0.5,
+) -> BuiltModel:
+    """Level-factors model (LRPLF): what is associated with achievement levels.
+
+    Repeated measures over the four timepoints (``phase_mode="levels"``): the
+    outcome is the score *level* at each timepoint (no own baseline / not
+    autoregressive). Linear predictor (logit scale):
+
+        eta = alpha + alpha_time[t]
+            + b_grp[t] * group            # group x time (trajectory divergence)
+            + gamma_A * A_std_t            # age at t (precision)
+            + g_ability[t] * z(ability)    # ability x time (observed GA handle)
+            + gamma_grp_ability * group * z(ability)   # group x ability
+            + u_child[i]                   # GA repair (RI-CLPM)
+
+    **Level-model caveat (baked into the parameterisation + report):** after t2
+    the waitlist crosses over, so the group effect across the four timepoints is
+    *not* a clean ITT contrast. The focal ``group x time`` interaction is therefore
+    modelled as a per-timepoint group effect ``b_grp[t]`` (dims ``phase`` = the
+    timepoint index) — read as trajectory divergence — and the **clean randomised
+    contrast lives only at t2** (``b_grp[1]``). ``ability x time`` is likewise a
+    per-timepoint ability effect ``g_ability[t]``. Set ``group_by_time`` /
+    ``ability_by_time`` False to collapse either to a single time-invariant
+    coefficient. Only the randomised contrast is causal; all other terms are
+    adjusted associations under the DAG.
+    """
+    if prepared.phase_mode != "levels":
+        raise ValueError("build_level_factors_model requires phase_mode='levels'")
+    if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(
+            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
+            f"got {likelihood!r}"
+        )
+    own = outcome_symbol
+    if own not in prepared.post_counts:
+        raise KeyError(f"Outcome {own!r} missing from prepared data (post_counts)")
+    if ability_covariate is not None and ability_covariate not in prepared.covariates:
+        raise KeyError(f"ability_covariate {ability_covariate!r} not in prepared.covariates")
+    if group_ability and ability_covariate is None:
+        raise ValueError("group_ability interaction requires an ability_covariate")
+
+    keep = ~np.isnan(prepared.post_counts[own])
+    prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[own].astype(np.int64)
+    G_f = prepared.G.astype(float)
+    ability = prepared.covariates[ability_covariate] if ability_covariate is not None else None
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "phase": np.arange(prepared.n_phases),
+        "child": np.arange(prepared.n_children),
+    }
+    with pm.Model(coords=coords) as model:
+        phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+        child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        G_d = pm.Data("G", G_f, dims="obs_id")
+        ability_d = (
+            pm.Data(f"{ability_covariate}_std", ability, dims="obs_id")
+            if ability is not None
+            else None
+        )
+
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha_time = pm.Normal("alpha_time", mu=0.0, sigma=0.5, dims="phase")
+        gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
+        eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
+
+        # group x time (or single group main effect).
+        if group_by_time:
+            b_grp = _priors.tau_prior().to_pymc("b_grp_time", dims="phase")
+            eta = eta + b_grp[phase_d] * G_d
+        else:
+            beta_grp = _priors.tau_prior().to_pymc("beta_grp")
+            eta = eta + beta_grp * G_d
+
+        # ability main / ability x time.
+        if ability_d is not None:
+            if ability_by_time:
+                g_ab = _priors.gamma_cross_prior().to_pymc("gamma_ability_time", dims="phase")
+                eta = eta + g_ab[phase_d] * ability_d
+            else:
+                gamma_ability = _priors.gamma_cross_prior().to_pymc("gamma_ability")
+                eta = eta + gamma_ability * ability_d
+
+        # group x ability cross term.
+        if group_ability:
+            ga_prod = pm.Data("int_group_ability", G_f * np.asarray(ability, dtype=float), dims="obs_id")
+            gamma_grp_ability = _priors.gamma_cross_prior().to_pymc("gamma_grp_ability")
+            eta = eta + gamma_grp_ability * ga_prod
+
+        if use_subject_random_intercept:
+            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
+            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
+            eta = eta + u_child[child_idx_d]
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        if likelihood == "beta_binomial":
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                observed=post, dims="obs_id",
+            )
+        else:  # bernoulli_offfloor: PRIMARY estimand for floored outcomes (e.g. P)
+            pm.Bernoulli(
+                "y_offfloor", logit_p=eta,
+                observed=(post > 0).astype(np.int64), dims="obs_id",
+            )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+def build_aligned_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str,
+    ability_covariate: str | None = None,
+    use_cohort: bool = True,
+    use_dose: bool = False,
+    likelihood: str = "beta_binomial",
+) -> BuiltModel:
+    """Per-protocol onset-aligned single-gain ANCOVA (LRPAL).
+
+    A cross-sectional Beta-Binomial ANCOVA of the aligned post-score on its own
+    onset baseline, age-at-onset and cognitive ability, plus -- optionally -- the
+    cohort indicator (immediate vs wait-list) and the cumulative session dose.
+    One row per child (``phase_mode="aligned"``), so there is **no child random
+    intercept**.
+
+    The cohort term (``beta_cohort``) is **not** a randomised effect: it contrasts
+    the two arms at their own onset-aligned endpoints, confounded by age-at-onset
+    and cohort/timing -- report it as a per-protocol association, never as the ITT
+    treatment effect. ``use_dose`` adds a within-arm cumulative-session covariate,
+    a collider descendant of group and ability -- a sensitivity variant, not the
+    primary adjustment set.
+    """
+    if prepared.phase_mode != "aligned":
+        raise ValueError("build_aligned_model requires phase_mode='aligned'")
+    if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(
+            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
+            f"got {likelihood!r}"
+        )
+    own = outcome_symbol
+    if own not in prepared.post_counts or own not in prepared.pre_logit:
+        raise KeyError(f"Outcome {own!r} needs pre+post scores in prepared data")
+    if ability_covariate is not None and ability_covariate not in prepared.covariates:
+        raise KeyError(f"ability_covariate {ability_covariate!r} not in prepared.covariates")
+    if use_dose and "dose" not in prepared.covariates:
+        raise KeyError(
+            "use_dose=True requires a 'dose' covariate "
+            "(load with load_and_prepare_aligned(include_dose=True))"
+        )
+
+    keep = ~np.isnan(prepared.post_counts[own]) & ~np.isnan(prepared.pre_logit[own])
+    prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[own].astype(np.int64)
+    cohort = prepared.G.astype(float)
+    own_pre_std, _ = standardise(prepared.pre_logit[own])
+
+    coords = {"obs_id": np.arange(prepared.n_obs)}
+    with pm.Model(coords=coords) as model:
+        own_pre_d = pm.Data("own_pre_logit", own_pre_std, dims="obs_id")
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
+        eta = alpha + gamma_own * own_pre_d + gamma_A * A_std_d
+
+        if use_cohort:
+            cohort_d = pm.Data("cohort", cohort, dims="obs_id")
+            beta_cohort = _priors.tau_prior().to_pymc("beta_cohort")
+            eta = eta + beta_cohort * cohort_d
+        if ability_covariate is not None:
+            ability_d = pm.Data(
+                f"{ability_covariate}_std",
+                prepared.covariates[ability_covariate], dims="obs_id",
+            )
+            gamma_ability = _priors.gamma_cross_prior().to_pymc("gamma_ability")
+            eta = eta + gamma_ability * ability_d
+        if use_dose:
+            dose_d = pm.Data("dose_std", prepared.covariates["dose"], dims="obs_id")
+            gamma_dose = _priors.gamma_cross_prior().to_pymc("gamma_dose")
+            eta = eta + gamma_dose * dose_d
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        if likelihood == "beta_binomial":
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                observed=post, dims="obs_id",
+            )
+        else:  # bernoulli_offfloor: PRIMARY estimand for floored outcomes (e.g. P)
+            pm.Bernoulli(
+                "y_offfloor", logit_p=eta,
+                observed=(post > 0).astype(np.int64), dims="obs_id",
+            )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
 # Longitudinal dynamic factories (LRP67 LCSM, LRP68 RI-CLPM)
 # ---------------------------------------------------------------------------
 
