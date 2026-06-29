@@ -1357,6 +1357,204 @@ def _build_route_composite_model(
     return built, med_data
 
 
+@dataclass
+class TwoMediatorData:
+    """Row-aligned phase-0 arrays + scalers for the two-mediator g-formula (LRP64).
+
+    Two count mediators — letter-sound knowledge ``L`` and expressive vocabulary
+    ``E`` — are each modelled with a Beta-Binomial leg conditioned on their own
+    baseline; the outcome leg adds both standardised post-mediators and their
+    treatment interactions. :func:`mediation.decompose_two_mediator` re-simulates
+    each mediator under each treatment arm to compute the joint indirect effect,
+    the direct effect, and the (ordering-dependent) path-specific indirect effects.
+    """
+
+    G: np.ndarray
+    A_std: np.ndarray
+    W1_logit: np.ndarray
+    conf1_logit: dict[str, np.ndarray]
+    n_trials_W: int
+    # Mediator L (letter-sound).
+    L1_logit: np.ndarray
+    n_trials_L: int
+    zL_mean: float
+    zL_sd: float
+    # Mediator E (expressive vocabulary).
+    E1_logit: np.ndarray
+    n_trials_E: int
+    zE_mean: float
+    zE_sd: float
+    mediator_symbols: tuple[str, str] = ("L", "E")
+    confounder_symbols: tuple[str, ...] = ("R",)
+
+
+def build_two_mediator_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    mediator_symbols: tuple[str, str] = ("L", "E"),
+    confounder_symbols: Iterable[str] = ("R",),
+) -> tuple[BuiltModel, TwoMediatorData]:
+    """Joint two-mediator + outcome model for the ITT-phase decomposition (LRP64).
+
+    Generalises :func:`build_mediation_model` to **two named count mediators** so
+    the word-reading effect can be split into a path via letter-sound knowledge, a
+    path via expressive vocabulary, and a direct/residual path. Three Beta-Binomial
+    legs share the randomised treatment ``G`` and a baseline-covariate adjustment::
+
+        L_t2 ~ aL0 + aL_G·G + aL_L·logit(L_t1) + aL_A·A + sum aL_c·C_t1
+        E_t2 ~ aE0 + aE_G·G + aE_E·logit(E_t1) + aE_A·A + sum aE_c·C_t1
+        W_t2 ~ b0 + b_G·G + b_L·zL + b_E·zE + b_GL·G·zL + b_GE·G·zE
+               + b_W·logit(W_t1) + b_A·A + sum b_c·C_t1
+
+    where ``zL`` / ``zE`` are the standardised post-mediator logits. The two
+    treatment×mediator interactions admit exposure-mediator interaction; the
+    natural (in)direct effects are computed by counterfactual simulation in
+    :func:`mediation.decompose_two_mediator`, **not** from coefficients.
+
+    Confounders ``C`` (e.g. receptive vocab ``R``) are taken at **baseline (t1)**
+    on the logit scale (cross-world assumption). Expressive vocab is a *mediator*
+    here, not a confounder, so only its baseline enters (autoregressively in the
+    ``E`` leg). Requires ``prepared.phase_mode == 'itt'`` (one row per child).
+    """
+    if prepared.phase_mode != "itt":
+        raise ValueError("Two-mediator factory requires phase_mode='itt'")
+    confounder_symbols = tuple(confounder_symbols)
+    mL, mE = mediator_symbols
+    # The PyMC node and coefficient names below are hard-coded to the L/E legs
+    # (L_pre_logit, z_L, aL_*, b_L, ...), so only the ('L', 'E') pair is
+    # supported; other symbols would silently mislabel the fitted variables.
+    if (mL, mE) != ("L", "E"):
+        raise NotImplementedError(
+            "build_two_mediator_model hard-codes L/E variable names; "
+            f"mediator_symbols must be ('L', 'E'), got {mediator_symbols!r}"
+        )
+    needed = {outcome_symbol, mL, mE, *confounder_symbols}
+    for s in needed:
+        if s not in prepared.pre_logit:
+            raise KeyError(f"Symbol {s!r} missing from prepared data")
+
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+        standardise,
+    )
+
+    keep = ~np.isnan(prepared.post_counts[outcome_symbol])
+    for s in (mL, mE):
+        keep = keep & ~np.isnan(prepared.post_counts[s])
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+
+    N_W = prepared.n_trials[outcome_symbol]
+    N_L = prepared.n_trials[mL]
+    N_E = prepared.n_trials[mE]
+    L2 = prepared.post_counts[mL].astype(np.int64)
+    E2 = prepared.post_counts[mE].astype(np.int64)
+    W2 = prepared.post_counts[outcome_symbol].astype(np.int64)
+
+    zL, zL_scaler = standardise(logit_safe(L2, N_L))
+    zE, zE_scaler = standardise(logit_safe(E2, N_E))
+
+    L1 = prepared.pre_logit[mL]
+    E1 = prepared.pre_logit[mE]
+    W1 = prepared.pre_logit[outcome_symbol]
+    conf_logit = {s: prepared.pre_logit[s] for s in confounder_symbols}
+
+    coords = {"obs_id": np.arange(prepared.n_obs)}
+    G_f = prepared.G.astype(float)
+
+    with pm.Model(coords=coords) as model:
+        G_d = pm.Data("G", G_f, dims="obs_id")
+        A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        L1_d = pm.Data("L_pre_logit", L1, dims="obs_id")
+        E1_d = pm.Data("E_pre_logit", E1, dims="obs_id")
+        W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
+        conf_d = {
+            s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
+            for s in confounder_symbols
+        }
+        zL_d = pm.Data("z_L", zL, dims="obs_id")
+        zE_d = pm.Data("z_E", zE, dims="obs_id")
+
+        # --- Mediator L (letter-sound) ---
+        aL0 = _priors.alpha_prior().to_pymc("aL0")
+        aL_G = _priors.tau_prior().to_pymc("aL_G")
+        aL_L = _priors.gamma_own_prior().to_pymc("aL_L")
+        aL_A = _priors.gamma_cross_prior().to_pymc("aL_A")
+        mu_L = aL0 + aL_G * G_d + aL_L * L1_d + aL_A * A_d
+        for s in confounder_symbols:
+            aL_c = _priors.gamma_cross_prior().to_pymc(f"aL_{s}")
+            mu_L = mu_L + aL_c * conf_d[s]
+        mu_L = pm.Deterministic("mu_L", mu_L, dims="obs_id")
+        kappa_L = _priors.kappa_prior().to_pymc("kappa_L")
+        beta_binomial_from_logit(
+            "L_post", mu_L, n_trials=N_L, kappa=kappa_L, observed=L2, dims="obs_id"
+        )
+
+        # --- Mediator E (expressive vocabulary) ---
+        aE0 = _priors.alpha_prior().to_pymc("aE0")
+        aE_G = _priors.tau_prior().to_pymc("aE_G")
+        aE_E = _priors.gamma_own_prior().to_pymc("aE_E")
+        aE_A = _priors.gamma_cross_prior().to_pymc("aE_A")
+        mu_E = aE0 + aE_G * G_d + aE_E * E1_d + aE_A * A_d
+        for s in confounder_symbols:
+            aE_c = _priors.gamma_cross_prior().to_pymc(f"aE_{s}")
+            mu_E = mu_E + aE_c * conf_d[s]
+        mu_E = pm.Deterministic("mu_E", mu_E, dims="obs_id")
+        kappa_E = _priors.kappa_prior().to_pymc("kappa_E")
+        beta_binomial_from_logit(
+            "E_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id"
+        )
+
+        # --- Outcome W ---
+        b0 = _priors.alpha_prior().to_pymc("b0")
+        b_G = _priors.tau_prior().to_pymc("b_G")
+        b_L = _priors.b_path_prior().to_pymc("b_L")
+        b_E = _priors.b_path_prior().to_pymc("b_E")
+        b_GL = _priors.gamma_cross_prior().to_pymc("b_GL")
+        b_GE = _priors.gamma_cross_prior().to_pymc("b_GE")
+        b_W = _priors.gamma_own_prior().to_pymc("b_W")
+        b_A = _priors.gamma_cross_prior().to_pymc("b_A")
+        eta_Y = (
+            b0
+            + b_G * G_d
+            + b_L * zL_d
+            + b_E * zE_d
+            + b_GL * (G_d * zL_d)
+            + b_GE * (G_d * zE_d)
+            + b_W * W1_d
+            + b_A * A_d
+        )
+        for s in confounder_symbols:
+            b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
+            eta_Y = eta_Y + b_c * conf_d[s]
+        eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
+        kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
+        beta_binomial_from_logit(
+            "y_post", eta_Y, n_trials=N_W, kappa=kappa_Y, observed=W2, dims="obs_id"
+        )
+
+    med_data = TwoMediatorData(
+        G=prepared.G.astype(float),
+        A_std=prepared.A_std,
+        W1_logit=W1,
+        conf1_logit={s: conf_logit[s] for s in confounder_symbols},
+        n_trials_W=int(N_W),
+        L1_logit=L1,
+        n_trials_L=int(N_L),
+        zL_mean=float(zL_scaler.mean),
+        zL_sd=float(zL_scaler.sd),
+        E1_logit=E1,
+        n_trials_E=int(N_E),
+        zE_mean=float(zE_scaler.mean),
+        zE_sd=float(zE_scaler.sd),
+        mediator_symbols=(mL, mE),
+        confounder_symbols=confounder_symbols,
+    )
+    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return built, med_data
+
+
 # ---------------------------------------------------------------------------
 # Private
 # ---------------------------------------------------------------------------

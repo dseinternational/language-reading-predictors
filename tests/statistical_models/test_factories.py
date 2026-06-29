@@ -25,6 +25,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_level_factors_model,
     build_mechanism_model,
     build_mediation_model,
+    build_two_mediator_model,
 )
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
@@ -622,6 +623,25 @@ def test_mediation_factory_custom_confounder_set(tmp_path):
     assert not {"b_R", "a_R"} & names
     assert med.confounder_symbols == ("E",)
     assert set(med.conf_logit) == {"E"}
+
+
+def test_two_mediator_factory_builds(tmp_path):
+    """LRP64: two-mediator joint model builds with both mediator legs + interactions."""
+    p = _write_synthetic(tmp_path, n_children=25)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    built, med = build_two_mediator_model(
+        prep, outcome_symbol="W", mediator_symbols=("L", "E"), confounder_symbols=("R",)
+    )
+    names = {v.name for v in built.model.free_RVs}
+    # Two mediator legs, the outcome paths, the interactions, and the R confounder.
+    assert {"aL_G", "aE_G", "b_L", "b_E", "b_GL", "b_GE", "b_R"}.issubset(names)
+    assert med.mediator_symbols == ("L", "E")
+    assert med.n_trials_L == MEASURES["L"].n_trials
+    assert med.n_trials_E == MEASURES["E"].n_trials
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=5)
+    for node in ("L_post", "E_post", "y_post"):
+        assert pp.prior_predictive[node].shape[-1] == built.prepared.n_obs
 
 
 # ---------------------------------------------------------------------------
