@@ -76,6 +76,8 @@ from language_reading_predictors.statistical_models import (
     lrpdid04,
     lrpdid05,
     lrpdid06,
+    lrpdid07,
+    lrpdid07base,
     lrpgf01,
     lrpgf01b,
     lrpgf02,
@@ -171,6 +173,8 @@ MODELS = {
     "lrpdid04": lrpdid04,  # TE taught-expressive (vs lrpitt02)
     "lrpdid05": lrpdid05,  # R  receptive-vocab   (vs lrpitt05)
     "lrpdid06": lrpdid06,  # W  dose-response     (variant of lrpdid01)
+    "lrpdid07": lrpdid07,  # L  period-resolved dose-response (#135)
+    "lrpdid07base": lrpdid07base,  # L  pooled-dose comparator to lrpdid07
     "lrp56": lrp56,
     "lrp57": lrp57,
     "lrp58": lrp58,
