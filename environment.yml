@@ -30,7 +30,7 @@ dependencies:
       - matplotlib>=3.11.0
       - networkx
       - notebook>=7.6.0
-      - optuna-integration[lightgbm,shap,scikit-learn,xgboost]
+      - optuna-integration[lightgbm,xgboost]>=4.9.0
       - optuna>=4.9.0
       - orjson>=3.11.9
       - pandas-stubs
@@ -42,7 +42,7 @@ dependencies:
       - scikit-learn>=1.9.0
       - scipy-stubs
       - seaborn>=0.13.2
-      - setuptools>=81.0.0,<82.0.0 # torch
+      - setuptools>=81.0.0
       - shap>=0.52.0
       - tabulate>=0.10.0
       - xarray>=2026.4.0
