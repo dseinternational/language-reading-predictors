@@ -96,6 +96,7 @@ lgbm
 lightbox
 lightgbm
 logit
+logits
 LRPITT
 LRPGF
 LRPLF
@@ -187,6 +188,7 @@ idxmin
 importorskip
 handoff
 LCSM
+noncentred
 CLPM
 McArdle
 Yoder
@@ -240,6 +242,7 @@ mathrm
 operatorname
 SESOI
 pushforward
+pushforwards
 fpsyg
 Makowski
 Gelman
@@ -264,3 +267,6 @@ psense
 ypre
 reframing
 incl
+proc
+sigmas
+zproc
