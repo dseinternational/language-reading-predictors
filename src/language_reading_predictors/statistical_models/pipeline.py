@@ -30,11 +30,9 @@ from __future__ import annotations
 import os
 import shutil
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pymc as pm
 from rich import print as rprint
 
 from language_reading_predictors.models._reporting import (
@@ -2027,7 +2025,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     cross = [s for s in outcomes if s != reading_symbol]
     diag_vars = [f"g_{s}" for s in cross]
-    diag_vars += ["a_change", "b_self", "d_age", "d_dose", "sigma1", "kappa"]
+    diag_vars += ["a_change", "b_self", "d_age", "sigma1", "kappa"]
     if spec.extra.get("use_process_noise", True):
         diag_vars.append("sigma_proc")
 
@@ -2066,7 +2064,6 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ("b_self", f"b_self[{reading_symbol}] (reading self-feedback)"),
         ("a_change", f"a_change[{reading_symbol}] (reading baseline change)"),
         ("d_age", f"d_age[{reading_symbol}] (age -> reading change)"),
-        ("d_dose", f"d_dose[{reading_symbol}] (dose -> reading change)"),
     ):
         rows.append(
             _coef_row(label, post[name].sel(outcome=reading_symbol).values, ctx.reporting.hdi)
@@ -2094,205 +2091,6 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "outcomes": list(outcomes),
             "reading_symbol": reading_symbol,
             "coupling_summary": rows,
-        },
-    )
-
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
-
-
-def fit_riclpm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    """Constrained RI-CLPM (LRP68) with the competing-structure LOO comparison.
-
-    Fits the AR-only / L->R / R-driven / reciprocal structures, compares them by
-    PSIS-LOO (does any cross-lagged structure beat AR-only?), then runs full
-    diagnostics on the headline (reciprocal) model plus a cross-lagged prior
-    sensitivity sweep on the L->reading path.
-    """
-    assert spec.kind == "riclpm"
-
-    ctx = make_context(spec, config)
-
-    section_header("Prepare data")
-    outcomes = tuple(spec.extra.get("outcomes", ("W", "L", "E")))
-    reading_symbol = spec.outcome_symbol or "W"
-    letter_symbol = spec.extra.get("letter_symbol", "L")
-    structures = list(
-        spec.extra.get("structures", ["ar", "l_to_r", "r_driven", "reciprocal"])
-    )
-    headline = spec.extra.get("headline_structure", "reciprocal")
-    cross_sd = float(spec.extra.get("cross_prior_sigma", 0.5))
-    panel = load_wave_panel(outcomes=outcomes)
-    ctx.prepared = panel
-
-    _print_header(ctx)
-
-    def _fit(structure: str, cross_prior_sigma: float):
-        built = _factories.build_riclpm_model(
-            panel,
-            structure=structure,
-            reading_symbol=reading_symbol,
-            letter_symbol=letter_symbol,
-            cross_prior_sigma=cross_prior_sigma,
-        )
-        s = ctx.sampling
-        with built.model:
-            tr = pm.sample(
-                draws=s.draws,
-                tune=s.tune,
-                chains=s.chains,
-                cores=s.cores,
-                target_accept=s.target_accept,
-                nuts_sampler="nutpie",
-                return_inferencedata=True,
-                random_seed=s.random_seed,
-                progressbar=False,
-            )
-            tr = pm.compute_log_likelihood(tr, progressbar=False)
-        return built, tr
-
-    section_header("Competing structures + LOO-PSIS")
-    loos: dict[str, object] = {}
-    divergences: dict[str, int] = {}
-    headline_built = None
-    headline_trace = None
-    for st in structures:
-        built, tr = _fit(st, cross_sd)
-        loos[st] = az.loo(tr)
-        divergences[st] = int(tr.sample_stats["diverging"].sum())
-        rprint(
-            f"  structure [bold]{st}[/bold]: elpd={loos[st].elpd:.1f} "
-            f"(p_loo={loos[st].p:.1f}), divergences={divergences[st]}"
-        )
-        if st == headline:
-            headline_built, headline_trace = built, tr
-
-    if headline_built is None:
-        headline_built, headline_trace = _fit(headline, cross_sd)
-        loos[headline] = az.loo(headline_trace)
-
-    ctx.model = headline_built.model
-    ctx.model_vars = headline_built.variables
-    ctx.trace = headline_trace
-    ctx.loo = loos[headline]
-    _render_model_graph(ctx)
-
-    # LOO comparison table + "does any cross-lagged structure beat AR-only?"
-    cmp = az.compare(loos)
-    cmp.to_csv(os.path.join(ctx.output_dir, "loo_compare.csv"))
-    ctx.tables["loo_compare"] = cmp
-    cmp_disp = cmp.rename_axis("structure").reset_index()
-    print_table(
-        ranked_dataframe_table(
-            cmp_disp,
-            title="RI-CLPM structures by LOO (rank 0 = best predictive)",
-            columns=[
-                c
-                for c in ["structure", "rank", "elpd", "p", "elpd_diff", "dse", "weight"]
-                if c in cmp_disp.columns
-            ],
-            rank_column=False,
-            precision=2,
-        )
-    )
-    beats_ar: dict[str, dict] = {}
-    if "ar" in loos:
-        for st in structures:
-            if st == "ar":
-                continue
-            d = _report.loo_delta(loos[st], loos["ar"])
-            beats_ar[st] = d
-            verdict = "favours cross-lagged" if d["d_elpd"] > 0 else "no gain over AR"
-            rprint(
-                f"  {st} vs AR-only: dELPD={d['d_elpd']:+.1f} "
-                f"(dSE={d['d_se']:.1f}) - {verdict}"
-            )
-
-    section_header(f"Summary diagnostics (headline: {headline})")
-    diag_vars = ["A", "mu", "sigma_u", "sigma_w1", "sigma_inn", "d_age", "d_dose", "kappa"]
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_obs"])
-    _save_ppc(ctx)
-    _diag.save_trace(ctx)
-
-    # Cross-lagged path summary (headline) — A[target <- source]; the headline
-    # is A[reading <- letter] (letter-sounds -> reading within child).
-    section_header("Cross-lagged paths (headline)")
-    post = ctx.trace.posterior
-    cross_rows = []
-    for tgt in outcomes:
-        for src in outcomes:
-            if tgt == src:
-                continue
-            label = f"A[{tgt}<-{src}]"
-            if tgt == reading_symbol and src == letter_symbol:
-                label += " (headline: letter-sounds -> reading)"
-            cross_rows.append(
-                _coef_row(label, post["A"].sel(outcome=tgt, outcome2=src).values, ctx.reporting.hdi)
-            )
-    cross_df = pd.DataFrame(cross_rows)
-    cross_df.to_csv(os.path.join(ctx.output_dir, "cross_lagged_summary.csv"), index=False)
-    ctx.tables["cross_lagged_summary"] = cross_df
-    print_table(
-        ranked_dataframe_table(
-            cross_df,
-            title=f"Cross-lagged paths - {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)",
-            columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
-            rank_column=False,
-            precision=3,
-        )
-    )
-
-    # Prior sensitivity on the cross-lagged prior SD for the headline A[W<-L].
-    section_header(
-        f"Cross-lagged prior sensitivity (A[{reading_symbol}<-{letter_symbol}])"
-    )
-    sens_rows = [
-        _coef_row(
-            f"cross_prior_sigma={cross_sd:g}",
-            post["A"].sel(outcome=reading_symbol, outcome2=letter_symbol).values,
-            ctx.reporting.hdi,
-        )
-    ]
-    for sd in spec.extra.get("prior_sensitivity_sigmas", [0.3, 0.7]):
-        _, tr_s = _fit(headline, float(sd))
-        sens_rows.append(
-            _coef_row(
-                f"cross_prior_sigma={float(sd):g}",
-                tr_s.posterior["A"]
-                .sel(outcome=reading_symbol, outcome2=letter_symbol)
-                .values,
-                ctx.reporting.hdi,
-            )
-        )
-    sens_df = pd.DataFrame(sens_rows)
-    sens_df.to_csv(os.path.join(ctx.output_dir, "prior_sensitivity.csv"), index=False)
-    ctx.tables["prior_sensitivity"] = sens_df
-    print_table(
-        ranked_dataframe_table(
-            sens_df,
-            title=f"A[{reading_symbol}<-{letter_symbol}] prior sensitivity",
-            columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
-            rank_column=False,
-            precision=3,
-        )
-    )
-
-    _report.write_run_metadata(
-        ctx,
-        extra={
-            "loo_elpd": float(ctx.loo.elpd),
-            "headline_structure": headline,
-            "structures": structures,
-            "divergences": divergences,
-            "beats_ar": beats_ar,
-            "outcomes": list(outcomes),
-            "cross_lagged_summary": cross_rows,
-            "prior_sensitivity": sens_rows,
         },
     )
 

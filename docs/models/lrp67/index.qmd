@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 ::: {.callout-warning title="Warning: Preliminary model output"}
 
 This model output is preliminary and likely to change as the model evolves and further data are received. At n~54 it is **exploratory**: read the direction of the couplings and their agreement with the other approaches, not precise magnitudes.
@@ -77,11 +81,13 @@ The **reading** change is coupled to prior-wave levels — the headline:
 
 $$
 \overline{\Delta}_W = a_W + b_W\,x_W[t-1] + g_L\,x_L[t-1] + g_E\,x_E[t-1]
-                    + d^{\text{age}}_W\,\text{age}[t-1] + d^{\text{dose}}_W\,\text{dose}[t].
+                    + d^{\text{age}}_W\,\text{age}[t-1].
 $$
 
-Letter-sounds and vocabulary changes follow a self-proportional form plus age and
-dose. Coupling coefficients are **time-invariant** (pooled across the three
+Letter-sounds and vocabulary changes follow a self-proportional form plus age. The
+intervention-dose covariate is **omitted** — it is the locked DAG's `IS` collider, so
+conditioning on it would reopen the latent-`GA` backdoor onto the `g_L`/`g_E` couplings
+(ID-3). Coupling coefficients are **time-invariant** (pooled across the three
 transitions) — a deliberate constraint at this sample size. Observed counts enter a
 **masked** Beta-Binomial so a child missing one score still contributes its other
 waves; $\kappa$ is measurement overdispersion, distinct from the dynamic
@@ -119,7 +125,7 @@ if gE is not None:
 print(
     "\nThe headline is `g_L`: a credibly positive value means children make greater "
     "subsequent reading change when their prior letter-sound standing is higher, "
-    "over and above their own reading level, age and dose."
+    "over and above their own reading level and age."
 )
 ```
 

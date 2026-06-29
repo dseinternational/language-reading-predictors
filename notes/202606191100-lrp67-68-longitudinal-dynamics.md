@@ -1,9 +1,18 @@
 # LRP67 / LRP68 — longitudinal dynamics: do prior skills predict later reading *over time*?
 
+> [!NOTE]
+> Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+
+> [!IMPORTANT]
+> **Scope (post-review).** Only **LRP67 (LCSM)** ships as a model. **LRP68 (RI-CLPM)
+> was dropped** — degenerate at n≈54 (R-hat→1.33, unreliable LOO); its negative finding
+> ("the within-child cross-lagged direction is not estimable at this n") is **recorded
+> below** as the durable result. LRP67's intervention-dose term was removed (it is the
+> locked DAG's `IS` collider; ID-3), so its reporting-tier numbers need a re-fit.
+
 > [!WARNING]
-> AI-assisted analysis. Preliminary `dev`-tier fits; numbers will firm up at the
-> reporting tier. At n~54 these are **exploratory triangulation**, not inferential
-> headlines. Not for citation.
+> Preliminary `dev`-tier fits; numbers will firm up at the reporting tier. At n~54
+> these are **exploratory triangulation**, not inferential headlines. Not for citation.
 
 Date: 2026-06-19
 
@@ -125,9 +134,8 @@ inconclusive at n~54, which is itself a reportable finding.
 ```bash
 # dev-tier fits (env with PyMC + the ML stack, e.g. dse-research-data-analysis):
 python scripts/fit_statistical_model.py lrp67 --config dev   # LCSM
-python scripts/fit_statistical_model.py lrp68 --config dev   # RI-CLPM + LOO comparison
-# raise target_accept for the RI-CLPM rep-tier run:
-python scripts/fit_statistical_model.py lrp68 --config reporting --target-accept 0.97
+# (LRP68 / RI-CLPM dropped on review — see the scope note above; its negative
+#  finding is recorded here but the model is no longer fitted.)
 ```
 
 Artifacts: `output/statistical_models/models/lrp67-dev/` (`coupling_summary.csv`) and

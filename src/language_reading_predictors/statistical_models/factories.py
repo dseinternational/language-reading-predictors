@@ -1845,9 +1845,12 @@ def build_lcsm_model(
 
         mean_Delta_W = a_W + b_W * x_W[t-1]
                      + sum_{c != W} g_c * x_c[t-1]
-                     + d_age_W * age[t-1] + d_dose_W * dose[t]
+                     + d_age_W * age[t-1]
 
-    Non-reading measures get a self-proportional change plus age / dose only.
+    Non-reading measures get a self-proportional change plus age only. The
+    intervention-dose covariate is **omitted**: it is the locked DAG's ``IS``
+    collider, so conditioning on it would reopen the latent-``GA`` backdoor onto
+    the letter-sound -> reading couplings (ID-3).
     All change coefficients are **time-invariant** (pooled across the 3
     transitions) — a deliberate constraint at n~54. Everything is non-centred
     for sampling.
@@ -1898,7 +1901,6 @@ def build_lcsm_model(
 
     with pm.Model(coords=coords) as model:
         age = pm.Data("age_std", panel.age_std, dims=("child", "wave"))
-        dose = pm.Data("dose_std", panel.dose_std, dims=("child", "wave"))
 
         # Structural parameters (time-invariant, pooled over transitions).
         mu1 = pm.Normal("mu1", mu=w1_anchor, sigma=1.0, dims="outcome")
@@ -1908,9 +1910,6 @@ def build_lcsm_model(
         )
         b_self = pm.Normal("b_self", mu=0.0, sigma=self_prior_sigma, dims="outcome")
         d_age = pm.Normal("d_age", mu=0.0, sigma=covariate_prior_sigma, dims="outcome")
-        d_dose = pm.Normal(
-            "d_dose", mu=0.0, sigma=covariate_prior_sigma, dims="outcome"
-        )
         # Headline cross-couplings into the reading change (one per other measure).
         g_cross = {
             s: pm.Normal(f"g_{s}", mu=0.0, sigma=coupling_prior_sigma) for s in cross
@@ -1949,7 +1948,7 @@ def build_lcsm_model(
             prev = {s: x[s][t - 1] for s in OUT}
             for s in OUT:
                 m = a_change[jidx[s]] + b_self[jidx[s]] * prev[s]
-                m = m + d_age[jidx[s]] * age[:, t - 1] + d_dose[jidx[s]] * dose[:, t]
+                m = m + d_age[jidx[s]] * age[:, t - 1]
                 if s == reading_symbol:
                     for cs in cross:
                         m = m + g_cross[cs] * prev[cs]
@@ -1965,177 +1964,6 @@ def build_lcsm_model(
         # Masked Beta-Binomial observation (LRP55 flattened-mask idiom).
         mu = pm.math.sigmoid(X)
         mu_clip = pm.math.clip(mu, EPSILON, 1 - EPSILON)
-        alpha_bb = (mu_clip * kappa[None, None, :]).reshape((-1,))
-        beta_bb = ((1 - mu_clip) * kappa[None, None, :]).reshape((-1,))
-        idx_i, idx_t, idx_k = np.nonzero(mask)
-        lin = np.ravel_multi_index((idx_i, idx_t, idx_k), (N, T, K))
-        pm.BetaBinomial(
-            "y_obs",
-            n=n_trials_vec[idx_k],
-            alpha=alpha_bb[lin],
-            beta=beta_bb[lin],
-            observed=counts_int[idx_i, idx_t, idx_k],
-        )
-
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
-
-
-def riclpm_structure_mask(
-    structure: str,
-    outcomes: tuple[str, ...],
-    reading_symbol: str = "W",
-    letter_symbol: str = "L",
-) -> np.ndarray:
-    """Build the ``(K, K)`` 0/1 mask selecting which entries of the RI-CLPM
-    transition matrix ``A[target, source]`` are free.
-
-    The diagonal (autoregressive, AR) is always on. Off-diagonals are toggled
-    per competing structure:
-
-    - ``"ar"``        : AR only (no cross-lagged paths).
-    - ``"l_to_r"``    : AR + letter-sounds -> reading (``A[W, L]``).
-    - ``"r_driven"``  : AR + reading -> each other measure (reverse / practice).
-    - ``"reciprocal"``: AR + all cross-lagged paths.
-    """
-    j = {s: i for i, s in enumerate(outcomes)}
-    K = len(outcomes)
-    mask = np.eye(K)
-    if structure == "ar":
-        pass
-    elif structure == "l_to_r":
-        mask[j[reading_symbol], j[letter_symbol]] = 1.0
-    elif structure == "r_driven":
-        for s in outcomes:
-            if s != reading_symbol:
-                mask[j[s], j[reading_symbol]] = 1.0
-    elif structure == "reciprocal":
-        mask[:] = 1.0
-    else:
-        raise ValueError(
-            f"structure must be one of ar/l_to_r/r_driven/reciprocal, got {structure!r}"
-        )
-    return mask
-
-
-def build_riclpm_model(
-    panel: WavePanel,
-    *,
-    structure: str = "reciprocal",
-    reading_symbol: str = "W",
-    letter_symbol: str = "L",
-    cross_prior_sigma: float = 0.5,
-    ar_prior_sigma: float = 0.5,
-    sigma_u_prior_sigma: float = 1.0,
-    sigma_w_prior_sigma: float = 1.0,
-    covariate_prior_sigma: float = 0.5,
-    kappa_prior_sigma: float = 50.0,
-) -> BuiltModel:
-    """Constrained random-intercept cross-lagged panel model (LRP68).
-
-    The within-child triangulation of LRP67 / LRP65. The logit mean decomposes
-    into a stable between-child trait and a within-child deviation::
-
-        m_m[i, t] = u_m[i] + w_m[i, t] + d_age_m * age[i, t] + d_dose_m * dose[i, t]
-
-    ``u_m[i]`` is a non-centred child random intercept per measure (the stable
-    trait, independent across measures by default). The within-child deviations
-    ``w`` follow a **time-invariant** VAR(1)::
-
-        w[i, t] = A @ w[i, t-1] + innovation[i, t]
-
-    ``A[target, source]`` carries the autoregressive (diagonal) and cross-lagged
-    (off-diagonal) coefficients, pooled across the three transitions. Which
-    off-diagonals are free is set by ``structure`` (see
-    :func:`riclpm_structure_mask`) so the pipeline can fit the competing
-    AR-only / L->R / R-driven / reciprocal models and compare them by LOO.
-
-    The headline is ``A[reading, letter]`` (``A[W, L]``): when a child is
-    temporarily above their own expected letter-sounds, do they make greater
-    subsequent reading gains? Cross-lagged paths carry a regularising
-    ``Normal(0, cross_prior_sigma)`` prior (default 0.5; refit at 0.3 / 0.7 for
-    the prior-sensitivity check). Observed scores enter the **masked**
-    Beta-Binomial directly — there is no measurement-error / latent-indicator
-    layer (deliberately, at n~54).
-    """
-    OUT = tuple(panel.outcomes)
-    if reading_symbol not in OUT or letter_symbol not in OUT:
-        raise KeyError(
-            f"reading_symbol / letter_symbol must be in panel.outcomes {OUT}"
-        )
-    K = len(OUT)
-    N = panel.n_children
-    T = panel.n_waves
-    if T < 2:
-        raise ValueError("RI-CLPM needs at least two waves")
-
-    counts_int = np.stack(
-        [np.nan_to_num(panel.counts[s], nan=0.0).astype(np.int64) for s in OUT],
-        axis=2,
-    )
-    mask = np.stack([panel.obs_mask[s] for s in OUT], axis=2)  # (N, T, K)
-    n_trials_vec = np.array([panel.n_trials[s] for s in OUT], dtype=int)
-    # Grand-mean logit per measure anchors the trait-mean prior.
-    grand_anchor = np.array(
-        [np.nanmean(panel.logit[s]) for s in OUT], dtype=float
-    )
-    smask = riclpm_structure_mask(structure, OUT, reading_symbol, letter_symbol)
-    sd_matrix = np.full((K, K), cross_prior_sigma, dtype=float)
-    np.fill_diagonal(sd_matrix, ar_prior_sigma)
-
-    coords = {
-        "child": np.arange(N),
-        "wave": panel.waves,
-        "trans": panel.waves[1:],
-        "outcome": list(OUT),
-        "outcome2": list(OUT),  # source axis of the transition matrix
-    }
-
-    from dse_research_utils.math.constants import EPSILON  # local import
-
-    with pm.Model(coords=coords) as model:
-        age = pm.Data("age_std", panel.age_std, dims=("child", "wave"))
-        dose = pm.Data("dose_std", panel.dose_std, dims=("child", "wave"))
-
-        # Stable between-child trait (non-centred, independent across measures).
-        mu = pm.Normal("mu", mu=grand_anchor, sigma=1.0, dims="outcome")
-        sigma_u = pm.HalfNormal("sigma_u", sigma=sigma_u_prior_sigma, dims="outcome")
-        zu = pm.Normal("zu", 0.0, 1.0, dims=("child", "outcome"))
-        u = pm.Deterministic(
-            "u_child", mu[None, :] + sigma_u[None, :] * zu, dims=("child", "outcome")
-        )
-
-        # Time-invariant transition matrix A[target, source]; off-diagonals
-        # gated by the competing-structure mask.
-        A_raw = pm.Normal("A_raw", mu=0.0, sigma=sd_matrix, dims=("outcome", "outcome2"))
-        A = pm.Deterministic("A", A_raw * smask, dims=("outcome", "outcome2"))
-
-        # Within-child deviations: wave-1 free, then VAR(1) with innovations.
-        sigma_w1 = pm.HalfNormal("sigma_w1", sigma=sigma_w_prior_sigma, dims="outcome")
-        zw1 = pm.Normal("zw1", 0.0, 1.0, dims=("child", "outcome"))
-        sigma_inn = pm.HalfNormal("sigma_inn", sigma=sigma_w_prior_sigma, dims="outcome")
-        zinn = pm.Normal("zinn", 0.0, 1.0, dims=("child", "trans", "outcome"))
-
-        w = [sigma_w1[None, :] * zw1]  # (N, K)
-        for k in range(T - 1):
-            w_mean = pt.dot(w[k], A.T)  # (N, K): w_t[target] = sum_s A[target,s] w_prev[s]
-            w.append(w_mean + sigma_inn[None, :] * zinn[:, k, :])
-        Wdev = pt.stack(w, axis=1)  # (N, T, K)
-
-        d_age = pm.Normal("d_age", 0.0, covariate_prior_sigma, dims="outcome")
-        d_dose = pm.Normal("d_dose", 0.0, covariate_prior_sigma, dims="outcome")
-        m_logit = (
-            u[:, None, :]
-            + Wdev
-            + d_age[None, None, :] * age[:, :, None]
-            + d_dose[None, None, :] * dose[:, :, None]
-        )
-        m_logit = pm.Deterministic(
-            "m_logit", m_logit, dims=("child", "wave", "outcome")
-        )
-
-        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome")
-        mu_p = pm.math.sigmoid(m_logit)
-        mu_clip = pm.math.clip(mu_p, EPSILON, 1 - EPSILON)
         alpha_bb = (mu_clip * kappa[None, None, :]).reshape((-1,))
         beta_bb = ((1 - mu_clip) * kappa[None, None, :]).reshape((-1,))
         idx_i, idx_t, idx_k = np.nonzero(mask)

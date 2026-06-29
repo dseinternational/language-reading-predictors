@@ -18,7 +18,7 @@ see :func:`factories.build_lcsm_model`):
 - Reading change is coupled to prior-wave levels::
 
       mean_Delta_W = a_W + b_W * x_W[t-1] + g_L * x_L[t-1] + g_E * x_E[t-1]
-                   + d_age_W * age[t-1] + d_dose_W * dose[t]
+                   + d_age_W * age[t-1]
 
   ``g_L`` / ``g_E`` are the headline coefficients.
 - Coupling coefficients are **time-invariant** (pooled across the 3 transitions) -
