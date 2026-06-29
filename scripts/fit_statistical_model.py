@@ -39,6 +39,9 @@ from language_reading_predictors.statistical_models import (
     lrp72base,
     lrp73,
     lrp73base,
+    lrp77,
+    lrp77a,
+    lrp77base,
     lrpitt01,
     lrpitt02,
     lrpitt03,
@@ -187,6 +190,12 @@ MODELS = {
     # no-interaction companion.
     "lrp73": lrp73,
     "lrp73base": lrp73base,
+    # LRP77 (#104 Phase 2): period-resolved dose-response on word reading.
+    # lrp77base is the pooled-dose comparator (LOO); lrp77a the ability-adjusted
+    # sensitivity fit (no-g->dose assumption).
+    "lrp77": lrp77,
+    "lrp77base": lrp77base,
+    "lrp77a": lrp77a,
     # LRPGF / LRPLF: DAG-focused gain-factors / level-factors families (issue
     # #127). Beta-Binomial-on-logit with a child random intercept; only the
     # randomised group / on-intervention term is causal, every other coefficient

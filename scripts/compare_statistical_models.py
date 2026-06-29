@@ -70,6 +70,11 @@ PHONICS_LOO_IDS: list[str] = ["lrp72", "lrp72base"]
 # outcome — a clean nested PSIS-LOO test of the L x age interaction.
 AGE_LOO_IDS: list[str] = ["lrp73", "lrp73base"]
 
+# Dose-response (LRP77, #104 Phase 2): the period-varying dose model vs its
+# pooled-dose comparator, same word-reading outcome and rows — a nested PSIS-LOO
+# test of whether the dose-gain slope varies by period.
+DOSE_LOO_IDS: list[str] = ["lrp77", "lrp77base"]
+
 
 def _run_dir(model_id: str, config: str) -> str:
     return os.path.join(STAT_OUTPUT_DIR, "models", f"{model_id}-{config}")
@@ -366,6 +371,11 @@ def age_moderation_loo_compare(config: str, out_path: str) -> bool:
     return _loo_compare(AGE_LOO_IDS, config, out_path)
 
 
+def dose_response_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP77 against its pooled-dose comparator (does dose vary by period?)."""
+    return _loo_compare(DOSE_LOO_IDS, config, out_path)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -416,6 +426,12 @@ def main() -> None:
         print(f"Wrote {age_path}")
     else:
         print("Skipping age-moderation LOO compare: LRP73 / LRP73base runs missing.")
+
+    dose_path = os.path.join(args.out, "dose_response_loo_compare.csv")
+    if dose_response_loo_compare(args.config, dose_path):
+        print(f"Wrote {dose_path}")
+    else:
+        print("Skipping dose-response LOO compare: LRP77 / LRP77base runs missing.")
 
 
 if __name__ == "__main__":

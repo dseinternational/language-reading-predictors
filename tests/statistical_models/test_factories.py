@@ -19,6 +19,7 @@ from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.factories import (
     build_aligned_model,
     build_did_model,
+    build_dose_response_model,
     build_gain_factors_model,
     build_itt_model,
     build_joint_model,
@@ -61,6 +62,9 @@ def _write_synthetic(tmp_path, n_children: int = 25, seed: int = 7):
                 m = MEASURES[s]
                 row[m.column] = int(rng.integers(0, m.n_trials + 1))
             row[V.NONWORD] = int(rng.integers(0, 7))
+            # Intervention dose covariates (used by the dose-response factory).
+            row[V.ATTEND] = int(rng.integers(0, 90))
+            row[V.ATTEND_CUMUL] = int(rng.integers(0, 200))
             rows.append(row)
     p = tmp_path / "rli.csv"
     pd.DataFrame(rows).to_csv(p, index=False)
@@ -543,6 +547,76 @@ def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
     )
     names = {v.name for v in built.model.free_RVs}
     assert "gamma_A" not in names
+
+
+# ---------------------------------------------------------------------------
+# Dose-response factory (LRP77, #104 Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def test_dose_response_factory_builds_period_varying(tmp_path):
+    """Default build: partial-pooled per-period dose slopes + design adjusters."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(
+        path=p, phase_mode="all", outcomes=("W",), covariates=("attend", "attend_cumul")
+    )
+    built = build_dose_response_model(prep, outcome_symbol="W", period_varying_dose=True)
+    free = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+    # period-varying dose slope (partial pooled), arm, age, dose-stage, subject RI
+    assert {"mu_dose", "sigma_dose", "beta_dose_phase_raw", "beta_G", "gamma_A",
+            "gamma_dose_stage", "sigma_child"}.issubset(free)
+    assert "beta_dose_phase" in dets
+    assert "beta_dose" not in free  # pooled slope only in the comparator
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=5)
+    assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_dose_response_factory_pooled_slope(tmp_path):
+    """``period_varying_dose=False`` gives a single pooled slope, no phase slopes."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(
+        path=p, phase_mode="all", outcomes=("W",), covariates=("attend", "attend_cumul")
+    )
+    built = build_dose_response_model(prep, outcome_symbol="W", period_varying_dose=False)
+    free = {v.name for v in built.model.free_RVs}
+    assert "beta_dose" in free
+    assert "mu_dose" not in free
+    assert not any(v.name == "beta_dose_phase" for v in built.model.deterministics)
+
+
+def test_dose_response_factory_ability_adjusters(tmp_path):
+    """The sensitivity fit adds a ``gamma_{s}_pre`` term per baseline-skill symbol."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(
+        path=p,
+        phase_mode="all",
+        outcomes=("W", "L", "E", "B"),
+        covariates=("attend", "attend_cumul"),
+    )
+    built = build_dose_response_model(
+        prep, outcome_symbol="W", ability_adjust_symbols=("L", "E", "B")
+    )
+    free = {v.name for v in built.model.free_RVs}
+    assert {"gamma_L_pre", "gamma_E_pre", "gamma_B_pre"}.issubset(free)
+
+
+def test_dose_response_factory_rejects_wrong_phase(tmp_path):
+    p = _write_synthetic(tmp_path, n_children=12)
+    prep = load_and_prepare(
+        path=p, phase_mode="itt", outcomes=("W",), covariates=("attend", "attend_cumul")
+    )
+    with pytest.raises(ValueError):
+        build_dose_response_model(prep, outcome_symbol="W")
+
+
+def test_dose_response_factory_requires_dose_covariate(tmp_path):
+    """A missing dose covariate is a clear KeyError, not a late failure."""
+    p = _write_synthetic(tmp_path, n_children=12)
+    prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W",))
+    with pytest.raises(KeyError):
+        build_dose_response_model(prep, outcome_symbol="W")
 
 
 # ---------------------------------------------------------------------------
