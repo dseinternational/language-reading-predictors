@@ -69,7 +69,7 @@ magnitude.
   expressive vocabulary adds little *additional* reading-specific indirect path once
   letter-sounds are in the block — **not** that vocabulary is unimportant for reading
   development overall (vocabulary plausibly acts partly *through* letter-sounds, and is
-  itself raised by the intervention; LRP54). This is the two-mediator answer to the
+  itself raised by the intervention; see `lrpitt22`, the expressive-vocabulary ITT that supersedes LRP54). This is the two-mediator answer to the
   meeting's question: the routes are not cleanly independent — the reading-specific
   indirect path is letter-sound-led.
 

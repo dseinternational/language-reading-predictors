@@ -53,8 +53,9 @@ We extend the same g-formula machinery to a $\{L, E\}$ mediator block and report
 The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**: group 1
 receives the intervention, group 2 is the wait-list control; after t2 both arms are
 treated. LRP64 uses the phase-0 transition only (`phase_mode="itt"`), $n \approx 53$.
-Sign convention: $G = \text{group} - 1$, so $G = 0$ is the intervention arm; all
-effects are in the **intervention-helps** direction.
+Sign convention: $G = 2 - \text{group}$, so $G = 1$ is the intervention arm and
+$G = 0$ the wait-list control (per `#117`); all effects are in the
+**intervention-helps** (positive = benefit) direction.
 
 ## Causal structure
 
@@ -75,8 +76,16 @@ This is a **decomposition under assumptions, not proof of a causal route.**
 - Randomisation in phase 0 secures **no unmeasured confounding of $G\to Y$ and
   $G\to M$** for free.
 - **No unmeasured mediator–outcome confounding** — the binding, unverifiable
-  assumption and the main limitation. We adjust for $A$, $R$, and the baselines; any
-  residual confounder (e.g. an unmeasured "literacy readiness") would bias the split.
+  assumption and the main limitation. The locked DAG (`#115`,
+  `notes/202606231600-dag-revision-consolidated.md`, ID-2) names the specific threat:
+  **latent general ability $GA$** confounds the mediator→outcome paths, so the
+  NDE/NIE and the $\text{NIE}_L$/$\text{NIE}_E$ split are **adjusted associations,
+  not point-identified**. We adjust for $A$, $R$, and the baselines, but $GA$ is
+  latent and unadjustable — and, unlike the gain-/level-factor and RI-CLPM families,
+  this between-child phase-0 mediation carries **no subject random intercept**, so it
+  cannot even apply the partial latent-ability repair that intercept provides. Lead
+  with the joint indirect effect; keep the $\text{NIE}_L$/$\text{NIE}_E$ split
+  flagged exploratory.
 - **Contemporaneous measurement.** Both mediators and the outcome are at t2 — no
   temporal precedence within the window. Conditioning on baselines mitigates but does
   not remove this.
@@ -107,7 +116,8 @@ med.round(3)
 ```
 
 - **total** — the intervention's total effect on word reading (should reconcile with
-  LRP52's $\tau_W$ and with LRP59/LRP62's Totals).
+  `lrpitt10`'s $\tau_W$ — the word-reading ITT that supersedes LRP52 — and with
+  LRP59/LRP62's Totals).
 - **NDE** — the direct / residual path (neither mediator moves).
 - **NIE_joint** — the headline: transmitted through the $\{L, E\}$ block.
 - **NIE_L / NIE_E** — exploratory path-specific shares (sum to `NIE_joint`), under the

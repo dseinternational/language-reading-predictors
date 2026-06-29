@@ -233,7 +233,7 @@ def decompose_two_mediator(
     Each mediator is re-simulated from its Beta-Binomial leg under each treatment
     arm, with common random draws reused across counterfactual cells to reduce
     Monte-Carlo noise. Sign convention as :func:`decompose` (intervention-helps;
-    ``G=0`` intervention, ``G=1`` control). The two mediators are simulated as
+    ``G=1`` intervention, ``G=0`` control, per ``G = 2 - group``). The two mediators are simulated as
     conditionally independent given the covariates (no residual L-E correlation is
     modelled) — a simplifying assumption stated in the report.
     """
