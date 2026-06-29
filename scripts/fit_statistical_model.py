@@ -109,6 +109,7 @@ from language_reading_predictors.statistical_models import (
     lrpal06,
     lrpal07,
     lrpal08,
+    lrpmm01,
 )
 
 
@@ -255,6 +256,7 @@ MODELS = {
     "lrpal06": lrpal06,
     "lrpal07": lrpal07,
     "lrpal08": lrpal08,
+    "lrpmm01": lrpmm01,  # correlated-domain-factor measurement model (#134)
 }
 
 

@@ -2667,3 +2667,170 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
 
     return _finalize_report(ctx)
+
+
+# ---------------------------------------------------------------------------
+# Correlated-domain-factor measurement model (LRPMM01, #134)
+# ---------------------------------------------------------------------------
+
+
+_DEFAULT_DOMAINS = {
+    "vocabulary": ("R", "E"),
+    "code": ("L", "B"),
+    "grammar": ("F", "T"),
+}
+
+
+def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Correlated-domain-factor measurement model (LRPMM01, #134).
+
+    Fits a reflective CFA with correlated vocabulary / code / grammar factors over
+    the standardised T1 skill indicators, plus a structural Beta-Binomial leg for
+    the reading-gain outcome, and reports the loadings / communalities, the factor
+    correlation matrix, and the measurement-error-corrected factor->gain slopes.
+    A triangulation / measurement model, not causal (every factor->gain slope is a
+    latent-ability-confounded adjusted association; #115 ID-2).
+    """
+    assert spec.kind == "corr_factor"
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    domains = {
+        k: tuple(v) for k, v in (spec.extra.get("domains") or _DEFAULT_DOMAINS).items()
+    }
+    outcome = spec.outcome_symbol or "W"
+    structural_covs = tuple(spec.extra.get("structural_covariates", ("blocks",)))
+    indicator_syms = tuple(dict.fromkeys(s for v in domains.values() for s in v))
+    measure_outcomes = tuple(dict.fromkeys((outcome, *indicator_syms)))
+    prepared = load_and_prepare(
+        phase_mode="span",
+        post_time=int(spec.extra.get("post_time", 4)),
+        outcomes=measure_outcomes,
+        covariates=structural_covs,
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_correlated_factor_model(
+        prepared,
+        outcome_symbol=outcome,
+        domains=domains,
+        structural_covariates=structural_covs,
+        use_age=spec.extra.get("use_age", True),
+        loading_sigma=spec.extra.get("loading_sigma", 1.0),
+        predictor_slope_sigma=spec.extra.get("predictor_slope_sigma", 0.5),
+    )
+    _attach_built(ctx, built)
+    _render_model_graph(ctx)
+
+    summary_vars = [
+        "alpha", "gamma_own", "kappa", "beta_factor", "lambda_load", "sigma_indicator",
+    ]
+    if spec.extra.get("use_age", True):
+        summary_vars.append("beta_age")
+    summary_vars += [f"beta_{c}" for c in structural_covs]
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["Z_obs", "y_post"])
+
+    # Two observed nodes (the indicator matrix Z_obs + the structural y_post) make
+    # a single-target PSIS-LOO ambiguous, so LOO is skipped here as in the
+    # mediation family; this is a measurement / triangulation model, not a
+    # predictive one, and #134 turns on the loadings / communalities, not on LOO.
+    _run_sampling_and_loo(ctx, compute_loo=False)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=summary_vars)
+
+    # Sample both observed nodes (the indicator matrix + the structural outcome)
+    # so the posterior-predictive PPC plot covers every observed variable.
+    _run_ppc(ctx, var_names=["Z_obs", "y_post"])
+    _diag.save_trace(ctx)
+
+    post = ctx.trace.posterior
+    hdi = ctx.reporting.hdi
+    lo_q = (1.0 - hdi) / 2.0
+
+    # --- Loadings + communalities (the measurement headline) ---
+    section_header("Loadings + communalities")
+    dom_of = {s: d for d, syms in domains.items() for s in syms}
+    load_rows = []
+    for j, name in enumerate(str(s) for s in post["indicator"].values):
+        lam_d = post["lambda_load"].isel(indicator=j).values.reshape(-1)
+        com_d = post["communality"].isel(indicator=j).values.reshape(-1)
+        load_rows.append(
+            {
+                "indicator": name,
+                "domain": dom_of.get(name, "?"),
+                "loading_mean": float(np.mean(lam_d)),
+                "loading_lo": float(np.quantile(lam_d, lo_q)),
+                "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
+                "communality_mean": float(np.mean(com_d)),
+                "communality_lo": float(np.quantile(com_d, lo_q)),
+                "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
+            }
+        )
+    load_df = pd.DataFrame(load_rows)
+    load_df.to_csv(os.path.join(ctx.output_dir, "loadings_summary.csv"), index=False)
+    ctx.tables["loadings_summary"] = load_df
+    print_table(
+        ranked_dataframe_table(
+            load_df,
+            title=f"Loadings + communalities - {int(hdi * 100)}% CI (equal-tailed)",
+            columns=[
+                "indicator", "domain", "loading_mean",
+                "communality_mean", "communality_lo", "communality_hi",
+            ],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # --- Factor correlation matrix ---
+    section_header("Factor correlation")
+    corr = post["factor_corr"].mean(dim=("chain", "draw")).values
+    dnames = [str(d) for d in post["domain"].values]
+    corr_df = pd.DataFrame(corr, index=dnames, columns=dnames)
+    corr_df.to_csv(os.path.join(ctx.output_dir, "factor_correlation.csv"))
+    ctx.tables["factor_correlation"] = corr_df
+
+    # --- Structural slopes: factor -> reading gain (adjusted associations) ---
+    section_header("Structural slopes (factor -> gain)")
+    struct_rows = [
+        _coef_row(f"beta_{d}", post["beta_factor"].isel(domain=k).values, hdi)
+        for k, d in enumerate(dnames)
+    ]
+    extra_terms = (["beta_age"] if spec.extra.get("use_age", True) else []) + [
+        f"beta_{c}" for c in structural_covs
+    ]
+    struct_rows += [_coef_row(t, post[t].values, hdi) for t in extra_terms]
+    struct_df = pd.DataFrame(struct_rows)
+    struct_df.to_csv(os.path.join(ctx.output_dir, "structural_summary.csv"), index=False)
+    ctx.tables["structural_summary"] = struct_df
+    print_table(
+        ranked_dataframe_table(
+            struct_df,
+            title=(
+                f"Structural slopes (factor -> gain; adjusted associations) - "
+                f"{int(hdi * 100)}% CI"
+            ),
+            columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "domains": {k: list(v) for k, v in domains.items()},
+            "loadings_summary": load_df.to_dict("records"),
+            "factor_correlation": corr_df.to_dict(),
+            "structural_summary": struct_df.to_dict("records"),
+        },
+    )
+
+    return _finalize_report(ctx)

@@ -1,0 +1,162 @@
+---
+title: "LRPMM01: Correlated-domain-factor measurement model (vocabulary / code / grammar)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+loadings = pd.read_csv(_here / "loadings_summary.csv")
+factor_correlation = pd.read_csv(_here / "factor_correlation.csv", index_col=0)
+structural = pd.read_csv(_here / "structural_summary.csv")
+```
+
+## Overview
+
+LRPMM01 is the DAG-sanctioned successor to the closed LRP66. Instead of a single
+latent general ability `g`, it estimates **correlated domain factors** -
+vocabulary, code, and grammar - from the standardised T1 skill indicators, then
+regresses word-reading gain on those latent factors. It recovers the one output no
+merged model produces: an explicit **factor-loadings / communality** table and a
+partial **measurement-error correction** of the skill slopes.
+
+::: {.callout-important title="Measurement / triangulation, NOT causal"}
+
+This is a **measurement** model. Per the locked DAG's **ID-2**, every factor ->
+gain slope is a **latent-ability-confounded adjusted association** - the factor
+model improves the measurement match, it does **not** identify effects. The
+randomised causal claim lives in the ITT suite (`lrpitt10` for word reading) and
+the `gain_factors` randomised term, not here.
+
+:::
+
+::: {.callout-note title="Fragility at n ~ 51"}
+
+A correlated-factor latent model at n ~ 51 is fragile and prior-dependent. Read it
+as **triangulation** against the `gain_factors` family, with the **wide intervals
+stated as the honest result** (exactly as the closed LRP66 did). The
+reporting-tier re-fit gives the final magnitudes.
+
+:::
+
+## Model
+
+**Measurement** (correlated unit-variance factors; loadings positive so a loading
+is an indicator-factor correlation and $\lambda^2$ is the communality):
+
+$$
+\mathbf{f}_i \sim \mathcal{N}(\mathbf{0}, \Omega), \quad \Omega \sim \text{LKJ}(\eta),
+\qquad
+Z_{ij} \sim \mathcal{N}\!\big(\lambda_j\, f_{i,\,d(j)},\ \sigma_j\big),
+$$
+
+**Structural** (Beta-Binomial reading-gain leg on the latent factors):
+
+$$
+\eta_i = \alpha + \gamma_{\text{own}}\,\text{logit}_*(W_{\mathrm{pre},i}, N)
+        + \sum_d \beta_d\, f_{i,d}
+        + \beta_{\text{blocks}}\,\text{blocks}_i + \beta_A\,A_{\text{std},i}.
+$$
+
+Domains (core set): **vocabulary** {R, E}, **code** {L, B}, **grammar** {F, T}.
+Speech is unavailable as a standardised indicator here and is omitted; non-verbal
+MA (`blocks`) enters the structural leg as an observed covariate, not a factor.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.png){width=32%}
+![gamma_own](prior_gamma_own.png){width=32%}
+![predictor slope](prior_predictor_slope.png){width=32%}
+![kappa](prior_kappa.png){width=32%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Loadings and communalities
+
+```{python}
+# | echo: false
+loadings
+```
+
+- `loading_*`: the indicator-factor loading (a correlation, since factors and
+  indicators are standardised; mean + equal-tailed central interval).
+- `communality_*`: $\lambda^2 / (\lambda^2 + \sigma^2)$ - the share of that
+  indicator explained by its domain factor.
+
+## Factor correlation matrix
+
+```{python}
+# | echo: false
+factor_correlation
+```
+
+Posterior-mean correlations among the latent domain factors (LKJ prior). High
+off-diagonal correlations are the quantitative form of the "positive manifold" that
+made a single `g` tempting; reporting them explicitly is the point of the move to
+correlated domain factors.
+
+## Structural slopes (factor -> reading gain)
+
+```{python}
+# | echo: false
+structural
+```
+
+Each `beta_<domain>` is the measurement-error-corrected slope of word-reading gain
+on that latent factor, plus the observed `beta_age` / `beta_blocks` adjusters. Per
+ID-2 these are **adjusted associations**, not causal effects; `prob_pos` is the
+posterior probability the slope is positive.
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
