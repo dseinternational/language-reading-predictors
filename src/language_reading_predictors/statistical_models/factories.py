@@ -1909,6 +1909,176 @@ def build_adjusted_model(
 
 
 # ---------------------------------------------------------------------------
+# LRPMM01: correlated-domain-factor measurement model (#134)
+# ---------------------------------------------------------------------------
+
+
+def build_correlated_factor_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    domains: dict[str, tuple[str, ...]] | None = None,
+    structural_covariates: Iterable[str] = ("blocks",),
+    use_age: bool = True,
+    loading_sigma: float = 1.0,
+    predictor_slope_sigma: float = 0.5,
+    lkj_eta: float = 2.0,
+) -> BuiltModel:
+    """Correlated-domain-factor measurement model (LRPMM01, #134).
+
+    Replaces the single latent general ability ``g`` of the (closed) LRP66 with
+    **correlated domain factors** - vocabulary / code / grammar - each measured by
+    its standardised T1 skill indicators, with an LKJ prior on the factor
+    correlation matrix. Factor variances are fixed to 1 and loadings are positive.
+    Because the indicator residual variance ``sigma_indicator`` is free, a loading
+    ``lambda`` is a coefficient on the unit-variance factor, **not** in general a
+    correlation; the indicator-factor **correlation** is ``lambda / sqrt(lambda**2
+    + sigma**2)`` (the standardised loading, equal to ``sqrt(communality)``) and
+    the **communality** ``lambda**2 / (lambda**2 + sigma**2)`` is the share of the
+    indicator explained by its domain factor. A structural Beta-Binomial leg
+    regresses the outcome gain (``outcome`` post conditioned on its T1 baseline via
+    ``gamma_own``) on the latent factors, giving **measurement-error-corrected**
+    factor->gain slopes.
+
+    Identification-neutral but a better measurement match than a single ``g`` for
+    the observed same-construct clustering (the locked DAG's deferred option,
+    #115). This is a **measurement / triangulation** model, not a causal one: per
+    ID-2 each factor->gain slope is a latent-ability-confounded **adjusted
+    association**. At n ~ 51 it is fragile and prior-dependent - read the wide
+    intervals as the honest result, as the closed LRP66 did.
+
+    ``domains`` maps each factor name to its indicator symbols (default vocabulary
+    {R, E} / code {L, B} / grammar {F, T}); every domain needs >= 2 indicators to
+    be identified. ``structural_covariates`` are observed adjusters in the
+    structural leg (default non-verbal MA ``blocks``); ``use_age`` adds a linear
+    age term.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import standardise
+
+    if prepared.phase_mode not in {"span", "itt"}:
+        raise ValueError(
+            "Correlated-factor (between-child) model requires phase_mode in "
+            f"{{'span', 'itt'}} (one row per child); got {prepared.phase_mode!r}"
+        )
+    if domains is None:
+        domains = {"vocabulary": ("R", "E"), "code": ("L", "B"), "grammar": ("F", "T")}
+    domain_names = list(domains)
+    for d in domain_names:
+        if len(tuple(domains[d])) < 2:
+            raise ValueError(
+                f"Domain {d!r} has < 2 indicators ({tuple(domains[d])}); a "
+                "correlated factor needs at least two indicators to be identified."
+            )
+    D = len(domain_names)
+
+    # One row per child: drop children missing the outcome post-score.
+    post = prepared.post_counts[outcome_symbol]
+    keep = ~np.isnan(post)
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[outcome_symbol].astype(np.int64)
+    N = prepared.n_trials[outcome_symbol]
+    own_pre_logit = prepared.pre_logit[outcome_symbol]
+
+    # Standardised indicator matrix Z (n_obs, J) + per-indicator domain index.
+    ind_names: list[str] = []
+    domain_of: list[int] = []
+    cols: list[np.ndarray] = []
+    for di, d in enumerate(domain_names):
+        for s in domains[d]:
+            if s not in prepared.pre_logit:
+                raise KeyError(
+                    f"Indicator {s!r} (domain {d!r}) missing from prepared data"
+                )
+            z, _ = standardise(prepared.pre_logit[s])
+            cols.append(z)
+            ind_names.append(s)
+            domain_of.append(di)
+    Z = np.stack(cols, axis=1)
+    domain_idx = np.asarray(domain_of, dtype=np.int64)
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "indicator": ind_names,
+        "domain": domain_names,
+        "domain_b": domain_names,
+    }
+    with pm.Model(coords=coords) as model:
+        Z_d = pm.Data("Z", Z, dims=("obs_id", "indicator"))
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+
+        # --- Measurement: correlated unit-variance domain factors ---
+        # LKJ correlation matrix; factor variances are fixed to 1 by transforming
+        # standard normals through the correlation's Cholesky (the LKJCholeskyCov
+        # sds are unused). The residual variance sigma_indicator is free, so a
+        # loading is a coefficient on the unit-variance factor; the standardised
+        # loading / indicator-factor correlation is reported as sqrt(communality).
+        _, corr, _ = pm.LKJCholeskyCov(
+            "factor_cov",
+            n=D,
+            eta=lkj_eta,
+            sd_dist=pm.Exponential.dist(1.0, size=D),
+            compute_corr=True,
+        )
+        pm.Deterministic("factor_corr", corr, dims=("domain", "domain_b"))
+        L_corr = pt.linalg.cholesky(corr)
+        z_factor = pm.Normal("factor_z", 0.0, 1.0, dims=("obs_id", "domain"))
+        factors = pm.Deterministic(
+            "factors", z_factor @ L_corr.T, dims=("obs_id", "domain")
+        )
+
+        lam = pm.HalfNormal("lambda_load", sigma=loading_sigma, dims="indicator")
+        sigma_ind = pm.HalfNormal("sigma_indicator", sigma=1.0, dims="indicator")
+        mu_Z = lam[None, :] * factors[:, domain_idx]
+        pm.Normal(
+            "Z_obs",
+            mu=mu_Z,
+            sigma=sigma_ind[None, :],
+            observed=Z_d,
+            dims=("obs_id", "indicator"),
+        )
+        pm.Deterministic(
+            "communality", lam**2 / (lam**2 + sigma_ind**2), dims="indicator"
+        )
+
+        # --- Structural: outcome gain ~ factors (+ covariates), Beta-Binomial ---
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        beta_factor = pm.Normal(
+            "beta_factor", 0.0, predictor_slope_sigma, dims="domain"
+        )
+        eta = alpha + gamma_own * own_pre_d + pm.math.dot(factors, beta_factor)
+
+        if use_age:
+            A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+            beta_age = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                "beta_age"
+            )
+            eta = eta + beta_age * A_std_d
+        for c in structural_covariates:
+            if c not in prepared.covariates:
+                raise KeyError(
+                    f"Structural covariate {c!r} missing from prepared data"
+                )
+            x_d = pm.Data(
+                f"x_{c}", np.asarray(prepared.covariates[c], dtype=float), dims="obs_id"
+            )
+            beta_c = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                f"beta_{c}"
+            )
+            eta = eta + beta_c * x_d
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
 # Private
 # ---------------------------------------------------------------------------
 

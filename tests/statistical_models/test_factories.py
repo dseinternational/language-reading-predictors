@@ -19,6 +19,7 @@ from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.factories import (
     build_adjusted_model,
     build_aligned_model,
+    build_correlated_factor_model,
     build_did_model,
     build_dose_response_model,
     build_gain_factors_model,
@@ -836,6 +837,46 @@ def test_did_factory_requires_all_phase_mode(tmp_path):
     prep = load_and_prepare(path=p, phase_mode="itt")
     with pytest.raises(ValueError):
         build_did_model(prep, outcome_symbol="W")
+
+
+# ---------------------------------------------------------------------------
+# Correlated-domain-factor measurement model (kind="corr_factor", #134)
+# ---------------------------------------------------------------------------
+
+
+def test_correlated_factor_model_builds(tmp_path):
+    """Correlated-domain-factor CFA: per-indicator loadings + LKJ factor correlation (#134)."""
+    p = _write_synthetic(tmp_path, n_children=30)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_correlated_factor_model(
+        prep,
+        outcome_symbol="W",
+        domains={"vocabulary": ("R", "E"), "code": ("L", "B"), "grammar": ("F", "T")},
+        structural_covariates=("blocks",),
+    )
+    free = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+    assert {
+        "factor_z", "lambda_load", "sigma_indicator", "beta_factor", "beta_blocks"
+    }.issubset(free)
+    assert {"factors", "factor_corr", "communality"}.issubset(dets)
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=9)
+    # 6 indicators across 3 correlated domain factors.
+    assert pp.prior["lambda_load"].sizes["indicator"] == 6
+    assert pp.prior["factor_corr"].sizes["domain"] == 3
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_correlated_factor_model_requires_two_indicators(tmp_path):
+    """A domain with < 2 indicators cannot identify a factor."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    with pytest.raises(ValueError):
+        build_correlated_factor_model(
+            prep, outcome_symbol="W", domains={"single": ("F",)}
+        )
 
 
 # ---------------------------------------------------------------------------
