@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-from dse_research_utils.storage.azure import upload_directory_to_blob_storage
 from rich.console import Console
 
 DEFAULT_PROJECT = "language-reading-predictors"
@@ -26,6 +25,8 @@ def upload_to_blob_storage(
     pass ``include_traces=True`` to include them. Authentication and container
     URL validation are handled by :mod:`dse_research_utils.storage.azure`.
     """
+    from dse_research_utils.storage.azure import upload_directory_to_blob_storage
+
     result = upload_directory_to_blob_storage(
         output_dir,
         model_label,
