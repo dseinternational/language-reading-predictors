@@ -59,7 +59,7 @@ months older** (immediate onset ≈ 83.8 mo at t1; wait-list onset ≈ 87.4 mo a
 Age enters as **age-at-onset** (the age at each arm's own pre-wave), not a fixed
 wave age. In the W exemplar `gamma_A` is negative and credible, so the cohort
 contrast must be read net of this age gap — it is the main reason `beta_cohort`
-(+0.19 logit, ~+1.9 words) is _weaker_ than the randomised ITT τ (~+0.44).
+(+0.19 logit, about +1.9 words) is _weaker_ than the randomised ITT τ (about +0.44).
 
 ### Decision 3 — one row per child, **no random intercept**
 
