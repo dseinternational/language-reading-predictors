@@ -57,7 +57,7 @@ collapses toward zero, the LRP77 dose signal is substantially ability-confounded
 and should be downgraded accordingly. (Requiring $L/E/B$ baselines complete-cases
 marginally fewer rows than LRP77.)
 
-See the LRP77 report for the full estimand, the $G = 1$ = waitlist coding, and the
+See the LRP77 report for the full estimand, the $G = 2 - \text{group}$ coding (G=1 = intervention), and the
 expectations caveat (adjusted association; $R^2$ 0.1–0.3 in Phase 1).
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}

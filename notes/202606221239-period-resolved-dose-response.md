@@ -109,15 +109,13 @@ triangulation is specifically wanted.
 
 ## Flags for review
 
-- **Group-coding hazard (pre-existing, not introduced here).**
-  `preprocessing.py` maps dataset group 1 [Initial intervention] -> G=0 and group
-  2 [Wait] -> G=1, but its inline comment says "0 = control, 1 = intervention" —
-  inverted. So across the ITT family (LRP52-55, LRP60) `tau` is the coefficient on
-  the **waitlist** indicator and `P(tau > 0)` is P(waitlist higher), **not**
-  P(treatment helps). Verified against `data_variables.GROUP` and the raw attend
-  pattern (group 1 has attend > 0 at t1). Likely relevant to the
-  `fix/lrp78-itt-tau-ame` branch; flagged, not fixed here (out of scope, shared
-  file in flight).
+- **Sign convention (corrected by `#117`).** `main`'s
+  `preprocessing.load_and_prepare` uses `G = 2 − group`, so `G = 1` is the
+  immediate-intervention arm and `G = 0` the wait-list control; **positive `tau` =
+  intervention benefit**. (An earlier draft carried a "group-coding hazard" flag
+  describing an inverted mapping — that bug was fixed in `#117`, so the flag is
+  removed.) The reporting-tier figures above predate the flip and need a re-fit to
+  refresh under the corrected sign.
 - **No raw change scores / confirmed ceilings only** (W = 79, confirmed) — both
   honoured.
 - **Reproduce:** `python scripts/fit_statistical_model.py {lrp77,lrp77base,lrp77a} --config reporting --render`

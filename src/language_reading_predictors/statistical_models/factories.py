@@ -890,7 +890,7 @@ def build_dose_response_model(
     phase-specific intercepts. The linear predictor is
 
         eta = alpha + alpha_phase[p]
-            + beta_G * G                      # arm (G=1 = waitlist control)
+            + beta_G * G                      # arm (G=1 = immediate-intervention, G = 2 - group)
             + gamma_own * logit(outcome_pre)  # autoregression / RTM
             + gamma_A * z(age)                # maturation precision covariate
             + u_child[child]                  # subject random intercept
