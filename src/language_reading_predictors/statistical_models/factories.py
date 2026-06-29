@@ -1055,6 +1055,7 @@ def build_did_model(
     use_child_re: bool = True,
     use_age: bool = True,
     dose: bool = False,
+    period_varying_dose: bool = False,
 ) -> BuiltModel:
     """Waitlist-crossover / difference-in-differences model for one outcome.
 
@@ -1099,6 +1100,13 @@ def build_did_model(
     dose
         Use the standardised session count as a continuous treatment intensity
         instead of the binary treated indicator.
+    period_varying_dose
+        With ``dose=True``, replace the single pooled ``beta_dose`` by
+        partial-pooled per-period slopes ``beta_dose_phase[p] = mu_dose +
+        sigma_dose * z_p`` (non-centred), so each period's dose-gain slope shrinks
+        toward the shared mean. Mirrors :func:`build_dose_response_model`; the
+        nested ``period_varying_dose=False`` model is its pooled comparator for a
+        PSIS-LOO test of period variation (#135). Requires ``dose=True``.
     """
     if prepared.phase_mode != "all":
         raise ValueError("build_did_model requires phase_mode='all'")
@@ -1108,6 +1116,8 @@ def build_did_model(
     periods = tuple(int(p) for p in periods)
     if dose and "attend" not in prepared.covariates:
         raise KeyError("dose=True requires the 'attend' covariate to be loaded")
+    if period_varying_dose and not dose:
+        raise ValueError("period_varying_dose=True requires dose=True")
 
     post = prepared.post_counts[own]
     keep = np.isin(prepared.phase, periods) & ~np.isnan(post)
@@ -1126,6 +1136,8 @@ def build_did_model(
         "obs_id": np.arange(prepared.n_obs),
         "child": np.arange(prepared.n_children),
     }
+    if period_varying_dose:
+        coords["dose_phase"] = np.arange(len(periods))
     with pm.Model(coords=coords) as model:
         period_d = pm.Data("period", is_p2, dims="obs_id")
         own_pre_d = pm.Data("own_pre_logit", pre_logit, dims="obs_id")
@@ -1159,8 +1171,29 @@ def build_did_model(
 
         if dose:
             z_attend = pm.Data("z_attend", prepared.covariates["attend"], dims="obs_id")
-            beta_dose = _priors.tau_prior().to_pymc("beta_dose")
-            eta_full = eta_base + beta_dose * z_attend
+            if period_varying_dose:
+                # Partial-pooled per-period dose slopes (non-centred): each
+                # period's slope shrinks toward the shared mean mu_dose. The
+                # nested pooled model (period_varying_dose=False) is its LOO
+                # comparator (#135). Variable names match build_dose_response_model
+                # so the shared dose-slope summary reads them.
+                period_pos = np.searchsorted(
+                    np.asarray(periods), prepared.phase
+                ).astype(np.int64)
+                dose_phase_idx = pm.Data("dose_phase_idx", period_pos, dims="obs_id")
+                mu_dose = _priors.tau_prior().to_pymc("mu_dose")
+                sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
+                beta_dose_phase = pm.Deterministic(
+                    "beta_dose_phase",
+                    mu_dose
+                    + sigma_dose
+                    * pm.Normal("beta_dose_phase_raw", 0.0, 1.0, dims="dose_phase"),
+                    dims="dose_phase",
+                )
+                eta_full = eta_base + beta_dose_phase[dose_phase_idx] * z_attend
+            else:
+                beta_dose = _priors.tau_prior().to_pymc("beta_dose")
+                eta_full = eta_base + beta_dose * z_attend
         else:
             treated_d = pm.Data("treated", treated, dims="obs_id")
             delta = _priors.tau_prior().to_pymc("delta")

@@ -1,0 +1,146 @@
+---
+title: "LRPDID07base: Waitlist-crossover (DiD) pooled session-dose response on letter-sound knowledge (L)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+did_summary = pd.read_csv(_here / "did_summary.csv")
+```
+
+## Overview
+
+LRPDID07base is the **pooled-dose comparator** to LRPDID07: the same
+waitlist-crossover / difference-in-differences session-dose response on
+letter-sound knowledge (YARC-LSK, `yarclet`), but with a **single pooled** dose
+slope `beta_dose` instead of partial-pooled per-period slopes. It stacks the two
+early periods (P1 = t1->t2, P2 = t2->t3) for both arms; each child is their **own
+control** (a child random intercept), and the immediate arm - treated in both
+periods - anchors the time/maturation trend.
+
+The pair (LRPDID07 period-varying vs LRPDID07base pooled) is nested on the same
+outcome and rows, so the PSIS-LOO comparison between them tests whether the
+letter-sound dose-gain slope varies by period (#135).
+
+::: {.callout-note title="What this estimand is, and is not"}
+
+The per-period session count is the **exposure** (`IS`): this is the **ID-3
+observational dose-response**, **confounded by GA -> IS**, and must be read as an
+*adjusted association* - never "more sessions cause more gain". The DiD machinery
+adjusts only `{IG, A}` and **never conditions on cumulative sessions**
+(`attend_cumul`, the `IS` collider). Only the randomised contrast (the ITT
+LRPITT07, or the DiD arm term LRPDID02) is causal.
+
+:::
+
+::: {.callout-note title="Sign convention and the ceiling"}
+
+Positive => the intervention helps. The Beta-Binomial **logit** link absorbs
+ceiling effects: an immediate-arm child near the top of a bounded test makes a
+small P2 gain *expected*, not a spurious negative time trend - which is exactly the
+failure mode of a raw-gain DiD on the count scale.
+
+:::
+
+## Model
+
+$$
+\eta_{i,p} = \alpha + \beta_{\text{period}}\,[p = \text{P2}]
+           + \beta_{\text{dose}}\,z(\text{sessions}_{i,p})
+           + \gamma_{\text{own}}\,\text{logit}_*(L_{\mathrm{pre},i,p}, N)
+           + \gamma_A\,A_{\text{std},i,p} + u_{\text{child},i},
+$$
+
+with Beta-Binomial likelihood on the period post-count, $N = 32$. `sessions` is
+the standardised per-period intervention-session count. Priors follow the shared
+template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.png){width=32%}
+![tau](prior_tau.png){width=32%}
+![gamma_own](prior_gamma_own.png){width=32%}
+![gamma_age](prior_gamma_age.png){width=32%}
+![kappa](prior_kappa.png){width=32%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Crossover / DiD dose-response summary
+
+```{python}
+# | echo: false
+did_summary
+```
+
+- `beta_dose_*`: the pooled session-dose slope on the logit scale (effect per 1 SD
+  of intervention sessions; mean, equal-tailed central interval at coverage
+  `ci_prob`).
+- `beta_period_*`: the period (time/maturation) anchor from the immediate arm.
+- `prob_*_pos`: posterior probability the coefficient is positive.
+
+Read `beta_dose` as an **adjusted association**, not a causal dose effect (see the
+estimand note). The period-resolved counterpart and the nested LOO test live in
+LRPDID07 and the cross-model comparison (`did_dose_loo_compare.csv`).
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
