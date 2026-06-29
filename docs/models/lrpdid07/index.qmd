@@ -1,0 +1,160 @@
+---
+title: "LRPDID07: Waitlist-crossover (DiD) period-resolved session-dose response on letter-sound knowledge (L)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (GitHub Copilot).
+:::
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+dose_slope_summary = pd.read_csv(_here / "dose_slope_summary.csv")
+```
+
+## Overview
+
+LRPDID07 is the **period-resolved session-dose response** on letter-sound
+knowledge (YARC-LSK, `yarclet`) - the letter-sound analogue of LRPDID06's
+word-reading dose model, with the dose slope **resolved by period**. It reuses
+LRPDID02's identification (the phase-stacked waitlist-crossover frame, each child
+their own control, the immediate arm anchoring the time/maturation trend) and
+enters the standardised per-period intervention-session count with
+**partial-pooled per-period slopes** `beta_dose_phase[p] = mu_dose + sigma_dose *
+z_p`.
+
+::: {.callout-note title="The question this answers"}
+
+Does the dose-gain slope vary by period? The answer is **not** read off this
+single fit - it is the **nested PSIS-LOO** of LRPDID07 (period-varying) against
+LRPDID07base (pooled dose) in `did_dose_loo_compare.csv`. The word-reading
+analogue (LRP77) found the slope **constant across periods** (LOO preferred the
+pooled model), so the most likely outcome here is "no period variation at this n"
+- itself a useful negative result.
+
+:::
+
+::: {.callout-note title="What this estimand is, and is not"}
+
+The per-period session count is the **exposure** (`IS`): this is the **ID-3
+observational dose-response**, **confounded by GA -> IS**, and must be read as an
+*adjusted association* - never "more sessions cause more gain". The DiD machinery
+adjusts only `{IG, A}` and **never conditions on cumulative sessions**
+(`attend_cumul`, the `IS` collider) - the conditioning that closed PR #108. Only
+the randomised contrast (the ITT LRPITT07, or the DiD arm term LRPDID02) is causal.
+
+:::
+
+::: {.callout-note title="Sign convention and the ceiling"}
+
+Positive => the intervention helps. The Beta-Binomial **logit** link absorbs
+ceiling effects: an immediate-arm child near the top of a bounded test makes a
+small P2 gain *expected*, not a spurious negative time trend - which is exactly the
+failure mode of a raw-gain DiD on the count scale.
+
+:::
+
+## Model
+
+$$
+\eta_{i,p} = \alpha + \beta_{\text{period}}\,[p = \text{P2}]
+           + \beta_{\text{dose},p}\,z(\text{sessions}_{i,p})
+           + \gamma_{\text{own}}\,\text{logit}_*(L_{\mathrm{pre},i,p}, N)
+           + \gamma_A\,A_{\text{std},i,p} + u_{\text{child},i},
+$$
+
+with $\beta_{\text{dose},p} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$
+(non-centred, partial-pooled across periods) and a Beta-Binomial likelihood on the
+period post-count, $N = 32$. `sessions` is the standardised per-period
+intervention-session count. Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+## Shared priors
+
+![alpha](prior_alpha.png){width=32%}
+![tau](prior_tau.png){width=32%}
+![gamma_own](prior_gamma_own.png){width=32%}
+![gamma_age](prior_gamma_age.png){width=32%}
+![kappa](prior_kappa.png){width=32%}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Period-resolved dose-slope summary
+
+```{python}
+# | echo: false
+dose_slope_summary
+```
+
+- `dose_overall`: the shared mean dose slope `mu_dose` (logit per 1 SD sessions).
+- `dose_period1` / `dose_period2`: the partial-pooled per-period slopes
+  `beta_dose_phase[p]`.
+- `sigma_dose_between_period`: the between-period SD of the slopes - the direct
+  read on how much the dose effect moves across periods (near zero => pooled).
+
+Each is an **adjusted association** (see the estimand note). Whether the
+period-varying structure is warranted at all is decided by the nested PSIS-LOO vs
+LRPDID07base (`did_dose_loo_compare.csv`): if LOO prefers the pooled model, quote
+`dose_overall` and stop.
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

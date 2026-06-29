@@ -996,9 +996,16 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
 
 def _did_diag_vars(spec: ModelSpec) -> list[str]:
-    """Scalar coefficients to summarise for a crossover/DiD fit, given the spec."""
+    """Coefficients to summarise for a crossover/DiD fit, given the spec."""
     dose = bool(spec.extra.get("dose", False))
-    v = ["alpha", "beta_period", "beta_dose" if dose else "delta", "gamma_own", "kappa"]
+    period_varying = dose and bool(spec.extra.get("period_varying_dose", False))
+    if not dose:
+        dose_vars = ["delta"]
+    elif period_varying:
+        dose_vars = ["mu_dose", "sigma_dose", "beta_dose_phase"]
+    else:
+        dose_vars = ["beta_dose"]
+    v = ["alpha", "beta_period", *dose_vars, "gamma_own", "kappa"]
     if spec.extra.get("use_age", True):
         v.append("gamma_A")
     if spec.extra.get("use_child_re", True):
@@ -1015,6 +1022,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Prepare data")
     sym = spec.outcome_symbol
     dose = bool(spec.extra.get("dose", False))
+    period_varying = dose and bool(spec.extra.get("period_varying_dose", False))
     # Phase-stacked frame; load only this outcome so the complete-case mask does
     # not drop rows for measures the model never uses. The dose variant also needs
     # the per-period intervention-session count.
@@ -1036,6 +1044,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_child_re=spec.extra.get("use_child_re", True),
         use_age=spec.extra.get("use_age", True),
         dose=dose,
+        period_varying_dose=period_varying,
     )
     _attach_built(ctx, built)
 
@@ -1052,33 +1061,53 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _run_ppc(ctx)
     _diag.save_trace(ctx)
 
-    section_header("Crossover / DiD treatment-effect summary")
-    from language_reading_predictors.statistical_models.measures import MEASURES
-
-    did_s = _report.did_summary(
-        ctx.trace,
-        ci_prob=ctx.reporting.hdi,
-        n_trials=MEASURES[sym].n_trials,
-        dose=dose,
-    )
-    did_df = pd.DataFrame([did_s])
-    did_df.to_csv(os.path.join(ctx.output_dir, "did_summary.csv"), index=False)
-    ctx.tables["did_summary"] = did_df
-    print_table(
-        metrics_table(
-            [{"metric": k, "value": v} for k, v in did_s.items()],
-            title=(
-                f"crossover/DiD effect ({sym}) - {int(ctx.reporting.hdi * 100)}% CI "
-                "(equal-tailed); positive = intervention helps"
-            ),
-            columns=["metric", "value"],
+    if period_varying:
+        # Period-resolved dose readout (#135): partial-pooled per-period dose
+        # slopes + a between-period SD, written by the shared dose-slope summary.
+        # The headline question — does the L dose-gain slope vary by period? — is
+        # answered by the nested PSIS-LOO vs the pooled comparator (lrpdid07base)
+        # in compare_statistical_models.py, not by this single-fit table.
+        section_header("Period-resolved dose-slope summary")
+        _write_dose_slope_summary(ctx, period_varying=True)
+        _report.write_run_metadata(
+            ctx,
+            extra={
+                "loo_elpd": float(ctx.loo.elpd),
+                "dose": dose,
+                "period_varying_dose": True,
+                "dose_slope_summary": ctx.tables["dose_slope_summary"].to_dict(
+                    "records"
+                ),
+            },
         )
-    )
+    else:
+        section_header("Crossover / DiD treatment-effect summary")
+        from language_reading_predictors.statistical_models.measures import MEASURES
 
-    _report.write_run_metadata(
-        ctx,
-        extra={"loo_elpd": float(ctx.loo.elpd), "did_summary": did_s, "dose": dose},
-    )
+        did_s = _report.did_summary(
+            ctx.trace,
+            ci_prob=ctx.reporting.hdi,
+            n_trials=MEASURES[sym].n_trials,
+            dose=dose,
+        )
+        did_df = pd.DataFrame([did_s])
+        did_df.to_csv(os.path.join(ctx.output_dir, "did_summary.csv"), index=False)
+        ctx.tables["did_summary"] = did_df
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in did_s.items()],
+                title=(
+                    f"crossover/DiD effect ({sym}) - {int(ctx.reporting.hdi * 100)}% CI "
+                    "(equal-tailed); positive = intervention helps"
+                ),
+                columns=["metric", "value"],
+            )
+        )
+
+        _report.write_run_metadata(
+            ctx,
+            extra={"loo_elpd": float(ctx.loo.elpd), "did_summary": did_s, "dose": dose},
+        )
 
     return _finalize_report(ctx)
 

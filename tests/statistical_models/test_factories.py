@@ -810,6 +810,28 @@ def test_did_factory_toggles_and_dose(tmp_path):
     assert "beta_dose" in dnames and "delta" not in dnames
 
 
+def test_did_factory_period_varying_dose(tmp_path):
+    """period_varying_dose swaps the pooled beta_dose for partial-pooled per-period slopes (#135)."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    prep.covariates["attend"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    pv = build_did_model(
+        prep, outcome_symbol="W", dose=True, period_varying_dose=True
+    )
+    free = {v.name for v in pv.model.free_RVs}
+    dets = {v.name for v in pv.model.deterministics}
+    assert {"mu_dose", "sigma_dose", "beta_dose_phase_raw"}.issubset(free)
+    assert "beta_dose_phase" in dets and "beta_dose" not in free
+    # One partial-pooled slope per kept period (P1, P2).
+    assert pv.model["beta_dose_phase"].eval().shape == (2,)
+    with pv.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=33)
+    assert pp.prior_predictive["y_post"].shape[-1] == pv.prepared.n_obs
+    # period_varying_dose requires dose=True.
+    with pytest.raises(ValueError):
+        build_did_model(prep, outcome_symbol="W", period_varying_dose=True)
+
+
 def test_did_factory_requires_all_phase_mode(tmp_path):
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="itt")

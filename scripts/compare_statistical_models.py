@@ -75,6 +75,13 @@ AGE_LOO_IDS: list[str] = ["lrp73", "lrp73base"]
 # test of whether the dose-gain slope varies by period.
 DOSE_LOO_IDS: list[str] = ["lrp77", "lrp77base"]
 
+# DiD period-resolved letter-sound dose (LRPDID07, #135): the period-varying dose
+# model vs its pooled-dose comparator, same letter-sound outcome and rows — a
+# nested PSIS-LOO test of whether the L dose-gain slope varies by period (the
+# DAG-clean DiD analogue of the LRP77 word-reading test; never conditions on the
+# IS collider attend_cumul).
+DID_DOSE_LOO_IDS: list[str] = ["lrpdid07", "lrpdid07base"]
+
 
 def _run_dir(model_id: str, config: str) -> str:
     return os.path.join(STAT_OUTPUT_DIR, "models", f"{model_id}-{config}")
@@ -376,6 +383,11 @@ def dose_response_loo_compare(config: str, out_path: str) -> bool:
     return _loo_compare(DOSE_LOO_IDS, config, out_path)
 
 
+def did_dose_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRPDID07 vs its pooled comparator (does the L dose vary by period?)."""
+    return _loo_compare(DID_DOSE_LOO_IDS, config, out_path)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -432,6 +444,12 @@ def main() -> None:
         print(f"Wrote {dose_path}")
     else:
         print("Skipping dose-response LOO compare: LRP77 / LRP77base runs missing.")
+
+    did_dose_path = os.path.join(args.out, "did_dose_loo_compare.csv")
+    if did_dose_loo_compare(args.config, did_dose_path):
+        print(f"Wrote {did_dose_path}")
+    else:
+        print("Skipping DiD L-dose LOO compare: LRPDID07 / LRPDID07base runs missing.")
 
 
 if __name__ == "__main__":
