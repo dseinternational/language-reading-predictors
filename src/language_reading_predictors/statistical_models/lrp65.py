@@ -23,9 +23,10 @@ subsequent word-reading gain - i.e. its partial association with the full-study
 gain ``W_post | W_pre`` (pre = T1), holding the other measured T1 baselines
 constant, *across children*.
 
-This is an association, NOT a causal effect: n ~ 54, observational contrasts
-between children. The randomised ITT models (LRP52 / LRP55) carry the causal claim
-about the programme; LRP65 is about *which starting skills go with more gain*.
+This is an association, NOT a causal effect: n ~ 51, observational contrasts
+between children. The randomised word-reading ITT (now ``lrpitt10``, which supersedes
+LRP52; the randomised gain-side coefficient lives in ``lrpgf01``) carries the causal
+claim about the programme; LRP65 is about *which starting skills go with more gain*.
 
 Estimand <-> design (the decision the DAG gate settles)
 -------------------------------------------------------
@@ -67,7 +68,7 @@ fitted model is a regression, not a latent-factor SEM).
 Report each predictor's adjusted coefficient alongside its bivariate (total)
 association, so the shared-variance shift is visible. Prediction to test (NOT the
 assumed result): letter sounds + the language composite retain credible signal;
-non-verbal MA / SES / behaviour shrink toward zero. Wide intervals at n ~ 54 are
+non-verbal MA / SES / behaviour shrink toward zero. Wide intervals at n ~ 51 are
 the honest result.
 """
 
@@ -98,7 +99,7 @@ _EDGE_LIST: list[tuple[str, str]] = [
     ("ses", "g"),
     # Age acts *through* general ability (developmental level), not directly on
     # the individual skills — the apparent direct age->skill link was an
-    # over-adjustment artefact (shared DAG v5). A direct age->gain edge remains
+    # over-adjustment artefact (locked DAG, notes/202606231600-dag-revision-consolidated.md). A direct age->gain edge remains
     # (younger children gain more, net of baseline).
     ("age", "g"),
     ("age", "wgain"),

@@ -1430,7 +1430,7 @@ def build_adjusted_model(
 ) -> BuiltModel:
     """Between-child adjusted model: standardised T1 baselines -> word-reading gain.
 
-    One row per child (``prepared.phase_mode == "span"``). The outcome post-score
+    One row per child (``prepared.phase_mode`` in ``{"span", "itt"}``). The outcome post-score
     (``outcome_symbol`` at the span's later wave) is conditioned on its own T1
     baseline via ``gamma_own`` - the gain framing shared with the mechanism
     models. Each predictor enters as a single **standardised** linear term with a

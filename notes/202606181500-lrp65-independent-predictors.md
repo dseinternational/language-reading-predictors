@@ -1,8 +1,11 @@
 # LRP65 — independent baseline predictors of word-reading gain (between-child)
 
+> [!NOTE]
+> Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+
 > [!WARNING]
-> AI-assisted analysis. Reporting-tier fit (DAG review, PR #87). Between-child
-> associations at n = 51, not causal. Not for citation.
+> Reporting-tier fit (DAG review, PR #87). Between-child associations at n = 51, not
+> causal. Not for citation.
 
 Date: 2026-06-18
 
@@ -26,7 +29,7 @@ predictor" is ambiguous.
 - **Estimand (locked):** the mutually-adjusted **between-child** association of each
   wave-1 baseline with word-reading gain. DAG drawn first (latent general ability
   `g`, drawn not fitted, drives the correlated baselines); see PR #87 / `docs/models/lrp65/dag.svg`.
-  This DAG is a **subset of the shared DAG v5** (`notes/202606221200-shared-dag-v5.md`):
+  This DAG is a **subset of the locked DAG** (`notes/202606231600-dag-revision-consolidated.md`):
   age acts *through* `g` (no direct age→skill edges) and the intervention/dose arm
   is omitted because LRP65 is a between-child predictor model, not ITT.
 - **Design (locked):** genuinely between-child — **one row per child** ($n = 51$; 2 of 53 children dropped for a missing baseline covariate),
@@ -80,7 +83,7 @@ predictor" is ambiguous.
 ## Honest reading
 
 - **Between-child associations, $n \approx 51$ — not causal effects.** The randomised
-  ITT models (LRP52/55) are the causal evidence that the *programme* works; LRP65 is
+  the word-reading ITT (now `lrpitt10`, superseding LRP52) is the causal evidence that the *programme* works; LRP65 is
   about *which starting skills go with more gain*.
 - Wide intervals are the honest result: even the headline predictors' 94% intervals
   cross (or nearly cross) zero at this n. Read the *pattern* (which predictors survive

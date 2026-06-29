@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 ::: {.callout-warning title="Warning: Preliminary model output"}
 
 This model output is preliminary and likely to change as the model evolves and further data are received.
@@ -72,10 +76,19 @@ word reading at the last wave conditioned on $W_{\text{T1}}$ (the gain framing).
 is deliberately **no** child random intercept: with one row per child the coefficients
 are genuinely between-child. A pooled all-phase design with a child random intercept
 would instead estimate the *within-child* association — a different question (handled by
-the deferred cross-lagged model), so it is **not** used here.
+the deferred cross-lagged model), so it is **not** used here. The trade-off is explicit:
+dropping the intercept also **forgoes the partial latent-ability repair** it provides in
+the `gain_factors`/`level_factors` and DiD families (locked DAG ID-2; DiD design note
+Decision 4). With general ability `GA` latent, this pure between-child contrast is fully
+exposed to time-invariant ability confounding with **no repair available** — so the
+no-intercept design is the cleaner *match to the between-child estimand*, not a cleaner
+causal contrast. (This is also why it stays a standalone `lrp65` rather than folding into
+the `lrpgf` family: those pool the three period transitions with a child intercept — a
+within+between blend — whereas this is the one-row-per-child between-child estimand.)
 
-These are **associations, not causal effects** (n ≈ 51). The randomised ITT models
-(LRP52/55) carry the causal claim about the programme.
+These are **associations, not causal effects** (n ≈ 51). The randomised word-reading ITT
+(now `lrpitt10`, which supersedes LRP52; the randomised gain-side coefficient lives in
+`lrpgf01`) carries the causal claim about the programme.
 
 :::
 
