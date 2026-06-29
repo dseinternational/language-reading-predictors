@@ -60,6 +60,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_aligned,
     load_and_prepare_lagged_outcome,
+    load_wave_panel,
 )
 
 
@@ -2222,6 +2223,549 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             "mediators": list(mediators),
             "n_trials_W": med_data.n_trials_W,
             "mediation": _summary,
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# Adjusted pipeline (LRP65) — between-child baseline predictors of gain
+# ---------------------------------------------------------------------------
+
+# Human-readable labels for the LRP65 predictor keys (for tables / forest plot).
+_ADJ_LABELS = {
+    "L": "Letter sounds (T1)",
+    "lang": "Language composite (T1)",
+    "B": "Blending (T1)",
+    "age": "Age (T1)",
+    "blocks": "Non-verbal MA (T1)",
+    "behav": "Behaviour (T1)",
+    "mumedupost16": "SES: mother post-16 educ.",
+    "dadedupost16": "SES: father post-16 educ.",
+}
+
+
+def _adj_label(key: str) -> str:
+    return _ADJ_LABELS.get(key, key)
+
+
+def _sample_model(model, sampling):
+    """Sample a sub-model (bivariate / sensitivity / prior-sweep) with nutpie.
+
+    Mirrors :func:`diagnostics.sample_posterior` but is standalone, so the sub-fit
+    traces never overwrite the headline ``ctx.trace`` / ``trace.nc``.
+    """
+    import pymc as pm
+
+    with model:
+        return pm.sample(
+            draws=sampling.draws,
+            tune=sampling.tune,
+            chains=sampling.chains,
+            cores=sampling.cores,
+            target_accept=sampling.target_accept,
+            nuts_sampler="nutpie",
+            return_inferencedata=True,
+            random_seed=sampling.random_seed,
+            progressbar=False,
+        )
+
+
+def _beta_summary(trace, name: str, hdi: float) -> dict:
+    """Posterior mean, equal-tailed ``hdi``-coverage interval, and P(>0) for ``name``."""
+    draws = trace.posterior[name].stack(sample=("chain", "draw")).values
+    lo_q, hi_q = (1 - hdi) / 2, 1 - (1 - hdi) / 2
+    return {
+        "mean": float(np.mean(draws)),
+        "lo": float(np.quantile(draws, lo_q)),
+        "hi": float(np.quantile(draws, hi_q)),
+        "prob_pos": float(np.mean(draws > 0)),
+    }
+
+
+def _plot_associations(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float) -> None:
+    y = np.arange(len(df))[::-1]
+    plt.figure(figsize=(7.0, 0.6 * len(df) + 1.6))
+    plt.errorbar(
+        df["adj_mean"], y + 0.12,
+        xerr=[df["adj_mean"] - df["adj_lo"], df["adj_hi"] - df["adj_mean"]],
+        fmt="o", color="#1f77b4", capsize=3, label="adjusted (mutual)",
+    )
+    plt.errorbar(
+        df["biv_mean"], y - 0.12,
+        xerr=[df["biv_mean"] - df["biv_lo"], df["biv_hi"] - df["biv_mean"]],
+        fmt="s", color="#999999", capsize=3, label="bivariate (baseline-only)",
+    )
+    plt.axvline(0.0, color="grey", ls=":", lw=1)
+    plt.yticks(y, df["label"])
+    plt.xlabel(
+        f"Standardised coefficient (per-SD, logit scale); {int(hdi * 100)}% interval"
+    )
+    plt.title("LRP65: baseline predictors of word-reading gain (between-child)")
+    plt.legend(fontsize=8, loc="best")
+    plt.savefig(
+        os.path.join(ctx.output_dir, "predictor_associations.png"),
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close()
+
+
+def _natural_scale_contrasts(
+    ctx: StatisticalFitContext, prepared, headline: list, outcome: str, hdi: float
+) -> pd.DataFrame:
+    """Predicted +1 SD contrast for each predictor on the natural (words) scale.
+
+    For two children with the *same* baseline word reading (held at the sample
+    mean) who differ by one standard deviation on a single predictor (others at
+    their mean), the model-implied difference in word-reading count at the final
+    wave — i.e. the differential gain, in words out of ``N``. Computed per
+    posterior draw then summarised, so the interval carries the full uncertainty.
+    This turns the per-SD logit coefficients into something a teacher can read.
+    """
+    from scipy.special import expit
+
+    post = ctx.trace.posterior
+    N = prepared.n_trials[outcome]
+    mean_pre_logit = float(np.mean(prepared.pre_logit[outcome]))
+
+    def draws(name: str) -> np.ndarray:
+        return post[name].stack(sample=("chain", "draw")).values
+
+    # All standardised predictors at their mean (z = 0); baseline at sample mean.
+    base_eta = draws("alpha") + draws("gamma_own") * mean_pre_logit
+    base_words = N * expit(base_eta)
+
+    lo_q, hi_q = (1 - hdi) / 2, 1 - (1 - hdi) / 2
+    rows = []
+    for k in headline:
+        delta = N * expit(base_eta + draws(f"beta_{k}")) - base_words
+        rows.append(
+            {
+                "predictor": k,
+                "label": _adj_label(k),
+                "delta_words_mean": float(np.mean(delta)),
+                "delta_words_lo": float(np.quantile(delta, lo_q)),
+                "delta_words_hi": float(np.quantile(delta, hi_q)),
+                "prob_pos": float(np.mean(delta > 0)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
+    """Per-child PSIS-LOO Pareto-k, to flag whether a few children drive the fit.
+
+    Returns ``(dataframe, threshold, n_flagged)`` — the per-child k sorted
+    descending (aligned to ``subject_ids``), the ``good_k`` threshold, and how
+    many children exceed it. At n ~ 51 this guards against a headline association
+    resting on 2-3 influential children. Returns ``(None, None, None)`` if the
+    LOO object exposes no per-observation k.
+    """
+    if ctx.loo is None or getattr(ctx.loo, "pareto_k", None) is None:
+        return None, None, None
+    k = np.asarray(ctx.loo.pareto_k).ravel()
+    ids = np.asarray(ctx.prepared.subject_ids)
+    if len(k) != len(ids):
+        return None, None, None
+    thr = float(getattr(ctx.loo, "good_k", 0.7) or 0.7)
+    df = (
+        pd.DataFrame({"subject_id": ids, "pareto_k": k})
+        .sort_values("pareto_k", ascending=False)
+        .reset_index(drop=True)
+    )
+    return df, thr, int((k > thr).sum())
+
+
+def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Between-child adjusted fit (LRP65): independent T1 predictors of gain.
+
+    Headline = the mutually-adjusted between-child regression (one row per child,
+    T1 baselines, full-study gain ``W_last | W_T1``). Also fits, per the brief:
+    the bivariate (baseline-only-adjusted) association for each predictor; a
+    prior-sensitivity sweep over the predictor-slope sigma; and a complete-case
+    SES sensitivity fit. Writes ``predictor_associations.csv`` (+ forest plot),
+    ``prior_sensitivity.csv`` and ``ses_sensitivity.csv`` alongside the standard
+    trace / diagnostics / LOO / PPC artefacts.
+    """
+    assert spec.kind == "adjusted"
+    e = spec.extra
+    outcome = spec.outcome_symbol or "W"
+    post_time = int(e.get("post_time", 4))
+    predictor_symbols = list(e.get("predictor_symbols", ["L", "B"]))
+    lang_symbols = tuple(e.get("language_composite_symbols", ["R", "E", "F"]))
+    covariates = list(e.get("covariates", ["blocks", "behav"]))
+    ses_covs = list(e.get("ses_covariates", ["mumedupost16"]))
+    sigma0 = float(e.get("predictor_slope_sigma", 0.5))
+    prior_sens = list(e.get("prior_sensitivity_sigmas", [0.3, 0.7]))
+    use_age = bool(e.get("use_age_predictor", True))
+
+    # Headline predictor key order: skills, language composite, age, covariates.
+    headline = (
+        list(predictor_symbols)
+        + ["lang"]
+        + (["age"] if use_age else [])
+        + covariates
+    )
+
+    # 94% intervals (the brief's convention) rather than the project-wide 95%.
+    ctx = make_context(spec, config, ci_prob=0.94)
+    hdi = ctx.reporting.hdi
+
+    section_header("Prepare data")
+    measure_outcomes = tuple(
+        dict.fromkeys([outcome, *predictor_symbols, *lang_symbols])
+    )
+    prepared = load_and_prepare(
+        phase_mode="span",
+        post_time=post_time,
+        outcomes=measure_outcomes,
+        covariates=tuple(covariates),
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    _priors.save_shared_prior_panel(ctx.output_dir)
+    built = _factories.build_adjusted_model(
+        prepared,
+        outcome_symbol=outcome,
+        predictors=headline,
+        language_composite_symbols=lang_symbols,
+        predictor_slope_sigma=sigma0,
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    beta_names = [f"beta_{k}" for k in headline]
+    _diag.summary_diagnostics(
+        ctx, var_names=["alpha", "gamma_own", "kappa", *beta_names]
+    )
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    # --- Adjusted vs bivariate associations --------------------------------
+    section_header("Predictor associations (adjusted vs bivariate)")
+    adjusted = {k: _beta_summary(ctx.trace, f"beta_{k}", hdi) for k in headline}
+    bivariate: dict[str, dict] = {}
+    for k in headline:
+        b = _factories.build_adjusted_model(
+            prepared,
+            outcome_symbol=outcome,
+            predictors=[k],
+            language_composite_symbols=lang_symbols,
+            predictor_slope_sigma=sigma0,
+        )
+        t = _sample_model(b.model, ctx.sampling)
+        bivariate[k] = _beta_summary(t, f"beta_{k}", hdi)
+
+    rows = []
+    for k in headline:
+        a, bv = adjusted[k], bivariate[k]
+        rows.append(
+            {
+                "predictor": k,
+                "label": _adj_label(k),
+                "adj_mean": a["mean"],
+                "adj_lo": a["lo"],
+                "adj_hi": a["hi"],
+                "adj_prob_pos": a["prob_pos"],
+                "biv_mean": bv["mean"],
+                "biv_lo": bv["lo"],
+                "biv_hi": bv["hi"],
+                "biv_prob_pos": bv["prob_pos"],
+            }
+        )
+    assoc_df = pd.DataFrame(rows)
+    assoc_df.to_csv(
+        os.path.join(ctx.output_dir, "predictor_associations.csv"), index=False
+    )
+    ctx.tables["predictor_associations"] = assoc_df
+    print_table(
+        ranked_dataframe_table(
+            assoc_df,
+            title=(
+                f"Predictor associations (per-SD, logit; {int(hdi * 100)}% interval)"
+            ),
+            columns=[
+                "label", "adj_mean", "adj_lo", "adj_hi", "adj_prob_pos",
+                "biv_mean", "biv_lo", "biv_hi",
+            ],
+            rank_column=False,
+            precision=3,
+        )
+    )
+    _plot_associations(ctx, assoc_df, hdi)
+
+    # --- Prior sensitivity (does the clear-zero conclusion move?) ----------
+    section_header("Prior sensitivity")
+    ps_rows = []
+    for sig in [sigma0, *prior_sens]:
+        if sig == sigma0:
+            tr = ctx.trace
+        else:
+            b = _factories.build_adjusted_model(
+                prepared,
+                outcome_symbol=outcome,
+                predictors=headline,
+                language_composite_symbols=lang_symbols,
+                predictor_slope_sigma=sig,
+            )
+            tr = _sample_model(b.model, ctx.sampling)
+        for k in headline:
+            ps_rows.append(
+                {"sigma": sig, "predictor": k, **_beta_summary(tr, f"beta_{k}", hdi)}
+            )
+    ps_df = pd.DataFrame(ps_rows)
+    ps_df.to_csv(os.path.join(ctx.output_dir, "prior_sensitivity.csv"), index=False)
+    ctx.tables["prior_sensitivity"] = ps_df
+
+    # --- SES complete-case sensitivity -------------------------------------
+    section_header("SES sensitivity (complete cases)")
+    ses_df = None
+    ses_n = None
+    try:
+        prepared_ses = load_and_prepare(
+            phase_mode="span",
+            post_time=post_time,
+            outcomes=measure_outcomes,
+            covariates=tuple(covariates + ses_covs),
+        )
+        b = _factories.build_adjusted_model(
+            prepared_ses,
+            outcome_symbol=outcome,
+            predictors=headline + ses_covs,
+            language_composite_symbols=lang_symbols,
+            predictor_slope_sigma=sigma0,
+        )
+        t = _sample_model(b.model, ctx.sampling)
+        ses_n = int(b.prepared.n_children)
+        ses_rows = [
+            {
+                "predictor": k,
+                "label": _adj_label(k),
+                "n_children": ses_n,
+                **_beta_summary(t, f"beta_{k}", hdi),
+            }
+            for k in headline + ses_covs
+        ]
+        ses_df = pd.DataFrame(ses_rows)
+        ses_df.to_csv(
+            os.path.join(ctx.output_dir, "ses_sensitivity.csv"), index=False
+        )
+        ctx.tables["ses_sensitivity"] = ses_df
+        rprint(f"  SES sensitivity fit on {ses_n} complete-case children")
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]SES sensitivity fit skipped: {exc}[/yellow]")
+
+    # --- Natural-scale interpretation (predicted gain, in words) -----------
+    section_header("Predicted gain on the natural (words) scale")
+    words_df = _natural_scale_contrasts(ctx, ctx.prepared, headline, outcome, hdi)
+    words_df.to_csv(
+        os.path.join(ctx.output_dir, "predicted_gain_words.csv"), index=False
+    )
+    ctx.tables["predicted_gain_words"] = words_df
+    print_table(
+        ranked_dataframe_table(
+            words_df,
+            title=(
+                f"Predicted differential gain per +1 SD (words out of "
+                f"{ctx.prepared.n_trials[outcome]}; {int(hdi * 100)}% interval)"
+            ),
+            columns=[
+                "label", "delta_words_mean", "delta_words_lo",
+                "delta_words_hi", "prob_pos",
+            ],
+            rank_column=False,
+            precision=2,
+        )
+    )
+
+    # --- Influence (does the fit rest on a few children?) ------------------
+    section_header("Influence (PSIS-LOO Pareto-k)")
+    infl_df, k_thr, n_flagged = _influence_diagnostics(ctx)
+    if infl_df is not None:
+        infl_df.to_csv(os.path.join(ctx.output_dir, "influence.csv"), index=False)
+        ctx.tables["influence"] = infl_df
+        rprint(
+            f"  max Pareto-k = {infl_df['pareto_k'].max():.2f}; "
+            f"{n_flagged} of {len(infl_df)} children exceed k = {k_thr:.2f}"
+        )
+    else:
+        rprint("[yellow]Pareto-k unavailable from LOO; influence check skipped[/yellow]")
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
+            "design": "between_child",
+            "post_time": post_time,
+            "predictors": headline,
+            "predictor_slope_sigma": sigma0,
+            "prior_sensitivity_sigmas": prior_sens,
+            "language_composite_symbols": list(lang_symbols),
+            "n_children": int(ctx.prepared.n_children),
+            "ses_n_children": ses_n,
+            "associations": rows,
+            "predicted_gain_words": words_df.to_dict("records"),
+            "max_pareto_k": (
+                float(infl_df["pareto_k"].max()) if infl_df is not None else None
+            ),
+            "n_pareto_k_flagged": n_flagged,
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# Longitudinal dynamic pipeline (LRP67 LCSM)
+# ---------------------------------------------------------------------------
+
+
+def _coef_row(label: str, draws, hdi_prob: float) -> dict:
+    """Posterior mean, equal-tailed central interval and ``P(coef > 0)``.
+
+    Equal-tailed quantiles at coverage ``hdi_prob`` — the same convention as
+    :func:`reporting.tau_summary_itt` (not a highest-density interval).
+    """
+    d = np.asarray(draws).reshape(-1)
+    lo_q = (1 - hdi_prob) / 2
+    return {
+        "coefficient": label,
+        "mean": float(np.mean(d)),
+        "lo": float(np.quantile(d, lo_q)),
+        "hi": float(np.quantile(d, 1 - lo_q)),
+        "prob_pos": float(np.mean(d > 0)),
+    }
+
+
+def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Latent change-score model (LRP67).
+
+    Fits the coupled McArdle latent change-score model with process noise and
+    reports the reading-change coupling table — the within-trajectory analogue
+    of LRP65's between-child predictors of reading gain.
+    """
+    assert spec.kind == "lcsm"
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    outcomes = tuple(spec.extra.get("outcomes", ("W", "L", "E")))
+    reading_symbol = spec.outcome_symbol or "W"
+    panel = load_wave_panel(outcomes=outcomes)
+    ctx.prepared = panel
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_lcsm_model(
+        panel,
+        reading_symbol=reading_symbol,
+        coupling_prior_sigma=spec.extra.get("coupling_prior_sigma", 0.5),
+        use_process_noise=spec.extra.get("use_process_noise", True),
+        shared_process_noise=spec.extra.get("shared_process_noise", False),
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    cross = [s for s in outcomes if s != reading_symbol]
+    diag_vars = [f"g_{s}" for s in cross]
+    diag_vars += ["a_change", "b_self", "d_age", "sigma1", "kappa"]
+    if spec.extra.get("use_process_noise", True):
+        diag_vars.append("sigma_proc")
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_obs"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_obs"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    # Reading-change coupling table — the headline "what predicts reading
+    # change" output and the basis for the LRP65 (between-child) sanity-check.
+    section_header("Reading-change coupling summary")
+    post = ctx.trace.posterior
+    rows = [
+        _coef_row(
+            f"g_{s} (prior {s} -> {reading_symbol} change)",
+            post[f"g_{s}"].values,
+            ctx.reporting.hdi,
+        )
+        for s in cross
+    ]
+    for name, label in (
+        ("b_self", f"b_self[{reading_symbol}] (reading self-feedback)"),
+        ("a_change", f"a_change[{reading_symbol}] (reading baseline change)"),
+        ("d_age", f"d_age[{reading_symbol}] (age -> reading change)"),
+    ):
+        rows.append(
+            _coef_row(label, post[name].sel(outcome=reading_symbol).values, ctx.reporting.hdi)
+        )
+    coupling_df = pd.DataFrame(rows)
+    coupling_df.to_csv(os.path.join(ctx.output_dir, "coupling_summary.csv"), index=False)
+    ctx.tables["coupling_summary"] = coupling_df
+    print_table(
+        ranked_dataframe_table(
+            coupling_df,
+            title=(
+                f"Reading-change couplings - {int(ctx.reporting.hdi * 100)}% CI "
+                "(equal-tailed)"
+            ),
+            columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "outcomes": list(outcomes),
+            "reading_symbol": reading_symbol,
+            "coupling_summary": rows,
         },
     )
 

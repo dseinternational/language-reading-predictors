@@ -33,6 +33,8 @@ from language_reading_predictors.statistical_models import (
     lrp58,
     lrp59,
     lrp62,
+    lrp67,
+    lrp65,
     lrp64,
     lrp71,
     lrp72,
@@ -176,6 +178,11 @@ MODELS = {
     "lrp59": lrp59,
     # LRP62: reading-route decomposition (phonics-route composite mediation).
     "lrp62": lrp62,
+    # LRP67: latent change-score model — within-child predictors of reading
+    # change (the longitudinal extension of LRP65's between-child story).
+    "lrp67": lrp67,
+    # LRP65: between-child adjusted model — independent T1 predictors of gain.
+    "lrp65": lrp65,
     # LRP64: two-mediator decomposition (letter-sound + expressive vocab -> W).
     "lrp64": lrp64,
     # LRP70 (celf moderator) is reserved but deferred pending a DAG review of
