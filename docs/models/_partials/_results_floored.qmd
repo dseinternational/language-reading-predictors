@@ -1,0 +1,92 @@
+## Results — binary off-floor (PRIMARY)
+
+::: {.callout-important title="Floored outcome — binary off-floor estimand is PRIMARY"}
+
+This outcome is heavily floored at the post-score, so the pre-specified, arm-blind
+floor rule applies: the **PRIMARY** estimand is the average **risk difference in
+P(coming off the floor)** (a Bernoulli on `post > 0`), and a graded Beta-Binomial
+is reported only as a flagged, **detection-limited SECONDARY**. Positive = the
+intervention raises the probability of coming off the floor.
+
+:::
+
+```{python}
+# | echo: false
+tau_summary = _csv("tau_summary.csv")
+tau_summary
+```
+
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import odds_string as _odds
+
+if tau_summary is not None:
+    _t = tau_summary.iloc[0]
+    _lab = (
+        f", *{_t.direction_label} evidence*"
+        if "direction_label" in tau_summary.columns
+        else ""
+    )
+    print(
+        f"The intervention changed the probability of {outcome_label} coming off the "
+        f"floor by a risk difference of **{_t.tau_prob_mean * 100:+.1f} percentage points** "
+        f"(95% CrI {_t.tau_prob_lo * 100:+.1f} to {_t.tau_prob_hi * 100:+.1f}). "
+        f"P(intervention helps) = {_t.prob_tau_pos:.3f} ({_odds(_t.prob_tau_pos)}{_lab})."
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("tau_forest.png", "Posterior of the off-floor log-odds effect (forest)"))
+```
+
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import rope_markdown
+
+_rope = _csv("rope_summary.csv")
+if _rope is not None:
+    print(rope_markdown(_rope, f"P({outcome_label} off-floor)"))
+print(_img("rope_summary.png", "ROPE-anchored posterior (risk-difference scale)"))
+```
+
+### Off-floor movers by arm
+
+```{python}
+# | echo: false
+_csv("offfloor_movers.csv")
+```
+
+### Proportion-at-zero posterior-predictive check
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("proportion_at_zero_ppc.png", "Proportion-at-zero PPC (graded model)"))
+```
+
+```{python}
+# | echo: false
+_csv("proportion_at_zero_ppc.csv")
+```
+
+The graded Beta-Binomial typically cannot reproduce the observed floor (a low
+posterior-predictive p-value), which is the motivation for the binary primary
+estimand.
+
+### Graded Beta-Binomial effect (SECONDARY, detection-limited)
+
+::: {.callout-warning title="Detection-limited secondary"}
+
+The graded effect below is reported for completeness only; with most post-scores at
+the floor the graded scale is poorly identified. Lead with the off-floor primary.
+
+:::
+
+```{python}
+# | echo: false
+_csv("tau_summary_graded.csv")
+```

@@ -15,31 +15,11 @@ format:
       - repo
 ---
 
-::: {.callout-warning title="Warning: Preliminary model output"}
+{{< include _partials/_header.qmd >}}
 
-This model output is preliminary and likely to change as the model evolves and further data are received.
+{{< include _partials/_setup.qmd >}}
 
-If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
-
-:::
-
-```{python}
-# | echo: false
-import json
-from pathlib import Path
-
-import arviz as az
-import pandas as pd
-
-_here = Path(".")
-with open(_here / "config.json") as f:
-    config = json.load(f)
-trace = az.from_netcdf(_here / "trace.nc")
-tau_offfloor = pd.read_csv(_here / "tau_summary.csv")  # PRIMARY (binary off-floor)
-movers = pd.read_csv(_here / "offfloor_movers.csv")
-tau_graded = pd.read_csv(_here / "tau_summary_graded.csv")  # SECONDARY (graded)
-zero_ppc = pd.read_csv(_here / "proportion_at_zero_ppc.csv")
-```
+{{< include _partials/_convergence.qmd >}}
 
 ## Overview
 
@@ -85,91 +65,14 @@ $$
 SECONDARY (graded, detection-limited): the *same* age-only $\eta_i$ with a
 Beta-Binomial likelihood on the count, $N_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $N = 6$.
 
-![Model diagram (primary)](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram (primary)](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-## Shared priors
+{{< include _partials/_priors.qmd >}}
 
-![alpha](prior_alpha.svg){width=32%}
-![tau](prior_tau.svg){width=32%}
-![gamma_age](prior_gamma_age.svg){width=32%}
+{{< include _partials/_prior_predictive.qmd >}}
 
-(The primary off-floor model has no own-baseline or Beta-Binomial concentration
-term; `gamma_own`/`kappa` enter only the graded secondary.)
+{{< include _partials/_diagnostics.qmd >}}
 
-## Sampling diagnostics (primary)
+{{< include _partials/_results_floored.qmd >}}
 
-```{python}
-# | echo: false
-diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
-diag
-```
-
-![Trace](trace_plot.png){.lightbox}
-
-![Energy](energy_plot.png){.lightbox}
-
-![Posterior](posterior_plot.png){.lightbox}
-
-## Off-floor treatment effect (PRIMARY)
-
-```{python}
-# | echo: false
-tau_offfloor
-```
-
-- `tau_logit_*`: posterior mean and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the **log-odds-of-off-floor** scale.
-- `tau_prob_*`: the average marginal effect on the **probability of coming off the floor** (risk difference), per posterior draw.
-- `prob_tau_pos`: $P(\tau > 0) = P(\text{intervention raises off-floor probability})$.
-
-### Off-floor movers by arm
-
-```{python}
-# | echo: false
-movers
-```
-
-## Proportion-at-zero posterior predictive check
-
-Does the graded Beta-Binomial reproduce the observed floor? (Typically not — the
-motivation for the binary primary estimand.)
-
-![Proportion at zero PPC](proportion_at_zero_ppc.png){.lightbox}
-
-```{python}
-# | echo: false
-zero_ppc
-```
-
-## Graded Beta-Binomial effect (SECONDARY)
-
-::: {.callout-warning title="Detection-limited — read only beside the mover counts"}
-
-The graded $\tau$ below is reported for completeness only. With most post-scores at
-the floor it is leveraged by a few dispersed tail values, not by the arm contrast;
-interpret it solely alongside the off-floor primary and the per-arm mover table.
-
-:::
-
-```{python}
-# | echo: false
-tau_graded
-```
-
-## Posterior predictive check (primary)
-
-![Posterior predictive](posterior_predictive_check.png){.lightbox}
-
-## LOO-PSIS (primary)
-
-```{python}
-# | echo: false
-# | output: asis
-print("```\n" + open(_here / "loo.txt").read() + "\n```")
-```
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
+{{< include _partials/_footer.qmd >}}

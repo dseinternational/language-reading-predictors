@@ -1,0 +1,56 @@
+## Sampling diagnostics
+
+R-hat and effective sample size (ESS) over the scalar parameters; the
+equal-tailed interval matches the report cards below.
+
+```{python}
+# | echo: false
+diag = _csv("diagnostics.csv", index_col=0)
+diag if diag is not None else "No diagnostics table."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Pareto-k is load-bearing at n ≈ 33–54 (one influential child can drive elpd);
+# rank and ESS-evolution check mixing.
+print(_img("pareto_k.png", "Pareto-k (LOO influence; flag k > 0.7)"))
+print(_img("rank_plot.png", "Rank plot of the effect (mixing)"))
+print(_img("ess_evolution.png", "ESS evolution (target 400)"))
+print(_img("loo_pit.png", "LOO-PIT calibration"))
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Deterministics / HSGP basis-weight summary (only emitted for GP-bearing variants).
+_det = _csv("diagnostics_deterministics.csv", index_col=0)
+if _det is not None:
+    print("### Deterministics / basis weights\n")
+```
+
+```{python}
+# | echo: false
+_det if _det is not None else None
+```
+
+::: {.callout-note collapse="true" title="Trace, energy, and posterior plots (appendix)"}
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("trace_plot.png", "Trace"))
+print(_img("energy_plot.png", "Energy"))
+print(_img("posterior_plot.png", "Posterior"))
+print(_img("pair_plot.png", "Pairs"))
+```
+
+:::
+
+## Posterior-predictive check
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("posterior_predictive_check.png", "Posterior-predictive vs observed"))
+```

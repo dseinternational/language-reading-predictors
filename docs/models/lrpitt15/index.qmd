@@ -15,28 +15,11 @@ format:
       - repo
 ---
 
-::: {.callout-warning title="Warning: Preliminary model output"}
+{{< include _partials/_header.qmd >}}
 
-This model output is preliminary and likely to change as the model evolves and further data are received.
+{{< include _partials/_setup.qmd >}}
 
-:::
-
-```{python}
-# | echo: false
-import json
-from pathlib import Path
-
-import arviz as az
-import pandas as pd
-
-_here = Path(".")
-with open(_here / "config.json") as f:
-    config = json.load(f)
-trace = az.from_netcdf(_here / "trace.nc")
-tau_summary = pd.read_csv(_here / "tau_summary.csv")
-contrast = pd.read_csv(_here / "tau_contrast_matrix.csv", index_col=0)
-difference = pd.read_csv(_here / "tau_difference.csv")
-```
+{{< include _partials/_convergence.qmd >}}
 
 ## Overview
 
@@ -89,65 +72,14 @@ would otherwise tighten the difference is ignored — and it converges cleanly.
 
 :::
 
-![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-## Shared priors
+{{< include _partials/_priors.qmd >}}
 
-![alpha](prior_alpha.svg){width=40%}
-![tau](prior_tau.svg){width=40%}
-![gamma_own](prior_gamma_own.svg){width=40%}
-![gamma_cross](prior_gamma_cross.svg){width=40%}
+{{< include _partials/_prior_predictive.qmd >}}
 
-## Sampling diagnostics
+{{< include _partials/_diagnostics.qmd >}}
 
-```{python}
-# | echo: false
-diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
-diag
-```
+{{< include _partials/_results_joint.qmd >}}
 
-![Trace](trace_plot.png){.lightbox}
-![Energy](energy_plot.png){.lightbox}
-
-## Per-outcome treatment effects
-
-```{python}
-# | echo: false
-tau_summary
-```
-
-## Generalisation contrast — $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$
-
-```{python}
-# | echo: false
-difference
-```
-
-- `diff_logit_*`: posterior mean and equal-tailed interval of $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$ on the logit scale. Since $\tau$ is the benefit, this is *benefit on taught $-$ benefit on not-taught*; **positive ⇒ taught moved more** (limited generalisation).
-- `prob_diff_pos`: $P(\tau_{\mathrm{TE}} > \tau_{\mathrm{UE}})$.
-
-### Pairwise contrast — $P(\tau_k > \tau_j)$
-
-```{python}
-# | echo: false
-contrast
-```
-
-## Posterior predictive check
-
-![Posterior predictive check](posterior_predictive_check.png){.lightbox}
-
-## LOO-PSIS
-
-```{python}
-# | echo: false
-# | output: asis
-print("```\n" + open(_here / "loo.txt").read() + "\n```")
-```
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
+{{< include _partials/_footer.qmd >}}
