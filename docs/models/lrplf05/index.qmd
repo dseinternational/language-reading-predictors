@@ -1,0 +1,61 @@
+---
+title: "LRPLF05: Level factors for phonetic spelling (P), off-floor"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPLF05 is the **level-factors** model for phonetic spelling (`spphon`).
+
+::: {.callout-important title="Off-floor likelihood + level-model crossover caveat"}
+
+Phonetic spelling is heavily floored, so the level outcome is the **off-floor
+indicator** (score $> 0$) at each timepoint, modelled by a Bernoulli; the linear
+predictor is the log-odds of being off the floor. `group x time` is a per-timepoint
+off-floor log-odds for the group (`b_grp_time[t]`); after t2 the waitlist crosses
+over, so the **clean randomised contrast lives only at t2** (`b_grp_time[1]`,
+labelled *causal*); t3/t4 are post-crossover cohort/timing terms. `ability x time`
+and `group x ability` complete the focal set. SES excluded (non-DAG / redundant).
+
+:::
+
+## Model
+
+$$
+(P_t > 0) \sim \operatorname{Bernoulli}(\operatorname{expit}(\eta_t)),\quad
+\eta_t = \alpha + \alpha_{\text{time}[t]} + b_{\text{grp}[t]}\text{group}
+  + \gamma_A A_{\text{std},t} + g_{\text{ability}[t]}z(\text{blocks})
+  + \gamma_{\text{grp\_ability}}\,\text{group}\,z(\text{blocks}) + u_{\text{child}}.
+$$
+
+No `kappa` under the Bernoulli. Priors: shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_factors.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

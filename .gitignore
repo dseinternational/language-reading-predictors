@@ -16,6 +16,9 @@ tmp/
 notes/*.pdf
 notes/*.html
 notes/*.docx
+notes/*.aux
+notes/*.tex
+notes/*.log
 
 /.quarto/
 **/*.quarto_ipynb
