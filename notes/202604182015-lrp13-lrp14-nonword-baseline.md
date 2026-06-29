@@ -6,13 +6,13 @@
 Date: 2026-04-18
 
 Second of the LRP11–LRP22 construct-gap pairs (per
-``notes/202604181930-lrp11-22-target-plan.md``). Fills the
+`notes/202604181930-lrp11-22-target-plan.md`). Fills the
 phonological-decoding gap — `nonword` was used only as a
 predictor until now.
 
 ## Construct
 
-``nonword`` is an items-correct score from a non-word decoding
+`nonword` is an items-correct score from a non-word decoding
 task (observed range 0–6 in this sample). Phonological decoding
 is distinct from sight-word reading (`ewrswr`, LRP01/02) — it
 isolates the ability to blend graphemes into phonemes without
@@ -21,10 +21,10 @@ delayed in Down syndrome.
 
 ## Target distributions
 
-| Target | n | min | max | median | mean | std | skew | pct zero |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `nonword` (level) | 207 | 0 | 6 | 0 | 1.24 | 1.81 | **1.38** | **57%** |
-| `nonword_gain` | 153 | −6 | 6 | 0 | 0.41 | 1.66 | 0.40 | **48%** |
+| Target            |   n | min | max | median | mean |  std |     skew | pct zero |
+| ----------------- | --: | --: | --: | -----: | ---: | ---: | -------: | -------: |
+| `nonword` (level) | 207 |   0 |   6 |      0 | 1.24 | 1.81 | **1.38** |  **57%** |
+| `nonword_gain`    | 153 |  −6 |   6 |      0 | 0.41 | 1.66 |     0.40 |  **48%** |
 
 Heavily floor-loaded — unusual shape. Most children in the sample
 have not yet started to decode non-words reliably, and half show
@@ -38,13 +38,13 @@ Tuner-inner CV MAE **0.9801 ± 0.3358**. Moderate regime: 108
 trees, lr 0.067, num_leaves 42, max_depth 5, near-zero L1, weak
 L2.
 
-| Metric | Baseline (500t) | MAE-tuned (108t) |
-|---|---:|---:|
-| CV MAE | 1.144 | **0.994** |
-| CV RMSE | 1.516 | **1.372** |
-| CV R² | **−0.116** | **0.158** |
-| CV MedAE | 0.943 | **0.733** |
-| In-sample R² | 0.984 | 0.564 |
+| Metric       | Baseline (500t) | MAE-tuned (108t) |
+| ------------ | --------------: | ---------------: |
+| CV MAE       |           1.144 |        **0.994** |
+| CV RMSE      |           1.516 |        **1.372** |
+| CV R²        |      **−0.116** |        **0.158** |
+| CV MedAE     |           0.943 |        **0.733** |
+| In-sample R² |           0.984 |            0.564 |
 
 CV R² crosses negative → positive (a 0.27 jump — larger than
 LRP11's or LRP07's). The floor-heavy target is genuinely
@@ -56,13 +56,13 @@ Tuner-inner CV MAE **0.8696 ± 0.3104**. Slow-many-trees regime:
 156 trees, lr 0.042, num_leaves 19, max_depth 8, min_child 29
 (large leaves for floor-heavy target).
 
-| Metric | Baseline (500t) | MAE-tuned (156t) |
-|---|---:|---:|
-| CV MAE | 1.036 | **0.929** |
-| CV RMSE | 1.460 | **1.350** |
-| CV R² | 0.129 | **0.180** |
-| CV MedAE | 0.689 | **0.504** |
-| In-sample R² | 0.992 | 0.597 |
+| Metric       | Baseline (500t) | MAE-tuned (156t) |
+| ------------ | --------------: | ---------------: |
+| CV MAE       |           1.036 |        **0.929** |
+| CV RMSE      |           1.460 |        **1.350** |
+| CV R²        |           0.129 |        **0.180** |
+| CV MedAE     |           0.689 |        **0.504** |
+| In-sample R² |           0.992 |            0.597 |
 
 Modest R² gain (+0.05) but CV MedAE drops 0.19 — the floor-heavy
 distribution caps achievable CV R² but the median prediction

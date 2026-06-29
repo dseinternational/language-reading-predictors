@@ -18,14 +18,14 @@ Three sequential LRP52 reporting-config fits were run (6 chains × 6000 tune ×
 6000 draws each) on the full ITT sample (53 children after dropping 1 missing
 baseline).
 
-| Variant | τ (logit) | 95 % CI | Divergences | ELPD-LOO | p_loo | BFMI |
-|---|---|---|---|---|---|---|
-| GP on, η ~ HN(1.0), target_accept = 0.95 | −0.408 | (−0.78, −0.04) | 911 / 36000 (2.5 %) | −137.92 | 9.96 | 0.93–0.96 |
-| GP on, η ~ HN(1.0), target_accept = 0.98 | −0.410 | (−0.78, −0.04) | 933 / 36000 (2.6 %) | −137.90 | 9.96 | 0.93–0.96 |
-| GP on, η ~ HN(0.3), target_accept = 0.95 | −0.409 | (−0.78, −0.05) | 416 / 36000 (1.2 %) | −137.33 | 9.33 | 0.95–1.00 |
-| **GP off, target_accept = 0.95** | **−0.406** | **(−0.75, −0.04)** | **0 / 36000** | **−136.00** | **7.63** | — |
+| Variant                                  | τ (logit)  | 95 % CI            | Divergences         | ELPD-LOO    | p_loo    | BFMI      |
+| ---------------------------------------- | ---------- | ------------------ | ------------------- | ----------- | -------- | --------- |
+| GP on, η ~ HN(1.0), target_accept = 0.95 | −0.408     | (−0.78, −0.04)     | 911 / 36000 (2.5 %) | −137.92     | 9.96     | 0.93–0.96 |
+| GP on, η ~ HN(1.0), target_accept = 0.98 | −0.410     | (−0.78, −0.04)     | 933 / 36000 (2.6 %) | −137.90     | 9.96     | 0.93–0.96 |
+| GP on, η ~ HN(0.3), target_accept = 0.95 | −0.409     | (−0.78, −0.05)     | 416 / 36000 (1.2 %) | −137.33     | 9.33     | 0.95–1.00 |
+| **GP off, target_accept = 0.95**         | **−0.406** | **(−0.75, −0.04)** | **0 / 36000**       | **−136.00** | **7.63** | —         |
 
-The three GP-on variants are *statistically indistinguishable* on every
+The three GP-on variants are _statistically indistinguishable_ on every
 estimand (τ, γ_own, κ, the seven cross-baseline couplings). The only
 differences are in the GP-tail geometry.
 
@@ -45,9 +45,9 @@ weight = 1.00 vs 0.00.
 Across both GP-on priors, the HSGP amplitude posteriors had 95 % CIs that
 touched zero:
 
-| Amplitude | HN(1.0) 95% CI | HN(0.3) 95% CI |
-|---|---|---|
-| `f_A__eta` | (0.000, 0.577) | (0.000, 0.346) |
+| Amplitude     | HN(1.0) 95% CI | HN(0.3) 95% CI |
+| ------------- | -------------- | -------------- |
+| `f_A__eta`    | (0.000, 0.577) | (0.000, 0.346) |
 | `f_ypre__eta` | (0.000, 0.687) | (0.000, 0.389) |
 
 When η can be near zero, the product η × `g_unit` (with `g_unit` the 20-basis

@@ -6,8 +6,8 @@
 Date: 2026-06-18
 
 Records the decision for [issue #84](https://github.com/dseinternational/language-reading-predictors/issues/84)
-(follow-up to the #76 model code review). Per the project convention — *write a
-dated note before a decision future readers will question* — this documents how
+(follow-up to the #76 model code review). Per the project convention — _write a
+dated note before a decision future readers will question_ — this documents how
 the LRP59/LRP62 mediation models handle the fact that the **mediator and outcome
 are measured at the same wave (t2)**.
 
@@ -21,7 +21,7 @@ the outcome are measured at the **same wave**:
 - **LRP62**: mediator = phonics-route composite at t2, outcome $W_{t2}$.
 
 The g-formula NDE/NIE decomposition assumes the mediator lies on the causal path
-*before* the outcome. Contemporaneous measurement means the ordering $M \to Y$ is
+_before_ the outcome. Contemporaneous measurement means the ordering $M \to Y$ is
 **assumed, not observed** — reverse or simultaneous influence ($W_{t2} \to L_{t2}$)
 cannot be ruled out within the wave. This is a **forced consequence of the design**:
 both arms are treated from t2 on, so there is no randomised window with a strictly
@@ -32,8 +32,8 @@ interpretation, explicit caveats, and triangulation.
 
 1. **State the temporal-ordering assumption in the headline, not just the body.**
    Both reports (`docs/models/lrp59/index.qmd`, `docs/models/lrp62/index.qmd`) now
-   carry a `callout-warning` near the top — *"Mediator and outcome are measured at
-   the same wave"* — and the assumption is restated alongside the proportion-mediated
+   carry a `callout-warning` near the top — _"Mediator and outcome are measured at
+   the same wave"_ — and the assumption is restated alongside the proportion-mediated
    headline (the "Interpret under these assumptions" / "Triangulation" callouts), not
    only in the assumptions section.
 
@@ -59,12 +59,12 @@ and correlated with the mediator (both at t2) — so conditioning on it would (a
 **block part of the $G \to W_{t3}$ total effect** that runs through $W_{t2}$,
 distorting NDE/NIE, and (b) condition on a treatment-affected, mediator-correlated
 variable (collider risk). This is the same rule the models already enforce for
-confounders: the factory docstring states post-treatment values are *"inadmissible"*
-and the report says *"Conditioning on post-treatment vocabulary would violate this"*
+confounders: the factory docstring states post-treatment values are _"inadmissible"_
+and the report says _"Conditioning on post-treatment vocabulary would violate this"_
 (the cross-world assumption). So $W_{t1}$ is correct; only the outcome **wave** moves.
 
 **Caveat carried into the reports.** The **t2 → t3 increment is not randomised**
-(both arms are treated after t2), so the *total* effect in this variant is an
+(both arms are treated after t2), so the _total_ effect in this variant is an
 attenuated, non-randomised contrast. Read the **sign/direction of the indirect
 effect** — its agreement with the contemporaneous headline — as the triangulation,
 **not** the magnitudes; intervals are wider.
@@ -84,7 +84,7 @@ intervals widened — consistent with, and triangulating, the contemporaneous he
 - `pipeline._fit_t3_sensitivity` + a sensitivity pass in `fit_mediation`: builds,
   samples (reusing the run's sampling config), and decomposes the t3 variant, writing
   `mediation_summary_t3.csv` alongside the headline `mediation_summary.csv`.
-- Reports embed a *"Temporal-ordering sensitivity — outcome at t3"* section.
+- Reports embed a _"Temporal-ordering sensitivity — outcome at t3"_ section.
 
 ## Not resolved here
 

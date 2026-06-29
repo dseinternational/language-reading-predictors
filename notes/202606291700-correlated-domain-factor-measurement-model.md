@@ -9,7 +9,7 @@
 ## Question
 
 Replace the single latent general ability `g` of LRP66 with **correlated domain
-factors** as an *identification-neutral but better-fitting* measurement match for
+factors** as an _identification-neutral but better-fitting_ measurement match for
 the observed same-construct clustering, and recover the one output no merged model
 produces: an explicit **factor-loadings / communality** table plus a partial
 **measurement-error correction** of the skill->gain slopes.
@@ -41,11 +41,11 @@ The issue's conceptual domains map to the available standardised `measures.py`
 symbols as follows, and the **core set** (per the design decision) keeps the
 complete-case n ~ 51:
 
-| Domain | Core indicators | Notes |
-|---|---|---|
-| Vocabulary | `R` (ROWPVT), `E` (EOWPVT) | taught/untaught vocab left out to preserve n |
-| Code | `L` (letter sounds), `B` (blending) | `P`/`N` excluded: heavily floored, poor Gaussian CFA indicators |
-| Grammar | `F` (CELF), `T` (TROG) | exactly two indicators (thin but identified) |
+| Domain     | Core indicators                     | Notes                                                           |
+| ---------- | ----------------------------------- | --------------------------------------------------------------- |
+| Vocabulary | `R` (ROWPVT), `E` (EOWPVT)          | taught/untaught vocab left out to preserve n                    |
+| Code       | `L` (letter sounds), `B` (blending) | `P`/`N` excluded: heavily floored, poor Gaussian CFA indicators |
+| Grammar    | `F` (CELF), `T` (TROG)              | exactly two indicators (thin but identified)                    |
 
 **Speech `{SP}`** (DEAP) is **not available** in the statistical `measures.py` and
 is dropped (single-indicator anyway). Non-verbal MA (`blocks`) is **not** a

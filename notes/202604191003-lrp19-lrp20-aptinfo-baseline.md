@@ -6,22 +6,22 @@
 Date: 2026-04-19
 
 Fifth of the six LRP11–LRP22 construct-gap pairs from
-``notes/202604181930-lrp11-22-target-plan.md``. Follows
+`notes/202604181930-lrp11-22-target-plan.md`. Follows
 LRP11/12 (TROG-2 grammar), LRP13/14 (nonword reading),
 LRP15/16 (phoneme blending), and LRP17/18 (APT expressive
 grammar).
 
 ## Construct
 
-``aptinfo`` is the information raw score from the Action
+`aptinfo` is the information raw score from the Action
 Picture Test (APT; Renfrew, 1997). The child describes scenes
-shown in pictures; the examiner scores the *information
-content* of the response (whether the expected elements of the
+shown in pictures; the examiner scores the _information
+content_ of the response (whether the expected elements of the
 scene are named) — distinct from the grammatical structure,
-which is scored separately as ``aptgram`` (LRP17/18). The two
+which is scored separately as `aptgram` (LRP17/18). The two
 scores are drawn from the same utterance sample.
 
-``aptinfo`` is the pair-partner to ``aptgram`` and shares a
+`aptinfo` is the pair-partner to `aptgram` and shares a
 construct family with vocabulary measures: describing a scene
 accurately requires naming its referents, so information
 content indexes expressive lexical knowledge at least as much
@@ -29,10 +29,10 @@ as it indexes discourse-information selection.
 
 ## Target distributions
 
-| Target | n | min | max | median | mean | std | skew | notes |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| `aptinfo` (level) | 214 | 0 | 37.5 | 16.5 | 16.97 | 7.93 | **0.24** | essentially symmetric |
-| `aptinfo_gain` | 160 | −7 | 16 | 2.5 | 2.61 | 4.44 | 0.25 | mildly right-skewed |
+| Target            |   n | min |  max | median |  mean |  std |     skew | notes                 |
+| ----------------- | --: | --: | ---: | -----: | ----: | ---: | -------: | --------------------- |
+| `aptinfo` (level) | 214 |   0 | 37.5 |   16.5 | 16.97 | 7.93 | **0.24** | essentially symmetric |
+| `aptinfo_gain`    | 160 |  −7 |   16 |    2.5 |  2.61 | 4.44 |     0.25 | mildly right-skewed   |
 
 For `aptinfo_gain`: 29% negative, **4% zero** — unusually low
 zero-mass (cf LRP11 `trog_gain` 8%, LRP17 `aptgram_gain` 11%,
@@ -51,13 +51,13 @@ cleaner than the paired APTGRAM (skew 1.23, LRP18).
 Tuner-inner CV MAE **3.2172 ± 0.5688**. Moderate-fast regime:
 165 trees, lr 0.081, num_leaves 23, max_depth 11, min_child 27.
 
-| Metric | Baseline (500t) | MAE-tuned (165t) |
-|---|---:|---:|
-| CV MAE | 3.612 ± 0.670 | **3.248 ± 0.684** |
-| CV RMSE | 4.481 ± 0.687 | **4.165 ± 0.695** |
-| **CV R²** | **−0.101 ± 0.124** | **0.043 ± 0.160** |
-| CV MedAE | 3.324 ± 0.915 | **2.565 ± 0.734** |
-| In-sample R² | 0.997 | 0.499 |
+| Metric       |    Baseline (500t) |  MAE-tuned (165t) |
+| ------------ | -----------------: | ----------------: |
+| CV MAE       |      3.612 ± 0.670 | **3.248 ± 0.684** |
+| CV RMSE      |      4.481 ± 0.687 | **4.165 ± 0.695** |
+| **CV R²**    | **−0.101 ± 0.124** | **0.043 ± 0.160** |
+| CV MedAE     |      3.324 ± 0.915 | **2.565 ± 0.734** |
+| In-sample R² |              0.997 |             0.499 |
 
 CV R² crosses negative → positive — standard rescue pattern.
 CV MAE drops 0.36; CV MedAE drops a notable 0.76. In-sample
@@ -71,13 +71,13 @@ Tuner-inner CV MAE **2.8282 ± 0.7825**. Slow many-trees regime:
 depth + small leaves). The 0–37.5 scale affords this regime
 where coarser targets cannot.
 
-| Metric | Baseline (500t) | MAE-tuned (445t) |
-|---|---:|---:|
-| CV MAE | 2.907 ± 0.650 | **2.709 ± 0.797** |
-| CV RMSE | 3.721 ± 0.971 | **3.426 ± 0.990** |
-| **CV R²** | **0.720 ± 0.127** | **0.759 ± 0.148** |
-| CV MedAE | 2.281 ± 0.615 | **2.200 ± 0.651** |
-| In-sample R² | 1.000 | 0.932 |
+| Metric       |   Baseline (500t) |  MAE-tuned (445t) |
+| ------------ | ----------------: | ----------------: |
+| CV MAE       |     2.907 ± 0.650 | **2.709 ± 0.797** |
+| CV RMSE      |     3.721 ± 0.971 | **3.426 ± 0.990** |
+| **CV R²**    | **0.720 ± 0.127** | **0.759 ± 0.148** |
+| CV MedAE     |     2.281 ± 0.615 | **2.200 ± 0.651** |
+| In-sample R² |             1.000 |             0.932 |
 
 **Highest CV R² in the level-model suite** (beats LRP18's
 0.592 and LRP04's 0.54). The untuned baseline already hits
@@ -89,14 +89,14 @@ predictor set contains for this target.
 
 ### LRP19 (`aptinfo_gain`)
 
-1. **`aptinfo`** (0.510) — base level dominates, **monotonic_-**
+1. **`aptinfo`** (0.510) — base level dominates, **monotonic\_-**
    (Spearman −0.960, regression to the mean)
-2. `erbword` (0.064) — word repetition, monotonic_+ (0.954)
-3. `b1reto` (0.063) — taught receptive vocab, monotonic_+
+2. `erbword` (0.064) — word repetition, monotonic\_+ (0.954)
+3. `b1reto` (0.063) — taught receptive vocab, monotonic\_+
    (0.820)
-4. `ewrswr` (0.052) — word reading, monotonic_+ (0.908)
+4. `ewrswr` (0.052) — word reading, monotonic\_+ (0.908)
 5. `aptgram` (0.038) — **expressive grammar (same-test
-   partner)**, monotonic_+
+   partner)**, monotonic\_+
 6. `deappfi` (0.037) — articulation final
 7. `age` (0.035)
 8. `area` (0.035)
@@ -114,20 +114,20 @@ processing rather than grammar-specific learning.
 
 ### LRP20 (`aptinfo`)
 
-All top five features are **clean monotonic_+** (Spearman
+All top five features are **clean monotonic\_+** (Spearman
 0.83–0.98):
 
 1. **`aptgram`** (0.233) — **expressive grammar (same-test
-   partner)**, monotonic_+ (Spearman 0.975)
-2. `b1exto` (0.134) — taught expressive vocab, monotonic_+
+   partner)**, monotonic\_+ (Spearman 0.975)
+2. `b1exto` (0.134) — taught expressive vocab, monotonic\_+
    (0.968)
-3. `eowpvt` (0.082) — expressive vocabulary, monotonic_+
+3. `eowpvt` (0.082) — expressive vocabulary, monotonic\_+
    (0.943)
-4. `b1reto` (0.050) — taught receptive vocab, monotonic_+
+4. `b1reto` (0.050) — taught receptive vocab, monotonic\_+
    (0.950)
-5. `rowpvt` (0.036) — receptive vocabulary, monotonic_+
+5. `rowpvt` (0.036) — receptive vocabulary, monotonic\_+
    (0.826)
-6. `age` (0.024) — monotonic_+
+6. `age` (0.024) — monotonic\_+
 7. `ewrswr` (0.014) — word reading
 8. `erbnw` (0.011) — nonword repetition
 9. `deappfi` (0.011) — articulation final
@@ -148,6 +148,7 @@ structure** that is construct-aligned and, as far as we have
 seen, unique in the suite:
 
 **LRP18 (`aptgram`):**
+
 - `aptinfo` at rank 1, importance 0.392 — dominates
 - Ranks 2–5: `erbnw`, `erbword`, `deappin`, `deappfi` —
   **speech-production cluster** (phonological memory +
@@ -155,6 +156,7 @@ seen, unique in the suite:
 - Vocabulary appears only at ranks 7, 9, 10
 
 **LRP20 (`aptinfo`):**
+
 - `aptgram` at rank 1, importance 0.233 — leads but does not
   dominate
 - Ranks 2–5: `b1exto`, `eowpvt`, `b1reto`, `rowpvt` —
@@ -162,10 +164,10 @@ seen, unique in the suite:
 - Speech-production / articulation appears only at ranks
   8–10
 
-**Interpretation.** The information score measures *what the
-child can describe* — the lexical coverage of the response —
+**Interpretation.** The information score measures _what the
+child can describe_ — the lexical coverage of the response —
 so it is tightly bound to vocabulary. The grammar score
-measures *how the child describes it* — the syntactic form
+measures _how the child describes it_ — the syntactic form
 of utterances — so it is tightly bound to speech-production
 capacity (you cannot use a syntactic form you cannot
 articulate). Both scores are extracted from the same
@@ -175,22 +177,23 @@ cleanly.
 
 This is useful for the Bayesian follow-up: a joint expressive
 language model (`aptinfo ~ aptgram + vocab; aptgram ~ aptinfo
-+ speech_production`) could test whether these pathways are
-separable under uncertainty.
+
+- speech_production`) could test whether these pathways are
+  separable under uncertainty.
 
 ### Construct-level totals (permutation importance)
 
-| Construct | LRP19 total | LRP20 total |
-|---|---:|---:|
-| language_composite | 0.599 | 0.242 |
-| expressive_vocabulary | ~0.004 | **0.216** |
-| receptive_vocabulary | 0.076 | **0.087** |
-| articulation | 0.065 | 0.024 |
-| phonological_memory | 0.078 | 0.014 |
-| reading_word | 0.052 | 0.014 |
-| reading_decoding | 0.036 | 0.015 |
-| demographics_child | 0.049 | 0.026 |
-| home_literacy | 0.017 | 0.008 |
+| Construct             | LRP19 total | LRP20 total |
+| --------------------- | ----------: | ----------: |
+| language_composite    |       0.599 |       0.242 |
+| expressive_vocabulary |      ~0.004 |   **0.216** |
+| receptive_vocabulary  |       0.076 |   **0.087** |
+| articulation          |       0.065 |       0.024 |
+| phonological_memory   |       0.078 |       0.014 |
+| reading_word          |       0.052 |       0.014 |
+| reading_decoding      |       0.036 |       0.015 |
+| demographics_child    |       0.049 |       0.026 |
+| home_literacy         |       0.017 |       0.008 |
 
 LRP19 is language-composite-dominated (`aptinfo` regression-
 to-the-mean + `aptgram` cross-signal). LRP20 is more

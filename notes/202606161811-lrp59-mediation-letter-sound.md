@@ -24,8 +24,8 @@ natural indirect effect (NIE, via L) and natural direct effect (NDE, other paths
   child, **n = 53**. `G = group−1` (G=0 intervention, G=1 control); reported
   intervention-helps (positive = raises reading).
 - Joint Beta-Binomial model: mediator `logit(L_t2) ~ a0 + a_G·G + a_L·logit(L_t1)
-  + a_C·C_t1`; outcome `logit(W_t2) ~ b0 + b_G·G + b_M·z(logit L_t2) +
-  b_GM·G·z(L_t2) + b_W·logit(W_t1) + b_C·C_t1`. G×M interaction included.
+  - a_C·C_t1`; outcome `logit(W_t2) ~ b0 + b_G·G + b_M·z(logit L_t2) +
+    b_GM·G·z(L_t2) + b_W·logit(W_t1) + b_C·C_t1`. G×M interaction included.
 - **NDE/NIE by counterfactual simulation from the posterior (g-formula)**, not a
   coefficient product (invalid on the logit scale): per draw, simulate L_t2 under
   each arm from the mediator model, push through the outcome model, average over
@@ -39,17 +39,17 @@ natural indirect effect (NIE, via L) and natural direct effect (NDE, other paths
 
 Intervention-helps direction, word-count scale (out of 90):
 
-| quantity | mean | 95% CI | P(>0) |
-| --- | ---: | --- | ---: |
-| **Total** (intervention → reading) | **+2.92** | [0.53, 5.35] | 0.99 |
-| **NIE** (via letter-sound) | **+1.83** | [0.46, 3.64] | **0.998** |
-| NDE (other paths) | +1.09 | [−0.95, 3.16] | 0.85 |
-| **proportion mediated** (NIE/Total) | **0.62** | [0.17, 1.89] | — (P(Total>0)=0.99) |
+| quantity                            |      mean | 95% CI        |               P(>0) |
+| ----------------------------------- | --------: | ------------- | ------------------: |
+| **Total** (intervention → reading)  | **+2.92** | [0.53, 5.35]  |                0.99 |
+| **NIE** (via letter-sound)          | **+1.83** | [0.46, 3.64]  |           **0.998** |
+| NDE (other paths)                   |     +1.09 | [−0.95, 3.16] |                0.85 |
+| **proportion mediated** (NIE/Total) |  **0.62** | [0.17, 1.89]  | — (P(Total>0)=0.99) |
 
 **Exploratory read (directionally consistent, not definitive):** the indirect path
 (NIE) is credibly positive (P>0 = 0.998), the direct path (NDE) is not credible
 (P>0 = 0.85), and the point estimate is **~62% mediated** — consistent with
-letter-sounds carrying much of the effect, *but* on a single mediator with a wide
+letter-sounds carrying much of the effect, _but_ on a single mediator with a wide
 interval (see the caveats and LRP62 below before reading it as phonics-dominant).
 Coefficients are sensible and reconcile with the programme: `a_G` = −0.59
 (intervention raises letter-sound, cf LRP55 τ_L), `b_M` = +0.52 (letter-sound
@@ -72,8 +72,8 @@ attributable to the different, mediation-specific **linear** adjustment set
   in the report), plus the cross-world/consistency/positivity assumptions.
   Randomisation secures the G→Y and G→M legs. Not assumption-free proof of
   mechanism.
-- **Contemporaneous mediator and outcome — no temporal precedence.** M = L_t2 and
-  Y = W_t2 are measured at the **same wave**; this decomposes a *within-wave*
+- **Contemporaneous mediator and outcome — no temporal precedence.** M = L*t2 and
+  Y = W_t2 are measured at the **same wave**; this decomposes a \_within-wave*
   association, not a temporally-ordered L→W effect. Conditioning on baselines
   mitigates but does not establish that L precedes W.
 - **Superseded by LRP62 for the route estimate.** The better-specified

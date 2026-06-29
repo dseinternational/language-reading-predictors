@@ -4,7 +4,7 @@ _2026-06-19_
 
 > [!NOTE]
 > **Sign convention superseded.** This note uses the original `G = group − 1`
-> coding (*negative* τ = benefit; the headline contrast written as
+> coding (_negative_ τ = benefit; the headline contrast written as
 > `tau[UE] − tau[TE]`). The repo has since standardised on `G = 2 − group`, so
 > **positive τ = benefit** and the LRP76 contrast is now `tau[TE] − tau[UE]` (see
 > METHODS.md). Magnitudes and conclusions are unchanged; the signs and the
@@ -15,7 +15,7 @@ _2026-06-19_
 The suite's vocabulary models so far use only the **standardised** tests
 (ROWPVT/EOWPVT; LRP53/LRP54), both of which were null. But the published trial's
 headline vocabulary result was on **directly-taught** vocabulary: Burgoyne et al.
-(2012) found a significant gain on taught *expressive* vocabulary while
+(2012) found a significant gain on taught _expressive_ vocabulary while
 standardised vocabulary did not move. Until now the suite could not speak to that
 result. These three models fill the gap — the long-flagged "intervention-fidelity
 / positive-control" work (see `notes/2026-05-12-project-review.md`, §D, and
@@ -27,20 +27,20 @@ Block-1 taught-vocabulary tests (words explicitly taught in phase 1, weeks 1–2
 baseline t1, randomised post t2 — the ITT window). Block 2 is introduced in phase
 2 and has no t1 baseline, so it is not modelled here.
 
-| Symbol | Column     | n_trials | Confirmed | Note                                   |
-| ------ | ---------- | -------- | --------- | -------------------------------------- |
-| `TE`   | `b1extau`  | 24       | yes       | Taught expressive (6 words × 4 types)  |
-| `TR`   | `b1retau`  | 24       | yes       | Taught receptive                       |
-| `UE`   | `b1exnt`   | 12       | **no**    | Not-taught expressive (observed max)   |
-| `UR`   | `b1rent`   | 12       | **no**    | Not-taught receptive (observed max)    |
+| Symbol | Column    | n_trials | Confirmed | Note                                  |
+| ------ | --------- | -------- | --------- | ------------------------------------- |
+| `TE`   | `b1extau` | 24       | yes       | Taught expressive (6 words × 4 types) |
+| `TR`   | `b1retau` | 24       | yes       | Taught receptive                      |
+| `UE`   | `b1exnt`  | 12       | **no**    | Not-taught expressive (observed max)  |
+| `UR`   | `b1rent`  | 12       | **no**    | Not-taught receptive (observed max)   |
 
 - **Taught = 24** is documented: "Six words of each type (nouns, adverbs,
   adjectives, prepositions)" and tabulated as `(24)` in Burgoyne et al. (2012),
   Table 3.
-- **Not-taught = 12** is the *observed maximum* (both modalities top out at 12,
+- **Not-taught = 12** is the _observed maximum_ (both modalities top out at 12,
   consistent with a half-size 3-words-×-4-types control set). The paper tabulates
   only the taught tests, so this is flagged `n_trials_confirmed=False`. The
-  *sign* of the taught-vs-not-taught difference is robust to this (taught is a
+  _sign_ of the taught-vs-not-taught difference is robust to this (taught is a
   strong effect, not-taught little), but the **magnitude** is not — `tau[UE]`
   shifts with the assumed not-taught ceiling, so the difference and any
   probability-scale summary for the not-taught outcomes should be treated as
@@ -71,7 +71,7 @@ positive *benefit*, i.e. τ < 0._
   generalisation contrast. Two-outcome joint Beta-Binomial; headline parameter is
   `tau[UE] − tau[TE]` (new `reporting.tau_difference_summary`; with negative-τ =
   benefit, this equals benefit-on-taught minus benefit-on-not-taught, so a
-  *positive* value means the taught words moved more — limited generalisation).
+  _positive_ value means the taught words moved more — limited generalisation).
   A 2×2 LKJ residual
   correlation models within-child taught/not-taught dependence (identifiable at
   K=2, unlike the prior-dominated 8-outcome LRP55 block) — toggle off if it
@@ -109,16 +109,16 @@ subsystem: `src/language_reading_predictors/models/`, not the Bayesian
 `statistical_models/`). Next free ML ids, continuing the odd-gain/even-level
 pairing (lrp23↔lrp03, lrp24↔lrp04):
 
-- **LRP23 — taught expressive-vocabulary *gain*** (`b1extau_gain`, `GainModel`),
+- **LRP23 — taught expressive-vocabulary _gain_** (`b1extau_gain`, `GainModel`),
   analogue of lrp03.
-- **LRP24 — taught expressive-vocabulary *level*** (`b1extau`, `LevelModel`),
+- **LRP24 — taught expressive-vocabulary _level_** (`b1extau`, `LevelModel`),
   analogue of lrp04.
 
 Key decisions:
 
 - **Leakage exclusion.** The taught/not-taught block sub-scores (b1extau, b1exnt,
   b1retau, …) are already in `DEFAULT_EXCLUDED`, so the only block columns in the
-  default predictor sets are the two *totals*. `b1exto` (= `b1extau + b1exnt`)
+  default predictor sets are the two _totals_. `b1exto` (= `b1extau + b1exnt`)
   contains the target, so both models set `exclude=[V.B1EXTO]` — the single
   deviation from the lrp03/lrp04 predictor set. `b1reto` (receptive total) is not
   a superset of the expressive taught score and is retained for the baseline.

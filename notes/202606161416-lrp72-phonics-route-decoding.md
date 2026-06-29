@@ -43,14 +43,14 @@ LRP71's moderated-mechanism template with three swaps + two machinery additions:
 
 ## Result (reporting; n = 153, 53 children; 0 divergences, R-hat 1.00, ESS ~20k)
 
-| coefficient | mean | 95% CI | P(>0) |
-| --- | ---: | --- | ---: |
-| `beta_mech` (letter-sound → decoding) | +1.14 | [0.70, 1.62] | ~1.00 |
-| `gamma_mod` (blending main effect) | +0.44 | [0.14, 0.75] | 0.998 |
-| `gamma_int` (L × B interaction) | **−0.29** | **[−0.59, −0.001]** | **0.025** |
+| coefficient                           |      mean | 95% CI              |     P(>0) |
+| ------------------------------------- | --------: | ------------------- | --------: |
+| `beta_mech` (letter-sound → decoding) |     +1.14 | [0.70, 1.62]        |     ~1.00 |
+| `gamma_mod` (blending main effect)    |     +0.44 | [0.14, 0.75]        |     0.998 |
+| `gamma_int` (L × B interaction)       | **−0.29** | **[−0.59, −0.001]** | **0.025** |
 
 **Both prerequisites have strong, credible positive main effects** on decoding.
-But the **interaction is credibly *negative*** (sub-additive) — the **opposite**
+But the **interaction is credibly _negative_** (sub-additive) — the **opposite**
 of the hypothesised super-additivity, with the 95% CI just excluding zero.
 
 **This does not confirm the dual-route super-additive prediction.** Read it
@@ -63,7 +63,7 @@ honestly with two qualifications:
    exactly the confirmation step the exploration demanded, and it fails. A good
    illustration of why the two-step (explore → confirm) workflow matters.
 2. **Link-saturation ambiguity.** On a 57%-floored bounded count, a negative
-   *logit-scale* interaction between two strong positive main effects is partly
+   _logit-scale_ interaction between two strong positive main effects is partly
    what a saturating sigmoid produces when both predictors are high. So the
    negative `gamma_int` should not be over-read as substantive antagonism. The
    defensible conclusion: the two routes contribute **largely independently**
@@ -95,7 +95,7 @@ consistent with the modest, link-ambiguous `gamma_int`.
 
 The exploration's other interaction candidate, reading comprehension (`yarcsi`),
 is **67% floored** (max observed 11, nonzero for only ~33% of observations; ~40%
-by the last timepoint). Reading *comprehension* has not emerged for most children
+by the last timepoint). Reading _comprehension_ has not emerged for most children
 with Down syndrome at these reading levels — they are at the word-**decoding**
 stage. The "where does vocabulary / grammar matter for reading?" question (which
 the LRP71 vocabulary null naturally raises) therefore **needs an older /

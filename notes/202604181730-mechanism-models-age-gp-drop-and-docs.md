@@ -16,21 +16,21 @@ Date: 2026-04-18
    by default; mechanism-report adjustment-set bullets updated to
    describe age as a linear-only confounder by default with a pointer
    to the sensitivity flag; LRP55 rewritten to describe the model as
-   a *linear Beta-Binomial across eight outcomes with shared
-   predictor structure and no random effects*.
+   a _linear Beta-Binomial across eight outcomes with shared
+   predictor structure and no random effects_.
 
 ## Mechanism-model refit comparison
 
 Reporting config (6 chains × 6000 × 6000 × target_accept 0.95).
 
-| Model | Variant | Divergences | f_mech__eta 95 % CI | Slope mean slope 95 % CI | Notable |
-|---|---|---|---|---|---|
-| LRP56 (R→W) | GP on | 268 / 36000 (0.74 %) | (0.000, 0.441) | +0.112 (−0.044, +0.377) | — |
-| LRP56 (R→W) | **GP off** | **192 / 36000 (0.53 %)** | **(0.000, 0.379)** | **+0.064 (−0.065, +0.281)** | Slightly smaller slope, still non-credible |
-| LRP57 (E→W) | GP on | 132 / 36000 (0.37 %) | (0.000, 0.576) | +0.196 (−0.013, +0.501) | — |
-| LRP57 (E→W) | **GP off** | **247 / 36000 (0.69 %)** | **(0.000, 0.505)** | **+0.125 (−0.030, +0.404)** | Slope CI shifted toward zero |
-| LRP58 (L→W) | GP on | 85 / 36000 (0.24 %) | (0.001, 0.621) | +0.137 (−0.002, +0.304) | — |
-| LRP58 (L→W) | **GP off** | **4 / 36000 (0.01 %)** | **(0.077, 0.684)** | **+0.164 (+0.011, +0.320)** | **Amplitude and slope CIs now both exclude zero at 95 %** |
+| Model       | Variant    | Divergences              | f_mech\_\_eta 95 % CI | Slope mean slope 95 % CI    | Notable                                                   |
+| ----------- | ---------- | ------------------------ | --------------------- | --------------------------- | --------------------------------------------------------- |
+| LRP56 (R→W) | GP on      | 268 / 36000 (0.74 %)     | (0.000, 0.441)        | +0.112 (−0.044, +0.377)     | —                                                         |
+| LRP56 (R→W) | **GP off** | **192 / 36000 (0.53 %)** | **(0.000, 0.379)**    | **+0.064 (−0.065, +0.281)** | Slightly smaller slope, still non-credible                |
+| LRP57 (E→W) | GP on      | 132 / 36000 (0.37 %)     | (0.000, 0.576)        | +0.196 (−0.013, +0.501)     | —                                                         |
+| LRP57 (E→W) | **GP off** | **247 / 36000 (0.69 %)** | **(0.000, 0.505)**    | **+0.125 (−0.030, +0.404)** | Slope CI shifted toward zero                              |
+| LRP58 (L→W) | GP on      | 85 / 36000 (0.24 %)      | (0.001, 0.621)        | +0.137 (−0.002, +0.304)     | —                                                         |
+| LRP58 (L→W) | **GP off** | **4 / 36000 (0.01 %)**   | **(0.077, 0.684)**    | **+0.164 (+0.011, +0.320)** | **Amplitude and slope CIs now both exclude zero at 95 %** |
 
 - **LRP58 is the star improvement.** Divergences drop from 0.24 % to
   essentially zero (4 / 36000), the `f_mech__eta` lower bound moves
@@ -53,10 +53,10 @@ model-parsimony grounds.
 ## Other diagnostics after refit
 
 | Model | R̂ (max) | ESS_bulk min (scalar) | Pareto k > 0.70 |
-|---|---|---|---|
-| LRP56 | 1.002 | 3 305 | 0 / 157 |
-| LRP57 | 1.001 | 3 840 | 0 / 157 |
-| LRP58 | 1.001 | 5 656 | 0 / 157 |
+| ----- | ------- | --------------------- | --------------- |
+| LRP56 | 1.002   | 3 305                 | 0 / 157         |
+| LRP57 | 1.001   | 3 840                 | 0 / 157         |
+| LRP58 | 1.001   | 5 656                 | 0 / 157         |
 
 All Pareto k ≤ 0.70 in every model (previously 1 % had one marginal
 point). Clean.
@@ -111,7 +111,7 @@ positive side of zero; LRP56 and LRP57 CIs still touch or span zero.
 - All seven models refit in reporting config without warnings other
   than the LRP57 small increase in divergences noted above.
 
-## What is *not* in scope (documented for future work)
+## What is _not_ in scope (documented for future work)
 
 - ITT-phase-only mediation decomposition (NDE / NIE) through L —
   LRP59+ per the original plan. β_G in mechanism models is not a

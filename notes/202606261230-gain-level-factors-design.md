@@ -17,7 +17,7 @@ causal?"** — one interpretable per-outcome factor decomposition, fit eight tim
   each) — an ANCOVA of a period's post-score on its **own** pre-score, stacked
   over every untreated and on-intervention period (`phase_mode="all"`), with a
   per-child random intercept.
-- **`kind="level_factors"`** (`lrplf01–08`) — the companion *levels* view: the
+- **`kind="level_factors"`** (`lrplf01–08`) — the companion _levels_ view: the
   score **at each timepoint** (`phase_mode="levels"`, four rows per child, no own
   baseline), with group and ability entered as per-timepoint coefficient vectors.
 
@@ -31,16 +31,16 @@ Every model carries the **same causal skeleton** — randomised on-intervention
 design, `blocks`) — plus the **upstream DAG skills** specific to that outcome,
 and three focal interactions (`trt×ability`, `trt×own`, `age×ability`):
 
-| Sym | Outcome (measure)               | n_trials | Skill cross-predictors | Likelihood            |
-| --- | ------------------------------- | -------: | ---------------------- | --------------------- |
-| W   | Word reading (EWRSWR)           |       79 | L, R                   | Beta-Binomial         |
-| R   | Receptive vocabulary (ROWPVT)   |      170 | — (core only)          | Beta-Binomial         |
-| E   | Expressive vocabulary (EOWPVT)  |      170 | R                      | Beta-Binomial         |
-| L   | Letter-sound knowledge (YARC)   |       32 | — (core only)          | Beta-Binomial         |
-| P   | Phonetic spelling (SPPHON)      |       92 | L, B                   | **Bernoulli off-floor** |
-| B   | Phoneme blending                |       10 | L                      | Beta-Binomial         |
-| F   | Basic concept knowledge (CELF)  |       18 | R                      | Beta-Binomial         |
-| T   | Receptive grammar (TROG-2)      |       32 | R                      | Beta-Binomial         |
+| Sym | Outcome (measure)              | n_trials | Skill cross-predictors | Likelihood              |
+| --- | ------------------------------ | -------: | ---------------------- | ----------------------- |
+| W   | Word reading (EWRSWR)          |       79 | L, R                   | Beta-Binomial           |
+| R   | Receptive vocabulary (ROWPVT)  |      170 | — (core only)          | Beta-Binomial           |
+| E   | Expressive vocabulary (EOWPVT) |      170 | R                      | Beta-Binomial           |
+| L   | Letter-sound knowledge (YARC)  |       32 | — (core only)          | Beta-Binomial           |
+| P   | Phonetic spelling (SPPHON)     |       92 | L, B                   | **Bernoulli off-floor** |
+| B   | Phoneme blending               |       10 | L                      | Beta-Binomial           |
+| F   | Basic concept knowledge (CELF) |       18 | R                      | Beta-Binomial           |
+| T   | Receptive grammar (TROG-2)     |       32 | R                      | Beta-Binomial           |
 
 Skills enter as the standardised pre-score logit of the upstream measure (e.g.
 word reading is regressed on baseline letter sounds **L** and receptive
@@ -56,13 +56,13 @@ reasons, all pointing the same way:
 1. **SES is not a node in the consolidated DAG**
    (`notes/202606231600-dag-revision-consolidated.md`). The word-reading parent
    set is `{A, GA, IG, IS, LS, NW, PA, PS, RV, TR}`; the ITT effect is identified
-   by the *empty* adjustment set. There is no arrow for an SES coefficient to
+   by the _empty_ adjustment set. There is no arrow for an SES coefficient to
    estimate.
 2. **It was found statistically redundant** in the gradient-boosting selection
    (its variance is absorbed by ability + baselines).
 3. **Conditioning on it costs data:** SES is incomplete, so requiring it dropped
    the analysable sample from ~54 to ~34 children. Dropping SES is therefore both
-   DAG-faithful *and* restores n (block design is complete, 54/54).
+   DAG-faithful _and_ restores n (block design is complete, 54/54).
 
 SES survives only as the dedicated `lrpitt13` SES-**robustness** companion, never
 in a core factor set. Cognitive ability (`blocks`) is kept as the observed
@@ -74,7 +74,7 @@ Like the mechanism and DiD families, both factor families add a non-centred
 per-child random intercept. It absorbs the **time-invariant** part of latent
 general ability (GA) shared across a child's measures, so the cross-lagged
 "baseline X → later Y" associations are not inflated by a stable trait. The
-time-*varying* part of GA is not repaired — hence the strict "association"
+time-_varying_ part of GA is not repaired — hence the strict "association"
 labelling on every non-randomised term.
 
 ### Decision 3 — gain is an own-baseline ANCOVA; treated-only is its honest sibling

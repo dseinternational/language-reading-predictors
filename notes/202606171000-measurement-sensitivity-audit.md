@@ -34,17 +34,17 @@ few movers (< 40 %). Outputs: `output/measurement_audit/outcome_properties.csv` 
 
 ## Results (t1 → t2 randomised window)
 
-| Sym | Measure (max) | floor t1 | floor t2 | ceil t2 | scale used t2 | movers | mean Δ | verdict |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| W | Word reading (90) | 40 % | 15 % | 0 % | 62 % | 77 % | +3.4 | adequate |
-| R | Receptive vocab (190) | 0 % | 0 % | 0 % | 28 % | 94 % | +3.1 | adequate |
-| E | Expressive vocab (170) | 0 % | 0 % | 0 % | 36 % | 96 % | +4.3 | adequate |
-| **L** | **Letter-sound (32)** | 9 % | 0 % | 0 % | 91 % | 94 % | +5.2 | **adequate** |
-| P | Phonetic spelling (100) | 78 % | 64 % | 0 % | 92 % | 36 % | +5.2 | **detection-limited** |
-| **B** | **Blending (10)** | 4 % | 2 % | 6 % | 100 % | 78 % | +0.7 | **adequate** |
-| F | Basic concepts / CELF (18) | 2 % | 4 % | 6 % | 100 % | 89 % | +0.8 | adequate |
-| T | Receptive grammar / TROG (32) | 0 % | 0 % | 0 % | 69 % | 94 % | +1.3 | adequate |
-| N | Nonword reading (6) | 72 % | 64 % | 6 % | 100 % | 46 % | +0.3 | **detection-limited** |
+| Sym   | Measure (max)                 | floor t1 | floor t2 | ceil t2 | scale used t2 | movers | mean Δ | verdict               |
+| ----- | ----------------------------- | -------- | -------- | ------- | ------------- | ------ | ------ | --------------------- |
+| W     | Word reading (90)             | 40 %     | 15 %     | 0 %     | 62 %          | 77 %   | +3.4   | adequate              |
+| R     | Receptive vocab (190)         | 0 %      | 0 %      | 0 %     | 28 %          | 94 %   | +3.1   | adequate              |
+| E     | Expressive vocab (170)        | 0 %      | 0 %      | 0 %     | 36 %          | 96 %   | +4.3   | adequate              |
+| **L** | **Letter-sound (32)**         | 9 %      | 0 %      | 0 %     | 91 %          | 94 %   | +5.2   | **adequate**          |
+| P     | Phonetic spelling (100)       | 78 %     | 64 %     | 0 %     | 92 %          | 36 %   | +5.2   | **detection-limited** |
+| **B** | **Blending (10)**             | 4 %      | 2 %      | 6 %     | 100 %         | 78 %   | +0.7   | **adequate**          |
+| F     | Basic concepts / CELF (18)    | 2 %      | 4 %      | 6 %     | 100 %         | 89 %   | +0.8   | adequate              |
+| T     | Receptive grammar / TROG (32) | 0 %      | 0 %      | 0 %     | 69 %          | 94 %   | +1.3   | adequate              |
+| N     | Nonword reading (6)           | 72 %     | 64 %     | 6 %     | 100 %         | 46 %   | +0.3   | **detection-limited** |
 
 One-line verdicts:
 
@@ -53,7 +53,7 @@ One-line verdicts:
 - **R, E (vocabulary)** — adequate. **No floor, no ceiling, and 94–96 % of children's
   scores move** (mean +3.1 / +4.3 raw points). They occupy a compressed band of the
   big norm-referenced scales (28 % / 36 % of 190 / 170 items), but that is
-  range-compression *with preserved within-band variation and movement*, not a
+  range-compression _with preserved within-band variation and movement_, not a
   floor/ceiling or no-movement problem.
 - **L** — adequate, and the best-behaved measure (91 % of scale, 94 % move). Ideal
   composite component.
@@ -67,12 +67,12 @@ One-line verdicts:
 
 ## Implications
 
-**1. The vocabulary null is most consistent with a *true* null, not a detectability
+**1. The vocabulary null is most consistent with a _true_ null, not a detectability
 artefact.** R and E are not floored, not ceilinged, and show substantial
-child-to-child movement across the window; the instruments demonstrably *can*
+child-to-child movement across the window; the instruments demonstrably _can_
 register change. So "no credible vocabulary treatment effect" should be read as the
 RLI vocabulary component not lifting these scores **above maturation**, rather than
-as a measure that could not have shown an effect. *Caveat:* this audit assesses
+as a measure that could not have shown an effect. _Caveat:_ this audit assesses
 range / floor / ceiling / movement only — it cannot estimate internal-consistency
 **reliability** from single summary scores, so it rules out gross detectability
 failure but not a subtler differential-reliability story.

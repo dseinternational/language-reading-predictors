@@ -20,18 +20,19 @@ risk-difference ROPE wired now using the **provisional** `ROPE_DELTA_PROB = 0.10
 ## What changed
 
 **Foundation.**
-- *0b — persist what's computed.* `diagnostics.save_trace` now grafts the `prior`
+
+- _0b — persist what's computed._ `diagnostics.save_trace` now grafts the `prior`
   and `prior_predictive` groups onto `trace.nc` (they were thrown away);
-  `run_prior_predictive` samples *all* free RVs + deterministics so the prior group
+  `run_prior_predictive` samples _all_ free RVs + deterministics so the prior group
   carries the effect term and `eta` for pushforward/overlay.
   `compute_log_likelihood_and_loo` adds a `log_prior` group (for power-scaling
   sensitivity) and computes LOO `pointwise=True` (for Pareto-k). A new
   `write_diagnostics_summary` emits `diagnostics_summary.json` — the pass/fail
   convergence gate (divergences, BFMI per chain, R-hat ≤ 1.01, ESS ≥ 400). BFMI is
   computed directly from the sampler energy (`arviz.bfmi` is gone in the 1.x split).
-- *0c — interval type.* `diagnostics.csv` now uses equal-tailed (`ci_kind="eti"`),
+- _0c — interval type._ `diagnostics.csv` now uses equal-tailed (`ci_kind="eti"`),
   matching the report cards and prose (finishing #101).
-- *0a — Quarto partials.* New `docs/models/_partials/` (`_header`, `_setup`,
+- _0a — Quarto partials._ New `docs/models/_partials/` (`_header`, `_setup`,
   `_convergence`, `_priors`, `_prior_predictive`, `_diagnostics`, `_footer`, plus
   per-archetype `_results_itt` / `_results_floored` / `_results_joint` /
   `_results_factors`). Each `index.qmd` is now title + model-specific Overview/Model
@@ -42,7 +43,7 @@ risk-difference ROPE wired now using the **provisional** `ROPE_DELTA_PROB = 0.10
   models.
 
 **Area 1 — priors.** `priors_table.csv` (parameter, distribution, role, rationale,
-panel) is generated per model from the *registered* RVs, so it captures inline
+panel) is generated per model from the _registered_ RVs, so it captures inline
 priors and never lists priors the model did not use; the role column makes the
 "precision ≠ causal warrant" discipline structural. Dead prior panels are pruned
 (only the used set is plotted). The prior is pushed through the items-scale AME
@@ -69,7 +70,7 @@ adjusted associations are fenced in a clearly-labelled "not causal" block.
 
 #131's conda/pip split shipped `h5netcdf` without its `h5py` backend, so saving
 grouped `trace.nc` failed (`No module named 'h5py'`). `h5py` is now declared in
-`environment.yml`. This blocked *all* stat-model fits, not just #125.
+`environment.yml`. This blocked _all_ stat-model fits, not just #125.
 
 ## Follow-ups
 

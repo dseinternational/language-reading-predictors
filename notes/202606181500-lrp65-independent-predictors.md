@@ -30,13 +30,13 @@ predictor" is ambiguous.
   wave-1 baseline with word-reading gain. DAG drawn first (latent general ability
   `g`, drawn not fitted, drives the correlated baselines); see PR #87 / `docs/models/lrp65/dag.svg`.
   This DAG is a **subset of the locked DAG** (`notes/202606231600-dag-revision-consolidated.md`):
-  age acts *through* `g` (no direct age→skill edges) and the intervention/dose arm
+  age acts _through_ `g` (no direct age→skill edges) and the intervention/dose arm
   is omitted because LRP65 is a between-child predictor model, not ITT.
 - **Design (locked):** genuinely between-child — **one row per child** ($n = 51$; 2 of 53 children dropped for a missing baseline covariate),
   $x$ = T1 baseline levels, $y$ = word reading at the last wave conditioned on
   $W_{\text{T1}}$ (Beta-Binomial, EWRSWR, $N=90$). **No** child random intercept (a
   pooled all-phase design with a random intercept would tilt the estimand toward the
-  *within-child* question — that is the deferred cross-lagged model, not this one).
+  _within-child_ question — that is the deferred cross-lagged model, not this one).
 - **Predictors (standardised, per-SD):** letter sounds (`yarclet`), an equal-weight
   language composite (ROWPVT+EOWPVT+CELF), blending, age; plus non-verbal MA and
   behaviour as tested covariates. SES (`mumedupost16`) in a complete-case sensitivity
@@ -50,14 +50,14 @@ predictor" is ambiguous.
 
 ## Results (reporting-tier; logit scale, per-SD; 94% intervals)
 
-| Predictor (T1) | Adjusted [94%] | P(>0) | Bivariate [94%] | P(>0) |
-| --- | --- | --- | --- | --- |
-| Letter sounds | 0.20 [−0.06, 0.46] | 0.92 | 0.35 [0.10, 0.61] | 1.00 |
-| Language composite | 0.28 [−0.03, 0.58] | 0.95 | 0.23 [−0.01, 0.48] | 0.96 |
-| Blending | 0.04 [−0.16, 0.24] | 0.65 | 0.07 [−0.14, 0.28] | 0.74 |
-| Age | −0.26 [−0.47, −0.06] | 0.01 | −0.19 [−0.38, 0.00] | 0.03 |
-| Non-verbal MA | 0.00 [−0.23, 0.23] | 0.51 | 0.12 [−0.07, 0.32] | 0.88 |
-| Behaviour | −0.15 [−0.39, 0.07] | 0.11 | −0.27 [−0.51, −0.05] | 0.01 |
+| Predictor (T1)     | Adjusted [94%]       | P(>0) | Bivariate [94%]      | P(>0) |
+| ------------------ | -------------------- | ----- | -------------------- | ----- |
+| Letter sounds      | 0.20 [−0.06, 0.46]   | 0.92  | 0.35 [0.10, 0.61]    | 1.00  |
+| Language composite | 0.28 [−0.03, 0.58]   | 0.95  | 0.23 [−0.01, 0.48]   | 0.96  |
+| Blending           | 0.04 [−0.16, 0.24]   | 0.65  | 0.07 [−0.14, 0.28]   | 0.74  |
+| Age                | −0.26 [−0.47, −0.06] | 0.01  | −0.19 [−0.38, 0.00]  | 0.03  |
+| Non-verbal MA      | 0.00 [−0.23, 0.23]   | 0.51  | 0.12 [−0.07, 0.32]   | 0.88  |
+| Behaviour          | −0.15 [−0.39, 0.07]  | 0.11  | −0.27 [−0.51, −0.05] | 0.01  |
 
 - **Letter sounds and the language composite retain credible positive signal** when
   mutually adjusted (P(>0) ≈ 0.92, 0.95). Letter sounds attenuates from 0.35 → 0.20 —
@@ -83,20 +83,20 @@ predictor" is ambiguous.
 ## Honest reading
 
 - **Between-child associations, $n \approx 51$ — not causal effects.** The randomised
-  the word-reading ITT (now `lrpitt10`, superseding LRP52) is the causal evidence that the *programme* works; LRP65 is
-  about *which starting skills go with more gain*.
+  the word-reading ITT (now `lrpitt10`, superseding LRP52) is the causal evidence that the _programme_ works; LRP65 is
+  about _which starting skills go with more gain_.
 - Wide intervals are the honest result: even the headline predictors' 94% intervals
-  cross (or nearly cross) zero at this n. Read the *pattern* (which predictors survive
+  cross (or nearly cross) zero at this n. Read the _pattern_ (which predictors survive
   mutual adjustment), not a single predictor "winning".
 - A near-zero adjusted coefficient for non-verbal MA means "no signal beyond the shared
   ability already captured by language + letter-sounds", **not** "unrelated to gain".
 
 ## Follow-on — the dynamic / within-child question (deferred)
 
-A **cross-lagged panel model**: does an *early gain* in one skill (e.g. letter sounds
-T1→T2) predict a *later gain* in another (word reading T2→T3)? This is the within-child
+A **cross-lagged panel model**: does an _early gain_ in one skill (e.g. letter sounds
+T1→T2) predict a _later gain_ in another (word reading T2→T3)? This is the within-child
 question, distinct from LRP65's between-child one; it drops usable $n$ from ~216
 observations to ~50 children, so it is a separate, lower-power follow-up. Template:
-Yoder, Woynaroski, Fey, Warren & Gardner (2015), *Why Dose Frequency Affects Spoken
-Vocabulary in Preschoolers With Down Syndrome* (AJIDD) — an early-change → later-outcome
+Yoder, Woynaroski, Fey, Warren & Gardner (2015), _Why Dose Frequency Affects Spoken
+Vocabulary in Preschoolers With Down Syndrome_ (AJIDD) — an early-change → later-outcome
 cascade (flagged by Sue).

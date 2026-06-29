@@ -13,7 +13,7 @@ and repeated across every timepoint for each child in the long-format
 contributes 3 or 4 identical rows of these time-invariant predictors —
 the same value appears multiple times without adding information.
 
-`GroupKFold` grouped by `subject_id` prevents *test-set* leakage: a
+`GroupKFold` grouped by `subject_id` prevents _test-set_ leakage: a
 child's `agebooks` value never appears in both train and test. But
 during **training** the model still sees each child's time-invariant
 values repeated. This:
@@ -27,7 +27,7 @@ values repeated. This:
   per-child fit.
 
 The concern is structurally weaker for LRP01 (gain target, where a
-time-invariant predictor can only explain between-child *trajectory*
+time-invariant predictor can only explain between-child _trajectory_
 differences, not within-child change), so this sensitivity check is
 scoped to LRP02.
 
@@ -61,12 +61,12 @@ Outputs under `output/sensitivity/lrp02_weight/`:
 
 ### Pooled OOF metrics
 
-| Run | MAE | RMSE | R² | MedAE |
-|---|---:|---:|---:|---:|
-| Baseline (13 predictors, unweighted) | 6.29 | 9.04 | 0.600 | **3.68** |
-| Weighted fit (13 predictors, unweighted scoring) | 6.15 | 8.93 | 0.610 | 3.58 |
-| Weighted fit, subject-weighted scoring | 6.11 | 8.89 | 0.612 | — |
-| Dropped agebooks + agespeak (11 predictors, baseline tune) | 6.10 | 8.75 | 0.626 | 4.23 |
+| Run                                                              |      MAE |     RMSE |        R² |    MedAE |
+| ---------------------------------------------------------------- | -------: | -------: | --------: | -------: |
+| Baseline (13 predictors, unweighted)                             |     6.29 |     9.04 |     0.600 | **3.68** |
+| Weighted fit (13 predictors, unweighted scoring)                 |     6.15 |     8.93 |     0.610 |     3.58 |
+| Weighted fit, subject-weighted scoring                           |     6.11 |     8.89 |     0.612 |        — |
+| Dropped agebooks + agespeak (11 predictors, baseline tune)       |     6.10 |     8.75 |     0.626 |     4.23 |
 | **Dropped + retuned (11 predictors, `lrp02_drop_age_measures`)** | **5.92** | **8.74** | **0.627** | **3.75** |
 
 The weighted fit moves every mean-based metric by ≈0.01 on R² /
@@ -115,17 +115,17 @@ feature set admits a shallower, slightly larger-leaf tree structure
 removed there are fewer "noise dimensions" for deep splits to chase
 into.
 
-Paired-fold test across 51 folds (``compare_variants.py``):
+Paired-fold test across 51 folds (`compare_variants.py`):
 
-| Metric | lrp02 | drop_age_measures | mean Δ | p (t) | B wins |
-|---|---:|---:|---:|---:|---:|
-| MAE | 6.394 | 5.995 | −0.399 | 0.167 | 27/51 |
-| RMSE | 7.259 | 6.759 | −0.501 | 0.111 | 28/51 |
-| MedAE | 6.256 | 5.841 | −0.415 | 0.184 | 28/51 |
-| R² (per-fold) | −17.316 | −12.442 | +4.874 | 0.386 | 27/51 |
+| Metric        |   lrp02 | drop_age_measures | mean Δ | p (t) | B wins |
+| ------------- | ------: | ----------------: | -----: | ----: | -----: |
+| MAE           |   6.394 |             5.995 | −0.399 | 0.167 |  27/51 |
+| RMSE          |   7.259 |             6.759 | −0.501 | 0.111 |  28/51 |
+| MedAE         |   6.256 |             5.841 | −0.415 | 0.184 |  28/51 |
+| R² (per-fold) | −17.316 |           −12.442 | +4.874 | 0.386 |  27/51 |
 
 Directionally consistent improvement on every metric, 27-28/51
-fold-wins; paired-fold *t*-test p-values are 0.11-0.39 — not
+fold-wins; paired-fold _t_-test p-values are 0.11-0.39 — not
 statistically significant at the single-fold level, unsurprising
 given per-fold variance is dominated by the ~single-subject fold
 structure. The pooled OOF metrics (which aggregate residuals across
@@ -134,21 +134,21 @@ more reliable signal and tell an unambiguous improvement story.
 
 ### Permutation importance ranking
 
-| Predictor | imp (unweighted) | imp (weighted) | rank (unw.) | rank (w.) | rank Δ |
-|---|---:|---:|---:|---:|---:|
-| spphon | 0.165 | 0.169 | 1 | 1 | 0 |
-| yarclet | 0.142 | 0.144 | 2 | 2 | 0 |
-| eowpvt | 0.083 | 0.082 | 3 | 3 | 0 |
-| nonword | 0.057 | 0.062 | 4 | 4 | 0 |
-| aptinfo | 0.047 | 0.042 | 5 | 5 | 0 |
-| **agebooks** | **0.036** | **0.029** | **6** | **7** | **+1** |
-| erbword | 0.027 | 0.030 | 7 | 6 | −1 |
-| mumedupost16 | 0.026 | 0.022 | 8 | 8 | 0 |
-| **agespeak** | **0.023** | **0.021** | **9** | **9** | **0** |
-| gender | 0.019 | 0.016 | 10 | 11 | +1 |
-| age | 0.018 | 0.010 | 11 | 12 | +1 |
-| numchil | 0.010 | 0.016 | 12 | 10 | −2 |
-| deappvo | 0.002 | 0.007 | 13 | 13 | 0 |
+| Predictor    | imp (unweighted) | imp (weighted) | rank (unw.) | rank (w.) | rank Δ |
+| ------------ | ---------------: | -------------: | ----------: | --------: | -----: |
+| spphon       |            0.165 |          0.169 |           1 |         1 |      0 |
+| yarclet      |            0.142 |          0.144 |           2 |         2 |      0 |
+| eowpvt       |            0.083 |          0.082 |           3 |         3 |      0 |
+| nonword      |            0.057 |          0.062 |           4 |         4 |      0 |
+| aptinfo      |            0.047 |          0.042 |           5 |         5 |      0 |
+| **agebooks** |        **0.036** |      **0.029** |       **6** |     **7** | **+1** |
+| erbword      |            0.027 |          0.030 |           7 |         6 |     −1 |
+| mumedupost16 |            0.026 |          0.022 |           8 |         8 |      0 |
+| **agespeak** |        **0.023** |      **0.021** |       **9** |     **9** |  **0** |
+| gender       |            0.019 |          0.016 |          10 |        11 |     +1 |
+| age          |            0.018 |          0.010 |          11 |        12 |     +1 |
+| numchil      |            0.010 |          0.016 |          12 |        10 |     −2 |
+| deappvo      |            0.002 |          0.007 |          13 |        13 |      0 |
 
 Observations:
 
@@ -163,7 +163,7 @@ Observations:
   informal 0.005 noise floor used in earlier selection passes.
 - **`agespeak`** is essentially unchanged (0.023 → 0.021, same rank) —
   the concern did not manifest for it at all.
-- **`age`** (which *does* vary across timepoints) drops by 45%
+- **`age`** (which _does_ vary across timepoints) drops by 45%
   (0.018 → 0.010). The repeated-row framing is not the sole mechanism
   at play: re-weighting children equally also redistributes signal
   between features correlated with timepoint density (children with 4
@@ -193,8 +193,8 @@ metric. The untuned-drop MedAE regression (3.68 → 4.23) disappears
 under the retune (3.75), while MAE (−6%), RMSE (−3%), and R²
 (+0.027) all improve. The two features are therefore **not**
 buying net accuracy on the primary — their apparent importance
-reflects their contribution relative to a tune fitted *with them
-present* rather than any unique signal they carry.
+reflects their contribution relative to a tune fitted _with them
+present_ rather than any unique signal they carry.
 
 Recommendation options, in increasing order of commitment:
 

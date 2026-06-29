@@ -10,12 +10,12 @@
 
 After the methodological cleanup in PR #2 (NaN unification, leak fix in the LGBM tuning objective) and PR #3 (symmetric Optuna tuning of the RF), the final cross-validated comparison on the full `--config reporting` pipeline (n=152, 53-split GroupKFold) showed:
 
-| Model | Config | CV RMSE mean ± std | n_estimators |
-|---|---|---|---|
-| `lrp01` | RF default | 3.0106 ± 1.5576 | 500 |
-| `lrp01_select01` | RF tuned (Optuna 50-trial TPE) | 3.0116 ± 1.5545 | 1800 |
-| `lrp01_lgbm` | LGBM untuned | 3.5013 ± 1.7159 | 1200 |
-| `lrp01_lgbm_select01` | LGBM tuned | 3.0438 ± 1.4942 | 83 |
+| Model                 | Config                         | CV RMSE mean ± std | n_estimators |
+| --------------------- | ------------------------------ | ------------------ | ------------ |
+| `lrp01`               | RF default                     | 3.0106 ± 1.5576    | 500          |
+| `lrp01_select01`      | RF tuned (Optuna 50-trial TPE) | 3.0116 ± 1.5545    | 1800         |
+| `lrp01_lgbm`          | LGBM untuned                   | 3.5013 ± 1.7159    | 1200         |
+| `lrp01_lgbm_select01` | LGBM tuned                     | 3.0438 ± 1.4942    | 83           |
 
 The four candidates lie within 0.04 RMSE units of each other — well inside one cross-fold standard deviation. Accuracy alone cannot pick a winner. Speed becomes the deciding criterion.
 
@@ -23,10 +23,10 @@ The four candidates lie within 0.04 RMSE units of each other — well inside one
 
 End-to-end fit on `--config reporting` (53-split GroupKFold + permutation importance + SHAP TreeExplainer + partial dependence plots), measured on 2026-04-12 from `dev/tune-lrp01-rf`:
 
-| Model | Wall time |
-|---|---|
-| `lrp01_select01` (tuned RF, 1800 trees) | **7 min 11 s** |
-| `lrp01_lgbm_select01` (tuned LGBM, 83 rounds) | **14 s** |
+| Model                                         | Wall time      |
+| --------------------------------------------- | -------------- |
+| `lrp01_select01` (tuned RF, 1800 trees)       | **7 min 11 s** |
+| `lrp01_lgbm_select01` (tuned LGBM, 83 rounds) | **14 s**       |
 
 **LightGBM is ~30× faster end-to-end** for an essentially identical CV RMSE. At this margin the choice is not even close.
 
@@ -42,9 +42,10 @@ This is not an accident of tuning. **Random Forest needs many trees because each
 
 ### 2. Split-finding: histograms vs exact scans
 
-This is the biggest *per-tree* difference and the reason LightGBM (and XGBoost's `hist` mode) revolutionised GBDT speed in 2017.
+This is the biggest _per-tree_ difference and the reason LightGBM (and XGBoost's `hist` mode) revolutionised GBDT speed in 2017.
 
-**Random Forest (sklearn `RandomForestRegressor`)** uses *exact* split finding. For each candidate split at each node, it must:
+**Random Forest (sklearn `RandomForestRegressor`)** uses _exact_ split finding. For each candidate split at each node, it must:
+
 - For each of the considered features (here `max_features=0.375`, so ≈13 of 34 features per node)
 - Sort the samples by that feature's value
 - Scan every unique value as a potential split threshold
@@ -52,7 +53,8 @@ This is the biggest *per-tree* difference and the reason LightGBM (and XGBoost's
 
 This is O(features × samples × log samples) per node. With n=152 it's not catastrophic, but it happens at every internal node of every one of the 1800 trees, with `max_depth=11` allowing up to 2¹¹ = 2048 leaves per tree (`min_samples_leaf=16` caps this in practice but the search still happens).
 
-**LightGBM** uses *histogram-based* split finding. Once at the start of each tree (and incrementally as the tree grows):
+**LightGBM** uses _histogram-based_ split finding. Once at the start of each tree (and incrementally as the tree grows):
+
 - Each continuous feature is bucketed into ≈255 fixed bins
 - For each feature × bin combination it accumulates the gradient and hessian sums
 - Split finding becomes a sequential scan over **bins**, not samples — O(features × bins) per node, completely independent of n
@@ -61,7 +63,7 @@ For our 152 samples × 34 features the bin count (255) is actually larger than t
 
 ### 3. Tree growth strategy: leaf-wise vs level-wise
 
-**Random Forest** grows each tree level-by-level (depth-first within sklearn's implementation, but the *shape* is constrained by `max_depth`). To reach `max_depth=11` it grows the full level-wise structure, even branches that wouldn't have meaningfully reduced the loss.
+**Random Forest** grows each tree level-by-level (depth-first within sklearn's implementation, but the _shape_ is constrained by `max_depth`). To reach `max_depth=11` it grows the full level-wise structure, even branches that wouldn't have meaningfully reduced the loss.
 
 **LightGBM** grows leaf-wise: at each step it expands the leaf whose split would reduce loss the most. Because each tree is small (`num_leaves=34`, `max_depth=12`), it finds deep structure where it matters and stops growing in directions that don't help. This produces trees with ≤34 leaves rather than RF's potential thousands of leaves at depth 11. Each tree is doing dramatically less work — and there are 21.7× fewer of them.
 
@@ -130,7 +132,7 @@ The fit and CV phases dominate the RF wall-time; SHAP and permutation importance
 ## Caveats
 
 - These timings are at n=152. The histogram speedup grows with n; at n=10,000 the gap would be far larger. At n<100 it would shrink. Future LRP cohorts only push this further in LGBM's favour.
-- LGBM's 14 s includes some fixed Python startup, conda activation, data load — the *marginal* fit cost is even lower. Re-fitting in a notebook session where the import cost is amortised would be sub-second.
+- LGBM's 14 s includes some fixed Python startup, conda activation, data load — the _marginal_ fit cost is even lower. Re-fitting in a notebook session where the import cost is amortised would be sub-second.
 - The accuracy tie is at this specific predictor set. If feature selection meaningfully changes the predictor count, the gap could re-open in either direction. Worth re-checking after the next selection round.
 
 ## Do both models give similar SHAP importance results?
@@ -140,15 +142,15 @@ Broadly yes at the top, with informative differences below. SHAP values themselv
 ### Top SHAP features (mean |SHAP|), tuned RF vs tuned LGBM
 
 | Rank | RF tuned (`lrp01_select01`) | LGBM tuned (`lrp01_lgbm_select01`) |
-|---|---|---|
-| 1 | celf (0.47) | attend (0.71) |
-| 2 | attend (0.43) | age (0.70) |
-| 3 | age (0.33) | celf (0.41) |
-| 4 | eowpvt (0.32) | blending (0.33) |
-| 5 | b1exto (0.21) | time (0.31) |
-| 6 | blending (0.20) | b1exto (0.30) |
-| 7 | yarclet (0.13) | eowpvt (0.27) |
-| 8 | time (0.08) | yarclet (0.27) |
+| ---- | --------------------------- | ---------------------------------- |
+| 1    | celf (0.47)                 | attend (0.71)                      |
+| 2    | attend (0.43)               | age (0.70)                         |
+| 3    | age (0.33)                  | celf (0.41)                        |
+| 4    | eowpvt (0.32)               | blending (0.33)                    |
+| 5    | b1exto (0.21)               | time (0.31)                        |
+| 6    | blending (0.20)             | b1exto (0.30)                      |
+| 7    | yarclet (0.13)              | eowpvt (0.27)                      |
+| 8    | time (0.08)                 | yarclet (0.27)                     |
 
 ### Agreement
 
@@ -172,4 +174,4 @@ For the upcoming `analyze_predictors.py` → drop → refit loop, **LGBM is actu
 
 ### Caveat on comparing magnitudes
 
-The absolute SHAP magnitudes between RF and LGBM are not directly comparable — they sum to (predicted − base value) for each model, and the two models partition the same predicted variance differently. The *ranks* and the *concentration pattern* are the meaningful comparison; the raw numbers are not.
+The absolute SHAP magnitudes between RF and LGBM are not directly comparable — they sum to (predicted − base value) for each model, and the two models partition the same predicted variance differently. The _ranks_ and the _concentration pattern_ are the meaningful comparison; the raw numbers are not.

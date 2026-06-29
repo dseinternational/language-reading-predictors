@@ -6,7 +6,7 @@
 
 > [!NOTE]
 > **Sign convention superseded.** These results (e.g. "τ = −0.62 is beneficial")
-> were computed under the original `G = group − 1` coding, where *negative* τ =
+> were computed under the original `G = group − 1` coding, where _negative_ τ =
 > intervention benefit. The repo has since standardised on `G = 2 − group`, so
 > **positive τ = benefit** (see METHODS.md); the magnitudes are unchanged, the sign flips.
 
@@ -41,22 +41,22 @@ isolating the adjustment from the sample change.
 
 ## Results
 
-| Fit | Sample | Adjusts SES | τ (logit) | 94% HDI | P(benefit) | divs | R-hat |
-| --- | --- | --- | ---: | --- | ---: | ---: | ---: |
-| **LRP52** | full, n=53 | no | **−0.40** | [−0.75, −0.06] | 0.99 | 0 | 1.00 |
-| **LRP60a** | complete-case, n=33 | no | **−0.55** | [−1.00, −0.08] | 0.99 | 0 | 1.00 |
-| **LRP60** | complete-case, n=33 | yes | **−0.62** | [−1.10, −0.12] | 0.99 | 0 | 1.00 |
+| Fit        | Sample              | Adjusts SES | τ (logit) | 94% HDI        | P(benefit) | divs | R-hat |
+| ---------- | ------------------- | ----------- | --------: | -------------- | ---------: | ---: | ----: |
+| **LRP52**  | full, n=53          | no          | **−0.40** | [−0.75, −0.06] |       0.99 |    0 |  1.00 |
+| **LRP60a** | complete-case, n=33 | no          | **−0.55** | [−1.00, −0.08] |       0.99 |    0 |  1.00 |
+| **LRP60**  | complete-case, n=33 | yes         | **−0.62** | [−1.10, −0.12] |       0.99 |    0 |  1.00 |
 
 (min ESS_bulk ≈ 14k across fits.)
 
 ## Verdict — the word-reading effect is robust
 
-- **Selection (LRP60a vs LRP52):** the 33-child subset shows a *slightly larger*
+- **Selection (LRP60a vs LRP52):** the 33-child subset shows a _slightly larger_
   benefit (−0.55 vs −0.40), credibly beneficial in both, with heavily overlapping
   HDIs. Dropping the 21 children does **not** explain the effect away — if anything
   the complete-case subset is marginally stronger.
 - **SES adjustment (LRP60 vs LRP60a, sample fixed):** adjusting moves τ from −0.55
-  to −0.62 — *slightly more* beneficial, not less. SES adjustment does **not** erode
+  to −0.62 — _slightly more_ beneficial, not less. SES adjustment does **not** erode
   the effect.
 - **τ stays clearly beneficial (P(benefit) ≈ 0.99) across all three fits.** Neither
   the sample change nor SES adjustment is responsible for the word-reading effect.
@@ -76,14 +76,14 @@ coefficients present.
 - n is small (33 in the complete-case fits); HDIs are wide. This is a **robustness
   verdict, not a new headline**, and claims are restricted to the randomised phase-0
   window as for the other ITT models.
-- LRP60a removes the confound between adjustment and sample by *holding the sample
-  fixed*; it does not recover the dropped children.
+- LRP60a removes the confound between adjustment and sample by _holding the sample
+  fixed_; it does not recover the dropped children.
 
 ## Step 2 (Bayesian imputation, full sample) — not built
 
 Step 2 would keep all 54 by imputing the missing SES covariates inside the model
 (a **missing-at-random** assumption). It was **not built**: Step 1 is already
-decisive — the complete-case subset is, if anything, *more* beneficial than the full
+decisive — the complete-case subset is, if anything, _more_ beneficial than the full
 sample, so the selection concern does not threaten the verdict and a full-sample
 imputed estimate would very likely land between LRP52 and LRP60, still beneficial.
 It remains available as a flagged MAR sensitivity check (`lrp60b`) if the team wants

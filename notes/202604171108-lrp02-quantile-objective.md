@@ -81,10 +81,10 @@ Both get dedicated `_LGBM_QUANTILE_PARAMS` and
 Both tunes ran on 13-predictor Select04 set, 10-split GroupKFold,
 seed 47, scoring=medae, 150 Optuna trials.
 
-| Tune | Target | Tuner-inner CV MedAE | n_estimators | depth | leaves |
-|---|---|---:|---:|---:|---:|
-| `lrp02_quantile` | raw | **3.569 ± 0.761** | 243 | 12 | 57 |
-| `lrp02_log_quantile` | log1p | **2.896 ± 0.771** | 322 | 7 | 32 |
+| Tune                 | Target | Tuner-inner CV MedAE | n_estimators | depth | leaves |
+| -------------------- | ------ | -------------------: | -----------: | ----: | -----: |
+| `lrp02_quantile`     | raw    |    **3.569 ± 0.761** |          243 |    12 |     57 |
+| `lrp02_log_quantile` | log1p  |    **2.896 ± 0.771** |          322 |     7 |     32 |
 
 Both are meaningfully better than the MAE-tuned counterparts'
 tuner-inner MedAE (not directly recorded, but refit MedAE
@@ -94,12 +94,12 @@ corresponds roughly to 4.09 and 3.21 respectively).
 
 Test-config refit with the tuned `n_estimators` (cap-fix honoured):
 
-| Model | Trees | CV MAE | CV RMSE | CV R² | **CV MedAE** | In-sample R² |
-|---|---:|---:|---:|---:|---:|---:|
-| `lrp02` (raw, MAE) | 53 | 6.276 | 8.629 | 0.314 | 4.088 | 0.919 |
-| **`lrp02_quantile`** (raw, quantile) | 243 | **6.063** | **8.387** | **0.398** | **3.774** | 0.919 |
-| **`lrp02_log`** (log, MAE) | 358 | 5.629 | 8.093 | **0.489** | **3.212** | 0.952 |
-| `lrp02_log_quantile` (log, quantile) | 322 | 5.655 | 8.164 | 0.462 | 3.264 | 0.954 |
+| Model                                | Trees |    CV MAE |   CV RMSE |     CV R² | **CV MedAE** | In-sample R² |
+| ------------------------------------ | ----: | --------: | --------: | --------: | -----------: | -----------: |
+| `lrp02` (raw, MAE)                   |    53 |     6.276 |     8.629 |     0.314 |        4.088 |        0.919 |
+| **`lrp02_quantile`** (raw, quantile) |   243 | **6.063** | **8.387** | **0.398** |    **3.774** |        0.919 |
+| **`lrp02_log`** (log, MAE)           |   358 |     5.629 |     8.093 | **0.489** |    **3.212** |        0.952 |
+| `lrp02_log_quantile` (log, quantile) |   322 |     5.655 |     8.164 |     0.462 |        3.264 |        0.954 |
 
 ### Observations
 
@@ -117,13 +117,13 @@ Test-config refit with the tuned `n_estimators` (cap-fix honoured):
 ### Quartile in-sample MAE
 
 | Target range | `lrp02` | `lrp02_quantile` | `lrp02_log` | `lrp02_log_quantile` |
-|---|---|---|---|---|
-| (0, 1] | 0.45 | 0.94 | 0.32 | 0.40 |
-| (1, 6.5] | 0.43 | 0.88 | 0.30 | 0.39 |
-| (6.5, 17] | 1.18 | 1.35 | 0.78 | 0.70 |
-| (17, 64] | 2.72 | 5.70 | 2.63 | 3.57 |
+| ------------ | ------- | ---------------- | ----------- | -------------------- |
+| (0, 1]       | 0.45    | 0.94             | 0.32        | 0.40                 |
+| (1, 6.5]     | 0.43    | 0.88             | 0.30        | 0.39                 |
+| (6.5, 17]    | 1.18    | 1.35             | 0.78        | 0.70                 |
+| (17, 64]     | 2.72    | 5.70             | 2.63        | 3.57                 |
 
-The raw-target quantile variant (`lrp02_quantile`) has *worse*
+The raw-target quantile variant (`lrp02_quantile`) has _worse_
 in-sample MAE in the low-value quartiles (0.94 / 0.88 vs lrp02's
 0.45 / 0.43) but compensates via much better generalisation —
 recall that `lrp02`'s in-sample MAE of 0.45 was largely
@@ -140,11 +140,11 @@ regression (0.489 → 0.462) comes from.
 Full 4-way `compare_variants.py` output shows only these pairs
 reach significance:
 
-| Comparison | Metric | mean diff | paired *t* p | Wilcoxon p | B wins |
-|---|---|---:|---:|---:|---:|
-| `lrp02` → `lrp02_log` | MedAE | −0.877 | **0.005** | **0.006** | **9/10** |
-| `lrp02` → `lrp02_log_quantile` | MedAE | −0.824 | **0.038** | **0.037** | 8/10 |
-| `lrp02_quantile` → `lrp02_log` | MedAE | −0.562 | **0.036** | **0.037** | 8/10 |
+| Comparison                     | Metric | mean diff | paired _t_ p | Wilcoxon p |   B wins |
+| ------------------------------ | ------ | --------: | -----------: | ---------: | -------: |
+| `lrp02` → `lrp02_log`          | MedAE  |    −0.877 |    **0.005** |  **0.006** | **9/10** |
+| `lrp02` → `lrp02_log_quantile` | MedAE  |    −0.824 |    **0.038** |  **0.037** |     8/10 |
+| `lrp02_quantile` → `lrp02_log` | MedAE  |    −0.562 |    **0.036** |  **0.037** |     8/10 |
 
 Every significance is on **MedAE** — the metric the quantile
 objective directly optimises. Every significant comparison
@@ -159,6 +159,7 @@ noise at n=10.
 
 **`lrp02_log` → `lrp02_log_quantile`** (changing objective only,
 log target both sides) is essentially tied on every metric (t p
+
 > 0.2 across the board, 4/10 wins on most metrics).
 
 ## Interpretation
@@ -183,17 +184,17 @@ log target both sides) is essentially tied on every metric (t p
 Updated ranking, operational purposes (lower CV MedAE = better
 typical-case predictions):
 
-| Rank | Model | Trees | CV MedAE | CV R² | Note |
-|---|---|---:|---:|---:|---|
-| 1 | **`lrp02_log`** | 358 | **3.21** | **0.489** | still the overall best |
-| 2 | `lrp02_log_quantile` | 322 | 3.26 | 0.462 | tied with lrp02_log |
-| 3 | `lrp02_select02_log` | 156 | 3.55 | 0.492 | tied on R², worse MedAE |
-| 4 | `lrp02_log_prediction` | 28 | 3.41 | 0.388 | RMSE-tuned, overfit-corrected |
-| 5 | `lrp02_log_select` | 159 | 3.62 | 0.441 | log-first selection |
-| 6 | `lrp02_quantile` | 243 | 3.77 | **0.398** | raw-target, best non-log |
-| 7 | `lrp02_select02` | 156 | 3.84 | 0.402 | raw MAE, 17 features |
-| 8 | `lrp02_prediction` | 72 | 4.09 | 0.357 | raw RMSE |
-| 9 | `lrp02` | 53 | 4.09 | 0.314 | raw MAE primary (weakest) |
+| Rank | Model                  | Trees | CV MedAE |     CV R² | Note                          |
+| ---- | ---------------------- | ----: | -------: | --------: | ----------------------------- |
+| 1    | **`lrp02_log`**        |   358 | **3.21** | **0.489** | still the overall best        |
+| 2    | `lrp02_log_quantile`   |   322 |     3.26 |     0.462 | tied with lrp02_log           |
+| 3    | `lrp02_select02_log`   |   156 |     3.55 |     0.492 | tied on R², worse MedAE       |
+| 4    | `lrp02_log_prediction` |    28 |     3.41 |     0.388 | RMSE-tuned, overfit-corrected |
+| 5    | `lrp02_log_select`     |   159 |     3.62 |     0.441 | log-first selection           |
+| 6    | `lrp02_quantile`       |   243 |     3.77 | **0.398** | raw-target, best non-log      |
+| 7    | `lrp02_select02`       |   156 |     3.84 |     0.402 | raw MAE, 17 features          |
+| 8    | `lrp02_prediction`     |    72 |     4.09 |     0.357 | raw RMSE                      |
+| 9    | `lrp02`                |    53 |     4.09 |     0.314 | raw MAE primary (weakest)     |
 
 `lrp02_quantile` is now **the best raw-target variant** for MedAE
 and CV R². If a future use-case requires operating in original

@@ -35,21 +35,21 @@ treats 157 correlated observations as 157 exchangeable ones, which:
   slope rather than into a child intercept.
 
 This is the textbook repeated-measures fix. Random intercepts for
-the ITT models (LRP52/53/54) are *not* added because those fits have
+the ITT models (LRP52/53/54) are _not_ added because those fits have
 one row per child — no repeated measures.
 
 ## Comparison against no-random-intercept fits
 
 Reporting config (6 chains × 6000 tune × 6000 draws).
 
-| Quantity | LRP56 w/o RI | LRP56 with RI | LRP57 w/o RI | LRP57 with RI | LRP58 w/o RI | LRP58 with RI |
-|---|---|---|---|---|---|---|
-| Divergences | 192 / 36000 | 225 / 36000 | 247 / 36000 | 343 / 36000 | 4 / 36000 | 9 / 36000 |
-| β_G 95 % CI | (−0.18, +0.13) | (−0.19, +0.14) | (−0.17, +0.13) | (−0.18, +0.15) | (−0.12, +0.19) | (−0.13, +0.20) |
-| γ_own 95 % CI | (0.78, 0.92) | (0.77, 0.92) | (0.74, 0.90) | (0.73, 0.90) | (0.64, 0.82) | (0.62, 0.82) |
-| `f_mech__eta` 95 % CI | (0.000, 0.379) | (0.000, 0.385) | (0.000, 0.505) | (0.000, 0.536) | (0.077, 0.684) | (0.083, 0.687) |
-| Mean slope 95 % CI | (−0.065, +0.281) | (−0.067, +0.294) | (−0.030, +0.404) | (−0.029, +0.443) | (+0.011, +0.320) | (+0.014, +0.321) |
-| σ_child mean (95 % CI) | — | 0.074 (0.00, 0.18) | — | 0.082 (0.00, 0.19) | — | 0.077 (0.00, 0.18) |
+| Quantity               | LRP56 w/o RI     | LRP56 with RI      | LRP57 w/o RI     | LRP57 with RI      | LRP58 w/o RI     | LRP58 with RI      |
+| ---------------------- | ---------------- | ------------------ | ---------------- | ------------------ | ---------------- | ------------------ |
+| Divergences            | 192 / 36000      | 225 / 36000        | 247 / 36000      | 343 / 36000        | 4 / 36000        | 9 / 36000          |
+| β_G 95 % CI            | (−0.18, +0.13)   | (−0.19, +0.14)     | (−0.17, +0.13)   | (−0.18, +0.15)     | (−0.12, +0.19)   | (−0.13, +0.20)     |
+| γ_own 95 % CI          | (0.78, 0.92)     | (0.77, 0.92)       | (0.74, 0.90)     | (0.73, 0.90)       | (0.64, 0.82)     | (0.62, 0.82)       |
+| `f_mech__eta` 95 % CI  | (0.000, 0.379)   | (0.000, 0.385)     | (0.000, 0.505)   | (0.000, 0.536)     | (0.077, 0.684)   | (0.083, 0.687)     |
+| Mean slope 95 % CI     | (−0.065, +0.281) | (−0.067, +0.294)   | (−0.030, +0.404) | (−0.029, +0.443)   | (+0.011, +0.320) | (+0.014, +0.321)   |
+| σ_child mean (95 % CI) | —                | 0.074 (0.00, 0.18) | —                | 0.082 (0.00, 0.19) | —                | 0.077 (0.00, 0.18) |
 
 ## Interpretation
 
@@ -78,10 +78,10 @@ Reporting config (6 chains × 6000 tune × 6000 draws).
 LRP55 has a similar repeated-measures structure — each child
 contributes 8 rows (one per outcome) in the RCT phase. A shared
 child-level random intercept across outcomes would absorb "overall
-ability" differences that are currently factored only through γ_own
+ability" differences that are currently factored only through γ*own
 of each outcome. Conceptually distinct from the 8-dimensional LKJ
 residual we dropped earlier: the random intercept is a single
-scalar per child that shifts *all* outcomes in tandem, rather than
+scalar per child that shifts \_all* outcomes in tandem, rather than
 allowing independent per-outcome perturbations with a free
 correlation structure.
 

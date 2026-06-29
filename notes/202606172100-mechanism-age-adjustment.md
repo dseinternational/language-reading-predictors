@@ -21,7 +21,7 @@ in the linear predictor:
 
 With the GP off and no linear fallback, **age never entered `eta`**. So
 `beta_G` and the mechanism term (`f_mech` / `beta_mech`) were estimated
-*unadjusted for age*, even though each model's `adjustment` list claims
+_unadjusted for age_, even though each model's `adjustment` list claims
 otherwise. This was independently flagged as finding #1 of the model code
 review (PR #76) and confirmed here by tracing the spec → pipeline → factory path.
 
@@ -32,16 +32,16 @@ magnitude are unknown without a re-fit.
 
 ## Blast radius
 
-Decisive question: does age reach `eta` by *any* route?
+Decisive question: does age reach `eta` by _any_ route?
 
-| Model | Path | Age in `eta`? |
-|---|---|---|
-| LRP56 (R→W), LRP57 (E→W), LRP58 (L→W) | `build_mechanism_model`, GP off, no age moderator | **No — affected** |
-| LRP71 (L→W moderated by E) | same; moderator is E, not age | **No — affected** |
-| LRP72, LRP72base (L×B→decoding) | same; moderator is B / none | **No — affected** |
-| LRP73, LRP73base (L→W moderated by age) | age *is* the moderator → `gamma_mod * z(age)` in `eta` | Yes — not affected |
-| LRP59 (single-mediator), LRP62 (route composite) | `build_mediation_model` / route factory: explicit `a_A`/`b_A` terms in both legs | Yes — not affected |
-| LRP52/53/54/60/60a (ITT) | `build_itt_model`; age only ever an optional GP, deliberately off | N/A — `G` randomised, so `tau` is unbiased; age omission costs precision only |
+| Model                                            | Path                                                                             | Age in `eta`?                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| LRP56 (R→W), LRP57 (E→W), LRP58 (L→W)            | `build_mechanism_model`, GP off, no age moderator                                | **No — affected**                                                             |
+| LRP71 (L→W moderated by E)                       | same; moderator is E, not age                                                    | **No — affected**                                                             |
+| LRP72, LRP72base (L×B→decoding)                  | same; moderator is B / none                                                      | **No — affected**                                                             |
+| LRP73, LRP73base (L→W moderated by age)          | age _is_ the moderator → `gamma_mod * z(age)` in `eta`                           | Yes — not affected                                                            |
+| LRP59 (single-mediator), LRP62 (route composite) | `build_mediation_model` / route factory: explicit `a_A`/`b_A` terms in both legs | Yes — not affected                                                            |
+| LRP52/53/54/60/60a (ITT)                         | `build_itt_model`; age only ever an optional GP, deliberately off                | N/A — `G` randomised, so `tau` is unbiased; age omission costs precision only |
 
 So the six affected fits are **LRP56, LRP57, LRP58, LRP71, LRP72, LRP72base** —
 three pre-existing and three merged on 2026-06-17 (PR #70). The headline L→W
@@ -60,7 +60,7 @@ In `build_mechanism_model`, after the age-GP block:
    off, and age is not the moderator, add `gamma_A * A_std` (with the same
    weakly-informative `gamma_cross_prior()` used for the SES adjusters in the
    ITT factory and for the other linear confounders).
-2. **No double-counting.** When age *is* the moderator
+2. **No double-counting.** When age _is_ the moderator
    (`moderator_symbol == "A" and moderator_is_covariate`, i.e. LRP73/73base),
    its main effect `gamma_mod * z(age)` already represents age, so the linear
    term is skipped — adding it would be collinear. The pipeline already strips
@@ -69,7 +69,7 @@ In `build_mechanism_model`, after the age-GP block:
    in `eta`, so a future spec cannot silently drop a confounder the way the
    original age handling did.
 
-Additive and backward-compatible for the *unaffected* models: LRP73/73base
+Additive and backward-compatible for the _unaffected_ models: LRP73/73base
 (age via moderator), the mediation family, the ITT family, and the joint model
 are byte-identical. The six affected models gain a `gamma_A` term and **must be
 re-fit** — their `beta_G`, `f_mech`/`beta_mech`, and (for LRP71/72) moderation

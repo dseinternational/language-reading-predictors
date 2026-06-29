@@ -5,7 +5,7 @@
 
 > [!NOTE]
 > **Sign convention superseded.** This note uses the original `G = group − 1`
-> coding, where *negative* τ = intervention benefit and `G = 1` is the
+> coding, where _negative_ τ = intervention benefit and `G = 1` is the
 > wait-for-intervention (control) arm. The repo has since standardised on
 > `G = 2 − group`, so **positive τ = benefit** (see METHODS.md); the substance is
 > unchanged, only the sign of every τ flips.
@@ -26,38 +26,38 @@ concrete next phase of Bayesian modelling work.
 
 Level models (outcome at a timepoint):
 
-| Model | Target | Construct | n | Predictors | CV R² | CV MAE |
-|---|---|---|---:|---:|---:|---:|
-| LRP02 | `ewrswr` | Word reading | 210 | 13 | 0.572 | 6.031 |
-| LRP04 | `eowpvt` | Expressive vocab | 215 | 7 | **0.596** | 6.381 |
-| LRP06 | `yarclet` | Letter-sound | 214 | 10 | 0.517 | 4.615 |
-| LRP08 | `rowpvt` | Receptive vocab | 215 | 17 | 0.527 | 7.388 |
-| LRP10 | `celf` | CELF basic concepts | 214 | 12 | 0.469 | 2.405 |
+| Model | Target    | Construct           |   n | Predictors |     CV R² | CV MAE |
+| ----- | --------- | ------------------- | --: | ---------: | --------: | -----: |
+| LRP02 | `ewrswr`  | Word reading        | 210 |         13 |     0.572 |  6.031 |
+| LRP04 | `eowpvt`  | Expressive vocab    | 215 |          7 | **0.596** |  6.381 |
+| LRP06 | `yarclet` | Letter-sound        | 214 |         10 |     0.517 |  4.615 |
+| LRP08 | `rowpvt`  | Receptive vocab     | 215 |         17 |     0.527 |  7.388 |
+| LRP10 | `celf`    | CELF basic concepts | 214 |         12 |     0.469 |  2.405 |
 
 Gain models (change between timepoints):
 
-| Model | Target | Construct | n | Predictors | CV R² | CV MAE |
-|---|---|---|---:|---:|---:|---:|
-| LRP01 | `ewrswr_gain` | Word-reading gain | 157 | 6 | 0.076 | 2.898 |
-| LRP03 | `eowpvt_gain` | Expressive-vocab gain | 161 | 11 | 0.057 | 5.023 |
-| LRP05 | `yarclet_gain` | Letter-sound gain | 160 | 15 | **0.249** | 3.365 |
-| LRP07 | `rowpvt_gain` | Receptive-vocab gain | 161 | 12 | 0.167 | 6.567 |
-| LRP09 | `celf_gain` | CELF gain | 160 | 17 | 0.188 | 2.201 |
+| Model | Target         | Construct             |   n | Predictors |     CV R² | CV MAE |
+| ----- | -------------- | --------------------- | --: | ---------: | --------: | -----: |
+| LRP01 | `ewrswr_gain`  | Word-reading gain     | 157 |          6 |     0.076 |  2.898 |
+| LRP03 | `eowpvt_gain`  | Expressive-vocab gain | 161 |         11 |     0.057 |  5.023 |
+| LRP05 | `yarclet_gain` | Letter-sound gain     | 160 |         15 | **0.249** |  3.365 |
+| LRP07 | `rowpvt_gain`  | Receptive-vocab gain  | 161 |         12 |     0.167 |  6.567 |
+| LRP09 | `celf_gain`    | CELF gain             | 160 |         17 |     0.188 |  2.201 |
 
 ### Bayesian suite (LRP52–LRP58) — reporting-config headline
 
 ITT treatment effects (logit scale, G = 1 = wait-for-intervention):
 
-| Outcome | τ mean | 95 % CI | P(τ > 0) | Read |
-|---|---:|---|---:|---|
+| Outcome              |     τ mean | 95 % CI        |   P(τ > 0) | Read            |
+| -------------------- | ---------: | -------------- | ---------: | --------------- |
 | **L** (letter-sound) | **−0.628** | (−0.98, −0.26) | **≈0.001** | credibly lifted |
-| **W** (word reading) | **−0.405** | (−0.76, −0.05) | **0.013** | credibly lifted |
-| B (blending) | −0.424 | (−0.86, +0.03) | 0.033 | suggestive |
-| F (CELF) | −0.228 | (−0.64, +0.19) | 0.141 | null |
-| T (TROG) | −0.124 | (−0.40, +0.16) | 0.193 | null |
-| P (SPPHON) | −0.085 | (−0.78, +0.61) | 0.403 | null |
-| E (EOWPVT) | −0.067 | (−0.24, +0.11) | 0.225 | null |
-| R (ROWPVT) | −0.062 | (−0.25, +0.12) | 0.254 | null |
+| **W** (word reading) | **−0.405** | (−0.76, −0.05) |  **0.013** | credibly lifted |
+| B (blending)         |     −0.424 | (−0.86, +0.03) |      0.033 | suggestive      |
+| F (CELF)             |     −0.228 | (−0.64, +0.19) |      0.141 | null            |
+| T (TROG)             |     −0.124 | (−0.40, +0.16) |      0.193 | null            |
+| P (SPPHON)           |     −0.085 | (−0.78, +0.61) |      0.403 | null            |
+| E (EOWPVT)           |     −0.067 | (−0.24, +0.11) |      0.225 | null            |
+| R (ROWPVT)           |     −0.062 | (−0.25, +0.12) |      0.254 | null            |
 
 Mechanism results (all three phases, subject random intercepts):
 
@@ -107,33 +107,33 @@ The Bayesian approach is more powerful here because it partitions
 variance over a single treatment indicator rather than learning a
 function approximation of the outcome surface. It finds signal
 where the GB approach does not — consistent with GB flagging that
-predicting *gains* from pre-scores is intrinsically hard even
-though there *is* a mean-difference between arms.
+predicting _gains_ from pre-scores is intrinsically hard even
+though there _is_ a mean-difference between arms.
 
 **Predictor importances the Bayesian models do not currently see**
 
 GB models repeatedly select the following predictors, but none of
 them is in the LRP52–LRP58 predictor set:
 
-| Predictor | In N models out of 10 | Construct |
-|---|:---:|---|
-| `deappin` | 7 | Articulation (DEAP Picture Naming Initial) |
-| `aptinfo` | 6 | Language (Action Picture Test — information) |
-| `b1reto` | 6 | Intervention fidelity (Block 1 Receptive Taught) |
-| `dadedupost16` | 5 | SES (father's years of post-16 education) |
-| `b1exto` | 5 | Intervention fidelity (Block 1 Expressive Taught) |
-| `mumedupost16` | 5 | SES (mother's years of post-16 education) |
-| `deappvo` | 5 | Articulation (DEAP Picture Naming Vowel) |
-| `deappfi` | 4 | Articulation (DEAP Picture Naming Final) |
-| `nonword` | 4 | Reading (nonword reading, post-only) |
-| `attend` | 4 | **Intervention dosage** (all four gain models) |
-| `agebooks` | 2 | Home literacy (age at first book exposure) |
-| `agespeak` | 3 | Developmental milestone (age started speaking) |
-| `erbword` | 3 | Phonological memory (word repetition) |
-| `erbnw` | 2 | Phonological memory (nonword repetition) |
-| `vision` | 2 | Sensory health |
+| Predictor      | In N models out of 10 | Construct                                         |
+| -------------- | :-------------------: | ------------------------------------------------- |
+| `deappin`      |           7           | Articulation (DEAP Picture Naming Initial)        |
+| `aptinfo`      |           6           | Language (Action Picture Test — information)      |
+| `b1reto`       |           6           | Intervention fidelity (Block 1 Receptive Taught)  |
+| `dadedupost16` |           5           | SES (father's years of post-16 education)         |
+| `b1exto`       |           5           | Intervention fidelity (Block 1 Expressive Taught) |
+| `mumedupost16` |           5           | SES (mother's years of post-16 education)         |
+| `deappvo`      |           5           | Articulation (DEAP Picture Naming Vowel)          |
+| `deappfi`      |           4           | Articulation (DEAP Picture Naming Final)          |
+| `nonword`      |           4           | Reading (nonword reading, post-only)              |
+| `attend`       |           4           | **Intervention dosage** (all four gain models)    |
+| `agebooks`     |           2           | Home literacy (age at first book exposure)        |
+| `agespeak`     |           3           | Developmental milestone (age started speaking)    |
+| `erbword`      |           3           | Phonological memory (word repetition)             |
+| `erbnw`        |           2           | Phonological memory (nonword repetition)          |
+| `vision`       |           2           | Sensory health                                    |
 
-Two entries (`b1reto`, `b1exto`) are *intervention fidelity* measures
+Two entries (`b1reto`, `b1exto`) are _intervention fidelity_ measures
 — they directly test whether the intervention taught the specific
 target words at each phase, which is conceptually upstream of the
 broader vocabulary outcomes. Ignoring them in the ITT models leaves
@@ -145,9 +145,9 @@ the intervention mechanism partly black-box.
 
 **Candidates**: `mumedupost16`, `dadedupost16`, `agebooks`.
 
-These are *time-invariant* baseline characteristics. They confound
+These are _time-invariant_ baseline characteristics. They confound
 the intervention effect only if they correlate with group
-assignment (randomisation *should* break this), but they also
+assignment (randomisation _should_ break this), but they also
 explain residual between-child variance and therefore tighten the
 τ credibility interval. GB selection consistently returns
 `mumedupost16` in 5/10 models and `dadedupost16` in 5/10, with
@@ -173,7 +173,7 @@ recorded at t3/t4.
 These are directly teaching-sensitive: they measure knowledge of
 the specific words explicitly taught during each block. They are
 the most proximal outcomes of the intervention and should show the
-*largest* treatment effects of any outcome in the study.
+_largest_ treatment effects of any outcome in the study.
 
 **Recommendation**: add **LRP61**, a new ITT analysis with
 `b1exto` as the outcome (and a companion for `b1reto`). This would:
@@ -230,7 +230,7 @@ articulation→phonology dependencies.
 
 **Candidates**: `aptgram` (expressive grammar raw score),
 `aptinfo` (expressive information raw score). These are currently
-*not* bounded counts in the usual binomial sense — they are raw
+_not_ bounded counts in the usual binomial sense — they are raw
 scores on the Action Picture Test without a fixed item maximum in
 our data dictionary. They would need either:
 
@@ -355,7 +355,7 @@ mechanism factory variant.
 
 The research question is "what influences progress in language and
 reading for children with Down syndrome?" The current Bayesian
-suite answers it for the *eight outcomes* as a group but cannot
+suite answers it for the _eight outcomes_ as a group but cannot
 distinguish:
 
 - intervention effects from SES effects (Tier 1),

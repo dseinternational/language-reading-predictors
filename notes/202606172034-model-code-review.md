@@ -22,7 +22,7 @@ or are byte-for-byte behaviour-preserving for the live pipeline.
    missing data.** The DataFrame branch used pandas pairwise-complete Spearman
    (`min_periods=2`); the ndarray branch used
    `scipy.stats.spearmanr(nan_policy="propagate")`, which (a) zeroed out whole
-   rows/columns when a single value was NaN and (b) returns a *scalar* for
+   rows/columns when a single value was NaN and (b) returns a _scalar_ for
    exactly two columns (which would then crash the symmetry/diagonal code).
    Both inputs now route through the same pairwise-complete path. The live
    caller (`feature_selection_diagnostics`) passes an already-NaN-filled
@@ -30,7 +30,7 @@ or are byte-for-byte behaviour-preserving for the live pipeline.
    correctness trap for any other caller.
 
 2. **`ml_utils.report_cross_validation_scores` — `abs()` hid bad models.**
-   `float(np.abs(np.mean(score)))` was applied to *every* metric, so a negative
+   `float(np.abs(np.mean(score)))` was applied to _every_ metric, so a negative
    mean R² (a model worse than predicting the mean) was displayed as a positive
    number. Now only `neg_*` error scorers are flipped to positive; `r2` keeps
    its true sign. The sign logic was extracted into a pure
@@ -84,7 +84,7 @@ estimand or a reported number, which is the researcher's call.
 
 1. **Mechanism models LRP56/57/58 do not adjust for age, despite their DAG
    adjustment set listing it.** Each spec declares `adjustment=["G", "A",
-   "W_pre"]` and the report docstring states age blocks a developmental
+"W_pre"]` and the report docstring states age blocks a developmental
    backdoor path. But `extra["use_age_gp"]` is `False`, and in
    `factories.build_mechanism_model` the confounder loop does
    `if s in {"G", "A"}: continue` with the comment "A handled via age GP". With
@@ -116,7 +116,7 @@ estimand or a reported number, which is the researcher's call.
    construction if the factory ever subsets — use `built.prepared`.
 
 4. **LRP55 joint model hardcodes its priors inline** (`pm.Normal("alpha", …,
-   sigma=1.5)`, etc.) instead of calling the `priors.py` constructors that the
+sigma=1.5)`, etc.) instead of calling the `priors.py` constructors that the
    module exists to centralise. The values match today, so the model is
    correct; but a future edit to `priors.py` would silently not reach LRP55 —
    the drift the shared module is meant to prevent. (Not changed here because

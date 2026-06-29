@@ -14,52 +14,52 @@ Configuration: `DEFAULT_LGBM_PARAMS` (`n_estimators=1200`, `learning_rate=0.05`,
 (`n_estimators=100`, `cv_splits=5`, `perm_importance_repeats=5`). Outlier
 threshold: `ewrswr_gain >= 15` excluded.
 
-| Metric | Value |
-|---|---|
-| Observations | 152 |
-| Predictors | 34 |
+| Metric               | Value           |
+| -------------------- | --------------- |
+| Observations         | 152             |
+| Predictors           | 34              |
 | CV RMSE (mean ± std) | 3.5773 ± 0.3592 |
-| In-sample MAE | 1.4878 |
-| In-sample RMSE | 1.9375 |
+| In-sample MAE        | 1.4878          |
+| In-sample RMSE       | 1.9375          |
 
 ## Permutation importance
 
-| Rank | Feature | Importance | Cluster |
-|------|---------|-----------|---------|
-| 1 | age | 0.2033 | 16 (alone) |
-| 2 | attend | 0.1806 | 2 (alone) |
-| 3 | time | 0.0713 | 15 (alone) |
-| 4 | blending | 0.0667 | 24 (alone) |
-| 5 | celf | 0.0577 | 18 (alone) |
-| 6 | yarclet | 0.0460 | 23 (alone) |
-| 7 | eowpvt | 0.0410 | 17 (with aptinfo, b1exto, b1reto, rowpvt) |
-| 8 | agebooks | 0.0355 | 11 (alone) |
-| 9 | deappvo | 0.0314 | 14 (alone) |
-| 10 | ewrswr | 0.0288 | 21 (with yarcsi, spphon) |
-| 11 | deappfi | 0.0283 | 13 (with deappin, erbnw, erbword) |
-| 12 | b1exto | 0.0255 | 17 |
-| 13 | trog | 0.0231 | 20 (alone) |
-| 14 | gender | 0.0230 | 7 (alone) |
-| 15 | erbnw | 0.0184 | 13 |
-| 16 | erbword | 0.0183 | 13 |
-| 17 | aptinfo | 0.0169 | 17 |
-| 18 | agespeak | 0.0156 | 10 (alone) |
-| 19 | deappin | 0.0154 | 13 |
-| 20 | b1reto | 0.0133 | 17 |
-| 21 | numchil | 0.0110 | 12 (alone) |
-| 22 | dadedupost16 | 0.0107 | 9 (with mumedupost16) |
-| 23 | hearing | 0.0093 | 3 (alone) |
-| 24 | aptgram | 0.0065 | 19 (alone) |
-| 25 | rowpvt | 0.0059 | 17 |
-| 26 | mumedupost16 | 0.0042 | 9 |
-| 27 | earinf | 0.0032 | 4 (alone) |
-| 28 | nonword | 0.0032 | 22 (alone) |
-| 29 | yarcsi | 0.0020 | 21 |
-| 30 | vision | 0.0016 | 8 (alone) |
-| 31 | behav | 0.0014 | 6 (alone) |
-| 32 | spphon | 0.0013 | 21 |
-| 33 | area | 0.0012 | 5 (alone) |
-| 34 | group | 0.0009 | 1 (alone) |
+| Rank | Feature      | Importance | Cluster                                   |
+| ---- | ------------ | ---------- | ----------------------------------------- |
+| 1    | age          | 0.2033     | 16 (alone)                                |
+| 2    | attend       | 0.1806     | 2 (alone)                                 |
+| 3    | time         | 0.0713     | 15 (alone)                                |
+| 4    | blending     | 0.0667     | 24 (alone)                                |
+| 5    | celf         | 0.0577     | 18 (alone)                                |
+| 6    | yarclet      | 0.0460     | 23 (alone)                                |
+| 7    | eowpvt       | 0.0410     | 17 (with aptinfo, b1exto, b1reto, rowpvt) |
+| 8    | agebooks     | 0.0355     | 11 (alone)                                |
+| 9    | deappvo      | 0.0314     | 14 (alone)                                |
+| 10   | ewrswr       | 0.0288     | 21 (with yarcsi, spphon)                  |
+| 11   | deappfi      | 0.0283     | 13 (with deappin, erbnw, erbword)         |
+| 12   | b1exto       | 0.0255     | 17                                        |
+| 13   | trog         | 0.0231     | 20 (alone)                                |
+| 14   | gender       | 0.0230     | 7 (alone)                                 |
+| 15   | erbnw        | 0.0184     | 13                                        |
+| 16   | erbword      | 0.0183     | 13                                        |
+| 17   | aptinfo      | 0.0169     | 17                                        |
+| 18   | agespeak     | 0.0156     | 10 (alone)                                |
+| 19   | deappin      | 0.0154     | 13                                        |
+| 20   | b1reto       | 0.0133     | 17                                        |
+| 21   | numchil      | 0.0110     | 12 (alone)                                |
+| 22   | dadedupost16 | 0.0107     | 9 (with mumedupost16)                     |
+| 23   | hearing      | 0.0093     | 3 (alone)                                 |
+| 24   | aptgram      | 0.0065     | 19 (alone)                                |
+| 25   | rowpvt       | 0.0059     | 17                                        |
+| 26   | mumedupost16 | 0.0042     | 9                                         |
+| 27   | earinf       | 0.0032     | 4 (alone)                                 |
+| 28   | nonword      | 0.0032     | 22 (alone)                                |
+| 29   | yarcsi       | 0.0020     | 21                                        |
+| 30   | vision       | 0.0016     | 8 (alone)                                 |
+| 31   | behav        | 0.0014     | 6 (alone)                                 |
+| 32   | spphon       | 0.0013     | 21                                        |
+| 33   | area         | 0.0012     | 5 (alone)                                 |
+| 34   | group        | 0.0009     | 1 (alone)                                 |
 
 ## Distance-correlation cluster structure
 
@@ -78,19 +78,19 @@ three broad branches:
 
 Features with importance < 0.007 and redundant within their clusters:
 
-| Feature | Importance | Rationale |
-|---------|-----------|-----------|
-| group (rank 34) | 0.001 | Near-zero importance, study design variable |
-| area (rank 33) | 0.001 | Near-zero importance, study design variable |
-| spphon (rank 32) | 0.001 | Cluster 21 with ewrswr — ewrswr carries the signal |
-| behav (rank 31) | 0.001 | Near-zero importance |
-| vision (rank 30) | 0.002 | Near-zero importance |
-| yarcsi (rank 29) | 0.002 | Cluster 21 with ewrswr — redundant |
-| nonword (rank 28) | 0.003 | Near-zero, own cluster but no signal |
-| earinf (rank 27) | 0.003 | Low importance, hearing in separate cluster covers health |
-| mumedupost16 (rank 26) | 0.004 | Cluster 9 with dadedupost16 — dad's carries more |
-| rowpvt (rank 25) | 0.006 | Cluster 17 — eowpvt (rank 7) carries the vocabulary signal |
-| aptgram (rank 24) | 0.006 | Cluster 19 — trog (rank 13) covers receptive grammar |
+| Feature                | Importance | Rationale                                                  |
+| ---------------------- | ---------- | ---------------------------------------------------------- |
+| group (rank 34)        | 0.001      | Near-zero importance, study design variable                |
+| area (rank 33)         | 0.001      | Near-zero importance, study design variable                |
+| spphon (rank 32)       | 0.001      | Cluster 21 with ewrswr — ewrswr carries the signal         |
+| behav (rank 31)        | 0.001      | Near-zero importance                                       |
+| vision (rank 30)       | 0.002      | Near-zero importance                                       |
+| yarcsi (rank 29)       | 0.002      | Cluster 21 with ewrswr — redundant                         |
+| nonword (rank 28)      | 0.003      | Near-zero, own cluster but no signal                       |
+| earinf (rank 27)       | 0.003      | Low importance, hearing in separate cluster covers health  |
+| mumedupost16 (rank 26) | 0.004      | Cluster 9 with dadedupost16 — dad's carries more           |
+| rowpvt (rank 25)       | 0.006      | Cluster 17 — eowpvt (rank 7) carries the vocabulary signal |
+| aptgram (rank 24)      | 0.006      | Cluster 19 — trog (rank 13) covers receptive grammar       |
 
 Removing all 11 would take the model from 34 → 23 predictors.
 

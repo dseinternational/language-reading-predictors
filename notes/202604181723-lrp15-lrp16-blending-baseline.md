@@ -6,25 +6,25 @@
 Date: 2026-04-18
 
 Third of the six LRP11–LRP22 target pairs from
-``notes/202604181930-lrp11-22-target-plan.md``. Follows LRP11/12
+`notes/202604181930-lrp11-22-target-plan.md`. Follows LRP11/12
 (TROG-2 receptive grammar) and LRP13/14 (non-word reading).
 
 ## Construct
 
-``blending`` is a phoneme-blending score on a 0–10 scale from a
+`blending` is a phoneme-blending score on a 0–10 scale from a
 phonological awareness task: the examiner pronounces a word's
 constituent phonemes with a short gap between each, and the child
 selects which of three pictures depicts the blended word.
 Phonological awareness measure — a precursor to phonological
-decoding (``nonword``, LRP13/14) rather than a decoding measure
+decoding (`nonword`, LRP13/14) rather than a decoding measure
 itself.
 
 ## Target distributions
 
-| Target | n | min | max | median | mean | std | skew | notes |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| `blending` (level) | 215 | 0 | 10 | 6 | 5.76 | 2.55 | **0.01** | essentially symmetric |
-| `blending_gain` | 161 | −5 | 7 | 0 | 0.48 | 2.15 | 0.51 | mildly right-skewed |
+| Target             |   n | min | max | median | mean |  std |     skew | notes                 |
+| ------------------ | --: | --: | --: | -----: | ---: | ---: | -------: | --------------------- |
+| `blending` (level) | 215 |   0 |  10 |      6 | 5.76 | 2.55 | **0.01** | essentially symmetric |
+| `blending_gain`    | 161 |  −5 |   7 |      0 | 0.48 | 2.15 |     0.51 | mildly right-skewed   |
 
 For `blending_gain`: 35% negative, 20% zero. Similar in shape to
 LRP07 (`rowpvt_gain`, skew 0.04) and LRP11 (`trog_gain`, skew
@@ -46,13 +46,13 @@ Tuner-inner CV MAE **1.5156 ± 0.3385**. Moderate regime: 183
 trees, lr 0.031, num_leaves 54, max_depth 11, min_child 18.
 Near-zero L2 (0.002) and modest L1 (0.024).
 
-| Metric | Baseline (500t) | MAE-tuned (183t) |
-|---|---:|---:|
-| CV MAE | 1.745 ± 0.324 | **1.572 ± 0.302** |
-| CV RMSE | 2.139 | **1.993** |
-| **CV R²** | **−0.137 ± 0.485** | **0.082 ± 0.153** |
-| CV MedAE | 1.442 | **1.284** |
-| In-sample R² | 0.988 | 0.486 |
+| Metric       |    Baseline (500t) |  MAE-tuned (183t) |
+| ------------ | -----------------: | ----------------: |
+| CV MAE       |      1.745 ± 0.324 | **1.572 ± 0.302** |
+| CV RMSE      |              2.139 |         **1.993** |
+| **CV R²**    | **−0.137 ± 0.485** | **0.082 ± 0.153** |
+| CV MedAE     |              1.442 |         **1.284** |
+| In-sample R² |              0.988 |             0.486 |
 
 **CV R² crosses negative → positive** (−0.137 → 0.082), with
 much tighter variance across folds (std 0.485 → 0.153). CV MAE
@@ -66,13 +66,13 @@ Tuner-inner CV MAE **1.7000 ± 0.4065**. Shallow regime: 104
 trees, lr 0.023, num_leaves 34, max_depth 4, min_child 33. Strong
 L2 (0.536), near-zero L1.
 
-| Metric | Baseline (500t) | MAE-tuned (104t) |
-|---|---:|---:|
-| CV MAE | 1.657 ± 0.446 | 1.698 ± 0.353 |
-| CV RMSE | 2.052 | **2.038** |
-| **CV R²** | 0.103 ± 0.500 | **0.189 ± 0.340** |
-| CV MedAE | **1.423** | 1.671 |
-| In-sample R² | 0.994 | 0.519 |
+| Metric       | Baseline (500t) |  MAE-tuned (104t) |
+| ------------ | --------------: | ----------------: |
+| CV MAE       |   1.657 ± 0.446 |     1.698 ± 0.353 |
+| CV RMSE      |           2.052 |         **2.038** |
+| **CV R²**    |   0.103 ± 0.500 | **0.189 ± 0.340** |
+| CV MedAE     |       **1.423** |             1.671 |
+| In-sample R² |           0.994 |             0.519 |
 
 **Mixed outcome — first in this suite.** CV R² improves
 meaningfully (0.103 → 0.189) with tighter variance (std 0.500 →
@@ -92,18 +92,18 @@ predictor set may recover MAE while keeping the R² gain.
 
 ### LRP15 (`blending_gain`)
 
-1. **`blending`** (0.343) — base level dominates (monotonic_-,
+1. **`blending`** (0.343) — base level dominates (monotonic\_-,
    Spearman −0.945: **higher baseline → lower gain**, classic
    regression to the mean)
-2. `eowpvt` (0.113) — expressive vocab (noisy_+)
-3. `rowpvt` (0.050) — receptive vocab (monotonic_+)
-4. `attend` (0.041) — attention (noisy_+)
-5. `deappin` (0.035) — articulation initial (noisy_+)
-6. `erbnw` (0.029) — Early Reading non-words (monotonic_+)
+2. `eowpvt` (0.113) — expressive vocab (noisy\_+)
+3. `rowpvt` (0.050) — receptive vocab (monotonic\_+)
+4. `attend` (0.041) — attention (noisy\_+)
+5. `deappin` (0.035) — articulation initial (noisy\_+)
+6. `erbnw` (0.029) — Early Reading non-words (monotonic\_+)
 7. `aptinfo` (0.029) — expressive information (non_monotonic)
 8. `aptgram` (0.023) — expressive grammar (non_monotonic)
-9. `age` (0.019) — older → less gain (monotonic_-)
-10. `dadedupost16` (0.017) — paternal education (noisy_-)
+9. `age` (0.019) — older → less gain (monotonic\_-)
+10. `dadedupost16` (0.017) — paternal education (noisy\_-)
 
 After the dominant base-level (regression-to-the-mean) signal,
 vocabulary (`eowpvt` + `rowpvt`) is the cleanest directional
@@ -117,18 +117,18 @@ U-shaped or noisy.
 
 ### LRP16 (`blending`)
 
-All top features are **clean monotonic_+** (Spearman 0.80–0.95):
+All top features are **clean monotonic\_+** (Spearman 0.80–0.95):
 
-1. **`ewrswr`** (0.098) — early word reading (monotonic_+, 0.895)
-2. `b1reto` (0.052) — taught receptive vocab (monotonic_+, 0.935)
-3. `spphon` (0.035) — speech phonology (monotonic_+, 0.850)
-4. `yarclet` (0.013) — letter-sound knowledge (monotonic_+, 0.830)
-5. `aptinfo` (0.013) — expressive information (monotonic_+, 0.948)
-6. `trog` (0.010) — receptive grammar (monotonic_+, 0.920)
-7. `deappfi` (0.010) — articulation final (monotonic_+, 0.877)
-8. `eowpvt` (0.010) — expressive vocab (monotonic_+, 0.939)
-9. `celf` (0.010) — basic concept knowledge (monotonic_+, 0.913)
-10. `deappin` (0.010) — articulation initial (noisy_+, 0.653)
+1. **`ewrswr`** (0.098) — early word reading (monotonic\_+, 0.895)
+2. `b1reto` (0.052) — taught receptive vocab (monotonic\_+, 0.935)
+3. `spphon` (0.035) — speech phonology (monotonic\_+, 0.850)
+4. `yarclet` (0.013) — letter-sound knowledge (monotonic\_+, 0.830)
+5. `aptinfo` (0.013) — expressive information (monotonic\_+, 0.948)
+6. `trog` (0.010) — receptive grammar (monotonic\_+, 0.920)
+7. `deappfi` (0.010) — articulation final (monotonic\_+, 0.877)
+8. `eowpvt` (0.010) — expressive vocab (monotonic\_+, 0.939)
+9. `celf` (0.010) — basic concept knowledge (monotonic\_+, 0.913)
+10. `deappin` (0.010) — articulation initial (noisy\_+, 0.653)
 
 **Reading + speech-phonology cluster dominates.** Unlike LRP10
 and LRP12 where the language-level-prediction task routed

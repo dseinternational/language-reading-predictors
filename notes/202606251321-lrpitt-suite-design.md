@@ -46,7 +46,7 @@ which predates the sign flip bundled with the locked DAG.
 ### Floored outcomes — pre-specified floor rule (P, N)
 
 Phonetic spelling (P, ~78% at zero at t2) and nonword reading (N, ~72%) are
-heavily floored at the *outcome*, so a graded Beta-Binomial τ is leveraged by a
+heavily floored at the _outcome_, so a graded Beta-Binomial τ is leveraged by a
 few dispersed tail values rather than by the arm contrast. A rule fixed **before
 fitting** and applied **arm-blind** (`floor.is_floored`, threshold ≥ 40% at zero
 at t2) handles them: drop the degenerate own baseline (age-only predictor), report
@@ -59,7 +59,7 @@ issue's floor-rule branch (the full deliberation is in
 `notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md`). The
 "uniformity-purist" fallback was **not** adopted.
 
-Word reading (W, ~40% floored at *baseline* but not at the t2 post-score) does not
+Word reading (W, ~40% floored at _baseline_ but not at the t2 post-score) does not
 trip the rule and stays a graded own-baseline model.
 
 ### N post-only handling

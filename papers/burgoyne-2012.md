@@ -80,7 +80,7 @@ CONSORT diagram ([Figure 1](#fig01)).
 
 ![Figure 1. Flow diagram showing participant recruitment and progress through the trial (in line with CONSORT recommendations; Schulz, Altman, & Moher, 2010).](burgoyne-2012-figure-1.png)
 
-*Figure 1. Flow diagram showing participant recruitment and progress through the trial (in line with CONSORT recommendations; Schulz, Altman, & Moher, 2010).*
+_Figure 1. Flow diagram showing participant recruitment and progress through the trial (in line with CONSORT recommendations; Schulz, Altman, & Moher, 2010)._
 
 ## Participants
 
@@ -119,49 +119,49 @@ statistics for the two groups of children are shown in [Table
 **Table 1.** Mean raw scores (_SD_) for the intervention and waiting control
 groups on screening and descriptive measures, prior to the intervention.
 
-| Measure (max)                     | Test point | Int _N_ | Int _M_ (_SD_) | Int range | Wait _N_ | Wait _M_ (_SD_) | Wait range |
-|-----------------------------------|-----------|--------:|---------------:|-----------|---------:|----------------:|------------|
-| Age (months)                      | Screening | 29      | 80.48 (14.74)  | 60–115    | 28       | 77.82 (15.88)   | 57–115     |
-| SDQ (40)                          | Screening | 27      | 11.37 (4.66)   | 3–23      | 20       | 13.05 (5.87)    | 5–24       |
-| Single-word reading (30)          | Screening | 29      | 4.79 (8.30)    | 0–29      | 28       | 4.50 (7.88)     | 0–30       |
-| Letter-sound knowledge (32)       | Screening | 29      | 17.24 (9.84)   | 0–31      | 28       | 14.43 (9.41)    | 0–28       |
-| Expressive vocabulary (170)       | Screening | 29      | 29.97 (11.85)  | 6–63      | 28       | 28.79 (13.41)   | 6–73       |
-| Receptive vocabulary (170)        | Screening | 29      | 36.93 (12.42)  | 6–70      | 28       | 32.43 (13.84)   | 5–62       |
-| Non-verbal IQ: Block Design (40)  | _t_1      | 28      | 13.39 (5.83)   | 0–22      | 26       | 11.73 (6.70)    | 0–24       |
-| Non-verbal IQ: Object Assembly (37) | _t_1    | 28      | 10.25 (6.62)   | 0–24      | 26       | 8.65 (6.97)     | 0–25       |
-| Receptive grammar (32)            | _t_1      | 28      | 12.36 (4.53)   | 3–22      | 26       | 12.50 (3.82)    | 5–23       |
-| Basic concepts (18)               | _t_1      | 28      | 8.93 (4.74)    | 0–17      | 26       | 9.38 (3.99)     | 1–18       |
+| Measure (max)                       | Test point | Int _N_ | Int _M_ (_SD_) | Int range | Wait _N_ | Wait _M_ (_SD_) | Wait range |
+| ----------------------------------- | ---------- | ------: | -------------: | --------- | -------: | --------------: | ---------- |
+| Age (months)                        | Screening  |      29 |  80.48 (14.74) | 60–115    |       28 |   77.82 (15.88) | 57–115     |
+| SDQ (40)                            | Screening  |      27 |   11.37 (4.66) | 3–23      |       20 |    13.05 (5.87) | 5–24       |
+| Single-word reading (30)            | Screening  |      29 |    4.79 (8.30) | 0–29      |       28 |     4.50 (7.88) | 0–30       |
+| Letter-sound knowledge (32)         | Screening  |      29 |   17.24 (9.84) | 0–31      |       28 |    14.43 (9.41) | 0–28       |
+| Expressive vocabulary (170)         | Screening  |      29 |  29.97 (11.85) | 6–63      |       28 |   28.79 (13.41) | 6–73       |
+| Receptive vocabulary (170)          | Screening  |      29 |  36.93 (12.42) | 6–70      |       28 |   32.43 (13.84) | 5–62       |
+| Non-verbal IQ: Block Design (40)    | \_t_1      |      28 |   13.39 (5.83) | 0–22      |       26 |    11.73 (6.70) | 0–24       |
+| Non-verbal IQ: Object Assembly (37) | \_t_1      |      28 |   10.25 (6.62) | 0–24      |       26 |     8.65 (6.97) | 0–25       |
+| Receptive grammar (32)              | \_t_1      |      28 |   12.36 (4.53) | 3–22      |       26 |    12.50 (3.82) | 5–23       |
+| Basic concepts (18)                 | \_t_1      |      28 |    8.93 (4.74) | 0–17      |       26 |     9.38 (3.99) | 1–18       |
 
-SDQ, Strengths and Difficulties Questionnaire. _t_1 is the testing time point
+SDQ, Strengths and Difficulties Questionnaire. \_t_1 is the testing time point
 immediately prior to the first 20-week block (of intervention or waiting).
 
 ## Assessments
 
 Children were assessed four times: at screening, immediately before
-intervention (_t_1), after the first 20-week intervention period (_t_2),
-and after the second 20-week intervention period (_t_3). Children were
+intervention (\_t_1), after the first 20-week intervention period (\_t_2),
+and after the second 20-week intervention period (\_t_3). Children were
 assessed individually over two or more sessions on separate days. TAs
 were present during testing to assist with behavioural and communicative
 challenges where necessary. In addition, tasks were kept short,
 fast-paced and varied to maintain motivation and interest. Here, we only
 report data for outcomes and predictors relevant to this report.
 
-*Nonverbal IQ (_t_1):* Assessed using Block Design and Object Assembly
+_Nonverbal IQ (\_t_1):_ Assessed using Block Design and Object Assembly
 subtests (WPPSI-III; [@b34]; alphas 0.84 and 0.85, respectively).
 
 ## Reading-related measures
 
-_Single-word reading (screening; _t_1–_t_3)._ All children completed the
+_Single-word reading (screening; \_t_1–\_t_3)._ All children completed the
 Early Word Recognition (EWR) test (α = 0.98) from the York Assessment of
 Reading (YARC) Early Reading battery ([@b21]). Children reading over 25
 words were given an additional set of words from the Test of Single-Word
 Reading, from the YARC.
 
-*Letter-sound knowledge (screening; _t_1–_t_3)*: This extended test of
+_Letter-sound knowledge (screening; \_t_1–\_t_3)_: This extended test of
 alphabetic knowledge from the YARC ([@b21]) asks the child to provide
 the sound for 32 individual letters and digraphs (α = 0.98).
 
-*Phoneme blending (_t_1–_t_3)*: The child was asked to select which of
+_Phoneme blending (\_t_1–\_t_3)_: The child was asked to select which of
 three pictures represented a word spoken by the experimenter in 'robot'
 talk. On each trial a target picture (e.g. _bed_) was presented along
 with pictures representing an initial phoneme distracter (e.g. _bud_)
@@ -169,52 +169,52 @@ and a rhyming distracter (e.g. _head_). All targets and distracters had
 a consonant-vowel-consonant structure. Two practice items were followed
 by 10 test items (α = 0.67).
 
-*Nonword reading (_t_1–_t_3)*: Children were asked to read the names of
+_Nonword reading (\_t_1–\_t_3)_: Children were asked to read the names of
 six cartoon monsters: 'et', 'om', 'ip', 'neg', 'sab' and 'hic'. This
 test was devised because all available nonword reading tests were too
 difficult. Two practice items were given before test items (internal
 reliability = 0.88).
 
-*Spelling (_t_1–_t_3)*: Ten words were presented as pictures to be
+_Spelling (\_t_1–\_t_3)_: Ten words were presented as pictures to be
 named and spelled (see also [@b6]). If no letters were correctly
 represented in the first two items the test was discontinued (internal
 reliability = 0.97).
 
 ## Language measures
 
-*Vocabulary (_t_1–_t_3).* Children were given Expressive and Receptive
+_Vocabulary (\_t_1–\_t_3)._ Children were given Expressive and Receptive
 One-Word Picture Vocabulary Tests (EOWPVT; ROWPVT; [@b7]). Median
 internal consistencies across the relevant age ranges were 0.96.
 
-*Taught vocabulary knowledge (_t_1–_t_3):* Tests were created to
+_Taught vocabulary knowledge (\_t_1–\_t_3):_ Tests were created to
 measure expressive and receptive knowledge of words explicitly taught in
 each phase of the intervention programme (i.e. weeks 1–20, tested
-_t_1–_t_3; weeks 21–40, tested _t_2–_t_3). Six words of each type
+_t_1–\_t_3; weeks 21–40, tested \_t_2–\_t_3). Six words of each type
 (nouns, adverbs, adjectives, prepositions) were tested. In the
 expressive test, children were shown pictures that they were asked to:
 name (nouns); say what the person was doing (verbs; e.g. 'what is the
-man doing?' '_Stretching_'); name after a prompt related to a comparison
+man doing?' '\_Stretching_'); name after a prompt related to a comparison
 picture (adjectives; e.g. 'this boy is clean, this boy
 is...?' '_Dirty_'); or answer a specific question designed to elicit a
 preposition (e.g. 'where is the book?' '_On_ the table'). In the
 receptive test, children were asked to select the picture (from a choice
 of 4) which represented the target word. Correlations between
-standardised and bespoke vocabulary tests ranged from 0.64 to 0.81 (_p_s
+standardised and bespoke vocabulary tests ranged from 0.64 to 0.81 (\_p_s
 < .001).
 
-*Expressive grammar and information (_t_1–_t_3)*: Assessed using the
+_Expressive grammar and information (\_t_1–\_t_3)_: Assessed using the
 Action Picture Test (APT; [@b29]).
 
-*Basic concept knowledge (_t_1)*: From the Clinical Evaluation of
+_Basic concept knowledge (\_t_1)_: From the Clinical Evaluation of
 Language Fundamentals (CELF) Preschool 2nd Edition ([@b36]) assessed
 knowledge of 18 basic linguistic concepts (internal consistency = 0.85).
 
-*Receptive grammar (_t_1)*: Measured by the Test for Reception of
+_Receptive grammar (\_t_1)_: Measured by the Test for Reception of
 Grammar 2 (TROG-2; [@b5]). Eight grammatical constructs were tested in
 blocks of four items; each correct item was awarded a score of 1
 (internal consistency = 0.87).
 
-_Behaviour_: Assessed at _t_1–_t_3 by ratings of video-recordings of
+_Behaviour_: Assessed at \_t_1–\_t_3 by ratings of video-recordings of
 assessment sessions. Using a time-sampling technique, behaviour was
 rated over 10 s periods on a 5-point scale (1 = very good; 5 = very
 challenging) every 5 min through 60 min of film; scores were averaged to
@@ -247,13 +247,13 @@ copy of Letters and Sounds ([@b13]) when they attended training.
 **Table 2.** Content and structure of the reading and language strand
 intervention sessions.
 
-| Reading activity                                                                                   | Time (min) | Language activity                                                                                          | Time (min) |
-|----------------------------------------------------------------------------------------------------|-----------:|------------------------------------------------------------------------------------------------------------|-----------:|
-| Read 'easy' book (>94% reading accuracy)                                                           |        2–3 | New word introduced with written, spoken and pictorial examples. One per session or in pairs (e.g. on/in). |          5 |
-| Read 'instructional' level book (90–94% accuracy) while TA takes 'running record'                  |          5 | Game using new word to reinforce learning in multiple contexts.                                            |          5 |
-| Sight word learning and revision                                                                   |        2–3 | Use new word in oral activities.                                                                           |          5 |
-| Letter-knowledge (including digraphs), oral phonological awareness games and linking of letters and sounds | 5 | Use new word in guided writing.                                                                            |          5 |
-| Introduce new book / shared reading of instructional book                                          |          5 | —                                                                                                          |          — |
+| Reading activity                                                                                           | Time (min) | Language activity                                                                                          | Time (min) |
+| ---------------------------------------------------------------------------------------------------------- | ---------: | ---------------------------------------------------------------------------------------------------------- | ---------: |
+| Read 'easy' book (>94% reading accuracy)                                                                   |        2–3 | New word introduced with written, spoken and pictorial examples. One per session or in pairs (e.g. on/in). |          5 |
+| Read 'instructional' level book (90–94% accuracy) while TA takes 'running record'                          |          5 | Game using new word to reinforce learning in multiple contexts.                                            |          5 |
+| Sight word learning and revision                                                                           |        2–3 | Use new word in oral activities.                                                                           |          5 |
+| Letter-knowledge (including digraphs), oral phonological awareness games and linking of letters and sounds |          5 | Use new word in guided writing.                                                                            |          5 |
+| Introduce new book / shared reading of instructional book                                                  |          5 | —                                                                                                          |          — |
 
 The Reading Strand was based on Reading Intervention which is a combined
 approach that teaches reading and phonics together ([@b19]). The
@@ -295,63 +295,63 @@ input children received.
 # Results
 
 [Table 3](#tbl3) shows the means and standard
-deviations for all measures for each group at _t_1, _t_2 and _t_3
+deviations for all measures for each group at _t_1, \_t_2 and \_t_3
 (pre-intervention, after the first 20-week intervention period and after
 the second 20-week intervention period). Four children withdrew from the
 intervention part way through the study (see [Figure
 1](#fig01)) but we obtained follow-up measures and
 included their scores in our analyses. As expected given random
 allocation, the intervention and waiting control groups did not differ
-reliably on any measure at _t_1 (Cohen's _d_'s ranged from 0.03 to
+reliably on any measure at \_t_1 (Cohen's \_d_'s ranged from 0.03 to
 0.35).
 
 **Table 3.** Means (_SD_) on all outcome measures at pre-intervention
-(_t_1), mid-intervention (_t_2), and post-intervention (_t_3) for
+(\_t_1), mid-intervention (\_t_2), and post-intervention (\_t_3) for
 intervention and waiting control groups.
 
-| Test (max)                                       | Time      | Int _M_ (_SD_)  | Int range     | Wait _M_ (_SD_) | Wait range    |
-|--------------------------------------------------|-----------|----------------:|---------------|----------------:|---------------|
-| Single-word reading (79)                         | _t_1      | 5.86 (10.41)    | 0–46          | 6.88 (12.43)    | 0–52          |
-|                                                  | _t_2      | 10.50 (12.01)   | 0–52          | 8.92 (13.59)    | 0–56          |
-|                                                  | _t_3      | 14.86 (14.02)   | 0–55          | 13.36 (16.48)   | 0–64          |
-| Letter-sound knowledge (32)                      | _t_1      | 15.36 (8.13)    | 0–28          | 13.12 (9.27)    | 0–30          |
-|                                                  | _t_2      | 22.29 (7.28)    | 6–31          | 16.35 (9.42)    | 2–31          |
-|                                                  | _t_3      | 23.46 (8.02)    | 2–32          | 20.50 (7.46)    | 1–31          |
-| Phoneme blending (10)^a^                         | _t_1      | 5.00 (1.94)     | 0–10          | 4.85 (2.52)     | 0–10          |
-|                                                  | _t_2      | 6.25 (2.35)     | 2–10          | 4.88 (2.55)     | 0–10          |
-|                                                  | _t_3      | 6.43 (2.35)     | 2–10          | 5.73 (2.59)     | 0–10          |
-| Nonword reading (6)                              | _t_1      | 0.52 (1.25)     | 0–5           | 0.96 (1.61)     | 0–6           |
-|                                                  | _t_2      | 0.96 (1.48)     | 0–6           | 1.04 (1.90)     | 0–6           |
-|                                                  | _t_3      | 1.48 (1.87)     | 0–5           | 1.12 (1.79)     | 0–6           |
-| Phonetic spelling (92)                           | _t_1      | 4.89 (17.87)    | 0–92          | 12.35 (23.85)   | 0–92          |
-|                                                  | _t_2      | 11.00 (21.84)   | 0–92          | 17.00 (26.98)   | 0–92          |
-|                                                  | _t_3      | 20.00 (28.39)   | 0–89          | 25.72 (32.93)   | 0–89          |
-| Taught expressive vocabulary, weeks 1–20 (24)    | _t_1      | 5.07 (3.51)     | 0–13          | 5.00 (3.59)     | 0–13          |
-|                                                  | _t_2      | 8.50 (4.07)     | 2–17          | 6.77 (3.84)     | 1–15          |
-|                                                  | _t_3      | 9.21 (4.29)     | 2–19          | 9.54 (5.05)     | 0–18          |
-| Taught receptive vocabulary, weeks 1–20 (24)     | _t_1      | 12.04 (4.83)    | 3–22          | 11.92 (3.20)    | 5–18          |
-|                                                  | _t_2      | 15.50 (3.55)    | 7–21          | 14.04 (3.67)    | 7–22          |
-|                                                  | _t_3      | 16.07 (3.89)    | 7–23          | 15.58 (4.00)    | 6–21          |
-| Taught expressive vocabulary, weeks 21–40 (24)   | _t_2      | 6.32 (3.13)     | 0–11          | 6.27 (3.42)     | 1–15          |
-|                                                  | _t_3      | 9.89 (4.06)     | 0–17          | 8.46 (4.13)     | 0–15          |
-| Taught receptive vocabulary, weeks 21–40 (24)    | _t_2      | 16.11 (4.39)    | 8–23          | 14.19 (4.06)    | 5–22          |
-|                                                  | _t_3      | 16.68 (4.01)    | 7–23          | 16.62 (3.32)    | 9–23          |
-| Expressive vocabulary (170)                      | _t_1      | 29.64 (11.85)   | 8–59          | 27.69 (13.88)   | 8–71          |
-|                                                  | _t_2      | 34.00 (11.72)   | 13–67         | 32.00 (13.43)   | 12–74         |
-|                                                  | _t_3      | 37.39 (14.41)   | 10–68         | 36.38 (11.96)   | 14–69         |
-| Receptive vocabulary (170)                       | _t_1      | 35.61 (12.00)   | 11–61         | 35.23 (15.25)   | 12–67         |
-|                                                  | _t_2      | 38.79 (11.85)   | 20–68         | 38.27 (12.54)   | 15–64         |
-|                                                  | _t_3      | 44.25 (12.95)   | 15–74         | 42.42 (15.07)   | 16–72         |
-| Expressive grammar (37)                          | _t_1      | 5.86 (5.38)     | 0–23          | 4.80 (5.63)     | 0–28          |
-|                                                  | _t_2      | 8.29 (6.29)     | 0–26          | 6.04 (5.54)     | 0–23          |
-|                                                  | _t_3      | 7.93 (5.42)     | 0–21          | 8.12 (6.59)     | 0–27          |
-| Expressive information (40)                      | _t_1      | 13.84 (7.26)    | 0–32          | 11.79 (6.39)    | 0–27.50       |
-|                                                  | _t_2      | 16.63 (7.38)    | 3.00–37.50    | 14.77 (7.25)    | 3.50–32.50    |
-|                                                  | _t_3      | 18.01 (6.73)    | 2.00–31.50    | 18.75 (8.48)    | 4.00–34.50    |
-| No. of sessions attended (200)                   | _t_1–_t_3 | 137.46 (28.89)  | 72–183        | 75.28 (17.67)   | 17–92         |
+| Test (max)                                     | Time        | Int _M_ (_SD_) | Int range  | Wait _M_ (_SD_) | Wait range |
+| ---------------------------------------------- | ----------- | -------------: | ---------- | --------------: | ---------- |
+| Single-word reading (79)                       | \_t_1       |   5.86 (10.41) | 0–46       |    6.88 (12.43) | 0–52       |
+|                                                | \_t_2       |  10.50 (12.01) | 0–52       |    8.92 (13.59) | 0–56       |
+|                                                | \_t_3       |  14.86 (14.02) | 0–55       |   13.36 (16.48) | 0–64       |
+| Letter-sound knowledge (32)                    | \_t_1       |   15.36 (8.13) | 0–28       |    13.12 (9.27) | 0–30       |
+|                                                | \_t_2       |   22.29 (7.28) | 6–31       |    16.35 (9.42) | 2–31       |
+|                                                | \_t_3       |   23.46 (8.02) | 2–32       |    20.50 (7.46) | 1–31       |
+| Phoneme blending (10)^a^                       | \_t_1       |    5.00 (1.94) | 0–10       |     4.85 (2.52) | 0–10       |
+|                                                | \_t_2       |    6.25 (2.35) | 2–10       |     4.88 (2.55) | 0–10       |
+|                                                | \_t_3       |    6.43 (2.35) | 2–10       |     5.73 (2.59) | 0–10       |
+| Nonword reading (6)                            | \_t_1       |    0.52 (1.25) | 0–5        |     0.96 (1.61) | 0–6        |
+|                                                | \_t_2       |    0.96 (1.48) | 0–6        |     1.04 (1.90) | 0–6        |
+|                                                | \_t_3       |    1.48 (1.87) | 0–5        |     1.12 (1.79) | 0–6        |
+| Phonetic spelling (92)                         | \_t_1       |   4.89 (17.87) | 0–92       |   12.35 (23.85) | 0–92       |
+|                                                | \_t_2       |  11.00 (21.84) | 0–92       |   17.00 (26.98) | 0–92       |
+|                                                | \_t_3       |  20.00 (28.39) | 0–89       |   25.72 (32.93) | 0–89       |
+| Taught expressive vocabulary, weeks 1–20 (24)  | \_t_1       |    5.07 (3.51) | 0–13       |     5.00 (3.59) | 0–13       |
+|                                                | \_t_2       |    8.50 (4.07) | 2–17       |     6.77 (3.84) | 1–15       |
+|                                                | \_t_3       |    9.21 (4.29) | 2–19       |     9.54 (5.05) | 0–18       |
+| Taught receptive vocabulary, weeks 1–20 (24)   | \_t_1       |   12.04 (4.83) | 3–22       |    11.92 (3.20) | 5–18       |
+|                                                | \_t_2       |   15.50 (3.55) | 7–21       |    14.04 (3.67) | 7–22       |
+|                                                | \_t_3       |   16.07 (3.89) | 7–23       |    15.58 (4.00) | 6–21       |
+| Taught expressive vocabulary, weeks 21–40 (24) | \_t_2       |    6.32 (3.13) | 0–11       |     6.27 (3.42) | 1–15       |
+|                                                | \_t_3       |    9.89 (4.06) | 0–17       |     8.46 (4.13) | 0–15       |
+| Taught receptive vocabulary, weeks 21–40 (24)  | \_t_2       |   16.11 (4.39) | 8–23       |    14.19 (4.06) | 5–22       |
+|                                                | \_t_3       |   16.68 (4.01) | 7–23       |    16.62 (3.32) | 9–23       |
+| Expressive vocabulary (170)                    | \_t_1       |  29.64 (11.85) | 8–59       |   27.69 (13.88) | 8–71       |
+|                                                | \_t_2       |  34.00 (11.72) | 13–67      |   32.00 (13.43) | 12–74      |
+|                                                | \_t_3       |  37.39 (14.41) | 10–68      |   36.38 (11.96) | 14–69      |
+| Receptive vocabulary (170)                     | \_t_1       |  35.61 (12.00) | 11–61      |   35.23 (15.25) | 12–67      |
+|                                                | \_t_2       |  38.79 (11.85) | 20–68      |   38.27 (12.54) | 15–64      |
+|                                                | \_t_3       |  44.25 (12.95) | 15–74      |   42.42 (15.07) | 16–72      |
+| Expressive grammar (37)                        | \_t_1       |    5.86 (5.38) | 0–23       |     4.80 (5.63) | 0–28       |
+|                                                | \_t_2       |    8.29 (6.29) | 0–26       |     6.04 (5.54) | 0–23       |
+|                                                | \_t_3       |    7.93 (5.42) | 0–21       |     8.12 (6.59) | 0–27       |
+| Expressive information (40)                    | \_t_1       |   13.84 (7.26) | 0–32       |    11.79 (6.39) | 0–27.50    |
+|                                                | \_t_2       |   16.63 (7.38) | 3.00–37.50 |    14.77 (7.25) | 3.50–32.50 |
+|                                                | \_t_3       |   18.01 (6.73) | 2.00–31.50 |    18.75 (8.48) | 4.00–34.50 |
+| No. of sessions attended (200)                 | \_t_1–\_t_3 | 137.46 (28.89) | 72–183     |   75.28 (17.67) | 17–92      |
 
 ^a^ A test of _Sound Isolation_ (Hulme et al., 2009) was also administered
-at _t_1 but discontinued due to marked floor effects (_M_ = 0.81, _SD_ =
+at _t_1 but discontinued due to marked floor effects (\_M_ = 0.81, _SD_ =
 1.63, max = 12; skewness = 1.95, _SE_ = 0.33; kurtosis = 2.65, _SE_ =
 0.64).
 
@@ -363,13 +363,13 @@ assessed using regression (ANCOVA) models implemented in Mplus (v 6.0;
 with using Full Information Maximum Likelihood (FIML) estimators (the
 default in Mplus). To assess the impact of the intervention after the
 first 20 weeks, group differences at _t_2 were tested, controlling for
-baseline performance at _t_1, age and gender. The results are summarised
+baseline performance at \_t_1, age and gender. The results are summarised
 in [Figure 2](#fig02), which plots the difference
-between the groups' adjusted means (_t_2 scores controlling for
+between the groups' adjusted means (\_t_2 scores controlling for
 covariates), with 95% confidence intervals. Any score greater than 0
 represents greater progress in the intervention group compared to the
 waiting control group; where the 95% confidence intervals do not cross
-the _x_-axis, this represents a statistically significant effect (_p_ <
+the \_x_-axis, this represents a statistically significant effect (_p_ <
 .05). The figure shows that children receiving intervention made
 significantly greater progress than those not receiving intervention on
 four primary outcome measures: single word reading, letter-sound
@@ -380,25 +380,25 @@ standardised tests of language (vocabulary, grammar and information).
 
 ![Figure 2. Comparison of the intervention and waiting control groups at _t_2 (controlling for _t_1), after receiving 20 and 0 weeks of intervention, respectively, on intervention outcome measures, with 95% confidence intervals, effect sizes (_d_, difference in raw score gains divided by pooled _SD_ at _t_1) and _p_-values.](burgoyne-2012-figure-2.png)
 
-*Figure 2. Comparison of the intervention and waiting control groups at _t_2 (controlling for _t_1), after receiving 20 and 0 weeks of intervention, respectively, on intervention outcome measures, with 95% confidence intervals, effect sizes (_d_, difference in raw score gains divided by pooled _SD_ at _t_1) and _p_-values.*
+_Figure 2. Comparison of the intervention and waiting control groups at *t_2 (controlling for \_t_1), after receiving 20 and 0 weeks of intervention, respectively, on intervention outcome measures, with 95% confidence intervals, effect sizes (\_d*, difference in raw score gains divided by pooled *SD* at *t_1) and \_p*-values._
 
 The data in [Table 3](#tbl3) also indicate that once
 the waiting list control group began to receive intervention, their
 skills increased at about the same rate as those of the intervention
 group during their first 20-week period. To assess whether the
 intervention group remained ahead after the waiting control group had
-received 20 weeks of intervention, differences at _t_3 were tested, again
-controlling for baseline performance at _t_1 (except for taught
+received 20 weeks of intervention, differences at \_t_3 were tested, again
+controlling for baseline performance at \_t_1 (except for taught
 vocabulary items introduced in the second block of intervention, where
-_t_2 scores are controlled), age and gender. The results are summarised
+\_t_2 scores are controlled), age and gender. The results are summarised
 in [Figure 3](#fig03). Although the children who had
 received 40 weeks of intervention were numerically ahead of those who
 received 20 weeks, none of the group differences were statistically
 reliable at this time point.
 
-![Figure 3. Comparison of the intervention and waiting control groups at _t_3 (controlling for _t_1 or _t_2\*), after receiving 40 or 20 weeks of intervention, respectively, on intervention outcome measures, with 95% confidence intervals, effect sizes (_d_, difference in raw score gains divided by pooled _SD_ at _t_1 or _t_2\*) and _p_-values.](burgoyne-2012-figure-3.png)
+![Figure 3. Comparison of the intervention and waiting control groups at _t_3 (controlling for _t_1 or _t_2*), after receiving 40 or 20 weeks of intervention, respectively, on intervention outcome measures, with 95% confidence intervals, effect sizes (_d_, difference in raw score gains divided by pooled _SD_ at _t_1 or _t_2*) and _p_-values.](burgoyne-2012-figure-3.png)
 
-*Figure 3. Comparison of the intervention and waiting control groups at _t_3 (controlling for _t_1 or _t_2\*), after receiving 40 or 20 weeks of intervention, respectively, on intervention outcome measures, with 95% confidence intervals, effect sizes (_d_, difference in raw score gains divided by pooled _SD_ at _t_1 or _t_2\*) and _p_-values.*
+_Figure 3. Comparison of the intervention and waiting control groups at *t_3 (controlling for \_t_1 or \_t_2\*), after receiving 40 or 20 weeks of intervention, respectively, on intervention outcome measures, with 95% confidence intervals, effect sizes (\_d*, difference in raw score gains divided by pooled *SD* at *t_1 or \_t_2\*) and \_p*-values._
 
 ## Predictors of growth in reading
 
@@ -409,11 +409,11 @@ knowledge, IQ, age and gender. We also assessed receptive language
 grammar and vocabulary, which were highly correlated (_r_ = 0.620); and
 extrinsic factors relating to length and quality of intervention. We
 derived a measure of reading growth across the 40-week period by
-computing the residualized _t_3 reading scores (controlling for _t_1
+computing the residualized \_t_3 reading scores (controlling for \_t_1
 reading). [Table 4](#tbl4) reports the correlations
 between these residualized reading gain scores, number of intervention
 sessions attended in the 40-week period, TA effectiveness rating, and
-key measures at _t_1. Growth in reading correlated with age (favouring
+key measures at \_t_1. Growth in reading correlated with age (favouring
 younger children), TA effectiveness and attendance, whereas correlations
 with children's rated behaviour problems and gender were not
 significant. Of the cognitive measures, letter knowledge was the only
@@ -422,22 +422,22 @@ letter knowledge and receptive vocabulary correlated strongly with each
 other and receptive vocabulary also showed a sizable, but
 non-significant, correlation with growth in reading.
 
-**Table 4.** Bivariate correlations between variables measured at _t_1
-and progress in reading over 40 weeks (_t_3 controlling for _t_1),
+**Table 4.** Bivariate correlations between variables measured at \_t_1
+and progress in reading over 40 weeks (\_t_3 controlling for \_t_1),
 collapsed across groups.
 
-| #   | Variable             | 1       | 2         | 3    | 4       | 5       | 6       | 7       | 8     | 9     |
-|-----|----------------------|---------|-----------|------|---------|---------|---------|---------|-------|-------|
-| 1.  | Reading growth       | —       |           |      |         |         |         |         |       |       |
-| 2.  | Age                  | −.34\*  | —         |      |         |         |         |         |       |       |
-| 3.  | Gender               | .26     | .09       | —    |         |         |         |         |       |       |
-| 4.  | Behaviour            | −.19    | −.04      | −.16 | —       |         |         |         |       |       |
-| 5.  | Block design         | .14     | .36\*\*   | .02  | −.28\*  | —       |         |         |       |       |
-| 6.  | Phoneme blending     | .19     | .29\*     | −.05 | −.13    | .35\*   | —       |         |       |       |
-| 7.  | Letter-knowledge     | .36\*\* | .11       | .02  | −.29\*  | .45\*\*\* | .43\*\* | —       |       |       |
-| 8.  | Receptive language   | .23     | .51\*\*\* | .08  | −.37\*\* | .63\*\*\* | .54\*\*\* | .48\*\*\* | —     |       |
-| 9.  | Sessions attended    | .29\*   | .12       | −.14 | −.15    | .32\*   | .10     | .16     | .14   | —     |
-| 10. | TA effectiveness^a^  | −.29\*  | −.05      | −0.18| 0.30\*  | 0.04    | −0.12   | −0.15   | −0.22 | −0.19 |
+| #   | Variable            | 1       | 2         | 3     | 4        | 5         | 6         | 7         | 8     | 9     |
+| --- | ------------------- | ------- | --------- | ----- | -------- | --------- | --------- | --------- | ----- | ----- |
+| 1.  | Reading growth      | —       |           |       |          |           |           |           |       |       |
+| 2.  | Age                 | −.34\*  | —         |       |          |           |           |           |       |       |
+| 3.  | Gender              | .26     | .09       | —     |          |           |           |           |       |       |
+| 4.  | Behaviour           | −.19    | −.04      | −.16  | —        |           |           |           |       |       |
+| 5.  | Block design        | .14     | .36\*\*   | .02   | −.28\*   | —         |           |           |       |       |
+| 6.  | Phoneme blending    | .19     | .29\*     | −.05  | −.13     | .35\*     | —         |           |       |       |
+| 7.  | Letter-knowledge    | .36\*\* | .11       | .02   | −.29\*   | .45\*\*\* | .43\*\*   | —         |       |       |
+| 8.  | Receptive language  | .23     | .51\*\*\* | .08   | −.37\*\* | .63\*\*\* | .54\*\*\* | .48\*\*\* | —     |       |
+| 9.  | Sessions attended   | .29\*   | .12       | −.14  | −.15     | .32\*     | .10       | .16       | .14   | —     |
+| 10. | TA effectiveness^a^ | −.29\*  | −.05      | −0.18 | 0.30\*   | 0.04      | −0.12     | −0.15     | −0.22 | −0.19 |
 
 ^a^ Rating for second 20-week block of intervention for control group,
 and average across both 20-week blocks for intervention group — note
@@ -466,22 +466,22 @@ predictor (B = 0.31; _t_ = 3.15; _p_ < .001) with the overall model
 variance in reading growth.
 
 **Table 5.** Simultaneous multiple regression models predicting reading
-growth across 40 weeks from _t_1 measures.
+growth across 40 weeks from \_t_1 measures.
 
-| Model | Predictor          | _B_   | _t_   | _p_    |
-|-------|--------------------|------:|------:|--------|
+| Model | Predictor          |   _B_ |   _t_ | _p_    |
+| ----- | ------------------ | ----: | ----: | ------ |
 | 1     | Age                | −0.56 | −4.28 | < .001 |
-| 1     | Gender             | 0.19  | 1.71  | .095   |
-| 1     | Behaviour          | 0.10  | 0.81  | .421   |
+| 1     | Gender             |  0.19 |  1.71 | .095   |
+| 1     | Behaviour          |  0.10 |  0.81 | .421   |
 | 1     | Block design       | −0.05 | −0.34 | .734   |
-| 1     | Phoneme blending   | 0.07  | 0.49  | .624   |
-| 1     | Letter-knowledge   | 0.20  | 1.54  | .131   |
-| 1     | Receptive language | 0.37  | 2.06  | .045   |
-| 1     | Sessions attended  | 0.31  | 2.59  | .013   |
+| 1     | Phoneme blending   |  0.07 |  0.49 | .624   |
+| 1     | Letter-knowledge   |  0.20 |  1.54 | .131   |
+| 1     | Receptive language |  0.37 |  2.06 | .045   |
+| 1     | Sessions attended  |  0.31 |  2.59 | .013   |
 | 1     | TA effectiveness   | −0.12 | −0.96 | .345   |
 | 2     | Age                | −0.62 | −4.82 | < .001 |
-| 2     | Receptive language | 0.51  | 3.97  | < .001 |
-| 2     | Sessions attended  | 0.30  | 2.69  | .001   |
+| 2     | Receptive language |  0.51 |  3.97 | < .001 |
+| 2     | Sessions attended  |  0.30 |  2.69 | .001   |
 
 TA, teaching assistant.
 
@@ -634,11 +634,11 @@ should be directed to the corresponding author for the article.
 
 # References
 
-*(References omitted from this markdown conversion; consult the
-published paper at <https://doi.org/10.1111/j.1469-7610.2012.02557.x>.)*
+_(References omitted from this markdown conversion; consult the
+published paper at <https://doi.org/10.1111/j.1469-7610.2012.02557.x>.)_
 
 # Associated Data
 
 ## Supplementary Materials
 
-*(Not included in this markdown extract.)*
+_(Not included in this markdown extract.)_
