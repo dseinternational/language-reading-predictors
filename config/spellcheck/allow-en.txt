@@ -188,6 +188,11 @@ Woynaroski
 iloc
 coef
 sens
+collinear
+collinearity
+multicollinear
+multicollinearity
+AJIDD
 AMPPS
 autoregressive
 Erlbaum

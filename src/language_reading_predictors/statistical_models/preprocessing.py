@@ -108,8 +108,9 @@ class PreparedData:
     dropped_rows: int
     """Number of rows dropped due to missing pre-scores or group."""
     phase_mode: str
-    """``"itt"`` (RCT phase only), ``"all"`` (three stacked transitions), or
-    ``"levels"`` (four per-timepoint score rows)."""
+    """``"itt"`` (RCT phase only), ``"all"`` (three stacked transitions),
+    ``"levels"`` (four per-timepoint score rows), or ``"span"`` (one row per
+    child: t1 baseline paired with a single later wave)."""
     column_map: dict[str, str] = field(default_factory=dict)
     """Symbol -> column-name map for the subset of outcomes prepared."""
     covariates: dict[str, np.ndarray] = field(default_factory=dict)
@@ -137,6 +138,7 @@ def load_and_prepare(
     baseline_covariates: tuple[str, ...] = (),
     drop_missing_pre: bool = True,
     restrict_complete: tuple[str, ...] = (),
+    post_time: int = 4,
     pre_required: tuple[str, ...] | None = None,
 ) -> PreparedData:
     """
@@ -153,6 +155,11 @@ def load_and_prepare(
         with the score at each timepoint as the (post) outcome and no own
         baseline; group + the t1 baselines broadcast across the four rows, age is
         the per-timepoint age, and ``phase`` carries the timepoint index.
+        ``"span"`` pairs the wave-1 baseline with a single later wave
+        ``post_time`` (default t4), giving **one row per child** — the
+        between-child design used by LRP65 (T1 baselines -> full-study gain).
+        Because the pre-timepoint is t1, baseline-only covariates such as block
+        design (administered at t1) are available without any broadcast.
     outcomes
         Symbols (from :data:`measures.ITT_OUTCOMES`) to include as
         pre/post variables.
@@ -189,14 +196,17 @@ def load_and_prepare(
         Use this to fit a model on the complete-case subset of some covariates
         *without* adjusting for them — e.g. a matched unadjusted comparator to a
         covariate-adjusted run (LRPITT14 vs LRPITT13).
+    post_time
+        The post wave for ``phase_mode="span"`` (default 4 = last wave). Ignored
+        for the other modes.
 
     Returns
     -------
     PreparedData
     """
-    if phase_mode not in {"itt", "all", "levels"}:
+    if phase_mode not in {"itt", "all", "levels", "span"}:
         raise ValueError(
-            f"phase_mode must be 'itt', 'all' or 'levels', got {phase_mode!r}"
+            f"phase_mode must be 'itt', 'all', 'levels', or 'span', got {phase_mode!r}"
         )
 
     # A column can be a per-row covariate/restrict_complete OR a time-invariant t1
@@ -225,11 +235,21 @@ def load_and_prepare(
 
     # ``itt``/``all`` are autoregressive (pre -> post over a transition); ``levels``
     # is not (the score at each timepoint is the outcome, no own baseline).
-    has_pre = phase_mode in {"itt", "all"}
+    has_pre = phase_mode in {"itt", "all", "span"}
 
     if has_pre:
         phase_pairs: list[tuple[int, int]]
-        phase_pairs = [(1, 2)] if phase_mode == "itt" else [(1, 2), (2, 3), (3, 4)]
+        if phase_mode == "itt":
+            phase_pairs = [(1, 2)]
+        elif phase_mode == "span":
+            if int(post_time) <= 1:
+                raise ValueError(
+                    "phase_mode='span' pairs t1 with a later wave, so post_time "
+                    f"must be > 1; got {post_time!r}"
+                )
+            phase_pairs = [(1, int(post_time))]
+        else:
+            phase_pairs = [(1, 2), (2, 3), (3, 4)]
         per_phase_frames: list[pd.DataFrame] = []
         for phase_idx, (t_pre, t_post) in enumerate(phase_pairs):
             pre = df.loc[
