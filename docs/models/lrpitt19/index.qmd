@@ -1,0 +1,85 @@
+---
+title: "LRPITT19: Ability-adjusted ITT effect of group assignment on not-taught receptive vocabulary, block 1 (b1rent) (UR)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPITT19 is the **general-ability-adjusted** ITT analysis for not-taught receptive vocabulary, block 1 (b1rent) (`b1rent`) -
+the ability-robustness companion to LRPITT03, part of the LRPITT17-24 ability-adjusted
+family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline
+nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The
+estimand is unchanged: the total effect of randomised assignment $G$ on
+$UR_{\text{post}}$ over the RCT phase.
+
+::: {.callout-note title="Why adjust for ability, and what it does (and does not) buy"}
+
+Block design is a child trait measured **before** randomisation, so - like SES - it
+**cannot confound** the randomised effect: randomisation balances it across arms in
+expectation. This adjustment is a **precision / chance-imbalance robustness check**,
+not confounding control. The immediate-intervention arm started about **0.27 SD
+higher** in block design (a mild chance imbalance), and block design is prognostic of
+the outcomes (most strongly for vocabulary), so adjusting for it asks whether the
+effect survives that head-start.
+
+Age is held in (`use_age_linear`), so the block-design term reads as ability **for
+age** - the general latent ability construct. Block design is **complete for all 54
+children**, so no rows are dropped: LRPITT19 vs LRPITT03 is a same-sample
+adjusted-vs-unadjusted contrast and **no matched comparator is needed**.
+
+:::
+
+::: {.callout-note title="Identification and sign convention"}
+
+Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
+identified by the **empty adjustment set**. The own baseline, linear age, and the
+block-design adjuster are **precision terms only** - they sharpen $\tau$ but are not
+what licenses the causal interpretation. **Sign convention:** $G = 1$ is the
+intervention arm, so a **positive** $\tau$ means the intervention raises the outcome.
+
+:::
+
+## Model
+
+$$
+\eta_i = \alpha + \tau\, G_i
+       + \gamma_{\text{own}}\, \text{logit}_*(UR_{\mathrm{pre},i}, N)
+       + \gamma_A\, A_{\text{std},i}
+       + \gamma_{\text{blocks}}\, z(\text{blocks}_i),
+$$
+
+with Beta-Binomial likelihood $UR_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
+$\mu_i = \sigma(\eta_i)$, $N = 12$. Priors follow the shared template in `priors.py`.
+The block-design adjuster enters as a linear $\gamma_{\text{blocks}}$ term (the same
+weak $\text{Normal}(0, 0.3)$ prior as cross-baseline couplings); HSGPs are off by
+default.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_itt.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

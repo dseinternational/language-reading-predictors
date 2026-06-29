@@ -1,0 +1,80 @@
+---
+title: "LRPITT15b: Taught vs not-taught receptive vocabulary (generalisation contrast)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPITT15b is the *receptive*-modality companion to LRPITT15: the within-data test
+of "gains are largest in directly-taught skills, with little generalisation". Two
+Block 1 receptive vocabulary outcomes are modelled jointly over the randomised
+window (t1 $\rightarrow$ t2):
+
+- `TR` — directly-taught target words (`b1retau`, $N = 24$);
+- `UR` — not-taught comparison words (`b1rent`, $N = 12$).
+
+The headline quantity is $\tau_{\mathrm{TR}} - \tau_{\mathrm{UR}}$ — *benefit on
+taught minus benefit on not-taught*. **Sign convention:** $G = 1$ is the
+intervention arm, so positive $\tau$ is a benefit; a clearly positive difference
+means the programme raised the taught words more than untaught words (limited
+transfer). The per-outcome models are LRPITT01 (TR) and LRPITT03 (UR).
+
+## Structure
+
+For child $i$ and outcome $k \in \{\mathrm{TR}, \mathrm{UR}\}$:
+
+$$
+\eta_{k,i} = \alpha_k + \tau_k G_i
+           + \gamma^{\text{own}}_k\, \text{logit}_*(k_{\text{pre},i}, N_k)
+           + \gamma^{A}_k\, A_{\text{std},i},
+$$
+
+with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. As in
+LRPITT15, the 2×2 LKJ residual correlation is **off**: the within-child residual
+SD sits at ~0 once baselines are conditioned on, so the block only destabilised
+the variance component for no gain. Dropping it is the conservative choice and
+converges cleanly.
+
+::: {.callout-note title="Denominators and caveats"}
+
+- Taught ($\mathrm{TR}$): $N = 24$ — documented (Burgoyne et al., 2012, Table 3).
+- Not-taught ($\mathrm{UR}$): $N = 12$ — **observed maximum, not documented** and
+  flagged unconfirmed; the logit-scale difference is robust but the
+  probability-scale interpretation of $\mathrm{UR}$ is approximate.
+- $n \approx 54$; the causal claim is limited to the randomised window. The
+  difference is a *differential logit-scale effect*, not a difference in raw words.
+- The difference is conservative with respect to the (near-zero) within-child
+  residual correlation; `use_residual_correlation=True` remains available as a
+  sensitivity fit but mixes poorly here.
+
+:::
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_joint.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

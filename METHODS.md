@@ -24,12 +24,16 @@ We use two processes for exploring predictors of language and reading outcomes:
 
 ## 2. Bayesian statistical models
 
-**Purpose:** estimate interpretable quantities with full uncertainty. Four families, each a factory in `factories.py` and a pipeline entry in `pipeline.py`:
+**Purpose:** estimate interpretable quantities with full uncertainty. Eight families, each a factory in `factories.py` and a pipeline entry in `pipeline.py`:
 
-- **ITT** — the randomised-phase treatment effect (τ) on one outcome.
-- **Joint** — one posterior over all eight outcomes' treatment effects, enabling cross-outcome contrasts such as "is τ_L more positive than τ_W?".
+- **ITT** — the randomised-phase treatment effect (τ) on one outcome (the uniform DAG-faithful **LRPITT01–11** suite; the own baseline and linear age are *precision* terms only — the ITT effect is identified by the empty adjustment set — and no cross-baselines enter). Heavily-floored outcomes (phonetic spelling, nonword reading) use a pre-specified, arm-blind **floor rule** (≥ 40 % of post-scores at zero at t2): a binary "off-floor" primary estimand (`Pr(post > 0)`), with the graded effect demoted to a flagged, detection-limited secondary read only beside per-arm mover counts.
+- **Joint** — one posterior over the suite outcomes' treatment effects, enabling cross-outcome contrasts such as "is τ_L more positive than τ_W?".
 - **Mechanism** — a dose-response curve `f_mech` of one measure on another (e.g. letter-sound → word reading), conditioned on a DAG-derived adjustment set and a per-child random intercept.
 - **Mediation** — a natural direct/indirect decomposition (NDE/NIE) through a mediator by counterfactual g-formula simulation from the posterior, not from coefficients.
+- **DiD** — a within-person replication of the randomised τ (the **LRPDID01–06** family): the wait-list arm's own untreated → crossover transition, each child its own control, with the immediate arm anchoring the maturation trend.
+- **Gain factors** — a DAG-focused ANCOVA of a period's post-score on its own pre-score (the **LRPGF01–08** family, one model per outcome, each with a treated-only companion), with a per-child random intercept repairing latent general ability. Only the randomised on-intervention term is causal; every other covariate (own baseline, age, cognitive ability, upstream DAG skills, focal interactions) is reported as an explicit *adjusted association*, never as "X drives Y". SES is excluded — not a DAG node, and statistically redundant. Phonetic spelling inherits the ITT floor rule (an off-floor `Pr(post > 0)` Bernoulli, the treatment marginal an off-floor risk difference).
+- **Level factors** — the companion *levels* view (the **LRPLF01–08** family): the score at each timepoint, with group-by-time and ability-by-time as per-timepoint coefficient vectors. Only the t2 group contrast is a clean randomised effect; later timepoints are post-crossover and reported as associations.
+- **Aligned** — an onset-aligned per-protocol single gain (the **LRPAL01–08** family, plus a dose sensitivity variant): both arms are aligned by intervention onset (immediate t1 → t3, wait-list t2 → t4) into one cross-sectional ANCOVA per child. This trades randomisation for a like-for-like dose comparison, so the cohort contrast is **not** the ITT effect — it is confounded by age-at-onset and cohort/timing, and every coefficient is reported as an association. Cumulative sessions (dose) are a collider and enter only the sensitivity variant.
 
 **Likelihood and priors.** A Beta-Binomial likelihood on the bounded post-score count via a logit linear predictor. Priors come from shared constructors in `priors.py` (so the factories cannot drift apart); smooth nonlinear terms use Hilbert-space Gaussian-process approximations (`hsgp.py`).
 
@@ -37,11 +41,11 @@ We use two processes for exploring predictors of language and reading outcomes:
 
 **Fit.** NUTS via `nutpie`, with `dev` / `test` / `reporting` sampling presets (the last is 6 chains × 6000 draws); `--target-accept` overrides when a funnel needs it.
 
-**Evaluate.** Check convergence *before* reading any estimate: R-hat ≈ 1.00, adequate effective sample size (ESS), and divergent transitions at or near zero. A non-converged or divergent fit's posterior is not interpretable — fix the model, do not report it. Prior- and posterior-predictive checks confirm the likelihood can reproduce the data.
+**Evaluate.** Check convergence *before* reading any estimate: R-hat ≈ 1.00, adequate effective sample size (ESS), and divergent transitions at or near zero. A non-converged or divergent fit's posterior is not interpretable — fix the model, do not report it. The pipeline writes a `diagnostics_summary.json` (divergences, BFMI per chain, R-hat ≤ 1.01, ESS ≥ 400) and the report renders it as a **pass/fail convergence banner first**, before any τ; Pareto-k (pointwise LOO), rank, ESS-evolution and LOO-PIT plots back it up. Prior- and posterior-predictive checks confirm the likelihood can reproduce the data; the 1,000 prior draws are persisted onto `trace.nc` (the `prior` / `prior_predictive` / `log_prior` groups) so the report can show the prior-predictive check, the prior-vs-posterior overlay, the estimand-scale prior pushforward, and power-scaling sensitivity without refitting.
 
 **Compare.** PSIS-LOO via ArviZ: prefer the higher-`elpd` model only when the difference clears its standard error (`elpd_diff` against `dse`). The interaction models are tested against their own no-interaction baselines as clean nested comparisons; `scripts/compare_statistical_models.py` collects the cross-model views.
 
-**Interpret.** Report the **posterior**, not a point estimate: the median (or mean) with its 95 % credible interval and the relevant tail probability (e.g. `P(τ > 0)`). There are no p-values. Give both the logit scale (the natural parameter) and the probability scale at sample-mean baseline. A credible interval spanning zero means no credible effect — but report where the posterior mass sits rather than collapsing to "significant / not".
+**Interpret.** Report the **posterior**, not a point estimate: the **median** (preferred over the mean — it is transformation-invariant across the logit and probability scales) with its 95 % equal-tailed credible interval. There are no p-values. Distinguish two questions: *direction* — the tail probability `P(τ > 0)` — and *magnitude* — `P(benefit ≥ δ)` against a pre-specified minimally-important difference δ (a region of practical equivalence), because a high `P(τ > 0)` can sit on a practically negligible effect. Give both the logit scale (the natural parameter) and the probability / items scale at sample-mean baseline. A credible interval spanning zero means no credible effect — but report where the posterior mass sits rather than collapsing to "significant / not". At this study's sample size a significant-looking point estimate is on average magnitude-inflated (a Type-M / winner's-curse effect), so lead with the interval, not the point. See `notes/202606261304-evidence-strength-and-rope-reporting.md`.
 
 ## Causal interpretation and its limits
 
@@ -55,6 +59,7 @@ Write for a numerate reader who knows frequentist statistics but is newer to Bay
 
 - **Translate the Bayesian parts.** Expand shorthand on first use (τ = treatment effect, `gamma_own` = baseline coupling, `f_mech` = mechanism curve). Read an equal-tailed 95% credible interval in plain words — "given the model and data, the value lies in [a, b] with 95% probability" — prefer a posterior tail probability (`P(τ > 0) = 0.97`) to anything that reads like a p-value, and restate the sign convention wherever τ appears.
 - **Pair every estimate with its uncertainty** — never a bare posterior mean or a bare importance rank.
+- **Avoid verbal evidence labels ("strong", "moderate") wherever possible** — report the odds and probabilities and let them speak. Where prose forces a label, append the word *evidence* and name the claim ("strong evidence that the intervention helps"), show the odds beside it, and use the round-odds ladder in `notes/202606261304-evidence-strength-and-rope-reporting.md` — run separately for *direction* (`pd`) and *meaningful benefit* (`P(benefit ≥ δ)`). A label must never connote effect *size*.
 - **Cite primary sources, verify them before committing them to text, and always include a DOI** when one exists.
 
 ## Conventions
@@ -63,13 +68,16 @@ Write for a numerate reader who knows frequentist statistics but is newer to Bay
 - **`GroupKFold` by `subject_id`** wherever longitudinal leakage would otherwise inflate performance.
 - **Mechanism-model β_G is not a direct-effect estimate** — both arms are on intervention during phases 1 and 2, so the pooled β_G averages over phases where group is no longer a treatment contrast (documented in each mechanism report).
 - **RLI intervention scope** — the intervention targets vocabulary and grammar as well as reading, so null effects on receptive/expressive vocabulary are substantive findings, not by-design predictions.
-- **Decisions a future reader might question get a dated note in `notes/`** before they leave your head — the question, the choice, the rationale, the result. Mark AI-drafted notes with the `> [!WARNING]` admonition existing notes carry.
+- **Decisions a future reader might question get a dated note in `notes/`** before they leave your head — the question, the choice, the rationale, the result. Mark AI-drafted notes with a `> [!NOTE]` admonition naming the tool and model (per the AI-authorship rule in `CLAUDE.md`).
 
 ## Glossary
 
 - **Posterior** — the distribution of a parameter after combining prior and data; summarised by a mean/median, a credible interval, and tail probabilities.
 - **Credible interval (CrI)** — a range holding the parameter with stated probability *given the model and data* (the reading people wrongly attach to a confidence interval).
 - **Posterior tail probability** — e.g. `P(τ > 0)`, the posterior mass on one side of a value; used in place of a p-value.
+- **Probability of direction (`pd`)** — the same quantity as the posterior tail probability `P(τ > 0)`; answers existence/direction, not magnitude. For symmetric posteriors `p ≈ 2(1 − pd)`, so a `pd` threshold is a p-value threshold in disguise.
+- **ROPE / minimally-important difference (δ)** — a band [−δ, +δ] around zero wide enough that an effect inside it is practically equivalent to none (the frequentist SESOI / clinical MID); `P(|effect| < δ)` is its coverage, `P(effect > δ)` the probability of a meaningful benefit.
+- **Type-S / Type-M error** — among effects declared "significant", the rate of wrong *sign* (S) and the average *magnitude* exaggeration (M); both worsen at low power.
 - **τ (tau)** — the ITT treatment effect (positive ⇒ intervention helps).
 - **`gamma_own` / `gamma_cross`** — a measure's own-baseline coupling / its cross-baseline couplings, on the logit scale.
 - **`f_mech`** — the nonparametric dose-response curve in a mechanism model.

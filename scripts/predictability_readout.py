@@ -241,9 +241,16 @@ def _calibration_plot(model_id: str, out_dir: Path, pooled_r2: float | None) -> 
     return path
 
 
-def _direction_table(out_dir: Path, top_n: int) -> pd.DataFrame:
-    """Top predictors by permutation importance, paired with SHAP direction."""
+def _direction_table(out_dir: Path, top_n: int, members: list[str] | None = None) -> pd.DataFrame:
+    """Top predictors by permutation importance, paired with SHAP direction.
+
+    ``members`` (when given) restricts the table to that predictor set — used by the
+    ``--from-ranking`` fallback so the table never describes predictors outside the set
+    actually used.
+    """
     perm = pd.read_csv(out_dir / "permutation_importance.csv")
+    if members is not None:
+        perm = perm[perm["feature"].isin(members)]
     perm = perm.sort_values("importance_mean", ascending=False).reset_index(drop=True)
     perm["rank"] = perm.index + 1
 
@@ -261,12 +268,43 @@ def _direction_table(out_dir: Path, top_n: int) -> pd.DataFrame:
     return merged.head(top_n)
 
 
+def _direction_table_from_ranking(
+    member_file: Path, members: list[str], top_n: int
+) -> pd.DataFrame:
+    """Direction table sourced from the ranking's per-member artefact.
+
+    For ``--from-ranking`` the printed/JSON top-predictor table must describe the
+    predictors actually used, not the committed fitted model's subset.
+    ``predictor_ranking.csv`` carries per-member ``perm_imp_mean`` and a SHAP ``sign``
+    (+/-/0); the continuous Spearman ρ is not retained, so ``feature_shap_spearman`` is
+    left NaN and the direction comes from the sign. Returns the same columns as
+    :func:`_direction_table`.
+    """
+    rk = pd.read_csv(member_file)
+    rk = rk[rk["member"].isin(members)].copy()
+    rk = rk.sort_values("perm_imp_mean", ascending=False).reset_index(drop=True)
+    out = pd.DataFrame(
+        {
+            "feature": rk["member"],
+            "importance_mean": rk["perm_imp_mean"],
+            "feature_shap_spearman": np.nan,
+            "shape_flag": rk["sign"].astype(str) if "sign" in rk.columns else "—",
+        }
+    )
+    out["rank"] = out.index + 1
+    return out.head(top_n)
+
+
 _FLAG_DIRECTION = {
     "monotonic_+": "higher → more gain",
     "monotonic_-": "higher → less gain",
     "noisy_+": "higher → more gain (noisy)",
     "noisy_-": "higher → less gain (noisy)",
     "non_monotonic": "mixed / non-monotonic",
+    # ranking-sourced direction (predictor_ranking.csv carries only the SHAP-sign):
+    "+": "higher → higher outcome",
+    "-": "higher → lower outcome",
+    "0": "no clear direction",
 }
 
 
@@ -278,6 +316,7 @@ def _markdown_summary(
     base_skill: dict | None,
     dropped: list[str],
     directions: pd.DataFrame,
+    direction_source: str = "committed_model",
 ) -> str:
     r2 = metrics.get("cv_pooled_r2")
     rmse = metrics.get("cv_pooled_rmse")
@@ -327,6 +366,8 @@ def _markdown_summary(
         )
     lines += [
         "",
+        f"**Top predictors** (importance/direction source: {direction_source})",
+        "",
         "| rank | predictor | perm. importance | SHAP–feature ρ | direction |",
         "|---:|---|---:|---:|---|",
     ]
@@ -343,7 +384,80 @@ def _markdown_summary(
     return "\n".join(lines)
 
 
-def _readout(model_id: str, top_n: int) -> str:
+def _truthy(s: pd.Series) -> pd.Series:
+    """Coerce a possibly-string CSV column to bool.
+
+    ``pd.read_csv`` can load a written boolean column as strings ("True"/"False"); a
+    plain ``.astype(bool)`` then treats the non-empty "False" as ``True``. Map the
+    common textual/numeric truthy spellings explicitly instead.
+    """
+    if s.dtype == bool:
+        return s
+    return s.astype(str).str.strip().str.lower().isin({"true", "1", "1.0", "yes"})
+
+
+def _predictors_from_ranking(
+    path: str,
+    *,
+    mode: str = "cluster-reps",
+    top_k: int | None = None,
+    exclude_same_skill: bool = False,
+) -> list[str]:
+    """Derive a predictor list from a ranking CSV produced by ``scripts/rank_predictors.py``.
+
+    This is the issue #116 consumer seam: instead of the committed ``predictor_vars``
+    subset, feed the readout the ranking's cluster representatives (default) or its
+    top-k members. ``exclude_same_skill`` drops predictors the ranking flags as a
+    concurrent restatement of the outcome (``same_skill_of_outcome`` / the
+    ``representative_excl_same_skill`` column), so a cluster's representative is never
+    a restatement of the outcome.
+    """
+    df = pd.read_csv(path)
+    cols = set(df.columns)
+    if mode == "cluster-reps":
+        if "representative" in cols:  # cluster_ranking.csv (primary artefact)
+            df = df.sort_values("cluster_rank")
+            if top_k:
+                df = df.head(top_k)
+            repcol = (
+                "representative_excl_same_skill"
+                if exclude_same_skill and "representative_excl_same_skill" in cols
+                else "representative"
+            )
+            preds = [r for r in df[repcol].tolist() if isinstance(r, str)]
+        elif {"member", "cluster_rank"} <= cols:  # predictor_ranking.csv
+            d = df.copy()
+            if exclude_same_skill and "same_skill_of_outcome" in cols:
+                d = d[~_truthy(d["same_skill_of_outcome"])]
+            d = d.sort_values(["cluster_rank", "perm_imp_mean"], ascending=[True, False])
+            reps = d.groupby("cluster_rank", sort=True).head(1)
+            preds = (reps.head(top_k) if top_k else reps)["member"].tolist()
+        else:
+            raise SystemExit(f"{path}: unrecognised ranking columns for cluster-reps mode")
+    elif mode == "top-k":
+        if "member" not in cols:
+            raise SystemExit(f"{path}: top-k mode needs a per-member ranking (predictor_ranking.csv)")
+        d = df.copy()
+        if exclude_same_skill and "same_skill_of_outcome" in cols:
+            d = d[~_truthy(d["same_skill_of_outcome"])]
+        d = d.sort_values("perm_imp_mean", ascending=False)
+        preds = (d.head(top_k) if top_k else d)["member"].tolist()
+    else:
+        raise SystemExit(f"unknown rank mode {mode!r}")
+    if not preds:
+        raise SystemExit(f"{path}: ranking yielded no predictors (mode={mode})")
+    return preds
+
+
+def _readout(
+    model_id: str,
+    top_n: int,
+    *,
+    ranking_path: str | None = None,
+    rank_mode: str = "cluster-reps",
+    rank_top_k: int | None = None,
+    rank_exclude_same_skill: bool = False,
+) -> str:
     out_dir = _MODELS_DIR / model_id
     if not out_dir.exists():
         msg = (
@@ -357,14 +471,29 @@ def _readout(model_id: str, top_n: int) -> str:
 
     baseline = _dummy_baseline(model_id, cv_splits)
 
-    full_predictors = json.loads((out_dir / "config.json").read_text())["predictor_vars"]
+    if ranking_path is not None:
+        # issue #116 seam: take the predictor list from the ranking artefact rather
+        # than the committed ``predictor_vars`` subset. The model's hyperparameters,
+        # target, seed and CV splits still come from ``config.json``.
+        full_predictors = _predictors_from_ranking(
+            ranking_path, mode=rank_mode, top_k=rank_top_k,
+            exclude_same_skill=rank_exclude_same_skill,
+        )
+        print(
+            f"[cyan]Predictors from ranking[/cyan] {ranking_path} "
+            f"(mode={rank_mode}, top_k={rank_top_k}, "
+            f"exclude_same_skill={rank_exclude_same_skill}): {full_predictors}"
+        )
+    else:
+        full_predictors = json.loads((out_dir / "config.json").read_text())["predictor_vars"]
     full_skill = _oof_skill(out_dir, full_predictors)
     base_skill, dropped = _baseline_only_skill(out_dir, full_predictors)
 
-    # The recomputed full-set skill should match the pipeline's metrics.json —
-    # confirms the baseline-only number comes from the same machinery.
+    # The recomputed full-set skill should match the pipeline's metrics.json (it
+    # confirms the baseline-only number comes from the same machinery) — but only when
+    # we used the committed subset; a ranking-derived list is expected to differ.
     metrics_r2 = metrics.get("cv_pooled_r2")
-    if metrics_r2 is not None and abs(full_skill["pooled_r2"] - metrics_r2) > 0.01:
+    if ranking_path is None and metrics_r2 is not None and abs(full_skill["pooled_r2"] - metrics_r2) > 0.01:
         print(
             f"[yellow]Warning: recomputed full-set R² "
             f"{full_skill['pooled_r2']:.3f} differs from metrics.json "
@@ -372,9 +501,29 @@ def _readout(model_id: str, top_n: int) -> str:
         )
 
     calib_path = _calibration_plot(model_id, out_dir, metrics.get("cv_pooled_r2"))
-    directions = _direction_table(out_dir, top_n)
+    if ranking_path is not None:
+        # Source the direction table from the ranking so it describes the predictors
+        # actually used, not the committed fitted model's subset. predictor_ranking.csv
+        # (the per-member detail) sits beside whichever ranking CSV was passed.
+        rp = Path(ranking_path)
+        member_file = (
+            rp if rp.name == "predictor_ranking.csv"
+            else rp.parent / "predictor_ranking.csv"
+        )
+        if member_file.exists():
+            directions = _direction_table_from_ranking(member_file, full_predictors, top_n)
+            direction_source = f"ranking:{member_file.name}"
+        else:
+            directions = _direction_table(out_dir, top_n, members=full_predictors)
+            direction_source = (
+                "committed_model (per-member ranking not found; filtered to predictors used)"
+            )
+    else:
+        directions = _direction_table(out_dir, top_n)
+        direction_source = "committed_model"
     md = _markdown_summary(
-        model_id, metrics, baseline, full_skill, base_skill, dropped, directions
+        model_id, metrics, baseline, full_skill, base_skill, dropped, directions,
+        direction_source,
     )
 
     summary = {
@@ -389,6 +538,9 @@ def _readout(model_id: str, top_n: int) -> str:
         "cv_mae_std": metrics.get("cv_mae_std"),
         "baseline_pooled_rmse": baseline["baseline_pooled_rmse"],
         "baseline_pooled_r2": baseline["baseline_pooled_r2"],
+        "predictor_source": str(ranking_path) if ranking_path else "config.predictor_vars",
+        "direction_source": direction_source,
+        "predictors_used": full_predictors,
         "full_set_skill": full_skill,
         "baseline_only_skill": base_skill,
         "dropped_period_related": dropped,
@@ -421,6 +573,31 @@ def main() -> None:
         default=6,
         help="Number of top predictors to show in the direction table. Default: 6.",
     )
+    parser.add_argument(
+        "--from-ranking",
+        type=str,
+        default=None,
+        help="Path to a ranking CSV (cluster_ranking.csv or predictor_ranking.csv from "
+        "scripts/rank_predictors.py). If set, the predictor list is taken from the ranking "
+        "instead of config.json's committed subset (issue #116 seam). Single model only.",
+    )
+    parser.add_argument(
+        "--rank-mode",
+        choices=["cluster-reps", "top-k"],
+        default="cluster-reps",
+        help="How to derive predictors from --from-ranking. Default: cluster representatives.",
+    )
+    parser.add_argument(
+        "--rank-top-k",
+        type=int,
+        default=None,
+        help="Keep only the top-k clusters (cluster-reps) or members (top-k). Default: all.",
+    )
+    parser.add_argument(
+        "--rank-exclude-same-skill",
+        action="store_true",
+        help="Drop predictors the ranking flags as same_skill_of_outcome.",
+    )
     args = parser.parse_args()
 
     for model_id in args.models:
@@ -428,7 +605,21 @@ def main() -> None:
             print(f"[bold red]Unknown model: {model_id}[/bold red]")
             raise SystemExit(1)
 
-    blocks = [_readout(model_id, args.top_n) for model_id in args.models]
+    if args.from_ranking is not None and len(args.models) != 1:
+        print("[bold red]--from-ranking applies to a single model id.[/bold red]")
+        raise SystemExit(1)
+
+    blocks = [
+        _readout(
+            model_id,
+            args.top_n,
+            ranking_path=args.from_ranking,
+            rank_mode=args.rank_mode,
+            rank_top_k=args.rank_top_k,
+            rank_exclude_same_skill=args.rank_exclude_same_skill,
+        )
+        for model_id in args.models
+    ]
     print("\n" + "\n\n".join(blocks))
 
 

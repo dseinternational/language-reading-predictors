@@ -1,0 +1,78 @@
+---
+title: "LRPITT11: ITT analysis of nonword reading (N) — floor-rule branch"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPITT11 is the intention-to-treat (ITT) analysis for nonword reading
+(`nonword`). The estimand is the total effect of randomised group assignment $G$
+on the outcome, using the RCT phase only (time 1 $\rightarrow$ time 2). Nonword
+reading is the repo's "post-only" measure and is heavily floored at t2 (~72% of
+post-scores at zero), so it takes the pre-specified **floor-rule branch** (#119).
+
+::: {.callout-important title="Floored, post-only outcome — the binary off-floor estimand is PRIMARY"}
+
+An outcome with $\geq 40\%$ of its post-scores at zero at t2 (computed **arm-blind**
+and fixed **before** fitting) takes the floor rule. This model:
+
+- uses an **age-only** predictor (no own baseline); the four children with a
+  missing t1 nonword baseline are kept, since the age-only model never uses that
+  (degenerate) baseline — it is the baseline, not the outcome, that is missing;
+- reports the **binary "off-floor at t2"** effect, $\Pr(\text{post} > 0)$, as the
+  **PRIMARY** estimand; and
+- retains the graded Beta-Binomial $\tau$ only as a flagged, **detection-limited
+  SECONDARY**, read alongside the per-arm mover counts and never on its own.
+
+:::
+
+::: {.callout-note title="Identification and sign convention"}
+
+Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
+identified by the **empty adjustment set**; linear age is a precision term only.
+**Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
+the intervention raises the outcome — here, raises the probability of coming off
+the floor.
+
+:::
+
+## Model
+
+PRIMARY (binary off-floor), with $\eta_i = \alpha + \tau\,G_i + \gamma_A\,A_{\text{std},i}$:
+
+$$
+[\,N_{\text{post},i} > 0\,] \sim \text{Bernoulli}\big(\sigma(\eta_i)\big).
+$$
+
+SECONDARY (graded, detection-limited): the *same* age-only $\eta_i$ with a
+Beta-Binomial likelihood on the count, $N_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $N = 6$.
+
+![Model diagram (primary)](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_floored.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

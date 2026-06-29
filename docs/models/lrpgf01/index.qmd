@@ -1,0 +1,80 @@
+---
+title: "LRPGF01: Gain factors for word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPGF01 is a **gain-factors** model for word reading (`ewrswr`): what is associated
+with how much children *gain* across the three period transitions
+(t1 $\rightarrow$ t2, t2 $\rightarrow$ t3, t3 $\rightarrow$ t4), modelled as an
+ANCOVA — the period post-count given its pre-count — on the logit scale with a
+Beta-Binomial likelihood and a child random intercept.
+
+::: {.callout-important title="Causal labelling (DAG guardrails)"}
+
+Under the locked study DAG (`notes/202606231600-dag-revision-consolidated.md`),
+**only the randomised on-intervention term is causal** — its coefficient is
+identified by the period-1 randomised contrast and reproduces the ITT effect.
+Every other coefficient (own baseline, age, cognitive ability, the upstream skills
+L and R, and all interactions) is an **adjusted association** confounded by latent
+general ability (GA); the child random intercept repairs time-invariant GA up to
+shrinkage, so same-wave predictors are "go-together" associations. Report these as
+"associated with", **never** "drives". Intervention sessions / dose are never
+conditioned on (a DAG collider). SES is excluded: it is not a DAG node and was
+found statistically redundant.
+
+:::
+
+**DAG factor set:** on-intervention (causal) · own baseline · age · cognitive
+ability (block design) · letter sounds (L) · receptive vocabulary (R) · child
+random intercept. **Focal interactions:** group $\times$ ability,
+group $\times$ own-baseline, age $\times$ ability.
+
+## Model
+
+$$
+\operatorname{logit}\mu_{i,p} = \alpha + \alpha_{\text{period}[p]}
+  + \beta_{\text{trt}}\,\text{OnIntervention}_{i,p}
+  + \gamma_{\text{own}}\operatorname{logit}_*(W_{\text{pre}})
+  + \gamma_A A_{\text{std}}
+  + \gamma_{\text{ability}}\,z(\text{blocks})
+  + \sum_{s\in\{L,R\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
+  + \textstyle\sum\text{interactions}
+  + u_{\text{child}[i]},
+$$
+
+with $W_{\text{post}} \sim \operatorname{BetaBinomial}(N, \mu\kappa, (1-\mu)\kappa)$,
+$N = 79$, and $u_{\text{child}} \sim \operatorname{Normal}(0, \sigma_{\text{child}})$.
+`OnIntervention` is the immediate arm from period 1 and the waitlist from period 2
+(post-crossover). Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_factors.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

@@ -1,0 +1,82 @@
+---
+title: "LRPITT12: Joint ITT analysis across the suite outcomes"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPITT12 estimates the joint posterior over the treatment effects of the LRPITT
+suite, using the RCT phase only. It delivers cross-outcome contrasts (e.g.
+"is $\tau_L$ more positive than $\tau_W$?") and acts as a consistency check on the
+single-outcome LRPITT models — the joint $\tau_k$ should reproduce each
+single-outcome $\tau_k$ within Monte Carlo error.
+
+The model is a **linear Beta-Binomial across ten outcomes** with shared predictor
+structure mirroring the single-outcome suite: outcome-specific intercepts,
+treatment effects, own-baseline + linear-age **precision** terms (no
+cross-baselines — the ITT effect is identified by the empty adjustment set), and
+outcome-specific dispersion; no age GP and no LKJ residual correlation.
+
+::: {.callout-note title="Outcome set: ten of the eleven suite measures"}
+
+The joint covers the **baseline-bearing** outcomes
+$(\tau_{TR}, \tau_{TE}, \tau_{UR}, \tau_{UE}, \tau_R, \tau_E, \tau_L, \tau_B, \tau_P, \tau_W)$.
+
+- **Nonword (N) is excluded**: it is post-only and its degenerate baseline cannot
+  enter the joint's dense pre-score matrix. Its treatment effect is read from the
+  single-outcome **off-floor** model LRPITT11.
+- **Phonetic spelling (P) is included as a graded outcome** (its floored baseline
+  simply shrinks $\gamma^{\text{own}}_P$); the binary off-floor primary for P is in
+  LRPITT09. The joint $\tau_P$ here is the graded effect — read it alongside the
+  off-floor result, not on its own.
+
+:::
+
+## Structure
+
+For child $i$ and outcome $k$:
+
+$$
+\eta_{k,i} = \alpha_k + \tau_k G_i
+           + \gamma^{\text{own}}_k\, \text{logit}_*(k_{\text{pre},i}, N_k)
+           + \gamma^{A}_k\, A_{\text{std},i},
+$$
+
+with a per-outcome Beta-Binomial likelihood, $\mu_{k,i} = \sigma(\eta_{k,i})$, and
+outcome-specific dispersion $\kappa_k$. Observations with a missing post-score are
+masked per-outcome. **Sign convention:** $G = 1$ is the intervention arm, so a
+**positive** $\tau_k$ means the intervention raised outcome $k$.
+
+The LKJ residual-correlation and age-GP flags are off by default (both
+prior-dominated / divergence-inducing at this scale; re-enable via
+`ModelSpec.extra` for a sensitivity fit).
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_joint.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
