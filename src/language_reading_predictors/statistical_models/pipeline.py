@@ -60,6 +60,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_aligned,
     load_and_prepare_lagged_outcome,
+    load_wave_panel,
 )
 
 
@@ -2633,6 +2634,138 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 float(infl_df["pareto_k"].max()) if infl_df is not None else None
             ),
             "n_pareto_k_flagged": n_flagged,
+        },
+    )
+
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# Longitudinal dynamic pipeline (LRP67 LCSM)
+# ---------------------------------------------------------------------------
+
+
+def _coef_row(label: str, draws, hdi_prob: float) -> dict:
+    """Posterior mean, equal-tailed central interval and ``P(coef > 0)``.
+
+    Equal-tailed quantiles at coverage ``hdi_prob`` — the same convention as
+    :func:`reporting.tau_summary_itt` (not a highest-density interval).
+    """
+    d = np.asarray(draws).reshape(-1)
+    lo_q = (1 - hdi_prob) / 2
+    return {
+        "coefficient": label,
+        "mean": float(np.mean(d)),
+        "lo": float(np.quantile(d, lo_q)),
+        "hi": float(np.quantile(d, 1 - lo_q)),
+        "prob_pos": float(np.mean(d > 0)),
+    }
+
+
+def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Latent change-score model (LRP67).
+
+    Fits the coupled McArdle latent change-score model with process noise and
+    reports the reading-change coupling table — the within-trajectory analogue
+    of LRP65's between-child predictors of reading gain.
+    """
+    assert spec.kind == "lcsm"
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    outcomes = tuple(spec.extra.get("outcomes", ("W", "L", "E")))
+    reading_symbol = spec.outcome_symbol or "W"
+    panel = load_wave_panel(outcomes=outcomes)
+    ctx.prepared = panel
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_lcsm_model(
+        panel,
+        reading_symbol=reading_symbol,
+        coupling_prior_sigma=spec.extra.get("coupling_prior_sigma", 0.5),
+        use_process_noise=spec.extra.get("use_process_noise", True),
+        shared_process_noise=spec.extra.get("shared_process_noise", False),
+    )
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+    _render_model_graph(ctx)
+
+    cross = [s for s in outcomes if s != reading_symbol]
+    diag_vars = [f"g_{s}" for s in cross]
+    diag_vars += ["a_change", "b_self", "d_age", "sigma1", "kappa"]
+    if spec.extra.get("use_process_noise", True):
+        diag_vars.append("sigma_proc")
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_obs"])
+
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    section_header("LOO-PSIS")
+    _diag.compute_log_likelihood_and_loo(ctx)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_obs"])
+    _save_ppc(ctx)
+    _diag.save_trace(ctx)
+
+    # Reading-change coupling table — the headline "what predicts reading
+    # change" output and the basis for the LRP65 (between-child) sanity-check.
+    section_header("Reading-change coupling summary")
+    post = ctx.trace.posterior
+    rows = [
+        _coef_row(
+            f"g_{s} (prior {s} -> {reading_symbol} change)",
+            post[f"g_{s}"].values,
+            ctx.reporting.hdi,
+        )
+        for s in cross
+    ]
+    for name, label in (
+        ("b_self", f"b_self[{reading_symbol}] (reading self-feedback)"),
+        ("a_change", f"a_change[{reading_symbol}] (reading baseline change)"),
+        ("d_age", f"d_age[{reading_symbol}] (age -> reading change)"),
+    ):
+        rows.append(
+            _coef_row(label, post[name].sel(outcome=reading_symbol).values, ctx.reporting.hdi)
+        )
+    coupling_df = pd.DataFrame(rows)
+    coupling_df.to_csv(os.path.join(ctx.output_dir, "coupling_summary.csv"), index=False)
+    ctx.tables["coupling_summary"] = coupling_df
+    print_table(
+        ranked_dataframe_table(
+            coupling_df,
+            title=(
+                f"Reading-change couplings - {int(ctx.reporting.hdi * 100)}% CI "
+                "(equal-tailed)"
+            ),
+            columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "outcomes": list(outcomes),
+            "reading_symbol": reading_symbol,
+            "coupling_summary": rows,
         },
     )
 

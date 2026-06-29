@@ -39,6 +39,7 @@ from language_reading_predictors.statistical_models.likelihood import (
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
+    WavePanel,
     standardise,
 )
 
@@ -56,7 +57,7 @@ def _scalar_prior(name: str, prior_ctor) -> pt.TensorVariable:
 class BuiltModel:
     model: pm.Model
     variables: dict[str, pt.TensorVariable]
-    prepared: PreparedData
+    prepared: PreparedData | WavePanel
     """The (possibly row-subset) prepared data that the model was built on.
 
     Factories may drop rows with missing post-scores or missing confounder
@@ -2323,3 +2324,173 @@ def build_aligned_model(
             )
 
     return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
+# Longitudinal dynamic factories (LRP67 LCSM, LRP68 RI-CLPM)
+# ---------------------------------------------------------------------------
+
+
+def build_lcsm_model(
+    panel: WavePanel,
+    *,
+    reading_symbol: str = "W",
+    coupling_prior_sigma: float = 0.5,
+    self_prior_sigma: float = 0.5,
+    intercept_prior_sigma: float = 1.5,
+    covariate_prior_sigma: float = 0.5,
+    use_process_noise: bool = True,
+    shared_process_noise: bool = False,
+    sigma_proc_prior_sigma: float = 0.5,
+    sigma_init_prior_sigma: float = 1.0,
+    kappa_prior_sigma: float = 50.0,
+) -> BuiltModel:
+    """Full coupled latent change-score model (LRP67) on the logit scale.
+
+    A latent logit true-score ``x_m[i, t]`` is modelled for each measure ``m``
+    (default ``W`` reading, ``L`` letter-sounds, ``E`` expressive vocabulary),
+    child ``i`` and wave ``t``. The within-child trajectory follows a McArdle
+    latent change-score recursion with **process noise**::
+
+        x_m[i, 1] = mu1_m + sigma1_m * z1_m[i]                      (non-centred)
+        x_m[i, t] = x_m[i, t-1] + Delta_m[i, t]
+        Delta_m[i, t] = mean_Delta_m[i, t] + sigma_proc_m * zproc_m[i, t]
+
+    The headline coupling is on the **reading** change: prior-wave letter-sounds
+    and vocabulary predict subsequent reading change (the longitudinal,
+    within-trajectory analogue of LRP65's between-child story)::
+
+        mean_Delta_W = a_W + b_W * x_W[t-1]
+                     + sum_{c != W} g_c * x_c[t-1]
+                     + d_age_W * age[t-1]
+
+    Non-reading measures get a self-proportional change plus age only. The
+    intervention-dose covariate is **omitted**: it is the locked DAG's ``IS``
+    collider, so conditioning on it would reopen the latent-``GA`` backdoor onto
+    the letter-sound -> reading couplings (ID-3).
+    All change coefficients are **time-invariant** (pooled across the 3
+    transitions) — a deliberate constraint at n~54. Everything is non-centred
+    for sampling.
+
+    The observed counts enter via a **masked** Beta-Binomial (the LRP55
+    flattened-mask idiom): ``mu = sigmoid(x_m[i, t])`` is the logit mean and
+    ``kappa_m`` the dispersion (measurement overdispersion, distinct from the
+    dynamic ``sigma_proc``). Only the unmasked cells in ``panel.obs_mask`` are
+    observed, so a child missing one score still contributes its other waves.
+
+    The ``use_process_noise`` / ``shared_process_noise`` / ``*_prior_sigma``
+    knobs implement the fallback ladder for sampling trouble (tighten priors;
+    share one process-noise sd; drop process noise entirely).
+    """
+    OUT = tuple(panel.outcomes)
+    if reading_symbol not in OUT:
+        raise KeyError(
+            f"reading_symbol {reading_symbol!r} not in panel.outcomes {OUT}"
+        )
+    K = len(OUT)
+    N = panel.n_children
+    T = panel.n_waves
+    if T < 2:
+        raise ValueError("LCSM needs at least two waves")
+    cross = [s for s in OUT if s != reading_symbol]
+    jidx = {s: i for i, s in enumerate(OUT)}
+
+    # Observed counts / mask / denominators stacked as (N, T, K) in OUT order.
+    counts_int = np.stack(
+        [np.nan_to_num(panel.counts[s], nan=0.0).astype(np.int64) for s in OUT],
+        axis=2,
+    )
+    mask = np.stack([panel.obs_mask[s] for s in OUT], axis=2)  # (N, T, K) bool
+    n_trials_vec = np.array([panel.n_trials[s] for s in OUT], dtype=int)  # (K,)
+    # Observed wave-1 mean logit anchors the initial-latent prior mean.
+    w1_anchor = np.array(
+        [np.nanmean(panel.logit[s][:, 0]) for s in OUT], dtype=float
+    )
+
+    coords = {
+        "child": np.arange(N),
+        "wave": panel.waves,
+        "trans": panel.waves[1:],  # transitions into waves 2..T
+        "outcome": list(OUT),
+    }
+
+    from dse_research_utils.math.constants import EPSILON  # local import
+
+    with pm.Model(coords=coords) as model:
+        age = pm.Data("age_std", panel.age_std, dims=("child", "wave"))
+
+        # Structural parameters (time-invariant, pooled over transitions).
+        mu1 = pm.Normal("mu1", mu=w1_anchor, sigma=1.0, dims="outcome")
+        sigma1 = pm.HalfNormal("sigma1", sigma=sigma_init_prior_sigma, dims="outcome")
+        a_change = pm.Normal(
+            "a_change", mu=0.0, sigma=intercept_prior_sigma, dims="outcome"
+        )
+        b_self = pm.Normal("b_self", mu=0.0, sigma=self_prior_sigma, dims="outcome")
+        d_age = pm.Normal("d_age", mu=0.0, sigma=covariate_prior_sigma, dims="outcome")
+        # Headline cross-couplings into the reading change (one per other measure).
+        g_cross = {
+            s: pm.Normal(f"g_{s}", mu=0.0, sigma=coupling_prior_sigma) for s in cross
+        }
+        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome")
+
+        sigma_proc: dict[str, pt.TensorVariable] = {}
+        zproc: dict[str, pt.TensorVariable] = {}
+        if use_process_noise:
+            if shared_process_noise:
+                sp = pm.HalfNormal("sigma_proc", sigma=sigma_proc_prior_sigma)
+                sigma_proc = {s: sp for s in OUT}
+            else:
+                spv = pm.HalfNormal(
+                    "sigma_proc", sigma=sigma_proc_prior_sigma, dims="outcome"
+                )
+                sigma_proc = {s: spv[jidx[s]] for s in OUT}
+            zproc = {
+                s: pm.Normal(f"zproc_{s}", 0.0, 1.0, dims=("child", "trans"))
+                for s in OUT
+            }
+
+        # Initial latent (wave index 0), non-centred.
+        x: dict[str, list[pt.TensorVariable]] = {}
+        for s in OUT:
+            z1 = pm.Normal(f"z1_{s}", 0.0, 1.0, dims="child")
+            x[s] = [
+                pm.Deterministic(
+                    f"x1_{s}", mu1[jidx[s]] + sigma1[jidx[s]] * z1, dims="child"
+                )
+            ]
+
+        # Latent change-score recursion over transitions (t = 1 .. T-1).
+        for k in range(T - 1):
+            t = k + 1
+            prev = {s: x[s][t - 1] for s in OUT}
+            for s in OUT:
+                m = a_change[jidx[s]] + b_self[jidx[s]] * prev[s]
+                m = m + d_age[jidx[s]] * age[:, t - 1]
+                if s == reading_symbol:
+                    for cs in cross:
+                        m = m + g_cross[cs] * prev[cs]
+                delta = m
+                if use_process_noise:
+                    delta = delta + sigma_proc[s] * zproc[s][:, k]
+                x[s].append(prev[s] + delta)
+
+        # Stack latent to (child, wave, outcome) for reporting + likelihood.
+        X = pt.stack([pt.stack(x[s], axis=1) for s in OUT], axis=2)
+        X = pm.Deterministic("x_latent", X, dims=("child", "wave", "outcome"))
+
+        # Masked Beta-Binomial observation (LRP55 flattened-mask idiom).
+        mu = pm.math.sigmoid(X)
+        mu_clip = pm.math.clip(mu, EPSILON, 1 - EPSILON)
+        alpha_bb = (mu_clip * kappa[None, None, :]).reshape((-1,))
+        beta_bb = ((1 - mu_clip) * kappa[None, None, :]).reshape((-1,))
+        idx_i, idx_t, idx_k = np.nonzero(mask)
+        lin = np.ravel_multi_index((idx_i, idx_t, idx_k), (N, T, K))
+        pm.BetaBinomial(
+            "y_obs",
+            n=n_trials_vec[idx_k],
+            alpha=alpha_bb[lin],
+            beta=beta_bb[lin],
+            observed=counts_int[idx_i, idx_t, idx_k],
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
