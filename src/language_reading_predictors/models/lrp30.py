@@ -8,7 +8,7 @@ LRP30: Predictors of Early Repetition Battery total repetition level (``erbto``)
 (a repetition task indexing verbal / phonological short-term
 memory). It is a composite — ``erbword``, ``erbnw`` are its
 components and remain in the candidate pool, so a high naive R² is
-mechanical (see the ``_noconstruct`` variant).
+mechanical (see the same-skill-excluded ranking view, ``ranking_excluding_same_skill.csv``).
 
 The target spans min 1.0, max 36.0, median 21.00, mean 20.17, std
 9.47, skew -0.21 (n = 202).
@@ -43,7 +43,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.EARINF, V.NUMCHIL, V.AGEBOOKS, V.MUMEDUPOST16
         ],
         notes=(
-            "Uniform feature selection (2026-06-23): from the full 33-predictor DEFAULT_LEVEL set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 13 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Same method as the LRP01–22 suite; see scripts/uniform_feature_selection.py and notes/202606230900-predictability-speech-memory-language.md."
+            "Uniform feature selection (2026-06-23): from the full 33-predictor DEFAULT_LEVEL set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 13 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Same method as the LRP01–22 suite; see scripts/rank_predictors.py (the full-set ranking that supersedes the retired hard-selection pass) and notes/202606230900-predictability-speech-memory-language.md."
         ),
         date="2026-06-23",
         metrics_before={"cv_mae_mean": 0.8413},
@@ -92,33 +92,3 @@ class LRP30(LevelModel):
         "Exploratory model for erbto (level). Uniform feature selection (2026-06-23) from the full 33-predictor DEFAULT_LEVEL set to 13 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.321). Treat the reduced ranking as exploratory. See notes/202606230900-predictability-speech-memory-language.md."
     )
 
-
-# ── same-skill (_noconstruct) variant ────────────────────────────────────
-#
-# Drops the same-instrument Early Repetition Battery sibling(s) to separate same-skill
-# correlation from cross-domain signal. Pooled OOF R² 0.91 -> 0.48.
-
-
-class LRP30NoConstruct(LRP30):
-    """erbto — same-skill variant: Early Repetition Battery sibling(s) dropped (R2 0.91 -> 0.48)."""
-
-    model_id = "lrp30_noconstruct"
-    variant_of = "lrp30"
-    description = (
-        "LightGBM — erbto predictors "
-        "(same-skill reduced: Early Repetition Battery sibling(s) dropped)"
-    )
-    selection_steps = [
-        SelectionStep(
-            removed=[V.ERBWORD],
-            notes=(
-                "Same-skill (concurrent) variant of lrp30: drops the same-instrument Early Repetition Battery sibling(s) ``erbword`` (scored from the same instrument as the target). Pooled out-of-fold R² falls from 0.91 to 0.48 -> retains substantial cross-domain signal — not purely measurement-bound. Reuses the primary's MAE-tuned params on the reduced set (the sibling-dropped OOF R² is the headline; re-tuning is a refinement). See notes/202606230900-predictability-speech-memory-language.md."
-            ),
-            date="2026-06-23",
-            metrics_before={"pooled_oof_r2": 0.9086},
-            metrics_after={"pooled_oof_r2": 0.4765},
-        ),
-    ]
-    notes = (
-        "Same-skill (concurrent) variant of lrp30: drops the same-instrument Early Repetition Battery sibling(s) ``erbword`` (scored from the same instrument as the target). Pooled out-of-fold R² falls from 0.91 to 0.48 -> retains substantial cross-domain signal — not purely measurement-bound. Reuses the primary's MAE-tuned params on the reduced set (the sibling-dropped OOF R² is the headline; re-tuning is a refinement). See notes/202606230900-predictability-speech-memory-language.md."
-    )

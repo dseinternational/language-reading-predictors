@@ -41,7 +41,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.BEHAV, V.VISION, V.EARINF, V.MUMEDUPOST16, V.DADEDUPOST16
         ],
         notes=(
-            "Uniform feature selection (2026-06-23): from the full 32-predictor DEFAULT_LEVEL set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 9 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Same method as the LRP01–22 suite; see scripts/uniform_feature_selection.py and notes/202606230900-predictability-speech-memory-language.md."
+            "Uniform feature selection (2026-06-23): from the full 32-predictor DEFAULT_LEVEL set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 9 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Same method as the LRP01–22 suite; see scripts/rank_predictors.py (the full-set ranking that supersedes the retired hard-selection pass) and notes/202606230900-predictability-speech-memory-language.md."
         ),
         date="2026-06-23",
         metrics_before={"cv_mae_mean": 3.3875},
@@ -90,33 +90,3 @@ class LRP34(LevelModel):
         "Exploratory model for deappvo (level). Uniform feature selection (2026-06-23) from the full 32-predictor DEFAULT_LEVEL set to 9 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 3.026). Treat the reduced ranking as exploratory. See notes/202606230900-predictability-speech-memory-language.md."
     )
 
-
-# ── same-skill (_noconstruct) variant ────────────────────────────────────
-#
-# Drops the same-instrument DEAP sibling(s) to separate same-skill
-# correlation from cross-domain signal. Pooled OOF R² 0.34 -> 0.04.
-
-
-class LRP34NoConstruct(LRP34):
-    """deappvo — same-skill variant: DEAP sibling(s) dropped (R2 0.34 -> 0.04)."""
-
-    model_id = "lrp34_noconstruct"
-    variant_of = "lrp34"
-    description = (
-        "LightGBM — deappvo predictors "
-        "(same-skill reduced: DEAP sibling(s) dropped)"
-    )
-    selection_steps = [
-        SelectionStep(
-            removed=[V.DEAPPIN],
-            notes=(
-                "Same-skill (concurrent) variant of lrp34: drops the same-instrument DEAP sibling(s) ``deappin`` (scored from the same instrument as the target). Pooled out-of-fold R² falls from 0.34 to 0.04 -> collapses to near-noise — measurement-bound (the deappfi/LRP22 pattern). Reuses the primary's MAE-tuned params on the reduced set (the sibling-dropped OOF R² is the headline; re-tuning is a refinement). See notes/202606230900-predictability-speech-memory-language.md."
-            ),
-            date="2026-06-23",
-            metrics_before={"pooled_oof_r2": 0.3432},
-            metrics_after={"pooled_oof_r2": 0.0388},
-        ),
-    ]
-    notes = (
-        "Same-skill (concurrent) variant of lrp34: drops the same-instrument DEAP sibling(s) ``deappin`` (scored from the same instrument as the target). Pooled out-of-fold R² falls from 0.34 to 0.04 -> collapses to near-noise — measurement-bound (the deappfi/LRP22 pattern). Reuses the primary's MAE-tuned params on the reduced set (the sibling-dropped OOF R² is the headline; re-tuning is a refinement). See notes/202606230900-predictability-speech-memory-language.md."
-    )

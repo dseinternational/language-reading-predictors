@@ -1,9 +1,25 @@
 # Are the speech / verbal-memory / language-sample measures predictable, and what predicts them?
 
+> [!NOTE]
+> Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+
+> [!IMPORTANT]
+> **Reframed (post locked-DAG #115 + ranking shift #116/#118).** The DAG is now
+> **locked** and already instantiates these as measurement nodes — `RW` (word + nonword
+> repetition, `erbto`) phonological memory and `SP` (`deapp_c`) articulation — so the
+> live question is no longer "should we add nodes?" but **"do these behave as the locked
+> DAG's `RW`/`SP` nodes predict, and should `RW`/`SP` be split into sub-scores?"** (an
+> open-decisions item). The retired hard-selection machinery
+> (`uniform_feature_selection.py` + the per-model `_noconstruct` variants) has been
+> **removed**; sibling-robustness is now read from `rank_predictors.py`'s
+> `ranking_excluding_same_skill.csv` over the full predictor set (the ranking run is
+> pending). The original prospective-DAG prose below is retained for provenance.
+
 **Date:** 2026-06-23
 **Models:** LRP25–LRP42 (ML / gradient-boosting discovery)
-**Status:** exploratory discovery only — evidence for a later DAG-v5 review, **not**
-a DAG edit and **not** a Bayesian/causal model.
+**Status:** exploratory discovery only — evidence for the (now-locked) DAG's open
+`RW`/`SP` sub-score-split decision, **not** a DAG edit and **not** a Bayesian/causal
+model. See the reframing note above.
 
 ## Why this exists
 
