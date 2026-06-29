@@ -34,11 +34,15 @@ from language_reading_predictors.statistical_models import (
     lrp59,
     lrp62,
     lrp67,
+    lrp64,
     lrp71,
     lrp72,
     lrp72base,
     lrp73,
     lrp73base,
+    lrp77,
+    lrp77a,
+    lrp77base,
     lrpitt01,
     lrpitt02,
     lrpitt03,
@@ -176,6 +180,8 @@ MODELS = {
     # LRP67: latent change-score model — within-child predictors of reading
     # change (the longitudinal extension of LRP65's between-child story).
     "lrp67": lrp67,
+    # LRP64: two-mediator decomposition (letter-sound + expressive vocab -> W).
+    "lrp64": lrp64,
     # LRP70 (celf moderator) is reserved but deferred pending a DAG review of
     # conditioning on a descendant of L. LRP71 (eowpvt) is the first built
     # interaction model.
@@ -188,6 +194,12 @@ MODELS = {
     # no-interaction companion.
     "lrp73": lrp73,
     "lrp73base": lrp73base,
+    # LRP77 (#104 Phase 2): period-resolved dose-response on word reading.
+    # lrp77base is the pooled-dose comparator (LOO); lrp77a the ability-adjusted
+    # sensitivity fit (no-g->dose assumption).
+    "lrp77": lrp77,
+    "lrp77base": lrp77base,
+    "lrp77a": lrp77a,
     # LRPGF / LRPLF: DAG-focused gain-factors / level-factors families (issue
     # #127). Beta-Binomial-on-logit with a child random intercept; only the
     # randomised group / on-intervention term is causal, every other coefficient
