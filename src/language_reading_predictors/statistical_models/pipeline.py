@@ -453,6 +453,60 @@ def _itt_diag_vars(
     return dvars
 
 
+# ---------------------------------------------------------------------------
+# Shared pipeline phases (#82)
+#
+# Every fit_* pipeline runs the same scaffold: prepare -> build -> attach ->
+# prior predictive -> sample -> LOO -> summary -> posterior predictive ->
+# (model-specific summaries) -> metadata -> report. The phases that are
+# byte-identical across pipelines live here so a fix to one (the LOO sequence,
+# the PPC draw, the report tail) propagates to every model instead of drifting
+# per-pipeline (the failure mode behind #78). The genuinely per-model phases
+# (prepare, build, summary var_names, the headline summary tables) stay inline
+# in each fit_* function.
+# ---------------------------------------------------------------------------
+
+
+def _attach_built(ctx: StatisticalFitContext, built) -> None:
+    """Attach a freshly built model to the context (model, variables, prepared)."""
+    ctx.model = built.model
+    ctx.model_vars = built.variables
+    ctx.prepared = built.prepared
+
+
+def _run_sampling_and_loo(
+    ctx: StatisticalFitContext, *, compute_loo: bool = True
+) -> None:
+    """Posterior sampling, then (optionally) LOO-PSIS + its summary and console row.
+
+    ``compute_loo=False`` skips the LOO phase for the pipelines that do not
+    report it (the mediation g-formula fits).
+    """
+    section_header("Sampling posterior (nutpie)")
+    _diag.sample_posterior(ctx)
+
+    if compute_loo:
+        section_header("LOO-PSIS")
+        _diag.compute_log_likelihood_and_loo(ctx)
+        _report.write_loo_summary(ctx)
+        _print_loo_row(ctx)
+
+
+def _run_ppc(ctx: StatisticalFitContext, *, var_names: list[str] | None = None) -> None:
+    """Posterior-predictive draw (defaults to ``y_post``) followed by the PPC plot."""
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=var_names or ["y_post"])
+    _save_ppc(ctx)
+
+
+def _finalize_report(ctx: StatisticalFitContext) -> StatisticalFitContext:
+    """Copy the Quarto report template, print the footer, and return the context."""
+    section_header("Report")
+    _copy_report_template(ctx)
+    _print_footer(ctx)
+    return ctx
+
+
 def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     assert spec.kind == "itt"
     assert spec.outcome_symbol is not None
@@ -527,9 +581,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         tau_moderator_is_covariate=spec.extra.get("tau_moderator_is_covariate", False),
         tau_moderator_interaction=spec.extra.get("tau_moderator_interaction", True),
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _emit_priors(ctx)
     _render_model_graph(ctx)
@@ -537,20 +589,12 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_itt_diag_vars(spec, adjust_for))
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
-    _save_ppc(ctx)
+    _run_ppc(ctx)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=_itt_diag_vars(spec, adjust_for))
@@ -631,10 +675,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         },
     )
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 def _fit_itt_floor_rule(
@@ -688,20 +729,13 @@ def _fit_itt_floor_rule(
     built = _factories.build_itt_model(
         prepared, likelihood="bernoulli_offfloor", **common
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
     _emit_priors(ctx)
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(
@@ -709,9 +743,7 @@ def _fit_itt_floor_rule(
         var_names=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
     )
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_offfloor"])
-    _save_ppc(ctx)
+    _run_ppc(ctx, var_names=["y_offfloor"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(
@@ -843,10 +875,7 @@ def _fit_itt_floor_rule(
         },
     )
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -883,9 +912,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_cross_baselines=spec.extra.get("use_cross_baselines", True),
         use_age_linear=spec.extra.get("use_age_linear", False),
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _emit_priors(ctx)
     _render_model_graph(ctx)
@@ -893,13 +920,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _joint_vars = ["alpha", "tau", "gamma_own", "kappa"]
@@ -909,9 +930,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         _joint_vars.append("sigma_outcome")
     _diag.summary_diagnostics(ctx, var_names=_joint_vars)
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
-    _save_ppc(ctx)
+    _run_ppc(ctx)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=_joint_vars)
@@ -968,10 +987,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     _report.write_run_metadata(ctx, extra=meta_extra)
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -1021,29 +1037,19 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_age=spec.extra.get("use_age", True),
         dose=dose,
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_did_diag_vars(spec))
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
-    _save_ppc(ctx)
+    _run_ppc(ctx)
     _diag.save_trace(ctx)
 
     section_header("Crossover / DiD treatment-effect summary")
@@ -1074,10 +1080,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         extra={"loo_elpd": float(ctx.loo.elpd), "did_summary": did_s, "dose": dose},
     )
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -1133,22 +1136,14 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         include_interaction=spec.extra.get("include_interaction", True),
         linear_mechanism=spec.extra.get("linear_mechanism", False),
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _mech_vars = ["alpha", "beta_G", "gamma_own", "kappa"]
@@ -1162,9 +1157,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             _mech_vars.append("gamma_int")
     _diag.summary_diagnostics(ctx, var_names=_mech_vars)
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
-    _save_ppc(ctx)
+    _run_ppc(ctx)
 
     # Mechanism curve: f_mech vs mech_post_logit grid (logit-contribution scale only).
     section_header("Mechanism curve")
@@ -1197,10 +1190,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.save_trace(ctx)
     _report.write_run_metadata(ctx, extra=meta_extra)
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
@@ -1311,22 +1301,14 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         ),
         ability_adjust_symbols=ability,
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     dose_vars = ["alpha", "gamma_own", "kappa"]
@@ -1343,9 +1325,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     dose_vars.extend(f"gamma_{s}_pre" for s in ability)
     _diag.summary_diagnostics(ctx, var_names=dose_vars)
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
-    _save_ppc(ctx)
+    _run_ppc(ctx)
 
     section_header("Dose-slope summary")
     _write_dose_slope_summary(ctx, period_varying=period_varying)
@@ -1361,10 +1341,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         },
     )
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 def _summarise_draws(values: np.ndarray, hdi: float) -> dict[str, float]:
@@ -1520,9 +1497,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         mediator_kind=mediator_kind,
         route_symbols=route_symbols,
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     # The mediator observed node differs by kind: Beta-Binomial "L_post" vs the
     # Gaussian composite "M_post".
@@ -1538,15 +1513,12 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=[mediator_node, "y_post"])
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
+    _run_sampling_and_loo(ctx, compute_loo=False)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=[mediator_node, "y_post"])
-    _save_ppc(ctx)
+    _run_ppc(ctx, var_names=[mediator_node, "y_post"])
     _diag.save_trace(ctx)
 
     section_header("Mediation decomposition (g-formula)")
@@ -1605,10 +1577,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         },
     )
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -1679,9 +1648,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         treated_only=treated_only,
         likelihood=likelihood,
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _emit_priors(ctx)
     _render_model_graph(ctx)
@@ -1690,20 +1657,12 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_gf_diag_vars(spec))
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
-    _save_ppc(ctx)
+    _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
     _causal_gf = None if treated_only else "beta_trt"
@@ -1833,10 +1792,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             )
 
     _report.write_run_metadata(ctx, extra=meta_extra)
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 def _lf_coef_names(spec: ModelSpec) -> list[str]:
@@ -1890,9 +1846,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         group_ability=bool(extra.get("group_ability", True)),
         likelihood=likelihood,
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _emit_priors(ctx)
     _render_model_graph(ctx)
@@ -1901,20 +1855,12 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_lf_diag_vars(spec))
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
-    _save_ppc(ctx)
+    _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
     _causal_lf = "b_grp_time" if extra.get("group_by_time", True) else "beta_grp"
@@ -1988,10 +1934,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         _save_rope_plot(ctx, spec.outcome_symbol, None, n_marg, delta_items, items=items)
 
     _report.write_run_metadata(ctx, extra=meta_extra)
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 def _al_coef_names(spec: ModelSpec) -> list[str]:
@@ -2045,9 +1988,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_dose=use_dose,
         likelihood=likelihood,
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _render_model_graph(ctx)
 
@@ -2055,20 +1996,12 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.run_prior_predictive(ctx, draws=1000, var_names=[obs_node, "eta"])
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_al_diag_vars(spec))
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=[obs_node])
-    _save_ppc(ctx)
+    _run_ppc(ctx, var_names=[obs_node])
     _diag.save_trace(ctx)
 
     section_header("Factor summary")
@@ -2116,10 +2049,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
 
     _report.write_run_metadata(ctx, extra=meta_extra)
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -2163,9 +2093,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         mediator_symbols=mediators,
         confounder_symbols=confounders,
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     # Diagnose every scalar coefficient the model actually built, so the list
     # tracks the fitted confounder set instead of a hand-maintained constant
@@ -2179,17 +2107,12 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         ctx, draws=1000, var_names=["L_post", "E_post", "y_post"]
     )
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
+    _run_sampling_and_loo(ctx, compute_loo=False)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(
-        ctx, var_names=["L_post", "E_post", "y_post"]
-    )
-    _save_ppc(ctx)
+    _run_ppc(ctx, var_names=["L_post", "E_post", "y_post"])
     _diag.save_trace(ctx)
 
     section_header("Two-mediator decomposition (g-formula)")
@@ -2226,10 +2149,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         },
     )
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -2438,22 +2358,14 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         language_composite_symbols=lang_symbols,
         predictor_slope_sigma=sigma0,
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_post", "eta"])
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     beta_names = [f"beta_{k}" for k in headline]
@@ -2461,9 +2373,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ctx, var_names=["alpha", "gamma_own", "kappa", *beta_names]
     )
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
-    _save_ppc(ctx)
+    _run_ppc(ctx)
     _diag.save_trace(ctx)
 
     # --- Adjusted vs bivariate associations --------------------------------
@@ -2637,10 +2547,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         },
     )
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -2692,9 +2599,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_process_noise=spec.extra.get("use_process_noise", True),
         shared_process_noise=spec.extra.get("shared_process_noise", False),
     )
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
+    _attach_built(ctx, built)
 
     _render_model_graph(ctx)
 
@@ -2707,20 +2612,12 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["y_obs"])
 
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    section_header("LOO-PSIS")
-    _diag.compute_log_likelihood_and_loo(ctx)
-    _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_obs"])
-    _save_ppc(ctx)
+    _run_ppc(ctx, var_names=["y_obs"])
     _diag.save_trace(ctx)
 
     # Reading-change coupling table — the headline "what predicts reading
@@ -2769,7 +2666,4 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         },
     )
 
-    section_header("Report")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    return _finalize_report(ctx)

@@ -22,7 +22,7 @@ notes/202606211200-uniform-gb-fs.md.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
-from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
@@ -78,12 +78,8 @@ class LRP12(LevelModel):
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    cv_splits = 51
-    outlier_threshold = None
     selection_steps = _SELECTION_STEPS
-    shap_scatter_specs = [
-        ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
-    ]
+    shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for receptive-grammar level (trog). Uniform "
         "feature selection (2026-06-21) with a corr-filter-only exception "
