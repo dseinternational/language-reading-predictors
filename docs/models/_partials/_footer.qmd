@@ -1,0 +1,17 @@
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("loo.txt"):
+    print("```\n" + open(_here / "loo.txt").read() + "\n```")
+else:
+    print("_No LOO summary for this model (e.g. the mediation family does not compute one)._")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

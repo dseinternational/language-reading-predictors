@@ -1,0 +1,63 @@
+## Results — treatment effect by outcome
+
+Each outcome's ITT effect $\tau$ is estimated jointly (positive = the intervention
+raised that outcome). The forest is the single most communicative summary; the
+pairwise contrast heatmap shows $P(\tau_k > \tau_j)$ for every outcome pair.
+
+```{python}
+# | echo: false
+tau_summary = _csv("tau_summary.csv")
+tau_summary
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("tau_forest.png", "Treatment effect by outcome (forest, reference line at 0)"))
+```
+
+### Pairwise contrasts — P(τ_k > τ_j)
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("contrast_heatmap.png", "Pairwise contrast heatmap"))
+```
+
+```{python}
+# | echo: false
+_csv("tau_contrast_matrix.csv", index_col=0)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Taught-vs-not-taught generalisation contrast (LRPITT15/15b), when present.
+_diff = _csv("tau_difference.csv")
+if _diff is not None:
+    _d = _diff.iloc[0]
+    print("### Generalisation contrast\n")
+    print(
+        f"`{_d.contrast}`: difference in logit-scale effect "
+        f"{_d.diff_logit_mean:+.3f} (95% CrI {_d.diff_logit_lo:+.3f} to "
+        f"{_d.diff_logit_hi:+.3f}); P(difference > 0) = {_d.prob_diff_pos:.3f}. "
+        "A positive difference means the directly-taught words moved more than the "
+        "not-taught comparison words (limited generalisation)."
+    )
+```
+
+::: {.callout-note title="ITT-vs-joint consistency"}
+
+The single-outcome LRPITT models and this joint model estimate the *same* ITT
+effects; the joint τ per outcome should track the singles. The cross-model
+ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
+(`output/statistical_models/comparison/`).
+
+```{python}
+# | echo: false
+# | output: asis
+# Shown here if the comparison forest has been copied alongside this report.
+print(_img("itt_vs_joint_forest.png", "ITT vs joint τ consistency"))
+```
+
+:::

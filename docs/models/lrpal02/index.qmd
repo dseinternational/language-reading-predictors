@@ -1,0 +1,157 @@
+---
+title: "LRPAL02: Aligned-40-week per-protocol gain for receptive vocabulary (R)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+If the model was not fitted in "reporting" mode, the results will be more approximate than where additional sampling has been performed.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+factor_summary = pd.read_csv(_here / "factor_summary.csv")
+cohort_marginal = pd.read_csv(_here / "cohort_marginal.csv")
+```
+
+## Overview
+
+LRPAL02 is the **aligned-40-week per-protocol** single-gain model for receptive vocabulary (R)
+(`rowpvt`). Both arms are aligned by intervention onset across ~two periods
+(~the 40-week RLI program): the immediate arm onsets at t1 (aligned window
+**t1 -> t3**) and the wait-list arm at t2, post-crossover (aligned window
+**t2 -> t4**). One row per child, so there is no child random intercept.
+
+::: {.callout-important title="Per-protocol: NOT a randomised contrast"}
+
+The cohort term (`beta_cohort`, immediate vs wait-list at the aligned endpoints)
+is **not** the ITT effect: it is confounded by **age-at-onset** (the wait-list arm
+reaches its window ~3-4 months older) and by cohort/timing. Under this design
+**no** coefficient is a clean treatment effect -- every term, the cohort contrast
+included, is an **association**. The randomised effect of record remains the
+LRPITT suite (and its within-person replication LRPDID). Sessions / dose are a
+collider and enter only the separate dose sensitivity variant.
+
+:::
+
+## Model
+
+$$
+R_{\text{post(aligned)}} \sim \operatorname{BetaBinomial}(n, \operatorname{expit}(\eta), \kappa),\quad
+\eta = \alpha + \beta_{\text{cohort}}\,\text{immediate}
+  + \gamma_{\text{own}}\operatorname{logit}_*(R_{\text{onset}})
+  + \gamma_A A_{\text{onset,std}} + \gamma_{\text{ability}}z(\text{blocks}).
+$$
+
+One row per child (no random intercept). Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+## Priors
+
+![alpha](prior_alpha.png){width=24%}
+![tau (cohort)](prior_tau.png){width=24%}
+![gamma_own](prior_gamma_own.png){width=24%}
+![gamma_age](prior_gamma_age.png){width=24%}
+
+## Prior-predictive check
+
+![Prior predictive](prior_predictive_check.png){.lightbox}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+
+![Energy](energy_plot.png){.lightbox}
+
+![Posterior](posterior_plot.png){.lightbox}
+
+## Posterior-predictive check
+
+![Posterior predictive](posterior_predictive_check.png){.lightbox}
+
+## Findings
+
+### Factor summary (all associations)
+
+```{python}
+# | echo: false
+factor_summary
+```
+
+![Adjusted-association coefficients (forest, reference line at 0)](association_forest.png){.lightbox}
+
+Every `role` is **association** -- the per-protocol design identifies no causal
+term. `beta_cohort` is the immediate-vs-wait-list contrast at the aligned
+endpoints; `mean`/`lo`/`hi` = posterior mean + equal-tailed 95% CrI;
+`prob_positive` = $P(\text{coef} > 0)$.
+
+### Cohort marginal (per-protocol, NOT randomised)
+
+```{python}
+# | echo: false
+cohort_marginal
+```
+
+The items-scale immediate-vs-wait-list difference at the aligned endpoints --
+a per-protocol association confounded by age-at-onset and timing, not the
+randomised treatment effect.
+
+**Reading these tables.** Per the project's reporting conventions (`METHODS.md`,
+"Interpret"), lead with the **interval**, not the point estimate, and read
+`prob_positive` / `prob_trt_pos` as evidence of **direction, not magnitude**. At this
+design's small per-arm sample (~26–28) a point estimate is on average
+magnitude-inflated (a Type-M / winner's-curse effect), so the posterior mean is not a
+number to quote on its own. A ROPE-anchored **magnitude** read (`P(|effect| ≥ δ)`
+against a minimally-important difference, as now reported for the randomised ITT
+suite) is **deliberately deferred** for this per-protocol family — applying a
+"meaningful benefit" ROPE to a confounded association would mis-frame it; see
+`notes/202606261343-lrpal-aligned-design.md`.
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```
