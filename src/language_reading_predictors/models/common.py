@@ -41,9 +41,9 @@ class ShapScatterSpec:
 # The standard single-entry SHAP scatter spec shared across the GB models
 # (#82): every predictor, SHAP auto-colouring. Models with bespoke scatter
 # needs (e.g. LRP01) still declare their own list.
-DEFAULT_SHAP_SCATTER_SPECS: list[ShapScatterSpec] = [
+DEFAULT_SHAP_SCATTER_SPECS: tuple[ShapScatterSpec, ...] = (
     ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
-]
+)
 
 
 @dataclass
