@@ -15,25 +15,11 @@ format:
       - repo
 ---
 
-::: {.callout-warning title="Warning: Preliminary model output"}
+{{< include _partials/_header.qmd >}}
 
-This model output is preliminary and likely to change as the model evolves and further data are received.
+{{< include _partials/_setup.qmd >}}
 
-:::
-
-```{python}
-# | echo: false
-import json
-from pathlib import Path
-
-import arviz as az
-import pandas as pd
-
-_here = Path(".")
-with open(_here / "config.json") as f:
-    config = json.load(f)
-trace = az.from_netcdf(_here / "trace.nc")
-```
+{{< include _partials/_convergence.qmd >}}
 
 ## Overview
 
@@ -62,44 +48,12 @@ expectations caveat (adjusted association; $R^2$ 0.1–0.3 in Phase 1).
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
-## Sampling diagnostics
+{{< include _partials/_priors.qmd >}}
 
-```{python}
-# | echo: false
-diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
-diag
-```
+{{< include _partials/_prior_predictive.qmd >}}
 
-![Trace](trace_plot.png){.lightbox}
-![Energy](energy_plot.png){.lightbox}
+{{< include _partials/_diagnostics.qmd >}}
 
-## Dose slope (ability-adjusted)
+{{< include _partials/_results_dose_response.qmd >}}
 
-```{python}
-# | echo: false
-dose = pd.read_csv(_here / "dose_slope_summary.csv")
-dose
-```
-
-Compare `dose_overall` / `dose_period*` here with the same rows in the LRP77
-report. The baseline-skill coefficients (`gamma_L_pre`, `gamma_E_pre`,
-`gamma_B_pre`) appear in the diagnostics table above.
-
-## Posterior predictive
-
-![Posterior predictive check](posterior_predictive_check.png){.lightbox}
-
-## LOO-PSIS
-
-```{python}
-# | echo: false
-# | output: asis
-print("```\n" + open(_here / "loo.txt").read() + "\n```")
-```
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
+{{< include _partials/_footer.qmd >}}

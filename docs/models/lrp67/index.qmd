@@ -15,28 +15,11 @@ format:
       - repo
 ---
 
-::: {.callout-note}
-Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
-:::
+{{< include _partials/_header.qmd >}}
 
-::: {.callout-warning title="Warning: Preliminary model output"}
+{{< include _partials/_setup.qmd >}}
 
-This model output is preliminary and likely to change as the model evolves and further data are received. At n~54 it is **exploratory**: read the direction of the couplings and their agreement with the other approaches, not precise magnitudes.
-
-:::
-
-```{python}
-# | echo: false
-import json
-from pathlib import Path
-
-import pandas as pd
-
-_here = Path(".")
-with open(_here / "config.json") as f:
-    config = json.load(f)
-coupling = pd.read_csv(_here / "coupling_summary.csv")
-```
+{{< include _partials/_convergence.qmd >}}
 
 ## Overview
 
@@ -92,86 +75,12 @@ transitions) — a deliberate constraint at this sample size. Observed counts en
 **masked** Beta-Binomial so a child missing one score still contributes its other
 waves; $\kappa$ is measurement overdispersion, distinct from the dynamic
 $\sigma^{\text{proc}}$.
+{{< include _partials/_priors.qmd >}}
 
-## Reading-change couplings
+{{< include _partials/_prior_predictive.qmd >}}
 
-Coefficients on the logit scale; `lo`/`hi` are equal-tailed central interval bounds
-at the configured coverage; `prob_pos` is $P(\text{coefficient} > 0)$.
+{{< include _partials/_diagnostics.qmd >}}
 
-```{python}
-# | echo: false
-coupling.round(3)
-```
+{{< include _partials/_results_lcsm.qmd >}}
 
-```{python}
-# | echo: false
-# | output: asis
-def _row(df, key):
-    m = df[df["coefficient"].str.startswith(key)]
-    return m.iloc[0] if len(m) else None
-
-gL = _row(coupling, "g_L")
-gE = _row(coupling, "g_E")
-if gL is not None:
-    print(
-        f"- Prior **letter-sounds → reading change** (`g_L`): mean {gL['mean']:.3f} "
-        f"[{gL['lo']:.3f}, {gL['hi']:.3f}], P(>0) = {gL['prob_pos']:.2f}."
-    )
-if gE is not None:
-    print(
-        f"- Prior **vocabulary → reading change** (`g_E`): mean {gE['mean']:.3f} "
-        f"[{gE['lo']:.3f}, {gE['hi']:.3f}], P(>0) = {gE['prob_pos']:.2f}."
-    )
-print(
-    "\nThe headline is `g_L`: a credibly positive value means children make greater "
-    "subsequent reading change when their prior letter-sound standing is higher, "
-    "over and above their own reading level and age."
-)
-```
-
-::: {.callout-important title="Triangulation, not a single coefficient"}
-At n~54 the intervals are wide. The result that matters is **triangulation**: does
-the direction of `g_L` (letter-sounds → reading change) agree with the
-between-child LRP65 finding, while respecting that the RI-CLPM companion was
-dropped as not estimable? The dated note synthesises the dynamic-model decision.
-A consistent positive direction across the surviving approaches is the honest,
-defensible reading — not a point estimate of `g_L`.
-:::
-
-## Sampling diagnostics
-
-```{python}
-# | echo: false
-diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
-diag
-```
-
-Watch R-hat, ESS and divergences closely: this latent state-space model is among the
-most demanding in the project at this sample size. If sampling is not clean even
-after the documented fallbacks (tighter priors, shared or dropped process noise),
-that is reported as a finding rather than forced.
-
-![Trace](trace_plot.png){.lightbox}
-![Energy](energy_plot.png){.lightbox}
-
-## Posterior predictive
-
-![Posterior predictive check](posterior_predictive_check.png){.lightbox}
-
-## Limitations
-
-- **n~54**, four waves, three within-child transitions: the coupling posteriors are
-  wide and the latent layer is ambitious for the data. Expect wide intervals.
-- **Time-invariant** couplings pool over transitions — they cannot describe a
-  coupling that changes with developmental stage.
-- **Associational, not causal**: the couplings are conditional predictive
-  associations among observed-derived latent scores, not identified causal effects.
-- Reference for the process-measure → later-outcome framing: Yoder, Woynaroski, Fey,
-  Warren & Gardner (2015).
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
+{{< include _partials/_footer.qmd >}}

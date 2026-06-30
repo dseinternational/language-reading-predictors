@@ -1,0 +1,46 @@
+## Results
+
+This is a measurement and triangulation model. Factor-to-gain slopes are adjusted
+associations, not causal effects.
+
+### Loadings and Communalities
+
+```{python}
+# | echo: false
+loadings = _csv("loadings_summary.csv")
+loadings if loadings is not None else "No loadings summary."
+```
+
+- `loading_*`: coefficient on the unit-variance factor.
+- `correlation_*`: standardised indicator-factor correlation.
+- `communality_*`: share of indicator variance explained by the domain factor.
+
+### Factor Correlations
+
+```{python}
+# | echo: false
+factor_correlation = _csv("factor_correlation.csv", index_col=0)
+factor_correlation if factor_correlation is not None else "No factor-correlation matrix."
+```
+
+### Structural Slopes
+
+```{python}
+# | echo: false
+structural = _csv("structural_summary.csv")
+structural if structural is not None else "No structural summary."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if structural is not None and len(structural):
+    _top = structural.iloc[0]
+    print(
+        f"First structural row `{_top.coefficient}`: mean {_top['mean']:+.3f} "
+        f"(95% CrI {_top.lo:+.3f} to {_top.hi:+.3f}); "
+        f"P(> 0) = {_top.prob_pos:.3f}. Compare the full table rather than "
+        "ranking factors by point estimate alone."
+    )
+```
+

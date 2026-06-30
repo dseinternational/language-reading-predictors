@@ -1,0 +1,37 @@
+## Results
+
+The latent change-score model reports within-child longitudinal couplings. These
+are conditional predictive associations among latent trajectories, not causal
+effects.
+
+```{python}
+# | echo: false
+coupling_summary = _csv("coupling_summary.csv")
+coupling_summary if coupling_summary is not None else "No coupling summary."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if coupling_summary is not None:
+    _g = coupling_summary[
+        coupling_summary["coefficient"].str.contains("->", regex=False)
+    ]
+    if len(_g):
+        _r = _g.iloc[0]
+        print(
+            f"Headline coupling `{_r.coefficient}`: mean {_r['mean']:+.3f} "
+            f"(95% CrI {_r.lo:+.3f} to {_r.hi:+.3f}); "
+            f"P(> 0) = {_r.prob_pos:.3f}. Read agreement with LRP65 and the "
+            "mechanism models rather than treating this one coefficient as decisive."
+        )
+```
+
+::: {.callout-note title="Model-check emphasis"}
+
+Because this model has latent trajectories, process noise and only four waves,
+sampling diagnostics and posterior predictive checks are part of the result. A
+wide interval or fragile sampler is an honest finding, not just a nuisance.
+
+:::
+
