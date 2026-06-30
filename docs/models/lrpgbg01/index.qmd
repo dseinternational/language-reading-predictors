@@ -32,24 +32,25 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBG01 models **gains in directly-taught expressive vocabulary** (`b1extau_gain`)
+LRPGBG01 models **gains in directly-taught receptive vocabulary** (`b1retau_gain`)
 between consecutive longitudinal timepoints — the change in the Block 1
-taught-words expressive score. It is the taught-vocabulary analogue of
-[LRPGBG06](../lrpgbg06/), which models the *standardised* expressive-vocabulary gain
-(`eowpvt_gain`); the two are kept separate so the predictor analysis distinguishes
-the words the programme directly taught from general vocabulary.
+taught-words receptive score. It is the receptive analogue of
+[LRPGBG02](../lrpgbg02/) (taught *expressive* vocabulary gains) and one of the four
+Block-1 vocabulary outcomes added in #116 Phase B, so the predictor analysis
+covers taught/not-taught receptive and expressive vocabulary, not only the
+standardised tests.
 
-This is a **baseline exploratory model** for the taught-vocabulary gain task. It
-has not yet been through iterative feature selection or a target-specific
+This is a **baseline exploratory model** for the taught-receptive-vocabulary gain
+task. It has not yet been through iterative feature selection or a target-specific
 hyperparameter tune — it runs on hyperparameters borrowed from the closely-matched
-LRPGBG06 analogue and the full `Predictors.DEFAULT_GAIN` set (plus the auto-included
-`b1extau` baseline level), with no outlier exclusion.
+block-1 taught-vocabulary analogue LRPGBG02 and the full `Predictors.DEFAULT_GAIN`
+set (plus the auto-included `b1retau` baseline level), with no outlier exclusion.
 
-::: {.callout-note title="Leakage exclusion: b1exto"}
+::: {.callout-note title="Leakage exclusion: b1reto"}
 
-The Block 1 expressive *total* `b1exto` equals taught + not-taught
-(`b1extau + b1exnt`), so it contains the target/baseline construct directly. It is
-removed from the predictor set (the only deviation from LRPGBG06) so the model
+The Block 1 receptive *total* `b1reto` equals taught + not-taught
+(`b1retau + b1rent`), so it contains the target/baseline construct directly. It is
+removed from the predictor set (the only deviation from LRPGBG02) so the model
 identifies substantive predictors of taught-vocabulary gains rather than
 recovering the score from a superset of itself.
 

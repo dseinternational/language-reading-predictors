@@ -32,16 +32,26 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBG11 models **gains in letter-sound knowledge** scores (`yarclet_gain`) between
-consecutive longitudinal timepoints. The target is `yarclet_gain` --- the change
-in `yarclet` score between assessments. All observations are included (no outlier
-exclusion) so the full range of outcomes informs the model.
+LRPGBG11 models **gains in phonetic spelling** (`spphon_gain`) between consecutive
+longitudinal timepoints — the change in the phonetic-spelling score. It is the
+spelling member of the reading/spelling outcomes added in #116 Phase B. All
+observations are included (no outlier exclusion).
 
-This is an **exploratory model** for the gain-prediction task. It runs on
-MAE-tuned hyperparameters from an Optuna 150-trial study, with the
-predictor set reduced from the full `Predictors.DEFAULT_GAIN` set (plus the
-auto-included `yarclet` level) by iterative importance-based feature
-selection. The retained predictors and the removal history are shown below.
+This is a **baseline exploratory model** for the gain-prediction task. It runs on
+hyperparameters borrowed from the phonics-adjacent letter-sounds analogue LRPGBG09
+and the full `Predictors.DEFAULT_GAIN` set (plus the auto-included `spphon`
+baseline level), pending a target-specific tune and iterative feature selection.
+Phonetic spelling has no taught/total decomposition, so there is no leakage sibling
+to drop.
+
+::: {.callout-note title="Heavy floor on spphon"}
+
+`spphon` is heavily floored (~78% at zero at baseline; see #119/#144), so the gain
+target is dominated by zeros and the predictive signal is expected to be weak. The
+ranking will surface that honestly (low out-of-fold R²); read it as a "how
+predictable is spelling change at all" check rather than a strong model.
+
+:::
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
 prevent data leakage across timepoints for the same child.
