@@ -1,0 +1,55 @@
+## Results
+
+The aligned per-protocol design has no clean randomised treatment coefficient.
+Every coefficient below, including the cohort contrast, is an adjusted association.
+
+```{python}
+# | echo: false
+factor_summary = _csv("factor_summary.csv")
+factor_summary if factor_summary is not None else "No factor summary."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if factor_summary is not None and "role" in factor_summary.columns:
+    _assoc = factor_summary[factor_summary.role != "causal"]
+    if len(_assoc):
+        print('::: {.callout-important title="All terms are associations"}\n')
+        print(
+            "The per-protocol cohort term is confounded by age-at-onset and timing. "
+            "Read coefficients as associated with the aligned post-score, never as "
+            "randomised treatment effects.\n"
+        )
+        _cols = [c for c in ["term", "mean", "lo", "hi", "prob_positive"] if c in _assoc.columns]
+        print(_assoc[_cols].to_markdown(index=False))
+        print("\n:::")
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("association_forest.png", "Adjusted-association coefficients"))
+```
+
+### Cohort Marginal
+
+```{python}
+# | echo: false
+cohort_marginal = _csv("cohort_marginal.csv")
+cohort_marginal if cohort_marginal is not None else "No cohort marginal table."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if cohort_marginal is not None:
+    _c = cohort_marginal.iloc[0]
+    print(
+        f"Aligned immediate-vs-wait-list marginal: median "
+        f"{_c.trt_items_median:+.1f} items "
+        f"(95% CrI {_c.trt_items_lo:+.1f} to {_c.trt_items_hi:+.1f}); "
+        f"P(> 0) = {_c.prob_trt_pos:.3f}. This is per-protocol and not randomised."
+    )
+```
+

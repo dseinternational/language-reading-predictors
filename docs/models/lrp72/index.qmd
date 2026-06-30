@@ -15,25 +15,11 @@ format:
       - repo
 ---
 
-::: {.callout-warning title="Warning: Preliminary model output"}
+{{< include _partials/_header.qmd >}}
 
-This model output is preliminary and likely to change as the model evolves and further data are received.
+{{< include _partials/_setup.qmd >}}
 
-:::
-
-```{python}
-# | echo: false
-import json
-from pathlib import Path
-
-import arviz as az
-import pandas as pd
-
-_here = Path(".")
-with open(_here / "config.json") as f:
-    config = json.load(f)
-trace = az.from_netcdf(_here / "trace.nc")
-```
+{{< include _partials/_convergence.qmd >}}
 
 ## Overview
 
@@ -100,98 +86,12 @@ antagonism. Interpret $\gamma_{\text{int}}$'s sign with that in mind.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-## Shared priors
+{{< include _partials/_priors.qmd >}}
 
-![alpha](prior_alpha.png){width=40%}
-![gamma_cross](prior_gamma_cross.png){width=40%}
-![kappa](prior_kappa.png){width=40%}
+{{< include _partials/_prior_predictive.qmd >}}
 
-`beta_mech` (the linear mechanism slope) uses a weakly-informative
-$\mathrm{Normal}(0, 1)$ on the standardised $z(\operatorname{logit} L)$;
-`gamma_mod` and `gamma_int` share the `gamma_cross` prior
-$\mathrm{Normal}(0, 0.3)$.
+{{< include _partials/_diagnostics.qmd >}}
 
-## Sampling diagnostics
+{{< include _partials/_results_mechanism.qmd >}}
 
-```{python}
-# | echo: false
-diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
-diag
-```
-
-![Trace](trace_plot.png){.lightbox}
-![Energy](energy_plot.png){.lightbox}
-
-## Coefficients
-
-```{python}
-# | echo: false
-interaction = pd.read_csv(_here / "interaction_summary.csv")
-interaction.T
-```
-
-![Posterior](posterior_plot.png){.lightbox}
-
-**Reading the result.** Both prerequisites have **strong, credible positive main
-effects** on decoding — letter-sound ($\beta_{\text{mech}}$) and blending
-($\gamma_{\text{mod}}$, $P(>0) \approx 0.99$). Their **interaction
-$\gamma_{\text{int}}$ is credibly *negative*** (95% CI just excludes zero,
-$P(>0) \approx 0.02$) — i.e. *sub-additive*, the **opposite** of the hypothesised
-super-additivity.
-
-This **does not confirm** the dual-route super-additive prediction. Two important
-qualifications:
-
-- It **contradicts the exploratory pooled regression** (which found a positive
-  $L \times B$ interaction, $t \approx 4.1$). That screen pooled ~4 rows/child
-  without subject random effects or a baseline; the note flagged it as inflated by
-  pseudo-replication. Under the proper model (subject random intercepts, baseline
-  $N_{\text{pre}}$, phase intercepts) the sign **reverses** — exactly the
-  confirmation step the exploration called for, and it fails.
-- A negative *logit-scale* interaction between two strong positive main effects is
-  partly what a **saturating link** produces on a floored/bounded count (see the
-  data caveat). So the honest reading is: the data are **consistent with the two
-  routes contributing largely independently** (additively), with at most modest,
-  link-ambiguous evidence of diminishing returns — not with super-additive
-  synergy.
-
-## Mechanism curve
-
-The linear dose-response of letter-sound knowledge on decoding: the posterior band
-$\beta_{\text{mech}}\,z(\operatorname{logit} L)$, holding the adjustment set fixed and
-evaluated at **average blending** (the interaction $\gamma_{\text{int}}$ tilts this
-slope at other blending levels). A straight line by construction — the band is the
-posterior uncertainty in the slope, not curvature.
-
-![Mechanism curve](mechanism_curve.png){.lightbox}
-
-```{python}
-# | echo: false
-mech = pd.read_csv(_here / "mechanism_curve.csv")
-mech.head(15)
-```
-
-## PSIS-LOO vs the no-interaction baseline
-
-LRP72base (`docs/models/lrp72base`) fits the same outcome / linear mechanism with
-$L$ and $B$ as main effects only (no $L \times B$). Comparing them isolates the
-interaction's predictive value
-(`output/statistical_models/comparison/phonics_route_loo_compare.csv`):
-
-```{python}
-# | echo: false
-# | output: asis
-print("```\n" + open(_here / "loo.txt").read() + "\n```")
-```
-
-The interaction model ranks first but the ELPD advantage is **within noise**
-(elpd_diff ≈ 2 with dse ≈ 2.5) — adding the interaction does not decisively
-improve predictive fit, consistent with the modest, link-ambiguous
-$\gamma_{\text{int}}$.
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
+{{< include _partials/_footer.qmd >}}

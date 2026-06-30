@@ -1,0 +1,48 @@
+## Results
+
+This family estimates an observational session-dose association on the logit
+scale, per 1 SD of period session count. Positive slopes mean larger conditional
+gains are associated with higher dose in that period.
+
+```{python}
+# | echo: false
+dose_slope_summary = _csv("dose_slope_summary.csv")
+dose_slope_summary if dose_slope_summary is not None else "No dose-slope summary."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if dose_slope_summary is not None and len(dose_slope_summary):
+    _main = dose_slope_summary.iloc[0]
+    print(
+        f"**Headline dose association (`{_main.term}`):** posterior mean "
+        f"{_main['mean']:+.3f} logit units per 1 SD sessions "
+        f"(95% CrI {_main.lo:+.3f} to {_main.hi:+.3f}); "
+        f"P(> 0) = {_main.p_pos:.3f}."
+    )
+    if "sigma_dose_between_period" in set(dose_slope_summary.term):
+        _s = dose_slope_summary[
+            dose_slope_summary.term == "sigma_dose_between_period"
+        ].iloc[0]
+        print(
+            f"\n\nBetween-period slope SD: mean {_s['mean']:.3f} "
+            f"(95% CrI {_s.lo:.3f} to {_s.hi:.3f}). Small values mean the "
+            "period slopes shrink toward a common dose association."
+        )
+```
+
+::: {.callout-important title="Observational dose-response"}
+
+Dose is not randomised and may be confounded by latent general ability and
+availability. Compare the primary fit with its ability-adjusted or pooled-dose
+companion before treating the slope as robust.
+
+:::
+
+```{python}
+# | echo: false
+# Optional comparison outputs, shown when copied beside this report.
+_comp = _csv("dose_loo_compare.csv")
+_comp if _comp is not None else _csv("did_dose_loo_compare.csv")
+```

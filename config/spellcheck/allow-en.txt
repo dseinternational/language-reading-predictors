@@ -28,6 +28,7 @@ hsgp
 lengthscale
 Missingness
 MCMC
+NUCA
 nutpie
 preliz
 subsetting
