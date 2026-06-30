@@ -34,7 +34,7 @@ intervention benefit (`G = 2 − group`).
 
 | Layer | Family (id prefix) | Count | Purpose |
 |---|---|--:|---|
-| 1 | Gradient-boosting discovery (`lrpgbg12–42`) | 42 | Rank predictors of each outcome's gain and level |
+| 1 | Gradient-boosting discovery (`lrpgbg##` / `lrpgbl##`) | 54 | Rank predictors of each outcome's gain and level |
 | 2 | ITT suite (`lrpitt`) | 26 | Randomised intervention effect on each outcome (+ joint, SES, ability robustness, generalisation) |
 | 2 | Gain factors (`lrpgf`) | 16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain |
 | 2 | Level factors (`lrplf`) | 8 | Companion levels view: group×time and ability×time per timepoint |
@@ -87,7 +87,7 @@ from hard feature *selection* to full-set *ranking* (`scripts/rank_predictors.py
 `#116`); `_noconstruct` variants drop a same-instrument sibling to expose concurrent
 correlation.
 
-### Core outcomes (`lrpgbg12–lrpgbl02`)
+### Core outcomes (the 13 priority reading / language outcomes)
 
 | Gain | Level | Outcome |
 |---|---|---|
@@ -102,7 +102,16 @@ correlation.
 | `lrpgbg08` | `lrpgbl08` | Expressive grammar (`aptgram`) |
 | `lrpgbg07` | `lrpgbl07` | Expressive information (`aptinfo`) |
 | `lrpgbg16` | `lrpgbl16` | DEAP fine articulation (`deappfi`) |
-| `lrpgbg02` | `lrpgbl02` | Taught vocabulary (`b1extau` gain / level) |
+| `lrpgbg02` | `lrpgbl02` | Taught expressive vocabulary (`b1extau`) |
+| `lrpgbg01` | `lrpgbl01` | Taught receptive vocabulary (`b1retau`) |
+| `lrpgbg03` | `lrpgbl03` | Not-taught receptive vocabulary (`b1rent`) |
+| `lrpgbg04` | `lrpgbl04` | Not-taught expressive vocabulary (`b1exnt`) |
+| `lrpgbg11` | `lrpgbl11` | Phonetic spelling (`spphon`) |
+
+The last four rows are the #116 Phase-B additions completing the 13 priority
+outcomes; their hyperparameters are borrowed from the nearest analogue pending a
+target-specific tune, and they do not yet have bespoke report templates (Phase C).
+`spphon` is heavily floored, so its gain ranking is expected to be near-noise.
 
 Four level models carry a `_noconstruct` variant (`lrpgbl06_noconstruct`, `lrpgbl08_noconstruct`, `lrpgbl07_noconstruct`, `lrpgbl16_noconstruct`) that
 drops the same-skill sibling to expose how much of the ranking is concurrent same-construct
