@@ -21,10 +21,10 @@ Writes results to ``output/tuning/{model_id}/``:
 
 Usage
 -----
-    python scripts/tune_model.py lrp01                       # 50 trials
-    python scripts/tune_model.py lrp01 --n-trials 200
-    python scripts/tune_model.py lrp01 --timeout 1800        # cap at 30 min
-    python scripts/tune_model.py lrp01 --cv-splits 5 --seed 42
+    python scripts/tune_model.py lrpgbg12                       # 50 trials
+    python scripts/tune_model.py lrpgbg12 --n-trials 200
+    python scripts/tune_model.py lrpgbg12 --timeout 1800        # cap at 30 min
+    python scripts/tune_model.py lrpgbg12 --cv-splits 5 --seed 42
 """
 
 from __future__ import annotations
@@ -434,7 +434,7 @@ def tune(
     print(f"[bold green]Artifacts saved to: {out_dir}[/bold green]")
     print(
         "\n  [yellow]Paste the params dict into the matching per-problem module "
-        "(e.g. a new lrp01_selectNN variant) to reuse them in a fit.[/yellow]"
+        "(e.g. a new lrpgbg12_selectNN variant) to reuse them in a fit.[/yellow]"
     )
 
 
@@ -443,7 +443,7 @@ def main() -> None:
         description="Optuna hyperparameter tuning for LRP models."
     )
     parser.add_argument(
-        "model", type=str, help="Model id, e.g. lrp01."
+        "model", type=str, help="Model id, e.g. lrpgbg12."
     )
     parser.add_argument("--n-trials", type=int, default=50)
     parser.add_argument(

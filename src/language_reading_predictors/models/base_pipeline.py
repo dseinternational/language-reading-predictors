@@ -558,7 +558,7 @@ class EstimatorPipeline:
         High appearance rate + low rank IQR → robustly important.
         Compare against the single-point permutation importance to
         identify features whose ranking is fold-luck rather than signal
-        — especially useful for the low-R² gain models (LRP01, LRP03)
+        — especially useful for the low-R² gain models (LRPGBG12, LRPGBG06)
         where a single fit's ranking is least stable.
 
         Gated to reporting configs via ``fit()``; costly for large
