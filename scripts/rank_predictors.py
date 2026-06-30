@@ -79,8 +79,9 @@ SAME_SKILL_SIBLINGS: dict[str, list[str]] = {
     "deappvo": ["deappfi", "deappin"],  # DEAP voicing — same DEAP instrument
     "rowpvt": ["b1reto"],    # receptive vocab — ROWPVT vs total b1reto
     # Early Repetition Battery (ERB) phonological-memory sub-scores — same instrument
-    # (#112 LRPGBG17-42 recast: replaces the per-model _noconstruct sibling-drop variants;
-    # read the sibling-dropped skill off ranking_excluding_same_skill.csv).
+    # (#112 LRPGBG17–19 / LRPGBL17–19 recast: replaces the per-model _noconstruct
+    # sibling-drop variants; read the sibling-dropped skill off
+    # ranking_excluding_same_skill.csv).
     "erbnw": ["erbword", "erbto"],
     "erbword": ["erbnw", "erbto"],
     "erbto": ["erbnw", "erbword"],

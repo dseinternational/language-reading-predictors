@@ -70,7 +70,7 @@ Beta-Binomial trial ceiling.
 
 ---
 
-## Layer 1 — Gradient-boosting discovery (`lrpgbg12–lrpgbl28`)
+## Layer 1 — Gradient-boosting discovery (`lrpgbg##` / `lrpgbl##`)
 
 **Purpose.** For each outcome, fit a tuned LightGBM (GroupKFold by `subject_id`) and rank
 predictors by out-of-fold permutation importance + mean |SHAP|, reading direction and
@@ -117,7 +117,7 @@ Four level models carry a `_noconstruct` variant (`lrpgbl06_noconstruct`, `lrpgb
 drops the same-skill sibling to expose how much of the ranking is concurrent same-construct
 correlation (`notes/202606210930-lrp-same-skill-variants.md`).
 
-### Speech, verbal-memory and language-sample measures (`lrpgbg17–lrpgbl28`)
+### Speech, verbal-memory and language-sample measures (`lrpgbg`/`lrpgbl` 17–28)
 
 Exploratory predictability discovery for measures that had only ever been predictors,
 to inform the DAG's measurement side (`notes/202606230900-predictability-speech-memory-language.md`).
