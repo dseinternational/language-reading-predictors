@@ -34,7 +34,7 @@ actually _hides_ real, linear signal at this sample size.
   points paints non-linearity onto noise (the project's GB replication found the gain
   models "near-noise / baseline-driven, permutation-importance noise-dominated").
 
-## Prior art (LRP52 reporting-config sensitivity, notes 202604181445)
+## Prior Art (LRP52 Reporting-Config Sensitivity)
 
 GP-on vs off on the ITT word-reading model: τ statistically identical (−0.409 vs
 −0.406); GP-on gave 1.2–2.6 % divergences (η-amplitude → basis-weight funnel); **LOO

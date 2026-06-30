@@ -19,7 +19,7 @@ in the suite, comparable to LRP12 (`trog`, skew 0.29) and
 LRP16 (`blending`, skew 0.01) and much cleaner than the paired
 LRP18 (`aptgram`, skew 1.23).
 
-Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 8 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
+Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 8 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -42,7 +42,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.YARCSI, V.CELF, V.ERBWORD, V.NONWORD
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 8 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 8 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 2.7114},
@@ -95,7 +95,7 @@ class LRP20(LevelModel):
     selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for aptinfo (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 8 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.711 -> 2.706). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
+        "Exploratory model for aptinfo (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 8 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.711 -> 2.706). Treat the reduced ranking as exploratory."
     )
 
 
@@ -133,12 +133,12 @@ class LRP20NoConstruct(LRP20):
         SelectionStep(
             removed=[V.APTGRAM],
             notes=(
-                "Same-skill variant of lrp20: drops aptgram — the Action Picture Test grammar score, scored from the same elicited picture descriptions as the target aptinfo — so the model is not 'predicting' expressive information from a parallel scoring of the same sample. Receptive grammar (trog) and other constructs are kept deliberately, to be seen independently. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+                "Same-skill variant of lrp20: drops aptgram — the Action Picture Test grammar score, scored from the same elicited picture descriptions as the target aptinfo — so the model is not 'predicting' expressive information from a parallel scoring of the same sample. Receptive grammar (trog) and other constructs are kept deliberately, to be seen independently. Pooled CV falls accordingly; re-tuned on the reduced set. "
             ),
             date="2026-06-21",
             metrics_after={"cv_mae_mean": 3.0591},
         ),
     ]
     notes = (
-        "Same-skill variant of lrp20: drops aptgram (APT grammar, scored from the same picture descriptions as aptinfo) to ask what predicts expressive information beyond a parallel scoring of the same test. Receptive grammar (trog) and other constructs kept visible. Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+        "Same-skill variant of lrp20: drops aptgram (APT grammar, scored from the same picture descriptions as aptinfo) to ask what predicts expressive information beyond a parallel scoring of the same test. Receptive grammar (trog) and other constructs kept visible. Re-tuned on the reduced set. "
     )

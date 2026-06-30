@@ -26,7 +26,7 @@ negative and ~17% zero observations, n ≈ 160). The zero pile-up
 is heavier than in LRP07 / LRP05 gains (17% vs 3%/12%) —
 consistent with the coarser 0-18 CELF raw-score scale.
 
-Uniform feature selection (2026-06-21) reduced the predictor set to the SelectionStep below via a distance-correlation redundancy filter plus an importance noise-floor cut; see ``notes/202606211200-uniform-gb-fs.md``.
+Uniform feature selection (2026-06-21) reduced the predictor set to the SelectionStep below via a distance-correlation redundancy filter plus an importance noise-floor cut.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -39,7 +39,7 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 #
 # Documents the 34 → 19 feature-selection history under MAE-tuned
 # params with no outlier exclusion (n=160).
-# See notes/202606211200-uniform-gb-fs.md for the full rationale.
+# for the full rationale.
 
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
@@ -51,7 +51,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.DEAPPVO, V.TROG, V.TIME, V.EWRSWR
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 5 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 5 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 2.1621},
@@ -106,5 +106,5 @@ class LRP09(GainModel):
     selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for celf_gain (gain). Uniform feature selection (2026-06-21) from the full 34-predictor DEFAULT_GAIN set to 5 predictors (distance-correlation redundancy filter + importance noise-floor cut; baseline force-kept; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.162 -> 2.193). Gain models are near-noise (baseline-driven regression to the mean) - treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
+        "Exploratory model for celf_gain (gain). Uniform feature selection (2026-06-21) from the full 34-predictor DEFAULT_GAIN set to 5 predictors (distance-correlation redundancy filter + importance noise-floor cut; baseline force-kept; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.162 -> 2.193). Gain models are near-noise (baseline-driven regression to the mean) - treat the reduced ranking as exploratory."
     )

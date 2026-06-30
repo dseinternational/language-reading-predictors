@@ -5,7 +5,7 @@
 > [!WARNING]
 > This note was prepared by an AI tool and may contain mistakes. Treat it as a
 > compiled reference, not a source of new claims; the underlying selections are
-> defined in the model registry and `notes/202606211200-uniform-gb-fs.md`.
+> defined in the model registry.
 
 Date: 2026-06-23
 
@@ -60,7 +60,7 @@ non-trivial full-set importance but was pruned," not as precise effect sizes.
 
 Seven of eleven gain models have **no** above-floor near-miss: once the same-skill
 baseline is in the set, nothing else clears the noise floor — the "gain models are
-near-noise / baseline-driven" signature (`notes/202606201500-gb-replication-findings.md`).
+near-noise / baseline-driven" signature.
 
 ## Level models (concurrent-level targets)
 
@@ -81,7 +81,7 @@ near-noise / baseline-driven" signature (`notes/202606201500-gb-replication-find
 ¹ lrp12 keeps the full set **minus** the six redundancy casualties (aptinfo,
 b1reto, eowpvt, erbnw, spphon, deappfi). The uniform noise-floor cut is
 deliberately skipped here because applying it prunes this flat-importance target
-to 3 predictors and drops pooled R² 0.47 → 0.30 (`notes/202606211200-uniform-gb-fs.md`).
+to 3 predictors and drops pooled R² 0.47 → 0.30.
 
 ## The pattern in the near-miss column
 
@@ -130,6 +130,4 @@ Derivation scripts (gitignored working area):
 
 ## Related notes
 
-- `notes/202606211200-uniform-gb-fs.md` — the uniform feature-selection method.
-- `notes/202606201500-gb-replication-findings.md` — why gains ≈ noise and levels ≈
-  concurrent correlation; the redundancy clusters.
+concurrent correlation; the redundancy clusters.

@@ -81,7 +81,7 @@ level).
 
 Gain-model rankings are near-noise (baseline-driven regression to the mean); level-model
 rankings are largely concurrent same-construct correlation — read both under those
-caveats (`notes/202606201500-gb-replication-findings.md`,
+caveats (,
 `notes/202606231100-gb-selected-features-tables.md`). The project is migrating this layer
 from hard feature _selection_ to full-set _ranking_ (`scripts/rank_predictors.py`, issue
 `#116`); `_noconstruct` variants drop a same-instrument sibling to expose concurrent
@@ -106,12 +106,12 @@ correlation.
 
 Four level models carry a `_noconstruct` variant (`lrp04_noconstruct`, `lrp18_noconstruct`, `lrp20_noconstruct`, `lrp22_noconstruct`) that
 drops the same-skill sibling to expose how much of the ranking is concurrent same-construct
-correlation (`notes/202606210930-lrp-same-skill-variants.md`).
+correlation.
 
 ### Speech, verbal-memory and language-sample measures (`lrp25–lrp42`)
 
 Exploratory predictability discovery for measures that had only ever been predictors,
-to inform the DAG's measurement side (`notes/202606230900-predictability-speech-memory-language.md`).
+to inform the DAG's measurement side.
 LSAM and `deapp_c` are level-only.
 
 | Gain    | Level   | Outcome                                                 |
@@ -261,11 +261,11 @@ same-wave mediator/outcome) — reported as triangulation, leading with the robu
 **Purpose.** Three complementary, explicitly **associational** views of word-reading
 progress that sit outside the randomised families.
 
-| Model   | Kind            | Purpose                                                                                                                                                                                                                                                |
-| ------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lrp65` | `adjusted`      | Between-child: which wave-1 baseline skills go with more subsequent word-reading gain, mutually adjusted (`notes/202606181500-lrp65-independent-predictors.md`)                                                                                        |
-| `lrp67` | `lcsm`          | Within-child latent change-score: prior-wave letter sounds `L` and vocabulary `E` as predictors of reading _change_ (`notes/202606191100-lrp67-68-longitudinal-dynamics.md`)                                                                           |
-| `lrp77` | `dose_response` | Period-resolved observational dose-response of intervention sessions → word reading; `lrp77a` adds an ability-adjusted sensitivity, `lrp77base` is the pooled (no-period-variation) comparator (`notes/202606221239-period-resolved-dose-response.md`) |
+| Model   | Kind            | Purpose                                                                                                                                                                                        |
+| ------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp65` | `adjusted`      | Between-child: which wave-1 baseline skills go with more subsequent word-reading gain, mutually adjusted                                                                                       |
+| `lrp67` | `lcsm`          | Within-child latent change-score: prior-wave letter sounds `L` and vocabulary `E` as predictors of reading _change_                                                                            |
+| `lrp77` | `dose_response` | Period-resolved observational dose-response of intervention sessions → word reading; `lrp77a` adds an ability-adjusted sensitivity, `lrp77base` is the pooled (no-period-variation) comparator |
 
 `lrp77`'s dose terms are observational (sessions = a DAG collider as exposure): an adjusted
 within-child association, never "more sessions cause more gain". Only the randomised ITT/DiD

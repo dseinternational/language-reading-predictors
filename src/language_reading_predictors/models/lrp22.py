@@ -24,7 +24,7 @@ DEAP measures have been used as predictors across every other
 model in the suite but never as targets until LRP21/22. First
 articulation-domain target.
 
-Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 7 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
+Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 7 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -47,7 +47,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.ROWPVT, V.B1RETO, V.BLENDING, V.APTGRAM, V.ERBNW, V.ERBWORD
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 7 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 7 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 9.9866},
@@ -100,7 +100,7 @@ class LRP22(LevelModel):
     selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for deappfi (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 7 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 9.987 -> 9.937). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
+        "Exploratory model for deappfi (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 7 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 9.987 -> 9.937). Treat the reduced ranking as exploratory."
     )
 
 
@@ -140,7 +140,7 @@ class LRP22NoConstruct(LRP22):
         SelectionStep(
             removed=[V.DEAPPIN],
             notes=(
-                "Same-skill (null) variant of lrp22: drops deappin — DEAP initial-consonant accuracy, scored from the same picture-naming sample as the target deappfi (final-consonant accuracy), i.e. a parallel scoring of the same articulation performance. This is the deappfi null result: with the same-instrument DEAP sibling removed, tuner-inner CV MAE rises from 9.96 to 16.13 and the chosen model is ~3 trees (near-constant), confirming there is no non-articulation predictor of final-consonant accuracy at this n. The within-DEAP primary (lrp22) is kept as a convergent-validity reference; this variant documents the null. See notes/202606210930-lrp-same-skill-variants.md."
+                "Same-skill (null) variant of lrp22: drops deappin — DEAP initial-consonant accuracy, scored from the same picture-naming sample as the target deappfi (final-consonant accuracy), i.e. a parallel scoring of the same articulation performance. This is the deappfi null result: with the same-instrument DEAP sibling removed, tuner-inner CV MAE rises from 9.96 to 16.13 and the chosen model is ~3 trees (near-constant), confirming there is no non-articulation predictor of final-consonant accuracy at this n. The within-DEAP primary (lrp22) is kept as a convergent-validity reference; this variant documents the null. "
             ),
             date="2026-06-21",
             metrics_before={"cv_mae_mean": 9.9583},
@@ -148,5 +148,5 @@ class LRP22NoConstruct(LRP22):
         ),
     ]
     notes = (
-        "Same-skill (null) variant of lrp22: drops deappin (DEAP initial-consonant accuracy, same picture-naming sample as the target deappfi). Removing the parallel DEAP scoring collapses CV (tuner-inner MAE 9.96 -> 16.13, ~3-tree near-constant model): no non-articulation predictor of final-consonant accuracy at this n. The within-DEAP primary is kept as a convergent-validity reference. See notes/202606210930-lrp-same-skill-variants.md."
+        "Same-skill (null) variant of lrp22: drops deappin (DEAP initial-consonant accuracy, same picture-naming sample as the target deappfi). Removing the parallel DEAP scoring collapses CV (tuner-inner MAE 9.96 -> 16.13, ~3-tree near-constant model): no non-articulation predictor of final-consonant accuracy at this n. The within-DEAP primary is kept as a convergent-validity reference. "
     )

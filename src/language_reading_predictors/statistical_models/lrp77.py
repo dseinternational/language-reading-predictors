@@ -4,7 +4,7 @@
 """LRP77 - Period-resolved dose-response: intervention dose -> word reading (W).
 
 The gated #104 Phase-2 follow-up to the period-resolved GB diagnostic
-(``notes/202606221146-period-resolved-gb-diagnostic.md``). Phase 1 found the
+. Phase 1 found the
 structure in the near-noise gain models sits on the **dose / intervention-status
 axis**, with a weak positive dose signal concentrated in period 1 for word
 reading. This model quantifies that one signal with honest uncertainty.

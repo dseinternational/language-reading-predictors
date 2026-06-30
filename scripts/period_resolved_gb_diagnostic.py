@@ -5,8 +5,8 @@
 Period-resolved / intervention-aligned gradient-boosting diagnostic (#104, Phase 1).
 
 The gain (change-score) models are near-noise when gains are *pooled* across
-all three periods (see ``notes/202606201500-gb-replication-findings.md`` and
-``notes/202606211200-uniform-gb-fs.md``, landed in #102). This script settles a
+all three periods (and
+, landed in #102). This script settles a
 single pre-committed question: **is that weakness an artefact of pooling
 heterogeneous periods, or are gains genuinely near-unpredictable regardless of
 resolution?**
@@ -116,7 +116,7 @@ STRATA = ["all", "period1", "period2", "period3", "intervention"]
 PERIOD_STRATA = ["period1", "period2", "period3"]
 
 # Per-stratum n sanity ranges (anchored on the 11 gain targets; see
-# notes/202606211200-uniform-gb-fs.md and the Task-A counts).
+#  and the Task-A counts).
 N_RANGES = {
     "all": (148, 165),
     "period1": (45, 56),

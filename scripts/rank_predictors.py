@@ -8,7 +8,7 @@ set (no pruning), reusing the existing ``EstimatorPipeline`` stages. This is the
 ranking counterpart to the selection pipeline: it does not prune to a subset, it
 ranks and groups every candidate and reports the uncertainty.
 
-Design decisions baked in (see ``notes/202606251200-gb-feature-ranking-pilot.md``):
+Design decisions baked in:
 
 * **Cluster level is the primary unit.** Correlated predictors are clustered on the
   distance-correlation matrix and ranked *as groups* by joint (grouped) out-of-fold
@@ -66,7 +66,7 @@ from language_reading_predictors.models.registry import MODELS
 from language_reading_predictors.stats_utils import distance_corr_matrix
 
 # ── Curated same-skill (predictor↔OUTCOME contamination) map ───────────────────
-# Source: notes/202606210930-lrp-same-skill-variants.md. A predictor listed here is
+# Source: curated project mapping. A predictor listed here is
 # a *concurrent restatement of the outcome* (same skill, possibly a different
 # instrument). Distance-correlation clustering is predictor↔predictor and CANNOT
 # catch this, so it survives as curated annotation — NOT a prune. Keyed by outcome.

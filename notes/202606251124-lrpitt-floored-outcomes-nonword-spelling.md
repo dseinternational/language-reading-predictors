@@ -193,10 +193,7 @@ above.
 - Sign convention: PR **#117** (`G = 2 - group`, positive τ = intervention benefit; merged 2026-06-25). This note uses the post-#117 convention; the empirical off-floor counts are computed from the raw `group` column and are unaffected by the recode.
 - `notes/202606231600-dag-revision-consolidated.md` — locked DAG; ITT identified by
   the empty adjustment set (own baseline / age are precision only).
-- `notes/202606171000-measurement-sensitivity-audit.md` — the floor/ceiling
   evidence for `P`, `N` and others.
-- `notes/202606161416-lrp72-phonics-route-decoding.md` — the "link‑saturation" /
   floored‑count hazard precedent (graded effect not identifiable on a floored
   count).
-- `notes/202604181600-lrp52-58-findings.md` — the wide, uninformative `P` τ in the
   8‑outcome joint model.

@@ -39,7 +39,7 @@ trace = az.from_netcdf(_here / "trace.nc")
 
 LRP77 is the gated [#104](https://github.com/dseinternational/language-reading-predictors/issues/104)
 Phase-2 follow-up to the period-resolved gradient-boosting diagnostic
-(`notes/202606221146-period-resolved-gb-diagnostic.md`). Phase 1 found the
+. Phase 1 found the
 structure in the near-noise word-reading gain models sits on the **dose /
 intervention-status axis**, with a weak positive dose signal that concentrates in
 the on-treatment periods. This model quantifies that one signal with honest

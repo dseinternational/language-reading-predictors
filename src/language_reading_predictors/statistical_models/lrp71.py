@@ -42,8 +42,8 @@ SPEC = ModelSpec(
     mechanism_symbol="L",
     adjustment=["G", "A", "E", "R", "W_pre"],
     # Same flags as LRP58 plus the moderator. Age GP off, subject random
-    # intercept on — see notes/202604181700-lrp55-age-gp-drop.md and
-    # notes/202604181800-mechanism-random-intercepts.md.
+    # intercept on and
+    #.
     extra={
         "adjust_baseline_symbol": "W",
         "use_age_gp": False,

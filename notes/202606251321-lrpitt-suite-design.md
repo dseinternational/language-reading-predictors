@@ -32,8 +32,8 @@ predictor is therefore
 with the own baseline and **linear age as precision terms only** (a dedicated
 `gamma_age_prior` = Normal(0, 0.3)), **no cross-baseline conditioning** (dropped
 the `sum_{k≠own} gamma_k` term that LRP52–54 carried; prior fits found it not
-credibly non-zero, `notes/202604181600-lrp52-58-findings.md`), and **HSGPs off**
-by default (`notes/202604181445-lrp52-gp-sensitivity.md`). Attendance/sessions are
+credibly non-zero), and **HSGPs off**
+by default. Attendance/sessions are
 never conditioned on (a DAG collider).
 
 ### Sign convention

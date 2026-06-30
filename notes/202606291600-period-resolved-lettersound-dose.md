@@ -62,7 +62,6 @@ for a richer period-interaction dose model on L. Sized and framed accordingly.
 - `notes/202606260702-did-crossover-design.md` - the merged DiD family design.
 - `notes/202606231600-dag-revision-consolidated.md` - locked DAG, ID-3 (dose-response
   identification; `IS` collider rule).
-- `notes/202606221239-period-resolved-dose-response.md` - the W dose-response (LRP77)
   this mirrors.
 - `lrpdid02` (L treatment effect), `lrpdid06` (W session dose-response) - the
   machinery extended.

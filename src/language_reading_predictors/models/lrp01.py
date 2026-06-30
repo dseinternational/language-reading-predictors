@@ -15,7 +15,6 @@ Uniform feature selection (2026-06-21): reduced from the full
 distance-correlation redundancy filter (dcor >= 0.70) plus an importance
 noise-floor cut, with the baseline measure (``ewrswr``) force-kept as the
 regression-to-the-mean anchor, then re-tuned. See the SelectionStep and
-notes/202606211200-uniform-gb-fs.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -34,7 +33,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.EOWPVT, V.TROG, V.B1EXTO, V.YARCLET
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 2.9136},
@@ -96,6 +95,6 @@ class LRP01(GainModel):
         "filter + importance noise-floor cut; baseline ewrswr force-kept; no "
         "dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner "
         "CV MAE 2.914 -> 2.901). Gain models are near-noise (baseline-driven, "
-        "regression to the mean) — treat the reduced ranking as exploratory. "
-        "See notes/202606211200-uniform-gb-fs.md."
+        "regression to the mean) — treat the reduced ranking as exploratory."
+        ""
     )

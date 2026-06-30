@@ -19,7 +19,7 @@ transforms are inappropriate here because the skew is in the wrong
 direction; a reflection-log or quantile objective might be
 considered later.
 
-Uniform feature selection (2026-06-21) reduced the predictor set to the SelectionStep below via a distance-correlation redundancy filter plus an importance noise-floor cut; see ``notes/202606211200-uniform-gb-fs.md``.
+Uniform feature selection (2026-06-21) reduced the predictor set to the SelectionStep below via a distance-correlation redundancy filter plus an importance noise-floor cut.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -31,7 +31,7 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 # ── predictor selection steps (shared by all variants) ───────────────────
 #
 # Uniform feature-selection history (see the SelectionStep below).
-# See notes/202606211200-uniform-gb-fs.md for the full rationale.
+# for the full rationale.
 
 _SELECTION_STEPS: list[SelectionStep] = [
     SelectionStep(
@@ -42,7 +42,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.APTINFO, V.TROG, V.YARCSI, V.DEAPPFI, V.DEAPPIN, V.AGE, V.DEAPPVO
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. Reduces to 6 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. Reduces to 6 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 4.6203},
@@ -96,5 +96,5 @@ class LRP06(LevelModel):
     selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for yarclet (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 6 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 4.620 -> 4.364). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
+        "Exploratory model for yarclet (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 6 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 4.620 -> 4.364). Treat the reduced ranking as exploratory."
     )

@@ -122,7 +122,7 @@ def build_itt_model(
         divergences); they are kept as opt-in flags for per-outcome sensitivity
         fits. This matches the ``build_joint_model`` / ``build_mechanism_model``
         default-off convention, so a spec that omits the flags no longer
-        silently fits two unidentifiable GPs (notes/202604181445-lrp52-gp-sensitivity.md).
+        silently fits two unidentifiable GPs.
     use_varying_tau
         If True, the treatment effect is modelled as ``tau0 + g_tauA(A_std)``
         via a :func:`build_tau_modifier` GP with the tight ``HalfNormal(0.3)``
@@ -386,8 +386,7 @@ def build_joint_model(
     ``K`` independent ``f_A_k`` GPs. Turned off by default after the
     2026-04-18 LRP55 follow-up fit showed the age-GP amplitudes were the
     residual source of ~8 % divergent transitions; LOO does not prefer a
-    model with the GP included. See
-    notes/202604181700-lrp55-age-gp-drop.md for the rationale.
+    model with the GP included.
 
     ``use_residual_correlation`` (default False): when True, adds an
     ``u_i ~ MvNormal(0, Sigma)`` residual with ``Sigma = diag(sigma) Corr
@@ -395,7 +394,7 @@ def build_joint_model(
     ``pm.LKJCholeskyCov`` + ``z_raw``. Turned off by default after the
     2026-04-18 LRP55 fit showed the LKJ block was prior-dominated (all
     off-diagonal correlation CIs spanning zero, sigma_outcome CIs reaching
-    zero). See notes/202604181600-lrp52-58-findings.md for the rationale.
+    zero).
     Keep both flags available for explicit sensitivity fits.
     """
     outcomes = tuple(outcomes)
@@ -601,7 +600,7 @@ def build_mechanism_model(
     ``sigma_child ~ HalfNormal(sigma_child_prior_sigma)``. Required for
     honest standard errors on β_G, γ's, and f_mech because the 157 rows per
     mechanism fit are three phase-transitions per child and therefore not
-    independent. See notes/202604181800-mechanism-random-intercepts.md.
+    independent.
 
     ``moderator_symbol`` (default None): when set, adds a LINEAR moderation of
     the mechanism effect by the moderator post-score M. Two standardised terms
@@ -789,7 +788,7 @@ def build_mechanism_model(
         # {"G", "A"} and the age GP is off by default — so without the linear
         # term here, age would silently never enter ``eta``. That was the bug
         # that left LRP56-58 / LRP71 / LRP72 unadjusted for the age confounder;
-        # see notes/202606172100-mechanism-age-adjustment.md. When age is the
+        # When age is the
         # moderator (LRP73, ``moderator_is_covariate``) its main effect
         # ``gamma_mod * z(age)`` already represents it, so a second linear term
         # would be collinear — skip it in that case.

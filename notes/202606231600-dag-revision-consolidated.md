@@ -95,7 +95,7 @@ and the caution it carries.
 - **Why.** `GA` is the graphical encoding of the project's standing position that
   _only the randomised contrast is causal_: it makes explicit that every skill→skill
   and mediator→outcome association is confounded by a shared stable trait
-  (the CLPM / stable-trait argument, `notes/202606201117-longitudinal-modelling-stance-clpm.md`).
+  (the CLPM / stable-trait argument).
   Because `GA` does **not** point into `IG`, the graph also shows _why the ITT
   survives_ (randomisation d-separates `IG` from `GA`).
 - **Caution.** `GA` is **diagnostic, not a lever** — it is latent, never in an
@@ -121,7 +121,7 @@ and the caution it carries.
   scores, so the exposure effect is fully present in every measure. It also reconciles
   the graph with the code, which already enters observed age directly (`gamma_A` /
   `f_A`), and it makes age an **observed** confounder of every mechanism — exactly the
-  adjustment the age-fix added (`notes/202606172100-mechanism-age-adjustment.md`); this
+  adjustment the age-fix added; this
   DAG would have flagged that bug.
 - **Caution.** With `GA` latent, the "via-`g`" vs "direct-exposure" split is **not
   separately identifiable**; only the _total_ age effect is. Age is a **proxy** for
@@ -191,7 +191,7 @@ and the caution it carries.
 - **Why.** Phonetic encoding can consolidate the grapheme–phoneme knowledge that
   decoding/word-reading reuse (the invented-spelling-promotes-reading view).
 - **Caution (significant).** `PS` is **on the floor** in this sample — 78 % floor at
-  t1, 64 % at t2, ~36 % movers (`notes/202606171000-measurement-sensitivity-audit.md`)
+  t1, 64 % at t2, ~36 % movers
   — so as a _cause_ of `WR` it has little variance to transmit and the `PS → WR`,
   `LS → PS`, `PA → PS` coefficients will be weak / prior-dominated. The **direction is
   contestable**: for early readers the self-teaching view (`WR → PS`, reading builds
@@ -305,11 +305,7 @@ networkx). Structural facts in this note were re-verified with
 
 ## Related notes
 
-- `notes/202606201117-longitudinal-modelling-stance-clpm.md` — stable-trait / CLPM basis for `GA`.
-- `notes/202606172100-mechanism-age-adjustment.md` — age-as-confounder fix the exposure edges formalise.
-- `notes/202606171000-measurement-sensitivity-audit.md` — the `PS` (and other) floor/ceiling evidence.
 - `notes/202606231100-gb-selected-features-tables.md` — same-construct clustering motivating domain factors.
-- `notes/202606201500-gb-replication-findings.md` — why mechanism slopes are adjusted associations.
 
 ## References (verify exact citations + DOIs before use in the report)
 

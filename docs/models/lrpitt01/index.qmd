@@ -51,7 +51,7 @@ $$
 with Beta-Binomial likelihood $TR_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
 $\mu_i = \sigma(\eta_i)$, $N = 24$. Priors follow the shared template in `priors.py`.
 HSGPs on age and own baseline are off by default (the 2026-04-18 sensitivity
-verdict, `notes/202604181445-lrp52-gp-sensitivity.md`).
+verdict).
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

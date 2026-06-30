@@ -88,7 +88,7 @@ When adding or renaming variables, update `data_variables.py` first — everythi
 
 ### Gradient-boosting models (`models/`)
 
-One Python module per problem (`models/lrp01.py`, `models/lrp02.py`), each holding the final model plus its historical selection variants. All use LightGBM (the Random Forest path was retired 2026-04-12 — see `notes/202604121451-lightgbm-model-selection.md`). Shared hyperparameters (`DEFAULT_LGBM_PARAMS`) and helpers (`_gain_model`, `_level_model`) live in `models/registry.py`; predictor sets come from `Predictors.DEFAULT_GAIN` / `Predictors.DEFAULT_LEVEL` in `data_variables.py`, so adding a variable to a group auto-propagates. Models register at import time; downstream code imports `MODELS` from `models.registry`.
+One Python module per problem (`models/lrp01.py`, `models/lrp02.py`), each holding the final model plus its historical selection variants. All use LightGBM (the Random Forest path was retired 2026-04-12). Shared hyperparameters (`DEFAULT_LGBM_PARAMS`) and helpers (`_gain_model`, `_level_model`) live in `models/registry.py`; predictor sets come from `Predictors.DEFAULT_GAIN` / `Predictors.DEFAULT_LEVEL` in `data_variables.py`, so adding a variable to a group auto-propagates. Models register at import time; downstream code imports `MODELS` from `models.registry`.
 
 `ModelConfig` carries two selection-history fields: `variant_of` (marks a selection variant of another model — variants are **skipped** by `fit_model.py all` unless `--include-variants` is passed) and `notes` (free-text rationale persisted to `config.json`).
 

@@ -79,7 +79,7 @@ is almost always wrong, and seeing _why_ motivates everything that follows.
   2019).
 - **Floors and ceilings.** Several of our measures lack usable range in this
   population. Our own measurement-sensitivity audit
-  (`notes/202606171000-measurement-sensitivity-audit.md`;
+  (;
   `scripts/measurement_audit.py`) flags phonetic spelling (`spphon`) and nonword
   reading (`nonword`) as detection-limited/floored, and the floor-handling suite
   (`statistical_models/floor.py`) already treats them specially. A pooling
@@ -490,7 +490,7 @@ uncertainty by widening the posterior. State plainly what it does **not** do:
   observational stays an _adjusted association_, never "X drives Y".
 - It does **not** establish **temporal ordering.** Better-measured cross-sectional
   associations are still cross-sectional. The CLPM cautions in
-  `notes/202606201117-longitudinal-modelling-stance-clpm.md` still apply.
+  still apply.
 - It does **not** rescue a **construct mismatch.** If two tests labelled
   "vocabulary" actually tap different things, forcing them onto one η does not
   make them commensurate — it averages over a real difference. Anchoring assumes
@@ -568,8 +568,8 @@ already have.
 | Existing piece                                                                                          | What it already does                                                                                                                                                                                                                                                    | What MNLFA generalises                                                                                                                                                                         |
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **LRPMM01** (`statistical_models/factories.py::build_correlated_factor_model`; note `202606291700-...`) | Correlated domain factors {vocabulary (receptive + expressive indicators), code, grammar} with an LKJ correlation, positive loadings, communalities (each indicator's variance share explained by its factor), and **measurement-error-corrected factor → gain slopes** | The _within-study_ multi-factor measurement model. MNLFA adds moderated (study/age/group/language) item parameters and pools _across_ studies/instruments.                                     |
-| **LRP67** (`...::build_lcsm_model`; note `202606191100-...`)                                            | Latent logit true-score `x_m[i,t]` per measure/wave; **masked Beta-Binomial measurement leg** whose `kappa` is "measurement overdispersion, distinct from process noise"                                                                                                | Already _separates a measurement layer from a structural layer_ and _masks over observed indicators only_. That is the seed of an MNLFA measurement model and the missing-by-design mechanism. |
-| **Measurement-sensitivity audit** (`scripts/measurement_audit.py`; note `202606171000-...`)             | Descriptive per-measure floor/ceiling, range used, dispersion, mover fraction; flags detection-limited measures; "cannot estimate reliability from single summary scores"                                                                                               | The exact limitation an MNLFA item/latent layer is _designed_ to address — reliability and DIF become estimable once items load on a latent skill.                                             |
+| **LRP67** (`...::build_lcsm_model`)                                                                     | Latent logit true-score `x_m[i,t]` per measure/wave; **masked Beta-Binomial measurement leg** whose `kappa` is "measurement overdispersion, distinct from process noise"                                                                                                | Already _separates a measurement layer from a structural layer_ and _masks over observed indicators only_. That is the seed of an MNLFA measurement model and the missing-by-design mechanism. |
+| **Measurement-sensitivity audit** (`scripts/measurement_audit.py`)                                      | Descriptive per-measure floor/ceiling, range used, dispersion, mover fraction; flags detection-limited measures; "cannot estimate reliability from single summary scores"                                                                                               | The exact limitation an MNLFA item/latent layer is _designed_ to address — reliability and DIF become estimable once items load on a latent skill.                                             |
 | **HSGP + Beta-Binomial + nutpie stack**                                                                 | Smooth age effects; overdispersion-robust k-of-N likelihood; the sampler and workflow                                                                                                                                                                                   | Become, respectively, the _moderation functions_, the _checklist measurement link_, and the _estimation engine_ of an MNLFA. No new toolchain.                                                 |
 
 In short: the measurement leg already exists (LRP67), the multi-factor structure
@@ -598,8 +598,7 @@ audit already tells us why we need the latent layer. MNLFA assembles them and le
   partial testing possible.
 - **Partial-invariance modelling is a judgement, not an automation.** Shrinkage/
   horseshoe priors free only the DIF the data demand, but _which_ anchors to
-  trust is a substantive call; regularised anchor selection (Belzak and Bauer
-  2020) helps but does not remove the need for psychometric judgement.
+  trust is a substantive call; regularised anchor selection (Belzak and Bauer 2020) helps but does not remove the need for psychometric judgement.
 - **Complexity vs interpretability.** An MNLFA over several cohorts and constructs
   has many more parameters and failure modes than our current per-outcome models.
   It demands prior predictive checks, simulation-based identifiability checks, and
