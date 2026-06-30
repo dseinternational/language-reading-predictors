@@ -28,6 +28,10 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
+from dse_research_utils.statistics.models.pymc_utils import (
+    get_variables_dict as _variables_dict,
+)
+
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.hsgp import (
     build_hsgp_1d,
@@ -2114,17 +2118,6 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
         n_obs=int(keep.sum()),
         n_children=int(len(np.unique(child_idx))),
     )
-
-
-def _variables_dict(model: pm.Model) -> dict[str, pt.TensorVariable]:
-    out: dict[str, pt.TensorVariable] = {}
-    for rv in model.free_RVs:
-        out[rv.name] = rv
-    for det in model.deterministics:
-        out[det.name] = det
-    for rv in model.observed_RVs:
-        out[rv.name] = rv
-    return out
 
 
 # ---------------------------------------------------------------------------
