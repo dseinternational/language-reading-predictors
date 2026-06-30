@@ -4,9 +4,12 @@
 """
 Optuna hyperparameter tuning for language-reading-predictors models.
 
-Uses ``GroupKFold`` CV grouped by ``subject_id`` to match the fit pipeline,
-so selected hyperparameters reflect honest generalisation. Each trial's CV
-loop carves an inner ``GroupShuffleSplit`` slice out of the training fold
+Uses ``GroupKFold`` CV grouped by ``subject_id`` to match the fit pipeline —
+both the grouping and (by default) the fold count, which is taken from the
+model's own ``cv_splits`` so the tuned ``n_estimators`` is calibrated against
+the same train-fold size the production fit uses (pass ``--cv-splits`` to
+override). Selected hyperparameters therefore reflect honest generalisation.
+Each trial's CV loop carves an inner ``GroupShuffleSplit`` slice out of the training fold
 for early stopping — the outer val fold is never shown to
 ``early_stopping`` — so ``best_iteration_`` and the fold RMSE are
 independent. The mean best iteration across folds is saved as the tuned
@@ -50,6 +53,10 @@ from language_reading_predictors.models._reporting import (
     print_table,
 )
 from language_reading_predictors.models.common import ModelConfig
+from language_reading_predictors.models.lgbm_signed_log_pipeline import (
+    signed_expm1,
+    signed_log1p,
+)
 from language_reading_predictors.models.registry import MODELS
 from rich.panel import Panel
 
@@ -129,19 +136,13 @@ _SCORING_FUNCS: dict[str, Callable[[np.ndarray, np.ndarray], float]] = {
 
 # Target transforms: (forward, inverse) functions applied to y before
 # fitting / after predicting. Scoring always happens in the original
-# target space so tuning metrics remain comparable across transforms.
-def _signed_log1p(y):
-    return np.sign(y) * np.log1p(np.abs(y))
-
-
-def _signed_expm1(x):
-    return np.sign(x) * np.expm1(np.abs(x))
-
-
+# target space so tuning metrics remain comparable across transforms. The
+# signed-log pair is imported from the pipeline module so the tuner cannot
+# drift from the fit-time transform it is meant to mirror.
 _TARGET_TRANSFORMS: dict[str, tuple[Callable[[np.ndarray], np.ndarray], Callable[[np.ndarray], np.ndarray]]] = {
     "none": (lambda y: y, lambda y: y),
     "log1p": (np.log1p, np.expm1),
-    "signed_log": (_signed_log1p, _signed_expm1),
+    "signed_log": (signed_log1p, signed_expm1),
 }
 
 
@@ -255,7 +256,7 @@ def tune(
     model_id: str,
     n_trials: int,
     timeout: float | None,
-    cv_splits: int,
+    cv_splits: int | None,
     seed: int,
     early_stopping_rounds: int,
     max_n_estimators: int,
@@ -272,6 +273,11 @@ def tune(
         raise SystemExit(1)
 
     cfg = MODELS[key]
+    # Default the fold count to the model's own cv_splits so the tuned
+    # n_estimators is calibrated against the same train-fold size the
+    # production ("reporting") fit uses, rather than a fixed 10-fold proxy.
+    if cv_splits is None:
+        cv_splits = cfg.cv_splits
     pipeline_name = cfg.pipeline_cls.__name__
     if pipeline_name not in _SUPPORTED_PIPELINES:
         print(
@@ -452,7 +458,12 @@ def main() -> None:
         default=None,
         help="Max seconds for the whole study (None = no limit).",
     )
-    parser.add_argument("--cv-splits", type=int, default=10)
+    parser.add_argument(
+        "--cv-splits",
+        type=int,
+        default=None,
+        help="GroupKFold folds (default: the model's own cv_splits).",
+    )
     parser.add_argument("--seed", type=int, default=47)
     parser.add_argument(
         "--early-stopping-rounds",

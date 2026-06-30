@@ -1531,19 +1531,6 @@ def _write_dose_slope_summary(
 # Mediation pipeline (LRP59)
 # ---------------------------------------------------------------------------
 
-_MED_COEF_VARS = [
-    "a0", "a_G", "a_L", "a_A", "a_E", "a_R", "kappa_M",
-    "b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_E", "b_R", "kappa_Y",
-]
-
-# LRP62 (gaussian_composite): the mediator leg is Normal (a_comp / sigma_M) and
-# the observed mediator node is "M_post" rather than the Beta-Binomial "L_post".
-_MED_COEF_VARS_GAUSSIAN = [
-    "a0", "a_G", "a_comp", "a_A", "a_E", "a_R", "sigma_M",
-    "b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_E", "b_R", "kappa_Y",
-]
-
-
 _T3_SENSITIVITY_TIME = 3  # post-RCT wave used for the temporal-ordering check
 
 
