@@ -34,7 +34,7 @@ intervention benefit (`G = 2 − group`).
 
 | Layer | Family (id prefix)                                              | Count | Purpose                                                                                           |
 | ----- | --------------------------------------------------------------- | ----: | ------------------------------------------------------------------------------------------------- |
-| 1     | Gradient-boosting discovery (`lrp01–42`)                        |    42 | Rank predictors of each outcome's gain and level                                                  |
+| 1     | Gradient-boosting discovery (`lrpgbg##` / `lrpgbl##`)           |    54 | Rank predictors of each outcome's gain and level                                                  |
 | 2     | ITT suite (`lrpitt`)                                            |    26 | Randomised intervention effect on each outcome (+ joint, SES, ability robustness, generalisation) |
 | 2     | Gain factors (`lrpgf`)                                          |    16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain              |
 | 2     | Level factors (`lrplf`)                                         |     8 | Companion levels view: group×time and ability×time per timepoint                                  |
@@ -46,7 +46,7 @@ intervention benefit (`G = 2 − group`).
 
 Counts are of base models on `main`. Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below; Layer 1 adds
-four `_noconstruct` variants (`lrp04_noconstruct`, `lrp18_noconstruct`, `lrp20_noconstruct`, `lrp22_noconstruct`) on top of the 42 base
+four `_noconstruct` variants (`lrpgbl06_noconstruct`, `lrpgbl08_noconstruct`, `lrpgbl07_noconstruct`, `lrpgbl16_noconstruct`) on top of the 42 base
 modules.
 
 ## Outcome symbols (Layer 2)
@@ -70,7 +70,7 @@ Beta-Binomial trial ceiling.
 
 ---
 
-## Layer 1 — Gradient-boosting discovery (`lrp01–lrp42`)
+## Layer 1 — Gradient-boosting discovery (`lrpgbg##` / `lrpgbl##`)
 
 **Purpose.** For each outcome, fit a tuned LightGBM (GroupKFold by `subject_id`) and rank
 predictors by out-of-fold permutation importance + mean |SHAP|, reading direction and
@@ -81,53 +81,61 @@ level).
 
 Gain-model rankings are near-noise (baseline-driven regression to the mean); level-model
 rankings are largely concurrent same-construct correlation — read both under those
-caveats (,
-`notes/202606231100-gb-selected-features-tables.md`). The project is migrating this layer
+caveats (`notes/202606231100-gb-selected-features-tables.md`). The project is migrating this layer
 from hard feature _selection_ to full-set _ranking_ (`scripts/rank_predictors.py`, issue
 `#116`); `_noconstruct` variants drop a same-instrument sibling to expose concurrent
 correlation.
 
-### Core outcomes (`lrp01–lrp24`)
+### Core outcomes (reading / language outcomes)
 
-| Gain    | Level   | Outcome                                    |
-| ------- | ------- | ------------------------------------------ |
-| `lrp01` | `lrp02` | Word reading (`ewrswr`)                    |
-| `lrp03` | `lrp04` | Expressive vocabulary (`eowpvt`)           |
-| `lrp05` | `lrp06` | Letter-sound knowledge (`yarclet`)         |
-| `lrp07` | `lrp08` | Receptive vocabulary (`rowpvt`)            |
-| `lrp09` | `lrp10` | Basic concept knowledge (`celf`)           |
-| `lrp11` | `lrp12` | Receptive grammar (`trog`)                 |
-| `lrp13` | `lrp14` | Nonword reading (`nonword`)                |
-| `lrp15` | `lrp16` | Phoneme blending (`blending`)              |
-| `lrp17` | `lrp18` | Expressive grammar (`aptgram`)             |
-| `lrp19` | `lrp20` | Expressive information (`aptinfo`)         |
-| `lrp21` | `lrp22` | DEAP fine articulation (`deappfi`)         |
-| `lrp23` | `lrp24` | Taught vocabulary (`b1extau` gain / level) |
+| Gain       | Level      | Outcome                                     |
+| ---------- | ---------- | ------------------------------------------- |
+| `lrpgbg12` | `lrpgbl12` | Word reading (`ewrswr`)                     |
+| `lrpgbg06` | `lrpgbl06` | Expressive vocabulary (`eowpvt`)            |
+| `lrpgbg09` | `lrpgbl09` | Letter-sound knowledge (`yarclet`)          |
+| `lrpgbg05` | `lrpgbl05` | Receptive vocabulary (`rowpvt`)             |
+| `lrpgbg14` | `lrpgbl14` | Basic concept knowledge (`celf`)            |
+| `lrpgbg15` | `lrpgbl15` | Receptive grammar (`trog`)                  |
+| `lrpgbg13` | `lrpgbl13` | Nonword reading (`nonword`)                 |
+| `lrpgbg10` | `lrpgbl10` | Phoneme blending (`blending`)               |
+| `lrpgbg08` | `lrpgbl08` | Expressive grammar (`aptgram`)              |
+| `lrpgbg07` | `lrpgbl07` | Expressive information (`aptinfo`)          |
+| `lrpgbg16` | `lrpgbl16` | DEAP fine articulation (`deappfi`)          |
+| `lrpgbg02` | `lrpgbl02` | Taught expressive vocabulary (`b1extau`)    |
+| `lrpgbg01` | `lrpgbl01` | Taught receptive vocabulary (`b1retau`)     |
+| `lrpgbg03` | `lrpgbl03` | Not-taught receptive vocabulary (`b1rent`)  |
+| `lrpgbg04` | `lrpgbl04` | Not-taught expressive vocabulary (`b1exnt`) |
+| `lrpgbg11` | `lrpgbl11` | Phonetic spelling (`spphon`)                |
 
-Four level models carry a `_noconstruct` variant (`lrp04_noconstruct`, `lrp18_noconstruct`, `lrp20_noconstruct`, `lrp22_noconstruct`) that
+The last four rows are the #116 Phase-B additions completing the 13 priority
+outcomes; their hyperparameters are borrowed from the nearest analogue pending a
+target-specific tune, and they do not yet have bespoke report templates (Phase C).
+`spphon` is heavily floored, so its gain ranking is expected to be near-noise.
+
+Four level models carry a `_noconstruct` variant (`lrpgbl06_noconstruct`, `lrpgbl08_noconstruct`, `lrpgbl07_noconstruct`, `lrpgbl16_noconstruct`) that
 drops the same-skill sibling to expose how much of the ranking is concurrent same-construct
 correlation.
 
-### Speech, verbal-memory and language-sample measures (`lrp25–lrp42`)
+### Speech, verbal-memory and language-sample measures (`lrpgbg`/`lrpgbl` 17–28)
 
 Exploratory predictability discovery for measures that had only ever been predictors,
 to inform the DAG's measurement side.
 LSAM and `deapp_c` are level-only.
 
-| Gain    | Level   | Outcome                                                 |
-| ------- | ------- | ------------------------------------------------------- |
-| `lrp25` | `lrp26` | Early Repetition Battery — nonword repetition (`erbnw`) |
-| `lrp27` | `lrp28` | Early Repetition Battery — word repetition (`erbword`)  |
-| `lrp29` | `lrp30` | Early Repetition Battery — total repetition (`erbto`)   |
-| `lrp31` | `lrp32` | DEAP initial-consonant articulation (`deappin`)         |
-| `lrp33` | `lrp34` | DEAP vowel articulation (`deappvo`)                     |
-| `lrp35` | `lrp36` | DEAP average articulation (`deappav`)                   |
-| —       | `lrp37` | DEAP composite articulation (`deapp_c`)                 |
-| —       | `lrp38` | Language sample — mean length of utterance (`lsammlu`)  |
-| —       | `lrp39` | Language sample — maximum utterance length (`lsammax`)  |
-| —       | `lrp40` | Language sample — intelligibility (`lsamint`)           |
-| —       | `lrp41` | Language sample — unique words (`lsamun`)               |
-| —       | `lrp42` | Language sample — total words (`lsamto`)                |
+| Gain       | Level      | Outcome                                                 |
+| ---------- | ---------- | ------------------------------------------------------- |
+| `lrpgbg17` | `lrpgbl17` | Early Repetition Battery — nonword repetition (`erbnw`) |
+| `lrpgbg18` | `lrpgbl18` | Early Repetition Battery — word repetition (`erbword`)  |
+| `lrpgbg19` | `lrpgbl19` | Early Repetition Battery — total repetition (`erbto`)   |
+| `lrpgbg20` | `lrpgbl20` | DEAP initial-consonant articulation (`deappin`)         |
+| `lrpgbg21` | `lrpgbl21` | DEAP vowel articulation (`deappvo`)                     |
+| `lrpgbg22` | `lrpgbl22` | DEAP average articulation (`deappav`)                   |
+| —          | `lrpgbl23` | DEAP composite articulation (`deapp_c`)                 |
+| —          | `lrpgbl24` | Language sample — mean length of utterance (`lsammlu`)  |
+| —          | `lrpgbl25` | Language sample — maximum utterance length (`lsammax`)  |
+| —          | `lrpgbl26` | Language sample — intelligibility (`lsamint`)           |
+| —          | `lrpgbl27` | Language sample — unique words (`lsamun`)               |
+| —          | `lrpgbl28` | Language sample — total words (`lsamto`)                |
 
 ---
 

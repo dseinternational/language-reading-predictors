@@ -40,7 +40,7 @@ class ShapScatterSpec:
 
 # The standard single-entry SHAP scatter spec shared across the GB models
 # (#82): every predictor, SHAP auto-colouring. Models with bespoke scatter
-# needs (e.g. LRP01) still declare their own list.
+# needs (e.g. LRPGBG12) still declare their own list.
 DEFAULT_SHAP_SCATTER_SPECS: tuple[ShapScatterSpec, ...] = (
     ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
 )
@@ -157,7 +157,7 @@ class ModelConfig:
     """All per-model configuration — the only thing that differs between models."""
 
     model_id: str
-    """Short model identifier, e.g. 'lrp01'."""
+    """Short model identifier, e.g. 'lrpgbg12'."""
 
     description: str
     """Human-readable description shown in console output and reports."""
@@ -201,7 +201,7 @@ class ModelConfig:
 
     variant_of: str | None = None
     """If set, this model is a selection variant of another model (e.g.
-    'lrp01'). Variants are excluded from ``fit_model.py all`` by default."""
+    'lrpgbg12'). Variants are excluded from ``fit_model.py all`` by default."""
 
     notes: str = ""
     """Free-text rationale stored in ``config.json`` and surfaced in reports —

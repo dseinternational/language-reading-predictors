@@ -8,7 +8,7 @@ Reads ``output/models/{model_id}/cv_scores.csv`` for each model listed
 on the command line. All listed models must share the same
 cross-validation splits (same ``GroupKFold`` n_splits, same seed, same
 data rows) so per-fold scores can be paired by fold number. This is
-the standard case across variants of a single task — e.g. ``lrp02``
+the standard case across variants of a single task — e.g. ``lrpgbl12``
 and all its variants use ``GroupKFold(n_splits=10)`` at seed 47.
 
 For each metric the script reports:
@@ -27,8 +27,8 @@ Usage
 
 ::
 
-    python scripts/compare_variants.py lrp02 lrp02_select02 lrp02_log lrp02_select02_log
-    python scripts/compare_variants.py lrp02_log lrp02_select02_log --metrics mae r2
+    python scripts/compare_variants.py lrpgbl12 lrpgbl12_select02 lrpgbl12_log lrpgbl12_select02_log
+    python scripts/compare_variants.py lrpgbl12_log lrpgbl12_select02_log --metrics mae r2
 """
 
 from __future__ import annotations

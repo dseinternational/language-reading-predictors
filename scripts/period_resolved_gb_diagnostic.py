@@ -72,7 +72,7 @@ Usage
 ::
 
     python scripts/period_resolved_gb_diagnostic.py
-    python scripts/period_resolved_gb_diagnostic.py --models lrp01 lrp07
+    python scripts/period_resolved_gb_diagnostic.py --models lrpgbg12 lrpgbg05
     python scripts/period_resolved_gb_diagnostic.py --perm-repeats 30
 """
 

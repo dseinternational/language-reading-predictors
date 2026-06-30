@@ -13,15 +13,15 @@ Example
 -------
 ::
 
-    class LRP01(GainModel):
-        model_id = "lrp01"
+    class LRPGBG12(GainModel):
+        model_id = "lrpgbg12"
         target_var = V.EWRSWR_GAIN
         include = [V.EWRSWR]
         cv_splits = 53
 
-    class LRP01Select01(LRP01):
-        model_id = "lrp01_select01"
-        variant_of = "lrp01"
+    class LRPGBG12Select01(LRPGBG12):
+        model_id = "lrpgbg12_select01"
+        variant_of = "lrpgbg12"
         selection_steps = [SelectionStep(removed=[V.BEHAV], notes="...")]
 """
 
@@ -110,7 +110,7 @@ class ModelDefinition:
     # ── required (must be set by concrete subclasses) ────────────────────
 
     model_id: ClassVar[str | None] = None
-    """Short identifier, e.g. ``"lrp01"``. ``None`` for abstract bases."""
+    """Short identifier, e.g. ``"lrpgbg12"``. ``None`` for abstract bases."""
 
     target_var: ClassVar[str]
     """Column name of the target variable."""

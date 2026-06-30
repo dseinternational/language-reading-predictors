@@ -14,7 +14,7 @@ Design decisions baked in:
   distance-correlation matrix and ranked *as groups* by joint (grouped) out-of-fold
   permutation importance — see ``cluster_ranking.csv``. Per-feature scores
   (``predictor_ranking.csv``) are within-cluster detail. The reason: per-feature
-  permutation z is highly sensitive to ``cv_splits`` (in the pilot, ``lrp04`` `b1exto`
+  permutation z is highly sensitive to ``cv_splits`` (in the pilot, ``lrpgbl06`` `b1exto`
   z ran 1.9 → 1.5 → 0.33 at cv = 5 / 10 / 51), whereas the cluster-level ordering is
   stable. Read clusters first.
 * **The cross-validation config is pinned and recorded.** ``--cv-splits`` and
@@ -33,9 +33,9 @@ no ad-hoc model id has). ``GroupKFold`` by ``subject_id``, seed 47.
 
 Usage::
 
-    python scripts/rank_predictors.py --model lrp04          # reporting-fidelity
-    python scripts/rank_predictors.py --model lrp01 --quick   # fast dev tier
-    python scripts/rank_predictors.py --model lrp07 --cv-splits 10 --cutoff 0.4
+    python scripts/rank_predictors.py --model lrpgbl06          # reporting-fidelity
+    python scripts/rank_predictors.py --model lrpgbg12 --quick   # fast dev tier
+    python scripts/rank_predictors.py --model lrpgbg05 --cv-splits 10 --cutoff 0.4
 
 Artefacts land in ``output/ranking/<model>/`` (gitignored): ``cluster_ranking.csv``
 (primary), ``predictor_ranking.csv``, ``cluster_cutoff_sensitivity.csv``,
@@ -79,8 +79,9 @@ SAME_SKILL_SIBLINGS: dict[str, list[str]] = {
     "deappvo": ["deappfi", "deappin"],  # DEAP voicing — same DEAP instrument
     "rowpvt": ["b1reto"],    # receptive vocab — ROWPVT vs total b1reto
     # Early Repetition Battery (ERB) phonological-memory sub-scores — same instrument
-    # (#112 LRP25-42 recast: replaces the per-model _noconstruct sibling-drop variants;
-    # read the sibling-dropped skill off ranking_excluding_same_skill.csv).
+    # (#112 LRPGBG17–19 / LRPGBL17–19 recast: replaces the per-model _noconstruct
+    # sibling-drop variants; read the sibling-dropped skill off
+    # ranking_excluding_same_skill.csv).
     "erbnw": ["erbword", "erbto"],
     "erbword": ["erbnw", "erbto"],
     "erbto": ["erbnw", "erbword"],
@@ -517,7 +518,7 @@ def _print_summary(model_id, target, siblings, full, ranking, cluster_rank, sens
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Rank predictors on the full set (issue #116, Phase 1).")
-    ap.add_argument("--model", required=True, help="model id, e.g. lrp04, lrp01, lrp07")
+    ap.add_argument("--model", required=True, help="model id, e.g. lrpgbl06, lrpgbg12, lrpgbg05")
     ap.add_argument("--cutoff", type=float, default=0.4, help="dendrogram cut height (default 0.4)")
     ap.add_argument("--cv-splits", type=int, default=None,
                     help="GroupKFold splits (default: the model's registered cv_splits)")
