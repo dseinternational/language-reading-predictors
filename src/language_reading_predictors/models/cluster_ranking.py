@@ -45,6 +45,17 @@ SAME_SKILL_SIBLINGS: dict[str, list[str]] = {
 }
 
 
+def _standardise_perm(df: pd.DataFrame) -> pd.DataFrame:
+    """Rename the permutation-importance columns to the ranking schema and select.
+
+    Shared by both entry points so the two surfaces standardise the (differently
+    sourced) permutation-importance frame identically.
+    """
+    return df.rename(
+        columns={"importance_mean": "perm_imp_mean", "importance_std": "perm_imp_sd"}
+    )[["feature", "perm_imp_mean", "perm_imp_sd"]]
+
+
 def aggregate_cluster_importance(
     perm_df: pd.DataFrame, clusters: pd.DataFrame
 ) -> pd.DataFrame:
@@ -59,19 +70,19 @@ def aggregate_cluster_importance(
     ``perm_df`` has ``feature`` / ``importance_mean`` / ``importance_std``;
     ``clusters`` has ``feature`` / ``cluster_id``.
     """
-    m = clusters.merge(
-        perm_df.rename(
-            columns={"importance_mean": "perm_imp_mean", "importance_std": "perm_imp_sd"}
-        )[["feature", "perm_imp_mean", "perm_imp_sd"]],
-        on="feature",
-        how="left",
-    )
+    m = clusters.merge(_standardise_perm(perm_df), on="feature", how="left")
     g = m.groupby("cluster_id", sort=False)
     out = pd.DataFrame(
         {
             "cluster_id": list(g.groups.keys()),
             "cluster_perm_imp_mean": g["perm_imp_mean"].mean().to_numpy(),
-            # member SDs combined in quadrature, averaged → a propagated spread.
+            # Root-mean-square of the per-member permutation SDs: a rough
+            # *descriptive* spread of member uncertainty, NOT the standard error
+            # of the cluster mean (that would divide the quadrature sum by
+            # n_members). Display-only — clusters are ranked by the mean above —
+            # and not directly comparable to the grouped-permutation path's
+            # cluster_perm_imp_sd in scripts/rank_predictors.py (the std of the
+            # regrouped delta samples, a different statistic on the same column).
             "cluster_perm_imp_sd": g["perm_imp_sd"]
             .apply(lambda s: float(np.sqrt(np.nanmean(np.square(s.to_numpy())))))
             .to_numpy(),
@@ -88,9 +99,7 @@ def assemble_ranking(pipe, target, siblings, cluster_imp):
     """Per-feature detail table, ordered cluster-first then within-cluster importance."""
     ctx = pipe.context
     od = ctx.output_dir
-    perm = ctx.perm_importance_df.rename(
-        columns={"importance_mean": "perm_imp_mean", "importance_std": "perm_imp_sd"}
-    )[["feature", "perm_imp_mean", "perm_imp_sd"]]
+    perm = _standardise_perm(ctx.perm_importance_df)
     clusters = pd.read_csv(od / "cluster_table.csv")  # feature, cluster_id
     shapd = pd.read_csv(od / "shap_direction_diagnostics.csv")[
         ["feature", "shap_mean_abs", "feature_shap_spearman"]

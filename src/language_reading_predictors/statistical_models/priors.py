@@ -147,7 +147,11 @@ def eta_partial_pool_prior() -> Continuous:
 
 
 def predictor_slope_prior(sigma: float = 0.5) -> Continuous:
-    """LRP65 standardised-predictor slope ~ Normal(0, sigma) (default 0.5).
+    """LRP65 standardised-predictor slope ~ Normal(0, 0.5) by default.
+
+    (Parametrised by ``sigma``; the prior table reports this default scale — the
+    docstring's numeric value is what ``_dist_from_doc`` extracts, so the table
+    shows ``Normal(0, 0.5)`` rather than the literal token ``sigma``.)
 
     Per-SD coefficient on a standardised baseline predictor in the between-child
     adjusted model (letter sounds, language composite, blending, age, and the
@@ -243,6 +247,11 @@ _RV_TO_CTOR: dict[str, str] = {
     "mu_dose": "beta_mech",
     "sigma_dose": "sigma_dose",
     "b_M": "b_path",
+    # Two-mediator (mediation_multi / LRP64) mediator -> outcome b-paths. Without
+    # these explicit entries they fall through the ``b_`` prefix to gamma_cross
+    # and the prior table would misreport their Normal(0, 1) scale as Normal(0, 0.3).
+    "b_L": "b_path",
+    "b_E": "b_path",
     "sigma_M": "sigma_mediator",
     "eta_main": "eta_main",
     "eta_tau": "eta_tau",

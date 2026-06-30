@@ -698,8 +698,9 @@ class EstimatorPipeline:
           feature placed in the top *top_k* by importance;
         - ``importance_mean`` / ``importance_std`` — bootstrap distribution
           of per-feature importance;
-        - ``rank_median`` / ``rank_iqr`` — distribution of the feature's
-          rank across bootstraps.
+        - ``rank_median`` / ``rank_q25`` / ``rank_q75`` / ``rank_iqr`` —
+          distribution of the feature's rank across bootstraps (the IQR is
+          ``rank_q75 - rank_q25``).
 
         High appearance rate + low rank IQR → robustly important.
         Compare against the single-point permutation importance to
@@ -803,6 +804,9 @@ class EstimatorPipeline:
                     "rank_median": float(np.median(ranks_arr)),
                     "rank_q25": float(np.quantile(ranks_arr, 0.25)),
                     "rank_q75": float(np.quantile(ranks_arr, 0.75)),
+                    "rank_iqr": float(
+                        np.quantile(ranks_arr, 0.75) - np.quantile(ranks_arr, 0.25)
+                    ),
                 }
             )
 
@@ -827,6 +831,7 @@ class EstimatorPipeline:
                     "rank_median",
                     "rank_q25",
                     "rank_q75",
+                    "rank_iqr",
                 ],
             )
         )

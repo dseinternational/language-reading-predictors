@@ -21,7 +21,7 @@ sample (unlike the reading targets where floor effects
 dominate).
 
 DEAP measures have been used as predictors across every other
-model in the suite but never as targets until LRPGBG16/22. First
+model in the suite but never as targets until LRPGBL16/22. First
 articulation-domain target.
 
 Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 7 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below.

@@ -2604,7 +2604,17 @@ def build_lcsm_model(
     )
     mask = np.stack([panel.obs_mask[s] for s in OUT], axis=2)  # (N, T, K) bool
     n_trials_vec = np.array([panel.n_trials[s] for s in OUT], dtype=int)  # (K,)
-    # Observed wave-1 mean logit anchors the initial-latent prior mean.
+    # Observed wave-1 mean logit anchors the initial-latent prior mean. Guard the
+    # all-NaN case loudly: an outcome with no observed wave-1 value would make
+    # np.nanmean return NaN, which would silently poison mu1's prior mean and
+    # surface only as an opaque sampler failure.
+    missing_w1 = [s for s in OUT if not np.isfinite(panel.logit[s][:, 0]).any()]
+    if missing_w1:
+        raise ValueError(
+            "LCSM wave-1 anchor is undefined (no observed first-wave value) for: "
+            f"{', '.join(missing_w1)}. Drop the outcome or choose a panel with "
+            "wave-1 observations."
+        )
     w1_anchor = np.array(
         [np.nanmean(panel.logit[s][:, 0]) for s in OUT], dtype=float
     )
