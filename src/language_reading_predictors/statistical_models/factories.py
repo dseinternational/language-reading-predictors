@@ -57,6 +57,27 @@ def _scalar_prior(name: str, prior_ctor) -> pt.TensorVariable:
     return prior_ctor().to_pymc(name)
 
 
+def _add_child_random_intercept(
+    eta: pt.TensorVariable,
+    child_idx: pt.TensorVariable,
+    *,
+    sigma_prior_sigma: float = 0.5,
+) -> pt.TensorVariable:
+    """Add a non-centred subject random intercept to ``eta`` (call inside a model).
+
+    Creates ``sigma_child ~ HalfNormal(sigma_prior_sigma)``,
+    ``u_child_raw ~ Normal(0, 1, dims="child")`` and the deterministic
+    ``u_child = sigma_child * u_child_raw``, then returns ``eta + u_child[child_idx]``.
+    Centralises the block previously copy-pasted across the mechanism,
+    dose-response, DiD, gain-factors and level-factors factories so the random-
+    intercept parameterisation cannot drift between them.
+    """
+    sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_prior_sigma)
+    u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+    u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
+    return eta + u_child[child_idx]
+
+
 @dataclass
 class BuiltModel:
     model: pm.Model
@@ -756,12 +777,9 @@ def build_mechanism_model(
         )
 
         if use_subject_random_intercept:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
-            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
-            u_child = pm.Deterministic(
-                "u_child", sigma_child * u_child_raw, dims="child"
+            eta = _add_child_random_intercept(
+                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
             )
-            eta = eta + u_child[child_idx_d]
 
         # Confounder linear terms (on logit scale for measures)
         for s in confounder_symbols:
@@ -999,10 +1017,9 @@ def build_dose_response_model(
             eta = eta + gamma_A * A_std_d
 
         if use_subject_random_intercept:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
-            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
-            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
-            eta = eta + u_child[child_idx_d]
+            eta = _add_child_random_intercept(
+                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
+            )
 
         # Dose effect (the estimand). Standardised dose -> slope is per-1-SD.
         if period_varying_dose:
@@ -1157,16 +1174,10 @@ def build_did_model(
             eta = eta + gamma_A * A_std_d
 
         if use_child_re:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=0.5)
-            u_child = pm.Deterministic(
-                "u_child",
-                sigma_child * pm.Normal("u_child_raw", 0.0, 1.0, dims="child"),
-                dims="child",
-            )
             child_idx_d = pm.Data(
                 "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
             )
-            eta = eta + u_child[child_idx_d]
+            eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=0.5)
 
         # Linear predictor without the treatment term, so the pipeline can read
         # the off-treatment baseline for the average-marginal-effect translation.
@@ -2285,10 +2296,9 @@ def build_gain_factors_model(
             eta = eta + gi * int_d[pair]
 
         if use_subject_random_intercept:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
-            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
-            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
-            eta = eta + u_child[child_idx_d]
+            eta = _add_child_random_intercept(
+                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
+            )
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
@@ -2409,10 +2419,9 @@ def build_level_factors_model(
             eta = eta + gamma_grp_ability * ga_prod
 
         if use_subject_random_intercept:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
-            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
-            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
-            eta = eta + u_child[child_idx_d]
+            eta = _add_child_random_intercept(
+                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
+            )
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
