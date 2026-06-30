@@ -32,17 +32,17 @@ intervention benefit (`G = 2 − group`).
 
 ## At a glance
 
-| Layer | Family (id prefix) | Count | Purpose |
-|---|---|--:|---|
-| 1 | Gradient-boosting discovery (`lrpgbg##` / `lrpgbl##`) | 54 | Rank predictors of each outcome's gain and level |
-| 2 | ITT suite (`lrpitt`) | 26 | Randomised intervention effect on each outcome (+ joint, SES, ability robustness, generalisation) |
-| 2 | Gain factors (`lrpgf`) | 16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain |
-| 2 | Level factors (`lrplf`) | 8 | Companion levels view: group×time and ability×time per timepoint |
-| 2 | Waitlist-crossover / DiD (`lrpdid`) | 6 | Within-person replication of the ITT via the waitlist crossover |
-| 2 | Aligned per-protocol (`lrpal`) | 9 | Onset-aligned single 40-week gain per child (associational) |
-| 2 | Mechanism (`lrp56–58`, `71–73` incl. `72base`/`73base`) | 8 | Adjusted dose-response of one skill on another |
-| 2 | Mediation (`lrp59`, `62`, `64`) | 3 | How much of a reading gain runs through a given skill |
-| 2 | Predictor / dynamics (`lrp65`, `67`, `77` incl. `77a`/`77base`) | 5 | Baseline predictors, within-child change, and dose–response of word reading |
+| Layer | Family (id prefix)                                              | Count | Purpose                                                                                           |
+| ----- | --------------------------------------------------------------- | ----: | ------------------------------------------------------------------------------------------------- |
+| 1     | Gradient-boosting discovery (`lrpgbg##` / `lrpgbl##`)           |    54 | Rank predictors of each outcome's gain and level                                                  |
+| 2     | ITT suite (`lrpitt`)                                            |    26 | Randomised intervention effect on each outcome (+ joint, SES, ability robustness, generalisation) |
+| 2     | Gain factors (`lrpgf`)                                          |    16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain              |
+| 2     | Level factors (`lrplf`)                                         |     8 | Companion levels view: group×time and ability×time per timepoint                                  |
+| 2     | Waitlist-crossover / DiD (`lrpdid`)                             |     6 | Within-person replication of the ITT via the waitlist crossover                                   |
+| 2     | Aligned per-protocol (`lrpal`)                                  |     9 | Onset-aligned single 40-week gain per child (associational)                                       |
+| 2     | Mechanism (`lrp56–58`, `71–73` incl. `72base`/`73base`)         |     8 | Adjusted dose-response of one skill on another                                                    |
+| 2     | Mediation (`lrp59`, `62`, `64`)                                 |     3 | How much of a reading gain runs through a given skill                                             |
+| 2     | Predictor / dynamics (`lrp65`, `67`, `77` incl. `77a`/`77base`) |     5 | Baseline predictors, within-child change, and dose–response of word reading                       |
 
 Counts are of base models on `main`. Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below; Layer 1 adds
@@ -88,24 +88,24 @@ correlation.
 
 ### Core outcomes (reading / language outcomes)
 
-| Gain | Level | Outcome |
-|---|---|---|
-| `lrpgbg12` | `lrpgbl12` | Word reading (`ewrswr`) |
-| `lrpgbg06` | `lrpgbl06` | Expressive vocabulary (`eowpvt`) |
-| `lrpgbg09` | `lrpgbl09` | Letter-sound knowledge (`yarclet`) |
-| `lrpgbg05` | `lrpgbl05` | Receptive vocabulary (`rowpvt`) |
-| `lrpgbg14` | `lrpgbl14` | Basic concept knowledge (`celf`) |
-| `lrpgbg15` | `lrpgbl15` | Receptive grammar (`trog`) |
-| `lrpgbg13` | `lrpgbl13` | Nonword reading (`nonword`) |
-| `lrpgbg10` | `lrpgbl10` | Phoneme blending (`blending`) |
-| `lrpgbg08` | `lrpgbl08` | Expressive grammar (`aptgram`) |
-| `lrpgbg07` | `lrpgbl07` | Expressive information (`aptinfo`) |
-| `lrpgbg16` | `lrpgbl16` | DEAP fine articulation (`deappfi`) |
-| `lrpgbg02` | `lrpgbl02` | Taught expressive vocabulary (`b1extau`) |
-| `lrpgbg01` | `lrpgbl01` | Taught receptive vocabulary (`b1retau`) |
-| `lrpgbg03` | `lrpgbl03` | Not-taught receptive vocabulary (`b1rent`) |
+| Gain       | Level      | Outcome                                     |
+| ---------- | ---------- | ------------------------------------------- |
+| `lrpgbg12` | `lrpgbl12` | Word reading (`ewrswr`)                     |
+| `lrpgbg06` | `lrpgbl06` | Expressive vocabulary (`eowpvt`)            |
+| `lrpgbg09` | `lrpgbl09` | Letter-sound knowledge (`yarclet`)          |
+| `lrpgbg05` | `lrpgbl05` | Receptive vocabulary (`rowpvt`)             |
+| `lrpgbg14` | `lrpgbl14` | Basic concept knowledge (`celf`)            |
+| `lrpgbg15` | `lrpgbl15` | Receptive grammar (`trog`)                  |
+| `lrpgbg13` | `lrpgbl13` | Nonword reading (`nonword`)                 |
+| `lrpgbg10` | `lrpgbl10` | Phoneme blending (`blending`)               |
+| `lrpgbg08` | `lrpgbl08` | Expressive grammar (`aptgram`)              |
+| `lrpgbg07` | `lrpgbl07` | Expressive information (`aptinfo`)          |
+| `lrpgbg16` | `lrpgbl16` | DEAP fine articulation (`deappfi`)          |
+| `lrpgbg02` | `lrpgbl02` | Taught expressive vocabulary (`b1extau`)    |
+| `lrpgbg01` | `lrpgbl01` | Taught receptive vocabulary (`b1retau`)     |
+| `lrpgbg03` | `lrpgbl03` | Not-taught receptive vocabulary (`b1rent`)  |
 | `lrpgbg04` | `lrpgbl04` | Not-taught expressive vocabulary (`b1exnt`) |
-| `lrpgbg11` | `lrpgbl11` | Phonetic spelling (`spphon`) |
+| `lrpgbg11` | `lrpgbl11` | Phonetic spelling (`spphon`)                |
 
 The last four rows are the #116 Phase-B additions completing the 13 priority
 outcomes; their hyperparameters are borrowed from the nearest analogue pending a
@@ -122,20 +122,20 @@ Exploratory predictability discovery for measures that had only ever been predic
 to inform the DAG's measurement side.
 LSAM and `deapp_c` are level-only.
 
-| Gain | Level | Outcome |
-|---|---|---|
+| Gain       | Level      | Outcome                                                 |
+| ---------- | ---------- | ------------------------------------------------------- |
 | `lrpgbg17` | `lrpgbl17` | Early Repetition Battery — nonword repetition (`erbnw`) |
-| `lrpgbg18` | `lrpgbl18` | Early Repetition Battery — word repetition (`erbword`) |
-| `lrpgbg19` | `lrpgbl19` | Early Repetition Battery — total repetition (`erbto`) |
-| `lrpgbg20` | `lrpgbl20` | DEAP initial-consonant articulation (`deappin`) |
-| `lrpgbg21` | `lrpgbl21` | DEAP vowel articulation (`deappvo`) |
-| `lrpgbg22` | `lrpgbl22` | DEAP average articulation (`deappav`) |
-| — | `lrpgbl23` | DEAP composite articulation (`deapp_c`) |
-| — | `lrpgbl24` | Language sample — mean length of utterance (`lsammlu`) |
-| — | `lrpgbl25` | Language sample — maximum utterance length (`lsammax`) |
-| — | `lrpgbl26` | Language sample — intelligibility (`lsamint`) |
-| — | `lrpgbl27` | Language sample — unique words (`lsamun`) |
-| — | `lrpgbl28` | Language sample — total words (`lsamto`) |
+| `lrpgbg18` | `lrpgbl18` | Early Repetition Battery — word repetition (`erbword`)  |
+| `lrpgbg19` | `lrpgbl19` | Early Repetition Battery — total repetition (`erbto`)   |
+| `lrpgbg20` | `lrpgbl20` | DEAP initial-consonant articulation (`deappin`)         |
+| `lrpgbg21` | `lrpgbl21` | DEAP vowel articulation (`deappvo`)                     |
+| `lrpgbg22` | `lrpgbl22` | DEAP average articulation (`deappav`)                   |
+| —          | `lrpgbl23` | DEAP composite articulation (`deapp_c`)                 |
+| —          | `lrpgbl24` | Language sample — mean length of utterance (`lsammlu`)  |
+| —          | `lrpgbl25` | Language sample — maximum utterance length (`lsammax`)  |
+| —          | `lrpgbl26` | Language sample — intelligibility (`lsamint`)           |
+| —          | `lrpgbl27` | Language sample — unique words (`lsamun`)               |
+| —          | `lrpgbl28` | Language sample — total words (`lsamto`)                |
 
 ---
 
