@@ -87,7 +87,7 @@ from hard feature *selection* to full-set *ranking* (`scripts/rank_predictors.py
 `#116`); `_noconstruct` variants drop a same-instrument sibling to expose concurrent
 correlation.
 
-### Core outcomes (the 13 priority reading / language outcomes)
+### Core outcomes (reading / language outcomes)
 
 | Gain | Level | Outcome |
 |---|---|---|
