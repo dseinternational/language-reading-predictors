@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 # ── Curated same-skill (predictor↔OUTCOME contamination) map ───────────────────
-# Source: notes/202606210930-lrp-same-skill-variants.md. A predictor listed here is
+# Source: curated project mapping. A predictor listed here is
 # a *concurrent restatement of the outcome* (same skill, possibly a different
 # instrument). Distance-correlation clustering is predictor↔predictor and CANNOT
 # catch this, so it survives as curated annotation — NOT a prune. Keyed by outcome.
