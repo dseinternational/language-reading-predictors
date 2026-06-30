@@ -24,14 +24,14 @@ n=214, with no outlier exclusion.
 ## Target distribution
 
 | Statistic | Value |
-|---|---|
-| n | 214 |
-| min | 0 |
-| max | 18 |
-| median | 11 |
-| mean | 10.88 |
-| std | 4.24 |
-| skewness | −0.37 |
+| --------- | ----- |
+| n         | 214   |
+| min       | 0     |
+| max       | 18    |
+| median    | 11    |
+| mean      | 10.88 |
+| std       | 4.24  |
+| skewness  | −0.37 |
 
 Mildly left-skewed. Max of 18 is the instrument maximum but
 there is no strong ceiling pile-up (unlike LRP06's `yarclet`
@@ -43,17 +43,17 @@ but finer than `yarclet` (0–32). Transforms are not indicated.
 Optuna tuning (150 trials, 10-split GroupKFold, seed 47, scoring=mae,
 lgbm_objective=mae). **Tuner-inner CV MAE 2.4105 ± 0.4283.**
 
-| Parameter | Baseline (untuned) | MAE-tuned |
-|---|---|---|
-| n_estimators | 500 | **40** |
-| learning_rate | 0.05 | **0.198** |
-| num_leaves | 15 | 10 |
-| max_depth | 6 | **4** |
-| min_child_samples | 16 | 26 |
-| subsample | 0.8 | 0.836 |
-| colsample_bytree | 0.8 | 0.919 |
-| reg_alpha | 0.1 | **4.722** |
-| reg_lambda | 0.1 | 0.004 |
+| Parameter         | Baseline (untuned) | MAE-tuned |
+| ----------------- | ------------------ | --------- |
+| n_estimators      | 500                | **40**    |
+| learning_rate     | 0.05               | **0.198** |
+| num_leaves        | 15                 | 10        |
+| max_depth         | 6                  | **4**     |
+| min_child_samples | 16                 | 26        |
+| subsample         | 0.8                | 0.836     |
+| colsample_bytree  | 0.8                | 0.919     |
+| reg_alpha         | 0.1                | **4.722** |
+| reg_lambda        | 0.1                | 0.004     |
 
 **Few-fast-shallow-narrow with extreme L1 regime**: only 40 trees,
 fast learning (0.198), narrow (10 leaves) and shallow (depth 4)
@@ -69,13 +69,13 @@ using heavy regularisation to force simplicity.
 
 ### Baseline vs MAE-tuned (test config, 10-fold GroupKFold)
 
-| Metric | Untuned baseline (500 trees) | MAE-tuned (40 trees) |
-|---|---|---|
-| CV MAE | 2.566 ± 0.325 | **2.405 ± 0.437** |
-| CV RMSE | 3.077 | **2.906** |
-| **CV R²** | 0.367 ± 0.174 | **0.440 ± 0.166** |
-| CV MedAE | 2.316 | **2.124** |
-| **In-sample R²** | **0.995** | **0.769** |
+| Metric           | Untuned baseline (500 trees) | MAE-tuned (40 trees) |
+| ---------------- | ---------------------------- | -------------------- |
+| CV MAE           | 2.566 ± 0.325                | **2.405 ± 0.437**    |
+| CV RMSE          | 3.077                        | **2.906**            |
+| **CV R²**        | 0.367 ± 0.174                | **0.440 ± 0.166**    |
+| CV MedAE         | 2.316                        | **2.124**            |
+| **In-sample R²** | **0.995**                    | **0.769**            |
 
 Every CV metric improves. CV R² rises 0.073 (0.367 → 0.440), CV
 MAE drops 0.16, CV MedAE drops 0.19. In-sample R² drops from
@@ -90,40 +90,40 @@ consequence of the coarse 0–18 scale capping achievable R².
 
 ## Permutation importance after tuning (32 predictors)
 
-| Rank | Feature | Importance |
-|---|---|---:|
-| 1 | **`eowpvt`** | **0.181** (expressive vocab — top, natural near-construct match) |
-| 2 | `b1reto` | 0.106 (Block 1 receptive vocab) |
-| 3 | `rowpvt` | 0.049 (standardised receptive vocab) |
-| 4 | `agespeak` | 0.049 |
-| 5 | `aptinfo` | 0.048 (language composite) |
-| 6 | `age` | 0.030 |
-| 7 | `trog` | 0.028 (receptive grammar — *not* a CELF construct match) |
-| 8 | `deappin` | 0.025 |
-| 9 | `dadedupost16` | 0.021 |
-| 10 | `mumedupost16` | 0.016 |
-| 11 | `vision` | 0.016 |
-| 12 | `aptgram` | 0.014 (expressive grammar) |
-| 13 | `erbword` | 0.010 |
-| 14 | `agebooks` | 0.009 |
-| 15 | `yarclet` | 0.008 |
-| 16 | `ewrswr` | 0.008 |
-| 17 | `b1exto` | 0.007 |
-| 18 | `spphon` | 0.006 |
-| 19 | `deappvo` | 0.006 |
-| 20 | `erbnw` | 0.006 |
-| 21 | `earinf` | 0.005 |
-| 22 | `numchil` | 0.005 |
-| 23 | `area` | 0.004 |
-| 24 | `nonword` | 0.004 |
-| 25 | `behav` | 0.004 |
-| 26 | `group` | 0.004 |
-| 27 | `gender` | 0.004 |
-| 28 | `deappfi` | 0.003 |
-| 29 | `hearing` | 0.002 |
-| 30 | `yarcsi` | **0.000** |
-| 31 | `time` | **0.000** |
-| 32 | `blending` | ~0.000 (slight negative) |
+| Rank | Feature        |                                                       Importance |
+| ---- | -------------- | ---------------------------------------------------------------: |
+| 1    | **`eowpvt`**   | **0.181** (expressive vocab — top, natural near-construct match) |
+| 2    | `b1reto`       |                                  0.106 (Block 1 receptive vocab) |
+| 3    | `rowpvt`       |                             0.049 (standardised receptive vocab) |
+| 4    | `agespeak`     |                                                            0.049 |
+| 5    | `aptinfo`      |                                       0.048 (language composite) |
+| 6    | `age`          |                                                            0.030 |
+| 7    | `trog`         |         0.028 (receptive grammar — _not_ a CELF construct match) |
+| 8    | `deappin`      |                                                            0.025 |
+| 9    | `dadedupost16` |                                                            0.021 |
+| 10   | `mumedupost16` |                                                            0.016 |
+| 11   | `vision`       |                                                            0.016 |
+| 12   | `aptgram`      |                                       0.014 (expressive grammar) |
+| 13   | `erbword`      |                                                            0.010 |
+| 14   | `agebooks`     |                                                            0.009 |
+| 15   | `yarclet`      |                                                            0.008 |
+| 16   | `ewrswr`       |                                                            0.008 |
+| 17   | `b1exto`       |                                                            0.007 |
+| 18   | `spphon`       |                                                            0.006 |
+| 19   | `deappvo`      |                                                            0.006 |
+| 20   | `erbnw`        |                                                            0.006 |
+| 21   | `earinf`       |                                                            0.005 |
+| 22   | `numchil`      |                                                            0.005 |
+| 23   | `area`         |                                                            0.004 |
+| 24   | `nonword`      |                                                            0.004 |
+| 25   | `behav`        |                                                            0.004 |
+| 26   | `group`        |                                                            0.004 |
+| 27   | `gender`       |                                                            0.004 |
+| 28   | `deappfi`      |                                                            0.003 |
+| 29   | `hearing`      |                                                            0.002 |
+| 30   | `yarcsi`       |                                                        **0.000** |
+| 31   | `time`         |                                                        **0.000** |
+| 32   | `blending`     |                                         ~0.000 (slight negative) |
 
 ### Notable observations
 
@@ -137,8 +137,7 @@ consequence of the coarse 0–18 scale capping achievable R².
   to LRP08 (receptive vocabulary) where the language cluster
   also led — contrast with LRP06 (letter-sound knowledge) which
   was reading-dominated.
-- **Grammar measures contribute modestly**: `trog` (0.028, rank
-  7) and `aptgram` (0.014, rank 12) — present but well below the
+- **Grammar measures contribute modestly**: `trog` (0.028, rank 7) and `aptgram` (0.014, rank 12) — present but well below the
   vocabulary tier. As expected: CELF does not tap grammar in
   this study, so grammar measures predict only via whatever
   general-language co-variation they share with concept
@@ -182,10 +181,10 @@ importance distribution argues against.
 
 ## Cumulative
 
-| Step | Predictors | CV MAE | CV R² | CV MedAE |
-|---|---|---|---|---|
-| Baseline (untuned) | 32 | 2.566 | 0.367 | 2.316 |
-| MAE-tuned on 32 | 32 | **2.405** | **0.440** | **2.124** |
+| Step               | Predictors | CV MAE    | CV R²     | CV MedAE  |
+| ------------------ | ---------- | --------- | --------- | --------- |
+| Baseline (untuned) | 32         | 2.566     | 0.367     | 2.316     |
+| MAE-tuned on 32    | 32         | **2.405** | **0.440** | **2.124** |
 
 ## Select01: correlation-informed 32 → 12 cut
 
@@ -195,18 +194,18 @@ computed from the data (n=214) revealed **dense redundancy** —
 
 ### Top redundancy pairs in the full 32-predictor set
 
-| Pair | dcorr | Both importance |
-|---|---:|---|
-| `erbword` ↔ `erbnw` | **0.839** | 0.010 / 0.006 |
-| `eowpvt` ↔ `b1exto` | **0.807** | 0.181 / 0.007 |
-| `aptinfo` ↔ `b1exto` | **0.805** | 0.048 / 0.007 |
-| `ewrswr` ↔ `spphon` | **0.786** | 0.008 / 0.006 |
-| `aptinfo` ↔ `aptgram` | **0.769** | 0.048 / 0.014 |
-| `eowpvt` ↔ `aptinfo` | **0.767** | 0.181 / 0.048 |
-| `deappin` ↔ `deappfi` | **0.767** | 0.025 / 0.003 |
-| `b1reto` ↔ `b1exto` | **0.756** | 0.106 / 0.007 |
-| `spphon` ↔ `yarcsi` | **0.753** | 0.006 / 0.000 |
-| `b1reto` ↔ `aptinfo` | **0.740** | 0.106 / 0.048 |
+| Pair                  |     dcorr | Both importance |
+| --------------------- | --------: | --------------- |
+| `erbword` ↔ `erbnw`   | **0.839** | 0.010 / 0.006   |
+| `eowpvt` ↔ `b1exto`   | **0.807** | 0.181 / 0.007   |
+| `aptinfo` ↔ `b1exto`  | **0.805** | 0.048 / 0.007   |
+| `ewrswr` ↔ `spphon`   | **0.786** | 0.008 / 0.006   |
+| `aptinfo` ↔ `aptgram` | **0.769** | 0.048 / 0.014   |
+| `eowpvt` ↔ `aptinfo`  | **0.767** | 0.181 / 0.048   |
+| `deappin` ↔ `deappfi` | **0.767** | 0.025 / 0.003   |
+| `b1reto` ↔ `b1exto`   | **0.756** | 0.106 / 0.007   |
+| `spphon` ↔ `yarcsi`   | **0.753** | 0.006 / 0.000   |
+| `b1reto` ↔ `aptinfo`  | **0.740** | 0.106 / 0.048   |
 
 The language cluster (`eowpvt`/`aptinfo`/`b1reto`/`rowpvt`/
 `b1exto`/`trog`/`aptgram`) forms an internally-redundant network
@@ -226,6 +225,7 @@ extreme `reg_alpha` 4.72 tune; the others at 0.002–0.005 are the
 near-noise floor.)
 
 **Tier B — 0.006–0.014, redundancy-driven drops (8):**
+
 - `aptgram` (0.014) — dcorr **0.769** with retained `aptinfo`
   (language-composite redundancy; aptinfo is higher-importance)
 - `erbword` (0.010) — dcorr **0.713** with retained `deappin`,
@@ -250,16 +250,16 @@ near-noise floor.)
 
 Even the retained 12-predictor set has internal redundancy:
 
-| Pair | dcorr | Flag for Select02 |
-|---|---:|---|
-| `eowpvt` ↔ `aptinfo` | 0.767 | strong |
-| `b1reto` ↔ `aptinfo` | 0.740 | strong |
-| `eowpvt` ↔ `rowpvt` | 0.718 | strong |
-| `eowpvt` ↔ `b1reto` | 0.703 | strong |
-| `aptinfo` ↔ `rowpvt` | 0.698 | moderate-strong |
-| `b1reto` ↔ `rowpvt` | 0.696 | moderate-strong |
-| `eowpvt` ↔ `ewrswr` | 0.676 | moderate-strong |
-| `dadedupost16` ↔ `mumedupost16` | 0.580 | moderate |
+| Pair                            | dcorr | Flag for Select02 |
+| ------------------------------- | ----: | ----------------- |
+| `eowpvt` ↔ `aptinfo`            | 0.767 | strong            |
+| `b1reto` ↔ `aptinfo`            | 0.740 | strong            |
+| `eowpvt` ↔ `rowpvt`             | 0.718 | strong            |
+| `eowpvt` ↔ `b1reto`             | 0.703 | strong            |
+| `aptinfo` ↔ `rowpvt`            | 0.698 | moderate-strong   |
+| `b1reto` ↔ `rowpvt`             | 0.696 | moderate-strong   |
+| `eowpvt` ↔ `ewrswr`             | 0.676 | moderate-strong   |
+| `dadedupost16` ↔ `mumedupost16` | 0.580 | moderate          |
 
 The language cluster is structurally redundant by construct —
 all six measures tap overlapping language abilities. A pure-
@@ -268,13 +268,13 @@ reduction path is construct-driven (see "Next steps" below).
 
 ### Select01 carry-forward (32-tune → 12 predictors)
 
-| Metric | Before (32 predictors, 40 trees) | After (12 predictors, same 40 trees) |
-|---|---:|---:|
-| CV MAE | **2.405 ± 0.437** | 2.415 ± 0.497 |
-| CV RMSE | **2.906** | 2.941 |
-| CV R² | **0.440 ± 0.166** | 0.426 ± 0.162 |
-| CV MedAE | 2.124 | **2.101** |
-| In-sample R² | 0.769 | 0.729 |
+| Metric       | Before (32 predictors, 40 trees) | After (12 predictors, same 40 trees) |
+| ------------ | -------------------------------: | -----------------------------------: |
+| CV MAE       |                **2.405 ± 0.437** |                        2.415 ± 0.497 |
+| CV RMSE      |                        **2.906** |                                2.941 |
+| CV R²        |                **0.440 ± 0.166** |                        0.426 ± 0.162 |
+| CV MedAE     |                            2.124 |                            **2.101** |
+| In-sample R² |                            0.769 |                                0.729 |
 
 Mild trade: CV MAE/RMSE/R² drift slightly worse, but CV MedAE
 improves 0.023 and in-sample R² drops 0.040 (less memorisation).
@@ -285,17 +285,17 @@ the cleaner 12-predictor set.
 
 Optuna 150 trials (seed 47). Tuner-inner CV MAE **2.3282 ± 0.3972**.
 
-| Parameter | Tuned on 32 | **Tuned on 12** |
-|---|---:|---:|
-| n_estimators | 40 | **87** |
-| learning_rate | 0.198 | 0.081 |
-| num_leaves | 10 | 30 |
-| max_depth | 4 | **11** |
-| min_child_samples | 26 | 5 |
-| subsample | 0.836 | 0.845 |
-| colsample_bytree | 0.919 | 0.645 |
-| reg_alpha | **4.722** | 2.470 |
-| reg_lambda | 0.004 | 0.002 |
+| Parameter         | Tuned on 32 | **Tuned on 12** |
+| ----------------- | ----------: | --------------: |
+| n_estimators      |          40 |          **87** |
+| learning_rate     |       0.198 |           0.081 |
+| num_leaves        |          10 |              30 |
+| max_depth         |           4 |          **11** |
+| min_child_samples |          26 |               5 |
+| subsample         |       0.836 |           0.845 |
+| colsample_bytree  |       0.919 |           0.645 |
+| reg_alpha         |   **4.722** |           2.470 |
+| reg_lambda        |       0.004 |           0.002 |
 
 Large regime shift: the extreme-L1-few-fast-shallow full-set
 regime is replaced by **moderate-slow-many-deep with moderate
@@ -311,13 +311,13 @@ conventional "moderate deep" regime.
 
 ### Refit under Select01 retuned params
 
-| Metric | Carry-forward (40 trees) | **Retuned (87 trees)** |
-|---|---:|---:|
-| CV MAE | 2.415 | **2.328 ± 0.289** |
-| CV RMSE | 2.941 | **2.863** |
-| CV R² | 0.426 | **0.450 ± 0.160** |
-| CV MedAE | 2.101 | **2.026** |
-| In-sample R² | 0.729 | 0.912 |
+| Metric       | Carry-forward (40 trees) | **Retuned (87 trees)** |
+| ------------ | -----------------------: | ---------------------: |
+| CV MAE       |                    2.415 |      **2.328 ± 0.289** |
+| CV RMSE      |                    2.941 |              **2.863** |
+| CV R²        |                    0.426 |      **0.450 ± 0.160** |
+| CV MedAE     |                    2.101 |              **2.026** |
+| In-sample R² |                    0.729 |                  0.912 |
 
 **Retune wins on every CV metric** — and tuner-inner CV MAE
 (2.328) matches refit CV MAE exactly. This is the **opposite of
@@ -341,20 +341,20 @@ coherently. Not a concern.
 
 ### Permutation importance under retuned model
 
-| Rank | Feature | Importance | Δ vs 32-pred |
-|---|---|---:|---|
-| 1 | **`eowpvt`** | **0.146** | −0.035 (some to b1reto) |
-| 2 | `b1reto` | 0.133 | **+0.027** |
-| 3 | `rowpvt` | 0.110 | **+0.061** (more than doubled) |
-| 4 | `aptinfo` | 0.098 | **+0.050** (more than doubled) |
-| 5 | `ewrswr` | 0.075 | **+0.067** (10× jump!) |
-| 6 | `trog` | 0.065 | +0.037 (more than doubled) |
-| 7 | `age` | 0.064 | +0.034 (more than doubled) |
-| 8 | `dadedupost16` | 0.056 | +0.035 (more than doubled) |
-| 9 | `deappin` | 0.055 | +0.030 (more than doubled) |
-| 10 | `agespeak` | 0.047 | −0.002 (stable) |
-| 11 | `mumedupost16` | 0.020 | +0.004 |
-| 12 | `vision` | 0.010 | −0.006 |
+| Rank | Feature        | Importance | Δ vs 32-pred                   |
+| ---- | -------------- | ---------: | ------------------------------ |
+| 1    | **`eowpvt`**   |  **0.146** | −0.035 (some to b1reto)        |
+| 2    | `b1reto`       |      0.133 | **+0.027**                     |
+| 3    | `rowpvt`       |      0.110 | **+0.061** (more than doubled) |
+| 4    | `aptinfo`      |      0.098 | **+0.050** (more than doubled) |
+| 5    | `ewrswr`       |      0.075 | **+0.067** (10× jump!)         |
+| 6    | `trog`         |      0.065 | +0.037 (more than doubled)     |
+| 7    | `age`          |      0.064 | +0.034 (more than doubled)     |
+| 8    | `dadedupost16` |      0.056 | +0.035 (more than doubled)     |
+| 9    | `deappin`      |      0.055 | +0.030 (more than doubled)     |
+| 10   | `agespeak`     |      0.047 | −0.002 (stable)                |
+| 11   | `mumedupost16` |      0.020 | +0.004                         |
+| 12   | `vision`       |      0.010 | −0.006                         |
 
 **Massive rebalance**: every retained feature except `eowpvt`,
 `agespeak`, and `vision` rose substantially. `ewrswr` had the
@@ -376,12 +376,12 @@ using every retained feature meaningfully.
 
 ## Cumulative summary
 
-| Step | Predictors | CV MAE | CV R² | CV MedAE |
-|---|---|---|---|---|
-| Baseline (untuned) | 32 | 2.566 | 0.367 | 2.316 |
-| MAE-tuned on 32 | 32 | 2.405 | 0.440 | 2.124 |
-| Select01 carry-forward | 12 | 2.415 | 0.426 | 2.101 |
-| **Retuned-12** (primary) | **12** | **2.328** | **0.450** | **2.026** |
+| Step                     | Predictors | CV MAE    | CV R²     | CV MedAE  |
+| ------------------------ | ---------- | --------- | --------- | --------- |
+| Baseline (untuned)       | 32         | 2.566     | 0.367     | 2.316     |
+| MAE-tuned on 32          | 32         | 2.405     | 0.440     | 2.124     |
+| Select01 carry-forward   | 12         | 2.415     | 0.426     | 2.101     |
+| **Retuned-12** (primary) | **12**     | **2.328** | **0.450** | **2.026** |
 
 Cutting from 32 to 12 predictors and retuning dropped CV MAE
 by 0.08 (3.2%) and raised CV R² by 0.010. A larger swing than
@@ -408,10 +408,10 @@ concept knowledge.
 
 ### Dropped (2)
 
-| Feature | Select01 importance | Role |
-|---|---:|---|
-| `eowpvt` | 0.146 (rank 1) | Expressive one-word picture vocabulary |
-| `b1reto` | 0.133 (rank 2) | Block 1 Receptive Vocabulary Total |
+| Feature  | Select01 importance | Role                                   |
+| -------- | ------------------: | -------------------------------------- |
+| `eowpvt` |      0.146 (rank 1) | Expressive one-word picture vocabulary |
+| `b1reto` |      0.133 (rank 2) | Block 1 Receptive Vocabulary Total     |
 
 ### Retained (10)
 
@@ -420,19 +420,19 @@ concept knowledge.
 
 `aptinfo` and `rowpvt` remain as language-domain controls
 (composite and receptive-vocab respectively); `trog` remains as
-the receptive-grammar measure — *not* a construct match for
+the receptive-grammar measure — _not_ a construct match for
 CELF basic concept knowledge, but kept as a broader language-
 cluster control.
 
 ### Select02 carry-forward (Select01-tune → 10 predictors)
 
-| Metric | Before (12 predictors, 87 trees) | After (10 predictors, same 87 trees) |
-|---|---:|---:|
-| CV MAE | **2.328 ± 0.289** | 2.419 ± 0.457 |
-| CV RMSE | **2.863** | 3.036 |
-| CV R² | **0.450 ± 0.160** | 0.397 ± 0.143 |
-| CV MedAE | 2.026 | **1.799** |
-| In-sample R² | 0.912 | 0.883 |
+| Metric       | Before (12 predictors, 87 trees) | After (10 predictors, same 87 trees) |
+| ------------ | -------------------------------: | -----------------------------------: |
+| CV MAE       |                **2.328 ± 0.289** |                        2.419 ± 0.457 |
+| CV RMSE      |                        **2.863** |                                3.036 |
+| CV R²        |                **0.450 ± 0.160** |                        0.397 ± 0.143 |
+| CV MedAE     |                            2.026 |                            **1.799** |
+| In-sample R² |                            0.912 |                                0.883 |
 
 CV MAE, RMSE, and R² all worsen as expected — the two dropped
 features carried meaningful independent signal. But **CV MedAE
@@ -445,17 +445,17 @@ helping at the tails more than the centre.
 
 Optuna 150 trials (seed 47). Tuner-inner CV MAE **2.3081 ± 0.4383**.
 
-| Parameter | Tuned on 12 | **Tuned on 10** |
-|---|---:|---:|
-| n_estimators | 87 | **33** |
-| learning_rate | 0.081 | 0.134 |
-| num_leaves | 30 | 29 |
-| max_depth | **11** | **3** |
-| min_child_samples | 5 | 5 |
-| subsample | 0.845 | 0.636 |
-| colsample_bytree | 0.645 | 0.809 |
-| reg_alpha | 2.470 | 0.201 |
-| reg_lambda | 0.002 | 0.012 |
+| Parameter         | Tuned on 12 | **Tuned on 10** |
+| ----------------- | ----------: | --------------: |
+| n_estimators      |          87 |          **33** |
+| learning_rate     |       0.081 |           0.134 |
+| num_leaves        |          30 |              29 |
+| max_depth         |      **11** |           **3** |
+| min_child_samples |           5 |               5 |
+| subsample         |       0.845 |           0.636 |
+| colsample_bytree  |       0.645 |           0.809 |
+| reg_alpha         |       2.470 |           0.201 |
+| reg_lambda        |       0.002 |           0.012 |
 
 Sharp regime shift back toward **fewer-faster-shallower**:
 33 trees, lr 0.134, depth 3, mild regularisation. Makes sense:
@@ -465,13 +465,13 @@ extract, so simple wide-shallow trees win.
 
 ### Refit under Select02 retuned params
 
-| Metric | Carry-forward (87 trees) | **Retuned (33 trees)** |
-|---|---:|---:|
-| CV MAE | 2.419 | **2.353 ± 0.507** |
-| CV RMSE | 3.036 | **2.968** |
-| CV R² | 0.397 | **0.426 ± 0.145** |
-| CV MedAE | **1.799** | 1.925 |
-| In-sample R² | 0.883 | 0.724 |
+| Metric       | Carry-forward (87 trees) | **Retuned (33 trees)** |
+| ------------ | -----------------------: | ---------------------: |
+| CV MAE       |                    2.419 |      **2.353 ± 0.507** |
+| CV RMSE      |                    3.036 |              **2.968** |
+| CV R²        |                    0.397 |      **0.426 ± 0.145** |
+| CV MedAE     |                **1.799** |                  1.925 |
+| In-sample R² |                    0.883 |                  0.724 |
 
 **Retune wins on MAE/RMSE/R², carry-forward wins on MedAE** —
 same LRP05/07-pattern trade. Retained retune as primary for
@@ -481,20 +481,21 @@ including Select01.
 
 ### Permutation importance under retuned Select02 model
 
-| Rank | Feature | Importance | Δ vs Select01 |
-|---|---|---:|---|
-| 1 | **`rowpvt`** | **0.192** | **+0.082** (was 0.110, rank 3) |
-| 2 | `aptinfo` | 0.163 | **+0.065** (was 0.098, rank 4) |
-| 3 | `ewrswr` | 0.143 | **+0.068** (was 0.075, rank 5) |
-| 4 | `trog` | 0.079 | +0.014 (was 0.065) |
-| 5 | `agespeak` | 0.061 | +0.014 (was 0.047) |
-| 6 | `dadedupost16` | 0.036 | −0.020 (was 0.056) |
-| 7 | `mumedupost16` | 0.029 | +0.009 |
-| 8 | `deappin` | 0.028 | −0.027 (was 0.055) |
-| 9 | `age` | 0.026 | **−0.038** (was 0.064) |
-| 10 | `vision` | 0.020 | +0.010 |
+| Rank | Feature        | Importance | Δ vs Select01                  |
+| ---- | -------------- | ---------: | ------------------------------ |
+| 1    | **`rowpvt`**   |  **0.192** | **+0.082** (was 0.110, rank 3) |
+| 2    | `aptinfo`      |      0.163 | **+0.065** (was 0.098, rank 4) |
+| 3    | `ewrswr`       |      0.143 | **+0.068** (was 0.075, rank 5) |
+| 4    | `trog`         |      0.079 | +0.014 (was 0.065)             |
+| 5    | `agespeak`     |      0.061 | +0.014 (was 0.047)             |
+| 6    | `dadedupost16` |      0.036 | −0.020 (was 0.056)             |
+| 7    | `mumedupost16` |      0.029 | +0.009                         |
+| 8    | `deappin`      |      0.028 | −0.027 (was 0.055)             |
+| 9    | `age`          |      0.026 | **−0.038** (was 0.064)         |
+| 10   | `vision`       |      0.020 | +0.010                         |
 
 **Absorbed signal from dropped features**:
+
 - `rowpvt` jumped **+0.082** — the standardised receptive-vocab
   measure absorbed most of `b1reto`'s (Block 1 receptive vocab)
   signal plus some of `eowpvt`'s cross-modality vocabulary
@@ -505,6 +506,7 @@ including Select01.
   non-language control.
 
 **Signal lost**:
+
 - `age` dropped **−0.038** — the retune's shallow-tree regime
   (depth 3) uses fewer splits so age-as-continuous-predictor
   loses airtime. Probably still operating via interactions that
@@ -527,14 +529,14 @@ predictors.
 
 ## Cumulative summary
 
-| Step | Predictors | CV MAE | CV R² | CV MedAE |
-|---|---|---|---|---|
-| Baseline (untuned) | 32 | 2.566 | 0.367 | 2.316 |
-| MAE-tuned on 32 | 32 | 2.405 | 0.440 | 2.124 |
-| Select01 carry-forward | 12 | 2.415 | 0.426 | 2.101 |
-| Select01 retuned-12 | 12 | **2.328** | **0.450** | 2.026 |
-| Select02 carry-forward | 10 | 2.419 | 0.397 | **1.799** |
-| **Select02 retuned-10** (primary) | **10** | 2.353 | 0.426 | 1.925 |
+| Step                              | Predictors | CV MAE    | CV R²     | CV MedAE  |
+| --------------------------------- | ---------- | --------- | --------- | --------- |
+| Baseline (untuned)                | 32         | 2.566     | 0.367     | 2.316     |
+| MAE-tuned on 32                   | 32         | 2.405     | 0.440     | 2.124     |
+| Select01 carry-forward            | 12         | 2.415     | 0.426     | 2.101     |
+| Select01 retuned-12               | 12         | **2.328** | **0.450** | 2.026     |
+| Select02 carry-forward            | 10         | 2.419     | 0.397     | **1.799** |
+| **Select02 retuned-10** (primary) | **10**     | 2.353     | 0.426     | 1.925     |
 
 The Select02 drop cost 0.025 CV MAE and 0.024 CV R² relative to
 Select01 retune — real but modest. CV MedAE dropped 0.101 at

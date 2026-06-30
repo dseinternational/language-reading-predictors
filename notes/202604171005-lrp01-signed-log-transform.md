@@ -14,7 +14,7 @@ The LRP02 log-transform investigation
 properties of the target: hard floor at 0, heavy right skew, and
 training gradients dominated by the tail.
 
-LRP01 predicts `ewrswr_gain` — the *change* in single-word reading
+LRP01 predicts `ewrswr_gain` — the _change_ in single-word reading
 score between consecutive timepoints. A natural question: does the
 same log-transform benefit apply?
 
@@ -23,19 +23,19 @@ same log-transform benefit apply?
 Inspection of `ewrswr_gain` (n=157, lrp01's filtered data):
 
 | Statistic | Value |
-|---|---|
-| min | −4 |
-| max | 21 |
-| median | 2 |
-| mean | 3.46 |
-| std | 4.31 |
-| skewness | 1.33 |
+| --------- | ----- |
+| min       | −4    |
+| max       | 21    |
+| median    | 2     |
+| mean      | 3.46  |
+| std       | 4.31  |
+| skewness  | 1.33  |
 
-| Sign | Count | Share |
-|---|---|---|
-| Negative | 19 | 12.1% |
-| Zero | 24 | 15.3% |
-| Positive | 114 | 72.6% |
+| Sign     | Count | Share |
+| -------- | ----- | ----- |
+| Negative | 19    | 12.1% |
+| Zero     | 24    | 15.3% |
+| Positive | 114   | 72.6% |
 
 Gains can be negative (children can regress between timepoints), so
 plain `log1p(y)` is NaN on 12% of observations. The natural alternative
@@ -54,13 +54,13 @@ with inverse $\operatorname{sign}(x) \cdot (\exp(|x|) - 1)$. This:
 
 Spot-check round-trip on representative values:
 
-| y | signed_log1p(y) | signed_expm1(x) |
-|---|---|---|
-| −4 | −1.6094 | −4 |
-| −1 | −0.6931 | −1 |
-| 0 | 0 | 0 |
-| 2 | 1.0986 | 2 |
-| 21 | 3.0910 | 21 |
+| y   | signed_log1p(y) | signed_expm1(x) |
+| --- | --------------- | --------------- |
+| −4  | −1.6094         | −4              |
+| −1  | −0.6931         | −1              |
+| 0   | 0               | 0               |
+| 2   | 1.0986          | 2               |
+| 21  | 3.0910          | 21              |
 
 The range [−4, 21] compresses to roughly [−1.6, 3.1] — meaningful
 compression of the positive tail, modest on the negative side.
@@ -70,11 +70,11 @@ compression of the positive tail, modest on the negative side.
 The in-sample quartile MAE pattern on the primary `lrp01`:
 
 | Target range | In-sample MAE |
-|---|---|
-| (−4, 0] | 2.32 |
-| (0, 2] | 0.70 |
-| (2, 6] | 1.17 |
-| (6, 21] | **6.82** |
+| ------------ | ------------- |
+| (−4, 0]      | 2.32          |
+| (0, 2]       | 0.70          |
+| (2, 6]       | 1.17          |
+| (6, 21]      | **6.82**      |
 
 The top-quartile error is ~10× the low-positive quartile — a real
 "error-scales-with-magnitude" pattern, but with a much smaller target
@@ -136,7 +136,7 @@ Same 6-predictor feature set (`age`, `b1exto`, `celf`, `blending`,
 
 While debugging this variant (tuned at 19 trees initially, refitting
 to CV MAE 3.147 under test config) I discovered that the `test`
-`RunConfig` *replaces* `n_estimators` with 500 rather than capping.
+`RunConfig` _replaces_ `n_estimators` with 500 rather than capping.
 Every model's tuned `n_estimators` was being ignored during
 `fit_model.py --config test`.
 
@@ -176,14 +176,14 @@ trees" regimes.
 
 Direct CV (no inner early stopping) at tuned `n_estimators`:
 
-| Params | Trees | Depth | CV MAE | CV R² |
-|---|---|---|---|---|
-| trial #112 (tuner's best) | 19 | 4 | 2.793 ± 0.649 | 0.033 |
-| trial #13 | **54** | **8** | **2.770 ± 0.614** | 0.024 |
-| trial #3 | 50 | 8 | 2.778 | 0.043 |
-| trial #149 | 56 | 8 | 2.793 | 0.044 |
-| #112 with 50 trees | 50 | 4 | 2.875 | −0.013 |
-| #112 with 100 trees | 100 | 4 | 2.986 | −0.093 |
+| Params                    | Trees  | Depth | CV MAE            | CV R²  |
+| ------------------------- | ------ | ----- | ----------------- | ------ |
+| trial #112 (tuner's best) | 19     | 4     | 2.793 ± 0.649     | 0.033  |
+| trial #13                 | **54** | **8** | **2.770 ± 0.614** | 0.024  |
+| trial #3                  | 50     | 8     | 2.778             | 0.043  |
+| trial #149                | 56     | 8     | 2.793             | 0.044  |
+| #112 with 50 trees        | 50     | 4     | 2.875             | −0.013 |
+| #112 with 100 trees       | 100    | 4     | 2.986             | −0.093 |
 
 Extending #112's depth-4 regime to more trees degrades CV
 substantially — the shallow regime can't absorb extra trees without
@@ -195,13 +195,13 @@ cleanly. **Trial #13 is pinned as `_LGBM_MAE_SIGNED_LOG_PARAMS`.**
 Both models fitted with their tuned `n_estimators` (lrp01: 118,
 lrp01_log: 54), 10-fold GroupKFold at seed 47:
 
-| Metric | `lrp01` (raw, 118 trees) | `lrp01_log` (signed-log, 54 trees) | Δ |
-|---|---|---|---|
-| CV MAE | 2.802 ± 0.693 | **2.770 ± 0.647** | −0.032 |
-| CV RMSE | 3.894 ± 1.169 | 3.910 ± 1.152 | +0.015 |
-| CV R² | 0.040 ± 0.127 | 0.024 ± 0.159 | −0.015 |
-| CV MedAE | 1.791 ± 0.378 | 1.801 ± 0.378 | +0.010 |
-| In-sample R² | 0.224 | 0.247 | +0.023 |
+| Metric       | `lrp01` (raw, 118 trees) | `lrp01_log` (signed-log, 54 trees) | Δ      |
+| ------------ | ------------------------ | ---------------------------------- | ------ |
+| CV MAE       | 2.802 ± 0.693            | **2.770 ± 0.647**                  | −0.032 |
+| CV RMSE      | 3.894 ± 1.169            | 3.910 ± 1.152                      | +0.015 |
+| CV R²        | 0.040 ± 0.127            | 0.024 ± 0.159                      | −0.015 |
+| CV MedAE     | 1.791 ± 0.378            | 1.801 ± 0.378                      | +0.010 |
+| In-sample R² | 0.224                    | 0.247                              | +0.023 |
 
 CV MAE improves a small amount; every other metric is tied. In-sample
 R² barely moves, so no over-fit penalty from the transform.
@@ -210,12 +210,12 @@ R² barely moves, so no over-fit penalty from the transform.
 
 Using `scripts/compare_variants.py` on the shared 10 folds:
 
-| Metric | mean diff | paired *t* p | Wilcoxon p | `lrp01_log` wins |
-|---|---|---|---|---|
-| **MAE** | **−0.032** | 0.135 | **0.064** | **9/10** |
-| RMSE | +0.015 | 0.556 | 0.492 | 4/10 |
-| R² | −0.015 | 0.297 | 0.375 | 4/10 |
-| MedAE | +0.010 | 0.907 | 1.000 | 5/10 |
+| Metric  | mean diff  | paired _t_ p | Wilcoxon p | `lrp01_log` wins |
+| ------- | ---------- | ------------ | ---------- | ---------------- |
+| **MAE** | **−0.032** | 0.135        | **0.064**  | **9/10**         |
+| RMSE    | +0.015     | 0.556        | 0.492      | 4/10             |
+| R²      | −0.015     | 0.297        | 0.375      | 4/10             |
+| MedAE   | +0.010     | 0.907        | 1.000      | 5/10             |
 
 **MAE shows a strong directional signal — log wins 9 out of 10
 folds** (Wilcoxon p = 0.064, borderline at α=0.05). The mean gain is
@@ -224,12 +224,12 @@ essentially unchanged.
 
 ## Quartile in-sample MAE
 
-| Target range | `lrp01` | `lrp01_log` | Δ |
-|---|---|---|---|
-| (−4, 0] | 2.32 | **2.00** | −14% |
-| (0, 2] | 0.70 | 0.68 | −3% |
-| (2, 6] | 1.17 | 1.22 | +4% |
-| (6, 21] | 6.82 | **6.73** | −1% |
+| Target range | `lrp01` | `lrp01_log` | Δ    |
+| ------------ | ------- | ----------- | ---- |
+| (−4, 0]      | 2.32    | **2.00**    | −14% |
+| (0, 2]       | 0.70    | 0.68        | −3%  |
+| (2, 6]       | 1.17    | 1.22        | +4%  |
+| (6, 21]      | 6.82    | **6.73**    | −1%  |
 
 Signed-log mostly helps the **negative-gains quartile** (−14%).
 Top-quartile improvement is negligible. This is consistent with the
@@ -239,16 +239,16 @@ zero more than positive extremes in the 6–21 range.
 
 ## Permutation importance
 
-| Rank | Feature | `lrp01` | `lrp01_log` |
-|---|---|---|---|
-| 1 | `age` | 0.166 | 0.111 |
-| 2 | `attend` | 0.116 | 0.079 |
-| 3 | `yarclet` | 0.074 | 0.076 |
-| 4 | `celf` | 0.048 | 0.043 |
-| 5 | `b1exto` | 0.041 | 0.041 |
-| 6 | `blending` | 0.037 | 0.038 |
+| Rank | Feature    | `lrp01` | `lrp01_log` |
+| ---- | ---------- | ------- | ----------- |
+| 1    | `age`      | 0.166   | 0.111       |
+| 2    | `attend`   | 0.116   | 0.079       |
+| 3    | `yarclet`  | 0.074   | 0.076       |
+| 4    | `celf`     | 0.048   | 0.043       |
+| 5    | `b1exto`   | 0.041   | 0.041       |
+| 6    | `blending` | 0.037   | 0.038       |
 
-The *ranking* is identical — same top-6 features in the same order.
+The _ranking_ is identical — same top-6 features in the same order.
 Absolute importances scale down slightly under signed-log (the
 compressed target has less variance for features to explain) but
 the relative contributions are preserved. Reassuring for

@@ -1,4 +1,4 @@
-# LRP67 / LRP68 — longitudinal dynamics: do prior skills predict later reading *over time*?
+# LRP67 / LRP68 — longitudinal dynamics: do prior skills predict later reading _over time_?
 
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
@@ -23,7 +23,7 @@ This is "Approach 4" from the modelling meeting (process-over-time): the
 additive models on all four waves:
 
 - **LRP67 — latent change-score model (LCSM).** For each variable, a latent logit
-  true-score per wave; reading *change* is regressed on prior-wave letter-sounds,
+  true-score per wave; reading _change_ is regressed on prior-wave letter-sounds,
   vocabulary, own level, age and dose. The longitudinal extension of LRP65.
 - **LRP68 — constrained RI-CLPM.** Separates each child's stable trait from
   within-child fluctuations and asks the cross-lagged question directly: when a
@@ -55,13 +55,13 @@ receptive vocabulary in `MEASURES` and is not reused — the handoff's "L → R"
 
 Samples cleanly (0 divergences; R-hat <= 1.05 at `dev`).
 
-| Coupling into reading *change* | mean [interval] | P(>0) |
-| --- | --- | --- |
-| prior **letter-sounds** `g_L` | **0.197 [0.075, 0.32]** | **1.00** |
-| prior **vocabulary** `g_E` | 0.246 [~0, 0.505] | 0.98 |
-| reading self-feedback `b_self[W]` | -0.267 [-0.36, -0.18] | 0.00 |
-| age `d_age[W]` | -0.111 [-0.19, -0.03] | 0.00 |
-| dose `d_dose[W]` | 0.149 [0.05, 0.25] | 1.00 |
+| Coupling into reading _change_    | mean [interval]         | P(>0)    |
+| --------------------------------- | ----------------------- | -------- |
+| prior **letter-sounds** `g_L`     | **0.197 [0.075, 0.32]** | **1.00** |
+| prior **vocabulary** `g_E`        | 0.246 [~0, 0.505]       | 0.98     |
+| reading self-feedback `b_self[W]` | -0.267 [-0.36, -0.18]   | 0.00     |
+| age `d_age[W]`                    | -0.111 [-0.19, -0.03]   | 0.00     |
+| dose `d_dose[W]`                  | 0.149 [0.05, 0.25]      | 1.00     |
 
 Prior letter-sounds (and, more weakly, vocabulary) predict subsequent reading
 change; younger children change more; dose is positively associated; negative
@@ -69,11 +69,11 @@ self-feedback is regression-to-the-mean on the logit scale.
 
 ### LRP68 — constrained RI-CLPM (within-child cross-lagged)
 
-| Within-child path | mean [interval] | P(>0) |
-| --- | --- | --- |
-| **letter-sounds → reading** `A[W<-L]` (headline) | **0.085 [-0.27, 0.40]** | 0.65 |
-| reading → letter-sounds `A[L<-W]` | 0.505 [0.20, 0.82] | 1.00 |
-| reading → vocabulary `A[E<-W]` | 0.096 [0.03, 0.17] | 1.00 |
+| Within-child path                                | mean [interval]         | P(>0) |
+| ------------------------------------------------ | ----------------------- | ----- |
+| **letter-sounds → reading** `A[W<-L]` (headline) | **0.085 [-0.27, 0.40]** | 0.65  |
+| reading → letter-sounds `A[L<-W]`                | 0.505 [0.20, 0.82]      | 1.00  |
+| reading → vocabulary `A[E<-W]`                   | 0.096 [0.03, 0.17]      | 1.00  |
 
 - The forward `A[W<-L]` is **wide, spans zero, and prior-sensitive**
   (0.3 → ~0.00, 0.5 → 0.09, 0.7 → 0.03): not robustly distinguishable from zero
@@ -127,7 +127,7 @@ inconclusive at n~54, which is itself a reportable finding.
   expected to reduce the RI-CLPM divergences and improve R-hat, but is unlikely to
   resolve the weak identification of the within-child cross-lagged paths. PSIS-LOO
   will remain unreliable for these latent-heavy models — prefer the structure
-  comparison's *qualitative* reading over its ELPD point values.
+  comparison's _qualitative_ reading over its ELPD point values.
 
 ## Reproduce
 

@@ -44,9 +44,9 @@ After dropping the LKJ residual I re-ran LRP55 in reporting config
 expecting divergences to fall from 7.9 % (with residual) toward the
 sub-percent range. Instead:
 
-| LRP55 variant | Divergences | τ (W) | τ (L) | ELPD | p_loo |
-|---|---|---|---|---|---|
-| LKJ residual *on* | 2836 / 36000 (7.9 %) | −0.432 | −0.668 | −1165.8 | 101.6 |
+| LRP55 variant                      | Divergences              | τ (W)      | τ (L)      | ELPD        | p_loo    |
+| ---------------------------------- | ------------------------ | ---------- | ---------- | ----------- | -------- |
+| LKJ residual _on_                  | 2836 / 36000 (7.9 %)     | −0.432     | −0.668     | −1165.8     | 101.6    |
 | **LKJ residual off (new default)** | **3028 / 36000 (8.4 %)** | **−0.426** | **−0.667** | **−1167.3** | **76.4** |
 
 - τ posteriors and γ_own are unchanged within MC error (as expected —
@@ -54,7 +54,7 @@ sub-percent range. Instead:
 - p_loo drops from 102 to 76 — consistent with removing the
   per-(obs × outcome) random effects `u` — confirming the removal
   took.
-- **Divergences did not drop.** The source of the funnel is *not*
+- **Divergences did not drop.** The source of the funnel is _not_
   the LKJ block as I had hypothesised, but the **nine HSGP amplitudes**
   (shared `mu_A` plus eight outcome-specific `delta_A_k`). Each
   amplitude's posterior can touch zero, creating the same η × basis-
@@ -93,11 +93,11 @@ prepared data the factory used.
 
 Numerical results from the fixed forest (reporting config):
 
-| Model | slope mean | 95 % CI |
-|---|---|---|
-| LRP56 (R → W) | +0.112 | (−0.044, +0.377) |
-| LRP57 (E → W) | +0.196 | (−0.013, +0.501) |
-| LRP58 (L → W) | +0.137 | (−0.002, +0.304) |
+| Model         | slope mean | 95 % CI          |
+| ------------- | ---------- | ---------------- |
+| LRP56 (R → W) | +0.112     | (−0.044, +0.377) |
+| LRP57 (E → W) | +0.196     | (−0.013, +0.501) |
+| LRP58 (L → W) | +0.137     | (−0.002, +0.304) |
 
 All three slopes are positive. **LRP58's lower bound touches zero at
 −0.002**, consistent with the earlier finding that its `f_mech__eta`
@@ -105,7 +105,7 @@ amplitude 95 % CI excludes zero at the lower bound (0.001). LRP57 has
 the largest point estimate but the widest CI. LRP56 is essentially
 centred on zero with a long positive tail.
 
-These slopes are *average* slopes over the observed posterior grid,
+These slopes are _average_ slopes over the observed posterior grid,
 not slopes at a single anchor point; they confirm that the mechanism
 curves are predominantly positive across their support but do not
 rule out local negative stretches.

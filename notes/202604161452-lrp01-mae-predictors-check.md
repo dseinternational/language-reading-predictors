@@ -27,26 +27,26 @@ Same model configuration (MAE-tuned params, no outlier exclusion, n=157),
 
 ### Results (dev config, 5-fold CV)
 
-| Metric | lrp01 (b1exto) | lrp01_exp_eowpvt (eowpvt) |
-|---|---|---|
-| Predictors | age, b1exto, celf, blending, yarclet, attend | age, eowpvt, celf, blending, yarclet, attend |
-| CV MAE | 2.898 +/- 0.586 | 2.980 +/- 0.523 |
-| CV RMSE | 4.052 +/- 1.006 | 4.109 +/- 0.948 |
-| CV R2 | 0.076 +/- 0.131 | 0.049 +/- 0.128 |
-| CV MedAE | 1.955 +/- 0.350 | 2.005 +/- 0.239 |
-| In-sample MAE | 2.550 | 2.532 |
-| In-sample R2 | 0.208 | 0.213 |
+| Metric        | lrp01 (b1exto)                               | lrp01_exp_eowpvt (eowpvt)                    |
+| ------------- | -------------------------------------------- | -------------------------------------------- |
+| Predictors    | age, b1exto, celf, blending, yarclet, attend | age, eowpvt, celf, blending, yarclet, attend |
+| CV MAE        | 2.898 +/- 0.586                              | 2.980 +/- 0.523                              |
+| CV RMSE       | 4.052 +/- 1.006                              | 4.109 +/- 0.948                              |
+| CV R2         | 0.076 +/- 0.131                              | 0.049 +/- 0.128                              |
+| CV MedAE      | 1.955 +/- 0.350                              | 2.005 +/- 0.239                              |
+| In-sample MAE | 2.550                                        | 2.532                                        |
+| In-sample R2  | 0.208                                        | 0.213                                        |
 
 ### Permutation importance comparison
 
 | Rank | lrp01 (b1exto) | Importance | lrp01_exp (eowpvt) | Importance |
-|------|----------------|-----------|---------------------|-----------|
-| 1 | age | 0.050 | age | 0.079 |
-| 2 | yarclet | 0.039 | attend | 0.069 |
-| 3 | b1exto | 0.035 | yarclet | 0.057 |
-| 4 | attend | 0.032 | celf | 0.037 |
-| 5 | celf | 0.024 | blending | 0.033 |
-| 6 | blending | 0.015 | eowpvt | 0.032 |
+| ---- | -------------- | ---------- | ------------------ | ---------- |
+| 1    | age            | 0.050      | age                | 0.079      |
+| 2    | yarclet        | 0.039      | attend             | 0.069      |
+| 3    | b1exto         | 0.035      | yarclet            | 0.057      |
+| 4    | attend         | 0.032      | celf               | 0.037      |
+| 5    | celf           | 0.024      | blending           | 0.033      |
+| 6    | blending       | 0.015      | eowpvt             | 0.032      |
 
 ### Interpretation
 
@@ -88,27 +88,27 @@ improves the model.
 
 ### Results (dev config, 5-fold CV)
 
-| Metric | lrp01 (6 predictors) | lrp01_exp_gender (7 predictors) |
-|---|---|---|
-| Predictors | age, b1exto, celf, blending, yarclet, attend | + gender |
-| CV MAE | 2.898 +/- 0.586 | 2.893 +/- 0.574 |
-| CV RMSE | 4.052 +/- 1.006 | 4.056 +/- 0.981 |
-| CV R2 | 0.076 +/- 0.131 | 0.073 +/- 0.150 |
-| CV MedAE | 1.955 +/- 0.350 | 1.923 +/- 0.314 |
-| In-sample MAE | 2.550 | 2.527 |
-| In-sample R2 | 0.208 | 0.222 |
+| Metric        | lrp01 (6 predictors)                         | lrp01_exp_gender (7 predictors) |
+| ------------- | -------------------------------------------- | ------------------------------- |
+| Predictors    | age, b1exto, celf, blending, yarclet, attend | + gender                        |
+| CV MAE        | 2.898 +/- 0.586                              | 2.893 +/- 0.574                 |
+| CV RMSE       | 4.052 +/- 1.006                              | 4.056 +/- 0.981                 |
+| CV R2         | 0.076 +/- 0.131                              | 0.073 +/- 0.150                 |
+| CV MedAE      | 1.955 +/- 0.350                              | 1.923 +/- 0.314                 |
+| In-sample MAE | 2.550                                        | 2.527                           |
+| In-sample R2  | 0.208                                        | 0.222                           |
 
 ### Permutation importance
 
-| Rank | Feature | Importance |
-|------|---------|-----------|
-| 1 | age | 0.070 |
-| 2 | attend | 0.060 |
-| 3 | yarclet | 0.047 |
-| 4 | b1exto | 0.038 |
-| 5 | celf | 0.038 |
-| 6 | blending | 0.032 |
-| 7 | gender | 0.014 |
+| Rank | Feature  | Importance |
+| ---- | -------- | ---------- |
+| 1    | age      | 0.070      |
+| 2    | attend   | 0.060      |
+| 3    | yarclet  | 0.047      |
+| 4    | b1exto   | 0.038      |
+| 5    | celf     | 0.038      |
+| 6    | blending | 0.032      |
+| 7    | gender   | 0.014      |
 
 ### Interpretation
 
@@ -127,8 +127,8 @@ adding complexity. Gender is a borderline predictor under the MAE objective.
 
 ## Summary
 
-| Experiment | CV MAE | CV MedAE | Verdict |
-|---|---|---|---|
-| Baseline (b1exto, 6 predictors) | 2.898 | 1.955 | current best |
-| Swap b1exto for eowpvt | 2.980 | 2.005 | worse, keep b1exto |
-| Add gender (7 predictors) | 2.893 | 1.923 | marginal, not justified |
+| Experiment                      | CV MAE | CV MedAE | Verdict                 |
+| ------------------------------- | ------ | -------- | ----------------------- |
+| Baseline (b1exto, 6 predictors) | 2.898  | 1.955    | current best            |
+| Swap b1exto for eowpvt          | 2.980  | 2.005    | worse, keep b1exto      |
+| Add gender (7 predictors)       | 2.893  | 1.923    | marginal, not justified |

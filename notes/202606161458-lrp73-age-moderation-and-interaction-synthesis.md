@@ -13,7 +13,7 @@ Third and final planned model in the interaction family. Stacked on
 ## Question and prior expectation
 
 Does the letter-sound (L) → word-reading (W) effect depend on **age**? Age was the
-strongest *gain-side* SHAP signal. **Prior expectation, stated up front:** age is
+strongest _gain-side_ SHAP signal. **Prior expectation, stated up front:** age is
 the most between-child of all the candidate moderators (most age variation is
 across children, not within a child's four waves), so the moderation was most
 likely to be a between-child confound — like LRP71 (null) and LRP72 (no
@@ -42,13 +42,13 @@ confounders, `W_pre` baseline, as LRP58.
 
 ## Result (reporting; n = 157, 53 children; 20/36000 divergences, R-hat 1.00)
 
-| coefficient | mean | 95% CI | P(>0) |
-| --- | ---: | --- | ---: |
-| `gamma_int` (L × age) | **−0.064** | [−0.134, +0.007] | 0.039 |
-| `gamma_mod` (age main effect) | −0.086 | [−0.189, +0.016] | 0.049 |
+| coefficient                   |       mean | 95% CI           | P(>0) |
+| ----------------------------- | ---------: | ---------------- | ----: |
+| `gamma_int` (L × age)         | **−0.064** | [−0.134, +0.007] | 0.039 |
+| `gamma_mod` (age main effect) |     −0.086 | [−0.189, +0.016] | 0.049 |
 
 `gamma_int` is **negative-leaning but not credible** (95% CI includes zero). No
-evidence that phonics converts to reading *more* (or credibly less) strongly with
+evidence that phonics converts to reading _more_ (or credibly less) strongly with
 age. PSIS-LOO vs LRP73base: elpd_diff ≈ 2 (dse ≈ 1.5) — within noise.
 
 ## Within-child confound check (the decisive diagnostic)
@@ -57,11 +57,11 @@ age. PSIS-LOO vs LRP73base: elpd_diff ≈ 2 (dse ≈ 1.5) — within noise.
 z(moderator), product; pooled-naive vs pooled-cluster vs within-child fixed
 effects (subject dummies absorb between-child variation). Interaction |t|:
 
-| interaction | pooled-naive | within-child FE | reading |
-| --- | ---: | ---: | --- |
-| L × age → W (LRP73) | 1.16 | 0.79 | weak/absent both ways |
-| L × E → W (LRP71) | 0.09 | 0.41 | null both ways |
-| L × B → N (LRP72) | 1.02 | 0.63 (sign flips −) | weak pooled +, flips − within |
+| interaction         | pooled-naive |     within-child FE | reading                       |
+| ------------------- | -----------: | ------------------: | ----------------------------- |
+| L × age → W (LRP73) |         1.16 |                0.79 | weak/absent both ways         |
+| L × E → W (LRP71)   |         0.09 |                0.41 | null both ways                |
+| L × B → N (LRP72)   |         1.02 | 0.63 (sign flips −) | weak pooled +, flips − within |
 
 For age there is no between-child signal to collapse and none within-child either.
 (The script standardises on the logit scale; it is a rough triangulation, not the
@@ -80,9 +80,9 @@ Three interaction models, one conclusion:
   within-child flat.
 
 **Headline: in this sample, reading's contributing skills combine largely
-*additively*; the raw screen-level interactions are between-child ability/age
+_additively_; the raw screen-level interactions are between-child ability/age
 confounds, not within-child synergies.** Each skill (letter-sound, blending,
-vocabulary) makes a strong, credible *independent* contribution (the LRP58 and
+vocabulary) makes a strong, credible _independent_ contribution (the LRP58 and
 LRP72 main effects), but how much one converts to reading does not credibly depend
 on the others or on age once subject random effects + adjustment are in. This is a
 clean, honest, publishable result and closes the loop the April plan opened
@@ -98,7 +98,7 @@ section) could be drafted next if useful — flagged, not done here.
 - Age range + wait-list phase structure constrain what an "age effect" means;
   within-child age variation is limited to four waves.
 - Small sample (53 children); interactions are data-hungry. Conclusions are about
-  *this* sample and reading stage (word decoding), not a claim that these skills
+  _this_ sample and reading stage (word decoding), not a claim that these skills
   never interact at other developmental points.
 - Reading comprehension (`yarcsi`) cannot be modelled here (67% floored; see the
   LRP72 note) — the "where does vocabulary matter for reading?" question needs an

@@ -19,19 +19,19 @@ cross-model comparison script are in place and pass `ruff check` and
 
 ### Foundation (`src/language_reading_predictors/statistical_models/`)
 
-| File | Purpose |
-|---|---|
-| `preprocessing.py` | `logit_safe`, `standardise`, `load_and_prepare(phase_mode={itt,all})` → `PreparedData` |
-| `priors.py` | Eight named preliz priors from the shared template; `save_shared_prior_panel()` |
-| `hsgp.py` | `build_hsgp_1d` (main effects) and `build_tau_modifier` (tight `HalfNormal(0.3)` amplitude) |
-| `factories.py` | `build_itt_model`, `build_joint_model`, `build_mechanism_model` |
-| `pipeline.py` | nutpie sampling, LOO-PSIS, PPC, diagnostic plots, NetCDF trace, report template copy |
-| `measures.py` | Canonical N per test with `n_trials_confirmed` flag |
-| `likelihood.py` | `beta_binomial_from_logit(eta, N, kappa)` |
-| `context.py` | `ModelSpec`, `StatisticalFitContext`, `make_context()` |
-| `reporting.py` | `tau_summary_itt`, `tau_summary_joint`, `tau_contrast_matrix`, metadata writer |
-| `diagnostics.py` | Prior predictive, posterior sampling, summary tables, trace/energy/pair plots |
-| `environment.py` | Path constants |
+| File               | Purpose                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| `preprocessing.py` | `logit_safe`, `standardise`, `load_and_prepare(phase_mode={itt,all})` → `PreparedData`      |
+| `priors.py`        | Eight named preliz priors from the shared template; `save_shared_prior_panel()`             |
+| `hsgp.py`          | `build_hsgp_1d` (main effects) and `build_tau_modifier` (tight `HalfNormal(0.3)` amplitude) |
+| `factories.py`     | `build_itt_model`, `build_joint_model`, `build_mechanism_model`                             |
+| `pipeline.py`      | nutpie sampling, LOO-PSIS, PPC, diagnostic plots, NetCDF trace, report template copy        |
+| `measures.py`      | Canonical N per test with `n_trials_confirmed` flag                                         |
+| `likelihood.py`    | `beta_binomial_from_logit(eta, N, kappa)`                                                   |
+| `context.py`       | `ModelSpec`, `StatisticalFitContext`, `make_context()`                                      |
+| `reporting.py`     | `tau_summary_itt`, `tau_summary_joint`, `tau_contrast_matrix`, metadata writer              |
+| `diagnostics.py`   | Prior predictive, posterior sampling, summary tables, trace/energy/pair plots               |
+| `environment.py`   | Path constants                                                                              |
 
 ### Model modules
 
@@ -51,7 +51,7 @@ and a `fit(config)` function. All ITT models (52–54) share the
 
 `docs/models/lrp52/…/lrp58/index.qmd` — one per model. LRP55 contains
 the cross-outcome contrast table; LRP58 contains the DAG-decision
-callout on why B is *not* in the adjustment set.
+callout on why B is _not_ in the adjustment set.
 
 ### Tests
 
@@ -61,17 +61,17 @@ smoke-test all three factories on synthetic data. 11/11 pass.
 
 ## Data assumptions (flag for review)
 
-| Measure | Column | N used | Confirmed? | Observed max |
-|---|---|---|---|---|
-| W — word reading | `ewrswr` | 90 | **no** (YARC EWR 30 + SWR 60) | 64 |
-| R — receptive vocab | `rowpvt` | 190 | yes (ROWPVT-4) | 82 |
-| E — expressive vocab | `eowpvt` | 170 | yes (EOWPVT-4) | 77 |
-| L — letter-sound | `yarclet` | 32 | yes (YARC-LSK) | 32 |
-| P — phonetic spelling | `spphon` | 100 | **no** (ceiling above obs max) | 92 |
-| B — blending | `blending` | 10 | yes | 10 |
-| F — CELF concepts | `celf` | 18 | yes | 18 |
-| T — TROG-2 | `trog` | 32 | yes (8 × 4) | 27 |
-| N — nonword reading | `nonword` | 6 | yes | 6 |
+| Measure               | Column     | N used | Confirmed?                     | Observed max |
+| --------------------- | ---------- | ------ | ------------------------------ | ------------ |
+| W — word reading      | `ewrswr`   | 90     | **no** (YARC EWR 30 + SWR 60)  | 64           |
+| R — receptive vocab   | `rowpvt`   | 190    | yes (ROWPVT-4)                 | 82           |
+| E — expressive vocab  | `eowpvt`   | 170    | yes (EOWPVT-4)                 | 77           |
+| L — letter-sound      | `yarclet`  | 32     | yes (YARC-LSK)                 | 32           |
+| P — phonetic spelling | `spphon`   | 100    | **no** (ceiling above obs max) | 92           |
+| B — blending          | `blending` | 10     | yes                            | 10           |
+| F — CELF concepts     | `celf`     | 18     | yes                            | 18           |
+| T — TROG-2            | `trog`     | 32     | yes (8 × 4)                    | 27           |
+| N — nonword reading   | `nonword`  | 6      | yes                            | 6            |
 
 `measures.unconfirmed_ceilings()` returns `["W", "P"]`. Update the
 `MEASURES` dict in `measures.py` once the study data-dictionary
@@ -90,7 +90,7 @@ ceilings are confirmed; all downstream code flows automatically.
 - **Missingness**: ≤ 2 % of pre-scores missing across measures. Drop-
   with-warning suffices; no imputation pass needed for this iteration.
 - **DAG decision on B in LRP58**: follow the plan's best guess — B is
-  a descendant of L in the literacy-development cascade and is *not*
+  a descendant of L in the literacy-development cascade and is _not_
   conditioned on. Rationale is documented prominently in
   `docs/models/lrp58/index.qmd`.
 
@@ -101,9 +101,9 @@ ceilings are confirmed; all downstream code flows automatically.
   ITT models is therefore impossible by construction.
 - **Non-centred LKJ**: LRP55 uses `pm.LKJCholeskyCov(eta=4)` with a
   non-centred `z_raw ~ Normal(0, 1)` and `u = z_raw @ (sigma[:,None] *
-  chol).T`, avoiding the MvNormal funnel geometry.
+chol).T`, avoiding the MvNormal funnel geometry.
 - **Age GP partial pooling (LRP55)**: `f_A_k(a) = mu_A(a) +
-  delta_A_k(a)` with `delta_A_k` amplitude ~ HalfNormal(0.3). Fallback
+delta_A_k(a)` with `delta_A_k` amplitude ~ HalfNormal(0.3). Fallback
   to independent per-outcome age GPs is a flag
   (`partial_pool_age_gp=False`).
 - **Mechanism curve extraction** pulls `f_mech` posterior draws,
@@ -116,17 +116,17 @@ ceilings are confirmed; all downstream code flows automatically.
 
 ## Priors (shared template)
 
-| Parameter | Prior |
-|---|---|
-| `alpha` (intercept) | `Normal(0, 1.5)` |
-| `tau` (treatment effect) | `Normal(0, 0.5)` |
-| `gamma_own` | `Normal(1, 0.5)` |
-| `gamma_cross` | `Normal(0, 0.3)` |
-| `kappa` | `HalfNormal(50)` |
-| `eta` (main-effect GP amplitude) | `HalfNormal(1.0)` |
-| `eta_tau` (τ-modifier amplitude) | `HalfNormal(0.3)` — tight |
-| `ell` (GP lengthscale, std inputs) | `InverseGamma(3, 1)` |
-| HSGP basis | `m=[20], c=1.5` (main effects); `m=[15], c=1.5` (τ modifiers) |
+| Parameter                          | Prior                                                         |
+| ---------------------------------- | ------------------------------------------------------------- |
+| `alpha` (intercept)                | `Normal(0, 1.5)`                                              |
+| `tau` (treatment effect)           | `Normal(0, 0.5)`                                              |
+| `gamma_own`                        | `Normal(1, 0.5)`                                              |
+| `gamma_cross`                      | `Normal(0, 0.3)`                                              |
+| `kappa`                            | `HalfNormal(50)`                                              |
+| `eta` (main-effect GP amplitude)   | `HalfNormal(1.0)`                                             |
+| `eta_tau` (τ-modifier amplitude)   | `HalfNormal(0.3)` — tight                                     |
+| `ell` (GP lengthscale, std inputs) | `InverseGamma(3, 1)`                                          |
+| HSGP basis                         | `m=[20], c=1.5` (main effects); `m=[15], c=1.5` (τ modifiers) |
 
 ## Smoke-test results
 

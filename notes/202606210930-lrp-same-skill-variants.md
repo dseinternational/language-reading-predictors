@@ -1,7 +1,7 @@
 # LRP level models — same-skill "construct-reduced" variants
 
 **Date:** 2026-06-21
-**Scope:** the 11 gradient-boosting *level* models (lrp02, 04, 06, 08, 10, 12,
+**Scope:** the 11 gradient-boosting _level_ models (lrp02, 04, 06, 08, 10, 12,
 14, 16, 18, 20, 22). Defines and implements the **same-skill variant rule**
 that factors concurrent same-construct measurement into the exploratory layer,
 following the replication finding that level-model R² is largely concurrent
@@ -13,14 +13,14 @@ The replication showed level-model R² is repeatedly carried by a co-administere
 same-construct (sometimes same-instrument) test — e.g. `aptinfo`↔`aptgram`
 (scored from the same Action Picture Test picture descriptions),
 `deappin`↔`deappfi` (scored from the same DEAP picture-naming sample). Predicting
-an outcome from a *parallel scoring of the same performance* is **criterion
+an outcome from a _parallel scoring of the same performance_ is **criterion
 contamination**, not a developmental finding (it is not train/test leakage —
 GroupKFold handles that — but shared-method variance).
 
 The gradient-boosting feature selection (distance-correlation redundancy +
 permutation importance) **cannot** catch this: it scores predictor↔predictor
 redundancy and predictor importance, neither of which penalises a predictor for
-being a parallel form of the *outcome*. Worse, that parallel form has the
+being a parallel form of the _outcome_. Worse, that parallel form has the
 highest importance, so a CV-optimising filter anchors on it and prunes around it.
 The contamination is therefore invisible to — and protected by — the predictive
 selection. It has to be addressed with substantive (curated) knowledge of which
@@ -32,10 +32,10 @@ predictors restate the outcome, not a statistic.
   sets (they keep concurrent siblings). They are the predictive / convergent-
   validity artifact, read as concurrent correlation per the replication note.
 - **Add a same-skill-reduced variant** (`lrpNN_noconstruct`) for each level model
-  that *has* a same-skill sibling among its selected predictors. The variant
+  that _has_ a same-skill sibling among its selected predictors. The variant
   drops that sibling and is re-tuned (Optuna 150-trial MAE, 10-fold GroupKFold,
-  seed 47), answering: *what predicts the outcome beyond a concurrent measure of
-  the same skill?*
+  seed 47), answering: _what predicts the outcome beyond a concurrent measure of
+  the same skill?_
 
 ### "Same skill", not "same domain"
 
@@ -46,8 +46,8 @@ it is a concurrent restatement of the outcome — either:
 1. **same elicited sample** — APT information & grammar (same picture
    descriptions); DEAP initial/vowel/final (same picture-naming sample); or
 2. **a different instrument of the identical skill** — e.g. expressive
-   vocabulary measured by the standardised EOWPVT *and* the bespoke taught test
-   (`b1exto`); receptive vocabulary by ROWPVT *and* `b1reto`.
+   vocabulary measured by the standardised EOWPVT _and_ the bespoke taught test
+   (`b1exto`); receptive vocabulary by ROWPVT _and_ `b1reto`.
 
 **Different skills are kept visible**, even within one `CONSTRUCTS` domain:
 
@@ -68,12 +68,12 @@ genuinely different skills.
 Primary → variant, pooled out-of-fold R² (51-fold GroupKFold, reporting fit) and
 tuner-inner CV MAE (10-fold):
 
-| variant | outcome | drops (same skill) | pooled OOF R² | tuner MAE |
-|---|---|---|---|---|
-| `lrp04_noconstruct` | expressive vocab (`eowpvt`) | `b1exto` | 0.70 → 0.65 | 6.16 → 7.08 |
-| `lrp18_noconstruct` | expressive grammar (`aptgram`) | `aptinfo` | 0.70 → 0.48 | 2.33 → 3.32 |
-| `lrp20_noconstruct` | expressive info (`aptinfo`) | `aptgram` | 0.80 → 0.75 | 2.69 → 3.06 |
-| `lrp22_noconstruct` | final-consonant articulation (`deappfi`) | `deappin` | 0.55 → −0.03 | 9.96 → 16.13 |
+| variant             | outcome                                  | drops (same skill) | pooled OOF R² | tuner MAE    |
+| ------------------- | ---------------------------------------- | ------------------ | ------------- | ------------ |
+| `lrp04_noconstruct` | expressive vocab (`eowpvt`)              | `b1exto`           | 0.70 → 0.65   | 6.16 → 7.08  |
+| `lrp18_noconstruct` | expressive grammar (`aptgram`)           | `aptinfo`          | 0.70 → 0.48   | 2.33 → 3.32  |
+| `lrp20_noconstruct` | expressive info (`aptinfo`)              | `aptgram`          | 0.80 → 0.75   | 2.69 → 3.06  |
+| `lrp22_noconstruct` | final-consonant articulation (`deappfi`) | `deappin`          | 0.55 → −0.03  | 9.96 → 16.13 |
 
 - **lrp04**: expressive vocabulary stays well-predicted (0.70 → 0.65) after
   dropping the bespoke expressive sibling `b1exto` — the signal is carried by
@@ -92,7 +92,7 @@ uniform feature-selection pass (`notes/202606211200-uniform-gb-fs.md`).
 
 ### deappfi (lrp22) — the null is the finding
 
-Dropping `deappin` (DEAP initial-consonant accuracy, scored from the *same*
+Dropping `deappin` (DEAP initial-consonant accuracy, scored from the _same_
 picture-naming sample as the final-consonant target `deappfi`) collapses CV
 (tuner-inner MAE 9.96 → 16.13; the chosen model is ~3 trees). **There is no
 non-articulation predictor of final-consonant accuracy at this n.** Per decision,
@@ -107,7 +107,7 @@ reference and this variant documents the null — rather than reducing the prima
   receptive sibling `b1reto`, so the primary is same-skill-clean — no variant
   needed.
 - `lrp06` (`yarclet`), `lrp10` (`celf`), `lrp12` (`trog`), `lrp14` (`nonword`),
-  `lrp16` (`blending`): their R² comes from *different* skills, which are kept
+  `lrp16` (`blending`): their R² comes from _different_ skills, which are kept
   visible. The earlier coarse-construct **`lrp12_noconstruct`** and
   **`lrp14_noconstruct`** variants were removed (they dropped different-skill
   measures — expressive grammar / concept knowledge from receptive grammar, and
@@ -120,7 +120,7 @@ reference and this variant documents the null — rather than reducing the prima
   a variant and `lrp08` lost the need for one (uniform pruning drops `b1reto`,
   and also cleared lrp08's earlier redundancy).
 - Same exploratory caveats as the primaries: gain models untouched here; reduced
-  *rankings* are reliable only for the top one or two predictors; the pinned
+  _rankings_ are reliable only for the top one or two predictors; the pinned
   hyperparameters are CV-equivalent optima, not unique.
 
 ## Reproduce

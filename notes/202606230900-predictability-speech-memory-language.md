@@ -24,14 +24,14 @@ model. See the reframing note above.
 ## Why this exists
 
 We have modelled 11 outcomes as gradient-boosting discovery targets (LRP01–22).
-Among the *spoken* measures only **DEAP final-consonant accuracy** (`deappfi`,
+Among the _spoken_ measures only **DEAP final-consonant accuracy** (`deappfi`,
 LRP21/22) was ever an outcome — and it was the cautionary case: predictable only
 via its own DEAP sibling, collapsing to ≈ −0.03 once the sibling was removed. The
 **verbal-memory (ERB)**, the **other DEAP sub-scores**, and the
-**language-sample (LSAM)** measures had only ever been *predictors*, never
+**language-sample (LSAM)** measures had only ever been _predictors_, never
 outcomes. So "how predictable are they, and where do they sit relative to the
 code-based-reading and oral-language clusters?" was unanswered — and it bears on
-the *measurement* side of the shared DAG (v5): are these extra indicators of the
+the _measurement_ side of the shared DAG (v5): are these extra indicators of the
 existing general-ability / language structure, self-contained instrument
 artefacts, or candidate new constructs (e.g. a phonological-memory node)?
 
@@ -51,26 +51,26 @@ the method documented in `notes/202606211200-uniform-gb-fs.md`).
 
 ### Model id → outcome
 
-| id | outcome | kind | instrument | n |
-|---|---|---|---|---|
-| LRP25 | `erbnw_gain` | gain | ERB (verbal memory) | ~147 |
-| LRP26 | `erbnw` | level | ERB | ~202 |
-| LRP27 | `erbword_gain` | gain | ERB | ~148 |
-| LRP28 | `erbword` | level | ERB | ~203 |
-| LRP29 | `erbto_gain` | gain | ERB (total) | ~147 |
-| LRP30 | `erbto` | level | ERB (total) | ~202 |
-| LRP31 | `deappin_gain` | gain | DEAP (articulation) | ~152 |
-| LRP32 | `deappin` | level | DEAP | ~207 |
-| LRP33 | `deappvo_gain` | gain | DEAP | ~152 |
-| LRP34 | `deappvo` | level | DEAP | ~207 |
-| LRP35 | `deappav_gain` | gain | DEAP (average) | ~152 |
-| LRP36 | `deappav` | level | DEAP (average) | ~207 |
-| LRP37 | `deapp_c` | level | DEAP (composite) | ~207 |
-| LRP38 | `lsammlu` | level | LSAM (language sample) | ~106 |
-| LRP39 | `lsammax` | level | LSAM | ~106 |
-| LRP40 | `lsamint` | level | LSAM | ~106 |
-| LRP41 | `lsamun` | level | LSAM | ~106 |
-| LRP42 | `lsamto` | level | LSAM | ~106 |
+| id    | outcome        | kind  | instrument             | n    |
+| ----- | -------------- | ----- | ---------------------- | ---- |
+| LRP25 | `erbnw_gain`   | gain  | ERB (verbal memory)    | ~147 |
+| LRP26 | `erbnw`        | level | ERB                    | ~202 |
+| LRP27 | `erbword_gain` | gain  | ERB                    | ~148 |
+| LRP28 | `erbword`      | level | ERB                    | ~203 |
+| LRP29 | `erbto_gain`   | gain  | ERB (total)            | ~147 |
+| LRP30 | `erbto`        | level | ERB (total)            | ~202 |
+| LRP31 | `deappin_gain` | gain  | DEAP (articulation)    | ~152 |
+| LRP32 | `deappin`      | level | DEAP                   | ~207 |
+| LRP33 | `deappvo_gain` | gain  | DEAP                   | ~152 |
+| LRP34 | `deappvo`      | level | DEAP                   | ~207 |
+| LRP35 | `deappav_gain` | gain  | DEAP (average)         | ~152 |
+| LRP36 | `deappav`      | level | DEAP (average)         | ~207 |
+| LRP37 | `deapp_c`      | level | DEAP (composite)       | ~207 |
+| LRP38 | `lsammlu`      | level | LSAM (language sample) | ~106 |
+| LRP39 | `lsammax`      | level | LSAM                   | ~106 |
+| LRP40 | `lsamint`      | level | LSAM                   | ~106 |
+| LRP41 | `lsamun`       | level | LSAM                   | ~106 |
+| LRP42 | `lsamto`       | level | LSAM                   | ~106 |
 
 `deappfi` (LRP21/22) is the pre-existing comparison point and is **not**
 re-fit here. The composite **`deapp_c` has no precomputed `*_gain` column** in the
@@ -89,27 +89,27 @@ same-instrument siblings from the predictor set (the `_noconstruct` check);
 "n/a" where no same-instrument sibling is in the default pool. `deappfi`
 (LRP22, the pre-existing comparison) is shown for reference.
 
-| model | outcome | kind | n | OOF R² | in-sample R² | −sib OOF R² | top predictors (SHAP rank; +/− direction) |
-|---|---|---|--:|--:|--:|--:|---|
-| LRP26 | `erbnw` | level | 202 | **0.76** | 0.84 | **0.47** | erbword+, aptinfo+, yarcsi+, deappvo+ |
-| LRP28 | `erbword` | level | 203 | **0.77** | 0.92 | **0.62** | erbnw+, deappin+, ewrswr+, nonword+ |
-| LRP30 | `erbto` (total) | level | 202 | **0.91** | 0.95 | **0.48** | erbword+, aptgram+, yarcsi+, deappvo+ |
-| LRP32 | `deappin` | level | 207 | 0.62 | 0.80 | 0.40 | deappfi+, erbnw+, deappvo+, aptgram+ |
-| LRP34 | `deappvo` | level | 207 | 0.34 | 0.82 | **0.04** | deappin+, yarclet−, aptinfo+ |
-| LRP36 | `deappav` (avg) | level | 207 | 0.89 | 0.96 | 0.38 | deappfi+, deappvo+, erbnw+, aptgram+ |
-| LRP37 | `deapp_c` (sum) | level | 207 | 0.93 | 0.98 | 0.30 | deappfi+, deappvo+, erbnw+, eowpvt+ |
-| _LRP22_ | _`deappfi`_ | _level_ | _207_ | _0.55_ | _–_ | _−0.03_ | _deappin (collapses without it)_ |
-| LRP38 | `lsammlu` | level | 106 | 0.52 | 0.71 | n/a | deappin+, aptinfo+, erbnw+, yarcsi+ |
-| LRP39 | `lsammax` | level | 106 | 0.26 | 0.48 | n/a | deappin+, erbnw+, eowpvt+ |
-| LRP40 | `lsamint` | level | 106 | 0.48 | 0.76 | n/a | deappin+, area+, aptinfo+ |
-| LRP41 | `lsamun` | level | 106 | 0.58 | 0.81 | n/a | deappin+, aptinfo+, erbnw+, rowpvt+ |
-| LRP42 | `lsamto` | level | 106 | 0.38 | 0.76 | n/a | deappin+, aptinfo+, trog+, age+ |
-| LRP25 | `erbnw_gain` | gain | 147 | 0.12 | 0.42 | – | erbnw− (baseline/RTM) |
-| LRP27 | `erbword_gain` | gain | 148 | 0.22 | 0.40 | – | erbword− (baseline/RTM) |
-| LRP29 | `erbto_gain` | gain | 147 | 0.17 | 0.41 | 0.11 | erbnw−, erbto− (RTM) |
-| LRP31 | `deappin_gain` | gain | 152 | 0.08 | 0.28 | – | deappin− (baseline/RTM) |
-| LRP33 | `deappvo_gain` | gain | 152 | 0.31 | 0.45 | 0.23 | deappvo−, deappfi+ |
-| LRP35 | `deappav_gain` | gain | 152 | −0.04 | 0.37 | 0.15 | deappvo−, time+ (noise) |
+| model   | outcome         | kind    |     n |   OOF R² | in-sample R² | −sib OOF R² | top predictors (SHAP rank; +/− direction) |
+| ------- | --------------- | ------- | ----: | -------: | -----------: | ----------: | ----------------------------------------- |
+| LRP26   | `erbnw`         | level   |   202 | **0.76** |         0.84 |    **0.47** | erbword+, aptinfo+, yarcsi+, deappvo+     |
+| LRP28   | `erbword`       | level   |   203 | **0.77** |         0.92 |    **0.62** | erbnw+, deappin+, ewrswr+, nonword+       |
+| LRP30   | `erbto` (total) | level   |   202 | **0.91** |         0.95 |    **0.48** | erbword+, aptgram+, yarcsi+, deappvo+     |
+| LRP32   | `deappin`       | level   |   207 |     0.62 |         0.80 |        0.40 | deappfi+, erbnw+, deappvo+, aptgram+      |
+| LRP34   | `deappvo`       | level   |   207 |     0.34 |         0.82 |    **0.04** | deappin+, yarclet−, aptinfo+              |
+| LRP36   | `deappav` (avg) | level   |   207 |     0.89 |         0.96 |        0.38 | deappfi+, deappvo+, erbnw+, aptgram+      |
+| LRP37   | `deapp_c` (sum) | level   |   207 |     0.93 |         0.98 |        0.30 | deappfi+, deappvo+, erbnw+, eowpvt+       |
+| _LRP22_ | _`deappfi`_     | _level_ | _207_ |   _0.55_ |          _–_ |     _−0.03_ | _deappin (collapses without it)_          |
+| LRP38   | `lsammlu`       | level   |   106 |     0.52 |         0.71 |         n/a | deappin+, aptinfo+, erbnw+, yarcsi+       |
+| LRP39   | `lsammax`       | level   |   106 |     0.26 |         0.48 |         n/a | deappin+, erbnw+, eowpvt+                 |
+| LRP40   | `lsamint`       | level   |   106 |     0.48 |         0.76 |         n/a | deappin+, area+, aptinfo+                 |
+| LRP41   | `lsamun`        | level   |   106 |     0.58 |         0.81 |         n/a | deappin+, aptinfo+, erbnw+, rowpvt+       |
+| LRP42   | `lsamto`        | level   |   106 |     0.38 |         0.76 |         n/a | deappin+, aptinfo+, trog+, age+           |
+| LRP25   | `erbnw_gain`    | gain    |   147 |     0.12 |         0.42 |           – | erbnw− (baseline/RTM)                     |
+| LRP27   | `erbword_gain`  | gain    |   148 |     0.22 |         0.40 |           – | erbword− (baseline/RTM)                   |
+| LRP29   | `erbto_gain`    | gain    |   147 |     0.17 |         0.41 |        0.11 | erbnw−, erbto− (RTM)                      |
+| LRP31   | `deappin_gain`  | gain    |   152 |     0.08 |         0.28 |           – | deappin− (baseline/RTM)                   |
+| LRP33   | `deappvo_gain`  | gain    |   152 |     0.31 |         0.45 |        0.23 | deappvo−, deappfi+                        |
+| LRP35   | `deappav_gain`  | gain    |   152 |    −0.04 |         0.37 |        0.15 | deappvo−, time+ (noise)                   |
 
 Top predictors are by mean |SHAP|; direction is the sign of the SHAP–feature
 relationship. Permutation-importance rankings (from the full reporting fit)
@@ -147,7 +147,7 @@ cluster, both (i.e. general ability `g`), or does it stand alone?
 **None of the new measures stands alone, and none loads on a single cluster —
 they all draw on the broad skill set (consistent with a general-ability `g`).**
 The recurring cross-instrument predictors are expressive articulation
-(`deappin` — it tops *every* language-sample model), oral language
+(`deappin` — it tops _every_ language-sample model), oral language
 (`aptinfo`, `aptgram`, `trog`, `celf`, `eowpvt`, `rowpvt`), code-based reading
 (`ewrswr`, `nonword`, `yarcsi`, `yarclet`), and verbal memory (`erbnw`).
 Concretely:
@@ -162,7 +162,7 @@ Concretely:
   oral language (`aptinfo`, `trog`, `rowpvt`, `eowpvt`) + verbal memory
   (`erbnw`) — the oral-language side of `g`.
 
-No measure is carried by the code-based-reading cluster *alone*, and none is
+No measure is carried by the code-based-reading cluster _alone_, and none is
 isolated from it. On the membership question these are indicators of the
 existing general-ability / language structure, not a separate construct cluster.
 
@@ -175,9 +175,9 @@ The same-instrument sibling groups (`Variables.CONSTRUCTS`) are
 
 Note one structural fact up front: the five **LSAM** measures are recorded at
 t1–t2 only and are therefore in `DEFAULT_EXCLUDED` — they are **absent from the
-default predictor pool**. So LSAM measures *cannot* be carried by same-instrument
+default predictor pool**. So LSAM measures _cannot_ be carried by same-instrument
 siblings; their predictability is necessarily cross-instrument, and no
-`_noconstruct` check is needed for them. The ERB and DEAP siblings *are* in the
+`_noconstruct` check is needed for them. The ERB and DEAP siblings _are_ in the
 pool, so where one tops a model we refit with the same-construct siblings dropped
 (`<id>_noconstruct`), exactly as `deappfi`/LRP22 did.
 
@@ -187,7 +187,7 @@ The split is the crux of the DAG question:
   ERB sibling leaves substantial out-of-sample skill: `erbnw` 0.76 → **0.47**,
   `erbword` 0.77 → **0.62**, `erbto` 0.91 → **0.48**. The residual is carried by
   language, reading and articulation — i.e. real cross-domain signal, the
-  *opposite* of the `deappfi` collapse.
+  _opposite_ of the `deappfi` collapse.
 - **DEAP (articulation) is largely measurement-bound.** `deappvo` collapses
   0.34 → **0.04**, mirroring `deappfi` (0.55 → −0.03): with the same-instrument
   DEAP siblings removed there is essentially no non-articulation predictor. The
@@ -196,21 +196,21 @@ The split is the crux of the DAG question:
   and expressive language, not a strong cross-domain construct.
 - **LSAM (spontaneous language):** no same-instrument check is possible (siblings
   excluded from the pool), but by construction its whole R² (0.26–0.58) is
-  cross-domain — it is *only* ever predicted by other instruments.
+  cross-domain — it is _only_ ever predicted by other instruments.
 
 ## Implications for the shared DAG (v5)
 
-For each construct, one of: *already covered* (predicted mainly by the existing
-skill cluster ⇒ another indicator of `g`/language; no new node), *distinct but
-measurement-bound* (predictable only by its own instrument siblings, the
+For each construct, one of: _already covered_ (predicted mainly by the existing
+skill cluster ⇒ another indicator of `g`/language; no new node), _distinct but
+measurement-bound_ (predictable only by its own instrument siblings, the
 `deappfi` pattern ⇒ a self-contained instrument construct; note it, no causal
-node), or *candidate new node* (coherent cross-domain prediction in **both**
+node), or _candidate new node_ (coherent cross-domain prediction in **both**
 directions ⇒ flag for the DAG review).
 
 **1. Verbal / phonological memory (ERB) — _candidate new node_ (the one to take
 forward).** It is strongly predictable (0.76–0.91) **and** keeps 0.47–0.62 once
 its own siblings are removed, predicted by language + reading + articulation;
-and ERB has itself been a recurring *predictor* across LRP01–22. That two-way
+and ERB has itself been a recurring _predictor_ across LRP01–22. That two-way
 association with the skill cluster, surviving the same-instrument check, is what
 a real construct (phonological short-term memory) looks like — not an instrument
 artefact. Flag for the DAG review as a candidate **phonological-memory node**
@@ -248,23 +248,23 @@ language indicator. The data are thin (≈106 rows, t1–t2), so hold this light
 
 ## Guardrails / caveats
 
-- **Discovery only.** These are cross-validated *associations*, not causal
+- **Discovery only.** These are cross-validated _associations_, not causal
   effects and not intention-to-treat. Direction (SHAP sign) and magnitude
   (permutation importance) describe prediction, not mechanism. None of these
-  measures is shown to *cause* reading.
+  measures is shown to _cause_ reading.
 - **Power.** ERB/DEAP levels (≈200 rows, 3–4 waves) are reasonable; LSAM (≈106,
   two waves) is thin — an exploratory hint at best. Gain models are near-noise
   across the whole suite (regression-to-the-mean dominates); the value here is
   the **level** predictability and the **cluster membership**, not the gains.
 - **Pooled out-of-fold R²** (against each fold's training mean) is the honest
-  metric reported, *not* the per-fold mean R². In-sample R² is shown only to
+  metric reported, _not_ the per-fold mean R². In-sample R² is shown only to
   expose the overfit gap.
 - **Measures not in Burgoyne (2012).** ERB, DEAP and LSAM scoring and maxima are
   unconfirmed (open data-dictionary items). Gradient boosting uses raw scores so
-  *fitting* is unaffected, but *interpretation* of any candidate new construct
+  _fitting_ is unaffected, but _interpretation_ of any candidate new construct
   should be held lightly until the measures are confirmed.
 - **FS provenance.** The full-set importance ranking that drives feature
   selection uses one fixed LightGBM config (documented in
   `scripts/uniform_feature_selection.py`), so the exact reduced sets are not
-  bit-identical to the lost #102 `uniform_fs.py`; the *algorithm* is the same and
+  bit-identical to the lost #102 `uniform_fs.py`; the _algorithm_ is the same and
   every reduced set has 0 residual dcor ≥ 0.70 pairs.

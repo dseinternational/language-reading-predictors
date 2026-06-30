@@ -26,7 +26,7 @@ written to `output/interaction_screen/{level,gain}/`.
 Two points worth recording:
 
 - **Target-leakage guard.** `DEFAULT_LEVEL` contains `ewrswr` itself; the screen
-  drops the target column from the predictors (for gain the `ewrswr` *baseline*
+  drops the target column from the predictors (for gain the `ewrswr` _baseline_
   legitimately stays, since the target is `ewrswr_gain`).
 - **`spphon` dominates the level screen** (mean |main| ≈ 4.5, then `yarclet`
   ≈ 3.7). Phonetic spelling is itself a decoding/reading outcome, highly
@@ -59,18 +59,18 @@ interaction present, the `f_mech` curve is the L → W slope **at mean E**.
 
 ### Result (reporting config; n = 157 transition-rows, 53 children)
 
-| coefficient | mean | 95% CI (eq-tailed) | P(>0) |
-| --- | ---: | --- | ---: |
-| `gamma_int` (moderation) | −0.091 | [−0.193, 0.011] | 0.04 |
-| `gamma_mod` (vocab main effect) | +0.168 | [0.029, 0.311] | 0.99 |
+| coefficient                     |   mean | 95% CI (eq-tailed) | P(>0) |
+| ------------------------------- | -----: | ------------------ | ----: |
+| `gamma_int` (moderation)        | −0.091 | [−0.193, 0.011]    |  0.04 |
+| `gamma_mod` (vocab main effect) | +0.168 | [0.029, 0.311]     |  0.99 |
 
 Sampling pristine: all R-hat = 1.00, ESS in the thousands–tens-of-thousands, no
 divergences.
 
 **Read honestly:** the moderation is **suggestive, not credible** — the 95% CI
-spans zero, leaning slightly *negative* (if anything, higher-vocabulary children
-convert letter-sound to reading marginally *less* strongly, not more). The vocab
-*main* effect is credibly positive, as expected. This is a legitimate,
+spans zero, leaning slightly _negative_ (if anything, higher-vocabulary children
+convert letter-sound to reading marginally _less_ strongly, not more). The vocab
+_main_ effect is credibly positive, as expected. This is a legitimate,
 publishable result: within this sample, phonics converts to reading largely
 **independently of vocabulary level**. The value of LRP71 is establishing the
 interaction machinery and testing the dual-route hypothesis honestly.

@@ -8,19 +8,19 @@ Date: 2026-04-17
 ## Purpose
 
 Summarise the modelling work to date on the Down Syndrome Education
-International *language and reading predictors* exploratory study.
+International _language and reading predictors_ exploratory study.
 Four primary models target two outcomes (word reading, expressive
 vocabulary) across two framings (level at each timepoint, change
 between timepoints):
 
-| Model | Task | Target | n | Framing |
-|---|---|---|---:|---|
-| LRP01 | Word-reading gain | `ewrswr_gain` | 157 | Change between timepoints |
-| LRP02 | Word-reading level | `ewrswr` | 210 | Level at each timepoint |
-| LRP03 | Expressive-vocabulary gain | `eowpvt_gain` | 161 | Change between timepoints |
-| LRP04 | Expressive-vocabulary level | `eowpvt` | 215 | Level at each timepoint |
+| Model | Task                        | Target        |   n | Framing                   |
+| ----- | --------------------------- | ------------- | --: | ------------------------- |
+| LRP01 | Word-reading gain           | `ewrswr_gain` | 157 | Change between timepoints |
+| LRP02 | Word-reading level          | `ewrswr`      | 210 | Level at each timepoint   |
+| LRP03 | Expressive-vocabulary gain  | `eowpvt_gain` | 161 | Change between timepoints |
+| LRP04 | Expressive-vocabulary level | `eowpvt`      | 215 | Level at each timepoint   |
 
-This report takes the *best-fitting* configuration of each family (as
+This report takes the _best-fitting_ configuration of each family (as
 measured by pooled out-of-fold CV metrics) and describes what the four
 models indicate — individually and collectively — about the predictors
 of progress in language and reading for children with Down syndrome.
@@ -32,7 +32,7 @@ All data and models are preliminary; findings are for research use.
 
 - **Estimator**: LightGBM across all models. Adopted in April 2026
   after paired comparison against Random Forest (`notes/202604121451-
-  lightgbm-model-selection.md`): accuracy within 0.04 CV RMSE of RF at
+lightgbm-model-selection.md`): accuracy within 0.04 CV RMSE of RF at
   ~30× lower wall-time, tighter importance rankings, and explicit
   zero-importance zeros that streamline feature selection.
 - **Cross-validation**: `GroupKFold` grouped by `subject_id`. 51–53
@@ -69,11 +69,11 @@ All data and models are preliminary; findings are for research use.
   and importance × cluster tables for each fitted model.
 - **Exploration-layer diagnostics** (added after importance pruning
   proved to have four distinct failure modes — see
-  *Direction and stability diagnostics* below):
+  _Direction and stability diagnostics_ below):
   - **Construct-level importance** — permutation importance
     aggregated by construct family (language composite, reading
     decoding, articulation, demographics, …) via
-    `Variables.CONSTRUCTS`. Reveals which *domains* matter even when
+    `Variables.CONSTRUCTS`. Reveals which _domains_ matter even when
     the within-construct instrument that wins the race differs
     across variants.
   - **SHAP direction diagnostics** — per-feature Spearman rank
@@ -99,7 +99,7 @@ All data and models are preliminary; findings are for research use.
   `Variables.TIME_INVARIANT_BASELINES`). `GroupKFold` prevents
   test-set leakage but not training-side row-count inflation. A
   sensitivity check on LRP02 (`notes/202604171220-lrp02-time-
-  invariant-weight-sensitivity.md`) found that inverse-frequency
+invariant-weight-sensitivity.md`) found that inverse-frequency
   subject weighting leaves the importance rankings essentially
   unchanged, but that dropping `agebooks` + `agespeak` and retuning
   produces a strictly better model on every mean-based pooled
@@ -118,20 +118,21 @@ All data and models are preliminary; findings are for research use.
   (rather than capping) tuned `n_estimators` during `--config test`
   / `dev` runs. Fixed in PR #16; all variants were subsequently
   refit under honoured tuned values (`notes/202604171017-lrp02-
-  refit-under-cap-fix.md`).
+refit-under-cap-fix.md`).
 
 ## Best-fitting configurations
 
 Fitted at `--config reporting` (full CV, 50 permutation repeats, SHAP
-+ PDP). The winner within each family is selected on pooled out-of-
-fold R², breaking ties on pooled MAE.
 
-| Family | Winner | n | predictors | CV MAE | CV RMSE | pooled MAE | pooled RMSE | **pooled R²** | pooled MedAE | In-sample R² |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| LRP01 | `lrp01_log` | 157 | 6 | 2.85 | 3.35 | 2.85 | 4.14 | **0.099** | 1.92 | 0.247 |
-| LRP02 | `lrp02_log` | 210 | 13 | 5.56 | 6.37 | 5.46 | 7.29 | **0.644** | 2.58 | 0.952 |
-| LRP03 | `lrp03` | 161 | 11 | 5.00 | 5.75 | 4.99 | 6.66 | **0.131** | 3.98 | 0.405 |
-| LRP04 | `lrp04` | 215 | 7 | 6.23 | 7.17 | 6.23 | 7.91 | **0.691** | 5.09 | 0.874 |
+- PDP). The winner within each family is selected on pooled out-of-
+  fold R², breaking ties on pooled MAE.
+
+| Family | Winner      |   n | predictors | CV MAE | CV RMSE | pooled MAE | pooled RMSE | **pooled R²** | pooled MedAE | In-sample R² |
+| ------ | ----------- | --: | ---------: | -----: | ------: | ---------: | ----------: | ------------: | -----------: | -----------: |
+| LRP01  | `lrp01_log` | 157 |          6 |   2.85 |    3.35 |       2.85 |        4.14 |     **0.099** |         1.92 |        0.247 |
+| LRP02  | `lrp02_log` | 210 |         13 |   5.56 |    6.37 |       5.46 |        7.29 |     **0.644** |         2.58 |        0.952 |
+| LRP03  | `lrp03`     | 161 |         11 |   5.00 |    5.75 |       4.99 |        6.66 |     **0.131** |         3.98 |        0.405 |
+| LRP04  | `lrp04`     | 215 |          7 |   6.23 |    7.17 |       6.23 |        7.91 |     **0.691** |         5.09 |        0.874 |
 
 **Signal-strength observation.** The two **level** models (LRP02,
 LRP04) generalise strongly (pooled R² 0.64 and 0.69). The two **gain**
@@ -152,7 +153,7 @@ timepoints.
   (attend sessions).
 - **Feature-selection history**: 34 → 6 predictors across six MAE-
   tuned selection steps (`notes/202604161432-lrp01-feature-
-  selection-mae.md`); each step improved CV MAE.
+selection-mae.md`); each step improved CV MAE.
 - **Target transform**: `sign(y) × log1p(|y|)` — gains can be negative
   (19 of 157 observations), so signed-log rather than plain `log1p`.
 - **Ranking agreement with raw-target primary**: identical top-6 in
@@ -161,27 +162,27 @@ timepoints.
 
 ### Permutation importance (top 6)
 
-| Rank | Predictor | Importance | Interpretation |
-|---:|---|---:|---|
-| 1 | `age` | 0.113 | Older children gain more on average at this sample size |
-| 2 | `attend` | 0.089 | Intervention-session attendance matters |
-| 3 | `yarclet` | 0.084 | Letter-sound knowledge at baseline predicts reading gains |
-| 4 | `b1exto` | 0.049 | Expressive vocabulary predicts gains |
-| 4 | `celf` | 0.049 | Basic concept knowledge predicts gains |
-| 6 | `blending` | 0.035 | Phoneme blending skill predicts gains |
+| Rank | Predictor  | Importance | Interpretation                                            |
+| ---: | ---------- | ---------: | --------------------------------------------------------- |
+|    1 | `age`      |      0.113 | Older children gain more on average at this sample size   |
+|    2 | `attend`   |      0.089 | Intervention-session attendance matters                   |
+|    3 | `yarclet`  |      0.084 | Letter-sound knowledge at baseline predicts reading gains |
+|    4 | `b1exto`   |      0.049 | Expressive vocabulary predicts gains                      |
+|    4 | `celf`     |      0.049 | Basic concept knowledge predicts gains                    |
+|    6 | `blending` |      0.035 | Phoneme blending skill predicts gains                     |
 
 ### Direction of effects and stability
 
 Feature-value × SHAP Spearman correlations (`shap_direction_diagnostics.csv`):
 
-| Predictor | Spearman | Shape | Top-5 appearance (30 bootstraps) |
-|---|---:|---|---:|
-| `attend` | +0.96 | `monotonic_+` | 93% |
-| `celf` | +0.91 | `monotonic_+` | 80% |
-| `yarclet` | +0.82 | `monotonic_+` | 93% |
-| `age` | **−0.90** | **`monotonic_-`** | 93% |
-| `b1exto` | +0.93 | `monotonic_+` | 83% |
-| `blending` | +0.78 | `monotonic_+` | 57% |
+| Predictor  |  Spearman | Shape             | Top-5 appearance (30 bootstraps) |
+| ---------- | --------: | ----------------- | -------------------------------: |
+| `attend`   |     +0.96 | `monotonic_+`     |                              93% |
+| `celf`     |     +0.91 | `monotonic_+`     |                              80% |
+| `yarclet`  |     +0.82 | `monotonic_+`     |                              93% |
+| `age`      | **−0.90** | **`monotonic_-`** |                              93% |
+| `b1exto`   |     +0.93 | `monotonic_+`     |                              83% |
+| `blending` |     +0.78 | `monotonic_+`     |                              57% |
 
 Every predictor is cleanly monotonic. The precise direction
 diagnostic corrects the earlier hand-reading of the beeswarm that
@@ -205,7 +206,7 @@ stage** (age), **intervention engagement** (attendance), and
 **pre-reading skills** (letter sounds, phoneme blending). Language
 measures (expressive vocabulary, basic concepts) contribute but at
 roughly half the magnitude of the top-three predictors. Crucially,
-*baseline word-reading score* (`ewrswr`) was dropped during selection
+_baseline word-reading score_ (`ewrswr`) was dropped during selection
 (importance 0.000 in Select02) — how far a child has already come in
 word reading does not, in this sample, determine how much further
 they gain between timepoints. That contrasts sharply with LRP03
@@ -215,7 +216,7 @@ where baseline `eowpvt` dominates gain prediction.
 
 - **Low generalisation strength**: pooled R² = 0.10 means the model
   explains ~10% of between-child variance in reading gain. Individual
-  prediction is unreliable; the importance *rankings* carry the
+  prediction is unreliable; the importance _rankings_ carry the
   research signal.
 - **n=157 with 53-split CV**: per-fold variance is high; conclusions
   come from pooled OOF and importance stability rather than absolute
@@ -234,52 +235,52 @@ where baseline `eowpvt` dominates gain prediction.
   yarclet); home literacy (agebooks — age at introduction to books).
 - **Feature-selection history**: 32 → 13 predictors across four MAE-
   tuned selection steps (`notes/202604161949-lrp02-feature-
-  selection.md`); CV MAE dropped from 6.98 to 6.01.
+selection.md`); CV MAE dropped from 6.98 to 6.01.
 - **Target transform**: `log1p(y)` — `ewrswr` has a hard floor at 0
   and a heavy right tail (median 6.5, max 64). Log-transforming the
   target homogenises error across quartiles and lifts pooled R²
   from 0.60 (primary, raw target) to 0.64.
 - **Sensitivity checks**: dropping the two time-invariant baseline
   measures (`agebooks`, `agespeak`) and retuning — `lrp02_drop_age_
-  measures` — produces pooled R² 0.63, better than the raw-target
+measures` — produces pooled R² 0.63, better than the raw-target
   primary but worse than `lrp02_log`. The log transform is the
   bigger lever than feature reduction on this target.
 
 ### Permutation importance (top 10)
 
-| Rank | Predictor | Importance | Interpretation |
-|---:|---|---:|---|
-| 1 | `yarclet` | 0.273 | Letter-sound knowledge |
-| 2 | `spphon` | 0.263 | Phonetic spelling |
-| 3 | `eowpvt` | 0.109 | Expressive vocabulary |
-| 3 | `aptinfo` | 0.108 | Language information composite |
-| 5 | `erbword` | 0.083 | Word repetition |
-| 6 | `nonword` | 0.070 | Nonword reading |
-| 7 | `agebooks` | 0.042 | Age at introduction to books (baseline) |
-| 8 | `agespeak` | 0.040 | Age at first words (baseline) |
-| 9 | `mumedupost16` | 0.036 | Maternal post-16 education |
-| 10 | `age` | 0.034 | Developmental stage |
+| Rank | Predictor      | Importance | Interpretation                          |
+| ---: | -------------- | ---------: | --------------------------------------- |
+|    1 | `yarclet`      |      0.273 | Letter-sound knowledge                  |
+|    2 | `spphon`       |      0.263 | Phonetic spelling                       |
+|    3 | `eowpvt`       |      0.109 | Expressive vocabulary                   |
+|    3 | `aptinfo`      |      0.108 | Language information composite          |
+|    5 | `erbword`      |      0.083 | Word repetition                         |
+|    6 | `nonword`      |      0.070 | Nonword reading                         |
+|    7 | `agebooks`     |      0.042 | Age at introduction to books (baseline) |
+|    8 | `agespeak`     |      0.040 | Age at first words (baseline)           |
+|    9 | `mumedupost16` |      0.036 | Maternal post-16 education              |
+|   10 | `age`          |      0.034 | Developmental stage                     |
 
 ### Direction of effects and stability
 
 Feature-value × SHAP Spearman correlations + bootstrap stability
 for `lrp02_log`:
 
-| Predictor | Spearman | Shape | Top-5 (30 bootstraps) |
-|---|---:|---|---:|
-| `yarclet` | +0.97 | `monotonic_+` | **100%** |
-| `spphon` | +0.87 | `monotonic_+` | 97% |
-| `eowpvt` | +0.93 | `monotonic_+` | 87% |
-| `nonword` | +0.90 | `monotonic_+` | 50% |
-| `aptinfo` | +0.95 | `monotonic_+` | 77% |
-| `erbword` | +0.90 | `monotonic_+` | 63% |
-| `age` | +0.76 | `monotonic_+` | 13% |
-| `agebooks` | **+0.04** | **`non_monotonic`** | 3% |
-| `agespeak` | **+0.11** | **`non_monotonic`** | 10% |
-| `mumedupost16` | **−0.64** | **`noisy_-`** | 0% |
-| `numchil` | −0.58 | `noisy_-` | 0% |
-| `deappvo` | −0.07 | `non_monotonic` | 0% |
-| `gender` | +0.79 | `monotonic_+` | 0% |
+| Predictor      |  Spearman | Shape               | Top-5 (30 bootstraps) |
+| -------------- | --------: | ------------------- | --------------------: |
+| `yarclet`      |     +0.97 | `monotonic_+`       |              **100%** |
+| `spphon`       |     +0.87 | `monotonic_+`       |                   97% |
+| `eowpvt`       |     +0.93 | `monotonic_+`       |                   87% |
+| `nonword`      |     +0.90 | `monotonic_+`       |                   50% |
+| `aptinfo`      |     +0.95 | `monotonic_+`       |                   77% |
+| `erbword`      |     +0.90 | `monotonic_+`       |                   63% |
+| `age`          |     +0.76 | `monotonic_+`       |                   13% |
+| `agebooks`     | **+0.04** | **`non_monotonic`** |                    3% |
+| `agespeak`     | **+0.11** | **`non_monotonic`** |                   10% |
+| `mumedupost16` | **−0.64** | **`noisy_-`**       |                    0% |
+| `numchil`      |     −0.58 | `noisy_-`           |                    0% |
+| `deappvo`      |     −0.07 | `non_monotonic`     |                    0% |
+| `gender`       |     +0.79 | `monotonic_+`       |                    0% |
 
 The diagnostic corrects several hand-readings from the earlier
 beeswarm pass:
@@ -289,7 +290,7 @@ beeswarm pass:
   reading level" — the precise rank correlation says there is **no
   clean directional relationship**. Their importance is genuine but
   the direction is not informative.
-- **`mumedupost16` is *negatively* directional** (Spearman −0.64),
+- **`mumedupost16` is _negatively_ directional** (Spearman −0.64),
   not positive as previously read. Worth checking the variable's
   coding convention (`1 = post-16 education` vs `1 = none`) before
   interpreting; the SHAP direction alone reverses the earlier claim.
@@ -304,11 +305,12 @@ should be treated as a "retained for coverage, not for stable
 signal" tier.**
 
 **Construct importance**: reading decoding (total 0.61 — `yarclet`
-+ `spphon` + `nonword`) dominates, followed at equal second by
-expressive vocabulary (0.11 — `eowpvt`) and language composite
-(0.11 — `aptinfo`). Phonological memory (`erbword`, 0.08) is the
-next distinct construct. The single-construct dominance of reading
-decoding is the clearest story in the four models.
+
+- `spphon` + `nonword`) dominates, followed at equal second by
+  expressive vocabulary (0.11 — `eowpvt`) and language composite
+  (0.11 — `aptinfo`). Phonological memory (`erbword`, 0.08) is the
+  next distinct construct. The single-construct dominance of reading
+  decoding is the clearest story in the four models.
 
 ### What this model indicates
 
@@ -341,45 +343,45 @@ against scores ranging 0–64).
   (age, agebooks).
 - **Feature-selection history**: 34 → 11 predictors across two
   aggressive MAE-tuned cuts (`notes/202604171127-lpr03-feature-
-  selection.md`); CV MAE dropped from 5.28 to 5.04.
+selection.md`); CV MAE dropped from 5.28 to 5.04.
 
 ### Permutation importance (top 11)
 
-| Rank | Predictor | Importance | Interpretation |
-|---:|---|---:|---|
-| 1 | `eowpvt` | 0.248 | Baseline expressive vocabulary |
-| 2 | `deappvo` | 0.111 | Articulation (vowels) |
-| 3 | `aptinfo` | 0.101 | Language information composite |
-| 4 | `trog` | 0.095 | Receptive grammar |
-| 5 | `age` | 0.073 | Developmental stage |
-| 6 | `b1reto` | 0.044 | Receptive vocabulary |
-| 7 | `deappin` | 0.042 | Articulation (initial sounds) |
-| 8 | `rowpvt` | 0.037 | Receptive vocabulary (standardised) |
-| 9 | `aptgram` | 0.033 | Grammar composite |
-| 10 | `agebooks` | 0.027 | Age at introduction to books |
-| 11 | `b1exto` | 0.011 | Expressive vocabulary (block 1) |
+| Rank | Predictor  | Importance | Interpretation                      |
+| ---: | ---------- | ---------: | ----------------------------------- |
+|    1 | `eowpvt`   |      0.248 | Baseline expressive vocabulary      |
+|    2 | `deappvo`  |      0.111 | Articulation (vowels)               |
+|    3 | `aptinfo`  |      0.101 | Language information composite      |
+|    4 | `trog`     |      0.095 | Receptive grammar                   |
+|    5 | `age`      |      0.073 | Developmental stage                 |
+|    6 | `b1reto`   |      0.044 | Receptive vocabulary                |
+|    7 | `deappin`  |      0.042 | Articulation (initial sounds)       |
+|    8 | `rowpvt`   |      0.037 | Receptive vocabulary (standardised) |
+|    9 | `aptgram`  |      0.033 | Grammar composite                   |
+|   10 | `agebooks` |      0.027 | Age at introduction to books        |
+|   11 | `b1exto`   |      0.011 | Expressive vocabulary (block 1)     |
 
 ### Direction of effects and stability
 
 For `lrp03`:
 
-| Predictor | Spearman | Shape | Top-5 (30 bootstraps) |
-|---|---:|---|---:|
-| `eowpvt` | **−0.84** | **`monotonic_-`** | **100%** |
-| `aptinfo` | +0.84 | `monotonic_+` | 77% |
-| `trog` | +0.82 | `monotonic_+` | 70% |
-| `deappvo` | +0.67 | `noisy_+` | 73% |
-| `age` | **−0.30** | **`non_monotonic`** | 43% |
-| `deappin` | +0.43 | `noisy_+` | 40% |
-| `b1reto` | +0.58 | `noisy_+` | 37% |
-| `rowpvt` | +0.60 | `noisy_+` | 33% |
-| `aptgram` | −0.22 | `non_monotonic` | 17% |
-| `agebooks` | +0.44 | `noisy_+` | 0% |
-| `b1exto` | +0.62 | `noisy_+` | 10% |
+| Predictor  |  Spearman | Shape               | Top-5 (30 bootstraps) |
+| ---------- | --------: | ------------------- | --------------------: |
+| `eowpvt`   | **−0.84** | **`monotonic_-`**   |              **100%** |
+| `aptinfo`  |     +0.84 | `monotonic_+`       |                   77% |
+| `trog`     |     +0.82 | `monotonic_+`       |                   70% |
+| `deappvo`  |     +0.67 | `noisy_+`           |                   73% |
+| `age`      | **−0.30** | **`non_monotonic`** |                   43% |
+| `deappin`  |     +0.43 | `noisy_+`           |                   40% |
+| `b1reto`   |     +0.58 | `noisy_+`           |                   37% |
+| `rowpvt`   |     +0.60 | `noisy_+`           |                   33% |
+| `aptgram`  |     −0.22 | `non_monotonic`     |                   17% |
+| `agebooks` |     +0.44 | `noisy_+`           |                    0% |
+| `b1exto`   |     +0.62 | `noisy_+`           |                   10% |
 
 - **`eowpvt`** is the cleanest signal in the entire four-model set:
   Spearman −0.84, top-5 appearance 100% of bootstraps. Its
-  *negative* direction (lower baseline vocabulary → more gain) is
+  _negative_ direction (lower baseline vocabulary → more gain) is
   both the strongest and the most robust single finding in LRP03.
 - **`age` is non-monotonic** in LRP03 (Spearman −0.30), overturning
   the earlier "older children gain more" reading. The direction is
@@ -437,35 +439,35 @@ age range, where reading gains depend more on foundational skills
   `b1exto` (rank 1 at importance 0.164) was dropped because it is
   another expressive-vocabulary instrument — keeping it would turn
   the model into a between-tests calibration study rather than an
-  identification of *non-vocabulary* predictors of expressive
+  identification of _non-vocabulary_ predictors of expressive
   vocabulary. This cost ~0.55 CV MAE for a more interpretable
   research question.
 
 ### Permutation importance (top 7)
 
-| Rank | Predictor | Importance | Interpretation |
-|---:|---|---:|---|
-| 1 | `aptinfo` | 0.403 | Language information composite — dominant |
-| 2 | `rowpvt` | 0.100 | Receptive vocabulary (standardised) |
-| 3 | `celf` | 0.081 | Basic concept knowledge |
-| 4 | `ewrswr` | 0.076 | Word-reading composite |
-| 5 | `yarclet` | 0.074 | Letter-sound knowledge |
-| 6 | `age` | 0.058 | Developmental stage |
-| 7 | `deappin` | 0.032 | Articulation (initial sounds) |
+| Rank | Predictor | Importance | Interpretation                            |
+| ---: | --------- | ---------: | ----------------------------------------- |
+|    1 | `aptinfo` |      0.403 | Language information composite — dominant |
+|    2 | `rowpvt`  |      0.100 | Receptive vocabulary (standardised)       |
+|    3 | `celf`    |      0.081 | Basic concept knowledge                   |
+|    4 | `ewrswr`  |      0.076 | Word-reading composite                    |
+|    5 | `yarclet` |      0.074 | Letter-sound knowledge                    |
+|    6 | `age`     |      0.058 | Developmental stage                       |
+|    7 | `deappin` |      0.032 | Articulation (initial sounds)             |
 
 ### Direction of effects and stability
 
 For `lrp04`:
 
-| Predictor | Spearman | Shape | Top-5 (30 bootstraps) |
-|---|---:|---|---:|
-| `aptinfo` | +0.98 | `monotonic_+` | **100%** |
-| `rowpvt` | +0.95 | `monotonic_+` | 87% |
-| `ewrswr` | +0.86 | `monotonic_+` | **100%** |
-| `yarclet` | +0.96 | `monotonic_+` | 67% |
-| `celf` | +0.80 | `monotonic_+` | 83% |
-| `age` | +0.76 | `monotonic_+` | 53% |
-| `deappin` | **−0.12** | **`non_monotonic`** | 10% |
+| Predictor |  Spearman | Shape               | Top-5 (30 bootstraps) |
+| --------- | --------: | ------------------- | --------------------: |
+| `aptinfo` |     +0.98 | `monotonic_+`       |              **100%** |
+| `rowpvt`  |     +0.95 | `monotonic_+`       |                   87% |
+| `ewrswr`  |     +0.86 | `monotonic_+`       |              **100%** |
+| `yarclet` |     +0.96 | `monotonic_+`       |                   67% |
+| `celf`    |     +0.80 | `monotonic_+`       |                   83% |
+| `age`     |     +0.76 | `monotonic_+`       |                   53% |
+| `deappin` | **−0.12** | **`non_monotonic`** |                   10% |
 
 Six of seven predictors are cleanly monotonic positive. The
 exception is **`deappin`**, which the precise direction diagnostic
@@ -507,38 +509,38 @@ rather than tautological.
 
 ### Level prediction is 5-6× easier than gain prediction
 
-| Family | Framing | Pooled R² | In-sample R² | Gap |
-|---|---|---:|---:|---:|
-| LRP02 | Level | 0.64 | 0.95 | 0.31 |
-| LRP04 | Level | 0.69 | 0.87 | 0.18 |
-| LRP01 | Gain | 0.10 | 0.25 | 0.15 |
-| LRP03 | Gain | 0.13 | 0.41 | 0.28 |
+| Family | Framing | Pooled R² | In-sample R² |  Gap |
+| ------ | ------- | --------: | -----------: | ---: |
+| LRP02  | Level   |      0.64 |         0.95 | 0.31 |
+| LRP04  | Level   |      0.69 |         0.87 | 0.18 |
+| LRP01  | Gain    |      0.10 |         0.25 | 0.15 |
+| LRP03  | Gain    |      0.13 |         0.41 | 0.28 |
 
 Level models generalise strongly; gain models have weak signal at
 this sample size. This is structural — gains have much less between-
 child variance to exploit once a child's baseline level is accounted
 for. The generalisation gap (in-sample − CV) is not hugely different
-between framings (0.15–0.31), but the *absolute* CV R² is lower on
+between framings (0.15–0.31), but the _absolute_ CV R² is lower on
 the gain side because there is simply less signal.
 
-### Which predictors matter for *what*
+### Which predictors matter for _what_
 
-| Predictor domain | LRP01 (word gain) | LRP02 (word level) | LRP03 (vocabulary gain) | LRP04 (vocabulary level) |
-|---|---|---|---|---|
-| Reading / letter sounds | **yarclet #3** | **yarclet #1** | — | yarclet #5 |
-| Phonetic spelling / decoding | blending #6 | **spphon #2** | — | — |
-| Phonological memory | — | erbword #5 | — | — |
-| Language composite | celf #4 | aptinfo #3 | **aptinfo #3**, trog #4, aptgram #9 | **aptinfo #1** |
-| Expressive vocabulary | **b1exto #4** | eowpvt #3 | b1exto #11, b1reto #6 | (construct-dropped) |
-| Receptive vocabulary | — | — | rowpvt #8 | **rowpvt #2** |
-| Basic concepts | celf #4 | — | — | celf #3 |
-| Articulation | — | deappvo #13 | **deappvo #2**, deappin #7 | deappin #7 |
-| Reading level | (dropped) | (target) | — | ewrswr #4 |
-| Baseline level of the target | (dropped) | (target) | **eowpvt #1** | (target) |
-| Demographics (age) | **age #1** | age #10 | **age #5** | age #6 |
-| Intervention attendance | **attend #2** | (not selected) | (dropped) | (dropped) |
-| Baseline home literacy | (dropped) | agebooks #7 | agebooks #10 | (dropped) |
-| Parental education | (dropped) | mumedupost16 #9 | (dropped) | (dropped) |
+| Predictor domain             | LRP01 (word gain) | LRP02 (word level) | LRP03 (vocabulary gain)             | LRP04 (vocabulary level) |
+| ---------------------------- | ----------------- | ------------------ | ----------------------------------- | ------------------------ |
+| Reading / letter sounds      | **yarclet #3**    | **yarclet #1**     | —                                   | yarclet #5               |
+| Phonetic spelling / decoding | blending #6       | **spphon #2**      | —                                   | —                        |
+| Phonological memory          | —                 | erbword #5         | —                                   | —                        |
+| Language composite           | celf #4           | aptinfo #3         | **aptinfo #3**, trog #4, aptgram #9 | **aptinfo #1**           |
+| Expressive vocabulary        | **b1exto #4**     | eowpvt #3          | b1exto #11, b1reto #6               | (construct-dropped)      |
+| Receptive vocabulary         | —                 | —                  | rowpvt #8                           | **rowpvt #2**            |
+| Basic concepts               | celf #4           | —                  | —                                   | celf #3                  |
+| Articulation                 | —                 | deappvo #13        | **deappvo #2**, deappin #7          | deappin #7               |
+| Reading level                | (dropped)         | (target)           | —                                   | ewrswr #4                |
+| Baseline level of the target | (dropped)         | (target)           | **eowpvt #1**                       | (target)                 |
+| Demographics (age)           | **age #1**        | age #10            | **age #5**                          | age #6                   |
+| Intervention attendance      | **attend #2**     | (not selected)     | (dropped)                           | (dropped)                |
+| Baseline home literacy       | (dropped)         | agebooks #7        | agebooks #10                        | (dropped)                |
+| Parental education           | (dropped)         | mumedupost16 #9    | (dropped)                           | (dropped)                |
 
 Ranks are within each model's selected predictor set.
 
@@ -601,7 +603,7 @@ earlier direction calls**:
 **Direction-and-stability patterns across models:**
 
 1. **Level models are directionally clean for their substantive
-   predictors** (LRP02 top 7, LRP04 top 6 all monotonic_+; the
+   predictors** (LRP02 top 7, LRP04 top 6 all monotonic\_+; the
    non-monotonic `agebooks` / `agespeak` / `deappin` are
    secondary). The core "more capability → higher level" story
    stands.
@@ -628,19 +630,19 @@ Aggregating permutation importance by construct family gives a
 much cleaner comparison between models than listing individual
 features:
 
-| Construct | LRP01 (gain) | LRP02 (level) | LRP03 (vocabulary gain) | LRP04 (vocabulary level) |
-|---|---:|---:|---:|---:|
-| Reading decoding | **0.120** | **0.605** | — | 0.074 |
-| Reading word | — | (target) | — | 0.076 |
-| Expressive vocabulary | 0.049 | 0.109 | **0.260** | (target) |
-| Language composite | 0.049 | 0.108 | **0.228** | **0.484** |
-| Receptive vocabulary | — | — | 0.081 | 0.100 |
-| Phonological memory | — | 0.083 | — | — |
-| Articulation | — | 0.015 | **0.153** | 0.032 |
-| Demographics (child) | 0.113 (age) | 0.092 | 0.073 (age) | 0.058 (age) |
-| Home literacy | — | 0.042 | 0.027 | — |
-| Demographics (family) | — | 0.060 | — | — |
-| Intervention | 0.089 (attend) | — | — | — |
+| Construct             |   LRP01 (gain) | LRP02 (level) | LRP03 (vocabulary gain) | LRP04 (vocabulary level) |
+| --------------------- | -------------: | ------------: | ----------------------: | -----------------------: |
+| Reading decoding      |      **0.120** |     **0.605** |                       — |                    0.074 |
+| Reading word          |              — |      (target) |                       — |                    0.076 |
+| Expressive vocabulary |          0.049 |         0.109 |               **0.260** |                 (target) |
+| Language composite    |          0.049 |         0.108 |               **0.228** |                **0.484** |
+| Receptive vocabulary  |              — |             — |                   0.081 |                    0.100 |
+| Phonological memory   |              — |         0.083 |                       — |                        — |
+| Articulation          |              — |         0.015 |               **0.153** |                    0.032 |
+| Demographics (child)  |    0.113 (age) |         0.092 |             0.073 (age) |              0.058 (age) |
+| Home literacy         |              — |         0.042 |                   0.027 |                        — |
+| Demographics (family) |              — |         0.060 |                       — |                        — |
+| Intervention          | 0.089 (attend) |             — |                       — |                        — |
 
 Each outcome has a **dominant construct** that carries the
 majority of the model's explanatory power:
@@ -656,20 +658,20 @@ contribution beyond `deappin` (which is itself non-directional).
 These gaps are as interpretively important as the dominances — they
 mean those domains are genuinely orthogonal at this sample size.
 
-**Take-home**: for exploration, report *construct-level* importance
+**Take-home**: for exploration, report _construct-level_ importance
 first, then zoom into instruments within a dominant construct only
 for substantive clarification. The within-construct substitutions
 (which instrument "won" — `eowpvt` vs `b1exto` vs `aptinfo`) are
-mostly noise; which *domain* won is the stable signal.
+mostly noise; which _domain_ won is the stable signal.
 
 ### Target transforms pay off unequally
 
-| Model | Transform | CV R² (raw → transform) |
-|---|---|---|
-| LRP02 | `log1p` | 0.60 → 0.64 (+0.04) |
-| LRP01 | signed-log | 0.10 → 0.10 (tied) |
-| LRP03 | none explored | — |
-| LRP04 | none explored | — |
+| Model | Transform     | CV R² (raw → transform) |
+| ----- | ------------- | ----------------------- |
+| LRP02 | `log1p`       | 0.60 → 0.64 (+0.04)     |
+| LRP01 | signed-log    | 0.10 → 0.10 (tied)      |
+| LRP03 | none explored | —                       |
+| LRP04 | none explored | —                       |
 
 The LRP02 `log1p` benefit comes from its hard floor at 0 and heavy
 right skew. LRP01's signed-log transform helps negative-gain
@@ -705,7 +707,7 @@ provide the most balanced predictor weightings.
    child) can inflate their training-side importance, though the
    distortion on current LRP02 importance rankings is small. The
    systematic issue is labelled (`Variables.TIME_INVARIANT_
-   BASELINES`) but not yet acted on per-model beyond LRP02.
+BASELINES`) but not yet acted on per-model beyond LRP02.
 4. **Statistical significance of comparisons**. Paired-fold tests
    at n=10 lack the power to reject α=0.05 for modest effects.
    Directional consistency (fold-win counts) and pooled OOF metrics
@@ -713,7 +715,7 @@ provide the most balanced predictor weightings.
 5. **No causal claims**. Every finding above is associational.
    Predictor importance indicates "which features help this
    GBDT explain between-child variance on this outcome", not
-   "which features *cause* progress".
+   "which features _cause_ progress".
 
 ## Next-step candidates
 
@@ -726,12 +728,12 @@ provide the most balanced predictor weightings.
   the MAE-tuned log variant exists.
 - **Sub-population sensitivity** for any model recommending
   promotion from primary to variant (e.g. `lrp02_drop_age_
-  measures`): per-age-band and per-baseline-score slices to confirm
+measures`): per-age-band and per-baseline-score slices to confirm
   pooled-metric improvements aren't masking regressions on
   identifiable sub-groups.
 - **Time-invariant baseline treatment for LRP04**. Four of LRP04's
   seven predictors are time-varying (aptinfo, rowpvt, ewrswr, celf,
-  age) and two are t1 / replicated (deappin, agebooks — *agebooks*
+  age) and two are t1 / replicated (deappin, agebooks — _agebooks_
   is not actually in LRP04's final set; only `age` and `deappin`
   here are on the boundary). Worth re-checking under the
   `TIME_INVARIANT_BASELINES` label whether any LRP04 features
@@ -770,6 +772,6 @@ Notes referenced:
   feature selection from 34 → 11 predictors.
 - `notes/202604171220-lrp02-time-invariant-weight-sensitivity.md`
   — sensitivity to duplicated baseline rows; `lrp02_drop_age_
-  measures` variant.
+measures` variant.
 - `notes/202604171240-lrp04-feature-selection.md` — LRP04
   feature selection from 32 → 7 predictors plus quantile variant.

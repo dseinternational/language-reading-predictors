@@ -6,7 +6,7 @@
 Date: 2026-04-19
 
 Sixth and final of the LRP11–LRP22 construct-gap pairs from
-``notes/202604181930-lrp11-22-target-plan.md``. Closes out the
+`notes/202604181930-lrp11-22-target-plan.md`. Closes out the
 initial gradient-boosting baseline-and-tune pass across the
 construct-gap list. Follows LRP11/12 (TROG-2 grammar),
 LRP13/14 (nonword reading), LRP15/16 (phoneme blending),
@@ -15,22 +15,22 @@ expressive information).
 
 ## Construct
 
-``deappfi`` is a percentage-scale articulation score from the
+`deappfi` is a percentage-scale articulation score from the
 Diagnostic Evaluation of Articulation and Phonology (Dodd et
-al., 2006). The child is asked to name pictures; ``deappfi``
-scores the proportion of the *final* consonants correctly
-produced (distinct from ``deappin`` initial consonants and
-``deappvo`` voicing of target sounds). First articulation-
+al., 2006). The child is asked to name pictures; `deappfi`
+scores the proportion of the _final_ consonants correctly
+produced (distinct from `deappin` initial consonants and
+`deappvo` voicing of target sounds). First articulation-
 domain target in the suite — DEAP measures have been used as
 predictors across every other model in LRP01–LRP20 but never
 as targets until now.
 
 ## Target distributions
 
-| Target | n | min | max | median | mean | std | skew | notes |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| `deappfi` (level) | 207 | 5.4 | 95.2 | 66.6 | 60.28 | 20.9 | **−0.87** | left-skew, ceiling |
-| `deappfi_gain` | 152 | −56.9 | 56.0 | 0.01 | 0.84 | 13.3 | −0.32 | heavy 2-sided spread |
+| Target            |   n |   min |  max | median |  mean |  std |      skew | notes                |
+| ----------------- | --: | ----: | ---: | -----: | ----: | ---: | --------: | -------------------- |
+| `deappfi` (level) | 207 |   5.4 | 95.2 |   66.6 | 60.28 | 20.9 | **−0.87** | left-skew, ceiling   |
+| `deappfi_gain`    | 152 | −56.9 | 56.0 |   0.01 |  0.84 | 13.3 |     −0.32 | heavy 2-sided spread |
 
 For `deappfi_gain`: 48% negative, 2% zero — **nearly half the
 sample regresses between timepoints**. Median ≈ 0 and mean
@@ -56,13 +56,13 @@ nearly all the signal in a very small tree count, which is
 consistent with the target being dominated by the baseline
 regression-to-the-ceiling dynamic.
 
-| Metric | Baseline (500t) | MAE-tuned (19t) |
-|---|---:|---:|
-| CV MAE | 10.208 ± 2.117 | **8.189 ± 2.616** |
-| CV RMSE | 13.281 ± 2.979 | **11.316 ± 2.830** |
-| **CV R²** | **−0.492 ± 0.768** | **0.105 ± 0.130** |
-| CV MedAE | 8.069 ± 2.407 | **6.459 ± 2.101** |
-| In-sample R² | 0.998 | 0.437 |
+| Metric       |    Baseline (500t) |    MAE-tuned (19t) |
+| ------------ | -----------------: | -----------------: |
+| CV MAE       |     10.208 ± 2.117 |  **8.189 ± 2.616** |
+| CV RMSE      |     13.281 ± 2.979 | **11.316 ± 2.830** |
+| **CV R²**    | **−0.492 ± 0.768** |  **0.105 ± 0.130** |
+| CV MedAE     |      8.069 ± 2.407 |  **6.459 ± 2.101** |
+| In-sample R² |              0.998 |              0.437 |
 
 CV R² crosses from strongly negative (−0.49) to positive
 (0.10) — the largest R² rescue in the suite. CV MAE drops
@@ -75,13 +75,13 @@ Tuner-inner CV MAE **9.6719 ± 1.3824**. Slow shallow regime:
 385 trees, lr 0.011 (lowest in the suite), num_leaves **7**
 (shallowest), max_depth 7, min_child 16, strong L2 (8.09).
 
-| Metric | Baseline (500t) | MAE-tuned (385t) |
-|---|---:|---:|
-| CV MAE | 11.905 ± 1.781 | **10.014 ± 1.940** |
-| CV RMSE | 15.959 ± 3.222 | **13.617 ± 3.029** |
-| **CV R²** | **0.241 ± 0.431** | **0.439 ± 0.370** |
-| CV MedAE | 8.198 ± 2.006 | **7.830 ± 2.265** |
-| In-sample R² | 1.000 | 0.782 |
+| Metric       |   Baseline (500t) |   MAE-tuned (385t) |
+| ------------ | ----------------: | -----------------: |
+| CV MAE       |    11.905 ± 1.781 | **10.014 ± 1.940** |
+| CV RMSE      |    15.959 ± 3.222 | **13.617 ± 3.029** |
+| **CV R²**    | **0.241 ± 0.431** |  **0.439 ± 0.370** |
+| CV MedAE     |     8.198 ± 2.006 |  **7.830 ± 2.265** |
+| In-sample R² |             1.000 |              0.782 |
 
 Substantive CV R² gain (+0.20) with slight variance
 tightening. CV MAE drops 1.89, CV MedAE 0.37. The tight
@@ -93,17 +93,17 @@ slower tuning.
 
 ### LRP21 (`deappfi_gain`)
 
-1. **`deappfi`** (0.396) — base level dominates, **monotonic_-**
+1. **`deappfi`** (0.396) — base level dominates, **monotonic\_-**
    (Spearman −0.959) — ceiling regression
-2. `erbnw` (0.039) — nonword repetition, monotonic_+ (0.793)
+2. `erbnw` (0.039) — nonword repetition, monotonic\_+ (0.793)
 3. **`deappvo`** (0.036) — DEAP voicing (articulation
-   sibling), monotonic_+ (0.804)
+   sibling), monotonic\_+ (0.804)
 4. **`deappin`** (0.028) — DEAP initial (articulation sibling),
-   noisy_+ (0.361)
+   noisy\_+ (0.361)
 5. `age` (0.026)
 6. `eowpvt` (0.024) — expressive vocabulary, non_monotonic
-7. `attend` (0.024) — intervention attendance, noisy_+
-8. `yarclet` (0.020) — letter-sound, monotonic_+
+7. `attend` (0.024) — intervention attendance, noisy\_+
+8. `yarclet` (0.020) — letter-sound, monotonic\_+
 9. `b1exto` (0.019) — taught expressive vocab
 10. `celf` (0.017) — basic concept knowledge
 
@@ -115,16 +115,16 @@ articulation siblings share the next tier.
 ### LRP22 (`deappfi`)
 
 1. **`deappin`** (0.688) — **DEAP articulation initial**
-   (articulation sibling), monotonic_+ (Spearman 0.929)
+   (articulation sibling), monotonic\_+ (Spearman 0.929)
 2. **`erbword`** (0.137) — word repetition (phonological
-   memory), monotonic_+ (0.832)
-3. `ewrswr` (0.047) — word reading, monotonic_+ (0.727)
+   memory), monotonic\_+ (0.832)
+3. `ewrswr` (0.047) — word reading, monotonic\_+ (0.727)
 4. `numchil` (0.015)
-5. `dadedupost16` (0.015) — monotonic_-
-6. `erbnw` (0.012) — nonword repetition, monotonic_+
-7. `yarclet` (0.011) — letter-sound, noisy_+
+5. `dadedupost16` (0.015) — monotonic\_-
+6. `erbnw` (0.012) — nonword repetition, monotonic\_+
+7. `yarclet` (0.011) — letter-sound, noisy\_+
 8. `celf` (0.010)
-9. `time` (0.008) — monotonic_-
+9. `time` (0.008) — monotonic\_-
 10. `agespeak` (0.008)
 
 **Same-test sibling dominance (deappin at 0.688) is the
@@ -146,11 +146,11 @@ speech-production skill in the same way that APTGRAM level
 Across the six pairs added in LRP11–LRP22, three level models
 routed their primary signal through a same-test sibling:
 
-| Model | Target | Top predictor | Importance | Spearman |
-|---|---|---|---:|---:|
-| LRP18 | `aptgram` | `aptinfo` | 0.392 | 0.990 |
-| LRP20 | `aptinfo` | `aptgram` | 0.233 | 0.975 |
-| LRP22 | `deappfi` | `deappin` | 0.688 | 0.929 |
+| Model | Target    | Top predictor | Importance | Spearman |
+| ----- | --------- | ------------- | ---------: | -------: |
+| LRP18 | `aptgram` | `aptinfo`     |      0.392 |    0.990 |
+| LRP20 | `aptinfo` | `aptgram`     |      0.233 |    0.975 |
+| LRP22 | `deappfi` | `deappin`     |      0.688 |    0.929 |
 
 The three pairs (APTGRAM/APTINFO from the Action Picture
 Test utterance sample; DEAPPFI/DEAPPIN from the DEAP
@@ -168,17 +168,17 @@ exogenous predictors.
 
 ### Construct-level totals (permutation importance)
 
-| Construct | LRP21 total | LRP22 total |
-|---|---:|---:|
-| articulation | **0.461** | **0.690** |
-| phonological_memory | 0.050 | 0.150 |
-| reading_word | 0.011 | 0.047 |
-| language_composite | 0.034 | 0.020 |
-| reading_decoding | 0.030 | 0.016 |
-| demographics_child | 0.030 | 0.016 |
-| intervention | 0.024 | ≈0 |
-| expressive_vocabulary | 0.043 | ≈0 |
-| receptive_vocabulary | 0.016 | 0.006 |
+| Construct             | LRP21 total | LRP22 total |
+| --------------------- | ----------: | ----------: |
+| articulation          |   **0.461** |   **0.690** |
+| phonological_memory   |       0.050 |       0.150 |
+| reading_word          |       0.011 |       0.047 |
+| language_composite    |       0.034 |       0.020 |
+| reading_decoding      |       0.030 |       0.016 |
+| demographics_child    |       0.030 |       0.016 |
+| intervention          |       0.024 |          ≈0 |
+| expressive_vocabulary |       0.043 |          ≈0 |
+| receptive_vocabulary  |       0.016 |       0.006 |
 
 Both articulation models are articulation-construct dominated
 (unsurprising). LRP22's articulation total of 0.690 is the
@@ -188,14 +188,14 @@ most construct-concentrated level model in the suite.
 
 With this PR, the six construct-gap pairs are complete:
 
-| PR | Models | Construct | CV R² (level) |
-|---|---|---|---:|
-| #46 | LRP11/12 | TROG receptive grammar | 0.488 |
-| #47 | LRP13/14 | Non-word reading | 0.180 |
-| #48 | LRP15/16 | Phoneme blending | 0.189 |
-| #49 | LRP17/18 | APT expressive grammar | **0.592** |
-| #50 | LRP19/20 | APT expressive information | **0.759** |
-| *this* | LRP21/22 | DEAP fine articulation | 0.439 |
+| PR     | Models   | Construct                  | CV R² (level) |
+| ------ | -------- | -------------------------- | ------------: |
+| #46    | LRP11/12 | TROG receptive grammar     |         0.488 |
+| #47    | LRP13/14 | Non-word reading           |         0.180 |
+| #48    | LRP15/16 | Phoneme blending           |         0.189 |
+| #49    | LRP17/18 | APT expressive grammar     |     **0.592** |
+| #50    | LRP19/20 | APT expressive information |     **0.759** |
+| _this_ | LRP21/22 | DEAP fine articulation     |         0.439 |
 
 (Gain models all land in a tight CV R² band 0.02–0.16.)
 
@@ -214,7 +214,7 @@ With this PR, the six construct-gap pairs are complete:
   the long noise tail (ranks 20+ all at ≈0) should tighten
   further.
 - **Joint DEAP model** — a multivariate Bayesian model for
-  ``(deappfi, deappin, deappvo)`` mirroring the APT pair
+  `(deappfi, deappin, deappvo)` mirroring the APT pair
   suggestion. Same rationale: same-test-sibling dominance is
   structurally informative, not nuisance.
 - **Cross-construct Bayesian model**: the consistent

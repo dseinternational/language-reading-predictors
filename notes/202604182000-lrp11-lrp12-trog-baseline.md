@@ -6,11 +6,11 @@
 Date: 2026-04-18
 
 First of the six LRP11–LRP22 target pairs from
-``notes/202604181930-lrp11-22-target-plan.md``.
+`notes/202604181930-lrp11-22-target-plan.md`.
 
 ## Construct
 
-``trog`` is the items-correct total from the Test for Reception
+`trog` is the items-correct total from the Test for Reception
 of Grammar 2 (TROG-2; Bishop 2003). Eight grammatical constructs
 tested in blocks of four items (32 items total; observed max 27
 in this sample). Receptive-grammar measure; distinct construct
@@ -19,10 +19,10 @@ from CELF basic concept knowledge (LRP09/10), from vocabulary
 
 ## Target distributions
 
-| Target | n | min | max | median | mean | std | skew | notes |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| `trog` (level) | 215 | 3 | 27 | 14 | 14.31 | 4.83 | **0.29** | near-Gaussian |
-| `trog_gain` | 161 | −10 | 12 | 2 | 1.22 | 4.19 | −0.17 | mildly left-skewed |
+| Target         |   n | min | max | median |  mean |  std |     skew | notes              |
+| -------------- | --: | --: | --: | -----: | ----: | ---: | -------: | ------------------ |
+| `trog` (level) | 215 |   3 |  27 |     14 | 14.31 | 4.83 | **0.29** | near-Gaussian      |
+| `trog_gain`    | 161 | −10 |  12 |      2 |  1.22 | 4.19 |    −0.17 | mildly left-skewed |
 
 For `trog_gain`: 34% negative, 8% zero. Closer in shape to LRP07
 (`rowpvt_gain`, skew 0.04) than to heavier-skewed gain targets.
@@ -38,13 +38,13 @@ Tuner-inner CV MAE **3.2512 ± 0.5931**. Moderate regime: 88 trees,
 lr 0.038, num_leaves 26, max_depth 7, min_child 11. Moderate L2
 (0.479), near-zero L1.
 
-| Metric | Baseline (500t) | MAE-tuned (88t) |
-|---|---:|---:|
-| CV MAE | 3.414 ± 0.491 | **3.164 ± 0.560** |
-| CV RMSE | 4.301 | **4.016** |
-| **CV R²** | **−0.115 ± 0.242** | **0.102 ± 0.196** |
-| CV MedAE | 2.985 | **2.797** |
-| In-sample R² | 0.980 | 0.491 |
+| Metric       |    Baseline (500t) |   MAE-tuned (88t) |
+| ------------ | -----------------: | ----------------: |
+| CV MAE       |      3.414 ± 0.491 | **3.164 ± 0.560** |
+| CV RMSE      |              4.301 |         **4.016** |
+| **CV R²**    | **−0.115 ± 0.242** | **0.102 ± 0.196** |
+| CV MedAE     |              2.985 |         **2.797** |
+| In-sample R² |              0.980 |             0.491 |
 
 **CV R² crosses negative → positive** (−0.115 → 0.102). CV MAE
 drops 0.25; CV MedAE drops 0.19. Same pattern as LRP07 and LRP09
@@ -56,13 +56,13 @@ Tuner-inner CV MAE **2.8480 ± 0.4607**. Moderate-fast regime:
 81 trees, lr 0.100, num_leaves 58, max_depth 9, min_child 19.
 Strong L1 (0.797) and L2 (0.318).
 
-| Metric | Baseline (500t) | MAE-tuned (81t) |
-|---|---:|---:|
-| CV MAE | 3.090 ± 0.391 | **2.885 ± 0.502** |
-| CV RMSE | 3.789 | **3.590** |
-| **CV R²** | 0.281 ± 0.159 | **0.391 ± 0.135** |
-| CV MedAE | 2.838 | **2.572** |
-| In-sample R² | 0.992 | 0.806 |
+| Metric       | Baseline (500t) |   MAE-tuned (81t) |
+| ------------ | --------------: | ----------------: |
+| CV MAE       |   3.090 ± 0.391 | **2.885 ± 0.502** |
+| CV RMSE      |           3.789 |         **3.590** |
+| **CV R²**    |   0.281 ± 0.159 | **0.391 ± 0.135** |
+| CV MedAE     |           2.838 |         **2.572** |
+| In-sample R² |           0.992 |             0.806 |
 
 Every metric improves. CV R² rises 0.110; CV MAE drops 0.21.
 LRP12 R² 0.391 is mid-pack for level models (LRP08 0.52, LRP10

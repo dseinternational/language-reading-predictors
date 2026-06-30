@@ -7,8 +7,8 @@ Date: 2026-04-16
 
 ## Motivation
 
-LRP02 predicts word-reading *level* (`ewrswr`) at the observed timepoint — a
-complementary view to LRP01, which predicts *gains*. Baseline started from the
+LRP02 predicts word-reading _level_ (`ewrswr`) at the observed timepoint — a
+complementary view to LRP01, which predicts _gains_. Baseline started from the
 full `Predictors.DEFAULT_LEVEL` set (32 predictors, n=210) with no outlier
 exclusion. The first priority is to identify and drop features that carry
 negligible predictive signal before attempting redundancy-driven cuts.
@@ -23,18 +23,18 @@ Optuna tuning (50 trials, 10-split GroupKFold, seed 47, scoring=mae,
 lgbm_objective=mae). Best trial #22, CV MAE 6.9122 ± 2.7991. Mean best
 iteration: 60.
 
-| Parameter | Untuned default | MAE-tuned |
-|---|---|---|
-| objective | regression | mae |
-| n_estimators | 1200 (→ 500 via test config) | 60 |
-| learning_rate | 0.05 | 0.0614 |
-| num_leaves | 15 | 31 |
-| max_depth | 6 | 7 |
-| min_child_samples | 16 | 31 |
-| subsample | 0.8 | 0.968 |
-| colsample_bytree | 0.8 | 0.820 |
-| reg_alpha | 0.1 | 0.0429 |
-| reg_lambda | 0.1 | 0.0038 |
+| Parameter         | Untuned default              | MAE-tuned |
+| ----------------- | ---------------------------- | --------- |
+| objective         | regression                   | mae       |
+| n_estimators      | 1200 (→ 500 via test config) | 60        |
+| learning_rate     | 0.05                         | 0.0614    |
+| num_leaves        | 15                           | 31        |
+| max_depth         | 6                            | 7         |
+| min_child_samples | 16                           | 31        |
+| subsample         | 0.8                          | 0.968     |
+| colsample_bytree  | 0.8                          | 0.820     |
+| reg_alpha         | 0.1                          | 0.0429    |
+| reg_lambda        | 0.1                          | 0.0038    |
 
 The tuned model uses far fewer trees (60 vs 500), larger `min_child_samples`,
 and weaker regularisation — a conservative ensemble that stops well before
@@ -45,14 +45,14 @@ memorising training data.
 Running the two parameter sets through the same `test` config (10-fold
 GroupKFold, 10 permutation repeats):
 
-| Metric | Untuned defaults | MAE-tuned |
-|---|---|---|
-| CV MAE | 6.752 ± 1.504 | 6.980 ± 1.872 |
-| CV RMSE | 9.007 ± 2.428 | 9.684 ± 2.630 |
-| CV R² | 0.188 ± 0.633 | 0.035 ± 0.876 |
-| In-sample MAE | 0.381 | 2.778 |
-| In-sample RMSE | 0.513 | 5.047 |
-| **In-sample R²** | **0.999** | **0.876** |
+| Metric           | Untuned defaults | MAE-tuned     |
+| ---------------- | ---------------- | ------------- |
+| CV MAE           | 6.752 ± 1.504    | 6.980 ± 1.872 |
+| CV RMSE          | 9.007 ± 2.428    | 9.684 ± 2.630 |
+| CV R²            | 0.188 ± 0.633    | 0.035 ± 0.876 |
+| In-sample MAE    | 0.381            | 2.778         |
+| In-sample RMSE   | 0.513            | 5.047         |
+| **In-sample R²** | **0.999**        | **0.876**     |
 
 The untuned defaults look dramatically better in-sample but are memorising —
 in-sample R² of 0.999 on n=210 with 32 predictors is a red flag, and CV R² is
@@ -69,19 +69,19 @@ hyperparameters.**
 
 Several features rose or fell materially once the model stopped memorising:
 
-| Feature | Untuned importance | Tuned importance | Tuned rank |
-|---|---|---|---|
-| `spphon` | 0.186 | 0.101 | 2 |
-| `yarclet` | 0.059 | 0.120 | 1 |
-| `eowpvt` | 0.049 | 0.009 | 14 |
-| `rowpvt` | 0.009 | 0.004 | 22 |
-| `yarcsi` | 0.009 | 0.024 | 6 |
-| `gender` | 0.001 | 0.005 | 17 |
-| `hearing` | 0.001 | 0.005 | 16 |
-| `earinf` | 0.0001 | 0.002 | 24 |
-| `trog` | 0.006 | 0.002 | 25 |
+| Feature   | Untuned importance | Tuned importance | Tuned rank |
+| --------- | ------------------ | ---------------- | ---------- |
+| `spphon`  | 0.186              | 0.101            | 2          |
+| `yarclet` | 0.059              | 0.120            | 1          |
+| `eowpvt`  | 0.049              | 0.009            | 14         |
+| `rowpvt`  | 0.009              | 0.004            | 22         |
+| `yarcsi`  | 0.009              | 0.024            | 6          |
+| `gender`  | 0.001              | 0.005            | 17         |
+| `hearing` | 0.001              | 0.005            | 16         |
+| `earinf`  | 0.0001             | 0.002            | 24         |
+| `trog`    | 0.006              | 0.002            | 25         |
 
-This justifies doing feature selection *after* tuning rather than carrying the
+This justifies doing feature selection _after_ tuning rather than carrying the
 un-tuned rankings forward: `gender`, `hearing` and `earinf` would have been
 dropped on un-tuned evidence despite carrying real (small) signal, and `trog`
 would have been kept despite having become the weakest non-trivial feature.
@@ -90,12 +90,12 @@ would have been kept despite having become the weakest non-trivial feature.
 
 ### Baseline (32 predictors, n=210, MAE-tuned)
 
-| Metric | Value |
-|---|---|
-| CV MAE | 6.980 ± 1.872 |
-| CV RMSE | 9.684 ± 2.630 |
-| CV R² | 0.035 ± 0.876 |
-| In-sample R² | 0.876 |
+| Metric       | Value         |
+| ------------ | ------------- |
+| CV MAE       | 6.980 ± 1.872 |
+| CV RMSE      | 9.684 ± 2.630 |
+| CV R²        | 0.035 ± 0.876 |
+| In-sample R² | 0.876         |
 
 ### Select01: drop 8 features with importance < 0.002 (32 → 24)
 
@@ -115,12 +115,12 @@ The remaining five (`time`, `behav`, `area`, `group`, `vision`) are dropped
 on the strength of importance alone — they are demographic/health signals
 that the tuned model is effectively ignoring.
 
-| Metric | Baseline (32) | Select01 (24) |
-|---|---|---|
-| CV MAE | 6.980 | 6.782 |
-| CV RMSE | 9.684 | 9.424 |
-| CV R² | 0.035 | 0.140 |
-| In-sample R² | 0.876 | 0.877 |
+| Metric       | Baseline (32) | Select01 (24) |
+| ------------ | ------------- | ------------- |
+| CV MAE       | 6.980         | 6.782         |
+| CV RMSE      | 9.684         | 9.424         |
+| CV R²        | 0.035         | 0.140         |
+| In-sample R² | 0.876         | 0.877         |
 
 Every CV metric improves — dropping these eight features is net-positive even
 before considering parsimony. CV R² more than tripled (0.035 → 0.140) without
@@ -133,22 +133,22 @@ with strong distance-correlation to a higher-importance sibling. Select02
 removes the weaker member of each redundant pair together with `earinf`,
 which fell below the 0.002 cut-off under Select01:
 
-| Feature | Select01 importance | Rationale |
-|---|---|---|
-| `rowpvt` | 0.0025 | dcorr 0.72 with `eowpvt` (0.015) |
-| `deappin` | 0.0035 | dcorr 0.77 with `deappfi`; both near the noise floor |
-| `deappfi` | 0.0037 | dcorr 0.77 with `deappin`; `deappvo` retained as the DEAP signal |
-| `erbnw` | 0.0043 | dcorr 0.84 with `erbword` (0.012) |
-| `aptgram` | 0.0101 | dcorr 0.77 with `aptinfo` (0.047) |
-| `dadedupost16` | 0.0080 | dcorr 0.61 with `mumedupost16` (0.037) |
-| `earinf` | 0.0010 | importance below 0.002 under Select01 |
+| Feature        | Select01 importance | Rationale                                                        |
+| -------------- | ------------------- | ---------------------------------------------------------------- |
+| `rowpvt`       | 0.0025              | dcorr 0.72 with `eowpvt` (0.015)                                 |
+| `deappin`      | 0.0035              | dcorr 0.77 with `deappfi`; both near the noise floor             |
+| `deappfi`      | 0.0037              | dcorr 0.77 with `deappin`; `deappvo` retained as the DEAP signal |
+| `erbnw`        | 0.0043              | dcorr 0.84 with `erbword` (0.012)                                |
+| `aptgram`      | 0.0101              | dcorr 0.77 with `aptinfo` (0.047)                                |
+| `dadedupost16` | 0.0080              | dcorr 0.61 with `mumedupost16` (0.037)                           |
+| `earinf`       | 0.0010              | importance below 0.002 under Select01                            |
 
-| Metric | Select01 (24) | Select02 (17) |
-|---|---|---|
-| CV MAE | 6.782 | 6.598 |
-| CV RMSE | 9.424 | 9.200 |
-| CV R² | 0.140 | 0.130 |
-| In-sample R² | 0.877 | 0.891 |
+| Metric       | Select01 (24) | Select02 (17) |
+| ------------ | ------------- | ------------- |
+| CV MAE       | 6.782         | 6.598         |
+| CV RMSE      | 9.424         | 9.200         |
+| CV R²        | 0.140         | 0.130         |
+| In-sample R² | 0.877         | 0.891         |
 
 CV MAE improves another 0.18 and CV RMSE improves by 0.22. CV R² is very
 slightly lower (0.140 → 0.130) but the difference is well inside the ±0.7+
@@ -158,25 +158,25 @@ the overfit regime we saw under un-tuned defaults.
 
 ### Permutation importance after Select02 (17 predictors)
 
-| Rank | Feature | Importance |
-|---|---|---|
-| 1 | `spphon` | 0.139 |
-| 2 | `yarclet` | 0.104 |
-| 3 | `aptinfo` | 0.067 |
-| 4 | `agespeak` | 0.062 |
-| 5 | `mumedupost16` | 0.049 |
-| 6 | `agebooks` | 0.027 |
-| 7 | `celf` | 0.024 |
-| 8 | `yarcsi` | 0.024 |
-| 9 | `nonword` | 0.021 |
-| 10 | `eowpvt` | 0.018 |
-| 11 | `b1exto` | 0.012 |
-| 12 | `erbword` | 0.011 |
-| 13 | `age` | 0.008 |
-| 14 | `numchil` | 0.008 |
-| 15 | `deappvo` | 0.007 |
-| 16 | `hearing` | 0.006 |
-| 17 | `gender` | 0.005 |
+| Rank | Feature        | Importance |
+| ---- | -------------- | ---------- |
+| 1    | `spphon`       | 0.139      |
+| 2    | `yarclet`      | 0.104      |
+| 3    | `aptinfo`      | 0.067      |
+| 4    | `agespeak`     | 0.062      |
+| 5    | `mumedupost16` | 0.049      |
+| 6    | `agebooks`     | 0.027      |
+| 7    | `celf`         | 0.024      |
+| 8    | `yarcsi`       | 0.024      |
+| 9    | `nonword`      | 0.021      |
+| 10   | `eowpvt`       | 0.018      |
+| 11   | `b1exto`       | 0.012      |
+| 12   | `erbword`      | 0.011      |
+| 13   | `age`          | 0.008      |
+| 14   | `numchil`      | 0.008      |
+| 15   | `deappvo`      | 0.007      |
+| 16   | `hearing`      | 0.006      |
+| 17   | `gender`       | 0.005      |
 
 All 17 features sit at or above 0.005 — the previous noise floor is gone.
 `agespeak`, `mumedupost16`, `agebooks`, and `celf` rose visibly once their
@@ -189,17 +189,17 @@ Optuna tuning (50 trials, 10-split GroupKFold, seed 47, scoring=mae,
 lgbm_objective=mae) on the Select02 predictor set. Best trial #35, CV MAE
 6.4134 ± 1.9311. Mean best iteration: 156.
 
-| Parameter | Tuned on 32 predictors | Tuned on 17 predictors |
-|---|---|---|
-| n_estimators | 60 | 156 |
-| learning_rate | 0.0614 | 0.0233 |
-| num_leaves | 31 | 26 |
-| max_depth | 7 | 7 |
-| min_child_samples | 31 | 6 |
-| subsample | 0.968 | 0.629 |
-| colsample_bytree | 0.820 | 0.683 |
-| reg_alpha | 0.0429 | 0.0010 |
-| reg_lambda | 0.0038 | 0.0022 |
+| Parameter         | Tuned on 32 predictors | Tuned on 17 predictors |
+| ----------------- | ---------------------- | ---------------------- |
+| n_estimators      | 60                     | 156                    |
+| learning_rate     | 0.0614                 | 0.0233                 |
+| num_leaves        | 31                     | 26                     |
+| max_depth         | 7                      | 7                      |
+| min_child_samples | 31                     | 6                      |
+| subsample         | 0.968                  | 0.629                  |
+| colsample_bytree  | 0.820                  | 0.683                  |
+| reg_alpha         | 0.0429                 | 0.0010                 |
+| reg_lambda        | 0.0038                 | 0.0022                 |
 
 The retuned model is much more expressive: more trees, slower learning, far
 smaller leaf size, and aggressive subsampling. The original 32-predictor
@@ -209,15 +209,15 @@ fit the remaining signal.
 
 ### Refit under retuned params (17 predictors)
 
-| Metric | Select02 (old params) | Select02 (retuned) |
-|---|---|---|
-| CV MAE | 6.598 ± 1.806 | **5.800 ± 1.526** |
-| CV RMSE | 9.200 ± 2.522 | **7.973 ± 2.404** |
-| CV R² | 0.130 ± 0.733 | **0.404 ± 0.414** |
-| CV MedAE | — | 3.818 |
-| In-sample MAE | 2.604 | 0.946 |
-| In-sample RMSE | 4.718 | 2.254 |
-| In-sample R² | 0.891 | 0.975 |
+| Metric         | Select02 (old params) | Select02 (retuned) |
+| -------------- | --------------------- | ------------------ |
+| CV MAE         | 6.598 ± 1.806         | **5.800 ± 1.526**  |
+| CV RMSE        | 9.200 ± 2.522         | **7.973 ± 2.404**  |
+| CV R²          | 0.130 ± 0.733         | **0.404 ± 0.414**  |
+| CV MedAE       | —                     | 3.818              |
+| In-sample MAE  | 2.604                 | 0.946              |
+| In-sample RMSE | 4.718                 | 2.254              |
+| In-sample R²   | 0.891                 | 0.975              |
 
 Every CV metric improves substantially — CV R² more than triples. In-sample
 tightens too but CV gains more than in-sample, so this is a net
@@ -226,25 +226,25 @@ from 0.73 to 0.41, indicating much more consistent fold performance.
 
 ### Permutation importance under retuned model
 
-| Rank | Feature | Importance |
-|---|---|---|
-| 1 | `spphon` | 0.163 |
-| 2 | `yarclet` | 0.118 |
-| 3 | `aptinfo` | 0.040 |
-| 4 | `nonword` | 0.034 |
-| 5 | `eowpvt` | 0.032 |
-| 6 | `agespeak` | 0.032 |
-| 7 | `mumedupost16` | 0.028 |
-| 8 | `agebooks` | 0.023 |
-| 9 | `yarcsi` | 0.021 |
-| 10 | `erbword` | 0.020 |
-| 11 | `b1exto` | 0.020 |
-| 12 | `age` | 0.017 |
-| 13 | `celf` | 0.016 |
-| 14 | `gender` | 0.010 |
-| 15 | `numchil` | 0.010 |
-| 16 | `deappvo` | 0.007 |
-| 17 | `hearing` | 0.005 |
+| Rank | Feature        | Importance |
+| ---- | -------------- | ---------- |
+| 1    | `spphon`       | 0.163      |
+| 2    | `yarclet`      | 0.118      |
+| 3    | `aptinfo`      | 0.040      |
+| 4    | `nonword`      | 0.034      |
+| 5    | `eowpvt`       | 0.032      |
+| 6    | `agespeak`     | 0.032      |
+| 7    | `mumedupost16` | 0.028      |
+| 8    | `agebooks`     | 0.023      |
+| 9    | `yarcsi`       | 0.021      |
+| 10   | `erbword`      | 0.020      |
+| 11   | `b1exto`       | 0.020      |
+| 12   | `age`          | 0.017      |
+| 13   | `celf`         | 0.016      |
+| 14   | `gender`       | 0.010      |
+| 15   | `numchil`      | 0.010      |
+| 16   | `deappvo`      | 0.007      |
+| 17   | `hearing`      | 0.005      |
 
 All 17 features remain at or above 0.005 — no new low-importance drops
 appear. `nonword` and `eowpvt` rose into the top five; the mid-tier
@@ -270,22 +270,22 @@ The remaining moderate pairs (e.g. `nonword` ↔ `spphon` dcorr 0.64,
 
 ### Select03: drop yarcsi and b1exto (17 → 15)
 
-| Feature | Importance (Select02, retuned) | Rationale |
-|---|---|---|
-| `yarcsi` | 0.021 | dcorr 0.75 with `spphon` (0.163), Spearman 0.72 |
-| `b1exto` | 0.020 | dcorr 0.81 with both `eowpvt` (0.032) and `aptinfo` (0.040); `eowpvt` is a standardised instrument covering the same construct |
+| Feature  | Importance (Select02, retuned) | Rationale                                                                                                                      |
+| -------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `yarcsi` | 0.021                          | dcorr 0.75 with `spphon` (0.163), Spearman 0.72                                                                                |
+| `b1exto` | 0.020                          | dcorr 0.81 with both `eowpvt` (0.032) and `aptinfo` (0.040); `eowpvt` is a standardised instrument covering the same construct |
 
 Refit used the Select02 retuned params (no retuning between steps):
 
-| Metric | Select02 (17, retuned) | Select03 (15, same params) |
-|---|---|---|
-| CV MAE | 5.800 ± 1.526 | 6.031 ± 1.524 |
-| CV RMSE | 7.973 ± 2.404 | 8.245 ± 2.394 |
-| CV R² | 0.404 ± 0.414 | 0.363 ± 0.398 |
-| CV MedAE | 3.818 | 3.854 |
-| In-sample R² | 0.975 | 0.977 |
+| Metric       | Select02 (17, retuned) | Select03 (15, same params) |
+| ------------ | ---------------------- | -------------------------- |
+| CV MAE       | 5.800 ± 1.526          | 6.031 ± 1.524              |
+| CV RMSE      | 7.973 ± 2.404          | 8.245 ± 2.394              |
+| CV R²        | 0.404 ± 0.414          | 0.363 ± 0.398              |
+| CV MedAE     | 3.818                  | 3.854                      |
+| In-sample R² | 0.975                  | 0.977                      |
 
-Every CV metric nudged *worse* (CV MAE +0.23, CV R² −0.04). The dropped
+Every CV metric nudged _worse_ (CV MAE +0.23, CV R² −0.04). The dropped
 features were redundant but not purely redundant — they carried roughly
 0.04 of unique importance between them, which the remaining language and
 reading features could not fully absorb under the old params. In-sample
@@ -294,23 +294,23 @@ a coverage loss.
 
 ### Permutation importance after Select03 (15 predictors)
 
-| Rank | Feature | Importance |
-|---|---|---|
-| 1 | `spphon` | 0.255 |
-| 2 | `yarclet` | 0.130 |
-| 3 | `aptinfo` | 0.046 |
-| 4 | `eowpvt` | 0.045 |
-| 5 | `agespeak` | 0.038 |
-| 6 | `erbword` | 0.033 |
-| 7 | `nonword` | 0.033 |
-| 8 | `mumedupost16` | 0.030 |
-| 9 | `celf` | 0.021 |
-| 10 | `age` | 0.020 |
-| 11 | `agebooks` | 0.018 |
-| 12 | `numchil` | 0.010 |
-| 13 | `gender` | 0.008 |
-| 14 | `deappvo` | 0.007 |
-| 15 | `hearing` | 0.004 |
+| Rank | Feature        | Importance |
+| ---- | -------------- | ---------- |
+| 1    | `spphon`       | 0.255      |
+| 2    | `yarclet`      | 0.130      |
+| 3    | `aptinfo`      | 0.046      |
+| 4    | `eowpvt`       | 0.045      |
+| 5    | `agespeak`     | 0.038      |
+| 6    | `erbword`      | 0.033      |
+| 7    | `nonword`      | 0.033      |
+| 8    | `mumedupost16` | 0.030      |
+| 9    | `celf`         | 0.021      |
+| 10   | `age`          | 0.020      |
+| 11   | `agebooks`     | 0.018      |
+| 12   | `numchil`      | 0.010      |
+| 13   | `gender`       | 0.008      |
+| 14   | `deappvo`      | 0.007      |
+| 15   | `hearing`      | 0.004      |
 
 `spphon` absorbed most of `yarcsi`'s signal (0.163 → 0.255) and `eowpvt`
 absorbed most of `b1exto`'s (0.032 → 0.045) — the redundancy hypothesis
@@ -326,17 +326,17 @@ Optuna tuning (50 trials, 10-split GroupKFold, seed 47, scoring=mae,
 lgbm_objective=mae) on the Select03 predictor set. Best trial #32, CV MAE
 6.5176 ± 2.0444. Mean best iteration: 83.
 
-| Parameter | Tuned on 17 | Tuned on 15 |
-|---|---|---|
-| n_estimators | 156 | 83 |
-| learning_rate | 0.0233 | 0.0494 |
-| num_leaves | 26 | 33 |
-| max_depth | 7 | 3 |
-| min_child_samples | 6 | 6 |
-| subsample | 0.629 | 0.927 |
-| colsample_bytree | 0.683 | 0.637 |
-| reg_alpha | 0.0010 | 0.2516 |
-| reg_lambda | 0.0022 | 0.0060 |
+| Parameter         | Tuned on 17 | Tuned on 15 |
+| ----------------- | ----------- | ----------- |
+| n_estimators      | 156         | 83          |
+| learning_rate     | 0.0233      | 0.0494      |
+| num_leaves        | 26          | 33          |
+| max_depth         | 7           | 3           |
+| min_child_samples | 6           | 6           |
+| subsample         | 0.629       | 0.927       |
+| colsample_bytree  | 0.683       | 0.637       |
+| reg_alpha         | 0.0010      | 0.2516      |
+| reg_lambda        | 0.0022      | 0.0060      |
 
 Very different regime: much shallower trees (`max_depth` 3 vs 7), double the
 learning rate, weaker row subsampling, much stronger L1 regularisation. The
@@ -345,15 +345,15 @@ smaller feature space where less capacity is needed.
 
 ### Refit under retuned params (15 predictors)
 
-| Metric | Select03 (17-tuned params) | Select03 (15-tuned params) |
-|---|---|---|
-| CV MAE | 6.031 ± 1.524 | **6.023 ± 1.372** |
-| CV RMSE | 8.245 ± 2.394 | **8.159 ± 2.099** |
-| CV R² | 0.363 ± 0.398 | **0.386 ± 0.381** |
-| CV MedAE | 3.854 | 3.979 |
-| In-sample MAE | 0.998 | 1.436 |
-| In-sample RMSE | 2.182 | 2.967 |
-| In-sample R² | 0.977 | 0.957 |
+| Metric         | Select03 (17-tuned params) | Select03 (15-tuned params) |
+| -------------- | -------------------------- | -------------------------- |
+| CV MAE         | 6.031 ± 1.524              | **6.023 ± 1.372**          |
+| CV RMSE        | 8.245 ± 2.394              | **8.159 ± 2.099**          |
+| CV R²          | 0.363 ± 0.398              | **0.386 ± 0.381**          |
+| CV MedAE       | 3.854                      | 3.979                      |
+| In-sample MAE  | 0.998                      | 1.436                      |
+| In-sample RMSE | 2.182                      | 2.967                      |
+| In-sample R²   | 0.977                      | 0.957                      |
 
 Modest CV improvement and — more importantly — tighter fold variance
 (CV MAE std 1.524 → 1.372, CV RMSE std 2.394 → 2.099). In-sample loosened
@@ -362,11 +362,11 @@ regularised model.
 
 ### Retune did not fully recover the 17-predictor retuned baseline
 
-| Metric | Select02 retuned (17) | Select03 retuned (15) | Δ vs best-so-far |
-|---|---|---|---|
-| CV MAE | 5.800 | 6.023 | +0.22 |
-| CV RMSE | 7.973 | 8.159 | +0.19 |
-| CV R² | 0.404 | 0.386 | −0.02 |
+| Metric  | Select02 retuned (17) | Select03 retuned (15) | Δ vs best-so-far |
+| ------- | --------------------- | --------------------- | ---------------- |
+| CV MAE  | 5.800                 | 6.023                 | +0.22            |
+| CV RMSE | 7.973                 | 8.159                 | +0.19            |
+| CV R²   | 0.404                 | 0.386                 | −0.02            |
 
 `yarcsi` and `b1exto` carried enough unique signal that neither the
 remaining predictors nor a fresh tune fully absorbed it. The 15-predictor
@@ -375,23 +375,23 @@ model is more parsimonious and has tighter fold variance, but the
 
 ### Permutation importance under 15-predictor retune
 
-| Rank | Feature | Importance |
-|---|---|---|
-| 1 | `spphon` | 0.286 |
-| 2 | `yarclet` | 0.119 |
-| 3 | `eowpvt` | 0.050 |
-| 4 | `aptinfo` | 0.046 |
-| 5 | `erbword` | 0.044 |
-| 6 | `nonword` | 0.043 |
-| 7 | `mumedupost16` | 0.029 |
-| 8 | `agespeak` | 0.019 |
-| 9 | `agebooks` | 0.017 |
-| 10 | `gender` | 0.015 |
-| 11 | `numchil` | 0.012 |
-| 12 | `age` | 0.012 |
-| 13 | `celf` | 0.012 |
-| 14 | `deappvo` | 0.007 |
-| 15 | `hearing` | 0.003 |
+| Rank | Feature        | Importance |
+| ---- | -------------- | ---------- |
+| 1    | `spphon`       | 0.286      |
+| 2    | `yarclet`      | 0.119      |
+| 3    | `eowpvt`       | 0.050      |
+| 4    | `aptinfo`      | 0.046      |
+| 5    | `erbword`      | 0.044      |
+| 6    | `nonword`      | 0.043      |
+| 7    | `mumedupost16` | 0.029      |
+| 8    | `agespeak`     | 0.019      |
+| 9    | `agebooks`     | 0.017      |
+| 10   | `gender`       | 0.015      |
+| 11   | `numchil`      | 0.012      |
+| 12   | `age`          | 0.012      |
+| 13   | `celf`         | 0.012      |
+| 14   | `deappvo`      | 0.007      |
+| 15   | `hearing`      | 0.003      |
 
 `spphon` continues to absorb signal (0.255 → 0.286). `agespeak` and `celf`
 fell materially (agespeak 0.038 → 0.019, celf 0.021 → 0.012), consistent
@@ -401,37 +401,37 @@ importance-based drop candidate.
 
 ## Cumulative summary
 
-| Step | Predictors | CV MAE | CV R² | Params | Change |
-|---|---|---|---|---|---|
-| Baseline | 32 | 6.980 | 0.035 | MAE-tuned on 32 | — |
-| Select01 | 24 | 6.782 | 0.140 | MAE-tuned on 32 | 8 low-importance |
-| Select02 | 17 | 6.598 | 0.130 | MAE-tuned on 32 | 7 redundant |
-| Retuned-17 | 17 | **5.800** | **0.404** | MAE-tuned on 17 | params only |
-| Select03 | 15 | 6.031 | 0.363 | MAE-tuned on 17 | yarcsi, b1exto |
-| Retuned-15 | 15 | 6.023 | 0.386 | MAE-tuned on 15 | params only |
-| Select04 | 13 | 6.007 | 0.392 | MAE-tuned on 15 | hearing, celf |
-| Retuned-13 | 13 | 6.019 | 0.355 | MAE-tuned on 13 (150 trials) | params only |
+| Step       | Predictors | CV MAE    | CV R²     | Params                       | Change           |
+| ---------- | ---------- | --------- | --------- | ---------------------------- | ---------------- |
+| Baseline   | 32         | 6.980     | 0.035     | MAE-tuned on 32              | —                |
+| Select01   | 24         | 6.782     | 0.140     | MAE-tuned on 32              | 8 low-importance |
+| Select02   | 17         | 6.598     | 0.130     | MAE-tuned on 32              | 7 redundant      |
+| Retuned-17 | 17         | **5.800** | **0.404** | MAE-tuned on 17              | params only      |
+| Select03   | 15         | 6.031     | 0.363     | MAE-tuned on 17              | yarcsi, b1exto   |
+| Retuned-15 | 15         | 6.023     | 0.386     | MAE-tuned on 15              | params only      |
+| Select04   | 13         | 6.007     | 0.392     | MAE-tuned on 15              | hearing, celf    |
+| Retuned-13 | 13         | 6.019     | 0.355     | MAE-tuned on 13 (150 trials) | params only      |
 
 ### Select04: drop hearing and celf (15 → 13)
 
 Redundancy review on the 15-predictor retuned set identified two more
 candidates:
 
-| Feature | Importance (retuned-15) | Rationale |
-|---|---|---|
-| `hearing` | 0.003 | Below the 0.005 informal noise floor; no redundancy, just weak. |
-| `celf` | 0.012 | Weakest member of language cluster 9. dcorr 0.67 with `eowpvt` (0.050) and 0.63 with `aptinfo` (0.046) — both sit above on importance and cover the same construct space. |
+| Feature   | Importance (retuned-15) | Rationale                                                                                                                                                                 |
+| --------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hearing` | 0.003                   | Below the 0.005 informal noise floor; no redundancy, just weak.                                                                                                           |
+| `celf`    | 0.012                   | Weakest member of language cluster 9. dcorr 0.67 with `eowpvt` (0.050) and 0.63 with `aptinfo` (0.046) — both sit above on importance and cover the same construct space. |
 
 Dropping both leaves the language cluster as `aptinfo` + `eowpvt`
 (composite receptive-language measure and standardised expressive
 vocabulary instrument) — still good coverage.
 
-| Metric | Select03 retuned-15 (15) | Select04 (13, 15-tune carried) |
-|---|---|---|
-| CV MAE | 6.023 ± 1.372 | 6.007 ± 1.806 |
-| CV RMSE | 8.159 ± 2.099 | 8.185 ± 2.636 |
-| CV R² | 0.386 ± 0.381 | 0.392 ± 0.401 |
-| In-sample R² | 0.957 | 0.970 |
+| Metric       | Select03 retuned-15 (15) | Select04 (13, 15-tune carried) |
+| ------------ | ------------------------ | ------------------------------ |
+| CV MAE       | 6.023 ± 1.372            | 6.007 ± 1.806                  |
+| CV RMSE      | 8.159 ± 2.099            | 8.185 ± 2.636                  |
+| CV R²        | 0.386 ± 0.381            | 0.392 ± 0.401                  |
+| In-sample R² | 0.957                    | 0.970                          |
 
 Effectively flat — both dropped features had negligible real contribution.
 
@@ -439,10 +439,10 @@ Effectively flat — both dropped features had negligible real contribution.
 
 Two Optuna rounds (seed 47) on the Select04 set:
 
-| Round | Trials | Tuner-inner CV MAE | Refit CV MAE | Refit CV R² |
-|---|---|---|---|---|
-| first | 50 | 6.7000 ± 2.4204 | 6.202 | 0.338 |
-| second | 150 | 6.3065 ± 2.3839 | **6.019** | 0.355 |
+| Round  | Trials | Tuner-inner CV MAE | Refit CV MAE | Refit CV R² |
+| ------ | ------ | ------------------ | ------------ | ----------- |
+| first  | 50     | 6.7000 ± 2.4204    | 6.202        | 0.338       |
+| second | 150    | 6.3065 ± 2.3839    | **6.019**    | 0.355       |
 
 The 50-trial search was materially worse than carrying the 15-tune
 forward. The 150-trial search recovered to rough parity on CV MAE with
@@ -450,17 +450,17 @@ tighter fold variance, and was adopted for `_LGBM_MAE_PARAMS`.
 
 Final retuned params (150 trials, best trial #145):
 
-| Parameter | Tuned on 15 | Tuned on 13 (150 trials) |
-|---|---|---|
-| n_estimators | 83 | 53 |
-| learning_rate | 0.0494 | 0.1030 |
-| num_leaves | 33 | 49 |
-| max_depth | 3 | 6 |
-| min_child_samples | 6 | 16 |
-| subsample | 0.927 | 0.988 |
-| colsample_bytree | 0.637 | 0.700 |
-| reg_alpha | 0.252 | 0.0014 |
-| reg_lambda | 0.006 | 0.0012 |
+| Parameter         | Tuned on 15 | Tuned on 13 (150 trials) |
+| ----------------- | ----------- | ------------------------ |
+| n_estimators      | 83          | 53                       |
+| learning_rate     | 0.0494      | 0.1030                   |
+| num_leaves        | 33          | 49                       |
+| max_depth         | 3           | 6                        |
+| min_child_samples | 6           | 16                       |
+| subsample         | 0.927       | 0.988                    |
+| colsample_bytree  | 0.637       | 0.700                    |
+| reg_alpha         | 0.252       | 0.0014                   |
+| reg_lambda        | 0.006       | 0.0012                   |
 
 The 13-tune is a third distinct regime: fewer trees (53), much faster
 learning, wider trees (49 leaves), near-zero regularisation. Different
@@ -468,21 +468,21 @@ from both the 17-tune and the 15-tune.
 
 ### Permutation importance after Select04 retune (13 predictors)
 
-| Rank | Feature | Importance |
-|---|---|---|
-| 1 | `spphon` | 0.172 |
-| 2 | `yarclet` | 0.137 |
-| 3 | `eowpvt` | 0.079 |
-| 4 | `nonword` | 0.049 |
-| 5 | `aptinfo` | 0.049 |
-| 6 | `agespeak` | 0.045 |
-| 7 | `mumedupost16` | 0.038 |
-| 8 | `agebooks` | 0.032 |
-| 9 | `erbword` | 0.030 |
-| 10 | `age` | 0.023 |
-| 11 | `gender` | 0.017 |
-| 12 | `numchil` | 0.013 |
-| 13 | `deappvo` | 0.005 |
+| Rank | Feature        | Importance |
+| ---- | -------------- | ---------- |
+| 1    | `spphon`       | 0.172      |
+| 2    | `yarclet`      | 0.137      |
+| 3    | `eowpvt`       | 0.079      |
+| 4    | `nonword`      | 0.049      |
+| 5    | `aptinfo`      | 0.049      |
+| 6    | `agespeak`     | 0.045      |
+| 7    | `mumedupost16` | 0.038      |
+| 8    | `agebooks`     | 0.032      |
+| 9    | `erbword`      | 0.030      |
+| 10   | `age`          | 0.023      |
+| 11   | `gender`       | 0.017      |
+| 12   | `numchil`      | 0.013      |
+| 13   | `deappvo`      | 0.005      |
 
 All 13 features at or above the 0.005 noise floor. `eowpvt` rose (0.050
 → 0.079) as it fully absorbed `celf`'s signal. `spphon` dropped (0.286
@@ -520,10 +520,10 @@ MedAE is robust to outliers **in the reported metric**, but the
 training objective isn't automatically robust to the underlying
 **data distribution**. Two separate questions:
 
-- *"Will my metric blow up because of one bad prediction?"* → MedAE
+- _"Will my metric blow up because of one bad prediction?"_ → MedAE
   says no.
-- *"Will my model allocate capacity to the tail at the cost of the
-  median?"* → MedAE says yes, and I can't stop it.
+- _"Will my model allocate capacity to the tail at the cost of the
+  median?"_ → MedAE says yes, and I can't stop it.
 
 Even with `objective=mae`, training gradients in raw space have a
 roughly proportional spread: a tail observation pulls the model with
@@ -536,11 +536,11 @@ median precision.
 The quartile table is the concrete evidence:
 
 | Target range | `lrp02` | `lrp02_log` (log-tuned) |
-|---|---|---|
-| 0–1 | 0.45 | 0.32 |
-| 1–6.5 | 0.43 | 0.30 |
-| 6.5–17 | 1.18 | **0.78** |
-| 17–64 | 2.72 | 2.63 |
+| ------------ | ------- | ----------------------- |
+| 0–1          | 0.45    | 0.32                    |
+| 1–6.5        | 0.43    | 0.30                    |
+| 6.5–17       | 1.18    | **0.78**                |
+| 17–64        | 2.72    | 2.63                    |
 
 Every quartile improves; the biggest jump (−34%) is in the third
 quartile, which is exactly where MedAE lives. The top quartile is
@@ -551,7 +551,7 @@ And the CV MedAE result is the summary: **3.17 vs 3.96, a 20%
 reduction**. That's a direct statement about the typical-case
 observation — the observation MedAE is designed to measure. So:
 
-- Log helps *training* because it fixes a training-gradient problem.
+- Log helps _training_ because it fixes a training-gradient problem.
 - MedAE measures the downstream benefit (typical-case accuracy).
 - The metric and the transform are complementary, not redundant.
 
@@ -570,7 +570,7 @@ suggests the model is under-fitting the tail where the largest raw
 errors occur. A `log1p` target transform compresses the tail and may
 let the model allocate capacity more evenly.
 
-`lrp02_log` uses the *same* 13-predictor feature set and *same*
+`lrp02_log` uses the _same_ 13-predictor feature set and _same_
 MAE-tuned hyperparameters as the primary, but wraps the LGBM in a
 `TransformedTargetRegressor(func=np.log1p, inverse_func=np.expm1)`. The
 model fits `log1p(y)` internally but predictions are inverse-transformed
@@ -584,13 +584,13 @@ fitted regressor for `TreeExplainer`.
 
 ### Side-by-side metrics
 
-| Metric | `lrp02` (13) | `lrp02_select02` (17) | `lrp02_log` (13, log1p) |
-|---|---|---|---|
-| CV MAE | 6.019 ± 1.627 | 5.908 ± 1.622 | **5.876 ± 2.316** |
-| CV RMSE | 8.242 ± 2.436 | **8.072 ± 2.567** | 8.263 ± 3.338 |
-| CV R² | 0.355 ± 0.409 | 0.390 ± 0.428 | **0.424 ± 0.290** |
-| CV MedAE | 3.963 | 3.978 | **3.408** |
-| In-sample R² | 0.968 | 0.976 | 0.968 |
+| Metric       | `lrp02` (13)  | `lrp02_select02` (17) | `lrp02_log` (13, log1p) |
+| ------------ | ------------- | --------------------- | ----------------------- |
+| CV MAE       | 6.019 ± 1.627 | 5.908 ± 1.622         | **5.876 ± 2.316**       |
+| CV RMSE      | 8.242 ± 2.436 | **8.072 ± 2.567**     | 8.263 ± 3.338           |
+| CV R²        | 0.355 ± 0.409 | 0.390 ± 0.428         | **0.424 ± 0.290**       |
+| CV MedAE     | 3.963         | 3.978                 | **3.408**               |
+| In-sample R² | 0.968         | 0.976                 | 0.968                   |
 
 The log variant wins on the metrics that matter most for generalisation:
 
@@ -616,11 +616,11 @@ Counter-balance:
 Mean absolute error by target quartile, on the same fitted predictions:
 
 | Target range | `lrp02` | `lrp02_log` |
-|---|---|---|
-| 0 – 1 | 0.45 | 0.42 |
-| 1 – 6.5 | 0.43 | 0.43 |
-| 6.5 – 17 | 1.18 | **1.00** |
-| 17 – 64 | 2.72 | **2.42** |
+| ------------ | ------- | ----------- |
+| 0 – 1        | 0.45    | 0.42        |
+| 1 – 6.5      | 0.43    | 0.43        |
+| 6.5 – 17     | 1.18    | **1.00**    |
+| 17 – 64      | 2.72    | **2.42**    |
 
 Errors in the top two quartiles fall by 11–15%, while the bottom two
 quartiles are unchanged. The transform helps where it was designed to
@@ -628,21 +628,21 @@ help.
 
 ### Permutation importance under the log transform
 
-| Rank | Feature | Importance (log) | Importance (primary) |
-|---|---|---|---|
-| 1 | `yarclet` | 0.277 | 0.137 |
-| 2 | `spphon` | 0.174 | 0.172 |
-| 3 | `eowpvt` | 0.136 | 0.079 |
-| 4 | `nonword` | 0.107 | 0.049 |
-| 5 | `agespeak` | 0.058 | 0.045 |
-| 6 | `aptinfo` | 0.053 | 0.049 |
-| 7 | `erbword` | 0.045 | 0.030 |
-| 8 | `agebooks` | 0.036 | 0.032 |
-| 9 | `mumedupost16` | 0.033 | 0.038 |
-| 10 | `gender` | 0.024 | 0.017 |
-| 11 | `age` | 0.023 | 0.023 |
-| 12 | `numchil` | 0.017 | 0.013 |
-| 13 | `deappvo` | 0.008 | 0.005 |
+| Rank | Feature        | Importance (log) | Importance (primary) |
+| ---- | -------------- | ---------------- | -------------------- |
+| 1    | `yarclet`      | 0.277            | 0.137                |
+| 2    | `spphon`       | 0.174            | 0.172                |
+| 3    | `eowpvt`       | 0.136            | 0.079                |
+| 4    | `nonword`      | 0.107            | 0.049                |
+| 5    | `agespeak`     | 0.058            | 0.045                |
+| 6    | `aptinfo`      | 0.053            | 0.049                |
+| 7    | `erbword`      | 0.045            | 0.030                |
+| 8    | `agebooks`     | 0.036            | 0.032                |
+| 9    | `mumedupost16` | 0.033            | 0.038                |
+| 10   | `gender`       | 0.024            | 0.017                |
+| 11   | `age`          | 0.023            | 0.023                |
+| 12   | `numchil`      | 0.017            | 0.013                |
+| 13   | `deappvo`      | 0.008            | 0.005                |
 
 Rank changes are large and informative:
 
@@ -657,13 +657,13 @@ Rank changes are large and informative:
   may be adding real signal in log space.
 
 The relative ordering of the top 10 is otherwise similar. The log
-transform changes *how much* each feature contributes but not *which*
+transform changes _how much_ each feature contributes but not _which_
 features contribute — the 13-predictor selection holds up.
 
 ### Log-space retune
 
 The initial `lrp02_log` result above was fitted with hyperparameters
-tuned on *original-scale* targets (the primary's `_LGBM_MAE_PARAMS`).
+tuned on _original-scale_ targets (the primary's `_LGBM_MAE_PARAMS`).
 Tuning properly in log space required extending `scripts/tune_model.py`
 with a `--target-transform` flag: the tuner applies `log1p` before
 `LGBMRegressor.fit`, inverts with `expm1` before scoring, and
@@ -677,17 +677,17 @@ scoring=mae, lgbm_objective=mae, target_transform=log1p. Best trial
 same 150 trials — a material improvement). Pinned as
 `_LGBM_MAE_PARAMS_LOG` on `LRP02Log`.
 
-| Parameter | Tuned on y (primary) | Tuned on log1p(y) (variant) |
-|---|---|---|
-| n_estimators | 53 | 358 |
-| learning_rate | 0.103 | 0.013 |
-| num_leaves | 49 | 36 |
-| max_depth | 6 | 8 |
-| min_child_samples | 16 | 4 |
-| subsample | 0.988 | 0.693 |
-| colsample_bytree | 0.700 | 0.635 |
-| reg_alpha | 0.001 | 0.011 |
-| reg_lambda | 0.001 | 0.048 |
+| Parameter         | Tuned on y (primary) | Tuned on log1p(y) (variant) |
+| ----------------- | -------------------- | --------------------------- |
+| n_estimators      | 53                   | 358                         |
+| learning_rate     | 0.103                | 0.013                       |
+| num_leaves        | 49                   | 36                          |
+| max_depth         | 6                    | 8                           |
+| min_child_samples | 16                   | 4                           |
+| subsample         | 0.988                | 0.693                       |
+| colsample_bytree  | 0.700                | 0.635                       |
+| reg_alpha         | 0.001                | 0.011                       |
+| reg_lambda        | 0.001                | 0.048                       |
 
 Very different regime: many more trees, much slower learning, smaller
 leaves, moderate L2. Consistent with the compressed target space —
@@ -696,13 +696,13 @@ is no longer dominated by the tail.
 
 ### Side-by-side metrics (post-log-tune)
 
-| Metric | `lrp02` (13) | `lrp02_select02` (17) | `lrp02_log` (13, log-tuned) |
-|---|---|---|---|
-| CV MAE | 6.019 ± 1.627 | 5.908 ± 1.622 | **5.581 ± 2.301** |
-| CV RMSE | 8.242 ± 2.436 | 8.072 ± 2.570 | **8.006 ± 3.384** |
-| CV R² | 0.355 ± 0.409 | 0.390 ± 0.428 | **0.488 ± 0.238** |
-| CV MedAE | 3.963 | 3.978 | **3.165** |
-| In-sample R² | 0.968 | 0.976 | 0.974 |
+| Metric       | `lrp02` (13)  | `lrp02_select02` (17) | `lrp02_log` (13, log-tuned) |
+| ------------ | ------------- | --------------------- | --------------------------- |
+| CV MAE       | 6.019 ± 1.627 | 5.908 ± 1.622         | **5.581 ± 2.301**           |
+| CV RMSE      | 8.242 ± 2.436 | 8.072 ± 2.570         | **8.006 ± 3.384**           |
+| CV R²        | 0.355 ± 0.409 | 0.390 ± 0.428         | **0.488 ± 0.238**           |
+| CV MedAE     | 3.963         | 3.978                 | **3.165**                   |
+| In-sample R² | 0.968         | 0.976                 | 0.974                       |
 
 `lrp02_log` with its own tune is now the best across every CV metric:
 
@@ -723,11 +723,11 @@ average.
 ### Quartile-level in-sample MAE (post-log-tune)
 
 | Target range | `lrp02` | `lrp02_log` (untuned for log) | `lrp02_log` (log-tuned) |
-|---|---|---|---|
-| 0–1 | 0.45 | 0.42 | **0.32** |
-| 1–6.5 | 0.43 | 0.43 | **0.30** |
-| 6.5–17 | 1.18 | 1.00 | **0.78** |
-| 17–64 | 2.72 | 2.42 | 2.63 |
+| ------------ | ------- | ----------------------------- | ----------------------- |
+| 0–1          | 0.45    | 0.42                          | **0.32**                |
+| 1–6.5        | 0.43    | 0.43                          | **0.30**                |
+| 6.5–17       | 1.18    | 1.00                          | **0.78**                |
+| 17–64        | 2.72    | 2.42                          | 2.63                    |
 
 Under the log-space tune, errors in the bottom three quartiles drop
 substantially. The top quartile is slightly worse than the untuned-for-log
@@ -737,21 +737,21 @@ rather than tail performance.
 
 ### Permutation importance under log-tune
 
-| Rank | Feature | Log-tuned imp | Primary imp |
-|---|---|---|---|
-| 1 | `yarclet` | 0.269 | 0.137 |
-| 2 | `spphon` | **0.257** | 0.172 |
-| 3 | `eowpvt` | 0.107 | 0.079 |
-| 4 | `aptinfo` | 0.100 | 0.049 |
-| 5 | `erbword` | 0.075 | 0.030 |
-| 6 | `nonword` | 0.063 | 0.049 |
-| 7 | `agebooks` | 0.042 | 0.032 |
-| 8 | `agespeak` | 0.041 | 0.045 |
-| 9 | `mumedupost16` | 0.035 | 0.038 |
-| 10 | `age` | 0.034 | 0.023 |
-| 11 | `numchil` | 0.022 | 0.013 |
-| 12 | `gender` | 0.015 | 0.017 |
-| 13 | `deappvo` | 0.015 | 0.005 |
+| Rank | Feature        | Log-tuned imp | Primary imp |
+| ---- | -------------- | ------------- | ----------- |
+| 1    | `yarclet`      | 0.269         | 0.137       |
+| 2    | `spphon`       | **0.257**     | 0.172       |
+| 3    | `eowpvt`       | 0.107         | 0.079       |
+| 4    | `aptinfo`      | 0.100         | 0.049       |
+| 5    | `erbword`      | 0.075         | 0.030       |
+| 6    | `nonword`      | 0.063         | 0.049       |
+| 7    | `agebooks`     | 0.042         | 0.032       |
+| 8    | `agespeak`     | 0.041         | 0.045       |
+| 9    | `mumedupost16` | 0.035         | 0.038       |
+| 10   | `age`          | 0.034         | 0.023       |
+| 11   | `numchil`      | 0.022         | 0.013       |
+| 12   | `gender`       | 0.015         | 0.017       |
+| 13   | `deappvo`      | 0.015         | 0.005       |
 
 Notable changes:
 
@@ -791,32 +791,32 @@ Optuna 150 trials on the 17-predictor set in log1p space. Best trial
 #102, tuner-inner CV MAE **5.7725 ± 2.5038** — a material improvement
 over `lrp02_log`'s 6.0010 tuner-inner at the same 150 trials.
 
-| Parameter | `lrp02_log` (13) | `lrp02_select02_log` (17) |
-|---|---|---|
-| n_estimators | 358 | 156 |
-| learning_rate | 0.013 | 0.043 |
-| num_leaves | 36 | 44 |
-| max_depth | 8 | 6 |
-| min_child_samples | 4 | 4 |
-| subsample | 0.693 | 0.941 |
-| colsample_bytree | 0.635 | 0.610 |
-| reg_alpha | 0.011 | **0.289** |
-| reg_lambda | 0.048 | 0.008 |
+| Parameter         | `lrp02_log` (13) | `lrp02_select02_log` (17) |
+| ----------------- | ---------------- | ------------------------- |
+| n_estimators      | 358              | 156                       |
+| learning_rate     | 0.013            | 0.043                     |
+| num_leaves        | 36               | 44                        |
+| max_depth         | 8                | 6                         |
+| min_child_samples | 4                | 4                         |
+| subsample         | 0.693            | 0.941                     |
+| colsample_bytree  | 0.635            | 0.610                     |
+| reg_alpha         | 0.011            | **0.289**                 |
+| reg_lambda        | 0.048            | 0.008                     |
 
 The 17-predictor log tune lands on a completely different regime —
-fewer, wider, shallower trees with *much* stronger L1 regularisation
+fewer, wider, shallower trees with _much_ stronger L1 regularisation
 (0.29 vs 0.011). The extra predictors need the L1 to keep spurious
 signal from creeping in.
 
 ### Four-way comparison
 
-| Metric | `lrp02` (13) | `lrp02_select02` (17) | `lrp02_log` (13) | `lrp02_select02_log` (17) |
-|---|---|---|---|---|
-| CV MAE | 6.019 ± 1.627 | 5.908 ± 1.622 | **5.581 ± 2.301** | 5.735 ± 2.425 |
-| CV RMSE | 8.242 ± 2.436 | 8.072 ± 2.570 | **8.006 ± 3.384** | 8.050 ± 3.687 |
-| CV R² | 0.355 ± 0.409 | 0.390 ± 0.428 | 0.488 ± 0.238 | **0.495 ± 0.241** |
-| CV MedAE | 3.963 | 3.978 | **3.165** | 3.376 |
-| In-sample R² | 0.968 | 0.976 | 0.974 | **0.988** |
+| Metric       | `lrp02` (13)  | `lrp02_select02` (17) | `lrp02_log` (13)  | `lrp02_select02_log` (17) |
+| ------------ | ------------- | --------------------- | ----------------- | ------------------------- |
+| CV MAE       | 6.019 ± 1.627 | 5.908 ± 1.622         | **5.581 ± 2.301** | 5.735 ± 2.425             |
+| CV RMSE      | 8.242 ± 2.436 | 8.072 ± 2.570         | **8.006 ± 3.384** | 8.050 ± 3.687             |
+| CV R²        | 0.355 ± 0.409 | 0.390 ± 0.428         | 0.488 ± 0.238     | **0.495 ± 0.241**         |
+| CV MedAE     | 3.963         | 3.978                 | **3.165**         | 3.376                     |
+| In-sample R² | 0.968         | 0.976                 | 0.974             | **0.988**                 |
 
 Reading the table:
 
@@ -833,11 +833,11 @@ Reading the table:
 ### Quartile-level in-sample MAE (all four)
 
 | Target range | `lrp02` | `lrp02_select02` | `lrp02_log` | `lrp02_select02_log` |
-|---|---|---|---|---|
-| 0–1 | 0.45 | 0.26 | 0.32 | **0.12** |
-| 1–6.5 | 0.43 | 0.35 | 0.30 | **0.16** |
-| 6.5–17 | 1.18 | 0.92 | 0.78 | **0.18** |
-| 17–64 | 2.72 | 2.39 | 2.63 | **1.08** |
+| ------------ | ------- | ---------------- | ----------- | -------------------- |
+| 0–1          | 0.45    | 0.26             | 0.32        | **0.12**             |
+| 1–6.5        | 0.43    | 0.35             | 0.30        | **0.16**             |
+| 6.5–17       | 1.18    | 0.92             | 0.78        | **0.18**             |
+| 17–64        | 2.72    | 2.39             | 2.63        | **1.08**             |
 
 The 17-predictor log variant has dramatically better in-sample fit
 across every quartile — but the bigger in-sample gap is mostly
@@ -845,18 +845,18 @@ memorisation, not generalisation (CV metrics barely move).
 
 ### Permutation importance under log-tune, 17 predictors
 
-| Rank | Feature | Log-tune imp (17) | Log-tune imp (13) |
-|---|---|---|---|
-| 1 | `yarclet` | 0.232 | 0.269 |
-| 2 | `spphon` | 0.153 | 0.257 |
-| 3 | `erbword` | 0.103 | 0.075 |
-| 4 | `celf` | **0.061** | — (dropped) |
-| 5 | `b1exto` | 0.058 | — (dropped) |
-| 6 | `aptinfo` | 0.054 | 0.100 |
-| 7 | `eowpvt` | 0.047 | 0.107 |
-| 8 | `yarcsi` | 0.045 | — (dropped) |
-| 9 | `agespeak` | 0.040 | 0.041 |
-| 10 | `nonword` | 0.035 | 0.063 |
+| Rank | Feature    | Log-tune imp (17) | Log-tune imp (13) |
+| ---- | ---------- | ----------------- | ----------------- |
+| 1    | `yarclet`  | 0.232             | 0.269             |
+| 2    | `spphon`   | 0.153             | 0.257             |
+| 3    | `erbword`  | 0.103             | 0.075             |
+| 4    | `celf`     | **0.061**         | — (dropped)       |
+| 5    | `b1exto`   | 0.058             | — (dropped)       |
+| 6    | `aptinfo`  | 0.054             | 0.100             |
+| 7    | `eowpvt`   | 0.047             | 0.107             |
+| 8    | `yarcsi`   | 0.045             | — (dropped)       |
+| 9    | `agespeak` | 0.040             | 0.041             |
+| 10   | `nonword`  | 0.035             | 0.063             |
 
 Notable: **`celf` at 0.061 is moderate-importance in log space**,
 despite being only 0.012 in primary space — where it was dropped at
@@ -895,7 +895,7 @@ four variants share the same `GroupKFold(n_splits=10)` at seed 47, so
 per-fold scores can be paired by fold number.
 
 `scripts/compare_variants.py` (new) runs this analysis — reports mean
-paired difference, paired-*t*, Wilcoxon signed-rank, and B-wins count
+paired difference, paired-_t_, Wilcoxon signed-rank, and B-wins count
 per pair per metric. Usage:
 
 ```bash
@@ -907,47 +907,47 @@ positive = improvement on R²):
 
 ### MAE (lower is better)
 
-| A | B | mean(A) | mean(B) | mean(B−A) | std(B−A) | paired *t* p | Wilcoxon p | B wins |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `lrp02` | `lrp02_select02` | 6.019 | 5.908 | −0.111 | 0.861 | 0.694 | 0.770 | 5/10 |
-| `lrp02` | `lrp02_log` | 6.019 | 5.581 | **−0.438** | 1.165 | 0.265 | 0.275 | 7/10 |
-| `lrp02` | `lrp02_select02_log` | 6.019 | 5.735 | −0.284 | 1.517 | 0.568 | 0.557 | 6/10 |
-| `lrp02_select02` | `lrp02_log` | 5.908 | 5.581 | −0.328 | 1.083 | 0.364 | 0.232 | 8/10 |
-| `lrp02_select02` | `lrp02_select02_log` | 5.908 | 5.735 | −0.174 | 1.227 | 0.665 | 0.770 | 6/10 |
-| `lrp02_log` | `lrp02_select02_log` | 5.581 | 5.735 | +0.154 | 0.551 | 0.400 | 0.375 | 4/10 |
+| A                | B                    | mean(A) | mean(B) |  mean(B−A) | std(B−A) | paired _t_ p | Wilcoxon p | B wins |
+| ---------------- | -------------------- | ------: | ------: | ---------: | -------: | -----------: | ---------: | -----: |
+| `lrp02`          | `lrp02_select02`     |   6.019 |   5.908 |     −0.111 |    0.861 |        0.694 |      0.770 |   5/10 |
+| `lrp02`          | `lrp02_log`          |   6.019 |   5.581 | **−0.438** |    1.165 |        0.265 |      0.275 |   7/10 |
+| `lrp02`          | `lrp02_select02_log` |   6.019 |   5.735 |     −0.284 |    1.517 |        0.568 |      0.557 |   6/10 |
+| `lrp02_select02` | `lrp02_log`          |   5.908 |   5.581 |     −0.328 |    1.083 |        0.364 |      0.232 |   8/10 |
+| `lrp02_select02` | `lrp02_select02_log` |   5.908 |   5.735 |     −0.174 |    1.227 |        0.665 |      0.770 |   6/10 |
+| `lrp02_log`      | `lrp02_select02_log` |   5.581 |   5.735 |     +0.154 |    0.551 |        0.400 |      0.375 |   4/10 |
 
 ### MedAE (lower is better)
 
-| A | B | mean(A) | mean(B) | mean(B−A) | std(B−A) | paired *t* p | Wilcoxon p | B wins |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `lrp02` | `lrp02_select02` | 3.963 | 3.978 | +0.015 | 1.082 | 0.965 | 0.846 | 5/10 |
-| `lrp02` | `lrp02_log` | 3.963 | 3.165 | **−0.798** | 0.805 | **0.012** | **0.020** | 8/10 |
-| `lrp02` | `lrp02_select02_log` | 3.963 | 3.376 | −0.587 | 1.219 | 0.163 | 0.084 | 8/10 |
-| `lrp02_select02` | `lrp02_log` | 3.978 | 3.165 | −0.813 | 1.103 | **0.045** | 0.084 | 6/10 |
-| `lrp02_select02` | `lrp02_select02_log` | 3.978 | 3.376 | −0.602 | 1.817 | 0.322 | 0.193 | 7/10 |
-| `lrp02_log` | `lrp02_select02_log` | 3.165 | 3.376 | +0.211 | 1.090 | 0.555 | 1.000 | 5/10 |
+| A                | B                    | mean(A) | mean(B) |  mean(B−A) | std(B−A) | paired _t_ p | Wilcoxon p | B wins |
+| ---------------- | -------------------- | ------: | ------: | ---------: | -------: | -----------: | ---------: | -----: |
+| `lrp02`          | `lrp02_select02`     |   3.963 |   3.978 |     +0.015 |    1.082 |        0.965 |      0.846 |   5/10 |
+| `lrp02`          | `lrp02_log`          |   3.963 |   3.165 | **−0.798** |    0.805 |    **0.012** |  **0.020** |   8/10 |
+| `lrp02`          | `lrp02_select02_log` |   3.963 |   3.376 |     −0.587 |    1.219 |        0.163 |      0.084 |   8/10 |
+| `lrp02_select02` | `lrp02_log`          |   3.978 |   3.165 |     −0.813 |    1.103 |    **0.045** |      0.084 |   6/10 |
+| `lrp02_select02` | `lrp02_select02_log` |   3.978 |   3.376 |     −0.602 |    1.817 |        0.322 |      0.193 |   7/10 |
+| `lrp02_log`      | `lrp02_select02_log` |   3.165 |   3.376 |     +0.211 |    1.090 |        0.555 |      1.000 |   5/10 |
 
 ### R² (higher is better)
 
-| A | B | mean(A) | mean(B) | mean(B−A) | std(B−A) | paired *t* p | Wilcoxon p | B wins |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `lrp02` | `lrp02_select02` | 0.355 | 0.390 | +0.035 | 0.194 | 0.583 | 0.770 | 5/10 |
-| `lrp02` | `lrp02_log` | 0.355 | 0.488 | **+0.133** | 0.221 | 0.089 | 0.131 | 6/10 |
-| `lrp02` | `lrp02_select02_log` | 0.355 | 0.495 | +0.139 | 0.267 | 0.133 | 0.193 | 6/10 |
-| `lrp02_select02` | `lrp02_log` | 0.390 | 0.488 | +0.098 | 0.284 | 0.304 | 0.770 | 5/10 |
-| `lrp02_select02` | `lrp02_select02_log` | 0.390 | 0.495 | +0.104 | 0.297 | 0.294 | 0.770 | 5/10 |
-| `lrp02_log` | `lrp02_select02_log` | 0.488 | 0.495 | +0.006 | 0.069 | 0.779 | 0.846 | 5/10 |
+| A                | B                    | mean(A) | mean(B) |  mean(B−A) | std(B−A) | paired _t_ p | Wilcoxon p | B wins |
+| ---------------- | -------------------- | ------: | ------: | ---------: | -------: | -----------: | ---------: | -----: |
+| `lrp02`          | `lrp02_select02`     |   0.355 |   0.390 |     +0.035 |    0.194 |        0.583 |      0.770 |   5/10 |
+| `lrp02`          | `lrp02_log`          |   0.355 |   0.488 | **+0.133** |    0.221 |        0.089 |      0.131 |   6/10 |
+| `lrp02`          | `lrp02_select02_log` |   0.355 |   0.495 |     +0.139 |    0.267 |        0.133 |      0.193 |   6/10 |
+| `lrp02_select02` | `lrp02_log`          |   0.390 |   0.488 |     +0.098 |    0.284 |        0.304 |      0.770 |   5/10 |
+| `lrp02_select02` | `lrp02_select02_log` |   0.390 |   0.495 |     +0.104 |    0.297 |        0.294 |      0.770 |   5/10 |
+| `lrp02_log`      | `lrp02_select02_log` |   0.488 |   0.495 |     +0.006 |    0.069 |        0.779 |      0.846 |   5/10 |
 
 ### RMSE (lower is better)
 
-| A | B | mean(A) | mean(B) | mean(B−A) | std(B−A) | paired *t* p | Wilcoxon p | B wins |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `lrp02` | `lrp02_select02` | 8.242 | 8.072 | −0.170 | 1.197 | 0.664 | 0.625 | 5/10 |
-| `lrp02` | `lrp02_log` | 8.242 | 8.006 | −0.235 | 1.435 | 0.617 | 0.557 | 6/10 |
-| `lrp02` | `lrp02_select02_log` | 8.242 | 8.050 | −0.192 | 1.949 | 0.763 | 0.625 | 6/10 |
-| `lrp02_select02` | `lrp02_log` | 8.072 | 8.006 | −0.065 | 1.232 | 0.870 | 0.922 | 5/10 |
-| `lrp02_select02` | `lrp02_select02_log` | 8.072 | 8.050 | −0.022 | 1.501 | 0.964 | 0.922 | 5/10 |
-| `lrp02_log` | `lrp02_select02_log` | 8.006 | 8.050 | +0.044 | 0.587 | 0.820 | 1.000 | 5/10 |
+| A                | B                    | mean(A) | mean(B) | mean(B−A) | std(B−A) | paired _t_ p | Wilcoxon p | B wins |
+| ---------------- | -------------------- | ------: | ------: | --------: | -------: | -----------: | ---------: | -----: |
+| `lrp02`          | `lrp02_select02`     |   8.242 |   8.072 |    −0.170 |    1.197 |        0.664 |      0.625 |   5/10 |
+| `lrp02`          | `lrp02_log`          |   8.242 |   8.006 |    −0.235 |    1.435 |        0.617 |      0.557 |   6/10 |
+| `lrp02`          | `lrp02_select02_log` |   8.242 |   8.050 |    −0.192 |    1.949 |        0.763 |      0.625 |   6/10 |
+| `lrp02_select02` | `lrp02_log`          |   8.072 |   8.006 |    −0.065 |    1.232 |        0.870 |      0.922 |   5/10 |
+| `lrp02_select02` | `lrp02_select02_log` |   8.072 |   8.050 |    −0.022 |    1.501 |        0.964 |      0.922 |   5/10 |
+| `lrp02_log`      | `lrp02_select02_log` |   8.006 |   8.050 |    +0.044 |    0.587 |        0.820 |      1.000 |   5/10 |
 
 ### What the paired tests tell us
 
@@ -993,8 +993,8 @@ The `lrp02_log` variant carried the primary's 13-predictor set
 (`gender`, `age`, `aptinfo`, `eowpvt`, `erbword`, `nonword`, `spphon`,
 `yarclet`, `deappvo`, `agespeak`, `numchil`, `agebooks`,
 `mumedupost16`) and simply applied the log transform on top. A
-natural question: would re-running feature selection *from scratch
-in log space* produce a different — possibly better — 13-feature
+natural question: would re-running feature selection _from scratch
+in log space_ produce a different — possibly better — 13-feature
 set? The 17-predictor log-space importance surfaced `celf` (0.061),
 `b1exto` (0.058), and `yarcsi` (0.045) as non-trivial signals that
 the primary-space chain had dropped on raw-importance or
@@ -1036,23 +1036,23 @@ carrying `yarcsi` + `b1exto` instead of `gender` + `numchil`.
 
 ### Head-to-head at 13 predictors each
 
-| Metric | `lrp02_log` | `lrp02_log_select` | Δ (select − log) |
-|---|---|---|---|
-| CV MAE | 5.581 ± 2.301 | 5.749 ± **2.081** | +0.168 |
-| CV RMSE | 8.006 | 8.143 | +0.137 |
-| CV R² | 0.488 | 0.409 | −0.079 |
-| CV MedAE | 3.165 | 3.449 | +0.284 |
-| In-sample R² | 0.974 | 0.969 | −0.005 |
+| Metric       | `lrp02_log`   | `lrp02_log_select` | Δ (select − log) |
+| ------------ | ------------- | ------------------ | ---------------- |
+| CV MAE       | 5.581 ± 2.301 | 5.749 ± **2.081**  | +0.168           |
+| CV RMSE      | 8.006         | 8.143              | +0.137           |
+| CV R²        | 0.488         | 0.409              | −0.079           |
+| CV MedAE     | 3.165         | 3.449              | +0.284           |
+| In-sample R² | 0.974         | 0.969              | −0.005           |
 
 Paired-fold tests (same 10 folds, seed 47) confirm the pattern but
 not at significance:
 
-| Metric | mean diff | paired *t* p | Wilcoxon p | log_select wins |
-|---|---|---|---|---|
-| MAE | +0.169 | 0.543 | 0.557 | 3/10 |
-| MedAE | +0.284 | 0.470 | 0.375 | 4/10 |
-| R² | −0.079 | 0.207 | 0.232 | 4/10 |
-| RMSE | +0.137 | 0.688 | 0.770 | 4/10 |
+| Metric | mean diff | paired _t_ p | Wilcoxon p | log_select wins |
+| ------ | --------- | ------------ | ---------- | --------------- |
+| MAE    | +0.169    | 0.543        | 0.557      | 3/10            |
+| MedAE  | +0.284    | 0.470        | 0.375      | 4/10            |
+| R²     | −0.079    | 0.207        | 0.232      | 4/10            |
+| RMSE   | +0.137    | 0.688        | 0.770      | 4/10            |
 
 Log-first wins at most 4/10 folds on any metric — a consistent but
 non-significant pattern of being mildly worse. The only metric
@@ -1081,21 +1081,21 @@ This is a useful negative result:
 
 ### Permutation importance under log-first 13-predictor retune
 
-| Rank | Feature | Importance | Also in `lrp02_log`? |
-|---|---|---|---|
-| 1 | `yarclet` | 0.240 | ✓ |
-| 2 | `spphon` | 0.172 | ✓ |
-| 3 | `erbword` | 0.077 | ✓ |
-| 4 | `aptinfo` | 0.070 | ✓ |
-| 5 | `b1exto` | 0.066 | — (replaces `gender` in `lrp02_log`) |
-| 6 | `eowpvt` | 0.060 | ✓ |
-| 7 | `nonword` | 0.055 | ✓ |
-| 8 | `agespeak` | 0.048 | ✓ |
-| 9 | `agebooks` | 0.044 | ✓ |
-| 10 | `age` | 0.034 | ✓ |
-| 11 | `mumedupost16` | 0.031 | ✓ |
-| 12 | `yarcsi` | 0.030 | — (replaces `numchil` in `lrp02_log`) |
-| 13 | `deappvo` | 0.015 | ✓ |
+| Rank | Feature        | Importance | Also in `lrp02_log`?                  |
+| ---- | -------------- | ---------- | ------------------------------------- |
+| 1    | `yarclet`      | 0.240      | ✓                                     |
+| 2    | `spphon`       | 0.172      | ✓                                     |
+| 3    | `erbword`      | 0.077      | ✓                                     |
+| 4    | `aptinfo`      | 0.070      | ✓                                     |
+| 5    | `b1exto`       | 0.066      | — (replaces `gender` in `lrp02_log`)  |
+| 6    | `eowpvt`       | 0.060      | ✓                                     |
+| 7    | `nonword`      | 0.055      | ✓                                     |
+| 8    | `agespeak`     | 0.048      | ✓                                     |
+| 9    | `agebooks`     | 0.044      | ✓                                     |
+| 10   | `age`          | 0.034      | ✓                                     |
+| 11   | `mumedupost16` | 0.031      | ✓                                     |
+| 12   | `yarcsi`       | 0.030      | — (replaces `numchil` in `lrp02_log`) |
+| 13   | `deappvo`      | 0.015      | ✓                                     |
 
 11 of 13 features are shared between the two 13-predictor log-space
 variants — the disagreement is only on `gender` + `numchil` (kept by
@@ -1119,10 +1119,10 @@ Optuna 150 trials each, scoring=rmse, lgbm_objective=regression. The
 log variant uses the `--target-transform log1p` plumbing auto-inferred
 from `LGBMLogPipeline`. Tuner-inner best values:
 
-| Variant | Tuner-inner CV RMSE |
-|---|---|
-| `lrp02_prediction` | 8.7517 ± 2.8635 |
-| `lrp02_log_prediction` | 8.4455 ± 5.0674 |
+| Variant                | Tuner-inner CV RMSE |
+| ---------------------- | ------------------- |
+| `lrp02_prediction`     | 8.7517 ± 2.8635     |
+| `lrp02_log_prediction` | 8.4455 ± 5.0674     |
 
 The log-space RMSE tune has a huge std (5.07) — squared-error loss
 after `expm1` inversion amplifies any fold-level prediction drift into
@@ -1130,13 +1130,13 @@ an outsized RMSE penalty.
 
 ### Refit comparison
 
-| Metric | `lrp02` (MAE) | **`lrp02_prediction`** (RMSE) | `lrp02_log` (MAE-log) | **`lrp02_log_prediction`** (RMSE-log) |
-|---|---|---|---|---|
-| CV MAE | 6.019 | 6.356 | 5.581 | 6.608 |
-| CV RMSE | 8.242 | 8.505 | 8.006 | 9.355 |
-| CV R² | 0.355 | 0.299 | 0.488 | 0.262 |
-| CV MedAE | 3.963 | 4.570 | 3.165 | 4.130 |
-| In-sample R² | 0.968 | **0.999** | 0.974 | **0.992** |
+| Metric       | `lrp02` (MAE) | **`lrp02_prediction`** (RMSE) | `lrp02_log` (MAE-log) | **`lrp02_log_prediction`** (RMSE-log) |
+| ------------ | ------------- | ----------------------------- | --------------------- | ------------------------------------- |
+| CV MAE       | 6.019         | 6.356                         | 5.581                 | 6.608                                 |
+| CV RMSE      | 8.242         | 8.505                         | 8.006                 | 9.355                                 |
+| CV R²        | 0.355         | 0.299                         | 0.488                 | 0.262                                 |
+| CV MedAE     | 3.963         | 4.570                         | 3.165                 | 4.130                                 |
+| In-sample R² | 0.968         | **0.999**                     | 0.974                 | **0.992**                             |
 
 Both RMSE-tuned variants are **worse on every CV metric** — including
 RMSE itself — than their MAE-tuned siblings. In-sample R² climbs to
@@ -1151,15 +1151,15 @@ The six-way paired comparison
 produces strong evidence that the RMSE variants are genuinely worse,
 not just noisily different:
 
-| Comparison | Metric | mean diff | paired *t* p | Wilcoxon p | B wins |
-|---|---|---:|---:|---:|---:|
-| `lrp02_log` → `lrp02_log_prediction` | MAE | **+1.027** | **<0.001** | **0.002** | **0/10** |
-| `lrp02_log` → `lrp02_log_prediction` | RMSE | **+1.349** | **<0.001** | **0.002** | **0/10** |
-| `lrp02_log` → `lrp02_log_prediction` | R² | **−0.226** | **0.003** | **0.002** | **0/10** |
-| `lrp02_log` → `lrp02_prediction` | MedAE | **+1.405** | **0.001** | **0.002** | **0/10** |
-| `lrp02_select02_log` → `lrp02_log_prediction` | RMSE | +1.305 | 0.002 | 0.004 | 1/10 |
-| `lrp02_select02` → `lrp02_log_prediction` | RMSE | +1.283 | 0.009 | 0.010 | 2/10 |
-| `lrp02_select02` → `lrp02_log_prediction` | R² | −0.128 | 0.031 | 0.037 | 2/10 |
+| Comparison                                    | Metric |  mean diff | paired _t_ p | Wilcoxon p |   B wins |
+| --------------------------------------------- | ------ | ---------: | -----------: | ---------: | -------: |
+| `lrp02_log` → `lrp02_log_prediction`          | MAE    | **+1.027** |   **<0.001** |  **0.002** | **0/10** |
+| `lrp02_log` → `lrp02_log_prediction`          | RMSE   | **+1.349** |   **<0.001** |  **0.002** | **0/10** |
+| `lrp02_log` → `lrp02_log_prediction`          | R²     | **−0.226** |    **0.003** |  **0.002** | **0/10** |
+| `lrp02_log` → `lrp02_prediction`              | MedAE  | **+1.405** |    **0.001** |  **0.002** | **0/10** |
+| `lrp02_select02_log` → `lrp02_log_prediction` | RMSE   |     +1.305 |        0.002 |      0.004 |     1/10 |
+| `lrp02_select02` → `lrp02_log_prediction`     | RMSE   |     +1.283 |        0.009 |      0.010 |     2/10 |
+| `lrp02_select02` → `lrp02_log_prediction`     | R²     |     −0.128 |        0.031 |      0.037 |     2/10 |
 
 Eight highly-significant (α=0.01) or strongly-significant (α=0.05)
 results, all against the RMSE-tuned variants. Notably:
@@ -1175,11 +1175,11 @@ results, all against the RMSE-tuned variants. Notably:
 ### In-sample quartile errors (RMSE variants)
 
 | Target range | `lrp02_prediction` | `lrp02_log_prediction` |
-|---|---|---|
-| 0–1 | 0.41 | 0.12 |
-| 1–6.5 | 0.42 | 0.28 |
-| 6.5–17 | 0.39 | 0.74 |
-| 17–64 | 0.41 | 1.66 |
+| ------------ | ------------------ | ---------------------- |
+| 0–1          | 0.41               | 0.12                   |
+| 1–6.5        | 0.42               | 0.28                   |
+| 6.5–17       | 0.39               | 0.74                   |
+| 17–64        | 0.41               | 1.66                   |
 
 `lrp02_prediction` has suspiciously flat in-sample errors across
 quartiles (0.39–0.42) — the model has memorised each training point,
@@ -1207,7 +1207,7 @@ this family of tasks at the available sample size.
   confirming it is the dominant raw-space signal regardless of loss
   function.
 - **Upper-bound check.** In-sample R² 0.999 is a sanity check that
-  the 13-feature set *can* fit n=210 exactly given enough capacity;
+  the 13-feature set _can_ fit n=210 exactly given enough capacity;
   the CV gap is then pure generalisation error, not representational
   limitation.
 
@@ -1244,12 +1244,12 @@ continues to represent the 17-predictor Select02 configuration.
 
 ### Variant CV metrics
 
-| Metric | `lrp02` (13) | `lrp02_select02` (17) |
-|---|---|---|
-| CV MAE | 6.019 ± 1.627 | **5.908 ± 1.623** |
-| CV RMSE | 8.242 ± 2.437 | **8.072 ± 2.570** |
-| CV R² | 0.355 ± 0.409 | **0.390 ± 0.475** |
-| In-sample R² | 0.968 | 0.977 |
+| Metric       | `lrp02` (13)  | `lrp02_select02` (17) |
+| ------------ | ------------- | --------------------- |
+| CV MAE       | 6.019 ± 1.627 | **5.908 ± 1.623**     |
+| CV RMSE      | 8.242 ± 2.437 | **8.072 ± 2.570**     |
+| CV R²        | 0.355 ± 0.409 | **0.390 ± 0.475**     |
+| In-sample R² | 0.968         | 0.977                 |
 
 The variant beats the primary on all three CV metrics. Reproduction drift
 from the original 17-retune (CV MAE 5.800 → 5.908) is from

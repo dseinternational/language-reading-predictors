@@ -37,20 +37,20 @@ controls' period-1 zero-dose rows** (the anchor that identifies the slope).
 
 ### Dose slope (logit per 1 SD dose ≈ 31 sessions)
 
-| model | term | mean | 95% CI | P(>0) |
-|---|---|---|---|---|
-| LRP77 (period-varying) | overall (mu_dose) | 0.127 | [-0.127, 0.380] | 0.91 |
-| LRP77 | period 1 | 0.127 | [-0.021, 0.274] | 0.96 |
-| LRP77 | period 2 | 0.135 | [-0.028, 0.306] | 0.95 |
-| LRP77 | period 3 | 0.124 | [-0.032, 0.279] | 0.95 |
-| LRP77 | sigma (between-period) | 0.136 | [0.004, 0.560] | — |
-| **LRP77base (pooled)** | **dose** | **0.127** | **[0.029, 0.227]** | **0.995** |
-| LRP77a (ability-adjusted) | overall | 0.141 | [-0.122, 0.406] | 0.92 |
+| model                     | term                   | mean      | 95% CI             | P(>0)     |
+| ------------------------- | ---------------------- | --------- | ------------------ | --------- |
+| LRP77 (period-varying)    | overall (mu_dose)      | 0.127     | [-0.127, 0.380]    | 0.91      |
+| LRP77                     | period 1               | 0.127     | [-0.021, 0.274]    | 0.96      |
+| LRP77                     | period 2               | 0.135     | [-0.028, 0.306]    | 0.95      |
+| LRP77                     | period 3               | 0.124     | [-0.032, 0.279]    | 0.95      |
+| LRP77                     | sigma (between-period) | 0.136     | [0.004, 0.560]     | —         |
+| **LRP77base (pooled)**    | **dose**               | **0.127** | **[0.029, 0.227]** | **0.995** |
+| LRP77a (ability-adjusted) | overall                | 0.141     | [-0.122, 0.406]    | 0.92      |
 
 **The dose slope is small but credibly positive** — more sessions in a period
 predict a larger conditional word-reading gain. The **pooled** estimate is
 +0.127 logit per 31 sessions, 95% CI [0.03, 0.23], P(>0) = 0.995. The
-period-varying model's *overall* slope has a wider CI only because the partial-
+period-varying model's _overall_ slope has a wider CI only because the partial-
 pooling hyper-prior inflates the hyper-mean's uncertainty; the three period
 slopes are near-identical.
 
@@ -58,10 +58,10 @@ slopes are near-identical.
 
 PSIS-LOO (`compare_statistical_models.py`, `dose_response_loo_compare.csv`):
 
-| model | elpd_loo | p_loo | elpd_diff (se) |
-|---|---|---|---|
-| LRP77base (pooled) | -410.0 | 9.3 | 0.0 |
-| LRP77 (period-varying) | -410.0 | 9.8 | -0.6 (0.13) |
+| model                  | elpd_loo | p_loo | elpd_diff (se) |
+| ---------------------- | -------- | ----- | -------------- |
+| LRP77base (pooled)     | -410.0   | 9.3   | 0.0            |
+| LRP77 (period-varying) | -410.0   | 9.8   | -0.6 (0.13)    |
 
 The period-varying model does **not** improve fit (elpd_diff -0.6, within noise);
 the between-period slope SD is small and the period slopes are indistinguishable.
@@ -77,7 +77,7 @@ blending — the reflective indicators of latent ability `g`). The dose slope is
 itself a credible predictor (`gamma_L_pre` 0.103, 95% CI [0.007, 0.201]), but the
 dose signal does not run through it. So in this sample the **no-`ability`->dose
 assumption is defensible** — the weak dose-response is not merely abler children
-attending more. (The subject random intercept already absorbs *stable* child
+attending more. (The subject random intercept already absorbs _stable_ child
 ability; LRP77a adds the time-varying baseline-skill adjustment on top.)
 
 ### ITT restatement: dose absorbs the randomised group contrast
@@ -85,9 +85,9 @@ ability; LRP77a adds the time-varying baseline-skill adjustment on top.)
 > **Why there is no fitted "ITT + period-1 dose" model here (dropped on review).**
 > Entering the period-1 dose alongside `group` in the ITT (the former LRP52d) is a
 > DAG violation, not a restatement: dose is the locked DAG's `IS` node — both a
-> *mediator* of `IG → WR` and a `GA`-collider (`IG → IS ← GA`). ID-1 is explicit:
-> the ITT's minimal adjustment set is ∅ and conditioning on `IS` *"would bias even
-> the ITT."* The period-1 collinearity that makes the dose appear to "absorb" the
+> _mediator_ of `IG → WR` and a `GA`-collider (`IG → IS ← GA`). ID-1 is explicit:
+> the ITT's minimal adjustment set is ∅ and conditioning on `IS` _"would bias even
+> the ITT."_ The period-1 collinearity that makes the dose appear to "absorb" the
 > randomised contrast (controls have `attend == 0`) **is** that bias, not an
 > insight. The randomised word-reading ITT is now `lrpitt10` (positive τ =
 > intervention benefit under `G = 2 − group`); only the DAG-legal ID-3

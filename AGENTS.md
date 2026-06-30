@@ -38,6 +38,10 @@ ruff check src/
 # Spell check (markdown and Quarto files)
 npm run spellcheck
 
+# Format Markdown
+npm run format
+npm run format:check
+
 # Fit a model (artifacts saved to output/models/{model_id}/)
 python scripts/fit_model.py LRP01                               # dev config (fast, default)
 python scripts/fit_model.py LRP01 --config test                 # test config (moderate)
@@ -96,14 +100,14 @@ Hyperparameter tuning (`scripts/tune_model.py`) runs an Optuna TPE study under t
 
 Step 2 of the methodology: Bayesian models fit with PyMC. One module per model — `lrpittNN.py` (the DAG-faithful ITT suite + companions), `lrpdidNN.py` (the waitlist-crossover / DiD family), `lrpgfNN.py` / `lrplfNN.py` (the DAG-focused gain- and level-factor families), `lrpalNN.py` (the aligned-40-week per-protocol family) and `lrpNN.py` (mechanism/mediation models) — each defining a `SPEC = ModelSpec(...)` and a `fit(config)` that calls the matching pipeline entry point. Eight families, keyed by `ModelSpec.kind`, each with a factory in `factories.py` and a pipeline in `pipeline.py`:
 
-- **`itt`** — single-outcome intention-to-treat: the uniform DAG-faithful **LRPITT01–11** suite (own baseline + linear age as *precision* terms, no cross-baselines — the ITT effect is identified by the empty adjustment set), with **LRPITT13/13b/14/14b** adding SES adjustment + matched complete-case comparators, and **LRPITT17–24** adding a general-ability (block-design) robustness adjustment across the vocabulary family (TR/TE/UR/UE/R/E) and the reading anchors (W, L). Heavily-floored outcomes (P, N) take a pre-specified **floor rule**: a binary off-floor primary estimand plus a flagged graded secondary. → `build_itt_model` / `fit_itt`.
+- **`itt`** — single-outcome intention-to-treat: the uniform DAG-faithful **LRPITT01–11** suite (own baseline + linear age as _precision_ terms, no cross-baselines — the ITT effect is identified by the empty adjustment set), with **LRPITT13/13b/14/14b** adding SES adjustment + matched complete-case comparators, and **LRPITT17–24** adding a general-ability (block-design) robustness adjustment across the vocabulary family (TR/TE/UR/UE/R/E) and the reading anchors (W, L). Heavily-floored outcomes (P, N) take a pre-specified **floor rule**: a binary off-floor primary estimand plus a flagged graded secondary. → `build_itt_model` / `fit_itt`.
 - **`joint`** — the suite outcomes jointly, optional LKJ residual correlation (**LRPITT12**; the taught-vs-not-taught generalisation contrasts **LRPITT15/15b**) → `build_joint_model` / `fit_joint`.
 - **`mechanism`** — adjustment-set dose-response of one measure on another across all phases, with subject random intercepts and optional linear moderation (LRP56–58, 71, 72/72base, 73/73base) → `build_mechanism_model` / `fit_mechanism`.
 - **`mediation`** — g-formula NDE/NIE decomposition by counterfactual simulation (LRP59 count mediator, LRP62 Gaussian reading-route composite) → `build_mediation_model` / `fit_mediation`.
 - **`did`** — waitlist-crossover / difference-in-differences (**LRPDID01–06**): a within-person replication of the randomised ITT effect, stacking the waitlist arm's untreated P1 vs its crossover P2 with each child as its own control and the immediate arm anchoring the time/maturation trend (Beta-Binomial logit, so the ceiling is respected; optional session-dose response) → `build_did_model` / `fit_did`.
-- **`gain_factors`** — DAG-focused ANCOVA on a period's post-score given its own pre-score (**LRPGF01–08**, one per outcome W/R/E/L/P/B/F/T, each with a `b` treated-only companion): stacks every on-intervention and untreated period with a child random intercept (latent general-ability repair). The randomised on-intervention term is the *only* causal coefficient; every covariate (own baseline, linear age, cognitive ability, upstream DAG skills, focal interactions) is an explicit *adjusted association*. SES is excluded (not a DAG node, statistically redundant). Heavily-floored P takes the suite floor rule (`likelihood="bernoulli_offfloor"`: a Bernoulli on the off-floor indicator, treatment marginal an off-floor risk difference). → `build_gain_factors_model` / `fit_gain_factors`.
-- **`level_factors`** — the companion *levels* view (**LRPLF01–08**): the score at each timepoint (no own baseline), with group×time and ability×time as per-timepoint coefficient vectors. Only the t2 group contrast (`b_grp_time[1]`) is a clean randomised effect; later timepoints are post-crossover and flagged as associations. → `build_level_factors_model` / `fit_level_factors`.
-- **`aligned`** — onset-aligned per-protocol single gain (**LRPAL01–08**, plus a `…d` cumulative-session dose variant): aligns both arms by intervention onset (immediate t1→t3, wait-list t2→t4) into one cross-sectional Beta-Binomial ANCOVA per child (no random intercept). The cohort contrast is **not** randomised — confounded by age-at-onset and cohort/timing — so *no* term is flagged causal; every coefficient is an association, and dose (a collider) enters only the sensitivity variant. → `build_aligned_model` / `fit_aligned`.
+- **`gain_factors`** — DAG-focused ANCOVA on a period's post-score given its own pre-score (**LRPGF01–08**, one per outcome W/R/E/L/P/B/F/T, each with a `b` treated-only companion): stacks every on-intervention and untreated period with a child random intercept (latent general-ability repair). The randomised on-intervention term is the _only_ causal coefficient; every covariate (own baseline, linear age, cognitive ability, upstream DAG skills, focal interactions) is an explicit _adjusted association_. SES is excluded (not a DAG node, statistically redundant). Heavily-floored P takes the suite floor rule (`likelihood="bernoulli_offfloor"`: a Bernoulli on the off-floor indicator, treatment marginal an off-floor risk difference). → `build_gain_factors_model` / `fit_gain_factors`.
+- **`level_factors`** — the companion _levels_ view (**LRPLF01–08**): the score at each timepoint (no own baseline), with group×time and ability×time as per-timepoint coefficient vectors. Only the t2 group contrast (`b_grp_time[1]`) is a clean randomised effect; later timepoints are post-crossover and flagged as associations. → `build_level_factors_model` / `fit_level_factors`.
+- **`aligned`** — onset-aligned per-protocol single gain (**LRPAL01–08**, plus a `…d` cumulative-session dose variant): aligns both arms by intervention onset (immediate t1→t3, wait-list t2→t4) into one cross-sectional Beta-Binomial ANCOVA per child (no random intercept). The cohort contrast is **not** randomised — confounded by age-at-onset and cohort/timing — so _no_ term is flagged causal; every coefficient is an association, and dose (a collider) enters only the sensitivity variant. → `build_aligned_model` / `fit_aligned`.
 
 All use a Beta-Binomial likelihood on bounded post-score counts via a logit linear predictor. Shared priors live in `priors.py` (shared constructors so the factories can't drift), HSGP helpers in `hsgp.py`, the g-formula in `mediation.py`. Each pipeline runs prior-predictive → NUTS (`nutpie`) → posterior-predictive, plus PSIS-LOO (ArviZ, pointwise) for the `itt`/`joint`/`mechanism`/`gain_factors`/`level_factors`/`aligned` families, then writes `trace.nc` (with the `prior`/`prior_predictive`/`log_prior` groups attached), `config.json`, `diagnostics_summary.json` (the pass/fail convergence gate), `priors_table.csv` (per-parameter distribution + role), diagnostic plots (convergence banner data, Pareto-k, rank, ESS-evolution, LOO-PIT, prior-vs-posterior overlay, τ forest), and family-specific CSVs (`tau_summary.csv`, `rope_summary.csv`, `prior_pushforward.csv`, `mechanism_curve.csv`, `mediation_summary.csv`, `factor_summary.csv`, `cohort_marginal.csv`, ...) to `output/statistical_models/models/{model_id}-{config}/`, copying `docs/models/{model_id}/index.qmd` and the shared `docs/models/_partials/` alongside.
 
@@ -129,7 +133,7 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 Report direction and uncertainty — never a bare ranking or point estimate.
 
 - **Gradient boosting:** read the SHAP beeswarm (`output/models/{model_id}/shap_summary.png`) with the permutation-importance ranking; the two disagree, so state the direction.
-- **Bayesian:** check convergence (R-hat ≈ 1.00, ESS, ≤ 1 % divergences) *before* interpreting; report the posterior (mean + 95 % credible interval + tail probability, no p-values); positive τ = intervention helps; only τ is causal — observational couplings (`gamma_cross`, `f_mech`, mediator → outcome) are adjusted associations, never "X drives Y".
+- **Bayesian:** check convergence (R-hat ≈ 1.00, ESS, ≤ 1 % divergences) _before_ interpreting; report the posterior (mean + 95 % credible interval + tail probability, no p-values); positive τ = intervention helps; only τ is causal — observational couplings (`gamma_cross`, `f_mech`, mediator → outcome) are adjusted associations, never "X drives Y".
 - **Notes, issues, PRs:** write for a frequentist-leaning science reader; expand shorthand and read credible intervals in plain words; record decisions a future reader might question as a dated `notes/` note; verify citations and always include DOIs.
 
 Full rationale, workflow, conventions, glossary, and references: **`METHODS.md`**.
@@ -165,10 +169,11 @@ Do not remove or hide a label that another tool has added.
 
 ## Pre-commit checks
 
-Before creating a commit or opening a pull request, both of the following must pass:
+Before creating a commit or opening a pull request, all of the following must pass:
 
 ```bash
 ruff check src/         # Python lint
+npm run format:check    # Markdown formatting
 npm run spellcheck      # Markdown + Quarto spelling (British English, en-GB)
 ```
 

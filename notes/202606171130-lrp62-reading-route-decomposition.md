@@ -15,7 +15,7 @@ how much of the intervention's word-reading effect runs specifically through
 single measure standing in for "the pathway", with a very wide interval. Following
 the project review (`notes/2026-05-12-project-review.md`, §124/§167), LRP62 instead
 asks how much of the effect is **phonics-route-compatible** — flowing through the
-decoding skills *together* — versus a residual **lexical / whole-word-compatible**
+decoding skills _together_ — versus a residual **lexical / whole-word-compatible**
 path. This is the team's stated next step and the honest "use the measures together"
 framing.
 
@@ -37,12 +37,12 @@ framing.
 
 ## Results (reporting config; intervention-helps, words out of 90)
 
-| Quantity | mean (words/90) | 95% CI | P(>0) |
-| --- | --- | --- | --- |
-| **Total** | **+2.72** | [0.40, 5.07] | 0.99 |
-| NDE (direct / residual) | +1.67 | [−0.56, 3.94] | 0.93 |
-| NIE (phonics route) | +1.06 | [−0.04, 2.56] | 0.97 |
-| Phonics-route share (NIE/Total) | 0.38 (median) | [−0.07, 1.48] | 0.99 (P(Total>0)) |
+| Quantity                        | mean (words/90) | 95% CI        | P(>0)             |
+| ------------------------------- | --------------- | ------------- | ----------------- |
+| **Total**                       | **+2.72**       | [0.40, 5.07]  | 0.99              |
+| NDE (direct / residual)         | +1.67           | [−0.56, 3.94] | 0.93              |
+| NIE (phonics route)             | +1.06           | [−0.04, 2.56] | 0.97              |
+| Phonics-route share (NIE/Total) | 0.38 (median)   | [−0.07, 1.48] | 0.99 (P(Total>0)) |
 
 Diagnostics: **0 divergences**, max R-hat 1.00, min ESS_bulk ≈ 18.9k.
 

@@ -55,24 +55,24 @@ RG -> EG
 
 ### Node definitions
 
-| Symbol | Construct (measure) | Role |
-|---|---|---|
-| `A` | Age | observed root (maturation + cumulative exposure) |
-| `GA` | General ability | **latent** root (age-residualised) |
-| `IG` | Intervention group | randomised assignment (root); ITT exposure |
-| `IS` | Intervention sessions / attendance ("attend") | dose |
-| `TR` / `TE` | Taught receptive / expressive vocabulary (LRP74–76) | direct teaching targets |
-| `RV` / `EV` | Standardised receptive / expressive vocabulary (rowpvt / eowpvt) | transfer measures |
-| `RW` | Word + nonword repetition (erbto) — phonological memory | capacity |
-| `LF` | Language fundamentals (CELF basic concepts) | |
-| `RG` / `EG` | Receptive / expressive grammar (trog / aptgram) | |
-| `EI` | Expressive information (aptinfo) | |
-| `SP` | Speech production / articulation (deapp_c) | outcome (sink) |
-| `LS` | Letter–sound knowledge (yarclet) | direct teaching target |
-| `PA` | Phonological awareness / blending | direct teaching target |
-| `NW` | Nonword reading (decoding) | |
-| `PS` | Phonetic spelling | |
-| `WR` | Word reading | primary outcome (most analyses) |
+| Symbol      | Construct (measure)                                              | Role                                             |
+| ----------- | ---------------------------------------------------------------- | ------------------------------------------------ |
+| `A`         | Age                                                              | observed root (maturation + cumulative exposure) |
+| `GA`        | General ability                                                  | **latent** root (age-residualised)               |
+| `IG`        | Intervention group                                               | randomised assignment (root); ITT exposure       |
+| `IS`        | Intervention sessions / attendance ("attend")                    | dose                                             |
+| `TR` / `TE` | Taught receptive / expressive vocabulary (LRP74–76)              | direct teaching targets                          |
+| `RV` / `EV` | Standardised receptive / expressive vocabulary (rowpvt / eowpvt) | transfer measures                                |
+| `RW`        | Word + nonword repetition (erbto) — phonological memory          | capacity                                         |
+| `LF`        | Language fundamentals (CELF basic concepts)                      |                                                  |
+| `RG` / `EG` | Receptive / expressive grammar (trog / aptgram)                  |                                                  |
+| `EI`        | Expressive information (aptinfo)                                 |                                                  |
+| `SP`        | Speech production / articulation (deapp_c)                       | outcome (sink)                                   |
+| `LS`        | Letter–sound knowledge (yarclet)                                 | direct teaching target                           |
+| `PA`        | Phonological awareness / blending                                | direct teaching target                           |
+| `NW`        | Nonword reading (decoding)                                       |                                                  |
+| `PS`        | Phonetic spelling                                                |                                                  |
+| `WR`        | Word reading                                                     | primary outcome (most analyses)                  |
 
 ### Verified structure (networkx; `output/replication/scratch/dag_v3_check.py`)
 
@@ -93,11 +93,11 @@ and the caution it carries.
 - **Decision.** Keep a single latent common cause of (almost) all measures,
   redefined as **age-residualised** stable ability (so `A → GA` is dropped — see §2).
 - **Why.** `GA` is the graphical encoding of the project's standing position that
-  *only the randomised contrast is causal*: it makes explicit that every skill→skill
+  _only the randomised contrast is causal_: it makes explicit that every skill→skill
   and mediator→outcome association is confounded by a shared stable trait
   (the CLPM / stable-trait argument, `notes/202606201117-longitudinal-modelling-stance-clpm.md`).
-  Because `GA` does **not** point into `IG`, the graph also shows *why the ITT
-  survives* (randomisation d-separates `IG` from `GA`).
+  Because `GA` does **not** point into `IG`, the graph also shows _why the ITT
+  survives_ (randomisation d-separates `IG` from `GA`).
 - **Caution.** `GA` is **diagnostic, not a lever** — it is latent, never in an
   implementable adjustment set, and the subject random intercept is only a partial
   (shrunken) stand-in, not "control for ability." It also makes nearly every internal
@@ -111,12 +111,12 @@ and the caution it carries.
 ### 2. Age `A`
 
 - **Decision.** Age acts through **two channels**: maturation of ability (`A → GA`)
-  *and* a direct **cumulative-exposure / opportunity** channel to every skill
+  _and_ a direct **cumulative-exposure / opportunity** channel to every skill
   (`A → {all 15 skill nodes, incl. RW}`). We **drop `A → GA`** and make `GA`
   age-residualised, so age carries the maturation+exposure effect directly and `GA`
   is the stable between-child residual.
 - **Why.** Older children have had more time and instruction to learn word meanings,
-  to produce words, and to read — independent of general ability. This is *especially*
+  to produce words, and to read — independent of general ability. This is _especially_
   forceful here because the likelihood is on **raw bounded counts**, not age-normed
   scores, so the exposure effect is fully present in every measure. It also reconciles
   the graph with the code, which already enters observed age directly (`gamma_A` /
@@ -124,7 +124,7 @@ and the caution it carries.
   adjustment the age-fix added (`notes/202606172100-mechanism-age-adjustment.md`); this
   DAG would have flagged that bug.
 - **Caution.** With `GA` latent, the "via-`g`" vs "direct-exposure" split is **not
-  separately identifiable**; only the *total* age effect is. Age is a **proxy** for
+  separately identifiable**; only the _total_ age effect is. Age is a **proxy** for
   cumulative opportunity/instruction — a measured exposure (schooling/instruction
   months) would be preferable, and the age/wave/schooling collinearity across the four
   waves must be handled explicitly. `RW` (phonological memory) gets a direct age edge
@@ -159,14 +159,14 @@ and the caution it carries.
 - **Why.** RLI directly teaches a small curated word set (distinct from the
   standardised ROWPVT/EOWPVT), and the trial found effects **did not transfer** to
   standardised vocabulary (Burgoyne et al., 2012). Modelling taught vocabulary as a
-  separate node whose effect *flows onward* lets standardised-vocab τ (and the
+  separate node whose effect _flows onward_ lets standardised-vocab τ (and the
   downstream grammar/expressive nulls) be **estimable transfer effects** rather than
   by-design zeros — reconciling the graph with the existing LRP53/54/55 and LRP74–76
-  models and with the project stance that a null vocabulary effect is a *finding, not
-  a design prediction* (`project_rli_intervention_scope`).
+  models and with the project stance that a null vocabulary effect is a _finding, not
+  a design prediction_ (`project_rli_intervention_scope`).
 - **Caution.** The `TR`/`TE` fan-outs are **broad**: the direct edges to grammar,
   language, reading and PA partly duplicate the routes carried by `RV`/`EV`. This
-  asserts taught vocabulary affects those outcomes *over and above* its (weak) effect
+  asserts taught vocabulary affects those outcomes _over and above_ its (weak) effect
   on standardised vocabulary — coherent, but a strong claim. The leaner alternative
   (route taught vocab through `RV`/`EV` only) was considered and rejected; revisit if
   the direct taught-vocab effects prove unidentifiable.
@@ -192,7 +192,7 @@ and the caution it carries.
   decoding/word-reading reuse (the invented-spelling-promotes-reading view).
 - **Caution (significant).** `PS` is **on the floor** in this sample — 78 % floor at
   t1, 64 % at t2, ~36 % movers (`notes/202606171000-measurement-sensitivity-audit.md`)
-  — so as a *cause* of `WR` it has little variance to transmit and the `PS → WR`,
+  — so as a _cause_ of `WR` it has little variance to transmit and the `PS → WR`,
   `LS → PS`, `PA → PS` coefficients will be weak / prior-dominated. The **direction is
   contestable**: for early readers the self-teaching view (`WR → PS`, reading builds
   spelling; Share, 1995) is at least as defensible as `PS → WR`. And `PS` remains a
@@ -210,13 +210,13 @@ and the caution it carries.
   articulatory representations and hence speech. This also re-homes `SP` (it was
   briefly orphaned) so that τ_SP is estimable as a vocab-transfer effect.
 - **Caution (recorded at the user's request).** The direction is genuinely
-  contestable. (a) Articulation/phonology is often treated as *upstream* of expressive
+  contestable. (a) Articulation/phonology is often treated as _upstream_ of expressive
   vocabulary (`SP → EV`). (b) There is a **measurement dependency**: expressive-vocab
-  tasks (EOWPVT, the taught-expressive set) require the child to *say* the word, so
-  poor articulation depresses *measured* `EV` — a `SP → EV` channel that runs opposite
+  tasks (EOWPVT, the taught-expressive set) require the child to _say_ the word, so
+  poor articulation depresses _measured_ `EV` — a `SP → EV` channel that runs opposite
   to the chosen arrow, and is material in Down syndrome where speech intelligibility is
   a characteristic constraint. (c) `SP` is a sink, so its direction changes **no** `WR`
-  analysis *as drawn*; but if it were flipped to `SP → EV`, `SP` would move onto the
+  analysis _as drawn_; but if it were flipped to `SP → EV`, `SP` would move onto the
   path to `WR` (via `EV`) and enter the vocab/`WR` adjustment sets. Treat τ_SP and any
   `EV`/`SP` relationship as confounded by this measurement link, not a clean construct
   separation.
@@ -230,7 +230,7 @@ and the caution it carries.
 - **Caution.** This **hard-codes that grammar/expressive language do not cause word
   reading** — a deliberate decoding-dominant scope choice for a floored early-reading
   sample. Any analysis estimating an effect of `RG`/`EG`/`EI`/`LF` on `WR` is
-  structurally guaranteed null. (They remain valid *outcomes* of the intervention.)
+  structurally guaranteed null. (They remain valid _outcomes_ of the intervention.)
 
 ## Identification implications
 
@@ -240,7 +240,7 @@ randomised root; `GA` does not touch `IG`). Baselines and age are precision term
 
 **ID-2 — Mechanisms / mediator→outcome slopes.** Every skill→`WR` and mediator→outcome
 relationship is confounded by latent `GA` and is **not point-identified** — report as
-an *adjusted association*, never "X drives Y." Age is now an **observed** confounder
+an _adjusted association_, never "X drives Y." Age is now an **observed** confounder
 that must appear in every mechanism adjustment set. The subject random intercept is the
 partial RI-CLPM repair (removes time-invariant `GA` up to partial-pooling shrinkage),
 not full `GA` adjustment.
@@ -315,16 +315,16 @@ networkx). Structural facts in this note were re-verified with
 
 - Burgoyne, K., Duff, F. J., Clarke, P. J., Buckley, S., Snowling, M. J., & Hulme, C.
   (2012). Efficacy of a reading and language intervention for children with Down
-  syndrome: a randomized controlled trial. *Journal of Child Psychology and
-  Psychiatry, 53*(10), 1044–1053. https://doi.org/10.1111/j.1469-7610.2012.02557.x
+  syndrome: a randomized controlled trial. _Journal of Child Psychology and
+  Psychiatry, 53_(10), 1044–1053. https://doi.org/10.1111/j.1469-7610.2012.02557.x
 - Gough, P. B., & Tunmer, W. E. (1986). Decoding, reading, and reading disability
-  (the simple view of reading). *(citation/DOI to verify.)*
-- Share, D. L. (1995). Phonological recoding and self-teaching. *Cognition.*
-  *(citation/DOI to verify.)*
+  (the simple view of reading). _(citation/DOI to verify.)_
+- Share, D. L. (1995). Phonological recoding and self-teaching. _Cognition._
+  _(citation/DOI to verify.)_
 - Metsala, J. L., & Walley, A. C. (1998). Lexical restructuring and phonological
-  awareness. *(citation/DOI to verify.)*
+  awareness. _(citation/DOI to verify.)_
 - Ouellette, G., & Sénéchal, M. — invented spelling and learning to read.
-  *(citation/DOI to verify.)*
+  _(citation/DOI to verify.)_
 
 ## Reproduction
 

@@ -15,10 +15,10 @@ In planning the uniform ITT suite (LRPITT01–11, issue #119), two outcomes are
 heavily **floored** — most children score zero at both baseline and the randomised
 post‑wave:
 
-| Outcome | symbol | t1 at zero | t2 at zero |
-|---|---|---|---|
-| Phonetic spelling (`spphon`, 92‑pt) | `P` | ~78 % | ~64 % |
-| Nonword reading (`nonword`, 6 items) | `N` | ~72 % | ~64 % |
+| Outcome                              | symbol | t1 at zero | t2 at zero |
+| ------------------------------------ | ------ | ---------- | ---------- |
+| Phonetic spelling (`spphon`, 92‑pt)  | `P`    | ~78 %      | ~64 %      |
+| Nonword reading (`nonword`, 6 items) | `N`    | ~72 %      | ~64 %      |
 
 (For contrast the clean outcomes move freely: word reading `W` 40 %→15 %, letter
 sounds `L` 9 %→0 %, blending `B` 4 %→2 %.)
@@ -33,7 +33,7 @@ levels/trajectory analysis over all four timepoints?**
 
 **Keep both `N` and `P` in the suite.** Do not exclude them. Handle them with a
 **arm-blind, pre-model-fitting floor-rule branch**: drop the degenerate `gamma_own`, and report a
-**binary off-floor-transition** effect — among children at the floor at baseline — as the *primary* estimand,
+**binary off-floor-transition** effect — among children at the floor at baseline — as the _primary_ estimand,
 keeping the graded Beta‑Binomial τ only as a flagged, floor‑limited secondary. Add
 the four‑wave levels/trajectory model the question proposed, but as a separate,
 explicitly **descriptive (non‑ITT)** complement.
@@ -44,14 +44,14 @@ The instinct to set these two aside is sound, but the reason given —
 "`gamma_own` is degenerate" — is not the deciding factor. Two different problems
 were being conflated:
 
-1. **Floored baseline → degenerate `gamma_own`.** This is real but *irrelevant to
-   exclusion*. The locked DAG (#115) identifies the ITT effect τ from the **empty
+1. **Floored baseline → degenerate `gamma_own`.** This is real but _irrelevant to
+   exclusion_. The locked DAG (#115) identifies the ITT effect τ from the **empty
    adjustment set**; `gamma_own` is a **precision term only**, not needed for
    identification. Dropping a noisy precision term costs nothing causal. So a
    degenerate own‑baseline coupling is a reason to **simplify the linear
    predictor** (age‑only), not to drop the outcome.
 2. **Floored outcome → little graded movement.** This is the genuine issue, and it
-   too is *not* an exclusion argument — it is an **estimand** argument. With ~64 %
+   too is _not_ an exclusion argument — it is an **estimand** argument. With ~64 %
    of post‑scores at zero, a logit‑linear graded τ is leveraged by a handful of
    dispersed tail values rather than by the arm contrast. That is exactly why
    phonetic spelling's τ in the earlier 8‑outcome joint model was +0.09 with the widest CI in the whole fit, (−0.61, +0.82), `P(τ>0)=0.60` — structurally
@@ -63,13 +63,13 @@ were being conflated:
    ITT result.
 
 **Where the randomised signal actually lives.** The t1→t2 contrast is real and
-correctly signed once you look at *coming off the floor* rather than graded scores
+correctly signed once you look at _coming off the floor_ rather than graded scores
 (computed from the trial data; immediate = group 1, the arm treated in period 1):
 
-| Outcome | immediate arm off‑floor by t2 | wait‑list control |
-|---|---|---|
-| Nonword `N` | 10 / 21 (48 %) | 2 / 15 (13 %) |
-| Phonetic spelling `P` | 7 / 24 (29 %) | 2 / 17 (12 %) |
+| Outcome               | immediate arm off‑floor by t2 | wait‑list control |
+| --------------------- | ----------------------------- | ----------------- |
+| Nonword `N`           | 10 / 21 (48 %)                | 2 / 15 (13 %)     |
+| Phonetic spelling `P` | 7 / 24 (29 %)                 | 2 / 17 (12 %)     |
 
 The at‑risk denominators differ by arm, so this is modelled as a **risk contrast**
 (a Bernoulli/logistic τ on `Pr(score > 0 at t2 | score = 0 at t1)`, fit on the baseline-floored at-risk set), with the repo's `G = 2 - group` coding (positive = benefit; PR #117), so that `G = 1` is the immediate-intervention arm and a **positive** τ still means the intervention helps.
@@ -82,22 +82,22 @@ group's randomised period-1 window. Off-floor movement among children still at t
 floor at the start of each group's first treated period (script reproduces the
 period-1 figures above exactly, as a correctness check):
 
-| | Nonword `N` | Phonetic spelling `P` |
-|---|---|---|
-| Immediate -- period 1 (treated, **randomised**) | 10/21 (48 %) | 7/24 (29 %) |
-| Wait -- period 1 (untreated control) | 2/15 (13 %) | 2/17 (12 %) |
-| **Wait -- period 2 (first treated, crossover)** | **6/18 (33 %)** | **2/16 (12 %)** |
-| Immediate -- period 2 (maintenance) | 7/15 (47 %) | 4/18 (22 %) |
+|                                                 | Nonword `N`     | Phonetic spelling `P` |
+| ----------------------------------------------- | --------------- | --------------------- |
+| Immediate -- period 1 (treated, **randomised**) | 10/21 (48 %)    | 7/24 (29 %)           |
+| Wait -- period 1 (untreated control)            | 2/15 (13 %)     | 2/17 (12 %)           |
+| **Wait -- period 2 (first treated, crossover)** | **6/18 (33 %)** | **2/16 (12 %)**       |
+| Immediate -- period 2 (maintenance)             | 7/15 (47 %)     | 4/18 (22 %)           |
 
 **`N` replicates cleanly.** The wait group barely moved off the floor while
-untreated (13 %) but jumped to 33 % off-floor movement *when it crossed over to
-intervention* -- ~2.5x, timed to treatment onset and mirroring the immediate group's
+untreated (13 %) but jumped to 33 % off-floor movement _when it crossed over to
+intervention_ -- ~2.5x, timed to treatment onset and mirroring the immediate group's
 own first-treated period (48 %). The effect **follows the treatment across the
 crossover** -- the signature of a genuine intervention effect -- and corroborates the
 randomised period-1 contrast for nonword beyond the single window.
 
 **`P` does not replicate.** The wait group moved off the floor at 12 % whether
-untreated *or* treated -- no crossover bump. The period-1 immediate-vs-wait gap
+untreated _or_ treated -- no crossover bump. The period-1 immediate-vs-wait gap
 (29 % vs 12 %) fails to reproduce at crossover, so `P`'s off-floor signal is fragile
 and may be partly noise.
 
@@ -111,7 +111,7 @@ still-floored children (denominator depletion) and partly continued consolidatio
 
 **Implication.** This sharpens the `N`-vs-`P` asymmetry (below) and argues that the
 descriptive complement should be framed as an **intervention-aligned (treatment-on)
-period** analysis -- pooling each group's *first treated period* (immediate P1 + wait
+period** analysis -- pooling each group's _first treated period_ (immediate P1 + wait
 P2) -- rather than a fixed-calendar four-wave trajectory, which is the cleaner way to
 let the post-t2 data speak while respecting the crossover. This dovetails with the
 period-resolved / intervention-aligned analysis already proposed in issue #104.
@@ -131,9 +131,9 @@ t2** (currently only `P` and `N`):
    off‑floor mover counts as diagnostics.
 
 `N` lands on the age‑only predictor for two compounding reasons: the 72 % baseline
-floor, *and* the repo's existing convention that `nonword` is "post‑only; not used
+floor, _and_ the repo's existing convention that `nonword` is "post‑only; not used
 as a baseline" (`measures.py`). Note the convention is a modelling choice, not a
-data absence — `nonword` *is* populated at t1 (50 non‑missing, 14 non‑zero) — so the
+data absence — `nonword` _is_ populated at t1 (50 non‑missing, 14 non‑zero) — so the
 age‑only spec is justified by **degeneracy + convention**, not by impossibility.
 
 ## The four‑wave levels analysis: complement, not substitute
@@ -149,8 +149,8 @@ randomised off‑floor ITT and never sold as one. It does not rescue the randomi
 question; it answers a different one.
 
 **Preferred form -- intervention-aligned.** Frame the descriptive complement as an
-**intervention-aligned (treatment-on) period** model -- pooling each group's *first
-treated period* (immediate P1 + wait P2) -- rather than a fixed-calendar trajectory.
+**intervention-aligned (treatment-on) period** model -- pooling each group's _first
+treated period_ (immediate P1 + wait P2) -- rather than a fixed-calendar trajectory.
 The wait-list crossover above shows why this is the more honest descriptive window
 (see the crossover-replication section, and issue #104).
 
@@ -162,7 +162,7 @@ only credible if the floor rule is **written into issue #119 and applied arm‑b
 before any model is fitted**. That is now a hard **arm-blind, pre-model-fitting** gate in the issue — data-driven on the floor rate, not a protocol pre-registration.
 
 **Fallback.** If that discipline cannot be guaranteed, the safer default is the
-*uniformity‑purist* option: keep all 11 models identically specified, drop
+_uniformity‑purist_ option: keep all 11 models identically specified, drop
 `gamma_own`, and honestly report `N`/`P`'s wide graded τ under a floor banner.
 Bespoke per‑outcome specifications are themselves a researcher degree of freedom, so
 the floor‑rule branch earns its keep only if it is fixed in advance.
@@ -172,7 +172,7 @@ the floor‑rule branch earns its keep only if it is fixed in advance.
 `N` and `P` are not symmetric. `N` (6 items) has the cleaner arm separation
 (48 % vs 13 %) and a coarse scale where "off‑floor" is nearly the whole story; `P`
 (92 points) has the weaker contrast and the long graded tail that most tempts an
-over‑read graded τ. If either is the weaker candidate for a *graded* effect it is
+over‑read graded τ. If either is the weaker candidate for a _graded_ effect it is
 `P`; the measurement‑sensitivity audit already singled `P` out (for exclusion from
 the LRP62 reading‑route composite) — honoured here as a floor banner, not a suite
 exclusion.
