@@ -221,8 +221,6 @@ print(":::")
 ## Partial dependence
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
-
 ## Predictor ranking and clustering
 
 Cluster-first predictor ranking (#116): predictors are clustered by
