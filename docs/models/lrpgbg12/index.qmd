@@ -311,3 +311,74 @@ target, averaging over the values of all other features. Features are ordered by
 permutation importance.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
+
+
+## Predictor ranking and clustering
+
+Cluster-first predictor ranking (#116): predictors are clustered by
+distance-correlation, and clusters are ranked by their aggregated out-of-fold
+permutation importance. The per-feature table is ordered cluster-first, then by
+within-cluster importance; `same_skill_of_outcome` flags a concurrent restatement
+of the outcome. (Produced at the `reporting` / `test` tiers; the dedicated
+`scripts/rank_predictors.py` run gives a more rigorous grouped-permutation
+version.)
+
+```{python}
+#| echo: false
+from pathlib import Path
+import pandas as pd
+cluster_ranking = (
+    pd.read_csv("cluster_ranking.csv") if Path("cluster_ranking.csv").exists()
+    else pd.DataFrame({"note": ["cluster_ranking.csv is produced at the reporting/test tiers"]})
+)
+cluster_ranking
+```
+
+```{python}
+#| echo: false
+from pathlib import Path
+import pandas as pd
+predictor_ranking = (
+    pd.read_csv("predictor_ranking.csv") if Path("predictor_ranking.csv").exists()
+    else pd.DataFrame({"note": ["predictor_ranking.csv is produced at the reporting/test tiers"]})
+)
+predictor_ranking
+```
+
+```{python}
+#| echo: false
+#| output: asis
+from pathlib import Path
+if Path("distance_corr_dendrogram.png").exists():
+    print("![Distance-correlation dendrogram (Ward linkage on 1 - dcor)]"
+          "(distance_corr_dendrogram.png){.lightbox fig-align=\"left\"}")
+```
+
+## SHAP interactions
+
+Mean |SHAP interaction| per feature pair — how much each pair's joint effect
+departs from additivity (#116). The heatmap shows the off-diagonal interaction
+matrix; the strongest pairs' interaction-dependence plots follow.
+
+```{python}
+#| echo: false
+from pathlib import Path
+import pandas as pd
+shap_interactions = (
+    pd.read_csv("shap_interactions.csv").head(12) if Path("shap_interactions.csv").exists()
+    else pd.DataFrame({"note": ["shap_interactions.csv is produced at the reporting/test tiers"]})
+)
+shap_interactions
+```
+
+```{python}
+#| echo: false
+#| output: asis
+from pathlib import Path
+if Path("shap_interaction_heatmap.png").exists():
+    print("![Mean |SHAP interaction| (off-diagonal)](shap_interaction_heatmap.png)"
+          "{.lightbox fig-align=\"left\"}\n")
+for _p in sorted(Path(".").glob("shap_interaction_*.png")):
+    if _p.name != "shap_interaction_heatmap.png":
+        print(f"![{_p.stem}]({_p.name}){{.lightbox}}\n")
+```

@@ -1,5 +1,5 @@
 ---
-title: "LRPGBL20: Predictors of DEAP initial-consonant articulation level"
+title: "LRPGBG01: Predictors of taught-receptive-vocabulary gains"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -32,13 +32,31 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBL20 models **DEAP initial-consonant articulation** (`deappin`) at the observed timepoint. `deappin` is initial-consonant accuracy from the Diagnostic Evaluation of Articulation and Phonology (Dodd et al., 2006) — the proportion of sounds correctly produced in a picture-naming task. The target spans min 25.9, max 92.4, median 71.67, std 12.69, skew -0.65 (n = 207).
+LRPGBG01 models **gains in directly-taught expressive vocabulary** (`b1extau_gain`)
+between consecutive longitudinal timepoints — the change in the Block 1
+taught-words expressive score. It is the taught-vocabulary analogue of
+[LRPGBG06](../lrpgbg06/), which models the *standardised* expressive-vocabulary gain
+(`eowpvt_gain`); the two are kept separate so the predictor analysis distinguishes
+the words the programme directly taught from general vocabulary.
 
-The same-instrument DEAP sibling(s) (`deappvo`, `deappfi`, `deappav`, `deapp_c`) are in the candidate pool. Where one tops the ranking, the ranking's same-skill-excluded view (`ranking_excluding_same_skill.csv`) drops them to separate same-skill correlation from cross-domain signal.
+This is a **baseline exploratory model** for the taught-vocabulary gain task. It
+has not yet been through iterative feature selection or a target-specific
+hyperparameter tune — it runs on hyperparameters borrowed from the closely-matched
+LRPGBG06 analogue and the full `Predictors.DEFAULT_GAIN` set (plus the auto-included
+`b1extau` baseline level), with no outlier exclusion.
 
-This is an **exploratory gradient-boosting discovery model** on the same footing as LRPGBG12–LRPGBL16 — it asks how predictable initial-consonant articulation is and from what, to inform whether the shared DAG (v5) needs a speech-sound accuracy node. It is **not** a causal or intention-to-treat estimate; the cross-validated associations describe prediction, not mechanism.
+::: {.callout-note title="Leakage exclusion: b1exto"}
 
-Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent leakage across a child's repeated measures.
+The Block 1 expressive *total* `b1exto` equals taught + not-taught
+(`b1extau + b1exnt`), so it contains the target/baseline construct directly. It is
+removed from the predictor set (the only deviation from LRPGBG06) so the model
+identifies substantive predictors of taught-vocabulary gains rather than
+recovering the score from a superset of itself.
+
+:::
+
+Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
+prevent data leakage across timepoints for the same child.
 
 ## Configuration
 
@@ -82,9 +100,10 @@ print(": Model hyperparameters {#tbl-config}")
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
-The predictor set is the uniform feature-selected subset of
-`Predictors.DEFAULT_LEVEL` / `DEFAULT_GAIN`. Feature-selection history (what
-was removed, when, and why) is persisted in `config.json` under `selection_history`.
+The predictor set spans demographics, cognitive assessments, language, speech
+and reading measures. Feature-selection history (what has been removed, when,
+and why) is persisted in `config.json` under `selection_history` and surfaced
+in the notes under `notes/` in the repository.
 
 ### Target variable
 
@@ -106,12 +125,6 @@ for col in ["mae", "rmse", "r2", "medae"]:
     label = col.upper() if col != "r2" else "R²"
     print(f"{label}: {cv_scores[col].mean():.4f} ± {cv_scores[col].std():.4f}")
 ```
-
-The headline out-of-sample number is the **pooled out-of-fold R²** in
-`metrics.json` (`cv_pooled_r2`) — computed against each fold's training mean,
-i.e. skill over a predict-the-mean baseline. The per-fold mean R² above is
-shown for completeness but is the less honest summary on this small,
-group-structured sample.
 
 ```{python}
 cv_scores
@@ -140,16 +153,14 @@ print(f"In-sample R²:    {r2:.4f}")
 print(f"In-sample MedAE: {medae:.4f}")
 ```
 
-The gap between in-sample R² and pooled out-of-fold R² is the overfit gap.
-
 ## Feature importance
 
 ### Permutation importance
 
-Permutation importance measures the decrease in held-out performance when a
-single feature's values are shuffled. It is computed out-of-fold and
-group-aware (scored as the drop in `neg_root_mean_squared_error` on the
-held-out subjects of each fold).
+Permutation importance measures the decrease in model performance when a single
+feature's values are randomly shuffled. With `GroupKFold` grouped by
+`subject_id`, each fold holds out one child and its timepoints, so the
+distribution is over (folds × repeats).
 
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
@@ -158,48 +169,14 @@ perm_imp
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 
-### Feature-selection diagnostics
-
-#### Distance-correlation dendrogram
-
-![Distance-correlation dendrogram](distance_corr_dendrogram.png){#fig-dcorr-dendrogram .lightbox fig-align="left"}
-
-#### Distance-correlation heatmap
-
-![Distance-correlation heatmap](distance_corr_heatmap.png){#fig-dcorr-heatmap .lightbox fig-align="left"}
-
-#### Spearman rank correlation
-
-![Spearman rank correlation heatmap](spearman_heatmap.png){#fig-spearman .lightbox fig-align="left"}
-
-#### Mutual information
-
-![Mutual information heatmap](mutual_info_heatmap.png){#fig-mi .lightbox fig-align="left"}
-
 ### SHAP analysis
 
 [SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values
-decompose each prediction into per-feature contributions, giving the
-*direction* of each predictor to pair with the permutation-importance
-magnitude.
-
-#### Global feature importance (bar)
+decompose each prediction into the contribution of each feature.
 
 ![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
 
-#### Clustered feature importance
-
-![SHAP clustered bar plot](shap_bar_clustered.png){#fig-shap-bar-clustered .lightbox fig-align="left"}
-
-#### Summary (beeswarm) plot
-
 ![SHAP summary plot](shap_summary.png){#fig-shap-summary .lightbox fig-align="left"}
-
-#### Waterfall plot (most representative observation)
-
-![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
-
-#### SHAP scatter plots by predictor
 
 ```{python}
 #| output: asis
@@ -219,6 +196,9 @@ print(":::")
 ```
 
 ## Partial dependence
+
+Partial dependence plots show the marginal effect of each feature on the predicted
+target, averaging over the values of all other features.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
 
