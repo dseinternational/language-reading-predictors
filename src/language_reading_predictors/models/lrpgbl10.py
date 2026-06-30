@@ -16,7 +16,7 @@ of the cleanest distributions in the suite. The coarse 0–10
 scale may cap achievable R² (similar to CELF's 0–18 scale in
 LRPGBL14).
 
-Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 2 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
+Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 2 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -40,7 +40,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.DEAPPIN, V.NONWORD, V.YARCLET, V.EOWPVT
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 1.6942},
@@ -93,5 +93,5 @@ class LRPGBL10(LevelModel):
     selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for blending (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 2 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 1.694 -> 1.763). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
+        "Exploratory model for blending (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 2 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 1.694 -> 1.763). Treat the reduced ranking as exploratory."
     )

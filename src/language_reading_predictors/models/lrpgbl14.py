@@ -22,7 +22,7 @@ Uniform feature selection (2026-06-21): reduced from the full
 3 predictors via a distance-correlation redundancy filter (dcor >= 0.70)
 plus an importance noise-floor cut, then re-tuned. This supersedes the
 earlier Select01/Select02 construct-driven hand selection. See the
-SelectionStep and notes/202606211200-uniform-gb-fs.md.
+SelectionStep.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -41,7 +41,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.AGESPEAK, V.EWRSWR, V.DEAPPVO, V.ROWPVT, V.TROG
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 2.4964},
@@ -95,5 +95,5 @@ class LRPGBL14(LevelModel):
         "filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), "
         "re-tuned on the reduced set (tuner-inner CV MAE 2.496 -> 2.567). CELF "
         "here is a lexical/semantic concept measure, not grammar. Treat the "
-        "reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
+        "reduced ranking as exploratory."
     )

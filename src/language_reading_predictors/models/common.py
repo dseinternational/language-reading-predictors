@@ -64,7 +64,7 @@ class SelectionStep:
     or near the noise floor under both views — but the new
     ``permutation_importance.csv`` is the right evidence base for any
     future variant that wants to re-evaluate a drop. See
-    ``notes/202605141000-code-review-refit-results.md`` for the deltas.
+     for the deltas.
     """
 
     removed: list[str] = field(default_factory=list)

@@ -25,16 +25,18 @@ dependencies:
       - hatch
       - ipython>=9.15.0
       - ipywidgets>=8.1.8
+      - jax>=0.10.2
       - jupytext
       - lightgbm>=4.6.0
       - matplotlib>=3.11.0
       - networkx
       - notebook>=7.6.0
+      - numpyro>=0.21.0
       - optuna-integration[lightgbm,xgboost]>=4.9.0
       - optuna>=4.9.0
       - orjson>=3.11.9
       - pandas-stubs
-      - pandas>=3.0.4
+      - pandas>=3.0.3
       - preliz>=0.27.0
       - pytest>=9.1.1
       - rich>=15.0.0

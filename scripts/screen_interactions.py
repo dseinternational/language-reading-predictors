@@ -6,7 +6,7 @@
 A discovery utility (the first step of the project's two-step philosophy): it
 ranks candidate pairwise interactions so the moderator choice for the Bayesian
 suite is *auditable*, not hand-picked. It is not inferential — see the caveats
-in ``notes/202606161215-interaction-exploration-reading.md`` (pooled rows,
+in  (pooled rows,
 SHAP attributing link-curvature to "interactions"; confirm any signal in a
 Bayesian model with subject random effects).
 

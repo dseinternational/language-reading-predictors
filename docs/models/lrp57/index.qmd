@@ -44,7 +44,7 @@ using all three phase transitions.
 
 - $G$ — standard confounder (linear, one coefficient $\beta_G$).
 - $A$ — standard confounder. The age-GP flag is **off by default**
-  (see `notes/202604181700-lrp55-age-gp-drop.md`); re-enable via
+; re-enable via
   `ModelSpec.extra={"use_age_gp": True}` for sensitivity.
 - $R$ — *must* be conditioned on: $R \to E$ and $R \to W$, so $R$ opens a backdoor path.
 - $W_{\text{pre}}$ — baseline.

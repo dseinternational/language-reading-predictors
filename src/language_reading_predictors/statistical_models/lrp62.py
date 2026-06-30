@@ -18,7 +18,7 @@ Design (see `factories._build_route_composite_model` + `mediation.decompose`):
   **code-based-route composite** of letter-sound (L) and blending (B), conditioned on
   the baseline composite. Phonetic spelling (P) is **excluded**: the
   measurement-sensitivity audit (`scripts/measurement_audit.py`,
-  `notes/202606171000-measurement-sensitivity-audit.md`) found P floored (78% at
+  ) found P floored (78% at
   zero at t1, 64% at t2) with few movers, so it carries little usable signal in
   this window. **Outcome** Y = W_t2 (word reading), conditioned on W_t1.
 - The composite is continuous, so the mediator leg is **Normal** (not

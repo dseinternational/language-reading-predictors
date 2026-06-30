@@ -51,7 +51,7 @@ $$
 with Beta-Binomial likelihood $W_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
 $\mu_i = \sigma(\eta_i)$, $N = 79$. Priors follow the shared template in `priors.py`.
 HSGPs on age and own baseline are off by default (the 2026-04-18 sensitivity
-verdict, `notes/202604181445-lrp52-gp-sensitivity.md`).
+verdict).
 
 Word reading is heavily floored at *baseline* (t1, ~40% at zero) but not at the
 post-score (t2), so the floor rule (which gates on the t2 post-score) does not

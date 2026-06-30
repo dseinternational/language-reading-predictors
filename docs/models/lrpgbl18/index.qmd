@@ -84,9 +84,7 @@ print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 
 The predictor set is the uniform feature-selected subset of
 `Predictors.DEFAULT_LEVEL` / `DEFAULT_GAIN`. Feature-selection history (what
-was removed, when, and why) is persisted in `config.json` under
-`selection_history` and summarised in
-`notes/202606230900-predictability-speech-memory-language.md`.
+was removed, when, and why) is persisted in `config.json` under `selection_history`.
 
 ### Target variable
 

@@ -22,7 +22,7 @@ receptive grammar asymmetry that is a live question in DS
 language research. The right-skew motivates a later log-transform
 variant (mirroring LRPGBL12's ``lrpgbl12_log``).
 
-Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 4 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
+Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 4 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -46,7 +46,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.ERBWORD
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 4 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 4 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 2.5569},
@@ -99,7 +99,7 @@ class LRPGBL08(LevelModel):
     selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for aptgram (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 4 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.557 -> 2.325). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
+        "Exploratory model for aptgram (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 4 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.557 -> 2.325). Treat the reduced ranking as exploratory."
     )
 
 
@@ -137,12 +137,12 @@ class LRPGBL08NoConstruct(LRPGBL08):
         SelectionStep(
             removed=[V.APTINFO],
             notes=(
-                "Same-skill variant of lrpgbl08: drops aptinfo — the Action Picture Test information score, scored from the same elicited picture descriptions as the target aptgram — so the model is not 'predicting' expressive grammar from a parallel scoring of the same sample. Receptive grammar (trog) and other constructs are kept deliberately, to be seen independently. Pooled CV falls accordingly; re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+                "Same-skill variant of lrpgbl08: drops aptinfo — the Action Picture Test information score, scored from the same elicited picture descriptions as the target aptgram — so the model is not 'predicting' expressive grammar from a parallel scoring of the same sample. Receptive grammar (trog) and other constructs are kept deliberately, to be seen independently. Pooled CV falls accordingly; re-tuned on the reduced set."
             ),
             date="2026-06-21",
             metrics_after={"cv_mae_mean": 3.3181},
         ),
     ]
     notes = (
-        "Same-skill variant of lrpgbl08: drops aptinfo (APT information, scored from the same picture descriptions as aptgram) to ask what predicts expressive grammar beyond a parallel scoring of the same test. Receptive grammar (trog) and other constructs kept visible. Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+        "Same-skill variant of lrpgbl08: drops aptinfo (APT information, scored from the same picture descriptions as aptgram) to ask what predicts expressive grammar beyond a parallel scoring of the same test. Receptive grammar (trog) and other constructs kept visible. Re-tuned on the reduced set."
     )

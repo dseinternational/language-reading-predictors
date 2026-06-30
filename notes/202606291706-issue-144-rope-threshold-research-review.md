@@ -86,19 +86,19 @@ The table below recomputes the main raw-score anchors from
 `data/rli_data_long.csv`, using t1 rows and t1 to t2 gains. Group 1 is the
 immediate-intervention group; group 2 is the wait-list control group.
 
-| Outcome | Scale | Current delta | Baseline SD | 0.2 SD | 5% scale | Wait-list gain | Intervention gain | Raw gain gap |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `L` letter-sound knowledge | 32 | 2 | 8.69 | 1.74 | 1.60 | 3.23 | 6.93 | 3.70 |
-| `W` word reading | 79 | 1 | 11.30 | 2.26 | 3.95 | 2.04 | 4.64 | 2.60 |
-| `R` receptive vocabulary | 170 | 2 | 13.53 | 2.71 | 8.50 | 3.04 | 3.18 | 0.14 |
-| `E` expressive vocabulary | 170 | 2 | 12.78 | 2.56 | 8.50 | 4.31 | 4.36 | 0.05 |
-| `TR` taught receptive vocabulary | 24 | 1 | 4.09 | 0.82 | 1.20 | 2.12 | 3.46 | 1.35 |
-| `TE` taught expressive vocabulary | 24 | 1 | 3.51 | 0.70 | 1.20 | 1.77 | 3.43 | 1.66 |
-| `UR` not-taught receptive vocabulary | 12* | 1 | 2.11 | 0.42 | 0.60 | 0.31 | 1.32 | 1.01 |
-| `UE` not-taught expressive vocabulary | 12* | 1 | 2.40 | 0.48 | 0.60 | 0.54 | 0.86 | 0.32 |
-| `B` phoneme blending | 10 | 1 | 2.22 | 0.44 | 0.50 | 0.04 | 1.25 | 1.21 |
+| Outcome                               | Scale | Current delta | Baseline SD | 0.2 SD | 5% scale | Wait-list gain | Intervention gain | Raw gain gap |
+| ------------------------------------- | ----: | ------------: | ----------: | -----: | -------: | -------------: | ----------------: | -----------: |
+| `L` letter-sound knowledge            |    32 |             2 |        8.69 |   1.74 |     1.60 |           3.23 |              6.93 |         3.70 |
+| `W` word reading                      |    79 |             1 |       11.30 |   2.26 |     3.95 |           2.04 |              4.64 |         2.60 |
+| `R` receptive vocabulary              |   170 |             2 |       13.53 |   2.71 |     8.50 |           3.04 |              3.18 |         0.14 |
+| `E` expressive vocabulary             |   170 |             2 |       12.78 |   2.56 |     8.50 |           4.31 |              4.36 |         0.05 |
+| `TR` taught receptive vocabulary      |    24 |             1 |        4.09 |   0.82 |     1.20 |           2.12 |              3.46 |         1.35 |
+| `TE` taught expressive vocabulary     |    24 |             1 |        3.51 |   0.70 |     1.20 |           1.77 |              3.43 |         1.66 |
+| `UR` not-taught receptive vocabulary  |  12\* |             1 |        2.11 |   0.42 |     0.60 |           0.31 |              1.32 |         1.01 |
+| `UE` not-taught expressive vocabulary |  12\* |             1 |        2.40 |   0.48 |     0.60 |           0.54 |              0.86 |         0.32 |
+| `B` phoneme blending                  |    10 |             1 |        2.22 |   0.44 |     0.50 |           0.04 |              1.25 |         1.21 |
 
-*The `UR` and `UE` denominators remain unconfirmed in the data dictionary. The
+\*The `UR` and `UE` denominators remain unconfirmed in the data dictionary. The
 observed maximum is 12, which is consistent with a 12-item not-taught comparison
 set, but this should not be treated as final until the original assessment
 materials confirm it.
@@ -114,10 +114,10 @@ Two things stand out:
 For the floored outcomes, the estimand is not extra raw-score items. It is the
 increase in the probability of coming off the floor:
 
-| Outcome | Immediate off floor by t2 | Wait-list off floor by t2 | Raw risk-difference anchor |
-|---|---:|---:|---:|
-| `P` phonetic spelling | 7/24 = 29% | 2/17 = 12% | +17 percentage points |
-| `N` nonword reading | 10/21 = 48% | 2/15 = 13% | +34 percentage points |
+| Outcome               | Immediate off floor by t2 | Wait-list off floor by t2 | Raw risk-difference anchor |
+| --------------------- | ------------------------: | ------------------------: | -------------------------: |
+| `P` phonetic spelling |                7/24 = 29% |                2/17 = 12% |      +17 percentage points |
+| `N` nonword reading   |               10/21 = 48% |                2/15 = 13% |      +34 percentage points |
 
 This makes the current 10 percentage point threshold plausible as a minimal
 off-floor change, but it is a low bar compared with the raw period-1 contrast.
@@ -225,19 +225,19 @@ clear educational change.
 
 ## Outcome-by-outcome implications
 
-| Outcome | Current threshold | Review implication |
-|---|---:|---|
-| `L` letter-sound knowledge | 2 items | Retain. It is close to 0.2 SD, close to 5% of the scale, and below the original raw gain gap. It is also a proximal intervention target. |
-| `W` word reading | 1 item | Retain only with an explicit `delta = 2` sensitivity read. One item is defensible as half of natural growth, but it is lenient compared with 0.2 SD. |
-| `B` phoneme blending | 1 item | Retain. The one-item floor is doing the work, but that is appropriate on a 10-item test where sub-item thresholds cannot be observed. |
-| `TE` taught expressive vocabulary | 1 item | Retain. Directly taught vocabulary is a proximal target and the original raw gain gap is larger than one item. |
-| `TR` taught receptive vocabulary | 1 item | Retain. The original RCT found weaker receptive than expressive taught-vocabulary evidence, but the raw anchors still support one item as a meaningful trained-word threshold. |
-| `UR` not-taught receptive vocabulary | 1 item | Retain provisionally. The denominator must be confirmed. Interpret as a transfer threshold, not as a directly taught-word threshold. |
-| `UE` not-taught expressive vocabulary | 1 item | Retain provisionally, but expect sensitivity to be poor because the raw gain gap is small. Denominator confirmation matters. |
-| `R` standardised receptive vocabulary | 2 items | Retain. Broad transfer is not strongly supported by the trial or meta-analytic evidence; a threshold below 0.2 SD would be too permissive. |
-| `E` standardised expressive vocabulary | 2 items | Retain. Same reasoning as `R`; the observed period-1 raw gap is essentially zero. |
-| `P` phonetic spelling off-floor risk difference | 10 percentage points | Keep as provisional and add 15/20 percentage point sensitivity. Burgoyne found little transfer to spelling, and the current models show a floor-limited null. |
-| `N` nonword reading off-floor risk difference | 10 percentage points | Keep as provisional and add 15/20 percentage point sensitivity. The raw off-floor contrast is larger than for `P`, but the outcome is coarse and heavily floored. |
+| Outcome                                         |    Current threshold | Review implication                                                                                                                                                             |
+| ----------------------------------------------- | -------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `L` letter-sound knowledge                      |              2 items | Retain. It is close to 0.2 SD, close to 5% of the scale, and below the original raw gain gap. It is also a proximal intervention target.                                       |
+| `W` word reading                                |               1 item | Retain only with an explicit `delta = 2` sensitivity read. One item is defensible as half of natural growth, but it is lenient compared with 0.2 SD.                           |
+| `B` phoneme blending                            |               1 item | Retain. The one-item floor is doing the work, but that is appropriate on a 10-item test where sub-item thresholds cannot be observed.                                          |
+| `TE` taught expressive vocabulary               |               1 item | Retain. Directly taught vocabulary is a proximal target and the original raw gain gap is larger than one item.                                                                 |
+| `TR` taught receptive vocabulary                |               1 item | Retain. The original RCT found weaker receptive than expressive taught-vocabulary evidence, but the raw anchors still support one item as a meaningful trained-word threshold. |
+| `UR` not-taught receptive vocabulary            |               1 item | Retain provisionally. The denominator must be confirmed. Interpret as a transfer threshold, not as a directly taught-word threshold.                                           |
+| `UE` not-taught expressive vocabulary           |               1 item | Retain provisionally, but expect sensitivity to be poor because the raw gain gap is small. Denominator confirmation matters.                                                   |
+| `R` standardised receptive vocabulary           |              2 items | Retain. Broad transfer is not strongly supported by the trial or meta-analytic evidence; a threshold below 0.2 SD would be too permissive.                                     |
+| `E` standardised expressive vocabulary          |              2 items | Retain. Same reasoning as `R`; the observed period-1 raw gap is essentially zero.                                                                                              |
+| `P` phonetic spelling off-floor risk difference | 10 percentage points | Keep as provisional and add 15/20 percentage point sensitivity. Burgoyne found little transfer to spelling, and the current models show a floor-limited null.                  |
+| `N` nonword reading off-floor risk difference   | 10 percentage points | Keep as provisional and add 15/20 percentage point sensitivity. The raw off-floor contrast is larger than for `P`, but the outcome is coarse and heavily floored.              |
 
 ## Recommended reporting stance
 
@@ -273,53 +273,53 @@ where the interpretation changes under stricter, still-plausible thresholds.
 ## References
 
 - Baylis, P., & Snowling, M. J. (2012). Evaluation of a phonological reading
-  programme for children with Down syndrome. *Child Language Teaching and
-  Therapy*, 28(1), 39-56. doi:10.1177/0265659011414277
+  programme for children with Down syndrome. _Child Language Teaching and
+  Therapy_, 28(1), 39-56. doi:10.1177/0265659011414277
 - Burgoyne, K., Duff, F. J., Clarke, P. J., Buckley, S., Snowling, M. J., &
   Hulme, C. (2012). Efficacy of a reading and language intervention for children
-  with Down syndrome: A randomized controlled trial. *Journal of Child Psychology
-  and Psychiatry*, 53(10), 1044-1053. doi:10.1111/j.1469-7610.2012.02557.x
+  with Down syndrome: A randomized controlled trial. _Journal of Child Psychology
+  and Psychiatry_, 53(10), 1044-1053. doi:10.1111/j.1469-7610.2012.02557.x
 - Cologon, K., Cupples, L., & Wyver, S. (2011). Effects of targeted reading
   instruction on phonological awareness and phonic decoding in children with Down
-  syndrome. *American Journal on Intellectual and Developmental Disabilities*,
+  syndrome. _American Journal on Intellectual and Developmental Disabilities_,
   116(2), 111-129. doi:10.1352/1944-7558-116.2.111
 - Donolato, E., Toffalini, E., Rogde, K., Nordahl-Hansen, A., Lervag, A.,
   Norbury, C., & Melby-Lervag, M. (2023). Oral language interventions can improve
   language outcomes in children with neurodevelopmental disorders: A systematic
-  review and meta-analysis. *Campbell Systematic Reviews*, 19(4), e1368.
+  review and meta-analysis. _Campbell Systematic Reviews_, 19(4), e1368.
   doi:10.1002/cl2.1368
 - Gesel, S. A., LeJeune, L. M., & Lemons, C. J. (2019). Teaching phonological
   awareness to preschoolers with Down syndrome: Boosting reading readiness.
-  *Young Exceptional Children*, 24(1), 39-51. doi:10.1177/1096250619865953
+  _Young Exceptional Children_, 24(1), 39-51. doi:10.1177/1096250619865953
 - Goetz, K., Hulme, C., Brigstocke, S., Carroll, J. M., Nasir, L., & Snowling,
   M. (2008). Training reading and phoneme awareness skills in children with Down
-  syndrome. *Reading and Writing*, 21(4), 395-412.
+  syndrome. _Reading and Writing_, 21(4), 395-412.
   doi:10.1007/s11145-007-9089-3
 - Hulme, C., Goetz, K., Brigstocke, S., Nash, H. M., Lervag, A., & Snowling,
   M. J. (2012). The growth of reading skills in children with Down syndrome.
-  *Developmental Science*, 15(3), 320-329.
+  _Developmental Science_, 15(3), 320-329.
   doi:10.1111/j.1467-7687.2011.01129.x
 - Lemons, C. J., & Fuchs, D. (2010). Modeling response to reading intervention
   in children with Down syndrome: An examination of predictors of differential
-  growth. *Reading Research Quarterly*, 45(2), 134-168.
+  growth. _Reading Research Quarterly_, 45(2), 134-168.
   doi:10.1598/rrq.45.2.1
 - Lemons, C. J., & Fuchs, D. (2010). Phonological awareness of children with Down
   syndrome: Its role in learning to read and the effectiveness of related
-  interventions. *Research in Developmental Disabilities*, 31(2), 316-330.
+  interventions. _Research in Developmental Disabilities_, 31(2), 316-330.
   doi:10.1016/j.ridd.2009.11.002
 - Lemons, C. J., Mrachko, A. A., Kostewicz, D. E., & Paterra, M. F. (2012).
   Effectiveness of decoding and phonological awareness interventions for children
-  with Down syndrome. *Exceptional Children*, 79(1), 67-90.
+  with Down syndrome. _Exceptional Children_, 79(1), 67-90.
   doi:10.1177/001440291207900104
 - Naess, K.-A. B., Hokstad, S., Engevik, L. I., Lervag, A., & Smith, E. (2022).
   A randomized trial of the digital Down Syndrome LanguagePlus (DSL+) vocabulary
-  intervention program. *Remedial and Special Education*, 43(5), 314-327.
+  intervention program. _Remedial and Special Education_, 43(5), 314-327.
   doi:10.1177/07419325211058400
 - Neil, N., & Jones, E. A. (2016). Communication intervention for individuals
-  with Down syndrome: Systematic review and meta-analysis. *Developmental
-  Neurorehabilitation*, 21(1), 1-12. doi:10.1080/17518423.2016.1212947
+  with Down syndrome: Systematic review and meta-analysis. _Developmental
+  Neurorehabilitation_, 21(1), 1-12. doi:10.1080/17518423.2016.1212947
 - Stuebing, K. K., Barth, A. E., Cirino, P. T., Francis, D. J., & Fletcher,
   J. M. (2008). A response to recent reanalyses of the National Reading Panel
   report: Effects of systematic phonics instruction are practically significant.
-  *Journal of Educational Psychology*, 100(1), 123-134.
+  _Journal of Educational Psychology_, 100(1), 123-134.
   doi:10.1037/0022-0663.100.1.123

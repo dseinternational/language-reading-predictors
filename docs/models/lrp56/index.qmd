@@ -49,7 +49,7 @@ DAG-derived adjustment set:
 
 - $G$ — $G \to R$ and $G \to W$ (linear, one coefficient $\beta_G$).
 - $A$ — $A \to R$ and $A \to W$. The age-GP flag is **off by default**
-  (see `notes/202604181700-lrp55-age-gp-drop.md`); re-enable via
+; re-enable via
   `ModelSpec.extra={"use_age_gp": True}` for sensitivity.
 - $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
 
