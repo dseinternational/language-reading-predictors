@@ -1,5 +1,5 @@
 ---
-title: "LRPGBG02: Predictors of taught-vocabulary gains"
+title: "LRPGBL01: Predictors of taught-receptive-vocabulary level"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -32,31 +32,30 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBG02 models **gains in directly-taught expressive vocabulary** (`b1extau_gain`)
-between consecutive longitudinal timepoints — the change in the Block 1
-taught-words expressive score. It is the taught-vocabulary analogue of
-[LRPGBG06](../lrpgbg06/), which models the *standardised* expressive-vocabulary gain
-(`eowpvt_gain`); the two are kept separate so the predictor analysis distinguishes
-the words the programme directly taught from general vocabulary.
+LRPGBL01 models the **achievement level of directly-taught receptive vocabulary**
+(`b1retau`) — the Block 1 taught-words receptive score at a given timepoint. It is
+the level companion to [LRPGBG01](../lrpgbg01/) (gain) and the receptive analogue
+of [LRPGBL02](../lrpgbl02/) (taught *expressive* vocabulary level). Added in #116
+Phase B.
 
-This is a **baseline exploratory model** for the taught-vocabulary gain task. It
-has not yet been through iterative feature selection or a target-specific
-hyperparameter tune — it runs on hyperparameters borrowed from the closely-matched
-LRPGBG06 analogue and the full `Predictors.DEFAULT_GAIN` set (plus the auto-included
-`b1extau` baseline level), with no outlier exclusion.
+This is a **baseline exploratory model**. It runs on hyperparameters borrowed from
+the closely-matched block-1 taught-vocabulary analogue LRPGBL02 and the full
+`Predictors.DEFAULT_LEVEL` set (the target `b1retau` is already excluded), with no
+outlier exclusion, pending a target-specific tune and iterative feature selection.
+As a level model, a high naive R² is partly concurrent same-construct correlation —
+read the ranking as exploratory.
 
-::: {.callout-note title="Leakage exclusion: b1exto"}
+::: {.callout-note title="Leakage exclusion: b1reto"}
 
-The Block 1 expressive *total* `b1exto` equals taught + not-taught
-(`b1extau + b1exnt`), so it contains the target/baseline construct directly. It is
-removed from the predictor set (the only deviation from LRPGBG06) so the model
-identifies substantive predictors of taught-vocabulary gains rather than
-recovering the score from a superset of itself.
+The Block 1 receptive *total* `b1reto` equals taught + not-taught
+(`b1retau + b1rent`), so it contains the target directly and is removed (the only
+deviation from LRPGBL02). The standardised receptive (`rowpvt`) and expressive
+(`eowpvt`) tests are *retained* in this baseline — they are correlated with, but
+not supersets of, the taught receptive score — and are left to feature selection.
 
 :::
 
-Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
-prevent data leakage across timepoints for the same child.
+Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`).
 
 ## Configuration
 
@@ -100,10 +99,7 @@ print(": Model hyperparameters {#tbl-config}")
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
-The predictor set spans demographics, cognitive assessments, language, speech
-and reading measures. Feature-selection history (what has been removed, when,
-and why) is persisted in `config.json` under `selection_history` and surfaced
-in the notes under `notes/` in the repository.
+Feature-selection history is persisted in `config.json` under `selection_history`.
 
 ### Target variable
 
@@ -115,8 +111,6 @@ target_desc
 ## Validation
 
 ### Cross-validation
-
-Group-aware (`GroupKFold`) cross-validation scores:
 
 ```{python}
 cv_scores = pd.read_csv("cv_scores.csv")
@@ -157,11 +151,6 @@ print(f"In-sample MedAE: {medae:.4f}")
 
 ### Permutation importance
 
-Permutation importance measures the decrease in model performance when a single
-feature's values are randomly shuffled. With `GroupKFold` grouped by
-`subject_id`, each fold holds out one child and its timepoints, so the
-distribution is over (folds × repeats).
-
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
@@ -170,9 +159,6 @@ perm_imp
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 
 ### SHAP analysis
-
-[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values
-decompose each prediction into the contribution of each feature.
 
 ![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
 
@@ -196,9 +182,6 @@ print(":::")
 ```
 
 ## Partial dependence
-
-Partial dependence plots show the marginal effect of each feature on the predicted
-target, averaging over the values of all other features.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
 

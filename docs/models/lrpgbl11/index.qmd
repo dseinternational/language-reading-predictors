@@ -1,5 +1,5 @@
 ---
-title: "LRPGBG02: Predictors of taught-vocabulary gains"
+title: "LRPGBL11: Predictors of phonetic-spelling level"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -32,31 +32,28 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBG02 models **gains in directly-taught expressive vocabulary** (`b1extau_gain`)
-between consecutive longitudinal timepoints — the change in the Block 1
-taught-words expressive score. It is the taught-vocabulary analogue of
-[LRPGBG06](../lrpgbg06/), which models the *standardised* expressive-vocabulary gain
-(`eowpvt_gain`); the two are kept separate so the predictor analysis distinguishes
-the words the programme directly taught from general vocabulary.
+LRPGBL11 models the **phonetic-spelling level** (`spphon`) at the observed
+timepoint rather than the change between timepoints. It is the level companion to
+[LRPGBG11](../lrpgbg11/) (gain) and the spelling member of the reading/spelling
+outcomes added in #116 Phase B. All observations are included (no outlier
+exclusion).
 
-This is a **baseline exploratory model** for the taught-vocabulary gain task. It
-has not yet been through iterative feature selection or a target-specific
-hyperparameter tune — it runs on hyperparameters borrowed from the closely-matched
-LRPGBG06 analogue and the full `Predictors.DEFAULT_GAIN` set (plus the auto-included
-`b1extau` baseline level), with no outlier exclusion.
+This is a **baseline exploratory model** for the level-prediction task. It runs on
+hyperparameters borrowed from the phonics-adjacent letter-sounds analogue LRPGBL09
+and the full `Predictors.DEFAULT_LEVEL` set (minus the target), pending a
+target-specific tune and iterative feature selection. Phonetic spelling has no
+taught/total decomposition, so there is no leakage sibling to drop.
 
-::: {.callout-note title="Leakage exclusion: b1exto"}
+::: {.callout-note title="Heavy floor on spphon"}
 
-The Block 1 expressive *total* `b1exto` equals taught + not-taught
-(`b1extau + b1exnt`), so it contains the target/baseline construct directly. It is
-removed from the predictor set (the only deviation from LRPGBG06) so the model
-identifies substantive predictors of taught-vocabulary gains rather than
-recovering the score from a superset of itself.
+`spphon` is heavily floored (~78% at zero; see #119/#144), producing a
+right-skewed, zero-inflated target — the opposite pathology from the ceiling-bound
+letter-sounds analogue. Combined with the usual level-model caveat (a high naive R²
+is partly concurrent same-construct correlation), read the ranking as exploratory.
 
 :::
 
-Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
-prevent data leakage across timepoints for the same child.
+Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`).
 
 ## Configuration
 
@@ -158,30 +155,108 @@ print(f"In-sample MedAE: {medae:.4f}")
 ### Permutation importance
 
 Permutation importance measures the decrease in model performance when a single
-feature's values are randomly shuffled. With `GroupKFold` grouped by
-`subject_id`, each fold holds out one child and its timepoints, so the
-distribution is over (folds × repeats).
+feature's values are randomly shuffled, breaking the relationship between the
+feature and the target. Features with higher importance contribute more to the
+model's predictive accuracy.
 
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
 ```
 
+The box plot below summarises the distribution of the per-fold,
+per-repeat decrease in held-out RMSE for each predictor. With
+`GroupKFold` grouped by `subject_id`, each fold holds out one subject
+and its timepoints; permutation importance is computed on that
+held-out slice, so the distribution shown is over (folds × repeats)
+rather than over repeats alone. A positive value means permuting the
+feature column made held-out predictions worse; a negative value means
+the model was insensitive to (or marginally helped by) the column.
+
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
+
+### Feature-selection diagnostics
+
+The following plots show inter-predictor relationships and are the main lens
+for identifying redundant predictors in successive feature-selection passes.
+
+#### Distance-correlation dendrogram
+
+Distance correlation captures both linear and non-linear associations between
+predictors. The dendrogram (Ward linkage on 1 − distance correlation) groups
+predictors that share information.
+
+![Distance-correlation dendrogram](distance_corr_dendrogram.png){#fig-dcorr-dendrogram .lightbox fig-align="left"}
+
+#### Distance-correlation heatmap
+
+Pairwise distance correlations (0 = independent, 1 = perfectly dependent).
+Distance correlation has no sign --- it captures association strength regardless
+of direction.
+
+![Distance-correlation heatmap](distance_corr_heatmap.png){#fig-dcorr-heatmap .lightbox fig-align="left"}
+
+#### Spearman rank correlation
+
+Spearman rank correlations show monotonic relationships between predictors.
+
+![Spearman rank correlation heatmap](spearman_heatmap.png){#fig-spearman .lightbox fig-align="left"}
+
+#### Mutual information
+
+Mutual information (displayed as 1 − dissimilarity) captures arbitrary
+dependencies, including non-monotonic relationships that Spearman misses.
+
+![Mutual information heatmap](mutual_info_heatmap.png){#fig-mi .lightbox fig-align="left"}
 
 ### SHAP analysis
 
 [SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values
-decompose each prediction into the contribution of each feature.
+decompose each prediction into the contribution of each feature, providing both
+global and local interpretability.
+
+#### Global feature importance (bar)
+
+Mean absolute SHAP values across all observations, showing the average magnitude
+of each feature's contribution to predictions.
 
 ![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
 
+#### Clustered feature importance
+
+SHAP bar plot with hierarchical clustering of correlated features (cutoff = 0.4),
+revealing groups of features that contribute similar information.
+
+![SHAP clustered bar plot](shap_bar_clustered.png){#fig-shap-bar-clustered .lightbox fig-align="left"}
+
+#### Summary (beeswarm) plot
+
+Each point represents a single observation. Position on the x-axis shows the SHAP
+value (impact on prediction), and colour indicates the feature value (red = high,
+blue = low).
+
 ![SHAP summary plot](shap_summary.png){#fig-shap-summary .lightbox fig-align="left"}
+
+#### Waterfall plot (most representative observation)
+
+SHAP waterfall plot for the most representative observation (lowest combined
+residual and distance from the median feature vector), showing how each feature
+pushes the prediction from the base value.
+
+![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
+
+#### SHAP scatter plots by predictor
+
+One scatter per predictor: feature value on the x-axis, SHAP contribution on
+the y-axis. Colouring uses SHAP's auto-interaction picker (the strongest
+interacting feature is chosen automatically for each plot).
 
 ```{python}
 #| output: asis
 from pathlib import Path
 
+# Order scatters by permutation importance so the strongest signals appear
+# first. Fall back to config order if the file is missing.
 try:
     order = perm_imp.sort_values("importance_mean", ascending=False)["feature"].tolist()
 except Exception:
@@ -198,7 +273,8 @@ print(":::")
 ## Partial dependence
 
 Partial dependence plots show the marginal effect of each feature on the predicted
-target, averaging over the values of all other features.
+target, averaging over the values of all other features. Features are ordered by
+permutation importance.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
 
