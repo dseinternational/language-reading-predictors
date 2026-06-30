@@ -533,6 +533,152 @@ class EstimatorPipeline:
             )
         )
 
+    def shap_interaction_analysis(self, top_pairs: int = 6) -> None:
+        """SHAP interaction values (#116): which feature *pairs* interact.
+
+        Reuses the TreeExplainer from :meth:`shap_analysis` to compute the
+        ``(n, p, p)`` interaction tensor, then writes:
+
+        - ``shap_interactions.csv`` — mean ``|interaction|`` for every off-diagonal
+          feature pair, ranked (the off-diagonal is symmetric, so each pair sums
+          the ``[i, j]`` and ``[j, i]`` halves);
+        - ``shap_interaction_heatmap.png`` — the off-diagonal mean-``|interaction|``
+          matrix;
+        - ``shap_interaction_<a>__<b>.png`` — SHAP interaction dependence for the
+          top interacting pairs.
+
+        Skipped (with a notice) if :meth:`shap_analysis` has not run.
+        """
+        section_header("SHAP interactions")
+        context = self.context
+        explainer = getattr(context, "shap_explainer", None)
+        if explainer is None:
+            print("  [yellow]SHAP interactions skipped (shap_analysis did not run)[/yellow]")
+            return
+
+        X = context.X
+        feats = list(X.columns)
+        p = len(feats)
+        inter = np.asarray(explainer.shap_interaction_values(X))  # (n, p, p)
+        mean_abs = np.abs(inter).mean(axis=0)  # (p, p)
+
+        rows = [
+            {
+                "feature_a": feats[i],
+                "feature_b": feats[j],
+                "mean_abs_interaction": float(mean_abs[i, j] + mean_abs[j, i]),
+            }
+            for i in range(p)
+            for j in range(i + 1, p)
+        ]
+        inter_df = (
+            pd.DataFrame(rows)
+            .sort_values("mean_abs_interaction", ascending=False)
+            .reset_index(drop=True)
+        )
+        inter_df.to_csv(context.output_dir / "shap_interactions.csv", index=False)
+        context.dataframes["shap_interactions"] = inter_df
+
+        heat = mean_abs.copy()
+        np.fill_diagonal(heat, 0.0)
+        side = min(0.45 * p + 2.0, 14.0)
+        fig, ax = plt.subplots(figsize=(side, side))
+        im = ax.imshow(heat, cmap="viridis")
+        ax.set_xticks(range(p))
+        ax.set_xticklabels(feats, rotation=90, fontsize=6)
+        ax.set_yticks(range(p))
+        ax.set_yticklabels(feats, fontsize=6)
+        ax.set_title("Mean |SHAP interaction| (off-diagonal)")
+        fig.colorbar(im, ax=ax, shrink=0.7)
+        fig.savefig(
+            context.output_dir / "shap_interaction_heatmap.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+        context.plots["shap_interaction_heatmap"] = fig
+        plt.close("all")
+
+        for _, r in inter_df.head(top_pairs).iterrows():
+            a, b = r["feature_a"], r["feature_b"]
+            try:
+                shap.dependence_plot((a, b), inter, X, show=False)
+                fig = plt.gcf()
+                fig.savefig(
+                    context.output_dir / f"shap_interaction_{a}__{b}.png",
+                    dpi=300,
+                    bbox_inches="tight",
+                )
+            except Exception as exc:  # pragma: no cover - plotting robustness
+                print(f"  [yellow]interaction plot {a}×{b} skipped: {exc}[/yellow]")
+            finally:
+                plt.close("all")
+
+        top = inter_df.iloc[0]
+        print(
+            f"  SHAP interactions: strongest pair "
+            f"{top['feature_a']} × {top['feature_b']} → shap_interactions.csv"
+        )
+
+    def cluster_ranking_analysis(self) -> None:
+        """Cluster-first predictor ranking for the per-model report (#116).
+
+        Aggregates the already-computed out-of-fold permutation importance over the
+        distance-correlation clusters from :meth:`feature_selection_diagnostics`
+        into the cluster-first ranking tables:
+
+        - ``cluster_ranking.csv`` — primary, one row per cluster (rank, importance,
+          representative member, same-skill flag);
+        - ``predictor_ranking.csv`` — per-feature detail, ordered cluster-first.
+
+        Uses the light per-cluster aggregate
+        (:func:`models.cluster_ranking.aggregate_cluster_importance`); the dedicated
+        ``scripts/rank_predictors.py`` run produces a more rigorous
+        grouped-permutation version via the same table assembly. Skipped (with a
+        notice) when the prerequisites are absent — clustering
+        (``skip_correlation``) or SHAP direction (``skip_shap``).
+        """
+        from language_reading_predictors.models.cluster_ranking import (
+            SAME_SKILL_SIBLINGS,
+            aggregate_cluster_importance,
+            assemble_ranking,
+            cluster_ranking_table,
+        )
+
+        context = self.context
+        od = context.output_dir
+        missing = [
+            name
+            for name, ok in (
+                ("permutation importance", context.perm_importance_df is not None),
+                ("cluster_table.csv", (od / "cluster_table.csv").exists()),
+                (
+                    "shap_direction_diagnostics.csv",
+                    (od / "shap_direction_diagnostics.csv").exists(),
+                ),
+            )
+            if not ok
+        ]
+        if missing:
+            print(
+                f"  [yellow]Cluster ranking skipped (missing: {', '.join(missing)})[/yellow]"
+            )
+            return
+
+        target = context.config.target_var
+        siblings = SAME_SKILL_SIBLINGS.get(target, [])
+        clusters = pd.read_csv(od / "cluster_table.csv")
+        cluster_imp = aggregate_cluster_importance(context.perm_importance_df, clusters)
+        ranking = assemble_ranking(self, target, siblings, cluster_imp)
+        ranking.to_csv(od / "predictor_ranking.csv", index=False)
+        cluster_rank = cluster_ranking_table(cluster_imp, ranking, siblings)
+        cluster_rank.to_csv(od / "cluster_ranking.csv", index=False)
+        context.dataframes["cluster_ranking"] = cluster_rank
+        context.dataframes["predictor_ranking"] = ranking
+        print(
+            f"  Cluster ranking: {len(cluster_rank)} clusters "
+            f"→ cluster_ranking.csv / predictor_ranking.csv"
+        )
+
     def stability_selection(
         self,
         n_bootstraps: int = 30,
@@ -1303,6 +1449,7 @@ class EstimatorPipeline:
             self.shap_analysis()
             self.run_shap_scatter_specs()
             self.shap_direction_diagnostics()
+            self.shap_interaction_analysis()
         else:
             print(
                 f"\n  [yellow]SHAP analysis skipped (run config: {run.name})[/yellow]"
@@ -1320,6 +1467,11 @@ class EstimatorPipeline:
             self.partial_dependence_plots()
         else:
             print(f"  [yellow]PDP skipped (run config: {run.name})[/yellow]")
+
+        # Cluster-first predictor ranking (#116): aggregate the permutation
+        # importance over the diagnostic clusters into cluster_ranking.csv /
+        # predictor_ranking.csv so the per-model report is self-contained.
+        self.cluster_ranking_analysis()
 
         self.save_config()
         self.report()
