@@ -32,25 +32,28 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBL11 models **letter-sound knowledge scores** (`yarclet`) at the observed
-timepoint rather than the change between timepoints. The target is `yarclet`
---- a letter-sound naming test scored out of 32. All observations are
-included (no outlier exclusion) so the full range of outcomes informs the
-model.
+LRPGBL11 models the **phonetic-spelling level** (`spphon`) at the observed
+timepoint rather than the change between timepoints. It is the level companion to
+[LRPGBG11](../lrpgbg11/) (gain) and the spelling member of the reading/spelling
+outcomes added in #116 Phase B. All observations are included (no outlier
+exclusion).
 
-Note: the target has a **ceiling at 32** — many children score at or near the
-instrument maximum (95% percentile = 31, 99% = 32), producing a left-skewed
-distribution. This is a different pathology from the right-skewed targets in
-LRPGBL12 and LRPGBL06; log-style transforms are inappropriate here.
+This is a **baseline exploratory model** for the level-prediction task. It runs on
+hyperparameters borrowed from the phonics-adjacent letter-sounds analogue LRPGBL09
+and the full `Predictors.DEFAULT_LEVEL` set (minus the target), pending a
+target-specific tune and iterative feature selection. Phonetic spelling has no
+taught/total decomposition, so there is no leakage sibling to drop.
 
-This is an **exploratory model** for the level-prediction task. It runs on
-MAE-tuned hyperparameters from an Optuna 150-trial study, with the
-predictor set reduced from the full `Predictors.DEFAULT_LEVEL` set (minus
-the target) by iterative importance-based feature selection. The retained
-predictors and the removal history are shown below.
+::: {.callout-note title="Heavy floor on spphon"}
 
-Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
-prevent data leakage across timepoints for the same child.
+`spphon` is heavily floored (~78% at zero; see #119/#144), producing a
+right-skewed, zero-inflated target — the opposite pathology from the ceiling-bound
+letter-sounds analogue. Combined with the usual level-model caveat (a high naive R²
+is partly concurrent same-construct correlation), read the ranking as exploratory.
+
+:::
+
+Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`).
 
 ## Configuration
 
