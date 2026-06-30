@@ -72,8 +72,8 @@ attributable to the different, mediation-specific **linear** adjustment set
   in the report), plus the cross-world/consistency/positivity assumptions.
   Randomisation secures the G→Y and G→M legs. Not assumption-free proof of
   mechanism.
-- **Contemporaneous mediator and outcome — no temporal precedence.** M = L*t2 and
-  Y = W_t2 are measured at the **same wave**; this decomposes a \_within-wave*
+- **Contemporaneous mediator and outcome — no temporal precedence.** M = `L_t2` and
+  Y = `W_t2` are measured at the **same wave**; this decomposes a _within-wave_
   association, not a temporally-ordered L→W effect. Conditioning on baselines
   mitigates but does not establish that L precedes W.
 - **Superseded by LRP62 for the route estimate.** The better-specified

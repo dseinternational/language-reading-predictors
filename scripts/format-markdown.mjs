@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const mode = process.argv[2];
 
@@ -28,7 +31,11 @@ if (files.length === 0) {
   process.exit(0);
 }
 
-const prettier = process.platform === "win32" ? "prettier.cmd" : "prettier";
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "..");
+const prettierBin = process.platform === "win32" ? "prettier.cmd" : "prettier";
+const localPrettier = path.join(repoRoot, "node_modules", ".bin", prettierBin);
+const prettier = existsSync(localPrettier) ? localPrettier : prettierBin;
 const result = spawnSync(prettier, [mode, ...files], {
   shell: process.platform === "win32",
   stdio: "inherit",

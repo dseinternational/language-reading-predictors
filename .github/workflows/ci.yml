@@ -77,7 +77,12 @@ jobs:
 
       - name: Create env (cache miss)
         if: steps.conda-cache.outputs.cache-hit != 'true'
-        run: conda env update -n dse-language-reading-predictors -f environment.yml
+        run: |
+          if conda env list | grep -qE '[/ ]dse-language-reading-predictors$'; then
+            conda env update -n dse-language-reading-predictors -f environment.yml
+          else
+            conda env create -n dse-language-reading-predictors -f environment.yml
+          fi
 
       - name: Install editable packages
         run: |

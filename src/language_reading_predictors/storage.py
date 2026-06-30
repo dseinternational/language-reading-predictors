@@ -23,7 +23,9 @@ def upload_to_blob_storage(
 
     NetCDF trace files (``.nc``) are excluded by default because of their size;
     pass ``include_traces=True`` to include them. Authentication and container
-    URL validation are handled by :mod:`dse_research_utils.storage.azure`.
+    URL validation are handled by :mod:`dse_research_utils.storage.azure`, which
+    authenticates with ``DefaultAzureCredential`` and writes to the container
+    named in the ``DSERESEARCH_BLOB_CONTAINER_URL`` environment variable.
     """
     from dse_research_utils.storage.azure import upload_directory_to_blob_storage
 

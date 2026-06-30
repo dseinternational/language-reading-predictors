@@ -78,10 +78,10 @@ Reporting config (6 chains × 6000 tune × 6000 draws).
 LRP55 has a similar repeated-measures structure — each child
 contributes 8 rows (one per outcome) in the RCT phase. A shared
 child-level random intercept across outcomes would absorb "overall
-ability" differences that are currently factored only through γ*own
+ability" differences that are currently factored only through `γ_own`
 of each outcome. Conceptually distinct from the 8-dimensional LKJ
 residual we dropped earlier: the random intercept is a single
-scalar per child that shifts \_all* outcomes in tandem, rather than
+scalar per child that shifts _all_ outcomes in tandem, rather than
 allowing independent per-outcome perturbations with a free
 correlation structure.
 
