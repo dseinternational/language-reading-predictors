@@ -61,33 +61,15 @@ from sklearn.metrics import root_mean_squared_error
 
 from language_reading_predictors.data_variables import Predictors
 from language_reading_predictors.models.base_pipeline import _OUTPUT_DIR, _clear_directory
+from language_reading_predictors.models.cluster_ranking import (
+    SAME_SKILL_SIBLINGS,
+    assemble_ranking,
+    cluster_ranking_table,
+)
 from language_reading_predictors.models.common import RunConfig
 from language_reading_predictors.models.registry import MODELS
 from language_reading_predictors.stats_utils import distance_corr_matrix
 
-# ── Curated same-skill (predictor↔OUTCOME contamination) map ───────────────────
-# Source: curated project mapping. A predictor listed here is
-# a *concurrent restatement of the outcome* (same skill, possibly a different
-# instrument). Distance-correlation clustering is predictor↔predictor and CANNOT
-# catch this, so it survives as curated annotation — NOT a prune. Keyed by outcome.
-SAME_SKILL_SIBLINGS: dict[str, list[str]] = {
-    "eowpvt": ["b1exto"],    # expressive vocab — EOWPVT vs total b1exto
-    "aptgram": ["aptinfo"],  # same APT elicited sample
-    "aptinfo": ["aptgram"],  # same APT elicited sample
-    "deappfi": ["deappin", "deappvo"],  # same DEAP picture-naming instrument
-    "deappin": ["deappfi", "deappvo"],  # same DEAP picture-naming instrument
-    "deappvo": ["deappfi", "deappin"],  # DEAP voicing — same DEAP instrument
-    "rowpvt": ["b1reto"],    # receptive vocab — ROWPVT vs total b1reto
-    # Early Repetition Battery (ERB) phonological-memory sub-scores — same instrument
-    # (#112 LRPGBG17–19 / LRPGBL17–19 recast: replaces the per-model _noconstruct
-    # sibling-drop variants; read the sibling-dropped skill off
-    # ranking_excluding_same_skill.csv).
-    "erbnw": ["erbword", "erbto"],
-    "erbword": ["erbnw", "erbto"],
-    "erbto": ["erbnw", "erbword"],
-    # gain outcomes (ewrswr_gain, rowpvt_gain, erb*_gain, ...): none — the baseline
-    # level is the regression-to-the-mean anchor, not contamination.
-}
 
 _ROOT = Path(__file__).resolve().parent.parent
 RANKING_ROOT = _ROOT / "output" / "ranking"  # gitignored
@@ -281,80 +263,6 @@ def cutoff_sensitivity(X, target, cutoffs=(0.2, 0.3, 0.4, 0.5, 0.6)):
 
 
 # ── ranking assembly ────────────────────────────────────────────────────────────
-def assemble_ranking(pipe, target, siblings, cluster_imp):
-    """Per-feature detail table, ordered cluster-first then within-cluster importance."""
-    ctx = pipe.context
-    od = ctx.output_dir
-    perm = ctx.perm_importance_df.rename(
-        columns={"importance_mean": "perm_imp_mean", "importance_std": "perm_imp_sd"}
-    )[["feature", "perm_imp_mean", "perm_imp_sd"]]
-    clusters = pd.read_csv(od / "cluster_table.csv")  # feature, cluster_id
-    shapd = pd.read_csv(od / "shap_direction_diagnostics.csv")[
-        ["feature", "shap_mean_abs", "feature_shap_spearman"]
-    ]
-    stab_path = od / "stability_selection.csv"
-    if stab_path.exists():  # absent in --quick mode (stability skipped)
-        stab = pd.read_csv(stab_path)[["feature", "appearance_rate_top_k"]]
-    else:
-        stab = pd.DataFrame({"feature": clusters["feature"], "appearance_rate_top_k": np.nan})
-
-    df = (
-        clusters
-        .merge(perm, on="feature", how="left")
-        .merge(shapd, on="feature", how="left")
-        .merge(stab, on="feature", how="left")
-        .merge(cluster_imp[["cluster_id", "cluster_rank", "cluster_perm_imp_mean"]],
-               on="cluster_id", how="left")
-    )
-    df["z"] = df["perm_imp_mean"] / df["perm_imp_sd"].replace(0.0, np.nan)
-    df["sign"] = np.sign(df["feature_shap_spearman"]).map({1.0: "+", -1.0: "-"}).fillna("0")
-    df["same_skill_of_outcome"] = df["feature"].isin(siblings)
-    df = df.rename(columns={
-        "feature": "member",
-        "shap_mean_abs": "mean_abs_shap",
-        "appearance_rate_top_k": "topk_freq",
-    })
-    # cluster-first ordering, then per-feature importance within each cluster
-    df = df.sort_values(["cluster_rank", "perm_imp_mean"], ascending=[True, False]).reset_index(drop=True)
-    df["within_cluster_rank"] = df.groupby("cluster_rank").cumcount() + 1
-    cols = [
-        "cluster_rank", "cluster_id", "within_cluster_rank", "member",
-        "cluster_perm_imp_mean", "perm_imp_mean", "perm_imp_sd", "z",
-        "mean_abs_shap", "topk_freq", "sign", "same_skill_of_outcome",
-    ]
-    return df[cols]
-
-
-def cluster_ranking_table(cluster_imp, ranking, siblings):
-    """Primary artefact: one row per cluster, with the representative member.
-
-    The representative is the highest per-feature importance member; an
-    ``representative_excl_same_skill`` column gives the highest non-flagged member, so
-    a downstream consumer taking cluster representatives never picks a restatement of
-    the outcome.
-    """
-    rows = []
-    for _, c in cluster_imp.iterrows():
-        members = ranking[ranking["cluster_id"] == c["cluster_id"]].sort_values(
-            "perm_imp_mean", ascending=False
-        )
-        rep = members.iloc[0]["member"]
-        non_skill = members[~members["same_skill_of_outcome"]]
-        rep_excl = non_skill.iloc[0]["member"] if len(non_skill) else None
-        rows.append({
-            "cluster_rank": int(c["cluster_rank"]),
-            "cluster_id": int(c["cluster_id"]),
-            "cluster_perm_imp_mean": c["cluster_perm_imp_mean"],
-            "cluster_perm_imp_sd": c["cluster_perm_imp_sd"],
-            "n_members": int(c["n_members"]),
-            "representative": rep,
-            "representative_excl_same_skill": rep_excl,
-            "any_same_skill": bool(members["same_skill_of_outcome"].any()),
-            "members": c["members"],
-        })
-    return pd.DataFrame(rows)
-
-
 def ranking_vs_selected(model_id, full_pipe, sel_pipe):
     """Side-by-side: each predictor's full-set rank vs whether selection kept it."""
     selected = list(MODELS[model_id].predictor_vars)
