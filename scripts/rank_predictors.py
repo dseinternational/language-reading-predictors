@@ -8,7 +8,7 @@ set (no pruning), reusing the existing ``EstimatorPipeline`` stages. This is the
 ranking counterpart to the selection pipeline: it does not prune to a subset, it
 ranks and groups every candidate and reports the uncertainty.
 
-Design decisions baked in (see ``notes/202606251200-gb-feature-ranking-pilot.md``):
+Design decisions baked in:
 
 * **Cluster level is the primary unit.** Correlated predictors are clustered on the
   distance-correlation matrix and ranked *as groups* by joint (grouped) out-of-fold
@@ -66,7 +66,7 @@ from language_reading_predictors.models.registry import MODELS
 from language_reading_predictors.stats_utils import distance_corr_matrix
 
 # ── Curated same-skill (predictor↔OUTCOME contamination) map ───────────────────
-# Source: notes/202606210930-lrp-same-skill-variants.md. A predictor listed here is
+# Source: curated project mapping. A predictor listed here is
 # a *concurrent restatement of the outcome* (same skill, possibly a different
 # instrument). Distance-correlation clustering is predictor↔predictor and CANNOT
 # catch this, so it survives as curated annotation — NOT a prune. Keyed by outcome.
@@ -74,10 +74,18 @@ SAME_SKILL_SIBLINGS: dict[str, list[str]] = {
     "eowpvt": ["b1exto"],    # expressive vocab — EOWPVT vs total b1exto
     "aptgram": ["aptinfo"],  # same APT elicited sample
     "aptinfo": ["aptgram"],  # same APT elicited sample
-    "deappfi": ["deappin"],  # same DEAP picture-naming sample
+    "deappfi": ["deappin", "deappvo"],  # same DEAP picture-naming instrument
+    "deappin": ["deappfi", "deappvo"],  # same DEAP picture-naming instrument
+    "deappvo": ["deappfi", "deappin"],  # DEAP voicing — same DEAP instrument
     "rowpvt": ["b1reto"],    # receptive vocab — ROWPVT vs total b1reto
-    # gain outcomes (ewrswr_gain, rowpvt_gain, ...): none — the baseline level is the
-    # regression-to-the-mean anchor, not contamination.
+    # Early Repetition Battery (ERB) phonological-memory sub-scores — same instrument
+    # (#112 LRP25-42 recast: replaces the per-model _noconstruct sibling-drop variants;
+    # read the sibling-dropped skill off ranking_excluding_same_skill.csv).
+    "erbnw": ["erbword", "erbto"],
+    "erbword": ["erbnw", "erbto"],
+    "erbto": ["erbnw", "erbword"],
+    # gain outcomes (ewrswr_gain, rowpvt_gain, erb*_gain, ...): none — the baseline
+    # level is the regression-to-the-mean anchor, not contamination.
 }
 
 _ROOT = Path(__file__).resolve().parent.parent

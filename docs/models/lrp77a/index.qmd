@@ -1,0 +1,105 @@
+---
+title: "LRP77a: Dose-response (ability-adjusted sensitivity) — tests no `g -> dose`"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-warning title="Warning: Preliminary model output"}
+
+This model output is preliminary and likely to change as the model evolves and further data are received.
+
+:::
+
+```{python}
+# | echo: false
+import json
+from pathlib import Path
+
+import arviz as az
+import pandas as pd
+
+_here = Path(".")
+with open(_here / "config.json") as f:
+    config = json.load(f)
+trace = az.from_netcdf(_here / "trace.nc")
+```
+
+## Overview
+
+LRP77a is the **ability-adjusted sensitivity fit** for [LRP77](../lrp77/). It is
+the identical period-resolved dose-response model with the **baseline-skill
+cluster** added to the adjustment set: letter-sound knowledge ($L$), expressive
+vocabulary ($E$) and phoneme blending ($B$), each as its baseline (pre) logit.
+These are the reflective indicators of latent general ability $g$ in the locked
+DAG, alongside the already-adjusted baseline reading $W_{\text{pre}}$.
+
+**Why.** The locked DAG omits $g \to \text{dose}$ ($GA \to IS$), but if abler children attended more
+(Frank 2012) then $g$ is a common cause of dose and outcome and
+$\{G, W_{\text{pre}}, A\}$ no longer identifies the dose effect — and because dose
+is **not** randomised, randomisation does not rescue it. Conditioning on the
+baseline-skill cluster blocks that path (only *pre*-dose skills, never anything
+downstream of dose).
+
+**How to read it — against LRP77.** If the dose slope is materially unchanged
+here, the no-`ability -> dose` assumption is defensible in this sample. If it
+collapses toward zero, the LRP77 dose signal is substantially ability-confounded
+and should be downgraded accordingly. (Requiring $L/E/B$ baselines complete-cases
+marginally fewer rows than LRP77.)
+
+See the LRP77 report for the full estimand, the $G = 2 - \text{group}$ coding (G=1 = intervention), and the
+expectations caveat (adjusted association; $R^2$ 0.1–0.3 in Phase 1).
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+## Sampling diagnostics
+
+```{python}
+# | echo: false
+diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
+diag
+```
+
+![Trace](trace_plot.png){.lightbox}
+![Energy](energy_plot.png){.lightbox}
+
+## Dose slope (ability-adjusted)
+
+```{python}
+# | echo: false
+dose = pd.read_csv(_here / "dose_slope_summary.csv")
+dose
+```
+
+Compare `dose_overall` / `dose_period*` here with the same rows in the LRP77
+report. The baseline-skill coefficients (`gamma_L_pre`, `gamma_E_pre`,
+`gamma_B_pre`) appear in the diagnostics table above.
+
+## Posterior predictive
+
+![Posterior predictive check](posterior_predictive_check.png){.lightbox}
+
+## LOO-PSIS
+
+```{python}
+# | echo: false
+# | output: asis
+print("```\n" + open(_here / "loo.txt").read() + "\n```")
+```
+
+## Configuration
+
+```{python}
+# | echo: false
+config
+```

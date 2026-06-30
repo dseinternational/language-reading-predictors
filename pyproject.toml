@@ -15,11 +15,21 @@ dependencies = [
   "arviz-plots>=1.2.0",
   "arviz-stats>=1.2.0",
   "arviz>=1.2.0",
+  "dse-research-utils>=0.2.0",
+  "graphviz",
+  "lightgbm>=4.6.0",
   "matplotlib>=3.10.8",
+  "networkx",
   "numpy>=2.4.3",
   "pandas>=3.0.2",
+  "preliz>=0.27.0",
   "pymc>=6.0.1",
-  "scipy>=1.18.0"
+  "rich>=15.0.0",
+  "scikit-learn>=1.9.0",
+  "seaborn>=0.13.2",
+  "shap>=0.52.0",
+  "scipy>=1.18.0",
+  "xarray>=2026.4.0"
 ]
 
 [project.optional-dependencies]
@@ -38,3 +48,11 @@ packages = ["src/language_reading_predictors"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

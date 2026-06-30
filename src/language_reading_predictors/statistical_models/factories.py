@@ -39,6 +39,7 @@ from language_reading_predictors.statistical_models.likelihood import (
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
+    WavePanel,
     standardise,
 )
 
@@ -56,7 +57,7 @@ def _scalar_prior(name: str, prior_ctor) -> pt.TensorVariable:
 class BuiltModel:
     model: pm.Model
     variables: dict[str, pt.TensorVariable]
-    prepared: PreparedData
+    prepared: PreparedData | WavePanel
     """The (possibly row-subset) prepared data that the model was built on.
 
     Factories may drop rows with missing post-scores or missing confounder
@@ -121,7 +122,7 @@ def build_itt_model(
         divergences); they are kept as opt-in flags for per-outcome sensitivity
         fits. This matches the ``build_joint_model`` / ``build_mechanism_model``
         default-off convention, so a spec that omits the flags no longer
-        silently fits two unidentifiable GPs (notes/202604181445-lrp52-gp-sensitivity.md).
+        silently fits two unidentifiable GPs.
     use_varying_tau
         If True, the treatment effect is modelled as ``tau0 + g_tauA(A_std)``
         via a :func:`build_tau_modifier` GP with the tight ``HalfNormal(0.3)``
@@ -385,8 +386,7 @@ def build_joint_model(
     ``K`` independent ``f_A_k`` GPs. Turned off by default after the
     2026-04-18 LRP55 follow-up fit showed the age-GP amplitudes were the
     residual source of ~8 % divergent transitions; LOO does not prefer a
-    model with the GP included. See
-    notes/202604181700-lrp55-age-gp-drop.md for the rationale.
+    model with the GP included.
 
     ``use_residual_correlation`` (default False): when True, adds an
     ``u_i ~ MvNormal(0, Sigma)`` residual with ``Sigma = diag(sigma) Corr
@@ -394,7 +394,7 @@ def build_joint_model(
     ``pm.LKJCholeskyCov`` + ``z_raw``. Turned off by default after the
     2026-04-18 LRP55 fit showed the LKJ block was prior-dominated (all
     off-diagonal correlation CIs spanning zero, sigma_outcome CIs reaching
-    zero). See notes/202604181600-lrp52-58-findings.md for the rationale.
+    zero).
     Keep both flags available for explicit sensitivity fits.
     """
     outcomes = tuple(outcomes)
@@ -600,7 +600,7 @@ def build_mechanism_model(
     ``sigma_child ~ HalfNormal(sigma_child_prior_sigma)``. Required for
     honest standard errors on β_G, γ's, and f_mech because the 157 rows per
     mechanism fit are three phase-transitions per child and therefore not
-    independent. See notes/202604181800-mechanism-random-intercepts.md.
+    independent.
 
     ``moderator_symbol`` (default None): when set, adds a LINEAR moderation of
     the mechanism effect by the moderator post-score M. Two standardised terms
@@ -788,7 +788,7 @@ def build_mechanism_model(
         # {"G", "A"} and the age GP is off by default — so without the linear
         # term here, age would silently never enter ``eta``. That was the bug
         # that left LRP56-58 / LRP71 / LRP72 unadjusted for the age confounder;
-        # see notes/202606172100-mechanism-age-adjustment.md. When age is the
+        # When age is the
         # moderator (LRP73, ``moderator_is_covariate``) its main effect
         # ``gamma_mod * z(age)`` already represents it, so a second linear term
         # would be collinear — skip it in that case.
@@ -856,6 +856,192 @@ def build_mechanism_model(
 
 
 # ---------------------------------------------------------------------------
+# LRP77: period-resolved dose-response factory (#104 Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def build_dose_response_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    adjust_baseline_symbol: str = "W",
+    dose_covariate: str = "attend",
+    dose_stage_covariate: str | None = "attend_cumul",
+    period_varying_dose: bool = True,
+    use_subject_random_intercept: bool = True,
+    adjust_group: bool = True,
+    adjust_age: bool = True,
+    ability_adjust_symbols: Iterable[str] = (),
+    sigma_child_prior_sigma: float = 0.5,
+) -> BuiltModel:
+    """Period-resolved dose-response on the outcome post-score (#104 Phase 2).
+
+    Outcome-generic: the target is ``outcome_symbol`` (default ``"W"``, word
+    reading — its lead use in LRP77; reused for letter sounds ``"L"`` in LRP86)
+    and the autoregressive baseline is ``adjust_baseline_symbol`` (default the
+    same measure).
+
+    Estimand: how the intervention **dose** (per-period sessions attended)
+    relates to the outcome's **conditional change** — the outcome post-count
+    modelled Beta-Binomial conditional on its own baseline logit — and whether
+    that dose-gain slope **varies by period**.
+
+    Uses all three phase transitions (``prepared.phase_mode == "all"``) with
+    phase-specific intercepts. The linear predictor is
+
+        eta = alpha + alpha_phase[p]
+            + beta_G * G                      # arm (G=1 = immediate-intervention, G = 2 - group)
+            + gamma_own * logit(outcome_pre)  # autoregression / RTM
+            + gamma_A * z(age)                # maturation precision covariate
+            + u_child[child]                  # subject random intercept
+            + dose_term                       # the estimand (see below)
+            + gamma_dose_stage * z(attend_cumul)   # dose-stage control
+            + sum_s gamma_s_pre * logit(s_pre)     # optional ability adjusters
+
+    ``dose_term`` is ``beta_dose_phase[p] * z(attend)`` with partial-pooled
+    per-period slopes ``beta_dose_phase = mu_dose + sigma_dose * z_p`` when
+    ``period_varying_dose`` is True (the headline model), or a single pooled
+    ``beta_dose * z(attend)`` when False (the nested comparator). The dose enters
+    standardised, so the slope is the outcome-logit change per 1 SD of
+    per-period dose.
+
+    Causal note (DAG v5): for the dose -> outcome edge, ``G`` (intervention arm)
+    is the sole backdoor confounder; the outcome's own baseline is the
+    regression-to-the-mean control and ``age`` a precision covariate. The full
+    sample (including the
+    waitlist controls' zero-dose period-1 rows) anchors the slope at dose = 0.
+    The model assumes **no ability -> dose** edge; ``ability_adjust_symbols``
+    (the sensitivity fit) conditions on the baseline-skill cluster to probe it.
+
+    Parameters mirror :func:`build_mechanism_model`'s backbone options
+    (``use_subject_random_intercept``, ``adjust_baseline_symbol``). ``G`` and the
+    age covariate are toggled by ``adjust_group`` / ``adjust_age``;
+    ``dose_stage_covariate=None`` drops the cumulative-dose control.
+    """
+    if prepared.phase_mode != "all":
+        raise ValueError("Dose-response factory requires phase_mode='all'")
+    if outcome_symbol not in prepared.pre_logit:
+        raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
+    if adjust_baseline_symbol not in prepared.pre_logit:
+        raise KeyError(
+            f"Baseline {adjust_baseline_symbol!r} missing from prepared data"
+        )
+    if dose_covariate not in prepared.covariates:
+        raise KeyError(
+            f"Dose covariate {dose_covariate!r} missing from prepared.covariates; "
+            "pass it via load_and_prepare(covariates=...)"
+        )
+    if dose_stage_covariate is not None and dose_stage_covariate not in prepared.covariates:
+        raise KeyError(
+            f"Dose-stage covariate {dose_stage_covariate!r} missing from "
+            "prepared.covariates"
+        )
+    ability_adjust_symbols = tuple(ability_adjust_symbols)
+    for s in ability_adjust_symbols:
+        if s not in prepared.pre_logit:
+            raise KeyError(
+                f"Ability-adjuster {s!r} has no pre-score; add it to "
+                "load_and_prepare(outcomes=...)"
+            )
+
+    outcome_post = prepared.post_counts[outcome_symbol]
+    keep = ~np.isnan(outcome_post)
+    prepared = _subset(prepared, keep)
+
+    outcome_post = prepared.post_counts[outcome_symbol].astype(np.int64)
+    N_outcome = prepared.n_trials[outcome_symbol]
+    own_pre_logit = prepared.pre_logit[adjust_baseline_symbol]
+    dose = prepared.covariates[dose_covariate]
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "phase": np.arange(prepared.n_phases),
+        "child": np.arange(prepared.n_children),
+    }
+
+    with pm.Model(coords=coords) as model:
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+        phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+        child_idx_d = pm.Data(
+            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+        )
+        dose_d = pm.Data(f"{dose_covariate}_std", dose, dims="obs_id")
+        dose_stage_d = None
+        if dose_stage_covariate is not None:
+            dose_stage_d = pm.Data(
+                f"{dose_stage_covariate}_std",
+                prepared.covariates[dose_stage_covariate],
+                dims="obs_id",
+            )
+        ability_data: dict[str, pt.TensorVariable] = {}
+        for s in ability_adjust_symbols:
+            ability_data[s] = pm.Data(
+                f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id"
+            )
+
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha_phase = pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase")
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+
+        eta = alpha + alpha_phase[phase_d] + gamma_own * own_pre_d
+
+        if adjust_group:
+            beta_G = _priors.tau_prior().to_pymc("beta_G")
+            eta = eta + beta_G * G_d
+        if adjust_age:
+            gamma_A = _priors.gamma_cross_prior().to_pymc("gamma_A")
+            eta = eta + gamma_A * A_std_d
+
+        if use_subject_random_intercept:
+            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
+            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
+            eta = eta + u_child[child_idx_d]
+
+        # Dose effect (the estimand). Standardised dose -> slope is per-1-SD.
+        if period_varying_dose:
+            mu_dose = _priors.beta_mech_prior().to_pymc("mu_dose")
+            sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
+            beta_dose_phase_raw = pm.Normal(
+                "beta_dose_phase_raw", mu=0.0, sigma=1.0, dims="phase"
+            )
+            beta_dose_phase = pm.Deterministic(
+                "beta_dose_phase", mu_dose + sigma_dose * beta_dose_phase_raw, dims="phase"
+            )
+            eta = eta + beta_dose_phase[phase_d] * dose_d
+        else:
+            beta_dose = _priors.beta_mech_prior().to_pymc("beta_dose")
+            eta = eta + beta_dose * dose_d
+
+        # Dose-stage control (prior cumulative dose), so a dose-stage effect is
+        # not misread as a period effect.
+        if dose_stage_d is not None:
+            gamma_dose_stage = _priors.gamma_cross_prior().to_pymc("gamma_dose_stage")
+            eta = eta + gamma_dose_stage * dose_stage_d
+
+        # Baseline-skill (ability) adjusters - the no-g->dose sensitivity fit.
+        for s in ability_adjust_symbols:
+            gamma_s = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}_pre")
+            eta = eta + gamma_s * ability_data[s]
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+
+        beta_binomial_from_logit(
+            "y_post",
+            eta,
+            n_trials=N_outcome,
+            kappa=kappa,
+            observed=outcome_post,
+            dims="obs_id",
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
 # Waitlist-crossover / difference-in-differences factory (kind="did")
 # ---------------------------------------------------------------------------
 
@@ -868,6 +1054,7 @@ def build_did_model(
     use_child_re: bool = True,
     use_age: bool = True,
     dose: bool = False,
+    period_varying_dose: bool = False,
 ) -> BuiltModel:
     """Waitlist-crossover / difference-in-differences model for one outcome.
 
@@ -912,6 +1099,13 @@ def build_did_model(
     dose
         Use the standardised session count as a continuous treatment intensity
         instead of the binary treated indicator.
+    period_varying_dose
+        With ``dose=True``, replace the single pooled ``beta_dose`` by
+        partial-pooled per-period slopes ``beta_dose_phase[p] = mu_dose +
+        sigma_dose * z_p`` (non-centred), so each period's dose-gain slope shrinks
+        toward the shared mean. Mirrors :func:`build_dose_response_model`; the
+        nested ``period_varying_dose=False`` model is its pooled comparator for a
+        PSIS-LOO test of period variation (#135). Requires ``dose=True``.
     """
     if prepared.phase_mode != "all":
         raise ValueError("build_did_model requires phase_mode='all'")
@@ -921,6 +1115,8 @@ def build_did_model(
     periods = tuple(int(p) for p in periods)
     if dose and "attend" not in prepared.covariates:
         raise KeyError("dose=True requires the 'attend' covariate to be loaded")
+    if period_varying_dose and not dose:
+        raise ValueError("period_varying_dose=True requires dose=True")
 
     post = prepared.post_counts[own]
     keep = np.isin(prepared.phase, periods) & ~np.isnan(post)
@@ -939,6 +1135,8 @@ def build_did_model(
         "obs_id": np.arange(prepared.n_obs),
         "child": np.arange(prepared.n_children),
     }
+    if period_varying_dose:
+        coords["dose_phase"] = np.arange(len(periods))
     with pm.Model(coords=coords) as model:
         period_d = pm.Data("period", is_p2, dims="obs_id")
         own_pre_d = pm.Data("own_pre_logit", pre_logit, dims="obs_id")
@@ -972,8 +1170,29 @@ def build_did_model(
 
         if dose:
             z_attend = pm.Data("z_attend", prepared.covariates["attend"], dims="obs_id")
-            beta_dose = _priors.tau_prior().to_pymc("beta_dose")
-            eta_full = eta_base + beta_dose * z_attend
+            if period_varying_dose:
+                # Partial-pooled per-period dose slopes (non-centred): each
+                # period's slope shrinks toward the shared mean mu_dose. The
+                # nested pooled model (period_varying_dose=False) is its LOO
+                # comparator (#135). Variable names match build_dose_response_model
+                # so the shared dose-slope summary reads them.
+                period_pos = np.searchsorted(
+                    np.asarray(periods), prepared.phase
+                ).astype(np.int64)
+                dose_phase_idx = pm.Data("dose_phase_idx", period_pos, dims="obs_id")
+                mu_dose = _priors.tau_prior().to_pymc("mu_dose")
+                sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
+                beta_dose_phase = pm.Deterministic(
+                    "beta_dose_phase",
+                    mu_dose
+                    + sigma_dose
+                    * pm.Normal("beta_dose_phase_raw", 0.0, 1.0, dims="dose_phase"),
+                    dims="dose_phase",
+                )
+                eta_full = eta_base + beta_dose_phase[dose_phase_idx] * z_attend
+            else:
+                beta_dose = _priors.tau_prior().to_pymc("beta_dose")
+                eta_full = eta_base + beta_dose * z_attend
         else:
             treated_d = pm.Data("treated", treated, dims="obs_id")
             delta = _priors.tau_prior().to_pymc("delta")
@@ -1357,6 +1576,507 @@ def _build_route_composite_model(
     return built, med_data
 
 
+@dataclass
+class TwoMediatorData:
+    """Row-aligned phase-0 arrays + scalers for the two-mediator g-formula (LRP64).
+
+    Two count mediators — letter-sound knowledge ``L`` and expressive vocabulary
+    ``E`` — are each modelled with a Beta-Binomial leg conditioned on their own
+    baseline; the outcome leg adds both standardised post-mediators and their
+    treatment interactions. :func:`mediation.decompose_two_mediator` re-simulates
+    each mediator under each treatment arm to compute the joint indirect effect,
+    the direct effect, and the (ordering-dependent) path-specific indirect effects.
+    """
+
+    G: np.ndarray
+    A_std: np.ndarray
+    W1_logit: np.ndarray
+    conf1_logit: dict[str, np.ndarray]
+    n_trials_W: int
+    # Mediator L (letter-sound).
+    L1_logit: np.ndarray
+    n_trials_L: int
+    zL_mean: float
+    zL_sd: float
+    # Mediator E (expressive vocabulary).
+    E1_logit: np.ndarray
+    n_trials_E: int
+    zE_mean: float
+    zE_sd: float
+    mediator_symbols: tuple[str, str] = ("L", "E")
+    confounder_symbols: tuple[str, ...] = ("R",)
+
+
+def build_two_mediator_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    mediator_symbols: tuple[str, str] = ("L", "E"),
+    confounder_symbols: Iterable[str] = ("R",),
+) -> tuple[BuiltModel, TwoMediatorData]:
+    """Joint two-mediator + outcome model for the ITT-phase decomposition (LRP64).
+
+    Generalises :func:`build_mediation_model` to **two named count mediators** so
+    the word-reading effect can be split into a path via letter-sound knowledge, a
+    path via expressive vocabulary, and a direct/residual path. Three Beta-Binomial
+    legs share the randomised treatment ``G`` and a baseline-covariate adjustment::
+
+        L_t2 ~ aL0 + aL_G·G + aL_L·logit(L_t1) + aL_A·A + sum aL_c·C_t1
+        E_t2 ~ aE0 + aE_G·G + aE_E·logit(E_t1) + aE_A·A + sum aE_c·C_t1
+        W_t2 ~ b0 + b_G·G + b_L·zL + b_E·zE + b_GL·G·zL + b_GE·G·zE
+               + b_W·logit(W_t1) + b_A·A + sum b_c·C_t1
+
+    where ``zL`` / ``zE`` are the standardised post-mediator logits. The two
+    treatment×mediator interactions admit exposure-mediator interaction; the
+    natural (in)direct effects are computed by counterfactual simulation in
+    :func:`mediation.decompose_two_mediator`, **not** from coefficients.
+
+    Confounders ``C`` (e.g. receptive vocab ``R``) are taken at **baseline (t1)**
+    on the logit scale (cross-world assumption). Expressive vocab is a *mediator*
+    here, not a confounder, so only its baseline enters (autoregressively in the
+    ``E`` leg). Requires ``prepared.phase_mode == 'itt'`` (one row per child).
+    """
+    if prepared.phase_mode != "itt":
+        raise ValueError("Two-mediator factory requires phase_mode='itt'")
+    confounder_symbols = tuple(confounder_symbols)
+    mL, mE = mediator_symbols
+    # The PyMC node and coefficient names below are hard-coded to the L/E legs
+    # (L_pre_logit, z_L, aL_*, b_L, ...), so only the ('L', 'E') pair is
+    # supported; other symbols would silently mislabel the fitted variables.
+    if (mL, mE) != ("L", "E"):
+        raise NotImplementedError(
+            "build_two_mediator_model hard-codes L/E variable names; "
+            f"mediator_symbols must be ('L', 'E'), got {mediator_symbols!r}"
+        )
+    needed = {outcome_symbol, mL, mE, *confounder_symbols}
+    for s in needed:
+        if s not in prepared.pre_logit:
+            raise KeyError(f"Symbol {s!r} missing from prepared data")
+
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+        standardise,
+    )
+
+    keep = ~np.isnan(prepared.post_counts[outcome_symbol])
+    for s in (mL, mE):
+        keep = keep & ~np.isnan(prepared.post_counts[s])
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+
+    N_W = prepared.n_trials[outcome_symbol]
+    N_L = prepared.n_trials[mL]
+    N_E = prepared.n_trials[mE]
+    L2 = prepared.post_counts[mL].astype(np.int64)
+    E2 = prepared.post_counts[mE].astype(np.int64)
+    W2 = prepared.post_counts[outcome_symbol].astype(np.int64)
+
+    zL, zL_scaler = standardise(logit_safe(L2, N_L))
+    zE, zE_scaler = standardise(logit_safe(E2, N_E))
+
+    L1 = prepared.pre_logit[mL]
+    E1 = prepared.pre_logit[mE]
+    W1 = prepared.pre_logit[outcome_symbol]
+    conf_logit = {s: prepared.pre_logit[s] for s in confounder_symbols}
+
+    coords = {"obs_id": np.arange(prepared.n_obs)}
+    G_f = prepared.G.astype(float)
+
+    with pm.Model(coords=coords) as model:
+        G_d = pm.Data("G", G_f, dims="obs_id")
+        A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        L1_d = pm.Data("L_pre_logit", L1, dims="obs_id")
+        E1_d = pm.Data("E_pre_logit", E1, dims="obs_id")
+        W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
+        conf_d = {
+            s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
+            for s in confounder_symbols
+        }
+        zL_d = pm.Data("z_L", zL, dims="obs_id")
+        zE_d = pm.Data("z_E", zE, dims="obs_id")
+
+        # --- Mediator L (letter-sound) ---
+        aL0 = _priors.alpha_prior().to_pymc("aL0")
+        aL_G = _priors.tau_prior().to_pymc("aL_G")
+        aL_L = _priors.gamma_own_prior().to_pymc("aL_L")
+        aL_A = _priors.gamma_cross_prior().to_pymc("aL_A")
+        mu_L = aL0 + aL_G * G_d + aL_L * L1_d + aL_A * A_d
+        for s in confounder_symbols:
+            aL_c = _priors.gamma_cross_prior().to_pymc(f"aL_{s}")
+            mu_L = mu_L + aL_c * conf_d[s]
+        mu_L = pm.Deterministic("mu_L", mu_L, dims="obs_id")
+        kappa_L = _priors.kappa_prior().to_pymc("kappa_L")
+        beta_binomial_from_logit(
+            "L_post", mu_L, n_trials=N_L, kappa=kappa_L, observed=L2, dims="obs_id"
+        )
+
+        # --- Mediator E (expressive vocabulary) ---
+        aE0 = _priors.alpha_prior().to_pymc("aE0")
+        aE_G = _priors.tau_prior().to_pymc("aE_G")
+        aE_E = _priors.gamma_own_prior().to_pymc("aE_E")
+        aE_A = _priors.gamma_cross_prior().to_pymc("aE_A")
+        mu_E = aE0 + aE_G * G_d + aE_E * E1_d + aE_A * A_d
+        for s in confounder_symbols:
+            aE_c = _priors.gamma_cross_prior().to_pymc(f"aE_{s}")
+            mu_E = mu_E + aE_c * conf_d[s]
+        mu_E = pm.Deterministic("mu_E", mu_E, dims="obs_id")
+        kappa_E = _priors.kappa_prior().to_pymc("kappa_E")
+        beta_binomial_from_logit(
+            "E_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id"
+        )
+
+        # --- Outcome W ---
+        b0 = _priors.alpha_prior().to_pymc("b0")
+        b_G = _priors.tau_prior().to_pymc("b_G")
+        b_L = _priors.b_path_prior().to_pymc("b_L")
+        b_E = _priors.b_path_prior().to_pymc("b_E")
+        b_GL = _priors.gamma_cross_prior().to_pymc("b_GL")
+        b_GE = _priors.gamma_cross_prior().to_pymc("b_GE")
+        b_W = _priors.gamma_own_prior().to_pymc("b_W")
+        b_A = _priors.gamma_cross_prior().to_pymc("b_A")
+        eta_Y = (
+            b0
+            + b_G * G_d
+            + b_L * zL_d
+            + b_E * zE_d
+            + b_GL * (G_d * zL_d)
+            + b_GE * (G_d * zE_d)
+            + b_W * W1_d
+            + b_A * A_d
+        )
+        for s in confounder_symbols:
+            b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
+            eta_Y = eta_Y + b_c * conf_d[s]
+        eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
+        kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
+        beta_binomial_from_logit(
+            "y_post", eta_Y, n_trials=N_W, kappa=kappa_Y, observed=W2, dims="obs_id"
+        )
+
+    med_data = TwoMediatorData(
+        G=prepared.G.astype(float),
+        A_std=prepared.A_std,
+        W1_logit=W1,
+        conf1_logit={s: conf_logit[s] for s in confounder_symbols},
+        n_trials_W=int(N_W),
+        L1_logit=L1,
+        n_trials_L=int(N_L),
+        zL_mean=float(zL_scaler.mean),
+        zL_sd=float(zL_scaler.sd),
+        E1_logit=E1,
+        n_trials_E=int(N_E),
+        zE_mean=float(zE_scaler.mean),
+        zE_sd=float(zE_scaler.sd),
+        mediator_symbols=(mL, mE),
+        confounder_symbols=confounder_symbols,
+    )
+    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return built, med_data
+
+
+# ---------------------------------------------------------------------------
+# LRP65: between-child adjusted model (T1 baselines -> word-reading gain)
+# ---------------------------------------------------------------------------
+
+
+def _t1_language_composite(
+    prepared: PreparedData, symbols: Iterable[str]
+) -> np.ndarray:
+    """Equal-weight standardised-logit language composite at T1.
+
+    Each symbol's Haldane-logit baseline is standardised; the equal-weight mean
+    is then standardised again so the composite is a unit-SD predictor. The
+    pooled-framing analogue is LRP62's ``_build_route_composite``; that helper
+    standardises on the *post* distribution and carries a paired baseline, which
+    the T1-only between-child design does not need.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        standardise,
+    )
+
+    cols = []
+    for s in symbols:
+        if s not in prepared.pre_logit:
+            raise KeyError(f"Language-composite symbol {s!r} not in prepared data")
+        z, _ = standardise(prepared.pre_logit[s])
+        cols.append(z)
+    comp = np.mean(np.stack(cols, axis=1), axis=1)
+    z_comp, _ = standardise(comp)
+    return z_comp
+
+
+def _resolve_adjusted_predictor(
+    prepared: PreparedData, key: str, language_symbols: tuple[str, ...]
+) -> tuple[str, np.ndarray, str]:
+    """Map an LRP65 predictor key to ``(coef_name, standardised_vector, label)``.
+
+    Keys: a measure symbol (``"L"``, ``"B"``) -> standardised T1 logit;
+    ``"lang"`` -> the language composite; ``"age"`` -> the standardised T1 age;
+    a covariate column already on ``prepared.covariates`` (``"blocks"``,
+    ``"behav"``, ``"mumedupost16"``) -> that standardised covariate. Every key
+    maps to coefficient ``beta_<key>``.
+    """
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.preprocessing import (
+        standardise,
+    )
+
+    coef = f"beta_{key}"
+    if key == "lang":
+        return coef, _t1_language_composite(prepared, language_symbols), (
+            "Language composite (" + "+".join(language_symbols) + ", T1)"
+        )
+    if key == "age":
+        return coef, np.asarray(prepared.A_std, dtype=float), "Age (T1)"
+    if key in prepared.covariates:
+        return coef, np.asarray(prepared.covariates[key], dtype=float), f"{key} (T1)"
+    if key in prepared.pre_logit:
+        z, _ = standardise(prepared.pre_logit[key])
+        label = MEASURES[key].label if key in MEASURES else key
+        return coef, z, f"{label} (T1)"
+    raise KeyError(f"Unknown LRP65 predictor key {key!r}")
+
+
+def build_adjusted_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    predictors: Iterable[str] = ("L", "lang", "B", "age", "blocks", "behav"),
+    language_composite_symbols: Iterable[str] = ("R", "E", "F"),
+    predictor_slope_sigma: float = 0.5,
+) -> BuiltModel:
+    """Between-child adjusted model: standardised T1 baselines -> word-reading gain.
+
+    One row per child (``prepared.phase_mode`` in ``{"span", "itt"}``). The outcome post-score
+    (``outcome_symbol`` at the span's later wave) is conditioned on its own T1
+    baseline via ``gamma_own`` - the gain framing shared with the mechanism
+    models. Each predictor enters as a single **standardised** linear term with a
+    fixed weakly-informative ``Normal(0, predictor_slope_sigma)`` slope. There is
+    **no** phase intercept and **no** child random intercept: with one row per
+    child the coefficients are genuinely between-child associations (a random
+    intercept would tilt them toward the within-child question - see the LRP65
+    docstring). Passing a single-element ``predictors`` gives the bivariate
+    (baseline-only-adjusted) association used for the shared-variance comparison.
+
+        eta_i = alpha + gamma_own * logit(W_pre_i) + sum_k beta_k * z_{k,i}
+
+    with a Beta-Binomial likelihood on the outcome post-count.
+    """
+    if prepared.phase_mode not in {"span", "itt"}:
+        raise ValueError(
+            "Adjusted (between-child) model requires phase_mode in {'span', 'itt'} "
+            f"(one row per child); got {prepared.phase_mode!r}"
+        )
+    if outcome_symbol not in prepared.pre_logit:
+        raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
+
+    # One row per child: drop children missing the outcome post-score.
+    post = prepared.post_counts[outcome_symbol]
+    keep = ~np.isnan(post)
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[outcome_symbol].astype(np.int64)
+    N = prepared.n_trials[outcome_symbol]
+    own_pre_logit = prepared.pre_logit[outcome_symbol]
+    language_symbols = tuple(language_composite_symbols)
+    resolved = [
+        _resolve_adjusted_predictor(prepared, k, language_symbols) for k in predictors
+    ]
+
+    coords = {"obs_id": np.arange(prepared.n_obs)}
+    with pm.Model(coords=coords) as model:
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        eta = alpha + gamma_own * own_pre_d
+
+        for coef_name, vec, _label in resolved:
+            x_d = pm.Data(f"x_{coef_name}", vec, dims="obs_id")
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                coef_name
+            )
+            eta = eta + beta * x_d
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
+# LRPMM01: correlated-domain-factor measurement model (#134)
+# ---------------------------------------------------------------------------
+
+
+def build_correlated_factor_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    domains: dict[str, tuple[str, ...]] | None = None,
+    structural_covariates: Iterable[str] = ("blocks",),
+    use_age: bool = True,
+    loading_sigma: float = 1.0,
+    predictor_slope_sigma: float = 0.5,
+    lkj_eta: float = 2.0,
+) -> BuiltModel:
+    """Correlated-domain-factor measurement model (LRPMM01, #134).
+
+    Replaces the single latent general ability ``g`` of the (closed) LRP66 with
+    **correlated domain factors** - vocabulary / code / grammar - each measured by
+    its standardised T1 skill indicators, with an LKJ prior on the factor
+    correlation matrix. Factor variances are fixed to 1 and loadings are positive.
+    Because the indicator residual variance ``sigma_indicator`` is free, a loading
+    ``lambda`` is a coefficient on the unit-variance factor, **not** in general a
+    correlation; the indicator-factor **correlation** is ``lambda / sqrt(lambda**2
+    + sigma**2)`` (the standardised loading, equal to ``sqrt(communality)``) and
+    the **communality** ``lambda**2 / (lambda**2 + sigma**2)`` is the share of the
+    indicator explained by its domain factor. A structural Beta-Binomial leg
+    regresses the outcome gain (``outcome`` post conditioned on its T1 baseline via
+    ``gamma_own``) on the latent factors, giving **measurement-error-corrected**
+    factor->gain slopes.
+
+    Identification-neutral but a better measurement match than a single ``g`` for
+    the observed same-construct clustering (the locked DAG's deferred option,
+    #115). This is a **measurement / triangulation** model, not a causal one: per
+    ID-2 each factor->gain slope is a latent-ability-confounded **adjusted
+    association**. At n ~ 51 it is fragile and prior-dependent - read the wide
+    intervals as the honest result, as the closed LRP66 did.
+
+    ``domains`` maps each factor name to its indicator symbols (default vocabulary
+    {R, E} / code {L, B} / grammar {F, T}); every domain needs >= 2 indicators to
+    be identified. ``structural_covariates`` are observed adjusters in the
+    structural leg (default non-verbal MA ``blocks``); ``use_age`` adds a linear
+    age term.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import standardise
+
+    if prepared.phase_mode not in {"span", "itt"}:
+        raise ValueError(
+            "Correlated-factor (between-child) model requires phase_mode in "
+            f"{{'span', 'itt'}} (one row per child); got {prepared.phase_mode!r}"
+        )
+    if domains is None:
+        domains = {"vocabulary": ("R", "E"), "code": ("L", "B"), "grammar": ("F", "T")}
+    domain_names = list(domains)
+    for d in domain_names:
+        if len(tuple(domains[d])) < 2:
+            raise ValueError(
+                f"Domain {d!r} has < 2 indicators ({tuple(domains[d])}); a "
+                "correlated factor needs at least two indicators to be identified."
+            )
+    D = len(domain_names)
+
+    # One row per child: drop children missing the outcome post-score.
+    post = prepared.post_counts[outcome_symbol]
+    keep = ~np.isnan(post)
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+
+    post = prepared.post_counts[outcome_symbol].astype(np.int64)
+    N = prepared.n_trials[outcome_symbol]
+    own_pre_logit = prepared.pre_logit[outcome_symbol]
+
+    # Standardised indicator matrix Z (n_obs, J) + per-indicator domain index.
+    ind_names: list[str] = []
+    domain_of: list[int] = []
+    cols: list[np.ndarray] = []
+    for di, d in enumerate(domain_names):
+        for s in domains[d]:
+            if s not in prepared.pre_logit:
+                raise KeyError(
+                    f"Indicator {s!r} (domain {d!r}) missing from prepared data"
+                )
+            z, _ = standardise(prepared.pre_logit[s])
+            cols.append(z)
+            ind_names.append(s)
+            domain_of.append(di)
+    Z = np.stack(cols, axis=1)
+    domain_idx = np.asarray(domain_of, dtype=np.int64)
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "indicator": ind_names,
+        "domain": domain_names,
+        "domain_b": domain_names,
+    }
+    with pm.Model(coords=coords) as model:
+        Z_d = pm.Data("Z", Z, dims=("obs_id", "indicator"))
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+
+        # --- Measurement: correlated unit-variance domain factors ---
+        # LKJ correlation matrix; factor variances are fixed to 1 by transforming
+        # standard normals through the correlation's Cholesky (the LKJCholeskyCov
+        # sds are unused). The residual variance sigma_indicator is free, so a
+        # loading is a coefficient on the unit-variance factor; the standardised
+        # loading / indicator-factor correlation is reported as sqrt(communality).
+        _, corr, _ = pm.LKJCholeskyCov(
+            "factor_cov",
+            n=D,
+            eta=lkj_eta,
+            sd_dist=pm.Exponential.dist(1.0, size=D),
+            compute_corr=True,
+        )
+        pm.Deterministic("factor_corr", corr, dims=("domain", "domain_b"))
+        L_corr = pt.linalg.cholesky(corr)
+        z_factor = pm.Normal("factor_z", 0.0, 1.0, dims=("obs_id", "domain"))
+        factors = pm.Deterministic(
+            "factors", z_factor @ L_corr.T, dims=("obs_id", "domain")
+        )
+
+        lam = pm.HalfNormal("lambda_load", sigma=loading_sigma, dims="indicator")
+        sigma_ind = pm.HalfNormal("sigma_indicator", sigma=1.0, dims="indicator")
+        mu_Z = lam[None, :] * factors[:, domain_idx]
+        pm.Normal(
+            "Z_obs",
+            mu=mu_Z,
+            sigma=sigma_ind[None, :],
+            observed=Z_d,
+            dims=("obs_id", "indicator"),
+        )
+        pm.Deterministic(
+            "communality", lam**2 / (lam**2 + sigma_ind**2), dims="indicator"
+        )
+
+        # --- Structural: outcome gain ~ factors (+ covariates), Beta-Binomial ---
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        beta_factor = pm.Normal(
+            "beta_factor", 0.0, predictor_slope_sigma, dims="domain"
+        )
+        eta = alpha + gamma_own * own_pre_d + pm.math.dot(factors, beta_factor)
+
+        if use_age:
+            A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+            beta_age = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                "beta_age"
+            )
+            eta = eta + beta_age * A_std_d
+        for c in structural_covariates:
+            if c not in prepared.covariates:
+                raise KeyError(
+                    f"Structural covariate {c!r} missing from prepared data"
+                )
+            x_d = pm.Data(
+                f"x_{c}", np.asarray(prepared.covariates[c], dtype=float), dims="obs_id"
+            )
+            beta_c = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                f"beta_{c}"
+            )
+            eta = eta + beta_c * x_d
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
 # ---------------------------------------------------------------------------
 # Private
 # ---------------------------------------------------------------------------
@@ -1453,7 +2173,7 @@ def build_gain_factors_model(
             + gamma_ability * z(ability)           # observed GA handle (blocks)
             + sum_s gamma_s * logit(skill_pre_s)   # upstream DAG skills (adjusted assoc.)
             + sum interactions                     # focal, pre-specified
-            + u_child[i]                           # GA repair (RI-CLPM)
+            + u_child[i]                           # partial GA repair
 
     ``OnIntervention`` is derived from the data: the immediate arm (``G == 1``) is
     on from period 1; the waitlist (``G == 0``) is off in period 1 only and on once
@@ -1616,7 +2336,7 @@ def build_level_factors_model(
             + gamma_A * A_std_t            # age at t (precision)
             + g_ability[t] * z(ability)    # ability x time (observed GA handle)
             + gamma_grp_ability * group * z(ability)   # group x ability
-            + u_child[i]                   # GA repair (RI-CLPM)
+            + u_child[i]                   # partial GA repair
 
     **Level-model caveat (baked into the parameterisation + report):** after t2
     the waitlist crosses over, so the group effect across the four timepoints is
@@ -1806,3 +2526,173 @@ def build_aligned_model(
             )
 
     return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
+# Longitudinal dynamic factory (LRP67 LCSM)
+# ---------------------------------------------------------------------------
+
+
+def build_lcsm_model(
+    panel: WavePanel,
+    *,
+    reading_symbol: str = "W",
+    coupling_prior_sigma: float = 0.5,
+    self_prior_sigma: float = 0.5,
+    intercept_prior_sigma: float = 1.5,
+    covariate_prior_sigma: float = 0.5,
+    use_process_noise: bool = True,
+    shared_process_noise: bool = False,
+    sigma_proc_prior_sigma: float = 0.5,
+    sigma_init_prior_sigma: float = 1.0,
+    kappa_prior_sigma: float = 50.0,
+) -> BuiltModel:
+    """Full coupled latent change-score model (LRP67) on the logit scale.
+
+    A latent logit true-score ``x_m[i, t]`` is modelled for each measure ``m``
+    (default ``W`` reading, ``L`` letter-sounds, ``E`` expressive vocabulary),
+    child ``i`` and wave ``t``. The within-child trajectory follows a McArdle
+    latent change-score recursion with **process noise**::
+
+        x_m[i, 1] = mu1_m + sigma1_m * z1_m[i]                      (non-centred)
+        x_m[i, t] = x_m[i, t-1] + Delta_m[i, t]
+        Delta_m[i, t] = mean_Delta_m[i, t] + sigma_proc_m * zproc_m[i, t]
+
+    The headline coupling is on the **reading** change: prior-wave letter-sounds
+    and vocabulary predict subsequent reading change (the longitudinal,
+    within-trajectory analogue of LRP65's between-child story)::
+
+        mean_Delta_W = a_W + b_W * x_W[t-1]
+                     + sum_{c != W} g_c * x_c[t-1]
+                     + d_age_W * age[t-1]
+
+    Non-reading measures get a self-proportional change plus age only. The
+    intervention-dose covariate is **omitted**: it is the locked DAG's ``IS``
+    collider, so conditioning on it would reopen the latent-``GA`` backdoor onto
+    the letter-sound -> reading couplings (ID-3).
+    All change coefficients are **time-invariant** (pooled across the 3
+    transitions) — a deliberate constraint at n~54. Everything is non-centred
+    for sampling.
+
+    The observed counts enter via a **masked** Beta-Binomial (the LRP55
+    flattened-mask idiom): ``mu = sigmoid(x_m[i, t])`` is the logit mean and
+    ``kappa_m`` the dispersion (measurement overdispersion, distinct from the
+    dynamic ``sigma_proc``). Only the unmasked cells in ``panel.obs_mask`` are
+    observed, so a child missing one score still contributes its other waves.
+
+    The ``use_process_noise`` / ``shared_process_noise`` / ``*_prior_sigma``
+    knobs implement the fallback ladder for sampling trouble (tighten priors;
+    share one process-noise sd; drop process noise entirely).
+    """
+    OUT = tuple(panel.outcomes)
+    if reading_symbol not in OUT:
+        raise KeyError(
+            f"reading_symbol {reading_symbol!r} not in panel.outcomes {OUT}"
+        )
+    K = len(OUT)
+    N = panel.n_children
+    T = panel.n_waves
+    if T < 2:
+        raise ValueError("LCSM needs at least two waves")
+    cross = [s for s in OUT if s != reading_symbol]
+    jidx = {s: i for i, s in enumerate(OUT)}
+
+    # Observed counts / mask / denominators stacked as (N, T, K) in OUT order.
+    counts_int = np.stack(
+        [np.nan_to_num(panel.counts[s], nan=0.0).astype(np.int64) for s in OUT],
+        axis=2,
+    )
+    mask = np.stack([panel.obs_mask[s] for s in OUT], axis=2)  # (N, T, K) bool
+    n_trials_vec = np.array([panel.n_trials[s] for s in OUT], dtype=int)  # (K,)
+    # Observed wave-1 mean logit anchors the initial-latent prior mean.
+    w1_anchor = np.array(
+        [np.nanmean(panel.logit[s][:, 0]) for s in OUT], dtype=float
+    )
+
+    coords = {
+        "child": np.arange(N),
+        "wave": panel.waves,
+        "trans": panel.waves[1:],  # transitions into waves 2..T
+        "outcome": list(OUT),
+    }
+
+    from dse_research_utils.math.constants import EPSILON  # local import
+
+    with pm.Model(coords=coords) as model:
+        age = pm.Data("age_std", panel.age_std, dims=("child", "wave"))
+
+        # Structural parameters (time-invariant, pooled over transitions).
+        mu1 = pm.Normal("mu1", mu=w1_anchor, sigma=1.0, dims="outcome")
+        sigma1 = pm.HalfNormal("sigma1", sigma=sigma_init_prior_sigma, dims="outcome")
+        a_change = pm.Normal(
+            "a_change", mu=0.0, sigma=intercept_prior_sigma, dims="outcome"
+        )
+        b_self = pm.Normal("b_self", mu=0.0, sigma=self_prior_sigma, dims="outcome")
+        d_age = pm.Normal("d_age", mu=0.0, sigma=covariate_prior_sigma, dims="outcome")
+        # Headline cross-couplings into the reading change (one per other measure).
+        g_cross = {
+            s: pm.Normal(f"g_{s}", mu=0.0, sigma=coupling_prior_sigma) for s in cross
+        }
+        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome")
+
+        sigma_proc: dict[str, pt.TensorVariable] = {}
+        zproc: dict[str, pt.TensorVariable] = {}
+        if use_process_noise:
+            if shared_process_noise:
+                sp = pm.HalfNormal("sigma_proc", sigma=sigma_proc_prior_sigma)
+                sigma_proc = {s: sp for s in OUT}
+            else:
+                spv = pm.HalfNormal(
+                    "sigma_proc", sigma=sigma_proc_prior_sigma, dims="outcome"
+                )
+                sigma_proc = {s: spv[jidx[s]] for s in OUT}
+            zproc = {
+                s: pm.Normal(f"zproc_{s}", 0.0, 1.0, dims=("child", "trans"))
+                for s in OUT
+            }
+
+        # Initial latent (wave index 0), non-centred.
+        x: dict[str, list[pt.TensorVariable]] = {}
+        for s in OUT:
+            z1 = pm.Normal(f"z1_{s}", 0.0, 1.0, dims="child")
+            x[s] = [
+                pm.Deterministic(
+                    f"x1_{s}", mu1[jidx[s]] + sigma1[jidx[s]] * z1, dims="child"
+                )
+            ]
+
+        # Latent change-score recursion over transitions (t = 1 .. T-1).
+        for k in range(T - 1):
+            t = k + 1
+            prev = {s: x[s][t - 1] for s in OUT}
+            for s in OUT:
+                m = a_change[jidx[s]] + b_self[jidx[s]] * prev[s]
+                m = m + d_age[jidx[s]] * age[:, t - 1]
+                if s == reading_symbol:
+                    for cs in cross:
+                        m = m + g_cross[cs] * prev[cs]
+                delta = m
+                if use_process_noise:
+                    delta = delta + sigma_proc[s] * zproc[s][:, k]
+                x[s].append(prev[s] + delta)
+
+        # Stack latent to (child, wave, outcome) for reporting + likelihood.
+        X = pt.stack([pt.stack(x[s], axis=1) for s in OUT], axis=2)
+        X = pm.Deterministic("x_latent", X, dims=("child", "wave", "outcome"))
+
+        # Masked Beta-Binomial observation (LRP55 flattened-mask idiom).
+        mu = pm.math.sigmoid(X)
+        mu_clip = pm.math.clip(mu, EPSILON, 1 - EPSILON)
+        alpha_bb = (mu_clip * kappa[None, None, :]).reshape((-1,))
+        beta_bb = ((1 - mu_clip) * kappa[None, None, :]).reshape((-1,))
+        idx_i, idx_t, idx_k = np.nonzero(mask)
+        lin = np.ravel_multi_index((idx_i, idx_t, idx_k), (N, T, K))
+        pm.BetaBinomial(
+            "y_obs",
+            n=n_trials_vec[idx_k],
+            alpha=alpha_bb[lin],
+            beta=beta_bb[lin],
+            observed=counts_int[idx_i, idx_t, idx_k],
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)

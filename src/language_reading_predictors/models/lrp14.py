@@ -19,17 +19,17 @@ reading targets where zeros are a minority.
 Log or quantile transforms may be more appropriate than a plain
 regression here; plan for a ``lrp14_log`` variant in follow-up PRs.
 
-Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 3 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below and notes/202606211200-uniform-gb-fs.md.
+Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 3 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below.
 
 No construct-reduced variant: ``nonword``'s remaining predictors are
 *different* reading skills (letter-sound knowledge, phonological awareness,
 spelling), which we keep visible rather than treat as concurrent
-same-skill restatements. See notes/202606210930-lrp-same-skill-variants.md.
+same-skill restatements.
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
-from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
@@ -43,7 +43,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.ERBNW, V.ERBWORD, V.BLENDING
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 0.9136},
@@ -88,12 +88,8 @@ class LRP14(LevelModel):
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    cv_splits = 51
-    outlier_threshold = None
     selection_steps = _SELECTION_STEPS
-    shap_scatter_specs = [
-        ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
-    ]
+    shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for nonword (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 3 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 0.914 -> 0.762). Treat the reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
+        "Exploratory model for nonword (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 3 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 0.914 -> 0.762). Treat the reduced ranking as exploratory."
     )

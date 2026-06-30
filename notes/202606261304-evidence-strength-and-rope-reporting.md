@@ -41,7 +41,7 @@ without a Bayesian background.
 - **Posterior distribution = "all plausible values of the effect, weighted by
   credibility."** A frequentist analysis returns a point estimate and a standard
   error. A Bayesian model returns a whole distribution for the unknown effect —
-  the *posterior* — given the data and the model. Everything else is a summary of
+  the _posterior_ — given the data and the model. Everything else is a summary of
   it. The **posterior mean** (or median) is the central estimate, analogous to a
   point estimate; the **posterior standard deviation (SD)** plays the role of the
   standard error.
@@ -71,12 +71,12 @@ The project had been labelling effects with verbal tiers defined on `pd`:
 "strong" at `pd ≥ 0.975`, "moderate" at `0.90–0.975`, "weak" at `0.75–0.90`. Using
 `p ≈ 2 × (1 − pd)`, those tiers translate exactly into p-value bands:
 
-| Our label | `pd` | "the X % CrI excludes 0" | two-sided p |
-|---|---|---|---|
-| strong | ≥ 0.975 | 95 % excludes 0 | **< 0.05** |
-| moderate | 0.90–0.975 | 80–95 % | 0.05–0.20 |
-| weak | 0.75–0.90 | 50–80 % | 0.20–0.50 |
-| none | < 0.75 | — | > 0.50 |
+| Our label | `pd`       | "the X % CrI excludes 0" | two-sided p |
+| --------- | ---------- | ------------------------ | ----------- |
+| strong    | ≥ 0.975    | 95 % excludes 0          | **< 0.05**  |
+| moderate  | 0.90–0.975 | 80–95 %                  | 0.05–0.20   |
+| weak      | 0.75–0.90  | 50–80 %                  | 0.20–0.50   |
+| none      | < 0.75     | —                        | > 0.50      |
 
 So "strong = the 95 % CrI excludes zero" is literally `p < 0.05` wearing Bayesian
 clothes, and the other tiers are p-value bands relabelled. This silently
@@ -86,7 +86,7 @@ not mean to adopt. Two distinct problems follow.
 
 ### 2a. Sign versus size
 
-`pd` answers only *"is the effect non-zero, in this direction?"* — a question
+`pd` answers only _"is the effect non-zero, in this direction?"_ — a question
 about **existence and sign**. It says nothing about whether the effect is **big
 enough to matter**. On a small sample you can have `pd = 0.99` for an effect that
 is practically negligible, or `pd = 0.85` for a clinically important one. A label
@@ -95,7 +95,7 @@ existence-vs-significance distinction of Makowski et al. 2019.)
 
 ### 2b. Small-sample inflation (the "winner's curse")
 
-When we only *highlight* estimates that clear a bar (the 95 % CrI excludes zero),
+When we only _highlight_ estimates that clear a bar (the 95 % CrI excludes zero),
 we are **selecting on a noisy quantity**. Selection on noise has a systematic
 consequence: among the estimates that survive the filter, the magnitude is on
 average **larger** than the truth, and — if power is low — the **sign** can be
@@ -111,7 +111,7 @@ section measures how bad it is for us.
 ### What it is
 
 A **retrospective design analysis** (Gelman & Carlin 2014) takes a study of a
-given precision and asks, of the findings it would *declare significant*:
+given precision and asks, of the findings it would _declare significant_:
 
 - **Type-S (sign) error rate** — the probability a declared effect points the
   **wrong way**.
@@ -119,13 +119,13 @@ given precision and asks, of the findings it would *declare significant*:
   which a declared effect **overstates** the true magnitude, on average.
 
 It reframes "low power": the worry is no longer only "we might miss a real effect"
-(the classical Type-II error) but the sharper "even our *hits* are unreliable in
+(the classical Type-II error) but the sharper "even our _hits_ are unreliable in
 sign and inflated in size." These are frequentist (repeated-sampling) ideas and
 apply identically to a p-value workflow.
 
 ### What you feed it
 
-Two inputs: a **plausible true effect `D`** (chosen from *outside* this study —
+Two inputs: a **plausible true effect `D`** (chosen from _outside_ this study —
 prior knowledge, or a minimally-important size; see the warning below) and the
 **standard error `s`** (here the posterior SD, the precision the design actually
 achieved). Model the estimate as `estimate ~ Normal(D, s)` and the significance
@@ -148,7 +148,7 @@ at `± 1.96 s`. To be "declared," an estimate must land in a tail beyond a cutof
 
 - **Magnitude.** When `D` is small relative to `s` (low power), most of the bell
   sits inside the cutoffs and is discarded; the survivors are precisely the draws
-  that noise pushed *far* from zero, so they are systematically **larger** than
+  that noise pushed _far_ from zero, so they are systematically **larger** than
   `D`. The weaker the design, the more extreme a survivor must be, and the bigger
   the exaggeration. When the design is strong (`D/s` large), almost everything
   clears the bar, selection is mild, and the exaggeration vanishes (Type-M → 1).
@@ -162,8 +162,8 @@ Both failures share one driver: a true signal that is small relative to the nois
 > **The single most important caveat.** You must **not** plug the observed estimate
 > in as `D` and call it done — that is "observed (post-hoc) power," which is
 > circular (it is just a re-expression of the p-value). `D` must be chosen from
-> outside the data, and because it is uncertain the honest form is a *sensitivity
-> analysis over a range of `D`*. Below we report the optimistic anchor (`D = τ̂`)
+> outside the data, and because it is uncertain the honest form is a _sensitivity
+> analysis over a range of `D`_. Below we report the optimistic anchor (`D = τ̂`)
 > **and** a less flattering one (`D = τ̂ / 2`) **and** the universal curve.
 
 ### Results for our suite
@@ -176,59 +176,59 @@ exaggerated ≈ 1.4× when significant — which it reproduces.
 **Precision actually achieved**, sorted by `|τ̂| / s` (which equals the "z-like"
 ratio and maps to `pd`):
 
-| Outcome | n | `τ̂` (logit) | `s` | `pd` | `τ̂/s` |
-|---|--:|--:|--:|--:|--:|
-| L letter sounds | 54 | 0.583 | 0.185 | 0.999 | 3.14 |
-| W word reading | 53 | 0.354 | 0.158 | 0.987 | 2.25 |
-| TE taught expressive | 54 | 0.319 | 0.146 | 0.985 | 2.18 |
-| B blending | 54 | 0.453 | 0.216 | 0.984 | 2.10 |
-| TR taught receptive | 54 | 0.247 | 0.137 | 0.966 | 1.80 |
-| UR untaught receptive | 54 | 0.289 | 0.179 | 0.946 | 1.61 |
-| UE untaught expressive | 54 | 0.133 | 0.171 | 0.775 | 0.78 |
-| E expressive vocab | 54 | 0.008 | 0.082 | 0.546 | 0.10 |
-| R receptive vocab | 54 | 0.005 | 0.089 | 0.531 | 0.05 |
+| Outcome                |   n | `τ̂` (logit) |   `s` |  `pd` | `τ̂/s` |
+| ---------------------- | --: | ----------: | ----: | ----: | ----: |
+| L letter sounds        |  54 |       0.583 | 0.185 | 0.999 |  3.14 |
+| W word reading         |  53 |       0.354 | 0.158 | 0.987 |  2.25 |
+| TE taught expressive   |  54 |       0.319 | 0.146 | 0.985 |  2.18 |
+| B blending             |  54 |       0.453 | 0.216 | 0.984 |  2.10 |
+| TR taught receptive    |  54 |       0.247 | 0.137 | 0.966 |  1.80 |
+| UR untaught receptive  |  54 |       0.289 | 0.179 | 0.946 |  1.61 |
+| UE untaught expressive |  54 |       0.133 | 0.171 | 0.775 |  0.78 |
+| E expressive vocab     |  54 |       0.008 | 0.082 | 0.546 |  0.10 |
+| R receptive vocab      |  54 |       0.005 | 0.089 | 0.531 |  0.05 |
 
 **Type-S and Type-M.** Scenario A assumes the true effect equals the estimate
 (optimistic); scenario B assumes it is half that (the case the analysis exists to
 warn about):
 
-| Outcome | power A | Type-S A | **Type-M A** | power B | Type-S B | **Type-M B** |
-|---|--:|--:|--:|--:|--:|--:|
-| L letter sounds | 0.88 | 0.0 % | **1.07** | 0.35 | 0.1 % | 1.67 |
-| W word reading | 0.61 | 0.0 % | **1.28** | 0.20 | 0.5 % | 2.24 |
-| TE taught expressive | 0.59 | 0.0 % | **1.31** | 0.19 | 0.6 % | 2.30 |
-| B blending | 0.55 | 0.0 % | **1.34** | 0.18 | 0.7 % | 2.38 |
-| TR taught receptive | 0.44 | 0.0 % | **1.50** | 0.15 | 1.4 % | 2.74 |
-| UR untaught receptive | 0.36 | 0.1 % | **1.64** | 0.13 | 2.3 % | 3.05 |
-| UE untaught expressive | 0.12 | 2.5 % | 3.14 | 0.07 | 13.9 % | 6.10 |
-| E, R (vocab nulls) | 0.05 | ~40 % | — | 0.05 | ~45 % | — |
+| Outcome                | power A | Type-S A | **Type-M A** | power B | Type-S B | **Type-M B** |
+| ---------------------- | ------: | -------: | -----------: | ------: | -------: | -----------: |
+| L letter sounds        |    0.88 |    0.0 % |     **1.07** |    0.35 |    0.1 % |         1.67 |
+| W word reading         |    0.61 |    0.0 % |     **1.28** |    0.20 |    0.5 % |         2.24 |
+| TE taught expressive   |    0.59 |    0.0 % |     **1.31** |    0.19 |    0.6 % |         2.30 |
+| B blending             |    0.55 |    0.0 % |     **1.34** |    0.18 |    0.7 % |         2.38 |
+| TR taught receptive    |    0.44 |    0.0 % |     **1.50** |    0.15 |    1.4 % |         2.74 |
+| UR untaught receptive  |    0.36 |    0.1 % |     **1.64** |    0.13 |    2.3 % |         3.05 |
+| UE untaught expressive |    0.12 |    2.5 % |         3.14 |    0.07 |   13.9 % |         6.10 |
+| E, R (vocab nulls)     |    0.05 |    ~40 % |            — |    0.05 |    ~45 % |            — |
 
 **The universal relationship** (any outcome; depends only on `D/s`):
 
-| true effect `D/s` | power | Type-S | Type-M |
-|--:|--:|--:|--:|
-| 0.5 | 0.08 | 8.8 % | 4.79 |
-| 1.0 | 0.17 | 0.9 % | 2.49 |
+|             true effect `D/s` |    power |     Type-S |   Type-M |
+| ----------------------------: | -------: | ---------: | -------: |
+|                           0.5 |     0.08 |      8.8 % |     4.79 |
+|                           1.0 |     0.17 |      0.9 % |     2.49 |
 | **1.96 (= our "strong" cut)** | **0.50** | **0.01 %** | **1.41** |
-| 2.5 | 0.71 | 0.0 % | 1.20 |
-| 3.0 | 0.85 | 0.0 % | 1.09 |
-| 4.0 | 0.98 | 0.0 % | 1.01 |
+|                           2.5 |     0.71 |      0.0 % |     1.20 |
+|                           3.0 |     0.85 |      0.0 % |     1.09 |
+|                           4.0 |     0.98 |      0.0 % |     1.01 |
 
 ![Type-S / Type-M design analysis of the ITT suite](assets/202606261304-type-s-m-design-analysis.png)
 
-*Figure 1. The universal Type-M (top) and Type-S (bottom) curves for our n ≈ 54
+_Figure 1. The universal Type-M (top) and Type-S (bottom) curves for our n ≈ 54
 precision, with each outcome placed at its own `τ̂/s` (scenario A) and the
 project's evidence-tier bands overlaid (`pd` via `pd = Φ(τ̂/s)`). Nulls E, R are
-off-scale because the analysis is undefined for a null (`τ̂ ≈ 0`).*
+off-scale because the analysis is undefined for a null (`τ̂ ≈ 0`)._
 
 ### How to read it
 
-- **The "strong" boundary is not a magnitude-safety line.** A *genuinely real*
+- **The "strong" boundary is not a magnitude-safety line.** A _genuinely real_
   effect sitting exactly on our strong cut (`τ̂/s = 1.96`) is still exaggerated
   **≈ 1.41×** on average. Clearing the bar certifies **direction**, not **size** —
   the empirical core of why blindly trusting the 0.975 / 95 % convention is unsafe.
 - **Sign is trustworthy where we call something strong; size often is not.**
-  Across the strong/moderate region Type-S is below ~1 %, so the *directions* are
+  Across the strong/moderate region Type-S is below ~1 %, so the _directions_ are
   solid. But only **letter sounds** is genuinely well-powered (Type-M 1.07). The
   other "strong" findings (W, TE, B) carry ~30 % expected inflation even
   optimistically, rising to ~2.2–2.4× if the truth is half what we saw.
@@ -252,9 +252,9 @@ that is where "practically meaningful" can be judged. §5 sets the values.
 
 With a ROPE we can ask the question `pd` cannot:
 
-- `P(benefit ≥ δ)` — probability the effect is at least *meaningfully* positive.
+- `P(benefit ≥ δ)` — probability the effect is at least _meaningfully_ positive.
   This is the headline number; it replaces the bare "strong" label and is the
-  *effect-significance* index, distinct from the *effect-existence* index `pd`.
+  _effect-significance_ index, distinct from the _effect-existence_ index `pd`.
 - `P(|effect| < δ)` — probability the effect is practically negligible (inside the
   ROPE).
 - `P(harm ≥ δ)` — the mirror image.
@@ -269,8 +269,8 @@ For each outcome we report the full posterior, not a single number:
   carries the full posterior uncertainty);
 - **two credible intervals** (50 % and 95 %) to show the shape and stop any single
   boundary carrying decisional weight;
-- **`pd`**, demoted to "direction" — *is there a benefit at all?*;
-- **`P(benefit ≥ δ)` and the ROPE coverage** — *is it meaningfully large?*;
+- **`pd`**, demoted to "direction" — _is there a benefit at all?_;
+- **`P(benefit ≥ δ)` and the ROPE coverage** — _is it meaningfully large?_;
 - a **magnitude-reliability flag** (the Type-M from §3) on the point estimate.
 
 ### Worked contrast: letter sounds vs word reading
@@ -300,20 +300,20 @@ Magnitude rel.: Type-M ≈ 1.28  (size optimistic — discount the point estimat
 Practical sig.: P(benefit ≥ 1 item) = 0.909 ;  P(benefit ≥ 2) = 0.640 ;  in-ROPE(±2) = 0.360
 ```
 
-In plain words: letter sounds is a *meaningful* effect (≈ +3.6 items; a ≥ 2-item
-benefit is 91 % probable; well powered). Word reading is *near-certain in
-direction but uncertain in size* (≈ +2.4 items, but a ≥ 2-item benefit is only
+In plain words: letter sounds is a _meaningful_ effect (≈ +3.6 items; a ≥ 2-item
+benefit is 91 % probable; well powered). Word reading is _near-certain in
+direction but uncertain in size_ (≈ +2.4 items, but a ≥ 2-item benefit is only
 64 % probable, with a 36 % chance the true effect is within ± 2 items, and the
 point estimate is itself mildly inflated). That distinction — "meaningful" vs
 "real but maybe small" — is exactly what a single `pd` threshold throws away.
 
 ![ROPE-anchored continuous reporting, L vs W](assets/202606261304-rope-continuous-reporting.png)
 
-*Figure 2. Left: the items-scale posteriors with the ±1-item ROPE shaded; both
+_Figure 2. Left: the items-scale posteriors with the ±1-item ROPE shaded; both
 clear it, but word reading (purple) sits left of letter sounds (green). Right:
 `P(effect > δ)` as the "meaningful" bar δ rises. At δ = 0 this is `pd` (both ≈ 1,
 near-identical); as δ grows, letter sounds' curve stays high while word reading's
-falls away. The widening gap is the information the "strong/strong" label hides.*
+falls away. The widening gap is the information the "strong/strong" label hides._
 
 ---
 
@@ -331,19 +331,19 @@ sensible `δ` could be built from.
   ~20-week window, for an anchor-based `δ` ("a fraction of natural progress");
 - **proportion of scale** (`5 %`).
 
-| Outcome | scale | baseline mean (SD) | natural growth | `0.2·SD` | `5 %` scale | `½·growth` | **adopted δ** |
-|---|--:|--:|--:|--:|--:|--:|--:|
-| L letter sounds | 32 | 14.3 (8.7) | 3.2 | 1.7 | 1.6 | 1.6 | **2** |
-| W word reading | 79 | 6.3 (11.3) | 2.0 | 2.3 | 4.0 | 1.0 | **1** |
-| R receptive vocab | 170 | 35.4 (13.5) | 3.0 | 2.7 | 8.5 | 1.5 | **2** |
-| E expressive vocab | 170 | 28.7 (12.8) | 4.3 | 2.6 | 8.5 | 2.2 | **2** |
-| TR taught receptive | 24 | 12.0 (4.1) | 2.1 | 0.8 | 1.2 | 1.1 | **1** |
-| TE taught expressive | 24 | 5.0 (3.5) | 1.8 | 0.7 | 1.2 | 0.9 | **1** |
-| UR untaught receptive | 12\* | 7.5 (2.1) | 0.3 | 0.4 | 0.6 | 0.2 | **1** (floor) |
-| UE untaught expressive | 12\* | 5.8 (2.4) | 0.5 | 0.5 | 0.6 | 0.3 | **1** (floor) |
-| B blending | 10 | 4.9 (2.2) | 0.04 | 0.4 | 0.5 | 0.0 | **1** (floor) |
-| P phonetic spelling | 92 | 8.5 (21.1) | — | — | — | 2.1 | **prob δ ≈ 0.10** |
-| N nonword | 6 | — | — | — | — | 0.1 | **prob δ ≈ 0.10** |
+| Outcome                | scale | baseline mean (SD) | natural growth | `0.2·SD` | `5 %` scale | `½·growth` |     **adopted δ** |
+| ---------------------- | ----: | -----------------: | -------------: | -------: | ----------: | ---------: | ----------------: |
+| L letter sounds        |    32 |         14.3 (8.7) |            3.2 |      1.7 |         1.6 |        1.6 |             **2** |
+| W word reading         |    79 |         6.3 (11.3) |            2.0 |      2.3 |         4.0 |        1.0 |             **1** |
+| R receptive vocab      |   170 |        35.4 (13.5) |            3.0 |      2.7 |         8.5 |        1.5 |             **2** |
+| E expressive vocab     |   170 |        28.7 (12.8) |            4.3 |      2.6 |         8.5 |        2.2 |             **2** |
+| TR taught receptive    |    24 |         12.0 (4.1) |            2.1 |      0.8 |         1.2 |        1.1 |             **1** |
+| TE taught expressive   |    24 |          5.0 (3.5) |            1.8 |      0.7 |         1.2 |        0.9 |             **1** |
+| UR untaught receptive  |  12\* |          7.5 (2.1) |            0.3 |      0.4 |         0.6 |        0.2 |     **1** (floor) |
+| UE untaught expressive |  12\* |          5.8 (2.4) |            0.5 |      0.5 |         0.6 |        0.3 |     **1** (floor) |
+| B blending             |    10 |          4.9 (2.2) |           0.04 |      0.4 |         0.5 |        0.0 |     **1** (floor) |
+| P phonetic spelling    |    92 |         8.5 (21.1) |              — |        — |           — |        2.1 | **prob δ ≈ 0.10** |
+| N nonword              |     6 |                  — |              — |        — |           — |        0.1 | **prob δ ≈ 0.10** |
 
 \* UR/UE scale length is unconfirmed (absent from the data dictionary), so their
 items `δ` is doubly provisional.
@@ -363,7 +363,7 @@ letter-sounds-vs-word-reading comparison:
 - letter sounds, δ = 2 → `P(benefit ≥ δ) = 0.91`;
 - word reading, δ = 1 → `P(benefit ≥ δ) = 0.91`.
 
-Under a *distribution-based* (`0.2·SD`) principle both would have had δ ≈ 2–3 and
+Under a _distribution-based_ (`0.2·SD`) principle both would have had δ ≈ 2–3 and
 word reading would have read as clearly weaker (`P ≈ 0.64`). The `½-growth` choice
 makes them comparably meaningful, because word reading's slower natural growth
 (~2 items/period) sets a gentler threshold. Neither principle is "right": the
@@ -402,9 +402,9 @@ where it will bite — the floored outcomes and the descriptive tables.
 
 Three riders:
 
-- The **estimand stays mean-based.** The treatment effect is an *average* marginal
+- The **estimand stays mean-based.** The treatment effect is an _average_ marginal
   effect (extra items per child, which aggregates to a cohort total); only its
-  *posterior summary* becomes the median. Decision / expected-utility integrals
+  _posterior summary_ becomes the median. Decision / expected-utility integrals
   still use means.
 - **Raw descriptive distributions** (baseline tables) are skewed and bounded, so
   prefer **median + IQR** over mean ± SD — except for floored measures (P, N),
@@ -434,33 +434,33 @@ work. Direction confidence and magnitude reliability are separate properties.
 
 Labels are a last resort for prose, never a substitute for the numbers. When one
 is unavoidable, use a single odds-based ladder, and always (a) **append the word
-"evidence"** — the label qualifies the *evidence*, not the size of the effect
+"evidence"** — the label qualifies the _evidence_, not the size of the effect
 ("strong evidence that …", never "strong effect"); (b) **name the claim**;
 (c) **show the odds next to the word**; and (d) apply the ladder to whichever
 probability the claim is about. The round-number odds boundaries are deliberate:
-they are *not* the `p = 0.05 / 0.025 / 0.01` images, so they do not smuggle the
+they are _not_ the `p = 0.05 / 0.025 / 0.01` images, so they do not smuggle the
 significance grid back in.
 
-| Posterior probability | Odds | Evidence label |
-|---|---|---|
-| 0.50–0.75 | up to 3:1 | inconclusive |
-| 0.75–0.91 | 3:1 – 10:1 | suggestive |
-| 0.91–0.97 | 10:1 – 30:1 | moderate |
-| 0.97–0.99 | 30:1 – 100:1 | strong |
-| > 0.99 | > 100:1 | very strong |
+| Posterior probability | Odds         | Evidence label |
+| --------------------- | ------------ | -------------- |
+| 0.50–0.75             | up to 3:1    | inconclusive   |
+| 0.75–0.91             | 3:1 – 10:1   | suggestive     |
+| 0.91–0.97             | 10:1 – 30:1  | moderate       |
+| 0.97–0.99             | 30:1 – 100:1 | strong         |
+| > 0.99                | > 100:1      | very strong    |
 
 Run the ladder on **both** claims — direction (`pd`) and meaningful benefit
 (`P(benefit ≥ δ)`) — and report both, because they routinely differ:
 
-| Outcome | direction (`pd`) | meaningful benefit (`P ≥ δ`) |
-|---|---|---|
+| Outcome         | direction (`pd`)                                  | meaningful benefit (`P ≥ δ`)                                         |
+| --------------- | ------------------------------------------------- | -------------------------------------------------------------------- |
 | L letter sounds | 0.999 → 999:1 → **very strong** evidence it helps | 0.91 (δ = 2) → ≈ 10:1 → **moderate** evidence the gain is meaningful |
-| W word reading | 0.989 → 90:1 → **strong** evidence it helps | 0.91 (δ = 1) → ≈ 10:1 → **moderate** evidence the gain is meaningful |
+| W word reading  | 0.989 → 90:1 → **strong** evidence it helps       | 0.91 (δ = 1) → ≈ 10:1 → **moderate** evidence the gain is meaningful |
 
 (Both meaningful-benefit odds land at ≈ 10:1, on the suggestive/moderate border —
 itself a reminder that the odds are the real quantity and the label is a coarse
 handle.) State the **orientation**: the ladder runs from 0.50 toward 1 for the
-*favoured* direction; where an outcome could plausibly be harmful, also report
+_favoured_ direction; where an outcome could plausibly be harmful, also report
 `P(harm ≥ δ)`.
 
 ### 6.5 Reconciliation and implementation
@@ -512,23 +512,23 @@ rerun.
 ## 9. References
 
 - Amrhein, V., Greenland, S., & McShane, B. (2019). Scientists rise up against
-  statistical significance. *Nature*, 567(7748), 305–307.
+  statistical significance. _Nature_, 567(7748), 305–307.
   doi:10.1038/d41586-019-00857-9
 - Burgoyne, K., Duff, F. J., Clarke, P. J., Buckley, S., Snowling, M. J., & Hulme,
   C. (2012). Efficacy of a reading and language intervention for children with Down
-  syndrome: a randomized controlled trial. *Journal of Child Psychology and
-  Psychiatry*, 53(10), 1044–1053. doi:10.1111/j.1469-7610.2012.02557.x
+  syndrome: a randomized controlled trial. _Journal of Child Psychology and
+  Psychiatry_, 53(10), 1044–1053. doi:10.1111/j.1469-7610.2012.02557.x
 - Gelman, A., & Carlin, J. (2014). Beyond power calculations: assessing Type S
-  (sign) and Type M (magnitude) errors. *Perspectives on Psychological Science*,
+  (sign) and Type M (magnitude) errors. _Perspectives on Psychological Science_,
   9(6), 641–651. doi:10.1177/1745691614551642
-- Kass, R. E., & Raftery, A. E. (1995). Bayes factors. *Journal of the American
-  Statistical Association*, 90(430), 773–795. doi:10.1080/01621459.1995.10476572
+- Kass, R. E., & Raftery, A. E. (1995). Bayes factors. _Journal of the American
+  Statistical Association_, 90(430), 773–795. doi:10.1080/01621459.1995.10476572
 - Kruschke, J. K. (2018). Rejecting or accepting parameter values in Bayesian
-  estimation. *Advances in Methods and Practices in Psychological Science*, 1(2),
+  estimation. _Advances in Methods and Practices in Psychological Science_, 1(2),
   270–280. doi:10.1177/2515245918771304
 - Lakens, D., Scheel, A. M., & Isager, P. M. (2018). Equivalence testing for
-  psychological research: a tutorial. *Advances in Methods and Practices in
-  Psychological Science*, 1(2), 259–269. doi:10.1177/2515245918770963
+  psychological research: a tutorial. _Advances in Methods and Practices in
+  Psychological Science_, 1(2), 259–269. doi:10.1177/2515245918770963
 - Makowski, D., Ben-Shachar, M. S., Chen, S. H. A., & Lüdecke, D. (2019). Indices
-  of effect existence and significance in the Bayesian framework. *Frontiers in
-  Psychology*, 10, 2767. doi:10.3389/fpsyg.2019.02767
+  of effect existence and significance in the Bayesian framework. _Frontiers in
+  Psychology_, 10, 2767. doi:10.3389/fpsyg.2019.02767

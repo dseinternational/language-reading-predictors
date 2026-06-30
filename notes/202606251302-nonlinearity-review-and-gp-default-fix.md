@@ -34,20 +34,20 @@ and the small fix made here; the larger recommendations are logged as follow-ups
   `linear_mechanism` swaps a single slope in for floored counts.
 - **Gradient-boosting explore step.** LightGBM is non-linear by construction;
   SHAP reads direction, permutation importance reads magnitude. Its job is to
-  *find* shapes, not estimate them.
+  _find_ shapes, not estimate them.
 
 ## What's sound (keep)
 
 - **GPs reserved for where they're identifiable.** Disabling ITT/joint GPs was
-  *proven*, not assumed: GP-on gave ~1-8 % divergences from the eta -> basis-weight
-  funnel while LOO marginally preferred linear (notes 202604181445, 202604181700,
-  202604181730). Keeping `f_mech` only where phases stack is the right boundary.
+  _proven_, not assumed: GP-on gave ~1-8 % divergences from the eta -> basis-weight
+  funnel while LOO marginally preferred linear. Keeping `f_mech` only where phases
+  stack is the right boundary.
 - **AME reporting is the right antidote to the link.** `tau_summary_itt`
   (`reporting.py`) is a true per-observation g-computation —
   `expit(eta0_i + delta) - expit(eta0_i)` averaged per draw, each child at its own
   sigmoid position — reported on both logit and probability scales.
 - **Link-saturation is reasoned about** (LRP72 refuses to over-read a negative
-  `gamma_int` on a 57 %-floored count, note 202606161416).
+  `gamma_int` on a 57 %-floored count).
 
 ## The fix made here (behaviour-preserving)
 
@@ -56,7 +56,7 @@ and the small fix made here; the larger recommendations are logged as follow-ups
    `pipeline.fit_itt` `.get(..., True)` defaults (`pipeline.py`). They defaulted
    **on**, opposite the `build_joint_model` / `build_mechanism_model` convention
    and the documented policy. Safe only because every current ITT spec
-   (lrp52/53/54/60/60a/74/75) sets both flags explicitly — so a *new* spec that
+   (lrp52/53/54/60/60a/74/75) sets both flags explicitly — so a _new_ spec that
    forgot would silently fit two unidentifiable GPs into the known funnel. With
    the flip, the suite's no-GP stance can't drift, and the LRPITT models inherit
    it. **No behaviour change** for existing models or tests (the GP-on path keeps
@@ -84,23 +84,19 @@ against the edited code (PYTHONPATH-pinned to this worktree).
 - **HSGP adequacy check.** `m`/`c` are hardcoded and the data-driven
   `approx_hsgp_hyperparams` path is dead code (no caller passes `ls_range`,
   `hsgp.py`). Wire one caller, or add a post-fit basis-sufficiency assertion.
-- **One line in METHODS.md** acknowledging GB gain models are near-noise (note
-  202606201500), so the DAG-motivated (not GB-discovered) smooths are a documented
-  choice, not a gap in the explore->confirm loop.
+- **One line in METHODS.md** acknowledging GB gain models are near-noise, so the
+  DAG-motivated (not GB-discovered) smooths are a documented choice, not a gap in
+  the explore->confirm loop.
 
 ## A verification note on the sign convention
 
 The review's first draft flagged `METHODS.md`'s tau-sign wording as "stale". The
 adversarial verifier **removed** that: on `main` (post-#117, `G = 2 - group`,
 positive tau = benefit) the prose and code are consistent. The earlier
-*pre-#117* worktrees still carry `G = group - 1` (negative tau = benefit) and are
+_pre-#117_ worktrees still carry `G = group - 1` (negative tau = benefit) and are
 also internally consistent. There is nothing to fix in either place — recorded
 here because it was a tempting-but-wrong "gap".
 
 ## Related
 
-- `notes/202604181445-lrp52-gp-sensitivity.md` — the LRP52 GP-off decision (LOO vs funnel).
-- `notes/202604181700-lrp55-age-gp-drop.md`, `notes/202604181730-mechanism-models-age-gp-drop-and-docs.md`.
-- `notes/202606161416-lrp72-phonics-route-decoding.md` — link-saturation on floored counts.
-- `notes/202606201500-gb-replication-findings.md` — GB gain models near-noise.
 - `notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md` — the floored-outcome estimand.

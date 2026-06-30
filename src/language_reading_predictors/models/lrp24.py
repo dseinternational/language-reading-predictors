@@ -30,7 +30,7 @@ LRP04 standardised analogue; a target-specific Optuna tune
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
-from language_reading_predictors.models.common import ShapScatterSpec
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
@@ -72,13 +72,9 @@ class LRP24(LevelModel):
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    cv_splits = 51
-    outlier_threshold = None
     exclude = [V.B1EXTO]
     selection_steps = []
-    shap_scatter_specs = [
-        ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
-    ]
+    shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for predictors of taught expressive-vocabulary level "
         "(b1extau), the taught-vocabulary analogue of lrp04. b1exto (Block 1 "

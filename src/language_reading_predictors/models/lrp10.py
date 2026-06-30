@@ -22,12 +22,12 @@ Uniform feature selection (2026-06-21): reduced from the full
 3 predictors via a distance-correlation redundancy filter (dcor >= 0.70)
 plus an importance noise-floor cut, then re-tuned. This supersedes the
 earlier Select01/Select02 construct-driven hand selection. See the
-SelectionStep and notes/202606211200-uniform-gb-fs.md.
+SelectionStep.
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
-from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
@@ -41,7 +41,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.AGESPEAK, V.EWRSWR, V.DEAPPVO, V.ROWPVT, V.TROG
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 2.4964},
@@ -86,12 +86,8 @@ class LRP10(LevelModel):
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    cv_splits = 51
-    outlier_threshold = None
     selection_steps = _SELECTION_STEPS
-    shap_scatter_specs = [
-        ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
-    ]
+    shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for basic concept knowledge level (celf). Uniform "
         "feature selection (2026-06-21) from the full 32-predictor "
@@ -99,5 +95,5 @@ class LRP10(LevelModel):
         "filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), "
         "re-tuned on the reduced set (tuner-inner CV MAE 2.496 -> 2.567). CELF "
         "here is a lexical/semantic concept measure, not grammar. Treat the "
-        "reduced ranking as exploratory. See notes/202606211200-uniform-gb-fs.md."
+        "reduced ranking as exploratory."
     )

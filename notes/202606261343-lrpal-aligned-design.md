@@ -10,8 +10,8 @@ Date: 2026-06-26
 A statistical-model family (`kind="aligned"`, modules `lrpal01–08` + the `lrpal01d`
 dose variant) that compares the two RLI arms on a **like-for-like intervention
 dose** by aligning each child to its own intervention onset, rather than to
-calendar/assessment wave. It answers "after ~40 weeks of the program *from
-onset*, where does each arm sit, and what is that aligned outcome associated
+calendar/assessment wave. It answers "after ~40 weeks of the program _from
+onset_, where does each arm sit, and what is that aligned outcome associated
 with?" — a per-protocol companion to the randomised LRPITT suite and its
 within-person replication (LRPDID). This note records the decisions a future
 reader might question.
@@ -20,12 +20,12 @@ reader might question.
 
 Cumulative sessions (`attend_cumul`) by arm × wave fix the onset and window:
 
-| Wave | Immediate (group 1) | Wait-list (group 2) |
-|---|---|---|
-| t1 | 0 | 0 |
-| t2 | ~73 | **0 (still waiting)** |
-| t3 | ~137 | ~70 |
-| t4 | ~190 | ~127 |
+| Wave | Immediate (group 1) | Wait-list (group 2)   |
+| ---- | ------------------- | --------------------- |
+| t1   | 0                   | 0                     |
+| t2   | ~73                 | **0 (still waiting)** |
+| t3   | ~137                | ~70                   |
+| t4   | ~190                | ~127                  |
 
 So the immediate arm onsets at **t1** and the wait-list arm at **t2** (after its
 wait). Two periods of intervention from onset (~the 40-week program, ~130 sessions)
@@ -49,7 +49,7 @@ randomisation**: the immediate-vs-wait-list contrast at the aligned endpoints
 window at different calendar times and **different ages** (see Decision 2), so
 `beta_cohort` is a confounded cohort/timing association. Accordingly the pipeline
 flags **no** term causal (`causal_terms=()`): every coefficient — cohort, own
-baseline, age-at-onset, ability — is reported as an *association*. The randomised
+baseline, age-at-onset, ability — is reported as an _association_. The randomised
 estimate of record stays in LRPITT/LRPDID.
 
 ### Decision 2 — age-at-onset is the headline confound
@@ -59,7 +59,7 @@ months older** (immediate onset ≈ 83.8 mo at t1; wait-list onset ≈ 87.4 mo a
 Age enters as **age-at-onset** (the age at each arm's own pre-wave), not a fixed
 wave age. In the W exemplar `gamma_A` is negative and credible, so the cohort
 contrast must be read net of this age gap — it is the main reason `beta_cohort`
-(+0.19 logit, ~+1.9 words) is *weaker* than the randomised ITT τ (~+0.44).
+(+0.19 logit, about +1.9 words) is _weaker_ than the randomised ITT τ (about +0.44).
 
 ### Decision 3 — one row per child, **no random intercept**
 
@@ -72,7 +72,7 @@ intercept (unlike the gain/level factor families, which stack periods/timepoints
 Cognitive ability (block design) is a t1-only baseline. For the wait-list arm the
 onset row is t2, where `blocks` is not re-measured — so ability is taken from t1
 for every child, never from the wait-list arm's t2 onset row. (Age-at-onset and the
-own baseline *do* come from the onset row; ability does not.)
+own baseline _do_ come from the onset row; ability does not.)
 
 ### Decision 5 — dose is a collider → sensitivity variant only (`lrpal01d`)
 
@@ -108,7 +108,7 @@ The ROPE-anchored evidence reporting adopted for the suite
 minimally-important difference δ / region of practical equivalence), and flags the
 **Type-M / winner's-curse** inflation of point estimates at small samples. The LRPAL
 reports adopt the **prose** side of this in full: direction is labelled as direction,
-the interval leads, and the Type-M caveat is stated — per-arm *n* is only ~26–28, so
+the interval leads, and the Type-M caveat is stated — per-arm _n_ is only ~26–28, so
 the warning bites harder here than in the pooled suite.
 
 The ROPE/δ **magnitude card** itself (`reporting.rope_summary` + `rope_summary.png`,
@@ -118,7 +118,7 @@ reasons:
 1. **It would mis-frame a confounded association as a treatment benefit.**
    `rope_summary` reports `P(benefit ≥ δ)` for the randomised ITT effect; LRPAL's
    `beta_cohort` is a per-protocol cohort association (Decision 1), not a treatment
-   effect, so a "probability of a *meaningful benefit*" card on it would contradict
+   effect, so a "probability of a _meaningful benefit_" card on it would contradict
    the model's own causal stance.
 2. **The plumbing is not there yet.** `rope_summary` is hard-wired to the ITT
    `tau`/`tau_i`/`eta` parameterisation; the aligned term is `beta_cohort`. The

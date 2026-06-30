@@ -24,8 +24,8 @@ SPEC = ModelSpec(
     mechanism_symbol="E",
     adjustment=["G", "A", "R", "W_pre"],
     # Age GP off, subject random intercept on — see
-    # notes/202604181700-lrp55-age-gp-drop.md and
-    # notes/202604181800-mechanism-random-intercepts.md.
+    #  and
+    #.
     extra={
         "adjust_baseline_symbol": "W",
         "use_age_gp": False,

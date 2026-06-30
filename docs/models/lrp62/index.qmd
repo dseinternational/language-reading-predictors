@@ -69,7 +69,7 @@ measures that have usable spread in the randomised window:
 - **Letter-sound knowledge** $L$ (YARC-LSK) and **phoneme blending** $B$.
 - **Phonetic spelling** $P$ is **excluded.** The measurement-sensitivity audit
   (`scripts/measurement_audit.py`,
-  `notes/202606171000-measurement-sensitivity-audit.md`) found $P$ floored — 78% of
+  ) found $P$ floored — 78% of
   children scored zero at t1 and 64% at t2, with only ~36% moving — so it carries
   little usable signal and would only add noise to the composite. Nonword reading is
   likewise floored and is post-only, so it cannot serve as a baseline-conditioned

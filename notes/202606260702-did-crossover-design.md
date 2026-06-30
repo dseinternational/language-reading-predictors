@@ -18,10 +18,10 @@ shortcuts are wrong.
 
 `attend` (intervention sessions between time points) by phase, both arms:
 
-| Period (window) | Immediate (group 1) | Waitlist (group 2) |
-|---|---|---|
-| P1 (t1→t2) | ~73 sessions (treated) | **0 (untreated)** |
-| P2 (t2→t3) | ~65 (treated, continues) | ~73 (treated — **crossover**) |
+| Period (window) | Immediate (group 1)      | Waitlist (group 2)            |
+| --------------- | ------------------------ | ----------------------------- |
+| P1 (t1→t2)      | ~73 sessions (treated)   | **0 (untreated)**             |
+| P2 (t2→t3)      | ~65 (treated, continues) | ~73 (treated — **crossover**) |
 
 So **waitlist-P1 is the only untreated cell anywhere** in the data; the immediate
 arm is treated in both periods (Burgoyne et al. 2012, the RLI RCT;
@@ -34,13 +34,13 @@ signature: the waitlist's period gain jumps from +2.0 (untreated P1) to +4.5
 
 The cells of a 2 (arm) × 2 (period) design:
 
-| | P1 | P2 |
-|---|---|---|
-| immediate | treated | treated |
-| waitlist | **untreated** | treated |
+|           | P1            | P2      |
+| --------- | ------------- | ------- |
+| immediate | treated       | treated |
+| waitlist  | **untreated** | treated |
 
 The treatment coefficient `delta` is a **difference-in-differences**: the
-waitlist's P1→P2 gain change *minus* the immediate arm's P1→P2 change. With an
+waitlist's P1→P2 gain change _minus_ the immediate arm's P1→P2 change. With an
 intercept, a period (P2-vs-P1) term, and a treated indicator the design matrix has
 three distinct rows — `(period, treated) ∈ {(0,1),(1,1),(0,0)}` — so it is full
 rank and `delta` is identified jointly by (a) the within-period-1 between-arm
@@ -52,11 +52,11 @@ crossover. A child random intercept differences out all **stable** child traits
 
 The phrase "use the waitlist as their own controls" suggests a simple
 before/after on the waitlist arm alone. **That is confounded.** In the waitlist
-arm, P2 is *both* "treated" *and* "later/older", so period and treatment are
+arm, P2 is _both_ "treated" _and_ "later/older", so period and treatment are
 collinear and a waitlist-only model cannot separate the intervention effect from
 maturation. The descriptive data make the trap concrete: the naïve waitlist
 crossover for **receptive vocabulary** is +1.12 items and looks like an effect —
-but the immediate arm's vocabulary accelerated *even more* over the same window
+but the immediate arm's vocabulary accelerated _even more_ over the same window
 (+2.29), so the DiD is **−1.17** (i.e. null, matching the randomised result). The
 apparent vocabulary "effect" was maturation. **The immediate arm is therefore
 essential** as the time/maturation anchor; without it the within-person estimate
@@ -65,7 +65,7 @@ is not interpretable.
 ### Decision 2 — the immediate arm as the time anchor (and its limit)
 
 `beta_period` (the P2-vs-P1 effect) is identified mainly by the immediate arm,
-which is treated in both periods. So it is the *treated-trajectory* time trend,
+which is treated in both periods. So it is the _treated-trajectory_ time trend,
 **not** a pure untreated-maturation trend — it can carry diminishing returns and
 block-2 content. In practice the anchor is small on the logit scale
 (−0.15 to −0.43 across outcomes), so it does not drive `delta`; but it is an
@@ -79,7 +79,7 @@ immediate arm masters the test in P1 and hits the **ceiling**, so its P2 gain
 collapses (means +6.93 → +1.18). A raw-gain DiD reads that collapse as a huge
 "negative time trend" and inflates the estimate to **+6.7 items** (vs the
 randomised +3.7). Modelling the **count** with a logit link fixes this: a child
-near the top of the scale making a small P2 gain is *expected*, not a spurious
+near the top of the scale making a small P2 gain is _expected_, not a spurious
 trend, so the modelled DiD is **+3.4 ≈ RCT +3.6**. This is the central reason the
 family reuses the suite's Beta-Binomial-on-logit / ANCOVA convention (post-count
 conditional on that period's pre-count) rather than differencing scores.
@@ -95,13 +95,13 @@ over the between-arm RCT.
 - **Triangulation, not independent replication.** The DiD shares the waitlist-P1
   untreated cell with the RCT, so the agreement is partly structural. The
   genuinely new evidence is (a) the effect survives within-person differencing of
-  stable traits, and (b) it re-appears in the waitlist's *own* P2 treated cell — a
+  stable traits, and (b) it re-appears in the waitlist's _own_ P2 treated cell — a
   different treated cell — while the immediate arm anchors maturation.
 - **Not a second randomised experiment.** The P2 contrast is not randomised;
   identification leans on parallel trends and the (imperfect, also-treated)
   immediate-arm anchor.
 - **Small n** (26 waitlist children, one untreated period). Regression to the mean
-  and bounded-count headroom both tend to *shrink* `delta`, so a positive estimate
+  and bounded-count headroom both tend to _shrink_ `delta`, so a positive estimate
   is conservative.
 
 ## Results (reporting config)
@@ -109,13 +109,13 @@ over the between-arm RCT.
 `delta` reproduces the single-outcome RCT `tau` for every outcome, and returns the
 null for vocabulary; all six converge cleanly (R-hat ≤ 1.002, 0 divergences):
 
-| Outcome | DiD δ (logit) | δ items | RCT τ / items |
-|---|--:|--:|--:|
-| L letter sounds | +0.56 | +3.4 | +0.58 / +3.6 |
-| W word reading | +0.37 | +2.7 | +0.35 / +2.4 |
-| B blending | +0.44 | +1.0 | +0.45 / +1.0 |
-| TE taught expressive | +0.30 | +1.5 | +0.32 / +1.5 |
-| R receptive vocab | −0.00 | −0.1 | +0.01 / +0.2 |
+| Outcome              | DiD δ (logit) | δ items | RCT τ / items |
+| -------------------- | ------------: | ------: | ------------: |
+| L letter sounds      |         +0.56 |    +3.4 |  +0.58 / +3.6 |
+| W word reading       |         +0.37 |    +2.7 |  +0.35 / +2.4 |
+| B blending           |         +0.44 |    +1.0 |  +0.45 / +1.0 |
+| TE taught expressive |         +0.30 |    +1.5 |  +0.32 / +1.5 |
+| R receptive vocab    |         −0.00 |    −0.1 |  +0.01 / +0.2 |
 
 The session **dose-response** variant (`lrpdid06`) is positive — `beta_dose`
 +0.17 per 1 SD of sessions attended, P(>0) = 0.997 — so the crossover signal scales
@@ -124,7 +124,7 @@ with intervention intensity, not just the binary treated flag.
 ## Implementation
 
 - `factories.build_did_model(prepared, outcome_symbol, *, periods=(0,1),
-  use_child_re=True, use_age=True, dose=False)` — builds on
+use_child_re=True, use_age=True, dose=False)` — builds on
   `load_and_prepare(phase_mode="all")`, subsets to P1/P2, derives `Treated`
   (immediate both periods; waitlist P2 only) and the P2 indicator, and writes
   `eta_base` (the off-treatment linear predictor) as a deterministic so the
@@ -139,6 +139,6 @@ with intervention intensity, not just the binary treated flag.
 
 - Burgoyne, K., Duff, F. J., Clarke, P. J., Buckley, S., Snowling, M. J., &
   Hulme, C. (2012). Efficacy of a reading and language intervention for children
-  with Down syndrome: a randomized controlled trial. *Journal of Child Psychology
-  and Psychiatry*, 53(10), 1044–1053. doi:10.1111/j.1469-7610.2012.02557.x
+  with Down syndrome: a randomized controlled trial. _Journal of Child Psychology
+  and Psychiatry_, 53(10), 1044–1053. doi:10.1111/j.1469-7610.2012.02557.x
   (see `papers/burgoyne-2012.md`).

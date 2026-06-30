@@ -12,18 +12,17 @@ Uniform feature selection (2026-06-21): reduced from the full
 32-predictor :attr:`Predictors.DEFAULT_LEVEL` set (minus the target) to
 7 predictors via a distance-correlation redundancy filter (dcor >= 0.70)
 plus an importance noise-floor cut, then re-tuned. See the SelectionStep
-and notes/202606211200-uniform-gb-fs.md.
+and.
 
 ``LRP04NoConstruct`` is the same-skill variant: it additionally drops
 ``b1exto`` (a bespoke expressive-vocabulary test — the same skill as the
 standardised target ``eowpvt``) to ask what predicts expressive
 vocabulary beyond a concurrent same-skill measure. See
-notes/202606210930-lrp-same-skill-variants.md.
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
-from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
@@ -36,7 +35,7 @@ _SELECTION_STEPS: list[SelectionStep] = [
             V.SPPHON, V.AGE, V.TROG, V.NONWORD, V.APTGRAM, V.ERBNW, V.BLENDING
         ],
         notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 7 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models; see notes/202606211200-uniform-gb-fs.md."
+            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 7 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
         ),
         date="2026-06-21",
         metrics_before={"cv_mae_mean": 6.0503},
@@ -81,12 +80,8 @@ class LRP04(LevelModel):
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    cv_splits = 51
-    outlier_threshold = None
     selection_steps = _SELECTION_STEPS
-    shap_scatter_specs = [
-        ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
-    ]
+    shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for expressive-vocabulary level (eowpvt). Uniform "
         "feature selection (2026-06-21) from the full 32-predictor "
@@ -94,7 +89,7 @@ class LRP04(LevelModel):
         "filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), "
         "re-tuned on the reduced set (tuner-inner CV MAE 6.050 -> 6.159). "
         "Treat the reduced ranking as exploratory. See "
-        "notes/202606211200-uniform-gb-fs.md."
+        "."
     )
 
 
@@ -132,7 +127,7 @@ class LRP04NoConstruct(LRP04):
         SelectionStep(
             removed=[V.B1EXTO],
             notes=(
-                "Same-skill variant of lrp04: drops b1exto, a bespoke taught expressive-vocabulary test — the same skill as the target eowpvt (standardised expressive vocabulary), measured by a different instrument — to ask what predicts expressive vocabulary beyond a concurrent same-skill measure. Other constructs (receptive vocabulary, reading, articulation) are kept deliberately, to be seen independently. Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+                "Same-skill variant of lrp04: drops b1exto, a bespoke taught expressive-vocabulary test — the same skill as the target eowpvt (standardised expressive vocabulary), measured by a different instrument — to ask what predicts expressive vocabulary beyond a concurrent same-skill measure. Other constructs (receptive vocabulary, reading, articulation) are kept deliberately, to be seen independently. Re-tuned on the reduced set. "
             ),
             date="2026-06-21",
             metrics_before={"cv_mae_mean": 6.1592},
@@ -140,5 +135,5 @@ class LRP04NoConstruct(LRP04):
         ),
     ]
     notes = (
-        "Same-skill variant of lrp04: drops b1exto (bespoke expressive vocabulary, the same skill as the standardised target eowpvt) to ask what predicts expressive vocabulary beyond a concurrent same-skill measure. Other constructs kept visible. Re-tuned on the reduced set. See notes/202606210930-lrp-same-skill-variants.md."
+        "Same-skill variant of lrp04: drops b1exto (bespoke expressive vocabulary, the same skill as the standardised target eowpvt) to ask what predicts expressive vocabulary beyond a concurrent same-skill measure. Other constructs kept visible. Re-tuned on the reduced set. "
     )

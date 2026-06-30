@@ -38,6 +38,14 @@ class ShapScatterSpec:
     """Free-text label for console output."""
 
 
+# The standard single-entry SHAP scatter spec shared across the GB models
+# (#82): every predictor, SHAP auto-colouring. Models with bespoke scatter
+# needs (e.g. LRP01) still declare their own list.
+DEFAULT_SHAP_SCATTER_SPECS: tuple[ShapScatterSpec, ...] = (
+    ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
+)
+
+
 @dataclass
 class SelectionStep:
     """Record of a single feature-selection decision.
@@ -56,7 +64,7 @@ class SelectionStep:
     or near the noise floor under both views — but the new
     ``permutation_importance.csv`` is the right evidence base for any
     future variant that wants to re-evaluate a drop. See
-    ``notes/202605141000-code-review-refit-results.md`` for the deltas.
+     for the deltas.
     """
 
     removed: list[str] = field(default_factory=list)

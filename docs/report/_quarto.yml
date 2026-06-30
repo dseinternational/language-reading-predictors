@@ -23,8 +23,8 @@ bibliography: references.bib
 csl: apa.csl
 
 book:
-  output-file: language-reading-development-report
-  title: "Modelling language and reading development in children with Down syndrome"
+  output-file: language-reading-predictors-report
+  title: "Predictors of progress in language and reading skills for children with Down syndrome"
   subtitle: "Predictors of progress and the effect of intervention — an exploratory Bayesian study"
   abstract: |
     Children with Down syndrome typically show delayed and uneven development of spoken language and reading. Families and educators want practical, interpretable evidence: which skills can be expected to progress, how far targeted teaching helps, and which earlier skills predict later progress. This exploratory study re-analyses longitudinal data from a randomised waitlist-crossover trial of a structured reading and language intervention (Burgoyne et al., 2012), spanning vocabulary, grammar, speech and early reading across four measurement points.

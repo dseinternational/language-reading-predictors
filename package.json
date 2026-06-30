@@ -14,9 +14,12 @@
   "author": "Down Syndrome Education International",
   "private": true,
   "devDependencies": {
-    "cspell": "10.0.1"
+    "cspell": "10.0.1",
+    "prettier": "3.9.1"
   },
   "scripts": {
-    "spellcheck": "cspell --show-suggestions --show-context \"**/*.md\" \"docs/**/*.qmd\""
+    "spellcheck": "cspell --show-suggestions --show-context \"**/*.md\" \"docs/**/*.qmd\"",
+    "format": "node scripts/format-markdown.mjs --write",
+    "format:check": "node scripts/format-markdown.mjs --check"
   }
 }

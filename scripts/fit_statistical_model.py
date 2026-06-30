@@ -33,11 +33,17 @@ from language_reading_predictors.statistical_models import (
     lrp58,
     lrp59,
     lrp62,
+    lrp67,
+    lrp65,
+    lrp64,
     lrp71,
     lrp72,
     lrp72base,
     lrp73,
     lrp73base,
+    lrp77,
+    lrp77a,
+    lrp77base,
     lrpitt01,
     lrpitt02,
     lrpitt03,
@@ -70,6 +76,8 @@ from language_reading_predictors.statistical_models import (
     lrpdid04,
     lrpdid05,
     lrpdid06,
+    lrpdid07,
+    lrpdid07base,
     lrpgf01,
     lrpgf01b,
     lrpgf02,
@@ -103,6 +111,7 @@ from language_reading_predictors.statistical_models import (
     lrpal06,
     lrpal07,
     lrpal08,
+    lrpmm01,
 )
 
 
@@ -165,6 +174,8 @@ MODELS = {
     "lrpdid04": lrpdid04,  # TE taught-expressive (vs lrpitt02)
     "lrpdid05": lrpdid05,  # R  receptive-vocab   (vs lrpitt05)
     "lrpdid06": lrpdid06,  # W  dose-response     (variant of lrpdid01)
+    "lrpdid07": lrpdid07,  # L  period-resolved dose-response (#135)
+    "lrpdid07base": lrpdid07base,  # L  pooled-dose comparator to lrpdid07
     "lrp56": lrp56,
     "lrp57": lrp57,
     "lrp58": lrp58,
@@ -172,6 +183,13 @@ MODELS = {
     "lrp59": lrp59,
     # LRP62: reading-route decomposition (phonics-route composite mediation).
     "lrp62": lrp62,
+    # LRP67: latent change-score model — within-child predictors of reading
+    # change (the longitudinal extension of LRP65's between-child story).
+    "lrp67": lrp67,
+    # LRP65: between-child adjusted model — independent T1 predictors of gain.
+    "lrp65": lrp65,
+    # LRP64: two-mediator decomposition (letter-sound + expressive vocab -> W).
+    "lrp64": lrp64,
     # LRP70 (celf moderator) is reserved but deferred pending a DAG review of
     # conditioning on a descendant of L. LRP71 (eowpvt) is the first built
     # interaction model.
@@ -184,6 +202,12 @@ MODELS = {
     # no-interaction companion.
     "lrp73": lrp73,
     "lrp73base": lrp73base,
+    # LRP77 (#104 Phase 2): period-resolved dose-response on word reading.
+    # lrp77base is the pooled-dose comparator (LOO); lrp77a the ability-adjusted
+    # sensitivity fit (no-g->dose assumption).
+    "lrp77": lrp77,
+    "lrp77base": lrp77base,
+    "lrp77a": lrp77a,
     # LRPGF / LRPLF: DAG-focused gain-factors / level-factors families (issue
     # #127). Beta-Binomial-on-logit with a child random intercept; only the
     # randomised group / on-intervention term is causal, every other coefficient
@@ -236,6 +260,7 @@ MODELS = {
     "lrpal06": lrpal06,
     "lrpal07": lrpal07,
     "lrpal08": lrpal08,
+    "lrpmm01": lrpmm01,  # correlated-domain-factor measurement model (#134)
 }
 
 
@@ -244,8 +269,8 @@ def main() -> None:
     parser.add_argument(
         "model",
         help=(
-            "Model id (lrpitt01..lrpitt15b, lrp56..lrp59, lrp62, lrp71, lrp72, "
-            "lrp73) or 'all'"
+            "Model id (for example lrpitt01, lrpdid01, lrpgf01, lrplf01, "
+            "lrpal01, lrp77, lrp65, lrp67) or 'all'"
         ),
     )
     parser.add_argument(

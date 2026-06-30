@@ -125,6 +125,26 @@ def test_load_and_prepare_all_phases(tmp_path):
     assert (phase_counts == 15).all()
 
 
+def test_load_and_prepare_span_one_row_per_child(tmp_path):
+    df = _make_synthetic_long(n_children=18, seed=5)
+    # Block design is a t1-only baseline (NaN at later waves), like the real data.
+    df[V.BLOCKS] = np.nan
+    df.loc[df[V.TIME] == 1, V.BLOCKS] = np.arange(18, dtype=float)
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    prep = load_and_prepare(
+        path=p, phase_mode="span", post_time=4, covariates=(V.BLOCKS,)
+    )
+    # One row per child; the t1-only block design survives (span pre = t1).
+    assert prep.phase_mode == "span"
+    assert prep.n_phases == 1
+    assert prep.n_obs == 18
+    assert prep.n_children == 18
+    assert V.BLOCKS in prep.covariates
+    assert prep.covariates[V.BLOCKS].shape == (18,)
+    assert prep.covariates[V.BLOCKS].mean() == pytest.approx(0.0, abs=1e-9)
+
+
 def test_load_and_prepare_drops_missing_pre(tmp_path):
     df = _make_synthetic_long(n_children=10, seed=3)
     # Introduce missing pre-score for one child at t=1.
@@ -351,3 +371,28 @@ def test_load_and_prepare_aligned_ability_merged_from_t1(tmp_path):
     z = prep.covariates[V.BLOCKS]
     assert np.all(np.isfinite(z))  # filled for every child incl. wait-list onset rows
     assert z.mean() == pytest.approx(0.0, abs=1e-10)
+
+
+def test_load_and_prepare_aligned_requires_dose_when_requested(tmp_path):
+    """Dose variants drop rows with missing aligned-window cumulative sessions."""
+    df = _make_synthetic_long(n_children=12, seed=23)
+    dose_by_child = {
+        sid: 80.0 + i for i, sid in enumerate(sorted(df[V.SUBJECT_ID].unique()))
+    }
+    df[V.ATTEND_CUMUL] = df[V.SUBJECT_ID].map(dose_by_child)
+    sid = df[V.SUBJECT_ID].iloc[0]
+    grp = int(df.loc[df[V.SUBJECT_ID] == sid, V.GROUP].iloc[0])
+    aligned_post_t = 3 if grp == 1 else 4
+    df.loc[
+        (df[V.SUBJECT_ID] == sid) & (df[V.TIME] == aligned_post_t),
+        V.ATTEND_CUMUL,
+    ] = np.nan
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+
+    with pytest.warns(UserWarning, match="dropped 1"):
+        prep = load_and_prepare_aligned(path=p, include_dose=True)
+
+    assert prep.n_obs == 11
+    assert "dose" in prep.covariates
+    assert np.all(np.isfinite(prep.covariates["dose"]))
