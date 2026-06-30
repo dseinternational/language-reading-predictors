@@ -59,6 +59,7 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
+from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_aligned,
@@ -974,9 +975,9 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # A joint model may target an explicit outcome set (e.g. the taught-vs-not-
     # taught contrast in LRPITT15/15b); load exactly those so the complete-case mask is
     # not driven by the eight standardised outcomes. Defaults to ITT_OUTCOMES.
-    joint_outcomes = spec.extra.get("outcomes")
-    if joint_outcomes is not None:
-        prepared = load_and_prepare(phase_mode="itt", outcomes=tuple(joint_outcomes))
+    joint_outcomes = tuple(spec.extra.get("outcomes") or ITT_OUTCOMES)
+    if "outcomes" in spec.extra:
+        prepared = load_and_prepare(phase_mode="itt", outcomes=joint_outcomes)
     else:
         prepared = load_and_prepare(phase_mode="itt")
     ctx.prepared = prepared
@@ -987,7 +988,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     built = _factories.build_joint_model(
         prepared,
-        outcomes=spec.extra.get("outcomes"),
+        outcomes=joint_outcomes,
         use_age_gp=spec.extra.get("use_age_gp", False),
         partial_pool_age_gp=spec.extra.get("partial_pool_age_gp", True),
         use_residual_correlation=spec.extra.get("use_residual_correlation", False),
@@ -1000,7 +1001,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or joint_outcomes[0])
 
     _run_sampling_and_loo(ctx)
 
