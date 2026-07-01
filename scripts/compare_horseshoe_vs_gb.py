@@ -35,6 +35,7 @@ Spearman correlation + top-k overlap for the dated ``notes/`` entry.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -63,15 +64,18 @@ def column_to_symbol_map() -> dict[str, str]:
 def member_to_symbol(member: str, col2sym: dict[str, str]) -> str | None:
     """Resolve a GB feature name to its construct symbol.
 
-    Tries an exact column match first, then a substring match so wave/baseline
-    suffixes or prefixes (e.g. ``yarclet_t1``, ``t1_yarclet``) still resolve. The
-    longest matching stem wins, so ``b1retau`` is not shadowed by a shorter stem.
-    Returns ``None`` for demographic-only / unmapped columns.
+    Tries an exact column match first, then matches a stem against the member's
+    underscore/space-separated **tokens** so wave/baseline variants (e.g.
+    ``yarclet_t1``, ``t1_yarclet``) still resolve, while unrelated columns that
+    merely *contain* a short stem as a substring do **not** (e.g. ``agespeak`` /
+    ``agebooks`` must not map to the ``age`` construct). The longest matching stem
+    wins for a defensive tie-break. Returns ``None`` for unmapped columns.
     """
     m = str(member).strip().lower()
     if m in col2sym:
         return col2sym[m]
-    hits = [(stem, sym) for stem, sym in col2sym.items() if stem in m]
+    tokens = set(re.split(r"[_\s]+", m))
+    hits = [(stem, sym) for stem, sym in col2sym.items() if stem in tokens]
     if not hits:
         return None
     return max(hits, key=lambda kv: len(kv[0]))[1]

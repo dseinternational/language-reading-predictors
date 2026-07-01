@@ -86,13 +86,13 @@ weak tail; the top-3 story is stable. Pin at reporting tier.)
 
 | Construct            | HS rank | P(\|β\|>δ) | GB rank | GB perm-imp |
 | -------------------- | ------: | ---------: | ------: | ----------: |
-| expressive vocab `E` |       1 |      0.991 |       3 |       0.127 |
-| letter sounds `L`    |       2 |      0.990 |       2 |       1.005 |
-| grammar `T`          |       3 |      0.875 |       7 |       0.020 |
-| receptive vocab `R`  |       4 |      0.593 |      10 |      -0.005 |
-| blending `B`         |       5 |      0.585 |       6 |       0.030 |
-| age                  |       6 |      0.441 |       5 |       0.047 |
-| basic concepts `F`   |       7 |      0.262 |       8 |       0.016 |
+| expressive vocab `E` |       1 |      0.996 |       3 |       0.127 |
+| letter sounds `L`    |       2 |      0.993 |       2 |       1.005 |
+| grammar `T`          |       3 |      0.892 |       6 |       0.020 |
+| age                  |       4 |      0.710 |      10 |      -0.035 |
+| receptive vocab `R`  |       5 |      0.703 |       9 |      -0.005 |
+| blending `B`         |       6 |      0.638 |       5 |       0.030 |
+| basic concepts `F`   |       7 |      0.268 |       7 |       0.016 |
 
 ## Reading
 
@@ -109,10 +109,14 @@ weak tail; the top-3 story is stable. Pin at reporting tier.)
     interactions/nonlinearity the additive horseshoe cannot, so these three are
     the constructs to report with a "importance is model-dependent" caveat.
   - Level: the horseshoe promotes grammar (`T`, rank 3) above where gradient
-    boosting places it (rank 7). Gradient boosting's third-ranked construct for
-    level is **phonetic spelling (`P`)**, which is _structurally absent_ from the
-    horseshoe set (a floored / post-only measure excluded by design) — so a top-3
-    overlap of 2/3 here is the ceiling, not a miss.
+    boosting places it (rank 6), and ranks **age** 4th (`P=0.71`) while gradient
+    boosting ranks it last (10th, near-zero permutation importance) — the additive
+    horseshoe reads a marginal age–reading association that the tree ensemble
+    attributes to the correlated vocabulary/letter constructs instead. Gradient
+    boosting's third-ranked construct for level is **phonetic spelling (`P`)**,
+    which is _structurally absent_ from the horseshoe set (a floored / post-only
+    measure excluded by design) — so a top-3 overlap of 2/3 here is the ceiling,
+    not a miss.
 
 - **Caveats.** n ≈ 54 children; horseshoe intervals are wide by design.
   Gain associations are between-child (one row per child, `W_last | W_T1`); level

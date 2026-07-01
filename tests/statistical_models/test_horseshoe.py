@@ -77,9 +77,11 @@ def test_horseshoe_gain_builds(tmp_path):
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
 
 
-def test_horseshoe_level_builds(tmp_path):
-    """Level framing (levels): subject random intercept + age slope + horseshoe over
-    concurrent standardised levels; no own-baseline term."""
+def test_horseshoe_level_builds_age_as_predictor(tmp_path):
+    """Level framing (levels): subject random intercept + horseshoe over concurrent
+    standardised levels; no own-baseline term. Because ``age`` is in the predictor
+    list it is ranked as a horseshoe coefficient and the separate unshrunk
+    ``gamma_A`` slope is suppressed, so age is not double-counted (#160 review)."""
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="levels")
     built = build_horseshoe_model(
@@ -89,13 +91,26 @@ def test_horseshoe_level_builds(tmp_path):
     names = {v.name for v in built.model.free_RVs}
     assert _HS_CORE.issubset(names)
     assert "gamma_own" not in names  # level model is concurrent, not baseline-conditioned
-    assert "gamma_A" in names  # age enters as a fixed slope
+    assert "gamma_A" not in names  # age is horseshoe-ranked, so no separate fixed slope
     assert "u_child_raw" in names  # non-centred subject random intercept
-    assert built.model["beta"].eval().shape == (len(_PREDICTORS),)
+    assert built.model["beta"].eval().shape == (len(_PREDICTORS),)  # incl. age
 
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=2)
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_horseshoe_level_age_adjusted_when_not_a_predictor(tmp_path):
+    """When age is *not* a horseshoe predictor, the fixed ``gamma_A`` age slope is
+    added (age adjusted for but not ranked) — the complement of the guard above."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="levels")
+    built = build_horseshoe_model(
+        prep, outcome_symbol="W", predictors=["L", "R", "E", "T"], gain=False
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_A" in names  # age adjusted for, not ranked
+    assert built.model["beta"].eval().shape == (4,)  # no age column in the design
 
 
 def test_horseshoe_gain_requires_span_or_itt(tmp_path):

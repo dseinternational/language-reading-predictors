@@ -24,6 +24,15 @@ ranking if ranking is not None else "No predictor ranking (run at test/reporting
   toward zero (noise-like); large means it escaped the global pull.
 - `sign`: posterior-mean direction of the association.
 
+::: {.callout-note title="Missing values are mean-imputed"}
+Unlike the gradient-boosting reference (LightGBM handles `NaN` natively), PyMC
+cannot take missing inputs, so any missing standardised predictor value is
+mean-imputed (0 on the standardised scale) before fitting. This is a sensitivity
+read rather than a calibrated fit, so mean-imputation is acceptable — but a
+construct with more missingness is pulled toward the null, so read its rank as a
+lower bound on its importance.
+:::
+
 ### Agreement with the gradient-boosting ranking
 
 ```{python}

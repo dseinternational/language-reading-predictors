@@ -2000,6 +2000,13 @@ def build_horseshoe_model(
     is the concurrent level framing (``phase_mode="levels"``): outcome level with a
     subject random intercept for the repeated waves, predictors are standardised
     **same-wave** levels. Beta-Binomial likelihood on the outcome count either way.
+
+    Age handling: when ``"age"`` is in ``predictors`` it is ranked as a horseshoe
+    coefficient like any other construct (so it appears in the ranking and is
+    comparable to the GB ranking, which includes age). In that case the separate
+    unshrunk ``gamma_A`` age slope is **suppressed** even if ``include_age=True``,
+    to avoid double-counting age; ``gamma_A`` is only added when age is adjusted for
+    but not itself ranked.
     """
     if gain and prepared.phase_mode not in {"span", "itt"}:
         raise ValueError(
@@ -2018,6 +2025,7 @@ def build_horseshoe_model(
 
     post = prepared.post_counts[outcome_symbol].astype(np.int64)
     N = prepared.n_trials[outcome_symbol]
+    predictors = list(predictors)
     lang = tuple(language_composite_symbols)
     if gain:
         resolved = [_resolve_adjusted_predictor(prepared, k, lang) for k in predictors]
@@ -2044,7 +2052,12 @@ def build_horseshoe_model(
             child_idx_d = pm.Data(
                 "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
             )
-            if include_age:
+            # Age is ranked as a horseshoe predictor when it is in ``predictors``
+            # (so it competes under the same shrinkage as every other construct and
+            # appears in the ranking). Adding a separate unshrunk ``gamma_A`` too
+            # would double-count age and make its ranking uninterpretable (#160
+            # review); only add the fixed age slope when age is *not* a predictor.
+            if include_age and "age" not in predictors:
                 A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
                 gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
                 eta = eta + gamma_A * A_std_d

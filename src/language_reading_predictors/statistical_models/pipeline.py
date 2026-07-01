@@ -2503,8 +2503,16 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     _run_sampling_and_loo(ctx)
 
-    coupling = "gamma_own" if gain else "gamma_A"
-    diag_vars = ["alpha", coupling, "kappa", "hs_tau", "hs_c2", "beta"]
+    # Coupling term present in the model: gamma_own (gain) or the fixed age slope
+    # gamma_A (level) — but the level model suppresses gamma_A when age is itself a
+    # horseshoe-ranked predictor (build_horseshoe_model), so only list it then.
+    if gain:
+        coupling_vars = ["gamma_own"]
+    elif "age" not in predictors:
+        coupling_vars = ["gamma_A"]
+    else:
+        coupling_vars = []
+    diag_vars = ["alpha", *coupling_vars, "kappa", "hs_tau", "hs_c2", "beta"]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
 

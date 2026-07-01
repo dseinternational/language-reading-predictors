@@ -29,17 +29,21 @@ def cmp_mod():
     return module
 
 
-def test_member_to_symbol_exact_substring_and_longest(cmp_mod):
-    col2sym = {"row": "X", "rowpvt": "R", "yarclet": "L", "age": "age"}
+def test_member_to_symbol_token_based(cmp_mod):
+    col2sym = {"rowpvt": "R", "yarclet": "L", "age": "age"}
     # Exact column match.
     assert cmp_mod.member_to_symbol("yarclet", col2sym) == "L"
-    # Wave/baseline suffix still resolves via substring.
+    assert cmp_mod.member_to_symbol("rowpvt", col2sym) == "R"
+    # Wave/baseline suffix or prefix resolves as a token.
     assert cmp_mod.member_to_symbol("yarclet_t1", col2sym) == "L"
     assert cmp_mod.member_to_symbol("t1_yarclet", col2sym) == "L"
-    # Longest matching stem wins ("rowpvt" beats the shorter "row").
-    assert cmp_mod.member_to_symbol("rowpvt", col2sym) == "R"
-    # Covariate construct.
+    # Covariate construct (exact + tokenised).
     assert cmp_mod.member_to_symbol("age", col2sym) == "age"
+    assert cmp_mod.member_to_symbol("age_t2", col2sym) == "age"
+    # Substring-only collisions must NOT map to `age` (the #160 review bug):
+    # `agespeak` / `agebooks` contain "age" but are not the age construct.
+    assert cmp_mod.member_to_symbol("agespeak", col2sym) is None
+    assert cmp_mod.member_to_symbol("agebooks", col2sym) is None
     # Unmapped demographic column -> None.
     assert cmp_mod.member_to_symbol("gender", col2sym) is None
 
