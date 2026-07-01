@@ -112,6 +112,8 @@ from language_reading_predictors.statistical_models import (
     lrpal07,
     lrpal08,
     lrpmm01,
+    lrphs01,
+    lrphs02,
 )
 
 
@@ -261,6 +263,8 @@ MODELS = {
     "lrpal07": lrpal07,
     "lrpal08": lrpal08,
     "lrpmm01": lrpmm01,  # correlated-domain-factor measurement model (#134)
+    "lrphs01": lrphs01,  # horseshoe ranking cross-check - word-reading gain (#116 Phase E)
+    "lrphs02": lrphs02,  # horseshoe ranking cross-check - word-reading level (#116 Phase E)
 }
 
 
