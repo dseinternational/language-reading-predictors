@@ -163,6 +163,54 @@ def predictor_slope_prior(sigma: float = 0.5) -> Continuous:
 
 
 # ---------------------------------------------------------------------------
+# Regularized ("Finnish") horseshoe (LRPHS, #116 Phase E)
+# ---------------------------------------------------------------------------
+# Global-local shrinkage prior for the standardised-predictor coefficients of the
+# horseshoe ranking models (Piironen & Vehtari 2017, doi:10.1214/17-EJS1337SI):
+#
+#   tau       ~ HalfCauchy(tau0)                         # global scale
+#   lambda_k  ~ HalfCauchy(1)                            # per-predictor local scale
+#   c^2       ~ InverseGamma(slab_df/2, slab_df*slab_scale^2/2)   # slab (heavy-tail cap)
+#   lambda_tilde_k = sqrt(c^2 * lambda_k^2 / (c^2 + tau^2 * lambda_k^2))
+#   beta_k    ~ Normal(0, tau * lambda_tilde_k)          # non-centred (see factories)
+#
+# The scalar components are panelled/tabled here; the vector lambda + the
+# non-centred coefficients are assembled in ``factories._build_horseshoe_betas``.
+
+
+def horseshoe_tau_prior(tau0: float = 0.1) -> Continuous:
+    """Horseshoe global shrinkage tau ~ HalfCauchy(0.1) by default.
+
+    (Parametrised by ``tau0``; the table reports the default scale.) The global
+    scale pulls all coefficients toward zero; the expected number of relevant
+    predictors sets it via ``tau0 ~ p0/(D-p0) * 1/sqrt(N)``. For the pilot
+    (~11 constructs, n~54, a handful expected relevant) this is ~0.1.
+    """
+    return pz.HalfCauchy(beta=tau0)
+
+
+def horseshoe_local_prior() -> Continuous:
+    """Horseshoe per-predictor local shrinkage lambda ~ HalfCauchy(1).
+
+    The heavy Cauchy tail lets a genuinely large coefficient escape the global
+    pull toward zero (the "spike-and-slab" behaviour), so relevant predictors are
+    not over-shrunk while noise predictors collapse to ~0.
+    """
+    return pz.HalfCauchy(beta=1.0)
+
+
+def horseshoe_slab_prior(slab_scale: float = 2.0, slab_df: float = 4.0) -> Continuous:
+    """Regularized-horseshoe slab c^2 ~ InverseGamma(2, 8) by default.
+
+    (``InverseGamma(slab_df/2, slab_df*slab_scale^2/2)``; defaults slab_scale=2,
+    slab_df=4 give ``InverseGamma(2, 8)``.) Caps the effective scale of the
+    largest coefficients at ~``slab_scale`` on the logit scale, regularising the
+    Cauchy tail so the sampler does not chase implausibly large logit effects.
+    """
+    return pz.InverseGamma(alpha=slab_df / 2.0, beta=slab_df * slab_scale**2 / 2.0)
+
+
+# ---------------------------------------------------------------------------
 # Registry - used to render the prior panel in every report
 # ---------------------------------------------------------------------------
 
@@ -190,6 +238,9 @@ _EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
     "b_path": b_path_prior,
     "sigma_mediator": sigma_mediator_prior,
     "eta_partial_pool": eta_partial_pool_prior,
+    "hs_tau": horseshoe_tau_prior,
+    "hs_lambda": horseshoe_local_prior,
+    "hs_c2": horseshoe_slab_prior,
 }
 
 ALL_PRIORS: dict[str, "callable[[], Continuous]"] = {**SHARED_PRIORS, **_EXTRA_PRIORS}
@@ -217,6 +268,9 @@ _ROLE_BY_CTOR: dict[str, str] = {
     "eta_tau": "gp",
     "ell": "gp",
     "eta_partial_pool": "gp",
+    "hs_tau": "nuisance",
+    "hs_lambda": "nuisance",
+    "hs_c2": "nuisance",
 }
 
 # Map a registered PyMC RV name to the shared-prior constructor that built it.
@@ -257,6 +311,12 @@ _RV_TO_CTOR: dict[str, str] = {
     "eta_tau": "eta_tau",
     "ell": "ell",
     "eta_partial_pool": "eta_partial_pool",
+    # Regularized-horseshoe shrinkage hyperparameters (LRPHS, #116 Phase E). The
+    # coefficient vector ``beta`` is a Deterministic (tau * lambda_tilde * hs_z),
+    # not a free RV, so it is not a table row; ``hs_z`` is documented inline below.
+    "hs_tau": "hs_tau",
+    "hs_lambda": "hs_lambda",
+    "hs_c2": "hs_c2",
 }
 
 # Inline priors created directly in the factories (not via a named constructor),
@@ -282,6 +342,14 @@ _INLINE_PRIORS: dict[str, dict[str, str]] = {
         "distribution": "Normal(0, 1)",
         "rationale": (
             "Standard-normal non-centred period-dose offset; scaled by sigma_dose."
+        ),
+    },
+    "hs_z": {
+        "role": "nuisance",
+        "distribution": "Normal(0, 1)",
+        "rationale": (
+            "Standard-normal non-centred horseshoe coefficient offset; scaled by "
+            "tau * lambda_tilde to give beta (LRPHS)."
         ),
     },
 }

@@ -1,0 +1,49 @@
+## Results
+
+An independent Bayesian sensitivity check on the gradient-boosting predictor
+ranking. Every predictor enters as a standardised term (per 1 SD, logit scale)
+and the coefficients share a regularized (Finnish) horseshoe prior, so noise
+predictors collapse toward zero while genuinely predictive ones escape via the
+heavy local tail. Predictors are ranked by posterior `P(|beta| > delta)`. These
+are **adjusted associations, not causal effects** — the randomised causal claim
+lives in the ITT suite, not here.
+
+### Predictor ranking
+
+```{python}
+# | echo: false
+ranking = _csv("predictor_ranking.csv")
+ranking if ranking is not None else "No predictor ranking (run at test/reporting tier)."
+```
+
+- `p_abs_gt_delta`: posterior `P(|beta| > delta)` with `delta` on the logit /
+  per-SD scale — the ranking key (the horseshoe analogue of permutation importance).
+- `beta_mean` / `beta_sd` / `beta_hdi_3` / `beta_hdi_97`: the standardised
+  coefficient's posterior mean, SD and 94% HDI.
+- `lambda_mean`: mean local shrinkage — small means the predictor was shrunk
+  toward zero (noise-like); large means it escaped the global pull.
+- `sign`: posterior-mean direction of the association.
+
+::: {.callout-note title="Missing values are mean-imputed"}
+Unlike the gradient-boosting reference (LightGBM handles `NaN` natively), PyMC
+cannot take missing inputs, so any missing standardised predictor value is
+mean-imputed (0 on the standardised scale) before fitting. This is a sensitivity
+read rather than a calibrated fit, so mean-imputation is acceptable — but a
+construct with more missingness is pulled toward the null, so read its rank as a
+lower bound on its importance.
+:::
+
+### Agreement with the gradient-boosting ranking
+
+```{python}
+# | echo: false
+compare = _csv("horseshoe_vs_gb.csv")
+compare if compare is not None else "GB comparison not generated for this run (see the dated notes/ entry)."
+```
+
+This is a **construct-level** comparison: the horseshoe ranks the measure
+constructs, while the gradient-boosting *cluster* ranking groups its 34 raw
+columns into distance-correlation clusters. Broad agreement is reassurance that
+the ranking reflects signal in the data rather than a tree-method artefact;
+divergences flag constructs whose apparent importance is method-dependent. See
+the dated `notes/` entry for the rank-correlation and top-k overlap.
