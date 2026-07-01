@@ -55,9 +55,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from dse_research_utils.ml.importance import (
+    grouped_permutation_importance as _grouped_perm_deltas,
+)
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
-from sklearn.metrics import root_mean_squared_error
 
 from language_reading_predictors.data_variables import Predictors
 from language_reading_predictors.models.base_pipeline import _OUTPUT_DIR, _clear_directory
@@ -155,36 +157,6 @@ def run_stages(cfg, run, *, cluster_cutoff=0.4, do_cluster=True, do_shap=True, d
 
 
 # ── cluster-level (grouped) permutation importance ─────────────────────────────
-def _grouped_perm_deltas(estimators, X, y, test_indices, cluster_cols, *, n_repeats, seed):
-    """Joint (grouped) out-of-fold permutation deltas, one block per cluster.
-
-    Pure-numeric core of :func:`cluster_permutation_importance`, split out so the
-    headline grouped-shuffle metric is unit-testable without a pipeline. For each
-    held-out fold it permutes ALL of a cluster's columns together (one row-permutation
-    per repeat applied to the whole block), which removes the within-cluster
-    substitution dilution that deflates per-feature scores. The RNG is reset to
-    ``seed`` at the start of each fold, mirroring ``permutation_importance_analysis``
-    (which passes ``random_state=cfg.random_seed`` per fold). ``cluster_cols`` maps
-    cluster id -> column *positions* in ``X``. Returns cluster id -> array of deltas
-    (held-out RMSE rise when the block is permuted; positive = the cluster was useful).
-    """
-    y = np.asarray(y, dtype=float)
-    deltas: dict[int, list[float]] = {c: [] for c in cluster_cols}
-    for est, val_idx in zip(estimators, test_indices):
-        X_val = X.iloc[val_idx]
-        y_val = y[val_idx]
-        base_rmse = root_mean_squared_error(y_val, est.predict(X_val))
-        n = len(X_val)
-        rng = np.random.default_rng(seed)  # reset per fold (matches the per-feature loop)
-        for c, cols in cluster_cols.items():
-            for _ in range(n_repeats):
-                perm = rng.permutation(n)
-                Xp = X_val.copy()
-                Xp.iloc[:, cols] = X_val.iloc[perm, cols].to_numpy()  # joint block shuffle
-                deltas[c].append(root_mean_squared_error(y_val, est.predict(Xp)) - base_rmse)
-    return {c: np.asarray(v) for c, v in deltas.items()}
-
-
 def cluster_permutation_importance(pipe, clusters_by_feature, *, n_repeats):
     """Joint/grouped out-of-fold permutation importance, one block per cluster.
 

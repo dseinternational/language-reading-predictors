@@ -12,6 +12,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
+from dse_research_utils.statistics.evidence import evidence_label, odds_string
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.context import (
@@ -151,37 +152,10 @@ def tau_summary_offfloor(
     return tau_summary_itt(trace, ci_prob=ci_prob, G=G)
 
 
-# --- Evidence ladder + ROPE-anchored continuous report -----------------------
+# --- ROPE-anchored continuous report -----------------------------------------
 # notes/202606261304-evidence-strength-and-rope-reporting.md
-
-_EVIDENCE_LADDER: tuple[tuple[float, str], ...] = (
-    (0.75, "inconclusive"),
-    (0.91, "suggestive"),
-    (0.97, "moderate"),
-    (0.99, "strong"),
-)
-
-
-def evidence_label(prob: float) -> str:
-    """Round-odds evidence label for a posterior probability of a *named claim*.
-
-    The boundaries are round odds (3:1 / 10:1 / 30:1 / 100:1), deliberately *not*
-    the ``p = 0.05 / 0.025 / 0.01`` images, so they do not smuggle the significance
-    grid back in. ``prob`` must already be oriented toward the claim (e.g. ``pd``
-    for direction, ``P(benefit ≥ δ)`` for magnitude); the label qualifies the
-    *evidence*, never the effect size. See the note above.
-    """
-    for threshold, label in _EVIDENCE_LADDER:
-        if prob < threshold:
-            return label
-    return "very strong"
-
-
-def odds_string(prob: float) -> str:
-    """A posterior probability as approximate whole-number odds, e.g. ``"19:1"``."""
-    p = min(max(float(prob), 1e-9), 1 - 1e-9)
-    o = p / (1 - p)
-    return f"{o:.0f}:1" if o >= 1 else f"1:{1 / o:.0f}"
+# evidence_label / odds_string now live in dse_research_utils.statistics.evidence
+# (imported above) so the evidence ladder is shared across DSE reports.
 
 
 def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = True) -> str:
@@ -491,8 +465,6 @@ def did_summary(
         .transpose("obs_id", "sample")
         .values
     )  # (n_obs, S)
-    from scipy.special import expit  # local import
-
     eff = (expit(eta_base + delta[None, :]) - expit(eta_base)).mean(axis=0) * n_trials
     out["delta_items_mean"] = float(np.mean(eff))
     out["delta_items_lo"] = float(np.quantile(eff, lo_q))

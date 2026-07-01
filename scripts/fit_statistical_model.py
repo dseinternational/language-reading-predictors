@@ -387,12 +387,25 @@ def main() -> None:
             )
         )
 
+    render_failed: list[tuple[str, subprocess.CalledProcessError]] = []
     if args.render:
         for ctx in contexts:
             qmd = os.path.join(ctx.output_dir, "index.qmd")
-            if os.path.exists(qmd):
-                rprint(f"[bold green]quarto render {qmd}[/bold green]")
-                subprocess.run(["quarto", "render", qmd], check=False)
+            if not os.path.exists(qmd):
+                rprint(f"[bold yellow]No index.qmd at {qmd}, skipping render.[/bold yellow]")
+                continue
+            rprint(f"[bold green]quarto render {qmd}[/bold green]")
+            try:
+                subprocess.run(["quarto", "render", qmd], check=True)
+            except subprocess.CalledProcessError as exc:
+                # Don't abort the loop on one bad render — build the rest and
+                # surface a non-zero exit at the end (mirrors fit_model.py).
+                label = os.path.basename(str(ctx.output_dir))
+                render_failed.append((label, exc))
+                rprint(
+                    f"[bold red]Render failed for {label}: "
+                    f"quarto exited {exc.returncode}[/bold red]"
+                )
 
     if args.upload:
         run_id = str(uuid.uuid7())
@@ -404,7 +417,7 @@ def main() -> None:
                 run_id=run_id,
             )
 
-    if failed:
+    if failed or render_failed:
         raise SystemExit(1)
 
 

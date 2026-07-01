@@ -190,6 +190,7 @@ class ModelFitContext:
     pooled_cv_metrics: dict[str, float] | None = None
 
     eval_df: pd.DataFrame | None = None
+    in_sample_metrics: dict[str, float | None] | None = None
     perm_importance_df: pd.DataFrame | None = None
 
     shap_values: np.ndarray | None = None

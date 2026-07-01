@@ -30,7 +30,7 @@ Concretely:
   (a full-set ranking robustness check) is retained.
 - Dropped the four `_noconstruct` variants (`lrpgbl06/07/08/16_noconstruct`).
   Their same-skill contrast is now the ranking's `ranking_excluding_same_skill.csv`
-  + the curated `SAME_SKILL_SIBLINGS` annotation (registry 54 → 50).
+  view plus the curated `SAME_SKILL_SIBLINGS` annotation (registry 54 → 50).
 - Deleted `scripts/period_resolved_gb_diagnostic.py` (its pruned-vs-full premise
   is retired).
 
