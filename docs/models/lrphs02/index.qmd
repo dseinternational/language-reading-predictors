@@ -1,0 +1,82 @@
+---
+title: "LRPHS02: Regularized-horseshoe ranking cross-check - word-reading level"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPHS02 is the level companion to LRPHS01: an **independent Bayesian sensitivity
+check** on the gradient-boosting predictor ranking for word-reading level (GB
+`lrpgbl12`). A regularized (Finnish) horseshoe sparse regression regresses the
+concurrent word-reading count on the standardised same-wave levels of the other
+constructs (plus age), with a subject random intercept for the repeated
+timepoints; predictors are ranked by posterior `P(|beta| > delta)` and compared to
+the GB *cluster* ranking at construct level.
+
+::: {.callout-important title="Ranking cross-check, NOT causal"}
+
+Agreement with the gradient-boosting order is reassurance the ranking is not a
+tree-method artefact — not a causal claim. Every coefficient is an adjusted
+association; the randomised causal effect lives in the ITT suite.
+
+:::
+
+::: {.callout-note title="Concurrent level, n ~ 215 over 54 children"}
+
+One row per child × timepoint (`phase_mode="levels"`) with a subject random
+intercept. A high naive association is partly same-wave same-construct
+correlation, so read the *ordering* as exploratory. Hyperparameters are
+weakly-informative priors, not tuned.
+
+:::
+
+## Model
+
+Beta-Binomial concurrent word-reading count with a subject random intercept
+`u_child` and standardised same-wave predictor levels entering under a
+regularized-horseshoe prior (global scale `tau`, per-predictor local scale
+`lambda_k`, slab `c^2`):
+
+$$
+\eta_{it} = \alpha + u_{\text{child}[i]} + \gamma_A\, A_{\text{std},it}
+        + \sum_k \beta_k\, z_{k,it},
+\qquad
+\beta_k \sim \mathcal{N}\!\big(0,\ \tau\, \tilde{\lambda}_k\big).
+$$
+
+Construct predictor set: the concurrent non-floored measure levels (letter sounds
+`L`, receptive/expressive vocabulary `R`/`E`, blending `B`, basic concepts `F`,
+receptive grammar `T`) plus age. The RLI-blocks / behaviour covariates are omitted
+here: they are wave-sparse and requiring them would collapse the levels frame to
+one row per child, removing the repeated-measures structure the subject random
+intercept needs.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_horseshoe.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

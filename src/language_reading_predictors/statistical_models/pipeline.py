@@ -2434,6 +2434,113 @@ def _influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
     return df, thr, int((k > thr).sum())
 
 
+def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Regularized-horseshoe predictor-ranking fit (LRPHS, #116 Phase E).
+
+    An independent Bayesian sensitivity cross-check on the gradient-boosting
+    predictor ranking: one horseshoe regression (gain or level, per ``spec.extra``)
+    over the full construct predictor set, ranked by posterior
+    ``P(|beta| > delta)``. Writes ``predictor_ranking.csv`` alongside the standard
+    trace / diagnostics / LOO / PPC artefacts. Not causal — a which-predictors
+    -carry-signal read to compare against the GB cluster ranking.
+    """
+    assert spec.kind == "horseshoe"
+    e = spec.extra
+    outcome = spec.outcome_symbol or "W"
+    gain = bool(e.get("gain", True))
+    predictors = list(e["predictors"])
+    lang_symbols = tuple(e.get("language_composite_symbols", ["R", "E", "F"]))
+    covariates = tuple(e.get("covariates", ()))
+    delta = float(e.get("delta", 0.1))
+    tau0 = float(e.get("tau0", 0.1))
+    slab_scale = float(e.get("slab_scale", 2.0))
+    slab_df = float(e.get("slab_df", 4.0))
+    post_time = int(e.get("post_time", 4))
+    phase_mode = e.get("phase_mode", "span" if gain else "levels")
+
+    # 94% intervals, matching the LRP65 adjusted-model convention.
+    ctx = make_context(spec, config, ci_prob=0.94)
+    # The horseshoe has a funnel geometry (global-local scales); lift target_accept
+    # above the tier default so the sampler takes smaller steps near the neck.
+    target_accept = e.get("target_accept")
+    if target_accept is not None:
+        ctx.sampling.target_accept = max(ctx.sampling.target_accept, float(target_accept))
+
+    section_header("Prepare data")
+    measure_syms = tuple(
+        dict.fromkeys(
+            [outcome]
+            + [p for p in predictors if p not in ("age", "lang", *covariates)]
+            + list(lang_symbols)
+        )
+    )
+    prepared = load_and_prepare(
+        phase_mode=phase_mode,
+        post_time=post_time,
+        outcomes=measure_syms,
+        covariates=covariates,
+    )
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_horseshoe_model(
+        prepared,
+        outcome_symbol=outcome,
+        predictors=predictors,
+        gain=gain,
+        tau0=tau0,
+        slab_scale=slab_scale,
+        slab_df=slab_df,
+        language_composite_symbols=lang_symbols,
+    )
+    _attach_built(ctx, built)
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, outcome)
+
+    _run_sampling_and_loo(ctx)
+
+    coupling = "gamma_own" if gain else "gamma_A"
+    diag_vars = ["alpha", coupling, "kappa", "hs_tau", "hs_c2", "beta"]
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx)
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(ctx)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    section_header("Predictor ranking")
+    ranking = _report.horseshoe_ranking(ctx.trace, delta=delta)
+    ranking.to_csv(os.path.join(ctx.output_dir, "predictor_ranking.csv"), index=False)
+    ctx.tables["predictor_ranking"] = ranking
+    print_table(ranked_dataframe_table(ranking.head(10), title="Horseshoe predictor ranking (top 10)"))
+
+    meta_extra = {
+        "framing": "gain" if gain else "level",
+        "phase_mode": phase_mode,
+        "predictors": predictors,
+        "covariates": list(covariates),
+        "delta": delta,
+        "tau0": tau0,
+        "slab_scale": slab_scale,
+        "slab_df": slab_df,
+        "gb_reference": e.get("gb_reference"),
+        "ranking_top": ranking.head(3)[["predictor", "p_abs_gt_delta"]].to_dict(
+            "records"
+        ),
+    }
+    _report.write_run_metadata(ctx, extra=meta_extra)
+
+    return _finalize_report(ctx)
+
+
 def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """Between-child adjusted fit (LRP65): independent T1 predictors of gain.
 

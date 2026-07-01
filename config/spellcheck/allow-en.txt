@@ -103,6 +103,7 @@ LRPGF
 LRPLF
 LRPAL
 LRPMM
+LRPHS
 communalities
 medae
 mumedupost
@@ -237,6 +238,7 @@ lrpgf
 lrplf
 lrpal
 lrpmm
+lrphs
 offfloor
 CACE
 dedup
