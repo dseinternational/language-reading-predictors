@@ -1,0 +1,4 @@
+# Markdown is normalised to LF in the repository and checked out as LF on every
+# platform, so Prettier (endOfLine: "lf", enforced by `npm run format:check`) and
+# the tooling agree regardless of a contributor's core.autocrlf setting.
+*.md text eol=lf

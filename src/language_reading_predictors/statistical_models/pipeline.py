@@ -59,7 +59,10 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
-from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
+from language_reading_predictors.statistical_models.measures import (
+    ITT_OUTCOMES,
+    is_distal,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_aligned,
@@ -222,6 +225,11 @@ def _prior_table_overrides(
         else:
             ctor["beta_dose"] = "tau"
             role["beta_dose"] = "association"
+    elif spec.kind == "mechanism":
+        # ``beta_G`` reuses the tau constructor (its Normal(0, 0.5) scale) but here
+        # it is the group main effect entered as a DAG backdoor adjustment, not the
+        # randomised ITT effect — an adjusted association, not a causal term.
+        role["beta_G"] = "association"
     elif spec.kind == "aligned":
         ctor["beta_cohort"] = "tau"
         role["beta_cohort"] = "association"
@@ -230,6 +238,16 @@ def _prior_table_overrides(
             if rv.name.startswith("beta_"):
                 ctor[rv.name] = "predictor_slope"
                 role[rv.name] = "association"
+
+    # Distal outcomes take the tighter tau prior (issue #141): the factory built
+    # the single-outcome causal treatment term at Normal(0, 0.3), so route it to
+    # the ``tau_distal`` panel + distribution here so the report panel matches the
+    # fitted scale. Only the randomised treatment terms are listed (never the
+    # adjusted-association ``beta_G`` / ``beta_cohort``).
+    if is_distal(getattr(spec, "outcome_symbol", None)):
+        for _name in ("tau", "beta_trt", "b_grp_time", "beta_grp", "delta"):
+            ctor.setdefault(_name, "tau_distal")
+            role.setdefault(_name, "causal")
 
     return ctor, role
 
