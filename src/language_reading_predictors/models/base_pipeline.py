@@ -252,14 +252,15 @@ class EstimatorPipeline:
 
         eval_df.to_csv(context.output_dir / "evaluation.csv", index=False)
 
-        mae = float(eval_df["abs_residual"].mean())
-        rmse = float(np.sqrt(eval_df["sq_error"].mean()))
-        medae = float(eval_df["abs_residual"].median())
-        ss_res = eval_df["sq_error"].sum()
-        ss_tot = ((y_true - y_true.mean()) ** 2).sum()
-        r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0 else float("nan")
-
-        print_table(in_sample_metrics_table(mae, rmse, r2, medae))
+        metrics = _in_sample_metrics(eval_df, y_true)
+        context.in_sample_metrics = metrics
+        # R² is None for a zero-variance target; show NaN in the console table.
+        r2_display = metrics["r2"] if metrics["r2"] is not None else float("nan")
+        print_table(
+            in_sample_metrics_table(
+                metrics["mae"], metrics["rmse"], r2_display, metrics["medae"]
+            )
+        )
 
     def permutation_importance_analysis(self) -> None:
         """Compute group-aware out-of-fold permutation importance.
@@ -698,8 +699,9 @@ class EstimatorPipeline:
           feature placed in the top *top_k* by importance;
         - ``importance_mean`` / ``importance_std`` — bootstrap distribution
           of per-feature importance;
-        - ``rank_median`` / ``rank_iqr`` — distribution of the feature's
-          rank across bootstraps.
+        - ``rank_median`` / ``rank_q25`` / ``rank_q75`` / ``rank_iqr`` —
+          distribution of the feature's rank across bootstraps (the IQR is
+          ``rank_q75 - rank_q25``).
 
         High appearance rate + low rank IQR → robustly important.
         Compare against the single-point permutation importance to
@@ -803,6 +805,9 @@ class EstimatorPipeline:
                     "rank_median": float(np.median(ranks_arr)),
                     "rank_q25": float(np.quantile(ranks_arr, 0.25)),
                     "rank_q75": float(np.quantile(ranks_arr, 0.75)),
+                    "rank_iqr": float(
+                        np.quantile(ranks_arr, 0.75) - np.quantile(ranks_arr, 0.25)
+                    ),
                 }
             )
 
@@ -827,6 +832,7 @@ class EstimatorPipeline:
                     "rank_median",
                     "rank_q25",
                     "rank_q75",
+                    "rank_iqr",
                 ],
             )
         )
@@ -1304,15 +1310,10 @@ class EstimatorPipeline:
         cfg = context.config
         run = context.run_config
 
-        eval_df = context.eval_df
-        y_true = context.y
-
-        in_sample_mae = float(eval_df["abs_residual"].mean())
-        in_sample_rmse = float(np.sqrt(eval_df["sq_error"].mean()))
-        in_sample_medae = float(eval_df["abs_residual"].median())
-        ss_res = eval_df["sq_error"].sum()
-        ss_tot = ((y_true - y_true.mean()) ** 2).sum()
-        in_sample_r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0 else None
+        # Reuse the metrics computed in evaluate() so the printed and persisted
+        # in-sample values cannot diverge; recompute as a fallback if evaluate()
+        # was not run.
+        ism = context.in_sample_metrics or _in_sample_metrics(context.eval_df, context.y)
 
         cv_scores_df = context.dataframes.get("cv_scores")
 
@@ -1356,10 +1357,10 @@ class EstimatorPipeline:
             "cv_pooled_rmse": (context.pooled_cv_metrics or {}).get("pooled_rmse"),
             "cv_pooled_r2": (context.pooled_cv_metrics or {}).get("pooled_r2"),
             "cv_pooled_medae": (context.pooled_cv_metrics or {}).get("pooled_medae"),
-            "in_sample_mae": in_sample_mae,
-            "in_sample_rmse": in_sample_rmse,
-            "in_sample_r2": in_sample_r2,
-            "in_sample_medae": in_sample_medae,
+            "in_sample_mae": ism["mae"],
+            "in_sample_rmse": ism["rmse"],
+            "in_sample_r2": ism["r2"],
+            "in_sample_medae": ism["medae"],
         }
 
         (context.output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
@@ -1483,6 +1484,25 @@ class EstimatorPipeline:
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
+
+def _in_sample_metrics(eval_df: pd.DataFrame, y_true: pd.Series) -> dict[str, float | None]:
+    """In-sample MAE / RMSE / MedAE / R² from an evaluation frame.
+
+    Single source of truth for ``evaluate()`` (which prints them) and
+    ``save_metrics()`` (which persists them), so the printed and persisted values
+    cannot diverge. ``r2`` is ``None`` when the target has zero variance
+    (``ss_tot <= 0``) — the JSON-natural sentinel; callers that need a displayable
+    value substitute NaN.
+    """
+    ss_res = eval_df["sq_error"].sum()
+    ss_tot = ((y_true - y_true.mean()) ** 2).sum()
+    return {
+        "mae": float(eval_df["abs_residual"].mean()),
+        "rmse": float(np.sqrt(eval_df["sq_error"].mean())),
+        "medae": float(eval_df["abs_residual"].median()),
+        "r2": float(1.0 - ss_res / ss_tot) if ss_tot > 0 else None,
+    }
 
 
 def _clear_directory(path: Path) -> None:

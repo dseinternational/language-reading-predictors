@@ -23,8 +23,9 @@ only deviation from the LRPGBL06 predictor set. (LRPGBL06 additionally dropped
 initial baseline and left to feature selection, since for a *taught*-vocabulary
 target it carries non-tautological receptive-vocabulary signal.)
 
-Status: initial exploratory baseline. Hyperparameters are borrowed from the
-LRPGBL06 standardised analogue; a target-specific Optuna tune
+Status: initial exploratory baseline. Hyperparameters were seeded from the
+LRPGBL06 standardised analogue and are a frozen snapshot — not kept in sync as
+LRPGBL06 is retuned. A target-specific Optuna tune
 (``scripts/tune_model.py lrpgbl02``) and iterative feature selection are follow-ups.
 """
 
@@ -36,8 +37,9 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter set ───────────────────────────────────────────────────
 #
-# Borrowed from LRPGBL06 (MAE-tuned on eowpvt level) as a starting baseline for the
-# closely-matched taught-vocabulary level target. Retune for this target before
+# Seeded from LRPGBL06 (MAE-tuned on eowpvt level) as a starting baseline for the
+# closely-matched taught-vocabulary level target — a frozen snapshot, not kept in
+# sync with LRPGBL06 (which has since been retuned). Retune for this target before
 # any quantitative reporting (scripts/tune_model.py lrpgbl02).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",

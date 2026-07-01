@@ -22,8 +22,9 @@ the target/baseline construct directly; keeping it would make the model a
 between-tests calibration of the same instrument rather than an identification of
 substantive predictors. This is the only deviation from the LRPGBG06 predictor set.
 
-Status: initial exploratory baseline. Hyperparameters are borrowed from the
-LRPGBG06 standardised analogue as a reasonable starting point; a target-specific
+Status: initial exploratory baseline. Hyperparameters were seeded from the
+LRPGBG06 standardised analogue as a reasonable starting point and are a frozen
+snapshot — they are not kept in sync as LRPGBG06 is retuned. A target-specific
 Optuna tune (``scripts/tune_model.py lrpgbg02``) and iterative importance-based
 feature selection are follow-ups, exactly as for LRPGBG06.
 """
@@ -36,8 +37,9 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter set ───────────────────────────────────────────────────
 #
-# Borrowed from LRPGBG06 (MAE-tuned on eowpvt_gain) as a starting baseline for the
-# closely-matched taught-vocabulary gain target. Retune for this target before
+# Seeded from LRPGBG06 (MAE-tuned on eowpvt_gain) as a starting baseline for the
+# closely-matched taught-vocabulary gain target — a frozen snapshot, not kept in
+# sync with LRPGBG06 (which has since been retuned). Retune for this target before
 # any quantitative reporting (scripts/tune_model.py lrpgbg02); importance rankings
 # — the purpose of this exploratory model — are robust to reasonable params.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
