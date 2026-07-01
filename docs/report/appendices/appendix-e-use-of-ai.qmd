@@ -1,0 +1,11 @@
+# Use of AI {#sec-use-of-ai}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5). Scaffold — to be reviewed and updated by the authors before release.
+:::
+
+This draft report uses visible labels to identify sections drafted or substantially edited with assistance from LLM-based AI tools. These labels are retained in the working report so reviewers can distinguish author-written text from AI-assisted scaffold text.
+
+AI assistance has been used for drafting scaffold prose, reorganising report structure, checking consistency across sections, and supporting routine editing. The authors remain responsible for the study design, analysis decisions, scientific claims, citations, interpretation of results, and final wording.
+
+Numerical results in the report should be generated from the reproducible analysis outputs, not typed by hand. Any AI-assisted prose must be reviewed against the source data, model outputs, and cited literature before release.

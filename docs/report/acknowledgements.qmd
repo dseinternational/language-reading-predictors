@@ -1,0 +1,9 @@
+# Acknowledgements {.unnumbered}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5). Scaffold — to be completed and checked by the authors before release.
+:::
+
+_[Scaffold]_ The final report should acknowledge the children and families who took part in the original trial, the educators and research team who delivered and evaluated the intervention, and the organisations that supported the study and the present re-analysis.
+
+The authors will complete this section before release, including any funding, data-access, ethics, and contributor acknowledgements required by the study records.

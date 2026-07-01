@@ -14,7 +14,7 @@ Date: 2026-06-28
 
 **Standardise the backbone; keep the results spine distinct.** Both reports are DSE
 Bayesian/PyMC reports (Beta-Binomial-on-logit), for a methods-literate reader, with a
-*separate* lay summary. But a **randomised trial with a causal DAG** earns causal
+_separate_ lay summary. But a **randomised trial with a causal DAG** earns causal
 language and a causal-status structure, while **descriptive trajectory modelling across
 populations** earns a population/lineage structure. Do not force either into the other's
 mould — each report's architecture should make "what may be read causally" visible at a
@@ -30,14 +30,14 @@ glance.
 - **Three-way methods split:** `methods-data` (datasets, populations, harmonisation,
   limitations) / `methods-framework` (the canonical Beta-Binomial-on-logit engine,
   priors, sign convention) / `methods-workflow` (fit pipeline, sampling configs,
-  convergence gate, model comparison, sensitivity). Appendices are written as *deltas*
+  convergence gate, model comparison, sensitivity). Appendices are written as _deltas_
   from the framework.
-- **Model development:** lineage tables (*Step | added structure | problem addressed |
-  LOO/ELPD effect*) and a **model register appendix with a status taxonomy**.
+- **Model development:** lineage tables (_Step | added structure | problem addressed |
+  LOO/ELPD effect_) and a **model register appendix with a status taxonomy**.
 - A **frequentist→Bayesian on-ramp** (bridge) for the p-value/CI reader, plus a
   results-first "how to read the estimates" primer.
 - **Reporting:** posterior **median** + an interval (state **HDI vs equal-tailed**
-  explicitly); **no p-values**; report direction *and* uncertainty; a positive-direction
+  explicitly); **no p-values**; report direction _and_ uncertainty; a positive-direction
   convention; convergence (R-hat / ESS / divergences) **gated before interpretation**.
 - **No hand-entered numbers:** every value pulled from fitted output via a shared
   `_report_data.qmd` include with `show_or_pending` graceful degradation.
@@ -47,13 +47,13 @@ glance.
 
 ## Per-report (keep distinct — justified by the study)
 
-| Dimension | Trial report (language & reading) | Trajectory report (vocabulary growth) |
-|---|---|---|
-| Results axis | causal-status badges `[CAUSAL]`/`[ROBUSTNESS]`/`[ASSOCIATION]` | by **population** (DS / signing / TD comparison) |
-| Identification figure | adjustment-set **causal DAG** | minimal **total-association** DAG |
-| Evidence summary | ROPE/δ + **evidence ladder** + 95% **equal-tailed** CrI | **94% HDI** + *typical-child vs individual* predictive split + LOO/ELPD supersession |
-| Diagnostics | dedicated **gate part** (few headline claims) | per-model **appendix** (many models) |
-| Distinctive part | gradient-boosting **honest-negative** | **practical-reference** + reference tables |
+| Dimension             | Trial report (language & reading)                              | Trajectory report (vocabulary growth)                                                |
+| --------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Results axis          | causal-status badges `[CAUSAL]`/`[ROBUSTNESS]`/`[ASSOCIATION]` | by **population** (DS / signing / TD comparison)                                     |
+| Identification figure | adjustment-set **causal DAG**                                  | minimal **total-association** DAG                                                    |
+| Evidence summary      | ROPE/δ + **evidence ladder** + 95% **equal-tailed** CrI        | **94% HDI** + _typical-child vs individual_ predictive split + LOO/ELPD supersession |
+| Diagnostics           | dedicated **gate part** (few headline claims)                  | per-model **appendix** (many models)                                                 |
+| Distinctive part      | gradient-boosting **honest-negative**                          | **practical-reference** + reference tables                                           |
 
 ## Shared machinery (`../research` / `dse_research_utils`)
 

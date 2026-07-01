@@ -16,6 +16,7 @@ execute:
 date: now
 
 toc: true
+toc-title: Contents
 number-sections: true
 number-depth: 3
 
@@ -54,46 +55,41 @@ book:
       roles: writing
   chapters:
     - index.qmd
+    - acknowledgements.qmd
     - summary.qmd
-    - evidence-table.qmd
-    - part: "Question, design, and causal frame"
+    - glossary.qmd
+    - part: "Part 1 – Background and aims"
       chapters:
         - chapters/01-study-and-questions.qmd
         - chapters/02-causal-dag.qmd
         - chapters/03-bayesian-bridge.qmd
-    - part: "Methods and the exploratory step"
+    - part: "Part 2 – Methods"
       chapters:
         - chapters/04-methods-data.qmd
         - chapters/04-methods-framework.qmd
         - chapters/04-methods-workflow.qmd
         - chapters/05-gradient-boosting.qmd
-    - part: "Did the models behave?"
-      chapters:
         - chapters/06-computation-convergence.qmd
         - chapters/07-predictive-checks.qmd
-    - part: "The causal core"
+    - part: "Part 3 – Results"
       chapters:
         - chapters/08-itt-effects.qmd
         - chapters/09-joint-consistency.qmd
-    - part: "Does the headline survive?"
-      chapters:
         - chapters/10-robustness.qmd
-    - part: "Outer rings: adjusted associations"
-      chapters:
         - chapters/11-alternative-views.qmd
         - chapters/12-mechanism-moderation.qmd
         - chapters/13-mediation.qmd
-    - part: "Comparison and synthesis"
-      chapters:
         - chapters/14-model-comparison.qmd
+    - part: "Part 4 – Discussion"
+      chapters:
         - chapters/15-what-it-means.qmd
         - chapters/16-limitations.qmd
-    - references.qmd
   appendices:
-    - appendices/appendix-a-glossary.qmd
     - appendices/appendix-b-model-catalogue.qmd
     - appendices/appendix-c-priors-rope.qmd
     - appendices/appendix-d-reproducibility.qmd
+    - appendices/appendix-e-use-of-ai.qmd
+    - references.qmd
 
 # PDF is the canonical (print-first) deliverable; HTML is a convenience build and
 # must depend on nothing interactive (no code-fold / folded callouts). DOCX was

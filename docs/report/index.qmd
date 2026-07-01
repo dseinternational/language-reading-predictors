@@ -1,7 +1,7 @@
 # Preface {.unnumbered}
 
 ::: {.callout-note}
-Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). This report is a work-in-progress draft; many sections are still scaffolds and will be written by the authors.
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Reorganised by a LLM-based AI tool (Codex/GPT-5). This report is a work-in-progress draft; many sections are still scaffolds and will be written by the authors.
 :::
 
 ::: {.callout-warning title="Preliminary"}
@@ -10,22 +10,22 @@ All data, models, and findings reported here are **preliminary** and subject to 
 
 ## Who this report is for {.unnumbered}
 
-*[Scaffold]* This is the **technical report** — a detailed account of what we did, what we found, and how to reproduce it. It is aimed at researchers and methodologically-engaged practitioners. A **separate plain-language publication** will summarise the findings and their practical implications for families and educators; the executive summary and the evidence table that follow are written so that companion can lift them directly.
+_[Scaffold]_ This is the **technical report** — a detailed account of what we did, what we found, and how to reproduce it. It is aimed at researchers and methodologically-engaged practitioners. A **separate plain-language publication** will summarise the findings and their practical implications for families and educators; the executive summary and the evidence table that follow are written so that companion can lift them directly.
 
 We assume a reader who is comfortable with frequentist statistics (p-values, confidence intervals) but may be newer to Bayesian methods. @sec-bridge is a self-contained guide to reading the Bayesian results.
 
 ## How the report is organised {.unnumbered}
 
-*[Scaffold]* The report moves from the question and its causal frame (Part I), through methods and model checking (Parts II–III), to the randomised causal core (Part IV), its robustness (Part V), the wider adjusted-association analyses (Part VI), and synthesis (Part VII), with appendices.
+_[Scaffold]_ The report now follows the shared study-report structure: front matter (preface, acknowledgements, summary, contents, glossary), then Part 1 for background and aims, Part 2 for methods, Part 3 for results, Part 4 for discussion, and appendices for supporting registers, reproducibility material, use of AI, and references.
 
 ## Causal-status labels {.unnumbered}
 
-*[Scaffold]* Each results section carries a label fixing how its estimates may be read:
+_[Scaffold]_ Each results section carries a label fixing how its estimates may be read:
 
 - **`[CAUSAL]`** — identified by randomisation; may be read as an effect of the intervention.
 - **`[ROBUSTNESS]`** — checks on whether the causal result survives alternative assumptions.
-- **`[ASSOCIATION]`** — adjusted associations only; never to be read as one skill *driving* another (see @sec-dag).
+- **`[ASSOCIATION]`** — adjusted associations only; never to be read as one skill _driving_ another (see @sec-dag).
 
 ## Conventions {.unnumbered}
 
-*[Scaffold]* Estimates are reported as a posterior **median + 95% equal-tailed credible interval**, with a tail probability $P(\tau>0)$ for direction and $P(\text{benefit} \ge \delta)$ for a meaningful effect — **not** p-values. A **positive $\tau$ means the intervention helps**. Full detail in @sec-methods and `METHODS.md`.
+_[Scaffold]_ Estimates are reported as a posterior **median + 95% equal-tailed credible interval**, with a tail probability $P(\tau>0)$ for direction and $P(\text{benefit} \ge \delta)$ for a meaningful effect — **not** p-values. A **positive $\tau$ means the intervention helps**. Full detail in @sec-methods and `METHODS.md`.

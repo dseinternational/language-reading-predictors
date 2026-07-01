@@ -4,7 +4,7 @@
 Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Scaffold — to be populated from the `METHODS.md` glossary plus the additions below.
 :::
 
-*[Scaffold]* The `METHODS.md` glossary, lifted verbatim, plus the terms a mixed audience will need that it does not yet cover:
+_[Scaffold]_ The `METHODS.md` glossary, lifted verbatim, plus the terms a mixed audience will need that it does not yet cover:
 
 - Confidence interval vs **credible interval**
 - SESOI / minimally-important difference ($\delta$, the ROPE half-width)
