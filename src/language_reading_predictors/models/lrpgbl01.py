@@ -55,7 +55,6 @@ class LRPGBL01(LevelModel):
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
     exclude = [V.B1RETO]
-    selection_steps = []
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for predictors of taught receptive-vocabulary level "

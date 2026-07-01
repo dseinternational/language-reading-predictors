@@ -41,7 +41,7 @@ Phase B.
 This is a **baseline exploratory model**. It runs on hyperparameters borrowed from
 the closely-matched block-1 taught-vocabulary analogue LRPGBL02 and the full
 `Predictors.DEFAULT_LEVEL` set (the target `b1retau` is already excluded), with no
-outlier exclusion, pending a target-specific tune and iterative feature selection.
+outlier exclusion, pending a target-specific tune.
 As a level model, a high naive R² is partly concurrent same-construct correlation —
 read the ranking as exploratory.
 
@@ -51,7 +51,7 @@ The Block 1 receptive *total* `b1reto` equals taught + not-taught
 (`b1retau + b1rent`), so it contains the target directly and is removed (the only
 deviation from LRPGBL02). The standardised receptive (`rowpvt`) and expressive
 (`eowpvt`) tests are *retained* in this baseline — they are correlated with, but
-not supersets of, the taught receptive score — and are left to feature selection.
+not supersets of, the taught receptive score — and are kept in the full set.
 
 :::
 
@@ -98,8 +98,6 @@ print(": Model hyperparameters {#tbl-config}")
 #| output: asis
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
-
-Feature-selection history is persisted in `config.json` under `selection_history`.
 
 ### Target variable
 
@@ -184,7 +182,6 @@ print(":::")
 ## Partial dependence
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
 
 ## Predictor ranking and clustering
 

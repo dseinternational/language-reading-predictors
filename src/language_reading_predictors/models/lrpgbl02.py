@@ -19,14 +19,15 @@ excluded — it is in ``DEFAULT_EXCLUDED``) **minus** ``b1exto``. The Block 1
 expressive *total* ``b1exto`` equals taught + not-taught (``b1extau + b1exnt``),
 so it contains the target directly and must be removed to avoid leakage — the
 only deviation from the LRPGBL06 predictor set. (LRPGBL06 additionally dropped
-``b1reto`` as redundant with ``rowpvt``; here ``b1reto`` is retained for the
-initial baseline and left to feature selection, since for a *taught*-vocabulary
-target it carries non-tautological receptive-vocabulary signal.)
+``b1reto`` as redundant with ``rowpvt``; here ``b1reto`` is retained, since for a
+*taught*-vocabulary target it carries non-tautological receptive-vocabulary
+signal.)
 
-Status: initial exploratory baseline. Hyperparameters were seeded from the
+Status: initial exploratory baseline. Fits the full ``Predictors.DEFAULT_LEVEL``
+set (minus the leakage exclusions above). Hyperparameters were seeded from the
 LRPGBL06 standardised analogue and are a frozen snapshot — not kept in sync as
 LRPGBL06 is retuned. A target-specific Optuna tune
-(``scripts/tune_model.py lrpgbl02``) and iterative feature selection are follow-ups.
+(``scripts/tune_model.py lrpgbl02``) is a follow-up.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -62,8 +63,7 @@ class LRPGBL02(LevelModel):
     """Taught expressive-vocabulary level predictors — exploratory (MAE, all data).
 
     Uses :attr:`Predictors.DEFAULT_LEVEL` (minus the target ``b1extau`` and the
-    tautological total ``b1exto``) with no outlier exclusion. The starting point
-    for feature selection on the taught-vocabulary level-prediction task.
+    tautological total ``b1exto``) with no outlier exclusion.
     """
 
     model_id = "lrpgbl02"
@@ -75,12 +75,11 @@ class LRPGBL02(LevelModel):
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
     exclude = [V.B1EXTO]
-    selection_steps = []
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for predictors of taught expressive-vocabulary level "
-        "(b1extau), the taught-vocabulary analogue of lrpgbl06. b1exto (Block 1 "
-        "expressive total = taught + not-taught) is excluded to avoid target "
-        "leakage. Hyperparameters borrowed from lrpgbl06 pending a target-specific "
-        "tune; feature-selection variants to follow."
+        "(b1extau), the taught-vocabulary analogue of lrpgbl06. Fits the full "
+        "DEFAULT_LEVEL predictor set (b1exto, the Block 1 expressive total = "
+        "taught + not-taught, is excluded to avoid target leakage). "
+        "Hyperparameters borrowed from lrpgbl06 pending a target-specific tune."
     )

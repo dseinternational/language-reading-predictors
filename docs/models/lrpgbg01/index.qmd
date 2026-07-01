@@ -41,8 +41,8 @@ covers taught/not-taught receptive and expressive vocabulary, not only the
 standardised tests.
 
 This is a **baseline exploratory model** for the taught-receptive-vocabulary gain
-task. It has not yet been through iterative feature selection or a target-specific
-hyperparameter tune — it runs on hyperparameters borrowed from the closely-matched
+task. It has not been through a target-specific hyperparameter tune — it runs on
+hyperparameters borrowed from the closely-matched
 block-1 taught-vocabulary analogue LRPGBG02 and the full `Predictors.DEFAULT_GAIN`
 set (plus the auto-included `b1retau` baseline level), with no outlier exclusion.
 
@@ -102,9 +102,7 @@ print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
 The predictor set spans demographics, cognitive assessments, language, speech
-and reading measures. Feature-selection history (what has been removed, when,
-and why) is persisted in `config.json` under `selection_history` and surfaced
-in the notes under `notes/` in the repository.
+and reading measures.
 
 ### Target variable
 
@@ -202,7 +200,6 @@ Partial dependence plots show the marginal effect of each feature on the predict
 target, averaging over the values of all other features.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
 
 ## Predictor ranking and clustering
 

@@ -82,9 +82,7 @@ print(": Model hyperparameters {#tbl-config}")
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
-The predictor set is the uniform feature-selected subset of
-`Predictors.DEFAULT_LEVEL` / `DEFAULT_GAIN`. Feature-selection history (what
-was removed, when, and why) is persisted in `config.json` under `selection_history`.
+The predictor set is the full `Predictors.DEFAULT_LEVEL` / `DEFAULT_GAIN` set.
 
 ### Target variable
 
@@ -158,7 +156,7 @@ perm_imp
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 
-### Feature-selection diagnostics
+### Predictor-relationship diagnostics
 
 #### Distance-correlation dendrogram
 
@@ -221,7 +219,6 @@ print(":::")
 ## Partial dependence
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
 
 ## Predictor ranking and clustering
 

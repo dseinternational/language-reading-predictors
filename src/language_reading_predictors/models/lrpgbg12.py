@@ -9,42 +9,16 @@ LRPGBG12: Predictors of word-reading gains.
 identify the most important influences on reading gains across the full
 range of outcomes. ``ewrswr_gain`` is moderately right-skewed (−4 to 21,
 median 2, skewness 1.33).
-
-Uniform feature selection (2026-06-21): reduced from the full
-34-predictor :attr:`Predictors.DEFAULT_GAIN` set to 3 predictors via a
-distance-correlation redundancy filter (dcor >= 0.70) plus an importance
-noise-floor cut, with the baseline measure (``ewrswr``) force-kept as the
-regression-to-the-mean anchor, then re-tuned. See the SelectionStep and
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import GainModel
-from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
+from language_reading_predictors.models.common import ShapScatterSpec
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-_SELECTION_STEPS: list[SelectionStep] = [
-    SelectionStep(
-        removed=[
-            V.CELF, V.BLENDING, V.ERBWORD, V.DEAPPVO, V.APTINFO, V.GROUP, V.NUMCHIL,
-            V.GENDER, V.ROWPVT, V.SPPHON, V.HEARING, V.EARINF, V.YARCSI, V.BEHAV,
-            V.B1RETO, V.AREA, V.VISION, V.AGEBOOKS, V.MUMEDUPOST16, V.DADEDUPOST16,
-            V.AGESPEAK, V.DEAPPFI, V.APTGRAM, V.ERBNW, V.DEAPPIN, V.TIME, V.NONWORD,
-            V.EOWPVT, V.TROG, V.B1EXTO, V.YARCLET
-        ],
-        notes=(
-            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 3 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
-        ),
-        date="2026-06-21",
-        metrics_before={"cv_mae_mean": 2.9136},
-        metrics_after={"cv_mae_mean": 2.9014},
-    ),
-]
-
-
-# MAE-tuned on the 3-predictor uniform-selected set (Optuna 150
-# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
-# Tuner-inner CV MAE 2.9014.
+# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
+# retained as the full-set baseline (retune-pending).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
     "n_estimators": 52,
@@ -65,22 +39,19 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG12(GainModel):
     """Word-reading gain predictors — exploratory model (MAE-tuned, all data).
 
-    Uniform-selected subset of :attr:`Predictors.DEFAULT_GAIN` with the
-    baseline ``ewrswr`` force-kept, MAE-tuned, no outlier exclusion. See
-    the SelectionStep and the module docstring.
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params retune-pending).
     """
 
     model_id = "lrpgbg12"
     target_var = V.EWRSWR_GAIN
     description = (
         "LightGBM — word-reading gain predictors "
-        "(3 predictors, MAE-tuned, no outlier exclusion)"
+        "(full predictor set, MAE-tuned, no outlier exclusion)"
     )
     include = [V.EWRSWR]
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
     cv_splits = 53
-    selection_steps = _SELECTION_STEPS
     shap_scatter_specs = [
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
         ShapScatterSpec(
@@ -89,12 +60,10 @@ class LRPGBG12(GainModel):
         ),
     ]
     notes = (
-        "Exploratory model for word-reading gains (ewrswr_gain). Uniform "
-        "feature selection (2026-06-21) from the full 34-predictor "
-        "DEFAULT_GAIN set to 3 predictors (distance-correlation redundancy "
-        "filter + importance noise-floor cut; baseline ewrswr force-kept; no "
-        "dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner "
-        "CV MAE 2.914 -> 2.901). Gain models are near-noise (baseline-driven, "
-        "regression to the mean) — treat the reduced ranking as exploratory."
-        ""
+        "Exploratory model for word-reading gains (ewrswr_gain). Fits the "
+        "full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature "
+        "selection in favour of full-set ranking); hyperparameters are "
+        "retained from the earlier pruned-set Optuna tune (retune-pending). "
+        "Gain models are near-noise (baseline-driven, regression to the "
+        "mean) — treat the ranking as exploratory."
     )

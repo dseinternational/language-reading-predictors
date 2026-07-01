@@ -34,7 +34,7 @@ intervention benefit (`G = 2 − group`).
 
 | Layer | Family (id prefix)                                              | Count | Purpose                                                                                           |
 | ----- | --------------------------------------------------------------- | ----: | ------------------------------------------------------------------------------------------------- |
-| 1     | Gradient-boosting discovery (`lrpgbg##` / `lrpgbl##`)           |    54 | Rank predictors of each outcome's gain and level                                                  |
+| 1     | Gradient-boosting discovery (`lrpgbg##` / `lrpgbl##`)           |    50 | Rank predictors of each outcome's gain and level                                                  |
 | 2     | ITT suite (`lrpitt`)                                            |    26 | Randomised intervention effect on each outcome (+ joint, SES, ability robustness, generalisation) |
 | 2     | Gain factors (`lrpgf`)                                          |    16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain              |
 | 2     | Level factors (`lrplf`)                                         |     8 | Companion levels view: group×time and ability×time per timepoint                                  |
@@ -45,9 +45,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Predictor / dynamics (`lrp65`, `67`, `77` incl. `77a`/`77base`) |     5 | Baseline predictors, within-child change, and dose–response of word reading                       |
 
 Counts are of base models on `main`. Layer-2 selection variants (`…b` / `…base` / `…d`)
-are included in the family counts and listed in the per-family tables below; Layer 1 adds
-four `_noconstruct` variants (`lrpgbl06_noconstruct`, `lrpgbl08_noconstruct`, `lrpgbl07_noconstruct`, `lrpgbl16_noconstruct`) on top of the 42 base
-modules.
+are included in the family counts and listed in the per-family tables below.
 
 ## Outcome symbols (Layer 2)
 
@@ -81,10 +79,10 @@ level).
 
 Gain-model rankings are near-noise (baseline-driven regression to the mean); level-model
 rankings are largely concurrent same-construct correlation — read both under those
-caveats (`notes/202606231100-gb-selected-features-tables.md`). The project is migrating this layer
-from hard feature _selection_ to full-set _ranking_ (`scripts/rank_predictors.py`, issue
-`#116`); `_noconstruct` variants drop a same-instrument sibling to expose concurrent
-correlation.
+caveats (`notes/202606231100-gb-selected-features-tables.md`). This layer uses full-set
+_ranking_ (`scripts/rank_predictors.py`, issue `#116`): hard feature selection was retired
+in Phase D. The same-skill sibling contrast is exposed via the ranking's
+`ranking_excluding_same_skill.csv` rather than per-model variants.
 
 ### Core outcomes (reading / language outcomes)
 
@@ -111,10 +109,6 @@ The last four rows are the #116 Phase-B additions completing the 13 priority
 outcomes; their hyperparameters are borrowed from the nearest analogue pending a
 target-specific tune, and they do not yet have bespoke report templates (Phase C).
 `spphon` is heavily floored, so its gain ranking is expected to be near-noise.
-
-Four level models carry a `_noconstruct` variant (`lrpgbl06_noconstruct`, `lrpgbl08_noconstruct`, `lrpgbl07_noconstruct`, `lrpgbl16_noconstruct`) that
-drops the same-skill sibling to expose how much of the ranking is concurrent same-construct
-correlation.
 
 ### Speech, verbal-memory and language-sample measures (`lrpgbg`/`lrpgbl` 17–28)
 
