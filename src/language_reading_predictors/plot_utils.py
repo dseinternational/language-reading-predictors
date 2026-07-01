@@ -37,7 +37,12 @@ from scipy.cluster import hierarchy
 from language_reading_predictors.data_variables import Variables as vars
 
 
-HERE = Path(__file__).resolve().parent.parent
+# plot_utils.py lives at src/language_reading_predictors/plot_utils.py, so the
+# project root is three levels up (not two — that would resolve to src/output,
+# diverging from the repo-root output/ every other module writes to, e.g.
+# models/base_pipeline.py's _ROOT_DIR and statistical_models/environment.py's
+# ROOT_DIR).
+HERE = Path(__file__).resolve().parent.parent.parent
 OUTPUT_DIR = HERE / "output"
 
 
