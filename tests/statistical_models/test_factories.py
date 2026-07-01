@@ -30,10 +30,12 @@ from language_reading_predictors.statistical_models.factories import (
     build_mediation_model,
     build_two_mediator_model,
 )
+from language_reading_predictors.statistical_models import priors
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
     TAUGHT_BLOCK1_OUTCOMES,
+    is_distal,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
@@ -1129,3 +1131,82 @@ def test_al_diag_vars_match_build(tmp_path):
     }
     assert not (set(diag) - built_names)
     assert "kappa" in diag and "sigma_child" not in diag
+
+
+# ---------------------------------------------------------------------------
+# Two-tier treatment-effect prior (issue #141)
+# ---------------------------------------------------------------------------
+
+
+def _tau_dist(model, name: str = "tau") -> str:
+    rv = next(v for v in model.free_RVs if v.name == name)
+    return priors._dist_from_rv(rv)
+
+
+def test_itt_tau_prior_tiered_by_outcome(tmp_path):
+    """A distal outcome (R) gets the tighter Normal(0, 0.3); a proximal outcome
+    (W) keeps the wider Normal(0, 0.5)."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    assert is_distal("R") and not is_distal("W")
+    r = build_itt_model(prep, outcome_symbol="R", cross_symbols=(), use_age_linear=True)
+    w = build_itt_model(prep, outcome_symbol="W", cross_symbols=(), use_age_linear=True)
+    assert _tau_dist(r.model) == "Normal(0, 0.3)"
+    assert _tau_dist(w.model) == "Normal(0, 0.5)"
+
+
+def test_itt_tau_sigma_override(tmp_path):
+    """``tau_sigma`` overrides the tier default (for the sensitivity sweep)."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    # Override a distal outcome up to 0.75 and a proximal one down to 0.25.
+    r = build_itt_model(
+        prep, outcome_symbol="R", cross_symbols=(), use_age_linear=True, tau_sigma=0.75
+    )
+    w = build_itt_model(
+        prep, outcome_symbol="W", cross_symbols=(), use_age_linear=True, tau_sigma=0.25
+    )
+    assert _tau_dist(r.model) == "Normal(0, 0.75)"
+    assert _tau_dist(w.model) == "Normal(0, 0.25)"
+
+
+def test_did_and_gain_and_level_treatment_terms_tiered(tmp_path):
+    """The DiD ``delta``, gain-factors ``beta_trt`` and level-factors group
+    contrast all follow the outcome tier."""
+    p = _write_synthetic(tmp_path)
+    allp = load_and_prepare(path=p, phase_mode="all")
+    levels = load_and_prepare(path=p, phase_mode="levels")
+    levels.covariates["blocks"] = np.linspace(-1.0, 1.0, levels.n_obs)
+    # distal E
+    assert _tau_dist(build_did_model(allp, outcome_symbol="E").model, "delta") == "Normal(0, 0.3)"
+    assert _tau_dist(
+        build_gain_factors_model(allp, outcome_symbol="E").model, "beta_trt"
+    ) == "Normal(0, 0.3)"
+    assert _tau_dist(
+        build_level_factors_model(levels, outcome_symbol="E", ability_covariate="blocks").model,
+        "b_grp_time",
+    ) == "Normal(0, 0.3)"
+    # proximal L
+    assert _tau_dist(build_did_model(allp, outcome_symbol="L").model, "delta") == "Normal(0, 0.5)"
+    assert _tau_dist(
+        build_gain_factors_model(allp, outcome_symbol="L").model, "beta_trt"
+    ) == "Normal(0, 0.5)"
+
+
+def test_association_group_terms_not_tiered(tmp_path):
+    """Adjusted-association group terms keep the default 0.5 even for a distal
+    outcome: mechanism ``beta_G`` and aligned ``beta_cohort`` are not the
+    randomised effect and must not be tightened."""
+    p = _write_synthetic(tmp_path)
+    allp = load_and_prepare(path=p, phase_mode="all")
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare_aligned,
+    )
+
+    mech = build_mechanism_model(
+        allp, mechanism_symbol="L", outcome_symbol="E", confounder_symbols=("G",)
+    )
+    assert _tau_dist(mech.model, "beta_G") == "Normal(0, 0.5)"
+    aligned = load_and_prepare_aligned(path=p)
+    al = build_aligned_model(aligned, outcome_symbol="E")
+    assert _tau_dist(al.model, "beta_cohort") == "Normal(0, 0.5)"

@@ -58,6 +58,24 @@ Not allowed as primary prior information:
 - outcome-specific tuning that is not documented as sensitivity or a modelling
   decision.
 
+### Treatment-effect prior tier (issue #141, implemented 2026-07-01)
+
+The randomised treatment-effect prior `tau` is **tiered by outcome**: proximal
+(directly-taught / decoding) outcomes keep `Normal(0, 0.5)`; the distal
+broad-transfer set `measures.DISTAL_OUTCOMES = {R, E, T, F, UR, UE}` takes the
+tighter `Normal(0, 0.3)` (the `tau_distal` constructor). A single logit prior is
+not scale-invariant — `Normal(0, 0.5)` implies a plausible ~4-item swing on letter
+sounds but a ~35-item 95% swing on the 170-item ROWPVT/EOWPVT, exactly where large
+effects are least expected. The tier resolves from the outcome symbol in
+`factories._tau_sigma_for` and applies to the ITT `tau`, gain-factors `beta_trt`,
+level-factors group contrast and DiD `delta` — never to the adjusted-association
+group terms (mechanism `beta_G`, aligned `beta_cohort`). The joint model keeps the
+common `Normal(0, 0.5)`. A prior-sensitivity sweep
+(`scripts/tau_prior_sensitivity.py`) confirms the headline conclusions are stable:
+distal R/E stay null at every SD and proximal L/W keep their direction across
+`{0.25, 0.5, 0.75}`. Full evidence:
+`notes/202607011600-issue-141-prior-audit.md` §5a.
+
 ## Role Definitions
 
 | Role               | Meaning                                                                                                                          |
@@ -162,23 +180,32 @@ each family:
 | Aligned       | `lrpal01` plus `lrpal01d`                                      | Cohort and dose terms as associations, not randomised effects.                                          |
 | Dynamic LCSM  | `lrp67`                                                        | Latent trajectory variability, process noise, cross-skill couplings into reading change.                |
 
-## Open Inventory Gaps
+## Inventory Gaps (resolved 2026-07-01)
 
-- Mediation intercept aliases (`a0`, `b0`, `aL0`, `aE0`) use `alpha_prior()` but
-  are not all mapped cleanly to the `alpha` panel/rationale row.
-- LCSM priors are direct `pm.*` calls in `factories.py`; they need either named
-  constructors or explicit `prior_info_for_rv()` mappings so `priors_table.csv`
-  does not report them as generic model priors.
-- The optional joint residual-correlation branch has an LKJ prior and
-  non-centred residual offsets that are currently off by default but should be
-  documented if any sensitivity fit reactivates them.
-- HSGP basis weights are implied by the GP covariance construction rather than
-  represented as separate substantive priors. The report should explain that
-  the meaningful review is at the function scale: amplitude, lengthscale, and
-  prior draws of `f(x)`.
-- Contextual role overrides matter. For example, the same `tau_prior()` backs a
-  randomised treatment effect in ITT models, but `beta_cohort` in aligned models
-  is an association because the per-protocol cohort contrast is not randomised.
+The coverage gaps below were **closed** in `priors.py` on 2026-07-01 and are now
+locked by `tests/statistical_models/test_prior_inventory.py`, which builds one
+model per family and fails if any free variable is reported as `(model prior)` /
+`other`. Distributions for priors without a shared constructor are now read off the
+built PyMC variable (`pymc.printing.str_for_dist`, via `priors._dist_from_rv`), and
+`_classify_fallback` assigns their role/panel. See
+`notes/202607011600-issue-141-prior-audit.md` §5 for the rationale and evidence.
+
+- **Resolved.** Mediation intercept aliases (`a0`, `b0`, `aL0`, `aE0`) and the
+  mediator legs (`aL_*`, `aE_*`, `kappa_L/E`) are now documented from their actual
+  distribution.
+- **Resolved.** LCSM priors are no longer reported as generic model priors; the
+  unsafe `b_` / `a_` name-prefix fallback that mislabelled `a_change` /`b_self` as
+  `gamma_cross` was removed, so they carry their real Normal(0, 1.5) / Normal(0, 0.5).
+- **Resolved.** The optional joint residual-correlation branch (`u_chol`, `u_z`)
+  and the correlated-factor measurement priors (`lambda_load`, `factor_cov`,
+  `sigma_indicator`) are documented when built.
+- **Resolved.** HSGP amplitude / lengthscale (`f_*__eta`, `f_*__ell`) map to the
+  `eta_main` (HalfNormal 0.3) / `ell` (InverseGamma 3, 1) panels; the basis weights
+  (`*__g_unit_hsgp_coeffs`) are labelled a `gp` nuisance. The substantive review
+  still happens at the function scale (amplitude, lengthscale, prior draws of `f(x)`).
+- **Resolved.** Contextual role overrides now also cover mechanism `beta_G` (an
+  adjusted association, not the randomised τ), alongside the existing aligned
+  `beta_cohort` and dose-response overrides.
 
 ## Next Work
 

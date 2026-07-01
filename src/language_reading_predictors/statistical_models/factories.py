@@ -40,7 +40,10 @@ from language_reading_predictors.statistical_models.hsgp import (
 from language_reading_predictors.statistical_models.likelihood import (
     beta_binomial_from_logit,
 )
-from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
+from language_reading_predictors.statistical_models.measures import (
+    ITT_OUTCOMES,
+    is_distal,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
     WavePanel,
@@ -55,6 +58,26 @@ from language_reading_predictors.statistical_models.preprocessing import (
 
 def _scalar_prior(name: str, prior_ctor) -> pt.TensorVariable:
     return prior_ctor().to_pymc(name)
+
+
+def _tau_sigma_for(outcome_symbol: str, override: float | None = None) -> float:
+    """Treatment-effect prior SD for a single-outcome causal term (issue #141).
+
+    Returns ``override`` when given (prior-sensitivity fits), else the outcome
+    tier default: the tighter ``TAU_SIGMA_DISTAL`` for broad standardised-transfer
+    outcomes (``measures.DISTAL_OUTCOMES``) and the wider ``TAU_SIGMA_PROXIMAL``
+    for the directly-taught / decoding outcomes. Applied to the randomised
+    treatment effect only (ITT ``tau``, gain-factors ``beta_trt``, level-factors
+    group contrast, DiD ``delta``) — not to adjusted-association group terms
+    (mechanism / dose-response ``beta_G``, aligned ``beta_cohort``).
+    """
+    if override is not None:
+        return override
+    return (
+        _priors.TAU_SIGMA_DISTAL
+        if is_distal(outcome_symbol)
+        else _priors.TAU_SIGMA_PROXIMAL
+    )
 
 
 def _add_child_random_intercept(
@@ -111,6 +134,7 @@ def build_itt_model(
     tau_moderator_symbol: str | None = None,
     tau_moderator_is_covariate: bool = False,
     tau_moderator_interaction: bool = True,
+    tau_sigma: float | None = None,
 ) -> BuiltModel:
     """
     Build the single-outcome ITT model used by the LRPITT suite (and its SES
@@ -195,6 +219,12 @@ def build_itt_model(
         ``gamma_tau_int * G * z(M)``; both use the regularising
         ``Normal(0, 0.3)`` prior. Set ``tau_moderator_interaction=False`` for the
         nested no-interaction baseline used in the PSIS-LOO comparison.
+    tau_sigma
+        Override the treatment-effect prior SD (issue #141). ``None`` (default)
+        uses the outcome tier: ``TAU_SIGMA_DISTAL`` (0.3) for the broad
+        standardised-transfer outcomes in ``measures.DISTAL_OUTCOMES``,
+        ``TAU_SIGMA_PROXIMAL`` (0.5) otherwise. Pass an explicit value for a
+        prior-sensitivity fit (``scripts/tau_prior_sensitivity.py``).
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
@@ -300,7 +330,9 @@ def build_itt_model(
         )
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
-        tau0 = _scalar_prior("tau", _priors.tau_prior)
+        tau0 = _priors.tau_prior(
+            sigma=_tau_sigma_for(own, tau_sigma)
+        ).to_pymc("tau")
 
         eta: pt.TensorVariable | float = alpha
 
@@ -1210,7 +1242,7 @@ def build_did_model(
                 eta_full = eta_base + beta_dose * z_attend
         else:
             treated_d = pm.Data("treated", treated, dims="obs_id")
-            delta = _priors.tau_prior().to_pymc("delta")
+            delta = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc("delta")
             eta_full = eta_base + delta * treated_d
 
         eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
@@ -2438,7 +2470,9 @@ def build_gain_factors_model(
         eta = alpha + alpha_phase[phase_d] + gamma_own * own_pre_d + gamma_A * A_std_d
 
         if include_trt:
-            beta_trt = _priors.tau_prior().to_pymc("beta_trt")
+            beta_trt = _priors.tau_prior(
+                sigma=_tau_sigma_for(outcome_symbol)
+            ).to_pymc("beta_trt")
             eta = eta + beta_trt * trt_d
         if ability_d is not None:
             gamma_ability = _priors.gamma_cross_prior().to_pymc("gamma_ability")
@@ -2551,11 +2585,14 @@ def build_level_factors_model(
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
 
         # group x time (or single group main effect).
+        _tau_sigma = _tau_sigma_for(outcome_symbol)
         if group_by_time:
-            b_grp = _priors.tau_prior().to_pymc("b_grp_time", dims="phase")
+            b_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
+                "b_grp_time", dims="phase"
+            )
             eta = eta + b_grp[phase_d] * G_d
         else:
-            beta_grp = _priors.tau_prior().to_pymc("beta_grp")
+            beta_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc("beta_grp")
             eta = eta + beta_grp * G_d
 
         # ability main / ability x time.
