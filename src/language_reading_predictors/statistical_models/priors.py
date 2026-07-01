@@ -505,9 +505,9 @@ def used_prior_keys(
     """Constructor keys with a panel to render for ``model`` (for panel pruning).
 
     Derived from :func:`prior_info_for_rv` so a panel reached only via the RV-
-    distribution fallback — the ``gamma_cross`` panel behind a mediation model's
-    ``b_A`` coupling, or an HSGP ``eta_main`` / ``ell`` amplitude/lengthscale — is
-    not dropped (issue #141).
+    distribution fallback — e.g. the ``gamma_cross`` panel behind an inline
+    Normal(0, 0.3) coupling like ``b_R``, or an HSGP ``eta_main`` / ``ell``
+    amplitude/lengthscale — is not dropped (issue #141).
     """
     keys: list[str] = []
     for rv in list(model.free_RVs) + list(getattr(model, "deterministics", [])):
