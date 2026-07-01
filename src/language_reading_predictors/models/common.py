@@ -47,48 +47,6 @@ DEFAULT_SHAP_SCATTER_SPECS: tuple[ShapScatterSpec, ...] = (
 
 
 @dataclass
-class SelectionStep:
-    """Record of a single feature-selection decision.
-
-    Used to document why features were added or removed between model
-    variants so the full selection history is persisted in ``config.json``.
-
-    Reader note (2026-05-14): selection-step ``notes`` written before the
-    2026-05-14 code-review refit were authored against the previous
-    permutation-importance implementation, which scored in-sample with the
-    default R² scorer. Importance values quoted in those notes (e.g.
-    "importance ≤ 0.005", "rank 9 importance (0.026)") refer to that
-    in-sample metric. The refit (PR #60) replaced the calculation with
-    out-of-fold, neg-RMSE-scored, group-aware permutation importance.
-    The historical *decisions* still stand — dropped features remained at
-    or near the noise floor under both views — but the new
-    ``permutation_importance.csv`` is the right evidence base for any
-    future variant that wants to re-evaluate a drop. See
-     for the deltas.
-    """
-
-    removed: list[str] = field(default_factory=list)
-    """Features removed in this selection step."""
-
-    added: list[str] = field(default_factory=list)
-    """Features added (e.g. composites) in this selection step."""
-
-    notes: str = ""
-    """Free-text rationale for this selection decision."""
-
-    date: str = ""
-    """ISO date when this step was taken (e.g. ``"2026-04-16"``)."""
-
-    metrics_before: dict[str, float] = field(default_factory=dict)
-    """CV metrics snapshot before this step (e.g.
-    ``{"cv_rmse_mean": 3.45, "cv_rmse_std": 0.52}``)."""
-
-    metrics_after: dict[str, float] = field(default_factory=dict)
-    """CV metrics snapshot after this step (e.g.
-    ``{"cv_rmse_mean": 3.31, "cv_rmse_std": 0.54}``)."""
-
-
-@dataclass
 class RunConfig:
     """Runtime configuration that overrides model defaults for speed control."""
 
@@ -204,12 +162,7 @@ class ModelConfig:
     'lrpgbg12'). Variants are excluded from ``fit_model.py all`` by default."""
 
     notes: str = ""
-    """Free-text rationale stored in ``config.json`` and surfaced in reports —
-    used for selection-decision provenance."""
-
-    selection_history: list[SelectionStep] = field(default_factory=list)
-    """Ordered list of feature-selection decisions leading to this model's
-    predictor set. Persisted in ``config.json`` for provenance."""
+    """Free-text rationale stored in ``config.json`` and surfaced in reports."""
 
 
 @dataclass

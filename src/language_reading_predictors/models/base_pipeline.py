@@ -1272,17 +1272,6 @@ class EstimatorPipeline:
             "perm_importance_repeats": effective_perm_importance_repeats,
             "random_seed": cfg.random_seed,
             "run_config": run.name,
-            "selection_history": [
-                {
-                    "removed": step.removed,
-                    "added": step.added,
-                    "notes": step.notes,
-                    "date": step.date,
-                    "metrics_before": step.metrics_before,
-                    "metrics_after": step.metrics_after,
-                }
-                for step in cfg.selection_history
-            ],
         }
 
         overrides = {}

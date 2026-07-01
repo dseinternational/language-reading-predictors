@@ -43,8 +43,7 @@ zero observations (n ≈ 158). Pair partner to LRPGBG15 (`trog_gain`, receptive
 grammar) — the pair addresses the expressive vs receptive grammar asymmetry
 that is a live question in DS language research.
 
-This is a **baseline exploratory model** for the gain-prediction task. It has
-not yet been through iterative feature selection --- it runs on MAE-tuned
+This is a **baseline exploratory model** for the gain-prediction task. It has not been through a target-specific hyperparameter tune --- it runs on MAE-tuned
 hyperparameters from an Optuna 150-trial study and the full
 `Predictors.DEFAULT_GAIN` set (`aptgram` is already a level predictor in that
 set). Later variants will have a documented starting point for comparison.
@@ -95,9 +94,7 @@ print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
 The predictor set spans demographics, cognitive assessments, language, speech
-and reading measures. Feature-selection history (what has been removed, when,
-and why) is persisted in `config.json` under `selection_history` and surfaced
-in the notes under `notes/` in the repository.
+and reading measures.
 
 ### Target variable
 
@@ -172,10 +169,10 @@ the model was insensitive to (or marginally helped by) the column.
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 
-### Feature-selection diagnostics
+### Predictor-relationship diagnostics
 
 The following plots show inter-predictor relationships and are the main lens
-for identifying redundant predictors in successive feature-selection passes.
+for identifying redundant predictors that inform the ranking clusters.
 
 #### Distance-correlation dendrogram
 
@@ -274,7 +271,6 @@ target, averaging over the values of all other features. Features are ordered by
 permutation importance.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
 
 ## Predictor ranking and clustering
 

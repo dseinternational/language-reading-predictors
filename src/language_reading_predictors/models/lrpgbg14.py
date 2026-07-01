@@ -26,45 +26,20 @@ negative and ~17% zero observations, n ≈ 160). The zero pile-up
 is heavier than in LRPGBG05 / LRPGBG09 gains (17% vs 3%/12%) —
 consistent with the coarser 0-18 CELF raw-score scale.
 
-Uniform feature selection (2026-06-21) reduced the predictor set to the SelectionStep below via a distance-correlation redundancy filter plus an importance noise-floor cut.
+Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
+retained from the earlier pruned-set tune (retune-pending, #116 Phase D).
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import GainModel
-from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
-
-
-# ── predictor selection steps (shared by all variants) ───────────────────
-#
-# Documents the 34 → 19 feature-selection history under MAE-tuned
-# params with no outlier exclusion (n=160).
-# for the full rationale.
-
-_SELECTION_STEPS: list[SelectionStep] = [
-    SelectionStep(
-        removed=[
-            V.BLENDING, V.HEARING, V.AGEBOOKS, V.VISION, V.BEHAV, V.AGESPEAK,
-            V.DADEDUPOST16, V.EARINF, V.GROUP, V.NUMCHIL, V.AREA, V.MUMEDUPOST16,
-            V.GENDER, V.SPPHON, V.DEAPPFI, V.YARCSI, V.EOWPVT, V.ATTEND, V.ERBNW,
-            V.DEAPPIN, V.ERBWORD, V.B1EXTO, V.B1RETO, V.APTINFO, V.APTGRAM,
-            V.DEAPPVO, V.TROG, V.TIME, V.EWRSWR
-        ],
-        notes=(
-            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 5 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
-        ),
-        date="2026-06-21",
-        metrics_before={"cv_mae_mean": 2.1621},
-        metrics_after={"cv_mae_mean": 2.1929},
-    ),
-]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 5-predictor uniform-selected set (Optuna 150
-# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
-# Tuner-inner CV MAE 2.1929.
+# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
+# retained as the full-set baseline (retune-pending).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
     "n_estimators": 274,
@@ -88,23 +63,18 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG14(GainModel):
     """CELF basic concept knowledge gain predictors — exploratory (MAE-tuned, all data).
 
-    Uses the full :attr:`Predictors.DEFAULT_GAIN` predictor set
-    (``celf`` is already a member, so the GainModel auto-include is
-    a no-op) with MAE-tuned hyperparameters and no outlier exclusion.
-    The starting point for feature selection on the CELF basic
-    concept knowledge gain-prediction task.
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params retune-pending).
     """
 
     model_id = "lrpgbg14"
     target_var = V.CELF_GAIN
     description = (
         "LightGBM — CELF (basic concept knowledge) gain predictors "
-        "(5 predictors, MAE-tuned, no outlier exclusion)"
+        "(full predictor set, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for celf_gain (gain). Uniform feature selection (2026-06-21) from the full 34-predictor DEFAULT_GAIN set to 5 predictors (distance-correlation redundancy filter + importance noise-floor cut; baseline force-kept; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 2.162 -> 2.193). Gain models are near-noise (baseline-driven regression to the mean) - treat the reduced ranking as exploratory."
+        "Exploratory model for celf_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

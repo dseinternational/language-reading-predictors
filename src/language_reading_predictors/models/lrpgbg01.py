@@ -20,9 +20,9 @@ of substantive predictors (mirrors the ``b1exto`` exclusion in LRPGBG02).
 
 Status: initial exploratory baseline. Hyperparameters are borrowed from the
 block-1 taught-vocabulary analogue LRPGBG02 as a reasonable starting point; a
-target-specific Optuna tune (``scripts/tune_model.py lrpgbg01``) and
-importance-based feature selection are follow-ups. Importance rankings — the
-purpose of this model — are robust to reasonable parameters.
+target-specific Optuna tune (``scripts/tune_model.py lrpgbg01``) is a follow-up.
+Importance rankings — the purpose of this model — are robust to reasonable
+parameters.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -66,12 +66,11 @@ class LRPGBG01(GainModel):
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
     exclude = [V.B1RETO]
-    selection_steps = []
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for predictors of taught receptive-vocabulary gains "
         "(b1retau_gain), the receptive analogue of lrpgbg02. b1reto (Block 1 "
         "receptive total = taught + not-taught) is excluded to avoid target "
         "leakage. Hyperparameters borrowed from lrpgbg02 pending a target-specific "
-        "tune; feature-selection variants to follow."
+        "tune."
     )

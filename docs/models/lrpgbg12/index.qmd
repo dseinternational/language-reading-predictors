@@ -44,8 +44,7 @@ small number of extreme gains. Cross-validation is group-aware (`GroupKFold`,
 grouped by `subject_id`) to prevent data leakage across timepoints for the same
 child.
 
-The model uses 6 predictors selected via iterative importance-based feature
-selection from an initial set of 34 (see [Feature selection log]).
+The model uses the full 34-predictor `Predictors.DEFAULT_GAIN` set (#116 Phase D retired hard feature selection in favour of full-set ranking).
 
 A prediction-focused variant (`lrpgbg12_prediction`) uses RMSE-tuned
 hyperparameters on the same predictor set for comparison (see [Variant
@@ -198,7 +197,7 @@ the model was insensitive to (or marginally helped by) the column.
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 
-### Feature-selection diagnostics
+### Predictor-relationship diagnostics
 
 The following plots show inter-predictor relationships.
 
@@ -311,7 +310,6 @@ target, averaging over the values of all other features. Features are ordered by
 permutation importance.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
 
 ## Predictor ranking and clustering
 

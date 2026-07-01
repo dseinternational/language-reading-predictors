@@ -10,39 +10,18 @@ of Grammar 2 (TROG-2; Bishop 2003), covering eight grammatical constructs.
 The target is near-Gaussian (min 3, max 27, median 14, mean 14.31, std
 4.83, skewness 0.29, n ≈ 215) — cleaner than most LRP level targets.
 
-Uniform feature selection (2026-06-21) with a **corr-filter-only exception**
-(2026-06-22): ``trog`` has a flat importance distribution, so the uniform
-0.005 noise-floor cut prunes it to 3 predictors at a real CV cost (pooled
-R² ≈ 0.46 → 0.30). This model therefore keeps the redundancy-filtered set
-(no distance-correlation ≥ 0.70 pairs) but **skips the noise-floor step** —
-26 predictors — and re-tunes. It is the one model where the uniform
-noise-floor is deliberately not applied. See the SelectionStep and
+Fits the full ``Predictors.DEFAULT_LEVEL`` set; hyperparameters are
+retained from the earlier pruned-set tune (retune-pending, #116 Phase D).
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
-from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-_SELECTION_STEPS: list[SelectionStep] = [
-    SelectionStep(
-        removed=[
-            V.B1RETO, V.SPPHON, V.EOWPVT, V.DEAPPFI, V.ERBNW, V.APTINFO
-        ],
-        notes=(
-            "Uniform feature selection (2026-06-21) with a corr-filter-only exception (2026-06-22): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) removes 6 redundant predictors. The 0.005 importance noise-floor cut is deliberately SKIPPED for this model: trog has a flat importance distribution, so applying it prunes to 3 predictors at a real CV cost (pooled R2 ~0.46 -> 0.30). Keeps 26 predictors with no dcor >= 0.70 pairs remaining; re-tuned (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47), tuner-inner CV MAE 2.96 -> 2.78. The standardised-instrument swap (b1exto -> eowpvt) was reverted because it would reintroduce the eowpvt <-> rowpvt redundancy. "
-        ),
-        date="2026-06-22",
-        metrics_before={"cv_mae_mean": 2.9616},
-        metrics_after={"cv_mae_mean": 2.7835},
-    ),
-]
-
-
-# MAE-tuned on the 26-predictor corr-filter-only set (Optuna 150 trials,
-# 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
-# Tuner-inner CV MAE 2.7835.
+# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
+# retained as the full-set baseline (retune-pending).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
     "n_estimators": 124,
@@ -63,29 +42,22 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL15(LevelModel):
     """TROG-2 receptive-grammar level predictors — exploratory (MAE-tuned, all data).
 
-    Uniform-selected subset of :attr:`Predictors.DEFAULT_LEVEL` (minus the
-    target ``trog``) with the noise-floor step skipped (corr-filter-only
-    exception), MAE-tuned, no outlier exclusion. See the SelectionStep and
-    the module docstring.
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
     """
 
     model_id = "lrpgbl15"
     target_var = V.TROG
     description = (
         "LightGBM — TROG-2 (receptive grammar) level predictors "
-        "(26 predictors, MAE-tuned, no outlier exclusion)"
+        "(full predictor set, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for receptive-grammar level (trog). Uniform "
-        "feature selection (2026-06-21) with a corr-filter-only exception "
-        "(2026-06-22): the redundancy filter removes 6 predictors but the "
-        "0.005 noise-floor cut is skipped (it would prune this flat-importance "
-        "target to 3 predictors at a pooled-R2 cost of ~0.46 -> 0.30). 26 "
-        "predictors, no dcor >= 0.70 pairs, re-tuned (tuner-inner CV MAE 2.96 "
-        "-> 2.78). Treat the reduced ranking as exploratory. See "
-        "."
+        "Exploratory model for receptive-grammar level (trog). Fits the full "
+        "DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature "
+        "selection in favour of full-set ranking); hyperparameters are "
+        "retained from the earlier pruned-set Optuna tune (retune-pending). "
+        "Treat the ranking as exploratory."
     )

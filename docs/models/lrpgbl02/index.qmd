@@ -41,8 +41,7 @@ the standardised outcomes already have.
 
 This is a **baseline exploratory model**. It runs on hyperparameters borrowed
 from the closely-matched LRPGBL06 analogue and the full `Predictors.DEFAULT_LEVEL`
-set (the target `b1extau` is already excluded), with no outlier exclusion, pending
-a target-specific tune and iterative feature selection.
+set (the target `b1extau` is already excluded), with no outlier exclusion, pending a target-specific tune.
 
 ::: {.callout-note title="Leakage exclusion: b1exto"}
 
@@ -51,7 +50,7 @@ The Block 1 expressive *total* `b1exto` equals taught + not-taught
 deviation from LRPGBL06). The standardised expressive (`eowpvt`) and receptive
 (`rowpvt`) tests and the receptive bespoke total (`b1reto`) are *retained* in this
 baseline — they are correlated with, but not supersets of, the taught expressive
-score — and are left to feature selection.
+score — and are kept in the full set.
 
 :::
 
@@ -98,8 +97,6 @@ print(": Model hyperparameters {#tbl-config}")
 #| output: asis
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
-
-Feature-selection history is persisted in `config.json` under `selection_history`.
 
 ### Target variable
 
@@ -184,7 +181,6 @@ print(":::")
 ## Partial dependence
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
 
 ## Predictor ranking and clustering
 

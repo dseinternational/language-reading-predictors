@@ -4,9 +4,9 @@
 """
 Declarative model definition base classes.
 
-Each model family is a Python class. Selection variants (derivatives) are
-subclasses that **chain** their parent's feature changes via
-``selection_steps``. Concrete classes (those setting ``model_id``) are
+Each model family is a Python class that configures its predictor set via
+class-level attributes (``include`` / ``exclude`` on top of the family's
+``DEFAULT_*`` base). Concrete classes (those setting ``model_id``) are
 auto-registered in the global ``MODELS`` dict at class-creation time.
 
 Example
@@ -18,11 +18,6 @@ Example
         target_var = V.EWRSWR_GAIN
         include = [V.EWRSWR]
         cv_splits = 53
-
-    class LRPGBG12Select01(LRPGBG12):
-        model_id = "lrpgbg12_select01"
-        variant_of = "lrpgbg12"
-        selection_steps = [SelectionStep(removed=[V.BEHAV], notes="...")]
 """
 
 from __future__ import annotations
@@ -32,7 +27,6 @@ from typing import Any, ClassVar
 from language_reading_predictors.data_variables import Predictors
 from language_reading_predictors.models.common import (
     ModelConfig,
-    SelectionStep,
     ShapScatterSpec,
 )
 
@@ -51,15 +45,15 @@ def _build_predictors(
     base: list[str],
     include: list[str],
     exclude: list[str],
-    selection_steps: list[SelectionStep],
 ) -> list[str]:
     """Assemble the final predictor list.
 
     1. Start from *base* (e.g. ``Predictors.DEFAULT_GAIN``).
-    2. Remove the target variable.
-    3. Prepend *include* vars not already present.
-    4. Remove *exclude* vars.
-    5. Apply *selection_steps* in order (remove then add for each step).
+    2. Remove *target_var* and all *exclude* vars in a single pass.
+    3. Prepend any *include* vars not already present (and not equal to
+       *target_var*).  Because *include* is applied after *exclude*, a
+       variable listed in both will end up in the predictor set — i.e.
+       *include* overrides *exclude*.
     """
     exclude_set = {target_var, *exclude}
     predictors = [p for p in base if p not in exclude_set]
@@ -67,33 +61,7 @@ def _build_predictors(
     extra = [v for v in include if v not in predictors and v != target_var]
     predictors = extra + predictors
 
-    for step in selection_steps:
-        remove_set = set(step.removed)
-        predictors = [p for p in predictors if p not in remove_set]
-        add = [v for v in step.added if v not in predictors]
-        predictors = predictors + add
-
     return predictors
-
-
-def _collect_selection_history(cls: type) -> list[SelectionStep]:
-    """Walk the MRO to collect chained selection steps (oldest ancestor first)."""
-    steps: list[SelectionStep] = []
-    # Collect classes in MRO order (excluding object and ModelDefinition itself)
-    chain = [
-        c
-        for c in reversed(cls.__mro__)
-        if c is not cls
-        and hasattr(c, "selection_steps")
-        and c.__dict__.get("selection_steps") is not None
-    ]
-    for ancestor in chain:
-        own = ancestor.__dict__.get("selection_steps", [])
-        steps.extend(own)
-    # Add this class's own steps last
-    own_steps = cls.__dict__.get("selection_steps") or []
-    steps.extend(own_steps)
-    return steps
 
 
 # ── base class ───────────────────────────────────────────────────────────
@@ -160,10 +128,6 @@ class ModelDefinition:
     notes: ClassVar[str] = ""
     """Free-text rationale persisted in ``config.json``."""
 
-    selection_steps: ClassVar[list[SelectionStep] | None] = None
-    """Feature-selection steps applied at *this* class level.
-    Steps from ancestor classes are collected automatically."""
-
     # ── base predictor set (overridden by GainModel / LevelModel) ────────
 
     _base_predictors: ClassVar[list[str]] = []
@@ -180,13 +144,11 @@ class ModelDefinition:
     @classmethod
     def to_config(cls) -> ModelConfig:
         """Generate a ``ModelConfig`` for the pipeline."""
-        all_history = _collect_selection_history(cls)
         predictors = _build_predictors(
             target_var=cls.target_var,
             base=cls._base_predictors,
             include=cls.include,
             exclude=cls.exclude,
-            selection_steps=all_history,
         )
 
         # Resolve pipeline_cls: walk MRO to find the first explicitly set value
@@ -223,7 +185,6 @@ class ModelDefinition:
             random_seed=cls.random_seed,
             variant_of=cls.variant_of,
             notes=cls.notes,
-            selection_history=all_history,
         )
 
 

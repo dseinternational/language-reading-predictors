@@ -5,53 +5,30 @@
 LRPGBG05: Predictors of receptive vocabulary gains.
 
 ``LRPGBG05`` is the exploratory model for receptive vocabulary gains
-(``rowpvt_gain``). It is MAE-tuned on a uniform-selected subset of
-:attr:`Predictors.DEFAULT_GAIN` (with the ``rowpvt`` baseline force-kept)
-and no outlier exclusion, designed to identify the most important
-influences on receptive vocabulary gains. Uniform feature selection
-(2026-06-21); the SelectionStep.
+(``rowpvt_gain``). It is MAE-tuned on the full
+:attr:`Predictors.DEFAULT_GAIN` set (with the ``rowpvt`` baseline
+auto-included) and no outlier exclusion, designed to identify the most
+important influences on receptive vocabulary gains.
 
 The target is **essentially symmetric** (``rowpvt_gain`` min ≈ −20,
 max ≈ 34, median 5, mean 3.84, skewness 0.04, with ~29% negative
 and ~3% zero observations, n ≈ 161). Cleaner distribution than any
 previous gain target — no skew and no pile-up at zero.
+
+Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
+retained from the earlier pruned-set tune (retune-pending, #116 Phase D).
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import GainModel
-from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
-
-
-# ── predictor selection steps (shared by all variants) ───────────────────
-#
-# Uniform feature-selection history (see the SelectionStep below and
-# ).
-
-_SELECTION_STEPS: list[SelectionStep] = [
-    SelectionStep(
-        removed=[
-            V.MUMEDUPOST16, V.AGE, V.NUMCHIL, V.GROUP, V.GENDER, V.NONWORD,
-            V.EARINF, V.AREA, V.VISION, V.EWRSWR, V.HEARING, V.SPPHON, V.AGEBOOKS,
-            V.ERBNW, V.BLENDING, V.DEAPPVO, V.DADEDUPOST16, V.BEHAV, V.YARCSI,
-            V.EOWPVT, V.AGESPEAK, V.APTINFO, V.DEAPPIN, V.APTGRAM, V.YARCLET,
-            V.DEAPPFI, V.B1EXTO, V.ERBWORD, V.B1RETO, V.TIME, V.CELF, V.ATTEND
-        ],
-        notes=(
-            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
-        ),
-        date="2026-06-21",
-        metrics_before={"cv_mae_mean": 7.2241},
-        metrics_after={"cv_mae_mean": 7.1434},
-    ),
-]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 2-predictor uniform-selected set (Optuna 150
-# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
-# Tuner-inner CV MAE 7.1434.
+# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
+# retained as the full-set baseline (retune-pending).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
     "n_estimators": 26,
@@ -75,23 +52,21 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG05(GainModel):
     """Receptive vocabulary gain predictors — exploratory (MAE-tuned, all data).
 
-    Uses the full :attr:`Predictors.DEFAULT_GAIN` predictor set plus
-    the base variable ``rowpvt`` (auto-included via :class:`GainModel`)
-    with MAE-tuned hyperparameters and no outlier exclusion. The
-    starting point for feature selection on the receptive vocabulary
-    gain-prediction task.
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params
+    retune-pending). Uses the full predictor set plus the base variable
+    ``rowpvt`` (auto-included via :class:`GainModel`) with no outlier
+    exclusion.
     """
 
     model_id = "lrpgbg05"
     target_var = V.ROWPVT_GAIN
     description = (
         "LightGBM — receptive vocabulary gain predictors "
-        "(2 predictors, MAE-tuned, no outlier exclusion)"
+        "(full predictor set, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for rowpvt_gain (gain). Uniform feature selection (2026-06-21) from the full 34-predictor DEFAULT_GAIN set to 2 predictors (distance-correlation redundancy filter + importance noise-floor cut; baseline force-kept; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 7.224 -> 7.143). Gain models are near-noise (baseline-driven regression to the mean) - treat the reduced ranking as exploratory."
+        "Exploratory model for rowpvt_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

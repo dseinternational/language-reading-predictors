@@ -40,8 +40,7 @@ generalisation counterpart to the taught level [LRPGBL02](../lrpgbl02/). Added i
 
 This is a **baseline exploratory model**. It runs on hyperparameters borrowed from
 the block-1 vocabulary analogue LRPGBL02 and the full `Predictors.DEFAULT_LEVEL`
-set (the target `b1exnt` is already excluded), with no outlier exclusion, pending a
-target-specific tune and iterative feature selection. As a level model a high naive
+set (the target `b1exnt` is already excluded), with no outlier exclusion, pending a target-specific tune. As a level model a high naive
 R² is partly concurrent same-construct correlation — read the ranking as
 exploratory.
 
@@ -50,7 +49,7 @@ exploratory.
 The Block 1 expressive *total* `b1exto` equals taught + not-taught
 (`b1extau + b1exnt`), so it contains the target directly and is removed. The
 standardised expressive (`eowpvt`) and receptive (`rowpvt`) tests are *retained* in
-this baseline and left to feature selection. (The not-taught denominator, ~12
+this baseline and kept in the full set. (The not-taught denominator, ~12
 items, is unconfirmed, #144.)
 
 :::
@@ -98,8 +97,6 @@ print(": Model hyperparameters {#tbl-config}")
 #| output: asis
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
-
-Feature-selection history is persisted in `config.json` under `selection_history`.
 
 ### Target variable
 
@@ -184,7 +181,6 @@ print(":::")
 ## Partial dependence
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
 
 ## Predictor ranking and clustering
 

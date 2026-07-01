@@ -20,42 +20,16 @@ recorded at t1–t2 only, so this level model is doubly exploratory
 language-sample measures are absent from the default predictor
 pool (recorded at t1–t2 only), so this model cannot be carried by
 same-instrument siblings.
-
-Uniform feature selection (2026-06-23): reduced from the full
-33-predictor DEFAULT_LEVEL set to 5 predictors via a distance-
-correlation redundancy filter (dcor >= 0.70) plus an importance
-noise-floor cut, then re-tuned. See the SelectionStep below.
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
-from language_reading_predictors.models.common import SelectionStep, ShapScatterSpec
+from language_reading_predictors.models.common import ShapScatterSpec
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# ── predictor selection steps ────────────────────────────────────────────
 
-_SELECTION_STEPS: list[SelectionStep] = [
-    SelectionStep(
-        removed=[
-            V.TIME, V.GROUP, V.AREA, V.GENDER, V.AGE, V.APTINFO,
-            V.B1EXTO, V.CELF, V.ERBWORD, V.NONWORD, V.BLENDING,
-            V.ROWPVT, V.SPPHON, V.TROG, V.YARCLET, V.YARCSI, V.DEAPPVO,
-            V.DEAPPFI, V.EWRSWR, V.BEHAV, V.AGESPEAK, V.VISION,
-            V.HEARING, V.EARINF, V.NUMCHIL, V.AGEBOOKS, V.MUMEDUPOST16,
-            V.DADEDUPOST16
-        ],
-        notes=(
-            "Uniform feature selection (2026-06-23): from the full 33-predictor DEFAULT_LEVEL set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). Reduces to 5 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Same method as the LRPGBG12–22 suite; see scripts/rank_predictors.py (the full-set ranking that supersedes the retired hard-selection pass)."
-        ),
-        date="2026-06-23",
-        metrics_before={"cv_mae_mean": 1.3839},
-        metrics_after={"cv_mae_mean": 1.3509},
-    ),
-]
-
-
-# ── hyperparameters (MAE-tuned on the reduced set) ───────────────────────
+# ── hyperparameters (MAE-tuned) ──────────────────────────────────────────
 
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
@@ -81,16 +55,15 @@ class LRPGBL25(LevelModel):
     model_id = "lrpgbl25"
     target_var = V.LSAMMAX
     description = (
-        "LightGBM — language sample maximum utterance length level predictors (5 predictors, MAE-tuned, no outlier exclusion)"
+        "LightGBM — language sample maximum utterance length level predictors (full predictor set, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
     cv_splits = 51
     outlier_threshold = None
-    selection_steps = _SELECTION_STEPS
     shap_scatter_specs = [
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     ]
     notes = (
-        "Exploratory model for lsammax (level). Uniform feature selection (2026-06-23) from the full 33-predictor DEFAULT_LEVEL set to 5 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 1.381). Treat the reduced ranking as exploratory."
+        "Exploratory model for lsammax (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Treat the ranking as exploratory."
     )
