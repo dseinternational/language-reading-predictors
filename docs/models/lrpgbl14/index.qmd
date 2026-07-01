@@ -46,10 +46,8 @@ instrument maximum but there is no strong ceiling pile-up (unlike LRPGBL09's
 `yarclet` which piles at 32), so transforms are not indicated.
 
 This is an **exploratory model** for the level-prediction task. It runs on
-MAE-tuned hyperparameters from an Optuna 150-trial study, with the
-predictor set reduced from the full `Predictors.DEFAULT_LEVEL` set (minus
-the target) by iterative importance-based feature selection. The retained
-predictors and the removal history are shown below.
+MAE-tuned hyperparameters from an Optuna 150-trial study on the full `Predictors.DEFAULT_LEVEL` set (minus
+the target); #116 Phase D retired hard feature selection in favour of full-set ranking. The predictor ranking is shown below.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
 prevent data leakage across timepoints for the same child.
@@ -97,9 +95,7 @@ print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
 The predictor set spans demographics, cognitive assessments, language, speech
-and reading measures. Feature-selection history (what has been removed, when,
-and why) is persisted in `config.json` under `selection_history` and surfaced
-in the notes under `notes/` in the repository.
+and reading measures.
 
 ### Target variable
 
@@ -174,10 +170,10 @@ the model was insensitive to (or marginally helped by) the column.
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 
-### Feature-selection diagnostics
+### Predictor-relationship diagnostics
 
 The following plots show inter-predictor relationships and are the main lens
-for identifying redundant predictors in successive feature-selection passes.
+for identifying redundant predictors that inform the ranking clusters.
 
 #### Distance-correlation dendrogram
 
@@ -276,7 +272,6 @@ target, averaging over the values of all other features. Features are ordered by
 permutation importance.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
-
 
 ## Predictor ranking and clustering
 

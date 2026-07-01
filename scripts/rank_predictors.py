@@ -39,7 +39,7 @@ Usage::
 
 Artefacts land in ``output/ranking/<model>/`` (gitignored): ``cluster_ranking.csv``
 (primary), ``predictor_ranking.csv``, ``cluster_cutoff_sensitivity.csv``,
-``ranking_vs_selected.csv``, ``ranking_excluding_same_skill.csv`` (outcomes with a
+``ranking_excluding_same_skill.csv`` (outcomes with a
 sibling), ``ranking_meta.json``, ``distance_corr_dendrogram.png`` and
 ``shap_summary.png`` (beeswarm). The downstream consumer of this ranking is
 ``scripts/predictability_readout.py --from-ranking``.
@@ -95,25 +95,20 @@ def make_config(model_id: str, *, kind: str):
 
     kind="full"    -> full DEFAULT_* set minus target (no pruning)
     kind="noskill" -> full set minus target minus curated same-skill siblings
-    kind="sel"     -> the registered (currently selected) predictor set
     """
     base = MODELS[model_id]
     target = base.target_var
     full = Predictors.DEFAULT_GAIN if target.endswith("_gain") else Predictors.DEFAULT_LEVEL
     siblings = SAME_SKILL_SIBLINGS.get(target, [])
 
-    if kind == "sel":
-        preds = list(base.predictor_vars)
-    else:
-        preds = [p for p in full if p != target]  # leakage guard
-        if kind == "noskill":
-            preds = [p for p in preds if p not in siblings]
+    preds = [p for p in full if p != target]  # leakage guard
+    if kind == "noskill":
+        preds = [p for p in preds if p not in siblings]
 
     cfg = dataclasses.replace(
         base,
         model_id=f"rank_{model_id}_{kind}",
         predictor_vars=preds,
-        selection_history=[],
         pdp_features=None,
         shap_scatter_specs=[],
     )
@@ -263,21 +258,6 @@ def cutoff_sensitivity(X, target, cutoffs=(0.2, 0.3, 0.4, 0.5, 0.6)):
 
 
 # ── ranking assembly ────────────────────────────────────────────────────────────
-def ranking_vs_selected(model_id, full_pipe, sel_pipe):
-    """Side-by-side: each predictor's full-set rank vs whether selection kept it."""
-    selected = list(MODELS[model_id].predictor_vars)
-    full = full_pipe.context.perm_importance_df.reset_index(drop=True).copy()
-    full["full_rank"] = np.arange(1, len(full) + 1)
-    full["in_selected_set"] = full["feature"].isin(selected)
-    sel = sel_pipe.context.perm_importance_df.reset_index(drop=True).copy()
-    sel["selected_rank"] = np.arange(1, len(sel) + 1)
-    sel = sel[["feature", "selected_rank", "importance_mean"]].rename(
-        columns={"importance_mean": "selected_imp"}
-    )
-    out = full.merge(sel, on="feature", how="left").rename(columns={"importance_mean": "full_imp"})
-    return out[["full_rank", "feature", "full_imp", "in_selected_set", "selected_rank", "selected_imp"]]
-
-
 def conditional_dropout_check(model_id, run, cluster_imp, clusters_by_feature, base_full_pipe):
     """Conditional cross-check on the dominant cluster: drop the whole top cluster and
     report the pooled OOF R² change (how much the cluster *jointly* buys)."""
@@ -331,16 +311,10 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
         sens = cutoff_sensitivity(full.context.X, target)
         sens.to_csv(out / "cluster_cutoff_sensitivity.csv", index=False)
 
-        # 3. side-by-side vs the currently-selected set
-        cfg_sel, _, _ = make_config(model_id, kind="sel")
-        sel = run_stages(cfg_sel, run, do_cluster=False, do_shap=False, do_stability=False)
-        rvs = ranking_vs_selected(model_id, full, sel)
-        rvs.to_csv(out / "ranking_vs_selected.csv", index=False)
-
-        # 4. conditional cross-check on the dominant cluster
+        # 3. conditional cross-check on the dominant cluster
         cond = conditional_dropout_check(model_id, run, cluster_imp, clusters_by_feature, full)
 
-        # 5. same-skill handling: excluding-siblings view + curated-variant compare
+        # 4. same-skill handling: excluding-siblings ranking view
         noskill = None
         if siblings:
             cfg_ns, _, _ = make_config(model_id, kind="noskill")
@@ -349,14 +323,6 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
             noskill = {"dropped": siblings,
                        "top5": ns.context.perm_importance_df.head(5)["feature"].tolist(),
                        "r2_noskill": ns.context.pooled_cv_metrics.get("pooled_r2")}
-            nc_id = f"{model_id}_noconstruct"
-            if nc_id in MODELS:
-                nc_cfg = dataclasses.replace(MODELS[nc_id], model_id=f"rank_{nc_id}",
-                                             selection_history=[], pdp_features=None,
-                                             shap_scatter_specs=[])
-                nc = run_stages(nc_cfg, run, do_cluster=False, do_shap=False, do_stability=False)
-                noskill["curated_variant"] = nc_id
-                noskill["r2_curated_variant"] = nc.context.pooled_cv_metrics.get("pooled_r2")
 
         # self-describing metadata (records the pinned cv config)
         meta = {
@@ -382,8 +348,8 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
                        cond, noskill, out)
         return ranking
     finally:
-        # The helper fits land in output/models/rank_<id>_* (full / sel / noskill /
-        # drop_top_cluster / noconstruct) because EstimatorPipeline derives output_dir
+        # The helper fits land in output/models/rank_<id>_* (full / noskill /
+        # drop_top_cluster) because EstimatorPipeline derives output_dir
         # from model_id. They are scratch — never real models — but upload.py globs every
         # output/models/ subdir, so leaving them would publish them as if fitted. Remove
         # them here (success or failure); the ranking artefacts are under output/ranking/<id>/.
@@ -413,10 +379,7 @@ def _print_summary(model_id, target, siblings, full, ranking, cluster_rank, sens
         flagged = ranking.loc[ranking["same_skill_of_outcome"], "member"].tolist()
         print(f"\n  same-skill flag -> {flagged} (curated siblings of {target})")
         if noskill:
-            line = f"    excluding same-skill top5: {noskill['top5']}  R2={_fmt(noskill['r2_noskill'])}"
-            if "r2_curated_variant" in noskill:
-                line += f"  | curated {noskill['curated_variant']} R2={_fmt(noskill['r2_curated_variant'])}"
-            print(line)
+            print(f"    excluding same-skill top5: {noskill['top5']}  R2={_fmt(noskill['r2_noskill'])}")
     print(f"\n  conditional check: drop dominant cluster {cond['top_cluster_members']}")
     print(f"    pooled R2  full={_fmt(cond['r2_full'])} -> drop-top-cluster={_fmt(cond['r2_drop_top_cluster'])}")
     print("\n  cut-height sensitivity:")

@@ -15,45 +15,18 @@ The target is **essentially symmetric** (``blending`` min 0, max
 of the cleanest distributions in the suite. The coarse 0–10
 scale may cap achievable R² (similar to CELF's 0–18 scale in
 LRPGBL14).
-
-Uniform feature selection (2026-06-21): reduced from the full 32-predictor set to 2 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below.
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import LevelModel
-from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
-
-
-# ── predictor selection steps (shared by all variants) ───────────────────
-#
-# Feature selection (2026-06-21 uniform): distance-correlation
-# redundancy filter + importance noise-floor cut; see the SelectionStep.
-
-_SELECTION_STEPS: list[SelectionStep] = [
-    SelectionStep(
-        removed=[
-            V.B1RETO, V.SPPHON, V.ERBWORD, V.YARCSI, V.B1EXTO, V.GROUP, V.AGE,
-            V.CELF, V.TROG, V.NUMCHIL, V.AGESPEAK, V.APTGRAM, V.VISION, V.TIME,
-            V.EARINF, V.AREA, V.MUMEDUPOST16, V.HEARING, V.DEAPPFI, V.AGEBOOKS,
-            V.BEHAV, V.APTINFO, V.GENDER, V.DADEDUPOST16, V.ERBNW, V.DEAPPVO,
-            V.DEAPPIN, V.NONWORD, V.YARCLET, V.EOWPVT
-        ],
-        notes=(
-            "Uniform feature selection (2026-06-21): from the full 32-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. Reduces to 2 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
-        ),
-        date="2026-06-21",
-        metrics_before={"cv_mae_mean": 1.6942},
-        metrics_after={"cv_mae_mean": 1.7634},
-    ),
-]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 2-predictor uniform-selected set (Optuna 150
-# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
-# Tuner-inner CV MAE 1.7634.
+# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
+# retained as the full-set baseline (retune-pending).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
     "n_estimators": 22,
@@ -77,21 +50,22 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL10(LevelModel):
     """Phoneme-blending level predictors — baseline (all data, MAE-tuned).
 
-    Uses a feature-selected subset of :attr:`Predictors.DEFAULT_LEVEL`
-    (minus the target ``blending``) with MAE-tuned hyperparameters
-    and no outlier exclusion. Feature selection was applied (2026-06-21 uniform); see the SelectionStep and the module docstring.
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
     """
 
     model_id = "lrpgbl10"
     target_var = V.BLENDING
     description = (
         "LightGBM — phoneme-blending level predictors "
-        "(2 predictors, MAE-tuned, no outlier exclusion)"
+        "(full predictor set, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for blending (level). Uniform feature selection (2026-06-21) from the full 32-predictor DEFAULT_LEVEL set to 2 predictors (distance-correlation redundancy filter + importance noise-floor cut; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 1.694 -> 1.763). Treat the reduced ranking as exploratory."
+        "Exploratory model for blending (level). Fits the full DEFAULT_LEVEL "
+        "predictor set (#116 Phase D retired hard feature selection in favour "
+        "of full-set ranking); hyperparameters are retained from the earlier "
+        "pruned-set Optuna tune (retune-pending). Treat the ranking as "
+        "exploratory."
     )

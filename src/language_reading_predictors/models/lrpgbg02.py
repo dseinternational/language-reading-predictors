@@ -7,8 +7,8 @@ LRPGBG02: Predictors of taught-vocabulary gains.
 ``LRPGBG02`` is the exploratory model for *taught* expressive-vocabulary gains
 (``b1extau_gain`` — change in the Block 1 directly-taught expressive vocabulary
 score). It is the taught-vocabulary analogue of :mod:`lrpgbg06` (standardised
-expressive-vocabulary gains, ``eowpvt_gain``), added so the feature-selection /
-predictor analysis covers taught vocabulary too, not only the standardised tests.
+expressive-vocabulary gains, ``eowpvt_gain``), added so the predictor analysis
+covers taught vocabulary too, not only the standardised tests.
 
 The target is signed and mildly skewed (``b1extau_gain`` min ≈ −6, max ≈ 12,
 median 1, mean 1.83, skewness 0.71, ~20% negative, n ≈ 161) — comparable to
@@ -24,8 +24,8 @@ substantive predictors. This is the only deviation from the LRPGBG06 predictor s
 
 Status: initial exploratory baseline. Hyperparameters are borrowed from the
 LRPGBG06 standardised analogue as a reasonable starting point; a target-specific
-Optuna tune (``scripts/tune_model.py lrpgbg02``) and iterative importance-based
-feature selection are follow-ups, exactly as for LRPGBG06.
+Optuna tune (``scripts/tune_model.py lrpgbg02``) is a follow-up, exactly as for
+LRPGBG06.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -62,8 +62,7 @@ class LRPGBG02(GainModel):
 
     Uses :attr:`Predictors.DEFAULT_GAIN` plus the auto-included baseline
     ``b1extau`` and minus the tautological total ``b1exto`` (see module
-    docstring), with no outlier exclusion. The starting point for feature
-    selection on the taught-vocabulary gain-prediction task.
+    docstring), with no outlier exclusion.
     """
 
     model_id = "lrpgbg02"
@@ -75,12 +74,11 @@ class LRPGBG02(GainModel):
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
     exclude = [V.B1EXTO]
-    selection_steps = []
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for predictors of taught expressive-vocabulary gains "
         "(b1extau_gain), the taught-vocabulary analogue of lrpgbg06. b1exto (Block 1 "
         "expressive total = taught + not-taught) is excluded to avoid target "
         "leakage. Hyperparameters borrowed from lrpgbg06 pending a target-specific "
-        "tune; feature-selection variants to follow."
+        "tune."
     )

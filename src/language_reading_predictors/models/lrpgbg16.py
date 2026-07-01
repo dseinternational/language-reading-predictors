@@ -23,45 +23,18 @@ the floor improve.
 
 DEAP measures have been used as predictors across every other
 model in the suite but never as targets until LRPGBG16/22.
-
-Uniform feature selection (2026-06-21): reduced from the full 34-predictor set to 6 predictors via a distance-correlation redundancy filter plus an importance noise-floor cut, then re-tuned. See the SelectionStep below.
 """
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import GainModel
-from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS, SelectionStep
+from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
-
-
-# ── predictor selection steps (shared by all variants) ───────────────────
-#
-# Feature selection (2026-06-21 uniform): distance-correlation
-# redundancy filter + importance noise-floor cut; see the SelectionStep.
-
-_SELECTION_STEPS: list[SelectionStep] = [
-    SelectionStep(
-        removed=[
-            V.B1EXTO, V.DEAPPIN, V.BEHAV, V.GROUP, V.AREA, V.VISION, V.EARINF,
-            V.HEARING, V.NUMCHIL, V.AGEBOOKS, V.DADEDUPOST16, V.AGESPEAK,
-            V.MUMEDUPOST16, V.GENDER, V.YARCSI, V.APTGRAM, V.SPPHON, V.ROWPVT,
-            V.BLENDING, V.CELF, V.TIME, V.B1RETO, V.TROG, V.APTINFO, V.ATTEND,
-            V.ERBWORD, V.YARCLET, V.ERBNW
-        ],
-        notes=(
-            "Uniform feature selection (2026-06-21): from the full 34-predictor set, a distance-correlation redundancy filter (dcor >= 0.70, keep the highest out-of-fold permutation-importance representative) plus an importance noise-floor cut (<= 0.005). The standardised instrument was preferred over its bespoke taught sibling where it did not reintroduce redundancy. The baseline measure was force-kept (regression-to-the-mean anchor). Reduces to 6 predictors with no dcor >= 0.70 pairs remaining; re-tuned on the reduced set (Optuna 150-trial MAE, 10-fold GroupKFold, seed 47). Applied uniformly across all GB models."
-        ),
-        date="2026-06-21",
-        metrics_before={"cv_mae_mean": 8.7223},
-        metrics_after={"cv_mae_mean": 8.2945},
-    ),
-]
 
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned on the 6-predictor uniform-selected set (Optuna 150
-# trials, 10-split GroupKFold, seed 47, scoring=mae, lgbm_objective=mae).
-# Tuner-inner CV MAE 8.2945.
+# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
+# retained as the full-set baseline (retune-pending).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
     "n_estimators": 11,
@@ -85,22 +58,18 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG16(GainModel):
     """DEAP fine-articulation gain predictors — baseline (all data, MAE-tuned).
 
-    Uses a feature-selected subset of :attr:`Predictors.DEFAULT_GAIN`
-    (``deappfi`` is already a member, so the GainModel auto-include
-    is a no-op) with MAE-tuned hyperparameters and no outlier
-    exclusion. Feature selection was applied (2026-06-21 uniform); see the SelectionStep and the module docstring.
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params retune-pending).
     """
 
     model_id = "lrpgbg16"
     target_var = V.DEAPPFI_GAIN
     description = (
         "LightGBM — DEAP fine-articulation gain predictors "
-        "(6 predictors, MAE-tuned, no outlier exclusion)"
+        "(full predictor set, MAE-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    selection_steps = _SELECTION_STEPS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for deappfi_gain (gain). Uniform feature selection (2026-06-21) from the full 34-predictor DEFAULT_GAIN set to 6 predictors (distance-correlation redundancy filter + importance noise-floor cut; baseline force-kept; no dcor >= 0.70 pairs remain), re-tuned on the reduced set (tuner-inner CV MAE 8.722 -> 8.294). Gain models are near-noise (baseline-driven regression to the mean) - treat the reduced ranking as exploratory."
+        "Exploratory model for deappfi_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

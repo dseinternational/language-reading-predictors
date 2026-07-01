@@ -52,7 +52,6 @@ class LRPGBL11(LevelModel):
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    selection_steps = []
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for predictors of phonetic-spelling level (spphon). "
