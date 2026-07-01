@@ -30,7 +30,7 @@ if tau_summary is not None:
     )
     print(
         f"The intervention changed the probability of {outcome_label} coming off the "
-        f"floor by a risk difference of **{_t.tau_prob_mean * 100:+.1f} percentage points** "
+        f"floor by a risk difference of **{_t.tau_prob_median * 100:+.1f} percentage points** "
         f"(95% CrI {_t.tau_prob_lo * 100:+.1f} to {_t.tau_prob_hi * 100:+.1f}). "
         f"P(intervention helps) = {_t.prob_tau_pos:.3f} ({_odds(_t.prob_tau_pos)}{_lab})."
     )

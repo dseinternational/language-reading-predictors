@@ -1032,7 +1032,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ranked_dataframe_table(
             tau_df,
             title=f"tau by outcome - {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)",
-            columns=["outcome", "tau_mean", "tau_lo", "tau_hi", "prob_pos"],
+            columns=["outcome", "tau_median", "tau_lo", "tau_hi", "prob_pos"],
             rank_column=False,
         )
     )
