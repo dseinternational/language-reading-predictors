@@ -14,7 +14,7 @@ Design decisions baked in:
   distance-correlation matrix and ranked *as groups* by joint (grouped) out-of-fold
   permutation importance — see ``cluster_ranking.csv``. Per-feature scores
   (``predictor_ranking.csv``) are within-cluster detail. The reason: per-feature
-  permutation z is highly sensitive to ``cv_splits`` (in the pilot, ``lrp04`` `b1exto`
+  permutation z is highly sensitive to ``cv_splits`` (in the pilot, ``lrpgbl06`` `b1exto`
   z ran 1.9 → 1.5 → 0.33 at cv = 5 / 10 / 51), whereas the cluster-level ordering is
   stable. Read clusters first.
 * **The cross-validation config is pinned and recorded.** ``--cv-splits`` and
@@ -33,13 +33,13 @@ no ad-hoc model id has). ``GroupKFold`` by ``subject_id``, seed 47.
 
 Usage::
 
-    python scripts/rank_predictors.py --model lrp04          # reporting-fidelity
-    python scripts/rank_predictors.py --model lrp01 --quick   # fast dev tier
-    python scripts/rank_predictors.py --model lrp07 --cv-splits 10 --cutoff 0.4
+    python scripts/rank_predictors.py --model lrpgbl06          # reporting-fidelity
+    python scripts/rank_predictors.py --model lrpgbg12 --quick   # fast dev tier
+    python scripts/rank_predictors.py --model lrpgbg05 --cv-splits 10 --cutoff 0.4
 
 Artefacts land in ``output/ranking/<model>/`` (gitignored): ``cluster_ranking.csv``
 (primary), ``predictor_ranking.csv``, ``cluster_cutoff_sensitivity.csv``,
-``ranking_vs_selected.csv``, ``ranking_excluding_same_skill.csv`` (outcomes with a
+``ranking_excluding_same_skill.csv`` (outcomes with a
 sibling), ``ranking_meta.json``, ``distance_corr_dendrogram.png`` and
 ``shap_summary.png`` (beeswarm). The downstream consumer of this ranking is
 ``scripts/predictability_readout.py --from-ranking``.
@@ -55,38 +55,23 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from dse_research_utils.ml.importance import (
+    grouped_permutation_importance as _grouped_perm_deltas,
+)
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
-from sklearn.metrics import root_mean_squared_error
 
 from language_reading_predictors.data_variables import Predictors
 from language_reading_predictors.models.base_pipeline import _OUTPUT_DIR, _clear_directory
+from language_reading_predictors.models.cluster_ranking import (
+    SAME_SKILL_SIBLINGS,
+    assemble_ranking,
+    cluster_ranking_table,
+)
 from language_reading_predictors.models.common import RunConfig
 from language_reading_predictors.models.registry import MODELS
 from language_reading_predictors.stats_utils import distance_corr_matrix
 
-# ── Curated same-skill (predictor↔OUTCOME contamination) map ───────────────────
-# Source: curated project mapping. A predictor listed here is
-# a *concurrent restatement of the outcome* (same skill, possibly a different
-# instrument). Distance-correlation clustering is predictor↔predictor and CANNOT
-# catch this, so it survives as curated annotation — NOT a prune. Keyed by outcome.
-SAME_SKILL_SIBLINGS: dict[str, list[str]] = {
-    "eowpvt": ["b1exto"],    # expressive vocab — EOWPVT vs total b1exto
-    "aptgram": ["aptinfo"],  # same APT elicited sample
-    "aptinfo": ["aptgram"],  # same APT elicited sample
-    "deappfi": ["deappin", "deappvo"],  # same DEAP picture-naming instrument
-    "deappin": ["deappfi", "deappvo"],  # same DEAP picture-naming instrument
-    "deappvo": ["deappfi", "deappin"],  # DEAP voicing — same DEAP instrument
-    "rowpvt": ["b1reto"],    # receptive vocab — ROWPVT vs total b1reto
-    # Early Repetition Battery (ERB) phonological-memory sub-scores — same instrument
-    # (#112 LRP25-42 recast: replaces the per-model _noconstruct sibling-drop variants;
-    # read the sibling-dropped skill off ranking_excluding_same_skill.csv).
-    "erbnw": ["erbword", "erbto"],
-    "erbword": ["erbnw", "erbto"],
-    "erbto": ["erbnw", "erbword"],
-    # gain outcomes (ewrswr_gain, rowpvt_gain, erb*_gain, ...): none — the baseline
-    # level is the regression-to-the-mean anchor, not contamination.
-}
 
 _ROOT = Path(__file__).resolve().parent.parent
 RANKING_ROOT = _ROOT / "output" / "ranking"  # gitignored
@@ -112,25 +97,20 @@ def make_config(model_id: str, *, kind: str):
 
     kind="full"    -> full DEFAULT_* set minus target (no pruning)
     kind="noskill" -> full set minus target minus curated same-skill siblings
-    kind="sel"     -> the registered (currently selected) predictor set
     """
     base = MODELS[model_id]
     target = base.target_var
     full = Predictors.DEFAULT_GAIN if target.endswith("_gain") else Predictors.DEFAULT_LEVEL
     siblings = SAME_SKILL_SIBLINGS.get(target, [])
 
-    if kind == "sel":
-        preds = list(base.predictor_vars)
-    else:
-        preds = [p for p in full if p != target]  # leakage guard
-        if kind == "noskill":
-            preds = [p for p in preds if p not in siblings]
+    preds = [p for p in full if p != target]  # leakage guard
+    if kind == "noskill":
+        preds = [p for p in preds if p not in siblings]
 
     cfg = dataclasses.replace(
         base,
         model_id=f"rank_{model_id}_{kind}",
         predictor_vars=preds,
-        selection_history=[],
         pdp_features=None,
         shap_scatter_specs=[],
     )
@@ -177,36 +157,6 @@ def run_stages(cfg, run, *, cluster_cutoff=0.4, do_cluster=True, do_shap=True, d
 
 
 # ── cluster-level (grouped) permutation importance ─────────────────────────────
-def _grouped_perm_deltas(estimators, X, y, test_indices, cluster_cols, *, n_repeats, seed):
-    """Joint (grouped) out-of-fold permutation deltas, one block per cluster.
-
-    Pure-numeric core of :func:`cluster_permutation_importance`, split out so the
-    headline grouped-shuffle metric is unit-testable without a pipeline. For each
-    held-out fold it permutes ALL of a cluster's columns together (one row-permutation
-    per repeat applied to the whole block), which removes the within-cluster
-    substitution dilution that deflates per-feature scores. The RNG is reset to
-    ``seed`` at the start of each fold, mirroring ``permutation_importance_analysis``
-    (which passes ``random_state=cfg.random_seed`` per fold). ``cluster_cols`` maps
-    cluster id -> column *positions* in ``X``. Returns cluster id -> array of deltas
-    (held-out RMSE rise when the block is permuted; positive = the cluster was useful).
-    """
-    y = np.asarray(y, dtype=float)
-    deltas: dict[int, list[float]] = {c: [] for c in cluster_cols}
-    for est, val_idx in zip(estimators, test_indices):
-        X_val = X.iloc[val_idx]
-        y_val = y[val_idx]
-        base_rmse = root_mean_squared_error(y_val, est.predict(X_val))
-        n = len(X_val)
-        rng = np.random.default_rng(seed)  # reset per fold (matches the per-feature loop)
-        for c, cols in cluster_cols.items():
-            for _ in range(n_repeats):
-                perm = rng.permutation(n)
-                Xp = X_val.copy()
-                Xp.iloc[:, cols] = X_val.iloc[perm, cols].to_numpy()  # joint block shuffle
-                deltas[c].append(root_mean_squared_error(y_val, est.predict(Xp)) - base_rmse)
-    return {c: np.asarray(v) for c, v in deltas.items()}
-
-
 def cluster_permutation_importance(pipe, clusters_by_feature, *, n_repeats):
     """Joint/grouped out-of-fold permutation importance, one block per cluster.
 
@@ -280,95 +230,6 @@ def cutoff_sensitivity(X, target, cutoffs=(0.2, 0.3, 0.4, 0.5, 0.6)):
 
 
 # ── ranking assembly ────────────────────────────────────────────────────────────
-def assemble_ranking(pipe, target, siblings, cluster_imp):
-    """Per-feature detail table, ordered cluster-first then within-cluster importance."""
-    ctx = pipe.context
-    od = ctx.output_dir
-    perm = ctx.perm_importance_df.rename(
-        columns={"importance_mean": "perm_imp_mean", "importance_std": "perm_imp_sd"}
-    )[["feature", "perm_imp_mean", "perm_imp_sd"]]
-    clusters = pd.read_csv(od / "cluster_table.csv")  # feature, cluster_id
-    shapd = pd.read_csv(od / "shap_direction_diagnostics.csv")[
-        ["feature", "shap_mean_abs", "feature_shap_spearman"]
-    ]
-    stab_path = od / "stability_selection.csv"
-    if stab_path.exists():  # absent in --quick mode (stability skipped)
-        stab = pd.read_csv(stab_path)[["feature", "appearance_rate_top_k"]]
-    else:
-        stab = pd.DataFrame({"feature": clusters["feature"], "appearance_rate_top_k": np.nan})
-
-    df = (
-        clusters
-        .merge(perm, on="feature", how="left")
-        .merge(shapd, on="feature", how="left")
-        .merge(stab, on="feature", how="left")
-        .merge(cluster_imp[["cluster_id", "cluster_rank", "cluster_perm_imp_mean"]],
-               on="cluster_id", how="left")
-    )
-    df["z"] = df["perm_imp_mean"] / df["perm_imp_sd"].replace(0.0, np.nan)
-    df["sign"] = np.sign(df["feature_shap_spearman"]).map({1.0: "+", -1.0: "-"}).fillna("0")
-    df["same_skill_of_outcome"] = df["feature"].isin(siblings)
-    df = df.rename(columns={
-        "feature": "member",
-        "shap_mean_abs": "mean_abs_shap",
-        "appearance_rate_top_k": "topk_freq",
-    })
-    # cluster-first ordering, then per-feature importance within each cluster
-    df = df.sort_values(["cluster_rank", "perm_imp_mean"], ascending=[True, False]).reset_index(drop=True)
-    df["within_cluster_rank"] = df.groupby("cluster_rank").cumcount() + 1
-    cols = [
-        "cluster_rank", "cluster_id", "within_cluster_rank", "member",
-        "cluster_perm_imp_mean", "perm_imp_mean", "perm_imp_sd", "z",
-        "mean_abs_shap", "topk_freq", "sign", "same_skill_of_outcome",
-    ]
-    return df[cols]
-
-
-def cluster_ranking_table(cluster_imp, ranking, siblings):
-    """Primary artefact: one row per cluster, with the representative member.
-
-    The representative is the highest per-feature importance member; an
-    ``representative_excl_same_skill`` column gives the highest non-flagged member, so
-    a downstream consumer taking cluster representatives never picks a restatement of
-    the outcome.
-    """
-    rows = []
-    for _, c in cluster_imp.iterrows():
-        members = ranking[ranking["cluster_id"] == c["cluster_id"]].sort_values(
-            "perm_imp_mean", ascending=False
-        )
-        rep = members.iloc[0]["member"]
-        non_skill = members[~members["same_skill_of_outcome"]]
-        rep_excl = non_skill.iloc[0]["member"] if len(non_skill) else None
-        rows.append({
-            "cluster_rank": int(c["cluster_rank"]),
-            "cluster_id": int(c["cluster_id"]),
-            "cluster_perm_imp_mean": c["cluster_perm_imp_mean"],
-            "cluster_perm_imp_sd": c["cluster_perm_imp_sd"],
-            "n_members": int(c["n_members"]),
-            "representative": rep,
-            "representative_excl_same_skill": rep_excl,
-            "any_same_skill": bool(members["same_skill_of_outcome"].any()),
-            "members": c["members"],
-        })
-    return pd.DataFrame(rows)
-
-
-def ranking_vs_selected(model_id, full_pipe, sel_pipe):
-    """Side-by-side: each predictor's full-set rank vs whether selection kept it."""
-    selected = list(MODELS[model_id].predictor_vars)
-    full = full_pipe.context.perm_importance_df.reset_index(drop=True).copy()
-    full["full_rank"] = np.arange(1, len(full) + 1)
-    full["in_selected_set"] = full["feature"].isin(selected)
-    sel = sel_pipe.context.perm_importance_df.reset_index(drop=True).copy()
-    sel["selected_rank"] = np.arange(1, len(sel) + 1)
-    sel = sel[["feature", "selected_rank", "importance_mean"]].rename(
-        columns={"importance_mean": "selected_imp"}
-    )
-    out = full.merge(sel, on="feature", how="left").rename(columns={"importance_mean": "full_imp"})
-    return out[["full_rank", "feature", "full_imp", "in_selected_set", "selected_rank", "selected_imp"]]
-
-
 def conditional_dropout_check(model_id, run, cluster_imp, clusters_by_feature, base_full_pipe):
     """Conditional cross-check on the dominant cluster: drop the whole top cluster and
     report the pooled OOF R² change (how much the cluster *jointly* buys)."""
@@ -422,16 +283,10 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
         sens = cutoff_sensitivity(full.context.X, target)
         sens.to_csv(out / "cluster_cutoff_sensitivity.csv", index=False)
 
-        # 3. side-by-side vs the currently-selected set
-        cfg_sel, _, _ = make_config(model_id, kind="sel")
-        sel = run_stages(cfg_sel, run, do_cluster=False, do_shap=False, do_stability=False)
-        rvs = ranking_vs_selected(model_id, full, sel)
-        rvs.to_csv(out / "ranking_vs_selected.csv", index=False)
-
-        # 4. conditional cross-check on the dominant cluster
+        # 3. conditional cross-check on the dominant cluster
         cond = conditional_dropout_check(model_id, run, cluster_imp, clusters_by_feature, full)
 
-        # 5. same-skill handling: excluding-siblings view + curated-variant compare
+        # 4. same-skill handling: excluding-siblings ranking view
         noskill = None
         if siblings:
             cfg_ns, _, _ = make_config(model_id, kind="noskill")
@@ -440,14 +295,6 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
             noskill = {"dropped": siblings,
                        "top5": ns.context.perm_importance_df.head(5)["feature"].tolist(),
                        "r2_noskill": ns.context.pooled_cv_metrics.get("pooled_r2")}
-            nc_id = f"{model_id}_noconstruct"
-            if nc_id in MODELS:
-                nc_cfg = dataclasses.replace(MODELS[nc_id], model_id=f"rank_{nc_id}",
-                                             selection_history=[], pdp_features=None,
-                                             shap_scatter_specs=[])
-                nc = run_stages(nc_cfg, run, do_cluster=False, do_shap=False, do_stability=False)
-                noskill["curated_variant"] = nc_id
-                noskill["r2_curated_variant"] = nc.context.pooled_cv_metrics.get("pooled_r2")
 
         # self-describing metadata (records the pinned cv config)
         meta = {
@@ -473,8 +320,8 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
                        cond, noskill, out)
         return ranking
     finally:
-        # The helper fits land in output/models/rank_<id>_* (full / sel / noskill /
-        # drop_top_cluster / noconstruct) because EstimatorPipeline derives output_dir
+        # The helper fits land in output/models/rank_<id>_* (full / noskill /
+        # drop_top_cluster) because EstimatorPipeline derives output_dir
         # from model_id. They are scratch — never real models — but upload.py globs every
         # output/models/ subdir, so leaving them would publish them as if fitted. Remove
         # them here (success or failure); the ranking artefacts are under output/ranking/<id>/.
@@ -504,10 +351,7 @@ def _print_summary(model_id, target, siblings, full, ranking, cluster_rank, sens
         flagged = ranking.loc[ranking["same_skill_of_outcome"], "member"].tolist()
         print(f"\n  same-skill flag -> {flagged} (curated siblings of {target})")
         if noskill:
-            line = f"    excluding same-skill top5: {noskill['top5']}  R2={_fmt(noskill['r2_noskill'])}"
-            if "r2_curated_variant" in noskill:
-                line += f"  | curated {noskill['curated_variant']} R2={_fmt(noskill['r2_curated_variant'])}"
-            print(line)
+            print(f"    excluding same-skill top5: {noskill['top5']}  R2={_fmt(noskill['r2_noskill'])}")
     print(f"\n  conditional check: drop dominant cluster {cond['top_cluster_members']}")
     print(f"    pooled R2  full={_fmt(cond['r2_full'])} -> drop-top-cluster={_fmt(cond['r2_drop_top_cluster'])}")
     print("\n  cut-height sensitivity:")
@@ -517,7 +361,7 @@ def _print_summary(model_id, target, siblings, full, ranking, cluster_rank, sens
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Rank predictors on the full set (issue #116, Phase 1).")
-    ap.add_argument("--model", required=True, help="model id, e.g. lrp04, lrp01, lrp07")
+    ap.add_argument("--model", required=True, help="model id, e.g. lrpgbl06, lrpgbg12, lrpgbg05")
     ap.add_argument("--cutoff", type=float, default=0.4, help="dendrogram cut height (default 0.4)")
     ap.add_argument("--cv-splits", type=int, default=None,
                     help="GroupKFold splits (default: the model's registered cv_splits)")

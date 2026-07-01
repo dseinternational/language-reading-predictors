@@ -50,8 +50,10 @@ def _trace(eta, tau, tau_i=None):
     return SimpleNamespace(posterior=ds)
 
 
-def _ame_by_loop(eta, delta, G):
-    """Reference AME: per draw, average over obs of expit(eta0+delta)-expit(eta0)."""
+def _ame_median_by_loop(eta, delta, G):
+    """Reference AME central estimate: per draw average the per-obs
+    expit(eta0+delta)-expit(eta0), then take the posterior **median** over draws
+    (the house convention reported by :func:`tau_summary_itt`)."""
     n_draw, n_obs = eta.shape[1], eta.shape[2]
     per_draw = []
     for d in range(n_draw):
@@ -61,7 +63,7 @@ def _ame_by_loop(eta, delta, G):
             eta0 = eta[0, d, i] - d_i * G[i]
             diffs.append(expit(eta0 + d_i) - expit(eta0))
         per_draw.append(np.mean(diffs))
-    return float(np.mean(per_draw))
+    return float(np.median(per_draw))
 
 
 def test_evidence_label_round_odds_boundaries():
@@ -137,8 +139,8 @@ def test_tau_summary_itt_constant_tau_average_marginal_effect():
 
     out = tau_summary_itt(_trace(eta, tau), ci_prob=0.9, G=G)
 
-    assert out["tau_prob_mean"] == pytest.approx(_ame_by_loop(eta, tau, G))
-    assert out["tau_logit_mean"] == pytest.approx(float(np.mean(tau)))
+    assert out["tau_prob_median"] == pytest.approx(_ame_median_by_loop(eta, tau, G))
+    assert out["tau_logit_median"] == pytest.approx(float(np.median(tau)))
     assert out["prob_tau_pos"] == pytest.approx(1.0)  # both tau draws > 0
 
 
@@ -151,9 +153,9 @@ def test_tau_summary_itt_operating_point_comes_from_full_eta():
     G = np.array([1.0, 1.0])
     near_floor = tau_summary_itt(_trace(np.array([[[-2.0, -2.0]]]), tau), ci_prob=0.9, G=G)
     near_mid = tau_summary_itt(_trace(np.array([[[0.0, 0.0]]]), tau), ci_prob=0.9, G=G)
-    assert near_floor["tau_prob_mean"] != pytest.approx(near_mid["tau_prob_mean"])
+    assert near_floor["tau_prob_median"] != pytest.approx(near_mid["tau_prob_median"])
     # Logit-scale summary is the operating-point-invariant tau itself.
-    assert near_floor["tau_logit_mean"] == pytest.approx(near_mid["tau_logit_mean"])
+    assert near_floor["tau_logit_median"] == pytest.approx(near_mid["tau_logit_median"])
 
 
 def test_tau_summary_itt_varying_tau_uses_tau_i():
@@ -164,8 +166,8 @@ def test_tau_summary_itt_varying_tau_uses_tau_i():
 
     out = tau_summary_itt(_trace(eta, tau, tau_i=tau_i), ci_prob=0.9, G=G)
 
-    assert out["tau_prob_mean"] == pytest.approx(_ame_by_loop(eta, tau_i, G))
-    assert out["tau_logit_mean"] == pytest.approx(0.5)
+    assert out["tau_prob_median"] == pytest.approx(_ame_median_by_loop(eta, tau_i, G))
+    assert out["tau_logit_median"] == pytest.approx(0.5)
 
 
 def test_tau_summary_itt_rejects_misaligned_G():

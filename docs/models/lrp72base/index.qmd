@@ -1,0 +1,61 @@
+---
+title: "LRP72base: Phonics-route baseline, no L x B interaction"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP72base is the no-interaction companion to [LRP72](../lrp72/). It uses the
+same outcome, data window and linear letter-sound mechanism, but enters phoneme
+blending (`B`) as a main-effect adjuster only. There is no `gamma_int` term.
+
+The purpose is model comparison: LRP72 versus LRP72base asks whether adding the
+letter-sound x blending interaction improves predictive fit for nonword decoding.
+All coefficients are adjusted associations, not causal skill-to-skill effects.
+
+## Model
+
+$$
+\eta = \alpha + \alpha_{\text{phase}}
+  + \beta_G G
+  + \beta_{\text{mech}} z(\operatorname{logit} L_{\text{post}})
+  + \gamma_B \operatorname{logit}_*(B_{\text{post}})
+  + \gamma_{\text{own}}\operatorname{logit}_*(N_{\text{pre}})
+  + \gamma_A A_{\text{std}}
+  + u_{\text{child}}.
+$$
+
+The outcome is nonword decoding (`N`, `nonword`), with a Beta-Binomial likelihood.
+The mechanism is linear because the 0-6 nonword outcome is low and floored; the
+full HSGP mechanism is not identifiable for this comparator.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mechanism.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
+

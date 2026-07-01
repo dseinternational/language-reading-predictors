@@ -1,0 +1,55 @@
+## Results
+
+The mediation quantities are computed by counterfactual simulation from the
+posterior g-formula. They are not products of coefficients. The decomposition is
+causal only when the model-specific assumption section says the no-unmeasured
+mediator-outcome-confounding and cross-world assumptions are defensible; otherwise
+read it as an adjusted decomposition.
+
+```{python}
+# | echo: false
+mediation_summary = _csv("mediation_summary.csv")
+mediation_summary if mediation_summary is not None else "No mediation summary."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if mediation_summary is not None:
+    _m = mediation_summary.set_index("quantity")
+    _total_name = "total" if "total" in _m.index else None
+    _indirect_name = (
+        "NIE_joint" if "NIE_joint" in _m.index else ("NIE" if "NIE" in _m.index else None)
+    )
+    if _total_name and _indirect_name:
+        _tot = _m.loc[_total_name]
+        _ind = _m.loc[_indirect_name]
+        print(
+            f"**Total effect:** {_tot.words_mean:+.1f} words "
+            f"(95% CrI {_tot.words_lo:+.1f} to {_tot.words_hi:+.1f}); "
+            f"P(> 0) = {_tot.prob_pos:.3f}.\n\n"
+            f"**Indirect path (`{_indirect_name}`):** {_ind.words_mean:+.1f} words "
+            f"(95% CrI {_ind.words_lo:+.1f} to {_ind.words_hi:+.1f}); "
+            f"P(> 0) = {_ind.prob_pos:.3f}."
+        )
+    if "proportion_mediated" in _m.index:
+        _p = _m.loc["proportion_mediated"]
+        print(
+            f"\n\n**Proportion mediated/share:** median {_p.prob_mean:.2f} "
+            f"(95% CrI {_p.prob_lo:.2f} to {_p.prob_hi:.2f}). This ratio is "
+            "unstable when the total effect can cross zero; lead with Total, "
+            "NDE, and NIE intervals."
+        )
+```
+
+### Temporal-Ordering Sensitivity
+
+```{python}
+# | echo: false
+mediation_summary_t3 = _csv("mediation_summary_t3.csv")
+mediation_summary_t3 if mediation_summary_t3 is not None else "No t3 sensitivity table."
+```
+
+The t3 sensitivity puts the mediator before the outcome in time, but the later
+contrast is no longer the clean randomised phase-0 contrast. Use it as a direction
+check, not as a replacement estimand.

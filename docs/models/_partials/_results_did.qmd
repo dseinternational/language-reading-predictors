@@ -1,0 +1,62 @@
+## Results
+
+The waitlist-crossover model is a triangulation of the randomised ITT, not an
+independent randomised experiment. Positive coefficients mean higher expected
+post-score under the intervention-coded contrast.
+
+```{python}
+# | echo: false
+did_summary = _csv("did_summary.csv")
+dose_slope_summary = _csv("dose_slope_summary.csv")
+did_summary if did_summary is not None else dose_slope_summary
+```
+
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import odds_string as _odds
+
+if did_summary is not None:
+    _d = did_summary.iloc[0]
+    if "delta_mean" in did_summary.columns:
+        _items = ""
+        if "delta_items_mean" in did_summary.columns:
+            _items = (
+                f", about **{_d.delta_items_mean:+.1f} items** "
+                f"(95% CrI {_d.delta_items_lo:+.1f} to {_d.delta_items_hi:+.1f})"
+            )
+        print(
+            f"**DiD treatment contrast (`delta`):** mean {_d.delta_mean:+.3f} "
+            f"on the logit scale (95% CrI {_d.delta_lo:+.3f} to {_d.delta_hi:+.3f}); "
+            f"P(delta > 0) = {_d.prob_delta_pos:.3f} "
+            f"({_odds(_d.prob_delta_pos)}).{_items}"
+        )
+    if "delta_mean" not in did_summary.columns and "beta_dose_mean" in did_summary.columns:
+        print(
+            f"**Session-dose association (`beta_dose`):** mean "
+            f"{_d.beta_dose_mean:+.3f} logit units per 1 SD sessions "
+            f"(95% CrI {_d.beta_dose_lo:+.3f} to {_d.beta_dose_hi:+.3f}); "
+            f"P(> 0) = {_d.prob_beta_dose_pos:.3f}."
+        )
+if dose_slope_summary is not None:
+    _main = dose_slope_summary.iloc[0]
+    print(
+        f"**Dose slope headline (`{_main.term}`):** mean {_main['mean']:+.3f} "
+        f"(95% CrI {_main.lo:+.3f} to {_main.hi:+.3f}); "
+        f"P(> 0) = {_main.p_pos:.3f}."
+    )
+```
+
+::: {.callout-important title="Read dose terms as associations"}
+
+Session dose is observational. A positive dose slope means higher session counts
+are associated with larger conditional gains after the model's adjustment set; it
+does **not** mean more sessions were randomised or proven causal.
+
+:::
+
+```{python}
+# | echo: false
+# Optional nested comparison copied next to this report by a comparison workflow.
+_csv("did_dose_loo_compare.csv")
+```

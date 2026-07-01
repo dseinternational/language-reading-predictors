@@ -28,6 +28,7 @@ hsgp
 lengthscale
 Missingness
 MCMC
+NUCA
 nutpie
 preliz
 subsetting
@@ -349,6 +350,10 @@ Hodapp
 Iarocci
 Zigler
 ridd
+LRPGBG
+LRPGBL
+lrpgbg
+lrpgbl
 MNLFA
 aMNLFA
 MIMIC

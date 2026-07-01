@@ -3,7 +3,7 @@
 
 """Registration and leakage-guard tests for the taught-vocabulary ML models.
 
-LRP23 (gain) and LRP24 (achievement level) target the directly-taught expressive
+LRPGBG02 (gain) and LRPGBL02 (achievement level) target the directly-taught expressive
 vocabulary score (``b1extau``). Because the Block 1 expressive *total* ``b1exto``
 equals taught + not-taught (``b1extau + b1exnt``), it contains the target and must
 never appear in the predictor set — these tests guard that invariant.
@@ -15,27 +15,54 @@ from language_reading_predictors.models.registry import MODELS
 
 
 def test_taught_vocab_models_registered():
-    assert {"lrp23", "lrp24"} <= set(MODELS)
+    assert {"lrpgbg02", "lrpgbl02"} <= set(MODELS)
 
 
-def test_lrp23_gain_target_and_baseline():
-    cfg = MODELS["lrp23"]
+def test_lrpgbg02_gain_target_and_baseline():
+    cfg = MODELS["lrpgbg02"]
     assert cfg.target_var == "b1extau_gain"
     # GainModel auto-includes the baseline level as a predictor of the gain.
     assert "b1extau" in cfg.predictor_vars
     assert cfg.target_var not in cfg.predictor_vars
 
 
-def test_lrp24_level_target_excluded_from_predictors():
-    cfg = MODELS["lrp24"]
+def test_lrpgbl02_level_target_excluded_from_predictors():
+    cfg = MODELS["lrpgbl02"]
     assert cfg.target_var == "b1extau"
     assert "b1extau" not in cfg.predictor_vars
 
 
 def test_taught_vocab_models_exclude_tautological_total():
     # b1exto = b1extau + b1exnt contains the target construct → leakage.
-    for mid in ("lrp23", "lrp24"):
+    for mid in ("lrpgbg02", "lrpgbl02"):
         assert "b1exto" not in MODELS[mid].predictor_vars, mid
     # The standardised vocabulary tests are legitimate (correlated, not supersets)
     # predictors and should remain available in the baseline.
-    assert "eowpvt" in MODELS["lrp24"].predictor_vars
+    assert "eowpvt" in MODELS["lrpgbl02"].predictor_vars
+
+
+# --- #116 Phase B: the four new block-1 vocab / phonetic-spelling outcomes ---
+
+# new id -> (gain target, level target, the tautological total to exclude or None)
+_PHASE_B = {
+    "01": ("b1retau_gain", "b1retau", "b1reto"),   # taught receptive vocab
+    "03": ("b1rent_gain", "b1rent", "b1reto"),     # not-taught receptive vocab
+    "04": ("b1exnt_gain", "b1exnt", "b1exto"),     # not-taught expressive vocab
+    "11": ("spphon_gain", "spphon", None),         # phonetic spelling (no total)
+}
+
+
+def test_phase_b_outcomes_registered_with_targets():
+    for nn, (gain_t, level_t, _total) in _PHASE_B.items():
+        g, lvl = MODELS[f"lrpgbg{nn}"], MODELS[f"lrpgbl{nn}"]
+        assert g.target_var == gain_t and lvl.target_var == level_t
+        # gain auto-includes its baseline; level excludes its own target.
+        assert level_t in g.predictor_vars and gain_t not in g.predictor_vars
+        assert level_t not in lvl.predictor_vars
+
+
+def test_phase_b_models_exclude_tautological_totals():
+    for nn, (_g, _l, total) in _PHASE_B.items():
+        for mid in (f"lrpgbg{nn}", f"lrpgbl{nn}"):
+            if total is not None:
+                assert total not in MODELS[mid].predictor_vars, mid

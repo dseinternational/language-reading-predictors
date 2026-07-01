@@ -35,7 +35,7 @@ def main():
     parser.add_argument(
         "model",
         type=str,
-        help="Model id (e.g. LRP01) or 'all'.",
+        help="Model id (e.g. LRPGBG12) or 'all'.",
     )
     parser.add_argument(
         "--render",

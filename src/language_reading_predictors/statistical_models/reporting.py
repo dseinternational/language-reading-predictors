@@ -12,6 +12,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
+from dse_research_utils.statistics.evidence import evidence_label, odds_string
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.context import (
@@ -88,6 +89,14 @@ def tau_summary_itt(
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
 
+    The central estimate on each scale is the posterior **median** (``*_median``) —
+    the house convention shared with :func:`rope_summary`, so the treatment-effect
+    card and the ROPE card lead with the same statistic (see
+    ``notes/202606261304-evidence-strength-and-rope-reporting.md``). The median is
+    also the more honest lead here: at this sample size the point estimate is
+    magnitude-inflated (a Type-M / winner's-curse effect), and the median discounts
+    the right tail the mean chases.
+
     Logit scale: the posterior summary of ``tau`` directly.
 
     Probability scale: the **average marginal effect** of randomised
@@ -113,17 +122,17 @@ def tau_summary_itt(
     tau_draws, marginal = _itt_ame_draws(trace, G=G)
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
-    tau_mean = float(np.mean(tau_draws))
+    tau_median = float(np.median(tau_draws))
     lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
-    marg_mean = float(np.mean(marginal))
+    marg_median = float(np.median(marginal))
     marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
     prob_pos = float(np.mean(tau_draws > 0))
 
     return {
-        "tau_logit_mean": tau_mean,
+        "tau_logit_median": tau_median,
         "tau_logit_lo": float(lower),
         "tau_logit_hi": float(upper),
-        "tau_prob_mean": marg_mean,
+        "tau_prob_median": marg_median,
         "tau_prob_lo": float(marg_lo),
         "tau_prob_hi": float(marg_hi),
         "prob_tau_pos": prob_pos,
@@ -151,37 +160,10 @@ def tau_summary_offfloor(
     return tau_summary_itt(trace, ci_prob=ci_prob, G=G)
 
 
-# --- Evidence ladder + ROPE-anchored continuous report -----------------------
+# --- ROPE-anchored continuous report -----------------------------------------
 # notes/202606261304-evidence-strength-and-rope-reporting.md
-
-_EVIDENCE_LADDER: tuple[tuple[float, str], ...] = (
-    (0.75, "inconclusive"),
-    (0.91, "suggestive"),
-    (0.97, "moderate"),
-    (0.99, "strong"),
-)
-
-
-def evidence_label(prob: float) -> str:
-    """Round-odds evidence label for a posterior probability of a *named claim*.
-
-    The boundaries are round odds (3:1 / 10:1 / 30:1 / 100:1), deliberately *not*
-    the ``p = 0.05 / 0.025 / 0.01`` images, so they do not smuggle the significance
-    grid back in. ``prob`` must already be oriented toward the claim (e.g. ``pd``
-    for direction, ``P(benefit ≥ δ)`` for magnitude); the label qualifies the
-    *evidence*, never the effect size. See the note above.
-    """
-    for threshold, label in _EVIDENCE_LADDER:
-        if prob < threshold:
-            return label
-    return "very strong"
-
-
-def odds_string(prob: float) -> str:
-    """A posterior probability as approximate whole-number odds, e.g. ``"19:1"``."""
-    p = min(max(float(prob), 1e-9), 1 - 1e-9)
-    o = p / (1 - p)
-    return f"{o:.0f}:1" if o >= 1 else f"1:{1 / o:.0f}"
+# evidence_label / odds_string now live in dse_research_utils.statistics.evidence
+# (imported above) so the evidence ladder is shared across DSE reports.
 
 
 def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = True) -> str:
@@ -491,8 +473,6 @@ def did_summary(
         .transpose("obs_id", "sample")
         .values
     )  # (n_obs, S)
-    from scipy.special import expit  # local import
-
     eff = (expit(eta_base + delta[None, :]) - expit(eta_base)).mean(axis=0) * n_trials
     out["delta_items_mean"] = float(np.mean(eff))
     out["delta_items_lo"] = float(np.quantile(eff, lo_q))
@@ -507,8 +487,9 @@ def tau_summary_joint(
 ) -> pd.DataFrame:
     """Return a DataFrame summarising tau_k for each outcome (logit scale).
 
-    ``tau_lo`` / ``tau_hi`` are equal-tailed central quantiles at coverage
-    ``ci_prob``. See :func:`tau_summary_itt` for the convention.
+    ``tau_median`` is the posterior median (the house convention — see
+    :func:`tau_summary_itt`); ``tau_lo`` / ``tau_hi`` are equal-tailed central
+    quantiles at coverage ``ci_prob``.
     """
     draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
     out = []
@@ -519,7 +500,7 @@ def tau_summary_joint(
         out.append(
             {
                 "outcome": s,
-                "tau_mean": float(np.mean(d)),
+                "tau_median": float(np.median(d)),
                 "tau_lo": float(np.quantile(d, lo_q)),
                 "tau_hi": float(np.quantile(d, hi_q)),
                 "prob_pos": float(np.mean(d > 0)),

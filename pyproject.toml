@@ -15,7 +15,7 @@ dependencies = [
   "arviz-plots>=1.2.0",
   "arviz-stats>=1.2.0",
   "arviz>=1.2.0",
-  "dse-research-utils>=0.2.0",
+  "dse-research-utils>=0.4.0",
   "graphviz",
   "lightgbm>=4.6.0",
   "matplotlib>=3.10.8",

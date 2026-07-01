@@ -15,41 +15,11 @@ format:
       - repo
 ---
 
-::: {.callout-note}
-Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
-:::
+{{< include _partials/_header.qmd >}}
 
-::: {.callout-warning title="Warning: Preliminary model output"}
+{{< include _partials/_setup.qmd >}}
 
-This model output is preliminary and likely to change as the model evolves and further data are received.
-
-:::
-
-```{python}
-# | echo: false
-import json
-from pathlib import Path
-
-import arviz as az
-import pandas as pd
-
-_here = Path(".")
-with open(_here / "config.json") as f:
-    config = json.load(f)
-trace = az.from_netcdf(_here / "trace.nc")
-
-
-def _read(name):
-    p = _here / name
-    return pd.read_csv(p) if p.exists() else None
-
-
-associations = _read("predictor_associations.csv")
-prior_sensitivity = _read("prior_sensitivity.csv")
-ses = _read("ses_sensitivity.csv")
-predicted_gain = _read("predicted_gain_words.csv")
-influence = _read("influence.csv")
-```
+{{< include _partials/_convergence.qmd >}}
 
 ## Overview
 
@@ -108,110 +78,12 @@ Each predictor's **adjusted** (mutual) coefficient is reported alongside its **b
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
-## Shared priors
+{{< include _partials/_priors.qmd >}}
 
-Fixed weakly-informative `Normal(0, 0.5)` on the standardised predictor slopes
-(regularising under collinearity and n ≈ 51); the conclusion is checked against
-`sigma` ∈ {0.3, 0.7} below.
+{{< include _partials/_prior_predictive.qmd >}}
 
-![alpha](prior_alpha.svg){width=32%}
-![gamma_own](prior_gamma_own.svg){width=32%}
-![predictor_slope](prior_predictor_slope.svg){width=32%}
-![kappa](prior_kappa.svg){width=32%}
+{{< include _partials/_diagnostics.qmd >}}
 
-## Sampling diagnostics
+{{< include _partials/_results_adjusted.qmd >}}
 
-```{python}
-# | echo: false
-diag = pd.read_csv(_here / "diagnostics.csv", index_col=0)
-diag
-```
-
-![Trace](trace_plot.png){.lightbox}
-![Energy](energy_plot.png){.lightbox}
-
-## Predictor associations (adjusted vs bivariate)
-
-The headline result: each baseline predictor's standardised coefficient on the logit
-scale, mutually adjusted, alongside its bivariate association. Intervals are 94%
-(equal-tailed); `prob_pos` is the posterior probability the coefficient is positive.
-
-![Adjusted vs bivariate associations](predictor_associations.png){#fig-assoc .lightbox}
-
-```{python}
-# | echo: false
-associations
-```
-
-::: {.callout-note title="Prediction to test (not the assumed result)"}
-
-Letter sounds and the language composite are expected to retain credible signal once
-mutually adjusted; non-verbal MA, behaviour and SES are expected to shrink toward zero.
-Wide intervals at n ≈ 51 are the honest result — do not over-interpret a single
-predictor "winning".
-
-:::
-
-## Predicted gain on the natural (words) scale
-
-To make the per-SD logit coefficients interpretable for expectations and teaching:
-for two children with the **same** baseline word reading who differ by **one standard
-deviation** on a single predictor (others held at their mean), the model-implied
-difference in word-reading count at the final wave — i.e. the differential gain, **in
-words** out of the test maximum. Computed per posterior draw; 94% intervals.
-
-```{python}
-# | echo: false
-predicted_gain
-```
-
-## Prior sensitivity
-
-Adjusted coefficients under the headline slope prior and the `sigma` ∈ {0.3, 0.7}
-refits — the which-predictors-clear-zero reading should be stable across these.
-
-```{python}
-# | echo: false
-prior_sensitivity
-```
-
-## SES sensitivity (complete cases)
-
-SES (mother's post-16 education) added to the headline set on the SES-complete subset
-(reduced n, reported in the table).
-
-```{python}
-# | echo: false
-ses
-```
-
-## Influence (PSIS-LOO Pareto-$\hat{k}$)
-
-At n ≈ 51, a guard against the headline association resting on a few children. The
-per-child Pareto-$\hat{k}$ from PSIS-LOO flags observations the importance sampling
-cannot fit well (above the `good_k` threshold, ≈ 0.7) — i.e. potentially influential
-children. Sorted by descending $\hat{k}$ (top rows shown).
-
-```{python}
-# | echo: false
-influence.head(10) if influence is not None else "No per-observation Pareto-k available."
-```
-
-## Posterior predictive
-
-![Posterior predictive check](posterior_predictive_check.png){.lightbox}
-
-## LOO-PSIS
-
-```{python}
-# | echo: false
-# | output: asis
-print("```\n" + open(_here / "loo.txt").read() + "\n```")
-```
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
+{{< include _partials/_footer.qmd >}}

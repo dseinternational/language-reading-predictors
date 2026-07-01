@@ -1,0 +1,49 @@
+## Results
+
+LRP65 is a one-row-per-child between-child association model. It is useful for
+triangulating predictor patterns, but it does not identify causal effects.
+
+### Adjusted vs Bivariate Associations
+
+```{python}
+# | echo: false
+predictor_associations = _csv("predictor_associations.csv")
+predictor_associations if predictor_associations is not None else "No predictor associations."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("predictor_associations.png", "Adjusted vs bivariate associations"))
+```
+
+### Natural-Scale Differences
+
+```{python}
+# | echo: false
+predicted_gain = _csv("predicted_gain_words.csv")
+predicted_gain if predicted_gain is not None else "No predicted-gain table."
+```
+
+### Sensitivity Checks
+
+```{python}
+# | echo: false
+prior_sensitivity = _csv("prior_sensitivity.csv")
+prior_sensitivity if prior_sensitivity is not None else "No prior-sensitivity table."
+```
+
+```{python}
+# | echo: false
+ses_sensitivity = _csv("ses_sensitivity.csv")
+ses_sensitivity if ses_sensitivity is not None else "No SES sensitivity table."
+```
+
+### Influence
+
+```{python}
+# | echo: false
+influence = _csv("influence.csv")
+influence.head(10) if influence is not None else "No per-child influence table."
+```
+

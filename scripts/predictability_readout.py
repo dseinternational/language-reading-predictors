@@ -39,7 +39,7 @@ Usage
 ::
 
     python scripts/predictability_readout.py
-    python scripts/predictability_readout.py lrp01_prediction lrp01 --top-n 6
+    python scripts/predictability_readout.py lrpgbg12_prediction lrpgbg12 --top-n 6
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ from language_reading_predictors.models.registry import MODELS
 _ROOT_DIR = Path(__file__).resolve().parent.parent
 _MODELS_DIR = _ROOT_DIR / "output" / "models"
 
-_DEFAULT_MODELS = ["lrp01_prediction", "lrp01"]
+_DEFAULT_MODELS = ["lrpgbg12_prediction", "lrpgbg12"]
 
 
 def _read_json(path: Path) -> dict:

@@ -103,7 +103,7 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
             {
                 "outcome": outcome,
                 "source": model_id,
-                "tau_mean": df["tau_logit_mean"].iloc[0],
+                "tau_median": df["tau_logit_median"].iloc[0],
                 "tau_lo": df["tau_logit_lo"].iloc[0],
                 "tau_hi": df["tau_logit_hi"].iloc[0],
             }
@@ -117,7 +117,7 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
             {
                 "outcome": row["outcome"],
                 "source": JOINT_ID,
-                "tau_mean": row["tau_mean"],
+                "tau_median": row["tau_median"],
                 "tau_lo": row["tau_lo"],
                 "tau_hi": row["tau_hi"],
             }
@@ -144,7 +144,7 @@ def tau_forest(config: str, out_path: str) -> bool:
             continue
         df = pd.read_csv(p)
         uni[outcome] = (
-            float(df["tau_logit_mean"].iloc[0]),
+            float(df["tau_logit_median"].iloc[0]),
             float(df["tau_logit_lo"].iloc[0]),
             float(df["tau_logit_hi"].iloc[0]),
         )
@@ -154,11 +154,11 @@ def tau_forest(config: str, out_path: str) -> bool:
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
     ax.errorbar(
-        joint["tau_mean"].values,
+        joint["tau_median"].values,
         y,
         xerr=[
-            joint["tau_mean"].values - joint["tau_lo"].values,
-            joint["tau_hi"].values - joint["tau_mean"].values,
+            joint["tau_median"].values - joint["tau_lo"].values,
+            joint["tau_hi"].values - joint["tau_median"].values,
         ],
         fmt="o",
         color="#1f77b4",

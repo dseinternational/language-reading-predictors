@@ -40,52 +40,10 @@ class ShapScatterSpec:
 
 # The standard single-entry SHAP scatter spec shared across the GB models
 # (#82): every predictor, SHAP auto-colouring. Models with bespoke scatter
-# needs (e.g. LRP01) still declare their own list.
+# needs (e.g. LRPGBG12) still declare their own list.
 DEFAULT_SHAP_SCATTER_SPECS: tuple[ShapScatterSpec, ...] = (
     ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
 )
-
-
-@dataclass
-class SelectionStep:
-    """Record of a single feature-selection decision.
-
-    Used to document why features were added or removed between model
-    variants so the full selection history is persisted in ``config.json``.
-
-    Reader note (2026-05-14): selection-step ``notes`` written before the
-    2026-05-14 code-review refit were authored against the previous
-    permutation-importance implementation, which scored in-sample with the
-    default R² scorer. Importance values quoted in those notes (e.g.
-    "importance ≤ 0.005", "rank 9 importance (0.026)") refer to that
-    in-sample metric. The refit (PR #60) replaced the calculation with
-    out-of-fold, neg-RMSE-scored, group-aware permutation importance.
-    The historical *decisions* still stand — dropped features remained at
-    or near the noise floor under both views — but the new
-    ``permutation_importance.csv`` is the right evidence base for any
-    future variant that wants to re-evaluate a drop. See
-     for the deltas.
-    """
-
-    removed: list[str] = field(default_factory=list)
-    """Features removed in this selection step."""
-
-    added: list[str] = field(default_factory=list)
-    """Features added (e.g. composites) in this selection step."""
-
-    notes: str = ""
-    """Free-text rationale for this selection decision."""
-
-    date: str = ""
-    """ISO date when this step was taken (e.g. ``"2026-04-16"``)."""
-
-    metrics_before: dict[str, float] = field(default_factory=dict)
-    """CV metrics snapshot before this step (e.g.
-    ``{"cv_rmse_mean": 3.45, "cv_rmse_std": 0.52}``)."""
-
-    metrics_after: dict[str, float] = field(default_factory=dict)
-    """CV metrics snapshot after this step (e.g.
-    ``{"cv_rmse_mean": 3.31, "cv_rmse_std": 0.54}``)."""
 
 
 @dataclass
@@ -157,7 +115,7 @@ class ModelConfig:
     """All per-model configuration — the only thing that differs between models."""
 
     model_id: str
-    """Short model identifier, e.g. 'lrp01'."""
+    """Short model identifier, e.g. 'lrpgbg12'."""
 
     description: str
     """Human-readable description shown in console output and reports."""
@@ -201,15 +159,10 @@ class ModelConfig:
 
     variant_of: str | None = None
     """If set, this model is a selection variant of another model (e.g.
-    'lrp01'). Variants are excluded from ``fit_model.py all`` by default."""
+    'lrpgbg12'). Variants are excluded from ``fit_model.py all`` by default."""
 
     notes: str = ""
-    """Free-text rationale stored in ``config.json`` and surfaced in reports —
-    used for selection-decision provenance."""
-
-    selection_history: list[SelectionStep] = field(default_factory=list)
-    """Ordered list of feature-selection decisions leading to this model's
-    predictor set. Persisted in ``config.json`` for provenance."""
+    """Free-text rationale stored in ``config.json`` and surfaced in reports."""
 
 
 @dataclass
@@ -237,6 +190,7 @@ class ModelFitContext:
     pooled_cv_metrics: dict[str, float] | None = None
 
     eval_df: pd.DataFrame | None = None
+    in_sample_metrics: dict[str, float | None] | None = None
     perm_importance_df: pd.DataFrame | None = None
 
     shap_values: np.ndarray | None = None

@@ -28,6 +28,10 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
+from dse_research_utils.statistics.models.pymc_utils import (
+    get_variables_dict as _variables_dict,
+)
+
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.hsgp import (
     build_hsgp_1d,
@@ -51,6 +55,27 @@ from language_reading_predictors.statistical_models.preprocessing import (
 
 def _scalar_prior(name: str, prior_ctor) -> pt.TensorVariable:
     return prior_ctor().to_pymc(name)
+
+
+def _add_child_random_intercept(
+    eta: pt.TensorVariable,
+    child_idx: pt.TensorVariable,
+    *,
+    sigma_prior_sigma: float = 0.5,
+) -> pt.TensorVariable:
+    """Add a non-centred subject random intercept to ``eta`` (call inside a model).
+
+    Creates ``sigma_child ~ HalfNormal(sigma_prior_sigma)``,
+    ``u_child_raw ~ Normal(0, 1, dims="child")`` and the deterministic
+    ``u_child = sigma_child * u_child_raw``, then returns ``eta + u_child[child_idx]``.
+    Centralises the block previously copy-pasted across the mechanism,
+    dose-response, DiD, gain-factors and level-factors factories so the random-
+    intercept parameterisation cannot drift between them.
+    """
+    sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_prior_sigma)
+    u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+    u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
+    return eta + u_child[child_idx]
 
 
 @dataclass
@@ -752,12 +777,9 @@ def build_mechanism_model(
         )
 
         if use_subject_random_intercept:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
-            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
-            u_child = pm.Deterministic(
-                "u_child", sigma_child * u_child_raw, dims="child"
+            eta = _add_child_random_intercept(
+                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
             )
-            eta = eta + u_child[child_idx_d]
 
         # Confounder linear terms (on logit scale for measures)
         for s in confounder_symbols:
@@ -995,10 +1017,9 @@ def build_dose_response_model(
             eta = eta + gamma_A * A_std_d
 
         if use_subject_random_intercept:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
-            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
-            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
-            eta = eta + u_child[child_idx_d]
+            eta = _add_child_random_intercept(
+                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
+            )
 
         # Dose effect (the estimand). Standardised dose -> slope is per-1-SD.
         if period_varying_dose:
@@ -1153,16 +1174,10 @@ def build_did_model(
             eta = eta + gamma_A * A_std_d
 
         if use_child_re:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=0.5)
-            u_child = pm.Deterministic(
-                "u_child",
-                sigma_child * pm.Normal("u_child_raw", 0.0, 1.0, dims="child"),
-                dims="child",
-            )
             child_idx_d = pm.Data(
                 "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
             )
-            eta = eta + u_child[child_idx_d]
+            eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=0.5)
 
         # Linear predictor without the treatment term, so the pipeline can read
         # the off-treatment baseline for the average-marginal-effect translation.
@@ -2116,17 +2131,6 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
     )
 
 
-def _variables_dict(model: pm.Model) -> dict[str, pt.TensorVariable]:
-    out: dict[str, pt.TensorVariable] = {}
-    for rv in model.free_RVs:
-        out[rv.name] = rv
-    for det in model.deterministics:
-        out[det.name] = det
-    for rv in model.observed_RVs:
-        out[rv.name] = rv
-    return out
-
-
 # ---------------------------------------------------------------------------
 # LRPGF / LRPLF: gain-factors and level-factors factories (#127)
 #
@@ -2292,10 +2296,9 @@ def build_gain_factors_model(
             eta = eta + gi * int_d[pair]
 
         if use_subject_random_intercept:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
-            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
-            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
-            eta = eta + u_child[child_idx_d]
+            eta = _add_child_random_intercept(
+                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
+            )
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
@@ -2416,10 +2419,9 @@ def build_level_factors_model(
             eta = eta + gamma_grp_ability * ga_prod
 
         if use_subject_random_intercept:
-            sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
-            u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
-            u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
-            eta = eta + u_child[child_idx_d]
+            eta = _add_child_random_intercept(
+                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
+            )
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
@@ -2604,7 +2606,17 @@ def build_lcsm_model(
     )
     mask = np.stack([panel.obs_mask[s] for s in OUT], axis=2)  # (N, T, K) bool
     n_trials_vec = np.array([panel.n_trials[s] for s in OUT], dtype=int)  # (K,)
-    # Observed wave-1 mean logit anchors the initial-latent prior mean.
+    # Observed wave-1 mean logit anchors the initial-latent prior mean. Guard the
+    # all-NaN case loudly: an outcome with no observed wave-1 value would make
+    # np.nanmean return NaN, which would silently poison mu1's prior mean and
+    # surface only as an opaque sampler failure.
+    missing_w1 = [s for s in OUT if not np.isfinite(panel.logit[s][:, 0]).any()]
+    if missing_w1:
+        raise ValueError(
+            "LCSM wave-1 anchor is undefined (no observed first-wave value) for: "
+            f"{', '.join(missing_w1)}. Drop the outcome or choose a panel with "
+            "wave-1 observations."
+        )
     w1_anchor = np.array(
         [np.nanmean(panel.logit[s][:, 0]) for s in OUT], dtype=float
     )

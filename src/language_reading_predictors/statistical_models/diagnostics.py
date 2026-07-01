@@ -31,7 +31,6 @@ substantive output.
 
 from __future__ import annotations
 
-import json
 import os
 import re
 
@@ -41,6 +40,16 @@ import numpy as np
 import pymc as pm
 from rich import print as rprint
 
+from dse_research_utils.statistics.diagnostics import (
+    BFMI_THRESHOLD,
+    ESS_THRESHOLD,
+    RHAT_MAX,
+    _bfmi_per_chain,
+)
+from dse_research_utils.statistics.diagnostics import (
+    write_diagnostics_summary as _shared_write_diagnostics_summary,
+)
+
 from language_reading_predictors.models._reporting import (
     print_table,
     ranked_dataframe_table,
@@ -49,10 +58,10 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
 
-# Convergence-gate thresholds (issue #125 Area 3; Vehtari et al. 2021 for R-hat).
-RHAT_MAX = 1.01
-ESS_THRESHOLD = 400
-BFMI_THRESHOLD = 0.3
+# Convergence-gate thresholds (issue #125 Area 3; Vehtari et al. 2021 for R-hat)
+# and the per-chain BFMI helper are now owned by the shared package and
+# re-exported here so existing call sites and tests keep their import paths.
+__all__ = ["RHAT_MAX", "ESS_THRESHOLD", "BFMI_THRESHOLD", "_bfmi_per_chain"]
 
 
 def run_prior_predictive(
@@ -143,25 +152,6 @@ def _interval_cols(columns) -> list[str]:
     coverage number before the separator.
     """
     return [c for c in columns if re.match(r"^(eti|hdi)\d*_", str(c))]
-
-
-def _bfmi_per_chain(trace) -> list[float] | None:
-    """Per-chain BFMI from the sampler energy (Betancourt 2016).
-
-    ``arviz.bfmi`` was removed in the 1.x split, so compute it directly:
-    ``BFMI = Σ(E_t − E_{t−1})² / Σ(E_t − Ē)²`` per chain. Returns ``None`` if the
-    energy trace is unavailable.
-    """
-    try:
-        energy = np.atleast_2d(np.asarray(trace.sample_stats["energy"].values))
-        out: list[float] = []
-        for e in energy:
-            num = float(np.sum(np.diff(e) ** 2))
-            den = float(np.sum((e - e.mean()) ** 2))
-            out.append(num / den if den > 0 else float("nan"))
-        return out
-    except Exception:
-        return None
 
 
 def summary_diagnostics(
@@ -324,81 +314,20 @@ def write_diagnostics_summary(
 ) -> dict:
     """Emit ``diagnostics_summary.json`` — the report's pass/fail convergence gate.
 
-    One robust summary built from stable ArviZ surfaces: divergences from
-    ``sample_stats``, R-hat / ESS from ``az.summary`` over the scalar parameters,
-    and BFMI per chain. Thresholds follow issue #125 (R-hat ≤ 1.01, ESS ≥ 400,
-    divergences = 0, BFMI ≥ 0.3). Written unconditionally for every family (incl.
-    mediation, which has no LOO) so the report's banner always renders. An
-    ``arviz_stats.diagnose`` verdict is attached when available, but the gate is
-    computed here so it does not depend on that call's exact return contract.
+    Thin wrapper over :func:`dse_research_utils.statistics.diagnostics.write_diagnostics_summary`
+    so the convergence gate (and its JSON schema) is defined once across DSE
+    projects. The shared implementation evaluates the gate on *unrounded* R-hat
+    (``round_to=None`` — a borderline 1.01004 would otherwise round to 1.0100 and
+    slip through) and treats a non-finite per-chain BFMI as a failure rather than
+    letting it pass order-dependently. Written unconditionally for every family
+    (incl. mediation, which has no LOO) so the report's banner always renders.
     """
-    out = context.output_dir
-    os.makedirs(out, exist_ok=True)
-    trace = context.trace
-
-    n_div: int | None = None
-    try:
-        ss = trace.sample_stats
-        if "diverging" in ss:
-            n_div = int(np.asarray(ss["diverging"].values).sum())
-    except Exception:
-        n_div = None
-
-    max_rhat: float | None = None
-    min_ess: float | None = None
-    rhat_failing: list[str] = []
-    ess_failing: list[str] = []
-    try:
-        s = az.summary(trace, var_names=var_names, round_to=4, ci_kind="eti")
-        if "r_hat" in s:
-            max_rhat = float(np.nanmax(s["r_hat"].values))
-            rhat_failing = [str(i) for i in s.index[s["r_hat"] > RHAT_MAX]]
-        ess_cols = [c for c in ("ess_bulk", "ess_tail") if c in s]
-        if ess_cols:
-            ess_min_row = s[ess_cols].min(axis=1)
-            min_ess = float(np.nanmin(ess_min_row.values))
-            ess_failing = [str(i) for i in s.index[ess_min_row < ESS_THRESHOLD]]
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]R-hat/ESS summary for the gate failed: {exc}[/yellow]")
-
-    # arviz.bfmi was removed in the 1.x split; compute per-chain BFMI from the
-    # sampler energy directly. (arviz_stats.diagnose also reports BFMI but its
-    # return embeds xarray reprs that do not serialise cleanly to JSON, so we own
-    # the gate here.)
-    bfmi = _bfmi_per_chain(trace)
-
-    checks = {
-        "rhat": bool(max_rhat is not None and max_rhat <= RHAT_MAX),
-        "ess": bool(min_ess is not None and min_ess >= ESS_THRESHOLD),
-        "divergences": bool(n_div == 0),
-        "bfmi": bool(bfmi is not None and min(bfmi) >= BFMI_THRESHOLD),
-    }
-    passed = all(checks.values())
-
-    payload = {
-        "passed": passed,
-        "checks": checks,
-        "divergences": n_div,
-        "max_rhat": max_rhat,
-        "min_ess": min_ess,
-        "bfmi_per_chain": bfmi,
-        "rhat_failing": rhat_failing,
-        "ess_failing": ess_failing,
-        "thresholds": {
-            "rhat_max": RHAT_MAX,
-            "ess_threshold": ESS_THRESHOLD,
-            "bfmi_threshold": BFMI_THRESHOLD,
-        },
-    }
-    with open(os.path.join(out, "diagnostics_summary.json"), "w") as f:
-        json.dump(payload, f, indent=2, default=str)
-    context.tables["diagnostics_summary"] = payload
-    verdict = "[green]PASS[/green]" if passed else "[red]REVIEW[/red]"
-    rprint(
-        f"  Convergence gate: {verdict} "
-        f"(divergences={n_div}, max R-hat={max_rhat}, min ESS={min_ess})"
+    return _shared_write_diagnostics_summary(
+        context.trace,
+        context.output_dir,
+        var_names=var_names,
+        tables=context.tables,
     )
-    return payload
 
 
 def run_extended_diagnostics(

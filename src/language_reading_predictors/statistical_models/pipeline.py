@@ -59,6 +59,7 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
+from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_aligned,
@@ -817,6 +818,7 @@ def _fit_itt_floor_rule(
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
     _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
@@ -832,7 +834,6 @@ def _fit_itt_floor_rule(
         ctx,
         var_names=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
     )
-    _diag.save_prior_predictive_plot(ctx, own)
     _diag.run_extended_diagnostics(ctx, causal_term="tau")
     _diag.save_trace(ctx)
 
@@ -974,9 +975,9 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # A joint model may target an explicit outcome set (e.g. the taught-vs-not-
     # taught contrast in LRPITT15/15b); load exactly those so the complete-case mask is
     # not driven by the eight standardised outcomes. Defaults to ITT_OUTCOMES.
-    joint_outcomes = spec.extra.get("outcomes")
-    if joint_outcomes is not None:
-        prepared = load_and_prepare(phase_mode="itt", outcomes=tuple(joint_outcomes))
+    joint_outcomes = tuple(spec.extra.get("outcomes") or ITT_OUTCOMES)
+    if "outcomes" in spec.extra:
+        prepared = load_and_prepare(phase_mode="itt", outcomes=joint_outcomes)
     else:
         prepared = load_and_prepare(phase_mode="itt")
     ctx.prepared = prepared
@@ -987,7 +988,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     built = _factories.build_joint_model(
         prepared,
-        outcomes=spec.extra.get("outcomes"),
+        outcomes=joint_outcomes,
         use_age_gp=spec.extra.get("use_age_gp", False),
         partial_pool_age_gp=spec.extra.get("partial_pool_age_gp", True),
         use_residual_correlation=spec.extra.get("use_residual_correlation", False),
@@ -1000,6 +1001,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or joint_outcomes[0])
 
     _run_sampling_and_loo(ctx)
 
@@ -1030,7 +1032,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ranked_dataframe_table(
             tau_df,
             title=f"tau by outcome - {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)",
-            columns=["outcome", "tau_mean", "tau_lo", "tau_hi", "prob_pos"],
+            columns=["outcome", "tau_median", "tau_lo", "tau_hi", "prob_pos"],
             rank_column=False,
         )
     )
@@ -1132,6 +1134,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
 
     _run_sampling_and_loo(ctx)
 
@@ -1255,6 +1258,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
 
     _run_sampling_and_loo(ctx)
 
@@ -1430,6 +1434,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
 
     _run_sampling_and_loo(ctx)
 
@@ -1531,19 +1536,6 @@ def _write_dose_slope_summary(
 # Mediation pipeline (LRP59)
 # ---------------------------------------------------------------------------
 
-_MED_COEF_VARS = [
-    "a0", "a_G", "a_L", "a_A", "a_E", "a_R", "kappa_M",
-    "b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_E", "b_R", "kappa_Y",
-]
-
-# LRP62 (gaussian_composite): the mediator leg is Normal (a_comp / sigma_M) and
-# the observed mediator node is "M_post" rather than the Beta-Binomial "L_post".
-_MED_COEF_VARS_GAUSSIAN = [
-    "a0", "a_G", "a_comp", "a_A", "a_E", "a_R", "sigma_M",
-    "b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_E", "b_R", "kappa_Y",
-]
-
-
 _T3_SENSITIVITY_TIME = 3  # post-RCT wave used for the temporal-ordering check
 
 
@@ -1642,6 +1634,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
 
     _run_sampling_and_loo(ctx, compute_loo=False)
 
@@ -2240,6 +2233,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
 
     _run_sampling_and_loo(ctx, compute_loo=False)
 
@@ -2502,6 +2496,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, outcome)
 
     _run_sampling_and_loo(ctx)
 
@@ -2886,6 +2881,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["Z_obs", "y_post"])
+    _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
 
     # Two observed nodes (the indicator matrix Z_obs + the structural y_post) make
     # a single-target PSIS-LOO ambiguous, so LOO is skipped here as in the
@@ -2899,7 +2895,12 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # Sample both observed nodes (the indicator matrix + the structural outcome)
     # so the posterior-predictive PPC plot covers every observed variable.
     _run_ppc(ctx, var_names=["Z_obs", "y_post"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
+    _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=summary_vars)
 
     post = ctx.trace.posterior
     hdi = ctx.reporting.hdi

@@ -252,14 +252,15 @@ class EstimatorPipeline:
 
         eval_df.to_csv(context.output_dir / "evaluation.csv", index=False)
 
-        mae = float(eval_df["abs_residual"].mean())
-        rmse = float(np.sqrt(eval_df["sq_error"].mean()))
-        medae = float(eval_df["abs_residual"].median())
-        ss_res = eval_df["sq_error"].sum()
-        ss_tot = ((y_true - y_true.mean()) ** 2).sum()
-        r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0 else float("nan")
-
-        print_table(in_sample_metrics_table(mae, rmse, r2, medae))
+        metrics = _in_sample_metrics(eval_df, y_true)
+        context.in_sample_metrics = metrics
+        # R² is None for a zero-variance target; show NaN in the console table.
+        r2_display = metrics["r2"] if metrics["r2"] is not None else float("nan")
+        print_table(
+            in_sample_metrics_table(
+                metrics["mae"], metrics["rmse"], r2_display, metrics["medae"]
+            )
+        )
 
     def permutation_importance_analysis(self) -> None:
         """Compute group-aware out-of-fold permutation importance.
@@ -533,6 +534,152 @@ class EstimatorPipeline:
             )
         )
 
+    def shap_interaction_analysis(self, top_pairs: int = 6) -> None:
+        """SHAP interaction values (#116): which feature *pairs* interact.
+
+        Reuses the TreeExplainer from :meth:`shap_analysis` to compute the
+        ``(n, p, p)`` interaction tensor, then writes:
+
+        - ``shap_interactions.csv`` — mean ``|interaction|`` for every off-diagonal
+          feature pair, ranked (the off-diagonal is symmetric, so each pair sums
+          the ``[i, j]`` and ``[j, i]`` halves);
+        - ``shap_interaction_heatmap.png`` — the off-diagonal mean-``|interaction|``
+          matrix;
+        - ``shap_interaction_<a>__<b>.png`` — SHAP interaction dependence for the
+          top interacting pairs.
+
+        Skipped (with a notice) if :meth:`shap_analysis` has not run.
+        """
+        section_header("SHAP interactions")
+        context = self.context
+        explainer = getattr(context, "shap_explainer", None)
+        if explainer is None:
+            print("  [yellow]SHAP interactions skipped (shap_analysis did not run)[/yellow]")
+            return
+
+        X = context.X
+        feats = list(X.columns)
+        p = len(feats)
+        inter = np.asarray(explainer.shap_interaction_values(X))  # (n, p, p)
+        mean_abs = np.abs(inter).mean(axis=0)  # (p, p)
+
+        rows = [
+            {
+                "feature_a": feats[i],
+                "feature_b": feats[j],
+                "mean_abs_interaction": float(mean_abs[i, j] + mean_abs[j, i]),
+            }
+            for i in range(p)
+            for j in range(i + 1, p)
+        ]
+        inter_df = (
+            pd.DataFrame(rows)
+            .sort_values("mean_abs_interaction", ascending=False)
+            .reset_index(drop=True)
+        )
+        inter_df.to_csv(context.output_dir / "shap_interactions.csv", index=False)
+        context.dataframes["shap_interactions"] = inter_df
+
+        heat = mean_abs.copy()
+        np.fill_diagonal(heat, 0.0)
+        side = min(0.45 * p + 2.0, 14.0)
+        fig, ax = plt.subplots(figsize=(side, side))
+        im = ax.imshow(heat, cmap="viridis")
+        ax.set_xticks(range(p))
+        ax.set_xticklabels(feats, rotation=90, fontsize=6)
+        ax.set_yticks(range(p))
+        ax.set_yticklabels(feats, fontsize=6)
+        ax.set_title("Mean |SHAP interaction| (off-diagonal)")
+        fig.colorbar(im, ax=ax, shrink=0.7)
+        fig.savefig(
+            context.output_dir / "shap_interaction_heatmap.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+        context.plots["shap_interaction_heatmap"] = fig
+        plt.close("all")
+
+        for _, r in inter_df.head(top_pairs).iterrows():
+            a, b = r["feature_a"], r["feature_b"]
+            try:
+                shap.dependence_plot((a, b), inter, X, show=False)
+                fig = plt.gcf()
+                fig.savefig(
+                    context.output_dir / f"shap_interaction_{a}__{b}.png",
+                    dpi=300,
+                    bbox_inches="tight",
+                )
+            except Exception as exc:  # pragma: no cover - plotting robustness
+                print(f"  [yellow]interaction plot {a}×{b} skipped: {exc}[/yellow]")
+            finally:
+                plt.close("all")
+
+        top = inter_df.iloc[0]
+        print(
+            f"  SHAP interactions: strongest pair "
+            f"{top['feature_a']} × {top['feature_b']} → shap_interactions.csv"
+        )
+
+    def cluster_ranking_analysis(self) -> None:
+        """Cluster-first predictor ranking for the per-model report (#116).
+
+        Aggregates the already-computed out-of-fold permutation importance over the
+        distance-correlation clusters from :meth:`feature_selection_diagnostics`
+        into the cluster-first ranking tables:
+
+        - ``cluster_ranking.csv`` — primary, one row per cluster (rank, importance,
+          representative member, same-skill flag);
+        - ``predictor_ranking.csv`` — per-feature detail, ordered cluster-first.
+
+        Uses the light per-cluster aggregate
+        (:func:`models.cluster_ranking.aggregate_cluster_importance`); the dedicated
+        ``scripts/rank_predictors.py`` run produces a more rigorous
+        grouped-permutation version via the same table assembly. Skipped (with a
+        notice) when the prerequisites are absent — clustering
+        (``skip_correlation``) or SHAP direction (``skip_shap``).
+        """
+        from language_reading_predictors.models.cluster_ranking import (
+            SAME_SKILL_SIBLINGS,
+            aggregate_cluster_importance,
+            assemble_ranking,
+            cluster_ranking_table,
+        )
+
+        context = self.context
+        od = context.output_dir
+        missing = [
+            name
+            for name, ok in (
+                ("permutation importance", context.perm_importance_df is not None),
+                ("cluster_table.csv", (od / "cluster_table.csv").exists()),
+                (
+                    "shap_direction_diagnostics.csv",
+                    (od / "shap_direction_diagnostics.csv").exists(),
+                ),
+            )
+            if not ok
+        ]
+        if missing:
+            print(
+                f"  [yellow]Cluster ranking skipped (missing: {', '.join(missing)})[/yellow]"
+            )
+            return
+
+        target = context.config.target_var
+        siblings = SAME_SKILL_SIBLINGS.get(target, [])
+        clusters = pd.read_csv(od / "cluster_table.csv")
+        cluster_imp = aggregate_cluster_importance(context.perm_importance_df, clusters)
+        ranking = assemble_ranking(self, target, siblings, cluster_imp)
+        ranking.to_csv(od / "predictor_ranking.csv", index=False)
+        cluster_rank = cluster_ranking_table(cluster_imp, ranking, siblings)
+        cluster_rank.to_csv(od / "cluster_ranking.csv", index=False)
+        context.dataframes["cluster_ranking"] = cluster_rank
+        context.dataframes["predictor_ranking"] = ranking
+        print(
+            f"  Cluster ranking: {len(cluster_rank)} clusters "
+            f"→ cluster_ranking.csv / predictor_ranking.csv"
+        )
+
     def stability_selection(
         self,
         n_bootstraps: int = 30,
@@ -552,13 +699,14 @@ class EstimatorPipeline:
           feature placed in the top *top_k* by importance;
         - ``importance_mean`` / ``importance_std`` — bootstrap distribution
           of per-feature importance;
-        - ``rank_median`` / ``rank_iqr`` — distribution of the feature's
-          rank across bootstraps.
+        - ``rank_median`` / ``rank_q25`` / ``rank_q75`` / ``rank_iqr`` —
+          distribution of the feature's rank across bootstraps (the IQR is
+          ``rank_q75 - rank_q25``).
 
         High appearance rate + low rank IQR → robustly important.
         Compare against the single-point permutation importance to
         identify features whose ranking is fold-luck rather than signal
-        — especially useful for the low-R² gain models (LRP01, LRP03)
+        — especially useful for the low-R² gain models (LRPGBG12, LRPGBG06)
         where a single fit's ranking is least stable.
 
         Gated to reporting configs via ``fit()``; costly for large
@@ -657,6 +805,9 @@ class EstimatorPipeline:
                     "rank_median": float(np.median(ranks_arr)),
                     "rank_q25": float(np.quantile(ranks_arr, 0.25)),
                     "rank_q75": float(np.quantile(ranks_arr, 0.75)),
+                    "rank_iqr": float(
+                        np.quantile(ranks_arr, 0.75) - np.quantile(ranks_arr, 0.25)
+                    ),
                 }
             )
 
@@ -681,6 +832,7 @@ class EstimatorPipeline:
                     "rank_median",
                     "rank_q25",
                     "rank_q75",
+                    "rank_iqr",
                 ],
             )
         )
@@ -1120,17 +1272,6 @@ class EstimatorPipeline:
             "perm_importance_repeats": effective_perm_importance_repeats,
             "random_seed": cfg.random_seed,
             "run_config": run.name,
-            "selection_history": [
-                {
-                    "removed": step.removed,
-                    "added": step.added,
-                    "notes": step.notes,
-                    "date": step.date,
-                    "metrics_before": step.metrics_before,
-                    "metrics_after": step.metrics_after,
-                }
-                for step in cfg.selection_history
-            ],
         }
 
         overrides = {}
@@ -1158,15 +1299,10 @@ class EstimatorPipeline:
         cfg = context.config
         run = context.run_config
 
-        eval_df = context.eval_df
-        y_true = context.y
-
-        in_sample_mae = float(eval_df["abs_residual"].mean())
-        in_sample_rmse = float(np.sqrt(eval_df["sq_error"].mean()))
-        in_sample_medae = float(eval_df["abs_residual"].median())
-        ss_res = eval_df["sq_error"].sum()
-        ss_tot = ((y_true - y_true.mean()) ** 2).sum()
-        in_sample_r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0 else None
+        # Reuse the metrics computed in evaluate() so the printed and persisted
+        # in-sample values cannot diverge; recompute as a fallback if evaluate()
+        # was not run.
+        ism = context.in_sample_metrics or _in_sample_metrics(context.eval_df, context.y)
 
         cv_scores_df = context.dataframes.get("cv_scores")
 
@@ -1210,10 +1346,10 @@ class EstimatorPipeline:
             "cv_pooled_rmse": (context.pooled_cv_metrics or {}).get("pooled_rmse"),
             "cv_pooled_r2": (context.pooled_cv_metrics or {}).get("pooled_r2"),
             "cv_pooled_medae": (context.pooled_cv_metrics or {}).get("pooled_medae"),
-            "in_sample_mae": in_sample_mae,
-            "in_sample_rmse": in_sample_rmse,
-            "in_sample_r2": in_sample_r2,
-            "in_sample_medae": in_sample_medae,
+            "in_sample_mae": ism["mae"],
+            "in_sample_rmse": ism["rmse"],
+            "in_sample_r2": ism["r2"],
+            "in_sample_medae": ism["medae"],
         }
 
         (context.output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
@@ -1303,6 +1439,7 @@ class EstimatorPipeline:
             self.shap_analysis()
             self.run_shap_scatter_specs()
             self.shap_direction_diagnostics()
+            self.shap_interaction_analysis()
         else:
             print(
                 f"\n  [yellow]SHAP analysis skipped (run config: {run.name})[/yellow]"
@@ -1321,6 +1458,11 @@ class EstimatorPipeline:
         else:
             print(f"  [yellow]PDP skipped (run config: {run.name})[/yellow]")
 
+        # Cluster-first predictor ranking (#116): aggregate the permutation
+        # importance over the diagnostic clusters into cluster_ranking.csv /
+        # predictor_ranking.csv so the per-model report is self-contained.
+        self.cluster_ranking_analysis()
+
         self.save_config()
         self.report()
 
@@ -1331,6 +1473,25 @@ class EstimatorPipeline:
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
+
+def _in_sample_metrics(eval_df: pd.DataFrame, y_true: pd.Series) -> dict[str, float | None]:
+    """In-sample MAE / RMSE / MedAE / R² from an evaluation frame.
+
+    Single source of truth for ``evaluate()`` (which prints them) and
+    ``save_metrics()`` (which persists them), so the printed and persisted values
+    cannot diverge. ``r2`` is ``None`` when the target has zero variance
+    (``ss_tot <= 0``) — the JSON-natural sentinel; callers that need a displayable
+    value substitute NaN.
+    """
+    ss_res = eval_df["sq_error"].sum()
+    ss_tot = ((y_true - y_true.mean()) ** 2).sum()
+    return {
+        "mae": float(eval_df["abs_residual"].mean()),
+        "rmse": float(np.sqrt(eval_df["sq_error"].mean())),
+        "medae": float(eval_df["abs_residual"].median()),
+        "r2": float(1.0 - ss_res / ss_tot) if ss_tot > 0 else None,
+    }
 
 
 def _clear_directory(path: Path) -> None:

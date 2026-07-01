@@ -1,5 +1,7 @@
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 ::: {.callout-warning title="Warning: Preliminary model output"}
