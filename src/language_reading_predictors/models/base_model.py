@@ -49,9 +49,11 @@ def _build_predictors(
     """Assemble the final predictor list.
 
     1. Start from *base* (e.g. ``Predictors.DEFAULT_GAIN``).
-    2. Remove the target variable.
-    3. Prepend *include* vars not already present.
-    4. Remove *exclude* vars.
+    2. Remove *target_var* and all *exclude* vars in a single pass.
+    3. Prepend any *include* vars not already present (and not equal to
+       *target_var*).  Because *include* is applied after *exclude*, a
+       variable listed in both will end up in the predictor set — i.e.
+       *include* overrides *exclude*.
     """
     exclude_set = {target_var, *exclude}
     predictors = [p for p in base if p not in exclude_set]

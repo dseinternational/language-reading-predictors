@@ -41,8 +41,8 @@ covers taught/not-taught receptive and expressive vocabulary, not only the
 standardised tests.
 
 This is a **baseline exploratory model** for the taught-receptive-vocabulary gain
-task. It has not been through a target-specific hyperparameter tune or a target-specific
-hyperparameter tune — it runs on hyperparameters borrowed from the closely-matched
+task. It has not been through a target-specific hyperparameter tune — it runs on
+hyperparameters borrowed from the closely-matched
 block-1 taught-vocabulary analogue LRPGBG02 and the full `Predictors.DEFAULT_GAIN`
 set (plus the auto-included `b1retau` baseline level), with no outlier exclusion.
 
