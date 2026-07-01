@@ -380,3 +380,12 @@ Riebler
 Sørbye
 coeffs
 tiering
+readgrp
+basread
+basspel
+woco
+Wechsler
+basdig
+bassim
+basnum
+basmat
