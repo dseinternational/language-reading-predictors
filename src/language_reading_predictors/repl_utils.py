@@ -1,56 +1,41 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-import platform
-import sys
-import arviz as az
-import pymc as pm
-import pytensor
-import torch
-import numpy as np
-import pandas as pd
-import sklearn as skl
-import scipy as sp
-import joblib
-import datetime
-import psutil
-from typing import Any
+"""REPL / notebook environment banner.
+
+Delegates to the shared ``dse_research_utils`` helpers so the environment and
+package-version report stays consistent across DSE research repos. torch is no
+longer a dependency (it was only used for a CUDA banner); GPU acceleration is an
+opt-in jax overlay and is surfaced via the reported ``jax``/``jaxlib`` versions
+rather than a bespoke CUDA probe.
+"""
+
+from dse_research_utils.environment.info import report_environment_info
+from dse_research_utils.metadata.packages import report_package_versions
 
 RANDOM_SEED = 47
 
-
-def get_environment_info() -> dict[str, str | bool | Any]:
-    mem = psutil.virtual_memory()
-    return {
-        "date": datetime.datetime.now().isoformat(),
-        "platform": platform.platform(),
-        "platform_version": platform.version(),
-        "cpu": platform.processor(),
-        "cores": joblib.cpu_count(),
-        "physical_cores": joblib.cpu_count(only_physical_cores=True),
-        "ram": f"{mem.total // (1024**3)} GB",
-        "ram_available": f"{mem.available // (1024**3)} GB",
-        "cuda": torch.cuda.is_available(),
-        "cuda_device_count": torch.cuda.device_count(),
-        "cuda_device_0": torch.cuda.get_device_name(0)
-        if torch.cuda.is_available()
-        else None,
-        "python": sys.version,
-        "numpy": np.__version__,
-        "pandas": pd.__version__,
-        "scipy": sp.__version__,
-        "sklearn": skl.__version__,
-        "pytorch": torch.__version__,
-        "pymc": pm.__version__,
-        "pytensor": pytensor.__version__,
-        "arviz": az.__version__,
-    }
+# Versions worth pinning down when debugging model runs.
+_REPORTED_PACKAGES = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "statsmodels",
+    "pymc",
+    "pytensor",
+    "nutpie",
+    "numpyro",
+    "jax",
+    "jaxlib",
+    "arviz",
+    "lightgbm",
+    "xgboost",
+    "shap",
+    "dse-research-utils",
+]
 
 
-def print_environment_info():
-    from dse_research_utils.console.sections import section_header
-    from dse_research_utils.console.tables import print_key_value_table
-
-    info = get_environment_info()
-    section_header("Environment Information")
-    print_key_value_table(info, key_header="Field", value_header="Value")
+def print_environment_info() -> None:
+    report_environment_info()
+    report_package_versions(_REPORTED_PACKAGES)
