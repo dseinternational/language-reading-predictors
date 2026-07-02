@@ -11,11 +11,32 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.registry import discover_models
 
 
+def _expected_model_modules() -> set[str]:
+    """Model modules implied by the naming convention: non-package submodules whose
+    name carries a number (``lrpitt01``, ``rlmhg01`` ...). Infrastructure modules
+    are digit-free, so this stays allowlist-free while failing on any missing or
+    unexpected model."""
+    import pkgutil
+
+    from language_reading_predictors import statistical_models as _pkg
+
+    return {
+        info.name
+        for info in pkgutil.iter_modules(_pkg.__path__)
+        if not info.ispkg and any(ch.isdigit() for ch in info.name)
+    }
+
+
+def test_discovers_every_model_module():
+    # Exact-match against the naming-convention set: dropping several models (or
+    # registering an unexpected one) fails the test — stronger than a size floor,
+    # and with no hand-maintained allowlist.
+    assert set(discover_models()) == _expected_model_modules()
+
+
 def test_discovers_known_models_across_families():
     models = discover_models()
-    # A soft floor (the suite is ~87 models); the point is nothing whole-family
-    # gets dropped by discovery.
-    assert len(models) >= 80
+    # Readable family spot-checks (the exact-set test above is the real guard).
     for mid in (
         "lrpitt01",  # ITT suite
         "lrpgf01",  # gain factors

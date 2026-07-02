@@ -39,12 +39,17 @@ def discover_models() -> dict[str, ModuleType]:
     A model module is any (non-package) submodule of the statistical-models
     package that defines its own top-level ``fit(config)`` - e.g. ``lrpitt01``,
     ``lrp65`` (lazy spec), ``rlmhg01`` (historical growth). Infrastructure modules
-    (``context``, ``factories``, ``pipeline``, ``reporting`` ...) have no top-level
-    ``fit`` and are skipped.
+    (``context``, ``factories``, ``pipeline``, ``reporting`` ...) are digit-free and
+    define no top-level ``fit``, so they are skipped without being imported.
     """
     models: dict[str, ModuleType] = {}
     for info in pkgutil.iter_modules(_pkg.__path__):
-        if info.ispkg:
+        # Model ids carry a number (``lrpitt01``, ``rlmhg01`` ...); skipping the
+        # digit-free infrastructure modules (``context``, ``factories``,
+        # ``pipeline`` ...) avoids importing them — and any heavy import side
+        # effects — just to discover on ``fit``. The ``_defines_fit`` check below
+        # still guards against a numbered module that is not a runnable model.
+        if info.ispkg or not any(ch.isdigit() for ch in info.name):
             continue
         mod = importlib.import_module(f"{_pkg.__name__}.{info.name}")
         if _defines_fit(mod):
