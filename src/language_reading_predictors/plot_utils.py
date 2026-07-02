@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import dse_research_utils.plot.styles as plot_styles
 
+from language_reading_predictors import paths as _paths
+
 # Generic plotting helpers now live in dse_research_utils.plot; re-exported here
 # for backwards compatibility (the GP / graph helpers and histogram grid are
 # behind the shared package's optional extras).
@@ -43,7 +45,10 @@ from language_reading_predictors.data_variables import Variables as vars
 # models/base_pipeline.py's _ROOT_DIR and statistical_models/environment.py's
 # ROOT_DIR).
 HERE = Path(__file__).resolve().parent.parent.parent
-OUTPUT_DIR = HERE / "output"
+# Env-aware default output root (``DSE_LRP_OUTPUT_DIR``, #180); plot helpers take an
+# explicit ``output_dir`` argument, so a CLI ``--output-dir`` override flows in via
+# the caller (pipeline ``context.output_dir``).
+OUTPUT_DIR = _paths.output_root()
 
 
 def violin_plot(df: pd.DataFrame, x, y):

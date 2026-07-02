@@ -15,6 +15,7 @@ import xarray as xr
 from dse_research_utils.statistics.evidence import evidence_label, odds_string
 from scipy.special import expit
 
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
@@ -672,6 +673,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
             "target_accept": context.sampling.target_accept,
             "random_seed": context.sampling.random_seed,
         },
+        "output_root": str(_paths.output_root()),
         "extra": extra or {},
     }
     with open(os.path.join(out, "config.json"), "w") as f:

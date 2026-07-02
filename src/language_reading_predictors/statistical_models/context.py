@@ -17,7 +17,7 @@ import xarray as xr
 import dse_research_utils.statistics.models.reporting as _reporting
 import dse_research_utils.statistics.models.sampling as _sampling
 
-from language_reading_predictors.statistical_models import environment as _env
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.preprocessing import (
     LongitudinalPanel,
     PreparedData,
@@ -108,7 +108,7 @@ def make_context(
     reporting = _reporting.ReportingConfiguration(
         model_name=spec.model_id,
         config_name=config,
-        output_root_dir=_env.STAT_OUTPUT_DIR,
+        output_root_dir=str(_paths.stat_dir()),
         hdi=ci_prob,
     )
     sampling = _sampling.get_sampling_configuration(config, random_seed=random_seed)

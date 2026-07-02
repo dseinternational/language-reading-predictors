@@ -61,6 +61,8 @@ quarto preview docs/report/
 quarto render docs/report/
 ```
 
+**Output location.** Runs write under a configurable **output root** (default: repo-local `output/`, with the relative layout unchanged). Redirect it to a scratch disk for VM runs via the `DSE_LRP_OUTPUT_DIR` environment variable, or per command with `--output-dir` (which takes precedence): `DSE_LRP_OUTPUT_DIR=/mnt/scratch/lrp python scripts/fit_statistical_model.py lrpitt10 --config reporting`, or `python scripts/fit_model.py lrpgbg12 --output-dir /mnt/scratch/lrp`. Resolution lives in `src/language_reading_predictors/paths.py`; the resolved root is printed at the start of each long-running command and recorded in `config.json`. Scratch disks are ephemeral — `--upload` (or copy) durable artefacts before teardown.
+
 ## Architecture
 
 The Python package is in `src/language_reading_predictors/` and is installed in editable mode via conda/pip.

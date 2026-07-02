@@ -59,9 +59,14 @@ from language_reading_predictors.models._reporting import (
     section_header,
 )
 
+from language_reading_predictors import paths as _paths
+
 _ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 _DOCS_DIR = _ROOT_DIR / "docs"
-_OUTPUT_DIR = _ROOT_DIR / "output" / "models"
+# Env-aware (``DSE_LRP_OUTPUT_DIR``) GB models root, kept as a module constant for
+# importers such as ``scripts/rank_predictors.py``; instantiation-time paths call
+# ``_paths.gb_models_dir()`` so a CLI ``--output-dir`` override is also honoured (#180).
+_OUTPUT_DIR = _paths.gb_models_dir()
 
 ESTIMATOR_STEP = "est"
 """Name of the estimator step inside the sklearn ``Pipeline``."""
@@ -80,7 +85,7 @@ class EstimatorPipeline:
         self.context = ModelFitContext(
             config=config,
             run_config=run_config,
-            output_dir=_OUTPUT_DIR / config.model_id,
+            output_dir=_paths.gb_models_dir() / config.model_id,
         )
 
     # ── pipeline steps ───────────────────────────────────────────────────
@@ -1272,6 +1277,7 @@ class EstimatorPipeline:
             "perm_importance_repeats": effective_perm_importance_repeats,
             "random_seed": cfg.random_seed,
             "run_config": run.name,
+            "output_root": str(_paths.output_root()),
         }
 
         overrides = {}
