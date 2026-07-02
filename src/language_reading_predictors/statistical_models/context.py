@@ -100,6 +100,11 @@ def make_context(
     ci_prob: float = 0.95,
     random_seed: int = 47,
 ) -> StatisticalFitContext:
+    # ``ReportingConfiguration.hdi`` (dse_research_utils) stores the interval
+    # *coverage* probability, not a highest-density-interval flag: the suite reads
+    # it back as ``ci_prob`` and reports equal-tailed intervals, with the HPDI kept
+    # as a separate per-scale sensitivity companion (see reporting._hdi_bounds,
+    # #170). The external field name is retained for cross-repo compatibility.
     reporting = _reporting.ReportingConfiguration(
         model_name=spec.model_id,
         config_name=config,
