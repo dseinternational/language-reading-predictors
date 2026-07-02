@@ -6,6 +6,13 @@
 Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
 :::
 
+::: {.callout-important}
+**Superseded by the reporting-tier note**
+[`202607021100-word-reading-reporting-tier-ranking.md`](202607021100-word-reading-reporting-tier-ranking.md).
+The numbers here are the dev/`--quick`-tier pilot; the reporting-tier note (with
+the retuned GB pair) is the committed result and is what any report should cite.
+:::
+
 ::: {.callout-warning}
 This note was prepared by an AI tool and may contain mistakes. The numbers below
 come from **development-tier** fits (horseshoe `--config dev`, gradient boosting
