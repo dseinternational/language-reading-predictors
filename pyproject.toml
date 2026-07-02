@@ -15,7 +15,7 @@ dependencies = [
   "arviz-plots>=1.2.0",
   "arviz-stats>=1.2.0",
   "arviz>=1.2.0",
-  "dse-research-utils>=0.4.0",
+  "dse-research-utils>=0.5.0",
   "graphviz",
   "lightgbm>=4.6.0",
   "matplotlib>=3.10.8",
@@ -37,6 +37,12 @@ dev = [
   "jupyter>=1.1.1",
   "pytest>=9.0.3"
 ]
+
+[tool.uv.sources]
+# dse-research-utils isn't published to PyPI — resolve it from the public git
+# tag. (The conda env in environment.yml installs it from the same tag in its
+# pip layer; this entry is only consumed by uv.)
+dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.5.0" }
 
 [tool.hatch.version]
 path = "src/language_reading_predictors/__init__.py"
