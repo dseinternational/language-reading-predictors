@@ -22,6 +22,7 @@ Conventions
 from __future__ import annotations
 
 import warnings
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -29,6 +30,10 @@ import numpy as np
 import pandas as pd
 
 from language_reading_predictors.data_variables import Variables as V
+from language_reading_predictors.statistical_models.datasets import (
+    DatasetSpec,
+    StudyMeasure,
+)
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
@@ -746,4 +751,173 @@ def load_wave_panel(
         dose_std=dose_std,
         dose_scaler=dose_scaler,
         column_map=column_map,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Longitudinal panel container + loader (multi-dataset, #165)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class LongitudinalPanel:
+    """Descriptive repeated-measures panel for a non-intervention study.
+
+    A sibling of :class:`WavePanel` for datasets that carry a **group** factor and
+    no treatment / randomised-phase semantics (the Byrne historical cohort, #165).
+    Rows in ``long`` are the tidy complete-case observations (one per subject x
+    wave); the historical-growth factory indexes them by group / wave / subject.
+    Exposes the same ``n_obs`` / ``n_children`` / ``n_phases`` / ``dropped_rows``
+    accessors as :class:`WavePanel` so the shared pipeline header and
+    ``reporting.write_run_metadata`` treat it as a drop-in container.
+    """
+
+    dataset: DatasetSpec
+    measures: tuple[str, ...]
+    """Study-local measure symbols included, in the requested order."""
+    long: pd.DataFrame
+    """Tidy complete-case frame, sorted by (group, subject, wave). Columns: the
+    dataset subject / wave / group columns, ``<group_col>_label``, and one column
+    per measure symbol."""
+    subject_ids: list
+    group_codes: list[int]
+    group_labels: list[str]
+    """Group labels aligned to ``group_codes``."""
+    waves: tuple[int, ...]
+    counts: dict[str, np.ndarray]
+    """Symbol -> (n_subjects, n_waves) observed counts, NaN where missing."""
+    obs_mask: dict[str, np.ndarray]
+    n_trials: dict[str, int]
+    n_subjects: int
+    n_waves: int
+    dropped_subjects: int
+    group_label_col: str
+
+    @property
+    def n_obs(self) -> int:
+        return len(self.long)
+
+    @property
+    def n_children(self) -> int:
+        return self.n_subjects
+
+    @property
+    def n_phases(self) -> int:
+        return self.n_waves - 1
+
+    @property
+    def dropped_rows(self) -> int:
+        return self.dropped_subjects
+
+
+def load_longitudinal_panel(
+    dataset: DatasetSpec,
+    measures: Sequence[StudyMeasure],
+    *,
+    waves: tuple[int, ...],
+    complete_case: bool = True,
+    path: str | Path | None = None,
+) -> LongitudinalPanel:
+    """Load a study's long-format CSV into a :class:`LongitudinalPanel`.
+
+    Keeps the ``waves`` requested and (when ``complete_case``) only subjects with
+    every ``measures`` value observed at every wave - the per-measure complete-case
+    subset the Byrne Table 2 reproduction uses. Validates that no observed count
+    exceeds its measure ceiling and that each kept subject has exactly
+    ``len(waves)`` rows.
+    """
+    csv_path = Path(path) if path is not None else Path(dataset.path)
+    df = pd.read_csv(csv_path)
+
+    subj, wave_c, grp = dataset.subject_col, dataset.wave_col, dataset.group_col
+    label_col = f"{grp}_label"
+    measure_syms = list(dict.fromkeys(m.symbol for m in measures))
+    required = [subj, wave_c, grp, *[m.column for m in measures]]
+    missing_cols = [c for c in required if c not in df.columns]
+    if missing_cols:
+        raise ValueError(f"{csv_path} missing required columns: {missing_cols}")
+
+    df = df.copy()
+    df[wave_c] = df[wave_c].astype(int)
+    df[grp] = df[grp].astype(int)
+    df[label_col] = df[grp].map(dataset.group_labels)
+
+    waves = tuple(int(w) for w in waves)
+    in_waves = df[df[wave_c].isin(waves)].copy()
+    n_subjects_before = int(in_waves[subj].nunique())
+
+    if complete_case:
+        keep: pd.Index | None = None
+        for m in measures:
+            wide = in_waves.pivot_table(
+                index=subj, columns=wave_c, values=m.column, aggfunc="first"
+            ).reindex(columns=list(waves))
+            complete = wide.dropna(subset=list(waves)).index
+            keep = complete if keep is None else keep.intersection(complete)
+        panel_df = in_waves[in_waves[subj].isin(keep)].copy()
+    else:
+        panel_df = in_waves
+
+    # Expose each measure under its study-local symbol (symbol == column for the
+    # Byrne measures, but keep the mapping explicit for future studies).
+    for m in measures:
+        if m.symbol != m.column:
+            panel_df[m.symbol] = panel_df[m.column]
+
+    keep_cols = [subj, wave_c, grp, label_col, *measure_syms]
+    panel_df = (
+        panel_df[keep_cols]
+        .dropna(subset=[wave_c, grp])
+        .sort_values([grp, subj, wave_c])
+        .reset_index(drop=True)
+    )
+
+    # Ceiling guard (always) + complete-case row-count check.
+    for m in measures:
+        observed = panel_df[m.symbol].dropna()
+        if len(observed) and float(observed.max()) > m.n_trials:
+            raise ValueError(
+                f"Observed {m.symbol!r} exceeds measure ceiling {m.n_trials} "
+                f"(max {float(observed.max()):g})."
+            )
+    if complete_case and measure_syms:
+        per_subject = panel_df.groupby(subj)[measure_syms[0]].size()
+        bad = per_subject[per_subject != len(waves)]
+        if not bad.empty:
+            raise ValueError(
+                f"Complete-case panel has subjects without all {len(waves)} "
+                f"waves: {bad.to_dict()}"
+            )
+
+    subject_ids = panel_df[subj].drop_duplicates().tolist()
+    group_codes = sorted(int(c) for c in panel_df[grp].unique())
+    group_labels = [dataset.group_labels[c] for c in group_codes]
+
+    counts: dict[str, np.ndarray] = {}
+    obs_mask: dict[str, np.ndarray] = {}
+    n_trials: dict[str, int] = {}
+    for m in measures:
+        wide = panel_df.pivot_table(
+            index=subj, columns=wave_c, values=m.symbol, aggfunc="first"
+        ).reindex(index=subject_ids, columns=list(waves))
+        arr = wide.to_numpy(dtype=float)
+        counts[m.symbol] = arr
+        obs_mask[m.symbol] = ~np.isnan(arr)
+        n_trials[m.symbol] = m.n_trials
+
+    return LongitudinalPanel(
+        dataset=dataset,
+        measures=tuple(measure_syms),
+        long=panel_df,
+        subject_ids=subject_ids,
+        group_codes=group_codes,
+        group_labels=group_labels,
+        waves=waves,
+        counts=counts,
+        obs_mask=obs_mask,
+        n_trials=n_trials,
+        n_subjects=len(subject_ids),
+        n_waves=len(waves),
+        dropped_subjects=n_subjects_before - len(subject_ids),
+        group_label_col=label_col,
     )
