@@ -1516,9 +1516,13 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     return _finalize_report(ctx)
 
 
-def _summarise_draws(values: np.ndarray, hdi: float) -> dict[str, float]:
-    """Mean, equal-tailed CI and P(>0) for a 1-D array of posterior draws."""
-    lo_q = (1.0 - hdi) / 2.0
+def _summarise_draws(values: np.ndarray, ci_prob: float) -> dict[str, float]:
+    """Mean, equal-tailed CI and P(>0) for a 1-D array of posterior draws.
+
+    ``ci_prob`` is the interval *coverage* probability (equal-tailed), read from
+    ``ctx.reporting.hdi`` — see the naming note in ``context.make_context`` (#170).
+    """
+    lo_q = (1.0 - ci_prob) / 2.0
     return {
         "mean": float(np.mean(values)),
         "lo": float(np.quantile(values, lo_q)),
@@ -1532,24 +1536,24 @@ def _write_dose_slope_summary(
 ) -> None:
     """Posterior dose slope (overall + per-period) on the per-1-SD logit scale."""
     post = ctx.trace.posterior
-    hdi = ctx.reporting.hdi
+    ci_prob = ctx.reporting.hdi
     rows: list[dict[str, object]] = []
 
     def _draws(name: str) -> np.ndarray:
         return post[name].stack(sample=("chain", "draw")).values
 
     if period_varying:
-        rows.append({"term": "dose_overall", **_summarise_draws(_draws("mu_dose"), hdi)})
+        rows.append({"term": "dose_overall", **_summarise_draws(_draws("mu_dose"), ci_prob)})
         bdp = _draws("beta_dose_phase")  # (phase, sample)
         for p in range(bdp.shape[0]):
             rows.append(
-                {"term": f"dose_period{p + 1}", **_summarise_draws(bdp[p], hdi)}
+                {"term": f"dose_period{p + 1}", **_summarise_draws(bdp[p], ci_prob)}
             )
         rows.append(
-            {"term": "sigma_dose_between_period", **_summarise_draws(_draws("sigma_dose"), hdi)}
+            {"term": "sigma_dose_between_period", **_summarise_draws(_draws("sigma_dose"), ci_prob)}
         )
     else:
-        rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), hdi)})
+        rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), ci_prob)})
 
     df = pd.DataFrame(rows)
     df.to_csv(os.path.join(ctx.output_dir, "dose_slope_summary.csv"), index=False)
@@ -1561,7 +1565,7 @@ def _write_dose_slope_summary(
                 for r in rows
             ],
             title=(
-                f"Dose slope (logit / 1 SD dose) - {int(hdi * 100)}% CI (equal-tailed)"
+                f"Dose slope (logit / 1 SD dose) - {int(ci_prob * 100)}% CI (equal-tailed)"
             ),
             columns=["metric", "value", "lo", "hi"],
         )

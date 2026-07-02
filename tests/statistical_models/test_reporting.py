@@ -177,6 +177,62 @@ def test_tau_summary_itt_rejects_misaligned_G():
         tau_summary_itt(_trace(eta, tau), ci_prob=0.9, G=np.array([1.0, 0.0]))
 
 
+def test_tau_summary_itt_includes_hpdi_fields():
+    # HPDI sensitivity fields accompany the equal-tailed fields on both scales,
+    # are finite, and bracket the median (#170).
+    rng = np.random.default_rng(0)
+    eta = rng.normal(0.0, 1.0, (1, 4000, 5))
+    tau = rng.normal(0.3, 0.2, (1, 4000))
+    G = (rng.random(5) > 0.5).astype(float)
+
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.9, G=G)
+
+    for lo, med, hi in (
+        ("tau_logit_hpdi_lo", "tau_logit_median", "tau_logit_hpdi_hi"),
+        ("tau_prob_hpdi_lo", "tau_prob_median", "tau_prob_hpdi_hi"),
+    ):
+        assert lo in out and hi in out
+        assert np.isfinite(out[lo]) and np.isfinite(out[hi])
+        assert out[lo] <= out[med] <= out[hi]
+
+
+def test_tau_summary_itt_hpdi_differs_from_eti_on_skewed_posterior():
+    # On a right-skewed logit-scale posterior the HPDI is the narrower interval and
+    # its lower bound sits below the equal-tailed lower bound (mass piled near the
+    # floor) — proving the HPDI fields are not aliases of the equal-tailed fields.
+    rng = np.random.default_rng(1)
+    tau = rng.gamma(shape=1.5, scale=0.3, size=(1, 40000))  # skewed, > 0
+    eta = np.zeros((1, 40000, 3))
+    G = np.array([1.0, 0.0, 1.0])
+
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.95, G=G)
+
+    eti_width = out["tau_logit_hi"] - out["tau_logit_lo"]
+    hpdi_width = out["tau_logit_hpdi_hi"] - out["tau_logit_hpdi_lo"]
+    assert hpdi_width < eti_width
+    assert out["tau_logit_hpdi_lo"] < out["tau_logit_lo"]
+    assert not np.isclose(out["tau_logit_hpdi_lo"], out["tau_logit_lo"])
+
+
+def test_rope_summary_includes_hpdi_fields():
+    # rope_summary / _rope_card carry HPDI bounds for the logit effect and the
+    # items scale alongside the equal-tailed fields (#170).
+    rng = np.random.default_rng(2)
+    eta = rng.normal(0.0, 1.0, (2, 500, 8))
+    tau = rng.normal(0.4, 0.2, (2, 500))
+    G = (rng.random(8) > 0.5).astype(float)
+
+    out = rope_summary(_trace(eta, tau), G=G, n_trials=30, delta=1.5, ci_prob=0.9)
+
+    for lo, hi in (
+        ("tau_logit_hpdi_lo", "tau_logit_hpdi_hi"),
+        ("items_hpdi_lo", "items_hpdi_hi"),
+    ):
+        assert lo in out and hi in out
+        assert np.isfinite(out[lo]) and np.isfinite(out[hi])
+        assert out[lo] <= out[hi]
+
+
 def _posterior(**arrays):
     """Wrap (chain, draw) arrays as an object exposing ``.posterior``."""
     data = {k: (("chain", "draw"), v) for k, v in arrays.items()}
