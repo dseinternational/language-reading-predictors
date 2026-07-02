@@ -25,6 +25,14 @@ if tau_summary is not None:
         f"(equal-tailed 95% credible interval {_t.tau_prob_lo:+.3f} to {_t.tau_prob_hi:+.3f}). "
         f"P(intervention helps) = {_t.prob_tau_pos:.3f} ({_odds(_t.prob_tau_pos)}{_lab})."
     )
+    if "tau_prob_lo50" in tau_summary.columns:
+        print(
+            f"\n\nThe central 50% posterior interval is {_t.tau_prob_lo50:+.3f} to "
+            f"{_t.tau_prob_hi50:+.3f} (where the middle half of the posterior mass sits — "
+            f"a visual aid, not a threshold); the equal-tailed 90% band is "
+            f"{_t.tau_prob_lo90:+.3f} to {_t.tau_prob_hi90:+.3f} (a sensitivity / "
+            f"compatibility band, not a substitute headline)."
+        )
     if "tau_prob_hpdi_lo" in tau_summary.columns:
         print(
             f"\n\n_Sensitivity — the 95% highest posterior density interval (HPDI) on the "
@@ -41,6 +49,7 @@ if tau_summary is not None:
 
 - `tau_logit_*`: posterior median and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the logit scale.
 - `tau_prob_*`: average marginal effect on the probability scale (risk difference), averaged over the fitted sample per posterior draw.
+- `tau_*_lo/hi`, `tau_*_lo50/hi50`, `tau_*_lo90/hi90`: the fixed posterior-band convention (#177) — the equal-tailed **95%** headline interval (`_lo/_hi`), the **central 50%** interval (a visual aid, not a threshold), and the equal-tailed **90%** sensitivity band. Direction is read from `prob_tau_pos`, never from whether a band excludes zero.
 - `tau_*_hpdi_lo/hi`: 95% highest posterior density interval (HPDI) at the same coverage — a per-scale sensitivity companion to the equal-tailed interval. The HPDI is not transformation-invariant, so it is reported separately on the logit and probability scales, not mapped between them.
 - `prob_tau_pos`: $P(\tau > 0) = P(\text{intervention helps})$; `direction_label` is the round-odds evidence label for that claim.
 
