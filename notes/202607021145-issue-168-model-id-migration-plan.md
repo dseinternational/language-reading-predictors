@@ -4,7 +4,7 @@
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
 
 This is a **proposal for sign-off**, not an implementation. It resolves the three
-open decisions in #168 against the actual model inventory, fixes the canonical
+open decisions in #168 (plus a joint-outcome sub-question) against the actual model inventory, fixes the canonical
 scheme, and specifies a low-risk two-phase migration. No files are renamed here.
 
 ## Why
@@ -91,6 +91,12 @@ revisited once the resolver exists.
 (`MCH` vs `MECH`, `LCS` vs `LCSM`) are a cosmetic call for sign-off; the plan works
 with any fixed choice.
 
+**D-4 — Joint-outcome ITT models (`lrpitt12/15/15b`): keep them in the `ITT`
+family.** They are ITT analyses with a joint (understood + spoken) outcome, so the
+analysis family is still ITT; the joint structure is better carried as
+`variant_role` metadata than as a separate `JNT` family code. (Listed as sign-off
+item 3 for confirmation.)
+
 ## Mapping rule (number-preserving)
 
 For every model: `family_code = FAMILY[kind]`, `number = <the digits already in the
@@ -103,7 +109,7 @@ lrpitt15b    -> lrp-rli-itt-015b         lrp64        -> lrp-rli-med-064
 lrpgbg12     -> lrp-rli-gbg-012          lrp65        -> lrp-rli-adj-065
 lrpgbl12     -> lrp-rli-gbl-012          lrp67        -> lrp-rli-lcs-067
 lrpgf01b     -> lrp-rli-gf-001b          lrp77base    -> lrp-rli-dr-077-base
-lrpdid07base -> lrp-rli-did-007-base     rlmhg01      -> rlm-???-hg-001  (RLM, §remaining)
+lrpdid07base -> lrp-rli-did-007-base     rlmhg01      -> lrp-rlm-hg-001   (RLM study, family pending §sign-off 4)
 ```
 
 Bare `lrp##` numbers (56–77) are kept for provenance even though they are not
