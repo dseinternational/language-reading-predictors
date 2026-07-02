@@ -46,10 +46,6 @@ child.
 
 The model uses the full 34-predictor `Predictors.DEFAULT_GAIN` set (#116 Phase D retired hard feature selection in favour of full-set ranking).
 
-A prediction-focused variant (`lrpgbg12_prediction`) uses RMSE-tuned
-hyperparameters on the same predictor set for comparison (see [Variant
-comparison]).
-
 ## Configuration
 
 ### Hyperparameters
@@ -92,13 +88,10 @@ print(": Model hyperparameters {#tbl-config}")
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
-The 6 predictors span four domains:
-
-- **Demographics:** `age` (age in months)
-- **Language:** `b1exto` (Block 1 expressive vocabulary), `celf` (basic concept
-  knowledge)
-- **Reading:** `yarclet` (letter sounds), `blending` (phoneme blending)
-- **Intervention:** `attend` (sessions attended)
+The predictor set spans demographics and family background, intervention
+exposure (`attend`), and language, cognitive, speech and reading measures ---
+including the baseline word-reading score (`ewrswr`) against which the gain is
+measured.
 
 ### Target variable
 
