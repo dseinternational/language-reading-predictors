@@ -1,0 +1,45 @@
+## Results
+
+Descriptive group-by-wave BAS word-reading growth for the historical cohort.
+These are **natural-history** estimates — expected scores and growth rates by
+reading group — not intervention effects. `readgrp` is a cohort factor, so
+between-group contrasts describe how the groups differ, not what caused the
+difference.
+
+### Group-by-wave fitted vs observed
+
+Posterior population expected item score per group and wave, alongside the
+observed complete-case mean it is calibrated against (the Table 2 audit).
+
+```{python}
+# | echo: false
+cells = _csv("posterior_cell_summary.csv")
+cells if cells is not None else "No cell summary (run the fit first)."
+```
+
+- `posterior_population_mean` (+ `q2_5` / `q97_5`): expected item score for the
+  group-by-wave cell on the population mean.
+- `observed_complete_case_mean`: the observed complete-case mean for the same
+  cell; `posterior_mean_minus_observed_mean` is the calibration gap.
+
+### Growth (items)
+
+Within-group growth across the annual intervals, and pairwise total-growth
+(wave 1 to wave 3) contrasts between groups.
+
+```{python}
+# | echo: false
+growth = _csv("posterior_growth_summary.csv")
+growth if growth is not None else "No growth summary."
+```
+
+- `mean` (+ `q2_5` / `q97_5`): posterior growth in items; `p_gt_0` is the
+  posterior probability the growth (or contrast) is positive.
+
+### Observed complete-case baseline (Table 2 audit)
+
+```{python}
+# | echo: false
+baseline = _csv("observed_complete_case_baseline.csv")
+baseline if baseline is not None else "No observed baseline."
+```
