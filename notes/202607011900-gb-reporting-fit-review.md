@@ -15,7 +15,7 @@ rendered `index.html` and the expected reporting diagnostics.
 `output/review/gb_reporting_summary.csv` contains the consolidated extraction
 used for this note.
 
-## Plain-language context
+## Introduction
 
 This project is trying to understand which starting skills and background
 features are related to later progress in language and reading for children with
@@ -101,9 +101,7 @@ half the bootstraps; level models usually had around four. The least stable
 headline rankings were `lrpgbg03`, `lrpgbg14`, `lrpgbg16`, and `lrpgbl21`, each
 with only one predictor above the 50 percent top-five threshold.
 
-## Reader's Short Version
-
-The safest accessible summary is:
+## Summary
 
 - The models can describe which skills travel together, but they cannot by
   themselves explain why children improved.

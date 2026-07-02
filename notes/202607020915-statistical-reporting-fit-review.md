@@ -9,7 +9,7 @@ Source artefacts: `output/statistical_models/models/{model_id}-reporting/` from 
 
 Auditable extraction tables are in `output/review/statistical_reporting_summary.csv`, `output/review/statistical_reporting_parameters.csv`, and `output/review/statistical_reporting_loo.csv`.
 
-## Plain-language context
+## Introduction
 
 These statistical models are the second step after the exploratory
 gradient-boosting review. The gradient-boosting models asked which variables
