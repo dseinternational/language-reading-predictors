@@ -807,7 +807,11 @@ class LongitudinalPanel:
 
     @property
     def dropped_rows(self) -> int:
-        return self.dropped_subjects
+        # Complete-case selection drops whole subjects; in the complete-case grid
+        # each occupies one row per requested wave, so report the count in the same
+        # observation-row units as ``n_obs`` (subjects x waves) — matching how the
+        # pipeline header / ``write_run_metadata`` treat ``dropped_rows``.
+        return self.dropped_subjects * self.n_waves
 
 
 def load_longitudinal_panel(
@@ -826,6 +830,11 @@ def load_longitudinal_panel(
     exceeds its measure ceiling and that each kept subject has exactly
     ``len(waves)`` rows.
     """
+    if not measures:
+        raise ValueError(
+            "load_longitudinal_panel requires at least one measure "
+            "(complete-case selection, counts and n_trials are all measure-keyed)."
+        )
     csv_path = Path(path) if path is not None else Path(dataset.path)
     df = pd.read_csv(csv_path)
 
@@ -840,6 +849,12 @@ def load_longitudinal_panel(
     df = df.copy()
     df[wave_c] = df[wave_c].astype(int)
     df[grp] = df[grp].astype(int)
+    unknown_groups = sorted(set(df[grp].unique()) - set(dataset.group_labels))
+    if unknown_groups:
+        raise ValueError(
+            f"{csv_path}: group codes {unknown_groups} have no label in "
+            f"dataset.group_labels (known: {sorted(dataset.group_labels)})."
+        )
     df[label_col] = df[grp].map(dataset.group_labels)
 
     waves = tuple(int(w) for w in waves)

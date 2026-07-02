@@ -92,6 +92,17 @@ def test_complete_case_drops_incomplete_subject(tmp_path):
     assert "S10" not in panel.subject_ids
 
 
+def test_dropped_rows_is_observation_rows_not_subjects(tmp_path):
+    # dropped_rows is an observation-row count (subjects x waves), not a subject
+    # count, so config.json / the pipeline header stay in row units (#171 review).
+    path = _write_synthetic(tmp_path, drop_one_wave=True)
+    panel = load_longitudinal_panel(
+        _dataset(path), [RLM_MEASURES["basread"]], waves=(1, 2, 3)
+    )
+    assert panel.dropped_subjects == 1
+    assert panel.dropped_rows == panel.dropped_subjects * panel.n_waves == 3
+
+
 def test_available_case_keeps_incomplete_subject(tmp_path):
     path = _write_synthetic(tmp_path, drop_one_wave=True)
     panel = load_longitudinal_panel(
@@ -119,6 +130,28 @@ def test_missing_column_raises(tmp_path):
     bad = StudyMeasure("nope", "not_a_column", 10, "Missing")
     with pytest.raises(ValueError, match="missing required columns"):
         load_longitudinal_panel(_dataset(path), [bad], waves=(1, 2, 3))
+
+
+def test_empty_measures_raises(tmp_path):
+    # An empty measures list would otherwise fail obscurely in complete-case
+    # selection (keep stays None); reject it up front (#171 review).
+    path = _write_synthetic(tmp_path)
+    with pytest.raises(ValueError, match="at least one measure"):
+        load_longitudinal_panel(_dataset(path), [], waves=(1, 2, 3))
+
+
+def test_unknown_group_code_raises(tmp_path):
+    # A group code with no label must fail clearly at load, not with a downstream
+    # KeyError when building group_labels (#171 review).
+    path = _write_synthetic(tmp_path)
+    dataset = DatasetSpec(
+        study_id="rlm_test",
+        label="synthetic",
+        path=path,
+        group_labels={1: "Down syndrome", 2: "Average readers"},  # missing code 3
+    )
+    with pytest.raises(ValueError, match="no label in"):
+        load_longitudinal_panel(dataset, [RLM_MEASURES["basread"]], waves=(1, 2, 3))
 
 
 def test_rlm_dataset_registered():
