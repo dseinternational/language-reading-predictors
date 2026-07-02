@@ -15,20 +15,21 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51) on the full
+# ``Predictors.DEFAULT_LEVEL`` set; best mean cross-validated MAE 5.89 (#116 reporting
+# refresh, superseding the earlier pruned-subset tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 61,
-    "learning_rate": 0.05087448729350299,
-    "num_leaves": 56,
-    "max_depth": 10,
-    "min_child_samples": 30,
-    "subsample": 0.9231435244978656,
+    "n_estimators": 12,
+    "learning_rate": 0.1742660450386943,
+    "num_leaves": 21,
+    "max_depth": 11,
+    "min_child_samples": 4,
+    "subsample": 0.7247819669156791,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6478837495498934,
-    "reg_alpha": 0.003266918043241777,
-    "reg_lambda": 2.7414726117714094,
+    "colsample_bytree": 0.6022781859914981,
+    "reg_alpha": 0.3169609291119701,
+    "reg_lambda": 0.0010032986789946063,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -37,7 +38,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL12(LevelModel):
     """Word-reading level predictors — exploratory model (MAE-tuned, all data).
 
-    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned on the full set (#116).
     """
 
     model_id = "lrpgbl12"
@@ -52,7 +53,7 @@ class LRPGBL12(LevelModel):
     notes = (
         "Exploratory model for word-reading level (ewrswr). Fits the full "
         "DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature "
-        "selection in favour of full-set ranking); hyperparameters are "
-        "retained from the earlier pruned-set Optuna tune (retune-pending). "
-        "Treat the ranking as exploratory."
+        "selection in favour of full-set ranking); hyperparameters were "
+        "re-tuned by Optuna on the full set (150 trials, seed 47; #116 "
+        "reporting refresh). Treat the ranking as exploratory."
     )
