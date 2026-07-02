@@ -114,6 +114,7 @@ from language_reading_predictors.statistical_models import (
     lrpmm01,
     lrphs01,
     lrphs02,
+    rlmhg01,
 )
 
 
@@ -265,6 +266,10 @@ MODELS = {
     "lrpmm01": lrpmm01,  # correlated-domain-factor measurement model (#134)
     "lrphs01": lrphs01,  # horseshoe ranking cross-check - word-reading gain (#116 Phase E)
     "lrphs02": lrphs02,  # horseshoe ranking cross-check - word-reading level (#116 Phase E)
+    # RLMHG: historical Byrne reading-language-memory growth models (2nd dataset, #165).
+    # Descriptive natural-history, NOT intervention effects; fit via the shared
+    # historical_growth pipeline (study_id="rlm").
+    "rlmhg01": rlmhg01,  # descriptive BAS word-reading growth, waves 1-3
 }
 
 

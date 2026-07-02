@@ -607,6 +607,15 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "outcome_symbol": spec.outcome_symbol,
         "mechanism_symbol": spec.mechanism_symbol,
         "adjustment": spec.adjustment,
+        # Dataset / estimand metadata (#165) - default to the RLI intervention
+        # study for the existing models; historical/cross-study models set them.
+        "study_id": spec.study_id,
+        "family": spec.family,
+        "design": spec.design,
+        "estimand_type": spec.estimand_type,
+        "causal_status": spec.causal_status,
+        "dataset_ref": spec.dataset_ref,
+        "audit_baseline": spec.audit_baseline,
         "n_obs": context.prepared.n_obs if context.prepared else None,
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,
