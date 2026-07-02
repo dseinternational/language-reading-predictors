@@ -25,6 +25,7 @@ Anscombe
 Haldane
 HSGP
 hsgp
+rlmhg
 lengthscale
 Missingness
 MCMC
