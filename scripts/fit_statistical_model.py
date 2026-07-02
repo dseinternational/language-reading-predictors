@@ -26,6 +26,7 @@ from language_reading_predictors.models._reporting import (
     print_panel,
     print_table,
 )
+from language_reading_predictors import paths
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models.registry import (
     discover_models,
@@ -73,7 +74,20 @@ def main() -> None:
         action="store_true",
         help="Include trace files (.nc) in the upload (excluded by default).",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR); the relative layout is unchanged. Default: "
+            "repo-local output/."
+        ),
+    )
     args = parser.parse_args()
+
+    paths.set_output_root(args.output_dir)
+    rprint(f"[bold]Output root:[/bold] {paths.describe_output_root()}")
 
     if args.target_accept is not None:
         import dse_research_utils.statistics.models.sampling as _S
