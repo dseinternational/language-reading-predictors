@@ -58,6 +58,28 @@ def _eti_bands(
     return out
 
 
+def favoured_direction(prob_positive: float) -> dict[str, float | str]:
+    """Evidence for the *favoured* direction of a signed effect (#179).
+
+    :func:`evidence_label` needs a probability already oriented to a **named**
+    claim. For a sign claim the favoured direction is ``"positive"`` when
+    ``P(effect > 0) >= 0.5`` else ``"negative"``; the claim probability is
+    ``max(P>0, P<0)`` and the label qualifies the evidence for THAT direction — so
+    a clearly negative effect reads as strong evidence of harm / a negative
+    association rather than the "inconclusive" that ``evidence_label(P>0)`` returns
+    for the *positive* claim. The raw ``P(effect > 0)`` is still reported
+    separately (the benefit claim); callers supply the direction words (benefit /
+    harm for treatment effects, positive / negative for associations).
+    """
+    p_pos = float(prob_positive)
+    prob = max(p_pos, 1.0 - p_pos)
+    return {
+        "favoured_direction": "positive" if p_pos >= 0.5 else "negative",
+        "favoured_direction_prob": prob,
+        "favoured_direction_label": evidence_label(prob),
+    }
+
+
 def _itt_ame_draws(
     trace: xr.DataTree,
     *,
@@ -199,6 +221,7 @@ def tau_summary_itt(
         "tau_prob_hpdi_hi": marg_hpdi_hi,
         "prob_tau_pos": prob_pos,
         "direction_label": evidence_label(prob_pos),
+        **favoured_direction(prob_pos),
     }
 
 
@@ -254,6 +277,30 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
         "separate **direction** (is there a benefit?) from **magnitude** (is it big enough "
         f"to matter?), judged against a minimally-important difference δ on the {unit} scale.\n"
     )
+    # Direction claim, harm-aware (#179): lead with P(helps) + odds, then state the
+    # favoured-direction evidence so a negative effect reads as evidence of harm,
+    # not the "inconclusive" that a benefit-only label would give. Guarded so an
+    # older rope_summary.csv without the favoured fields still renders.
+    _fav = str(r.get("favoured_direction", "positive"))
+    _fav_prob = float(r.get("favoured_direction_prob", r["pd"]))
+    _fav_label = str(r.get("favoured_direction_label", r["direction_label"]))
+    if is_rd:
+        _fav_claim = (
+            "the intervention raises the off-floor probability"
+            if _fav == "positive"
+            else "the intervention lowers the off-floor probability"
+        )
+    else:
+        _fav_claim = (
+            "the intervention helps"
+            if _fav == "positive"
+            else "the intervention is harmful"
+        )
+    direction_clause = (
+        f"**Direction** — P(intervention helps) = {r['pd']:.3f} "
+        f"({odds_string(r['pd'])}); favoured direction: {_fav_claim} — "
+        f"*{_fav_label} evidence* (P = {_fav_prob:.3f})."
+    )
     parts.append(
         f"The intervention changed {outcome_label} by a median of "
         f"**{r['items_median'] * scale:+.1f} {unit}**{prov} "
@@ -261,8 +308,7 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
         f"{r['items_hi50'] * scale:+.1f}; "
         f"equal-tailed 95% credible interval {r['items_lo'] * scale:+.1f} to "
         f"{r['items_hi'] * scale:+.1f}). "
-        f"**Direction** — evidence it helps: pd = {r['pd']:.3f} "
-        f"({odds_string(r['pd'])}, *{r['direction_label']} evidence*). "
+        f"{direction_clause} "
         f"**Magnitude** — evidence the benefit is at least δ = {r['delta_items'] * scale:g} "
         f"{unit}: P = {r['prob_benefit_ge_delta']:.3f} "
         f"({odds_string(r['prob_benefit_ge_delta'])}, *{r['benefit_label']} evidence*); "
@@ -337,6 +383,7 @@ def _rope_card(
         "prob_harm_ge_delta": float(np.mean(items <= -delta)),
         "direction_label": evidence_label(pd_),
         "benefit_label": evidence_label(p_benefit),
+        **favoured_direction(pd_),
     }
 
 
@@ -545,6 +592,8 @@ def did_summary(
             f"{name}_hi": float(np.quantile(d, hi_q)),
             f"prob_{name}_pos": prob_pos,
             f"{name}_direction_label": evidence_label(prob_pos),
+            f"{name}_favoured_direction": "positive" if prob_pos >= 0.5 else "negative",
+            f"{name}_favoured_label": evidence_label(max(prob_pos, 1.0 - prob_pos)),
         }
 
     out: dict[str, float] = {}
@@ -778,6 +827,7 @@ def factor_summary(
             "hi": float(np.quantile(d, hi_q)),
             "prob_positive": prob_pos,
             "direction_label": evidence_label(prob_pos),
+            **favoured_direction(prob_pos),
         }
 
     rows: list[dict[str, object]] = []
