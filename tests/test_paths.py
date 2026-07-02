@@ -63,3 +63,23 @@ def test_fixed_repo_locations_are_absolute():
         assert p.is_absolute()
     assert paths.DATA_DIR == paths.ROOT_DIR / "data"
     assert paths.DOCS_DIR == paths.ROOT_DIR / "docs"
+
+
+def test_plot_helpers_resolve_output_root_at_call_time(monkeypatch, tmp_path):
+    # save_figure / display_image must resolve the root at call time (not cache it
+    # at import), so a later env var / --output-dir is honoured (#180 review).
+    import language_reading_predictors.plot_utils as pu
+
+    seen: dict[str, str] = {}
+    monkeypatch.setattr(pu, "_shared_save_figure", lambda fn, root, **kw: seen.update(save=root))
+    monkeypatch.setattr(pu, "_shared_display_image", lambda fn, root, **kw: seen.update(disp=root))
+
+    monkeypatch.setenv(paths.OUTPUT_ROOT_ENV_VAR, str(tmp_path))
+    pu.save_figure("f.png")
+    pu.display_image("f.png")
+    assert seen["save"] == str(tmp_path.resolve())
+    assert seen["disp"] == str(tmp_path.resolve())
+
+    # An explicit output_dir overrides the resolved root.
+    pu.save_figure("f.png", output_dir="/data/explicit")
+    assert seen["save"] == "/data/explicit"

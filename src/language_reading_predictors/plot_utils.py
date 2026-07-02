@@ -39,18 +39,6 @@ from scipy.cluster import hierarchy
 from language_reading_predictors.data_variables import Variables as vars
 
 
-# plot_utils.py lives at src/language_reading_predictors/plot_utils.py, so the
-# project root is three levels up (not two — that would resolve to src/output,
-# diverging from the repo-root output/ every other module writes to, e.g.
-# models/base_pipeline.py's _ROOT_DIR and statistical_models/environment.py's
-# ROOT_DIR).
-HERE = Path(__file__).resolve().parent.parent.parent
-# Env-aware default output root (``DSE_LRP_OUTPUT_DIR``, #180); plot helpers take an
-# explicit ``output_dir`` argument, so a CLI ``--output-dir`` override flows in via
-# the caller (pipeline ``context.output_dir``).
-OUTPUT_DIR = _paths.output_root()
-
-
 def violin_plot(df: pd.DataFrame, x, y):
     plt.figure(figsize=plot_styles.FIGSIZE_LG)
     sns.violinplot(x=df[x], y=df[y])
@@ -287,13 +275,24 @@ def save_figure(
     format: str = "png",
     dpi: int = 300,
     bbox_inches: str = "tight",
+    output_dir: str | None = None,
 ):
-    """Save the current figure to the project ``output/`` directory."""
+    """Save the current figure under the configured output root.
+
+    ``output_dir`` defaults to :func:`paths.output_root` resolved **at call time**,
+    so a ``DSE_LRP_OUTPUT_DIR`` env var or a CLI ``--output-dir`` (``set_output_root``)
+    is honoured (#180); pass an explicit directory to override.
+    """
+    root = str(output_dir) if output_dir is not None else str(_paths.output_root())
     return _shared_save_figure(
-        filename, OUTPUT_DIR, format=format, dpi=dpi, bbox_inches=bbox_inches
+        filename, root, format=format, dpi=dpi, bbox_inches=bbox_inches
     )
 
 
-def display_image(filename: str, width: int = 600):
-    """Display an image from the project ``output/`` directory in a notebook."""
-    return _shared_display_image(filename, OUTPUT_DIR, width=width)
+def display_image(filename: str, width: int = 600, output_dir: str | None = None):
+    """Display an image from the configured output root in a notebook.
+
+    ``output_dir`` defaults to :func:`paths.output_root` resolved at call time (#180).
+    """
+    root = str(output_dir) if output_dir is not None else str(_paths.output_root())
+    return _shared_display_image(filename, root, width=width)
