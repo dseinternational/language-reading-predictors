@@ -25,7 +25,8 @@ Anscombe
 Haldane
 HSGP
 hsgp
-rlmhg
+HPDI
+hpdi
 lengthscale
 Missingness
 MCMC
@@ -390,3 +391,10 @@ basdig
 bassim
 basnum
 basmat
+Byrne
+MacDonald
+Buckley
+BAS
+RLMHG
+rlmhg
+rlm

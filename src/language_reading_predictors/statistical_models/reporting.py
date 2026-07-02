@@ -20,6 +20,21 @@ from language_reading_predictors.statistical_models.context import (
 )
 
 
+def _hdi_bounds(draws: np.ndarray, prob: float) -> tuple[float, float]:
+    """Highest-density interval (HPDI) bounds for 1-D posterior ``draws``.
+
+    A *sensitivity companion* to the equal-tailed interval reported elsewhere in
+    this module: for a skewed or bounded-scale posterior the HPDI is the narrowest
+    interval covering ``prob`` mass, so it can differ materially from the
+    equal-tailed quantiles. The HPDI is **not** transformation-invariant, so
+    callers report it per scale (logit / probability / items) rather than mapping
+    it between scales. Uses :func:`arviz.hdi` (``prob=`` keyword in the installed
+    ArviZ 1.x).
+    """
+    lo, hi = np.asarray(az.hdi(np.asarray(draws, dtype=float), prob=prob)).ravel()[:2]
+    return float(lo), float(hi)
+
+
 def _itt_ame_draws(
     trace: xr.DataTree,
     *,
@@ -115,26 +130,35 @@ def tau_summary_itt(
     ``G`` is the per-observation treatment indicator from the *fitted* prepared
     data (``built.prepared.G``), aligned with ``eta``'s ``obs_id`` axis.
 
-    ``ci_prob`` names the *coverage* probability — the returned ``_lo`` /
-    ``_hi`` values are equal-tailed central quantiles, not highest-density
-    intervals. For ArviZ-style HDI use :func:`arviz.hdi` directly.
+    ``ci_prob`` names the *coverage* probability. The ``*_lo`` / ``*_hi`` values
+    are equal-tailed central quantiles (the primary reported interval); the
+    ``*_hpdi_lo`` / ``*_hpdi_hi`` values are the highest-density interval (HPDI)
+    at the same coverage — a per-scale sensitivity companion (see
+    :func:`_hdi_bounds`), not a replacement, since the HPDI is not
+    transformation-invariant across the logit and probability scales.
     """
     tau_draws, marginal = _itt_ame_draws(trace, G=G)
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_median = float(np.median(tau_draws))
     lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
+    tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(tau_draws, ci_prob)
     marg_median = float(np.median(marginal))
     marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
+    marg_hpdi_lo, marg_hpdi_hi = _hdi_bounds(marginal, ci_prob)
     prob_pos = float(np.mean(tau_draws > 0))
 
     return {
         "tau_logit_median": tau_median,
         "tau_logit_lo": float(lower),
         "tau_logit_hi": float(upper),
+        "tau_logit_hpdi_lo": tau_hpdi_lo,
+        "tau_logit_hpdi_hi": tau_hpdi_hi,
         "tau_prob_median": marg_median,
         "tau_prob_lo": float(marg_lo),
         "tau_prob_hi": float(marg_hi),
+        "tau_prob_hpdi_lo": marg_hpdi_lo,
+        "tau_prob_hpdi_hi": marg_hpdi_hi,
         "prob_tau_pos": prob_pos,
         "direction_label": evidence_label(prob_pos),
     }
@@ -196,7 +220,8 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
         f"The intervention changed {outcome_label} by a median of "
         f"**{r['items_median'] * scale:+.1f} {unit}**{prov} "
         f"(50% CrI {r['items_lo50'] * scale:+.1f} to {r['items_hi50'] * scale:+.1f}; "
-        f"95% CrI {r['items_lo'] * scale:+.1f} to {r['items_hi'] * scale:+.1f}). "
+        f"equal-tailed 95% CrI {r['items_lo'] * scale:+.1f} to "
+        f"{r['items_hi'] * scale:+.1f}). "
         f"**Direction** — evidence it helps: pd = {r['pd']:.3f} "
         f"({odds_string(r['pd'])}, *{r['direction_label']} evidence*). "
         f"**Magnitude** — evidence the benefit is at least δ = {r['delta_items'] * scale:g} "
@@ -204,6 +229,14 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
         f"({odds_string(r['prob_benefit_ge_delta'])}, *{r['benefit_label']} evidence*); "
         f"probability inside the ROPE (practically negligible): {r['prob_in_rope']:.3f}.\n"
     )
+    if "items_hpdi_lo" in cols:
+        parts.append(
+            f"_Sensitivity — the 95% highest posterior density interval (HPDI) on the "
+            f"{unit} scale is {r['items_hpdi_lo'] * scale:+.1f} to "
+            f"{r['items_hpdi_hi'] * scale:+.1f}. HPDI is not transformation-invariant, "
+            f"so it is a scale-specific check, not a replacement for the equal-tailed "
+            f"interval above._\n"
+        )
     return "\n".join(parts)
 
 
@@ -226,21 +259,32 @@ def _rope_card(
     transformation-invariant across the logit and items scales. The ``tau_logit_*``
     keys are retained verbatim across families (as :func:`tau_summary_offfloor`
     already reuses the ``tau`` schema) so one CSV layout serves the whole suite.
+
+    ``*_hpdi_lo`` / ``*_hpdi_hi`` add the highest-density interval at ``ci_prob``
+    for the logit effect and the items scale — a per-scale sensitivity companion
+    to the equal-tailed ``*_lo`` / ``*_hi`` fields, kept alongside them (the HPDI
+    is not transformation-invariant, so it is reported per scale).
     """
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     pd_ = float(np.mean(effect_draws > 0))
     p_benefit = float(np.mean(items >= delta))
+    tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(effect_draws, ci_prob)
+    items_hpdi_lo, items_hpdi_hi = _hdi_bounds(items, ci_prob)
     return {
         "tau_logit_median": float(np.median(effect_draws)),
         "tau_logit_lo50": float(np.quantile(effect_draws, 0.25)),
         "tau_logit_hi50": float(np.quantile(effect_draws, 0.75)),
         "tau_logit_lo": float(np.quantile(effect_draws, lo_q)),
         "tau_logit_hi": float(np.quantile(effect_draws, hi_q)),
+        "tau_logit_hpdi_lo": tau_hpdi_lo,
+        "tau_logit_hpdi_hi": tau_hpdi_hi,
         "items_median": float(np.median(items)),
         "items_lo50": float(np.quantile(items, 0.25)),
         "items_hi50": float(np.quantile(items, 0.75)),
         "items_lo": float(np.quantile(items, lo_q)),
         "items_hi": float(np.quantile(items, hi_q)),
+        "items_hpdi_lo": items_hpdi_lo,
+        "items_hpdi_hi": items_hpdi_hi,
         "delta_items": float(delta),
         "pd": pd_,
         "prob_benefit_ge_delta": p_benefit,
@@ -607,6 +651,15 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "outcome_symbol": spec.outcome_symbol,
         "mechanism_symbol": spec.mechanism_symbol,
         "adjustment": spec.adjustment,
+        # Dataset / estimand metadata (#165) - default to the RLI intervention
+        # study for the existing models; historical/cross-study models set them.
+        "study_id": spec.study_id,
+        "family": spec.family,
+        "design": spec.design,
+        "estimand_type": spec.estimand_type,
+        "causal_status": spec.causal_status,
+        "dataset_ref": spec.dataset_ref,
+        "audit_baseline": spec.audit_baseline,
         "n_obs": context.prepared.n_obs if context.prepared else None,
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,
