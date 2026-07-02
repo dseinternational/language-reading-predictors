@@ -35,6 +35,13 @@ if tau_summary is not None:
         f"{_t.tau_prob_hi * 100:+.1f}). "
         f"P(intervention helps) = {_t.prob_tau_pos:.3f} ({_odds(_t.prob_tau_pos)}{_lab})."
     )
+    if "tau_prob_lo50" in tau_summary.columns:
+        print(
+            f"\n\nThe central 50% posterior interval is {_t.tau_prob_lo50 * 100:+.1f} to "
+            f"{_t.tau_prob_hi50 * 100:+.1f} percentage points (a visual aid, not a "
+            f"threshold); the equal-tailed 90% band is {_t.tau_prob_lo90 * 100:+.1f} to "
+            f"{_t.tau_prob_hi90 * 100:+.1f} (a sensitivity / compatibility band)."
+        )
     if "tau_prob_hpdi_lo" in tau_summary.columns:
         print(
             f"\n\n_Sensitivity — the 95% HPDI on the off-floor risk-difference scale is "
