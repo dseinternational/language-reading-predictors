@@ -133,6 +133,8 @@ def _copy_report_template(context: StatisticalFitContext) -> None:
     dst = os.path.join(context.output_dir, "index.qmd")
     if os.path.exists(src):
         shutil.copy(src, dst)
+        if os.environ.get("LRP_OFFLINE_QUARTO") == "1":
+            _strip_quarto_code_links(dst)
         rprint(f"  Report template copied to {dst}")
     else:
         rprint(f"  [yellow]No report template found at {src}[/yellow]")
@@ -144,6 +146,22 @@ def _copy_report_template(context: StatisticalFitContext) -> None:
     partials_dst = os.path.join(context.output_dir, "_partials")
     if os.path.isdir(partials_src):
         shutil.copytree(partials_src, partials_dst, dirs_exist_ok=True)
+
+
+def _strip_quarto_code_links(path: str) -> None:
+    """Remove copied ``code-links: repo`` metadata for offline Quarto renders.
+
+    Quarto resolves ``code-links: repo`` by probing the GitHub remote, including
+    ``git ls-remote origin gh-pages``. In restricted reporting environments that
+    optional link can make an otherwise valid report render fail after all cells
+    execute. The source templates are left intact; only the copied output QMD is
+    made renderable when ``LRP_OFFLINE_QUARTO=1`` is set.
+    """
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    text = text.replace("    code-links:\n      - repo\n", "")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
 
 
 def _emit_priors(context: StatisticalFitContext) -> None:
