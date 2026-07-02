@@ -18,7 +18,7 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
 # MAE-tuned (Optuna 150-trial, seed 47, GroupKFold cv=53) on the full
-# ``Predictors.DEFAULT_GAIN`` set; best out-of-fold MAE 2.94 (#116 reporting
+# ``Predictors.DEFAULT_GAIN`` set; best mean cross-validated MAE 2.94 (#116 reporting
 # refresh, superseding the earlier pruned-subset tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
