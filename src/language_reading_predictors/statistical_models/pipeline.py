@@ -506,7 +506,16 @@ def _save_forest_plot(
         import arviz_plots as azp
 
         tr = _diag.thin_for_plots(ctx.trace)
-        pc = azp.plot_forest(tr, var_names=var_names, combined=True)
+        # Equal-tailed nested bands (#177): inner central 50% + outer equal-tailed
+        # 95% headline, matching the reported interval convention rather than the
+        # arviz default (which can be an HDI, inconsistent with the prose).
+        pc = azp.plot_forest(
+            tr,
+            var_names=var_names,
+            combined=True,
+            ci_kind="eti",
+            ci_probs=(0.5, 0.95),
+        )
         try:
             azp.add_lines(pc, values=0)
         except Exception:

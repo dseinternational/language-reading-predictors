@@ -13,10 +13,12 @@ import xarray as xr
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
+    _eti_bands,
     evidence_label,
     level_t2_marginal_effect,
     offfloor_mover_table,
     proportion_at_zero_ppc,
+    rope_markdown,
     rope_summary,
     tau_moderation_summary,
     tau_summary_itt,
@@ -448,3 +450,49 @@ def test_proportion_at_zero_ppc():
     assert out["ppc_mean_prop_at_zero"] == pytest.approx(0.5)  # mean(0.75, 0.25)
     assert out["ppc_p_value"] == pytest.approx(0.5)  # P(rep >= 0.5)
     assert out["rep"].shape == (2,)
+
+
+def test_eti_bands_nesting_and_quantiles():
+    # The fixed 50/90/95 band convention (#177): nested equal-tailed intervals,
+    # and the 95% bounds are the 2.5 / 97.5 quantiles.
+    rng = np.random.default_rng(4)
+    x = rng.normal(0.0, 1.0, 50000)
+    b = _eti_bands(x)
+    assert set(b) == {"lo50", "hi50", "lo90", "hi90", "lo95", "hi95"}
+    assert b["lo50"] > b["lo90"] > b["lo95"]
+    assert b["hi50"] < b["hi90"] < b["hi95"]
+    lo, hi = np.quantile(x, [0.025, 0.975])
+    assert b["lo95"] == pytest.approx(float(lo))
+    assert b["hi95"] == pytest.approx(float(hi))
+
+
+def test_tau_summary_itt_exposes_50_90_95_bands():
+    # 50% and 90% equal-tailed bands accompany the 95% headline (lo/hi) on both
+    # scales, correctly nested; floored models inherit them via delegation (#177).
+    rng = np.random.default_rng(5)
+    eta = rng.normal(0.0, 1.0, (2, 800, 4))
+    tau = rng.normal(0.3, 0.2, (2, 800))
+    G = (rng.random(4) > 0.5).astype(float)
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.95, G=G)
+    for scale in ("tau_logit", "tau_prob"):
+        for k in ("lo50", "hi50", "lo90", "hi90"):
+            assert f"{scale}_{k}" in out
+        assert out[f"{scale}_lo50"] > out[f"{scale}_lo90"] > out[f"{scale}_lo"]
+        assert out[f"{scale}_hi50"] < out[f"{scale}_hi90"] < out[f"{scale}_hi"]
+    assert "tau_prob_lo90" in tau_summary_offfloor(_trace(eta, tau), ci_prob=0.95, G=G)
+
+
+def test_rope_markdown_labels_central_50_interval():
+    # rope_markdown names the 50% band explicitly and drops the ambiguous bare
+    # "50% CrI" shorthand (#177).
+    import pandas as pd
+
+    rng = np.random.default_rng(6)
+    eta = rng.normal(0.0, 1.0, (2, 500, 6))
+    tau = rng.normal(0.4, 0.2, (2, 500))
+    G = (rng.random(6) > 0.5).astype(float)
+    rc = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.95)
+    md = rope_markdown(pd.DataFrame([rc]), "word reading")
+    assert "central 50% interval" in md
+    assert "equal-tailed 95% credible interval" in md
+    assert "50% CrI" not in md

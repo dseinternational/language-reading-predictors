@@ -36,6 +36,29 @@ def _hdi_bounds(draws: np.ndarray, prob: float) -> tuple[float, float]:
     return float(lo), float(hi)
 
 
+def _eti_bands(
+    draws: np.ndarray, *, probs: tuple[float, ...] = (0.5, 0.9, 0.95)
+) -> dict[str, float]:
+    """Equal-tailed interval bounds at each coverage in ``probs``, keyed
+    ``lo{pct}`` / ``hi{pct}`` (e.g. ``lo50`` / ``hi50``).
+
+    The suite's fixed posterior-band convention (#177): the central **50%**
+    interval (where the middle half of the posterior mass sits — a visual aid, not
+    a decision threshold), the equal-tailed **90%** sensitivity / compatibility
+    band, and the equal-tailed **95%** headline interval. Equal-tailed throughout
+    (see ``METHODS.md``); the HDI/HPDI is a separate per-scale sensitivity
+    companion (:func:`_hdi_bounds`) and is never labelled with an ``eti`` band key.
+    """
+    draws = np.asarray(draws, dtype=float)
+    out: dict[str, float] = {}
+    for p in probs:
+        lo, hi = np.quantile(draws, [(1 - p) / 2, 1 - (1 - p) / 2])
+        pct = int(round(p * 100))
+        out[f"lo{pct}"] = float(lo)
+        out[f"hi{pct}"] = float(hi)
+    return out
+
+
 def _itt_ame_draws(
     trace: xr.DataTree,
     *,
@@ -131,12 +154,15 @@ def tau_summary_itt(
     ``G`` is the per-observation treatment indicator from the *fitted* prepared
     data (``built.prepared.G``), aligned with ``eta``'s ``obs_id`` axis.
 
-    ``ci_prob`` names the *coverage* probability. The ``*_lo`` / ``*_hi`` values
-    are equal-tailed central quantiles (the primary reported interval); the
-    ``*_hpdi_lo`` / ``*_hpdi_hi`` values are the highest-density interval (HPDI)
-    at the same coverage — a per-scale sensitivity companion (see
-    :func:`_hdi_bounds`), not a replacement, since the HPDI is not
-    transformation-invariant across the logit and probability scales.
+    ``ci_prob`` names the *coverage* probability of the headline interval. The
+    ``*_lo`` / ``*_hi`` values are the equal-tailed headline credible interval
+    (95% by default); ``*_lo50`` / ``*_hi50`` (the central 50% interval, a visual
+    aid) and ``*_lo90`` / ``*_hi90`` (the equal-tailed 90% sensitivity band) follow
+    the fixed band convention (#177, see :func:`_eti_bands`). The ``*_hpdi_lo`` /
+    ``*_hpdi_hi`` values are the highest-density interval (HPDI) at ``ci_prob`` — a
+    per-scale sensitivity companion (see :func:`_hdi_bounds`), not a replacement,
+    since the HPDI is not transformation-invariant across the logit and
+    probability scales.
     """
     tau_draws, marginal = _itt_ame_draws(trace, G=G)
 
@@ -144,18 +170,30 @@ def tau_summary_itt(
     tau_median = float(np.median(tau_draws))
     lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
     tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(tau_draws, ci_prob)
+    tau_b = _eti_bands(tau_draws, probs=(0.5, 0.9))
     marg_median = float(np.median(marginal))
     marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
     marg_hpdi_lo, marg_hpdi_hi = _hdi_bounds(marginal, ci_prob)
+    marg_b = _eti_bands(marginal, probs=(0.5, 0.9))
     prob_pos = float(np.mean(tau_draws > 0))
 
+    # Fixed band convention (#177): central 50% (visual aid) + equal-tailed 90%
+    # (sensitivity) alongside the equal-tailed 95% headline (``*_lo`` / ``*_hi``).
     return {
         "tau_logit_median": tau_median,
+        "tau_logit_lo50": tau_b["lo50"],
+        "tau_logit_hi50": tau_b["hi50"],
+        "tau_logit_lo90": tau_b["lo90"],
+        "tau_logit_hi90": tau_b["hi90"],
         "tau_logit_lo": float(lower),
         "tau_logit_hi": float(upper),
         "tau_logit_hpdi_lo": tau_hpdi_lo,
         "tau_logit_hpdi_hi": tau_hpdi_hi,
         "tau_prob_median": marg_median,
+        "tau_prob_lo50": marg_b["lo50"],
+        "tau_prob_hi50": marg_b["hi50"],
+        "tau_prob_lo90": marg_b["lo90"],
+        "tau_prob_hi90": marg_b["hi90"],
         "tau_prob_lo": float(marg_lo),
         "tau_prob_hi": float(marg_hi),
         "tau_prob_hpdi_lo": marg_hpdi_lo,
@@ -220,8 +258,9 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
     parts.append(
         f"The intervention changed {outcome_label} by a median of "
         f"**{r['items_median'] * scale:+.1f} {unit}**{prov} "
-        f"(50% CrI {r['items_lo50'] * scale:+.1f} to {r['items_hi50'] * scale:+.1f}; "
-        f"equal-tailed 95% CrI {r['items_lo'] * scale:+.1f} to "
+        f"(central 50% interval {r['items_lo50'] * scale:+.1f} to "
+        f"{r['items_hi50'] * scale:+.1f}; "
+        f"equal-tailed 95% credible interval {r['items_lo'] * scale:+.1f} to "
         f"{r['items_hi'] * scale:+.1f}). "
         f"**Direction** — evidence it helps: pd = {r['pd']:.3f} "
         f"({odds_string(r['pd'])}, *{r['direction_label']} evidence*). "
@@ -271,10 +310,14 @@ def _rope_card(
     p_benefit = float(np.mean(items >= delta))
     tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(effect_draws, ci_prob)
     items_hpdi_lo, items_hpdi_hi = _hdi_bounds(items, ci_prob)
+    tau_b90 = _eti_bands(effect_draws, probs=(0.9,))
+    items_b90 = _eti_bands(items, probs=(0.9,))
     return {
         "tau_logit_median": float(np.median(effect_draws)),
         "tau_logit_lo50": float(np.quantile(effect_draws, 0.25)),
         "tau_logit_hi50": float(np.quantile(effect_draws, 0.75)),
+        "tau_logit_lo90": tau_b90["lo90"],
+        "tau_logit_hi90": tau_b90["hi90"],
         "tau_logit_lo": float(np.quantile(effect_draws, lo_q)),
         "tau_logit_hi": float(np.quantile(effect_draws, hi_q)),
         "tau_logit_hpdi_lo": tau_hpdi_lo,
@@ -282,6 +325,8 @@ def _rope_card(
         "items_median": float(np.median(items)),
         "items_lo50": float(np.quantile(items, 0.25)),
         "items_hi50": float(np.quantile(items, 0.75)),
+        "items_lo90": items_b90["lo90"],
+        "items_hi90": items_b90["hi90"],
         "items_lo": float(np.quantile(items, lo_q)),
         "items_hi": float(np.quantile(items, hi_q)),
         "items_hpdi_lo": items_hpdi_lo,
