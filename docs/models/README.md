@@ -43,6 +43,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Mechanism (`lrp56–58`, `71–73` incl. `72base`/`73base`)         |     8 | Adjusted dose-response of one skill on another                                                    |
 | 2     | Mediation (`lrp59`, `62`, `64`)                                 |     3 | How much of a reading gain runs through a given skill                                             |
 | 2     | Predictor / dynamics (`lrp65`, `67`, `77` incl. `77a`/`77base`) |     5 | Baseline predictors, within-child change, and dose–response of word reading                       |
+| 2     | Growth curves (`lrp69`, `70`)                                   |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape |
 
 Counts are of base models on `main`. Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
@@ -272,6 +273,26 @@ progress that sit outside the randomised families.
 `lrp77`'s dose terms are observational (sessions = a DAG collider as exposure): an adjusted
 within-child association, never "more sessions cause more gain". Only the randomised ITT/DiD
 contrasts carry the causal claim.
+
+### Joint growth curves — `lrp69`, `lrp70` (`kind="growth"`)
+
+**Purpose.** Characterise the **longitudinal trajectories** of the five verbal/reading
+measures (`R`, `E`, `T`, `W`, `L`) across the four RLI waves and ask whether **baseline
+non-verbal ability** (`blocks`, WPPSI Block Design, t1-only, complete for all 54 children)
+predicts their _shape_ — the descriptive Q5 answer (issue #187). Each measure gets a
+per-child latent logit intercept + linear age slope (masked Beta-Binomial); `gamma`
+(non-verbal → growth _rate_) is the headline estimand, `delta` the effect on baseline
+_level_.
+
+| Model   | Kind     | Purpose                                                                                                                                                                                      |
+| ------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp69` | `growth` | Independent-core: per-measure trajectories; baseline non-verbal ability → each measure's growth rate (`gamma`) + level (`delta`)                                                             |
+| `lrp70` | `growth` | Adds a rank-1 shared growth-tempo factor: do the measures grow together, and does non-verbal ability predict the common tempo? `LOO(lrp69 vs lrp70)` tests whether the factor earns its keep |
+
+`gamma`/`delta` are **adjusted, `GA`-confounded associations, never causal** — block design
+is an off-DAG ability proxy (locked DAG) and the child random intercept only _partially_
+adjusts. Descriptive natural-history, `n≈54` (wide intervals). Byrne-cohort replication is a
+gated follow-up (unconfirmed `bpvs`/`basmat` ceilings; `basmat` is wave-3+, so no baseline).
 
 ---
 
