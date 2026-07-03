@@ -20,7 +20,24 @@ def load_data() -> pd.DataFrame:
     df = pd.read_csv(data_path).convert_dtypes()
     configure_data_types(df)
     add_intervention_schema(df)
+    _broadcast_baseline_blocks(df)
     return df
+
+
+def _broadcast_baseline_blocks(df: pd.DataFrame) -> None:
+    """Broadcast block design (recorded only at wave 1) across each child's rows.
+
+    In the long format ``blocks`` is present only on the t1 row, so broadcasting a
+    child's single value to all their rows makes it usable as a time-invariant
+    baseline covariate (issue #186). ``blocks`` is in ``Variables.DEFAULT_EXCLUDED``,
+    so this changes no default predictor set — it only affects models that opt it in
+    via ``include`` (it realises the intent documented by
+    ``Variables.TIME_INVARIANT_BASELINES`` for block design).
+    """
+    if vars.BLOCKS in df.columns:
+        df[vars.BLOCKS] = df.groupby(vars.SUBJECT_ID)[vars.BLOCKS].transform(
+            lambda s: s.ffill().bfill()
+        )
 
 
 def add_intervention_schema(df: pd.DataFrame) -> None:

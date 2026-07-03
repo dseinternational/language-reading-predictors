@@ -33,6 +33,22 @@ Per the locked DAG (`notes/202606231600-dag-revision-consolidated.md`), block de
 - **Incremental, not marginal.** Because the model already conditions on the child's own baseline vocabulary, `gamma_blocks` is the incremental predictive value of non-verbal ability **beyond baseline vocabulary and age** — not the raw correlation. The raw (marginal) block-design ↔ vocabulary correlation is larger (ability is broadly prognostic, most strongly for vocabulary — the reason it makes a useful precision adjuster), but it is largely _shared with_ baseline vocabulary; once baseline vocabulary is in the model, little independent non-verbal signal remains for the standardised tests.
 - **Why taught > standardised is plausible.** The taught block-1 words are the intervention's own targets; a child's general ability may shape uptake of newly taught items more than their standing on a broad standardised test whose variance baseline vocabulary already captures. This is a hypothesis, not an identified mechanism.
 
+## GB corroboration (nonparametric)
+
+A gradient-boosting cross-check (`scripts/blocks_vocab_gb_diagnostic.py`) refits the six vocabulary **level** models with block design added to the predictor set (it is normally excluded as t1-only; the loader now broadcasts it per child) and reports where block design ranks by out-of-fold permutation importance (dev tier):
+
+| Model    | Target                           | blocks rank (of 33) | perm. importance | marginal ρ |
+| -------- | -------------------------------- | ------------------: | ---------------: | ---------: |
+| lrpgbl06 | eowpvt (standardised expressive) |                   3 |            0.686 |      +0.56 |
+| lrpgbl04 | b1exnt (not-taught expressive)   |                   3 |            0.088 |      +0.55 |
+| lrpgbl03 | b1rent (not-taught receptive)    |                   7 |            0.017 |      +0.45 |
+| lrpgbl01 | b1retau (taught receptive)       |                  10 |            0.020 |      +0.50 |
+| lrpgbl05 | rowpvt (standardised receptive)  |                  10 |            0.093 |      +0.52 |
+| lrpgbl02 | b1extau (taught expressive)      |                  32 |           −0.013 |      +0.47 |
+
+- **Block design carries marginal predictive signal.** It ranks mid-pack or better in five of six models (3–10 of 33) and correlates positively with every vocabulary target (marginal ρ ≈ 0.45–0.56) — consistent with non-verbal ability being broadly prognostic. It is not an unused predictor.
+- **Marginal (GB) vs incremental (Bayesian), as expected.** The GB permutation importance does not privilege the child's own baseline vocabulary as an anchor, so it reflects the _marginal_ contribution (larger, shared with baseline); the near-null Bayesian `gamma_blocks` shows that, incremental to baseline, little independent signal remains. The dev-tier ranks are also **noisy** (permutation SD ≥ mean in places, cv = 5) and do not cleanly reproduce the Bayesian taught-vs-standardised ordering — a reporting-tier GB fit (cv = 51 + SHAP direction) would sharpen the per-outcome comparison.
+
 ## Caveats
 
 - **n = 54**, single cohort; every 90% interval includes zero — these are suggestive / moderate _directional_ statements, not decisive effects.
@@ -41,5 +57,5 @@ Per the locked DAG (`notes/202606231600-dag-revision-consolidated.md`), block de
 
 ## Follow-ups (planned)
 
-- **GB corroboration** (Phase 2): add block design as a forward-filled baseline covariate to the vocabulary gradient-boosting models (LRPGBG/LRPGBL 01–06) and read its permutation/SHAP importance as a nonparametric cross-check of `gamma_blocks`.
+- **Reporting-tier GB fit:** the GB corroboration above is dev-tier (noisy ranks, no SHAP direction); a reporting-tier fit (cv = 51 + SHAP) would sharpen the per-outcome ordering and give a signed direction.
 - **Byrne cohort** (Phase 3): the analogue `basmat` → `bpvs` (receptive), gated on the #164 Byrne data decisions and needing a covariate-adjusted vehicle on the historical panel (`basmat` is wave-3+; Byrne has no expressive-vocabulary measure).
