@@ -26,13 +26,6 @@ csl: apa.csl
 book:
   output-file: language-reading-predictors-report
   title: "Predictors of progress in language and reading skills for children with Down syndrome"
-  subtitle: "Predictors of progress and the effect of intervention — an exploratory Bayesian study"
-  abstract: |
-    Children with Down syndrome typically show delayed and uneven development of spoken language and reading. Families and educators want practical, interpretable evidence: which skills can be expected to progress, how far targeted teaching helps, and which earlier skills predict later progress. This exploratory study re-analyses longitudinal data from a randomised waitlist-crossover trial of a structured reading and language intervention (Burgoyne et al., 2012), spanning vocabulary, grammar, speech and early reading across four measurement points.
-
-    We follow a deliberate two-step approach. Gradient-boosting models first screen which predictors carry out-of-sample signal; Bayesian models (PyMC) then estimate interpretable quantities — the randomised intervention effect, dose–response and mediation — with full uncertainty, reported as posterior credible intervals and probabilities rather than p-values. An agreed causal diagram (DAG) governs interpretation: only the randomised contrast is read as causal, while every other relationship is reported as an adjusted association, never as one skill "driving" another.
-
-    A plain-language summary of the headline findings and their uncertainty will be inserted once results are finalised. All data and models are preliminary and are shared for transparency and discussion.
   author:
     - name: Frank Buckley
       orcid: 0000-0002-9708-2705
@@ -58,45 +51,29 @@ book:
     - acknowledgements.qmd
     - summary.qmd
     - glossary.qmd
-    - part: "Part 1 – Background and aims"
+    - part: "Background and aims"
       chapters:
-        - chapters/01-study-and-questions.qmd
-        - chapters/02-causal-dag.qmd
-        - chapters/03-bayesian-bridge.qmd
-    - part: "Part 2 – Methods"
+        - chapters/intro.qmd
+    - part: "Methods"
       chapters:
-        - chapters/04-methods-data.qmd
-        - chapters/04-methods-framework.qmd
-        - chapters/04-methods-workflow.qmd
-        - chapters/05-gradient-boosting.qmd
-        - chapters/06-computation-convergence.qmd
-        - chapters/07-predictive-checks.qmd
-    - part: "Part 3 – Results"
+        - chapters/methods-data.qmd
+        - chapters/methods-models.qmd
+    - part: "Results"
       chapters:
-        - chapters/08-itt-effects.qmd
-        - chapters/09-joint-consistency.qmd
-        - chapters/10-robustness.qmd
-        - chapters/11-alternative-views.qmd
-        - chapters/12-mechanism-moderation.qmd
-        - chapters/13-mediation.qmd
-        - chapters/14-model-comparison.qmd
-    - part: "Part 4 – Discussion"
+        - chapters/results-itt.qmd
+    - part: "Discussion"
       chapters:
-        - chapters/15-what-it-means.qmd
-        - chapters/16-limitations.qmd
+        - chapters/discussion.qmd
   appendices:
-    - appendices/appendix-b-model-catalogue.qmd
-    - appendices/appendix-c-priors-rope.qmd
-    - appendices/appendix-d-reproducibility.qmd
-    - appendices/appendix-e-use-of-ai.qmd
+    - appendices/ai.qmd
     - references.qmd
 
-# PDF is the canonical (print-first) deliverable; HTML is a convenience build and
-# must depend on nothing interactive (no code-fold / folded callouts). DOCX was
-# removed in Phase 0 — there is no reference template and the tiered design does not
-# survive a Word export; re-add a `docx:` block with a `reference-doc` if a
-# stakeholder needs it. See notes/202606261500-technical-report-plan.md.
 format:
+  html:
+    code-fold: true
+    theme: default
+  docx:
+    reference-doc: ../template.docx
   pdf:
     documentclass: report
     papersize: a4
@@ -114,5 +91,4 @@ format:
       - right=25mm
       - bottom=30mm
     include-in-header: footer.tex
-  html:
-    theme: default
+    
