@@ -22,11 +22,11 @@ from pathlib import Path
 
 from rich.console import Console
 
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.storage import upload_to_blob_storage
 
-_ROOT = Path(__file__).resolve().parent.parent
-_GB_DIR = _ROOT / "output" / "models"
-_STAT_DIR = _ROOT / "output" / "statistical_models" / "models"
+# Output dirs resolve via ``paths`` (#180), read at call time so ``--output-dir``
+# and ``DSE_LRP_OUTPUT_DIR`` both apply.
 _console = Console()
 
 
@@ -40,17 +40,17 @@ def resolve_targets(target: str) -> list[tuple[str, Path]]:
     """Return (label, path) pairs for the requested target."""
     out: list[tuple[str, Path]] = []
     if target in ("all", "gb"):
-        out += [(d.name, d) for d in _subdirs(_GB_DIR)]
+        out += [(d.name, d) for d in _subdirs(_paths.gb_models_dir())]
     if target in ("all", "stat"):
-        out += [(d.name, d) for d in _subdirs(_STAT_DIR)]
+        out += [(d.name, d) for d in _subdirs(_paths.stat_models_dir())]
     if target not in ("all", "gb", "stat"):
-        gb = _GB_DIR / target
+        gb = _paths.gb_models_dir() / target
         if gb.is_dir():
             out.append((gb.name, gb))
         # statistical dirs are named "<id>-<config>"
         out += [
             (d.name, d)
-            for d in _subdirs(_STAT_DIR)
+            for d in _subdirs(_paths.stat_models_dir())
             if d.name == target or d.name.startswith(f"{target}-")
         ]
     return out
@@ -66,10 +66,27 @@ def main() -> None:
     )
     parser.add_argument(
         "--urls-file",
-        default=str(_ROOT / "output" / "uploaded_urls.txt"),
-        help="Where to write the full list of uploaded blob URLs.",
+        default=None,
+        help=(
+            "Where to write the full list of uploaded blob URLs "
+            "(default: <output-root>/uploaded_urls.txt)."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root to upload from (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
     )
     args = parser.parse_args()
+
+    _paths.set_output_root(args.output_dir)
+    _console.print(f"Output root: {_paths.describe_output_root()}")
+    if args.urls_file is None:
+        args.urls_file = str(_paths.output_root() / "uploaded_urls.txt")
 
     targets = resolve_targets(args.model.lower())
     if not targets:

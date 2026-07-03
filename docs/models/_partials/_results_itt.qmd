@@ -25,6 +25,13 @@ if tau_summary is not None:
         f"(equal-tailed 95% credible interval {_t.tau_prob_lo:+.3f} to {_t.tau_prob_hi:+.3f}). "
         f"P(intervention helps) = {_t.prob_tau_pos:.3f} ({_odds(_t.prob_tau_pos)}{_lab})."
     )
+    if str(_t.get("favoured_direction", "positive")) == "negative":
+        print(
+            f"\n\n_The favoured direction is **harm**: evidence the intervention is "
+            f"harmful is *{_t.favoured_direction_label}* (P = "
+            f"{_t.favoured_direction_prob:.3f}). The label above is for the "
+            f"'intervention helps' claim only._"
+        )
     if "tau_prob_lo50" in tau_summary.columns:
         print(
             f"\n\nThe central 50% posterior interval is {_t.tau_prob_lo50:+.3f} to "

@@ -3,6 +3,16 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 
+> [!IMPORTANT]
+> **Current policy (issue #179).** The evidence ladder in force is claim-oriented:
+> **inconclusive / suggestive / moderate / strong / very strong** at the round-odds
+> boundaries (3:1 / 10:1 / 30:1 / 100:1, i.e. P ≥ 0.75 / 0.91 / 0.97 / 0.99). "Weak"
+> is **retired** as a current label — where it appears below it describes the earlier
+> scheme, kept for history; read it as "suggestive". Labels qualify the evidence for a
+> **named claim**, oriented to the favoured direction (a clearly negative effect is
+> evidence of harm, not "inconclusive"), never the effect size, and are reported after
+> the probability and odds. Interval bands follow the 50 / 90 / 95 convention (issue #177).
+
 Date: 2026-06-26
 
 ## Scope and purpose

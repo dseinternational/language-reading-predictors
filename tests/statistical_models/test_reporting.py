@@ -15,6 +15,7 @@ from scipy.special import expit
 from language_reading_predictors.statistical_models.reporting import (
     _eti_bands,
     evidence_label,
+    favoured_direction,
     level_t2_marginal_effect,
     offfloor_mover_table,
     proportion_at_zero_ppc,
@@ -496,3 +497,55 @@ def test_rope_markdown_labels_central_50_interval():
     assert "central 50% interval" in md
     assert "equal-tailed 95% credible interval" in md
     assert "50% CrI" not in md
+
+
+def test_favoured_direction_orients_to_named_claim():
+    # Labels the favoured direction, not the raw positive claim (#179).
+    neg = favoured_direction(0.02)
+    assert neg["favoured_direction"] == "negative"
+    assert neg["favoured_direction_prob"] == pytest.approx(0.98)
+    assert neg["favoured_direction_label"] != "inconclusive"  # strong evidence of harm
+    pos = favoured_direction(0.985)
+    assert pos["favoured_direction"] == "positive"
+    assert pos["favoured_direction_prob"] == pytest.approx(0.985)
+    # A near-50:50 posterior is inconclusive in either orientation.
+    mid = favoured_direction(0.52)
+    assert mid["favoured_direction"] == "positive"
+    assert mid["favoured_direction_label"] == "inconclusive"
+
+
+def test_tau_summary_itt_labels_harm_for_negative_effect():
+    # Regression (#179): a clearly harmful effect must be labelled evidence of
+    # harm via the favoured direction, not left "inconclusive" (which is correct
+    # only for the benefit claim).
+    rng = np.random.default_rng(11)
+    eta = rng.normal(0.0, 1.0, (2, 800, 5))
+    tau = rng.normal(-0.6, 0.15, (2, 800))  # mostly negative → harmful
+    G = (rng.random(5) > 0.5).astype(float)
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.95, G=G)
+    assert out["prob_tau_pos"] < 0.05
+    assert out["direction_label"] == "inconclusive"  # for the "helps" claim
+    assert out["favoured_direction"] == "negative"
+    assert out["favoured_direction_prob"] > 0.95
+    assert out["favoured_direction_label"] in {"strong", "very strong"}
+    # offfloor inherits the favoured-direction fields via delegation
+    assert "favoured_direction" in tau_summary_offfloor(_trace(eta, tau), ci_prob=0.95, G=G)
+
+
+def test_rope_markdown_harm_wording_for_negative_effect():
+    import pandas as pd
+
+    rng = np.random.default_rng(12)
+    eta = rng.normal(0.0, 1.0, (2, 600, 6))
+    tau = rng.normal(-0.6, 0.15, (2, 600))
+    G = (rng.random(6) > 0.5).astype(float)
+    rc = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.95)
+    md = rope_markdown(pd.DataFrame([rc]), "word reading")
+    assert "is harmful" in md  # favoured-direction claim named
+    assert "P(intervention helps)" in md  # probability shown first
+    # the harm claim carries a strong label, not "inconclusive" (the magnitude
+    # clause may still say inconclusive for the separate benefit-≥-δ claim)
+    assert (
+        "is harmful — *very strong evidence*" in md
+        or "is harmful — *strong evidence*" in md
+    )
