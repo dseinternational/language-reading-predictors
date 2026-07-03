@@ -169,6 +169,14 @@ Note: Drafted by a LLM-based AI tool (<tool>/<model>).
 
 Do not remove or hide a label that another tool has added.
 
+## Commit messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): a `<type>(optional scope): <summary>` subject line in the imperative mood, with any detail and rationale in the body. Common types: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `chore`. Examples: `feat(itt): add HPDI sensitivity intervals`, `fix(preprocessing): drop empty four-cell rows`, `docs: record the ROPE threshold sign-off`. Reference the issue a commit or PR closes (`Closes #123`) in the body or PR description.
+
+## Writing Markdown
+
+When generating Markdown — `notes/` entries and documents, and especially pull request and issue descriptions and comments — do not insert superfluous line breaks. Write each paragraph as one continuous line and let it reflow; do not hard-wrap prose at a fixed column, and avoid stray blank lines. Prettier is configured with `proseWrap: "preserve"`, so it will **not** rewrap prose for you, and pull-request / issue text is not run through Prettier at all — hard-wrapped paragraphs therefore render as awkward mid-sentence breaks on GitHub and stay that way.
+
 ## Pre-commit checks
 
 Before creating a commit or opening a pull request, all of the following must pass:
