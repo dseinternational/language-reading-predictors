@@ -654,6 +654,15 @@ class WavePanel:
     dose_scaler: Standardiser
     column_map: dict[str, str] = field(default_factory=dict)
     """Symbol -> source column name."""
+    baseline: dict[str, np.ndarray] = field(default_factory=dict)
+    """Time-invariant baseline covariate -> per-child *standardised* value, aligned
+    to ``subject_ids``. shape (n_children,). Populated from the ``baseline_covariates``
+    argument to :func:`load_wave_panel` (e.g. ``blocks``, the t1-only WPPSI Block
+    Design score entering LRP69/70 as a predictor of trajectory shape)."""
+    baseline_raw: dict[str, np.ndarray] = field(default_factory=dict)
+    """As :attr:`baseline` but the raw (unstandardised) per-child value."""
+    baseline_scaler: dict[str, Standardiser] = field(default_factory=dict)
+    """Covariate -> :class:`Standardiser` for inverse transforms / reporting."""
 
     @property
     def n_obs(self) -> int:
@@ -678,6 +687,7 @@ class WavePanel:
 def load_wave_panel(
     path: str | Path | None = None,
     outcomes: tuple[str, ...] = ("W", "L", "E"),
+    baseline_covariates: tuple[str, ...] = (),
 ) -> WavePanel:
     """Pivot ``rli_data_long.csv`` into a child x wave :class:`WavePanel`.
 
@@ -691,6 +701,13 @@ def load_wave_panel(
     Masked cells are **not** dropped — the dynamic-model factories observe only
     the unmasked cells (see :func:`factories.build_lcsm_model`), so a child with
     one missing score still contributes its other waves. This matters at n~54.
+
+    ``baseline_covariates`` names *time-invariant* per-child columns (e.g.
+    ``blocks``, the t1-only WPPSI Block Design score): each is taken from the
+    first wave at which the child has a value and standardised over children,
+    exposed on :attr:`WavePanel.baseline`. A baseline covariate must be observed
+    for every child (it enters every child's trajectory), so a missing value
+    raises rather than being masked.
     """
     csv_path = Path(path) if path is not None else _default_data_path()
     df = pd.read_csv(csv_path)
@@ -734,6 +751,29 @@ def load_wave_panel(
     dose = np.nan_to_num(_pivot(V.ATTEND), nan=0.0)
     dose_std, dose_scaler = standardise(dose)
 
+    # Time-invariant baseline covariates (e.g. blocks, recorded at t1 only): one
+    # value per child, taken from the first wave at which it is observed, then
+    # standardised over children. They enter the growth models (LRP69/70) as a
+    # per-child predictor of trajectory shape, not as a panel outcome.
+    baseline: dict[str, np.ndarray] = {}
+    baseline_raw: dict[str, np.ndarray] = {}
+    baseline_scaler: dict[str, Standardiser] = {}
+    for col in baseline_covariates:
+        wide = _pivot(col)
+        first_idx = np.argmax(~np.isnan(wide), axis=1)
+        raw = wide[np.arange(n_children), first_idx]
+        if np.isnan(raw).any():
+            missing = subject_ids[np.isnan(raw)]
+            raise ValueError(
+                f"Baseline covariate {col!r} is missing for children "
+                f"{missing.tolist()}; a time-invariant baseline covariate must be "
+                "observed for every child."
+            )
+        z, scaler = standardise(raw)
+        baseline_raw[col] = raw
+        baseline[col] = z
+        baseline_scaler[col] = scaler
+
     return WavePanel(
         subject_ids=subject_ids,
         n_children=n_children,
@@ -751,6 +791,9 @@ def load_wave_panel(
         dose_std=dose_std,
         dose_scaler=dose_scaler,
         column_map=column_map,
+        baseline=baseline,
+        baseline_raw=baseline_raw,
+        baseline_scaler=baseline_scaler,
     )
 
 

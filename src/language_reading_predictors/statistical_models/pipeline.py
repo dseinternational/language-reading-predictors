@@ -259,6 +259,13 @@ def _prior_table_overrides(
             if rv.name.startswith("beta_"):
                 ctor[rv.name] = "predictor_slope"
                 role[rv.name] = "association"
+    elif spec.kind == "growth":
+        # Baseline non-verbal ability -> trajectory shape (gamma on the growth rate,
+        # delta on the baseline level): adjusted, latent-GA-confounded associations,
+        # never causal — routed to the predictor-slope panel / association role.
+        for _rv in ("gamma", "delta"):
+            ctor[_rv] = "predictor_slope"
+            role[_rv] = "association"
 
     # Distal outcomes take the tighter tau prior (issue #141): the factory built
     # the single-outcome causal treatment term at Normal(0, 0.3), so route it to
@@ -2976,6 +2983,136 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "outcomes": list(outcomes),
             "reading_symbol": reading_symbol,
             "coupling_summary": rows,
+        },
+    )
+
+    return _finalize_report(ctx)
+
+
+def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Joint multivariate latent growth-curve model (LRP69 core / LRP70 factor).
+
+    Characterises each verbal/reading measure's within-child trajectory across the
+    four RLI waves and reports whether **baseline non-verbal ability** (``blocks``)
+    predicts trajectory shape: ``gamma`` on the growth *rate* (the headline Q5
+    estimand) and ``delta`` on the baseline *level*. With ``use_shared_factor`` a
+    rank-1 shared growth-tempo factor couples the slopes and the block-design ->
+    common-tempo association is read out post-hoc. Every non-randomised term is an
+    **adjusted, latent-GA-confounded association**, never causal (locked DAG,
+    ``notes/202606231600-dag-revision-consolidated.md``).
+    """
+    assert spec.kind == "growth"
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    outcomes = tuple(spec.extra.get("outcomes", ("R", "E", "T", "W", "L")))
+    baseline_cov = spec.extra.get("baseline_covariate", "blocks")
+    use_factor = bool(spec.extra.get("use_shared_factor", False))
+    panel = load_wave_panel(outcomes=outcomes, baseline_covariates=(baseline_cov,))
+    ctx.prepared = panel
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_growth_model(
+        panel,
+        baseline_covariate=baseline_cov,
+        use_shared_factor=use_factor,
+    )
+    _attach_built(ctx, built)
+
+    _render_model_graph(ctx)
+
+    diag_vars = [
+        "gamma", "delta", "beta", "alpha", "sigma_slope", "sigma_intercept", "kappa"
+    ]
+    if use_factor:
+        diag_vars.append("loading")
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+
+    _run_sampling_and_loo(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx, var_names=["y_obs"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(ctx, causal_term=None)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    # Headline Q5 output: baseline non-verbal ability -> trajectory shape. The
+    # gamma (growth-rate) rows are the answer; delta (level) and beta (mean slope)
+    # round out the trajectory characterisation. All adjusted associations.
+    section_header("Non-verbal ability -> trajectory shape (Q5)")
+    gs = _report.growth_association_summary(ctx.trace, ci_prob=ctx.reporting.hdi)
+    gs.to_csv(
+        os.path.join(ctx.output_dir, "growth_association_summary.csv"), index=False
+    )
+    ctx.tables["growth_association_summary"] = gs
+    _save_forest_plot(ctx, ["gamma"], name="gamma_forest.png")
+    print_table(
+        ranked_dataframe_table(
+            gs[gs["coefficient"] == "gamma"],
+            title="Baseline non-verbal ability -> growth rate (gamma, logit; 95% ETI)",
+            columns=[
+                "outcome", "median", "lo95", "hi95", "prob_positive",
+                "favoured_direction_label",
+            ],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # Factor layer: does baseline non-verbal ability predict the *common* growth
+    # tempo? Read out post-hoc as the per-draw correlation between each child's
+    # latent tempo G_i and their standardised block-design score. G_tempo is
+    # independent a priori but the posterior can still correlate G and blocks
+    # through the likelihood, so this is a descriptive post-hoc read-out only.
+    tempo_corr: dict[str, float] | None = None
+    if use_factor and "G_tempo" in ctx.trace.posterior:
+        G = (
+            ctx.trace.posterior["G_tempo"]
+            .stack(sample=("chain", "draw"))
+            .transpose("child", "sample")
+            .values
+        )  # (N, S)
+        zb = np.asarray(panel.baseline[baseline_cov], dtype=float)  # (N,)
+        Gc = G - G.mean(axis=0, keepdims=True)
+        zc = (zb - zb.mean())[:, None]
+        denom = np.sqrt((Gc**2).sum(0) * (zc**2).sum(0)) + 1e-12
+        corr = (Gc * zc).sum(0) / denom  # (S,)
+        lo_q = (1 - ctx.reporting.hdi) / 2
+        tempo_corr = {
+            "median": float(np.median(corr)),
+            "lo": float(np.quantile(corr, lo_q)),
+            "hi": float(np.quantile(corr, 1 - lo_q)),
+            "prob_pos": float(np.mean(corr > 0)),
+        }
+        pd.DataFrame([tempo_corr]).to_csv(
+            os.path.join(ctx.output_dir, "growth_tempo_corr.csv"), index=False
+        )
+        ctx.tables["growth_tempo_corr"] = pd.DataFrame([tempo_corr])
+        rprint(
+            f"[bold]blocks <-> growth-tempo corr:[/bold] {tempo_corr['median']:+.3f} "
+            f"[{tempo_corr['lo']:+.3f}, {tempo_corr['hi']:+.3f}] "
+            f"P(>0)={tempo_corr['prob_pos']:.3f}"
+        )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "outcomes": list(outcomes),
+            "baseline_covariate": baseline_cov,
+            "use_shared_factor": use_factor,
+            "growth_association_summary": gs.to_dict("records"),
+            **({"blocks_tempo_corr": tempo_corr} if tempo_corr else {}),
         },
     )
 

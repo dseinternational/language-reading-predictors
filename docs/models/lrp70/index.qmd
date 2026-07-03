@@ -1,0 +1,81 @@
+---
+title: "LRP70: Do verbal/reading trajectories grow together, and does baseline non-verbal ability predict the common tempo? (shared growth-tempo factor)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP70 is the **shared growth-tempo** companion to LRP69 (issue #187, Q5). It keeps
+LRP69's joint growth-curve structure and adds a rank-1 **shared child-level
+growth-tempo factor** $G_i \sim \mathrm{Normal}(0,1)$ loading (positively, for
+identification) on every measure's slope. This is the genuinely *joint* layer — it
+tests two questions the independent-core LRP69 cannot:
+
+1. **Do the measures grow together?** The loadings $\lambda_m$ say how strongly each
+   measure's growth rate tracks a common developmental tempo.
+2. **Does baseline non-verbal ability predict the common tempo?** Read out post-hoc
+   as the correlation between each child's latent tempo and their block-design score.
+
+`LOO(LRP69 vs LRP70)` shows whether the shared tempo earns its keep at n≈54. If
+LRP70 will not sample cleanly, LRP69 is the primary deliverable and the factor is
+reported as not estimable at this sample size (as the RI-CLPM companion was for
+LRP67).
+
+::: {.callout-note title="Symbol mapping (read before the tables)"}
+
+| Construct | Symbol | Measure | Denominator |
+| --- | --- | --- | --- |
+| Receptive vocabulary | **R** | `rowpvt` | 170 |
+| Expressive vocabulary | **E** | `eowpvt` | 170 |
+| Receptive grammar | **T** | `trog` | 32 |
+| Word reading | **W** | `ewrswr` | 79 |
+| Letter-sound knowledge | **L** | `yarclet` | 32 |
+
+Non-verbal ability is **block design** (`blocks`), recorded at t1 only, complete
+for all 54 children.
+:::
+
+## Model structure
+
+As LRP69, with the slope gaining a shared growth-tempo term $\lambda_m G_i$:
+
+$$
+\text{slope}_m[i] = \beta_m + \gamma_m\,z(\text{blocks}_i)
+                   + \lambda_m\,G_i + \sigma^1_m z^1_m[i],
+\qquad G_i \sim \mathrm{Normal}(0,1),\;\; \lambda_m \ge 0.
+$$
+
+$\gamma_m$ is now the block-design → growth-rate association **incremental to** the
+common tempo; $\lambda_m$ is the tempo loading; the intercept, the masked
+Beta-Binomial likelihood and the omitted dose covariate are unchanged from LRP69.
+The positive-loading constraint identifies the factor's sign (higher $G$ = faster
+growth on every measure); it is a parsimonious rank-1 stand-in for cross-measure
+slope covariation, **not** an identified general-ability construct.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_growth.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
