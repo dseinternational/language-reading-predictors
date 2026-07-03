@@ -15,14 +15,14 @@ Q4 is already estimated by the ability-adjusted ITT family **LRPITT17–22** (#1
 
 Coefficient on +1 SD of block design (logit scale), adjusted for own baseline, age, and arm. Direction is read from `P(β>0)` per the evidence-language policy (#179), never from whether an interval excludes zero — every 90% interval below includes zero.
 
-| Outcome                              |  `gamma_blocks` (logit) | 90% ETI            | P(β>0) | evidence     | items / +1 SD |
-| ------------------------------------ | ----------------------: | ------------------ | -----: | ------------ | ------------: |
-| TE — taught expressive (`b1extau`)   |                  +0.139 | [−0.014, +0.291]   |  0.934 | moderate     |         +0.68 |
-| TR — taught receptive (`b1retau`)    |                  +0.102 | [−0.037, +0.242]   |  0.887 | suggestive   |         +0.55 |
-| UR — not-taught receptive (`b1rent`) |                  +0.113 | [−0.053, +0.281]   |  0.866 | suggestive   |         +0.27 |
-| E — standardised expressive (EOWPVT) |                  +0.016 | [−0.077, +0.108]   |  0.612 | inconclusive |         +0.41 |
-| R — standardised receptive (ROWPVT)  |                  +0.003 | [−0.102, +0.107]   |  0.519 | inconclusive |         +0.09 |
-| UE — not-taught expressive (`b1exnt`)|                  −0.021 | [−0.210, +0.170]   |  0.426 | inconclusive |         −0.06 |
+| Outcome                               | `gamma_blocks` (logit) | 90% ETI          | P(β>0) | evidence     | items / +1 SD |
+| ------------------------------------- | ---------------------: | ---------------- | -----: | ------------ | ------------: |
+| TE — taught expressive (`b1extau`)    |                 +0.139 | [−0.014, +0.291] |  0.934 | moderate     |         +0.68 |
+| TR — taught receptive (`b1retau`)     |                 +0.102 | [−0.037, +0.242] |  0.887 | suggestive   |         +0.55 |
+| UR — not-taught receptive (`b1rent`)  |                 +0.113 | [−0.053, +0.281] |  0.866 | suggestive   |         +0.27 |
+| E — standardised expressive (EOWPVT)  |                 +0.016 | [−0.077, +0.108] |  0.612 | inconclusive |         +0.41 |
+| R — standardised receptive (ROWPVT)   |                 +0.003 | [−0.102, +0.107] |  0.519 | inconclusive |         +0.09 |
+| UE — not-taught expressive (`b1exnt`) |                 −0.021 | [−0.210, +0.170] |  0.426 | inconclusive |         −0.06 |
 
 The positive signal concentrates on the **taught** block-1 vocabulary (TE moderate, TR suggestive) and not-taught receptive (UR suggestive); the **standardised** tests (R/E) and not-taught expressive (UE) are inconclusive.
 
