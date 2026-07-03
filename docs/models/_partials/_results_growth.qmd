@@ -110,8 +110,9 @@ if _load is not None and _tempo is not None and len(_tempo):
         f"Per-draw correlation between each child's latent growth tempo and their "
         f"standardised block-design score: median {_t['median']:+.3f} "
         f"(95% interval {_t['lo']:+.3f} to {_t['hi']:+.3f}); "
-        f"P(>0) = {_t['prob_pos']:.3f}. The model keeps the tempo orthogonal to "
-        f"block design, so this is a clean descriptive read-out."
+        f"P(>0) = {_t['prob_pos']:.3f}. The tempo factor is independent a priori "
+        f"but the posterior can still correlate G and blocks through the likelihood; "
+        f"this is a descriptive post-hoc read-out."
     )
 ```
 

@@ -16,9 +16,11 @@ This asks two questions the independent-core LRP69 cannot:
    child who grows fast on one measure tends to grow fast on all.
 2. **Does baseline non-verbal ability predict the common tempo?** Read out
    post-hoc as the per-draw correlation between each child's latent tempo ``G_i``
-   and their standardised block-design score (the model keeps ``G`` orthogonal to
-   ``blocks``, so this is a clean descriptive read-out). ``gamma_k`` remains the
-   per-measure block-design -> slope association, now *incremental* to the tempo.
+   and their standardised block-design score. ``G_tempo`` is independent a priori,
+   but the posterior can still correlate ``G`` and ``blocks`` through the
+   likelihood, so this is a descriptive post-hoc read-out, not a guaranteed
+   orthogonal decomposition. ``gamma_k`` remains the per-measure block-design ->
+   slope association, now *incremental* to the tempo.
 
 **Still an adjusted, GA-confounded association, never causal** - the same DAG
 caveats as LRP69 apply (``notes/202606231600-dag-revision-consolidated.md``,

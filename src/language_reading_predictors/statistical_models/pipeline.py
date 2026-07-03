@@ -3071,8 +3071,9 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     # Factor layer: does baseline non-verbal ability predict the *common* growth
     # tempo? Read out post-hoc as the per-draw correlation between each child's
-    # latent tempo G_i and their standardised block-design score (the model keeps
-    # G orthogonal to blocks, so this is a clean descriptive read-out).
+    # latent tempo G_i and their standardised block-design score. G_tempo is
+    # independent a priori but the posterior can still correlate G and blocks
+    # through the likelihood, so this is a descriptive post-hoc read-out only.
     tempo_corr: dict[str, float] | None = None
     if use_factor and "G_tempo" in ctx.trace.posterior:
         G = (
