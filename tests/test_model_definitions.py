@@ -79,21 +79,42 @@ def _fit_models() -> dict:
     return module.MODELS
 
 
+def _module_spec(module):
+    """A module's ``ModelSpec``, from its module-level ``SPEC`` or its lazy
+    ``get_spec()`` (e.g. ``lrp65`` builds its spec lazily so the DAG-only path
+    imports without the Bayesian stack)."""
+    spec = getattr(module, "SPEC", None)
+    if spec is None:
+        build = getattr(module, "get_spec", None)
+        spec = build() if callable(build) else None
+    return spec
+
+
 def test_registry_agrees_with_specs() -> None:
     """Cross-check kinds / outcomes against each module's SPEC (skips if the
-    modelling stack is not importable in this environment)."""
+    modelling stack is not importable in this environment).
+
+    The register catalogues this report's RLI study (``study_id == "rli"``); the
+    fit script additionally discovers other-study models (e.g. ``rlmhg01``,
+    ``study_id == "rlm"``), which are out of the register's scope and excluded."""
     try:
         fit = _fit_models()
     except Exception as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"model modules not importable here ({type(exc).__name__}: {exc})")
 
-    assert set(MODEL_REGISTRY) == set(fit), (
+    rli = {
+        mid: mod
+        for mid, mod in fit.items()
+        if (spec := _module_spec(mod)) is not None and spec.study_id == "rli"
+    }
+
+    assert set(MODEL_REGISTRY) == set(rli), (
         f"registry vs fit script disagree — only in registry: "
-        f"{sorted(set(MODEL_REGISTRY) - set(fit))}; "
-        f"only in fit script: {sorted(set(fit) - set(MODEL_REGISTRY))}"
+        f"{sorted(set(MODEL_REGISTRY) - set(rli))}; "
+        f"only in fit script (RLI study): {sorted(set(rli) - set(MODEL_REGISTRY))}"
     )
-    for model_id, module in fit.items():
-        spec = module.SPEC
+    for model_id, module in rli.items():
+        spec = _module_spec(module)
         definition = MODEL_REGISTRY[model_id]
         assert definition.kind == spec.kind, (
             f"{model_id}: registry kind {definition.kind!r} != SPEC {spec.kind!r}"

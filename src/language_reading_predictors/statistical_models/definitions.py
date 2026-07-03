@@ -51,7 +51,7 @@ OUTCOMES: dict[str, str] = {
 #: Outcomes that take the pre-specified floor rule (a binary off-floor estimand).
 FLOORED: frozenset[str] = frozenset({"P", "N"})
 
-#: Valid model kinds (the eight statistical-model families).
+#: Valid model kinds (the statistical-model families).
 KINDS: frozenset[str] = frozenset(
     {
         "itt",
@@ -62,6 +62,12 @@ KINDS: frozenset[str] = frozenset(
         "gain_factors",
         "level_factors",
         "aligned",
+        "adjusted",
+        "corr_factor",
+        "dose_response",
+        "lcsm",
+        "mediation_multi",
+        "horseshoe",
     }
 )
 
@@ -143,6 +149,8 @@ _DID = [
     _d("lrpdid04", "did", "Within-person DiD", Status.ROBUSTNESS, "TE", "waitlist-crossover replication", base="lrpitt02"),
     _d("lrpdid05", "did", "Within-person DiD", Status.ROBUSTNESS, "R", "waitlist-crossover replication", base="lrpitt05"),
     _d("lrpdid06", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "dose-response sensitivity (sessions)", base="lrpdid01"),
+    _d("lrpdid07", "did", "Within-person DiD", Status.ROBUSTNESS, "L", "session-dose response (period-resolved)", base="lrpitt07"),
+    _d("lrpdid07base", "did", "Within-person DiD", Status.COMPANION, "L", "pooled-dose comparator", base="lrpdid07"),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------
@@ -157,6 +165,19 @@ _MECH = [
     _d("lrp73base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp73"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp62", "mediation", "Mediation", Status.ASSOCIATION, "W", "reading-route composite mediation"),
+    _d("lrp64", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs expressive vocabulary)"),
+]
+
+# --- DAG-focused associations, dose-response, latent structure and cross-checks ----
+_STRUCT = [
+    _d("lrp65", "adjusted", "Adjusted association", Status.ASSOCIATION, "W", "between-child independent baseline predictors of word-reading gain"),
+    _d("lrp67", "lcsm", "Latent change score", Status.ASSOCIATION, "W", "coupled letter-sounds and vocabulary predicting reading change"),
+    _d("lrp77", "dose_response", "Dose-response", Status.ASSOCIATION, "W", "period-resolved intervention dose -> word reading"),
+    _d("lrp77a", "dose_response", "Dose-response", Status.ROBUSTNESS, "W", "ability-adjusted sensitivity", base="lrp77"),
+    _d("lrp77base", "dose_response", "Dose-response", Status.COMPANION, "W", "pooled-dose-slope comparator", base="lrp77"),
+    _d("lrpmm01", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "correlated-domain-factor measurement model (vocabulary / code / grammar)"),
+    _d("lrphs01", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading gain)"),
+    _d("lrphs02", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading level)"),
 ]
 
 # --- Factor families (gain / level) and onset-aligned per-protocol ----------------
@@ -191,7 +212,7 @@ _ALIGNED.append(
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED)
 }
 
 
