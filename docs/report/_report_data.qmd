@@ -1,0 +1,60 @@
+<!--
+Shared data-access helpers for the report's results and reference chapters.
+Included via {{< include /_report_data.qmd >}} (or ../_report_data.qmd from a
+chapter subfolder) so every chapter reads fitted output the SAME way and NO number
+is hand-entered in prose, tables or figures.
+
+Reads the per-model output written by scripts/fit_statistical_model.py to
+output/statistical_models/models/<MODEL_ID>-<config>/ (gitignored), degrading to a
+visible "pending fit" placeholder when a model has not yet been fitted. The repo
+root is located by walking up to pyproject.toml so the paths are independent of the
+chapter's location and of Quarto's execution directory.
+-->
+
+```{python}
+#| label: report-data-setup
+#| echo: false
+from pathlib import Path
+
+import pandas as pd
+
+
+def _repo_root(start: Path | None = None) -> Path:
+    p = (start or Path.cwd()).resolve()
+    for cand in (p, *p.parents):
+        if (cand / "pyproject.toml").exists():
+            return cand
+    return p
+
+
+OUT_ROOT = _repo_root() / "output" / "statistical_models" / "models"
+
+
+def model_dir(model_id: str, config: str = "reporting") -> Path:
+    """Output directory for a fitted model at a sampling config."""
+    return OUT_ROOT / f"{model_id}-{config}"
+
+
+def load_summary(model_id: str, name: str, config: str = "reporting"):
+    """A summary / diagnostic CSV for a fitted model, or None if not present."""
+    p = model_dir(model_id, config) / f"{name}.csv"
+    return pd.read_csv(p) if p.exists() else None
+
+
+def fig(model_id: str, filename: str, config: str = "reporting") -> str:
+    """Relative path to a figure produced for a model (for embedding)."""
+    return str(model_dir(model_id, config) / filename)
+
+
+def show_or_pending(df, what: str):
+    """Render a DataFrame if present, else a visible 'pending fit' placeholder."""
+    if df is None:
+        from IPython.display import Markdown
+
+        return Markdown(
+            f"> **Pending fit** — {what} will appear here once the model has been "
+            f"fitted (`scripts/fit_statistical_model.py`) and its output is present "
+            f"under `output/statistical_models/models/`."
+        )
+    return df
+```
