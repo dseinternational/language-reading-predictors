@@ -32,9 +32,7 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 
-from language_reading_predictors.statistical_models.environment import (
-    STAT_OUTPUT_DIR,
-)
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
@@ -84,7 +82,7 @@ DID_DOSE_LOO_IDS: list[str] = ["lrpdid07", "lrpdid07base"]
 
 
 def _run_dir(model_id: str, config: str) -> str:
-    return os.path.join(STAT_OUTPUT_DIR, "models", f"{model_id}-{config}")
+    return os.path.join(str(_paths.stat_models_dir()), f"{model_id}-{config}")
 
 
 # ---------------------------------------------------------------------------
@@ -396,9 +394,26 @@ def did_dose_loo_compare(config: str, out_path: str) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="dev")
-    parser.add_argument("--out", default=os.path.join(STAT_OUTPUT_DIR, "comparison"))
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="Comparison output dir (default: <output-root>/statistical_models/comparison).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR); the relative layout is unchanged. Default: "
+            "repo-local output/."
+        ),
+    )
     args = parser.parse_args()
 
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
+    args.out = args.out or str(_paths.stat_comparison_dir())
     os.makedirs(args.out, exist_ok=True)
 
     itt_joint = build_itt_vs_joint(args.config)

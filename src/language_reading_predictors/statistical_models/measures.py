@@ -113,6 +113,30 @@ TAUGHT_BLOCK1_OUTCOMES: tuple[str, ...] = ("TE", "TR", "UE", "UR")
 """Block-1 taught-vocabulary family: taught/not-taught x expressive/receptive."""
 
 
+# --- Treatment-effect prior tier (issue #141) --------------------------------
+# The randomised treatment-effect prior tau is tiered by how *proximal* the
+# outcome is to what the intervention directly teaches. A single logit prior is
+# not scale-invariant: Normal(0, 0.5) implies a plausible ~4-item swing on letter
+# sounds but a ~35-item 95% swing on the 170-item ROWPVT/EOWPVT vocabulary tests
+# (notes/202607011600-issue-141-prior-audit.md). The distal, broad-transfer
+# outcomes are exactly where large effects are least expected (Burgoyne 2012's
+# proximal-only pattern; Donolato et al. 2023's weak receptive-vocabulary
+# transfer), so they take a tighter tau prior; the proximal directly-taught /
+# decoding outcomes keep the wider default.
+DISTAL_OUTCOMES: frozenset[str] = frozenset({"R", "E", "T", "F", "UR", "UE"})
+"""Broad standardised-transfer outcomes taking the tighter (distal) tau prior:
+receptive/expressive vocabulary (R, E), grammar (T), basic concepts (F), and the
+not-taught vocabulary comparison sets (UR, UE). Everything else — the directly
+taught vocabulary (TR, TE), decoding (L, W, B) and the floored P/N — is proximal
+and keeps the wider default. Membership is a substantive judgement owned by the
+education/research team, not a statistical one."""
+
+
+def is_distal(symbol: str | None) -> bool:
+    """Whether ``symbol`` takes the tighter distal treatment-effect prior."""
+    return symbol in DISTAL_OUTCOMES
+
+
 LRPITT_OUTCOMES: tuple[str, ...] = (
     "TR", "TE", "UR", "UE", "R", "E", "L", "B", "P", "W", "N",
 )

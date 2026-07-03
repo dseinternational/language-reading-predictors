@@ -17,8 +17,9 @@ import xarray as xr
 import dse_research_utils.statistics.models.reporting as _reporting
 import dse_research_utils.statistics.models.sampling as _sampling
 
-from language_reading_predictors.statistical_models import environment as _env
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.preprocessing import (
+    LongitudinalPanel,
     PreparedData,
     WavePanel,
 )
@@ -47,6 +48,25 @@ class ModelSpec:
     """For mechanism models, the list of adjustment-set symbols."""
     extra: dict[str, Any] = field(default_factory=dict)
 
+    # --- Dataset / estimand metadata (#165) -------------------------------
+    # Optional and behaviour-preserving: the existing intervention models leave
+    # these at their defaults, so their config.json only gains new keys. They let
+    # reports state which study a model is fit on and whether it is causal.
+    study_id: str = "rli"
+    """Dataset / cohort this model is fit on (default the RLI intervention study)."""
+    family: str | None = None
+    """Model-family grouping (e.g. ``"itt"``, ``"historical_growth"``)."""
+    design: str | None = None
+    """Study design / estimand identifier for report transparency."""
+    estimand_type: str | None = None
+    """What is estimated: ``"causal"`` / ``"descriptive"`` / ``"association"`` / ..."""
+    causal_status: str | None = None
+    """Causal warrant: ``"randomised"`` / ``"adjusted"`` / ``"none"`` / ..."""
+    dataset_ref: str | None = None
+    """Explicit data reference when multi-source (e.g. ``"rlm:..._long"``)."""
+    audit_baseline: str | None = None
+    """Reproduction / audit baseline this model checks against, if any."""
+
     @property
     def banner(self) -> str:
         return f"{self.model_id.upper()}: {self.title}"
@@ -57,7 +77,7 @@ class StatisticalFitContext:
     spec: ModelSpec
     reporting: _reporting.ReportingConfiguration
     sampling: _sampling.SamplingConfiguration
-    prepared: PreparedData | WavePanel | None = None
+    prepared: PreparedData | WavePanel | LongitudinalPanel | None = None
     model: pm.Model | None = None
     model_vars: dict[str, Any] | None = None
     prior_samples: xr.DataTree | None = None
@@ -80,10 +100,15 @@ def make_context(
     ci_prob: float = 0.95,
     random_seed: int = 47,
 ) -> StatisticalFitContext:
+    # ``ReportingConfiguration.hdi`` (dse_research_utils) stores the interval
+    # *coverage* probability, not a highest-density-interval flag: the suite reads
+    # it back as ``ci_prob`` and reports equal-tailed intervals, with the HPDI kept
+    # as a separate per-scale sensitivity companion (see reporting._hdi_bounds,
+    # #170). The external field name is retained for cross-repo compatibility.
     reporting = _reporting.ReportingConfiguration(
         model_name=spec.model_id,
         config_name=config,
-        output_root_dir=_env.STAT_OUTPUT_DIR,
+        output_root_dir=str(_paths.stat_dir()),
         hdi=ci_prob,
     )
     sampling = _sampling.get_sampling_configuration(config, random_seed=random_seed)

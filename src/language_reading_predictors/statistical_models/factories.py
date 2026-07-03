@@ -40,8 +40,12 @@ from language_reading_predictors.statistical_models.hsgp import (
 from language_reading_predictors.statistical_models.likelihood import (
     beta_binomial_from_logit,
 )
-from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
+from language_reading_predictors.statistical_models.measures import (
+    ITT_OUTCOMES,
+    is_distal,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
+    LongitudinalPanel,
     PreparedData,
     WavePanel,
     standardise,
@@ -55,6 +59,26 @@ from language_reading_predictors.statistical_models.preprocessing import (
 
 def _scalar_prior(name: str, prior_ctor) -> pt.TensorVariable:
     return prior_ctor().to_pymc(name)
+
+
+def _tau_sigma_for(outcome_symbol: str, override: float | None = None) -> float:
+    """Treatment-effect prior SD for a single-outcome causal term (issue #141).
+
+    Returns ``override`` when given (prior-sensitivity fits), else the outcome
+    tier default: the tighter ``TAU_SIGMA_DISTAL`` for broad standardised-transfer
+    outcomes (``measures.DISTAL_OUTCOMES``) and the wider ``TAU_SIGMA_PROXIMAL``
+    for the directly-taught / decoding outcomes. Applied to the randomised
+    treatment effect only (ITT ``tau``, gain-factors ``beta_trt``, level-factors
+    group contrast, DiD ``delta``) — not to adjusted-association group terms
+    (mechanism / dose-response ``beta_G``, aligned ``beta_cohort``).
+    """
+    if override is not None:
+        return override
+    return (
+        _priors.TAU_SIGMA_DISTAL
+        if is_distal(outcome_symbol)
+        else _priors.TAU_SIGMA_PROXIMAL
+    )
 
 
 def _add_child_random_intercept(
@@ -82,7 +106,7 @@ def _add_child_random_intercept(
 class BuiltModel:
     model: pm.Model
     variables: dict[str, pt.TensorVariable]
-    prepared: PreparedData | WavePanel
+    prepared: PreparedData | WavePanel | LongitudinalPanel
     """The (possibly row-subset) prepared data that the model was built on.
 
     Factories may drop rows with missing post-scores or missing confounder
@@ -111,6 +135,7 @@ def build_itt_model(
     tau_moderator_symbol: str | None = None,
     tau_moderator_is_covariate: bool = False,
     tau_moderator_interaction: bool = True,
+    tau_sigma: float | None = None,
 ) -> BuiltModel:
     """
     Build the single-outcome ITT model used by the LRPITT suite (and its SES
@@ -195,6 +220,12 @@ def build_itt_model(
         ``gamma_tau_int * G * z(M)``; both use the regularising
         ``Normal(0, 0.3)`` prior. Set ``tau_moderator_interaction=False`` for the
         nested no-interaction baseline used in the PSIS-LOO comparison.
+    tau_sigma
+        Override the treatment-effect prior SD (issue #141). ``None`` (default)
+        uses the outcome tier: ``TAU_SIGMA_DISTAL`` (0.3) for the broad
+        standardised-transfer outcomes in ``measures.DISTAL_OUTCOMES``,
+        ``TAU_SIGMA_PROXIMAL`` (0.5) otherwise. Pass an explicit value for a
+        prior-sensitivity fit (``scripts/tau_prior_sensitivity.py``).
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
@@ -300,7 +331,9 @@ def build_itt_model(
         )
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
-        tau0 = _scalar_prior("tau", _priors.tau_prior)
+        tau0 = _priors.tau_prior(
+            sigma=_tau_sigma_for(own, tau_sigma)
+        ).to_pymc("tau")
 
         eta: pt.TensorVariable | float = alpha
 
@@ -1210,7 +1243,7 @@ def build_did_model(
                 eta_full = eta_base + beta_dose * z_attend
         else:
             treated_d = pm.Data("treated", treated, dims="obs_id")
-            delta = _priors.tau_prior().to_pymc("delta")
+            delta = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc("delta")
             eta_full = eta_base + delta * treated_d
 
         eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
@@ -2438,7 +2471,9 @@ def build_gain_factors_model(
         eta = alpha + alpha_phase[phase_d] + gamma_own * own_pre_d + gamma_A * A_std_d
 
         if include_trt:
-            beta_trt = _priors.tau_prior().to_pymc("beta_trt")
+            beta_trt = _priors.tau_prior(
+                sigma=_tau_sigma_for(outcome_symbol)
+            ).to_pymc("beta_trt")
             eta = eta + beta_trt * trt_d
         if ability_d is not None:
             gamma_ability = _priors.gamma_cross_prior().to_pymc("gamma_ability")
@@ -2551,11 +2586,14 @@ def build_level_factors_model(
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
 
         # group x time (or single group main effect).
+        _tau_sigma = _tau_sigma_for(outcome_symbol)
         if group_by_time:
-            b_grp = _priors.tau_prior().to_pymc("b_grp_time", dims="phase")
+            b_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
+                "b_grp_time", dims="phase"
+            )
             eta = eta + b_grp[phase_d] * G_d
         else:
-            beta_grp = _priors.tau_prior().to_pymc("beta_grp")
+            beta_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc("beta_grp")
             eta = eta + beta_grp * G_d
 
         # ability main / ability x time.
@@ -2863,3 +2901,126 @@ def build_lcsm_model(
         )
 
     return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
+
+
+# ---------------------------------------------------------------------------
+# Historical group-by-wave growth (RLMHG, #165 - first non-RLI dataset)
+# ---------------------------------------------------------------------------
+
+
+def build_historical_growth_model(
+    panel: LongitudinalPanel,
+    *,
+    measure: str = "basread",
+    eta_prior_sigma: float = 1.5,
+    sigma_subject_prior_sigma: float = 1.0,
+    kappa_prior_sigma: float = 50.0,
+) -> BuiltModel:
+    """Descriptive group-by-wave growth model for a historical cohort.
+
+    Beta-Binomial on a bounded count with a population ``eta[group, wave]`` grid
+    and a non-centred, group-centred per-subject random intercept::
+
+        score_it ~ BetaBinomial(n, p_it, kappa)
+        logit(p_it) = eta[group_i, wave_t] + subject_offset_i
+
+    This is **descriptive natural-history** evidence, not an intervention-effect
+    model: ``group`` carries no treatment semantics, there is no baseline-as-
+    precision term and no adjustment set. Deterministics expose the group-by-wave
+    expected item score, within-group interval growth, and pairwise total-growth
+    contrasts. Ported from the standalone ``rlmhg01`` script (#163) onto the
+    shared pipeline (#165).
+    """
+    df = panel.long
+    dataset = panel.dataset
+    subj, wave_c, grp = dataset.subject_col, dataset.wave_col, dataset.group_col
+    if measure not in panel.n_trials:
+        raise KeyError(f"measure {measure!r} not in panel (have {panel.measures}).")
+    n_trials = int(panel.n_trials[measure])
+
+    group_codes = panel.group_codes
+    group_labels = panel.group_labels
+    wave_codes = list(panel.waves)
+    subject_ids = panel.subject_ids
+    group_index = {code: i for i, code in enumerate(group_codes)}
+    wave_index = {w: i for i, w in enumerate(wave_codes)}
+    subject_index = {s: i for i, s in enumerate(subject_ids)}
+
+    group_idx = df[grp].map(group_index).to_numpy(dtype=int)
+    wave_idx = df[wave_c].map(wave_index).to_numpy(dtype=int)
+    subject_idx = df[subj].map(subject_index).to_numpy(dtype=int)
+    observed = df[measure].to_numpy(dtype=int)
+    subject_group = (
+        df.drop_duplicates(subj)
+        .set_index(subj)
+        .loc[subject_ids, grp]
+        .map(group_index)
+        .to_numpy(dtype=int)
+    )
+
+    coords = {
+        "group": group_labels,
+        "wave": wave_codes,
+        "subject": [str(s) for s in subject_ids],
+        "obs": np.arange(len(df)),
+    }
+
+    with pm.Model(coords=coords) as model:
+        eta_group_wave = pm.Normal(
+            "eta_group_wave", mu=0.0, sigma=eta_prior_sigma, dims=("group", "wave")
+        )
+        sigma_subject = pm.HalfNormal("sigma_subject", sigma=sigma_subject_prior_sigma)
+        z_subject = pm.Normal("z_subject", mu=0.0, sigma=1.0, dims="subject")
+        # Group-centre the subject offsets for identifiability against
+        # ``eta_group_wave`` (the group-by-wave level absorbs the group mean).
+        z_group_mean = pm.math.stack(
+            [z_subject[subject_group == g].mean() for g in range(len(group_codes))]
+        )
+        subject_offset = pm.Deterministic(
+            "subject_offset",
+            (z_subject - z_group_mean[subject_group]) * sigma_subject,
+            dims="subject",
+        )
+        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma)
+
+        eta_obs = eta_group_wave[group_idx, wave_idx] + subject_offset[subject_idx]
+        p_obs = pm.math.sigmoid(eta_obs)
+        pm.BetaBinomial(
+            "score",
+            n=n_trials,
+            alpha=p_obs * kappa,
+            beta=(1.0 - p_obs) * kappa,
+            observed=observed,
+            dims="obs",
+        )
+        pm.Deterministic("fitted_mean_items_obs", n_trials * p_obs, dims="obs")
+
+        mean_items = pm.Deterministic(
+            "mean_items",
+            n_trials * pm.math.sigmoid(eta_group_wave),
+            dims=("group", "wave"),
+        )
+        # Within-group interval growth (items), first->second and second->third
+        # wave, plus first->last, when at least three waves are modelled.
+        if len(wave_codes) >= 2:
+            pm.Deterministic(
+                "growth_first_next_items",
+                mean_items[:, 1] - mean_items[:, 0],
+                dims="group",
+            )
+        if len(wave_codes) >= 3:
+            pm.Deterministic(
+                "growth_next_last_items",
+                mean_items[:, 2] - mean_items[:, 1],
+                dims="group",
+            )
+        if len(wave_codes) >= 2:
+            pm.Deterministic(
+                "growth_first_last_items",
+                mean_items[:, -1] - mean_items[:, 0],
+                dims="group",
+            )
+
+    return BuiltModel(
+        model=model, variables=_variables_dict(model), prepared=panel
+    )

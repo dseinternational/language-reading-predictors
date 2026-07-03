@@ -17,20 +17,21 @@ from language_reading_predictors.models.common import ShapScatterSpec
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned (Optuna 150-trial, seed 47, GroupKFold cv=53) on the full
+# ``Predictors.DEFAULT_GAIN`` set; best mean cross-validated MAE 2.94 (#116 reporting
+# refresh, superseding the earlier pruned-subset tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 52,
-    "learning_rate": 0.11822278042172524,
-    "num_leaves": 51,
-    "max_depth": 7,
-    "min_child_samples": 16,
-    "subsample": 0.6491876371548958,
+    "n_estimators": 580,
+    "learning_rate": 0.014771985445699121,
+    "num_leaves": 58,
+    "max_depth": 5,
+    "min_child_samples": 35,
+    "subsample": 0.9555461290933629,
     "subsample_freq": 1,
-    "colsample_bytree": 0.7993121576506287,
-    "reg_alpha": 0.02832146282334302,
-    "reg_lambda": 6.243279073188195,
+    "colsample_bytree": 0.899629213906584,
+    "reg_alpha": 0.0026334274053896006,
+    "reg_lambda": 0.002036072137956731,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -39,7 +40,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG12(GainModel):
     """Word-reading gain predictors — exploratory model (MAE-tuned, all data).
 
-    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned on the full set (#116).
     """
 
     model_id = "lrpgbg12"
@@ -62,8 +63,8 @@ class LRPGBG12(GainModel):
     notes = (
         "Exploratory model for word-reading gains (ewrswr_gain). Fits the "
         "full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature "
-        "selection in favour of full-set ranking); hyperparameters are "
-        "retained from the earlier pruned-set Optuna tune (retune-pending). "
-        "Gain models are near-noise (baseline-driven, regression to the "
-        "mean) — treat the ranking as exploratory."
+        "selection in favour of full-set ranking); hyperparameters were "
+        "re-tuned by Optuna on the full set (150 trials, seed 47; #116 "
+        "reporting refresh). Gain models are near-noise (baseline-driven, "
+        "regression to the mean) — treat the ranking as exploratory."
     )

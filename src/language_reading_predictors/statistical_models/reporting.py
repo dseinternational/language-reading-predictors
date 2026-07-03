@@ -15,9 +15,70 @@ import xarray as xr
 from dse_research_utils.statistics.evidence import evidence_label, odds_string
 from scipy.special import expit
 
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+
+
+def _hdi_bounds(draws: np.ndarray, prob: float) -> tuple[float, float]:
+    """Highest-density interval (HPDI) bounds for 1-D posterior ``draws``.
+
+    A *sensitivity companion* to the equal-tailed interval reported elsewhere in
+    this module: for a skewed or bounded-scale posterior the HPDI is the narrowest
+    interval covering ``prob`` mass, so it can differ materially from the
+    equal-tailed quantiles. The HPDI is **not** transformation-invariant, so
+    callers report it per scale (logit / probability / items) rather than mapping
+    it between scales. Uses :func:`arviz.hdi` (``prob=`` keyword in the installed
+    ArviZ 1.x).
+    """
+    lo, hi = np.asarray(az.hdi(np.asarray(draws, dtype=float), prob=prob)).ravel()[:2]
+    return float(lo), float(hi)
+
+
+def _eti_bands(
+    draws: np.ndarray, *, probs: tuple[float, ...] = (0.5, 0.9, 0.95)
+) -> dict[str, float]:
+    """Equal-tailed interval bounds at each coverage in ``probs``, keyed
+    ``lo{pct}`` / ``hi{pct}`` (e.g. ``lo50`` / ``hi50``).
+
+    The suite's fixed posterior-band convention (#177): the central **50%**
+    interval (where the middle half of the posterior mass sits — a visual aid, not
+    a decision threshold), the equal-tailed **90%** sensitivity / compatibility
+    band, and the equal-tailed **95%** headline interval. Equal-tailed throughout
+    (see ``METHODS.md``); the HDI/HPDI is a separate per-scale sensitivity
+    companion (:func:`_hdi_bounds`) and is never labelled with an ``eti`` band key.
+    """
+    draws = np.asarray(draws, dtype=float)
+    out: dict[str, float] = {}
+    for p in probs:
+        lo, hi = np.quantile(draws, [(1 - p) / 2, 1 - (1 - p) / 2])
+        pct = int(round(p * 100))
+        out[f"lo{pct}"] = float(lo)
+        out[f"hi{pct}"] = float(hi)
+    return out
+
+
+def favoured_direction(prob_positive: float) -> dict[str, float | str]:
+    """Evidence for the *favoured* direction of a signed effect (#179).
+
+    :func:`evidence_label` needs a probability already oriented to a **named**
+    claim. For a sign claim the favoured direction is ``"positive"`` when
+    ``P(effect > 0) >= 0.5`` else ``"negative"``; the claim probability is
+    ``max(P>0, P<0)`` and the label qualifies the evidence for THAT direction — so
+    a clearly negative effect reads as strong evidence of harm / a negative
+    association rather than the "inconclusive" that ``evidence_label(P>0)`` returns
+    for the *positive* claim. The raw ``P(effect > 0)`` is still reported
+    separately (the benefit claim); callers supply the direction words (benefit /
+    harm for treatment effects, positive / negative for associations).
+    """
+    p_pos = float(prob_positive)
+    prob = max(p_pos, 1.0 - p_pos)
+    return {
+        "favoured_direction": "positive" if p_pos >= 0.5 else "negative",
+        "favoured_direction_prob": prob,
+        "favoured_direction_label": evidence_label(prob),
+    }
 
 
 def _itt_ame_draws(
@@ -115,28 +176,53 @@ def tau_summary_itt(
     ``G`` is the per-observation treatment indicator from the *fitted* prepared
     data (``built.prepared.G``), aligned with ``eta``'s ``obs_id`` axis.
 
-    ``ci_prob`` names the *coverage* probability — the returned ``_lo`` /
-    ``_hi`` values are equal-tailed central quantiles, not highest-density
-    intervals. For ArviZ-style HDI use :func:`arviz.hdi` directly.
+    ``ci_prob`` names the *coverage* probability of the headline interval. The
+    ``*_lo`` / ``*_hi`` values are the equal-tailed headline credible interval
+    (95% by default); ``*_lo50`` / ``*_hi50`` (the central 50% interval, a visual
+    aid) and ``*_lo90`` / ``*_hi90`` (the equal-tailed 90% sensitivity band) follow
+    the fixed band convention (#177, see :func:`_eti_bands`). The ``*_hpdi_lo`` /
+    ``*_hpdi_hi`` values are the highest-density interval (HPDI) at ``ci_prob`` — a
+    per-scale sensitivity companion (see :func:`_hdi_bounds`), not a replacement,
+    since the HPDI is not transformation-invariant across the logit and
+    probability scales.
     """
     tau_draws, marginal = _itt_ame_draws(trace, G=G)
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_median = float(np.median(tau_draws))
     lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
+    tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(tau_draws, ci_prob)
+    tau_b = _eti_bands(tau_draws, probs=(0.5, 0.9))
     marg_median = float(np.median(marginal))
     marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
+    marg_hpdi_lo, marg_hpdi_hi = _hdi_bounds(marginal, ci_prob)
+    marg_b = _eti_bands(marginal, probs=(0.5, 0.9))
     prob_pos = float(np.mean(tau_draws > 0))
 
+    # Fixed band convention (#177): central 50% (visual aid) + equal-tailed 90%
+    # (sensitivity) alongside the equal-tailed 95% headline (``*_lo`` / ``*_hi``).
     return {
         "tau_logit_median": tau_median,
+        "tau_logit_lo50": tau_b["lo50"],
+        "tau_logit_hi50": tau_b["hi50"],
+        "tau_logit_lo90": tau_b["lo90"],
+        "tau_logit_hi90": tau_b["hi90"],
         "tau_logit_lo": float(lower),
         "tau_logit_hi": float(upper),
+        "tau_logit_hpdi_lo": tau_hpdi_lo,
+        "tau_logit_hpdi_hi": tau_hpdi_hi,
         "tau_prob_median": marg_median,
+        "tau_prob_lo50": marg_b["lo50"],
+        "tau_prob_hi50": marg_b["hi50"],
+        "tau_prob_lo90": marg_b["lo90"],
+        "tau_prob_hi90": marg_b["hi90"],
         "tau_prob_lo": float(marg_lo),
         "tau_prob_hi": float(marg_hi),
+        "tau_prob_hpdi_lo": marg_hpdi_lo,
+        "tau_prob_hpdi_hi": marg_hpdi_hi,
         "prob_tau_pos": prob_pos,
         "direction_label": evidence_label(prob_pos),
+        **favoured_direction(prob_pos),
     }
 
 
@@ -192,18 +278,51 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
         "separate **direction** (is there a benefit?) from **magnitude** (is it big enough "
         f"to matter?), judged against a minimally-important difference δ on the {unit} scale.\n"
     )
+    # Direction claim, harm-aware (#179): lead with P(helps) + odds, then state the
+    # favoured-direction evidence so a negative effect reads as evidence of harm,
+    # not the "inconclusive" that a benefit-only label would give. Guarded so an
+    # older rope_summary.csv without the favoured fields still renders.
+    _fav = str(r.get("favoured_direction", "positive"))
+    _fav_prob = float(r.get("favoured_direction_prob", r["pd"]))
+    _fav_label = str(r.get("favoured_direction_label", r["direction_label"]))
+    if is_rd:
+        _fav_claim = (
+            "the intervention raises the off-floor probability"
+            if _fav == "positive"
+            else "the intervention lowers the off-floor probability"
+        )
+    else:
+        _fav_claim = (
+            "the intervention helps"
+            if _fav == "positive"
+            else "the intervention is harmful"
+        )
+    direction_clause = (
+        f"**Direction** — P(intervention helps) = {r['pd']:.3f} "
+        f"({odds_string(r['pd'])}); favoured direction: {_fav_claim} — "
+        f"*{_fav_label} evidence* (P = {_fav_prob:.3f})."
+    )
     parts.append(
         f"The intervention changed {outcome_label} by a median of "
         f"**{r['items_median'] * scale:+.1f} {unit}**{prov} "
-        f"(50% CrI {r['items_lo50'] * scale:+.1f} to {r['items_hi50'] * scale:+.1f}; "
-        f"95% CrI {r['items_lo'] * scale:+.1f} to {r['items_hi'] * scale:+.1f}). "
-        f"**Direction** — evidence it helps: pd = {r['pd']:.3f} "
-        f"({odds_string(r['pd'])}, *{r['direction_label']} evidence*). "
+        f"(central 50% interval {r['items_lo50'] * scale:+.1f} to "
+        f"{r['items_hi50'] * scale:+.1f}; "
+        f"equal-tailed 95% credible interval {r['items_lo'] * scale:+.1f} to "
+        f"{r['items_hi'] * scale:+.1f}). "
+        f"{direction_clause} "
         f"**Magnitude** — evidence the benefit is at least δ = {r['delta_items'] * scale:g} "
         f"{unit}: P = {r['prob_benefit_ge_delta']:.3f} "
         f"({odds_string(r['prob_benefit_ge_delta'])}, *{r['benefit_label']} evidence*); "
         f"probability inside the ROPE (practically negligible): {r['prob_in_rope']:.3f}.\n"
     )
+    if "items_hpdi_lo" in cols:
+        parts.append(
+            f"_Sensitivity — the 95% highest posterior density interval (HPDI) on the "
+            f"{unit} scale is {r['items_hpdi_lo'] * scale:+.1f} to "
+            f"{r['items_hpdi_hi'] * scale:+.1f}. HPDI is not transformation-invariant, "
+            f"so it is a scale-specific check, not a replacement for the equal-tailed "
+            f"interval above._\n"
+        )
     return "\n".join(parts)
 
 
@@ -226,21 +345,38 @@ def _rope_card(
     transformation-invariant across the logit and items scales. The ``tau_logit_*``
     keys are retained verbatim across families (as :func:`tau_summary_offfloor`
     already reuses the ``tau`` schema) so one CSV layout serves the whole suite.
+
+    ``*_hpdi_lo`` / ``*_hpdi_hi`` add the highest-density interval at ``ci_prob``
+    for the logit effect and the items scale — a per-scale sensitivity companion
+    to the equal-tailed ``*_lo`` / ``*_hi`` fields, kept alongside them (the HPDI
+    is not transformation-invariant, so it is reported per scale).
     """
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     pd_ = float(np.mean(effect_draws > 0))
     p_benefit = float(np.mean(items >= delta))
+    tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(effect_draws, ci_prob)
+    items_hpdi_lo, items_hpdi_hi = _hdi_bounds(items, ci_prob)
+    tau_b90 = _eti_bands(effect_draws, probs=(0.9,))
+    items_b90 = _eti_bands(items, probs=(0.9,))
     return {
         "tau_logit_median": float(np.median(effect_draws)),
         "tau_logit_lo50": float(np.quantile(effect_draws, 0.25)),
         "tau_logit_hi50": float(np.quantile(effect_draws, 0.75)),
+        "tau_logit_lo90": tau_b90["lo90"],
+        "tau_logit_hi90": tau_b90["hi90"],
         "tau_logit_lo": float(np.quantile(effect_draws, lo_q)),
         "tau_logit_hi": float(np.quantile(effect_draws, hi_q)),
+        "tau_logit_hpdi_lo": tau_hpdi_lo,
+        "tau_logit_hpdi_hi": tau_hpdi_hi,
         "items_median": float(np.median(items)),
         "items_lo50": float(np.quantile(items, 0.25)),
         "items_hi50": float(np.quantile(items, 0.75)),
+        "items_lo90": items_b90["lo90"],
+        "items_hi90": items_b90["hi90"],
         "items_lo": float(np.quantile(items, lo_q)),
         "items_hi": float(np.quantile(items, hi_q)),
+        "items_hpdi_lo": items_hpdi_lo,
+        "items_hpdi_hi": items_hpdi_hi,
         "delta_items": float(delta),
         "pd": pd_,
         "prob_benefit_ge_delta": p_benefit,
@@ -248,6 +384,7 @@ def _rope_card(
         "prob_harm_ge_delta": float(np.mean(items <= -delta)),
         "direction_label": evidence_label(pd_),
         "benefit_label": evidence_label(p_benefit),
+        **favoured_direction(pd_),
     }
 
 
@@ -456,6 +593,8 @@ def did_summary(
             f"{name}_hi": float(np.quantile(d, hi_q)),
             f"prob_{name}_pos": prob_pos,
             f"{name}_direction_label": evidence_label(prob_pos),
+            f"{name}_favoured_direction": "positive" if prob_pos >= 0.5 else "negative",
+            f"{name}_favoured_label": evidence_label(max(prob_pos, 1.0 - prob_pos)),
         }
 
     out: dict[str, float] = {}
@@ -607,6 +746,15 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "outcome_symbol": spec.outcome_symbol,
         "mechanism_symbol": spec.mechanism_symbol,
         "adjustment": spec.adjustment,
+        # Dataset / estimand metadata (#165) - default to the RLI intervention
+        # study for the existing models; historical/cross-study models set them.
+        "study_id": spec.study_id,
+        "family": spec.family,
+        "design": spec.design,
+        "estimand_type": spec.estimand_type,
+        "causal_status": spec.causal_status,
+        "dataset_ref": spec.dataset_ref,
+        "audit_baseline": spec.audit_baseline,
         "n_obs": context.prepared.n_obs if context.prepared else None,
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,
@@ -619,6 +767,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
             "target_accept": context.sampling.target_accept,
             "random_seed": context.sampling.random_seed,
         },
+        "output_root": str(_paths.output_root()),
         "extra": extra or {},
     }
     with open(os.path.join(out, "config.json"), "w") as f:
@@ -680,6 +829,7 @@ def factor_summary(
             "hi": float(np.quantile(d, hi_q)),
             "prob_positive": prob_pos,
             "direction_label": evidence_label(prob_pos),
+            **favoured_direction(prob_pos),
         }
 
     rows: list[dict[str, object]] = []

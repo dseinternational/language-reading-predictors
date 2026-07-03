@@ -15,7 +15,7 @@ See `METHODS.md` for the full methodology: the gradient-boosting and Bayesian wo
 
 ## Environment Setup
 
-Uses conda with Python 3.14. There is a local dependency on `../research/src/python` (dse_research_utils).
+Hybrid two-layer environment (shared across DSE research repos): the compiled scientific core (`numpy`/`scipy`/`pandas`/`pymc`/`nutpie`/`jax`/`arviz`, …) comes from **conda-forge** and must match the canonical spec shipped in `dse-research-utils` (verify with `dse-check-env environment.yml`); the pure-Python tail and the shared library install in the pip layer. `dse-research-utils` installs from the public git tag `v0.5.0` (`dse-research-utils[viz,notebook,dependence,tuning,io] @ git+https://github.com/dseinternational/research.git@v0.5.0#subdirectory=src/python`); a commented local-dev override in `environment.yml` points at a sibling `../research/src/python` checkout instead. On Windows there is no conda-forge `jax`/`jaxlib` win-64 build, so use **WSL** (Ubuntu, linux-64). GPU acceleration is an opt-in `jax[cuda]` overlay.
 
 ```bash
 conda env create -f environment.yml
@@ -60,6 +60,8 @@ quarto preview docs/report/
 # Render research report (HTML, PDF, DOCX)
 quarto render docs/report/
 ```
+
+**Output location.** Runs write under a configurable **output root** (default: repo-local `output/`, with the relative layout unchanged). Redirect it to a scratch disk for VM runs via the `DSE_LRP_OUTPUT_DIR` environment variable, or per command with `--output-dir` (which takes precedence): `DSE_LRP_OUTPUT_DIR=/mnt/scratch/lrp python scripts/fit_statistical_model.py lrpitt10 --config reporting`, or `python scripts/fit_model.py lrpgbg12 --output-dir /mnt/scratch/lrp`. Resolution lives in `src/language_reading_predictors/paths.py`; the resolved root is printed at the start of each long-running command and recorded in `config.json`. Scratch disks are ephemeral — `--upload` (or copy) durable artefacts before teardown.
 
 ## Architecture
 

@@ -48,8 +48,10 @@ from language_reading_predictors.models._reporting import (
     stat_model_header_panel,
 )
 from language_reading_predictors.statistical_models import (
+    datasets as _datasets,
     diagnostics as _diag,
     factories as _factories,
+    historical as _historical,
     priors as _priors,
     reporting as _report,
 )
@@ -59,11 +61,15 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
-from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
+from language_reading_predictors.statistical_models.measures import (
+    ITT_OUTCOMES,
+    is_distal,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_aligned,
     load_and_prepare_lagged_outcome,
+    load_longitudinal_panel,
     load_wave_panel,
 )
 
@@ -127,6 +133,8 @@ def _copy_report_template(context: StatisticalFitContext) -> None:
     dst = os.path.join(context.output_dir, "index.qmd")
     if os.path.exists(src):
         shutil.copy(src, dst)
+        if os.environ.get("LRP_OFFLINE_QUARTO") == "1":
+            _strip_quarto_code_links(dst)
         rprint(f"  Report template copied to {dst}")
     else:
         rprint(f"  [yellow]No report template found at {src}[/yellow]")
@@ -138,6 +146,22 @@ def _copy_report_template(context: StatisticalFitContext) -> None:
     partials_dst = os.path.join(context.output_dir, "_partials")
     if os.path.isdir(partials_src):
         shutil.copytree(partials_src, partials_dst, dirs_exist_ok=True)
+
+
+def _strip_quarto_code_links(path: str) -> None:
+    """Remove copied ``code-links: repo`` metadata for offline Quarto renders.
+
+    Quarto resolves ``code-links: repo`` by probing the GitHub remote, including
+    ``git ls-remote origin gh-pages``. In restricted reporting environments that
+    optional link can make an otherwise valid report render fail after all cells
+    execute. The source templates are left intact; only the copied output QMD is
+    made renderable when ``LRP_OFFLINE_QUARTO=1`` is set.
+    """
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    text = text.replace("    code-links:\n      - repo\n", "")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
 
 
 def _emit_priors(context: StatisticalFitContext) -> None:
@@ -222,6 +246,11 @@ def _prior_table_overrides(
         else:
             ctor["beta_dose"] = "tau"
             role["beta_dose"] = "association"
+    elif spec.kind == "mechanism":
+        # ``beta_G`` reuses the tau constructor (its Normal(0, 0.5) scale) but here
+        # it is the group main effect entered as a DAG backdoor adjustment, not the
+        # randomised ITT effect — an adjusted association, not a causal term.
+        role["beta_G"] = "association"
     elif spec.kind == "aligned":
         ctor["beta_cohort"] = "tau"
         role["beta_cohort"] = "association"
@@ -230,6 +259,16 @@ def _prior_table_overrides(
             if rv.name.startswith("beta_"):
                 ctor[rv.name] = "predictor_slope"
                 role[rv.name] = "association"
+
+    # Distal outcomes take the tighter tau prior (issue #141): the factory built
+    # the single-outcome causal treatment term at Normal(0, 0.3), so route it to
+    # the ``tau_distal`` panel + distribution here so the report panel matches the
+    # fitted scale. Only the randomised treatment terms are listed (never the
+    # adjusted-association ``beta_G`` / ``beta_cohort``).
+    if is_distal(getattr(spec, "outcome_symbol", None)):
+        for _name in ("tau", "beta_trt", "b_grp_time", "beta_grp", "delta"):
+            ctor.setdefault(_name, "tau_distal")
+            role.setdefault(_name, "causal")
 
     return ctor, role
 
@@ -467,7 +506,16 @@ def _save_forest_plot(
         import arviz_plots as azp
 
         tr = _diag.thin_for_plots(ctx.trace)
-        pc = azp.plot_forest(tr, var_names=var_names, combined=True)
+        # Equal-tailed nested bands (#177): inner central 50% + outer equal-tailed
+        # 95% headline, matching the reported interval convention rather than the
+        # arviz default (which can be an HDI, inconsistent with the prose).
+        pc = azp.plot_forest(
+            tr,
+            var_names=var_names,
+            combined=True,
+            ci_kind="eti",
+            ci_probs=(0.5, 0.95),
+        )
         try:
             azp.add_lines(pc, values=0)
         except Exception:
@@ -1480,9 +1528,13 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     return _finalize_report(ctx)
 
 
-def _summarise_draws(values: np.ndarray, hdi: float) -> dict[str, float]:
-    """Mean, equal-tailed CI and P(>0) for a 1-D array of posterior draws."""
-    lo_q = (1.0 - hdi) / 2.0
+def _summarise_draws(values: np.ndarray, ci_prob: float) -> dict[str, float]:
+    """Mean, equal-tailed CI and P(>0) for a 1-D array of posterior draws.
+
+    ``ci_prob`` is the interval *coverage* probability (equal-tailed), read from
+    ``ctx.reporting.hdi`` — see the naming note in ``context.make_context`` (#170).
+    """
+    lo_q = (1.0 - ci_prob) / 2.0
     return {
         "mean": float(np.mean(values)),
         "lo": float(np.quantile(values, lo_q)),
@@ -1496,24 +1548,24 @@ def _write_dose_slope_summary(
 ) -> None:
     """Posterior dose slope (overall + per-period) on the per-1-SD logit scale."""
     post = ctx.trace.posterior
-    hdi = ctx.reporting.hdi
+    ci_prob = ctx.reporting.hdi
     rows: list[dict[str, object]] = []
 
     def _draws(name: str) -> np.ndarray:
         return post[name].stack(sample=("chain", "draw")).values
 
     if period_varying:
-        rows.append({"term": "dose_overall", **_summarise_draws(_draws("mu_dose"), hdi)})
+        rows.append({"term": "dose_overall", **_summarise_draws(_draws("mu_dose"), ci_prob)})
         bdp = _draws("beta_dose_phase")  # (phase, sample)
         for p in range(bdp.shape[0]):
             rows.append(
-                {"term": f"dose_period{p + 1}", **_summarise_draws(bdp[p], hdi)}
+                {"term": f"dose_period{p + 1}", **_summarise_draws(bdp[p], ci_prob)}
             )
         rows.append(
-            {"term": "sigma_dose_between_period", **_summarise_draws(_draws("sigma_dose"), hdi)}
+            {"term": "sigma_dose_between_period", **_summarise_draws(_draws("sigma_dose"), ci_prob)}
         )
     else:
-        rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), hdi)})
+        rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), ci_prob)})
 
     df = pd.DataFrame(rows)
     df.to_csv(os.path.join(ctx.output_dir, "dose_slope_summary.csv"), index=False)
@@ -1525,7 +1577,7 @@ def _write_dose_slope_summary(
                 for r in rows
             ],
             title=(
-                f"Dose slope (logit / 1 SD dose) - {int(hdi * 100)}% CI (equal-tailed)"
+                f"Dose slope (logit / 1 SD dose) - {int(ci_prob * 100)}% CI (equal-tailed)"
             ),
             columns=["metric", "value", "lo", "hi"],
         )
@@ -2924,6 +2976,131 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "outcomes": list(outcomes),
             "reading_symbol": reading_symbol,
             "coupling_summary": rows,
+        },
+    )
+
+    return _finalize_report(ctx)
+
+
+# ---------------------------------------------------------------------------
+# Historical group-by-wave growth (RLMHG, #165 - first non-RLI dataset)
+# ---------------------------------------------------------------------------
+
+
+def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Historical group-by-wave growth model (RLMHG, #165).
+
+    A descriptive natural-history growth model for a non-RLI historical cohort
+    (the Byrne reading-language-memory study), run through the shared
+    statistical-model pipeline so it uses the same sampler, convergence gate,
+    output layout and report conventions as the intervention models. It is
+    **not** an intervention-effect model - ``group`` carries no treatment
+    semantics (see :func:`factories.build_historical_growth_model`).
+    """
+    assert spec.kind == "historical_growth"
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    study_id = spec.extra.get("study_id", spec.study_id)
+    measure = spec.extra.get("measure", spec.outcome_symbol or "basread")
+    waves = tuple(spec.extra.get("waves", (1, 2, 3)))
+    dataset, measures = _datasets.resolve_dataset(study_id)
+    if measure not in measures:
+        raise KeyError(f"measure {measure!r} not registered for study {study_id!r}")
+    panel = load_longitudinal_panel(
+        dataset, [measures[measure]], waves=waves, complete_case=True
+    )
+    ctx.prepared = panel
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_historical_growth_model(
+        panel,
+        measure=measure,
+        eta_prior_sigma=spec.extra.get("eta_prior_sigma", 1.5),
+        sigma_subject_prior_sigma=spec.extra.get("sigma_subject_prior_sigma", 1.0),
+        kappa_prior_sigma=spec.extra.get("kappa_prior_sigma", 50.0),
+    )
+    _attach_built(ctx, built)
+
+    _render_model_graph(ctx)
+
+    diag_vars = ["eta_group_wave", "sigma_subject", "kappa"]
+    diag_vars += [
+        v
+        for v in (
+            "growth_first_next_items",
+            "growth_next_last_items",
+            "growth_first_last_items",
+        )
+        if v in ctx.model.named_vars
+    ]
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+
+    _run_sampling_and_loo(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx, var_names=["score"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(ctx)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    # Descriptive summaries: observed complete-case baseline (the Table 2 audit
+    # target), posterior group-by-wave fitted means, and within-group / between-
+    # group growth in items.
+    section_header("Growth summaries")
+    measure_label = measures[measure].label
+    baseline = _historical.observed_baseline(panel, measure, measure_label)
+    baseline.to_csv(
+        os.path.join(ctx.output_dir, "observed_complete_case_baseline.csv"),
+        index=False,
+    )
+    ctx.tables["observed_complete_case_baseline"] = baseline
+    cells = _historical.cell_summary(ctx.trace, panel, measure, measure_label, baseline)
+    cells.to_csv(
+        os.path.join(ctx.output_dir, "posterior_cell_summary.csv"), index=False
+    )
+    ctx.tables["posterior_cell_summary"] = cells
+    growth = _historical.growth_summary(ctx.trace, panel, measure)
+    growth.to_csv(
+        os.path.join(ctx.output_dir, "posterior_growth_summary.csv"), index=False
+    )
+    ctx.tables["posterior_growth_summary"] = growth
+    print_table(
+        ranked_dataframe_table(
+            growth,
+            title=(
+                f"{measure_label} growth (items) - "
+                f"{int(ctx.reporting.hdi * 100)}% CI (equal-tailed)"
+            ),
+            columns=["label", "readgrp_label", "mean", "q2_5", "q97_5", "p_gt_0"],
+            rank_column=False,
+            precision=2,
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
+            "study_id": study_id,
+            "measure": measure,
+            "measure_label": measure_label,
+            "n_trials": panel.n_trials[measure],
+            "waves": list(waves),
+            "groups": dict(
+                zip(panel.group_codes, panel.group_labels, strict=True)
+            ),
+            "n_subjects": panel.n_subjects,
         },
     )
 

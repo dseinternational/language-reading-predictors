@@ -18,6 +18,7 @@ from language_reading_predictors.models._reporting import (
     metrics_table,
     print_table,
 )
+from language_reading_predictors import paths
 from language_reading_predictors.models.registry import MODELS
 from language_reading_predictors.storage import upload_to_blob_storage
 
@@ -66,12 +67,25 @@ def main():
         action="store_true",
         help="Include .nc trace files in the upload (GB models have none).",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR); the relative layout is unchanged. Default: "
+            "repo-local output/."
+        ),
+    )
 
     freeze_support()
 
     setup.init_script()
 
     args = parser.parse_args()
+
+    paths.set_output_root(args.output_dir)
+    print(f"[bold]Output root:[/bold] {paths.describe_output_root()}")
 
     model_key = args.model.lower()
 
