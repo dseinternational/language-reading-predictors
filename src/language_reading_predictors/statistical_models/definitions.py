@@ -68,6 +68,7 @@ KINDS: frozenset[str] = frozenset(
         "lcsm",
         "mediation_multi",
         "horseshoe",
+        "growth",
     }
 )
 
@@ -172,6 +173,8 @@ _MECH = [
 _STRUCT = [
     _d("lrp65", "adjusted", "Adjusted association", Status.ASSOCIATION, "W", "between-child independent baseline predictors of word-reading gain"),
     _d("lrp67", "lcsm", "Latent change score", Status.ASSOCIATION, "W", "coupled letter-sounds and vocabulary predicting reading change"),
+    _d("lrp69", "growth", "Growth curve", Status.ASSOCIATION, None, "joint multivariate growth curves: baseline non-verbal ability predicting trajectory shape (independent-core)"),
+    _d("lrp70", "growth", "Growth curve", Status.ASSOCIATION, None, "joint multivariate growth curves with a shared growth-tempo factor", base="lrp69"),
     _d("lrp77", "dose_response", "Dose-response", Status.ASSOCIATION, "W", "period-resolved intervention dose -> word reading"),
     _d("lrp77a", "dose_response", "Dose-response", Status.ROBUSTNESS, "W", "ability-adjusted sensitivity", base="lrp77"),
     _d("lrp77base", "dose_response", "Dose-response", Status.COMPANION, "W", "pooled-dose-slope comparator", base="lrp77"),
