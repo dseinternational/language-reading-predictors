@@ -49,6 +49,14 @@ A gradient-boosting cross-check (`scripts/blocks_vocab_gb_diagnostic.py`) refits
 - **Block design carries marginal predictive signal.** It ranks mid-pack or better in five of six models (3–10 of 33) and correlates positively with every vocabulary target (marginal ρ ≈ 0.45–0.56) — consistent with non-verbal ability being broadly prognostic. It is not an unused predictor.
 - **Marginal (GB) vs incremental (Bayesian), as expected.** The GB permutation importance does not privilege the child's own baseline vocabulary as an anchor, so it reflects the _marginal_ contribution (larger, shared with baseline); the near-null Bayesian `gamma_blocks` shows that, incremental to baseline, little independent signal remains. The dev-tier ranks are also **noisy** (permutation SD ≥ mean in places, cv = 5) and do not cleanly reproduce the Bayesian taught-vs-standardised ordering — a reporting-tier GB fit (cv = 51 + SHAP direction) would sharpen the per-outcome comparison.
 
+## Byrne cohort (second-cohort check)
+
+The Byrne reading-language-memory cohort carries non-verbal reasoning (`basmat`) and receptive vocabulary (`bpvs`), so the same question can be checked in a second sample (`scripts/byrne_nonverbal_vocab_diagnostic.py`). Two constraints shape what is possible: `basmat` is recorded only from wave 3 (so it is not a baseline), and its instrument ceiling is unconfirmed (#164, decision 3) — so a bounded-count, covariate-adjusted Bayesian model is deferred and this is a **scale-free descriptive association**, i.e. the _marginal_ co-variation, not an incremental effect.
+
+At the wave-3 cross-section (n = 78, one row per child), non-verbal ability and receptive vocabulary are **strongly associated**: Spearman ρ = 0.78 overall (0.79 adjusting for age; wave 4 replicates at 0.81, n = 61). Within reading group the correlation is lower (ρ = 0.40 / 0.55 / 0.54 for groups 1 / 2 / 3) — the pooled value is inflated by between-group differences. An age- and reading-group-adjusted standardised OLS gives a `basmat` coefficient of **+0.33 (95% CI +0.11, +0.54)** on receptive vocabulary.
+
+This corroborates, in a second cohort, that non-verbal ability is a **strong marginal correlate** of receptive vocabulary — consistent with both loading on latent general ability. It is the marginal view: Byrne has no comparable baseline-vocabulary conditioning, so (unlike the RLI `gamma_blocks`) it does not isolate the value incremental to baseline vocabulary.
+
 ## Caveats
 
 - **n = 54**, single cohort; every 90% interval includes zero — these are suggestive / moderate _directional_ statements, not decisive effects.
@@ -58,4 +66,4 @@ A gradient-boosting cross-check (`scripts/blocks_vocab_gb_diagnostic.py`) refits
 ## Follow-ups (planned)
 
 - **Reporting-tier GB fit:** the GB corroboration above is dev-tier (noisy ranks, no SHAP direction); a reporting-tier fit (cv = 51 + SHAP) would sharpen the per-outcome ordering and give a signed direction.
-- **Byrne cohort** (Phase 3): the analogue `basmat` → `bpvs` (receptive), gated on the #164 Byrne data decisions and needing a covariate-adjusted vehicle on the historical panel (`basmat` is wave-3+; Byrne has no expressive-vocabulary measure).
+- **Formal Byrne model:** the Byrne check above is a scale-free descriptive association; a bounded-count, covariate-adjusted historical model (isolating the value incremental to baseline vocabulary, like the RLI `gamma_blocks`) is deferred pending confirmed `bpvs` / `basmat` ceilings (#164, decision 3) and a covariate-adjusted historical vehicle (`basmat` is wave-3+; Byrne has no expressive-vocabulary measure).
