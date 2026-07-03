@@ -75,6 +75,18 @@ if _rope is not None:
 print(_img("rope_summary.png", "ROPE-anchored posterior (risk-difference scale)"))
 ```
 
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import (
+    rope_sensitivity_markdown,
+)
+
+_sens = _csv("rope_sensitivity.csv")
+if _sens is not None:
+    print(rope_sensitivity_markdown(_sens, is_risk_difference=True))
+```
+
 ### Off-floor movers by arm
 
 ```{python}

@@ -767,9 +767,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # ROPE-anchored continuous summary on the items scale
     # (notes/202606261304-evidence-strength-and-rope-reporting.md). Emitted for
     # graded outcomes with an agreed minimally-important difference (delta);
-    # floored outcomes (P/N) take the floor-rule path and a probability-scale
-    # delta, which is not yet wired.
-    from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+    # floored outcomes (P/N) take the floor-rule path and a probability-scale delta.
+    from language_reading_predictors.statistical_models.measures import (
+        ROPE_DELTA,
+        rope_delta_grid,
+    )
 
     delta_items = ROPE_DELTA.get(spec.outcome_symbol)
     if delta_items is not None:
@@ -797,6 +799,19 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             int(built.prepared.n_trials[spec.outcome_symbol]),
             delta_items,
         )
+
+        # δ-sensitivity sweep (issue #144): P(benefit ≥ δ) at the adopted δ and a
+        # stricter 2·δ (word reading at δ = 1 and 2), for every graded outcome.
+        sens_df = _report.rope_sensitivity(
+            ctx.trace,
+            G=built.prepared.G,
+            n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
+            deltas=rope_delta_grid(spec.outcome_symbol),
+        )
+        sens_df.to_csv(
+            os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
+        )
+        ctx.tables["rope_sensitivity"] = sens_df
 
     _report.write_run_metadata(
         ctx,
@@ -926,8 +941,11 @@ def _fit_itt_floor_rule(
 
     # ROPE-anchored card on the off-floor RISK-DIFFERENCE scale (issue #125 Area 4;
     # #130 follow-up). delta is a probability (risk difference), n_trials = 1; the
-    # value is the provisional ROPE_DELTA_PROB pending education-lead sign-off.
-    from language_reading_predictors.statistical_models.measures import ROPE_DELTA_PROB
+    # 10 pp value is confirmed by the education lead (2026-07-01, issue #144).
+    from language_reading_predictors.statistical_models.measures import (
+        ROPE_DELTA_PROB,
+        ROPE_DELTA_PROB_GRID,
+    )
 
     delta_prob = ROPE_DELTA_PROB.get(own)
     if delta_prob is not None:
@@ -939,7 +957,7 @@ def _fit_itt_floor_rule(
             ci_prob=ctx.reporting.hdi,
             varying_term="",
         )
-        rope_s["provisional_delta"] = True
+        rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
         rope_s["delta_scale"] = "risk_difference"
         pd.DataFrame([rope_s]).to_csv(
             os.path.join(ctx.output_dir, "rope_summary.csv"), index=False
@@ -948,6 +966,19 @@ def _fit_itt_floor_rule(
         _save_rope_plot(
             ctx, own, built.prepared.G, 1, delta_prob, varying_term=""
         )
+
+        # δ-sensitivity sweep on the risk-difference scale (issue #144): 10/15/20 pp.
+        sens_df = _report.rope_sensitivity(
+            ctx.trace,
+            G=built.prepared.G,
+            n_trials=1,
+            deltas=ROPE_DELTA_PROB_GRID,
+            varying_term="",
+        )
+        sens_df.to_csv(
+            os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
+        )
+        ctx.tables["rope_sensitivity"] = sens_df
 
     # ----- SECONDARY: graded Beta-Binomial (detection-limited) -----
     section_header("Build model (SECONDARY: graded Beta-Binomial, detection-limited)")

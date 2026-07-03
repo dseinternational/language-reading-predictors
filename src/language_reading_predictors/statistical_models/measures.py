@@ -157,8 +157,10 @@ with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
 # --- ROPE half-widths (minimally-important difference, delta) -----------------
 # Per-outcome delta on the *items* scale, adopted 2026-06-26
 # (notes/202606261304-evidence-strength-and-rope-reporting.md): delta = half a
-# period's natural maturation gain, floored at 1 item and rounded. Provisional and
-# owned by the education lead. Consumed by ``reporting.rope_summary`` to report
+# period's natural maturation gain, floored at 1 item and rounded. Confirmed by the
+# education lead 2026-07-01 (issue #144): the rule and W = 1 stand; UR/UE remain
+# denominator-provisional (scale length unconfirmed — see ``unconfirmed_ceilings``).
+# Consumed by ``reporting.rope_summary`` to report
 # ``P(benefit >= delta)``. F/T (concepts/grammar) are outside the ITT suite and not
 # yet agreed, so they are deliberately absent (a look-up raises).
 ROPE_DELTA: dict[str, float] = {
@@ -174,12 +176,17 @@ ROPE_DELTA: dict[str, float] = {
 }
 
 # Floored outcomes: the ITT estimand is the probability of coming off the floor, so
-# delta is a *risk difference* in P(off-floor), not an items count. Placeholder
-# pending the education lead.
+# delta is a *risk difference* in P(off-floor), not an items count. Confirmed at 0.10
+# (10 pp) by the education lead 2026-07-01 (issue #144): given this group's evident
+# difficulty with these measures, 10 pp stands as the primary threshold.
 ROPE_DELTA_PROB: dict[str, float] = {
     "P": 0.10,
     "N": 0.10,
 }
+
+# Risk-difference δ grid for the floored-outcome sensitivity table (issue #144): the
+# adopted 10 pp plus 15 and 20 pp stricter checks, shown for every floored outcome.
+ROPE_DELTA_PROB_GRID: tuple[float, ...] = (0.10, 0.15, 0.20)
 
 
 def rope_delta(symbol: str) -> float:
@@ -194,6 +201,19 @@ def rope_delta(symbol: str) -> float:
             "ROPE_DELTA_PROB and F/T are not yet agreed."
         )
     return ROPE_DELTA[symbol]
+
+
+def rope_delta_grid(symbol: str) -> list[float]:
+    """δ-sensitivity grid (items scale): the adopted δ and a stricter 2·δ (issue #144).
+
+    The adopted δ is *half* a period's natural-maturation gain, so 2·δ is ≈ a full
+    period's gain: the pair brackets the meaningful-benefit claim between "half" and
+    "a full" period of typical growth. Word reading (δ = 1) therefore reports at
+    δ = 1 and δ = 2, exactly as the education lead requested (2026-07-01). Raises for
+    outcomes with no items-scale δ (floored P/N use ``ROPE_DELTA_PROB_GRID``).
+    """
+    d = rope_delta(symbol)
+    return [d, 2.0 * d]
 
 
 def unconfirmed_ceilings() -> list[str]:
