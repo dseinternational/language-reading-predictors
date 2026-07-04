@@ -22,6 +22,8 @@ Example
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
 from typing import Any, ClassVar
 
 from language_reading_predictors.data_variables import Predictors
@@ -42,9 +44,9 @@ MODELS: dict[str, ModelConfig] = {}
 
 def _build_predictors(
     target_var: str,
-    base: list[str],
-    include: list[str],
-    exclude: list[str],
+    base: Sequence[str],
+    include: Sequence[str],
+    exclude: Sequence[str],
 ) -> list[str]:
     """Assemble the final predictor list.
 
@@ -88,16 +90,16 @@ class ModelDefinition:
     description: ClassVar[str] = ""
     """Human-readable description for console output and reports."""
 
-    include: ClassVar[list[str]] = []
+    include: ClassVar[Sequence[str]] = ()
     """Extra predictor vars to prepend to the base set."""
 
-    exclude: ClassVar[list[str]] = []
+    exclude: ClassVar[Sequence[str]] = ()
     """Predictor vars to remove from the base set."""
 
     pipeline_cls: ClassVar[Any] = None
     """Pipeline class (e.g. ``LGBMPipeline``). Set lazily to avoid circular imports."""
 
-    params: ClassVar[dict[str, Any]] = {}
+    params: ClassVar[Mapping[str, Any]] = MappingProxyType({})
     """Estimator hyperparameters (passed to the estimator constructor)."""
 
     cv_splits: ClassVar[int] = 51
@@ -115,7 +117,7 @@ class ModelDefinition:
     pdp_top_n: ClassVar[int] = 15
     """Number of top features for auto-selected PDP."""
 
-    shap_scatter_specs: ClassVar[list[ShapScatterSpec]] = []
+    shap_scatter_specs: ClassVar[Sequence[ShapScatterSpec]] = ()
     """Ordered list of SHAP scatter/dependence plot sets to generate for
     this model. Empty by default — set on concrete subclasses to declare
     the plots the model exploration needs."""
@@ -130,7 +132,7 @@ class ModelDefinition:
 
     # ── base predictor set (overridden by GainModel / LevelModel) ────────
 
-    _base_predictors: ClassVar[list[str]] = []
+    _base_predictors: ClassVar[Sequence[str]] = ()
 
     # ── auto-registration ────────────────────────────────────────────────
 
@@ -198,7 +200,7 @@ class GainModel(ModelDefinition):
     variable (target name with ``_gain`` suffix stripped).
     """
 
-    _base_predictors: ClassVar[list[str]] = Predictors.DEFAULT_GAIN
+    _base_predictors: ClassVar[Sequence[str]] = Predictors.DEFAULT_GAIN
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         # Auto-include the base variable (e.g. ewrswr for ewrswr_gain)
@@ -218,4 +220,4 @@ class LevelModel(ModelDefinition):
     Automatically uses ``Predictors.DEFAULT_LEVEL``.
     """
 
-    _base_predictors: ClassVar[list[str]] = Predictors.DEFAULT_LEVEL
+    _base_predictors: ClassVar[Sequence[str]] = Predictors.DEFAULT_LEVEL

@@ -141,7 +141,7 @@ def _plot_violinplot(data: pd.DataFrame, variable: str, time_points: list[int]):
 
     fig, axes = plt.subplots(1, n, figsize=(3 * n, 4), sharey=True)
 
-    for ax, d, t in zip(axes, datasets, time_points):
+    for ax, d, t in zip(axes, datasets, time_points, strict=True):
         parts = ax.violinplot(
             d,
             showmeans=True,

@@ -65,9 +65,9 @@ class LRPGBG22(GainModel):
     params = _LGBM_MAE_PARAMS
     cv_splits = 51
     outlier_threshold = None
-    shap_scatter_specs = [
+    shap_scatter_specs = (
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
-    ]
+    )
     notes = (
         "Exploratory model for deappav_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) — treat the ranking as exploratory."
     )

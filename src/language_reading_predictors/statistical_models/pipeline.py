@@ -79,6 +79,25 @@ from language_reading_predictors.statistical_models.preprocessing import (
 # ---------------------------------------------------------------------------
 
 
+def _require_spec(
+    spec: ModelSpec,
+    kind: str,
+    *,
+    outcome: bool = False,
+    mechanism: bool = False,
+) -> None:
+    """Validate model specs at runtime; unlike ``assert``, this is never optimised away."""
+    if spec.kind != kind:
+        msg = f"{spec.model_id}: expected kind {kind!r}, got {spec.kind!r}"
+        raise ValueError(msg)
+    if outcome and spec.outcome_symbol is None:
+        msg = f"{spec.model_id}: outcome_symbol is required for {kind!r} models"
+        raise ValueError(msg)
+    if mechanism and spec.mechanism_symbol is None:
+        msg = f"{spec.model_id}: mechanism_symbol is required for {kind!r} models"
+        raise ValueError(msg)
+
+
 def _print_header(ctx: StatisticalFitContext) -> None:
     """Print the start-of-fit banner panel."""
     spec = ctx.spec
@@ -648,8 +667,7 @@ def _finalize_report(ctx: StatisticalFitContext) -> StatisticalFitContext:
 
 
 def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "itt"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "itt", outcome=True)
 
     ctx = make_context(spec, config)
 
@@ -1022,7 +1040,7 @@ def _fit_itt_floor_rule(
 
 
 def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "joint"
+    _require_spec(spec, "joint")
 
     ctx = make_context(spec, config)
 
@@ -1152,8 +1170,7 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
 
 
 def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "did"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "did", outcome=True)
 
     ctx = make_context(spec, config)
 
@@ -1262,8 +1279,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
 
 def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "mechanism"
-    assert spec.mechanism_symbol is not None
+    _require_spec(spec, "mechanism", mechanism=True)
 
     ctx = make_context(spec, config)
 
@@ -1447,7 +1463,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     per-period intervention **dose** (``attend``), entered with partial-pooled
     period-specific slopes. See :func:`factories.build_dose_response_model`.
     """
-    assert spec.kind == "dose_response"
+    _require_spec(spec, "dose_response")
 
     ctx = make_context(spec, config)
 
@@ -1651,7 +1667,7 @@ def _fit_t3_sensitivity(
     )
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
-    assert spec.kind == "mediation"
+    _require_spec(spec, "mediation")
     from language_reading_predictors.statistical_models import mediation as _med
 
     ctx = make_context(spec, config)
@@ -1803,8 +1819,7 @@ def _gf_diag_vars(spec: ModelSpec) -> list[str]:
 
 
 def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "gain_factors"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "gain_factors", outcome=True)
     ctx = make_context(spec, config)
     extra = spec.extra
 
@@ -2003,8 +2018,7 @@ def _lf_diag_vars(spec: ModelSpec) -> list[str]:
 
 
 def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "level_factors"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "level_factors", outcome=True)
     ctx = make_context(spec, config)
     extra = spec.extra
 
@@ -2143,8 +2157,7 @@ def _al_diag_vars(spec: ModelSpec) -> list[str]:
 
 
 def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "aligned"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "aligned", outcome=True)
     ctx = make_context(spec, config)
     extra = spec.extra
 
@@ -2255,7 +2268,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     indirect effect as the headline plus the (ordering-dependent) path-specific
     indirect effects.
     """
-    assert spec.kind == "mediation_multi"
+    _require_spec(spec, "mediation_multi")
     from language_reading_predictors.statistical_models import mediation as _med
 
     ctx = make_context(spec, config)
@@ -2503,7 +2516,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     trace / diagnostics / LOO / PPC artefacts. Not causal — a which-predictors
     -carry-signal read to compare against the GB cluster ranking.
     """
-    assert spec.kind == "horseshoe"
+    _require_spec(spec, "horseshoe")
     e = spec.extra
     outcome = spec.outcome_symbol or "W"
     gain = bool(e.get("gain", True))
@@ -2619,7 +2632,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ``prior_sensitivity.csv`` and ``ses_sensitivity.csv`` alongside the standard
     trace / diagnostics / LOO / PPC artefacts.
     """
-    assert spec.kind == "adjusted"
+    _require_spec(spec, "adjusted")
     e = spec.extra
     outcome = spec.outcome_symbol or "W"
     post_time = int(e.get("post_time", 4))
@@ -2892,7 +2905,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     reports the reading-change coupling table — the within-trajectory analogue
     of LRP65's between-child predictors of reading gain.
     """
-    assert spec.kind == "lcsm"
+    _require_spec(spec, "lcsm")
 
     ctx = make_context(spec, config)
 
@@ -3001,7 +3014,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     **adjusted, latent-GA-confounded association**, never causal (locked DAG,
     ``notes/202606231600-dag-revision-consolidated.md``).
     """
-    assert spec.kind == "growth"
+    _require_spec(spec, "growth")
 
     ctx = make_context(spec, config)
 
@@ -3134,7 +3147,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     **not** an intervention-effect model - ``group`` carries no treatment
     semantics (see :func:`factories.build_historical_growth_model`).
     """
-    assert spec.kind == "historical_growth"
+    _require_spec(spec, "historical_growth")
 
     ctx = make_context(spec, config)
 
@@ -3266,7 +3279,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     A triangulation / measurement model, not causal (every factor->gain slope is a
     latent-ability-confounded adjusted association; #115 ID-2).
     """
-    assert spec.kind == "corr_factor"
+    _require_spec(spec, "corr_factor")
 
     ctx = make_context(spec, config)
 

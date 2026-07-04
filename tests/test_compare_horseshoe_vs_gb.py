@@ -57,8 +57,8 @@ def test_gb_construct_ranking_takes_max_per_construct(cmp_mod):
         }
     )
     out = cmp_mod.gb_construct_ranking(gb, {k: v for k, v in col2sym.items() if v})
-    ranks = dict(zip(out["symbol"], out["gb_rank"]))
-    imps = dict(zip(out["symbol"], out["gb_perm_imp"]))
+    ranks = dict(zip(out["symbol"], out["gb_rank"], strict=True))
+    imps = dict(zip(out["symbol"], out["gb_perm_imp"], strict=True))
     # Best (max) per construct: L keeps 0.25 (not 0.10); demographic dropped.
     assert imps["L"] == 0.25
     assert set(out["symbol"]) == {"L", "R", "E"}

@@ -46,8 +46,8 @@ Usage
 
 from __future__ import annotations
 
+import argparse
 import json
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -58,10 +58,12 @@ from sklearn.inspection import permutation_importance
 from sklearn.model_selection import GroupKFold
 
 import language_reading_predictors.data_utils as data_utils
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.models.registry import MODELS
 
-_ROOT_DIR = Path(__file__).resolve().parent.parent
-_OUTPUT_DIR = _ROOT_DIR / "output" / "sensitivity" / "lrpgbl12_weight"
+
+def _output_dir():
+    return _paths.output_root() / "sensitivity" / "lrpgbl12_weight"
 
 
 def _pooled_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
@@ -137,7 +139,22 @@ def _permutation_importance(
 
 
 def main() -> None:
-    _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
+    args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
+
+    out_dir = _output_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = MODELS["lrpgbl12"]
     print(f"Model: {cfg.model_id}")
@@ -250,7 +267,7 @@ def main() -> None:
     )
     comparison = comparison.sort_values("imp_unweighted", ascending=False)
 
-    comparison_path = _OUTPUT_DIR / "importance_comparison.csv"
+    comparison_path = out_dir / "importance_comparison.csv"
     comparison.to_csv(comparison_path, index=False)
     print(f"\nSaved: {comparison_path}")
     print(comparison.to_string(index=False))
@@ -269,8 +286,8 @@ def main() -> None:
         ),
         "pooled_oof_dropped_agebooks_agespeak": metrics_dropped,
     }
-    (_OUTPUT_DIR / "metrics.json").write_text(json.dumps(metrics, indent=2))
-    print(f"Saved: {_OUTPUT_DIR / 'metrics.json'}")
+    (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
+    print(f"Saved: {out_dir / 'metrics.json'}")
     print("\nPooled OOF metrics:")
     print(f"  Unweighted model (13 predictors):    {metrics_unweighted}")
     print(f"  Weighted model (unweighted scoring): {metrics_weighted}")
@@ -309,7 +326,7 @@ def main() -> None:
     ax.legend(loc="lower right")
     ax.grid(axis="x", alpha=0.3)
     fig.tight_layout()
-    plot_path = _OUTPUT_DIR / "importance_comparison.png"
+    plot_path = out_dir / "importance_comparison.png"
     fig.savefig(plot_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {plot_path}")

@@ -74,7 +74,7 @@ class LRPGBL02(LevelModel):
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    exclude = [V.B1EXTO]
+    exclude = (V.B1EXTO,)
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for predictors of taught expressive-vocabulary level "
