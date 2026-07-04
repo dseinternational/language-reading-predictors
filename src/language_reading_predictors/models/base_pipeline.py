@@ -188,7 +188,7 @@ class EstimatorPipeline:
         train_idx_iter = cv_results["indices"]["train"]
         test_idx_iter = cv_results["indices"]["test"]
         for est, tr_idx, val_idx in zip(
-            cv_results["estimator"], train_idx_iter, test_idx_iter
+            cv_results["estimator"], train_idx_iter, test_idx_iter, strict=True
         ):
             fold_pred = est.predict(context.X.iloc[val_idx])
             oof_pred[val_idx] = fold_pred
@@ -302,7 +302,7 @@ class EstimatorPipeline:
 
         fold_importances = []
         for est, val_idx in zip(
-            cv_results["estimator"], cv_results["indices"]["test"]
+            cv_results["estimator"], cv_results["indices"]["test"], strict=True
         ):
             X_val = context.X.iloc[val_idx]
             y_val = context.y.iloc[val_idx]
@@ -380,7 +380,7 @@ class EstimatorPipeline:
         )
         ax.invert_yaxis()
         ax.axvline(0.0, color="black", linestyle="--", linewidth=1)
-        ax.set_xlabel("Decrease in held-out RMSE when feature is permuted")
+        ax.set_xlabel("Increase in held-out RMSE when feature is permuted")
         ax.set_ylabel("Predictor variable")
         ax.set_title("Out-of-fold permutation importance")
         ax.grid(axis="x", alpha=0.3)
@@ -1193,6 +1193,7 @@ class EstimatorPipeline:
             zip(
                 context.perm_importance_df["feature"],
                 context.perm_importance_df["importance_mean"],
+                strict=True,
             )
         )
         features_ordered = sorted(

@@ -45,14 +45,16 @@ import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 
-from language_reading_predictors.statistical_models.environment import OUTPUT_DIR
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     logit_safe,
 )
 
-_OUT_DIR = os.path.join(OUTPUT_DIR, "interaction_screen")
+
+def _out_dir() -> str:
+    return str(_paths.output_root() / "interaction_screen")
 
 
 def _zscore(x: np.ndarray) -> np.ndarray:
@@ -128,16 +130,28 @@ def main() -> None:
         "--moderator", default="age", help="Moderator: 'age' or a measure symbol (E, B, ...)."
     )
     parser.add_argument("--outcome", default="W", help="Outcome symbol (default W).")
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
     args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
 
     out = run_check(args.mechanism, args.moderator, args.outcome)
     label = out.attrs["label"]
     print(f"\nWithin-child interaction check — {label}\n")
     print(out.to_string(index=False))
 
-    os.makedirs(_OUT_DIR, exist_ok=True)
+    out_dir = _out_dir()
+    os.makedirs(out_dir, exist_ok=True)
     slug = f"{args.mechanism}x{args.moderator}_{args.outcome}".lower()
-    path = os.path.join(_OUT_DIR, f"within_child_{slug}.csv")
+    path = os.path.join(out_dir, f"within_child_{slug}.csv")
     out.to_csv(path, index=False)
     print(f"\nWrote {path}")
 

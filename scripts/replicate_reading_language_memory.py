@@ -29,16 +29,12 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from language_reading_predictors import paths as _paths
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_PATH = (
-    REPO_ROOT
-    / "data"
+    _paths.DATA_DIR
     / "reading-language-memory"
     / "reading_language_memory_data_long.csv"
-)
-DEFAULT_OUTPUT_DIR = (
-    REPO_ROOT / "output" / "reading_language_memory" / "replication"
 )
 
 PAPER_WAVES: tuple[int, ...] = (1, 2, 3)
@@ -92,6 +88,9 @@ REQUIRED_COLUMNS: frozenset[str] = frozenset(
 
 
 def parse_args() -> argparse.Namespace:
+    default_output_dir = (
+        _paths.output_root() / "reading_language_memory" / "replication"
+    )
     parser = argparse.ArgumentParser(
         description="Reproduce first-pass reading-language-memory summaries.",
     )
@@ -104,8 +103,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help=f"Directory for output CSVs (default: {DEFAULT_OUTPUT_DIR})",
+        default=default_output_dir,
+        help=f"Directory for output CSVs (default: {default_output_dir})",
     )
     return parser.parse_args()
 

@@ -8,9 +8,10 @@ y = nonword reading (``nonword``) total gain = level at the child's last availab
     wave minus level at time 1. One point per child.
 
 Standalone by design: this script loads ``data/rli_data_long.csv`` directly and
-hardcodes its own columns, labels and output path. It imports no project code so
-it can be archived and edited in isolation. Duplication across the descriptive
-plot scripts is intentional -- do not refactor shared logic into a helper.
+hardcodes its own columns and labels and resolves its output path through
+``language_reading_predictors.paths`` so scratch-output runs stay
+consistent. Duplication across the descriptive plot scripts is intentional --
+do not refactor shared logic into a helper.
 
 Run::
 
@@ -19,10 +20,12 @@ Run::
 
 from __future__ import annotations
 
-from pathlib import Path
+import argparse
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
+from language_reading_predictors import paths as _paths
 
 # --- Per-figure configuration (the only lines that differ between scripts) ---
 X_COL = "yarclet"  # predictor measure (level column)
@@ -37,9 +40,11 @@ N_BINS = 5  # quantile bins across x
 MIN_BIN_N = 4  # skip bins with fewer points than this
 DPI = 140
 
-_ROOT = Path(__file__).resolve().parents[2]
-_DATA_PATH = _ROOT / "data" / "rli_data_long.csv"
-_OUT_DIR = _ROOT / "output" / "descriptive"
+_DATA_PATH = _paths.DATA_DIR / "rli_data_long.csv"
+
+
+def _out_dir():
+    return _paths.output_root() / "descriptive"
 
 
 def build_panel(df: pd.DataFrame) -> pd.DataFrame:
@@ -81,6 +86,20 @@ def binned_summary(panel: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
+    args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
+
     df = pd.read_csv(_DATA_PATH)
     panel = build_panel(df)
     summary = binned_summary(panel)
@@ -111,8 +130,9 @@ def main() -> None:
     ax.margins(x=0.03)
     fig.tight_layout()
 
-    _OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = _OUT_DIR / OUT_NAME
+    out_dir = _out_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / OUT_NAME
     fig.savefig(out_path, dpi=DPI)
     plt.close(fig)
     print(f"wrote {out_path}")

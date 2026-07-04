@@ -11,6 +11,10 @@ structural invariants the rest of the codebase relies on.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
+import pytest
+
 from language_reading_predictors.data_variables import (
     Categories,
     Predictors,
@@ -137,7 +141,16 @@ def test_get_variable_name_falls_back_to_identifier():
     assert V.get_variable_name("no_such_var") == "no_such_var"
 
 
-def test_category_maps_are_nonempty_dicts():
+def test_category_maps_are_nonempty_mappings():
     for name in ("GENDER", "AREA", "GROUP", "TIME", "IMPAIRED", "NO_YES"):
         mapping = getattr(Categories, name)
-        assert isinstance(mapping, dict) and mapping
+        assert isinstance(mapping, Mapping) and mapping
+
+
+def test_schema_groups_are_read_only():
+    assert isinstance(V.NUMERIC, tuple)
+    assert isinstance(Predictors.DEFAULT_GAIN, tuple)
+    with pytest.raises(AttributeError):
+        V.NUMERIC.append("new_column")
+    with pytest.raises(TypeError):
+        Categories.GENDER[3] = "Other"

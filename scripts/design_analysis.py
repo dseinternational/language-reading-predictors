@@ -40,7 +40,7 @@ import numpy as np
 import pymc as pm
 from scipy import stats
 
-from language_reading_predictors.statistical_models import environment as _env
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models import reporting as _report
 from language_reading_predictors.statistical_models.factories import build_itt_model
 from language_reading_predictors.statistical_models.measures import MEASURES, ROPE_DELTA
@@ -292,9 +292,20 @@ def main():
         action="store_true",
         help="also copy the figures into notes/assets/ to update the committed note",
     )
+    ap.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
     args = ap.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
 
-    out_dir = os.path.join(_env.STAT_OUTPUT_DIR, "models", "design_analysis")
+    out_dir = os.path.join(str(_paths.stat_models_dir()), "design_analysis")
     os.makedirs(out_dir, exist_ok=True)
 
     results = []
@@ -318,7 +329,7 @@ def main():
     print(f"\nWROTE {da_png}\nWROTE {rope_png}")
 
     if args.refresh_note:
-        notes_assets = os.path.join(_env.DOCS_DIR, "..", "notes", "assets")
+        notes_assets = os.path.join(str(_paths.DOCS_DIR), "..", "notes", "assets")
         notes_assets = os.path.normpath(notes_assets)
         os.makedirs(notes_assets, exist_ok=True)
         shutil.copy(da_png, os.path.join(notes_assets, "202606261304-type-s-m-design-analysis.png"))

@@ -61,9 +61,9 @@ class LRPGBL23(LevelModel):
     params = _LGBM_MAE_PARAMS
     cv_splits = 51
     outlier_threshold = None
-    shap_scatter_specs = [
+    shap_scatter_specs = (
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
-    ]
+    )
     notes = (
         "Exploratory model for deapp_c (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Treat the ranking as exploratory."
     )
