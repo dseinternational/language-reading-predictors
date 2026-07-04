@@ -16,7 +16,7 @@ Example
     class LRPGBG12(GainModel):
         model_id = "lrpgbg12"
         target_var = V.EWRSWR_GAIN
-        include = [V.EWRSWR]
+        include = (V.EWRSWR,)
         cv_splits = 53
 """
 
@@ -207,10 +207,9 @@ class GainModel(ModelDefinition):
         if hasattr(cls, "target_var") and cls.target_var:
             base_var = cls.target_var.removesuffix("_gain")
             own_include = cls.__dict__.get("include")
-            include = list(own_include if own_include is not None else cls.include or [])
+            include = tuple(own_include if own_include is not None else cls.include or ())
             if base_var not in include:
-                include.insert(0, base_var)
-                cls.include = include
+                cls.include = (base_var, *include)
         super().__init_subclass__(**kwargs)
 
 

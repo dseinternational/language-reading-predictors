@@ -45,6 +45,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 import os
 
 import numpy as np
@@ -72,7 +73,7 @@ def _screen_dir() -> str:
     return str(_paths.output_root() / "interaction_screen")
 
 # target key -> (target column, predictor list, human label)
-TARGETS: dict[str, tuple[str, list[str], str]] = {
+TARGETS: dict[str, tuple[str, Sequence[str], str]] = {
     "level": (Variables.EWRSWR, Predictors.DEFAULT_LEVEL, "reading level (ewrswr)"),
     "gain": (Variables.EWRSWR_GAIN, Predictors.DEFAULT_GAIN, "reading gain (ewrswr_gain)"),
 }
