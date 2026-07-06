@@ -61,8 +61,9 @@ from dse_research_utils.ml.importance import (
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Predictors
-from language_reading_predictors.models.base_pipeline import _OUTPUT_DIR, _clear_directory
+from language_reading_predictors.models.base_pipeline import _clear_directory
 from language_reading_predictors.models.cluster_ranking import (
     SAME_SKILL_SIBLINGS,
     assemble_ranking,
@@ -73,12 +74,12 @@ from language_reading_predictors.models.registry import MODELS
 from language_reading_predictors.stats_utils import distance_corr_matrix
 
 
-_ROOT = Path(__file__).resolve().parent.parent
-RANKING_ROOT = _ROOT / "output" / "ranking"  # gitignored
-# Helper fits go wherever the *installed* pipeline writes — base_pipeline._OUTPUT_DIR,
-# which resolves to the editable install's repo root, NOT necessarily this script's
-# worktree. Use that exact dir so scratch cleanup targets the real fits.
-MODELS_ROOT = _OUTPUT_DIR
+def _ranking_root() -> Path:
+    return _paths.output_root() / "ranking"
+
+
+def _models_root() -> Path:
+    return _paths.gb_models_dir()
 
 
 def _fmt(x, spec: str = "{:.3f}") -> str:
@@ -217,7 +218,7 @@ def cutoff_sensitivity(X, target, cutoffs=(0.2, 0.3, 0.4, 0.5, 0.6)):
     rows = []
     for t in cutoffs:
         cl = hierarchy.fcluster(Z, t=t, criterion="distance")
-        memb = {f: int(c) for f, c in zip(feats, cl)}
+        memb = {f: int(c) for f, c in zip(feats, cl, strict=True)}
         anchor_members = sorted(f for f in feats if memb[f] == memb[anchor])
         rows.append({
             "cutoff": t,
@@ -260,7 +261,7 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
         raise SystemExit(f"unknown model id {model_id!r}; known: {sorted(MODELS)}")
     base = MODELS[model_id]
     run = make_run(base, cv_splits=cv_splits, perm_repeats=perm_repeats, quick=quick)
-    out = RANKING_ROOT / model_id
+    out = _ranking_root() / model_id
     out.mkdir(parents=True, exist_ok=True)
     print(f"\n{'=' * 78}\n  RANK PREDICTORS — {model_id}  "
           f"(cutoff={cutoff}, cv_splits={run.cv_splits}, quick={quick})\n{'=' * 78}")
@@ -270,7 +271,9 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
         cfg_full, target, siblings = make_config(model_id, kind="full")
         full = run_stages(cfg_full, run, cluster_cutoff=cutoff, do_stability=not quick)
         clusters_tbl = pd.read_csv(full.context.output_dir / "cluster_table.csv")
-        clusters_by_feature = dict(zip(clusters_tbl["feature"], clusters_tbl["cluster_id"]))
+        clusters_by_feature = dict(
+            zip(clusters_tbl["feature"], clusters_tbl["cluster_id"], strict=True)
+        )
         cluster_imp = cluster_permutation_importance(
             full, clusters_by_feature, n_repeats=5 if quick else run.perm_importance_repeats)
 
@@ -325,7 +328,7 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
         # from model_id. They are scratch — never real models — but upload.py globs every
         # output/models/ subdir, so leaving them would publish them as if fitted. Remove
         # them here (success or failure); the ranking artefacts are under output/ranking/<id>/.
-        for d in MODELS_ROOT.glob(f"rank_{model_id}_*"):
+        for d in _models_root().glob(f"rank_{model_id}_*"):
             if d.is_dir():
                 shutil.rmtree(d, ignore_errors=True)
 
@@ -369,7 +372,19 @@ def main() -> None:
                     help="permutation-importance repeats (default: the model's registered value)")
     ap.add_argument("--quick", action="store_true",
                     help="fast dev tier: cv=5, repeats=5, skip stability")
+    ap.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR); the relative layout is unchanged. Default: "
+            "repo-local output/."
+        ),
+    )
     args = ap.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
     run_model(args.model, cutoff=args.cutoff, cv_splits=args.cv_splits,
               perm_repeats=args.perm_repeats, quick=args.quick)
 

@@ -44,14 +44,15 @@ Usage
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from rich import print
 
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.statistical_models import environment as env
 from language_reading_predictors.statistical_models.measures import MEASURES
 
 # Timepoints in the long format (1 = baseline/screening, 2 = post phase-0, ...).
@@ -71,7 +72,8 @@ MIN_SCALE_USED = 0.25  # observed range as a fraction of the test maximum
 FLOOR_LIMIT = 0.40  # fraction at zero
 MIN_MOVERS = 0.40  # fraction of children with a non-zero t1 -> t2 change
 
-_OUTPUT_DIR = Path(env.OUTPUT_DIR) / "measurement_audit"
+def _output_dir() -> Path:
+    return _paths.output_root() / "measurement_audit"
 
 
 def _timepoint_stats(values: np.ndarray, n_trials: int) -> dict[str, float]:
@@ -214,14 +216,29 @@ def build_audit(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def main() -> None:
-    csv_path = Path(env.DATA_DIR) / "rli_data_long.csv"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
+    args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"[bold]Output root:[/bold] {_paths.describe_output_root()}")
+
+    csv_path = _paths.DATA_DIR / "rli_data_long.csv"
     df = pd.read_csv(csv_path)
 
     properties, verdicts = build_audit(df)
 
-    _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    properties_path = _OUTPUT_DIR / "outcome_properties.csv"
-    verdict_path = _OUTPUT_DIR / "detectability_verdict.csv"
+    output_dir = _output_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    properties_path = output_dir / "outcome_properties.csv"
+    verdict_path = output_dir / "detectability_verdict.csv"
     properties.round(4).to_csv(properties_path, index=False)
     verdicts.round(4).to_csv(verdict_path, index=False)
 

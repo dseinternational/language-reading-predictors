@@ -2903,6 +2903,166 @@ def build_lcsm_model(
     return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
 
 
+def build_growth_model(
+    panel: WavePanel,
+    *,
+    baseline_covariate: str = "blocks",
+    use_shared_factor: bool = False,
+    intercept_prior_sigma: float = 1.5,
+    slope_prior_sigma: float = 0.5,
+    assoc_prior_sigma: float = 0.5,
+    re_intercept_prior_sigma: float = 1.0,
+    re_slope_prior_sigma: float = 0.5,
+    loading_prior_sigma: float = 0.5,
+    kappa_prior_sigma: float = 50.0,
+) -> BuiltModel:
+    """Joint multivariate latent growth-curve model (LRP69/70) on the logit scale.
+
+    Characterises each measure's within-child trajectory across the waves and asks
+    whether a **baseline** covariate (``blocks``, the t1-only WPPSI Block Design
+    non-verbal score) predicts trajectory *shape*. For measure ``k``, child ``i``,
+    wave ``t`` (with ``a`` = standardised age)::
+
+        theta[i,t,k]   = intercept[i,k] + slope[i,k] * a[i,t]
+        intercept[i,k] = alpha_k + delta_k * z(blocks_i) + sigma0_k * z0[i,k]
+        slope[i,k]     = beta_k  + gamma_k * z(blocks_i) + [loading_k * G_i]
+                                 + sigma1_k * z1[i,k]
+        y[i,t,k] ~ BetaBinomial(N_k, mu = sigmoid(theta[i,t,k]), kappa_k)
+
+    Growth is **linear in standardised age** — the identifiable choice at four
+    waves. ``gamma_k`` (baseline non-verbal ability -> growth *rate*) is the
+    headline Q5 estimand; ``delta_k`` is the effect on baseline *level*. Both are
+    **adjusted / GA-confounded associations, never causal** (block design is an
+    off-DAG ability proxy; see ``notes/202606231600-dag-revision-consolidated.md``).
+
+    The child-level random intercept and slope are **independent per measure** —
+    the within-measure intercept-slope correlation is deliberately omitted at
+    n~54, mirroring the joint ITT model's disabled LKJ residual correlation (found
+    prior-dominated at this sample size, ``notes/202604181600-lrp52-58-findings.md``).
+    Everything is non-centred for sampling.
+
+    ``use_shared_factor`` adds a rank-1 shared child-level growth-tempo factor
+    ``G_i ~ Normal(0, 1)`` loading (positively, for identification) on every
+    measure's slope — the genuinely *joint* layer (LRP70): does a common
+    developmental tempo couple the measures, and (read out post-hoc) does baseline
+    non-verbal ability predict it? ``LOO(LRP69 vs LRP70)`` shows whether the factor
+    earns its keep. The core LRP69 keeps ``use_shared_factor=False``.
+
+    Observed counts enter via a **masked** Beta-Binomial (the LRP55 flattened-mask
+    idiom): only the unmasked cells in ``panel.obs_mask`` are observed, so a child
+    missing one score still contributes its other waves. The intervention-dose
+    covariate is **omitted** (the locked DAG's ``IS`` collider, as in
+    :func:`build_lcsm_model`).
+    """
+    OUT = tuple(panel.outcomes)
+    K = len(OUT)
+    N = panel.n_children
+    T = panel.n_waves
+    if T < 2:
+        raise ValueError("growth model needs at least two waves")
+    if baseline_covariate not in panel.baseline:
+        raise KeyError(
+            f"baseline_covariate {baseline_covariate!r} not loaded; pass "
+            f"baseline_covariates=({baseline_covariate!r},) to load_wave_panel."
+        )
+
+    # Observed counts / mask / denominators stacked as (N, T, K) in OUT order.
+    counts_int = np.stack(
+        [np.nan_to_num(panel.counts[s], nan=0.0).astype(np.int64) for s in OUT],
+        axis=2,
+    )
+    mask = np.stack([panel.obs_mask[s] for s in OUT], axis=2)  # (N, T, K) bool
+    n_trials_vec = np.array([panel.n_trials[s] for s in OUT], dtype=int)  # (K,)
+    zb = np.asarray(panel.baseline[baseline_covariate], dtype=float)  # (N,) standardised
+
+    # Intercept anchor: grand-mean observed logit per measure (the intercept is the
+    # logit level at mean age, age_std = 0). Guard the all-NaN case loudly.
+    missing = [s for s in OUT if not np.isfinite(panel.logit[s]).any()]
+    if missing:
+        raise ValueError(
+            "growth intercept anchor is undefined (no observed value) for: "
+            f"{', '.join(missing)}."
+        )
+    intercept_anchor = np.array(
+        [np.nanmean(panel.logit[s]) for s in OUT], dtype=float
+    )
+
+    coords = {"child": np.arange(N), "wave": panel.waves, "outcome": list(OUT)}
+
+    from dse_research_utils.math.constants import EPSILON  # local import
+
+    with pm.Model(coords=coords) as model:
+        age = pm.Data("age_std", panel.age_std, dims=("child", "wave"))
+        blocks = pm.Data("blocks_std", zb, dims="child")
+
+        # Population growth parameters (per measure).
+        alpha = pm.Normal(
+            "alpha", mu=intercept_anchor, sigma=intercept_prior_sigma, dims="outcome"
+        )
+        beta = pm.Normal("beta", mu=0.0, sigma=slope_prior_sigma, dims="outcome")
+        # Baseline non-verbal ability -> trajectory shape (the Q5 estimands):
+        # delta on the baseline level, gamma on the growth rate (headline).
+        delta = pm.Normal("delta", mu=0.0, sigma=assoc_prior_sigma, dims="outcome")
+        gamma = pm.Normal("gamma", mu=0.0, sigma=assoc_prior_sigma, dims="outcome")
+        # Child-level random intercept + slope (independent per measure).
+        sigma_intercept = pm.HalfNormal(
+            "sigma_intercept", sigma=re_intercept_prior_sigma, dims="outcome"
+        )
+        sigma_slope = pm.HalfNormal(
+            "sigma_slope", sigma=re_slope_prior_sigma, dims="outcome"
+        )
+        z_intercept = pm.Normal("z_intercept", 0.0, 1.0, dims=("child", "outcome"))
+        z_slope = pm.Normal("z_slope", 0.0, 1.0, dims=("child", "outcome"))
+        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome")
+
+        # child x outcome intercepts and slopes (non-centred).
+        intercept = pm.Deterministic(
+            "intercept",
+            alpha[None, :]
+            + delta[None, :] * blocks[:, None]
+            + sigma_intercept[None, :] * z_intercept,
+            dims=("child", "outcome"),
+        )
+        slope_mean = beta[None, :] + gamma[None, :] * blocks[:, None]
+        if use_shared_factor:
+            # Rank-1 shared child-level growth-tempo factor: positive loadings so
+            # G is a common "faster growth on every measure" tempo (identification).
+            G = pm.Normal("G_tempo", 0.0, 1.0, dims="child")
+            loading = pm.HalfNormal(
+                "loading", sigma=loading_prior_sigma, dims="outcome"
+            )
+            slope_mean = slope_mean + loading[None, :] * G[:, None]
+        slope = pm.Deterministic(
+            "slope",
+            slope_mean + sigma_slope[None, :] * z_slope,
+            dims=("child", "outcome"),
+        )
+
+        # Latent logit trajectory (linear in standardised age).
+        theta = pm.Deterministic(
+            "theta",
+            intercept[:, None, :] + slope[:, None, :] * age[:, :, None],
+            dims=("child", "wave", "outcome"),
+        )
+
+        # Masked Beta-Binomial observation (LRP55 flattened-mask idiom).
+        mu = pm.math.sigmoid(theta)
+        mu_clip = pm.math.clip(mu, EPSILON, 1 - EPSILON)
+        alpha_bb = (mu_clip * kappa[None, None, :]).reshape((-1,))
+        beta_bb = ((1 - mu_clip) * kappa[None, None, :]).reshape((-1,))
+        idx_i, idx_t, idx_k = np.nonzero(mask)
+        lin = np.ravel_multi_index((idx_i, idx_t, idx_k), (N, T, K))
+        pm.BetaBinomial(
+            "y_obs",
+            n=n_trials_vec[idx_k],
+            alpha=alpha_bb[lin],
+            beta=beta_bb[lin],
+            observed=counts_int[idx_i, idx_t, idx_k],
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
+
+
 # ---------------------------------------------------------------------------
 # Historical group-by-wave growth (RLMHG, #165 - first non-RLI dataset)
 # ---------------------------------------------------------------------------

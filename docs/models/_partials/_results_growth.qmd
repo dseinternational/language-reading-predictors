@@ -1,0 +1,131 @@
+## Results — does baseline non-verbal ability predict trajectory shape?
+
+The growth model characterises each measure's within-child trajectory (a latent
+logit intercept + linear age slope) and asks whether **baseline non-verbal
+ability** (`blocks`, the t1 WPPSI Block Design score) predicts that shape:
+`gamma` on the growth **rate** — the headline Q5 estimand — and `delta` on the
+baseline **level**. Every coefficient below is an **adjusted association**, not a
+causal effect (see the callout at the end).
+
+```{python}
+# | echo: false
+_gs = _csv("growth_association_summary.csv")
+
+
+def _label(sym: str) -> str:
+    m = _measures.MEASURES.get(sym)
+    return f"{sym} — {m.label}" if m is not None else sym
+
+
+def _coef_table(coef: str):
+    """Per-outcome rows for one coefficient, or a note when it is absent."""
+    if _gs is None:
+        return "No growth-association summary was written."
+    d = _gs[_gs["coefficient"] == coef].copy()
+    if not len(d):
+        return None
+    d["measure"] = d["outcome"].map(_label)
+    cols = [
+        "measure", "median", "lo50", "hi50", "lo95", "hi95",
+        "prob_positive", "favoured_direction_label",
+    ]
+    out = d[cols].rename(
+        columns={
+            "median": "median (logit)",
+            "prob_positive": "P(>0)",
+            "favoured_direction_label": "evidence",
+        }
+    )
+    return out.round(3)
+```
+
+### Baseline non-verbal ability → growth **rate** (`gamma`, the Q5 headline)
+
+Coefficient on +1 SD of block design applied to each measure's logit growth
+slope. Direction is read from `P(>0)` per the evidence-language policy (#179); at
+n≈54 the 95% intervals are wide, so these are directional statements, not decisive
+effects.
+
+```{python}
+# | echo: false
+_coef_table("gamma")
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("gamma_forest.png",
+           "Baseline non-verbal ability → growth rate, by measure (50% + 95% ETI)"))
+```
+
+### Baseline non-verbal ability → baseline **level** (`delta`)
+
+```{python}
+# | echo: false
+_coef_table("delta")
+```
+
+### Mean growth trajectory (population slope `beta`)
+
+The per-measure population slope characterises the average trajectory (logit
+change per +1 SD of age) independent of block design.
+
+```{python}
+# | echo: false
+_coef_table("beta")
+```
+
+### Shared growth-tempo factor (`loading`; LRP70 only)
+
+```{python}
+# | echo: false
+# | output: asis
+_load = _coef_table("loading")
+_tempo = _csv("growth_tempo_corr.csv")
+if _load is None:
+    print(
+        "_Not applicable — this is the independent-core model (LRP69). See LRP70 "
+        "for the shared growth-tempo factor and the block-design ↔ tempo read-out._"
+    )
+else:
+    print(
+        "Positive loadings mean the measures' growth rates track a **common "
+        "developmental tempo** (a child who grows fast on one tends to grow fast "
+        "on all). The loadings (logit slope per +1 SD of the latent tempo):"
+    )
+```
+
+```{python}
+# | echo: false
+_load if _load is not None else ""
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _load is not None and _tempo is not None and len(_tempo):
+    _t = _tempo.iloc[0]
+    print(
+        f"\n**Does baseline non-verbal ability predict the common tempo?** "
+        f"Per-draw correlation between each child's latent growth tempo and their "
+        f"standardised block-design score: median {_t['median']:+.3f} "
+        f"(95% interval {_t['lo']:+.3f} to {_t['hi']:+.3f}); "
+        f"P(>0) = {_t['prob_pos']:.3f}. The tempo factor is independent a priori "
+        f"but the posterior can still correlate G and blocks through the likelihood; "
+        f"this is a descriptive post-hoc read-out."
+    )
+```
+
+::: {.callout-important title="An adjusted association, not a cause"}
+
+Per the locked DAG (`notes/202606231600-dag-revision-consolidated.md`), block
+design is an **off-DAG, pre-randomisation child covariate** and latent general
+ability (`GA`) is the unobserved common cause of block design, vocabulary and the
+other skills. So `gamma` / `delta` are **adjusted associations — never "non-verbal
+ability drives growth"**: block design is essentially an ability proxy and the
+association is confounded by `GA` (not point-identified). The child random
+intercept only *partially* adjusts (`METHODS.md` § "Causal interpretation and its
+limits"). At n≈54, four waves, treat a wide interval or a fragile sampler as an
+honest finding.
+
+:::

@@ -55,7 +55,7 @@ class LRPGBG03(GainModel):
     )
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
-    exclude = [V.B1RETO]
+    exclude = (V.B1RETO,)
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for predictors of not-taught receptive-vocabulary gains "
