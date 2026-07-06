@@ -71,6 +71,59 @@ class ModelSpec:
     def banner(self) -> str:
         return f"{self.model_id.upper()}: {self.title}"
 
+    # --- Canonical model-ID scheme (#168 Phase 1) -------------------------
+    # Non-destructive: derived on read from the legacy ``model_id`` + ``kind`` +
+    # ``study_id`` via the shared resolver, so nothing is renamed and an id the
+    # resolver cannot parse simply yields ``None`` rather than breaking a fit.
+    @property
+    def _canonical(self):
+        from language_reading_predictors import model_ids as _mids
+
+        try:
+            return _mids.parse_legacy(
+                self.model_id, kind=self.kind, study=self.study_id
+            )
+        except _mids.ModelIdError:
+            return None
+
+    @property
+    def legacy_model_id(self) -> str:
+        return self.model_id
+
+    @property
+    def canonical_model_id(self) -> str | None:
+        c = self._canonical
+        return c.cli if c is not None else None
+
+    @property
+    def project_code(self) -> str | None:
+        c = self._canonical
+        return c.project.upper() if c is not None else None
+
+    @property
+    def study_code(self) -> str | None:
+        c = self._canonical
+        return c.study.upper() if c is not None else None
+
+    @property
+    def family_code(self) -> str | None:
+        c = self._canonical
+        return c.family.upper() if c is not None else None
+
+    @property
+    def variant_role(self) -> str | None:
+        c = self._canonical
+        return c.variant_role if c is not None else None
+
+    @property
+    def parent_model_id(self) -> str | None:
+        from language_reading_predictors.model_ids import ModelId
+
+        c = self._canonical
+        if c is None or not c.suffix:
+            return None
+        return ModelId(c.project, c.study, c.family, c.number, None).legacy
+
 
 @dataclass
 class StatisticalFitContext:

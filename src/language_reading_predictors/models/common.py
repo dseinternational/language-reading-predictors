@@ -164,6 +164,60 @@ class ModelConfig:
     notes: str = ""
     """Free-text rationale stored in ``config.json`` and surfaced in reports."""
 
+    # --- Canonical model-ID scheme (#168 Phase 1) -------------------------
+    # Derived on read from the legacy ``model_id`` (the GB ids embed their family
+    # ``gbg``/``gbl``, so no ``kind`` is needed). Non-destructive: an unparseable
+    # id yields ``None`` rather than breaking a fit. ``parent_model_id`` prefers the
+    # explicit ``variant_of`` link.
+    @property
+    def _canonical(self):
+        from language_reading_predictors import model_ids as _mids
+
+        try:
+            return _mids.parse_legacy(self.model_id)
+        except _mids.ModelIdError:
+            return None
+
+    @property
+    def legacy_model_id(self) -> str:
+        return self.model_id
+
+    @property
+    def canonical_model_id(self) -> str | None:
+        c = self._canonical
+        return c.cli if c is not None else None
+
+    @property
+    def project_code(self) -> str | None:
+        c = self._canonical
+        return c.project.upper() if c is not None else None
+
+    @property
+    def study_code(self) -> str | None:
+        c = self._canonical
+        return c.study.upper() if c is not None else None
+
+    @property
+    def family_code(self) -> str | None:
+        c = self._canonical
+        return c.family.upper() if c is not None else None
+
+    @property
+    def variant_role(self) -> str | None:
+        c = self._canonical
+        return c.variant_role if c is not None else None
+
+    @property
+    def parent_model_id(self) -> str | None:
+        if self.variant_of:
+            return self.variant_of
+        from language_reading_predictors.model_ids import ModelId
+
+        c = self._canonical
+        if c is None or not c.suffix:
+            return None
+        return ModelId(c.project, c.study, c.family, c.number, None).legacy
+
 
 @dataclass
 class ModelFitContext:
