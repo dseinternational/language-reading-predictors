@@ -78,6 +78,18 @@ if _rope is not None:
 
 ```{python}
 # | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import (
+    rope_sensitivity_markdown,
+)
+
+_sens = _csv("rope_sensitivity.csv")
+if _sens is not None:
+    print(rope_sensitivity_markdown(_sens))
+```
+
+```{python}
+# | echo: false
 _rope.T if _rope is not None else None
 ```
 

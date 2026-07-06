@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 
 import arviz as az
 import numpy as np
@@ -198,11 +199,17 @@ def tau_summary_itt(
     marg_hpdi_lo, marg_hpdi_hi = _hdi_bounds(marginal, ci_prob)
     marg_b = _eti_bands(marginal, probs=(0.5, 0.9))
     prob_pos = float(np.mean(tau_draws > 0))
+    # Posterior mean retained as a *secondary* field on each scale (issue #144):
+    # the median leads (transformation-invariant, and it discounts the
+    # winner's-curse right tail), but the mean is kept available for reference.
+    tau_mean = float(np.mean(tau_draws))
+    marg_mean = float(np.mean(marginal))
 
     # Fixed band convention (#177): central 50% (visual aid) + equal-tailed 90%
     # (sensitivity) alongside the equal-tailed 95% headline (``*_lo`` / ``*_hi``).
     return {
         "tau_logit_median": tau_median,
+        "tau_logit_mean": tau_mean,
         "tau_logit_lo50": tau_b["lo50"],
         "tau_logit_hi50": tau_b["hi50"],
         "tau_logit_lo90": tau_b["lo90"],
@@ -212,6 +219,7 @@ def tau_summary_itt(
         "tau_logit_hpdi_lo": tau_hpdi_lo,
         "tau_logit_hpdi_hi": tau_hpdi_hi,
         "tau_prob_median": marg_median,
+        "tau_prob_mean": marg_mean,
         "tau_prob_lo50": marg_b["lo50"],
         "tau_prob_hi50": marg_b["hi50"],
         "tau_prob_lo90": marg_b["lo90"],
@@ -427,6 +435,83 @@ def rope_summary(
     )
     items = ame_prob * float(n_trials)
     return _rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
+
+
+def rope_sensitivity(
+    trace: xr.DataTree,
+    *,
+    G: np.ndarray,
+    n_trials: int,
+    deltas: Sequence[float],
+    term: str = "tau",
+    varying_term: str = "tau_i",
+    eta_name: str = "eta",
+) -> pd.DataFrame:
+    """How the meaningful-benefit claim moves as the threshold δ varies (issue #144).
+
+    A δ-sensitivity view of :func:`rope_summary`: the ``P(benefit ≥ δ)`` headline is
+    only as robust as the δ choice, so this sweeps a grid of δ and returns one row per
+    δ — ``prob_benefit_ge_delta``, ``prob_in_rope``, ``prob_harm_ge_delta`` and the
+    round-odds ``benefit_label``. The education lead's decision (2026-07-01, issue
+    #144) is to show this for **all** outcomes, with word reading at δ = 1 and δ = 2;
+    the floored outcomes sweep the risk-difference scale (10/15/20 pp).
+
+    Built on the single :func:`_itt_ame_draws` pass (``items = AME × n_trials``), so
+    the whole table is one forward computation and cannot drift from the headline
+    :func:`rope_summary` card. ``term`` / ``varying_term`` / ``eta_name`` select the
+    randomised effect exactly as :func:`rope_summary` does (the floored path passes
+    ``n_trials=1`` and ``varying_term=""`` so ``items`` is the risk difference).
+    """
+    _effect_draws, ame_prob = _itt_ame_draws(
+        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name
+    )
+    items = ame_prob * float(n_trials)
+    rows: list[dict[str, float | str]] = []
+    for d in deltas:
+        d = float(d)
+        p_benefit = float(np.mean(items >= d))
+        rows.append(
+            {
+                "delta_items": d,
+                "prob_benefit_ge_delta": p_benefit,
+                "prob_in_rope": float(np.mean(np.abs(items) <= d)),
+                "prob_harm_ge_delta": float(np.mean(items <= -d)),
+                "benefit_label": evidence_label(p_benefit),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def rope_sensitivity_markdown(
+    sens: pd.DataFrame, *, is_risk_difference: bool = False
+) -> str:
+    """Render the δ-sensitivity sweep (:func:`rope_sensitivity`) as a markdown table.
+
+    Shared by the ITT and floored result partials so the δ-robustness view cannot
+    drift between archetypes. ``is_risk_difference`` reports δ and the effect on the
+    percentage-point (risk-difference) scale for the floored outcomes; otherwise the
+    items scale.
+    """
+    scale = 100.0 if is_risk_difference else 1.0
+    unit = "pp" if is_risk_difference else "items"
+    # Render by ascending δ so the row order (and the prose below) can't drift from
+    # the caller's ``deltas`` order or a future grid refactor: the adopted δ is the
+    # smallest in the sweep, stricter δ follow.
+    sens = sens.sort_values("delta_items")
+    lines = [
+        "**δ-sensitivity** — how the meaningful-benefit claim moves as the "
+        f"minimally-important difference δ rises (δ on the {unit} scale). Rows are in "
+        "ascending δ: the top row is the adopted (smallest) δ, stricter δ below it:\n",
+        f"| δ ({unit}) | P(benefit ≥ δ) | P(inside ROPE) | P(harm ≥ δ) | evidence |",
+        "| ---: | ---: | ---: | ---: | :--- |",
+    ]
+    for _, r in sens.iterrows():
+        lines.append(
+            f"| {r['delta_items'] * scale:g} | {r['prob_benefit_ge_delta']:.3f} | "
+            f"{r['prob_in_rope']:.3f} | {r['prob_harm_ge_delta']:.3f} | "
+            f"{r['benefit_label']} |"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def prior_pushforward(

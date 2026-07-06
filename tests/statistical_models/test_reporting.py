@@ -20,6 +20,8 @@ from language_reading_predictors.statistical_models.reporting import (
     offfloor_mover_table,
     proportion_at_zero_ppc,
     rope_markdown,
+    rope_sensitivity,
+    rope_sensitivity_markdown,
     rope_summary,
     tau_moderation_summary,
     tau_summary_itt,
@@ -132,6 +134,125 @@ def test_rope_summary_matches_reference():
     )
     assert out["direction_label"] == evidence_label(out["pd"])
     assert out["benefit_label"] == evidence_label(out["prob_benefit_ge_delta"])
+
+
+def test_rope_delta_grid():
+    from language_reading_predictors.statistical_models.measures import (
+        ROPE_DELTA_PROB_GRID,
+        rope_delta_grid,
+    )
+
+    # Word reading reports at δ = 1 and δ = 2 (education-lead decision, #144); the
+    # grid is [δ, 2·δ] on the items scale.
+    assert rope_delta_grid("W") == [1.0, 2.0]
+    assert rope_delta_grid("L") == [2.0, 4.0]
+    # Floored outcomes have no items grid; they use the risk-difference grid.
+    with pytest.raises(KeyError):
+        rope_delta_grid("P")
+    assert ROPE_DELTA_PROB_GRID == (0.10, 0.15, 0.20)
+
+
+def test_tau_summary_itt_retains_mean_secondary():
+    # The median leads, but the posterior mean is kept as a secondary field (#144).
+    rng = np.random.default_rng(3)
+    n_obs = 10
+    eta = rng.normal(0.0, 1.0, (2, 300, n_obs))
+    tau = rng.normal(0.5, 0.3, (2, 300))
+    G = (rng.random(n_obs) > 0.5).astype(float)
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.9, G=G)
+    assert out["tau_logit_mean"] == pytest.approx(float(np.mean(tau)))
+    # tau_prob_mean is the mean of the per-draw AME (companion to tau_prob_median).
+    tau_flat = tau.reshape(-1)
+    eta_flat = eta.reshape(-1, n_obs)
+    eta0 = eta_flat - tau_flat[:, None] * G[None, :]
+    ame = (expit(eta0 + tau_flat[:, None]) - expit(eta0)).mean(axis=1)
+    assert out["tau_prob_mean"] == pytest.approx(float(np.mean(ame)))
+    # The lead statistic is still the median.
+    assert out["tau_logit_median"] == pytest.approx(float(np.median(tau)))
+
+
+def test_rope_sensitivity_sweeps_deltas():
+    rng = np.random.default_rng(1)
+    n_chain, n_draw, n_obs = 2, 400, 12
+    eta = rng.normal(0.0, 1.0, (n_chain, n_draw, n_obs))
+    tau = rng.normal(0.4, 0.2, (n_chain, n_draw))
+    G = (rng.random(n_obs) > 0.5).astype(float)
+    n_trials = 30
+    deltas = [1.0, 2.0, 3.0]
+
+    sens = rope_sensitivity(_trace(eta, tau), G=G, n_trials=n_trials, deltas=deltas)
+
+    # One row per delta, preserving order.
+    assert list(sens["delta_items"]) == deltas
+    # Reference items AME (same construction as test_rope_summary_matches_reference).
+    tau_flat = tau.reshape(-1)
+    eta_flat = eta.reshape(-1, n_obs)
+    eta0 = eta_flat - tau_flat[:, None] * G[None, :]
+    ame = (expit(eta0 + tau_flat[:, None]) - expit(eta0)).mean(axis=1)
+    items = ame * n_trials
+    for _, r in sens.iterrows():
+        d = r["delta_items"]
+        assert r["prob_benefit_ge_delta"] == pytest.approx(float(np.mean(items >= d)))
+        assert r["prob_in_rope"] == pytest.approx(float(np.mean(np.abs(items) <= d)))
+        assert r["prob_harm_ge_delta"] == pytest.approx(float(np.mean(items <= -d)))
+        assert r["benefit_label"] == evidence_label(r["prob_benefit_ge_delta"])
+    # P(benefit ≥ δ) is non-increasing as δ rises.
+    pb = list(sens["prob_benefit_ge_delta"])
+    assert pb == sorted(pb, reverse=True)
+
+
+def test_rope_sensitivity_agrees_with_rope_summary_at_shared_delta():
+    # The sweep and the headline card share the AME core, so they agree on
+    # P(benefit ≥ δ) at a common δ (issue #144).
+    rng = np.random.default_rng(2)
+    eta = rng.normal(0.0, 1.0, (2, 300, 10))
+    tau = rng.normal(0.3, 0.2, (2, 300))
+    G = (rng.random(10) > 0.5).astype(float)
+    card = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.9)
+    sens = rope_sensitivity(_trace(eta, tau), G=G, n_trials=20, deltas=[1.0])
+    assert sens.iloc[0]["prob_benefit_ge_delta"] == pytest.approx(
+        card["prob_benefit_ge_delta"]
+    )
+
+
+def test_rope_sensitivity_markdown_renders():
+    import pandas as pd
+
+    df = pd.DataFrame(
+        [
+            {
+                "delta_items": 1.0,
+                "prob_benefit_ge_delta": 0.90,
+                "prob_in_rope": 0.05,
+                "prob_harm_ge_delta": 0.01,
+                "benefit_label": "moderate",
+            },
+            {
+                "delta_items": 2.0,
+                "prob_benefit_ge_delta": 0.40,
+                "prob_in_rope": 0.30,
+                "prob_harm_ge_delta": 0.05,
+                "benefit_label": "inconclusive",
+            },
+        ]
+    )
+    md = rope_sensitivity_markdown(df)
+    assert "δ-sensitivity" in md
+    assert "| 1 |" in md and "| 2 |" in md
+    # Risk-difference scale reports δ in percentage points (0.10 -> 10 pp).
+    rd = pd.DataFrame(
+        [
+            {
+                "delta_items": 0.10,
+                "prob_benefit_ge_delta": 0.7,
+                "prob_in_rope": 0.2,
+                "prob_harm_ge_delta": 0.02,
+                "benefit_label": "suggestive",
+            }
+        ]
+    )
+    md_rd = rope_sensitivity_markdown(rd, is_risk_difference=True)
+    assert "pp" in md_rd and "| 10 |" in md_rd
 
 
 def test_tau_summary_itt_constant_tau_average_marginal_effect():
