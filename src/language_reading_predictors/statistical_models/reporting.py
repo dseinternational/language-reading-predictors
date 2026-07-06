@@ -494,10 +494,14 @@ def rope_sensitivity_markdown(
     """
     scale = 100.0 if is_risk_difference else 1.0
     unit = "pp" if is_risk_difference else "items"
+    # Render by ascending δ so the row order (and the prose below) can't drift from
+    # the caller's ``deltas`` order or a future grid refactor: the adopted δ is the
+    # smallest in the sweep, stricter δ follow.
+    sens = sens.sort_values("delta_items")
     lines = [
         "**δ-sensitivity** — how the meaningful-benefit claim moves as the "
-        f"minimally-important difference δ rises (δ on the {unit} scale). The first "
-        "row is the adopted δ; stricter δ below it:\n",
+        f"minimally-important difference δ rises (δ on the {unit} scale). Rows are in "
+        "ascending δ: the top row is the adopted (smallest) δ, stricter δ below it:\n",
         f"| δ ({unit}) | P(benefit ≥ δ) | P(inside ROPE) | P(harm ≥ δ) | evidence |",
         "| ---: | ---: | ---: | ---: | :--- |",
     ]
