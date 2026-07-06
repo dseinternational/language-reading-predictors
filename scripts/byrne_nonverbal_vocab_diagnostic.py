@@ -60,7 +60,14 @@ def partial_spearman(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> float:
 
 
 def wave_summary(df: pd.DataFrame, wave: int) -> dict[str, object]:
-    w = df[(df["time"] == wave) & df["basmat"].notna() & df["bpvs"].notna()]
+    # Require age as well: the age-adjusted partial below would otherwise propagate
+    # NaNs from a missing age (via rankdata/lstsq) while ``n`` still counted the row.
+    w = df[
+        (df["time"] == wave)
+        & df["basmat"].notna()
+        & df["bpvs"].notna()
+        & df["age"].notna()
+    ]
     row: dict[str, object] = {
         "wave": wave,
         "n": len(w),

@@ -35,9 +35,17 @@ def _broadcast_baseline_blocks(df: pd.DataFrame) -> None:
     ``Variables.TIME_INVARIANT_BASELINES`` for block design).
     """
     if vars.BLOCKS in df.columns:
-        df[vars.BLOCKS] = df.groupby(vars.SUBJECT_ID)[vars.BLOCKS].transform(
-            lambda s: s.ffill().bfill()
+        # blocks is recorded once per child (t1); map that single value to all of the
+        # child's rows. Taking the first non-null is independent of the frame's row
+        # order and well-defined even if a future extract ever carried more than one
+        # non-null value for a child — unlike ``ffill().bfill()``, which would knit
+        # together neighbouring values in that case.
+        first_block = (
+            df.dropna(subset=[vars.BLOCKS])
+            .groupby(vars.SUBJECT_ID)[vars.BLOCKS]
+            .first()
         )
+        df[vars.BLOCKS] = df[vars.SUBJECT_ID].map(first_block)
 
 
 def add_intervention_schema(df: pd.DataFrame) -> None:
