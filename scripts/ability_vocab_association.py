@@ -131,6 +131,7 @@ def read_model(model_id: str, config: str) -> dict[str, object]:
             post["eta"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
         )  # (n_obs, S)
     return {
+        "config": config,
         "model_id": model_id,
         "outcome": symbol,
         "label": getattr(measure, "label", symbol),
@@ -170,15 +171,13 @@ def main() -> None:
     ap.add_argument(
         "--out",
         default=None,
-        help="CSV path (default: <output_root>/statistical_models/comparisons/ability_vocab_association.csv).",
+        help="CSV path (default: <output_root>/statistical_models/comparison/ability_vocab_association.csv).",
     )
     args = ap.parse_args()
 
     df = pd.DataFrame([read_model(m, args.config) for m in args.models])
     out = args.out or os.path.join(
-        paths.output_root(),
-        "statistical_models",
-        "comparisons",
+        str(paths.stat_comparison_dir()),
         "ability_vocab_association.csv",
     )
     os.makedirs(os.path.dirname(out), exist_ok=True)

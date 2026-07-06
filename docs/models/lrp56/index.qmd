@@ -34,9 +34,10 @@ The model conditions on this DAG-motivated adjustment set to reduce confounding
 of the $R_{\text{post}}$--$W_{\text{post}}$ association:
 
 - $G$ — $G \to R$ and $G \to W$ (linear, one coefficient $\beta_G$).
-- $A$ — $A \to R$ and $A \to W$. The age-GP flag is **off by default**
-; re-enable via
-  `ModelSpec.extra={"use_age_gp": True}` for sensitivity.
+- $A$ — $A \to R$ and $A \to W$. Age is conditioned on **linearly by default**: a
+  $\gamma_A\,z(\text{age})$ term enters whenever age is a declared confounder and
+  the age GP is off. The nonparametric age-GP flag is **off by default**; re-enable
+  via `ModelSpec.extra={"use_age_gp": True}` for a smooth-age sensitivity fit.
 - $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
 
 $E$ is a *descendant* of $R$ (path $R \to E$) that also affects $W$.

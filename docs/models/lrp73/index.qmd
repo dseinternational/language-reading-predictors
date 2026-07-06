@@ -58,15 +58,18 @@ test that honestly, not to find a positive.
 
 LRP58's $\{G, A, E, R, W_{\text{pre}}\}$.
 
-::: {.callout-note title="LRP73 conditions on age linearly — LRP58 (by default) did not"}
+::: {.callout-note title="Both LRP58 and LRP73 condition on age linearly — but via different terms"}
 
-In the mechanism factory, age is only entered when `use_age_gp=True` (off by
-default), so LRP58 as-fit did **not** condition on age despite listing it. Here the
-moderator main effect $\gamma_{\text{mod}}\,z(\text{age})$ **realises the age
-adjustment linearly** — a strict improvement on LRP58's default for this question.
-The moderator is therefore both the age adjustment and the thing whose interaction
-with $L$ we test. $E$ and $R$ enter as confounders; $W_{\text{pre}}$ is the
-autoregressive baseline; $W$ (the outcome) is of course not conditioned on.
+The mechanism factory now conditions on age **linearly by default**: whenever age
+is a declared confounder and the age GP is off (`use_age_gp=False`), a
+$\gamma_A\,z(\text{age})$ term is added, so LRP58 (and the rest of the mechanism
+family) *does* adjust for age as fit. LRP73 is the exception: because age is its
+*moderator*, the linear $\gamma_A$ term is skipped (it would be collinear with the
+moderator main effect) and the age adjustment is realised instead by the moderator
+main effect $\gamma_{\text{mod}}\,z(\text{age})$. The moderator is therefore both
+the age adjustment and the thing whose interaction with $L$ we test. $E$ and $R$
+enter as confounders; $W_{\text{pre}}$ is the autoregressive baseline; $W$ (the
+outcome) is of course not conditioned on.
 
 :::
 

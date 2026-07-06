@@ -62,7 +62,6 @@ from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.data_variables import Predictors
 from language_reading_predictors.models.base_pipeline import _clear_directory
 from language_reading_predictors.models.cluster_ranking import (
     SAME_SKILL_SIBLINGS,
@@ -96,17 +95,35 @@ def _fmt(x, spec: str = "{:.3f}") -> str:
 def make_config(model_id: str, *, kind: str):
     """Return an ad-hoc ``ModelConfig``.
 
-    kind="full"    -> full DEFAULT_* set minus target (no pruning)
-    kind="noskill" -> full set minus target minus curated same-skill siblings
+    kind="full"    -> the registered model's own predictor set (no pruning)
+    kind="noskill" -> that set, minus curated same-skill siblings
+
+    The registered ``ModelConfig.predictor_vars`` is the source of truth: it was
+    resolved by ``ModelDefinition._build_predictors`` honouring the model's own
+    ``exclude`` / ``include`` (and target removal). We MUST reuse it rather than
+    rebuild from the raw ``DEFAULT_*`` pool — the raw pool discards each model's
+    ``exclude`` list and so reintroduces target leakage (e.g. lrpgbl01 targets
+    ``b1retau`` and excludes ``b1reto = b1retau + b1rent``, an exact superset of
+    the target). The target itself is already absent from the registered set.
     """
     base = MODELS[model_id]
     target = base.target_var
-    full = Predictors.DEFAULT_GAIN if target.endswith("_gain") else Predictors.DEFAULT_LEVEL
     siblings = SAME_SKILL_SIBLINGS.get(target, [])
 
-    preds = [p for p in full if p != target]  # leakage guard
+    # Start from the registered, exclude/include-honouring predictor set. It has
+    # already had the target and every registered ``exclude`` var stripped by
+    # ``ModelDefinition._build_predictors``; copy it verbatim (kind="full") and
+    # then drop the curated siblings for kind="noskill".
+    preds = [p for p in base.predictor_vars]
     if kind == "noskill":
         preds = [p for p in preds if p not in siblings]
+
+    # Leakage invariant: the target must not have crept back in. (Registered
+    # excludes are already absent because we started from the resolved set.)
+    if target in preds:
+        raise AssertionError(
+            f"target {target!r} leaked into the ranking predictor set for {model_id}"
+        )
 
     cfg = dataclasses.replace(
         base,

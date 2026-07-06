@@ -67,6 +67,15 @@ def _output_dir():
 
 
 def _pooled_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
+    """Pooled OOF error metrics; R² is against the *global* target mean.
+
+    NOTE: this R² baseline (the pooled global mean of ``y_true``) is **not** the
+    pipeline's ``cv_pooled_r2`` convention, which uses each fold's *training* mean
+    as the denominator. This function's ``r2`` is therefore not directly comparable
+    in absolute terms to the pipeline artefact. It is used here only for the
+    weighted-vs-unweighted *contrast*, where both arms share this baseline, so the
+    contrast is valid even though the absolute level differs from the pipeline.
+    """
     residuals = y_true - y_pred
     abs_res = np.abs(residuals)
     ss_res = float(np.sum(residuals**2))
@@ -118,6 +127,14 @@ def _permutation_importance(
     weights: np.ndarray | None,
     n_repeats: int,
 ) -> pd.DataFrame:
+    """In-sample permutation importance (fit and permute on the SAME rows).
+
+    NOTE: unlike the pipeline's out-of-fold permutation importances, this fits on
+    the full dataset and then permutes those same (in-sample) rows, so the absolute
+    importances are systematically inflated relative to the pipeline artefact. Read
+    only the weighted-vs-unweighted *contrast* (both arms share this in-sample
+    procedure); do not compare these numbers directly to the pipeline's OOF values.
+    """
     est = LGBMRegressor(**{**params, "random_state": seed})
     fit_kwargs = {"sample_weight": weights} if weights is not None else {}
     est.fit(X, y, **fit_kwargs)
@@ -266,6 +283,10 @@ def main() -> None:
         comparison["rank_weighted"] - comparison["rank_unweighted"]
     )
     comparison = comparison.sort_values("imp_unweighted", ascending=False)
+    # Stamp the caveat onto the artefact itself: these are in-sample importances
+    # (fit + permute on the same full-dataset rows), NOT the pipeline's OOF values,
+    # so only the weighted-vs-unweighted contrast is comparable in absolute terms.
+    comparison["note"] = "in-sample; contrast-only (not OOF-comparable)"
 
     comparison_path = out_dir / "importance_comparison.csv"
     comparison.to_csv(comparison_path, index=False)
@@ -274,6 +295,14 @@ def main() -> None:
 
     # ── Metrics JSON ────────────────────────────────────────────────────
     metrics = {
+        "note": (
+            "Sensitivity contrast only. Pooled R² uses the GLOBAL target mean "
+            "(not the pipeline's per-fold training-mean cv_pooled_r2), and "
+            "permutation importances are IN-SAMPLE (fit + permute on the same "
+            "full-dataset rows, not out-of-fold). Absolute values are therefore "
+            "not comparable to the pipeline artefact; only the weighted-vs-"
+            "unweighted contrast is a valid read."
+        ),
         "n_observations": int(len(X)),
         "n_subjects": int(groups.nunique()),
         "cv_splits": int(cv_splits),

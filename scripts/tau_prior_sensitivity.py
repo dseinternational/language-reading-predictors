@@ -33,6 +33,7 @@ import pandas as pd
 import pymc as pm
 
 import dse_research_utils.statistics.models.sampling as _sampling
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.factories import build_itt_model
 from language_reading_predictors.statistical_models.measures import MEASURES
 
@@ -50,7 +51,7 @@ def _sigmas_for(symbol: str) -> tuple[float, ...]:
     return DISTAL_SIGMAS if is_distal(symbol) else PROXIMAL_SIGMAS
 
 
-def _fit_one(prepared, symbol: str, sigma: float, sampling) -> dict:
+def _fit_one(prepared, symbol: str, sigma: float, sampling, config: str) -> dict:
     from language_reading_predictors.statistical_models.reporting import tau_summary_itt
 
     built = build_itt_model(
@@ -77,6 +78,7 @@ def _fit_one(prepared, symbol: str, sigma: float, sampling) -> dict:
     tau_draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values
     r_hat = float(pm.stats.rhat(trace, var_names=["tau"])["tau"].values)
     return {
+        "config": config,
         "outcome": symbol,
         "n_trials": n_trials,
         "tau_sigma": sigma,
@@ -100,11 +102,29 @@ def main() -> None:
     ap.add_argument("--outcomes", nargs="+", default=list(DEFAULT_OUTCOMES))
     ap.add_argument(
         "--out-dir",
-        default=os.path.join(
-            "output", "statistical_models", "tau_prior_sensitivity"
+        default=None,
+        help=(
+            "Output dir (default: <output-root>/statistical_models/"
+            "tau_prior_sensitivity)."
+        ),
+    )
+    ap.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR); the relative layout is unchanged. Default: "
+            "repo-local output/."
         ),
     )
     args = ap.parse_args()
+
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
+    args.out_dir = args.out_dir or os.path.join(
+        str(_paths.stat_dir()), "tau_prior_sensitivity"
+    )
 
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
@@ -122,7 +142,7 @@ def main() -> None:
     for symbol in args.outcomes:
         for sigma in _sigmas_for(symbol):
             print(f"  fitting {symbol}  tau ~ Normal(0, {sigma}) ...", flush=True)
-            rows.append(_fit_one(prepared, symbol, sigma, sampling))
+            rows.append(_fit_one(prepared, symbol, sigma, sampling, args.config))
 
     df = pd.DataFrame(rows)
     os.makedirs(args.out_dir, exist_ok=True)

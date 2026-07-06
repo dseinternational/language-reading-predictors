@@ -5,9 +5,8 @@
 
 A pure-data description of every fitted model — id, kind, outcome, family and
 editorial status — with **no heavy imports** (no PyMC, no factories), so it can be
-imported cheaply by the report (to code-generate the model register in
-``docs/report/appendices/appendix-b-model-catalogue.qmd``) and by any tooling that
-needs the catalogue without paying to import the model-building code.
+imported cheaply by the report (to code-generate a model register) and by any
+tooling that needs the catalogue without paying to import the model-building code.
 
 This mirrors the vocabulary-growth report's ``vocab_growth.models.definitions``. It
 deliberately duplicates the lightweight metadata that otherwise lives on each
@@ -69,6 +68,7 @@ KINDS: frozenset[str] = frozenset(
         "mediation_multi",
         "horseshoe",
         "growth",
+        "historical_growth",
     }
 )
 
@@ -150,7 +150,7 @@ _DID = [
     _d("lrpdid04", "did", "Within-person DiD", Status.ROBUSTNESS, "TE", "waitlist-crossover replication", base="lrpitt02"),
     _d("lrpdid05", "did", "Within-person DiD", Status.ROBUSTNESS, "R", "waitlist-crossover replication", base="lrpitt05"),
     _d("lrpdid06", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "dose-response sensitivity (sessions)", base="lrpdid01"),
-    _d("lrpdid07", "did", "Within-person DiD", Status.ROBUSTNESS, "L", "session-dose response (period-resolved)", base="lrpitt07"),
+    _d("lrpdid07", "did", "Within-person DiD", Status.ROBUSTNESS, "L", "session-dose response (period-resolved)", base="lrpdid02"),
     _d("lrpdid07base", "did", "Within-person DiD", Status.COMPANION, "L", "pooled-dose comparator", base="lrpdid07"),
 ]
 

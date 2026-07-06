@@ -70,6 +70,14 @@ def add_intervention_schema(df: pd.DataFrame) -> None:
     :func:`configure_data_categories` (which would remap ``group`` to label
     strings).
     """
+    # NOTE: ``period`` is set equal to ``time`` for every row, so t4 rows carry
+    # ``period == 4`` and (via the rule below) ``on_intervention == True`` as a
+    # byproduct — even though a gain interval only spans periods {1, 2, 3} and the
+    # ``*_gain`` columns are NaN at t4. Those values are only meaningful on gain
+    # rows (where t4 is NaN and so drops out anyway). Do NOT use ``period`` /
+    # ``on_intervention`` to filter a *level* (per-timepoint) analysis without also
+    # excluding ``time == 4``; otherwise the t4 wave would be mislabelled as a
+    # fourth on-intervention period.
     df[vars.PERIOD] = df[vars.TIME]
     df[vars.ON_INTERVENTION] = (
         (df[vars.GROUP] == 1) | (df[vars.PERIOD] >= 2)

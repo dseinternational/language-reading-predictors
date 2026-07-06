@@ -113,8 +113,8 @@ def compare_rankings(
 
     ``horseshoe`` needs ``predictor`` + ``p_abs_gt_delta`` (+ optional ``rank``);
     ``gb`` needs ``member`` + ``perm_imp_mean``. Returns the merged per-construct
-    table (shared constructs only) and a summary dict (Spearman rho/p, top-k
-    overlap, counts).
+    table (shared constructs only) and a summary dict (tie-corrected Spearman rho
+    and its two-sided p-value, top-k overlap, counts).
     """
     if col2sym is None:
         col2sym = column_to_symbol_map()
@@ -136,11 +136,19 @@ def compare_rankings(
 
     n = len(merged)
     if n >= 3:
-        # Spearman rho via the Pearson correlation of the two rank vectors (no SciPy
-        # dependency): identical for distinct integer ranks.
-        rho = float(np.corrcoef(merged["hs_rank"], merged["gb_rank"])[0, 1])
+        # Tie-corrected Spearman via scipy: ``spearmanr`` ranks internally with the
+        # average-rank tie correction (the ``method="min"`` rank columns above are
+        # for display only) and returns a two-sided p-value. Correlate the two
+        # importance scores directly (both "higher = more important"); this equals
+        # the rank correlation but lets scipy own the tie handling.
+        from scipy.stats import spearmanr
+
+        res = spearmanr(merged["p_abs_gt_delta"], merged["gb_perm_imp"])
+        rho = float(res.statistic)
+        pval = float(res.pvalue)
     else:
         rho = float("nan")
+        pval = float("nan")
 
     hs_top = set(hs.sort_values("hs_rank")["predictor"].head(topk))
     gb_top = set(gb_c.sort_values("gb_rank")["symbol"].head(topk))
@@ -149,6 +157,7 @@ def compare_rankings(
     summary = {
         "shared_constructs": n,
         "spearman_rho": rho,
+        "spearman_p": pval,
         "topk": topk,
         "topk_overlap": len(overlap),
         "topk_overlap_symbols": overlap,
@@ -182,10 +191,15 @@ def main(argv: list[str] | None = None) -> int:
     merged.to_csv(out, index=False)
 
     rho = summary["spearman_rho"]
+    pval = summary["spearman_p"]
     print(f"shared constructs: {summary['shared_constructs']}")
     print(
-        "Spearman rho(hs_rank, gb_rank) = "
-        + ("n/a (<3 shared)" if np.isnan(rho) else f"{rho:+.3f}")
+        "Spearman rho(hs, gb) = "
+        + (
+            "n/a (<3 shared)"
+            if np.isnan(rho)
+            else f"{rho:+.3f} (p = {pval:.3f})"
+        )
     )
     print(
         f"top-{summary['topk']} overlap: "

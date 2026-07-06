@@ -224,19 +224,24 @@ def figure_rope(results, out_png, out_pdf):
     by = {r["sym"]: r for r in results}
     colors = {"L": "#1b7837", "W": "#762a83"}
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(12.5, 5.4))
-    delta_star = 1.0
     pair = [by["L"], by["W"]]
     xmax = max(np.quantile(r["items"], 0.995) for r in pair) + 0.5
 
     xgrid = np.linspace(-1.0, xmax, 400)
-    axL.axvspan(-delta_star, delta_star, color="#bdbdbd", alpha=0.30,
-                label=f"ROPE (|effect| < {delta_star:.0f} item)")
+    # Each outcome has its own adopted ROPE half-width (items scale): the shared
+    # ±1 band was wrong for L, whose adopted delta is 2 items. Draw a per-outcome
+    # band (matched to the outcome's colour) so the plot reflects ROPE_DELTA.
     axL.axvline(0, color="#444", lw=1.0, ls=":")
     for r in pair:
+        sym = r["sym"]
+        delta = ROPE_DELTA[sym]
+        item_word = "item" if delta == 1 else "items"
+        axL.axvspan(-delta, delta, color=colors[sym], alpha=0.10,
+                    label=f"{sym} ROPE (|effect| < {delta:g} {item_word})")
         kde = stats.gaussian_kde(r["items"])
-        axL.plot(xgrid, kde(xgrid), color=colors[r["sym"]], lw=2.4,
-                 label=f"{r['sym']} {LABELS[r['sym']]}")
-        axL.fill_between(xgrid, kde(xgrid), color=colors[r["sym"]], alpha=0.12)
+        axL.plot(xgrid, kde(xgrid), color=colors[sym], lw=2.4,
+                 label=f"{sym} {LABELS[sym]}")
+        axL.fill_between(xgrid, kde(xgrid), color=colors[sym], alpha=0.12)
     axL.set_xlabel("treatment effect (extra test items correct)")
     axL.set_ylabel("posterior density")
     axL.set_title("Posterior of the effect (items), with ROPE")
