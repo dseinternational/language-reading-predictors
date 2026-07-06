@@ -49,17 +49,17 @@ class LRPGBG12(GainModel):
         "LightGBM — word-reading gain predictors "
         "(full predictor set, MAE-tuned, no outlier exclusion)"
     )
-    include = [V.EWRSWR]
+    include = (V.EWRSWR,)
     pipeline_cls = LGBMPipeline
     params = _LGBM_MAE_PARAMS
     cv_splits = 53
-    shap_scatter_specs = [
+    shap_scatter_specs = (
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
         ShapScatterSpec(
             color_by=V.EWRSWR,
             description="All predictors, coloured by baseline word-reading (ewrswr)",
         ),
-    ]
+    )
     notes = (
         "Exploratory model for word-reading gains (ewrswr_gain). Fits the "
         "full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature "

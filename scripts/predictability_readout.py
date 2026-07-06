@@ -56,13 +56,19 @@ from sklearn.dummy import DummyRegressor
 from sklearn.model_selection import GroupKFold
 
 import language_reading_predictors.data_utils as data_utils
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.registry import MODELS
 
-_ROOT_DIR = Path(__file__).resolve().parent.parent
-_MODELS_DIR = _ROOT_DIR / "output" / "models"
-
 _DEFAULT_MODELS = ["lrpgbg12_prediction", "lrpgbg12"]
+
+
+def _display_path(path: Path) -> str:
+    """Prefer repo-relative display, but support redirected output roots."""
+    try:
+        return str(path.relative_to(_paths.ROOT_DIR))
+    except ValueError:
+        return str(path)
 
 
 def _read_json(path: Path) -> dict:
@@ -458,7 +464,7 @@ def _readout(
     rank_top_k: int | None = None,
     rank_exclude_same_skill: bool = False,
 ) -> str:
-    out_dir = _MODELS_DIR / model_id
+    out_dir = _paths.gb_models_dir() / model_id
     if not out_dir.exists():
         msg = (
             f"no output for {model_id!r} at {out_dir} — fit it first: "
@@ -549,10 +555,10 @@ def _readout(
         ].to_dict(orient="records"),
     }
     (out_dir / "predictability_readout.json").write_text(json.dumps(summary, indent=2))
-    print(f"[green]Wrote[/green] {calib_path.relative_to(_ROOT_DIR)}")
+    print(f"[green]Wrote[/green] {_display_path(calib_path)}")
     print(
         f"[green]Wrote[/green] "
-        f"{(out_dir / 'predictability_readout.json').relative_to(_ROOT_DIR)}"
+        f"{_display_path(out_dir / 'predictability_readout.json')}"
     )
     return md
 
@@ -598,7 +604,18 @@ def main() -> None:
         action="store_true",
         help="Drop predictors the ranking flags as same_skill_of_outcome.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root to read/write (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
     args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"[bold]Output root:[/bold] {_paths.describe_output_root()}")
 
     for model_id in args.models:
         if model_id not in MODELS:

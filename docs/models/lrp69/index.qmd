@@ -1,0 +1,87 @@
+---
+title: "LRP69: Does baseline non-verbal ability predict verbal/reading trajectory shape? (joint growth curves, independent core)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP69 answers issue #187 (Q5): it characterises the **longitudinal trajectories**
+of the verbal and reading measures across the four RLI waves and asks whether a
+child's **baseline non-verbal ability** predicts the *shape* of those trajectories
+— principally the growth **rate**.
+
+It is a joint multivariate **latent growth-curve** model: each measure has its own
+per-child latent intercept and linear age slope on the logit scale, and baseline
+non-verbal ability (`blocks`) enters as a per-child predictor of both. This is the
+*descriptive*, growth-shape complement to LRP67 (which models what within-child
+*change* drives reading change). LRP69 is the **independent-core** model (no
+cross-measure coupling); LRP70 adds a shared growth-tempo factor.
+
+::: {.callout-note title="Symbol mapping (read before the tables)"}
+
+| Construct | Symbol | Measure | Denominator |
+| --- | --- | --- | --- |
+| Receptive vocabulary | **R** | `rowpvt` | 170 |
+| Expressive vocabulary | **E** | `eowpvt` | 170 |
+| Receptive grammar | **T** | `trog` | 32 |
+| Word reading | **W** | `ewrswr` | 79 |
+| Letter-sound knowledge | **L** | `yarclet` | 32 |
+
+Non-verbal ability is **block design** (`blocks`, WPPSI-III Block Design),
+recorded at t1 only and complete for all 54 children — a time-invariant baseline
+predictor, not a trajectory outcome.
+:::
+
+## Model structure
+
+For each measure $m \in \{R, E, T, W, L\}$, child $i$ and wave $t$, a latent logit
+level follows a linear growth curve in standardised age $a$:
+
+$$
+\theta_m[i,t] = \text{intercept}_m[i] + \text{slope}_m[i]\,a[i,t],
+$$
+
+with baseline non-verbal ability $z(\text{blocks}_i)$ entering both:
+
+$$
+\text{intercept}_m[i] = \alpha_m + \delta_m\,z(\text{blocks}_i) + \sigma^0_m z^0_m[i],
+\qquad
+\text{slope}_m[i] = \beta_m + \gamma_m\,z(\text{blocks}_i) + \sigma^1_m z^1_m[i].
+$$
+
+$\gamma_m$ (baseline non-verbal ability → growth **rate**) is the headline Q5
+estimand; $\delta_m$ is the effect on the baseline **level**. Observed counts enter
+a **masked** Beta-Binomial ($\kappa_m$ dispersion) so a child missing one score
+still contributes its other waves. The child random intercept and slope are
+**independent per measure** — the within-measure intercept–slope correlation is
+deliberately omitted at n≈54, mirroring the joint ITT model's disabled LKJ residual
+correlation. The intervention-dose covariate is omitted (the locked DAG's `IS`
+collider). Everything is non-centred.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_growth.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

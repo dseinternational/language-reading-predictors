@@ -1,2 +1,5 @@
 /.quarto/
 **/*.quarto_ipynb
+
+# Quarto render byproducts (figure outputs generated next to a .qmd)
+**/*_files/

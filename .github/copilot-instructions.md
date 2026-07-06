@@ -15,7 +15,7 @@ See `METHODS.md` for the full methodology: the gradient-boosting and Bayesian wo
 
 ## Environment Setup
 
-Hybrid two-layer environment (shared across DSE research repos): the compiled scientific core (`numpy`/`scipy`/`pandas`/`pymc`/`nutpie`/`jax`/`arviz`, …) comes from **conda-forge** and must match the canonical spec shipped in `dse-research-utils` (verify with `dse-check-env environment.yml`); the pure-Python tail and the shared library install in the pip layer. `dse-research-utils` installs from the public git tag `v0.5.0` (`dse-research-utils[viz,notebook,dependence,tuning,io] @ git+https://github.com/dseinternational/research.git@v0.5.0#subdirectory=src/python`); a commented local-dev override in `environment.yml` points at a sibling `../research/src/python` checkout instead. On Windows there is no conda-forge `jax`/`jaxlib` win-64 build, so use **WSL** (Ubuntu, linux-64). GPU acceleration is an opt-in `jax[cuda]` overlay.
+Hybrid two-layer environment (shared across DSE research repos): the compiled scientific core (`numpy`/`scipy`/`pandas`/`pymc`/`nutpie`/`jax`/`arviz`, …) comes from **conda-forge** and must match the canonical spec shipped in `dse-research-utils` (verify with `dse-check-env environment.yml`); the pure-Python tail and the shared library install in the pip layer. `dse-research-utils` installs from the public git tag `v0.5.2` (`dse-research-utils[viz,notebook,dependence,tuning,io] @ git+https://github.com/dseinternational/research.git@v0.5.2#subdirectory=src/python`); a commented local-dev override in `environment.yml` points at a sibling `../research/src/python` checkout instead. On Windows there is no conda-forge `jax`/`jaxlib` win-64 build, so use **WSL** (Ubuntu, linux-64). GPU acceleration is an opt-in `jax[cuda]` overlay.
 
 ```bash
 conda env create -f environment.yml
@@ -168,6 +168,14 @@ Note: Drafted by a LLM-based AI tool (<tool>/<model>).
 ```
 
 Do not remove or hide a label that another tool has added.
+
+## Commit messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): a `<type>(optional scope): <summary>` subject line in the imperative mood, with any detail and rationale in the body. Common types: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `chore`. Examples: `feat(itt): add HPDI sensitivity intervals`, `fix(preprocessing): drop empty four-cell rows`, `docs: record the ROPE threshold sign-off`. Reference the issue a commit or PR closes (`Closes #123`) in the body or PR description.
+
+## Writing Markdown
+
+When generating Markdown — `notes/` entries and documents, and especially pull request and issue descriptions and comments — do not insert superfluous line breaks. Write each paragraph as one continuous line and let it reflow; do not hard-wrap prose at a fixed column, and avoid stray blank lines. Prettier is configured with `proseWrap: "preserve"`, so it will **not** rewrap prose for you, and pull-request / issue text is not run through Prettier at all — hard-wrapped paragraphs therefore render as awkward mid-sentence breaks on GitHub and stay that way.
 
 ## Pre-commit checks
 

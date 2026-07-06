@@ -72,11 +72,16 @@ def load_and_filter(
     return df, X, y, groups
 
 
-def configure_data_types(df: pd.DataFrame):
-    df[vars.NUMERIC] = df[vars.NUMERIC].astype("Float64")
-    df[vars.GAINS] = df[vars.GAINS].astype("Float64")
-    df[vars.NEXTS] = df[vars.NEXTS].astype("Float64")
-    df[vars.CATEGORICAL] = df[vars.CATEGORICAL].astype("UInt8")
+def configure_data_types(df: pd.DataFrame) -> None:
+    numeric = list(vars.NUMERIC)
+    gains = list(vars.GAINS)
+    nexts = list(vars.NEXTS)
+    categorical = list(vars.CATEGORICAL)
+
+    df[numeric] = df[numeric].astype("Float64")
+    df[gains] = df[gains].astype("Float64")
+    df[nexts] = df[nexts].astype("Float64")
+    df[categorical] = df[categorical].astype("UInt8")
 
 
 def configure_data_categories(df: pd.DataFrame):

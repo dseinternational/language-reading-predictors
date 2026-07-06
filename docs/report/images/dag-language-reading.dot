@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: CC-BY-4.0
+// Language & reading causal DAG — figure source for docs/report (Ch 2, fig-dag).
+// Faithful to the locked structure in notes/dag-language-reading.dagitty.
+// Regenerate the figure with:
+//   dot -Tpng -Gdpi=200 docs/report/images/dag-language-reading.dot \
+//       -o docs/report/images/dag-language-reading.png
+digraph DAG {
+  rankdir=TB; ranksep=0.5; nodesep=0.30; bgcolor="white";
+  node [shape=circle, fixedsize=true, width=0.54, style="filled", fillcolor="#f2f2f2",
+        color="#8a8a8a", fontname="Helvetica-Bold", fontsize=13];
+  subgraph cluster_cc {
+    label="common causes of every skill\n(maturation A, latent ability GA)";
+    fontname="Helvetica"; fontsize=10.5; fontcolor="#666666";
+    style="dashed,rounded"; color="#c2c2c2"; margin=8;
+    A  [fillcolor="#dce7f4", color="#33557a"];
+    GA [shape=ellipse, width=0.74, height=0.52, style="filled,dashed", fillcolor="#e9e9e9", color="#666666"];
+  }
+  IG [fillcolor="#cdeccd", color="#2e7d32", penwidth=2.4];
+  IS [shape=diamond, width=0.82, height=0.64, fillcolor="#ffe1bf", color="#d98200", penwidth=1.8];
+  WR [fillcolor="#c9dcf3", color="#1565c0", penwidth=2.4];
+  edge [color="#2e7d32", style=solid, arrowsize=0.6, penwidth=1.3];
+  IG -> { IS TR TE PA LS WR PS EI EG };
+  edge [color="#d98200"];
+  IS -> { TR TE PA LS WR PS EI EG };
+  edge [color="#444444", penwidth=1.0, arrowsize=0.6];
+  TR -> { TE RV EV LF RG WR };
+  TE -> { EV EG EI PA SP };
+  RW -> EV;
+  RV -> { EV LF RG WR };
+  EV -> { EG EI PA SP };
+  LS -> { NW PA PS WR };
+  NW -> WR;
+  PA -> { NW WR PS };
+  PS -> WR;
+  RG -> EG;
+}

@@ -933,6 +933,56 @@ def factor_summary(
     return pd.DataFrame(rows)
 
 
+def growth_association_summary(
+    trace: xr.DataTree,
+    *,
+    coefs: tuple[str, ...] = ("gamma", "delta", "beta", "loading"),
+    ci_prob: float = 0.95,
+) -> pd.DataFrame:
+    """Per-(coefficient, outcome) posterior summary for the growth models (LRP69/70).
+
+    One row per element of each vector coefficient in ``coefs`` (each carries the
+    ``outcome`` dim): the posterior **median** (the house lead statistic, robust to
+    the Type-M inflation at this n), the fixed 50 / 90 / 95 equal-tailed bands
+    (:func:`_eti_bands`, #177), ``prob_positive`` = ``P(coef > 0)`` and the
+    evidence-language fields (:func:`favoured_direction`, #179).
+
+    ``gamma`` (baseline non-verbal ability -> growth *rate*) is the headline Q5
+    estimand; ``delta`` is the effect on baseline *level*; ``beta`` is the mean
+    slope (trajectory characterisation); ``loading`` is the shared growth-tempo
+    loading present only in the factor model (LRP70) and skipped otherwise. Every
+    row is an **adjusted association** (``role`` fixed to ``"association"``): under
+    the locked DAG these non-randomised, latent-GA-confounded terms are never read
+    as "drives". ``ci_prob`` is retained for signature parity with
+    :func:`factor_summary`; the reported bands are the fixed 50/90/95 set.
+    """
+    posterior = trace.posterior
+    rows: list[dict[str, object]] = []
+    for coef in coefs:
+        if coef not in posterior:
+            continue
+        da = posterior[coef]
+        outcome_dim = "outcome" if "outcome" in da.dims else None
+        labels = list(da[outcome_dim].values) if outcome_dim else [coef]
+        for lab in labels:
+            sub = da.sel({outcome_dim: lab}) if outcome_dim else da
+            d = sub.stack(sample=("chain", "draw")).values.ravel()
+            prob_pos = float(np.mean(d > 0))
+            rows.append(
+                {
+                    "coefficient": coef,
+                    "outcome": str(lab),
+                    "role": "association",
+                    "median": float(np.median(d)),
+                    "prob_positive": prob_pos,
+                    "direction_label": evidence_label(prob_pos),
+                    **_eti_bands(d),
+                    **favoured_direction(prob_pos),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def treatment_marginal_effect(
     trace: xr.DataTree,
     *,
