@@ -18,6 +18,7 @@ from language_reading_predictors.models._reporting import (
     metrics_table,
     print_table,
 )
+from language_reading_predictors import model_ids
 from language_reading_predictors import paths
 from language_reading_predictors.models.registry import MODELS
 from language_reading_predictors.storage import upload_to_blob_storage
@@ -87,7 +88,9 @@ def main():
     paths.set_output_root(args.output_dir)
     print(f"[bold]Output root:[/bold] {paths.describe_output_root()}")
 
-    model_key = args.model.lower()
+    # Accept either a legacy id (``lrpgbg12``) or a canonical id
+    # (``lrp-rli-gbg-012``, any case/form); #168 Phase 1.
+    model_key = model_ids.resolve_to_legacy(args.model).lower()
 
     if model_key == "all":
         models_to_run = [

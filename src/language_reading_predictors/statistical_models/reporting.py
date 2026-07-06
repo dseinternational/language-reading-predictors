@@ -826,6 +826,13 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
     spec = context.spec
     cfg = {
         "model_id": spec.model_id,
+        # Canonical model-ID scheme (#168 Phase 1); legacy id stays primary.
+        "canonical_model_id": spec.canonical_model_id,
+        "legacy_model_id": spec.legacy_model_id,
+        "family_code": spec.family_code,
+        "study_code": spec.study_code,
+        "variant_role": spec.variant_role,
+        "parent_model_id": spec.parent_model_id,
         "kind": spec.kind,
         "title": spec.title,
         "outcome_symbol": spec.outcome_symbol,

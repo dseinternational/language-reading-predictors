@@ -26,6 +26,7 @@ from language_reading_predictors.models._reporting import (
     print_panel,
     print_table,
 )
+from language_reading_predictors import model_ids
 from language_reading_predictors import paths
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models.registry import (
@@ -104,10 +105,15 @@ def main() -> None:
             f"[yellow]Overriding target_accept -> {args.target_accept}[/yellow]"
         )
 
-    if args.model == "all":
+    # Accept either a legacy id (``lrpitt10``) or a canonical id
+    # (``lrp-rli-itt-010``, any case/form); #168 Phase 1. Registry + output lookup
+    # stay keyed by the lower-case legacy id, so lower-case here for
+    # case-insensitivity (matching fit_model.py) — covers ``LRPITT10`` and ``ALL``.
+    requested = model_ids.resolve_to_legacy(args.model).lower()
+    if requested == "all":
         to_fit = list(MODELS.items())
-    elif args.model in MODELS:
-        to_fit = [(args.model, MODELS[args.model])]
+    elif requested in MODELS:
+        to_fit = [(requested, MODELS[requested])]
     else:
         rprint(f"[red]Unknown model: {args.model}[/red]")
         rprint(f"[yellow]Available: {', '.join(MODELS)}[/yellow]")
