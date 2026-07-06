@@ -77,6 +77,7 @@ def test_factor_summary_has_direction_label():
     assert "direction_label" in df.columns
     row = df.iloc[0]
     assert row["role"] == "causal"
+    assert row["median"] == np.median(beta)
     assert row["direction_label"] == evidence_label(row["prob_positive"])
 
 

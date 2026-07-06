@@ -1,3 +1,7 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 # Acknowledgements {.unnumbered}
 
-[TODO]
+Acknowledgements will be added before publication.

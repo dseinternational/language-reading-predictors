@@ -1,3 +1,6 @@
+> [!NOTE]
+> Drafted by a LLM-based AI tool (Codex/GPT-5).
+
 # Methods
 
 This document describes the methods used in this project. See [README.md](README.md) for an introduction to the project.
@@ -18,7 +21,7 @@ We use two processes for exploring predictors of language and reading outcomes:
 
 **Tune.** `scripts/tune_model.py` runs an Optuna TPE study under the same `GroupKFold`. Inside each training fold it carves an inner `GroupShuffleSplit` for early stopping, so the outer validation fold is never seen by `early_stopping` and the reported CV RMSE and best iteration stay independent; the mean best iteration becomes the tuned `n_estimators`. Results land in `output/tuning/{model_id}/`. Tuning does **not** mutate the registry — applying tuned parameters is a manual, reviewable edit, so the source stays the single source of truth.
 
-**Select features.** Iterative selection prunes ~34 predictors to ~5–15 per model, dropping zero-importance noise while tracking CV MAE, R² and MedAE (median absolute error). Each Select step is a named `SelectionStep` plus a dated note. Per-fit diagnostics — Spearman correlation, a distance-correlation dendrogram, a mutual-information heatmap, and importance pairing — guard against cutting a predictor that is merely collinear with one being kept.
+**Rank predictors.** The gradient-boosting layer no longer performs hard feature selection. Each model fits the full default predictor set for its target family and treats the ordered, clustered ranking as the deliverable. Per-fit diagnostics — Spearman correlation, a distance-correlation dendrogram, a mutual-information heatmap, and importance pairing — guard against over-reading a single predictor that is collinear with another. Gain-model defaults exclude intervention-period process measures (`attend`, `tascore`, `tachang`) so the ranking is about baseline/state predictors of progress rather than variables observed during the gain interval.
 
 **Interpret.** Read the SHAP beeswarm (`output/models/{model_id}/shap_summary.png`) _together with_ the permutation-importance ranking: importance is _how much_ a feature contributes, the beeswarm is _which direction_ and _how consistently_. They often disagree in interpretively important ways — a top-ranked predictor can run opposite to every other, be non-monotonic or sit beside a similar-importance predictor of opposite sign. For each top predictor, check whether low (blue) and high (red) values separate cleanly across zero, how tight the effect is, and whether any tail acts against the dominant direction. Always state the direction; never let a reader infer it from importance alone. A predictive importance on a `_GAIN` or `_NEXT` variable is _not_ a causal claim.
 

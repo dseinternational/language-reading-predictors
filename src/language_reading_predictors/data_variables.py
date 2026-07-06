@@ -1157,10 +1157,12 @@ class Predictors:
         and v not in Variables.DEFAULT_EXCLUDED
         and v not in Variables.GAINS
         and v not in Variables.NEXTS
+        and v not in Variables.PERIOD_RELATED
     ]
     """
-    The default predictor variables for gain outcomes are all measure variables (excluding 
-    subject ID, gain variables and variables included in composites or only measured at t1).
+    The default predictor variables for gain outcomes are all baseline/state variables
+    (excluding subject ID, gain/next variables, variables included in composites or only
+    measured at t1, and intervention-period process measures).
     """
 
     DEFAULT_GAIN_NUMERIC: ClassVar[Sequence[str]] = [v for v in DEFAULT_GAIN if v in Variables.NUMERIC]
