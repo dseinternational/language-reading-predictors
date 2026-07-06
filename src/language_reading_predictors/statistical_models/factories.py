@@ -2504,12 +2504,12 @@ def build_gain_factors_model(
         pair for pair in interactions if include_trt or "trt" not in pair
     ]
 
-    # Standardise every non-treatment term on the *kept* rows so each "per 1 SD"
-    # coefficient reads against the fitted sample's SD. The ability covariate is
-    # re-standardised here too (not just own/skill baselines): in the treated_only
-    # (…b) variants the untreated period-1 rows are dropped, so the load-time
-    # scaler — computed over all periods — would otherwise mislabel the ability
-    # unit for the treated-only fit.
+    # Standardise the interaction-term components on the *kept* rows (used for the
+    # interaction products and AME moderators). Main effects are entered on their
+    # natural scales (raw logit baselines; age uses ``prepared.A_std``).
+    # Re-standardise the ability covariate here too: treated_only (…b) variants drop
+    # the untreated period-1 rows, so the load-time scaler (over all periods) would
+    # otherwise mislabel the “per 1 SD” unit for the treated-only fit.
     term_vecs: dict[str, np.ndarray] = {"trt": trt, "age": prepared.A_std}
     if ability_covariate is not None:
         term_vecs["ability"], _ = standardise(prepared.covariates[ability_covariate])
