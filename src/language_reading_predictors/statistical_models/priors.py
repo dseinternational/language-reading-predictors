@@ -524,6 +524,7 @@ def prior_info_for_rv(
     rv=None,
     ctor_overrides: dict[str, str] | None = None,
     role_overrides: dict[str, str] | None = None,
+    rationale_overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """``{parameter, distribution, role, rationale, panel}`` for a registered RV.
 
@@ -537,8 +538,12 @@ def prior_info_for_rv(
     ``(model prior)`` or mislabelled by a name prefix (issue #141).
     """
     base = rv_name.split("[")[0]
+    rationale_overrides = rationale_overrides or {}
+    rationale = rationale_overrides.get(rv_name, rationale_overrides.get(base))
     if base in _INLINE_PRIORS:
         info = _INLINE_PRIORS[base]
+        if rationale is not None:
+            info = {**info, "rationale": rationale}
         return {"parameter": rv_name, **info, "panel": ""}
     key = _ctor_key_for_rv(rv_name, ctor_overrides=ctor_overrides)
     if key is None:
@@ -548,7 +553,7 @@ def prior_info_for_rv(
             "parameter": rv_name,
             "distribution": distribution,
             "role": (role_overrides or {}).get(base, role),
-            "rationale": "",
+            "rationale": rationale or "",
             "panel": panel,
         }
     ctor = ALL_PRIORS[key]
@@ -560,7 +565,7 @@ def prior_info_for_rv(
         "parameter": rv_name,
         "distribution": _dist_from_rv(rv) or _dist_from_doc(ctor),
         "role": (role_overrides or {}).get(base, _ROLE_BY_CTOR[key]),
-        "rationale": _first_docline(ctor),
+        "rationale": rationale or _first_docline(ctor),
         "panel": key,
     }
 
@@ -592,6 +597,7 @@ def priors_table(
     *,
     ctor_overrides: dict[str, str] | None = None,
     role_overrides: dict[str, str] | None = None,
+    rationale_overrides: dict[str, str] | None = None,
 ) -> pd.DataFrame:
     """Per-model prior table with a ``role`` column (issue #125 Area 1).
 
@@ -607,6 +613,7 @@ def priors_table(
             rv=rv,
             ctor_overrides=ctor_overrides,
             role_overrides=role_overrides,
+            rationale_overrides=rationale_overrides,
         )
         for rv in model.free_RVs
     ]

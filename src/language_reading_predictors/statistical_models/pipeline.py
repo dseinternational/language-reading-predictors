@@ -202,7 +202,7 @@ def _emit_priors(context: StatisticalFitContext) -> None:
                 os.remove(stale)
             except OSError:
                 pass
-    ctor_overrides, role_overrides = _prior_table_overrides(context)
+    ctor_overrides, role_overrides, rationale_overrides = _prior_table_overrides(context)
     _priors.save_shared_prior_panel(
         context.output_dir,
         used=_priors.used_prior_keys(model, ctor_overrides=ctor_overrides),
@@ -211,6 +211,7 @@ def _emit_priors(context: StatisticalFitContext) -> None:
         model,
         ctor_overrides=ctor_overrides,
         role_overrides=role_overrides,
+        rationale_overrides=rationale_overrides,
     )
     table.to_csv(os.path.join(context.output_dir, "priors_table.csv"), index=False)
     context.tables["priors_table"] = table
@@ -218,7 +219,7 @@ def _emit_priors(context: StatisticalFitContext) -> None:
 
 def _prior_table_overrides(
     context: StatisticalFitContext,
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
     """Context-specific prior-table corrections for reused RV names.
 
     Some factories reuse a PyMC variable name with a different prior constructor
@@ -227,6 +228,7 @@ def _prior_table_overrides(
     """
     ctor: dict[str, str] = {}
     role: dict[str, str] = {}
+    rationale: dict[str, str] = {}
     spec = context.spec
 
     if spec.kind == "dose_response":
@@ -310,6 +312,12 @@ def _prior_table_overrides(
         # randomised t2 contrast. Keep the vector row conservative and let
         # factor_summary.csv carry the element-level causal label.
         role["b_grp_time"] = "association"
+        rationale["b_grp_time"] = (
+            "Level-model group-by-time vector; only b_grp_time[1] is the "
+            "randomised t2 contrast, while the vector row is documented "
+            "conservatively because other elements are pre-randomisation or "
+            "post-crossover associations."
+        )
 
     # Distal outcomes take the tighter tau prior (issue #141): the factory built
     # the single-outcome causal treatment term at Normal(0, 0.3), so route it to
@@ -321,7 +329,7 @@ def _prior_table_overrides(
             ctor.setdefault(_name, "tau_distal")
             role.setdefault(_name, "causal")
 
-    return ctor, role
+    return ctor, role, rationale
 
 
 def _render_model_graph(context: StatisticalFitContext) -> None:
