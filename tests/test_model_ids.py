@@ -39,6 +39,7 @@ _CASES: list[tuple[str, str | None, str]] = [
     ("lrp65", "adjusted", "lrp-rli-adj-065"),
     ("lrp67", "lcsm", "lrp-rli-lcs-067"),
     ("lrp77base", "dose_response", "lrp-rli-dr-077-base"),
+    ("lrp77a", "dose_response", "lrp-rli-dr-077a"),
     ("lrp69", "growth", "lrp-rli-gc-069"),
     ("lrpgbg12", None, "lrp-rli-gbg-012"),
     ("lrpgbl28", None, "lrp-rli-gbl-028"),
@@ -92,6 +93,7 @@ def test_variant_role_from_suffix() -> None:
     assert M.parse_legacy("lrpgf01b", kind="gain_factors").variant_role == "companion"
     assert M.parse_legacy("lrp77base", kind="dose_response").variant_role == "comparator"
     assert M.parse_legacy("lrpal01d", kind="aligned").variant_role == "dose_sensitivity"
+    assert M.parse_legacy("lrp77a", kind="dose_response").variant_role == "alternate"
     assert M.parse_legacy("lrpitt10", kind="itt").variant_role is None
 
 
@@ -132,3 +134,23 @@ def test_no_duplicate_canonical_ids() -> None:
             f"canonical id {canonical} collides: {model_id} vs {seen[canonical]}"
         )
         seen[canonical] = model_id
+
+
+def test_unknown_canonical_family_is_not_treated_as_canonical() -> None:
+    # A typo'd / unknown family code (canonical-looking but not a real family) must
+    # NOT be silently remapped to a legacy id — that would risk a CLI running the
+    # wrong model. It fails to parse and passes through unchanged, so the CLI's own
+    # "unknown model" handling fires.
+    assert not M.looks_canonical("lrp-rli-zzz-010")
+    assert M.resolve_to_legacy("lrp-rli-zzz-010") == "lrp-rli-zzz-010"
+    with pytest.raises(M.ModelIdError):
+        M.parse_canonical("lrp-rli-zzz-010")
+
+
+def test_resolution_is_case_insensitive_after_lowering() -> None:
+    # The CLIs lower-case the resolved id before the (lower-case) registry lookup,
+    # so an upper-case legacy id, an upper-case canonical id and the ``all`` sentinel
+    # all resolve. Mirrors how both fit_model.py and fit_statistical_model.py resolve.
+    assert M.resolve_to_legacy("LRP-RLI-ITT-010").lower() == "lrpitt10"
+    assert M.resolve_to_legacy("LRPITT10").lower() == "lrpitt10"
+    assert M.resolve_to_legacy("ALL").lower() == "all"

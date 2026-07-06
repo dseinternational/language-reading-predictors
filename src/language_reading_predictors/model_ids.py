@@ -78,17 +78,42 @@ VARIANT_ROLE_BY_SUFFIX: dict[str, str] = {
     "d": "dose_sensitivity",
     "a": "alternate",
 }
-_WORD_SUFFIXES: frozenset[str] = frozenset({"base"})
+_LETTER_SUFFIXES: frozenset[str] = frozenset(
+    s for s in VARIANT_ROLE_BY_SUFFIX if len(s) == 1
+)
+_WORD_SUFFIXES: frozenset[str] = frozenset(
+    s for s in VARIANT_ROLE_BY_SUFFIX if len(s) > 1
+)
+
+#: Every valid canonical family code: the kind-mapped families plus the GB
+#: gain/level codes. ``_CANONICAL_RE`` is restricted to these so an unknown family
+#: (a typo like ``lrp-rli-zzz-010``) is not treated as canonical — and therefore
+#: not silently remapped to a legacy id, which would risk running the wrong model.
+_ALL_FAMILY_CODES: frozenset[str] = frozenset(FAMILY_BY_KIND.values()) | {"gbg", "gbl"}
+
+
+def _alt(options) -> str:
+    """Regex alternation, longest option first so no shorter code shadows a longer one."""
+    return "|".join(sorted(options, key=lambda s: (-len(s), s)))
+
+
+# Both regexes derive their family + suffix sub-patterns from the declared maps
+# above, so the maps and the parsers cannot drift: the suffix vocabulary
+# (including the ``a`` alternate) stays parseable, and only known family codes are
+# accepted as canonical.
+_LETTER_SUFFIX_CLASS = "".join(sorted(_LETTER_SUFFIXES))
 
 _LEGACY_RE = re.compile(
     r"^(?P<prefix>lrp|rlm)"
-    r"(?P<fam>itt|gf|lf|al|did|hs|mm|gbg|gbl|hg)?"
+    rf"(?P<fam>{_alt(_EMBEDDED_FAMILIES)})?"
     r"(?P<num>\d+)"
-    r"(?P<suffix>base|[abd])?$"
+    rf"(?P<suffix>{_alt(_WORD_SUFFIXES)}|[{_LETTER_SUFFIX_CLASS}])?$"
 )
 _CANONICAL_RE = re.compile(
-    r"^(?P<project>lrp)-(?P<study>rli|rlm)-(?P<family>[a-z]+)-"
-    r"(?P<num>\d+)(?:-(?P<word_suffix>base)|(?P<letter_suffix>[abd]))?$"
+    r"^(?P<project>lrp)-(?P<study>rli|rlm)-"
+    rf"(?P<family>{_alt(_ALL_FAMILY_CODES)})-"
+    rf"(?P<num>\d+)(?:-(?P<word_suffix>{_alt(_WORD_SUFFIXES)})"
+    rf"|(?P<letter_suffix>[{_LETTER_SUFFIX_CLASS}]))?$"
 )
 
 

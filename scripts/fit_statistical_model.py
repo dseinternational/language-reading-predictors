@@ -107,8 +107,9 @@ def main() -> None:
 
     # Accept either a legacy id (``lrpitt10``) or a canonical id
     # (``lrp-rli-itt-010``, any case/form); #168 Phase 1. Registry + output lookup
-    # stay keyed by the legacy id.
-    requested = model_ids.resolve_to_legacy(args.model)
+    # stay keyed by the lower-case legacy id, so lower-case here for
+    # case-insensitivity (matching fit_model.py) — covers ``LRPITT10`` and ``ALL``.
+    requested = model_ids.resolve_to_legacy(args.model).lower()
     if requested == "all":
         to_fit = list(MODELS.items())
     elif requested in MODELS:
