@@ -29,9 +29,10 @@ using all three phase transitions.
 ## Adjustment set
 
 - $G$ — linear confounder (one coefficient $\beta_G$).
-- $A$ — standard confounder; the age-GP flag is **off by default**
-. Re-enable via
-  `ModelSpec.extra={"use_age_gp": True}` for sensitivity.
+- $A$ — standard confounder, conditioned on **linearly by default**: a
+  $\gamma_A\,z(\text{age})$ term enters whenever age is a declared confounder and
+  the age GP is off. The nonparametric age-GP flag is **off by default**; re-enable
+  via `ModelSpec.extra={"use_age_gp": True}` for a smooth-age sensitivity fit.
 - $E$ — confounds $L$ and $W$ ($E \to L$ and $E \to W$). Condition on.
 - $R$ — confounds $L$ through $E$ ($R \to E \to L$) and affects $W$. Condition on.
 - $W_{\text{pre}}$ — baseline word reading.

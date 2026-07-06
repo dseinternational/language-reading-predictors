@@ -17,11 +17,15 @@ covariate):
 `gamma_int > 0` would mean the code-based route converts to reading *more* strongly at older
 ages. W is not floored, so the nonparametric `f_mech` HSGP is kept (unlike LRP72).
 
-Adjustment set: LRP58's {G, A, E, R, W_pre}. NOTE: in the mechanism factory age
-is only conditioned on when `use_age_gp=True` (off by default), so LRP58 as-fit
-did **not** actually condition on age. LRP73's moderator main effect
-`gamma_mod·z(age)` realises the age adjustment **linearly** — a strict
-improvement on LRP58's default for this question. Documented in the report.
+Adjustment set: LRP58's {G, A, E, R, W_pre}. NOTE: the mechanism factory now
+conditions on age **linearly by default** — whenever `A` is a declared confounder
+and the age GP is off (`use_age_gp=False`), a `gamma_A·z(age)` term is added — so
+LRP58 (and the rest of the mechanism family) *does* adjust for the age confounder
+as fit. LRP73 is the one exception: because age is its *moderator*
+(`moderator_is_covariate`), the linear `gamma_A` term is skipped (it would be
+collinear with the moderator main effect) and the age adjustment is realised
+instead by the moderator main effect `gamma_mod·z(age)`, alongside the
+`gamma_int·z(logit L)·z(age)` interaction being tested. Documented in the report.
 
 **Sharp prior expectation.** The two prior interaction models both showed an
 apparent interaction that was really a *between-child ability confound*, which

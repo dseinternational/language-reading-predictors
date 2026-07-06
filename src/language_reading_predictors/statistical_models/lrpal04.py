@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPALLRPAL04 - aligned-40-week per-protocol single gain for letter-sound knowledge (L).
+"""LRPAL04 - aligned-40-week per-protocol single gain for letter-sound knowledge (L).
 
 Per-protocol onset-aligned Beta-Binomial ANCOVA of the aligned post-score on its
 own onset baseline, age-at-onset, cognitive ability and the cohort indicator. Both

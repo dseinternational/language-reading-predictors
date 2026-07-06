@@ -923,6 +923,18 @@ def test_gain_factors_skills_ability_interactions(tmp_path):
     names = {v.name for v in built.model.free_RVs}
     assert {"gamma_L", "gamma_R", "gamma_ability",
             "gamma_int_trt_ability", "gamma_int_age_ability"}.issubset(names)
+    # The trt×ability interaction is exposed for the interaction-aware AME (the
+    # non-trt age×ability interaction is NOT — it cancels in the toggle). The
+    # moderator vector must equal the standardised ability the factory used
+    # (re-standardised on the kept rows, so mean 0 / unit SD on the fitted sample).
+    from language_reading_predictors.statistical_models.preprocessing import standardise
+
+    mods = dict(built.extras["trt_interaction_moderators"])
+    assert set(mods) == {"gamma_int_trt_ability"}
+    expected_ability, _ = standardise(built.prepared.covariates["blocks"])
+    np.testing.assert_allclose(mods["gamma_int_trt_ability"], expected_ability)
+    assert mods["gamma_int_trt_ability"].shape[0] == built.prepared.n_obs
+    assert mods["gamma_int_trt_ability"].mean() == pytest.approx(0.0, abs=1e-9)
 
 
 def test_gain_factors_treated_only_drops_treatment(tmp_path):
@@ -941,6 +953,8 @@ def test_gain_factors_treated_only_drops_treatment(tmp_path):
     assert "beta_trt" not in names
     assert "gamma_int_trt_ability" not in names
     assert "gamma_int_age_ability" in names
+    # No treatment term ⇒ no treatment-interaction moderators to net out.
+    assert built.extras["trt_interaction_moderators"] == []
     # every retained row is on intervention
     on = (built.prepared.G == 1) | (built.prepared.phase >= 1)
     assert on.all()

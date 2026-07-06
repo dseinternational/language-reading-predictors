@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPALLRPAL02 - aligned-40-week per-protocol single gain for receptive vocabulary (R).
+"""LRPAL02 - aligned-40-week per-protocol single gain for receptive vocabulary (R).
 
 Per-protocol onset-aligned Beta-Binomial ANCOVA of the aligned post-score on its
 own onset baseline, age-at-onset, cognitive ability and the cohort indicator. Both

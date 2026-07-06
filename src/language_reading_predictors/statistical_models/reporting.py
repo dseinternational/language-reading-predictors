@@ -89,6 +89,7 @@ def _itt_ame_draws(
     term: str = "tau",
     varying_term: str = "tau_i",
     eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     group: str = "posterior",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Per-draw treatment effect and its probability-scale average marginal effect.
@@ -100,6 +101,20 @@ def _itt_ame_draws(
     observations. ``δ_i`` is the constant ``term`` (``tau``) broadcast over
     observations, or the per-observation ``varying_term`` (``tau_i``) when the model
     carries an age-varying effect.
+
+    ``moderators`` handles treatment×covariate interactions: a sequence of
+    ``(coefficient_name, moderator_vector)`` pairs whose contributions are *added*
+    to ``δ_i`` per observation, so ``δ_i = base_i + Σ_k c_k · m_{k,i}``. This makes
+    the counterfactual net out (and toggle) the *full* per-row treatment
+    contribution — the treatment main effect plus every fitted treatment
+    interaction — rather than the main effect alone. The gain family passes its
+    ``gamma_int_trt_*`` coefficients with the standardised moderator vectors the
+    factory used (via ``BuiltModel.extras``); the ITT Part-B moderator passes
+    ``gamma_tau_int``. Interaction terms that do **not** involve treatment
+    (e.g. ``age×ability``) are unchanged between the treated and untreated
+    counterfactual, so they stay inside ``η`` and correctly cancel — they must
+    *not* be listed here. Each moderator vector must align with ``eta``'s
+    ``obs_id`` axis.
 
     Returns ``(term_draws, ame_prob)`` — the logit-scale effect draws ``(S,)`` and
     the probability-scale average marginal effect per draw ``(S,)``. Both
@@ -138,6 +153,22 @@ def _itt_ame_draws(
         )  # (n_obs, S)
     else:
         delta = term_draws[None, :]  # (1, S)
+    # Add each treatment interaction's per-row contribution ``c_k · m_{k,i}``, which
+    # promotes ``delta`` to (n_obs, S) on the first addition.
+    for coef_name, mod_vec in moderators or ():
+        if coef_name not in posterior:
+            raise KeyError(
+                f"moderator coefficient {coef_name!r} not in the {group} group; "
+                "the model must register it for the interaction-aware AME."
+            )
+        coef_draws = posterior[coef_name].stack(sample=("chain", "draw")).values.ravel()  # (S,)
+        mod = np.asarray(mod_vec, dtype=float)
+        if mod.shape[0] != eta.shape[0]:
+            raise ValueError(
+                f"moderator {coef_name!r} has {mod.shape[0]} rows but eta has "
+                f"{eta.shape[0]} observations; pass the fitted-subset vector."
+            )
+        delta = delta + np.outer(mod, coef_draws)  # (n_obs, S)
     eta0 = eta - delta * G[:, None]  # untreated baseline (G=0 = control) per obs/draw
     ame_prob = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
     return term_draws, ame_prob
@@ -148,6 +179,7 @@ def tau_summary_itt(
     *,
     ci_prob: float,
     G: np.ndarray,
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
 
@@ -187,7 +219,7 @@ def tau_summary_itt(
     since the HPDI is not transformation-invariant across the logit and
     probability scales.
     """
-    tau_draws, marginal = _itt_ame_draws(trace, G=G)
+    tau_draws, marginal = _itt_ame_draws(trace, G=G, moderators=moderators)
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_median = float(np.median(tau_draws))
@@ -406,6 +438,7 @@ def rope_summary(
     term: str = "tau",
     varying_term: str = "tau_i",
     eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
 ) -> dict[str, float | str]:
     """ROPE-anchored continuous report card for a randomised treatment effect.
 
@@ -431,7 +464,8 @@ def rope_summary(
     (sign-vs-size, the median convention, the δ choice).
     """
     effect_draws, ame_prob = _itt_ame_draws(
-        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name
+        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name,
+        moderators=moderators,
     )
     items = ame_prob * float(n_trials)
     return _rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
@@ -446,6 +480,7 @@ def rope_sensitivity(
     term: str = "tau",
     varying_term: str = "tau_i",
     eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
 ) -> pd.DataFrame:
     """How the meaningful-benefit claim moves as the threshold δ varies (issue #144).
 
@@ -463,7 +498,8 @@ def rope_sensitivity(
     ``n_trials=1`` and ``varying_term=""`` so ``items`` is the risk difference).
     """
     _effect_draws, ame_prob = _itt_ame_draws(
-        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name
+        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name,
+        moderators=moderators,
     )
     items = ame_prob * float(n_trials)
     rows: list[dict[str, float | str]] = []
@@ -522,6 +558,7 @@ def prior_pushforward(
     term: str = "tau",
     varying_term: str = "tau_i",
     eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     ci_prob: float = 0.95,
 ) -> dict[str, float]:
     """Push the **prior** on the effect through the items-scale AME (issue #125 Area 1/2).
@@ -541,6 +578,7 @@ def prior_pushforward(
         term=term,
         varying_term=varying_term,
         eta_name=eta_name,
+        moderators=moderators,
         group="prior",
     )
     items = ame_prob * float(n_trials)
@@ -882,9 +920,18 @@ def loo_delta(loo_a: az.ELPDData, loo_b: az.ELPDData) -> dict[str, float]:
     ``elpd_loo`` was renamed); ``dse`` is unchanged.
     """
     df = az.compare({"a": loo_a, "b": loo_b})
+    # ``az.compare`` reports ``dse`` relative to the top-ranked (reference) model,
+    # whose own ``dse`` is 0; the SE of the ELPD difference sits on the *other*
+    # row. Reading ``df.loc["a", "dse"]`` returns 0 whenever "a" ranks first
+    # (misleadingly certain). The pairwise difference SE is the single non-zero
+    # ``dse`` across the two rows, so take the max (the reference's is exactly 0).
+    if "dse" in df.columns:
+        d_se = float(max(df.loc["a", "dse"], df.loc["b", "dse"]))
+    else:
+        d_se = float("nan")
     return {
         "d_elpd": float(df.loc["a", "elpd"] - df.loc["b", "elpd"]),
-        "d_se": float(df.loc["a", "dse"]) if "dse" in df.columns else float("nan"),
+        "d_se": d_se,
     }
 
 
@@ -1001,6 +1048,7 @@ def treatment_marginal_effect(
     n_trials: int,
     term: str = "beta_trt",
     eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     ci_prob: float = 0.95,
 ) -> dict[str, float]:
     """Items-scale average marginal effect of the treatment term (LRPGF, #127).
@@ -1008,9 +1056,13 @@ def treatment_marginal_effect(
     A thin wrapper over the shared counterfactual-AME core :func:`_itt_ame_draws`
     (#130): the gain model's treatment term ``term`` (``beta_trt``) plays the role of
     the ITT ``tau`` and the on-intervention indicator ``trt`` the role of ``G``, with
-    no age-varying term. Per draw the core forms ``eta0 = eta - term*trt`` (all off)
-    and averages ``expit(eta0 + term) - expit(eta0)`` over observations; this folds
-    onto that core so the two parameterisations of the same quantity cannot drift.
+    no age-varying term. Per draw the core forms the untreated baseline by removing
+    the *full* per-row treatment contribution and toggles it back on: with
+    ``moderators`` giving the fitted treatment interactions
+    ``(gamma_int_trt_k, z_k)``, the effect is ``beta_trt + Σ_k gamma_int_trt_k·z_{k,i}``
+    per row, so the reported AME reflects the treatment main effect *and* its
+    interactions rather than ``beta_trt`` alone. This folds onto that core so the
+    two parameterisations of the same quantity cannot drift.
 
     Reported on the probability and items scales (``n_trials`` × probability) with an
     equal-tailed ``ci_prob`` interval. Point estimates are the **median** —
@@ -1019,7 +1071,8 @@ def treatment_marginal_effect(
     reporting.md). ``prob_trt_pos`` is ``P(term > 0)`` on the logit scale.
     """
     b, ame_prob = _itt_ame_draws(
-        trace, G=trt, term=term, varying_term="", eta_name=eta_name
+        trace, G=trt, term=term, varying_term="", eta_name=eta_name,
+        moderators=moderators,
     )
     ame_items = float(n_trials) * ame_prob
     lo_q = (1 - ci_prob) / 2

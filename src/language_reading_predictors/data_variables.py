@@ -428,14 +428,14 @@ class Variables:
 
     SPPHON_NONE = "spphon_none"
     """
-    Never scored more than 0 on SPPHON at any time point (0: scored > 1 at at least one time point; 1: only 
-    ever scored 0 or NaN at all time points).
+    Never scored above 0 on SPPHON at any time point (0: scored > 0 at at least one time point; 1: only
+    ever scored 0 (or NaN) at every time point). Matches the model-side off-floor convention (off-floor = score > 0).
     """
 
     NONWORD_NONE = "nonword_none"
     """
-    Never scored more than 0 on NONWORD at any time point (0: scored > 1 at at least one time point; 1: only 
-    ever scored 0 or NaN at all time points).
+    Never scored above 0 on NONWORD at any time point (0: scored > 0 at at least one time point; 1: only
+    ever scored 0 (or NaN) at every time point). Matches the model-side off-floor convention (off-floor = score > 0).
     """
 
     _NEXT_SUFFIX = "_next"
@@ -620,8 +620,10 @@ class Variables:
     PERIOD = "period"
     """
     Gain-interval index. A gain recorded at baseline wave ``t`` covers
-    period ``t`` (``t`` in {1, 2, 3}; the ``*_gain`` columns are NaN at t4).
-    Numerically equal to :attr:`TIME`, but kept as a separate,
+    period ``t`` (the meaningful range is {1, 2, 3}; the ``*_gain`` columns are
+    NaN at t4). It is set **numerically equal to** :attr:`TIME` for every row, so
+    t4 rows carry ``period == 4`` as a byproduct — that value is only meaningful on
+    gain rows, where t4 is NaN and drops out. Kept as a separate,
     canonically-named column so period-resolved analyses (and the Bayesian
     follow-ups in #104) share a single definition rather than each
     re-deriving it from ``time``.
@@ -629,7 +631,9 @@ class Variables:
     Derived in :func:`data_utils.load_data` (it is not a raw CSV column) and
     deliberately **absent** from :attr:`ALL` / :attr:`NUMERIC` /
     :attr:`CATEGORICAL` so it does not silently enter the default predictor
-    sets. See :data:`Categories.TIME_PERIOD` for the 1-3 label mapping.
+    sets. See :data:`Categories.TIME_PERIOD` for the 1-3 label mapping. When
+    used to filter a *level* (per-timepoint) analysis, exclude ``time == 4``
+    explicitly rather than relying on ``period``.
     """
 
     ON_INTERVENTION = "on_intervention"
@@ -639,7 +643,10 @@ class Variables:
     The immediate group (``group == 1``) is on intervention from period 1;
     the waitlist group (``group == 2``) is off in period 1 only and on once
     it crosses over (``period >= 2``). Equivalently, a row is **off**
-    intervention iff ``(group == 2) & (period == 1)``.
+    intervention iff ``(group == 2) & (period == 1)``. Because ``period``
+    equals ``time`` on every row, t4 rows also evaluate to ``True`` — a
+    byproduct that is only meaningful on gain rows (t4 gains are NaN); a level
+    analysis must exclude ``time == 4`` explicitly.
 
     Derived in :func:`data_utils.load_data`; like :attr:`PERIOD` it is
     deliberately absent from :attr:`ALL` / :attr:`NUMERIC` /
@@ -984,8 +991,8 @@ class Variables:
         LSAMMLU,  # only at t1, t2
         LSAMINT,  # only at t1, t2
         LSAMUN,  # only at t1, t2
-        SPPHON_NONE,  # binary indicator of SPPHON < 1 at all time points
-        NONWORD_NONE,  # binary indicator of NONWORD < 1 at all time points
+        SPPHON_NONE,  # binary indicator: SPPHON never > 0 (i.e. 0 or NaN at every time point)
+        NONWORD_NONE,  # binary indicator: NONWORD never > 0 (i.e. 0 or NaN at every time point)
         HEARING_C,  # combines HEARING and EARINF
     ]
 

@@ -333,20 +333,35 @@ def _markdown_summary(
         else float("nan")
     )
 
+    # Optional metrics may be absent from an older metrics.json — format each only
+    # when present, so a missing key degrades to "n/a" rather than raising a
+    # TypeError after the expensive baseline CV has already run.
+    def _fmt(value: object, spec: str) -> str:
+        return "n/a" if value is None else format(value, spec)
+
+    r2_line = f"- **Skill vs predict-the-mean (pooled out-of-fold R²): {_fmt(r2, '.3f')}**"
+    if r2 is not None:
+        r2_line += (
+            f" ({r2 * 100:.0f}% of individual variation explained out of sample)"
+        )
+
+    cv_rmse_mean = metrics.get("cv_rmse_mean")
+    cv_rmse_std = metrics.get("cv_rmse_std")
+    cv_mae_mean = metrics.get("cv_mae_mean")
+    cv_mae_std = metrics.get("cv_mae_std")
+
     lines = [
         f"### {model_id} — predictability readout",
         "",
         f"- n = {baseline['n_observations']}, target SD = {baseline['target_sd']:.2f}",
-        f"- **Skill vs predict-the-mean (pooled out-of-fold R²): "
-        f"{r2:.3f}**" + ("" if r2 is None else f" ({r2 * 100:.0f}% of individual "
-                                                "variation explained out of sample)"),
-        f"- Pooled OOF RMSE {rmse:.2f} vs mean-baseline RMSE "
-        f"{base_rmse:.2f} → {rmse_reduction:.0f}% RMSE reduction",
+        r2_line,
+        f"- Pooled OOF RMSE {_fmt(rmse, '.2f')} vs mean-baseline RMSE "
+        f"{base_rmse:.2f} → {_fmt(rmse_reduction, '.0f')}% RMSE reduction",
         f"- DummyRegressor(mean) baseline pooled R² = "
         f"{baseline['baseline_pooled_r2']:.3f} (≈ 0 by construction — confirms wiring)",
-        f"- CV RMSE {metrics.get('cv_rmse_mean'):.2f} ± "
-        f"{metrics.get('cv_rmse_std'):.2f}; CV MAE "
-        f"{metrics.get('cv_mae_mean'):.2f} ± {metrics.get('cv_mae_std'):.2f}",
+        f"- CV RMSE {_fmt(cv_rmse_mean, '.2f')} ± "
+        f"{_fmt(cv_rmse_std, '.2f')}; CV MAE "
+        f"{_fmt(cv_mae_mean, '.2f')} ± {_fmt(cv_mae_std, '.2f')}",
         "",
         "**Skill by predictor set** (which is the honest 'forecast from baseline' number?)",
         "",

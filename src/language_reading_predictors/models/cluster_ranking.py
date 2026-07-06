@@ -35,6 +35,8 @@ SAME_SKILL_SIBLINGS: dict[str, list[str]] = {
     "deappfi": ["deappin", "deappvo"],  # same DEAP picture-naming instrument
     "deappin": ["deappfi", "deappvo"],  # same DEAP picture-naming instrument
     "deappvo": ["deappfi", "deappin"],  # DEAP voicing — same DEAP instrument
+    "deappav": ["deappin", "deappvo", "deappfi"],  # DEAP average — its deterministic components
+    "deapp_c": ["deappin", "deappvo", "deappfi"],  # DEAP composite — its deterministic components
     "rowpvt": ["b1reto"],    # receptive vocab — ROWPVT vs total b1reto
     # Early Repetition Battery (ERB) phonological-memory sub-scores — same instrument.
     "erbnw": ["erbword", "erbto"],

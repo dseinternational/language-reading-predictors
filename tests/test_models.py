@@ -11,6 +11,9 @@ never appear in the predictor set — these tests guard that invariant.
 
 from __future__ import annotations
 
+import pandas as pd
+import pytest
+
 from language_reading_predictors.models.registry import MODELS
 
 
@@ -66,3 +69,36 @@ def test_phase_b_models_exclude_tautological_totals():
         for mid in (f"lrpgbg{nn}", f"lrpgbl{nn}"):
             if total is not None:
                 assert total not in MODELS[mid].predictor_vars, mid
+
+
+# --- log1p pipeline domain guard (defensive; no registered model uses it) ---
+
+
+def _log_pipeline_with_y(y_values):
+    """Build an LGBMLogPipeline with a minimal context whose target is ``y_values``."""
+    from language_reading_predictors.models.common import ModelConfig, RunConfig
+    from language_reading_predictors.models.lgbm_log_pipeline import LGBMLogPipeline
+
+    cfg = ModelConfig(
+        model_id="tmp_log",
+        description="tmp",
+        target_var="y",
+        predictor_vars=["x"],
+        model_params={"n_estimators": 5},
+    )
+    pipe = LGBMLogPipeline(cfg, RunConfig.from_name("dev"))
+    pipe.context.y = pd.Series(y_values, dtype="float64")
+    return pipe
+
+
+def test_log_pipeline_rejects_target_at_or_below_minus_one():
+    pipe = _log_pipeline_with_y([0.0, 5.0, -1.0])  # -1 is out of log1p's domain
+    with pytest.raises(ValueError, match="LGBMLogPipeline"):
+        pipe.configure_model()
+
+
+def test_log_pipeline_accepts_valid_target():
+    # y > -1 everywhere: configure_model must succeed and build the pipeline.
+    pipe = _log_pipeline_with_y([0.0, 2.5, -0.5, 10.0])
+    pipe.configure_model()
+    assert pipe.context.pipeline is not None

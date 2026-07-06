@@ -4,7 +4,8 @@
 """
 Model factories for the statistical models.
 
-Three factories are provided:
+One ``build_*`` factory per model family (keyed by :class:`ModelSpec.kind`), the
+most-used being:
 
 - :func:`build_itt_model` — the LRPITT ITT suite (one outcome, RCT phase) and its
   SES-adjusted companions; the floored outcomes use its ``bernoulli_offfloor``
@@ -14,15 +15,25 @@ Three factories are provided:
 - :func:`build_mechanism_model` — LRP56, LRP57, LRP58 (adjustment-set
   mechanism regressions on ``W_post`` using all phases).
 
-All three return a tuple ``(model, variables)`` where ``variables`` is a dict
-mapping names to PyMC variables, used by the pipeline to extract posterior
-draws and assemble report tables.
+The rest cover the remaining families: :func:`build_mediation_model`,
+:func:`build_did_model`, :func:`build_gain_factors_model`,
+:func:`build_level_factors_model`, :func:`build_aligned_model`,
+:func:`build_adjusted_model`, :func:`build_correlated_factor_model`,
+:func:`build_dose_response_model`, :func:`build_lcsm_model`,
+:func:`build_two_mediator_model`, :func:`build_horseshoe_model`,
+:func:`build_growth_model` and :func:`build_historical_growth_model`. See
+``definitions.py`` for the authoritative family/kind registry.
+
+Each returns a :class:`BuiltModel` carrying the PyMC ``model``, a ``variables``
+dict mapping names to PyMC variables (used by the pipeline to extract posterior
+draws and assemble report tables), the row-subset ``prepared`` data, and any
+``extras`` the reporting layer needs (e.g. treatment-interaction moderators).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable
+from dataclasses import dataclass, field
+from typing import Any, Iterable
 
 import numpy as np
 import pymc as pm
@@ -112,6 +123,16 @@ class BuiltModel:
     Factories may drop rows with missing post-scores or missing confounder
     values; this attribute exposes the actually-used data so the pipeline can
     align posterior indices to input rows.
+    """
+    extras: dict[str, Any] = field(default_factory=dict)
+    """Optional per-model artefacts the pipeline needs but that are not RVs.
+
+    Used to carry the exact moderator vectors of any treatment×covariate
+    interactions (aligned with ``prepared``'s ``obs_id`` order) so the
+    average-marginal-effect report can net out the *full* per-row treatment
+    contribution — not just the treatment main effect — without recomputing
+    (and risking drift from) the standardisation the factory used. See
+    ``reporting._itt_ame_draws``'s ``moderators`` argument.
     """
 
 
@@ -395,7 +416,20 @@ def build_itt_model(
             pm.Bernoulli("y_offfloor", logit_p=eta, observed=off_floor, dims="obs_id")
 
     variables = _variables_dict(model)
-    return BuiltModel(model=model, variables=variables, prepared=prepared)
+    # Expose the tau-moderator vector so the AME report can net out the full
+    # per-row treatment contribution ``(tau + gamma_tau_int·z_M)·G`` when a
+    # linear tau moderator with interaction is fitted (Part B; latent — no
+    # registered spec sets ``tau_moderator_symbol`` today). ``gamma_tau_mod`` is
+    # a main effect and cancels in the toggle, so only ``gamma_tau_int`` enters.
+    tau_moderators: list[tuple[str, np.ndarray]] = []
+    if z_M is not None and tau_moderator_interaction:
+        tau_moderators.append(("gamma_tau_int", np.asarray(z_M, dtype=float)))
+    return BuiltModel(
+        model=model,
+        variables=variables,
+        prepared=prepared,
+        extras={"tau_interaction_moderators": tau_moderators},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -697,6 +731,12 @@ def build_mechanism_model(
     clean no-interaction baseline (e.g. LRP73base) that differs from the full
     model by exactly the interaction term, for a nested PSIS-LOO comparison.
     """
+    # Materialise once: ``confounder_symbols`` is iterated several times below
+    # (keep-mask, coefficient loop, the "A in confounders" check, and the
+    # "every declared confounder reaches eta" invariant). A generator argument
+    # would be exhausted after the first pass and silently drop every confounder
+    # — the exact failure the invariant exists to catch.
+    confounder_symbols = tuple(confounder_symbols)
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
     if mechanism_symbol not in prepared.pre_logit:
@@ -748,11 +788,22 @@ def build_mechanism_model(
         z_L, _ = standardise(mech_post_logit)
     if moderator_symbol is not None:
         if moderator_is_covariate:
-            # Continuous covariate moderator (currently age): use the
-            # already-standardised A_std, re-standardised on the kept rows so
-            # gamma_mod reads as the moderator effect at mean L and gamma_int is
-            # unit-free — consistent with the count-moderator path.
-            z_M, _ = standardise(prepared.A_std)
+            # Continuous covariate moderator: dispatch on ``moderator_symbol`` so
+            # the label matches the vector (like the ITT factory). ``"A"`` is age
+            # (``prepared.A_std``); any other symbol must be a ``prepared.covariates``
+            # key. Re-standardised on the kept rows so gamma_mod reads at mean L and
+            # gamma_int is unit-free. Raising on an unknown symbol prevents the old
+            # silent behaviour of fitting age moderation regardless of the symbol.
+            if moderator_symbol == "A":
+                raw_M = prepared.A_std
+            elif moderator_symbol in prepared.covariates:
+                raw_M = prepared.covariates[moderator_symbol]
+            else:
+                raise KeyError(
+                    f"Covariate moderator {moderator_symbol!r} not in "
+                    "prepared.covariates (use 'A' for age)."
+                )
+            z_M, _ = standardise(raw_M)
         else:
             moderator_post_logit = logit_safe(
                 prepared.post_counts[moderator_symbol],
@@ -1167,6 +1218,17 @@ def build_did_model(
     if own not in prepared.post_counts or own not in prepared.pre_logit:
         raise KeyError(f"Outcome {own!r} missing pre/post in prepared data")
     periods = tuple(int(p) for p in periods)
+    # The time / treated indicators below hard-code the waitlist-crossover 2×2
+    # (P1 untreated-waitlist vs P2 crossover, ``is_p2 = phase >= 1``,
+    # ``treated = (G==1) | (phase>=1)``). They are only correct for the
+    # crossover pair ``(0, 1)``; any other window would silently mislabel the
+    # time and treatment cells (e.g. ``(1, 2)`` makes both indicators constant,
+    # leaving delta / beta_period unidentified). Fail loudly instead.
+    if periods != (0, 1):
+        raise ValueError(
+            "build_did_model hard-codes the P1-vs-P2 crossover contrast and "
+            f"requires periods=(0, 1); got {periods}."
+        )
     if dose and "attend" not in prepared.covariates:
         raise KeyError("dose=True requires the 'attend' covariate to be loaded")
     if period_varying_dose and not dose:
@@ -1217,7 +1279,12 @@ def build_did_model(
         eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
 
         if dose:
-            z_attend = pm.Data("z_attend", prepared.covariates["attend"], dims="obs_id")
+            # Re-standardise the dose covariate on the kept rows: it was z-scored
+            # over all stacked transitions (P1–P3) at load time, but this model is
+            # fit on ``periods`` (P1–P2) only, so without this the dose slope would
+            # be "per SD of dose pooled over P1–P3", not per SD of the fitted rows.
+            attend_std, _ = standardise(prepared.covariates["attend"])
+            z_attend = pm.Data("z_attend", attend_std, dims="obs_id")
             if period_varying_dose:
                 # Partial-pooled per-period dose slopes (non-centred): each
                 # period's slope shrinks toward the shared mean mu_dose. The
@@ -1228,7 +1295,12 @@ def build_did_model(
                     np.asarray(periods), prepared.phase
                 ).astype(np.int64)
                 dose_phase_idx = pm.Data("dose_phase_idx", period_pos, dims="obs_id")
-                mu_dose = _priors.tau_prior().to_pymc("mu_dose")
+                # Use the dose-response factory's dose-slope prior (beta_mech,
+                # Normal(0, 1)) — NOT tau — so the shared dose-slope summary compares
+                # like with like (the docstring says this model mirrors
+                # build_dose_response_model). Previously these reused tau_prior,
+                # silently differing from the model they are compared against.
+                mu_dose = _priors.beta_mech_prior().to_pymc("mu_dose")
                 sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
                 beta_dose_phase = pm.Deterministic(
                     "beta_dose_phase",
@@ -1239,7 +1311,8 @@ def build_did_model(
                 )
                 eta_full = eta_base + beta_dose_phase[dose_phase_idx] * z_attend
             else:
-                beta_dose = _priors.tau_prior().to_pymc("beta_dose")
+                # Match build_dose_response_model's dose-slope prior (beta_mech).
+                beta_dose = _priors.beta_mech_prior().to_pymc("beta_dose")
                 eta_full = eta_base + beta_dose * z_attend
         else:
             treated_d = pm.Data("treated", treated, dims="obs_id")
@@ -2431,9 +2504,15 @@ def build_gain_factors_model(
         pair for pair in interactions if include_trt or "trt" not in pair
     ]
 
+    # Standardise every non-treatment term on the *kept* rows so each "per 1 SD"
+    # coefficient reads against the fitted sample's SD. The ability covariate is
+    # re-standardised here too (not just own/skill baselines): in the treated_only
+    # (…b) variants the untreated period-1 rows are dropped, so the load-time
+    # scaler — computed over all periods — would otherwise mislabel the ability
+    # unit for the treated-only fit.
     term_vecs: dict[str, np.ndarray] = {"trt": trt, "age": prepared.A_std}
     if ability_covariate is not None:
-        term_vecs["ability"] = prepared.covariates[ability_covariate]  # already z-scored
+        term_vecs["ability"], _ = standardise(prepared.covariates[ability_covariate])
     term_vecs["own"], _ = standardise(prepared.pre_logit[own])
     for s in skill_symbols:
         term_vecs[s], _ = standardise(prepared.pre_logit[s])
@@ -2503,7 +2582,30 @@ def build_gain_factors_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    # Expose the treatment×covariate interaction moderators so the pipeline's
+    # average-marginal-effect report can net out the *full* per-row treatment
+    # contribution ``beta_trt + Σ_k gamma_int_trt_k · z_k`` — not just
+    # ``beta_trt`` (issue: gain-family AME ignored the fitted trt interactions).
+    # Each entry is ``(gamma_int coefficient name, standardised moderator vector)``
+    # for a fitted interaction with ``trt`` as one member; the moderator is the
+    # *other* member's term vector, exactly as multiplied into ``eta``. Only
+    # populated when the treatment term is present (``include_trt``).
+    trt_moderators: list[tuple[str, np.ndarray]] = []
+    if include_trt:
+        for pair in active_interactions:
+            if "trt" not in pair:
+                continue
+            other = pair[0] if pair[1] == "trt" else pair[1]
+            trt_moderators.append(
+                (f"gamma_int_{pair[0]}_{pair[1]}", np.asarray(term_vecs[other], dtype=float))
+            )
+
+    return BuiltModel(
+        model=model,
+        variables=_variables_dict(model),
+        prepared=prepared,
+        extras={"trt_interaction_moderators": trt_moderators},
+    )
 
 
 def build_level_factors_model(
@@ -2679,11 +2781,17 @@ def build_aligned_model(
 
     post = prepared.post_counts[own].astype(np.int64)
     cohort = prepared.G.astype(float)
-    own_pre_std, _ = standardise(prepared.pre_logit[own])
+    # Enter the own baseline on the *raw* logit scale, like every sibling factory
+    # (ITT, mechanism, gain/level-factors, DiD): the ``gamma_own ~ Normal(1, 0.5)``
+    # prior encodes "logit-post ≈ logit-pre" (a slope near 1 in logit units), which
+    # only holds on the raw logit scale. Standardising the baseline here (as before)
+    # left that prior mean of 1 meaning "1 logit per SD of baseline logit" — an
+    # unintended, measure-dependent prior for this precision term.
+    own_pre_logit = prepared.pre_logit[own]
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     with pm.Model(coords=coords) as model:
-        own_pre_d = pm.Data("own_pre_logit", own_pre_std, dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
 
         alpha = _scalar_prior("alpha", _priors.alpha_prior)

@@ -46,6 +46,7 @@ from rich import print
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 
 import language_reading_predictors.data_utils as data_utils
+from language_reading_predictors import model_ids
 from language_reading_predictors.models._reporting import (
     metrics_table,
     params_table,
@@ -269,7 +270,9 @@ def tune(
     target_transform: str | None = None,
     alpha: float | None = None,
 ) -> None:
-    key = model_id.lower()
+    # Accept either a legacy id (``lrpgbg12``) or a canonical id
+    # (``lrp-rli-gbg-012``, any case/form), mirroring scripts/fit_model.py (#168).
+    key = model_ids.resolve_to_legacy(model_id).lower()
     if key not in MODELS:
         print(f"[bold red]Unknown model: {model_id}[/bold red]")
         print(f"Available: {', '.join(MODELS.keys())}")

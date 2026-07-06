@@ -31,9 +31,15 @@ SPEC = ModelSpec(
     title="Joint ITT model over the LRPITT suite outcomes (TR, TE, UR, UE, R, E, L, B, P, W)",
     extra={
         "outcomes": LRPITT12_OUTCOMES,
-        # DAG-faithful, mirroring the single-outcome suite: own baseline + linear
-        # age as precision terms, no cross-baselines (so the joint tau_k reproduce
-        # the single-outcome tau_k within MC error). LKJ residual + age GP off.
+        # DAG-faithful, mirroring the single-outcome suite's *structure*: own
+        # baseline + linear age as precision terms, no cross-baselines. NOTE the
+        # joint model keeps the common Normal(0, 0.5) tau prior for every outcome;
+        # it does NOT apply the single-outcome suite's distal tier
+        # (Normal(0, 0.3) for measures.DISTAL_OUTCOMES = {R, E, T, F, UR, UE}; see
+        # PRIORS.md). So the joint tau_k track the single-outcome tau_k closely on
+        # the proximal outcomes, but a distal tau_k may differ from its tiered
+        # single-outcome counterpart by a prior-driven amount. LKJ residual + age
+        # GP off.
         "use_cross_baselines": False,
         "use_age_linear": True,
         "use_age_gp": False,

@@ -330,6 +330,52 @@ def write_diagnostics_summary(
     )
 
 
+def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None) -> dict:
+    """Lightweight convergence check for a *sub-fit* trace (issue: ungated sub-fits).
+
+    The headline gate (:func:`write_diagnostics_summary` → ``diagnostics_summary.json``)
+    only covers the primary trace. Secondary / sensitivity / bivariate sub-fits (the
+    floor-rule graded secondary, the t3 temporal-ordering sensitivity, the adjusted
+    family's bivariate + prior-sweep + SES refits) publish CSVs from their own
+    standalone traces with no gate — a silently non-converged sub-fit would be
+    reported without any flag. This computes the same signals as the main gate
+    (unrounded max R-hat, min bulk/tail ESS, total divergences) and returns a small
+    dict with a ``converged`` boolean, warning loudly when it fails. It is a *flag*,
+    not a hard stop: sensitivity sub-fits should still be reported, but marked.
+    """
+    result = {
+        "converged": True,
+        "max_rhat": None,
+        "min_ess": None,
+        "n_divergences": None,
+    }
+    try:
+        summ = az.summary(
+            trace, var_names=var_names, round_to=None, kind="diagnostics"
+        )
+        max_rhat = float(summ["r_hat"].max())
+        min_ess = float(min(summ["ess_bulk"].min(), summ["ess_tail"].min()))
+        n_div = int(np.asarray(trace.sample_stats["diverging"].values).sum())
+        result.update(
+            max_rhat=max_rhat, min_ess=min_ess, n_divergences=n_div
+        )
+        result["converged"] = bool(
+            max_rhat <= RHAT_MAX and min_ess >= ESS_THRESHOLD and n_div == 0
+        )
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]sub-fit convergence check failed for {label}: {exc}[/yellow]")
+        result["converged"] = None
+        return result
+    if result["converged"] is False:
+        rprint(
+            f"[red]Sub-fit '{label}' did not meet the convergence gate "
+            f"(max R-hat={result['max_rhat']:.4f}, min ESS={result['min_ess']:.0f}, "
+            f"divergences={result['n_divergences']}); its published estimates are "
+            "flagged not-converged.[/red]"
+        )
+    return result
+
+
 def run_extended_diagnostics(
     context: StatisticalFitContext,
     *,
@@ -486,10 +532,16 @@ def save_prior_predictive_plot(
     """Surface the prior-predictive check in the report (#127 / #125 Area 2).
 
     Overlays the prior-predictive distribution of the outcome count against the
-    observed counts and writes ``prior_predictive_check.png``. ``node`` defaults
-    to the model's observed node (so this works for every family, not just GF/LF).
-    A rootogram is added when the count outcome makes one meaningful. Guarded — a
-    plotting failure must not abort the fit.
+    observed counts and writes ``prior_predictive_check.png``. ``node`` selects the
+    likelihood node to plot; pass it explicitly for models whose *first* observed
+    RV is not the outcome (e.g. the mediation families register the mediator
+    likelihood before the outcome ``y_post`` — defaulting to ``observed_RVs[0]``
+    would overlay mediator draws on the outcome's observed counts). It defaults to
+    the model's first observed node otherwise. For a multi-outcome likelihood (the
+    joint model's ``(obs, outcome)`` ``y_post``) the column for ``outcome_symbol``
+    is selected so counts with different denominators are not pooled into one
+    histogram. A rootogram is added when the count outcome makes one meaningful.
+    Guarded — a plotting failure must not abort the fit.
     """
     if context.prior_samples is None or context.prepared is None:
         rprint("[yellow]No prior samples to plot[/yellow]")
@@ -501,6 +553,16 @@ def save_prior_predictive_plot(
             node = "y_post"
     try:
         pp = context.prior_samples.prior_predictive[node]
+        # Joint models register a single ``(obs, outcome)`` likelihood; select the
+        # column matching ``outcome_symbol`` so the overlay compares like with like
+        # (each outcome has its own denominator).
+        if "outcome" in getattr(pp, "dims", ()):
+            outcome_coord = [str(o) for o in pp.coords["outcome"].values]
+            if outcome_symbol in outcome_coord:
+                pp = pp.sel(outcome=outcome_symbol)
+            else:
+                pp = pp.isel(outcome=0)
+                outcome_symbol = outcome_coord[0]
         rep = np.asarray(pp.values, dtype=float).ravel()
         obs = np.asarray(context.prepared.post_counts[outcome_symbol], dtype=float)
         obs = obs[np.isfinite(obs)]

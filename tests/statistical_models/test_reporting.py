@@ -472,6 +472,62 @@ def test_treatment_marginal_effect_folds_onto_core_and_reports_median():
     assert "trt_items_mean" not in out and "trt_prob_mean" not in out
 
 
+def _trace_named_vec(eta, *, scalars=None, vectors=None):
+    """Trace with ``eta`` (chain, draw, obs), named scalar and per-obs vector vars."""
+    n_chain, n_draw, n_obs = eta.shape
+    data = {"eta": (("chain", "draw", "obs_id"), eta)}
+    for name, arr in (scalars or {}).items():
+        data[name] = (("chain", "draw"), arr)
+    for name, arr in (vectors or {}).items():
+        data[name] = (("chain", "draw", "obs_id"), arr)
+    ds = xr.Dataset(
+        data,
+        coords={
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs),
+        },
+    )
+    return SimpleNamespace(posterior=ds)
+
+
+def test_treatment_marginal_effect_nets_out_interactions():
+    # Regression guard for the gain-family AME fix: the treatment contribution is
+    # beta_trt + Σ_k gamma_int_trt_k · z_k, so the counterfactual must remove and
+    # toggle the FULL per-row effect — not beta_trt alone. Passing the moderators
+    # must reproduce the hand-rolled full-effect AME, and must differ from the
+    # (wrong) beta_trt-only AME whenever the interaction has non-zero draws.
+    eta = np.array([[[0.0, 1.0, -0.5, 0.3], [0.2, -1.0, 0.3, -0.4]]])
+    beta = np.array([[0.4, 0.6]])
+    gint = np.array([[0.5, -0.3]])  # gamma_int_trt_ability draws
+    z_ability = np.array([1.2, -0.8, 0.4, -1.5])  # standardised moderator, per obs
+    trt = np.array([1.0, 0.0, 1.0, 0.0])
+    n_trials = 20
+    trace = _trace_named_vec(
+        eta, scalars={"beta_trt": beta, "gamma_int_trt_ability": gint}
+    )
+
+    out = treatment_marginal_effect(
+        trace, trt=trt, n_trials=n_trials,
+        moderators=[("gamma_int_trt_ability", z_ability)],
+        ci_prob=0.9,
+    )
+
+    b = beta.reshape(-1)  # (S,)
+    gi = gint.reshape(-1)  # (S,)
+    e = eta.reshape(-1, 4)  # (S, n_obs)
+    delta = b[:, None] + gi[:, None] * z_ability[None, :]  # (S, n_obs)
+    eta0 = e - delta * trt[None, :]
+    ame_full = (expit(eta0 + delta) - expit(eta0)).mean(axis=1)  # (S,)
+    assert out["trt_prob_median"] == pytest.approx(float(np.median(ame_full)))
+    assert out["trt_items_median"] == pytest.approx(float(np.median(ame_full * n_trials)))
+
+    # The beta_trt-only AME (the pre-fix behaviour) is genuinely different here.
+    eta0_wrong = e - b[:, None] * trt[None, :]
+    ame_wrong = (expit(eta0_wrong + b[:, None]) - expit(eta0_wrong)).mean(axis=1)
+    assert float(np.median(ame_full)) != pytest.approx(float(np.median(ame_wrong)))
+
+
 def test_rope_summary_accepts_named_treatment_term():
     # rope_summary is reusable for the gain family by naming term=beta_trt; the
     # numbers must match an explicit reference and the default-term path.

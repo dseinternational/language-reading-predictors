@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPALLRPAL06 - aligned-40-week per-protocol single gain for phoneme blending (B).
+"""LRPAL06 - aligned-40-week per-protocol single gain for phoneme blending (B).
 
 Per-protocol onset-aligned Beta-Binomial ANCOVA of the aligned post-score on its
 own onset baseline, age-at-onset, cognitive ability and the cohort indicator. Both
