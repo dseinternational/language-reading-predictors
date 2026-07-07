@@ -193,12 +193,11 @@ still open.
 
 ## Cross-family consistency — three scale drifts
 
-1. **Intercept anchoring is inverted.** Only the two newest per-outcome longitudinal
-   families (growth, LCSM) anchor the intercept; every count-outcome family where the
-   item-scale non-invariance bites hardest (ITT, factors, joint, DiD, mediation,
-   _historical growth_) leaves it free at `Normal(0, 1.5)`. The fix already exists in
-   the codebase (growth/LCSM `*_anchor`) — it just is not applied where it matters
-   most.
+1. **Intercept anchoring is inconsistent.** Only growth + LCSM anchor the intercept;
+   the count-outcome families (ITT, factors, joint, DiD, mediation, historical growth)
+   leave it free at `Normal(0, 1.5)`. This only _bites_ for the high-denominator,
+   low-occupancy outcomes (see the empirical extension below) — but the inconsistency
+   is real, and the fix already exists in the codebase (growth/LCSM `*_anchor`).
 2. **Association scale: 0.3 vs 0.5.** Established families use `gamma_cross ~
 Normal(0, 0.3)`; growth + LCSM use 0.5 for their couplings/associations. Pick one
    intended association scale and reconcile — the newer families drifted looser without
@@ -211,16 +210,45 @@ Plus: **`kappa ~ HalfNormal(50)` is universal** (good consistency) but universal
 under-anchored — the normative raw-score SDs (#141's admissible, still-unused source)
 would calibrate it once, everywhere.
 
+## Empirical extension — all-families pushforward (anchored vs unanchored)
+
+Running the pushforward across families sharpens Finding 1 and **corrects** one earlier
+claim. Two contrasting families (dev data, 400 draws):
+
+| Family (intercept)                           | scale            | observed (med, SD, occupancy) | prior-pred (med, p95, SD)           |
+| -------------------------------------------- | ---------------- | ----------------------------- | ----------------------------------- |
+| Growth `lrp69` (**anchored**)                | pooled R/E/T/W/L | med 22, p95 55                | med **18** (tracks), p95 126, SD 38 |
+| Historical growth `rlmhg` (**unanchored** η) | basread, n = 87  | med 32, SD 26, **0–100%**     | med 43, p95 85, **SD 27**           |
+
+- **The blow-out is conditional on occupancy, not universal.** The unanchored `rlmhg`
+  η-grid is empirically _well-calibrated_ on `basread` (prior-pred SD 27 ≈ observed 26;
+  p95 85 ≈ observed max 87) — because the Byrne mixed-reading-group cohort genuinely
+  spans the whole 87-item scale, so a wide logit prior is _appropriate_ there. The
+  severe miscalibration is specific to **high-denominator, low-occupancy** outcomes —
+  RLI R/E cluster in 9–40% of a 170-item scale, so the same wide prior sweeps far past
+  the plausible range. This **corrects** the earlier reading of `rlmhg` as a
+  "should-anchor" case: on `basread` it is fine; the target is the _occupancy mismatch_,
+  not unanchoredness per se.
+- **Anchoring fixes location, not spread.** Growth anchors the intercept and its
+  prior-pred median (18) duly tracks the observed (22) — but the pooled p95 (126) is
+  still wide (R/E-driven): the `Normal(anchor, 1.5)` deviation SD + the RE-intercept
+  `HalfNormal(1.0)` + the age-slope prior keep the spread loose. So anchoring is
+  **necessary but not sufficient** for the high-denominator outcomes — the _deviation_
+  SD (and the RE scale) need tightening there too.
+
 ## Prioritised recommendations
 
-1. **Anchor the intercept** (or tier α for high-denominator outcomes) across the
-   count-outcome families — the biggest item-scale-plausibility win, and it removes the
-   growth/LCSM-vs-rest inconsistency. (Finding 1; suite-wide.)
+1. **For high-denominator, low-occupancy outcomes (R/E, and any distal standardised
+   test where DS scores cluster low): anchor the intercept _and_ tighten the deviation
+   / RE scales.** Anchoring alone centres but does not narrow (growth shows this). This
+   is **surgical, not a blanket suite-wide anchor** — outcomes that span their scale
+   (`basread`, L) are already fine. (Finding 1, as refined by the pushforward.)
 2. **Tighten `gamma_own` SD to ≈ 0.25** against published test–retest reliabilities
    (r ≈ 0.8–0.95) — cheap, admissible external source, #141 open decision 3.
    (Finding 2.)
 3. **Reconcile the drifts** — the 0.3-vs-0.5 association scale and the 0.5-vs-1.0
-   RE-SD; anchor `rlmhg`'s `eta_group_wave`.
+   RE-SD. (`rlmhg`'s unanchored η is deliberately _not_ on this list — the pushforward
+   shows it is well-calibrated for `basread`.)
 4. **Sensitivity-check `beta_mech` / `b_path`** at `Normal(0, 0.5)` vs 1 — #141's
    remaining recommended sweep.
 5. **Anchor `kappa`** once against normative SDs; add **prior-predictive panels**
