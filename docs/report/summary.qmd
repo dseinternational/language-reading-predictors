@@ -1,3 +1,7 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 # Summary {.unnumbered}
 
-[TODO]
+The study-level summary has not yet been finalised. Results should not be summarised from this placeholder chapter; use the reviewed model-level outputs and convergence diagnostics before writing any overall conclusions.

@@ -1,7 +1,10 @@
 ---
 title: "Intervention effects"
-abstract: "Summary --- *TODO*"
+abstract: "Draft scaffold; ITT results narrative pending."
 ---
 
-TODO
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
 
+This chapter is not yet a reviewed results narrative. Do not infer intervention effects from this placeholder; use the fitted ITT model reports and their convergence banners, posterior summaries, ROPE summaries, and prior-sensitivity outputs before drafting study-level claims.

@@ -1,6 +1,10 @@
 ---
 title: "Statistical models"
-abstract: "*TODO*"
+abstract: "Draft scaffold; model methods narrative pending."
 ---
 
-[TODO]
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+This chapter is a placeholder for the study-level modelling narrative. The current operative methods are in `METHODS.md`: gradient-boosting models rank full default predictor sets using subject-grouped cross-validation, and Bayesian models report posterior medians, credible intervals, tail probabilities, and explicit causal-versus-association roles after convergence checks.

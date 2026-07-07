@@ -116,3 +116,33 @@ def test_priors_table_applies_context_overrides():
     assert by_param.loc["beta_dose", "role"] == "association"
     assert by_param.loc["mu_dose", "panel"] == "beta_mech"
     assert by_param.loc["sigma_dose", "panel"] == "sigma_dose"
+
+
+def test_level_factor_prior_role_is_conservative_for_group_time_vector():
+    from language_reading_predictors.statistical_models.pipeline import (
+        _prior_table_overrides,
+    )
+
+    ctx = SimpleNamespace(
+        spec=SimpleNamespace(
+            kind="level_factors",
+            outcome_symbol="W",
+            extra={"group_by_time": True},
+        ),
+        model=None,
+    )
+    _ctor, role, rationale = _prior_table_overrides(ctx)
+    assert role["b_grp_time"] == "association"
+    assert "only b_grp_time[1]" in rationale["b_grp_time"]
+
+
+def test_priors_table_applies_rationale_overrides():
+    model = SimpleNamespace(free_RVs=[_rv("b_grp_time")], deterministics=[])
+    df = priors.priors_table(
+        model,
+        role_overrides={"b_grp_time": "association"},
+        rationale_overrides={"b_grp_time": "Only b_grp_time[1] is randomised."},
+    )
+    row = df.iloc[0]
+    assert row["role"] == "association"
+    assert row["rationale"] == "Only b_grp_time[1] is randomised."

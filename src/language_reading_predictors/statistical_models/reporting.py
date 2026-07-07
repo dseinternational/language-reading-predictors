@@ -945,8 +945,9 @@ def factor_summary(
     """Per-coefficient posterior summary for a factor model (LRPGF / LRPLF, #127).
 
     One row per coefficient in ``coef_names`` present in the trace: posterior
-    ``mean``, equal-tailed central interval at coverage ``ci_prob`` (``lo``/``hi``,
-    same convention as :func:`tau_summary_itt`), and ``prob_positive`` =
+    ``median`` (the house headline statistic), posterior ``mean`` (secondary),
+    equal-tailed central interval at coverage ``ci_prob`` (``lo``/``hi``, same
+    convention as :func:`tau_summary_itt`), and ``prob_positive`` =
     ``P(coef > 0)``. The ``role`` column labels each term **causal** (the
     randomised treatment terms named in ``causal_terms``) or **association** —
     under the locked DAG every non-randomised coefficient is an adjusted
@@ -963,6 +964,7 @@ def factor_summary(
         return {
             "term": term,
             "role": "causal" if causal else "association",
+            "median": float(np.median(d)),
             "mean": float(np.mean(d)),
             "lo": float(np.quantile(d, lo_q)),
             "hi": float(np.quantile(d, hi_q)),

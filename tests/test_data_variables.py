@@ -66,6 +66,9 @@ def test_default_gain_excludes_structural_groups():
     assert not (gain & set(V.GAINS)), "DEFAULT_GAIN must not contain gain columns"
     assert not (gain & set(V.NEXTS)), "DEFAULT_GAIN must not contain next columns"
     assert not (gain & set(V.DEFAULT_EXCLUDED)), "DEFAULT_GAIN must honour DEFAULT_EXCLUDED"
+    assert not (gain & set(V.PERIOD_RELATED)), (
+        "DEFAULT_GAIN must exclude intervention-period process measures"
+    )
 
 
 def test_default_level_excludes_period_related():

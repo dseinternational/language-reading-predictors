@@ -1,6 +1,10 @@
 ---
 title: "Data and measures"
-abstract: "*TODO*"
+abstract: "Draft scaffold; data and measures narrative pending."
 ---
 
-[TODO]
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+This chapter is a placeholder for the study-level description of the data source, measurement schedule, outcome scales, derived gain variables, missingness conventions, and denominator checks. Until it is completed, treat `src/language_reading_predictors/data_variables.py`, `METHODS.md`, and the model-level reports as the operative documentation.
