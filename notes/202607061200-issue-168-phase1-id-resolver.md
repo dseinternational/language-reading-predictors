@@ -24,13 +24,15 @@ the legacy ids use 2, which the resolver accounts for):
 
 Family codes (by `ModelSpec.kind`, or the `gbg`/`gbl` prefix for GB models):
 `itt`/`joint → ITT`, `gain_factors → GF`, `level_factors → LF`, `aligned → AL`,
-`did → DID`, `horseshoe → HS`, `corr_factor → MM`, `mechanism → MCH`,
-`mediation`/`mediation_multi → MED`, `adjusted → ADJ`, `lcsm → LCS`,
-`dose_response → DR`, GB gain → `GBG`, GB level → `GBL`. Two families that
+`did → DID`, `horseshoe → HS`, `corr_factor → MM`, `mechanism → MECH`,
+`mediation`/`mediation_multi → MED`, `adjusted → ADJ`, `lcsm → LCSM`,
+`dose_response → DOSE`, GB gain → `GBG`, GB level → `GBL`. Two families that
 post-date the plan note are added here: `growth → GC` (LRP69/70) and
-`historical_growth → HG` (the RLM cohort's `rlmhg`). Variant suffixes follow the
-controlled vocabulary — `b` companion, `base` comparator, `d` dose-sensitivity,
-`a` alternate (e.g. `lrpgf01b → lrp-rli-gf-001b`, `lrp77base → lrp-rli-dr-077-base`).
+`historical_growth → HG` (the RLM cohort's `rlmhg`). (Family-code spellings
+`MECH`/`LCSM`/`DOSE` were confirmed by the research lead on #168, 2026-07-06.)
+Variant suffixes follow the controlled vocabulary — `b` companion, `base`
+comparator, `d` dose-sensitivity, `a` alternate (e.g. `lrpgf01b → lrp-rli-gf-001b`,
+`lrp77base → lrp-rli-dose-077-base`).
 
 ## Delivered
 
@@ -69,13 +71,18 @@ folders, report titles + cross-links, script id literals, and deciding the old
 `output/` directory disposition — all of which can now land incrementally behind
 this resolver, reusing the #116 Phase-A rename mechanics.
 
-## Still open for team sign-off (from the plan)
+## Team sign-off (resolved on #168, 2026-07-06)
 
-1. Family-code spellings — this phase uses `MCH` / `MED` / `ADJ` / `LCS` / `DR`
-   (+ `GC` growth, `HG` historical-growth); easy to change in one map if preferred.
-2. Variant scheme — controlled-suffix + metadata (used here) vs `parent+100` renumber.
-3. Joint ITT models (`lrpitt12/15/15b`) — kept in the `ITT` family (`variant_role`
-   would carry "joint" once populated).
-4. RLM study/family codes — `rlmhg01 → lrp-rlm-hg-001` is wired; confirm before more
-   RLM models land.
-5. Old-output-dir disposition — not touched in Phase 1 (lookup stays legacy).
+The research lead confirmed all five items:
+
+1. Family-code spellings — **`MCH → MECH`, `LCS → LCSM`, `DR → DOSE`**; `GC`/`HG`
+   confirmed. Applied here.
+2. Variant scheme — **adopt `parent+100` renumbering** (e.g. `lrpgf01b →
+lrp-rli-gf-101`), not the controlled-suffix form shipped in Phase 1. **Not yet
+   implemented** — it drops the suffix, so (a) it needs a numbering rule for the one
+   parent with two variants (`lrp77` has `77a` + `77base`, both → `dose-177`), still
+   open for the lead, and (b) the reverse (canonical → legacy) becomes a lookup
+   rather than a pure transform. Deferred to the Phase-2 change.
+3. Joint ITT models (`lrpitt12/15/15b`) — kept in the `ITT` family. ✓
+4. RLM study/family codes — `RLM` + `HG` confirmed; `rlmhg01 → lrp-rlm-hg-001`. ✓
+5. Old-output-dir disposition — leave `output/models/{legacy}/` historical. ✓

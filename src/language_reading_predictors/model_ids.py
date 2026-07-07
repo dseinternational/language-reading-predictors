@@ -49,12 +49,12 @@ FAMILY_BY_KIND: dict[str, str] = {
     "did": "did",
     "horseshoe": "hs",
     "corr_factor": "mm",
-    "mechanism": "mch",
+    "mechanism": "mech",
     "mediation": "med",
     "mediation_multi": "med",
     "adjusted": "adj",
-    "lcsm": "lcs",
-    "dose_response": "dr",
+    "lcsm": "lcsm",
+    "dose_response": "dose",
     "growth": "gc",
     "historical_growth": "hg",
 }
@@ -168,7 +168,7 @@ class ModelId:
         if self.family in _EMBEDDED_FAMILIES:
             prefix = _PREFIX_BY_STUDY[self.study]
             return f"{prefix}{self.family}{n}{suffix}"
-        # Bare families (mch/med/adj/lcs/dr/gc): the family is not spelled in the
+        # Bare families (mech/med/adj/lcsm/dose/gc): the family is not spelled in the
         # legacy id, only the number is (e.g. lrp65, lrp77base).
         return f"{_PREFIX_BY_STUDY[self.study]}{n}{suffix}"
 
