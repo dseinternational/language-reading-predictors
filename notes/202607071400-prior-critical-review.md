@@ -19,11 +19,17 @@ repeating it. The value added here is threefold:
    **empirical prior-predictive pushforward** (not just the analytic items-scale
    translation #141 did for τ).
 2. **Extend the audit to families #141 did not critically assess** — the bespoke
-   LCSM / correlated-factor / two-mediator priors, and everything that postdates
-   #141: horseshoe (`lrphs`), the growth curves (`lrp69`/`lrp70`), and historical
-   growth (`rlmhg`).
+   LCSM / correlated-factor / two-mediator / adjusted (`lrp65`) priors, and everything
+   that postdates #141: horseshoe (`lrphs`), the growth curves (`lrp69`/`lrp70`), and
+   historical growth (`rlmhg`) — with **per-family pushforwards** of the bespoke
+   coefficient priors (horseshoe shrinkage, mediation/mechanism paths, factor loadings).
 3. **Cross-family consistency** — do the shared priors mean the same thing
    everywhere, and are the newer families coherent with the ITT baseline?
+
+Scope: this covers every prior-bearing **Bayesian** family (priors are set per family,
+not per model, so `lrpitt01–24` etc. are one review each). The 50 Layer-1
+gradient-boosting models have LightGBM hyperparameters, not Bayesian priors; they are
+outside a prior review but reviewed in a delineated appendix on request.
 
 Provenance constraint from #141 still binds: `data/rli_data_long.csv` **is** the
 Burgoyne et al. (2012) trial dataset, so that publication cannot set the _scale_ of
@@ -136,7 +142,7 @@ identifiability at n ≈ 54 — a reasonable call, though worth a one-line note 
 _does_ cap the age nonlinearity the GP can express). The intercept and `gamma_own`
 calibration (Findings 1–2) are the substantive gaps.
 
-## Families that reuse the shared priors (joint, factors, DiD, aligned, mechanism, mediation)
+## Families that reuse the shared priors (joint, factors, DiD, aligned, adjusted, mechanism, mediation)
 
 These inherit `alpha`, `gamma_own`, `kappa` unchanged, so **Findings 1–2 apply to all
 of them** — the item-scale non-invariance of the free intercept and the loose
@@ -163,10 +169,18 @@ HalfNormal(0.5)`; associations at 0.3. Clean reuse.
   slope `beta_mech ~ Normal(0, 1)` is one of the two loosest coefficient priors.
 - **Mediation (+ two-mediator):** a-path (`a_G`, τ); b-path (`b_M`/`b_L`/`b_E` ~
   Normal(0, 1)) — the other loosest priors; `sigma_M ~ HalfNormal(1.0)`.
+- **Adjusted (`lrp65`, between-child):** `eta = alpha + gamma_own·logit(W_pre) + Σ_k
+βₖ·z_k` with `βₖ ~ Normal(0, predictor_slope_sigma = 0.5)` on each standardised
+  baseline predictor, plus the shared `alpha`/`gamma_own`/`kappa`. Findings 1–2 apply
+  (the free intercept and loose `gamma_own`); W is the outcome (n = 79, moderate
+  occupancy) so the item-scale spread is milder than R/E. The `0.5` slope prior is a
+  **third instance of the 0.3-vs-0.5 association drift** (§ below) — looser than
+  `gamma_cross` 0.3, and #141 already lists `predictor_slope` for a `{0.3, 0.7}` sweep.
 
 → **`beta_mech` / `b_path` at `Normal(0, 1)`** remain the loosest coefficient priors
-(a +1 SD move ≈ ×2.7 odds) — #141's flagged second sensitivity candidate after τ,
-still open.
+(a +1 SD move ≈ ×2.7 odds; empirically, at a mid-scale baseline the induced outcome
+shift is Δp ≈ ±0.16 median, ±0.38 at p95 — see the per-family pushforward below) —
+#141's flagged second sensitivity candidate after τ, still open.
 
 ## Families that postdate #141 (never critically audited)
 
@@ -185,11 +199,23 @@ still open.
   means. The clearest new "should anchor at the pooled grand-mean logit" case; also
   `sigma_subject ~ HalfNormal(1.0)` differs from the `HalfNormal(0.5)` used elsewhere.
 - **Horseshoe (`lrphs`):** the regularized-horseshoe shrinkage (`tau0 = 0.1` global
-  HalfCauchy, `lambda ~ HalfCauchy(1)`, slab `c² ~ InverseGamma(2, 8)` capping at ≈2
-  logit) is textbook Piironen–Vehtari, well-justified for a ranking cross-check
-  (`tau0 = 0.1` encodes "few relevant predictors"). No concern.
-- **Correlated factor (`lrpmm01`):** LKJ factor correlation, positive `HalfNormal`
-  loadings (identification), `sigma_indicator ~ HalfNormal(1.0)` — standard CFA; fine.
+  HalfCauchy, `lambda ~ HalfCauchy(1)`, slab `c² ~ InverseGamma(2, 8)`) is textbook
+  Piironen–Vehtari and well-justified for a ranking cross-check (`tau0 = 0.1` encodes
+  "few relevant predictors"). The induced coefficient prior (pushforward below)
+  confirms the intended sparsity — **61 % of the mass falls within ±0.1 logit, median
+  |β| ≈ 0.06** — so null predictors are shrunk hard. One nuance: the slab tail is
+  heavier than the "≈2 logit" the slab scale suggests (p99.9 |β| ≈ 6 logit), because
+  `c² ~ InverseGamma(2, 8)` has a fat right tail; an escaped coefficient can be
+  implausibly large. Harmless for a _relative_ ranking cross-check, but if `lrphs`
+  coefficients are ever read on the item scale, a tighter slab (smaller `slab_scale`,
+  or a lighter-tailed `c²`) would cap escaped effects at a plausible magnitude.
+- **Correlated factor (`lrpmm01`):** LKJ factor correlation (`eta = 2`), positive
+  `HalfNormal(1)` loadings (identification), `sigma_indicator ~ HalfNormal(1.0)` —
+  standard CFA. The pushforward confirms it is reasonable: `LKJ(2)` mildly regularises
+  the inter-factor correlation toward 0 (median |r| ≈ 0.31, p95 ≈ 0.76), and the
+  loading/residual priors imply within-domain indicator correlations of median ≈ 0.36
+  (p95 ≈ 0.92) — loose but admissible for indicators of one latent. Fine as is; only
+  tighten `loading_sigma` if a-priori near-unity indicator correlations are implausible.
 
 ## Cross-family consistency — three scale drifts
 
@@ -236,6 +262,31 @@ claim. Two contrasting families (dev data, 400 draws):
   **necessary but not sufficient** for the high-denominator outcomes — the _deviation_
   SD (and the RE scale) need tightening there too.
 
+### Per-family pushforward — the bespoke coefficient priors
+
+The three families with priors _not_ shared with ITT (their inherited
+`alpha`/`gamma_own`/`kappa` are already covered above) were checked by sampling each
+bespoke prior in isolation (200 k draws; LKJ via a standalone `sample_prior_predictive`):
+
+| Prior (family)                               | quantity pushed forward                         | result                                                                      |
+| -------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------- |
+| Horseshoe `β` (`lrphs`)                      | induced coefficient (shrinkage profile)         | P(\|β\| < 0.1) = **0.61**, median \|β\| 0.06, p95 1.45, **p99.9 ≈ 6 logit** |
+| `beta_mech` / `b_path` `Normal(0, 1)`        | Δp per +1 SD at mid-scale baseline (`p₀ = 0.5`) | Δp median **±0.16**, p95 **±0.38**                                          |
+| — vs shared `gamma_cross` `Normal(0, 0.3)`   | (same)                                          | Δp median ±0.05, p95 ±0.14                                                  |
+| Corr-factor `LKJ(2)` + `HalfNormal(1)` loads | inter-factor r ; implied indicator r            | factor \|r\| med 0.31 / p95 0.76 ; indicator r med 0.36 / p95 0.92          |
+
+- **Horseshoe shrinks correctly** (61 % of mass within ±0.1) — the sparsity the ranking
+  cross-check wants — but its **slab tail is heavier than the nominal ≈2 logit**
+  (p99.9 ≈ 6); fine for a relative ranking, worth a lighter slab if ever read on the
+  item scale.
+- **`beta_mech` / `b_path` are ≈2.7× looser than `gamma_cross` on the probability
+  scale** — a single mediation/mechanism path at its p95 shifts the outcome by more
+  than a third of the probability range. This is the empirical substance behind #141's
+  "second sensitivity candidate": try `Normal(0, 0.5)` (which would roughly halve the
+  p95 Δp) unless a wider path prior is deliberately justified.
+- **Corr-factor priors are reasonable** — `LKJ(2)` regularises the inter-factor
+  correlation, and the implied indicator correlations stay admissible.
+
 ## Prioritised recommendations
 
 1. **For high-denominator, low-occupancy outcomes (R/E, and any distal standardised
@@ -246,11 +297,14 @@ claim. Two contrasting families (dev data, 400 draws):
 2. **Tighten `gamma_own` SD to ≈ 0.25** against published test–retest reliabilities
    (r ≈ 0.8–0.95) — cheap, admissible external source, #141 open decision 3.
    (Finding 2.)
-3. **Reconcile the drifts** — the 0.3-vs-0.5 association scale and the 0.5-vs-1.0
+3. **Reconcile the drifts** — the 0.3-vs-0.5 association scale (now **three** families
+   at 0.5: growth, LCSM, and adjusted `lrp65`'s `predictor_slope`) and the 0.5-vs-1.0
    RE-SD. (`rlmhg`'s unanchored η is deliberately _not_ on this list — the pushforward
    shows it is well-calibrated for `basread`.)
 4. **Sensitivity-check `beta_mech` / `b_path`** at `Normal(0, 0.5)` vs 1 — #141's
-   remaining recommended sweep.
+   remaining recommended sweep, now empirically motivated: the per-family pushforward
+   shows the `Normal(0, 1)` path prior shifts the outcome by ±0.38 (p95) at mid-scale,
+   ≈2.7× the shared association scale; `Normal(0, 0.5)` roughly halves that.
 5. **Anchor `kappa`** once against normative SDs; add **prior-predictive panels**
    (floor/ceiling mass, item-scale spread) to the reports so the pushforward is
    visible, not implicit.
@@ -259,3 +313,48 @@ None of these change the current substantive conclusions (distal outcomes null,
 proximal effects keep direction — #141 §5a); they improve item-scale plausibility,
 cross-family coherence, and defensibility to a critical reader. Each is a self-
 contained follow-up that can land behind the existing shared-constructor seam.
+
+## Appendix — Layer-1 gradient-boosting models: hyperparameters, not priors
+
+The 50 LightGBM models (`lrpgbg01–22` gain, `lrpgbl01–28` level) are frequentist and
+have **no Bayesian priors**, so they fall outside a _prior_ review. Reviewed here on
+request because they are part of the modelling suite; the analogue of "prior
+specification" is the **regularisation regime** — the committed LightGBM
+hyperparameters. Each model is tuned _independently_ (per-model Optuna, MAE objective,
+GroupKFold `cv ≈ 51–53`), so unlike the Bayesian side (priors set once per family)
+there are 50 separate regimes. Observed spread across the 50: `num_leaves` 10–63
+(median 38), `max_depth` 3–12 (median 6), `min_child_samples` 4–37 (median 10),
+`learning_rate` 0.012–0.19 (median 0.064), `n_estimators` 5–580 (median 66),
+`reg_alpha`/`reg_lambda` 0.001–9 (median ≈ 0.04).
+
+- **Stale/borrowed hyperparameters — already tracked by #169.** Six modules
+  (`lrpgbg03/04/11`, `lrpgbl03/04/11`) carry no per-model tuning block; their params are
+  `retune-pending`, retained from the earlier _pruned_-predictor-set Optuna runs and no
+  longer matched to the current full predictor sets. This is the GB analogue of a
+  mis-specified prior — settings not matched to the data they now fit — and it is the
+  subject of open issue **#169** (reviewed retune of all 50 onto the full sets, promote
+  into the declarative model defs; guarded by `tests/test_borrowed_params.py`). Highest
+  value, already owned; nothing to add here beyond flagging it.
+- **`num_leaves > 2^max_depth` in 16/50 — a search-space coupling bug.** In roughly a
+  third of the models the committed `num_leaves` can never be reached because
+  `max_depth` binds the tree first, so that tuned value is partly inert and misleading.
+  Fold a fix into the #169 retune: either constrain `num_leaves ≤ 2^max_depth` in the
+  search space, or (LightGBM-idiomatic) set `max_depth = -1` and control complexity via
+  `num_leaves` alone.
+- **Tuning-to-noise risk at n ≈ 54 with near-LOSO CV.** `cv ≈ 53` GroupKFold on ~54
+  subjects is near leave-one-subject-out: near-unbiased but high-variance per fold, so
+  the Optuna objective is itself noisy and per-model optima (`n_estimators` as low as 5;
+  `learning_rate` up to 0.19) may be fitting CV noise rather than signal. The #169
+  retune should use repeated/nested CV (or report tuning-objective stability), and could
+  compare each per-model tune against a single robust shared config as a floor.
+- **Regularisation is coherent but heterogeneous, no red flag.** `min_child_samples`
+  median 10 (a leaf ≈ 19 % of the sample — moderate); six models at ≥ 30 are throttled
+  to near-additive ensembles; L1/L2 penalties are mostly non-trivial (median ≈ 0.04) but
+  near-off in six. The heterogeneity is the expected consequence of 50 independent tunes
+  on a tiny sample — which is exactly why #169's _reviewed, consistent_ retune is the
+  right remediation.
+
+**Bottom line for the GB layer:** there is no prior to critique; the analogues of
+prior mis-specification are (a) the stale/borrowed hyperparameters and (b) the
+`num_leaves`/`max_depth` coupling — (a) is already #169, and (b) plus a tuning-to-noise
+guard should be folded into that same retune.
