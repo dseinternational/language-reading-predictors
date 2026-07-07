@@ -224,11 +224,11 @@ claim. Two contrasting families (dev data, 400 draws):
   η-grid is empirically _well-calibrated_ on `basread` (prior-pred SD 27 ≈ observed 26;
   p95 85 ≈ observed max 87) — because the Byrne mixed-reading-group cohort genuinely
   spans the whole 87-item scale, so a wide logit prior is _appropriate_ there. The
-  severe miscalibration is specific to **high-denominator, low-occupancy** outcomes —
+  severe mis-calibration is specific to **high-denominator, low-occupancy** outcomes —
   RLI R/E cluster in 9–40% of a 170-item scale, so the same wide prior sweeps far past
   the plausible range. This **corrects** the earlier reading of `rlmhg` as a
   "should-anchor" case: on `basread` it is fine; the target is the _occupancy mismatch_,
-  not unanchoredness per se.
+  not the unanchored intercept per se.
 - **Anchoring fixes location, not spread.** Growth anchors the intercept and its
   prior-pred median (18) duly tracks the observed (22) — but the pooled p95 (126) is
   still wide (R/E-driven): the `Normal(anchor, 1.5)` deviation SD + the RE-intercept
