@@ -49,5 +49,8 @@ dependencies:
       - tabulate>=0.10.0
       - xarray>=2026.4.0
       - xgboost>=3.3.0
-      - -e ../research/src/python #  for now, for local development
+      - dse-research-utils[viz,notebook,dependence,tuning,io] @ git+https://github.com/dseinternational/research.git@v0.5.3#subdirectory=src/python
       - -e ./
+      # Local-dev override — to develop against a sibling checkout of research,
+      # comment the git line above and uncomment this instead:
+      # - -e ../research/src/python[viz,notebook,dependence,tuning,io]

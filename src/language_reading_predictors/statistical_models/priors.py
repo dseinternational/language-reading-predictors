@@ -20,6 +20,10 @@ import pandas as pd
 import preliz as pz
 from preliz.distributions.distributions import Continuous
 
+from language_reading_predictors.statistical_models.plotting import (
+    save_styled_figure,
+)
+
 
 # ---------------------------------------------------------------------------
 # Shared prior template (document these on the report)
@@ -615,11 +619,23 @@ def priors_table(
     )
 
 
-def plot_and_save(dist: Continuous, output_dir: str, name: str) -> str:
-    """Plot a prior PDF and save as ``{name}.png``.
+def _prior_title(name: str) -> str:
+    """Human-readable title for a prior-PDF panel.
 
-    PNG only: the reports prefer raster images so model-output pages stay quick
-    to browse (no large SVGs to render in the viewer).
+    Turns the raw file stem (``"prior_gamma_own"``) into ``"gamma_own · precision
+    prior"`` using the role registry, so the panel says what the parameter *is*
+    rather than repeating the filename.
+    """
+    key = name[len("prior_"):] if name.startswith("prior_") else name
+    role = _ROLE_BY_CTOR.get(key)
+    return f"{key} · {role} prior" if role else f"{key} prior"
+
+
+def plot_and_save(dist: Continuous, output_dir: str, name: str) -> str:
+    """Plot a prior PDF and save as ``{name}.png`` (+ an SVG sibling per #208).
+
+    Reports reference the PNG (raster keeps model-output pages quick to browse);
+    the small vector SVG is emitted alongside as a downloadable artifact.
     """
     os.makedirs(output_dir, exist_ok=True)
     fig = plt.figure(figsize=(5, 3))
@@ -629,11 +645,8 @@ def plot_and_save(dist: Continuous, output_dir: str, name: str) -> str:
         # Some preliz distributions (e.g. InverseGamma) need an explicit axis.
         ax = plt.gca()
         dist.plot_pdf(pointinterval=False, ax=ax)
-    png = os.path.join(output_dir, f"{name}.png")
-    plt.title(name)
-    plt.savefig(png, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    return png
+    plt.title(_prior_title(name))
+    return save_styled_figure(output_dir, name, fig=fig)
 
 
 def save_shared_prior_panel(

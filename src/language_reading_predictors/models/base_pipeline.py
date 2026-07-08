@@ -38,6 +38,7 @@ from sklearn.model_selection import GroupKFold, cross_validate
 
 import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors.data_variables import Variables as V
+from language_reading_predictors.figure_io import save_styled_figure
 from language_reading_predictors.plot_utils import (
     plot_heatmap,
     save_shap_scatter_plots,
@@ -380,10 +381,8 @@ class EstimatorPipeline:
         ax.set_title("Out-of-fold permutation importance")
         ax.grid(axis="x", alpha=0.3)
         fig.tight_layout()
-        fig.savefig(
-            context.output_dir / "permutation_importance.png",
-            dpi=300,
-            bbox_inches="tight",
+        save_styled_figure(
+            context.output_dir, "permutation_importance", fig=fig, close=False
         )
         context.plots["permutation_importance"] = fig
         plt.close(fig)
@@ -591,10 +590,8 @@ class EstimatorPipeline:
         ax.set_yticklabels(feats, fontsize=6)
         ax.set_title("Mean |SHAP interaction| (off-diagonal)")
         fig.colorbar(im, ax=ax, shrink=0.7)
-        fig.savefig(
-            context.output_dir / "shap_interaction_heatmap.png",
-            dpi=300,
-            bbox_inches="tight",
+        save_styled_figure(
+            context.output_dir, "shap_interaction_heatmap", fig=fig, close=False
         )
         context.plots["shap_interaction_heatmap"] = fig
         plt.close("all")
@@ -604,10 +601,11 @@ class EstimatorPipeline:
             try:
                 shap.dependence_plot((a, b), inter, X, show=False)
                 fig = plt.gcf()
-                fig.savefig(
-                    context.output_dir / f"shap_interaction_{a}__{b}.png",
-                    dpi=300,
-                    bbox_inches="tight",
+                save_styled_figure(
+                    context.output_dir,
+                    f"shap_interaction_{a}__{b}",
+                    fig=fig,
+                    close=False,
                 )
             except Exception as exc:  # pragma: no cover - plotting robustness
                 print(f"  [yellow]interaction plot {a}×{b} skipped: {exc}[/yellow]")
@@ -877,7 +875,7 @@ class EstimatorPipeline:
             out / "spearman_matrix.csv"
         )
         fig_sp, _ = plot_heatmap(spearman_corr, predictors, "Spearman rank correlation")
-        fig_sp.savefig(out / "spearman_heatmap.png", dpi=300, bbox_inches="tight")
+        save_styled_figure(out, "spearman_heatmap", fig=fig_sp, close=False)
         context.plots["spearman_heatmap"] = fig_sp
         plt.close(fig_sp)
 
@@ -888,7 +886,7 @@ class EstimatorPipeline:
             out / "distance_corr_matrix.csv"
         )
         fig_dc, _ = plot_heatmap(dcor_matrix, predictors, "Distance correlation")
-        fig_dc.savefig(out / "distance_corr_heatmap.png", dpi=300, bbox_inches="tight")
+        save_styled_figure(out, "distance_corr_heatmap", fig=fig_dc, close=False)
         context.plots["distance_corr_heatmap"] = fig_dc
         plt.close(fig_dc)
 
@@ -907,9 +905,7 @@ class EstimatorPipeline:
         )
         ax_dendro.set_title("Distance-correlation dissimilarity (Ward linkage)")
         ax_dendro.set_xlabel("Dissimilarity (1 \u2212 distance correlation)")
-        fig_dendro.savefig(
-            out / "distance_corr_dendrogram.png", dpi=300, bbox_inches="tight"
-        )
+        save_styled_figure(out, "distance_corr_dendrogram", fig=fig_dendro, close=False)
         context.plots["distance_corr_dendrogram"] = fig_dendro
         plt.close(fig_dendro)
 
@@ -927,7 +923,7 @@ class EstimatorPipeline:
         fig_mi, _ = plot_heatmap(
             1.0 - mi_dissim, predictors, "Mutual information (1 \u2212 dissimilarity)"
         )
-        fig_mi.savefig(out / "mutual_info_heatmap.png", dpi=300, bbox_inches="tight")
+        save_styled_figure(out, "mutual_info_heatmap", fig=fig_mi, close=False)
         context.plots["mutual_info_heatmap"] = fig_mi
         plt.close(fig_mi)
 
@@ -982,17 +978,13 @@ class EstimatorPipeline:
         plt.figure()
         shap.plots.bar(explanation, max_display=12, show=False)
         fig_bar = plt.gcf()
-        fig_bar.savefig(
-            context.output_dir / "shap_bar.png", dpi=300, bbox_inches="tight"
-        )
+        save_styled_figure(context.output_dir, "shap_bar", fig=fig_bar, close=False)
         context.plots["shap_bar"] = fig_bar
         plt.close("all")
 
         shap.summary_plot(shap_vals, X_shap, plot_size=0.25, show=False)
         fig_summary = plt.gcf()
-        fig_summary.savefig(
-            context.output_dir / "shap_summary.png", dpi=300, bbox_inches="tight"
-        )
+        save_styled_figure(context.output_dir, "shap_summary", fig=fig_summary, close=False)
         context.plots["shap_summary"] = fig_summary
         plt.close("all")
 
@@ -1019,8 +1011,8 @@ class EstimatorPipeline:
 
         shap.plots.waterfall(explanation[pos_idx], max_display=12, show=False)
         fig_waterfall = plt.gcf()
-        fig_waterfall.savefig(
-            context.output_dir / "shap_waterfall.png", dpi=300, bbox_inches="tight"
+        save_styled_figure(
+            context.output_dir, "shap_waterfall", fig=fig_waterfall, close=False
         )
         context.plots["shap_waterfall"] = fig_waterfall
         plt.close("all")
@@ -1034,8 +1026,8 @@ class EstimatorPipeline:
             show=False,
         )
         fig_clustered = plt.gcf()
-        fig_clustered.savefig(
-            context.output_dir / "shap_bar_clustered.png", dpi=300, bbox_inches="tight"
+        save_styled_figure(
+            context.output_dir, "shap_bar_clustered", fig=fig_clustered, close=False
         )
         context.plots["shap_bar_clustered"] = fig_clustered
         plt.close("all")
@@ -1232,8 +1224,8 @@ class EstimatorPipeline:
             axes[row, col].axis("off")
 
         fig.tight_layout()
-        fig.savefig(
-            context.output_dir / "partial_dependence.png", dpi=300, bbox_inches="tight"
+        save_styled_figure(
+            context.output_dir, "partial_dependence", fig=fig, close=False
         )
         context.plots["partial_dependence"] = fig
         plt.close(fig)

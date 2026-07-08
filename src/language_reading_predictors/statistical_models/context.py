@@ -105,6 +105,10 @@ def make_context(
     # it back as ``ci_prob`` and reports equal-tailed intervals, with the HPDI kept
     # as a separate per-scale sensitivity companion (see reporting._hdi_bounds,
     # #170). The external field name is retained for cross-repo compatibility.
+    # Apply the shared matplotlib house style for every fit path (CLI, notebook,
+    # tests, replot) — the CLI also does this via setup.init_script(); idempotent.
+    _env.init_plotting()
+
     reporting = _reporting.ReportingConfiguration(
         model_name=spec.model_id,
         config_name=config,

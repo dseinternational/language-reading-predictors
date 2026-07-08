@@ -18,6 +18,7 @@ import subprocess
 import uuid
 from multiprocessing import freeze_support
 
+import dse_research_utils.environment.setup as setup
 from rich import print as rprint
 from rich.panel import Panel
 
@@ -39,6 +40,11 @@ MODELS = discover_models()
 
 
 def main() -> None:
+    # Apply the shared DSE matplotlib house style so Bayesian figures match the
+    # GB ones (scripts/fit_model.py does the same). Without this every figure
+    # falls back to matplotlib/ArviZ defaults and looks inconsistent in the report.
+    setup.init_script()
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "model",
