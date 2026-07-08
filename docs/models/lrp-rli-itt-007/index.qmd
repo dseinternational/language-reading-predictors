@@ -23,6 +23,8 @@ format:
 
 ## Overview
 
+**In plain terms.** Did the children offered the intervention know more letter-sounds than those who were not — and how large, and how certain, is that difference? Because group assignment was randomised, this is a genuine causal (intention-to-treat) effect of *being offered* the programme, not just an association.
+
 LRPITT07 is the intention-to-treat (ITT) analysis for letter-sound knowledge (YARC-LSK) (`yarclet`). The
 estimand is the total effect of randomised group assignment $G$ on the post-score
 $L_{\text{post}}$, using the RCT phase only (time 1 $\rightarrow$ time 2).

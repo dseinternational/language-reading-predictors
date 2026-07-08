@@ -23,6 +23,8 @@ format:
 
 ## Overview
 
+**In plain terms.** Did the children offered the intervention spell more words phonetically than those who were not — and how large, and how certain, is that difference? Because group assignment was randomised, this is a genuine causal (intention-to-treat) effect of *being offered* the programme, not just an association.
+
 LRPITT09 is the intention-to-treat (ITT) analysis for phonetic spelling
 (`spphon`). The estimand is the total effect of randomised group assignment $G$ on
 the outcome, using the RCT phase only (time 1 $\rightarrow$ time 2). Phonetic

@@ -23,6 +23,8 @@ format:
 
 ## Overview
 
+**In plain terms.** Did the children offered the intervention read more nonwords — decoding unfamiliar letter strings (a heavily floored skill, so the headline is whether a child comes off the floor at all) than those who were not — and how large, and how certain, is that difference? Because group assignment was randomised, this is a genuine causal (intention-to-treat) effect of *being offered* the programme, not just an association.
+
 LRPITT11 is the intention-to-treat (ITT) analysis for nonword reading
 (`nonword`). The estimand is the total effect of randomised group assignment $G$
 on the outcome, using the RCT phase only (time 1 $\rightarrow$ time 2). Nonword
