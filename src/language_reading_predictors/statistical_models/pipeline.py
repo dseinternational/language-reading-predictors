@@ -393,7 +393,7 @@ def _save_rope_plot(
         fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(11, 4.2))
         ax_l.axvspan(
             -delta, delta, color="#bdbdbd", alpha=0.30,
-            label=f"ROPE (|effect| < {delta:g})",
+            label=f"ROPE (within ±{delta:g})",
         )
         ax_l.axvline(0, color="#444444", lw=1.0, ls=":")
         ax_l.plot(xs, kde(xs), color="#1b7837", lw=2.2)
