@@ -1,10 +1,14 @@
 ## Results
 
+This section splits the treatment's effect into the part that flows through the mediator and the part that does not. The direct effect (NDE) is what treatment does on its own, the indirect effect (NIE) is what it does by moving the mediator, and the total effect is the two added together (NDE + NIE).
+
 The mediation quantities are computed by counterfactual simulation from the
 posterior g-formula. They are not products of coefficients. The decomposition is
 causal only when the model-specific assumption section says the no-unmeasured
 mediator-outcome-confounding and cross-world assumptions are defensible; otherwise
 read it as an adjusted decomposition.
+
+_How to read the mediation table:_ each row is one decomposition quantity. `NDE` is the direct effect (treatment acting on its own), `NIE` is the indirect effect (treatment acting through the mediator), and `total` is their sum. The `words_*` columns give the posterior median and 95% credible interval in words; `prob_pos` is the probability the effect exceeds zero. `proportion_mediated` is the share of the total that runs through the mediator, and is unstable whenever the total can cross zero.
 
 ```{python}
 # | echo: false
@@ -43,6 +47,8 @@ if mediation_summary is not None:
 ```
 
 ### Temporal-Ordering Sensitivity
+
+_How to read this table:_ it re-runs the same NDE / NIE / total decomposition (same columns as above) but with the mediator measured before the outcome, so you can check whether the split points the same way when temporal order is enforced. Compare the direction and rough size against the main table rather than reading its numbers as the headline estimate.
 
 ```{python}
 # | echo: false

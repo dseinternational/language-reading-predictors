@@ -4,11 +4,23 @@ This family estimates an observational session-dose association on the logit
 scale, per 1 SD of period session count. Positive slopes mean larger conditional
 gains are associated with higher dose in that period.
 
+In plain terms: the slope is the change in outcome per additional session (per
+one extra dose unit) — how much more children tend to gain when they get more
+sessions in a period.
+
 ```{python}
 # | echo: false
 dose_slope_summary = _csv("dose_slope_summary.csv")
 dose_slope_summary if dose_slope_summary is not None else "No dose-slope summary."
 ```
+
+_How to read the dose-slope table:_ each row is one estimated quantity. `mean`
+is the posterior mean slope in logit units per 1 SD of sessions (bigger positive
+= more gain per extra dose); `lo` and `hi` are the ends of the 95% credible
+interval (the plausible range); `p_pos` is the probability the slope is above
+zero (near 1 favours benefit, near 0.5 is no clear direction). The
+`sigma_dose_between_period` row, when present, is how much the slope varies from
+period to period — small means periods share a common dose association.
 
 ```{python}
 # | echo: false
@@ -46,3 +58,10 @@ companion before treating the slope as robust.
 _comp = _csv("dose_loo_compare.csv")
 _comp if _comp is not None else _csv("did_dose_loo_compare.csv")
 ```
+
+_How to read the comparison table:_ this ranks the dose model against its
+companion by out-of-sample fit (leave-one-out cross-validation). The top row is
+the best-predicting model; `elpd_diff` is how far each other model falls behind
+it (0 for the top row, more negative = worse), and `se_diff` is the uncertainty
+in that gap — a difference only counts as clear when it is several times its own
+`se_diff`.

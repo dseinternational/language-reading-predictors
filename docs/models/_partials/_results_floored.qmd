@@ -10,11 +10,22 @@ intervention raises the probability of coming off the floor.
 
 :::
 
+_In plain terms:_ this outcome sits at zero for most children, so instead of asking
+"how many more items?" we ask "did the child move off zero at all?" The headline
+number below is the extra chance of coming off the floor that the intervention buys,
+in percentage points.
+
 ```{python}
 # | echo: false
 tau_summary = _csv("tau_summary.csv")
 tau_summary
 ```
+
+_How to read the table:_ `tau_prob_median` is the best single estimate of the
+off-floor risk difference (in probability units; multiply by 100 for percentage
+points), `tau_prob_lo`/`tau_prob_hi` bracket its 95% credible interval, and
+`prob_tau_pos` is the posterior probability that the intervention helps (closer to
+1 = stronger evidence of benefit).
 
 ```{python}
 # | echo: false
@@ -62,6 +73,12 @@ if tau_summary is not None:
 # | echo: false
 # | output: asis
 print(_img("tau_forest.png", "Posterior of the off-floor log-odds effect (forest)"))
+print(
+    "\n_How to read the forest plot:_ the marker is the posterior median and the "
+    "lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line "
+    "at 0 is no-effect; posterior mass to its right favours benefit, to its left "
+    "harm; a wider line means more uncertainty."
+)
 ```
 
 ```{python}
@@ -73,6 +90,13 @@ _rope = _csv("rope_summary.csv")
 if _rope is not None:
     print(rope_markdown(_rope, f"P({outcome_label} off-floor)"))
 print(_img("rope_summary.png", "ROPE-anchored posterior (risk-difference scale)"))
+print(
+    "\n_How to read the ROPE summary:_ the left panel is the posterior effect on the "
+    "items scale; the shaded band is the region of practical equivalence (ROPE), "
+    "i.e. effects small enough to count as no practical difference. The right panel "
+    "traces the probability of a benefit as the meaningful threshold delta rises, so "
+    "you can see how likely a worthwhile gain is, not just any gain above zero."
+)
 ```
 
 ```{python}
@@ -89,6 +113,10 @@ if _sens is not None:
 
 ### Off-floor movers by arm
 
+_How to read the table:_ this is the raw tally behind the estimate — for each arm,
+how many children started at the floor and how many moved off it, with the observed
+off-floor rate. Comparing the rates across arms shows the effect before any modelling.
+
 ```{python}
 # | echo: false
 _csv("offfloor_movers.csv")
@@ -100,6 +128,12 @@ _csv("offfloor_movers.csv")
 # | echo: false
 # | output: asis
 print(_img("proportion_at_zero_ppc.png", "Proportion-at-zero PPC (graded model)"))
+print(
+    "\n_How to read it:_ the histogram is the proportion of scores at the floor the "
+    "fitted model predicts across simulated datasets; the vertical line is the "
+    "observed proportion. The observed line sitting inside the bulk of the histogram "
+    "means the model reproduces the floor well."
+)
 ```
 
 ```{python}

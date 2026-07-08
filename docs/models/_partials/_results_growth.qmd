@@ -1,5 +1,9 @@
 ## Results — does baseline non-verbal ability predict trajectory shape?
 
+_In plain terms: we fit each child a starting point and a growth speed for every
+skill, then ask whether children who scored higher on a baseline non-verbal
+puzzle task tend to start higher or grow faster._
+
 The growth model characterises each measure's within-child trajectory (a latent
 logit intercept + linear age slope) and asks whether **baseline non-verbal
 ability** (`blocks`, the t1 WPPSI Block Design score) predicts that shape:
@@ -46,6 +50,12 @@ slope. Direction is read from `P(>0)` per the evidence-language policy (#179); a
 n≈54 the 95% intervals are wide, so these are directional statements, not decisive
 effects.
 
+_How to read the table:_ one row per measure. `median (logit)` is the central
+estimate of the association on the logit (log-odds) scale; `lo50`/`hi50` and
+`lo95`/`hi95` are the inner-50% and 95% credible ranges around it. `P(>0)` is the
+posterior probability the association is positive (higher ability → faster growth),
+and `evidence` is the plain-language strength label for that direction.
+
 ```{python}
 # | echo: false
 _coef_table("gamma")
@@ -56,9 +66,22 @@ _coef_table("gamma")
 # | output: asis
 print(_img("gamma_forest.png",
            "Baseline non-verbal ability → growth rate, by measure (50% + 95% ETI)"))
+print(
+    "\n_How to read the forest plot:_ the marker is the posterior median and the "
+    "lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line "
+    "at 0 is no-effect; posterior mass to its right favours benefit, to its left "
+    "harm; a wider line means more uncertainty. Here each row is one measure and the "
+    "effect is the association of +1 SD of baseline non-verbal ability with that "
+    "measure's logit growth rate — right of 0 means higher-scoring children tend to "
+    "grow faster."
+)
 ```
 
 ### Baseline non-verbal ability → baseline **level** (`delta`)
+
+_How to read the table:_ same columns as above, but the association is now with the
+starting point rather than the growth rate — a positive `median (logit)` and
+`P(>0)` mean higher-ability children tend to start higher on that measure.
 
 ```{python}
 # | echo: false
@@ -70,12 +93,22 @@ _coef_table("delta")
 The per-measure population slope characterises the average trajectory (logit
 change per +1 SD of age) independent of block design.
 
+_How to read the table:_ each row is a measure's average growth slope, not an
+ability association. A positive `median (logit)` with high `P(>0)` means the skill
+rises with age on average across children; the same interval columns give the
+uncertainty around that typical slope.
+
 ```{python}
 # | echo: false
 _coef_table("beta")
 ```
 
 ### Shared growth-tempo factor (`loading`; LRP70 only)
+
+_How to read this section:_ the loading table (LRP70 only) has the same columns as
+above — each row is how strongly one measure's growth rate tracks a single shared
+"developmental tempo". The read-out sentence that follows then reports whether a
+child's baseline non-verbal ability lines up with that shared tempo.
 
 ```{python}
 # | echo: false

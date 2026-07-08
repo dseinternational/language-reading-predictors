@@ -3,7 +3,18 @@
 This is a measurement and triangulation model. Factor-to-gain slopes are adjusted
 associations, not causal effects.
 
+In plain terms: this model treats each domain as an unobserved "factor" measured by
+several observed indicators, then reports how strongly each factor relates to the
+others and to the outcome.
+
 ### Loadings and Communalities
+
+_How to read the loadings table:_ each row is one observed indicator. `loading_*` is
+how much the indicator moves for a one-unit change in its (unit-variance) factor —
+bigger means the indicator tracks the factor more tightly. `correlation_*` is the same
+relationship rescaled to a −1..1 correlation. `communality_*` is the fraction of that
+indicator's variance the factor explains (0 = none, 1 = all), so it says how much of
+the indicator is "signal" from the factor versus indicator-specific noise.
 
 ```{python}
 # | echo: false
@@ -17,6 +28,12 @@ loadings if loadings is not None else "No loadings summary."
 
 ### Factor Correlations
 
+_How to read the factor-correlation matrix:_ each cell is the correlation between two
+factors, from −1 to +1. The diagonal is always 1 (a factor with itself). Off-diagonal
+values near +1 mean the two domains move together, near 0 mean they are largely
+independent, and negative means they move in opposite directions. High correlations
+signal overlapping domains; low ones support treating the factors as distinct.
+
 ```{python}
 # | echo: false
 factor_correlation = _csv("factor_correlation.csv", index_col=0)
@@ -24,6 +41,12 @@ factor_correlation if factor_correlation is not None else "No factor-correlation
 ```
 
 ### Structural Slopes
+
+_How to read the structural-slopes table:_ each row is a factor's adjusted association
+with the outcome. `mean` is the posterior average slope; `lo`/`hi` are the ends of the
+95% credible interval (the plausible range); `prob_pos` is the posterior probability
+the slope is above zero. A slope whose interval stays clear of 0, with `prob_pos` near
+1, is a reliably positive association — but read it as association, not effect.
 
 ```{python}
 # | echo: false
