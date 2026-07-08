@@ -20,13 +20,13 @@ from language_reading_predictors.models.cluster_ranking import (
 
 
 def test_deap_composite_targets_have_same_skill_siblings():
-    """The DEAP composite level targets (lrpgbl22/lrpgbl23) leave their deterministic
-    components in the pool, so they must carry a curated same-skill map so the
-    ``ranking_excluding_same_skill.csv`` view their docstrings promise is emitted.
+    """The DEAP composite level targets (LRP-RLI-GBL-022/LRP-RLI-GBL-023) leave their
+    deterministic components in the pool, so they must carry a curated same-skill map
+    so the ``ranking_excluding_same_skill.csv`` view their docstrings promise is emitted.
     """
     components = ["deappin", "deappvo", "deappfi"]
-    assert SAME_SKILL_SIBLINGS.get("deappav") == components  # lrpgbl22 target
-    assert SAME_SKILL_SIBLINGS.get("deapp_c") == components  # lrpgbl23 target
+    assert SAME_SKILL_SIBLINGS.get("deappav") == components  # LRP-RLI-GBL-022 target
+    assert SAME_SKILL_SIBLINGS.get("deapp_c") == components  # LRP-RLI-GBL-023 target
 
 
 def _perm_and_clusters():

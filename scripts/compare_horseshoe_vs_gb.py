@@ -7,10 +7,10 @@ cluster ranking (#116 Phase E).
 Both rankings are reduced to **construct level** and aligned:
 
 - The horseshoe ranks measure *symbols* directly (``predictor_ranking.csv`` from
-  ``scripts/fit_statistical_model.py lrphs0N``), keyed by posterior
+  ``scripts/fit_statistical_model.py lrp-rli-hs-00N``), keyed by posterior
   ``P(|beta| > delta)``.
 - The gradient-boosting ranking is per raw column (``predictor_ranking.csv`` from
-  ``scripts/rank_predictors.py --model lrpgb...``, ``member`` / ``perm_imp_mean``).
+  ``scripts/rank_predictors.py --model lrp-rli-gb...``, ``member`` / ``perm_imp_mean``).
   Each column is mapped back to its construct symbol via :data:`MEASURES` (plus the
   age / blocks / behaviour covariate constructs); construct importance is the
   **max** per-column permutation importance among the construct's columns, matching
@@ -24,9 +24,9 @@ importance is method-dependent.
 Usage::
 
     python scripts/compare_horseshoe_vs_gb.py \\
-        --horseshoe output/statistical_models/models/lrphs01-reporting/predictor_ranking.csv \\
-        --gb output/ranking/lrpgbg12/predictor_ranking.csv \\
-        --out output/statistical_models/models/lrphs01-reporting/horseshoe_vs_gb.csv
+        --horseshoe output/statistical_models/models/lrp-rli-hs-001-reporting/predictor_ranking.csv \\
+        --gb output/ranking/lrp-rli-gbg-012/predictor_ranking.csv \\
+        --out output/statistical_models/models/lrp-rli-hs-001-reporting/horseshoe_vs_gb.csv
 
 Writes ``horseshoe_vs_gb.csv`` (one row per shared construct) and prints the
 Spearman correlation + top-k overlap for the dated ``notes/`` entry.

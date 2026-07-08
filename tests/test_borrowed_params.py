@@ -16,11 +16,12 @@ import pytest
 from language_reading_predictors.models.registry import MODELS
 
 # (source_model_id, [borrower_model_ids]) — borrowers must equal the source.
+# Canonical registry keys since #168 Phase 2 (MODELS is keyed on the CLI id).
 BORROWED_PARAM_GROUPS = [
-    ("lrpgbg02", ["lrpgbg01", "lrpgbg03", "lrpgbg04"]),
-    ("lrpgbg09", ["lrpgbg11"]),
-    ("lrpgbl02", ["lrpgbl01", "lrpgbl03", "lrpgbl04"]),
-    ("lrpgbl09", ["lrpgbl11"]),
+    ("lrp-rli-gbg-002", ["lrp-rli-gbg-001", "lrp-rli-gbg-003", "lrp-rli-gbg-004"]),
+    ("lrp-rli-gbg-009", ["lrp-rli-gbg-011"]),
+    ("lrp-rli-gbl-002", ["lrp-rli-gbl-001", "lrp-rli-gbl-003", "lrp-rli-gbl-004"]),
+    ("lrp-rli-gbl-009", ["lrp-rli-gbl-011"]),
 ]
 
 

@@ -5,7 +5,7 @@
 
 The level companion to :mod:`lrp-rli-hs-001`: an independent Bayesian sensitivity check on
 the gradient-boosting predictor ranking for word-reading **level** (GB
-``lrpgbl12``). A regularized ("Finnish") horseshoe sparse regression regresses the
+``lrp-rli-gbl-012``). A regularized ("Finnish") horseshoe sparse regression regresses the
 concurrent word-reading count on the standardised **same-wave** levels of the other
 constructs (plus age), with a subject random intercept for the repeated timepoints;
 all coefficients share a global-local shrinkage prior. Predictors are ranked by
@@ -41,7 +41,7 @@ SPEC = ModelSpec(
         "covariates": [],
         "delta": 0.1,
         "target_accept": 0.99,
-        "gb_reference": "lrpgbl12",
+        "gb_reference": "lrp-rli-gbl-012",
     },
 )
 

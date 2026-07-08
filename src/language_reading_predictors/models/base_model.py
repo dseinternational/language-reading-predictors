@@ -14,7 +14,7 @@ Example
 ::
 
     class LRPGBG12(GainModel):
-        model_id = "lrpgbg12"
+        model_id = "lrp-rli-gbg-012"
         target_var = V.EWRSWR_GAIN
         include = (V.EWRSWR,)
         cv_splits = 53
@@ -80,7 +80,7 @@ class ModelDefinition:
     # ── required (must be set by concrete subclasses) ────────────────────
 
     model_id: ClassVar[str | None] = None
-    """Short identifier, e.g. ``"lrpgbg12"``. ``None`` for abstract bases."""
+    """Short identifier, e.g. ``"lrp-rli-gbg-012"``. ``None`` for abstract bases."""
 
     target_var: ClassVar[str]
     """Column name of the target variable."""
