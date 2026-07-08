@@ -18,6 +18,7 @@ import dse_research_utils.statistics.models.reporting as _reporting
 import dse_research_utils.statistics.models.sampling as _sampling
 
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.statistical_models import environment as _env
 from language_reading_predictors.statistical_models.preprocessing import (
     LongitudinalPanel,
     PreparedData,
