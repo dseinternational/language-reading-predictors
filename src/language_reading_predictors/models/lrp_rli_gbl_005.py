@@ -17,20 +17,20 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 235,
-    "learning_rate": 0.012246385977646894,
-    "num_leaves": 58,
-    "max_depth": 3,
-    "min_child_samples": 6,
-    "subsample": 0.6471382352609089,
+    "n_estimators": 138,
+    "learning_rate": 0.054818817031093585,
+    "num_leaves": 31,
+    "max_depth": 9,
+    "min_child_samples": 19,
+    "subsample": 0.7158333844161148,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6827041658949718,
-    "reg_alpha": 0.021220537844795304,
-    "reg_lambda": 0.21769887246316527,
+    "colsample_bytree": 0.6302472966220564,
+    "reg_alpha": 0.006091188074509197,
+    "reg_lambda": 0.0015746478752791115,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -39,7 +39,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL05(LevelModel):
     """Receptive vocabulary level predictors — exploratory (MAE-tuned, all data).
 
-    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbl-005"
@@ -55,7 +55,7 @@ class LRPGBL05(LevelModel):
         "Exploratory model for receptive vocabulary level (rowpvt). Fits the "
         "full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature "
         "selection in favour of full-set ranking); hyperparameters are "
-        "retained from the earlier pruned-set Optuna tune (retune-pending). "
+        "re-tuned by Optuna on the full set (150 trials, seed 47; #169). "
         "Target is near-Gaussian (skew 0.04). Treat the ranking as "
         "exploratory."
     )

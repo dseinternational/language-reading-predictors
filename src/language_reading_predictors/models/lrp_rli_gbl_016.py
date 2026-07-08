@@ -33,20 +33,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 133,
-    "learning_rate": 0.028088238000348178,
-    "num_leaves": 37,
-    "max_depth": 9,
-    "min_child_samples": 6,
-    "subsample": 0.6005851369100905,
+    "n_estimators": 137,
+    "learning_rate": 0.04651737709141136,
+    "num_leaves": 18,
+    "max_depth": 11,
+    "min_child_samples": 18,
+    "subsample": 0.9748319860377574,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9665121302617031,
-    "reg_alpha": 0.0026948627929153086,
-    "reg_lambda": 0.05949393188300806,
+    "colsample_bytree": 0.8739024256791915,
+    "reg_alpha": 0.003204453724037499,
+    "reg_lambda": 6.290944046440354,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -58,7 +58,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL16(LevelModel):
     """DEAP fine-articulation level predictors — baseline (all data, MAE-tuned).
 
-    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbl-016"
@@ -71,5 +71,5 @@ class LRPGBL16(LevelModel):
     params = _LGBM_MAE_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for deappfi (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Treat the ranking as exploratory."
+        "Exploratory model for deappfi (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Treat the ranking as exploratory."
     )

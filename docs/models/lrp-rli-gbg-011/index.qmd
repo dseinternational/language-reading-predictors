@@ -41,10 +41,10 @@ longitudinal timepoints — the change in the phonetic-spelling score. It is the
 spelling member of the reading/spelling outcomes added in #116 Phase B. All
 observations are included (no outlier exclusion).
 
-This is a **baseline exploratory model** for the gain-prediction task. It runs on
-hyperparameters borrowed from the phonics-adjacent letter-sounds analogue LRPGBG09
-and the full `Predictors.DEFAULT_GAIN` set (plus the auto-included `spphon`
-baseline level), pending a target-specific tune.
+This is a **baseline exploratory model** for the gain-prediction task. It was
+MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169), running
+on the full `Predictors.DEFAULT_GAIN` set (plus the auto-included `spphon`
+baseline level).
 Phonetic spelling has no taught/total decomposition, so there is no leakage sibling
 to drop.
 

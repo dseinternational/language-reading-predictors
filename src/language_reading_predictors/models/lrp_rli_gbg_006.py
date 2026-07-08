@@ -18,7 +18,7 @@ a log / signed-log transform may or may not help and is a question
 for future investigation.
 
 Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-retained from the earlier pruned-set tune (retune-pending, #116 Phase D).
+re-tuned by Optuna on the full set (150 trials, seed 47; #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -29,20 +29,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 175,
-    "learning_rate": 0.012391770398684195,
-    "num_leaves": 43,
-    "max_depth": 3,
-    "min_child_samples": 16,
-    "subsample": 0.7649062066306234,
+    "n_estimators": 192,
+    "learning_rate": 0.010015643165526266,
+    "num_leaves": 52,
+    "max_depth": 6,
+    "min_child_samples": 6,
+    "subsample": 0.8255230681355167,
     "subsample_freq": 1,
-    "colsample_bytree": 0.8825720972911073,
-    "reg_alpha": 1.9954223064442116,
-    "reg_lambda": 0.18963037439304298,
+    "colsample_bytree": 0.8439752145892472,
+    "reg_alpha": 0.008190665978651132,
+    "reg_lambda": 0.24072005148863818,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -54,8 +54,8 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG06(GainModel):
     """Expressive-vocabulary gain predictors — exploratory (MAE-tuned, all data).
 
-    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params
-    retune-pending). Uses the full predictor set plus the base variable
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned on the full
+    set (#169). Uses the full predictor set plus the base variable
     ``eowpvt`` (auto-included via :class:`GainModel`) with no outlier
     exclusion.
     """
@@ -70,5 +70,5 @@ class LRPGBG06(GainModel):
     params = _LGBM_MAE_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for eowpvt_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory model for eowpvt_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

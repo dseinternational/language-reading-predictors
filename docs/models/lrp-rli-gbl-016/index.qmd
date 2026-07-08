@@ -49,8 +49,8 @@ partner to LRPGBG16 (`deappfi_gain`); first articulation-domain target in the
 suite (DEAP measures have been used as predictors across LRPGBG12–LRPGBL07 but
 never as targets).
 
-This is a **baseline exploratory model** for the level-prediction task. It has not been through a target-specific hyperparameter tune --- it runs on MAE-tuned
-hyperparameters from an Optuna 150-trial study and the full
+This is a **baseline exploratory model** for the level-prediction task. It was MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+#169), running on the full
 `Predictors.DEFAULT_LEVEL` set (minus the target). Later variants will have a
 documented starting point for comparison.
 

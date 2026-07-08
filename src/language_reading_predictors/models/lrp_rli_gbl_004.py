@@ -13,8 +13,8 @@ Predictor set: :attr:`Predictors.DEFAULT_LEVEL` minus the target, **minus**
 a high naive R² is partly concurrent same-construct correlation; read the ranking
 as exploratory. The not-taught denominator (12 items) is unconfirmed (#144).
 
-Status: initial exploratory baseline; hyperparameters borrowed from LRPGBL02
-pending a target-specific tune (``scripts/tune_model.py lrpgbl04``).
+Status: MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+#169), superseding the earlier parameters borrowed from LRPGBL02.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -23,19 +23,19 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# Borrowed from LRPGBL02 (block-1 taught-vocabulary level) pending a target tune.
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 45,
-    "learning_rate": 0.07573022964806482,
-    "num_leaves": 30,
-    "max_depth": 6,
-    "min_child_samples": 10,
-    "subsample": 0.8737230089192473,
+    "n_estimators": 167,
+    "learning_rate": 0.07211542310486023,
+    "num_leaves": 38,
+    "max_depth": 3,
+    "min_child_samples": 5,
+    "subsample": 0.9377647274254018,
     "subsample_freq": 1,
-    "colsample_bytree": 0.7169131631393786,
-    "reg_alpha": 0.0022764472298362187,
-    "reg_lambda": 0.003357533830874894,
+    "colsample_bytree": 0.6370586979003762,
+    "reg_alpha": 0.0011378215315324038,
+    "reg_lambda": 0.015748809647514038,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -57,6 +57,6 @@ class LRPGBL04(LevelModel):
     notes = (
         "Exploratory model for predictors of not-taught expressive-vocabulary level "
         "(b1exnt). b1exto (Block 1 expressive total = taught + not-taught) excluded "
-        "to avoid target leakage. Hyperparameters borrowed from lrpgbl02 pending a "
-        "tune; 12-item denominator unconfirmed (#144)."
+        "to avoid target leakage. Hyperparameters MAE-tuned by Optuna on the full "
+        "set (150 trials, seed 47; #169); 12-item denominator unconfirmed (#144)."
     )

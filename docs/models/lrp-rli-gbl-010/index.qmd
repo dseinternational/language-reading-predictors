@@ -44,8 +44,8 @@ The target is **essentially symmetric** (skew 0.01, median 6) — one of the
 cleanest distributions in the suite. The coarse 0–10 scale may cap achievable
 R² (similar to CELF's 0–18 scale in LRPGBL14).
 
-This is a **baseline exploratory model** for the level-prediction task. It has not been through a target-specific hyperparameter tune --- it runs on MAE-tuned
-hyperparameters from an Optuna 150-trial study and the full
+This is a **baseline exploratory model** for the level-prediction task. It was MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+#169), running on the full
 `Predictors.DEFAULT_LEVEL` set (minus the target). Later variants will have a
 documented starting point for comparison.
 

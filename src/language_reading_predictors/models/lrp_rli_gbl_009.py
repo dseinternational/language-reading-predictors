@@ -19,8 +19,8 @@ transforms are inappropriate here because the skew is in the wrong
 direction; a reflection-log or quantile objective might be
 considered later.
 
-Fits the full ``Predictors.DEFAULT_LEVEL`` set; hyperparameters are retained
-from the earlier pruned-set tune (retune-pending, #116 Phase D).
+Fits the full ``Predictors.DEFAULT_LEVEL`` set; hyperparameters were re-tuned
+by Optuna on the full set (150 trials, seed 47; #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -31,20 +31,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 53,
-    "learning_rate": 0.037371968457437586,
-    "num_leaves": 29,
-    "max_depth": 10,
-    "min_child_samples": 8,
-    "subsample": 0.7474456109857174,
+    "n_estimators": 78,
+    "learning_rate": 0.04009083926844514,
+    "num_leaves": 46,
+    "max_depth": 4,
+    "min_child_samples": 37,
+    "subsample": 0.7969921107798783,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9746583954334843,
-    "reg_alpha": 1.6618715685357452,
-    "reg_lambda": 1.2133803578125177,
+    "colsample_bytree": 0.8046327499833665,
+    "reg_alpha": 0.008768409220614988,
+    "reg_lambda": 0.4677966321536123,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -56,7 +56,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL09(LevelModel):
     """Letter-sound knowledge level predictors — exploratory (MAE-tuned, all data).
 
-    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbl-009"
@@ -71,7 +71,7 @@ class LRPGBL09(LevelModel):
     notes = (
         "Exploratory model for yarclet (level). Fits the full DEFAULT_LEVEL "
         "predictor set (#116 Phase D retired hard feature selection in favour "
-        "of full-set ranking); hyperparameters are retained from the earlier "
-        "pruned-set Optuna tune (retune-pending). Treat the ranking as "
+        "of full-set ranking); hyperparameters are re-tuned by Optuna on the full set "
+        "(150 trials, seed 47; #169). Treat the ranking as "
         "exploratory."
     )

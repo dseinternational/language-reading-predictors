@@ -16,7 +16,7 @@ and ~3% zero observations, n ≈ 161). Cleaner distribution than any
 previous gain target — no skew and no pile-up at zero.
 
 Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-retained from the earlier pruned-set tune (retune-pending, #116 Phase D).
+re-tuned by Optuna on the full set (150 trials, seed 47; #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -27,20 +27,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 26,
-    "learning_rate": 0.17328403199352835,
-    "num_leaves": 23,
-    "max_depth": 10,
-    "min_child_samples": 37,
-    "subsample": 0.6393895136146711,
+    "n_estimators": 52,
+    "learning_rate": 0.033583242538720685,
+    "num_leaves": 45,
+    "max_depth": 12,
+    "min_child_samples": 7,
+    "subsample": 0.66908083247909,
     "subsample_freq": 1,
-    "colsample_bytree": 0.7127905387176482,
-    "reg_alpha": 0.5995768124191261,
-    "reg_lambda": 2.3376116482336817,
+    "colsample_bytree": 0.8607281557180144,
+    "reg_alpha": 0.003497407529698995,
+    "reg_lambda": 0.0014738297333053436,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -52,8 +52,8 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG05(GainModel):
     """Receptive vocabulary gain predictors — exploratory (MAE-tuned, all data).
 
-    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params
-    retune-pending). Uses the full predictor set plus the base variable
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned on the full
+    set (#169). Uses the full predictor set plus the base variable
     ``rowpvt`` (auto-included via :class:`GainModel`) with no outlier
     exclusion.
     """
@@ -68,5 +68,5 @@ class LRPGBG05(GainModel):
     params = _LGBM_MAE_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for rowpvt_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory model for rowpvt_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

@@ -11,7 +11,7 @@ The target is near-Gaussian (min 3, max 27, median 14, mean 14.31, std
 4.83, skewness 0.29, n ≈ 215) — cleaner than most LRP level targets.
 
 Fits the full ``Predictors.DEFAULT_LEVEL`` set; hyperparameters are
-retained from the earlier pruned-set tune (retune-pending, #116 Phase D).
+re-tuned by Optuna on the full set (150 trials, seed 47; #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -20,20 +20,20 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 124,
-    "learning_rate": 0.0362414989436608,
+    "n_estimators": 63,
+    "learning_rate": 0.18075869091750218,
     "num_leaves": 39,
-    "max_depth": 5,
-    "min_child_samples": 26,
-    "subsample": 0.698337301930694,
+    "max_depth": 4,
+    "min_child_samples": 33,
+    "subsample": 0.8156060719055651,
     "subsample_freq": 1,
-    "colsample_bytree": 0.8852598662130469,
-    "reg_alpha": 0.0019791895982314697,
-    "reg_lambda": 3.1759013241066048,
+    "colsample_bytree": 0.7150116968481384,
+    "reg_alpha": 0.4155429932879105,
+    "reg_lambda": 2.4687897146238416,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -42,7 +42,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL15(LevelModel):
     """TROG-2 receptive-grammar level predictors — exploratory (MAE-tuned, all data).
 
-    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbl-015"
@@ -58,6 +58,6 @@ class LRPGBL15(LevelModel):
         "Exploratory model for receptive-grammar level (trog). Fits the full "
         "DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature "
         "selection in favour of full-set ranking); hyperparameters are "
-        "retained from the earlier pruned-set Optuna tune (retune-pending). "
+        "re-tuned by Optuna on the full set (150 trials, seed 47; #169). "
         "Treat the ranking as exploratory."
     )

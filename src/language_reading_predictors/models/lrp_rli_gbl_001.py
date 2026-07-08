@@ -15,8 +15,8 @@ target construct directly — mirrors the ``b1exto`` exclusion in LRPGBL02). As 
 level model, a high naive R² is partly concurrent same-construct correlation;
 read the ranking as exploratory.
 
-Status: initial exploratory baseline. Hyperparameters borrowed from LRPGBL02
-pending a target-specific Optuna tune (``scripts/tune_model.py lrpgbl01``).
+Status: MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+#169), superseding the earlier parameters borrowed from LRPGBL02.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -25,19 +25,19 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# Borrowed from LRPGBL02 (block-1 taught-vocabulary level) pending a target tune.
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 45,
-    "learning_rate": 0.07573022964806482,
-    "num_leaves": 30,
-    "max_depth": 6,
-    "min_child_samples": 10,
-    "subsample": 0.8737230089192473,
+    "n_estimators": 244,
+    "learning_rate": 0.03180849249019815,
+    "num_leaves": 20,
+    "max_depth": 4,
+    "min_child_samples": 5,
+    "subsample": 0.6308043695530532,
     "subsample_freq": 1,
-    "colsample_bytree": 0.7169131631393786,
-    "reg_alpha": 0.0022764472298362187,
-    "reg_lambda": 0.003357533830874894,
+    "colsample_bytree": 0.8735517592669229,
+    "reg_alpha": 0.32304267468734016,
+    "reg_lambda": 9.131880792605557,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -60,5 +60,6 @@ class LRPGBL01(LevelModel):
         "Exploratory model for predictors of taught receptive-vocabulary level "
         "(b1retau), receptive analogue of lrpgbl02. b1reto (Block 1 receptive "
         "total = taught + not-taught) excluded to avoid target leakage. "
-        "Hyperparameters borrowed from lrpgbl02 pending a target-specific tune."
+        "Hyperparameters MAE-tuned by Optuna on the full set (150 trials, seed 47; "
+        "#169)."
     )

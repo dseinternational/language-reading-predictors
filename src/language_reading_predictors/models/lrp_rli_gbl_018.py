@@ -29,19 +29,19 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "learning_rate": 0.12648578524796544,
-    "num_leaves": 10,
-    "max_depth": 4,
-    "min_child_samples": 6,
-    "subsample": 0.6442114045867877,
-    "colsample_bytree": 0.6424565278401814,
-    "reg_alpha": 0.1708379704840523,
-    "reg_lambda": 0.018815743974597524,
+    "learning_rate": 0.089739696103291,
+    "num_leaves": 8,
+    "max_depth": 11,
+    "min_child_samples": 4,
+    "subsample": 0.6968758785629656,
+    "colsample_bytree": 0.8228624770742555,
+    "reg_alpha": 0.7347188151912415,
+    "reg_lambda": 0.004110998854570088,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 133,
+    "n_estimators": 123,
 }
 
 
@@ -61,6 +61,6 @@ class LRPGBL18(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for erbword (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Treat the ranking as exploratory."
+        "Exploratory model for erbword (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Treat the ranking as exploratory."
     )
 

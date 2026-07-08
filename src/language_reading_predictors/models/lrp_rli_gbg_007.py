@@ -21,7 +21,7 @@ LRPGBG08 `aptgram_gain` ~11% zero, LRPGBG13 `nonword_gain` ~48%
 zero).
 
 Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-retained from the earlier pruned-set tune (retune-pending, #116 Phase D).
+re-tuned by Optuna on the full set (150 trials, seed 47; #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -32,20 +32,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 275,
-    "learning_rate": 0.03817935546050526,
-    "num_leaves": 29,
-    "max_depth": 12,
-    "min_child_samples": 18,
-    "subsample": 0.6220122627331144,
+    "n_estimators": 164,
+    "learning_rate": 0.10221151099025785,
+    "num_leaves": 14,
+    "max_depth": 4,
+    "min_child_samples": 22,
+    "subsample": 0.7542877427795159,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6383469112272381,
-    "reg_alpha": 0.3358114008334534,
-    "reg_lambda": 0.06761501795300534,
+    "colsample_bytree": 0.6451608750648088,
+    "reg_alpha": 0.6374208464150695,
+    "reg_lambda": 0.002479904801728381,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -57,8 +57,8 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG07(GainModel):
     """APT expressive-information gain predictors — baseline (all data, MAE-tuned).
 
-    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params
-    retune-pending). ``aptinfo`` is already a member, so the GainModel
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned on the full
+    set (#169). ``aptinfo`` is already a member, so the GainModel
     auto-include is a no-op; no outlier exclusion.
     """
 
@@ -72,5 +72,5 @@ class LRPGBG07(GainModel):
     params = _LGBM_MAE_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for aptinfo_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory model for aptinfo_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

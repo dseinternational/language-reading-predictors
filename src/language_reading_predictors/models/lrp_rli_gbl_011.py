@@ -12,9 +12,9 @@ sibling to drop. As a level model a high naive R² is partly concurrent
 same-construct correlation; combined with the heavy floor on ``spphon`` (~78% at
 zero; #119/#144), read the ranking as exploratory.
 
-Status: initial exploratory baseline; hyperparameters borrowed from the
-phonics-adjacent letter-sounds analogue LRPGBL09 pending a target-specific tune
-(``scripts/tune_model.py lrpgbl11``).
+Status: MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+#169), superseding the earlier parameters borrowed from the phonics-adjacent
+letter-sounds analogue LRPGBL09.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -23,19 +23,19 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# Borrowed from LRPGBL09 (letter-sounds level) pending a target tune.
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 53,
-    "learning_rate": 0.037371968457437586,
-    "num_leaves": 29,
-    "max_depth": 10,
+    "n_estimators": 115,
+    "learning_rate": 0.052587676389702374,
+    "num_leaves": 42,
+    "max_depth": 6,
     "min_child_samples": 8,
-    "subsample": 0.7474456109857174,
+    "subsample": 0.9326615778078384,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9746583954334843,
-    "reg_alpha": 1.6618715685357452,
-    "reg_lambda": 1.2133803578125177,
+    "colsample_bytree": 0.8026282562980487,
+    "reg_alpha": 0.001425287049531991,
+    "reg_lambda": 1.8818793395665099,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -56,6 +56,6 @@ class LRPGBL11(LevelModel):
     notes = (
         "Exploratory model for predictors of phonetic-spelling level (spphon). "
         "spphon is heavily floored (~78% at zero), so read the ranking as "
-        "exploratory. Hyperparameters borrowed from lrpgbl09 (letter sounds) "
-        "pending a target-specific tune."
+        "exploratory. Hyperparameters MAE-tuned by Optuna on the full set "
+        "(150 trials, seed 47; #169)."
     )

@@ -23,11 +23,10 @@ only deviation from the LRPGBL06 predictor set. (LRPGBL06 additionally dropped
 *taught*-vocabulary target it carries non-tautological receptive-vocabulary
 signal.)
 
-Status: initial exploratory baseline. Fits the full ``Predictors.DEFAULT_LEVEL``
-set (minus the leakage exclusions above). Hyperparameters were seeded from the
-LRPGBL06 standardised analogue and are a frozen snapshot — not kept in sync as
-LRPGBL06 is retuned. A target-specific Optuna tune
-(``scripts/tune_model.py lrpgbl02``) is a follow-up.
+Status: fits the full ``Predictors.DEFAULT_LEVEL`` set (minus the leakage
+exclusions above). Hyperparameters MAE-tuned by Optuna on the full predictor set
+(150 trials, seed 47; #169), superseding the earlier parameters seeded from the
+LRPGBL06 standardised analogue.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -37,23 +36,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
 # ── hyperparameter set ───────────────────────────────────────────────────
-#
-# Seeded from LRPGBL06 (MAE-tuned on eowpvt level) as a starting baseline for the
-# closely-matched taught-vocabulary level target — a frozen snapshot, not kept in
-# sync with LRPGBL06 (which has since been retuned). Retune for this target before
-# any quantitative reporting (scripts/tune_model.py lrpgbl02).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169),
+# superseding the earlier parameters seeded from LRPGBL06.
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 45,
-    "learning_rate": 0.07573022964806482,
-    "num_leaves": 30,
-    "max_depth": 6,
-    "min_child_samples": 10,
-    "subsample": 0.8737230089192473,
+    "n_estimators": 173,
+    "learning_rate": 0.03762847988331536,
+    "num_leaves": 42,
+    "max_depth": 4,
+    "min_child_samples": 7,
+    "subsample": 0.7429786111553779,
     "subsample_freq": 1,
-    "colsample_bytree": 0.7169131631393786,
-    "reg_alpha": 0.0022764472298362187,
-    "reg_lambda": 0.003357533830874894,
+    "colsample_bytree": 0.6023641005550106,
+    "reg_alpha": 0.013509655302654636,
+    "reg_lambda": 0.029922670006675835,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -81,5 +77,6 @@ class LRPGBL02(LevelModel):
         "(b1extau), the taught-vocabulary analogue of lrpgbl06. Fits the full "
         "DEFAULT_LEVEL predictor set (b1exto, the Block 1 expressive total = "
         "taught + not-taught, is excluded to avoid target leakage). "
-        "Hyperparameters borrowed from lrpgbl06 pending a target-specific tune."
+        "Hyperparameters MAE-tuned by Optuna on the full set (150 trials, seed 47; "
+        "#169)."
     )
