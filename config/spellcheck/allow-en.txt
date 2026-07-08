@@ -274,6 +274,7 @@ NHST
 Schoot
 WAMBS
 Vehtari
+Piironen
 operationalise
 operationalises
 operationalisation

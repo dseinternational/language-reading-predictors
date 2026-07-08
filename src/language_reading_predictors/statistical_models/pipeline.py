@@ -328,6 +328,11 @@ def _prior_table_overrides(
         for _name in ("tau", "beta_trt", "b_grp_time", "beta_grp", "delta"):
             ctor.setdefault(_name, "tau_distal")
             role.setdefault(_name, "causal")
+        # The ANCOVA intercept is likewise tiered for distal outcomes (Normal(0,
+        # 1.0); prior-critical-review 2026-07-07, Finding 1). Route it to the
+        # ``alpha_distal`` panel so the report rationale matches the fitted scale
+        # (the distribution column already reads the true 1.0 off the built RV).
+        ctor.setdefault("alpha", "alpha_distal")
 
     return ctor, role, rationale
 
@@ -2759,8 +2764,12 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     lang_symbols = tuple(e.get("language_composite_symbols", ["R", "E", "F"]))
     covariates = list(e.get("covariates", ["blocks", "behav"]))
     ses_covs = list(e.get("ses_covariates", ["mumedupost16"]))
-    sigma0 = float(e.get("predictor_slope_sigma", 0.5))
-    prior_sens = list(e.get("prior_sensitivity_sigmas", [0.3, 0.7]))
+    # Fallback defaults aligned with the reconciled association scale
+    # (build_adjusted_model / predictor_slope_prior default 0.3) so the effective
+    # prior does not depend on whether a spec sets the key — prior-critical-review
+    # 2026-07-07, recommendation 3. The sweep brackets 0.3 from the looser side.
+    sigma0 = float(e.get("predictor_slope_sigma", 0.3))
+    prior_sens = list(e.get("prior_sensitivity_sigmas", [0.5, 0.7]))
     use_age = bool(e.get("use_age_predictor", True))
 
     # Headline predictor key order: skills, language composite, age, covariates.
@@ -3052,7 +3061,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     built = _factories.build_lcsm_model(
         panel,
         reading_symbol=reading_symbol,
-        coupling_prior_sigma=spec.extra.get("coupling_prior_sigma", 0.5),
+        coupling_prior_sigma=spec.extra.get("coupling_prior_sigma", 0.3),
         use_process_noise=spec.extra.get("use_process_noise", True),
         shared_process_noise=spec.extra.get("shared_process_noise", False),
     )
@@ -3301,7 +3310,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         panel,
         measure=measure,
         eta_prior_sigma=spec.extra.get("eta_prior_sigma", 1.5),
-        sigma_subject_prior_sigma=spec.extra.get("sigma_subject_prior_sigma", 1.0),
+        sigma_subject_prior_sigma=spec.extra.get("sigma_subject_prior_sigma", 0.5),
         kappa_prior_sigma=spec.extra.get("kappa_prior_sigma", 50.0),
     )
     _attach_built(ctx, built)

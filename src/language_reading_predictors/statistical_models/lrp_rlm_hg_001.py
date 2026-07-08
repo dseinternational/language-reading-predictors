@@ -38,7 +38,12 @@ SPEC = ModelSpec(
         "measure": "basread",
         "waves": (1, 2, 3),
         "eta_prior_sigma": 1.5,
-        "sigma_subject_prior_sigma": 1.0,
+        # Reconciled 1.0 -> 0.5 to match the shared random-effect SD scale
+        # (sigma_child ~ HalfNormal(0.5)) — prior-critical-review 2026-07-07,
+        # recommendation 3. The eta[group, wave] grid stays unanchored at 1.5:
+        # the pushforward shows it is well-calibrated on the full-range basread
+        # scale (not a low-occupancy outcome), so anchoring it is not warranted.
+        "sigma_subject_prior_sigma": 0.5,
         "kappa_prior_sigma": 50.0,
     },
 )

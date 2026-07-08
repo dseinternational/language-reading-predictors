@@ -222,8 +222,13 @@ def get_spec() -> "ModelSpec":
             "ses_covariates": ["mumedupost16"],
             # Fixed weakly-informative slope prior + the sensitivity sweep that
             # checks the which-predictors-clear-zero conclusion is stable.
-            "predictor_slope_sigma": 0.5,
-            "prior_sensitivity_sigmas": [0.3, 0.7],
+            # Reconciled 0.5 -> 0.3 to match the shared association scale
+            # (gamma_cross) — prior-critical-review 2026-07-07, recommendation 3.
+            # The sweep now brackets from the looser side, so the null-predictor
+            # conclusion is shown stable even when the prior is loosened back
+            # toward (and past) the old default.
+            "predictor_slope_sigma": 0.3,
+            "prior_sensitivity_sigmas": [0.5, 0.7],
         },
     )
 

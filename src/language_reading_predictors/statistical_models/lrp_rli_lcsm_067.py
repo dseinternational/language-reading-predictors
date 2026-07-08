@@ -57,7 +57,9 @@ SPEC = ModelSpec(
         # Measure symbols (W reading, L letter-sounds, E expressive vocab).
         "outcomes": ["W", "L", "E"],
         # Regularising prior SD on the cross-couplings into the reading change.
-        "coupling_prior_sigma": 0.5,
+        # Reconciled 0.5 -> 0.3 to match the shared association scale (gamma_cross)
+        # — prior-critical-review 2026-07-07, recommendation 3.
+        "coupling_prior_sigma": 0.3,
         # Full McArdle form: per-measure dynamic disturbances on the change scores.
         # Set False (or shared_process_noise=True) as a sampling fallback at n~54.
         "use_process_noise": True,
