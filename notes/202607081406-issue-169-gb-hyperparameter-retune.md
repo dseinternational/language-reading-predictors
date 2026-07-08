@@ -55,3 +55,9 @@ None. All 50 tuned params were accepted and promoted. No model was rejected or r
 ## Validation
 
 `pytest tests/test_models.py tests/test_borrowed_params.py`, `python scripts/fit_model.py all --config dev`, `ruff check src/`, `npm run format:check`, and `npm run spellcheck` — see the PR for the run results.
+
+## Reporting fit
+
+After promotion, all 50 GB models were refit under the production config with reports rendered (`python scripts/fit_model.py all --config reporting --render`) — **50/50 fitted, 0 failed, 50/50 Quarto reports rendered**, running the full SHAP-interaction analysis and cluster-first predictor ranking that `dev` skips. The production fit confirms the retune's within-fold-noise verdict: no model degraded and no pooled R² is negative. Quality splits by model type as the DAG predicts — level (`gbl`) pooled R² median ~0.62 (up to 0.98 for the near-tautological composites `erbto`/`deapp_c`/`deappav`), gain (`gbg`) pooled R² 0.02–0.27 (change scores carry little predictable signal beyond regression-to-the-mean; `gbg-017` erbnw_gain stays a near-constant 3-tree model). Rankings are dominated by each outcome's own baseline plus `time`/`age` (autoregression + maturation), with `trog`, `aptinfo`, `spphon`/`blending`, and `yarclet` recurring as the substantive cross-predictors.
+
+Artefacts uploaded to Azure Blob Storage under `<outputs container>/language-reading-predictors/output/{tuning,models}/` (models: 6776 files, ~640 MB). Output is git-ignored, so nothing beyond this note is committed for the reporting fit.
