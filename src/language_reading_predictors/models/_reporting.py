@@ -307,7 +307,9 @@ def gb_ranking_markdown(
             if len(ms) > 1
         ]
         if multi:
-            grouped = "; ".join("{" + ", ".join(ms) + "}" for ms in multi)
+            grouped = "; ".join(
+                "{" + ", ".join(f"`{m}`" for m in ms) + "}" for ms in multi
+            )
             lines += [
                 "",
                 "Collinear predictors were clustered by distance-correlation and "

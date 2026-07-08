@@ -19,7 +19,7 @@ helpers only standardise *saving* — PNG + SVG sibling + optional data CSV — 
 closing the figure. Both matplotlib figures and ``arviz_plots`` ``PlotCollection``
 objects route through here so a single change propagates to every model.
 
-Kept dependency-light (matplotlib + pandas + the shared style constants only) so
+Kept dependency-light (matplotlib + pandas + rich + the shared style constants) so
 neither the GB nor the Bayesian package pulls in the other's heavy imports.
 """
 
@@ -98,7 +98,7 @@ def save_styled_figure(
     ``name`` may be a stem or carry a ``.png`` extension. Returns the PNG path.
     """
     os.makedirs(output_dir, exist_ok=True)
-    fig = fig or plt.gcf()
+    fig = plt.gcf() if fig is None else fig
     base = os.path.join(output_dir, _stem(name))
     png = base + ".png"
     fig.savefig(png, dpi=dpi, bbox_inches=bbox_inches)
