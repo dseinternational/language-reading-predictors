@@ -35,12 +35,12 @@ Comparing each new tune against the previously committed params evaluated under 
 ## Pathology scan — clean
 
 - No failures; no `n_estimators` ceiling hits (max 1097 vs the 2000 ceiling → early stopping always engaged); new `n_estimators` range 3–1097, median ~127.
-- **`lrp-rli-gbg-017` (nonword-repetition gain) collapses to `n_estimators = 3`** — a near-constant model. Params are fine; the *outcome* carries little signal, so its ranking is low-information regardless. Flagged, not rerun (gain models are expected to be near-noise).
+- **`lrp-rli-gbg-017` (nonword-repetition gain) collapses to `n_estimators = 3`** — a near-constant model. Params are fine; the _outcome_ carries little signal, so its ranking is low-information regardless. Flagged, not rerun (gain models are expected to be near-noise).
 - 46/50 touch a search-space boundary, but the dominant boundary (44 models) is `reg_alpha` / `reg_lambda` at the 1e-3 log-floor — i.e. models prefer near-zero explicit L1/L2, regularising via tree size / subsampling instead. At 1e-3 this is effectively "no regularization", a benign search-floor artefact rather than a per-model problem. A handful additionally touch `num_leaves` / `max_depth` / `subsample` / `colsample_bytree` bounds mildly. No params were rejected on this basis.
 
 ## Borrowed-parameter groups — retired
 
-The four borrowing relationships (`lrp-rli-gbg-002→001/003/004`, `lrp-rli-gbg-009→011`, `lrp-rli-gbl-002→001/003/004`, `lrp-rli-gbl-009→011`) are **retired**: every model now carries target-specific tuned params, and all former borrowers differ from their old source. `tests/test_borrowed_params.py` was rewritten to assert the relationships stay *broken* (guarding against accidental re-copy) rather than that they match.
+The four borrowing relationships (`lrp-rli-gbg-002→001/003/004`, `lrp-rli-gbg-009→011`, `lrp-rli-gbl-002→001/003/004`, `lrp-rli-gbl-009→011`) are **retired**: every model now carries target-specific tuned params, and all former borrowers differ from their old source. `tests/test_borrowed_params.py` was rewritten to assert the relationships stay _broken_ (guarding against accidental re-copy) rather than that they match.
 
 ## Promotion and doc updates
 
