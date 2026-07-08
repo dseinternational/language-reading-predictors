@@ -28,24 +28,24 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
 # ── hyperparameters ──────────────────────────────────────────────────────
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "learning_rate": 0.11750810775578611,
-    "num_leaves": 45,
-    "max_depth": 4,
-    "min_child_samples": 17,
-    "subsample": 0.6097606249206079,
-    "colsample_bytree": 0.758360640735803,
-    "reg_alpha": 0.01182776312555698,
-    "reg_lambda": 0.18152030603308358,
+    "learning_rate": 0.153985052602863,
+    "num_leaves": 12,
+    "max_depth": 9,
+    "min_child_samples": 9,
+    "subsample": 0.9733873170757179,
+    "colsample_bytree": 0.9663624745836672,
+    "reg_alpha": 0.0013989511279540352,
+    "reg_lambda": 0.03188526883833447,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 82,
+    "n_estimators": 3,
 }
 
 
@@ -65,5 +65,5 @@ class LRPGBG17(GainModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for erbnw_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) — treat the ranking as exploratory."
+        "Exploratory model for erbnw_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) — treat the ranking as exploratory."
     )

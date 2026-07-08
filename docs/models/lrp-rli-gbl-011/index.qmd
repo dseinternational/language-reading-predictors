@@ -42,9 +42,9 @@ timepoint rather than the change between timepoints. It is the level companion t
 outcomes added in #116 Phase B. All observations are included (no outlier
 exclusion).
 
-This is a **baseline exploratory model** for the level-prediction task. It runs on
-hyperparameters borrowed from the phonics-adjacent letter-sounds analogue LRPGBL09
-and the full `Predictors.DEFAULT_LEVEL` set (minus the target), pending a target-specific tune. Phonetic spelling has no
+This is a **baseline exploratory model** for the level-prediction task. It was
+MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169), running
+on the full `Predictors.DEFAULT_LEVEL` set (minus the target). Phonetic spelling has no
 taught/total decomposition, so there is no leakage sibling to drop.
 
 ::: {.callout-note title="Heavy floor on spphon"}

@@ -18,11 +18,10 @@ contains the target/baseline construct directly; keeping it would make the model
 a between-tests calibration of the same instrument rather than an identification
 of substantive predictors (mirrors the ``b1exto`` exclusion in LRPGBG02).
 
-Status: initial exploratory baseline. Hyperparameters are borrowed from the
-block-1 taught-vocabulary analogue LRPGBG02 as a reasonable starting point; a
-target-specific Optuna tune (``scripts/tune_model.py lrpgbg01``) is a follow-up.
-Importance rankings — the purpose of this model — are robust to reasonable
-parameters.
+Status: MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+#169), superseding the earlier parameters borrowed from the block-1
+taught-vocabulary analogue LRPGBG02. Importance rankings — the purpose of this
+model — are robust to reasonable parameters.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -31,19 +30,19 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# Borrowed from LRPGBG02 (block-1 taught-vocabulary gain) pending a target tune.
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 25,
-    "learning_rate": 0.06478548258507148,
-    "num_leaves": 48,
-    "max_depth": 11,
+    "n_estimators": 131,
+    "learning_rate": 0.0347582835056579,
+    "num_leaves": 12,
+    "max_depth": 4,
     "min_child_samples": 10,
-    "subsample": 0.9835210793717761,
+    "subsample": 0.7324520324408716,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9203322386497722,
-    "reg_alpha": 0.036771486040166265,
-    "reg_lambda": 0.00745726685285877,
+    "colsample_bytree": 0.95992562989133,
+    "reg_alpha": 0.002356197673272227,
+    "reg_lambda": 0.16513568663783953,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -71,6 +70,6 @@ class LRPGBG01(GainModel):
         "Exploratory model for predictors of taught receptive-vocabulary gains "
         "(b1retau_gain), the receptive analogue of lrpgbg02. b1reto (Block 1 "
         "receptive total = taught + not-taught) is excluded to avoid target "
-        "leakage. Hyperparameters borrowed from lrpgbg02 pending a target-specific "
-        "tune."
+        "leakage. Hyperparameters MAE-tuned by Optuna on the full set (150 trials, "
+        "seed 47; #169)."
     )

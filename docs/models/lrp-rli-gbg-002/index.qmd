@@ -44,9 +44,8 @@ taught-words expressive score. It is the taught-vocabulary analogue of
 the words the programme directly taught from general vocabulary.
 
 This is a **baseline exploratory model** for the taught-vocabulary gain task. It
-has not been through a target-specific hyperparameter tune — it runs on hyperparameters
-borrowed from the closely-matched
-LRPGBG06 analogue and the full `Predictors.DEFAULT_GAIN` set (plus the auto-included
+was MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169),
+running on the full `Predictors.DEFAULT_GAIN` set (plus the auto-included
 `b1extau` baseline level), with no outlier exclusion.
 
 ::: {.callout-note title="Leakage exclusion: b1exto"}

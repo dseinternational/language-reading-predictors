@@ -25,20 +25,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 22,
-    "learning_rate": 0.04124036041929963,
-    "num_leaves": 24,
-    "max_depth": 10,
-    "min_child_samples": 30,
-    "subsample": 0.6144702261058946,
+    "n_estimators": 82,
+    "learning_rate": 0.037177313586346,
+    "num_leaves": 51,
+    "max_depth": 4,
+    "min_child_samples": 35,
+    "subsample": 0.6372320482795071,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6370488804588129,
-    "reg_alpha": 0.1825346247915465,
-    "reg_lambda": 0.0010070378924338585,
+    "colsample_bytree": 0.8957463676991052,
+    "reg_alpha": 0.1907196568296802,
+    "reg_lambda": 0.014054850452382656,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -50,7 +50,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL10(LevelModel):
     """Phoneme-blending level predictors — baseline (all data, MAE-tuned).
 
-    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbl-010"
@@ -65,7 +65,7 @@ class LRPGBL10(LevelModel):
     notes = (
         "Exploratory model for blending (level). Fits the full DEFAULT_LEVEL "
         "predictor set (#116 Phase D retired hard feature selection in favour "
-        "of full-set ranking); hyperparameters are retained from the earlier "
-        "pruned-set Optuna tune (retune-pending). Treat the ranking as "
+        "of full-set ranking); hyperparameters are re-tuned by Optuna on the full set "
+        "(150 trials, seed 47; #169). Treat the ranking as "
         "exploratory."
     )

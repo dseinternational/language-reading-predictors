@@ -32,24 +32,24 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
 # ── hyperparameters ──────────────────────────────────────────────────────
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "learning_rate": 0.18291066454567442,
-    "num_leaves": 20,
-    "max_depth": 12,
-    "min_child_samples": 5,
-    "subsample": 0.8201087570197031,
-    "colsample_bytree": 0.8675365863766314,
-    "reg_alpha": 0.0070609566714952225,
-    "reg_lambda": 0.1711341570967381,
+    "learning_rate": 0.13156119317157547,
+    "num_leaves": 46,
+    "max_depth": 9,
+    "min_child_samples": 8,
+    "subsample": 0.7108872311249903,
+    "colsample_bytree": 0.6427188747891276,
+    "reg_alpha": 0.3864822977101127,
+    "reg_lambda": 0.002007833299733497,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 5,
+    "n_estimators": 9,
 }
 
 
@@ -69,5 +69,5 @@ class LRPGBG22(GainModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for deappav_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) — treat the ranking as exploratory."
+        "Exploratory model for deappav_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) — treat the ranking as exploratory."
     )

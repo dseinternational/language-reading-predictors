@@ -31,20 +31,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 290,
-    "learning_rate": 0.041412982334710226,
-    "num_leaves": 48,
-    "max_depth": 4,
-    "min_child_samples": 4,
-    "subsample": 0.7867626106611368,
+    "n_estimators": 102,
+    "learning_rate": 0.03816906301061165,
+    "num_leaves": 7,
+    "max_depth": 3,
+    "min_child_samples": 5,
+    "subsample": 0.6939079492149587,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6621049966005043,
-    "reg_alpha": 8.554800291256814,
-    "reg_lambda": 0.02745428375418847,
+    "colsample_bytree": 0.7369501404010328,
+    "reg_alpha": 0.06357374004205678,
+    "reg_lambda": 0.0021109116292999516,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -56,7 +56,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL08(LevelModel):
     """APT expressive-grammar level predictors — baseline (all data, MAE-tuned).
 
-    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbl-008"
@@ -71,7 +71,7 @@ class LRPGBL08(LevelModel):
     notes = (
         "Exploratory model for aptgram (level). Fits the full DEFAULT_LEVEL "
         "predictor set (#116 Phase D retired hard feature selection in favour "
-        "of full-set ranking); hyperparameters are retained from the earlier "
-        "pruned-set Optuna tune (retune-pending). Treat the ranking as "
+        "of full-set ranking); hyperparameters are re-tuned by Optuna on the full set "
+        "(150 trials, seed 47; #169). Treat the ranking as "
         "exploratory."
     )

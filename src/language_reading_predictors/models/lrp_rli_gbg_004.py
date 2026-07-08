@@ -14,10 +14,9 @@ Predictor set: :attr:`Predictors.DEFAULT_GAIN` plus the auto-included baseline
 total = taught + not-taught, which contains the target directly — same exclusion
 as LRPGBG02).
 
-Status: initial exploratory baseline; hyperparameters borrowed from the block-1
-vocabulary analogue LRPGBG02 pending a target-specific tune
-(``scripts/tune_model.py lrpgbg04``). The not-taught denominator (12 items) is
-unconfirmed in the data dictionary (#144).
+Status: MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+#169). The not-taught denominator (12 items) is unconfirmed in the data
+dictionary (#144).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -26,19 +25,19 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# Borrowed from LRPGBG02 (block-1 taught-vocabulary gain) pending a target tune.
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 25,
-    "learning_rate": 0.06478548258507148,
-    "num_leaves": 48,
-    "max_depth": 11,
-    "min_child_samples": 10,
-    "subsample": 0.9835210793717761,
+    "n_estimators": 597,
+    "learning_rate": 0.010518099280120749,
+    "num_leaves": 53,
+    "max_depth": 7,
+    "min_child_samples": 25,
+    "subsample": 0.987550260331751,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9203322386497722,
-    "reg_alpha": 0.036771486040166265,
-    "reg_lambda": 0.00745726685285877,
+    "colsample_bytree": 0.9906399995368773,
+    "reg_alpha": 0.094575911092152,
+    "reg_lambda": 0.46887935276860904,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -61,6 +60,6 @@ class LRPGBG04(GainModel):
         "Exploratory model for predictors of not-taught expressive-vocabulary gains "
         "(b1exnt_gain), the transfer counterpart to lrpgbg02. b1exto (Block 1 "
         "expressive total = taught + not-taught) excluded to avoid target leakage. "
-        "Hyperparameters borrowed from lrpgbg02 pending a tune; 12-item denominator "
-        "unconfirmed (#144)."
+        "Hyperparameters MAE-tuned by Optuna on the full set (150 trials, seed 47; "
+        "#169); 12-item denominator unconfirmed (#144)."
     )

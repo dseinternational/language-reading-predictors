@@ -33,19 +33,19 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "learning_rate": 0.10717977076893748,
-    "num_leaves": 19,
-    "max_depth": 5,
-    "min_child_samples": 6,
-    "subsample": 0.7558477647735411,
-    "colsample_bytree": 0.6750028002888062,
-    "reg_alpha": 0.036572491029540695,
-    "reg_lambda": 0.028598922715294173,
+    "learning_rate": 0.11285393630253474,
+    "num_leaves": 55,
+    "max_depth": 3,
+    "min_child_samples": 8,
+    "subsample": 0.6652315813492752,
+    "colsample_bytree": 0.9379836846271299,
+    "reg_alpha": 1.8470975741347961,
+    "reg_lambda": 0.03382949123797818,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 42,
+    "n_estimators": 57,
 }
 
 
@@ -65,5 +65,5 @@ class LRPGBL28(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for lsamto (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Treat the ranking as exploratory."
+        "Exploratory model for lsamto (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Treat the ranking as exploratory."
     )

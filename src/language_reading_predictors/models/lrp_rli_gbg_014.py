@@ -27,7 +27,7 @@ is heavier than in LRPGBG05 / LRPGBG09 gains (17% vs 3%/12%) —
 consistent with the coarser 0-18 CELF raw-score scale.
 
 Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-retained from the earlier pruned-set tune (retune-pending, #116 Phase D).
+re-tuned by Optuna on the full set (150 trials, seed 47; #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -38,20 +38,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 274,
-    "learning_rate": 0.014134903867028734,
-    "num_leaves": 37,
-    "max_depth": 4,
-    "min_child_samples": 4,
-    "subsample": 0.9062849094869884,
+    "n_estimators": 27,
+    "learning_rate": 0.1990927990559259,
+    "num_leaves": 33,
+    "max_depth": 12,
+    "min_child_samples": 10,
+    "subsample": 0.7250568376375872,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9681718321490902,
-    "reg_alpha": 0.03608716091718503,
-    "reg_lambda": 0.07485707056926946,
+    "colsample_bytree": 0.851649578232224,
+    "reg_alpha": 0.007458595069008448,
+    "reg_lambda": 1.1204774780118514,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -63,7 +63,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG14(GainModel):
     """CELF basic concept knowledge gain predictors — exploratory (MAE-tuned, all data).
 
-    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbg-014"
@@ -76,5 +76,5 @@ class LRPGBG14(GainModel):
     params = _LGBM_MAE_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for celf_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory model for celf_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

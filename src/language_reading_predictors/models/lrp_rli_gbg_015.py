@@ -26,20 +26,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 49,
-    "learning_rate": 0.04211208724730419,
-    "num_leaves": 62,
-    "max_depth": 6,
-    "min_child_samples": 11,
-    "subsample": 0.6190215422270804,
+    "n_estimators": 19,
+    "learning_rate": 0.19007009842784514,
+    "num_leaves": 55,
+    "max_depth": 7,
+    "min_child_samples": 26,
+    "subsample": 0.9481021145340962,
     "subsample_freq": 1,
-    "colsample_bytree": 0.7610373169800141,
-    "reg_alpha": 0.032621101944747564,
-    "reg_lambda": 0.01492191446502865,
+    "colsample_bytree": 0.9202985772577226,
+    "reg_alpha": 0.3786224585404081,
+    "reg_lambda": 0.005321014528229881,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -51,7 +51,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG15(GainModel):
     """TROG-2 receptive-grammar gain predictors — baseline (all data, MAE-tuned).
 
-    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbg-015"
@@ -64,5 +64,5 @@ class LRPGBG15(GainModel):
     params = _LGBM_MAE_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for trog_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory model for trog_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

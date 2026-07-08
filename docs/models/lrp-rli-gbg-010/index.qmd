@@ -44,8 +44,8 @@ consecutive longitudinal timepoints. `blending` is a phoneme-blending
 The target is **mildly right-skewed** (skew 0.51) with 35% negative and ~20%
 zero observations.
 
-This is a **baseline exploratory model** for the gain-prediction task. It has not been through a target-specific hyperparameter tune --- it runs on MAE-tuned
-hyperparameters from an Optuna 150-trial study and the full
+This is a **baseline exploratory model** for the gain-prediction task. It was MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+#169), running on the full
 `Predictors.DEFAULT_GAIN` set (`blending` is already a level predictor in that
 set). Later variants will have a documented starting point for comparison.
 

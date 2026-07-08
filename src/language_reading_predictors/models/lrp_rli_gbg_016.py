@@ -33,20 +33,20 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 11,
-    "learning_rate": 0.18894563671851897,
-    "num_leaves": 35,
-    "max_depth": 5,
-    "min_child_samples": 26,
-    "subsample": 0.8495160600596453,
+    "n_estimators": 44,
+    "learning_rate": 0.030807756745169328,
+    "num_leaves": 34,
+    "max_depth": 12,
+    "min_child_samples": 10,
+    "subsample": 0.6295564588719731,
     "subsample_freq": 1,
-    "colsample_bytree": 0.8734189036490825,
-    "reg_alpha": 0.0015837285659681297,
-    "reg_lambda": 0.2283963702135058,
+    "colsample_bytree": 0.8473098353987076,
+    "reg_alpha": 0.003112829377706099,
+    "reg_lambda": 9.051809440508803,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -58,7 +58,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBG16(GainModel):
     """DEAP fine-articulation gain predictors — baseline (all data, MAE-tuned).
 
-    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbg-016"
@@ -71,5 +71,5 @@ class LRPGBG16(GainModel):
     params = _LGBM_MAE_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for deappfi_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory model for deappfi_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

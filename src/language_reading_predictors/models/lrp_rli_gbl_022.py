@@ -32,19 +32,19 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "learning_rate": 0.039654383749487036,
-    "num_leaves": 41,
-    "max_depth": 12,
-    "min_child_samples": 4,
-    "subsample": 0.7337465509959112,
-    "colsample_bytree": 0.9969182249863433,
-    "reg_alpha": 0.0014782261853234005,
-    "reg_lambda": 7.04330979395619,
+    "learning_rate": 0.013487243376785122,
+    "num_leaves": 24,
+    "max_depth": 3,
+    "min_child_samples": 7,
+    "subsample": 0.8253866415539703,
+    "colsample_bytree": 0.9736349690039647,
+    "reg_alpha": 1.5248303271853938,
+    "reg_lambda": 2.653887705814038,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 197,
+    "n_estimators": 974,
 }
 
 
@@ -64,6 +64,6 @@ class LRPGBL22(LevelModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for deappav (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters are retained from the earlier pruned-set Optuna tune (retune-pending). Treat the ranking as exploratory."
+        "Exploratory model for deappav (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Treat the ranking as exploratory."
     )
 

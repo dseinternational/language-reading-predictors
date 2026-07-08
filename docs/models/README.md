@@ -107,8 +107,9 @@ in Phase D. The same-skill sibling contrast is exposed via the ranking's
 | `lrp-rli-gbg-011` | `lrp-rli-gbl-011` | Phonetic spelling (`spphon`)                |
 
 The last four rows are the #116 Phase-B additions completing the 13 priority
-outcomes; their hyperparameters are borrowed from the nearest analogue pending a
-target-specific tune, and they do not yet have bespoke report templates (Phase C).
+outcomes; their hyperparameters were MAE-tuned by Optuna on the full predictor
+set (150 trials, seed 47; #169), and they do not yet have bespoke report
+templates (Phase C).
 `spphon` is heavily floored, so its gain ranking is expected to be near-noise.
 
 ### Speech, verbal-memory and language-sample measures (`lrp-rli-gbg`/`lrp-rli-gbl` 017–028)

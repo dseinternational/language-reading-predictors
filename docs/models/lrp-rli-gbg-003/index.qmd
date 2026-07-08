@@ -43,9 +43,8 @@ to the taught set [LRPGBG01](../lrpgbg01/): the not-taught block-1 sets index
 transfer beyond the words the programme directly taught. Added in #116 Phase B.
 
 This is a **baseline exploratory model** for the not-taught-receptive-vocabulary
-gain task. It has not been through a target-specific hyperparameter tune — it runs on
-hyperparameters borrowed from the
-block-1 vocabulary analogue LRPGBG02 and the full `Predictors.DEFAULT_GAIN` set
+gain task. It was MAE-tuned by Optuna on the full predictor set (150 trials, seed
+47; #169), running on the full `Predictors.DEFAULT_GAIN` set
 (plus the auto-included `b1rent` baseline level), with no outlier exclusion.
 
 ::: {.callout-note title="Leakage exclusion: b1reto"}

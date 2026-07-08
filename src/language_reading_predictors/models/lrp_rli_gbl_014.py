@@ -24,20 +24,20 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# MAE-tuned (Optuna 150-trial, seed 47) on the earlier pruned selected set;
-# retained as the full-set baseline (retune-pending).
+# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# #169 retune, superseding the earlier pruned-set tune).
 _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
     "objective": "mae",
-    "n_estimators": 65,
-    "learning_rate": 0.043738091375742166,
-    "num_leaves": 44,
-    "max_depth": 4,
-    "min_child_samples": 37,
-    "subsample": 0.9853192989415035,
+    "n_estimators": 25,
+    "learning_rate": 0.08818817438109383,
+    "num_leaves": 50,
+    "max_depth": 8,
+    "min_child_samples": 12,
+    "subsample": 0.9703986086517455,
     "subsample_freq": 1,
-    "colsample_bytree": 0.9140199440486373,
-    "reg_alpha": 0.06457861635292404,
-    "reg_lambda": 0.013949746526542768,
+    "colsample_bytree": 0.9120226245246822,
+    "reg_alpha": 0.06579869161873117,
+    "reg_lambda": 0.0012418208099146814,
     "n_jobs": -1,
     "verbosity": -1,
 }
@@ -46,7 +46,7 @@ _LGBM_MAE_PARAMS: dict[str, float | int | str] = {
 class LRPGBL14(LevelModel):
     """CELF basic concept knowledge level predictors — exploratory (MAE-tuned, all data).
 
-    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned (params retune-pending).
+    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbl-014"
@@ -62,7 +62,7 @@ class LRPGBL14(LevelModel):
         "Exploratory model for basic concept knowledge level (celf). Fits the "
         "full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature "
         "selection in favour of full-set ranking); hyperparameters are "
-        "retained from the earlier pruned-set Optuna tune (retune-pending). "
+        "re-tuned by Optuna on the full set (150 trials, seed 47; #169). "
         "CELF here is a lexical/semantic concept measure, not grammar. Treat "
         "the ranking as exploratory."
     )
