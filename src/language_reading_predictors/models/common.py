@@ -115,7 +115,7 @@ class ModelConfig:
     """All per-model configuration — the only thing that differs between models."""
 
     model_id: str
-    """Short model identifier, e.g. 'lrpgbg12'."""
+    """Short model identifier, e.g. 'lrp-rli-gbg-012'."""
 
     description: str
     """Human-readable description shown in console output and reports."""
@@ -159,28 +159,33 @@ class ModelConfig:
 
     variant_of: str | None = None
     """If set, this model is a selection variant of another model (e.g.
-    'lrpgbg12'). Variants are excluded from ``fit_model.py all`` by default."""
+    'lrp-rli-gbg-012'). Variants are excluded from ``fit_model.py all`` by default."""
 
     notes: str = ""
     """Free-text rationale stored in ``config.json`` and surfaced in reports."""
 
-    # --- Canonical model-ID scheme (#168 Phase 1) -------------------------
-    # Derived on read from the legacy ``model_id`` (the GB ids embed their family
-    # ``gbg``/``gbl``, so no ``kind`` is needed). Non-destructive: an unparseable
-    # id yields ``None`` rather than breaking a fit. ``parent_model_id`` prefers the
+    # --- Canonical model-ID scheme (#168) ---------------------------------
+    # Since Phase 2 ``model_id`` is the *canonical* id (``lrp-rli-gbg-012``); this
+    # accessor also still parses a legacy id (``lrpgbg12``) so the metadata is
+    # correct whichever form a definition uses. The GB ids embed their family
+    # (``gbg``/``gbl``) so no ``kind`` is needed. Non-destructive: an unparseable id
+    # yields ``None`` rather than breaking a fit. ``parent_model_id`` prefers the
     # explicit ``variant_of`` link.
     @property
     def _canonical(self):
         from language_reading_predictors import model_ids as _mids
 
         try:
+            if _mids.looks_canonical(self.model_id):
+                return _mids.parse_canonical(self.model_id)
             return _mids.parse_legacy(self.model_id)
         except _mids.ModelIdError:
             return None
 
     @property
     def legacy_model_id(self) -> str:
-        return self.model_id
+        c = self._canonical
+        return c.legacy if c is not None else self.model_id
 
     @property
     def canonical_model_id(self) -> str | None:

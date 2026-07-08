@@ -4,8 +4,8 @@
 """Unit tests for the canonical model-ID resolver (issue #168).
 
 The whole-inventory checks are **import-free**: the model set is derived from the
-module filenames — canonical underscore form for the stat models since Phase 2
-(``lrp_rli_itt_001``), still-legacy for the GB models (``lrpgbg12``) — so they run
+module filenames — all in canonical underscore form since Phase 2, for both the stat
+models (``lrp_rli_itt_001``) and the GB models (``lrp_rli_gbg_012``) — so they run
 without the PyMC / GB stack. The ``kind`` for a bare id comes from the lightweight
 ``definitions.MODEL_REGISTRY``. Mirrors ``tests/test_model_definitions.py``.
 """
@@ -56,13 +56,14 @@ def _kind_by_canonical() -> dict[str, str]:
 def _model_canonical_ids() -> list[str]:
     """Every model's canonical CLI id, derived import-free from the module files.
 
-    Stat modules are named in canonical underscore form since #168 Phase 2
-    (``lrp_rli_itt_001`` -> ``lrp-rli-itt-001``); the GB modules keep their legacy
-    names (they rename with #169), so their canonical id is derived from the id.
+    All modules are named in canonical underscore form since #168 Phase 2 — the stat
+    models (``lrp_rli_itt_001`` -> ``lrp-rli-itt-001``) and, since the GB rename, the
+    GB models too (``lrp_rli_gbg_012`` -> ``lrp-rli-gbg-012``) — so the canonical CLI
+    id is just the stem with underscores swapped for hyphens.
     """
     stat = {p.stem.replace("_", "-") for p in _STAT_DIR.glob("lrp_rli_*.py")}
     stat |= {p.stem.replace("_", "-") for p in _STAT_DIR.glob("lrp_rlm_*.py")}
-    gb = {M.to_canonical(p.stem) for p in _GB_DIR.glob("lrpgb*.py")}  # gbg/gbl embedded
+    gb = {p.stem.replace("_", "-") for p in _GB_DIR.glob("lrp_rli_gb*.py")}  # gbg/gbl
     return sorted(stat | gb)
 
 

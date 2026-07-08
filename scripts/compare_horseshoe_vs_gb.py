@@ -10,7 +10,7 @@ Both rankings are reduced to **construct level** and aligned:
   ``scripts/fit_statistical_model.py lrphs0N``), keyed by posterior
   ``P(|beta| > delta)``.
 - The gradient-boosting ranking is per raw column (``predictor_ranking.csv`` from
-  ``scripts/rank_predictors.py --model lrpgb...``, ``member`` / ``perm_imp_mean``).
+  ``scripts/rank_predictors.py --model lrp-rli-gb...``, ``member`` / ``perm_imp_mean``).
   Each column is mapped back to its construct symbol via :data:`MEASURES` (plus the
   age / blocks / behaviour covariate constructs); construct importance is the
   **max** per-column permutation importance among the construct's columns, matching
@@ -25,7 +25,7 @@ Usage::
 
     python scripts/compare_horseshoe_vs_gb.py \\
         --horseshoe output/statistical_models/models/lrphs01-reporting/predictor_ranking.csv \\
-        --gb output/ranking/lrpgbg12/predictor_ranking.csv \\
+        --gb output/ranking/lrp-rli-gbg-012/predictor_ranking.csv \\
         --out output/statistical_models/models/lrphs01-reporting/horseshoe_vs_gb.csv
 
 Writes ``horseshoe_vs_gb.csv`` (one row per shared construct) and prints the

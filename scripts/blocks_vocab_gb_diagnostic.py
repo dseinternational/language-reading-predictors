@@ -3,7 +3,7 @@
 
 """GB corroboration for issue #186 (Q4, Phase 2): does block design carry nonparametric predictive signal for vocabulary?
 
-For each vocabulary LEVEL gradient-boosting model (LRPGBL01–06) this refits an
+For each vocabulary LEVEL gradient-boosting model (LRP-RLI-GBL-001–006) this refits an
 ad-hoc variant with block design added to the predictor set — `blocks` is normally
 in `DEFAULT_EXCLUDED` (t1-only), and `data_utils.load_data` now broadcasts it per
 child so it is a usable time-invariant covariate — and reports where `blocks` ranks
@@ -38,20 +38,40 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 import language_reading_predictors.data_utils as data_utils
-from language_reading_predictors import paths
+from language_reading_predictors import model_ids, paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import MODELS
 from language_reading_predictors.models.common import RunConfig
 
 # Vocabulary LEVEL GB models: taught/not-taught receptive & expressive + standardised.
+# The registry is keyed on the canonical id since #168 Phase 2; a legacy id
+# (``lrpgbl01``) passed via ``--models`` still resolves (see ``_resolve``).
 VOCAB_LEVEL_MODELS = (
-    "lrpgbl01",  # b1retau - taught receptive
-    "lrpgbl02",  # b1extau - taught expressive
-    "lrpgbl03",  # b1rent  - not-taught receptive
-    "lrpgbl04",  # b1exnt  - not-taught expressive
-    "lrpgbl05",  # rowpvt  - standardised receptive
-    "lrpgbl06",  # eowpvt  - standardised expressive
+    "lrp-rli-gbl-001",  # b1retau - taught receptive
+    "lrp-rli-gbl-002",  # b1extau - taught expressive
+    "lrp-rli-gbl-003",  # b1rent  - not-taught receptive
+    "lrp-rli-gbl-004",  # b1exnt  - not-taught expressive
+    "lrp-rli-gbl-005",  # rowpvt  - standardised receptive
+    "lrp-rli-gbl-006",  # eowpvt  - standardised expressive
 )
+
+
+def _resolve(model_id: str) -> str:
+    """Resolve a user-supplied id (legacy or canonical, any form) to its registry key.
+
+    Returns the input unchanged when unrecognised so ``MODELS[...]`` raises the
+    usual ``KeyError`` for a genuinely unknown model.
+    """
+    aliases: dict[str, str] = {}
+    for key in MODELS:
+        aliases[key.lower()] = key
+        try:
+            mid = model_ids.parse_canonical(key)
+        except model_ids.ModelIdError:
+            continue
+        for form in (mid.legacy, mid.display, mid.module):
+            aliases[form.lower()] = key
+    return aliases.get(model_id.strip().lower(), model_id)
 
 
 def blocks_rank(perm: pd.DataFrame) -> tuple[int | None, float | None, int]:
@@ -74,6 +94,7 @@ def blocks_rank(perm: pd.DataFrame) -> tuple[int | None, float | None, int]:
 def run_one(base_id: str, config: str, df: pd.DataFrame) -> dict[str, object]:
     import language_reading_predictors.models  # noqa: F401  (populates MODELS)
 
+    base_id = _resolve(base_id)
     cfg = MODELS[base_id]
     target = cfg.target_var
     if V.BLOCKS not in cfg.predictor_vars:
