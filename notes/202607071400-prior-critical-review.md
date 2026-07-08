@@ -293,7 +293,9 @@ bespoke prior in isolation (200 k draws; LKJ via a standalone `sample_prior_pred
    test where DS scores cluster low): anchor the intercept _and_ tighten the deviation
    / RE scales.** Anchoring alone centres but does not narrow (growth shows this). This
    is **surgical, not a blanket suite-wide anchor** — outcomes that span their scale
-   (`basread`, L) are already fine. (Finding 1, as refined by the pushforward.)
+   (`basread`, L) are already fine. (Finding 1, as refined by the pushforward. **See
+   the provenance addendum below: this recommendation re-splits into a safe 1a and a
+   double-dip-prone 1b.**)
 2. **Tighten `gamma_own` SD to ≈ 0.25** against published test–retest reliabilities
    (r ≈ 0.8–0.95) — cheap, admissible external source, #141 open decision 3.
    (Finding 2.)
@@ -313,6 +315,28 @@ None of these change the current substantive conclusions (distal outcomes null,
 proximal effects keep direction — #141 §5a); they improve item-scale plausibility,
 cross-family coherence, and defensibility to a critical reader. Each is a self-
 contained follow-up that can land behind the existing shared-constructor seam.
+
+## Prior provenance and anti-double-dipping
+
+This is an exploratory **reanalysis of already-reported data** — `data/rli_data_long.csv` _is_ the Burgoyne et al. (2012) trial dataset — so the recommendations above must not launder the data at hand back in as a prior. #141 already closed the first double-dipping channel (Burgoyne's published SDs / effect sizes cannot set the scale of τ, the estimand). This addendum names the _second_ channel, which some recommendations above brush against, and states the discipline that keeps them clean.
+
+**Two distinct risks.** (1) _Effect-prior double-counting_ — using this dataset (or its published summaries) to scale the causal estimand τ. Already handled: τ is tiered analytically from the items-scale translation, never from any observed effect. (2) _Self-calibration_ — setting a nuisance/scale prior (`alpha`, its deviation SD, RE scales, `kappa`) by looking at this sample's _realised_ statistics. Recommendation 1 as written ("tighten... so the item-scale spread matches observed") sits on this line.
+
+**The bright line — two questions.** (a) _Does the prior touch the estimand?_ τ's prior must come from outside this dataset, full stop; `alpha`/`gamma_own`/`kappa`/RE-SDs cannot bias τ's mean but can distort its calibration and the item-scale predictions. (b) _Pre-treatment or outcome?_ Under randomisation the **baseline (t1, pre-randomisation) marginal is independent of treatment assignment**, so anchoring the intercept on the _arm-pooled baseline_ logit carries no information about τ; anchoring or tightening from **post-scores** (the outcome) does.
+
+**Check vs. fit — the distinction that resolves most of it.** A prior-predictive pushforward is legitimate _diagnostics_ and illegitimate _calibration_ depending only on what it is compared against:
+
+- **Check (legitimate).** "Does this prior imply item-scale predictions that are _a priori_ absurd — 0–148 items on a 170-item test where no DS child plausibly scores?" The comparison is to an **externally-justified plausible range** (test length, DS trajectories from _other_ cohorts, logical bounds). This is standard Bayesian-workflow prior-predictive checking, and it is what should catch the α blow-out (Finding 1).
+- **Fit (double-dipping).** "Tune the prior SD until the pushforward reproduces _this sample's_ median/SD." Now the prior encodes the data about to be fitted. The observed-post columns of the pushforward tables are a diagnostic backdrop, **not** a target to match.
+
+**Re-split of recommendation 1.** Finding 1's fix conflates a safe move with a risky one; separate them:
+
+- **1a (safe) — anchor the intercept on the _pre-treatment, arm-pooled_ baseline logit**, framed as a location/nuisance term. Randomisation makes the baseline marginal independent of treatment, so no information about τ leaks in. Prefer an external DS-norm anchor where one exists; baseline-from-this-sample is the justified fallback and should be documented as such. This is what growth/LCSM already do.
+- **1b (double-dip-prone) — set the _deviation_ and RE spread from an external plausible range, never from the observed post-scores.** Use the test manual's normative raw-score SD, or an explicit domain statement about where DS children of this age fall, to pick a weakly-informative spread centred on the _midpoint of that external band_. Do **not** reference this sample's realised occupancy (e.g. R's 15–68) as the target. The aim is "within an externally-plausible band", not "matching the observed distribution".
+
+**Where the other recommendations stand.** Recommendations 2 (`gamma_own` ← test–retest reliability) and 5's `kappa` anchor (← normative raw-score SDs) are **clean**: both trace to the tests' standardisation samples (the manuals #141 lists as admissible), not to Burgoyne. Recommendation 5's prior-predictive panels are actively _protective_ — they make the check visible and show the prior was not reverse-engineered from the outcome. Only ensure the actual `r` and normative-SD values cited come from the manuals, not from this dataset.
+
+**The backstop, since the data are already reported.** We cannot pre-register blind. The substitutes are (i) **documented external provenance** for every data-adjacent prior scale — extend #141's admissible-sources table so anything justified only by "matches what we observed" is flagged for re-derivation; and (ii) **sensitivity analysis as an acceptance criterion**, not an afterthought — a prior change ships only with a sweep showing the substantive conclusion is invariant across a defensible external range (as already done for τ). Where the outcome is informative (α, κ) the data will dominate, making any residual self-calibration inconsequential _and demonstrably so_ rather than merely asserted. Report the prior-predictive band and the external plausible band side by side so a critical reader can see they were set independently.
 
 ## Appendix — Layer-1 gradient-boosting models: hyperparameters, not priors
 
