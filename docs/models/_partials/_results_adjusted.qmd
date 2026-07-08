@@ -5,19 +5,36 @@ triangulating predictor patterns, but it does not identify causal effects.
 
 ### Adjusted vs Bivariate Associations
 
+_In plain terms:_ each predictor gets two numbers — a *bivariate* association (its
+raw link to the outcome on its own) and an *adjusted* association (the same link
+after holding the other predictors constant). Comparing them shows how much of a
+raw relationship survives once overlapping predictors are accounted for. These are
+adjusted associations, not causal effects.
+
 ```{python}
 # | echo: false
 predictor_associations = _csv("predictor_associations.csv")
 predictor_associations if predictor_associations is not None else "No predictor associations."
 ```
 
+_How to read the table:_ one row per predictor. The bivariate columns are the
+predictor's standalone link to the outcome; the adjusted columns are the same link
+with the other predictors held fixed. Each estimate carries a 95% credible interval
+(the range the value plausibly falls in); an interval that stays on one side of zero
+points to a consistent direction.
+
 ```{python}
 # | echo: false
 # | output: asis
 print(_img("predictor_associations.png", "Adjusted vs bivariate associations"))
+print("\n_How to read the plot:_ one row per baseline predictor. Each row shows two estimates of its standardised association with word-reading gain (per-SD, on the logit scale): the blue circle is the *adjusted* coefficient with the other predictors held constant, the grey square the *bivariate* coefficient on its own; the bars are 94% credible intervals. The dotted line at 0 is no association — markers to its right associate with more gain, to the left with less, and a bar crossing it means the sign is uncertain. When the blue circle sits closer to 0 than the grey square, adjustment has absorbed part of that raw link. Read every marker as an adjusted association, not a causal effect.")
 ```
 
 ### Natural-Scale Differences
+
+_In plain terms:_ this puts the associations back on the everyday scale — how many
+words (items) the outcome differs by for a typical change in each predictor — so the
+size is readable without thinking in standardised units.
 
 ```{python}
 # | echo: false
@@ -25,7 +42,16 @@ predicted_gain = _csv("predicted_gain_words.csv")
 predicted_gain if predicted_gain is not None else "No predicted-gain table."
 ```
 
+_How to read the table:_ each row translates a predictor's association into a
+difference in words (items), with its 95% credible interval. Read it as "how much
+the outcome differs by", an adjusted association on a plain scale — not a caused gain.
+
 ### Sensitivity Checks
+
+_In plain terms:_ these checks ask whether the conclusions hold up when the analysis
+choices change — tightening or loosening the priors, and adding or dropping a control
+for socioeconomic status (SES). Estimates that barely move are robust; ones that swing
+depend on the choice.
 
 ```{python}
 # | echo: false
@@ -33,17 +59,31 @@ prior_sensitivity = _csv("prior_sensitivity.csv")
 prior_sensitivity if prior_sensitivity is not None else "No prior-sensitivity table."
 ```
 
+_How to read the table:_ each row re-fits under a different prior setting (the
+assumption fed in before seeing the data); compare the estimates across rows — small
+shifts mean the data, not the prior, is doing the work.
+
 ```{python}
 # | echo: false
 ses_sensitivity = _csv("ses_sensitivity.csv")
 ses_sensitivity if ses_sensitivity is not None else "No SES sensitivity table."
 ```
 
+_How to read the table:_ it contrasts the associations with and without adjusting for
+SES; a predictor whose estimate stays put is not merely standing in for SES.
+
 ### Influence
+
+_In plain terms:_ this flags whether any single child is pulling the results, listing
+the children whose removal would move the estimates the most.
 
 ```{python}
 # | echo: false
 influence = _csv("influence.csv")
 influence.head(10) if influence is not None else "No per-child influence table."
 ```
+
+_How to read the table:_ rows are the most influential children (top ten), ranked by
+how much dropping each one would shift the fit. Large values warrant a look; if even
+the top rows are small, no one child is driving the conclusions.
 

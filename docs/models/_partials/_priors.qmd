@@ -12,6 +12,11 @@ amplitudes / lengthscales.
 priors_table if priors_table is not None else "No priors table available."
 ```
 
+_How to read the panels below:_ each is the prior probability density for one
+parameter — the range of values treated as plausible **before** seeing the data.
+Wider curves are more permissive; the causal effect prior is deliberately centred
+on zero so the data, not the prior, drive any conclusion of benefit.
+
 ```{python}
 # | echo: false
 # | output: asis
@@ -49,6 +54,11 @@ else:
 ```
 
 ### Prior vs posterior
+
+_How to read it:_ each panel overlays the prior (blue) and posterior (orange) for a
+parameter. A posterior clearly shifted from, or much narrower than, the prior means
+the **data were informative** for that parameter; heavy overlap means the estimate
+is carried mostly by the prior.
 
 ```{python}
 # | echo: false

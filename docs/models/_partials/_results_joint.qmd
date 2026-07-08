@@ -4,16 +4,21 @@ Each outcome's ITT effect $\tau$ is estimated jointly (positive = the interventi
 raised that outcome). The forest is the single most communicative summary; the
 pairwise contrast heatmap shows $P(\tau_k > \tau_j)$ for every outcome pair.
 
+In plain terms: one model estimates the treatment effect for every outcome at once, so the outcomes can be lined up and compared on the same scale.
+
 ```{python}
 # | echo: false
 tau_summary = _csv("tau_summary.csv")
 tau_summary
 ```
 
+_How to read the table:_ one row per outcome. `tau_median` is the best single estimate of the effect (positive = the intervention helped); `tau_lo`/`tau_hi` bracket the credible interval (the plausible range); `prob_pos` is the probability the effect is above zero, so values near 1 mean a benefit is very likely and values near 0.5 mean the direction is unclear. All effects are on the logit (log-odds) scale, not raw item counts.
+
 ```{python}
 # | echo: false
 # | output: asis
 print(_img("tau_forest.png", "Treatment effect by outcome (forest, reference line at 0)"))
+print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
 ```
 
 ### Pairwise contrasts — P(τ_k > τ_j)
@@ -22,12 +27,15 @@ print(_img("tau_forest.png", "Treatment effect by outcome (forest, reference lin
 # | echo: false
 # | output: asis
 print(_img("contrast_heatmap.png", "Pairwise contrast heatmap"))
+print("\n_How to read the contrast heatmap:_ the outcomes label both axes; each cell is the probability that the row outcome's effect is larger than the column outcome's, $P(\\tau_{row} > \\tau_{col})$. Red (near 1) means the row almost certainly moved more; blue (near 0) means the column moved more; white (near 0.5) means the two are indistinguishable. The diagonal is blank because an outcome is not compared with itself, and the two triangles are mirror images (a cell and its transpose sum to 1).")
 ```
 
 ```{python}
 # | echo: false
 _csv("tau_contrast_matrix.csv", index_col=0)
 ```
+
+_How to read the matrix:_ the same numbers as the heatmap in table form — each cell is $P(\text{row effect} > \text{column effect})$. Read across a row to see which other outcomes that outcome is likely to have beaten.
 
 ```{python}
 # | echo: false
@@ -58,6 +66,7 @@ ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
 # | output: asis
 # Shown here if the comparison forest has been copied alongside this report.
 print(_img("itt_vs_joint_forest.png", "ITT vs joint τ consistency"))
+print("\n_How to read the ITT-vs-joint forest:_ each outcome has two markers with credible-interval bars — the joint model's estimate (circle) and the matching single-outcome ITT estimate (square, offset just below it). The dashed line at 0 is no-effect. The two markers for an outcome should land close together; that agreement is the consistency check. A large gap flags an outcome where the joint and single-outcome estimates disagree. A dagger (†) marks heavily-floored outcomes, whose graded effect shown here is not their primary estimand.")
 ```
 
 :::

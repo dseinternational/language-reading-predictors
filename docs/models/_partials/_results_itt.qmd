@@ -2,6 +2,17 @@
 
 ```{python}
 # | echo: false
+# | output: asis
+print(
+    f"This section reports the estimated effect of the intervention on {outcome_label} "
+    "and how much of it is large enough to matter in practice (the ROPE summary). Take "
+    "the **direction** from `P(intervention helps)`, not from whether an interval clears "
+    "zero."
+)
+```
+
+```{python}
+# | echo: false
 tau_summary = _csv("tau_summary.csv")
 tau_summary
 ```
@@ -64,6 +75,12 @@ if tau_summary is not None:
 # | echo: false
 # | output: asis
 print(_img("tau_forest.png", "Posterior of the treatment effect (forest, reference line at 0)"))
+print(
+    "\n_How to read the forest plot:_ the marker is the posterior median and the lines "
+    "its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is "
+    "'no effect' — posterior mass to its right favours benefit, to its left harm; a "
+    "wider line means more uncertainty."
+)
 ```
 
 ```{python}
@@ -97,6 +114,13 @@ _rope.T if _rope is not None else None
 # | echo: false
 # | output: asis
 print(_img("rope_summary.png", "ROPE-anchored posterior and P(benefit ≥ δ)"))
+print(
+    "\n_How to read the ROPE summary:_ the left panel is the posterior effect on the "
+    "items scale; the shaded band is the region of practical equivalence (ROPE) — "
+    "effects small enough to count as no practical difference. The right panel traces "
+    "the probability of a benefit as the 'meaningful' threshold δ rises, so you can see "
+    "how likely a *worthwhile* gain is, not just any gain above zero."
+)
 if _rope is not None:
     print(
         '::: {.callout-note title="Reading the evidence labels"}\n\n'

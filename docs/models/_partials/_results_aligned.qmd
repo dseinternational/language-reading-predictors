@@ -7,11 +7,15 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 The aligned per-protocol design has no clean randomised treatment coefficient.
 Every coefficient below, including the cohort contrast, is an adjusted association.
 
+This section reports how each predictor tracks the aligned post-score. Because the cohort was defined by who actually followed the protocol rather than by random assignment, no term here is causal; each one is an association that could be driven by other differences between children.
+
 ```{python}
 # | echo: false
 factor_summary = _csv("factor_summary.csv")
 factor_summary if factor_summary is not None else "No factor summary."
 ```
+
+_How to read the factor summary:_ each row is one predictor. `median` is the posterior median of its coefficient (the typical association after adjustment), `lo`/`hi` are the ends of the credible interval (the plausible range), and `prob_positive` is the share of posterior mass above zero (near 1 means the association is reliably positive, near 0 reliably negative, near 0.5 undecided).
 
 ```{python}
 # | echo: false
@@ -34,15 +38,26 @@ if factor_summary is not None and "role" in factor_summary.columns:
 # | echo: false
 # | output: asis
 print(_img("association_forest.png", "Adjusted-association coefficients"))
+print(
+    "\n_How to read the forest plot:_ the marker is the posterior median and the "
+    "lines its credible intervals (thick = inner 50%, thin = 95%). The dashed "
+    "line at 0 is no-effect; posterior mass to its right favours benefit, to its "
+    "left harm; a wider line means more uncertainty. Every term here is an "
+    "adjusted association, not a randomised effect."
+)
 ```
 
 ### Cohort Marginal
+
+This is the aligned immediate-vs-wait-list gap on the items scale, summarising the cohort contrast in words a reader can act on.
 
 ```{python}
 # | echo: false
 cohort_marginal = _csv("cohort_marginal.csv")
 cohort_marginal if cohort_marginal is not None else "No cohort marginal table."
 ```
+
+_How to read the cohort marginal:_ `trt_items_median` is the typical difference in items between the immediate and wait-list cohorts (positive favours immediate), `trt_items_lo`/`trt_items_hi` bound the plausible range, and `prob_trt_pos` is the probability that the gap is above zero. It is per-protocol, so read it as association, not a randomised effect.
 
 ```{python}
 # | echo: false

@@ -1,5 +1,10 @@
 ## Results
 
+This model is a reproduction / audit baseline: it re-fits word-reading growth on
+a historical cohort and checks the fitted cells against the published Table 2
+means, so a mismatch flags a data or modelling problem before any newer analysis
+is trusted.
+
 Descriptive group-by-wave BAS word-reading growth for the historical cohort.
 These are **natural-history** estimates — expected scores and growth rates by
 reading group — not intervention effects. `readgrp` is a cohort factor, so
@@ -10,6 +15,13 @@ difference.
 
 Posterior population expected item score per group and wave, alongside the
 observed complete-case mean it is calibrated against (the Table 2 audit).
+
+_How to read the table:_ each row is one reading group at one assessment wave.
+`posterior_population_mean` is the model's expected item score for that cell and
+`q2_5`/`q97_5` bracket it with a 95% credible interval; `observed_complete_case_mean`
+is the real data mean it should match, and `posterior_mean_minus_observed_mean` is
+the gap between them — near zero means the reproduction lands on the published
+Table 2.
 
 ```{python}
 # | echo: false
@@ -27,6 +39,12 @@ cells if cells is not None else "No cell summary (run the fit first)."
 Within-group growth across the annual intervals, and pairwise total-growth
 (wave 1 to wave 3) contrasts between groups.
 
+_How to read the table:_ each row is either how much a group gained over an
+interval, or the difference in total gain between two groups. `mean` is the
+posterior growth in items (`q2_5`/`q97_5` its 95% interval) and `p_gt_0` is the
+posterior probability that growth (or the between-group difference) is positive —
+values near 1 mean confidently positive, near 0.5 mean the sign is uncertain.
+
 ```{python}
 # | echo: false
 growth = _csv("posterior_growth_summary.csv")
@@ -37,6 +55,11 @@ growth if growth is not None else "No growth summary."
   posterior probability the growth (or contrast) is positive.
 
 ### Observed complete-case baseline (Table 2 audit)
+
+_How to read the table:_ this is the raw published reference the model is audited
+against — the observed complete-case means (and cell counts) per group and wave,
+with no modelling applied. Compare it against the fitted cells above to confirm
+the reproduction matches the historical source.
 
 ```{python}
 # | echo: false

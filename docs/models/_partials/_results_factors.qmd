@@ -10,11 +10,22 @@ associations*. Under the locked DAG every non-randomised coefficient is
 confounded by latent general ability and must be read as *associated with*,
 never *drives*.
 
+_In plain terms:_ this section reports one effect the study can call causal — the
+group difference created by randomising who received the intervention — plus a set
+of side-by-side relationships (associations) between skills that the design cannot
+untangle from underlying ability.
+
 ```{python}
 # | echo: false
 factor_summary = _csv("factor_summary.csv")
 factor_summary
 ```
+
+_How to read the summary table:_ each row is one coefficient on the logit
+(log-odds) scale; `median` is the best single estimate, `lo`/`hi` its 95% credible
+interval (the range the value plausibly falls in), and `prob_positive` the
+posterior probability the coefficient is above zero. The `role` column flags the
+single `causal` (randomised) term; every other row is an adjusted association.
 
 ```{python}
 # | echo: false
@@ -64,6 +75,7 @@ if treatment_marginal is not None:
         f"P(> 0) = {_t.prob_trt_pos:.3f}.\n"
     )
 print(_img("tau_forest.png", "Posterior of the causal term (forest, reference line at 0)"))
+print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
 ```
 
 ```{python}
@@ -85,6 +97,7 @@ _rope.T if _rope is not None else None
 # | echo: false
 # | output: asis
 print(_img("rope_summary.png", "ROPE-anchored posterior and P(benefit ≥ δ)"))
+print("\n_How to read the ROPE summary:_ the left panel is the posterior effect on the items scale; the shaded band is the region of practical equivalence (ROPE), i.e. effects small enough to count as no practical difference. The right panel traces the probability of a benefit as the meaningful threshold delta rises, so you can see how likely a worthwhile gain is, not just any gain above zero.")
 ```
 
 ```{python}
@@ -112,8 +125,11 @@ if factor_summary is not None and "role" in factor_summary.columns:
 # Forest of the adjusted-association coefficients — the visual companion to the
 # table above, so the cross-skill predictor->outcome relationships are seen, not
 # only tabulated. Empty string when the plot is absent (e.g. a treated-only model).
-print(_img(
+_assoc_forest = _img(
     "association_forest.png",
     "Adjusted-association coefficients (forest, reference line at 0) — not causal",
-))
+)
+print(_assoc_forest)
+if _assoc_forest:
+    print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty. Every coefficient here is an adjusted association, not a causal effect.")
 ```

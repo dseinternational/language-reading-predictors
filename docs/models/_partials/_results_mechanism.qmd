@@ -1,5 +1,9 @@
 ## Results
 
+In plain terms: this section asks how one skill tracks another once we hold the
+adjustment set fixed — an association after controlling for confounders, read off
+as a slope and a curve, not as proof that one skill *causes* the other.
+
 Mechanism coefficients and curves are **adjusted associations**. They describe how
 two measured skills go together after the specified adjustment set; they do not
 identify a causal skill-to-skill effect under the locked DAG.
@@ -29,6 +33,15 @@ if interaction_summary is not None and len(interaction_summary):
             f"{_i.gamma_mod_mean:+.3f} (95% CrI {_i.gamma_mod_lo:+.3f} "
             f"to {_i.gamma_mod_hi:+.3f}); P(> 0) = {_i.prob_gamma_mod_pos:.3f}."
         )
+    print(
+        "\n\n_How to read the interaction table:_ each `*_mean` column is the "
+        "posterior median of a coefficient, the `*_lo`/`*_hi` pair its 95% credible "
+        "interval, and each `prob_*_pos` the posterior probability the coefficient is "
+        "above zero (near 1 = confident it is positive, near 0 = confident negative, "
+        "near 0.5 = the sign is undecided). `gamma_int` is the interaction (does the "
+        "mechanism association change with the moderator?); `gamma_mod` is the "
+        "moderator's own adjusted association."
+    )
 ```
 
 ### Mechanism Curve
@@ -37,6 +50,18 @@ if interaction_summary is not None and len(interaction_summary):
 # | echo: false
 # | output: asis
 print(_img("mechanism_curve.png", "Adjusted mechanism curve"))
+print(
+    "\n_How to read the mechanism curve:_ the horizontal axis is the mechanism "
+    "variable (the earlier skill, on the logit scale — negative values are lower "
+    "scores); the vertical axis is that variable's contribution to the outcome, "
+    "also in logit units. The solid line is the posterior-median contribution and "
+    "the shaded band its credible interval, so the band's width shows how uncertain "
+    "the curve is at each point (it is typically wider where the data thin out). An "
+    "upward slope means higher earlier-skill scores are associated with a higher "
+    "outcome after adjustment; a band that straddles the flat no-association level "
+    "means the association is not resolved there. Read the shape and the band, not a "
+    "single point — and, as above, this is an adjusted association, not a causal effect."
+)
 ```
 
 ```{python}
@@ -55,7 +80,16 @@ if mechanism_curve is not None and all(c in mechanism_curve.columns for c in ("f
         f"about **{_rng:+.3f} logit units**. Read the curve shape and interval width "
         "rather than a single point estimate."
     )
+    print(
+        "\n\n_How to read the curve table:_ one row per plotted point along the "
+        "mechanism axis. `mech_logit` is that point's position on the horizontal axis "
+        "and `f_mean` the posterior-mean height of the curve there; the interval "
+        "columns beside them are the shaded band's lower and upper edges. The table is "
+        "just the plotted curve in numbers — the figure above is the quicker read."
+    )
 ```
+
+### Model comparison
 
 ```{python}
 # | echo: false
@@ -66,4 +100,21 @@ if _comp is None:
 if _comp is None:
     _comp = _csv("age_moderation_loo_compare.csv")
 _comp
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _comp is not None and len(_comp):
+    print(
+        "_How to read the comparison table:_ it ranks competing model variants by "
+        "how well each predicts held-out data (leave-one-out cross-validation). "
+        "`elpd_loo` is the predictive score — higher is better — and `elpd_diff` is "
+        "each row's gap below the best model, with `dse`/`se` giving the standard "
+        "error of that gap; a gap smaller than a couple of its standard errors means "
+        "the models are hard to tell apart. `weight` is the share of predictive "
+        "credibility assigned to each variant. If instead the columns are `model`, "
+        "`n_obs`, `elpd_loo`, `se`, `p_loo`, the variants did not share the same rows, "
+        "so scores are listed per model and are not directly differenced."
+    )
 ```

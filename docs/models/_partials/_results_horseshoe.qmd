@@ -10,11 +10,23 @@ lives in the ITT suite, not here.
 
 ### Predictor ranking
 
+In plain terms: predictors are ranked by the posterior probability that their
+standardised effect is bigger than a small threshold — a cross-check on the
+gradient-boosting ranking, arrived at by a completely different method.
+
 ```{python}
 # | echo: false
 ranking = _csv("predictor_ranking.csv")
 ranking if ranking is not None else "No predictor ranking (run at test/reporting tier)."
 ```
+
+_How to read the ranking:_ each row is one predictor; rows are ordered by
+`p_abs_gt_delta`, the probability that the predictor's effect clears a small
+"worth-noticing" size, so higher rows are the more credible predictors. `beta_mean`
+is the effect's size and direction (per 1 SD, on the logit scale) and the HDI
+columns give its plausible range; `lambda_mean` says how far the predictor was
+squashed toward zero (small = treated as noise, large = it escaped and stands out);
+`sign` is which way it points.
 
 - `p_abs_gt_delta`: posterior `P(|beta| > delta)` with `delta` on the logit /
   per-SD scale — the ranking key (the horseshoe analogue of permutation importance).
@@ -35,11 +47,20 @@ lower bound on its importance.
 
 ### Agreement with the gradient-boosting ranking
 
+In plain terms: this table lines the horseshoe ranking up against the
+gradient-boosting one to see whether two very different methods pick out the same
+predictors.
+
 ```{python}
 # | echo: false
 compare = _csv("horseshoe_vs_gb.csv")
 compare if compare is not None else "GB comparison not generated for this run (see the dated notes/ entry)."
 ```
+
+_How to read the comparison:_ each row pairs a construct's place in the horseshoe
+ranking with its place in the gradient-boosting ranking; constructs near the top of
+both agree, while a construct that sits high in one and low in the other is a
+divergence — its apparent importance depends on which method you use.
 
 This is a **construct-level** comparison: the horseshoe ranks the measure
 constructs, while the gradient-boosting *cluster* ranking groups its 34 raw

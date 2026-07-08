@@ -1,7 +1,10 @@
 ## Sampling diagnostics
 
 R-hat and effective sample size (ESS) over the scalar parameters; the
-equal-tailed interval matches the report cards below.
+equal-tailed interval matches the report cards below. _How to read it:_ sampling
+has converged when every parameter's **R-hat is ≈ 1.00** (values above 1.01 are
+flagged) and its **ESS is comfortably above 400** — a high R-hat or low ESS means
+the chains have not mixed well and the summaries below are not yet reliable.
 
 ```{python}
 # | echo: false
@@ -18,6 +21,15 @@ print(_img("pareto_k.png", "Pareto-k (LOO influence; flag k > 0.7)"))
 print(_img("rank_plot.png", "Rank plot of the effect (mixing)"))
 print(_img("ess_evolution.png", "ESS evolution (target 400)"))
 print(_img("loo_pit.png", "LOO-PIT calibration"))
+print(
+    "\n_How to read these:_ **Pareto-k** — each point is one child's influence on the "
+    "leave-one-out fit; all should sit below 0.7 (points above are overly influential "
+    "and make LOO unreliable). **Rank plot** — the chains' ranks should look uniform "
+    "and interleaved (a sloped or lumpy plot signals poor mixing). **ESS-evolution** — "
+    "should climb steadily above the 400 target as sampling proceeds. **LOO-PIT** — the "
+    "line should hug zero; large excursions mean the model is mis-calibrated over part "
+    "of the outcome range."
+)
 ```
 
 ```{python}
@@ -36,6 +48,11 @@ _det if _det is not None else None
 
 ::: {.callout-note collapse="true" title="Trace, energy, and posterior plots (appendix)"}
 
+_How to read them:_ the **trace** should look like stationary "hairy caterpillars"
+with the chains overlapping (no drift or separate bands); the **energy** plot's two
+densities (marginal vs transition) should overlap closely; the **posterior** and
+**pair** plots show each parameter's marginal shape and joint dependencies.
+
 ```{python}
 # | echo: false
 # | output: asis
@@ -53,4 +70,10 @@ print(_img("pair_plot.png", "Pairs"))
 # | echo: false
 # | output: asis
 print(_img("posterior_predictive_check.png", "Posterior-predictive vs observed"))
+print(
+    "\n_How to read it:_ the black line is the observed outcome distribution and the "
+    "blue band is many datasets simulated from the fitted model. A good fit keeps the "
+    "black line inside the blue band across its whole range; a systematic departure "
+    "shows where the model reproduces the data poorly."
+)
 ```

@@ -4,6 +4,19 @@ The waitlist-crossover model is a triangulation of the randomised ITT, not an
 independent randomised experiment. Positive coefficients mean higher expected
 post-score under the intervention-coded contrast.
 
+In plain terms: this compares each child to themselves — the change while
+waiting against the change after crossing over to the intervention — so every
+child is their own control and stable child-level differences cancel out.
+
+_How to read the contrast table:_ each row is one estimated quantity. `delta` is
+the within-person difference-in-differences (DiD) treatment contrast: how much
+larger the intervention-window change is than the waitlist-window change. The
+`mean` (or `delta_mean`) column is the posterior average estimate; the `lo`/`hi`
+(or `_lo`/`_hi`) columns bracket the 95% credible interval, the range the effect
+plausibly falls in; and `p_pos` / `prob_delta_pos` is the probability the effect
+is positive (a benefit). The `_items` columns restate `delta` on the raw items
+scale so it reads as a count of items rather than logit units.
+
 ```{python}
 # | echo: false
 did_summary = _csv("did_summary.csv")
