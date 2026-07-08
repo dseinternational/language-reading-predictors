@@ -328,6 +328,11 @@ def _prior_table_overrides(
         for _name in ("tau", "beta_trt", "b_grp_time", "beta_grp", "delta"):
             ctor.setdefault(_name, "tau_distal")
             role.setdefault(_name, "causal")
+        # The ANCOVA intercept is likewise tiered for distal outcomes (Normal(0,
+        # 1.0); prior-critical-review 2026-07-07, Finding 1). Route it to the
+        # ``alpha_distal`` panel so the report rationale matches the fitted scale
+        # (the distribution column already reads the true 1.0 off the built RV).
+        ctor.setdefault("alpha", "alpha_distal")
 
     return ctor, role, rationale
 

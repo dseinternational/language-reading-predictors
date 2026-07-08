@@ -92,6 +92,29 @@ def _tau_sigma_for(outcome_symbol: str, override: float | None = None) -> float:
     )
 
 
+def _alpha_sigma_for(outcome_symbol: str, override: float | None = None) -> float:
+    """Intercept prior SD for a single-outcome ANCOVA (prior-critical-review 2026-07-07).
+
+    Mirrors :func:`_tau_sigma_for`: returns ``override`` when given (prior-
+    sensitivity fits), else the outcome tier — the tighter ``ALPHA_SIGMA_DISTAL``
+    (1.0) for the broad high-denominator standardised-transfer outcomes
+    (``measures.DISTAL_OUTCOMES``) and the wider ``ALPHA_SIGMA_PROXIMAL`` (1.5)
+    otherwise. A no-op for proximal outcomes, so only distal-outcome fits tighten.
+    Applies to the free ``alpha`` intercept of the ANCOVA families whose linear
+    predictor already carries the outcome level in the ``gamma_own * logit(y_pre)``
+    term (so ``alpha``'s mean is a ~0 deviation, tiered by SD — not re-anchored;
+    see :func:`priors.alpha_prior`). The growth/LCSM *level* models instead anchor
+    the intercept mean and do not use this.
+    """
+    if override is not None:
+        return override
+    return (
+        _priors.ALPHA_SIGMA_DISTAL
+        if is_distal(outcome_symbol)
+        else _priors.ALPHA_SIGMA_PROXIMAL
+    )
+
+
 def _add_child_random_intercept(
     eta: pt.TensorVariable,
     child_idx: pt.TensorVariable,
@@ -157,6 +180,7 @@ def build_itt_model(
     tau_moderator_is_covariate: bool = False,
     tau_moderator_interaction: bool = True,
     tau_sigma: float | None = None,
+    alpha_sigma: float | None = None,
 ) -> BuiltModel:
     """
     Build the single-outcome ITT model used by the LRPITT suite (and its SES
@@ -247,6 +271,15 @@ def build_itt_model(
         standardised-transfer outcomes in ``measures.DISTAL_OUTCOMES``,
         ``TAU_SIGMA_PROXIMAL`` (0.5) otherwise. Pass an explicit value for a
         prior-sensitivity fit (``scripts/tau_prior_sensitivity.py``).
+    alpha_sigma
+        Override the intercept prior SD (prior-critical-review 2026-07-07,
+        Finding 1). ``None`` (default) uses the outcome tier via
+        :func:`_alpha_sigma_for`: ``ALPHA_SIGMA_DISTAL`` (1.0) for the
+        high-denominator broad-transfer outcomes, ``ALPHA_SIGMA_PROXIMAL`` (1.5)
+        otherwise — a no-op for proximal outcomes. The intercept is a *deviation*
+        (the level is carried by ``gamma_own * logit(y_pre)``), so this tiers its
+        SD rather than re-anchoring its mean. Pass an explicit value for a
+        prior-sensitivity fit.
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
@@ -351,7 +384,9 @@ def build_itt_model(
             pm.Data("z_tau_moderator", z_M, dims="obs_id") if z_M is not None else None
         )
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(own, alpha_sigma)
+        ).to_pymc("alpha")
         tau0 = _priors.tau_prior(
             sigma=_tau_sigma_for(own, tau_sigma)
         ).to_pymc("tau")
@@ -537,6 +572,11 @@ def build_joint_model(
 
         # Per-outcome scalar parameters — shared constructors (priors.py) so
         # the joint model cannot drift from the ITT / mechanism factories (issue #79).
+        # alpha and tau are kept **common** (untiered) across outcomes here — the
+        # joint is the deliberately uniform-prior cross-check against the tiered
+        # single-outcome ITT fits (the note keeps the common tau; the intercept
+        # follows the same rationale). Per-outcome alpha-SD tiering (Finding 1) in
+        # the joint is a documented follow-up.
         alpha = _priors.alpha_prior().to_pymc("alpha", dims="outcome")
         tau = _priors.tau_prior().to_pymc("tau", dims="outcome")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")
@@ -846,7 +886,9 @@ def build_mechanism_model(
                 f"{s}_post_logit", c_val_np, dims="obs_id"
             )
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         alpha_phase = pm.Normal(
             "alpha_phase", mu=0.0, sigma=0.5, dims="phase"
         )
@@ -1087,7 +1129,9 @@ def build_dose_response_model(
                 f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id"
             )
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         alpha_phase = pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
@@ -1257,7 +1301,9 @@ def build_did_model(
         period_d = pm.Data("period", is_p2, dims="obs_id")
         own_pre_d = pm.Data("own_pre_logit", pre_logit, dims="obs_id")
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         beta_period = _priors.tau_prior().to_pymc("beta_period")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
@@ -1964,7 +2010,7 @@ def build_adjusted_model(
     outcome_symbol: str = "W",
     predictors: Iterable[str] = ("L", "lang", "B", "age", "blocks", "behav"),
     language_composite_symbols: Iterable[str] = ("R", "E", "F"),
-    predictor_slope_sigma: float = 0.5,
+    predictor_slope_sigma: float = 0.3,
 ) -> BuiltModel:
     """Between-child adjusted model: standardised T1 baselines -> word-reading gain.
 
@@ -2008,7 +2054,9 @@ def build_adjusted_model(
     coords = {"obs_id": np.arange(prepared.n_obs)}
     with pm.Model(coords=coords) as model:
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
         eta = alpha + gamma_own * own_pre_d
 
@@ -2542,7 +2590,9 @@ def build_gain_factors_model(
             for pair in active_interactions
         }
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         alpha_phase = pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
@@ -2682,7 +2732,9 @@ def build_level_factors_model(
             else None
         )
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         alpha_time = pm.Normal("alpha_time", mu=0.0, sigma=0.5, dims="phase")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
@@ -2794,7 +2846,9 @@ def build_aligned_model(
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + gamma_own * own_pre_d + gamma_A * A_std_d
@@ -2840,10 +2894,10 @@ def build_lcsm_model(
     panel: WavePanel,
     *,
     reading_symbol: str = "W",
-    coupling_prior_sigma: float = 0.5,
+    coupling_prior_sigma: float = 0.3,
     self_prior_sigma: float = 0.5,
     intercept_prior_sigma: float = 1.5,
-    covariate_prior_sigma: float = 0.5,
+    covariate_prior_sigma: float = 0.3,
     use_process_noise: bool = True,
     shared_process_noise: bool = False,
     sigma_proc_prior_sigma: float = 0.5,
@@ -3018,8 +3072,8 @@ def build_growth_model(
     use_shared_factor: bool = False,
     intercept_prior_sigma: float = 1.5,
     slope_prior_sigma: float = 0.5,
-    assoc_prior_sigma: float = 0.5,
-    re_intercept_prior_sigma: float = 1.0,
+    assoc_prior_sigma: float = 0.3,
+    re_intercept_prior_sigma: float = 0.5,
     re_slope_prior_sigma: float = 0.5,
     loading_prior_sigma: float = 0.5,
     kappa_prior_sigma: float = 50.0,
@@ -3181,7 +3235,7 @@ def build_historical_growth_model(
     *,
     measure: str = "basread",
     eta_prior_sigma: float = 1.5,
-    sigma_subject_prior_sigma: float = 1.0,
+    sigma_subject_prior_sigma: float = 0.5,
     kappa_prior_sigma: float = 50.0,
 ) -> BuiltModel:
     """Descriptive group-by-wave growth model for a historical cohort.

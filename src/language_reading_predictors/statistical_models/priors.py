@@ -26,9 +26,45 @@ from preliz.distributions.distributions import Continuous
 # ---------------------------------------------------------------------------
 
 
-def alpha_prior() -> Continuous:
-    """Intercept alpha ~ Normal(0, 1.5)."""
-    return pz.Normal(mu=0.0, sigma=1.5)
+# Intercept prior scales, tiered by outcome proximity (prior-critical-review
+# 2026-07-07, Finding 1). In the ANCOVA families the linear predictor is
+# ``alpha + gamma_own * logit(y_pre) + ...`` with ``gamma_own`` centred at 1, so
+# the own-baseline term already carries the outcome *level* and ``alpha``'s mean
+# is correctly ~0 (a deviation, not the level — anchoring its mean at the baseline
+# would double-count). The intercept blow-out the review flagged is therefore an
+# SD problem, not a mean problem: on a high-denominator distal test (e.g. the
+# 170-item receptive-vocabulary R, ~36 items/logit near the operating point) the
+# ``Normal(0, 1.5)`` intercept alone sweeps ~+/-54 items of pure intercept noise,
+# past the plausible range for DS children. The distal tier tightens the *SD* to
+# 1.0 (a ~+/-36-item band on R) exactly as ``tau`` was tiered in #141. The scale
+# is set from the item count (a measurement fact) and the low-occupancy operating
+# point established in the DS literature — NOT from this sample's realised
+# post-scores (see notes/202607071400-prior-critical-review.md, "Prior provenance
+# and anti-double-dipping"). Proximal outcomes keep the wider 1.5.
+#
+# The growth/LCSM *level* models instead anchor the intercept *mean* at the
+# observed grand-mean logit, because they have no ``gamma_own * pre`` term — there
+# the intercept *is* the level, so a mean anchor (not an SD tier) is the right
+# tool. The two parameterisations are consistent in intent, not a drift.
+ALPHA_SIGMA_PROXIMAL: float = 1.5
+ALPHA_SIGMA_DISTAL: float = 1.0
+
+
+def alpha_prior(sigma: float = ALPHA_SIGMA_PROXIMAL) -> Continuous:
+    """Intercept alpha ~ Normal(0, 1.5).
+
+    (Parametrised by ``sigma`` for the outcome tier and for prior-sensitivity
+    fits; the docstring's numeric value is the proximal default that
+    ``_dist_from_doc`` extracts for the name-only table path. When a built RV is
+    available the table reads the *actual* registered scale, so a distal
+    ``Normal(0, 1.0)`` intercept is reported correctly.)
+    """
+    return pz.Normal(mu=0.0, sigma=sigma)
+
+
+def alpha_prior_distal() -> Continuous:
+    """Distal-tier intercept alpha ~ Normal(0, 1.0)."""
+    return alpha_prior(sigma=ALPHA_SIGMA_DISTAL)
 
 
 # Treatment-effect prior scales, tiered by outcome proximity (issue #141). The
@@ -58,8 +94,21 @@ def tau_prior_distal() -> Continuous:
 
 
 def gamma_own_prior() -> Continuous:
-    """Own-baseline coupling gamma_own ~ Normal(1, 0.5)."""
-    return pz.Normal(mu=1.0, sigma=0.5)
+    """Own-baseline coupling gamma_own ~ Normal(1, 0.25).
+
+    Centred at 1 (post-logit tracks pre-logit 1:1 — no regression to the mean
+    asserted a priori) with the SD tightened from 0.5 to 0.25 (prior-critical-
+    review 2026-07-07, Finding 2; #141 open decision 3). This is the one shared
+    coefficient prior informative in its *mean*, and the tighter SD is anchored on
+    published test-retest reliabilities for these measures (r ~ 0.8-0.95 at these
+    ages, from the test manuals) — an admissible *external* source, not this
+    trial's data: a retest r ~ 0.9 implies a tracking slope near 1 with little
+    spread, so ``Normal(1, 0.25)`` (95% ~ 0.5-1.5) is well-calibrated where the
+    old ``0.5`` (95% ~ 0-2, from no tracking to double) was not. A *precision*
+    term, so it cannot bias ``tau``; the tighter SD also reduces the item-scale
+    prior spread on the long tests (Finding 1).
+    """
+    return pz.Normal(mu=1.0, sigma=0.25)
 
 
 def gamma_cross_prior() -> Continuous:
@@ -83,12 +132,22 @@ def gamma_age_prior() -> Continuous:
     return pz.Normal(mu=0.0, sigma=0.3)
 
 
-def kappa_prior() -> Continuous:
-    """Beta-binomial concentration kappa ~ HalfNormal(50)."""
-    return pz.HalfNormal(sigma=50.0)
+def kappa_prior(sigma: float = 50.0) -> Continuous:
+    """Beta-binomial concentration kappa ~ HalfNormal(50).
+
+    (Parametrised by ``sigma`` so the dispersion prior can be anchored once
+    against the tests' normative raw-score SDs — an admissible external source,
+    #141's still-unused anchor — prior-critical-review 2026-07-07, recommendation
+    5. The default ``50`` is permissive but arbitrary; the review found the
+    prior-predictive over-dispersion is location-driven, not ``kappa``-driven, so
+    this is lower priority and the default is unchanged pending the normative-SD
+    calibration. The docstring's numeric value is what ``_dist_from_doc`` extracts
+    for the name-only table path.)
+    """
+    return pz.HalfNormal(sigma=sigma)
 
 
-def beta_mech_prior() -> Continuous:
+def beta_mech_prior(sigma: float = 1.0) -> Continuous:
     """Linear-mechanism slope beta_mech ~ Normal(0, 1).
 
     Used by ``build_mechanism_model(linear_mechanism=True)`` in place of the
@@ -97,8 +156,17 @@ def beta_mech_prior() -> Continuous:
     the change in the outcome logit per 1 SD of the mechanism on the logit
     scale; the weakly-informative unit scale lets the data speak for the
     primary effect while still regularising.
+
+    (Parametrised by ``sigma`` for the prior-sensitivity sweep — prior-critical-
+    review 2026-07-07, recommendation 4, and #141's remaining recommended sweep.
+    ``Normal(0, 1)`` is the loosest coefficient prior in the suite: a per-family
+    pushforward shows a +1 SD move shifts the outcome by dp ~ +/-0.38 at p95 on a
+    mid-scale baseline, ~2.7x the shared ``gamma_cross`` association scale.
+    ``sigma=0.5`` roughly halves that; kept at 1.0 by default pending the sweep,
+    which is an *analysis*, not a default change. The docstring's numeric value
+    is the default that ``_dist_from_doc`` extracts for the name-only table path.)
     """
-    return pz.Normal(mu=0.0, sigma=1.0)
+    return pz.Normal(mu=0.0, sigma=sigma)
 
 
 def sigma_dose_phase_prior() -> Continuous:
@@ -115,7 +183,7 @@ def sigma_dose_phase_prior() -> Continuous:
     return pz.HalfNormal(sigma=0.5)
 
 
-def b_path_prior() -> Continuous:
+def b_path_prior(sigma: float = 1.0) -> Continuous:
     """Mediator -> outcome slope (b-path) ~ Normal(0, 1).
 
     Used by the LRP59 mediation outcome model for ``b_M``, the coefficient on the
@@ -123,8 +191,13 @@ def b_path_prior() -> Continuous:
     (per-SD) scale so the data identify the key b-path of the decomposition,
     while still regularising; the treatment and confounder couplings use the
     tighter ``tau_prior`` / ``gamma_cross_prior``.
+
+    (Parametrised by ``sigma`` for the same prior-sensitivity sweep as
+    :func:`beta_mech_prior` — the two share the loosest ``Normal(0, 1)`` scale in
+    the suite; ``sigma=0.5`` roughly halves the p95 outcome shift. Default kept at
+    1.0 pending the sweep. prior-critical-review 2026-07-07, recommendation 4.)
     """
-    return pz.Normal(mu=0.0, sigma=1.0)
+    return pz.Normal(mu=0.0, sigma=sigma)
 
 
 def sigma_mediator_prior() -> Continuous:
@@ -167,18 +240,25 @@ def eta_partial_pool_prior() -> Continuous:
     return pz.HalfNormal(sigma=0.3)
 
 
-def predictor_slope_prior(sigma: float = 0.5) -> Continuous:
-    """LRP65 standardised-predictor slope ~ Normal(0, 0.5) by default.
+def predictor_slope_prior(sigma: float = 0.3) -> Continuous:
+    """LRP65 standardised-predictor slope ~ Normal(0, 0.3) by default.
 
     (Parametrised by ``sigma``; the prior table reports this default scale — the
     docstring's numeric value is what ``_dist_from_doc`` extracts, so the table
-    shows ``Normal(0, 0.5)`` rather than the literal token ``sigma``.)
+    shows ``Normal(0, 0.3)`` rather than the literal token ``sigma``.)
 
     Per-SD coefficient on a standardised baseline predictor in the between-child
     adjusted model (letter sounds, language composite, blending, age, and the
     tested covariates). Fixed weakly-informative and regularising, given the
-    collinear general-ability cluster and n ~ 51; the which-predictors-clear-zero
-    conclusion is checked against ``sigma`` in {0.3, 0.7}.
+    collinear general-ability cluster and n ~ 51.
+
+    The default was reconciled from 0.5 to 0.3 (prior-critical-review 2026-07-07,
+    recommendation 3): it is an *association* scale and now matches the shared
+    ``gamma_cross_prior`` (``Normal(0, 0.3)``) rather than sitting looser without
+    a documented rationale — one of the three cross-family scale drifts the review
+    flagged. 0.3 is within the ``{0.3, 0.7}`` sensitivity band the LRP65
+    which-predictors-clear-zero conclusion was already checked against, so the
+    substantive finding is unchanged.
     """
     return pz.Normal(mu=0.0, sigma=sigma)
 
@@ -255,6 +335,7 @@ SHARED_PRIORS: dict[str, "callable[[], Continuous]"] = {
 # gets a panel and a priors-table row.
 _EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
     "tau_distal": tau_prior_distal,
+    "alpha_distal": alpha_prior_distal,
     "beta_mech": beta_mech_prior,
     "sigma_dose": sigma_dose_phase_prior,
     "b_path": b_path_prior,
@@ -276,6 +357,7 @@ ALL_PRIORS: dict[str, "callable[[], Continuous]"] = {**SHARED_PRIORS, **_EXTRA_P
 # Gaussian-process terms.
 _ROLE_BY_CTOR: dict[str, str] = {
     "alpha": "nuisance",
+    "alpha_distal": "nuisance",
     "tau": "causal",
     "tau_distal": "causal",
     "gamma_own": "precision",
@@ -505,9 +587,10 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     # cross-coupling scale but is a precision term, not an association.
     if base == "d_age" or re.search(r"_A$", base):
         return ("precision", "")
-    # Own-baseline couplings reuse the gamma_own signature (Normal(1, 0.5)) — a
-    # precision term (e.g. the mediator legs' aL_L / aE_E autoregression).
-    if distribution == "Normal(1, 0.5)":
+    # Own-baseline couplings reuse the gamma_own signature (Normal(1, 0.25)) — a
+    # precision term (e.g. the mediator legs' aL_L / aE_E autoregression). The SD
+    # was tightened from 0.5 to 0.25 (Finding 2); keep this signature in step.
+    if distribution == "Normal(1, 0.25)":
         return ("precision", "gamma_own")
     # Everything else that is coupling-shaped is an adjusted association; route to
     # the gamma_cross panel when it shares that prior's scale.
