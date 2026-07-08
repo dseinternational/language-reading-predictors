@@ -52,13 +52,13 @@ the `gain_factors`/`level_factors` and DiD families (locked DAG ID-2; DiD design
 Decision 4). With general ability `GA` latent, this pure between-child contrast is fully
 exposed to time-invariant ability confounding with **no repair available** — so the
 no-intercept design is the cleaner *match to the between-child estimand*, not a cleaner
-causal contrast. (This is also why it stays a standalone `lrp65` rather than folding into
+causal contrast. (This is also why it stays a standalone `lrp-rli-adj-065` rather than folding into
 the `lrpgf` family: those pool the three period transitions with a child intercept — a
 within+between blend — whereas this is the one-row-per-child between-child estimand.)
 
 These are **associations, not causal effects** (n ≈ 51). The randomised word-reading ITT
-(now `lrpitt10`, which supersedes LRP52; the randomised gain-side coefficient lives in
-`lrpgf01`) carries the causal claim about the programme.
+(now `lrp-rli-itt-010`, which supersedes LRP52; the randomised gain-side coefficient lives in
+`lrp-rli-gf-001`) carries the causal claim about the programme.
 
 :::
 

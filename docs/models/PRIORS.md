@@ -168,17 +168,17 @@ example 0.2, 0.5, and 0.8.
 The first full audit should inspect at least one fitted/prior-predictive run from
 each family:
 
-| Family        | Suggested representative model                                 | What to inspect                                                                                         |
-| ------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| ITT           | `lrpitt10` (`W`) plus a floored model such as `lrpitt09` (`P`) | Treatment prior pushforward, off-floor risk for floored outcomes, baseline score plausibility.          |
-| Joint         | `lrpitt12`                                                     | Outcome-specific tau prior, covariance branch if reactivated, high-denominator vocabulary item effects. |
-| Mechanism     | `lrp56` or `lrp72`                                             | `beta_mech`, HSGP or linear mechanism priors, adjusted-association interpretation.                      |
-| Mediation     | `lrp59`, `lrp62`, and `lrp64`                                  | `a` and `b` paths, mediator distribution, mediated-effect pushforward.                                  |
-| DiD           | `lrpdid01` plus `lrpdid07`                                     | Period effect, treatment-period contrast, dose-slope priors.                                            |
-| Gain factors  | `lrpgf01` plus floored `lrpgf05`                               | On-intervention term, child random intercept, floor-rule off-floor probability.                         |
-| Level factors | `lrplf01`                                                      | Clean t2 group contrast versus later post-crossover associations.                                       |
-| Aligned       | `lrpal01` plus `lrpal01d`                                      | Cohort and dose terms as associations, not randomised effects.                                          |
-| Dynamic LCSM  | `lrp67`                                                        | Latent trajectory variability, process noise, cross-skill couplings into reading change.                |
+| Family        | Suggested representative model                                               | What to inspect                                                                                         |
+| ------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| ITT           | `lrp-rli-itt-010` (`W`) plus a floored model such as `lrp-rli-itt-009` (`P`) | Treatment prior pushforward, off-floor risk for floored outcomes, baseline score plausibility.          |
+| Joint         | `lrp-rli-itt-012`                                                            | Outcome-specific tau prior, covariance branch if reactivated, high-denominator vocabulary item effects. |
+| Mechanism     | `lrp-rli-mech-056` or `lrp-rli-mech-072`                                     | `beta_mech`, HSGP or linear mechanism priors, adjusted-association interpretation.                      |
+| Mediation     | `lrp-rli-med-059`, `lrp-rli-med-062`, and `lrp-rli-med-064`                  | `a` and `b` paths, mediator distribution, mediated-effect pushforward.                                  |
+| DiD           | `lrp-rli-did-001` plus `lrp-rli-did-007`                                     | Period effect, treatment-period contrast, dose-slope priors.                                            |
+| Gain factors  | `lrp-rli-gf-001` plus floored `lrp-rli-gf-005`                               | On-intervention term, child random intercept, floor-rule off-floor probability.                         |
+| Level factors | `lrp-rli-lf-001`                                                             | Clean t2 group contrast versus later post-crossover associations.                                       |
+| Aligned       | `lrp-rli-al-001` plus `lrp-rli-al-101`                                       | Cohort and dose terms as associations, not randomised effects.                                          |
+| Dynamic LCSM  | `lrp-rli-lcsm-067`                                                           | Latent trajectory variability, process noise, cross-skill couplings into reading change.                |
 
 ## Inventory Gaps (resolved 2026-07-01)
 

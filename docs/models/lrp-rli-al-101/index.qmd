@@ -23,7 +23,7 @@ format:
 
 ## Overview
 
-LRPAL01d is the **dose sensitivity variant** of [LRPAL01](../lrpal01/) for word
+LRPAL01d is the **dose sensitivity variant** of [LRPAL01](../lrp-rli-al-001/) for word
 reading (`ewrswr`): the same onset-aligned per-protocol ANCOVA, with the
 cumulative sessions delivered over the aligned window added as a covariate
 (`gamma_dose`).

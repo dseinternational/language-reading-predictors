@@ -94,7 +94,7 @@ dose signal is substantially ability-confounded.
 ### Causal warrant and expectations
 
 This is **adjusted association**, not "dose drives gains" — only the period-1 ITT
-(now `lrpitt10`) is randomised. Phase-1 best strata reached only $R^2$ 0.1–0.3;
+(now `lrp-rli-itt-010`) is randomised. Phase-1 best strata reached only $R^2$ 0.1–0.3;
 the deliverable is a calibrated dose slope with credible intervals, not a strong
 predictor. Do not condition on anything downstream of dose.
 

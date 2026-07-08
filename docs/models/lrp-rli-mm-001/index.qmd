@@ -35,7 +35,7 @@ partial **measurement-error correction** of the skill slopes.
 This is a **measurement** model. Per the locked DAG's **ID-2**, every factor ->
 gain slope is a **latent-ability-confounded adjusted association** - the factor
 model improves the measurement match, it does **not** identify effects. The
-randomised causal claim lives in the ITT suite (`lrpitt10` for word reading) and
+randomised causal claim lives in the ITT suite (`lrp-rli-itt-010` for word reading) and
 the `gain_factors` randomised term, not here.
 
 :::

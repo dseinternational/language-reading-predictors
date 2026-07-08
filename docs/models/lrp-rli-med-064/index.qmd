@@ -23,8 +23,8 @@ format:
 
 ## Overview
 
-The single-mediator [LRP59](../lrp59) (letter-sound only) and the route-composite
-[LRP62](../lrp62) (letter-sound + blending) each collapse the question to one pathway.
+The single-mediator [LRP59](../lrp-rli-med-059) (letter-sound only) and the route-composite
+[LRP62](../lrp-rli-med-062) (letter-sound + blending) each collapse the question to one pathway.
 LRP64 asks the **two-mediator** question directly: of the intervention's effect on
 word reading $W$, how much runs through **letter-sound knowledge $L$**, how much
 through **expressive vocabulary $E$**, and how much is direct/residual?

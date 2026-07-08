@@ -35,7 +35,7 @@ global-local shrinkage prior; predictors are ranked by posterior
 If the horseshoe order broadly agrees with the gradient-boosting order, that is
 reassurance the ranking is not an artefact of the tree method — it is not a causal
 claim. Every coefficient is a **latent-ability-confounded adjusted association**;
-the randomised causal effect lives in the ITT suite (`lrpitt10` for word reading).
+the randomised causal effect lives in the ITT suite (`lrp-rli-itt-010` for word reading).
 
 :::
 

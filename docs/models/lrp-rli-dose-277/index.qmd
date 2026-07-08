@@ -23,7 +23,7 @@ format:
 
 ## Overview
 
-LRP77base is the **no-period-variation companion** to [LRP77](../lrp77/). It is
+LRP77base is the **no-period-variation companion** to [LRP77](../lrp-rli-dose-077/). It is
 the identical period-resolved dose-response model — Beta-Binomial conditional
 change on word reading ($W$, $N = 79$), $\{G, W_{\text{pre}}, A\}$ adjustment,
 cumulative-dose control, subject random intercept — except the dose enters as a

@@ -23,7 +23,7 @@ format:
 
 ## Overview
 
-LRP77a is the **ability-adjusted sensitivity fit** for [LRP77](../lrp77/). It is
+LRP77a is the **ability-adjusted sensitivity fit** for [LRP77](../lrp-rli-dose-077/). It is
 the identical period-resolved dose-response model with the **baseline-skill
 cluster** added to the adjustment set: letter-sound knowledge ($L$), expressive
 vocabulary ($E$) and phoneme blending ($B$), each as its baseline (pre) logit.

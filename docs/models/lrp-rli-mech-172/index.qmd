@@ -23,7 +23,7 @@ format:
 
 ## Overview
 
-LRP72base is the no-interaction companion to [LRP72](../lrp72/). It uses the
+LRP72base is the no-interaction companion to [LRP72](../lrp-rli-mech-072/). It uses the
 same outcome, data window and linear letter-sound mechanism, but enters phoneme
 blending (`B`) as a main-effect adjuster only. There is no `gamma_int` term.
 

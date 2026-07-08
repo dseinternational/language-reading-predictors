@@ -23,7 +23,7 @@ format:
 
 ## Overview
 
-LRP73base is the no-interaction companion to [LRP73](../lrp73/). It keeps the
+LRP73base is the no-interaction companion to [LRP73](../lrp-rli-mech-073/). It keeps the
 same letter-sound mechanism, word-reading outcome, subject random intercept and
 age main effect, but sets `include_interaction=False`, so there is no
 letter-sound x age `gamma_int` term.
