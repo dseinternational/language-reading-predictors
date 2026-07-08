@@ -23,23 +23,25 @@ from language_reading_predictors.statistical_models import definitions as D
 _STAT_DIR = Path(D.__file__).resolve().parent
 _GB_DIR = _STAT_DIR.parent / "models"
 
-# (legacy id, kind, expected canonical CLI form) — one per family + each variant kind.
+# (legacy id, kind, expected canonical CLI form) — one per family + each variant
+# kind. Variants renumber to parent+100 (issue #168): lrpgf01b -> gf-101, and the
+# two lrp77 variants split a=177 / base=277.
 _CASES: list[tuple[str, str | None, str]] = [
     ("lrpitt10", "itt", "lrp-rli-itt-010"),
     ("lrpitt01", "itt", "lrp-rli-itt-001"),
-    ("lrpitt15b", "joint", "lrp-rli-itt-015b"),
-    ("lrpgf01b", "gain_factors", "lrp-rli-gf-001b"),
+    ("lrpitt15b", "joint", "lrp-rli-itt-115"),
+    ("lrpgf01b", "gain_factors", "lrp-rli-gf-101"),
     ("lrplf08", "level_factors", "lrp-rli-lf-008"),
-    ("lrpdid07base", "did", "lrp-rli-did-007-base"),
-    ("lrpal01d", "aligned", "lrp-rli-al-001d"),
+    ("lrpdid07base", "did", "lrp-rli-did-107"),
+    ("lrpal01d", "aligned", "lrp-rli-al-101"),
     ("lrphs02", "horseshoe", "lrp-rli-hs-002"),
     ("lrpmm01", "corr_factor", "lrp-rli-mm-001"),
     ("lrp56", "mechanism", "lrp-rli-mech-056"),
     ("lrp64", "mediation_multi", "lrp-rli-med-064"),
     ("lrp65", "adjusted", "lrp-rli-adj-065"),
     ("lrp67", "lcsm", "lrp-rli-lcsm-067"),
-    ("lrp77base", "dose_response", "lrp-rli-dose-077-base"),
-    ("lrp77a", "dose_response", "lrp-rli-dose-077a"),
+    ("lrp77base", "dose_response", "lrp-rli-dose-277"),
+    ("lrp77a", "dose_response", "lrp-rli-dose-177"),
     ("lrp69", "growth", "lrp-rli-gc-069"),
     ("lrpgbg12", None, "lrp-rli-gbg-012"),
     ("lrpgbl28", None, "lrp-rli-gbl-028"),
@@ -87,6 +89,22 @@ def test_resolve_to_legacy_accepts_every_form() -> None:
     assert M.resolve_to_legacy("lrpitt10") == "lrpitt10"
     assert M.resolve_to_legacy("all") == "all"
     assert M.resolve_to_legacy("bogus") == "bogus"
+
+
+def test_resolve_to_canonical_maps_forward() -> None:
+    # Phase-2 forward direction: any id form -> canonical CLI id (the registry key).
+    for form in ("lrpitt10", "lrp-rli-itt-010", "LRP-RLI-ITT-010", "lrp_rli_itt_010"):
+        assert M.resolve_to_canonical(form) == "lrp-rli-itt-010"
+    # An embedded-family variant needs no kind; parent+100 applies.
+    assert M.resolve_to_canonical("lrpgf01b") == "lrp-rli-gf-101"
+    assert M.resolve_to_canonical("lrp77a", kind="dose_response") == "lrp-rli-dose-177"
+    # A bare legacy id needs its kind; without it, it passes through unchanged so the
+    # caller's registry-alias index (which knows each model's kind) can resolve it.
+    assert M.resolve_to_canonical("lrp65", kind="adjusted") == "lrp-rli-adj-065"
+    assert M.resolve_to_canonical("lrp65") == "lrp65"
+    # The ``all`` sentinel and unknown strings pass through unchanged.
+    assert M.resolve_to_canonical("all") == "all"
+    assert M.resolve_to_canonical("bogus") == "bogus"
 
 
 def test_variant_role_from_suffix() -> None:

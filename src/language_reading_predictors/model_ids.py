@@ -1,15 +1,14 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Canonical model-ID scheme + legacy <-> canonical resolver (issue #168, Phase 1).
+"""Canonical model-ID scheme + legacy <-> canonical resolver (issue #168).
 
-The non-destructive compatibility layer of the model-ID migration
-(``notes/202607021145-issue-168-model-id-migration-plan.md``). It defines the
-canonical ``<project>-<study>-<family>-<nnn>`` scheme and pure, reversible
-conversions to and from the current (legacy) ids — **without renaming anything**.
-Both fit CLIs accept either form; the metadata accessors on ``ModelSpec`` /
-``ModelConfig`` expose the canonical id; Phase 2 (the mechanical rename) can then
-land incrementally behind this layer.
+Defines the canonical ``<project>-<study>-<family>-<nnn>`` scheme and pure,
+reversible conversions to and from the current (legacy) ids. Phase 1 shipped this
+as a non-destructive compatibility layer; Phase 2 renames the module files, docs
+folders, and output paths to the canonical form, keying the registry on the
+canonical id and resolving legacy ids *forward* to it (the reverse of Phase 1) so
+old ids keep working. Both fit CLIs accept either form.
 
 Three representations of the same id (numbers zero-padded to 3 digits in canonical
 form; the legacy ids use 2 digits, which the transform accounts for):
@@ -21,6 +20,14 @@ Display / docs   UPPER, hyphen      ``LRP-RLI-ITT-010``
 CLI / paths      lower, hyphen      ``lrp-rli-itt-010``
 Python module    lower, underscore  ``lrp_rli_itt_010``
 ===============  =================  =================
+
+**Variants (parent+100, issue #168 Frank sign-off).** A variant model
+(``lrpgf01b``, ``lrp77base`` ...) renumbers to *parent + 100* rather than keeping a
+suffix: ``lrpgf01b -> lrp-rli-gf-101``. This yields clean, suffix-free canonical
+ids, but the renumber is **lossy** (the number alone cannot say it was variant
+``b``) and, for the one parent with two variants (``lrp77``), naive parent+100 would
+collide at ``177``. Both are handled by an explicit :data:`_VARIANT_RENUMBER`
+table, so the legacy <-> canonical round-trip stays exact.
 
 Deliberately dependency-free (stdlib only): the family of a *bare* ``lrp##`` model
 (e.g. ``lrp65``) is not visible in its id, so the caller supplies its ``kind``
@@ -69,9 +76,9 @@ _EMBEDDED_FAMILIES: tuple[str, ...] = (
 _STUDY_BY_PREFIX: dict[str, str] = {"lrp": "rli", "rlm": "rlm"}
 _PREFIX_BY_STUDY: dict[str, str] = {"rli": "lrp", "rlm": "rlm"}
 
-#: Controlled variant-suffix vocabulary -> the ``variant_role`` it denotes. A
-#: word suffix (``base``) is hyphenated in canonical form (``...-007-base``); a
-#: single-letter suffix attaches (``...-001b``).
+#: Controlled variant-suffix vocabulary -> the ``variant_role`` it denotes. The
+#: suffix is not spelled in the canonical id (it is folded into the parent+100
+#: number); it is recovered from the legacy id for ``variant_role`` metadata.
 VARIANT_ROLE_BY_SUFFIX: dict[str, str] = {
     "b": "companion",
     "base": "comparator",
@@ -85,6 +92,34 @@ _WORD_SUFFIXES: frozenset[str] = frozenset(
     s for s in VARIANT_ROLE_BY_SUFFIX if len(s) > 1
 )
 
+#: Explicit legacy-variant -> (family code, canonical parent+100 number). Explicit
+#: because parent+100 is lossy (the suffix is unrecoverable from the number) and the
+#: two ``lrp77`` variants would otherwise collide at 177; ``lrp77a=177`` /
+#: ``lrp77base=277`` follows alphabetical suffix order (issue #168 sign-off).
+_VARIANT_RENUMBER: dict[str, tuple[str, int]] = {
+    "lrpgf01b": ("gf", 101),
+    "lrpgf02b": ("gf", 102),
+    "lrpgf03b": ("gf", 103),
+    "lrpgf04b": ("gf", 104),
+    "lrpgf05b": ("gf", 105),
+    "lrpgf06b": ("gf", 106),
+    "lrpgf07b": ("gf", 107),
+    "lrpgf08b": ("gf", 108),
+    "lrpitt13b": ("itt", 113),
+    "lrpitt14b": ("itt", 114),
+    "lrpitt15b": ("itt", 115),
+    "lrpal01d": ("al", 101),
+    "lrpdid07base": ("did", 107),
+    "lrp72base": ("mech", 172),
+    "lrp73base": ("mech", 173),
+    "lrp77a": ("dose", 177),
+    "lrp77base": ("dose", 277),
+}
+#: Inverse of :data:`_VARIANT_RENUMBER`: (family, canonical number) -> legacy id.
+_VARIANT_LEGACY_ID: dict[tuple[str, int], str] = {
+    (fam, num): legacy for legacy, (fam, num) in _VARIANT_RENUMBER.items()
+}
+
 #: Every valid canonical family code: the kind-mapped families plus the GB
 #: gain/level codes. ``_CANONICAL_RE`` is restricted to these so an unknown family
 #: (a typo like ``lrp-rli-zzz-010``) is not treated as canonical — and therefore
@@ -97,10 +132,9 @@ def _alt(options) -> str:
     return "|".join(sorted(options, key=lambda s: (-len(s), s)))
 
 
-# Both regexes derive their family + suffix sub-patterns from the declared maps
-# above, so the maps and the parsers cannot drift: the suffix vocabulary
-# (including the ``a`` alternate) stays parseable, and only known family codes are
-# accepted as canonical.
+# The legacy regex derives its family + suffix sub-patterns from the declared maps
+# above, so the maps and the parser cannot drift. The canonical regex has no suffix
+# group: under parent+100 every canonical id is ``project-study-family-nnn``.
 _LETTER_SUFFIX_CLASS = "".join(sorted(_LETTER_SUFFIXES))
 
 _LEGACY_RE = re.compile(
@@ -111,9 +145,7 @@ _LEGACY_RE = re.compile(
 )
 _CANONICAL_RE = re.compile(
     r"^(?P<project>lrp)-(?P<study>rli|rlm)-"
-    rf"(?P<family>{_alt(_ALL_FAMILY_CODES)})-"
-    rf"(?P<num>\d+)(?:-(?P<word_suffix>{_alt(_WORD_SUFFIXES)})"
-    rf"|(?P<letter_suffix>[{_LETTER_SUFFIX_CLASS}]))?$"
+    rf"(?P<family>{_alt(_ALL_FAMILY_CODES)})-(?P<num>\d+)$"
 )
 
 
@@ -123,7 +155,12 @@ class ModelIdError(ValueError):
 
 @dataclass(frozen=True)
 class ModelId:
-    """A parsed canonical model id and its three rendered forms."""
+    """A parsed canonical model id and its three rendered forms.
+
+    ``number`` is the *canonical* number (parent+100 for variants); ``suffix`` holds
+    the original legacy suffix as metadata only (it drives ``variant_role`` and the
+    exact legacy round-trip, and is **not** rendered into the canonical forms).
+    """
 
     project: str
     study: str
@@ -133,12 +170,9 @@ class ModelId:
 
     @property
     def _tail(self) -> str:
-        n = f"{self.number:03d}"
-        if self.suffix in _WORD_SUFFIXES:
-            return f"{n}-{self.suffix}"
-        if self.suffix:
-            return f"{n}{self.suffix}"
-        return n
+        # parent+100 folds any variant suffix into the number, so the canonical
+        # tail is always just the zero-padded number.
+        return f"{self.number:03d}"
 
     @property
     def cli(self) -> str:
@@ -152,25 +186,27 @@ class ModelId:
 
     @property
     def module(self) -> str:
-        """Lower-underscore form for the eventual Python module name (Phase 2)."""
+        """Lower-underscore form for the Python module name."""
         return self.cli.replace("-", "_")
 
     @property
     def variant_role(self) -> str | None:
-        """The variant role denoted by the suffix, if any."""
+        """The variant role denoted by the (legacy) suffix, if any."""
         return VARIANT_ROLE_BY_SUFFIX.get(self.suffix) if self.suffix else None
 
     @property
     def legacy(self) -> str:
         """The legacy id this canonical id maps back to (2-digit number)."""
+        if self.suffix is not None:
+            # Variant: recover the exact legacy id from the renumber table (the
+            # number alone is lossy, so a table lookup is the reverse of truth).
+            return _VARIANT_LEGACY_ID[(self.family, self.number)]
         n = f"{self.number:02d}"
-        suffix = self.suffix or ""
         if self.family in _EMBEDDED_FAMILIES:
-            prefix = _PREFIX_BY_STUDY[self.study]
-            return f"{prefix}{self.family}{n}{suffix}"
+            return f"{_PREFIX_BY_STUDY[self.study]}{self.family}{n}"
         # Bare families (mech/med/adj/lcsm/dose/gc): the family is not spelled in the
-        # legacy id, only the number is (e.g. lrp65, lrp77base).
-        return f"{_PREFIX_BY_STUDY[self.study]}{n}{suffix}"
+        # legacy id, only the number is (e.g. lrp65).
+        return f"{_PREFIX_BY_STUDY[self.study]}{n}"
 
 
 def parse_legacy(legacy_id: str, *, kind: str | None = None, study: str | None = None) -> ModelId:
@@ -185,6 +221,7 @@ def parse_legacy(legacy_id: str, *, kind: str | None = None, study: str | None =
     if m is None:
         raise ModelIdError(f"Unrecognised legacy model id: {legacy_id!r}")
     embedded = m.group("fam")
+    suffix = m.group("suffix")
     study_code = study or _STUDY_BY_PREFIX[m.group("prefix")]
     if embedded is not None:
         family = embedded
@@ -196,12 +233,22 @@ def parse_legacy(legacy_id: str, *, kind: str | None = None, study: str | None =
         raise ModelIdError(
             f"Bare id {legacy_id!r} needs its kind to resolve a family code."
         )
+    if suffix is not None:
+        # Variant: take the canonical parent+100 number from the explicit table.
+        entry = _VARIANT_RENUMBER.get(legacy_id.lower())
+        if entry is None:
+            raise ModelIdError(
+                f"Variant id {legacy_id!r} is not in the parent+100 renumber table."
+            )
+        family, number = entry
+    else:
+        number = int(m.group("num"))
     return ModelId(
         project=PROJECT_CODE,
         study=study_code,
         family=family,
-        number=int(m.group("num")),
-        suffix=m.group("suffix"),
+        number=number,
+        suffix=suffix,
     )
 
 
@@ -226,12 +273,18 @@ def parse_canonical(canonical_id: str) -> ModelId:
     m = _CANONICAL_RE.match(normalised)
     if m is None:
         raise ModelIdError(f"Unrecognised canonical model id: {canonical_id!r}")
+    family = m.group("family")
+    number = int(m.group("num"))
+    # A number in a variant's parent+100 slot recovers its original suffix (for
+    # variant_role + the exact legacy round-trip); everything else is a base model.
+    legacy = _VARIANT_LEGACY_ID.get((family, number))
+    suffix = _LEGACY_RE.match(legacy).group("suffix") if legacy is not None else None
     return ModelId(
         project=m.group("project"),
         study=m.group("study"),
-        family=m.group("family"),
-        number=int(m.group("num")),
-        suffix=m.group("word_suffix") or m.group("letter_suffix"),
+        family=family,
+        number=number,
+        suffix=suffix,
     )
 
 
@@ -245,12 +298,32 @@ def looks_canonical(model_id: str) -> bool:
     return _CANONICAL_RE.match(model_id.strip().lower().replace("_", "-")) is not None
 
 
+def resolve_to_canonical(
+    model_id: str, *, kind: str | None = None, study: str | None = None
+) -> str:
+    """Normalise any id (legacy or canonical, any form) to its canonical CLI id.
+
+    The Phase-2 forward resolver: the registry is keyed on the canonical id, so a
+    legacy id supplied on the CLI is mapped *forward* to it. A bare legacy id
+    (``lrp65``) needs its ``kind``; callers without it should resolve via the
+    registry's own legacy-alias index instead. Anything unrecognised is returned
+    unchanged so the caller's own "unknown model" handling still fires.
+    """
+    stripped = model_id.strip()
+    if looks_canonical(stripped):
+        return parse_canonical(stripped).cli
+    try:
+        return parse_legacy(stripped, kind=kind, study=study).cli
+    except ModelIdError:
+        return model_id
+
+
 def resolve_to_legacy(model_id: str) -> str:
-    """Normalise a user-supplied id to its legacy form for registry lookup.
+    """Normalise a user-supplied id to its legacy form.
 
     A canonical id (any form) is mapped back to its legacy id; anything else
-    (already-legacy, or unrecognised) is returned unchanged so the caller's own
-    "unknown model" handling still fires.
+    (already-legacy, or unrecognised) is returned unchanged. Retained for
+    back-compatibility and for callers that still key on legacy ids.
     """
     if looks_canonical(model_id):
         try:
