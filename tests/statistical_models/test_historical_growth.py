@@ -66,7 +66,7 @@ def test_build_rejects_unknown_measure(tmp_path):
 def test_dataset_metadata_reaches_config_json(tmp_path):
     """The new ModelSpec dataset/estimand fields round-trip to config.json (#165)."""
     spec = ModelSpec(
-        model_id="rlmhg01",
+        model_id="lrp-rlm-hg-001",
         kind="historical_growth",
         title="t",
         outcome_symbol="basread",
@@ -101,7 +101,7 @@ def test_dataset_metadata_reaches_config_json(tmp_path):
 
 def test_existing_spec_defaults_are_rli(tmp_path):
     """An intervention-style spec (no dataset metadata) defaults to study rli."""
-    spec = ModelSpec(model_id="lrpitt10", kind="itt", title="t", outcome_symbol="W")
+    spec = ModelSpec(model_id="lrp-rli-itt-010", kind="itt", title="t", outcome_symbol="W")
     ctx = SimpleNamespace(
         spec=spec,
         prepared=SimpleNamespace(n_obs=10, n_children=5, n_phases=1, dropped_rows=0),

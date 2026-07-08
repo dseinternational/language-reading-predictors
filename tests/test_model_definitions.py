@@ -34,13 +34,14 @@ _PKG_DIR = Path(definitions.__file__).resolve().parent
 
 
 def _module_ids() -> set[str]:
-    """The fitted models, derived import-free from the package's ``lrp*.py`` modules.
+    """The RLI fitted models, derived import-free from the package's modules.
 
-    Every model module is named exactly for its id (``lrpitt01.py`` ->
-    ``"lrpitt01"``, ``lrp72base.py`` -> ``"lrp72base"``); no non-model module in the
-    package starts with ``lrp``.
+    Since #168 Phase 2 every model module is named in canonical underscore form
+    (``lrp_rli_itt_001.py``); its canonical CLI id is that with hyphens. The
+    register catalogues the RLI study, so glob the ``lrp_rli_*`` modules (the one
+    ``lrp_rlm_*`` historical-growth module is another study, out of scope here).
     """
-    return {p.stem for p in _PKG_DIR.glob("lrp*.py")}
+    return {p.stem.replace("_", "-") for p in _PKG_DIR.glob("lrp_rli_*.py")}
 
 
 def test_registry_matches_module_files() -> None:
@@ -81,7 +82,7 @@ def _fit_models() -> dict:
 
 def _module_spec(module):
     """A module's ``ModelSpec``, from its module-level ``SPEC`` or its lazy
-    ``get_spec()`` (e.g. ``lrp65`` builds its spec lazily so the DAG-only path
+    ``get_spec()`` (e.g. ``lrp-rli-adj-065`` builds its spec lazily so the DAG-only path
     imports without the Bayesian stack)."""
     spec = getattr(module, "SPEC", None)
     if spec is None:
@@ -95,7 +96,7 @@ def test_registry_agrees_with_specs() -> None:
     modelling stack is not importable in this environment).
 
     The register catalogues this report's RLI study (``study_id == "rli"``); the
-    fit script additionally discovers other-study models (e.g. ``rlmhg01``,
+    fit script additionally discovers other-study models (e.g. ``lrp-rlm-hg-001``,
     ``study_id == "rlm"``), which are out of the register's scope and excluded."""
     try:
         fit = _fit_models()

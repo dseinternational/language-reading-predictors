@@ -5,9 +5,9 @@
 
 Usage::
 
-    python scripts/fit_statistical_model.py lrpitt07 --config dev
+    python scripts/fit_statistical_model.py lrp-rli-itt-007 --config dev
     python scripts/fit_statistical_model.py all --config dev
-    python scripts/fit_statistical_model.py lrpitt10 --config reporting --render
+    python scripts/fit_statistical_model.py lrp-rli-itt-010 --config reporting --render
 """
 
 from __future__ import annotations
@@ -45,8 +45,8 @@ def main() -> None:
     parser.add_argument(
         "model",
         help=(
-            "Model id (for example lrpitt01, lrpdid01, lrpgf01, lrplf01, "
-            "lrpal01, lrp77, lrp65, lrp67) or 'all'"
+            "Model id (for example lrp-rli-itt-001, lrp-rli-did-001, lrp-rli-gf-001, lrp-rli-lf-001, "
+            "lrp-rli-al-001, lrp-rli-dose-077, lrp-rli-adj-065, lrp-rli-lcsm-067) or 'all'"
         ),
     )
     parser.add_argument(
@@ -105,11 +105,22 @@ def main() -> None:
             f"[yellow]Overriding target_accept -> {args.target_accept}[/yellow]"
         )
 
-    # Accept either a legacy id (``lrpitt10``) or a canonical id
-    # (``lrp-rli-itt-010``, any case/form); #168 Phase 1. Registry + output lookup
-    # stay keyed by the lower-case legacy id, so lower-case here for
-    # case-insensitivity (matching fit_model.py) — covers ``LRPITT10`` and ``ALL``.
-    requested = model_ids.resolve_to_legacy(args.model).lower()
+    # The registry is keyed on the canonical CLI id (``lrp-rli-itt-001``) since #168
+    # Phase 2. Build a legacy-alias index over those keys so a legacy id
+    # (``lrpitt01``) or any canonical form/case still resolves — each canonical key
+    # maps back to its legacy/display/module forms without needing a ``kind`` (the
+    # family is embedded in the canonical id).
+    aliases: dict[str, str] = {}
+    for key in MODELS:
+        aliases[key.lower()] = key
+        try:
+            mid = model_ids.parse_canonical(key)
+        except model_ids.ModelIdError:
+            continue
+        for form in (mid.legacy, mid.display, mid.module):
+            aliases[form.lower()] = key
+    normalised = args.model.strip().lower()
+    requested = aliases.get(normalised, normalised)
     if requested == "all":
         to_fit = list(MODELS.items())
     elif requested in MODELS:

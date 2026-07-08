@@ -50,12 +50,12 @@ from language_reading_predictors.statistical_models.reporting import (
 # outcomes (LRPITT23/24 are the L/W reading companions -- add them with --models
 # for prognostic context).
 DEFAULT_MODELS = (
-    "lrpitt17",  # TR - taught receptive vocabulary (b1retau)
-    "lrpitt18",  # TE - taught expressive vocabulary (b1extau)
-    "lrpitt19",  # UR - not-taught receptive vocabulary (b1rent)
-    "lrpitt20",  # UE - not-taught expressive vocabulary (b1exnt)
-    "lrpitt21",  # R  - standardised receptive vocabulary (rowpvt)
-    "lrpitt22",  # E  - standardised expressive vocabulary (eowpvt)
+    "lrp-rli-itt-017",  # TR - taught receptive vocabulary (b1retau)
+    "lrp-rli-itt-018",  # TE - taught expressive vocabulary (b1extau)
+    "lrp-rli-itt-019",  # UR - not-taught receptive vocabulary (b1rent)
+    "lrp-rli-itt-020",  # UE - not-taught expressive vocabulary (b1exnt)
+    "lrp-rli-itt-021",  # R  - standardised receptive vocabulary (rowpvt)
+    "lrp-rli-itt-022",  # E  - standardised expressive vocabulary (eowpvt)
 )
 ADJUSTER = "gamma_blocks"
 

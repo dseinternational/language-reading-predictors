@@ -1324,7 +1324,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # Period-resolved dose readout (#135): partial-pooled per-period dose
         # slopes + a between-period SD, written by the shared dose-slope summary.
         # The headline question — does the L dose-gain slope vary by period? — is
-        # answered by the nested PSIS-LOO vs the pooled comparator (lrpdid07base)
+        # answered by the nested PSIS-LOO vs the pooled comparator (lrp-rli-did-107)
         # in compare_statistical_models.py, not by this single-fit table.
         section_header("Period-resolved dose-slope summary")
         _write_dose_slope_summary(ctx, period_varying=True)

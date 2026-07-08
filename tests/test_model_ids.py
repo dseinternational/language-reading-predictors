@@ -1,14 +1,13 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Unit tests for the canonical model-ID resolver (issue #168, Phase 1).
+"""Unit tests for the canonical model-ID resolver (issue #168).
 
 The whole-inventory checks are **import-free**: the model set is derived from the
-``lrp*.py`` / ``rlm*.py`` module filenames (the registry convention that a model
-module is named exactly for its id), so they run without the PyMC / GB stack — the
-family of a bare ``lrp##`` model comes from the lightweight
-``definitions.MODEL_REGISTRY`` kind, exactly as the resolver expects a caller to
-supply it. Mirrors ``tests/test_model_definitions.py``.
+module filenames — canonical underscore form for the stat models since Phase 2
+(``lrp_rli_itt_001``), still-legacy for the GB models (``lrpgbg12``) — so they run
+without the PyMC / GB stack. The ``kind`` for a bare id comes from the lightweight
+``definitions.MODEL_REGISTRY``. Mirrors ``tests/test_model_definitions.py``.
 """
 
 from __future__ import annotations
@@ -49,24 +48,22 @@ _CASES: list[tuple[str, str | None, str]] = [
 ]
 
 
-def _kind_by_id() -> dict[str, str]:
+def _kind_by_canonical() -> dict[str, str]:
+    # MODEL_REGISTRY is canonical-keyed since #168 Phase 2.
     return {mid: d.kind for mid, d in D.MODEL_REGISTRY.items()}
 
 
-def _all_model_ids() -> list[str]:
-    stat = {p.stem for p in _STAT_DIR.glob("lrp*.py")} | {
-        p.stem for p in _STAT_DIR.glob("rlm*.py")
-    }
-    gb = {p.stem for p in _GB_DIR.glob("lrpgb*.py")}
+def _model_canonical_ids() -> list[str]:
+    """Every model's canonical CLI id, derived import-free from the module files.
+
+    Stat modules are named in canonical underscore form since #168 Phase 2
+    (``lrp_rli_itt_001`` -> ``lrp-rli-itt-001``); the GB modules keep their legacy
+    names (they rename with #169), so their canonical id is derived from the id.
+    """
+    stat = {p.stem.replace("_", "-") for p in _STAT_DIR.glob("lrp_rli_*.py")}
+    stat |= {p.stem.replace("_", "-") for p in _STAT_DIR.glob("lrp_rlm_*.py")}
+    gb = {M.to_canonical(p.stem) for p in _GB_DIR.glob("lrpgb*.py")}  # gbg/gbl embedded
     return sorted(stat | gb)
-
-
-def _canonical_for(model_id: str, kind_by_id: dict[str, str]) -> str:
-    """Canonical CLI id, supplying ``kind`` only for a bare ``lrp##`` model."""
-    try:
-        return M.to_canonical(model_id)  # family embedded in the id
-    except M.ModelIdError:
-        return M.to_canonical(model_id, kind=kind_by_id[model_id])
 
 
 @pytest.mark.parametrize("legacy, kind, canonical", _CASES)
@@ -135,23 +132,21 @@ def test_every_kind_has_a_family_code() -> None:
 
 
 def test_every_model_resolves_and_roundtrips() -> None:
-    kind_by_id = _kind_by_id()
-    ids = _all_model_ids()
+    kind_by_canon = _kind_by_canonical()
+    ids = _model_canonical_ids()
     assert len(ids) > 130  # sanity: the full inventory, not an empty glob
-    for model_id in ids:
-        canonical = _canonical_for(model_id, kind_by_id)
-        assert M.to_legacy(canonical) == model_id, (model_id, canonical)
+    for canonical in ids:
+        # canonical -> legacy needs no kind (the family is embedded); legacy ->
+        # canonical needs a kind only for bare ids, taken from the registry.
+        legacy = M.to_legacy(canonical)
+        kind = kind_by_canon.get(canonical)
+        back = M.to_canonical(legacy, kind=kind) if kind else M.to_canonical(legacy)
+        assert back == canonical, (canonical, legacy, back)
 
 
 def test_no_duplicate_canonical_ids() -> None:
-    kind_by_id = _kind_by_id()
-    seen: dict[str, str] = {}
-    for model_id in _all_model_ids():
-        canonical = _canonical_for(model_id, kind_by_id)
-        assert canonical not in seen, (
-            f"canonical id {canonical} collides: {model_id} vs {seen[canonical]}"
-        )
-        seen[canonical] = model_id
+    ids = _model_canonical_ids()
+    assert len(ids) == len(set(ids)), "canonical ids collide across the inventory"
 
 
 def test_unknown_canonical_family_is_not_treated_as_canonical() -> None:

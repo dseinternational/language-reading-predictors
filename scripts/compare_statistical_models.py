@@ -50,19 +50,19 @@ FLOORED_SYMBOLS: frozenset[str] = frozenset(ROPE_DELTA_PROB)
 
 
 # Single-outcome ITT models (LRPITT suite, #119) overlaid on the LRPITT12 joint, on
-# the outcomes the joint also carries. The floored outcomes P (lrpitt09) and N
-# (lrpitt11) are excluded from the graded overlay: their PRIMARY estimand is the
+# the outcomes the joint also carries. The floored outcomes P (lrp-rli-itt-009) and N
+# (lrp-rli-itt-011) are excluded from the graded overlay: their PRIMARY estimand is the
 # binary off-floor effect, read from their own reports rather than compared to the
 # joint's graded tau. F/T have no standalone ITT in the suite.
 ITT_IDS: list[tuple[str, str]] = [
-    ("lrpitt10", "W"),
-    ("lrpitt05", "R"),
-    ("lrpitt06", "E"),
-    ("lrpitt07", "L"),
-    ("lrpitt08", "B"),
+    ("lrp-rli-itt-010", "W"),
+    ("lrp-rli-itt-005", "R"),
+    ("lrp-rli-itt-006", "E"),
+    ("lrp-rli-itt-007", "L"),
+    ("lrp-rli-itt-008", "B"),
 ]
-MECH_IDS: list[tuple[str, str]] = [("lrp56", "R"), ("lrp57", "E"), ("lrp58", "L")]
-JOINT_ID = "lrpitt12"
+MECH_IDS: list[tuple[str, str]] = [("lrp-rli-mech-056", "R"), ("lrp-rli-mech-057", "E"), ("lrp-rli-mech-058", "L")]
+JOINT_ID = "lrp-rli-itt-012"
 
 # Mechanism models compared by PSIS-LOO: the LRP58 baseline (L -> W) against the
 # interaction extensions on the *same* word-reading outcome/rows (a like-for-like
@@ -70,29 +70,29 @@ JOINT_ID = "lrpitt12"
 # ``growth``-kind joint growth-curve model (posterior dims child/wave/outcome, no
 # ``obs_id``), so it is a different dataset and a growth-vs-mechanism LOO would be
 # the cross-dataset comparison ``_loo_compare`` forbids. The celf mechanism model
-# is deferred pending a DAG review (see ``lrp71.py``).
-LOO_COMPARE_IDS: list[str] = ["lrp58", "lrp71"]
+# is deferred pending a DAG review (see ``lrp-rli-mech-071.py``).
+LOO_COMPARE_IDS: list[str] = ["lrp-rli-mech-058", "lrp-rli-mech-071"]
 
 # Phonics route (LRP72): the interaction model vs its no-interaction baseline,
 # same decoding outcome — a clean nested PSIS-LOO test of the L x B interaction.
 # NOT comparable to the LOO_COMPARE_IDS set (different outcome: decoding vs W).
-PHONICS_LOO_IDS: list[str] = ["lrp72", "lrp72base"]
+PHONICS_LOO_IDS: list[str] = ["lrp-rli-mech-072", "lrp-rli-mech-172"]
 
 # Age moderation (LRP73): interaction vs no-interaction baseline, same word-reading
 # outcome — a clean nested PSIS-LOO test of the L x age interaction.
-AGE_LOO_IDS: list[str] = ["lrp73", "lrp73base"]
+AGE_LOO_IDS: list[str] = ["lrp-rli-mech-073", "lrp-rli-mech-173"]
 
 # Dose-response (LRP77, #104 Phase 2): the period-varying dose model vs its
 # pooled-dose comparator, same word-reading outcome and rows — a nested PSIS-LOO
 # test of whether the dose-gain slope varies by period.
-DOSE_LOO_IDS: list[str] = ["lrp77", "lrp77base"]
+DOSE_LOO_IDS: list[str] = ["lrp-rli-dose-077", "lrp-rli-dose-277"]
 
 # DiD period-resolved letter-sound dose (LRPDID07, #135): the period-varying dose
 # model vs its pooled-dose comparator, same letter-sound outcome and rows — a
 # nested PSIS-LOO test of whether the L dose-gain slope varies by period (the
 # DAG-clean DiD analogue of the LRP77 word-reading test; never conditions on the
 # IS collider attend_cumul).
-DID_DOSE_LOO_IDS: list[str] = ["lrpdid07", "lrpdid07base"]
+DID_DOSE_LOO_IDS: list[str] = ["lrp-rli-did-007", "lrp-rli-did-107"]
 
 
 def _run_dir(model_id: str, config: str) -> str:
@@ -291,7 +291,7 @@ def mechanism_forest(config: str, out_path: str) -> bool:
         # observed (and match the trace's obs_id length).
         #
         # CAVEAT: the factory ALSO drops rows with missing *confounder* post-scores
-        # (lrp57 adjusts for R; lrp58 for E and R). This keep-mask does not model
+        # (lrp-rli-mech-057 adjusts for R; lrp-rli-mech-058 for E and R). This keep-mask does not model
         # that, so if confounder-only missingness ever occurs the reconstructed
         # length will not match the trace and the guard below skips the model. That
         # skip is a *silent drop of the model from the persisted forest/CSV* — the

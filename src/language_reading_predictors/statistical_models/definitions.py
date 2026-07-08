@@ -16,8 +16,10 @@ module's ``SPEC`` (the ``ModelSpec`` in ``context.py``); the test
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
+
+from language_reading_predictors import model_ids
 
 
 class Status(str, Enum):
@@ -97,7 +99,16 @@ class ModelDefinition:
 
 
 def _d(*args, **kwargs) -> ModelDefinition:
-    return ModelDefinition(*args, **kwargs)
+    # Entries are written with legacy ids for brevity; canonicalise to the #168
+    # scheme here (the one choke point through which literal *and* generated ids
+    # pass), so the registry keys match each module's canonical ``SPEC.model_id``.
+    # ``base`` shares the entry's family/kind, so the same ``kind`` canonicalises it.
+    d = ModelDefinition(*args, **kwargs)
+    return replace(
+        d,
+        model_id=model_ids.to_canonical(d.model_id, kind=d.kind),
+        base=model_ids.to_canonical(d.base, kind=d.kind) if d.base else None,
+    )
 
 
 # --- ITT suite: one outcome each, the randomised models of record -----------------

@@ -85,7 +85,7 @@ RLM_GROUP_LABELS: dict[int, str] = {
 }
 
 # Only ``basread`` is registered for now: it is the sole measure the first
-# historical model (``rlmhg01``) fits, and 87 is its confirmed BAS word-reading
+# historical model (``lrp-rlm-hg-001``) fits, and 87 is its confirmed BAS word-reading
 # ceiling (matching the observed maximum in the prepared extract). The remaining
 # Byrne measures (basspel / bpvs / trog / woco / basdig / bassim / basnum /
 # basmat) are added under #164 as their instrument ceilings are confirmed.

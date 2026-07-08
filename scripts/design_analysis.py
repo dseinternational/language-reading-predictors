@@ -52,15 +52,15 @@ warnings.filterwarnings("ignore")
 # Graded single-outcome ITT models, by module / symbol. Floored P, N (off-floor
 # Bernoulli tau) are excluded — they live on a probability scale.
 GRADED = [
-    ("lrpitt07", "L"),
-    ("lrpitt10", "W"),
-    ("lrpitt08", "B"),
-    ("lrpitt02", "TE"),
-    ("lrpitt01", "TR"),
-    ("lrpitt04", "UE"),
-    ("lrpitt03", "UR"),
-    ("lrpitt06", "E"),
-    ("lrpitt05", "R"),
+    ("lrp-rli-itt-007", "L"),
+    ("lrp-rli-itt-010", "W"),
+    ("lrp-rli-itt-008", "B"),
+    ("lrp-rli-itt-002", "TE"),
+    ("lrp-rli-itt-001", "TR"),
+    ("lrp-rli-itt-004", "UE"),
+    ("lrp-rli-itt-003", "UR"),
+    ("lrp-rli-itt-006", "E"),
+    ("lrp-rli-itt-005", "R"),
 ]
 LABELS = {m.symbol: m.label for m in MEASURES.values()}
 
