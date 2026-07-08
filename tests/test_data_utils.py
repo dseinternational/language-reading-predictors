@@ -79,7 +79,7 @@ def test_off_intervention_iff_group2_period1():
     assert bool(((off[V.GROUP] == 2) & (off[V.PERIOD] == 1)).all())
 
 
-# ── per-stratum gain-row counts (anchored on ewrswr_gain = LRPGBG12) ─────────
+# ── per-stratum gain-row counts (anchored on ewrswr_gain = LRP-RLI-GBG-012) ──
 
 
 def test_gain_row_counts_per_stratum():

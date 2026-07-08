@@ -4,7 +4,7 @@
 """LRPHS01 - regularized-horseshoe ranking cross-check: word-reading GAIN (#116 Phase E).
 
 An **independent Bayesian sensitivity check** on the gradient-boosting predictor
-ranking for word-reading gain (GB ``lrpgbg12``). A regularized ("Finnish")
+ranking for word-reading gain (GB ``lrp-rli-gbg-012``). A regularized ("Finnish")
 horseshoe sparse regression (Piironen & Vehtari 2017) regresses the word-reading
 post-count on its own T1 baseline (``gamma_own``) plus the standardised T1
 baselines of the other constructs, all sharing a global-local shrinkage prior.
@@ -41,7 +41,7 @@ SPEC = ModelSpec(
         "covariates": ["blocks", "behav"],
         "delta": 0.1,
         "target_accept": 0.99,
-        "gb_reference": "lrpgbg12",
+        "gb_reference": "lrp-rli-gbg-012",
     },
 )
 

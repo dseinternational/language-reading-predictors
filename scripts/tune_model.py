@@ -24,10 +24,10 @@ Writes results to ``output/tuning/{model_id}/``:
 
 Usage
 -----
-    python scripts/tune_model.py lrpgbg12                       # 50 trials
-    python scripts/tune_model.py lrpgbg12 --n-trials 200
-    python scripts/tune_model.py lrpgbg12 --timeout 1800        # cap at 30 min
-    python scripts/tune_model.py lrpgbg12 --cv-splits 5 --seed 42
+    python scripts/tune_model.py lrp-rli-gbg-012               # 50 trials
+    python scripts/tune_model.py lrp-rli-gbg-012 --n-trials 200
+    python scripts/tune_model.py lrp-rli-gbg-012 --timeout 1800  # cap at 30 min
+    python scripts/tune_model.py lrp-rli-gbg-012 --cv-splits 5 --seed 42
 """
 
 from __future__ import annotations
@@ -270,10 +270,21 @@ def tune(
     target_transform: str | None = None,
     alpha: float | None = None,
 ) -> None:
-    # Accept either a legacy id (``lrpgbg12``) or a canonical id
-    # (``lrp-rli-gbg-012``, any case/form), mirroring scripts/fit_model.py (#168).
-    key = model_ids.resolve_to_legacy(model_id).lower()
-    if key not in MODELS:
+    # The registry is keyed on the canonical id (``lrp-rli-gbg-012``) since #168
+    # Phase 2. Build a legacy-alias index over its keys so a legacy id
+    # (``lrpgbg12``) or any canonical form/case resolves — mirroring
+    # scripts/fit_model.py.
+    aliases: dict[str, str] = {}
+    for reg_key in MODELS:
+        aliases[reg_key.lower()] = reg_key
+        try:
+            mid = model_ids.parse_canonical(reg_key)
+        except model_ids.ModelIdError:
+            continue
+        for form in (mid.legacy, mid.display, mid.module):
+            aliases[form.lower()] = reg_key
+    key = aliases.get(model_id.strip().lower())
+    if key is None:
         print(f"[bold red]Unknown model: {model_id}[/bold red]")
         print(f"Available: {', '.join(MODELS.keys())}")
         raise SystemExit(1)
@@ -446,7 +457,7 @@ def tune(
     print(f"[bold green]Artifacts saved to: {out_dir}[/bold green]")
     print(
         "\n  [yellow]Paste the params dict into the matching per-problem module "
-        "(e.g. a new lrpgbg12_selectNN variant) to reuse them in a fit.[/yellow]"
+        "(e.g. a new lrp-rli-gbg-012 selectNN variant) to reuse them in a fit.[/yellow]"
     )
 
 
@@ -455,7 +466,7 @@ def main() -> None:
         description="Optuna hyperparameter tuning for LRP models."
     )
     parser.add_argument(
-        "model", type=str, help="Model id, e.g. lrpgbg12."
+        "model", type=str, help="Model id, e.g. lrp-rli-gbg-012."
     )
     parser.add_argument("--n-trials", type=int, default=50)
     parser.add_argument(

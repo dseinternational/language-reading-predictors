@@ -18,7 +18,7 @@ import dse_research_utils.statistics.models.reporting as _reporting
 import dse_research_utils.statistics.models.sampling as _sampling
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.environment import init_plotting
+from language_reading_predictors.statistical_models import environment as _env
 from language_reading_predictors.statistical_models.preprocessing import (
     LongitudinalPanel,
     PreparedData,
@@ -76,15 +76,18 @@ class ModelSpec:
     def banner(self) -> str:
         return f"{self.model_id.upper()}: {self.title}"
 
-    # --- Canonical model-ID scheme (#168 Phase 1) -------------------------
-    # Non-destructive: derived on read from the legacy ``model_id`` + ``kind`` +
-    # ``study_id`` via the shared resolver, so nothing is renamed and an id the
-    # resolver cannot parse simply yields ``None`` rather than breaking a fit.
+    # --- Canonical model-ID scheme (#168) ---------------------------------
+    # Since Phase 2 ``model_id`` is the *canonical* id (``lrp-rli-itt-010``); this
+    # accessor also still parses a legacy id (``lrpitt10`` + ``kind``/``study_id``)
+    # so the canonical/legacy/family metadata is correct whichever form a spec
+    # uses. An id the resolver cannot parse yields ``None`` rather than breaking a fit.
     @property
     def _canonical(self):
         from language_reading_predictors import model_ids as _mids
 
         try:
+            if _mids.looks_canonical(self.model_id):
+                return _mids.parse_canonical(self.model_id)
             return _mids.parse_legacy(
                 self.model_id, kind=self.kind, study=self.study_id
             )
@@ -93,7 +96,8 @@ class ModelSpec:
 
     @property
     def legacy_model_id(self) -> str:
-        return self.model_id
+        c = self._canonical
+        return c.legacy if c is not None else self.model_id
 
     @property
     def canonical_model_id(self) -> str | None:
@@ -189,7 +193,7 @@ def make_context(
     # #170). The external field name is retained for cross-repo compatibility.
     # Apply the shared matplotlib house style for every fit path (CLI, notebook,
     # tests, replot) — the CLI also does this via setup.init_script(); idempotent.
-    init_plotting()
+    _env.init_plotting()
 
     reporting = _reporting.ReportingConfiguration(
         model_name=spec.model_id,
