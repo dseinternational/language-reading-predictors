@@ -7,12 +7,15 @@ Replaces the hand-maintained import block + ``MODELS`` dict in
 ``scripts/fit_statistical_model.py``. Any submodule of
 ``language_reading_predictors.statistical_models`` that defines its **own**
 top-level ``fit(config)`` function is a runnable model, registered under its
-module name (which is its CLI id / ``model_id``). Adding a new model is then just
-dropping in a new ``lrp.../rlm...`` module - no registry edit.
+**canonical CLI id** — the module name (canonical underscore form since #168
+Phase 2, e.g. ``lrp_rli_itt_001``) rewritten with hyphens (``lrp-rli-itt-001``).
+Adding a new model is then just dropping in a new ``lrp_.../rlm...`` module - no
+registry edit. Legacy ids (``lrpitt01``) still resolve: the fit CLIs build a
+legacy-alias index over these keys via ``model_ids``.
 
 Keying by module name (not ``SPEC.model_id``) is deliberate: most modules expose a
-module-level ``SPEC``, but some (e.g. ``lrp65``) build their spec lazily via
-``get_spec()`` so the DAG-only path imports without the Bayesian stack. Every
+module-level ``SPEC``, but some (e.g. the adjusted model) build their spec lazily
+via ``get_spec()`` so the DAG-only path imports without the Bayesian stack. Every
 runnable model does, however, define a top-level ``fit`` - that is the invariant
 we discover on. The ``fit.__module__ == module`` check ignores any ``fit`` symbol
 merely imported into an infrastructure module.
@@ -34,17 +37,18 @@ def _defines_fit(mod: ModuleType) -> bool:
 
 
 def discover_models() -> dict[str, ModuleType]:
-    """Return ``{model_id: module}`` for every discoverable model, sorted by id.
+    """Return ``{canonical_cli_id: module}`` for every discoverable model, sorted.
 
     A model module is any (non-package) submodule of the statistical-models
-    package that defines its own top-level ``fit(config)`` - e.g. ``lrpitt01``,
-    ``lrp65`` (lazy spec), ``rlmhg01`` (historical growth). Infrastructure modules
-    (``context``, ``factories``, ``pipeline``, ``reporting`` ...) are digit-free and
-    define no top-level ``fit``, so they are skipped without being imported.
+    package that defines its own top-level ``fit(config)`` - e.g.
+    ``lrp_rli_itt_001``, ``lrp_rli_adj_065`` (lazy spec), ``lrp_rlm_hg_001``
+    (historical growth). Infrastructure modules (``context``, ``factories``,
+    ``pipeline``, ``reporting`` ...) are digit-free and define no top-level ``fit``,
+    so they are skipped without being imported.
     """
     models: dict[str, ModuleType] = {}
     for info in pkgutil.iter_modules(_pkg.__path__):
-        # Model ids carry a number (``lrpitt01``, ``rlmhg01`` ...); skipping the
+        # Model ids carry a number (``lrp-rli-itt-001``, ``lrp-rlm-hg-001`` ...); skipping the
         # digit-free infrastructure modules (``context``, ``factories``,
         # ``pipeline`` ...) avoids importing them — and any heavy import side
         # effects — just to discover on ``fit``. The ``_defines_fit`` check below
@@ -53,5 +57,6 @@ def discover_models() -> dict[str, ModuleType]:
             continue
         mod = importlib.import_module(f"{_pkg.__name__}.{info.name}")
         if _defines_fit(mod):
-            models[info.name] = mod
+            # Canonical CLI id = the canonical-underscore module name with hyphens.
+            models[info.name.replace("_", "-")] = mod
     return dict(sorted(models.items()))

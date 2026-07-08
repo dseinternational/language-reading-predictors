@@ -1,0 +1,111 @@
+---
+title: "LRP77: Period-resolved dose-response — intervention dose -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP77 is the gated [#104](https://github.com/dseinternational/language-reading-predictors/issues/104)
+Phase-2 follow-up to the period-resolved gradient-boosting diagnostic
+. Phase 1 found the
+structure in the near-noise word-reading gain models sits on the **dose /
+intervention-status axis**, with a weak positive dose signal that concentrates in
+the on-treatment periods. This model quantifies that one signal with honest
+uncertainty.
+
+**Estimand.** How word-reading *conditional change* relates to the per-period
+intervention **dose** (`attend`, sessions attended that period), with partial
+pooling across the three periods, and whether that dose–gain slope **varies by
+period**. The outcome is the Beta-Binomial post-count of $W$ conditional on its
+own baseline logit ($N = 79$) — conditional change, **not** a raw change score
+(Lord's paradox / regression to the mean). All three phase transitions
+(t1$\to$t2, t2$\to$t3, t3$\to$t4) are stacked with phase-specific intercepts; the
+dose enters standardised, so the slope is the outcome-logit change per 1 SD of
+per-period dose:
+
+$$
+\eta = \alpha + \alpha_{\text{phase}[p]}
+     + \beta_G\,G
+     + \gamma_{\text{own}}\,\text{logit}(W_{\text{pre}})
+     + \gamma_A\,z(\text{age})
+     + u_{\text{child}}
+     + \beta_{\text{dose}[p]}\,z(\text{attend})
+     + \gamma_{\text{stage}}\,z(\text{attend\_cumul})
+$$
+
+with $\beta_{\text{dose}[p]} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$
+(partial-pooled period slopes).
+
+## Adjustment set (locked DAG)
+
+The focal edge is $\text{dose} \to \text{outcome}$. Sessions is the locked DAG's
+`IS` node; this is the ID-3 **observational** dose-response (adjust $\{IG, A\}$,
+never condition on `IS` itself). Dose has one parent, `intervention`, so the
+back-door set is $\{G, W_{\text{pre}}, A\}$ — but for distinct reasons:
+
+- **$G$ — the sole confounder.** Conditioning on the arm blocks the only back-door
+  $\text{dose} \leftarrow \text{intervention} \to \text{outcome}$. **Coding:
+  $G = 2 - \text{group}$, so $G = 1$ is the immediate-intervention arm and $G = 0$
+  the waitlist control; positive effects = intervention benefit** (the `#117` sign
+  convention).
+- **$W_{\text{pre}}$ — not a dose confounder.** The autoregression / RTM control
+  that makes this *conditional change*; parameterisation, not back-door blocking.
+- **age — not a dose confounder.** v5 has $\text{age} \to \text{outcome}$ but no
+  $\text{age} \to \text{dose}$, so age is a precision / maturation covariate only.
+
+**Cumulative dose** (`attend_cumul`, prior sessions) enters as a control so a
+dose-stage effect is not misread as a period effect (it is 0 for everyone in
+period 1).
+
+**Sample.** All gain rows are kept, including the waitlist controls' period-1
+`attend == 0` rows — the **zero-dose anchor** that identifies the slope.
+
+### The load-bearing assumption: no `ability -> dose`
+
+v5 deliberately omits $g \to \text{dose}$. But Frank's 2012 caveat — "the children
+least able to learn tended to show the poorest attendance" — is exactly that
+edge. **Dose is not randomised** (only `intervention` is), so randomisation does
+not rescue this. If $g \to \text{dose}$ holds, $g$ is a common cause of dose and
+outcome and $\{G\}$ no longer identifies the dose effect. Two safeguards: the
+subject random intercept $u_{\text{child}}$ absorbs *stable* child differences,
+and the ability-adjusted sensitivity fit **LRP77a** conditions on the
+baseline-skill cluster (letter-sounds, expressive vocabulary, blending). If the
+dose slope survives there, the assumption is defensible; if it collapses, the
+dose signal is substantially ability-confounded.
+
+### Causal warrant and expectations
+
+This is **adjusted association**, not "dose drives gains" — only the period-1 ITT
+(now `lrp-rli-itt-010`) is randomised. Phase-1 best strata reached only $R^2$ 0.1–0.3;
+the deliverable is a calibrated dose slope with credible intervals, not a strong
+predictor. Do not condition on anything downstream of dose.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_dose_response.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

@@ -2451,7 +2451,7 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
 # ability (``blocks``) is the observed handle on GA. SES is intentionally NOT a
 # factor: it is not a DAG node and was found statistically redundant, so it is
 # excluded from the core sets (it can be added later as a robustness companion,
-# as for the ITT suite's lrpitt13). Attendance / dose (``IS``) is a DAG collider
+# as for the ITT suite's lrp-rli-itt-013). Attendance / dose (``IS``) is a DAG collider
 # and is never conditioned on.
 # ---------------------------------------------------------------------------
 
@@ -3250,7 +3250,7 @@ def build_historical_growth_model(
     model: ``group`` carries no treatment semantics, there is no baseline-as-
     precision term and no adjustment set. Deterministics expose the group-by-wave
     expected item score, within-group interval growth, and pairwise total-growth
-    contrasts. Ported from the standalone ``rlmhg01`` script (#163) onto the
+    contrasts. Ported from the standalone ``lrp-rlm-hg-001`` script (#163) onto the
     shared pipeline (#165).
     """
     df = panel.long

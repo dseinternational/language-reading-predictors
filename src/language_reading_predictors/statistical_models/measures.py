@@ -69,7 +69,7 @@ MEASURES: dict[str, Measure] = {
     # words and a not-taught comparison set. Block 1 is taught in phase 1, so its
     # baseline is t1 and its randomised post-score is t2 - the ITT window. (Block
     # 2 is introduced in phase 2 and has no t1 baseline, so it is not modelled
-    # here.) See ``docs/models/lrpitt02`` and Burgoyne et al. (2012), Table 3.
+    # here.) See ``docs/models/lrp-rli-itt-002`` and Burgoyne et al. (2012), Table 3.
     #
     # Taught tests: "Six words of each type (nouns, adverbs, adjectives,
     # prepositions)" = 24 items; the paper tabulates the maximum as (24).

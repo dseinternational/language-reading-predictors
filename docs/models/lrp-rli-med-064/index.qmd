@@ -1,0 +1,102 @@
+---
+title: "LRP64: Do letter-sounds and vocabulary act as independent paths to word reading? (two-mediator decomposition)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+The single-mediator [LRP59](../lrp-rli-med-059) (letter-sound only) and the route-composite
+[LRP62](../lrp-rli-med-062) (letter-sound + blending) each collapse the question to one pathway.
+LRP64 asks the **two-mediator** question directly: of the intervention's effect on
+word reading $W$, how much runs through **letter-sound knowledge $L$**, how much
+through **expressive vocabulary $E$**, and how much is direct/residual?
+
+We extend the same g-formula machinery to a $\{L, E\}$ mediator block and report:
+
+- the **joint indirect effect** through the block (the robust headline);
+- a clearly-flagged **exploratory** path-specific split into $\text{NIE}_L$ and
+  $\text{NIE}_E$.
+
+## Phase 0 only — the design
+
+The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**: group 1
+receives the intervention, group 2 is the wait-list control; after t2 both arms are
+treated. LRP64 uses the phase-0 transition only (`phase_mode="itt"`), $n \approx 53$.
+Sign convention: $G = 2 - \text{group}$, so $G = 1$ is the intervention arm and
+$G = 0$ the wait-list control (per `#117`); all effects are in the
+**intervention-helps** (positive = benefit) direction.
+
+## Causal structure
+
+- **Treatment** $G$ (randomised). **Mediators** $L_{t2}$ and $E_{t2}$, each a
+  Beta-Binomial leg conditioned on its own baseline. **Outcome** $Y = W_{t2}$
+  (conditioned on $W_{t1}$). The outcome leg includes both $G\times L$ and $G\times E$
+  interactions, so the decomposition admits exposure–mediator interaction.
+- **Mediator–outcome confounder** $C$: receptive vocabulary $R_{t1}$ (expressive vocab
+  is now a *mediator*, not a confounder), plus age $A$. Taken at **baseline (t1)** —
+  the cross-world assumption.
+- The natural (in)direct effects are computed by **counterfactual simulation from the
+  posterior** (the g-formula), not from coefficients.
+
+## Assumptions — read this first {#sec-assumptions}
+
+This is a **decomposition under assumptions, not proof of a causal route.**
+
+- Randomisation in phase 0 secures **no unmeasured confounding of $G\to Y$ and
+  $G\to M$** for free.
+- **No unmeasured mediator–outcome confounding** — the binding, unverifiable
+  assumption and the main limitation. The locked DAG (`#115`,
+  `notes/202606231600-dag-revision-consolidated.md`, ID-2) names the specific threat:
+  **latent general ability $GA$** confounds the mediator→outcome paths, so the
+  NDE/NIE and the $\text{NIE}_L$/$\text{NIE}_E$ split are **adjusted associations,
+  not point-identified**. We adjust for $A$, $R$, and the baselines, but $GA$ is
+  latent and not directly observed — and, unlike the gain-/level-factor families,
+  this between-child phase-0 mediation carries **no subject random intercept**, so it
+  cannot even apply the partial latent-ability repair that intercept provides. Lead
+  with the joint indirect effect; keep the $\text{NIE}_L$/$\text{NIE}_E$ split
+  flagged exploratory.
+- **Contemporaneous measurement.** Both mediators and the outcome are at t2 — no
+  temporal precedence within the window. Conditioning on baselines mitigates but does
+  not remove this.
+- **Sight-reading.** Children can read words without decoding, so $W$ does not reveal
+  *how* a child read — only that the score moved.
+- The two mediators are simulated as **conditionally independent given covariates** (no
+  residual $L$–$E$ correlation is modelled), and the path-specific split is
+  **ordering-dependent** (see below).
+- Consistency and positivity are assumed.
+
+::: {.callout-important title="Joint effect robust; path split exploratory"}
+With $n \approx 53$, expect **wide intervals**. The **joint indirect effect** (how much
+flows through the $\{L, E\}$ block at all) is the robust quantity. The $\text{NIE}_L$ /
+$\text{NIE}_E$ split is **exploratory**: it assumes a mediator ordering (default $L$
+before $E$) and the conditional-independence above, and is an attribution under those
+assumptions — not a unique partition.
+:::
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

@@ -29,7 +29,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
 class ModelSpec:
     """Description of a single model run - lives on the context.
 
-    ``model_id`` is ``"lrpitt07"`` etc. ``kind`` is one of the model families in
+    ``model_id`` is ``"lrp-rli-itt-007"`` etc. ``kind`` is one of the model families in
     ``definitions.KINDS`` — the headline estimands ``"itt"``, ``"joint"``,
     ``"mechanism"``, ``"mediation"``, ``"did"`` (waitlist-crossover),
     ``"gain_factors"`` / ``"level_factors"`` (DAG-focused factor families) and
