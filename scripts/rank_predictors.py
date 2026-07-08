@@ -14,7 +14,7 @@ Design decisions baked in:
   distance-correlation matrix and ranked *as groups* by joint (grouped) out-of-fold
   permutation importance — see ``cluster_ranking.csv``. Per-feature scores
   (``predictor_ranking.csv``) are within-cluster detail. The reason: per-feature
-  permutation z is highly sensitive to ``cv_splits`` (in the pilot, ``lrpgbl06`` `b1exto`
+  permutation z is highly sensitive to ``cv_splits`` (in the pilot, ``LRP-RLI-GBL-006`` `b1exto`
   z ran 1.9 → 1.5 → 0.33 at cv = 5 / 10 / 51), whereas the cluster-level ordering is
   stable. Read clusters first.
 * **The cross-validation config is pinned and recorded.** ``--cv-splits`` and
@@ -33,9 +33,9 @@ no ad-hoc model id has). ``GroupKFold`` by ``subject_id``, seed 47.
 
 Usage::
 
-    python scripts/rank_predictors.py --model lrpgbl06          # reporting-fidelity
-    python scripts/rank_predictors.py --model lrpgbg12 --quick   # fast dev tier
-    python scripts/rank_predictors.py --model lrpgbg05 --cv-splits 10 --cutoff 0.4
+    python scripts/rank_predictors.py --model lrp-rli-gbl-006          # reporting-fidelity
+    python scripts/rank_predictors.py --model lrp-rli-gbg-012 --quick   # fast dev tier
+    python scripts/rank_predictors.py --model lrp-rli-gbg-005 --cv-splits 10 --cutoff 0.4
 
 Artefacts land in ``output/ranking/<model>/`` (gitignored): ``cluster_ranking.csv``
 (primary), ``predictor_ranking.csv``, ``cluster_cutoff_sensitivity.csv``,
@@ -61,6 +61,7 @@ from dse_research_utils.ml.importance import (
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 
+from language_reading_predictors import model_ids
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.models.base_pipeline import _clear_directory
 from language_reading_predictors.models.cluster_ranking import (
@@ -79,6 +80,25 @@ def _ranking_root() -> Path:
 
 def _models_root() -> Path:
     return _paths.gb_models_dir()
+
+
+def _resolve_model_id(model_id: str) -> str:
+    """Resolve a user-supplied id (legacy or canonical, any form) to its registry key.
+
+    The registry is keyed on the canonical id (``lrp-rli-gbl-006``) since #168
+    Phase 2; a legacy id (``lrpgbl06``) still resolves. Returns the input unchanged
+    when unrecognised so ``run_model``'s own "unknown model" check still fires.
+    """
+    aliases: dict[str, str] = {}
+    for key in MODELS:
+        aliases[key.lower()] = key
+        try:
+            mid = model_ids.parse_canonical(key)
+        except model_ids.ModelIdError:
+            continue
+        for form in (mid.legacy, mid.display, mid.module):
+            aliases[form.lower()] = key
+    return aliases.get(model_id.strip().lower(), model_id)
 
 
 def _fmt(x, spec: str = "{:.3f}") -> str:
@@ -102,7 +122,7 @@ def make_config(model_id: str, *, kind: str):
     resolved by ``ModelDefinition._build_predictors`` honouring the model's own
     ``exclude`` / ``include`` (and target removal). We MUST reuse it rather than
     rebuild from the raw ``DEFAULT_*`` pool — the raw pool discards each model's
-    ``exclude`` list and so reintroduces target leakage (e.g. lrpgbl01 targets
+    ``exclude`` list and so reintroduces target leakage (e.g. LRP-RLI-GBL-001 targets
     ``b1retau`` and excludes ``b1reto = b1retau + b1rent``, an exact superset of
     the target). The target itself is already absent from the registered set.
     """
@@ -381,7 +401,8 @@ def _print_summary(model_id, target, siblings, full, ranking, cluster_rank, sens
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Rank predictors on the full set (issue #116, Phase 1).")
-    ap.add_argument("--model", required=True, help="model id, e.g. lrpgbl06, lrpgbg12, lrpgbg05")
+    ap.add_argument("--model", required=True,
+                    help="model id (legacy or canonical), e.g. lrp-rli-gbl-006, lrp-rli-gbg-012, lrp-rli-gbg-005")
     ap.add_argument("--cutoff", type=float, default=0.4, help="dendrogram cut height (default 0.4)")
     ap.add_argument("--cv-splits", type=int, default=None,
                     help="GroupKFold splits (default: the model's registered cv_splits)")
@@ -402,7 +423,8 @@ def main() -> None:
     args = ap.parse_args()
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
-    run_model(args.model, cutoff=args.cutoff, cv_splits=args.cv_splits,
+    model_id = _resolve_model_id(args.model)
+    run_model(model_id, cutoff=args.cutoff, cv_splits=args.cv_splits,
               perm_repeats=args.perm_repeats, quick=args.quick)
 
 

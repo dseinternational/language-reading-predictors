@@ -39,7 +39,7 @@ Usage
 ::
 
     python scripts/predictability_readout.py
-    python scripts/predictability_readout.py lrpgbg12_prediction lrpgbg12 --top-n 6
+    python scripts/predictability_readout.py lrp-rli-gbg-012 --top-n 6
 """
 
 from __future__ import annotations
@@ -56,11 +56,35 @@ from sklearn.dummy import DummyRegressor
 from sklearn.model_selection import GroupKFold
 
 import language_reading_predictors.data_utils as data_utils
+from language_reading_predictors import model_ids
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.registry import MODELS
 
-_DEFAULT_MODELS = ["lrpgbg12_prediction", "lrpgbg12"]
+# ``lrpgbg12_prediction`` is a retired variant id (no such model in the registry);
+# it is left as-is here and simply reports "Unknown model" if requested — only the
+# real base id was renamed to its canonical form (#168 Phase 2). The registry is
+# keyed on the canonical id; a legacy id supplied on the CLI still resolves (see
+# ``_resolve_model_id``).
+_DEFAULT_MODELS = ["lrpgbg12_prediction", "lrp-rli-gbg-012"]
+
+
+def _resolve_model_id(model_id: str) -> str:
+    """Resolve a user-supplied id (legacy or canonical, any form) to its registry key.
+
+    Returns the input unchanged when unrecognised so the caller's own "Unknown
+    model" handling still fires (e.g. for the retired ``lrpgbg12_prediction``).
+    """
+    aliases: dict[str, str] = {}
+    for key in MODELS:
+        aliases[key.lower()] = key
+        try:
+            mid = model_ids.parse_canonical(key)
+        except model_ids.ModelIdError:
+            continue
+        for form in (mid.legacy, mid.display, mid.module):
+            aliases[form.lower()] = key
+    return aliases.get(model_id.strip().lower(), model_id)
 
 
 def _display_path(path: Path) -> str:
@@ -632,12 +656,15 @@ def main() -> None:
     _paths.set_output_root(args.output_dir)
     print(f"[bold]Output root:[/bold] {_paths.describe_output_root()}")
 
-    for model_id in args.models:
+    # Resolve legacy/canonical CLI ids forward to the canonical registry key.
+    models = [_resolve_model_id(m) for m in args.models]
+
+    for model_id in models:
         if model_id not in MODELS:
             print(f"[bold red]Unknown model: {model_id}[/bold red]")
             raise SystemExit(1)
 
-    if args.from_ranking is not None and len(args.models) != 1:
+    if args.from_ranking is not None and len(models) != 1:
         print("[bold red]--from-ranking applies to a single model id.[/bold red]")
         raise SystemExit(1)
 
@@ -650,7 +677,7 @@ def main() -> None:
             rank_top_k=args.rank_top_k,
             rank_exclude_same_skill=args.rank_exclude_same_skill,
         )
-        for model_id in args.models
+        for model_id in models
     ]
     print("\n" + "\n\n".join(blocks))
 

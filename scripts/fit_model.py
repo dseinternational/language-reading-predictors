@@ -88,9 +88,21 @@ def main():
     paths.set_output_root(args.output_dir)
     print(f"[bold]Output root:[/bold] {paths.describe_output_root()}")
 
-    # Accept either a legacy id (``lrpgbg12``) or a canonical id
-    # (``lrp-rli-gbg-012``, any case/form); #168 Phase 1.
-    model_key = model_ids.resolve_to_legacy(args.model).lower()
+    # The registry is keyed on the canonical model id (``lrp-rli-gbg-012``) since
+    # #168 Phase 2. Build a legacy-alias index over those keys so a legacy id
+    # (``lrpgbg12``) or any canonical form/case still resolves — mirroring
+    # scripts/fit_statistical_model.py. The GB families are embedded in the id, so
+    # no ``kind`` is needed.
+    aliases: dict[str, str] = {}
+    for key in MODELS:
+        aliases[key.lower()] = key
+        try:
+            mid = model_ids.parse_canonical(key)
+        except model_ids.ModelIdError:
+            continue
+        for form in (mid.legacy, mid.display, mid.module):
+            aliases[form.lower()] = key
+    model_key = aliases.get(args.model.strip().lower(), args.model.strip().lower())
 
     if model_key == "all":
         models_to_run = [
