@@ -49,13 +49,16 @@ def _stem(name: str) -> str:
     return name
 
 
-def _write_svg_sibling(save, base: str, svg_max_bytes: int = SVG_MAX_BYTES) -> None:
+def _write_svg_sibling(save, base: str, svg_max_bytes: int | None = None) -> None:
     """Write ``base + '.svg'`` via ``save(path)`` then drop it if it is too large.
 
     ``save`` is a one-arg callable (``fig.savefig`` or ``pc.savefig``) so this works
-    for both matplotlib figures and ``arviz_plots`` collections. Guarded so an
-    SVG-backend hiccup never costs us the (already-written) PNG.
+    for both matplotlib figures and ``arviz_plots`` collections. The size cap reads
+    the module-level :data:`SVG_MAX_BYTES` at call time (so it stays configurable).
+    Guarded so an SVG-backend hiccup never costs us the (already-written) PNG.
     """
+    if svg_max_bytes is None:
+        svg_max_bytes = SVG_MAX_BYTES
     svg = base + ".svg"
     try:
         save(svg)
