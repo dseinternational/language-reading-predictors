@@ -30,6 +30,7 @@ Each pipeline:
 
 from __future__ import annotations
 
+import inspect
 import os
 import shutil
 from collections.abc import Sequence
@@ -78,6 +79,20 @@ from language_reading_predictors.statistical_models.preprocessing import (
 # ---------------------------------------------------------------------------
 # Common helpers
 # ---------------------------------------------------------------------------
+
+
+def _default_of(fn, param: str) -> float:
+    """The default value of keyword ``param`` in factory ``fn``'s signature.
+
+    Makes the factory the single source of truth for a prior-scale default, so a
+    ``spec.extra.get(param, ...)`` fallback in the pipeline cannot silently drift
+    from the factory it feeds (the failure Copilot caught on #209: the adjusted
+    fallback was re-hardcoded and lagged the reconciled factory default). Prefer
+    this over re-typing the number: if ``param`` is ever renamed the lookup raises
+    ``KeyError`` loudly at fit time rather than falling back to a stale literal.
+    ``test_pipeline_fallback_defaults`` guards that this stays in step.
+    """
+    return inspect.signature(fn).parameters[param].default
 
 
 def _require_spec(
@@ -2764,11 +2779,16 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     lang_symbols = tuple(e.get("language_composite_symbols", ["R", "E", "F"]))
     covariates = list(e.get("covariates", ["blocks", "behav"]))
     ses_covs = list(e.get("ses_covariates", ["mumedupost16"]))
-    # Fallback defaults aligned with the reconciled association scale
-    # (build_adjusted_model / predictor_slope_prior default 0.3) so the effective
-    # prior does not depend on whether a spec sets the key — prior-critical-review
-    # 2026-07-07, recommendation 3. The sweep brackets 0.3 from the looser side.
-    sigma0 = float(e.get("predictor_slope_sigma", 0.3))
+    # The slope-prior default is sourced from the factory signature (single source
+    # of truth) so this fallback cannot drift from the reconciled scale — prior-
+    # critical-review 2026-07-07, recommendation 3; #209 review. The sweep default
+    # brackets that scale from the looser side (no factory param mirrors it).
+    sigma0 = float(
+        e.get(
+            "predictor_slope_sigma",
+            _default_of(_factories.build_adjusted_model, "predictor_slope_sigma"),
+        )
+    )
     prior_sens = list(e.get("prior_sensitivity_sigmas", [0.5, 0.7]))
     use_age = bool(e.get("use_age_predictor", True))
 
@@ -3061,7 +3081,10 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     built = _factories.build_lcsm_model(
         panel,
         reading_symbol=reading_symbol,
-        coupling_prior_sigma=spec.extra.get("coupling_prior_sigma", 0.3),
+        coupling_prior_sigma=spec.extra.get(
+            "coupling_prior_sigma",
+            _default_of(_factories.build_lcsm_model, "coupling_prior_sigma"),
+        ),
         use_process_noise=spec.extra.get("use_process_noise", True),
         shared_process_noise=spec.extra.get("shared_process_noise", False),
     )
@@ -3309,9 +3332,20 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     built = _factories.build_historical_growth_model(
         panel,
         measure=measure,
-        eta_prior_sigma=spec.extra.get("eta_prior_sigma", 1.5),
-        sigma_subject_prior_sigma=spec.extra.get("sigma_subject_prior_sigma", 0.5),
-        kappa_prior_sigma=spec.extra.get("kappa_prior_sigma", 50.0),
+        eta_prior_sigma=spec.extra.get(
+            "eta_prior_sigma",
+            _default_of(_factories.build_historical_growth_model, "eta_prior_sigma"),
+        ),
+        sigma_subject_prior_sigma=spec.extra.get(
+            "sigma_subject_prior_sigma",
+            _default_of(
+                _factories.build_historical_growth_model, "sigma_subject_prior_sigma"
+            ),
+        ),
+        kappa_prior_sigma=spec.extra.get(
+            "kappa_prior_sigma",
+            _default_of(_factories.build_historical_growth_model, "kappa_prior_sigma"),
+        ),
     )
     _attach_built(ctx, built)
 
@@ -3448,8 +3482,16 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         domains=domains,
         structural_covariates=structural_covs,
         use_age=spec.extra.get("use_age", True),
-        loading_sigma=spec.extra.get("loading_sigma", 1.0),
-        predictor_slope_sigma=spec.extra.get("predictor_slope_sigma", 0.5),
+        loading_sigma=spec.extra.get(
+            "loading_sigma",
+            _default_of(_factories.build_correlated_factor_model, "loading_sigma"),
+        ),
+        predictor_slope_sigma=spec.extra.get(
+            "predictor_slope_sigma",
+            _default_of(
+                _factories.build_correlated_factor_model, "predictor_slope_sigma"
+            ),
+        ),
     )
     _attach_built(ctx, built)
     _render_model_graph(ctx)
