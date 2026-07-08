@@ -13,6 +13,10 @@ format:
     toc-depth: 3
 ---
 
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 ::: {.callout-warning title="Warning: Preliminary model output"}
 
 This model output is preliminary and likely to change as the model evolves and further data are received.
@@ -39,6 +43,39 @@ The other language-sample measures are recorded at t1–t2 only and are therefor
 This is an **exploratory gradient-boosting discovery model** on the same footing as LRPGBG12–LRPGBL16 — it asks how predictable total words is and from what, to inform whether the shared DAG (v5) needs a spontaneous connected speech node. It is **not** a causal or intention-to-treat estimate; the cross-validated associations describe prediction, not mechanism.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent leakage across a child's repeated measures.
+
+This model sits in the discovery stage of the two-step workflow: gradient-boosting models surface candidate predictors and interactions, which the Bayesian intervention models (the LRPITT / LRPDID suites) then estimate causally.
+
+::: {.callout-important title="Exploratory — associational, not causal"}
+The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a lever to act on, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. Causal questions are answered by the Bayesian intervention models, not here.
+:::
+
+## What this model found
+
+```{python}
+#| echo: false
+#| output: asis
+from pathlib import Path
+import pandas as pd
+
+_rk = Path("predictor_ranking.csv")
+if _rk.exists():
+    try:
+        from language_reading_predictors.models._reporting import gb_ranking_markdown
+        print(
+            gb_ranking_markdown(
+                pd.read_csv(_rk),
+                target_label="language sample total words level",
+            )
+        )
+    except Exception as _e:  # pragma: no cover - render-env fallback
+        print(f"_Findings summary unavailable: {_e}_")
+else:
+    print(
+        "_Findings summary is produced at the reporting/test tiers "
+        "(needs predictor_ranking.csv)._"
+    )
+```
 
 ## Configuration
 

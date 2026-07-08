@@ -228,8 +228,100 @@ def params_table(
     return _params_table(params, title=title, precision=precision)
 
 
+def gb_ranking_markdown(
+    ranking: pd.DataFrame,
+    *,
+    target_label: str | None = None,
+    top_n: int = 6,
+) -> str:
+    """Narrate the cluster-first GB predictor ranking as Markdown (issue #208).
+
+    Reads a ``predictor_ranking.csv`` frame (columns ``member``, ``cluster_id``,
+    ``perm_imp_mean``, ``mean_abs_shap``, ``sign``, ``same_skill_of_outcome``, …)
+    and states the findings a reader would otherwise reconstruct from the tables:
+    the leading predictors and the direction of their SHAP association, any
+    permutation-vs-SHAP disagreement on the lead, concurrent-restatement (leakage)
+    flags, and collinear clusters. Returns Markdown for an ``#| output: asis``
+    chunk. Kept CSV-derived so it never drifts from the fitted model on re-fit.
+    """
+    what = f" of {target_label}" if target_label else ""
+    if ranking is None or getattr(ranking, "empty", True) or "member" not in ranking.columns:
+        return f"_Findings summary{what} is produced at the reporting/test tiers._"
+
+    df = ranking.copy()
+    sign_word = {
+        "+": "higher values predict a larger",
+        "-": "higher values predict a smaller",
+        "0": "no clear directional link to the",
+    }
+
+    has_perm = "perm_imp_mean" in df.columns
+    perm = df.sort_values("perm_imp_mean", ascending=False) if has_perm else df
+    nonzero = perm[perm["perm_imp_mean"] > 0] if has_perm else perm
+    lead = (nonzero if not nonzero.empty else perm).head(top_n)
+
+    lead_names = ", ".join(f"`{m}`" for m in lead["member"])
+    lines: list[str] = [
+        f"The model leans most on {lead_names}{what}. Ranked cluster-first by "
+        "out-of-fold permutation importance, with the SHAP direction of each "
+        "association:",
+        "",
+    ]
+    for _, r in lead.iterrows():
+        direction = sign_word.get(str(r.get("sign", "")).strip(), "an unclear link to the")
+        shap = r.get("mean_abs_shap")
+        shap_txt = f", mean|SHAP| {shap:.2f}" if pd.notna(shap) else ""
+        flag = (
+            " — **concurrent restatement of the outcome (treat as leakage)**"
+            if bool(r.get("same_skill_of_outcome", False))
+            else ""
+        )
+        lines.append(f"- `{r['member']}` — {direction} outcome{shap_txt}{flag}")
+
+    if has_perm and "mean_abs_shap" in df.columns and not perm.empty:
+        perm_top = perm.iloc[0]["member"]
+        shap_top = df.sort_values("mean_abs_shap", ascending=False).iloc[0]["member"]
+        if perm_top != shap_top:
+            lines += [
+                "",
+                f"Permutation importance and SHAP disagree on the lead predictor "
+                f"(permutation: `{perm_top}`; mean|SHAP|: `{shap_top}`) — read both, "
+                "as they answer different questions (drop in held-out accuracy vs "
+                "average contribution to predictions).",
+            ]
+
+    if "same_skill_of_outcome" in df.columns:
+        leaks = df[df["same_skill_of_outcome"].astype(bool)]["member"].tolist()
+        if leaks:
+            lines += [
+                "",
+                "**Leakage caution:** "
+                + ", ".join(f"`{m}`" for m in leaks)
+                + " concurrently restate the outcome skill and should be discounted.",
+            ]
+
+    if "cluster_id" in df.columns:
+        multi = [
+            ms
+            for ms in df.groupby("cluster_id", sort=False)["member"].apply(list)
+            if len(ms) > 1
+        ]
+        if multi:
+            grouped = "; ".join(
+                "{" + ", ".join(f"`{m}`" for m in ms) + "}" for ms in multi
+            )
+            lines += [
+                "",
+                "Collinear predictors were clustered by distance-correlation and "
+                f"ranked as a group (importance is shared within a cluster): {grouped}.",
+            ]
+
+    return "\n".join(lines)
+
+
 __all__ = [
     "cv_fold_metrics_table",
+    "gb_ranking_markdown",
     "in_sample_metrics_table",
     "metrics_table",
     "model_header_panel",

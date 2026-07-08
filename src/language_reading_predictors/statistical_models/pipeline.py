@@ -57,6 +57,10 @@ from language_reading_predictors.statistical_models import (
     priors as _priors,
     reporting as _report,
 )
+from language_reading_predictors.statistical_models.plotting import (
+    save_plotcollection,
+    save_styled_figure,
+)
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
     StatisticalFitContext,
@@ -385,11 +389,12 @@ def _save_ppc(context: StatisticalFitContext) -> None:
         import arviz_plots as azp
 
         pc = azp.plot_ppc_dist(context.trace)
-        pc.savefig(
-            os.path.join(context.output_dir, "posterior_predictive_check.png"),
-            dpi=300,
+        save_plotcollection(
+            pc,
+            context.output_dir,
+            "posterior_predictive_check.png",
+            suptitle="Posterior-predictive vs observed",
         )
-        plt.close("all")
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]PPC plot failed: {exc}[/yellow]")
 
@@ -410,12 +415,9 @@ def _save_proportion_at_zero_plot(
             f"Proportion-at-zero PPC ({symbol}); p = {ppc0['ppc_p_value']:.2f}"
         )
         plt.legend()
-        plt.savefig(
-            os.path.join(ctx.output_dir, "proportion_at_zero_ppc.png"),
-            dpi=300,
-            bbox_inches="tight",
-        )
-        plt.close()
+        # Scalar PPC summary (rep excluded) is already written to CSV by the
+        # graded/floor path, so no data= here — just the styled PNG + SVG.
+        save_styled_figure(ctx.output_dir, "proportion_at_zero_ppc")
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]Proportion-at-zero PPC plot failed: {exc}[/yellow]")
 
@@ -473,7 +475,7 @@ def _save_rope_plot(
         fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(11, 4.2))
         ax_l.axvspan(
             -delta, delta, color="#bdbdbd", alpha=0.30,
-            label=f"ROPE (|effect| < {delta:g})",
+            label=f"ROPE (within ±{delta:g})",
         )
         ax_l.axvline(0, color="#444444", lw=1.0, ls=":")
         ax_l.plot(xs, kde(xs), color="#1b7837", lw=2.2)
@@ -499,12 +501,8 @@ def _save_rope_plot(
             for sp in ("top", "right"):
                 ax.spines[sp].set_visible(False)
         fig.tight_layout()
-        fig.savefig(
-            os.path.join(ctx.output_dir, "rope_summary.png"),
-            dpi=300,
-            bbox_inches="tight",
-        )
-        plt.close(fig)
+        # rope_summary.csv is written by the ITT/factor result path, so no data= here.
+        save_styled_figure(ctx.output_dir, "rope_summary", fig=fig)
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]ROPE plot failed: {exc}[/yellow]")
 
@@ -525,12 +523,10 @@ def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
                 if _np.isfinite(M[i, j]):
                     ax.text(j, i, f"{M[i, j]:.2f}", ha="center", va="center", fontsize=7)
         ax.set_title("P(row tau > column tau)", fontsize=9)
-        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        cbar.set_label("P(row tau > column tau)", fontsize=8)
         fig.tight_layout()
-        fig.savefig(
-            os.path.join(ctx.output_dir, "contrast_heatmap.png"), dpi=300, bbox_inches="tight"
-        )
-        plt.close(fig)
+        save_styled_figure(ctx.output_dir, "contrast_heatmap", fig=fig)
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]Contrast heatmap failed: {exc}[/yellow]")
 
@@ -580,6 +576,7 @@ def _save_forest_plot(
     var_names: list[str],
     *,
     name: str = "tau_forest.png",
+    title: str | None = None,
 ) -> None:
     """Forest plot of the causal term(s) with a reference line at 0 (#125 Area 4).
 
@@ -605,8 +602,13 @@ def _save_forest_plot(
             azp.add_lines(pc, values=0)
         except Exception:
             pass  # the forest itself is the substantive output
-        pc.savefig(os.path.join(ctx.output_dir, name), dpi=300)
-        plt.close("all")
+        if title is None:
+            title = (
+                "Adjusted-association coefficients (forest)"
+                if "association" in name
+                else "Effect posterior (forest, reference line at 0)"
+            )
+        save_plotcollection(pc, ctx.output_dir, name, suptitle=title)
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]Forest plot ({name}) failed: {exc}[/yellow]")
 
@@ -1560,12 +1562,8 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     plt.xlabel(f"logit({sym}_post)")
     plt.ylabel("predictor logit contribution")
     plt.title(f"Mechanism curve ({kind}): {sym} -> {outcome}")
-    plt.savefig(
-        os.path.join(ctx.output_dir, "mechanism_curve.png"),
-        dpi=300,
-        bbox_inches="tight",
-    )
-    plt.close()
+    # mechanism_curve.csv (the plotted band) is written just above.
+    save_styled_figure(ctx.output_dir, "mechanism_curve")
 
 
 # ---------------------------------------------------------------------------
@@ -2571,12 +2569,9 @@ def _plot_associations(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float)
     )
     plt.title("LRP65: baseline predictors of word-reading gain (between-child)")
     plt.legend(fontsize=8, loc="best")
-    plt.savefig(
-        os.path.join(ctx.output_dir, "predictor_associations.png"),
-        dpi=300,
-        bbox_inches="tight",
+    save_styled_figure(
+        ctx.output_dir, "predictor_associations", data=df
     )
-    plt.close()
 
 
 def _natural_scale_contrasts(
