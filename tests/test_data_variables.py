@@ -11,6 +11,10 @@ structural invariants the rest of the codebase relies on.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
+import pytest
+
 from language_reading_predictors.data_variables import (
     Categories,
     Predictors,
@@ -62,6 +66,9 @@ def test_default_gain_excludes_structural_groups():
     assert not (gain & set(V.GAINS)), "DEFAULT_GAIN must not contain gain columns"
     assert not (gain & set(V.NEXTS)), "DEFAULT_GAIN must not contain next columns"
     assert not (gain & set(V.DEFAULT_EXCLUDED)), "DEFAULT_GAIN must honour DEFAULT_EXCLUDED"
+    assert not (gain & set(V.PERIOD_RELATED)), (
+        "DEFAULT_GAIN must exclude intervention-period process measures"
+    )
 
 
 def test_default_level_excludes_period_related():
@@ -137,7 +144,16 @@ def test_get_variable_name_falls_back_to_identifier():
     assert V.get_variable_name("no_such_var") == "no_such_var"
 
 
-def test_category_maps_are_nonempty_dicts():
+def test_category_maps_are_nonempty_mappings():
     for name in ("GENDER", "AREA", "GROUP", "TIME", "IMPAIRED", "NO_YES"):
         mapping = getattr(Categories, name)
-        assert isinstance(mapping, dict) and mapping
+        assert isinstance(mapping, Mapping) and mapping
+
+
+def test_schema_groups_are_read_only():
+    assert isinstance(V.NUMERIC, tuple)
+    assert isinstance(Predictors.DEFAULT_GAIN, tuple)
+    with pytest.raises(AttributeError):
+        V.NUMERIC.append("new_column")
+    with pytest.raises(TypeError):
+        Categories.GENDER[3] = "Other"

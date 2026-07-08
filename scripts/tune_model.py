@@ -46,6 +46,7 @@ from rich import print
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 
 import language_reading_predictors.data_utils as data_utils
+from language_reading_predictors import model_ids
 from language_reading_predictors.models._reporting import (
     metrics_table,
     params_table,
@@ -60,8 +61,11 @@ from language_reading_predictors.models.lgbm_signed_log_pipeline import (
 from language_reading_predictors.models.registry import MODELS
 from rich.panel import Panel
 
-_ROOT_DIR = Path(__file__).resolve().parent.parent
-_TUNING_DIR = _ROOT_DIR / "output" / "tuning"
+from language_reading_predictors import paths as _paths
+
+# GB tuning artefacts land under the configurable output root (#180); resolved at
+# write time via ``paths.gb_tuning_dir()`` so ``--output-dir`` and
+# ``DSE_LRP_OUTPUT_DIR`` both apply.
 
 
 # ── fixed (non-tuned) estimator kwargs ──────────────────────────────────
@@ -266,7 +270,9 @@ def tune(
     target_transform: str | None = None,
     alpha: float | None = None,
 ) -> None:
-    key = model_id.lower()
+    # Accept either a legacy id (``lrpgbg12``) or a canonical id
+    # (``lrp-rli-gbg-012``, any case/form), mirroring scripts/fit_model.py (#168).
+    key = model_ids.resolve_to_legacy(model_id).lower()
     if key not in MODELS:
         print(f"[bold red]Unknown model: {model_id}[/bold red]")
         print(f"Available: {', '.join(MODELS.keys())}")
@@ -346,7 +352,7 @@ def tune(
         gc_after_trial=True,
     )
 
-    out_dir = _TUNING_DIR / key
+    out_dir = _paths.gb_tuning_dir() / key
     out_dir.mkdir(parents=True, exist_ok=True)
 
     best = study.best_trial
@@ -398,7 +404,7 @@ def tune(
     # Stage all artifacts in a sibling temp directory, then swap them
     # in once every write has succeeded. This way a crash mid-write
     # leaves the previous tuning run untouched rather than wiping it.
-    with tempfile.TemporaryDirectory(prefix=f"{key}_", dir=_TUNING_DIR) as tmp:
+    with tempfile.TemporaryDirectory(prefix=f"{key}_", dir=_paths.gb_tuning_dir()) as tmp:
         staging = Path(tmp)
         (staging / "best_params.json").write_text(
             json.dumps(best_params_out, indent=2)
@@ -526,7 +532,20 @@ def main() -> None:
             "loss at α=0.5)."
         ),
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR); the relative layout is unchanged. Default: "
+            "repo-local output/."
+        ),
+    )
     args = parser.parse_args()
+
+    _paths.set_output_root(args.output_dir)
+    print(f"[bold]Output root:[/bold] {_paths.describe_output_root()}")
 
     tune(
         model_id=args.model,

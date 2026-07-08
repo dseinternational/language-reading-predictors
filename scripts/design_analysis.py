@@ -40,7 +40,7 @@ import numpy as np
 import pymc as pm
 from scipy import stats
 
-from language_reading_predictors.statistical_models import environment as _env
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models import reporting as _report
 from language_reading_predictors.statistical_models.factories import build_itt_model
 from language_reading_predictors.statistical_models.measures import MEASURES, ROPE_DELTA
@@ -52,15 +52,15 @@ warnings.filterwarnings("ignore")
 # Graded single-outcome ITT models, by module / symbol. Floored P, N (off-floor
 # Bernoulli tau) are excluded — they live on a probability scale.
 GRADED = [
-    ("lrpitt07", "L"),
-    ("lrpitt10", "W"),
-    ("lrpitt08", "B"),
-    ("lrpitt02", "TE"),
-    ("lrpitt01", "TR"),
-    ("lrpitt04", "UE"),
-    ("lrpitt03", "UR"),
-    ("lrpitt06", "E"),
-    ("lrpitt05", "R"),
+    ("lrp-rli-itt-007", "L"),
+    ("lrp-rli-itt-010", "W"),
+    ("lrp-rli-itt-008", "B"),
+    ("lrp-rli-itt-002", "TE"),
+    ("lrp-rli-itt-001", "TR"),
+    ("lrp-rli-itt-004", "UE"),
+    ("lrp-rli-itt-003", "UR"),
+    ("lrp-rli-itt-006", "E"),
+    ("lrp-rli-itt-005", "R"),
 ]
 LABELS = {m.symbol: m.label for m in MEASURES.values()}
 
@@ -224,19 +224,24 @@ def figure_rope(results, out_png, out_pdf):
     by = {r["sym"]: r for r in results}
     colors = {"L": "#1b7837", "W": "#762a83"}
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(12.5, 5.4))
-    delta_star = 1.0
     pair = [by["L"], by["W"]]
     xmax = max(np.quantile(r["items"], 0.995) for r in pair) + 0.5
 
     xgrid = np.linspace(-1.0, xmax, 400)
-    axL.axvspan(-delta_star, delta_star, color="#bdbdbd", alpha=0.30,
-                label=f"ROPE (|effect| < {delta_star:.0f} item)")
+    # Each outcome has its own adopted ROPE half-width (items scale): the shared
+    # ±1 band was wrong for L, whose adopted delta is 2 items. Draw a per-outcome
+    # band (matched to the outcome's colour) so the plot reflects ROPE_DELTA.
     axL.axvline(0, color="#444", lw=1.0, ls=":")
     for r in pair:
+        sym = r["sym"]
+        delta = ROPE_DELTA[sym]
+        item_word = "item" if delta == 1 else "items"
+        axL.axvspan(-delta, delta, color=colors[sym], alpha=0.10,
+                    label=f"{sym} ROPE (|effect| < {delta:g} {item_word})")
         kde = stats.gaussian_kde(r["items"])
-        axL.plot(xgrid, kde(xgrid), color=colors[r["sym"]], lw=2.4,
-                 label=f"{r['sym']} {LABELS[r['sym']]}")
-        axL.fill_between(xgrid, kde(xgrid), color=colors[r["sym"]], alpha=0.12)
+        axL.plot(xgrid, kde(xgrid), color=colors[sym], lw=2.4,
+                 label=f"{sym} {LABELS[sym]}")
+        axL.fill_between(xgrid, kde(xgrid), color=colors[sym], alpha=0.12)
     axL.set_xlabel("treatment effect (extra test items correct)")
     axL.set_ylabel("posterior density")
     axL.set_title("Posterior of the effect (items), with ROPE")
@@ -292,9 +297,20 @@ def main():
         action="store_true",
         help="also copy the figures into notes/assets/ to update the committed note",
     )
+    ap.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
     args = ap.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
 
-    out_dir = os.path.join(_env.STAT_OUTPUT_DIR, "models", "design_analysis")
+    out_dir = os.path.join(str(_paths.stat_models_dir()), "design_analysis")
     os.makedirs(out_dir, exist_ok=True)
 
     results = []
@@ -318,7 +334,7 @@ def main():
     print(f"\nWROTE {da_png}\nWROTE {rope_png}")
 
     if args.refresh_note:
-        notes_assets = os.path.join(_env.DOCS_DIR, "..", "notes", "assets")
+        notes_assets = os.path.join(str(_paths.DOCS_DIR), "..", "notes", "assets")
         notes_assets = os.path.normpath(notes_assets)
         os.makedirs(notes_assets, exist_ok=True)
         shutil.copy(da_png, os.path.join(notes_assets, "202606261304-type-s-m-design-analysis.png"))

@@ -35,15 +35,13 @@ from __future__ import annotations
 
 import argparse
 from itertools import combinations
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from rich import print
 from scipy import stats
 
-_ROOT_DIR = Path(__file__).resolve().parent.parent
-_MODELS_DIR = _ROOT_DIR / "output" / "models"
+from language_reading_predictors import paths as _paths
 
 # Metrics where lower is better (error metrics) vs higher is better (R²).
 _METRICS_LOWER_IS_BETTER = {"mae", "rmse", "medae"}
@@ -52,7 +50,7 @@ _ALL_METRICS = sorted(_METRICS_LOWER_IS_BETTER | _METRICS_HIGHER_IS_BETTER)
 
 
 def _load_cv(model_id: str) -> pd.DataFrame:
-    path = _MODELS_DIR / model_id / "cv_scores.csv"
+    path = _paths.gb_models_dir() / model_id / "cv_scores.csv"
     if not path.exists():
         msg = f"no cv_scores.csv for {model_id!r} at {path}"
         raise FileNotFoundError(msg)
@@ -175,7 +173,18 @@ def main() -> None:
         choices=_ALL_METRICS,
         help=f"Metrics to compare. Default: all ({_ALL_METRICS}).",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root to read from (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
     args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
 
     if len(args.models) < 2:
         print("[bold red]Need at least 2 models to compare.[/bold red]")

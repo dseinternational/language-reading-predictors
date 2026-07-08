@@ -1,0 +1,59 @@
+---
+title: "LRP57: Mechanism model — expressive vocabulary (E) -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP57 estimates the adjusted association $f^E$ between expressive vocabulary and word reading,
+using all three phase transitions.
+
+## Adjustment set
+
+- $G$ — standard confounder (linear, one coefficient $\beta_G$).
+- $A$ — standard confounder, conditioned on **linearly by default**: a
+  $\gamma_A\,z(\text{age})$ term enters whenever age is a declared confounder and
+  the age GP is off. The nonparametric age-GP flag is **off by default**; re-enable
+  via `ModelSpec.extra={"use_age_gp": True}` for a smooth-age sensitivity fit.
+- $R$ — *must* be conditioned on: $R \to E$ and $R \to W$, so $R$ opens a backdoor path.
+- $W_{\text{pre}}$ — baseline.
+
+$F$, $L$, $P$, $B$ are either descendants of $E$ or lie on post-$E$ mediation
+paths. Conditioning on them would block legitimate indirect effects and
+change the estimand toward a direct-only component, so they are **not** in the
+adjustment set.
+
+### Interpretation caveats
+
+- NUCA applies to $(E_{\text{post}}, W_{\text{post}})$ and is not testable.
+- $E_{\text{post}}$ is measured with error; attenuation applies as in LRP56.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mechanism.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

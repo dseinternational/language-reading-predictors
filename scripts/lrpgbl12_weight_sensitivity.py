@@ -46,8 +46,8 @@ Usage
 
 from __future__ import annotations
 
+import argparse
 import json
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -58,13 +58,24 @@ from sklearn.inspection import permutation_importance
 from sklearn.model_selection import GroupKFold
 
 import language_reading_predictors.data_utils as data_utils
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.models.registry import MODELS
 
-_ROOT_DIR = Path(__file__).resolve().parent.parent
-_OUTPUT_DIR = _ROOT_DIR / "output" / "sensitivity" / "lrpgbl12_weight"
+
+def _output_dir():
+    return _paths.output_root() / "sensitivity" / "lrpgbl12_weight"
 
 
 def _pooled_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
+    """Pooled OOF error metrics; R² is against the *global* target mean.
+
+    NOTE: this R² baseline (the pooled global mean of ``y_true``) is **not** the
+    pipeline's ``cv_pooled_r2`` convention, which uses each fold's *training* mean
+    as the denominator. This function's ``r2`` is therefore not directly comparable
+    in absolute terms to the pipeline artefact. It is used here only for the
+    weighted-vs-unweighted *contrast*, where both arms share this baseline, so the
+    contrast is valid even though the absolute level differs from the pipeline.
+    """
     residuals = y_true - y_pred
     abs_res = np.abs(residuals)
     ss_res = float(np.sum(residuals**2))
@@ -116,6 +127,14 @@ def _permutation_importance(
     weights: np.ndarray | None,
     n_repeats: int,
 ) -> pd.DataFrame:
+    """In-sample permutation importance (fit and permute on the SAME rows).
+
+    NOTE: unlike the pipeline's out-of-fold permutation importances, this fits on
+    the full dataset and then permutes those same (in-sample) rows, so the absolute
+    importances are systematically inflated relative to the pipeline artefact. Read
+    only the weighted-vs-unweighted *contrast* (both arms share this in-sample
+    procedure); do not compare these numbers directly to the pipeline's OOF values.
+    """
     est = LGBMRegressor(**{**params, "random_state": seed})
     fit_kwargs = {"sample_weight": weights} if weights is not None else {}
     est.fit(X, y, **fit_kwargs)
@@ -137,7 +156,22 @@ def _permutation_importance(
 
 
 def main() -> None:
-    _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
+    args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
+
+    out_dir = _output_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = MODELS["lrpgbl12"]
     print(f"Model: {cfg.model_id}")
@@ -249,14 +283,26 @@ def main() -> None:
         comparison["rank_weighted"] - comparison["rank_unweighted"]
     )
     comparison = comparison.sort_values("imp_unweighted", ascending=False)
+    # Stamp the caveat onto the artefact itself: these are in-sample importances
+    # (fit + permute on the same full-dataset rows), NOT the pipeline's OOF values,
+    # so only the weighted-vs-unweighted contrast is comparable in absolute terms.
+    comparison["note"] = "in-sample; contrast-only (not OOF-comparable)"
 
-    comparison_path = _OUTPUT_DIR / "importance_comparison.csv"
+    comparison_path = out_dir / "importance_comparison.csv"
     comparison.to_csv(comparison_path, index=False)
     print(f"\nSaved: {comparison_path}")
     print(comparison.to_string(index=False))
 
     # ── Metrics JSON ────────────────────────────────────────────────────
     metrics = {
+        "note": (
+            "Sensitivity contrast only. Pooled R² uses the GLOBAL target mean "
+            "(not the pipeline's per-fold training-mean cv_pooled_r2), and "
+            "permutation importances are IN-SAMPLE (fit + permute on the same "
+            "full-dataset rows, not out-of-fold). Absolute values are therefore "
+            "not comparable to the pipeline artefact; only the weighted-vs-"
+            "unweighted contrast is a valid read."
+        ),
         "n_observations": int(len(X)),
         "n_subjects": int(groups.nunique()),
         "cv_splits": int(cv_splits),
@@ -269,8 +315,8 @@ def main() -> None:
         ),
         "pooled_oof_dropped_agebooks_agespeak": metrics_dropped,
     }
-    (_OUTPUT_DIR / "metrics.json").write_text(json.dumps(metrics, indent=2))
-    print(f"Saved: {_OUTPUT_DIR / 'metrics.json'}")
+    (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
+    print(f"Saved: {out_dir / 'metrics.json'}")
     print("\nPooled OOF metrics:")
     print(f"  Unweighted model (13 predictors):    {metrics_unweighted}")
     print(f"  Weighted model (unweighted scoring): {metrics_weighted}")
@@ -309,7 +355,7 @@ def main() -> None:
     ax.legend(loc="lower right")
     ax.grid(axis="x", alpha=0.3)
     fig.tight_layout()
-    plot_path = _OUTPUT_DIR / "importance_comparison.png"
+    plot_path = out_dir / "importance_comparison.png"
     fig.savefig(plot_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {plot_path}")

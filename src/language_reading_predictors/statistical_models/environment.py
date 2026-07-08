@@ -1,18 +1,22 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Paths used by the statistical models package."""
+"""Paths for the statistical-models package.
 
-import os
+Thin compatibility shim over :mod:`language_reading_predictors.paths` (issue
+#180): the constants below reflect the ``DSE_LRP_OUTPUT_DIR`` environment
+override at import time. Code that must *also* honour a CLI ``--output-dir`` set
+after import (the fit / compare / upload scripts, via ``paths.set_output_root``)
+calls the :mod:`~language_reading_predictors.paths` functions directly.
+"""
 
-_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
-_SRC_DIR = os.path.dirname(os.path.dirname(_MODULE_DIR))
+from language_reading_predictors import paths as _paths
 
-ROOT_DIR = os.path.dirname(_SRC_DIR)
-DATA_DIR = os.path.join(ROOT_DIR, "data")
-OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
-STAT_OUTPUT_DIR = os.path.join(OUTPUT_DIR, "statistical_models")
-DOCS_DIR = os.path.join(ROOT_DIR, "docs")
+ROOT_DIR = str(_paths.ROOT_DIR)
+DATA_DIR = str(_paths.DATA_DIR)
+DOCS_DIR = str(_paths.DOCS_DIR)
+OUTPUT_DIR = str(_paths.output_root())
+STAT_OUTPUT_DIR = str(_paths.stat_dir())
 
 
 def init_plotting() -> None:

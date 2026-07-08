@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 
 import arviz as az
 import numpy as np
@@ -15,6 +16,7 @@ import xarray as xr
 from dse_research_utils.statistics.evidence import evidence_label, odds_string
 from scipy.special import expit
 
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
@@ -35,6 +37,51 @@ def _hdi_bounds(draws: np.ndarray, prob: float) -> tuple[float, float]:
     return float(lo), float(hi)
 
 
+def _eti_bands(
+    draws: np.ndarray, *, probs: tuple[float, ...] = (0.5, 0.9, 0.95)
+) -> dict[str, float]:
+    """Equal-tailed interval bounds at each coverage in ``probs``, keyed
+    ``lo{pct}`` / ``hi{pct}`` (e.g. ``lo50`` / ``hi50``).
+
+    The suite's fixed posterior-band convention (#177): the central **50%**
+    interval (where the middle half of the posterior mass sits — a visual aid, not
+    a decision threshold), the equal-tailed **90%** sensitivity / compatibility
+    band, and the equal-tailed **95%** headline interval. Equal-tailed throughout
+    (see ``METHODS.md``); the HDI/HPDI is a separate per-scale sensitivity
+    companion (:func:`_hdi_bounds`) and is never labelled with an ``eti`` band key.
+    """
+    draws = np.asarray(draws, dtype=float)
+    out: dict[str, float] = {}
+    for p in probs:
+        lo, hi = np.quantile(draws, [(1 - p) / 2, 1 - (1 - p) / 2])
+        pct = int(round(p * 100))
+        out[f"lo{pct}"] = float(lo)
+        out[f"hi{pct}"] = float(hi)
+    return out
+
+
+def favoured_direction(prob_positive: float) -> dict[str, float | str]:
+    """Evidence for the *favoured* direction of a signed effect (#179).
+
+    :func:`evidence_label` needs a probability already oriented to a **named**
+    claim. For a sign claim the favoured direction is ``"positive"`` when
+    ``P(effect > 0) >= 0.5`` else ``"negative"``; the claim probability is
+    ``max(P>0, P<0)`` and the label qualifies the evidence for THAT direction — so
+    a clearly negative effect reads as strong evidence of harm / a negative
+    association rather than the "inconclusive" that ``evidence_label(P>0)`` returns
+    for the *positive* claim. The raw ``P(effect > 0)`` is still reported
+    separately (the benefit claim); callers supply the direction words (benefit /
+    harm for treatment effects, positive / negative for associations).
+    """
+    p_pos = float(prob_positive)
+    prob = max(p_pos, 1.0 - p_pos)
+    return {
+        "favoured_direction": "positive" if p_pos >= 0.5 else "negative",
+        "favoured_direction_prob": prob,
+        "favoured_direction_label": evidence_label(prob),
+    }
+
+
 def _itt_ame_draws(
     trace: xr.DataTree,
     *,
@@ -42,6 +89,7 @@ def _itt_ame_draws(
     term: str = "tau",
     varying_term: str = "tau_i",
     eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     group: str = "posterior",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Per-draw treatment effect and its probability-scale average marginal effect.
@@ -53,6 +101,20 @@ def _itt_ame_draws(
     observations. ``δ_i`` is the constant ``term`` (``tau``) broadcast over
     observations, or the per-observation ``varying_term`` (``tau_i``) when the model
     carries an age-varying effect.
+
+    ``moderators`` handles treatment×covariate interactions: a sequence of
+    ``(coefficient_name, moderator_vector)`` pairs whose contributions are *added*
+    to ``δ_i`` per observation, so ``δ_i = base_i + Σ_k c_k · m_{k,i}``. This makes
+    the counterfactual net out (and toggle) the *full* per-row treatment
+    contribution — the treatment main effect plus every fitted treatment
+    interaction — rather than the main effect alone. The gain family passes its
+    ``gamma_int_trt_*`` coefficients with the standardised moderator vectors the
+    factory used (via ``BuiltModel.extras``); the ITT Part-B moderator passes
+    ``gamma_tau_int``. Interaction terms that do **not** involve treatment
+    (e.g. ``age×ability``) are unchanged between the treated and untreated
+    counterfactual, so they stay inside ``η`` and correctly cancel — they must
+    *not* be listed here. Each moderator vector must align with ``eta``'s
+    ``obs_id`` axis.
 
     Returns ``(term_draws, ame_prob)`` — the logit-scale effect draws ``(S,)`` and
     the probability-scale average marginal effect per draw ``(S,)``. Both
@@ -91,6 +153,22 @@ def _itt_ame_draws(
         )  # (n_obs, S)
     else:
         delta = term_draws[None, :]  # (1, S)
+    # Add each treatment interaction's per-row contribution ``c_k · m_{k,i}``, which
+    # promotes ``delta`` to (n_obs, S) on the first addition.
+    for coef_name, mod_vec in moderators or ():
+        if coef_name not in posterior:
+            raise KeyError(
+                f"moderator coefficient {coef_name!r} not in the {group} group; "
+                "the model must register it for the interaction-aware AME."
+            )
+        coef_draws = posterior[coef_name].stack(sample=("chain", "draw")).values.ravel()  # (S,)
+        mod = np.asarray(mod_vec, dtype=float)
+        if mod.shape[0] != eta.shape[0]:
+            raise ValueError(
+                f"moderator {coef_name!r} has {mod.shape[0]} rows but eta has "
+                f"{eta.shape[0]} observations; pass the fitted-subset vector."
+            )
+        delta = delta + np.outer(mod, coef_draws)  # (n_obs, S)
     eta0 = eta - delta * G[:, None]  # untreated baseline (G=0 = control) per obs/draw
     ame_prob = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
     return term_draws, ame_prob
@@ -101,6 +179,7 @@ def tau_summary_itt(
     *,
     ci_prob: float,
     G: np.ndarray,
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
 
@@ -130,37 +209,60 @@ def tau_summary_itt(
     ``G`` is the per-observation treatment indicator from the *fitted* prepared
     data (``built.prepared.G``), aligned with ``eta``'s ``obs_id`` axis.
 
-    ``ci_prob`` names the *coverage* probability. The ``*_lo`` / ``*_hi`` values
-    are equal-tailed central quantiles (the primary reported interval); the
-    ``*_hpdi_lo`` / ``*_hpdi_hi`` values are the highest-density interval (HPDI)
-    at the same coverage — a per-scale sensitivity companion (see
-    :func:`_hdi_bounds`), not a replacement, since the HPDI is not
-    transformation-invariant across the logit and probability scales.
+    ``ci_prob`` names the *coverage* probability of the headline interval. The
+    ``*_lo`` / ``*_hi`` values are the equal-tailed headline credible interval
+    (95% by default); ``*_lo50`` / ``*_hi50`` (the central 50% interval, a visual
+    aid) and ``*_lo90`` / ``*_hi90`` (the equal-tailed 90% sensitivity band) follow
+    the fixed band convention (#177, see :func:`_eti_bands`). The ``*_hpdi_lo`` /
+    ``*_hpdi_hi`` values are the highest-density interval (HPDI) at ``ci_prob`` — a
+    per-scale sensitivity companion (see :func:`_hdi_bounds`), not a replacement,
+    since the HPDI is not transformation-invariant across the logit and
+    probability scales.
     """
-    tau_draws, marginal = _itt_ame_draws(trace, G=G)
+    tau_draws, marginal = _itt_ame_draws(trace, G=G, moderators=moderators)
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_median = float(np.median(tau_draws))
     lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
     tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(tau_draws, ci_prob)
+    tau_b = _eti_bands(tau_draws, probs=(0.5, 0.9))
     marg_median = float(np.median(marginal))
     marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
     marg_hpdi_lo, marg_hpdi_hi = _hdi_bounds(marginal, ci_prob)
+    marg_b = _eti_bands(marginal, probs=(0.5, 0.9))
     prob_pos = float(np.mean(tau_draws > 0))
+    # Posterior mean retained as a *secondary* field on each scale (issue #144):
+    # the median leads (transformation-invariant, and it discounts the
+    # winner's-curse right tail), but the mean is kept available for reference.
+    tau_mean = float(np.mean(tau_draws))
+    marg_mean = float(np.mean(marginal))
 
+    # Fixed band convention (#177): central 50% (visual aid) + equal-tailed 90%
+    # (sensitivity) alongside the equal-tailed 95% headline (``*_lo`` / ``*_hi``).
     return {
         "tau_logit_median": tau_median,
+        "tau_logit_mean": tau_mean,
+        "tau_logit_lo50": tau_b["lo50"],
+        "tau_logit_hi50": tau_b["hi50"],
+        "tau_logit_lo90": tau_b["lo90"],
+        "tau_logit_hi90": tau_b["hi90"],
         "tau_logit_lo": float(lower),
         "tau_logit_hi": float(upper),
         "tau_logit_hpdi_lo": tau_hpdi_lo,
         "tau_logit_hpdi_hi": tau_hpdi_hi,
         "tau_prob_median": marg_median,
+        "tau_prob_mean": marg_mean,
+        "tau_prob_lo50": marg_b["lo50"],
+        "tau_prob_hi50": marg_b["hi50"],
+        "tau_prob_lo90": marg_b["lo90"],
+        "tau_prob_hi90": marg_b["hi90"],
         "tau_prob_lo": float(marg_lo),
         "tau_prob_hi": float(marg_hi),
         "tau_prob_hpdi_lo": marg_hpdi_lo,
         "tau_prob_hpdi_hi": marg_hpdi_hi,
         "prob_tau_pos": prob_pos,
         "direction_label": evidence_label(prob_pos),
+        **favoured_direction(prob_pos),
     }
 
 
@@ -216,14 +318,38 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
         "separate **direction** (is there a benefit?) from **magnitude** (is it big enough "
         f"to matter?), judged against a minimally-important difference δ on the {unit} scale.\n"
     )
+    # Direction claim, harm-aware (#179): lead with P(helps) + odds, then state the
+    # favoured-direction evidence so a negative effect reads as evidence of harm,
+    # not the "inconclusive" that a benefit-only label would give. Guarded so an
+    # older rope_summary.csv without the favoured fields still renders.
+    _fav = str(r.get("favoured_direction", "positive"))
+    _fav_prob = float(r.get("favoured_direction_prob", r["pd"]))
+    _fav_label = str(r.get("favoured_direction_label", r["direction_label"]))
+    if is_rd:
+        _fav_claim = (
+            "the intervention raises the off-floor probability"
+            if _fav == "positive"
+            else "the intervention lowers the off-floor probability"
+        )
+    else:
+        _fav_claim = (
+            "the intervention helps"
+            if _fav == "positive"
+            else "the intervention is harmful"
+        )
+    direction_clause = (
+        f"**Direction** — P(intervention helps) = {r['pd']:.3f} "
+        f"({odds_string(r['pd'])}); favoured direction: {_fav_claim} — "
+        f"*{_fav_label} evidence* (P = {_fav_prob:.3f})."
+    )
     parts.append(
         f"The intervention changed {outcome_label} by a median of "
         f"**{r['items_median'] * scale:+.1f} {unit}**{prov} "
-        f"(50% CrI {r['items_lo50'] * scale:+.1f} to {r['items_hi50'] * scale:+.1f}; "
-        f"equal-tailed 95% CrI {r['items_lo'] * scale:+.1f} to "
+        f"(central 50% interval {r['items_lo50'] * scale:+.1f} to "
+        f"{r['items_hi50'] * scale:+.1f}; "
+        f"equal-tailed 95% credible interval {r['items_lo'] * scale:+.1f} to "
         f"{r['items_hi'] * scale:+.1f}). "
-        f"**Direction** — evidence it helps: pd = {r['pd']:.3f} "
-        f"({odds_string(r['pd'])}, *{r['direction_label']} evidence*). "
+        f"{direction_clause} "
         f"**Magnitude** — evidence the benefit is at least δ = {r['delta_items'] * scale:g} "
         f"{unit}: P = {r['prob_benefit_ge_delta']:.3f} "
         f"({odds_string(r['prob_benefit_ge_delta'])}, *{r['benefit_label']} evidence*); "
@@ -270,10 +396,14 @@ def _rope_card(
     p_benefit = float(np.mean(items >= delta))
     tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(effect_draws, ci_prob)
     items_hpdi_lo, items_hpdi_hi = _hdi_bounds(items, ci_prob)
+    tau_b90 = _eti_bands(effect_draws, probs=(0.9,))
+    items_b90 = _eti_bands(items, probs=(0.9,))
     return {
         "tau_logit_median": float(np.median(effect_draws)),
         "tau_logit_lo50": float(np.quantile(effect_draws, 0.25)),
         "tau_logit_hi50": float(np.quantile(effect_draws, 0.75)),
+        "tau_logit_lo90": tau_b90["lo90"],
+        "tau_logit_hi90": tau_b90["hi90"],
         "tau_logit_lo": float(np.quantile(effect_draws, lo_q)),
         "tau_logit_hi": float(np.quantile(effect_draws, hi_q)),
         "tau_logit_hpdi_lo": tau_hpdi_lo,
@@ -281,6 +411,8 @@ def _rope_card(
         "items_median": float(np.median(items)),
         "items_lo50": float(np.quantile(items, 0.25)),
         "items_hi50": float(np.quantile(items, 0.75)),
+        "items_lo90": items_b90["lo90"],
+        "items_hi90": items_b90["hi90"],
         "items_lo": float(np.quantile(items, lo_q)),
         "items_hi": float(np.quantile(items, hi_q)),
         "items_hpdi_lo": items_hpdi_lo,
@@ -292,6 +424,7 @@ def _rope_card(
         "prob_harm_ge_delta": float(np.mean(items <= -delta)),
         "direction_label": evidence_label(pd_),
         "benefit_label": evidence_label(p_benefit),
+        **favoured_direction(pd_),
     }
 
 
@@ -305,6 +438,7 @@ def rope_summary(
     term: str = "tau",
     varying_term: str = "tau_i",
     eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
 ) -> dict[str, float | str]:
     """ROPE-anchored continuous report card for a randomised treatment effect.
 
@@ -330,10 +464,90 @@ def rope_summary(
     (sign-vs-size, the median convention, the δ choice).
     """
     effect_draws, ame_prob = _itt_ame_draws(
-        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name
+        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name,
+        moderators=moderators,
     )
     items = ame_prob * float(n_trials)
     return _rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
+
+
+def rope_sensitivity(
+    trace: xr.DataTree,
+    *,
+    G: np.ndarray,
+    n_trials: int,
+    deltas: Sequence[float],
+    term: str = "tau",
+    varying_term: str = "tau_i",
+    eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
+) -> pd.DataFrame:
+    """How the meaningful-benefit claim moves as the threshold δ varies (issue #144).
+
+    A δ-sensitivity view of :func:`rope_summary`: the ``P(benefit ≥ δ)`` headline is
+    only as robust as the δ choice, so this sweeps a grid of δ and returns one row per
+    δ — ``prob_benefit_ge_delta``, ``prob_in_rope``, ``prob_harm_ge_delta`` and the
+    round-odds ``benefit_label``. The education lead's decision (2026-07-01, issue
+    #144) is to show this for **all** outcomes, with word reading at δ = 1 and δ = 2;
+    the floored outcomes sweep the risk-difference scale (10/15/20 pp).
+
+    Built on the single :func:`_itt_ame_draws` pass (``items = AME × n_trials``), so
+    the whole table is one forward computation and cannot drift from the headline
+    :func:`rope_summary` card. ``term`` / ``varying_term`` / ``eta_name`` select the
+    randomised effect exactly as :func:`rope_summary` does (the floored path passes
+    ``n_trials=1`` and ``varying_term=""`` so ``items`` is the risk difference).
+    """
+    _effect_draws, ame_prob = _itt_ame_draws(
+        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name,
+        moderators=moderators,
+    )
+    items = ame_prob * float(n_trials)
+    rows: list[dict[str, float | str]] = []
+    for d in deltas:
+        d = float(d)
+        p_benefit = float(np.mean(items >= d))
+        rows.append(
+            {
+                "delta_items": d,
+                "prob_benefit_ge_delta": p_benefit,
+                "prob_in_rope": float(np.mean(np.abs(items) <= d)),
+                "prob_harm_ge_delta": float(np.mean(items <= -d)),
+                "benefit_label": evidence_label(p_benefit),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def rope_sensitivity_markdown(
+    sens: pd.DataFrame, *, is_risk_difference: bool = False
+) -> str:
+    """Render the δ-sensitivity sweep (:func:`rope_sensitivity`) as a markdown table.
+
+    Shared by the ITT and floored result partials so the δ-robustness view cannot
+    drift between archetypes. ``is_risk_difference`` reports δ and the effect on the
+    percentage-point (risk-difference) scale for the floored outcomes; otherwise the
+    items scale.
+    """
+    scale = 100.0 if is_risk_difference else 1.0
+    unit = "pp" if is_risk_difference else "items"
+    # Render by ascending δ so the row order (and the prose below) can't drift from
+    # the caller's ``deltas`` order or a future grid refactor: the adopted δ is the
+    # smallest in the sweep, stricter δ follow.
+    sens = sens.sort_values("delta_items")
+    lines = [
+        "**δ-sensitivity** — how the meaningful-benefit claim moves as the "
+        f"minimally-important difference δ rises (δ on the {unit} scale). Rows are in "
+        "ascending δ: the top row is the adopted (smallest) δ, stricter δ below it:\n",
+        f"| δ ({unit}) | P(benefit ≥ δ) | P(inside ROPE) | P(harm ≥ δ) | evidence |",
+        "| ---: | ---: | ---: | ---: | :--- |",
+    ]
+    for _, r in sens.iterrows():
+        lines.append(
+            f"| {r['delta_items'] * scale:g} | {r['prob_benefit_ge_delta']:.3f} | "
+            f"{r['prob_in_rope']:.3f} | {r['prob_harm_ge_delta']:.3f} | "
+            f"{r['benefit_label']} |"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def prior_pushforward(
@@ -344,6 +558,7 @@ def prior_pushforward(
     term: str = "tau",
     varying_term: str = "tau_i",
     eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     ci_prob: float = 0.95,
 ) -> dict[str, float]:
     """Push the **prior** on the effect through the items-scale AME (issue #125 Area 1/2).
@@ -363,6 +578,7 @@ def prior_pushforward(
         term=term,
         varying_term=varying_term,
         eta_name=eta_name,
+        moderators=moderators,
         group="prior",
     )
     items = ame_prob * float(n_trials)
@@ -500,6 +716,8 @@ def did_summary(
             f"{name}_hi": float(np.quantile(d, hi_q)),
             f"prob_{name}_pos": prob_pos,
             f"{name}_direction_label": evidence_label(prob_pos),
+            f"{name}_favoured_direction": "positive" if prob_pos >= 0.5 else "negative",
+            f"{name}_favoured_label": evidence_label(max(prob_pos, 1.0 - prob_pos)),
         }
 
     out: dict[str, float] = {}
@@ -646,6 +864,13 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
     spec = context.spec
     cfg = {
         "model_id": spec.model_id,
+        # Canonical model-ID scheme (#168 Phase 1); legacy id stays primary.
+        "canonical_model_id": spec.canonical_model_id,
+        "legacy_model_id": spec.legacy_model_id,
+        "family_code": spec.family_code,
+        "study_code": spec.study_code,
+        "variant_role": spec.variant_role,
+        "parent_model_id": spec.parent_model_id,
         "kind": spec.kind,
         "title": spec.title,
         "outcome_symbol": spec.outcome_symbol,
@@ -672,6 +897,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
             "target_accept": context.sampling.target_accept,
             "random_seed": context.sampling.random_seed,
         },
+        "output_root": str(_paths.output_root()),
         "extra": extra or {},
     }
     with open(os.path.join(out, "config.json"), "w") as f:
@@ -694,9 +920,18 @@ def loo_delta(loo_a: az.ELPDData, loo_b: az.ELPDData) -> dict[str, float]:
     ``elpd_loo`` was renamed); ``dse`` is unchanged.
     """
     df = az.compare({"a": loo_a, "b": loo_b})
+    # ``az.compare`` reports ``dse`` relative to the top-ranked (reference) model,
+    # whose own ``dse`` is 0; the SE of the ELPD difference sits on the *other*
+    # row. Reading ``df.loc["a", "dse"]`` returns 0 whenever "a" ranks first
+    # (misleadingly certain). The pairwise difference SE is the single non-zero
+    # ``dse`` across the two rows, so take the max (the reference's is exactly 0).
+    if "dse" in df.columns:
+        d_se = float(max(df.loc["a", "dse"], df.loc["b", "dse"]))
+    else:
+        d_se = float("nan")
     return {
         "d_elpd": float(df.loc["a", "elpd"] - df.loc["b", "elpd"]),
-        "d_se": float(df.loc["a", "dse"]) if "dse" in df.columns else float("nan"),
+        "d_se": d_se,
     }
 
 
@@ -710,8 +945,9 @@ def factor_summary(
     """Per-coefficient posterior summary for a factor model (LRPGF / LRPLF, #127).
 
     One row per coefficient in ``coef_names`` present in the trace: posterior
-    ``mean``, equal-tailed central interval at coverage ``ci_prob`` (``lo``/``hi``,
-    same convention as :func:`tau_summary_itt`), and ``prob_positive`` =
+    ``median`` (the house headline statistic), posterior ``mean`` (secondary),
+    equal-tailed central interval at coverage ``ci_prob`` (``lo``/``hi``, same
+    convention as :func:`tau_summary_itt`), and ``prob_positive`` =
     ``P(coef > 0)``. The ``role`` column labels each term **causal** (the
     randomised treatment terms named in ``causal_terms``) or **association** —
     under the locked DAG every non-randomised coefficient is an adjusted
@@ -728,11 +964,13 @@ def factor_summary(
         return {
             "term": term,
             "role": "causal" if causal else "association",
+            "median": float(np.median(d)),
             "mean": float(np.mean(d)),
             "lo": float(np.quantile(d, lo_q)),
             "hi": float(np.quantile(d, hi_q)),
             "prob_positive": prob_pos,
             "direction_label": evidence_label(prob_pos),
+            **favoured_direction(prob_pos),
         }
 
     rows: list[dict[str, object]] = []
@@ -755,6 +993,56 @@ def factor_summary(
     return pd.DataFrame(rows)
 
 
+def growth_association_summary(
+    trace: xr.DataTree,
+    *,
+    coefs: tuple[str, ...] = ("gamma", "delta", "beta", "loading"),
+    ci_prob: float = 0.95,
+) -> pd.DataFrame:
+    """Per-(coefficient, outcome) posterior summary for the growth models (LRP69/70).
+
+    One row per element of each vector coefficient in ``coefs`` (each carries the
+    ``outcome`` dim): the posterior **median** (the house lead statistic, robust to
+    the Type-M inflation at this n), the fixed 50 / 90 / 95 equal-tailed bands
+    (:func:`_eti_bands`, #177), ``prob_positive`` = ``P(coef > 0)`` and the
+    evidence-language fields (:func:`favoured_direction`, #179).
+
+    ``gamma`` (baseline non-verbal ability -> growth *rate*) is the headline Q5
+    estimand; ``delta`` is the effect on baseline *level*; ``beta`` is the mean
+    slope (trajectory characterisation); ``loading`` is the shared growth-tempo
+    loading present only in the factor model (LRP70) and skipped otherwise. Every
+    row is an **adjusted association** (``role`` fixed to ``"association"``): under
+    the locked DAG these non-randomised, latent-GA-confounded terms are never read
+    as "drives". ``ci_prob`` is retained for signature parity with
+    :func:`factor_summary`; the reported bands are the fixed 50/90/95 set.
+    """
+    posterior = trace.posterior
+    rows: list[dict[str, object]] = []
+    for coef in coefs:
+        if coef not in posterior:
+            continue
+        da = posterior[coef]
+        outcome_dim = "outcome" if "outcome" in da.dims else None
+        labels = list(da[outcome_dim].values) if outcome_dim else [coef]
+        for lab in labels:
+            sub = da.sel({outcome_dim: lab}) if outcome_dim else da
+            d = sub.stack(sample=("chain", "draw")).values.ravel()
+            prob_pos = float(np.mean(d > 0))
+            rows.append(
+                {
+                    "coefficient": coef,
+                    "outcome": str(lab),
+                    "role": "association",
+                    "median": float(np.median(d)),
+                    "prob_positive": prob_pos,
+                    "direction_label": evidence_label(prob_pos),
+                    **_eti_bands(d),
+                    **favoured_direction(prob_pos),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def treatment_marginal_effect(
     trace: xr.DataTree,
     *,
@@ -762,6 +1050,7 @@ def treatment_marginal_effect(
     n_trials: int,
     term: str = "beta_trt",
     eta_name: str = "eta",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     ci_prob: float = 0.95,
 ) -> dict[str, float]:
     """Items-scale average marginal effect of the treatment term (LRPGF, #127).
@@ -769,9 +1058,13 @@ def treatment_marginal_effect(
     A thin wrapper over the shared counterfactual-AME core :func:`_itt_ame_draws`
     (#130): the gain model's treatment term ``term`` (``beta_trt``) plays the role of
     the ITT ``tau`` and the on-intervention indicator ``trt`` the role of ``G``, with
-    no age-varying term. Per draw the core forms ``eta0 = eta - term*trt`` (all off)
-    and averages ``expit(eta0 + term) - expit(eta0)`` over observations; this folds
-    onto that core so the two parameterisations of the same quantity cannot drift.
+    no age-varying term. Per draw the core forms the untreated baseline by removing
+    the *full* per-row treatment contribution and toggles it back on: with
+    ``moderators`` giving the fitted treatment interactions
+    ``(gamma_int_trt_k, z_k)``, the effect is ``beta_trt + Σ_k gamma_int_trt_k·z_{k,i}``
+    per row, so the reported AME reflects the treatment main effect *and* its
+    interactions rather than ``beta_trt`` alone. This folds onto that core so the
+    two parameterisations of the same quantity cannot drift.
 
     Reported on the probability and items scales (``n_trials`` × probability) with an
     equal-tailed ``ci_prob`` interval. Point estimates are the **median** —
@@ -780,7 +1073,8 @@ def treatment_marginal_effect(
     reporting.md). ``prob_trt_pos`` is ``P(term > 0)`` on the logit scale.
     """
     b, ame_prob = _itt_ame_draws(
-        trace, G=trt, term=term, varying_term="", eta_name=eta_name
+        trace, G=trt, term=term, varying_term="", eta_name=eta_name,
+        moderators=moderators,
     )
     ame_items = float(n_trials) * ame_prob
     lo_q = (1 - ci_prob) / 2

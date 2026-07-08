@@ -1,5 +1,7 @@
----
-abstract: "TODO"
----
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
 
 # Preface {.unnumbered}
+
+This integrated report is a draft scaffold. Until the study-level narrative chapters are completed and reviewed, use the model-level reports in `docs/models/` and the generated outputs under `output/statistical_models/` as the detailed source for model definitions, diagnostics, and results.

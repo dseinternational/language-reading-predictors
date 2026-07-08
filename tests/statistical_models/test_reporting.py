@@ -13,10 +13,15 @@ import xarray as xr
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
+    _eti_bands,
     evidence_label,
+    favoured_direction,
     level_t2_marginal_effect,
     offfloor_mover_table,
     proportion_at_zero_ppc,
+    rope_markdown,
+    rope_sensitivity,
+    rope_sensitivity_markdown,
     rope_summary,
     tau_moderation_summary,
     tau_summary_itt,
@@ -129,6 +134,125 @@ def test_rope_summary_matches_reference():
     )
     assert out["direction_label"] == evidence_label(out["pd"])
     assert out["benefit_label"] == evidence_label(out["prob_benefit_ge_delta"])
+
+
+def test_rope_delta_grid():
+    from language_reading_predictors.statistical_models.measures import (
+        ROPE_DELTA_PROB_GRID,
+        rope_delta_grid,
+    )
+
+    # Word reading reports at δ = 1 and δ = 2 (education-lead decision, #144); the
+    # grid is [δ, 2·δ] on the items scale.
+    assert rope_delta_grid("W") == [1.0, 2.0]
+    assert rope_delta_grid("L") == [2.0, 4.0]
+    # Floored outcomes have no items grid; they use the risk-difference grid.
+    with pytest.raises(KeyError):
+        rope_delta_grid("P")
+    assert ROPE_DELTA_PROB_GRID == (0.10, 0.15, 0.20)
+
+
+def test_tau_summary_itt_retains_mean_secondary():
+    # The median leads, but the posterior mean is kept as a secondary field (#144).
+    rng = np.random.default_rng(3)
+    n_obs = 10
+    eta = rng.normal(0.0, 1.0, (2, 300, n_obs))
+    tau = rng.normal(0.5, 0.3, (2, 300))
+    G = (rng.random(n_obs) > 0.5).astype(float)
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.9, G=G)
+    assert out["tau_logit_mean"] == pytest.approx(float(np.mean(tau)))
+    # tau_prob_mean is the mean of the per-draw AME (companion to tau_prob_median).
+    tau_flat = tau.reshape(-1)
+    eta_flat = eta.reshape(-1, n_obs)
+    eta0 = eta_flat - tau_flat[:, None] * G[None, :]
+    ame = (expit(eta0 + tau_flat[:, None]) - expit(eta0)).mean(axis=1)
+    assert out["tau_prob_mean"] == pytest.approx(float(np.mean(ame)))
+    # The lead statistic is still the median.
+    assert out["tau_logit_median"] == pytest.approx(float(np.median(tau)))
+
+
+def test_rope_sensitivity_sweeps_deltas():
+    rng = np.random.default_rng(1)
+    n_chain, n_draw, n_obs = 2, 400, 12
+    eta = rng.normal(0.0, 1.0, (n_chain, n_draw, n_obs))
+    tau = rng.normal(0.4, 0.2, (n_chain, n_draw))
+    G = (rng.random(n_obs) > 0.5).astype(float)
+    n_trials = 30
+    deltas = [1.0, 2.0, 3.0]
+
+    sens = rope_sensitivity(_trace(eta, tau), G=G, n_trials=n_trials, deltas=deltas)
+
+    # One row per delta, preserving order.
+    assert list(sens["delta_items"]) == deltas
+    # Reference items AME (same construction as test_rope_summary_matches_reference).
+    tau_flat = tau.reshape(-1)
+    eta_flat = eta.reshape(-1, n_obs)
+    eta0 = eta_flat - tau_flat[:, None] * G[None, :]
+    ame = (expit(eta0 + tau_flat[:, None]) - expit(eta0)).mean(axis=1)
+    items = ame * n_trials
+    for _, r in sens.iterrows():
+        d = r["delta_items"]
+        assert r["prob_benefit_ge_delta"] == pytest.approx(float(np.mean(items >= d)))
+        assert r["prob_in_rope"] == pytest.approx(float(np.mean(np.abs(items) <= d)))
+        assert r["prob_harm_ge_delta"] == pytest.approx(float(np.mean(items <= -d)))
+        assert r["benefit_label"] == evidence_label(r["prob_benefit_ge_delta"])
+    # P(benefit ≥ δ) is non-increasing as δ rises.
+    pb = list(sens["prob_benefit_ge_delta"])
+    assert pb == sorted(pb, reverse=True)
+
+
+def test_rope_sensitivity_agrees_with_rope_summary_at_shared_delta():
+    # The sweep and the headline card share the AME core, so they agree on
+    # P(benefit ≥ δ) at a common δ (issue #144).
+    rng = np.random.default_rng(2)
+    eta = rng.normal(0.0, 1.0, (2, 300, 10))
+    tau = rng.normal(0.3, 0.2, (2, 300))
+    G = (rng.random(10) > 0.5).astype(float)
+    card = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.9)
+    sens = rope_sensitivity(_trace(eta, tau), G=G, n_trials=20, deltas=[1.0])
+    assert sens.iloc[0]["prob_benefit_ge_delta"] == pytest.approx(
+        card["prob_benefit_ge_delta"]
+    )
+
+
+def test_rope_sensitivity_markdown_renders():
+    import pandas as pd
+
+    df = pd.DataFrame(
+        [
+            {
+                "delta_items": 1.0,
+                "prob_benefit_ge_delta": 0.90,
+                "prob_in_rope": 0.05,
+                "prob_harm_ge_delta": 0.01,
+                "benefit_label": "moderate",
+            },
+            {
+                "delta_items": 2.0,
+                "prob_benefit_ge_delta": 0.40,
+                "prob_in_rope": 0.30,
+                "prob_harm_ge_delta": 0.05,
+                "benefit_label": "inconclusive",
+            },
+        ]
+    )
+    md = rope_sensitivity_markdown(df)
+    assert "δ-sensitivity" in md
+    assert "| 1 |" in md and "| 2 |" in md
+    # Risk-difference scale reports δ in percentage points (0.10 -> 10 pp).
+    rd = pd.DataFrame(
+        [
+            {
+                "delta_items": 0.10,
+                "prob_benefit_ge_delta": 0.7,
+                "prob_in_rope": 0.2,
+                "prob_harm_ge_delta": 0.02,
+                "benefit_label": "suggestive",
+            }
+        ]
+    )
+    md_rd = rope_sensitivity_markdown(rd, is_risk_difference=True)
+    assert "pp" in md_rd and "| 10 |" in md_rd
 
 
 def test_tau_summary_itt_constant_tau_average_marginal_effect():
@@ -348,6 +472,62 @@ def test_treatment_marginal_effect_folds_onto_core_and_reports_median():
     assert "trt_items_mean" not in out and "trt_prob_mean" not in out
 
 
+def _trace_named_vec(eta, *, scalars=None, vectors=None):
+    """Trace with ``eta`` (chain, draw, obs), named scalar and per-obs vector vars."""
+    n_chain, n_draw, n_obs = eta.shape
+    data = {"eta": (("chain", "draw", "obs_id"), eta)}
+    for name, arr in (scalars or {}).items():
+        data[name] = (("chain", "draw"), arr)
+    for name, arr in (vectors or {}).items():
+        data[name] = (("chain", "draw", "obs_id"), arr)
+    ds = xr.Dataset(
+        data,
+        coords={
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs),
+        },
+    )
+    return SimpleNamespace(posterior=ds)
+
+
+def test_treatment_marginal_effect_nets_out_interactions():
+    # Regression guard for the gain-family AME fix: the treatment contribution is
+    # beta_trt + Σ_k gamma_int_trt_k · z_k, so the counterfactual must remove and
+    # toggle the FULL per-row effect — not beta_trt alone. Passing the moderators
+    # must reproduce the hand-rolled full-effect AME, and must differ from the
+    # (wrong) beta_trt-only AME whenever the interaction has non-zero draws.
+    eta = np.array([[[0.0, 1.0, -0.5, 0.3], [0.2, -1.0, 0.3, -0.4]]])
+    beta = np.array([[0.4, 0.6]])
+    gint = np.array([[0.5, -0.3]])  # gamma_int_trt_ability draws
+    z_ability = np.array([1.2, -0.8, 0.4, -1.5])  # standardised moderator, per obs
+    trt = np.array([1.0, 0.0, 1.0, 0.0])
+    n_trials = 20
+    trace = _trace_named_vec(
+        eta, scalars={"beta_trt": beta, "gamma_int_trt_ability": gint}
+    )
+
+    out = treatment_marginal_effect(
+        trace, trt=trt, n_trials=n_trials,
+        moderators=[("gamma_int_trt_ability", z_ability)],
+        ci_prob=0.9,
+    )
+
+    b = beta.reshape(-1)  # (S,)
+    gi = gint.reshape(-1)  # (S,)
+    e = eta.reshape(-1, 4)  # (S, n_obs)
+    delta = b[:, None] + gi[:, None] * z_ability[None, :]  # (S, n_obs)
+    eta0 = e - delta * trt[None, :]
+    ame_full = (expit(eta0 + delta) - expit(eta0)).mean(axis=1)  # (S,)
+    assert out["trt_prob_median"] == pytest.approx(float(np.median(ame_full)))
+    assert out["trt_items_median"] == pytest.approx(float(np.median(ame_full * n_trials)))
+
+    # The beta_trt-only AME (the pre-fix behaviour) is genuinely different here.
+    eta0_wrong = e - b[:, None] * trt[None, :]
+    ame_wrong = (expit(eta0_wrong + b[:, None]) - expit(eta0_wrong)).mean(axis=1)
+    assert float(np.median(ame_full)) != pytest.approx(float(np.median(ame_wrong)))
+
+
 def test_rope_summary_accepts_named_treatment_term():
     # rope_summary is reusable for the gain family by naming term=beta_trt; the
     # numbers must match an explicit reference and the default-term path.
@@ -448,3 +628,101 @@ def test_proportion_at_zero_ppc():
     assert out["ppc_mean_prop_at_zero"] == pytest.approx(0.5)  # mean(0.75, 0.25)
     assert out["ppc_p_value"] == pytest.approx(0.5)  # P(rep >= 0.5)
     assert out["rep"].shape == (2,)
+
+
+def test_eti_bands_nesting_and_quantiles():
+    # The fixed 50/90/95 band convention (#177): nested equal-tailed intervals,
+    # and the 95% bounds are the 2.5 / 97.5 quantiles.
+    rng = np.random.default_rng(4)
+    x = rng.normal(0.0, 1.0, 50000)
+    b = _eti_bands(x)
+    assert set(b) == {"lo50", "hi50", "lo90", "hi90", "lo95", "hi95"}
+    assert b["lo50"] > b["lo90"] > b["lo95"]
+    assert b["hi50"] < b["hi90"] < b["hi95"]
+    lo, hi = np.quantile(x, [0.025, 0.975])
+    assert b["lo95"] == pytest.approx(float(lo))
+    assert b["hi95"] == pytest.approx(float(hi))
+
+
+def test_tau_summary_itt_exposes_50_90_95_bands():
+    # 50% and 90% equal-tailed bands accompany the 95% headline (lo/hi) on both
+    # scales, correctly nested; floored models inherit them via delegation (#177).
+    rng = np.random.default_rng(5)
+    eta = rng.normal(0.0, 1.0, (2, 800, 4))
+    tau = rng.normal(0.3, 0.2, (2, 800))
+    G = (rng.random(4) > 0.5).astype(float)
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.95, G=G)
+    for scale in ("tau_logit", "tau_prob"):
+        for k in ("lo50", "hi50", "lo90", "hi90"):
+            assert f"{scale}_{k}" in out
+        assert out[f"{scale}_lo50"] > out[f"{scale}_lo90"] > out[f"{scale}_lo"]
+        assert out[f"{scale}_hi50"] < out[f"{scale}_hi90"] < out[f"{scale}_hi"]
+    assert "tau_prob_lo90" in tau_summary_offfloor(_trace(eta, tau), ci_prob=0.95, G=G)
+
+
+def test_rope_markdown_labels_central_50_interval():
+    # rope_markdown names the 50% band explicitly and drops the ambiguous bare
+    # "50% CrI" shorthand (#177).
+    import pandas as pd
+
+    rng = np.random.default_rng(6)
+    eta = rng.normal(0.0, 1.0, (2, 500, 6))
+    tau = rng.normal(0.4, 0.2, (2, 500))
+    G = (rng.random(6) > 0.5).astype(float)
+    rc = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.95)
+    md = rope_markdown(pd.DataFrame([rc]), "word reading")
+    assert "central 50% interval" in md
+    assert "equal-tailed 95% credible interval" in md
+    assert "50% CrI" not in md
+
+
+def test_favoured_direction_orients_to_named_claim():
+    # Labels the favoured direction, not the raw positive claim (#179).
+    neg = favoured_direction(0.02)
+    assert neg["favoured_direction"] == "negative"
+    assert neg["favoured_direction_prob"] == pytest.approx(0.98)
+    assert neg["favoured_direction_label"] != "inconclusive"  # strong evidence of harm
+    pos = favoured_direction(0.985)
+    assert pos["favoured_direction"] == "positive"
+    assert pos["favoured_direction_prob"] == pytest.approx(0.985)
+    # A near-50:50 posterior is inconclusive in either orientation.
+    mid = favoured_direction(0.52)
+    assert mid["favoured_direction"] == "positive"
+    assert mid["favoured_direction_label"] == "inconclusive"
+
+
+def test_tau_summary_itt_labels_harm_for_negative_effect():
+    # Regression (#179): a clearly harmful effect must be labelled evidence of
+    # harm via the favoured direction, not left "inconclusive" (which is correct
+    # only for the benefit claim).
+    rng = np.random.default_rng(11)
+    eta = rng.normal(0.0, 1.0, (2, 800, 5))
+    tau = rng.normal(-0.6, 0.15, (2, 800))  # mostly negative → harmful
+    G = (rng.random(5) > 0.5).astype(float)
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.95, G=G)
+    assert out["prob_tau_pos"] < 0.05
+    assert out["direction_label"] == "inconclusive"  # for the "helps" claim
+    assert out["favoured_direction"] == "negative"
+    assert out["favoured_direction_prob"] > 0.95
+    assert out["favoured_direction_label"] in {"strong", "very strong"}
+    # offfloor inherits the favoured-direction fields via delegation
+    assert "favoured_direction" in tau_summary_offfloor(_trace(eta, tau), ci_prob=0.95, G=G)
+
+
+def test_rope_markdown_harm_wording_for_negative_effect():
+    import pandas as pd
+
+    rng = np.random.default_rng(12)
+    eta = rng.normal(0.0, 1.0, (2, 600, 6))
+    tau = rng.normal(-0.6, 0.15, (2, 600))
+    G = (rng.random(6) > 0.5).astype(float)
+    rc = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.95)
+    md = rope_markdown(pd.DataFrame([rc]), "word reading")
+    assert "is harmful" in md  # favoured-direction claim named
+    assert "P(intervention helps)" in md  # probability shown first
+    # the harm claim carries a strong label, not "inconclusive" (the magnitude
+    # clause may still say inconclusive for the separate benefit-≥-δ claim)
+    assert (
+        "is harmful — *very strong evidence*" in md
+        or "is harmful — *strong evidence*" in md
+    )

@@ -30,8 +30,10 @@ Each pipeline:
 
 from __future__ import annotations
 
+import inspect
 import os
 import shutil
+from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -81,6 +83,39 @@ from language_reading_predictors.statistical_models.preprocessing import (
 # ---------------------------------------------------------------------------
 # Common helpers
 # ---------------------------------------------------------------------------
+
+
+def _default_of(fn, param: str) -> float:
+    """The default value of keyword ``param`` in factory ``fn``'s signature.
+
+    Makes the factory the single source of truth for a prior-scale default, so a
+    ``spec.extra.get(param, ...)`` fallback in the pipeline cannot silently drift
+    from the factory it feeds (the failure Copilot caught on #209: the adjusted
+    fallback was re-hardcoded and lagged the reconciled factory default). Prefer
+    this over re-typing the number: if ``param`` is ever renamed the lookup raises
+    ``KeyError`` loudly at fit time rather than falling back to a stale literal.
+    ``test_pipeline_fallback_defaults`` guards that this stays in step.
+    """
+    return inspect.signature(fn).parameters[param].default
+
+
+def _require_spec(
+    spec: ModelSpec,
+    kind: str,
+    *,
+    outcome: bool = False,
+    mechanism: bool = False,
+) -> None:
+    """Validate model specs at runtime; unlike ``assert``, this is never optimised away."""
+    if spec.kind != kind:
+        msg = f"{spec.model_id}: expected kind {kind!r}, got {spec.kind!r}"
+        raise ValueError(msg)
+    if outcome and spec.outcome_symbol is None:
+        msg = f"{spec.model_id}: outcome_symbol is required for {kind!r} models"
+        raise ValueError(msg)
+    if mechanism and spec.mechanism_symbol is None:
+        msg = f"{spec.model_id}: mechanism_symbol is required for {kind!r} models"
+        raise ValueError(msg)
 
 
 def _print_header(ctx: StatisticalFitContext) -> None:
@@ -186,7 +221,7 @@ def _emit_priors(context: StatisticalFitContext) -> None:
                 os.remove(stale)
             except OSError:
                 pass
-    ctor_overrides, role_overrides = _prior_table_overrides(context)
+    ctor_overrides, role_overrides, rationale_overrides = _prior_table_overrides(context)
     _priors.save_shared_prior_panel(
         context.output_dir,
         used=_priors.used_prior_keys(model, ctor_overrides=ctor_overrides),
@@ -195,6 +230,7 @@ def _emit_priors(context: StatisticalFitContext) -> None:
         model,
         ctor_overrides=ctor_overrides,
         role_overrides=role_overrides,
+        rationale_overrides=rationale_overrides,
     )
     table.to_csv(os.path.join(context.output_dir, "priors_table.csv"), index=False)
     context.tables["priors_table"] = table
@@ -202,7 +238,7 @@ def _emit_priors(context: StatisticalFitContext) -> None:
 
 def _prior_table_overrides(
     context: StatisticalFitContext,
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
     """Context-specific prior-table corrections for reused RV names.
 
     Some factories reuse a PyMC variable name with a different prior constructor
@@ -211,6 +247,7 @@ def _prior_table_overrides(
     """
     ctor: dict[str, str] = {}
     role: dict[str, str] = {}
+    rationale: dict[str, str] = {}
     spec = context.spec
 
     if spec.kind == "dose_response":
@@ -231,25 +268,43 @@ def _prior_table_overrides(
                 "beta_G": "association",
             }
         )
-    elif spec.kind == "did" and spec.extra.get("dose", False):
-        if spec.extra.get("period_varying_dose", False):
-            ctor.update(
-                {
-                    "mu_dose": "tau",
-                    "beta_dose_phase": "tau",
-                    "sigma_dose": "sigma_dose",
-                }
-            )
-            role.update(
-                {
-                    "mu_dose": "association",
-                    "beta_dose_phase": "association",
-                    "sigma_dose": "nuisance",
-                }
-            )
-        else:
-            ctor["beta_dose"] = "tau"
-            role["beta_dose"] = "association"
+    elif spec.kind == "did":
+        # ``beta_period`` reuses the ``tau`` constructor (its Normal(0, 0.5) scale)
+        # but it is the common time/maturation anchor (the immediate arm's P1→P2
+        # trend), NOT the randomised within-person effect — that is ``delta``.
+        # Report it as an adjusted association, never "causal".
+        role["beta_period"] = "association"
+        if spec.extra.get("dose", False):
+            # Dose slopes now share build_dose_response_model's ``beta_mech`` prior
+            # (Normal(0, 1)) so the shared summary compares like with like.
+            if spec.extra.get("period_varying_dose", False):
+                ctor.update(
+                    {
+                        "mu_dose": "beta_mech",
+                        "beta_dose_phase": "beta_mech",
+                        "sigma_dose": "sigma_dose",
+                    }
+                )
+                role.update(
+                    {
+                        "mu_dose": "association",
+                        "beta_dose_phase": "association",
+                        "sigma_dose": "nuisance",
+                    }
+                )
+            else:
+                ctor["beta_dose"] = "beta_mech"
+                role["beta_dose"] = "association"
+    elif spec.kind in ("mediation", "mediation_multi"):
+        # The mediation coefficients ``a_G`` (group→mediator) and ``b_G``
+        # (group→outcome direct path) reuse the ``tau`` constructor's scale but
+        # are structural building blocks of the g-formula, not the reported causal
+        # estimand: the causal NDE/NIE come from the counterfactual simulation
+        # (``mediation_summary.csv``), never a raw coefficient. Label them adjusted
+        # associations so the prior table does not imply a bare coefficient is the
+        # causal effect (the suite's "only the simulated effect is causal" rule).
+        role["a_G"] = "association"
+        role["b_G"] = "association"
     elif spec.kind == "mechanism":
         # ``beta_G`` reuses the tau constructor (its Normal(0, 0.5) scale) but here
         # it is the group main effect entered as a DAG backdoor adjustment, not the
@@ -263,6 +318,25 @@ def _prior_table_overrides(
             if rv.name.startswith("beta_"):
                 ctor[rv.name] = "predictor_slope"
                 role[rv.name] = "association"
+    elif spec.kind == "growth":
+        # Baseline non-verbal ability -> trajectory shape (gamma on the growth rate,
+        # delta on the baseline level): adjusted, latent-GA-confounded associations,
+        # never causal — routed to the predictor-slope panel / association role.
+        for _rv in ("gamma", "delta"):
+            ctor[_rv] = "predictor_slope"
+            role[_rv] = "association"
+    elif spec.kind == "level_factors" and spec.extra.get("group_by_time", True):
+        # The prior table is one row per RV, while ``b_grp_time`` is a vector whose
+        # elements have different interpretation: only b_grp_time[1] is the clean
+        # randomised t2 contrast. Keep the vector row conservative and let
+        # factor_summary.csv carry the element-level causal label.
+        role["b_grp_time"] = "association"
+        rationale["b_grp_time"] = (
+            "Level-model group-by-time vector; only b_grp_time[1] is the "
+            "randomised t2 contrast, while the vector row is documented "
+            "conservatively because other elements are pre-randomisation or "
+            "post-crossover associations."
+        )
 
     # Distal outcomes take the tighter tau prior (issue #141): the factory built
     # the single-outcome causal treatment term at Normal(0, 0.3), so route it to
@@ -273,8 +347,13 @@ def _prior_table_overrides(
         for _name in ("tau", "beta_trt", "b_grp_time", "beta_grp", "delta"):
             ctor.setdefault(_name, "tau_distal")
             role.setdefault(_name, "causal")
+        # The ANCOVA intercept is likewise tiered for distal outcomes (Normal(0,
+        # 1.0); prior-critical-review 2026-07-07, Finding 1). Route it to the
+        # ``alpha_distal`` panel so the report rationale matches the fitted scale
+        # (the distribution column already reads the true 1.0 off the built RV).
+        ctor.setdefault("alpha", "alpha_distal")
 
-    return ctor, role
+    return ctor, role, rationale
 
 
 def _render_model_graph(context: StatisticalFitContext) -> None:
@@ -352,6 +431,7 @@ def _save_rope_plot(
     *,
     term: str = "tau",
     varying_term: str = "tau_i",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     items: np.ndarray | None = None,
 ) -> None:
     """ROPE-anchored figure for a randomised effect: the items-scale posterior with
@@ -360,16 +440,18 @@ def _save_rope_plot(
     (notes/202606261304-evidence-strength-and-rope-reporting.md).
 
     The ITT/gain path recomputes the items draws from ``_itt_ame_draws`` (``term`` /
-    ``varying_term`` / ``G`` select the effect); the level family passes its t2
-    contrast items draws directly via ``items`` (its AME nets out a group×ability
-    interaction the generic core cannot reconstruct).
+    ``varying_term`` / ``moderators`` / ``G`` select the effect, including any
+    treatment interactions); the level family passes its t2 contrast items draws
+    directly via ``items`` (its AME nets out a group×ability interaction the generic
+    core cannot reconstruct).
     """
     try:
         from scipy.stats import gaussian_kde
 
         if items is None:
             _, ame_prob = _report._itt_ame_draws(
-                ctx.trace, G=G, term=term, varying_term=varying_term
+                ctx.trace, G=G, term=term, varying_term=varying_term,
+                moderators=moderators,
             )
             items = ame_prob * float(n_trials)
         med = float(np.median(items))
@@ -457,6 +539,7 @@ def _emit_itt_extras(
     overlay_vars: list[str],
     term: str = "tau",
     varying_term: str = "tau_i",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
 ) -> None:
     """Area 1/4 extras for an ITT-style fit (issue #125).
 
@@ -464,7 +547,8 @@ def _emit_itt_extras(
     forest, the prior-vs-posterior overlay, and power-scaling sensitivity. Reads
     the persisted ``prior`` group (on ``ctx.prior_samples``) and the full trace,
     so call after ``save_trace``. ``n_trials=1`` gives the risk-difference scale
-    for the binary off-floor model.
+    for the binary off-floor model. ``moderators`` carries any treatment
+    interactions so the prior is pushed through the same full-contribution AME.
     """
     try:
         pf = _report.prior_pushforward(
@@ -473,6 +557,7 @@ def _emit_itt_extras(
             n_trials=n_trials,
             term=term,
             varying_term=varying_term,
+            moderators=moderators,
             ci_prob=ctx.reporting.hdi,
         )
         pd.DataFrame([pf]).to_csv(
@@ -503,7 +588,16 @@ def _save_forest_plot(
         import arviz_plots as azp
 
         tr = _diag.thin_for_plots(ctx.trace)
-        pc = azp.plot_forest(tr, var_names=var_names, combined=True)
+        # Equal-tailed nested bands (#177): inner central 50% + outer equal-tailed
+        # 95% headline, matching the reported interval convention rather than the
+        # arviz default (which can be an HDI, inconsistent with the prose).
+        pc = azp.plot_forest(
+            tr,
+            var_names=var_names,
+            combined=True,
+            ci_kind="eti",
+            ci_probs=(0.5, 0.95),
+        )
         try:
             azp.add_lines(pc, values=0)
         except Exception:
@@ -634,8 +728,7 @@ def _finalize_report(ctx: StatisticalFitContext) -> StatisticalFitContext:
 
 
 def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "itt"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "itt", outcome=True)
 
     ctx = make_context(spec, config)
 
@@ -731,10 +824,17 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Area 1/4 extras that read the attached prior group or the full trace:
     # the prior pushforward to the items scale (estimand-scale prior check), the
     # tau forest, the prior-vs-posterior overlay, and power-scaling sensitivity.
+    # Net out the full per-row treatment contribution: the age-varying ``tau_i``
+    # is picked up automatically by the AME core; a linear tau moderator adds
+    # ``gamma_tau_int·z_M`` (Part B). Latent today — no registered ITT spec sets
+    # ``tau_moderator_symbol`` — but wired so a heterogeneity fit reports the
+    # model-implied effect, not ``tau`` alone.
+    tau_moderators = built.extras.get("tau_interaction_moderators", [])
     n_trials_own = int(built.prepared.n_trials[spec.outcome_symbol])
     _emit_itt_extras(
         ctx, built, n_trials=n_trials_own,
         overlay_vars=_itt_diag_vars(spec, adjust_for),
+        moderators=tau_moderators,
     )
 
     # Treatment-effect summary on both scales.
@@ -745,6 +845,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # built.prepared is the (possibly row-subset) frame the model was fit
         # on, so G aligns with eta's obs_id axis (finding #2 in issue #78).
         G=built.prepared.G,
+        moderators=tau_moderators,
     )
     tau_df = pd.DataFrame([tau_s])
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
@@ -760,9 +861,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # ROPE-anchored continuous summary on the items scale
     # (notes/202606261304-evidence-strength-and-rope-reporting.md). Emitted for
     # graded outcomes with an agreed minimally-important difference (delta);
-    # floored outcomes (P/N) take the floor-rule path and a probability-scale
-    # delta, which is not yet wired.
-    from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+    # floored outcomes (P/N) take the floor-rule path and a probability-scale delta.
+    from language_reading_predictors.statistical_models.measures import (
+        ROPE_DELTA,
+        rope_delta_grid,
+    )
 
     delta_items = ROPE_DELTA.get(spec.outcome_symbol)
     if delta_items is not None:
@@ -772,6 +875,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
             delta=delta_items,
             ci_prob=ctx.reporting.hdi,
+            moderators=tau_moderators,
         )
         rope_df = pd.DataFrame([rope_s])
         rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
@@ -789,7 +893,34 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             built.prepared.G,
             int(built.prepared.n_trials[spec.outcome_symbol]),
             delta_items,
+            moderators=tau_moderators,
         )
+
+        # δ-sensitivity sweep (issue #144): P(benefit ≥ δ) at the adopted δ and a
+        # stricter 2·δ (word reading at δ = 1 and 2), for every graded outcome.
+        sens_df = _report.rope_sensitivity(
+            ctx.trace,
+            G=built.prepared.G,
+            n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
+            deltas=rope_delta_grid(spec.outcome_symbol),
+            moderators=tau_moderators,
+        )
+        sens_df.to_csv(
+            os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
+        )
+        ctx.tables["rope_sensitivity"] = sens_df
+
+    # Tau-moderator (Part B / HTE) summary: the effect-modification coefficient
+    # gamma_tau_int and the moderator main effect gamma_tau_mod, when a linear
+    # tau moderator was fit. Returns {} (nothing written) for the standard
+    # main-effect ITT models, so this is a no-op unless the moderator is present.
+    tau_mod_s = _report.tau_moderation_summary(ctx.trace, ci_prob=ctx.reporting.hdi)
+    if tau_mod_s:
+        tau_mod_df = pd.DataFrame([tau_mod_s])
+        tau_mod_df.to_csv(
+            os.path.join(ctx.output_dir, "tau_moderation_summary.csv"), index=False
+        )
+        ctx.tables["tau_moderation_summary"] = tau_mod_df
 
     _report.write_run_metadata(
         ctx,
@@ -919,8 +1050,11 @@ def _fit_itt_floor_rule(
 
     # ROPE-anchored card on the off-floor RISK-DIFFERENCE scale (issue #125 Area 4;
     # #130 follow-up). delta is a probability (risk difference), n_trials = 1; the
-    # value is the provisional ROPE_DELTA_PROB pending education-lead sign-off.
-    from language_reading_predictors.statistical_models.measures import ROPE_DELTA_PROB
+    # 10 pp value is confirmed by the education lead (2026-07-01, issue #144).
+    from language_reading_predictors.statistical_models.measures import (
+        ROPE_DELTA_PROB,
+        ROPE_DELTA_PROB_GRID,
+    )
 
     delta_prob = ROPE_DELTA_PROB.get(own)
     if delta_prob is not None:
@@ -932,7 +1066,7 @@ def _fit_itt_floor_rule(
             ci_prob=ctx.reporting.hdi,
             varying_term="",
         )
-        rope_s["provisional_delta"] = True
+        rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
         rope_s["delta_scale"] = "risk_difference"
         pd.DataFrame([rope_s]).to_csv(
             os.path.join(ctx.output_dir, "rope_summary.csv"), index=False
@@ -941,6 +1075,19 @@ def _fit_itt_floor_rule(
         _save_rope_plot(
             ctx, own, built.prepared.G, 1, delta_prob, varying_term=""
         )
+
+        # δ-sensitivity sweep on the risk-difference scale (issue #144): 10/15/20 pp.
+        sens_df = _report.rope_sensitivity(
+            ctx.trace,
+            G=built.prepared.G,
+            n_trials=1,
+            deltas=ROPE_DELTA_PROB_GRID,
+            varying_term="",
+        )
+        sens_df.to_csv(
+            os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
+        )
+        ctx.tables["rope_sensitivity"] = sens_df
 
     # ----- SECONDARY: graded Beta-Binomial (detection-limited) -----
     section_header("Build model (SECONDARY: graded Beta-Binomial, detection-limited)")
@@ -966,9 +1113,14 @@ def _fit_itt_floor_rule(
             progressbar=False,
         )
 
+    # Gate the graded secondary trace (it bypasses diagnostics_summary.json).
+    graded_conv = _diag.subfit_convergence(
+        trace_g, label=f"{spec.model_id} graded secondary", var_names=["tau"]
+    )
     graded = _report.tau_summary_itt(
         trace_g, ci_prob=ctx.reporting.hdi, G=built_g.prepared.G
     )
+    graded["converged"] = graded_conv["converged"]
     pd.DataFrame([graded]).to_csv(
         os.path.join(ctx.output_dir, "tau_summary_graded.csv"), index=False
     )
@@ -1008,7 +1160,7 @@ def _fit_itt_floor_rule(
 
 
 def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "joint"
+    _require_spec(spec, "joint")
 
     ctx = make_context(spec, config)
 
@@ -1138,8 +1290,7 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
 
 
 def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "did"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "did", outcome=True)
 
     ctx = make_context(spec, config)
 
@@ -1195,7 +1346,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # Period-resolved dose readout (#135): partial-pooled per-period dose
         # slopes + a between-period SD, written by the shared dose-slope summary.
         # The headline question — does the L dose-gain slope vary by period? — is
-        # answered by the nested PSIS-LOO vs the pooled comparator (lrpdid07base)
+        # answered by the nested PSIS-LOO vs the pooled comparator (lrp-rli-did-107)
         # in compare_statistical_models.py, not by this single-fit table.
         section_header("Period-resolved dose-slope summary")
         _write_dose_slope_summary(ctx, period_varying=True)
@@ -1248,8 +1399,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
 
 def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "mechanism"
-    assert spec.mechanism_symbol is not None
+    _require_spec(spec, "mechanism", mechanism=True)
 
     ctx = make_context(spec, config)
 
@@ -1429,7 +1579,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     per-period intervention **dose** (``attend``), entered with partial-pooled
     period-specific slopes. See :func:`factories.build_dose_response_model`.
     """
-    assert spec.kind == "dose_response"
+    _require_spec(spec, "dose_response")
 
     ctx = make_context(spec, config)
 
@@ -1626,6 +1776,8 @@ def _fit_t3_sensitivity(
             random_seed=s.random_seed,
             progressbar=False,
         )
+    # Gate this temporal-ordering sensitivity sub-fit (bypasses the primary gate).
+    _diag.subfit_convergence(trace_t3, label=f"{spec.model_id} t3 sensitivity")
     return _med.decompose(
         trace_t3,
         med_t3,
@@ -1633,7 +1785,7 @@ def _fit_t3_sensitivity(
     )
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
-    assert spec.kind == "mediation"
+    _require_spec(spec, "mediation")
     from language_reading_predictors.statistical_models import mediation as _med
 
     ctx = make_context(spec, config)
@@ -1675,7 +1827,9 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
+    # The mediator likelihood is the FIRST observed RV, so name the outcome node
+    # explicitly — else the plot overlays mediator draws on the outcome's counts.
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W", node="y_post")
 
     _run_sampling_and_loo(ctx, compute_loo=False)
 
@@ -1785,8 +1939,7 @@ def _gf_diag_vars(spec: ModelSpec) -> list[str]:
 
 
 def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "gain_factors"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "gain_factors", outcome=True)
     ctx = make_context(spec, config)
     extra = spec.extra
 
@@ -1854,7 +2007,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         ranked_dataframe_table(
             fs,
             title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
-            columns=["term", "role", "mean", "lo", "hi", "prob_positive"],
+            columns=["term", "role", "median", "lo", "hi", "prob_positive"],
             rank_column=False,
             precision=3,
         )
@@ -1866,6 +2019,11 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # is absent).
     if not treated_only:
         trt = ((built.prepared.G == 1) | (built.prepared.phase >= 1)).astype(float)
+        # Net out the *full* per-row treatment contribution — ``beta_trt`` plus every
+        # fitted treatment interaction (``gamma_int_trt_*``) — so the marginal effect
+        # reflects the modelled heterogeneity, not ``beta_trt`` alone. The factory
+        # exposes the exact standardised moderator vectors it used.
+        trt_moderators = built.extras.get("trt_interaction_moderators", [])
         # Off-floor models are Bernoulli on Pr(post > 0); the "items" scale then
         # collapses to the off-floor risk difference (n_trials = 1).
         n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
@@ -1873,6 +2031,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             ctx.trace,
             trt=trt,
             n_trials=n_marg,
+            moderators=trt_moderators,
             ci_prob=ctx.reporting.hdi,
         )
         pd.DataFrame([tme]).to_csv(
@@ -1892,7 +2051,8 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         try:
             pf = _report.prior_pushforward(
                 ctx.prior_samples, G=trt, n_trials=n_marg,
-                term="beta_trt", varying_term="", ci_prob=ctx.reporting.hdi,
+                term="beta_trt", varying_term="", moderators=trt_moderators,
+                ci_prob=ctx.reporting.hdi,
             )
             pd.DataFrame([pf]).to_csv(
                 os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
@@ -1924,6 +2084,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 ci_prob=ctx.reporting.hdi,
                 term="beta_trt",
                 varying_term="",
+                moderators=trt_moderators,
             )
             rope_df = pd.DataFrame([rope_s])
             rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
@@ -1938,7 +2099,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             )
             _save_rope_plot(
                 ctx, spec.outcome_symbol, trt, n_marg, delta_items,
-                term="beta_trt", varying_term="",
+                term="beta_trt", varying_term="", moderators=trt_moderators,
             )
         elif off_floor and delta_prob is not None:
             # Off-floor risk-difference ROPE (provisional delta), matching the
@@ -1946,6 +2107,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             rope_s = _report.rope_summary(
                 ctx.trace, G=trt, n_trials=1, delta=delta_prob,
                 ci_prob=ctx.reporting.hdi, term="beta_trt", varying_term="",
+                moderators=trt_moderators,
             )
             rope_s["provisional_delta"] = True
             rope_s["delta_scale"] = "risk_difference"
@@ -1956,7 +2118,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             meta_extra["rope_summary"] = rope_s
             _save_rope_plot(
                 ctx, spec.outcome_symbol, trt, 1, delta_prob,
-                term="beta_trt", varying_term="",
+                term="beta_trt", varying_term="", moderators=trt_moderators,
             )
 
     _report.write_run_metadata(ctx, extra=meta_extra)
@@ -1985,8 +2147,7 @@ def _lf_diag_vars(spec: ModelSpec) -> list[str]:
 
 
 def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "level_factors"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "level_factors", outcome=True)
     ctx = make_context(spec, config)
     extra = spec.extra
 
@@ -2030,13 +2191,15 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
-    _causal_lf = "b_grp_time" if extra.get("group_by_time", True) else "beta_grp"
+    _lf_group_by_time = extra.get("group_by_time", True)
+    _causal_lf = None if _lf_group_by_time else "beta_grp"
     _diag.write_diagnostics_summary(ctx, var_names=_lf_diag_vars(spec))
     _diag.run_extended_diagnostics(ctx, causal_term=_causal_lf)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag_vars(spec))
-    _save_forest_plot(ctx, [_causal_lf])
-    _diag.run_psense(ctx, var_names=[_causal_lf])
+    if _causal_lf is not None:
+        _save_forest_plot(ctx, [_causal_lf])
+        _diag.run_psense(ctx, var_names=[_causal_lf])
 
     section_header("Factor summary")
     # Only the t2 group contrast (b_grp_time[1]) is the clean randomised effect;
@@ -2052,7 +2215,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         ranked_dataframe_table(
             fs,
             title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
-            columns=["term", "role", "mean", "lo", "hi", "prob_positive"],
+            columns=["term", "role", "median", "lo", "hi", "prob_positive"],
             rank_column=False,
             precision=3,
         )
@@ -2125,8 +2288,7 @@ def _al_diag_vars(spec: ModelSpec) -> list[str]:
 
 
 def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    assert spec.kind == "aligned"
-    assert spec.outcome_symbol is not None
+    _require_spec(spec, "aligned", outcome=True)
     ctx = make_context(spec, config)
     extra = spec.extra
 
@@ -2189,7 +2351,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ranked_dataframe_table(
             fs,
             title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
-            columns=["term", "role", "mean", "lo", "hi", "prob_positive"],
+            columns=["term", "role", "median", "lo", "hi", "prob_positive"],
             rank_column=False,
             precision=3,
         )
@@ -2237,7 +2399,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     indirect effect as the headline plus the (ordering-dependent) path-specific
     indirect effects.
     """
-    assert spec.kind == "mediation_multi"
+    _require_spec(spec, "mediation_multi")
     from language_reading_predictors.statistical_models import mediation as _med
 
     ctx = make_context(spec, config)
@@ -2274,7 +2436,9 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
+    # The mediator likelihood is the FIRST observed RV, so name the outcome node
+    # explicitly — else the plot overlays mediator draws on the outcome's counts.
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W", node="y_post")
 
     _run_sampling_and_loo(ctx, compute_loo=False)
 
@@ -2347,16 +2511,18 @@ def _adj_label(key: str) -> str:
     return _ADJ_LABELS.get(key, key)
 
 
-def _sample_model(model, sampling):
+def _sample_model(model, sampling, *, label: str = "sub-fit"):
     """Sample a sub-model (bivariate / sensitivity / prior-sweep) with nutpie.
 
     Mirrors :func:`diagnostics.sample_posterior` but is standalone, so the sub-fit
-    traces never overwrite the headline ``ctx.trace`` / ``trace.nc``.
+    traces never overwrite the headline ``ctx.trace`` / ``trace.nc``. A convergence
+    check runs on the result and warns loudly if the sub-fit failed the gate, since
+    these traces bypass the primary ``diagnostics_summary.json`` gate.
     """
     import pymc as pm
 
     with model:
-        return pm.sample(
+        trace = pm.sample(
             draws=sampling.draws,
             tune=sampling.tune,
             chains=sampling.chains,
@@ -2367,6 +2533,8 @@ def _sample_model(model, sampling):
             random_seed=sampling.random_seed,
             progressbar=False,
         )
+    _diag.subfit_convergence(trace, label=label)
+    return trace
 
 
 def _beta_summary(trace, name: str, hdi: float) -> dict:
@@ -2482,7 +2650,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     trace / diagnostics / LOO / PPC artefacts. Not causal — a which-predictors
     -carry-signal read to compare against the GB cluster ranking.
     """
-    assert spec.kind == "horseshoe"
+    _require_spec(spec, "horseshoe")
     e = spec.extra
     outcome = spec.outcome_symbol or "W"
     gain = bool(e.get("gain", True))
@@ -2598,7 +2766,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ``prior_sensitivity.csv`` and ``ses_sensitivity.csv`` alongside the standard
     trace / diagnostics / LOO / PPC artefacts.
     """
-    assert spec.kind == "adjusted"
+    _require_spec(spec, "adjusted")
     e = spec.extra
     outcome = spec.outcome_symbol or "W"
     post_time = int(e.get("post_time", 4))
@@ -2606,8 +2774,17 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     lang_symbols = tuple(e.get("language_composite_symbols", ["R", "E", "F"]))
     covariates = list(e.get("covariates", ["blocks", "behav"]))
     ses_covs = list(e.get("ses_covariates", ["mumedupost16"]))
-    sigma0 = float(e.get("predictor_slope_sigma", 0.5))
-    prior_sens = list(e.get("prior_sensitivity_sigmas", [0.3, 0.7]))
+    # The slope-prior default is sourced from the factory signature (single source
+    # of truth) so this fallback cannot drift from the reconciled scale — prior-
+    # critical-review 2026-07-07, recommendation 3; #209 review. The sweep default
+    # brackets that scale from the looser side (no factory param mirrors it).
+    sigma0 = float(
+        e.get(
+            "predictor_slope_sigma",
+            _default_of(_factories.build_adjusted_model, "predictor_slope_sigma"),
+        )
+    )
+    prior_sens = list(e.get("prior_sensitivity_sigmas", [0.5, 0.7]))
     use_age = bool(e.get("use_age_predictor", True))
 
     # Headline predictor key order: skills, language composite, age, covariates.
@@ -2680,7 +2857,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             language_composite_symbols=lang_symbols,
             predictor_slope_sigma=sigma0,
         )
-        t = _sample_model(b.model, ctx.sampling)
+        t = _sample_model(b.model, ctx.sampling, label=f"{spec.model_id} bivariate {k}")
         bivariate[k] = _beta_summary(t, f"beta_{k}", hdi)
 
     rows = []
@@ -2735,7 +2912,9 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 language_composite_symbols=lang_symbols,
                 predictor_slope_sigma=sig,
             )
-            tr = _sample_model(b.model, ctx.sampling)
+            tr = _sample_model(
+                b.model, ctx.sampling, label=f"{spec.model_id} prior-sweep sigma={sig}"
+            )
         for k in headline:
             ps_rows.append(
                 {"sigma": sig, "predictor": k, **_beta_summary(tr, f"beta_{k}", hdi)}
@@ -2748,6 +2927,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("SES sensitivity (complete cases)")
     ses_df = None
     ses_n = None
+    ses_error = None
     try:
         prepared_ses = load_and_prepare(
             phase_mode="span",
@@ -2762,7 +2942,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             language_composite_symbols=lang_symbols,
             predictor_slope_sigma=sigma0,
         )
-        t = _sample_model(b.model, ctx.sampling)
+        t = _sample_model(b.model, ctx.sampling, label=f"{spec.model_id} SES complete-case")
         ses_n = int(b.prepared.n_children)
         ses_rows = [
             {
@@ -2780,7 +2960,15 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ctx.tables["ses_sensitivity"] = ses_df
         rprint(f"  SES sensitivity fit on {ses_n} complete-case children")
     except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]SES sensitivity fit skipped: {exc}[/yellow]")
+        # Record the failure (type + message + traceback) rather than swallowing
+        # it to a one-line warning: a genuine bug (missing column, factory error)
+        # should not silently produce a "successful" reporting run with no
+        # ses_sensitivity.csv. The error is surfaced in the run metadata.
+        import traceback
+
+        ses_error = f"{type(exc).__name__}: {exc}"
+        rprint(f"[red]SES sensitivity fit failed: {ses_error}[/red]")
+        rprint(f"[yellow]{traceback.format_exc()}[/yellow]")
 
     # --- Natural-scale interpretation (predicted gain, in words) -----------
     section_header("Predicted gain on the natural (words) scale")
@@ -2830,6 +3018,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "language_composite_symbols": list(lang_symbols),
             "n_children": int(ctx.prepared.n_children),
             "ses_n_children": ses_n,
+            "ses_error": ses_error,
             "associations": rows,
             "predicted_gain_words": words_df.to_dict("records"),
             "max_pareto_k": (
@@ -2871,7 +3060,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     reports the reading-change coupling table — the within-trajectory analogue
     of LRP65's between-child predictors of reading gain.
     """
-    assert spec.kind == "lcsm"
+    _require_spec(spec, "lcsm")
 
     ctx = make_context(spec, config)
 
@@ -2887,7 +3076,10 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     built = _factories.build_lcsm_model(
         panel,
         reading_symbol=reading_symbol,
-        coupling_prior_sigma=spec.extra.get("coupling_prior_sigma", 0.5),
+        coupling_prior_sigma=spec.extra.get(
+            "coupling_prior_sigma",
+            _default_of(_factories.build_lcsm_model, "coupling_prior_sigma"),
+        ),
         use_process_noise=spec.extra.get("use_process_noise", True),
         shared_process_noise=spec.extra.get("shared_process_noise", False),
     )
@@ -2968,6 +3160,136 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     return _finalize_report(ctx)
 
 
+def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Joint multivariate latent growth-curve model (LRP69 core / LRP70 factor).
+
+    Characterises each verbal/reading measure's within-child trajectory across the
+    four RLI waves and reports whether **baseline non-verbal ability** (``blocks``)
+    predicts trajectory shape: ``gamma`` on the growth *rate* (the headline Q5
+    estimand) and ``delta`` on the baseline *level*. With ``use_shared_factor`` a
+    rank-1 shared growth-tempo factor couples the slopes and the block-design ->
+    common-tempo association is read out post-hoc. Every non-randomised term is an
+    **adjusted, latent-GA-confounded association**, never causal (locked DAG,
+    ``notes/202606231600-dag-revision-consolidated.md``).
+    """
+    _require_spec(spec, "growth")
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    outcomes = tuple(spec.extra.get("outcomes", ("R", "E", "T", "W", "L")))
+    baseline_cov = spec.extra.get("baseline_covariate", "blocks")
+    use_factor = bool(spec.extra.get("use_shared_factor", False))
+    panel = load_wave_panel(outcomes=outcomes, baseline_covariates=(baseline_cov,))
+    ctx.prepared = panel
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_growth_model(
+        panel,
+        baseline_covariate=baseline_cov,
+        use_shared_factor=use_factor,
+    )
+    _attach_built(ctx, built)
+
+    _render_model_graph(ctx)
+
+    diag_vars = [
+        "gamma", "delta", "beta", "alpha", "sigma_slope", "sigma_intercept", "kappa"
+    ]
+    if use_factor:
+        diag_vars.append("loading")
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+
+    _run_sampling_and_loo(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx, var_names=["y_obs"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(ctx, causal_term=None)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    # Headline Q5 output: baseline non-verbal ability -> trajectory shape. The
+    # gamma (growth-rate) rows are the answer; delta (level) and beta (mean slope)
+    # round out the trajectory characterisation. All adjusted associations.
+    section_header("Non-verbal ability -> trajectory shape (Q5)")
+    gs = _report.growth_association_summary(ctx.trace, ci_prob=ctx.reporting.hdi)
+    gs.to_csv(
+        os.path.join(ctx.output_dir, "growth_association_summary.csv"), index=False
+    )
+    ctx.tables["growth_association_summary"] = gs
+    _save_forest_plot(ctx, ["gamma"], name="gamma_forest.png")
+    print_table(
+        ranked_dataframe_table(
+            gs[gs["coefficient"] == "gamma"],
+            title="Baseline non-verbal ability -> growth rate (gamma, logit; 95% ETI)",
+            columns=[
+                "outcome", "median", "lo95", "hi95", "prob_positive",
+                "favoured_direction_label",
+            ],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # Factor layer: does baseline non-verbal ability predict the *common* growth
+    # tempo? Read out post-hoc as the per-draw correlation between each child's
+    # latent tempo G_i and their standardised block-design score. G_tempo is
+    # independent a priori but the posterior can still correlate G and blocks
+    # through the likelihood, so this is a descriptive post-hoc read-out only.
+    tempo_corr: dict[str, float] | None = None
+    if use_factor and "G_tempo" in ctx.trace.posterior:
+        G = (
+            ctx.trace.posterior["G_tempo"]
+            .stack(sample=("chain", "draw"))
+            .transpose("child", "sample")
+            .values
+        )  # (N, S)
+        zb = np.asarray(panel.baseline[baseline_cov], dtype=float)  # (N,)
+        Gc = G - G.mean(axis=0, keepdims=True)
+        zc = (zb - zb.mean())[:, None]
+        denom = np.sqrt((Gc**2).sum(0) * (zc**2).sum(0)) + 1e-12
+        corr = (Gc * zc).sum(0) / denom  # (S,)
+        lo_q = (1 - ctx.reporting.hdi) / 2
+        tempo_corr = {
+            "median": float(np.median(corr)),
+            "lo": float(np.quantile(corr, lo_q)),
+            "hi": float(np.quantile(corr, 1 - lo_q)),
+            "prob_pos": float(np.mean(corr > 0)),
+        }
+        pd.DataFrame([tempo_corr]).to_csv(
+            os.path.join(ctx.output_dir, "growth_tempo_corr.csv"), index=False
+        )
+        ctx.tables["growth_tempo_corr"] = pd.DataFrame([tempo_corr])
+        rprint(
+            f"[bold]blocks <-> growth-tempo corr:[/bold] {tempo_corr['median']:+.3f} "
+            f"[{tempo_corr['lo']:+.3f}, {tempo_corr['hi']:+.3f}] "
+            f"P(>0)={tempo_corr['prob_pos']:.3f}"
+        )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "outcomes": list(outcomes),
+            "baseline_covariate": baseline_cov,
+            "use_shared_factor": use_factor,
+            "growth_association_summary": gs.to_dict("records"),
+            **({"blocks_tempo_corr": tempo_corr} if tempo_corr else {}),
+        },
+    )
+
+    return _finalize_report(ctx)
+
+
 # ---------------------------------------------------------------------------
 # Historical group-by-wave growth (RLMHG, #165 - first non-RLI dataset)
 # ---------------------------------------------------------------------------
@@ -2983,7 +3305,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     **not** an intervention-effect model - ``group`` carries no treatment
     semantics (see :func:`factories.build_historical_growth_model`).
     """
-    assert spec.kind == "historical_growth"
+    _require_spec(spec, "historical_growth")
 
     ctx = make_context(spec, config)
 
@@ -3005,9 +3327,20 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     built = _factories.build_historical_growth_model(
         panel,
         measure=measure,
-        eta_prior_sigma=spec.extra.get("eta_prior_sigma", 1.5),
-        sigma_subject_prior_sigma=spec.extra.get("sigma_subject_prior_sigma", 1.0),
-        kappa_prior_sigma=spec.extra.get("kappa_prior_sigma", 50.0),
+        eta_prior_sigma=spec.extra.get(
+            "eta_prior_sigma",
+            _default_of(_factories.build_historical_growth_model, "eta_prior_sigma"),
+        ),
+        sigma_subject_prior_sigma=spec.extra.get(
+            "sigma_subject_prior_sigma",
+            _default_of(
+                _factories.build_historical_growth_model, "sigma_subject_prior_sigma"
+            ),
+        ),
+        kappa_prior_sigma=spec.extra.get(
+            "kappa_prior_sigma",
+            _default_of(_factories.build_historical_growth_model, "kappa_prior_sigma"),
+        ),
     )
     _attach_built(ctx, built)
 
@@ -3115,7 +3448,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     A triangulation / measurement model, not causal (every factor->gain slope is a
     latent-ability-confounded adjusted association; #115 ID-2).
     """
-    assert spec.kind == "corr_factor"
+    _require_spec(spec, "corr_factor")
 
     ctx = make_context(spec, config)
 
@@ -3144,8 +3477,16 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         domains=domains,
         structural_covariates=structural_covs,
         use_age=spec.extra.get("use_age", True),
-        loading_sigma=spec.extra.get("loading_sigma", 1.0),
-        predictor_slope_sigma=spec.extra.get("predictor_slope_sigma", 0.5),
+        loading_sigma=spec.extra.get(
+            "loading_sigma",
+            _default_of(_factories.build_correlated_factor_model, "loading_sigma"),
+        ),
+        predictor_slope_sigma=spec.extra.get(
+            "predictor_slope_sigma",
+            _default_of(
+                _factories.build_correlated_factor_model, "predictor_slope_sigma"
+            ),
+        ),
     )
     _attach_built(ctx, built)
     _render_model_graph(ctx)
@@ -3229,11 +3570,38 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     # --- Factor correlation matrix ---
     section_header("Factor correlation")
-    corr = post["factor_corr"].mean(dim=("chain", "draw")).values
+    corr_draws = post["factor_corr"]  # (chain, draw, domain, domain2)
+    corr = corr_draws.mean(dim=("chain", "draw")).values
     dnames = [str(d) for d in post["domain"].values]
     corr_df = pd.DataFrame(corr, index=dnames, columns=dnames)
     corr_df.to_csv(os.path.join(ctx.output_dir, "factor_correlation.csv"))
     ctx.tables["factor_correlation"] = corr_df
+    # The bare mean matrix above is kept for the heatmap, but the house rule is
+    # "never a bare point estimate": persist each unique off-diagonal pair with a
+    # posterior mean, equal-tailed interval and tail probability alongside it.
+    corr_stacked = corr_draws.stack(sample=("chain", "draw"))
+    lo_q = (1 - hdi) / 2
+    corr_rows = []
+    for i, di in enumerate(dnames):
+        for j, dj in enumerate(dnames):
+            if j <= i:
+                continue
+            pair = np.asarray(corr_stacked.isel(domain=i, domain_b=j).values).reshape(-1)
+            corr_rows.append(
+                {
+                    "domain_i": di,
+                    "domain_j": dj,
+                    "mean": float(np.mean(pair)),
+                    "lo": float(np.quantile(pair, lo_q)),
+                    "hi": float(np.quantile(pair, 1 - lo_q)),
+                    "prob_pos": float(np.mean(pair > 0)),
+                }
+            )
+    corr_summary_df = pd.DataFrame(corr_rows)
+    corr_summary_df.to_csv(
+        os.path.join(ctx.output_dir, "factor_correlation_summary.csv"), index=False
+    )
+    ctx.tables["factor_correlation_summary"] = corr_summary_df
 
     # --- Structural slopes: factor -> reading gain (adjusted associations) ---
     section_header("Structural slopes (factor -> gain)")

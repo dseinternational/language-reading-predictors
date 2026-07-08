@@ -56,13 +56,19 @@ from sklearn.dummy import DummyRegressor
 from sklearn.model_selection import GroupKFold
 
 import language_reading_predictors.data_utils as data_utils
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.registry import MODELS
 
-_ROOT_DIR = Path(__file__).resolve().parent.parent
-_MODELS_DIR = _ROOT_DIR / "output" / "models"
-
 _DEFAULT_MODELS = ["lrpgbg12_prediction", "lrpgbg12"]
+
+
+def _display_path(path: Path) -> str:
+    """Prefer repo-relative display, but support redirected output roots."""
+    try:
+        return str(path.relative_to(_paths.ROOT_DIR))
+    except ValueError:
+        return str(path)
 
 
 def _read_json(path: Path) -> dict:
@@ -327,20 +333,35 @@ def _markdown_summary(
         else float("nan")
     )
 
+    # Optional metrics may be absent from an older metrics.json — format each only
+    # when present, so a missing key degrades to "n/a" rather than raising a
+    # TypeError after the expensive baseline CV has already run.
+    def _fmt(value: object, spec: str) -> str:
+        return "n/a" if value is None else format(value, spec)
+
+    r2_line = f"- **Skill vs predict-the-mean (pooled out-of-fold R²): {_fmt(r2, '.3f')}**"
+    if r2 is not None:
+        r2_line += (
+            f" ({r2 * 100:.0f}% of individual variation explained out of sample)"
+        )
+
+    cv_rmse_mean = metrics.get("cv_rmse_mean")
+    cv_rmse_std = metrics.get("cv_rmse_std")
+    cv_mae_mean = metrics.get("cv_mae_mean")
+    cv_mae_std = metrics.get("cv_mae_std")
+
     lines = [
         f"### {model_id} — predictability readout",
         "",
         f"- n = {baseline['n_observations']}, target SD = {baseline['target_sd']:.2f}",
-        f"- **Skill vs predict-the-mean (pooled out-of-fold R²): "
-        f"{r2:.3f}**" + ("" if r2 is None else f" ({r2 * 100:.0f}% of individual "
-                                                "variation explained out of sample)"),
-        f"- Pooled OOF RMSE {rmse:.2f} vs mean-baseline RMSE "
-        f"{base_rmse:.2f} → {rmse_reduction:.0f}% RMSE reduction",
+        r2_line,
+        f"- Pooled OOF RMSE {_fmt(rmse, '.2f')} vs mean-baseline RMSE "
+        f"{base_rmse:.2f} → {_fmt(rmse_reduction, '.0f')}% RMSE reduction",
         f"- DummyRegressor(mean) baseline pooled R² = "
         f"{baseline['baseline_pooled_r2']:.3f} (≈ 0 by construction — confirms wiring)",
-        f"- CV RMSE {metrics.get('cv_rmse_mean'):.2f} ± "
-        f"{metrics.get('cv_rmse_std'):.2f}; CV MAE "
-        f"{metrics.get('cv_mae_mean'):.2f} ± {metrics.get('cv_mae_std'):.2f}",
+        f"- CV RMSE {_fmt(cv_rmse_mean, '.2f')} ± "
+        f"{_fmt(cv_rmse_std, '.2f')}; CV MAE "
+        f"{_fmt(cv_mae_mean, '.2f')} ± {_fmt(cv_mae_std, '.2f')}",
         "",
         "**Skill by predictor set** (which is the honest 'forecast from baseline' number?)",
         "",
@@ -458,7 +479,7 @@ def _readout(
     rank_top_k: int | None = None,
     rank_exclude_same_skill: bool = False,
 ) -> str:
-    out_dir = _MODELS_DIR / model_id
+    out_dir = _paths.gb_models_dir() / model_id
     if not out_dir.exists():
         msg = (
             f"no output for {model_id!r} at {out_dir} — fit it first: "
@@ -549,10 +570,10 @@ def _readout(
         ].to_dict(orient="records"),
     }
     (out_dir / "predictability_readout.json").write_text(json.dumps(summary, indent=2))
-    print(f"[green]Wrote[/green] {calib_path.relative_to(_ROOT_DIR)}")
+    print(f"[green]Wrote[/green] {_display_path(calib_path)}")
     print(
         f"[green]Wrote[/green] "
-        f"{(out_dir / 'predictability_readout.json').relative_to(_ROOT_DIR)}"
+        f"{_display_path(out_dir / 'predictability_readout.json')}"
     )
     return md
 
@@ -598,7 +619,18 @@ def main() -> None:
         action="store_true",
         help="Drop predictors the ranking flags as same_skill_of_outcome.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root to read/write (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
     args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"[bold]Output root:[/bold] {_paths.describe_output_root()}")
 
     for model_id in args.models:
         if model_id not in MODELS:

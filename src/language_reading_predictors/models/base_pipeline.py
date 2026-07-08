@@ -60,9 +60,14 @@ from language_reading_predictors.models._reporting import (
     section_header,
 )
 
+from language_reading_predictors import paths as _paths
+
 _ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 _DOCS_DIR = _ROOT_DIR / "docs"
-_OUTPUT_DIR = _ROOT_DIR / "output" / "models"
+# Env-aware (``DSE_LRP_OUTPUT_DIR``) GB models root, kept as a module constant for
+# importers such as ``scripts/rank_predictors.py``; instantiation-time paths call
+# ``_paths.gb_models_dir()`` so a CLI ``--output-dir`` override is also honoured (#180).
+_OUTPUT_DIR = _paths.gb_models_dir()
 
 ESTIMATOR_STEP = "est"
 """Name of the estimator step inside the sklearn ``Pipeline``."""
@@ -81,7 +86,7 @@ class EstimatorPipeline:
         self.context = ModelFitContext(
             config=config,
             run_config=run_config,
-            output_dir=_OUTPUT_DIR / config.model_id,
+            output_dir=_paths.gb_models_dir() / config.model_id,
         )
 
     # ── pipeline steps ───────────────────────────────────────────────────
@@ -184,7 +189,7 @@ class EstimatorPipeline:
         train_idx_iter = cv_results["indices"]["train"]
         test_idx_iter = cv_results["indices"]["test"]
         for est, tr_idx, val_idx in zip(
-            cv_results["estimator"], train_idx_iter, test_idx_iter
+            cv_results["estimator"], train_idx_iter, test_idx_iter, strict=True
         ):
             fold_pred = est.predict(context.X.iloc[val_idx])
             oof_pred[val_idx] = fold_pred
@@ -298,7 +303,7 @@ class EstimatorPipeline:
 
         fold_importances = []
         for est, val_idx in zip(
-            cv_results["estimator"], cv_results["indices"]["test"]
+            cv_results["estimator"], cv_results["indices"]["test"], strict=True
         ):
             X_val = context.X.iloc[val_idx]
             y_val = context.y.iloc[val_idx]
@@ -376,7 +381,7 @@ class EstimatorPipeline:
         )
         ax.invert_yaxis()
         ax.axvline(0.0, color="black", linestyle="--", linewidth=1)
-        ax.set_xlabel("Decrease in held-out RMSE when feature is permuted")
+        ax.set_xlabel("Increase in held-out RMSE when feature is permuted")
         ax.set_ylabel("Predictor variable")
         ax.set_title("Out-of-fold permutation importance")
         ax.grid(axis="x", alpha=0.3)
@@ -415,11 +420,19 @@ class EstimatorPipeline:
         context = self.context
         perm_df = context.perm_importance_df.copy()
         perm_df["construct"] = perm_df["feature"].map(V.construct_of)
+        # ``total_importance`` sums only the POSITIVE part of member importances
+        # (negatives clipped to 0). A raw sum lets a noise member with negative
+        # permutation importance cancel a strong sibling in the same construct,
+        # dragging the construct's total below a weaker but all-positive construct.
+        # Clipping keeps the total a monotone "how much signal does this domain
+        # hold" measure. ``max_importance`` (the single strongest member) is still
+        # reported alongside for the peak view.
+        perm_df["importance_positive"] = perm_df["importance_mean"].clip(lower=0.0)
 
         grouped = (
             perm_df.groupby("construct")
             .agg(
-                total_importance=("importance_mean", "sum"),
+                total_importance=("importance_positive", "sum"),
                 mean_importance=("importance_mean", "mean"),
                 max_importance=("importance_mean", "max"),
                 n_members=("feature", "count"),
@@ -1180,6 +1193,7 @@ class EstimatorPipeline:
             zip(
                 context.perm_importance_df["feature"],
                 context.perm_importance_df["importance_mean"],
+                strict=True,
             )
         )
         features_ordered = sorted(
@@ -1264,6 +1278,7 @@ class EstimatorPipeline:
             "perm_importance_repeats": effective_perm_importance_repeats,
             "random_seed": cfg.random_seed,
             "run_config": run.name,
+            "output_root": str(_paths.output_root()),
         }
 
         overrides = {}
@@ -1302,6 +1317,33 @@ class EstimatorPipeline:
             run.cv_splits if run.cv_splits is not None else cfg.cv_splits
         )
 
+        # Under near-LOSO cv (cv_splits ≈ n_subjects) a test fold can hold as few as
+        # 1–4 rows, and per-fold R² on that many points is numerically unstable
+        # (near-zero or negative denominator, wild swings). The pooled OOF R²
+        # (``cv_pooled_r2``) is the sound headline statistic — it is computed over
+        # all held-out rows at once — so we keep the per-fold ``cv_r2_mean`` /
+        # ``cv_r2_std`` for continuity but flag them unreliable when the smallest
+        # test fold is small. See the pooled metrics below for the headline R².
+        _SMALL_FOLD_THRESHOLD = 10
+        min_test_fold_size = None
+        cv_res = context.cv_results
+        if cv_res is not None and "indices" in cv_res:
+            test_idx = cv_res["indices"].get("test")
+            if test_idx is not None and len(test_idx) > 0:
+                min_test_fold_size = int(min(len(fold) for fold in test_idx))
+        cv_r2_per_fold_reliable = (
+            min_test_fold_size is None or min_test_fold_size >= _SMALL_FOLD_THRESHOLD
+        )
+        cv_r2_note = (
+            "Per-fold cv_r2_mean/std are reliable."
+            if cv_r2_per_fold_reliable
+            else (
+                f"Per-fold cv_r2_mean/std are UNRELIABLE: smallest test fold has "
+                f"{min_test_fold_size} rows (< {_SMALL_FOLD_THRESHOLD}); per-fold R² is "
+                f"unstable on so few points. Use cv_pooled_r2 as the headline R²."
+            )
+        )
+
         metrics = {
             "model_id": cfg.model_id,
             "pipeline_cls": type(self).__name__,
@@ -1328,6 +1370,11 @@ class EstimatorPipeline:
             "cv_r2_std": float(cv_scores_df["r2"].std())
             if cv_scores_df is not None
             else None,
+            # Per-fold R² reliability flag (small test folds under near-LOSO cv).
+            # The headline R² is ``cv_pooled_r2`` below.
+            "cv_r2_per_fold_reliable": cv_r2_per_fold_reliable,
+            "cv_r2_note": cv_r2_note,
+            "min_test_fold_size": min_test_fold_size,
             "cv_medae_mean": float(cv_scores_df["medae"].mean())
             if cv_scores_df is not None
             else None,
@@ -1410,6 +1457,17 @@ class EstimatorPipeline:
         output_dir = context.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
         _clear_directory(output_dir)
+
+        # Write config.json FIRST, before any long stage. The GB output dir has no
+        # config suffix (it is output/models/{model_id}/ — set in __init__ — and the
+        # Quarto reports look artefacts up there, so the scheme is deliberately left
+        # unchanged rather than adding a suffix that would break report lookups), and
+        # it is cleared above. Persisting the config immediately means a mid-fit
+        # crash leaves a dir that is still identifiable (which model, which run
+        # config — save_config records run_config prominently) instead of an empty
+        # directory. save_config() is idempotent and is called again at the end so
+        # any late-resolved fields are captured.
+        self.save_config()
 
         self.prepare_data()
         self.configure_model()

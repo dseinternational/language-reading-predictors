@@ -5,9 +5,9 @@
 
 Usage::
 
-    python scripts/fit_statistical_model.py lrpitt07 --config dev
+    python scripts/fit_statistical_model.py lrp-rli-itt-007 --config dev
     python scripts/fit_statistical_model.py all --config dev
-    python scripts/fit_statistical_model.py lrpitt10 --config reporting --render
+    python scripts/fit_statistical_model.py lrp-rli-itt-010 --config reporting --render
 """
 
 from __future__ import annotations
@@ -27,6 +27,8 @@ from language_reading_predictors.models._reporting import (
     print_panel,
     print_table,
 )
+from language_reading_predictors import model_ids
+from language_reading_predictors import paths
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models.registry import (
     discover_models,
@@ -49,8 +51,8 @@ def main() -> None:
     parser.add_argument(
         "model",
         help=(
-            "Model id (for example lrpitt01, lrpdid01, lrpgf01, lrplf01, "
-            "lrpal01, lrp77, lrp65, lrp67) or 'all'"
+            "Model id (for example lrp-rli-itt-001, lrp-rli-did-001, lrp-rli-gf-001, lrp-rli-lf-001, "
+            "lrp-rli-al-001, lrp-rli-dose-077, lrp-rli-adj-065, lrp-rli-lcsm-067) or 'all'"
         ),
     )
     parser.add_argument(
@@ -79,7 +81,20 @@ def main() -> None:
         action="store_true",
         help="Include trace files (.nc) in the upload (excluded by default).",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR); the relative layout is unchanged. Default: "
+            "repo-local output/."
+        ),
+    )
     args = parser.parse_args()
+
+    paths.set_output_root(args.output_dir)
+    rprint(f"[bold]Output root:[/bold] {paths.describe_output_root()}")
 
     if args.target_accept is not None:
         import dse_research_utils.statistics.models.sampling as _S
@@ -96,10 +111,26 @@ def main() -> None:
             f"[yellow]Overriding target_accept -> {args.target_accept}[/yellow]"
         )
 
-    if args.model == "all":
+    # The registry is keyed on the canonical CLI id (``lrp-rli-itt-001``) since #168
+    # Phase 2. Build a legacy-alias index over those keys so a legacy id
+    # (``lrpitt01``) or any canonical form/case still resolves — each canonical key
+    # maps back to its legacy/display/module forms without needing a ``kind`` (the
+    # family is embedded in the canonical id).
+    aliases: dict[str, str] = {}
+    for key in MODELS:
+        aliases[key.lower()] = key
+        try:
+            mid = model_ids.parse_canonical(key)
+        except model_ids.ModelIdError:
+            continue
+        for form in (mid.legacy, mid.display, mid.module):
+            aliases[form.lower()] = key
+    normalised = args.model.strip().lower()
+    requested = aliases.get(normalised, normalised)
+    if requested == "all":
         to_fit = list(MODELS.items())
-    elif args.model in MODELS:
-        to_fit = [(args.model, MODELS[args.model])]
+    elif requested in MODELS:
+        to_fit = [(requested, MODELS[requested])]
     else:
         rprint(f"[red]Unknown model: {args.model}[/red]")
         rprint(f"[yellow]Available: {', '.join(MODELS)}[/yellow]")

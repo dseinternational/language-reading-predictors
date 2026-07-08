@@ -20,7 +20,32 @@ def load_data() -> pd.DataFrame:
     df = pd.read_csv(data_path).convert_dtypes()
     configure_data_types(df)
     add_intervention_schema(df)
+    _broadcast_baseline_blocks(df)
     return df
+
+
+def _broadcast_baseline_blocks(df: pd.DataFrame) -> None:
+    """Broadcast block design (recorded only at wave 1) across each child's rows.
+
+    In the long format ``blocks`` is present only on the t1 row, so broadcasting a
+    child's single value to all their rows makes it usable as a time-invariant
+    baseline covariate (issue #186). ``blocks`` is in ``Variables.DEFAULT_EXCLUDED``,
+    so this changes no default predictor set — it only affects models that opt it in
+    via ``include`` (it realises the intent documented by
+    ``Variables.TIME_INVARIANT_BASELINES`` for block design).
+    """
+    if vars.BLOCKS in df.columns:
+        # blocks is recorded once per child (t1); map that single value to all of the
+        # child's rows. Taking the first non-null is independent of the frame's row
+        # order and well-defined even if a future extract ever carried more than one
+        # non-null value for a child — unlike ``ffill().bfill()``, which would knit
+        # together neighbouring values in that case.
+        first_block = (
+            df.dropna(subset=[vars.BLOCKS])
+            .groupby(vars.SUBJECT_ID)[vars.BLOCKS]
+            .first()
+        )
+        df[vars.BLOCKS] = df[vars.SUBJECT_ID].map(first_block)
 
 
 def add_intervention_schema(df: pd.DataFrame) -> None:
@@ -45,6 +70,14 @@ def add_intervention_schema(df: pd.DataFrame) -> None:
     :func:`configure_data_categories` (which would remap ``group`` to label
     strings).
     """
+    # NOTE: ``period`` is set equal to ``time`` for every row, so t4 rows carry
+    # ``period == 4`` and (via the rule below) ``on_intervention == True`` as a
+    # byproduct — even though a gain interval only spans periods {1, 2, 3} and the
+    # ``*_gain`` columns are NaN at t4. Those values are only meaningful on gain
+    # rows (where t4 is NaN and so drops out anyway). Do NOT use ``period`` /
+    # ``on_intervention`` to filter a *level* (per-timepoint) analysis without also
+    # excluding ``time == 4``; otherwise the t4 wave would be mislabelled as a
+    # fourth on-intervention period.
     df[vars.PERIOD] = df[vars.TIME]
     df[vars.ON_INTERVENTION] = (
         (df[vars.GROUP] == 1) | (df[vars.PERIOD] >= 2)
@@ -72,11 +105,16 @@ def load_and_filter(
     return df, X, y, groups
 
 
-def configure_data_types(df: pd.DataFrame):
-    df[vars.NUMERIC] = df[vars.NUMERIC].astype("Float64")
-    df[vars.GAINS] = df[vars.GAINS].astype("Float64")
-    df[vars.NEXTS] = df[vars.NEXTS].astype("Float64")
-    df[vars.CATEGORICAL] = df[vars.CATEGORICAL].astype("UInt8")
+def configure_data_types(df: pd.DataFrame) -> None:
+    numeric = list(vars.NUMERIC)
+    gains = list(vars.GAINS)
+    nexts = list(vars.NEXTS)
+    categorical = list(vars.CATEGORICAL)
+
+    df[numeric] = df[numeric].astype("Float64")
+    df[gains] = df[gains].astype("Float64")
+    df[nexts] = df[nexts].astype("Float64")
+    df[categorical] = df[categorical].astype("UInt8")
 
 
 def configure_data_categories(df: pd.DataFrame):

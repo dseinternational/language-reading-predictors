@@ -1,3 +1,7 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 ## Results
 
 The factor model reports **one** causal coefficient — the randomised
@@ -27,12 +31,18 @@ if factor_summary is not None and "role" in factor_summary.columns:
             else ""
         )
         print(
-            f"**Causal (randomised) term — `{_r.term}`:** posterior mean "
-            f"{_r['mean']:+.3f} on the logit scale "
+            f"**Causal (randomised) term — `{_r.term}`:** posterior median "
+            f"{_r['median']:+.3f} on the logit scale "
             f"(95% CrI {_r['lo']:+.3f} to {_r['hi']:+.3f}); "
             f"P(> 0) = {_r.prob_positive:.3f} ({_odds(_r.prob_positive)}{_lab}). "
             f"This is the only coefficient identified by randomisation."
         )
+        if str(_r.get("favoured_direction", "positive")) == "negative":
+            print(
+                f"\n\n_The favoured direction is **negative**: evidence of a negative "
+                f"effect is *{_r.favoured_direction_label}* (P = "
+                f"{_r.favoured_direction_prob:.3f})._"
+            )
     else:
         print(
             "_This is a factor-association model with no randomised treatment term — "
@@ -84,7 +94,7 @@ print(_img("rope_summary.png", "ROPE-anchored posterior and P(benefit ≥ δ)"))
 if factor_summary is not None and "role" in factor_summary.columns:
     _assoc = factor_summary[factor_summary.role != "causal"]
     if len(_assoc):
-        _cols = [c for c in ["term", "mean", "lo", "hi", "prob_positive"] if c in _assoc.columns]
+        _cols = [c for c in ["term", "median", "lo", "hi", "prob_positive"] if c in _assoc.columns]
         print('::: {.callout-important title="Adjusted associations — not causal"}\n')
         print(
             "Under the locked DAG every coefficient below is an adjusted association "

@@ -13,9 +13,20 @@ from __future__ import annotations
 import pandas as pd
 
 from language_reading_predictors.models.cluster_ranking import (
+    SAME_SKILL_SIBLINGS,
     aggregate_cluster_importance,
     cluster_ranking_table,
 )
+
+
+def test_deap_composite_targets_have_same_skill_siblings():
+    """The DEAP composite level targets (lrpgbl22/lrpgbl23) leave their deterministic
+    components in the pool, so they must carry a curated same-skill map so the
+    ``ranking_excluding_same_skill.csv`` view their docstrings promise is emitted.
+    """
+    components = ["deappin", "deappvo", "deappfi"]
+    assert SAME_SKILL_SIBLINGS.get("deappav") == components  # lrpgbl22 target
+    assert SAME_SKILL_SIBLINGS.get("deapp_c") == components  # lrpgbl23 target
 
 
 def _perm_and_clusters():

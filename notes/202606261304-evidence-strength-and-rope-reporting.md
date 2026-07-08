@@ -3,6 +3,16 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 
+> [!IMPORTANT]
+> **Current policy (issue #179).** The evidence ladder in force is claim-oriented:
+> **inconclusive / suggestive / moderate / strong / very strong** at the round-odds
+> boundaries (3:1 / 10:1 / 30:1 / 100:1, i.e. P ≥ 0.75 / 0.91 / 0.97 / 0.99). "Weak"
+> is **retired** as a current label — where it appears below it describes the earlier
+> scheme, kept for history; read it as "suggestive". Labels qualify the evidence for a
+> **named claim**, oriented to the favoured direction (a clearly negative effect is
+> evidence of harm, not "inconclusive"), never the effect size, and are reported after
+> the probability and odds. Interval bands follow the 50 / 90 / 95 convention (issue #177).
+
 Date: 2026-06-26
 
 ## Scope and purpose
@@ -372,13 +382,26 @@ spread) or **relative to each domain's pace of progress**. We have chosen the
 latter, and the education lead can override it per outcome (e.g. an absolute
 taught-words target on TR/TE regardless of natural growth).
 
-### Still the education lead's call
+### Education-lead sign-off (2026-07-01, issue #144)
 
-- the **probability-scale δ for the floored outcomes P and N** (their ITT estimand
-  is the probability of coming off the floor, a risk difference, not an items
-  count; placeholder δ = 0.10);
-- any **per-outcome override** where a domain threshold beats the formula;
-- confirming **UR/UE scale length**.
+The education lead reviewed and confirmed the thresholds:
+
+- the **½-natural-maturation rule** and **W = 1** stand as the primary items-scale
+  δ; word reading is **also reported at δ = 2** as a stricter secondary threshold;
+- the **floored outcomes P and N** keep **δ = 0.10 (10 pp)** as the primary
+  risk-difference threshold — signed off (no longer a placeholder), given this
+  group's evident difficulty with these measures;
+- every report carries a **δ-sensitivity table for all outcomes** (each outcome's
+  `P(benefit ≥ δ)` at its adopted δ and a stricter δ — items outcomes at δ and 2·δ;
+  floored outcomes at 10 / 15 / 20 pp), so the meaningful-benefit claim's
+  robustness to the δ choice is explicit rather than hidden in one number.
+
+Still open (data-owner / education-lead):
+
+- confirming **UR/UE scale length** — their denominators are unconfirmed, so their
+  items δ stays provisional pending the data dictionary;
+- any **per-outcome override** where an absolute domain target beats the formula
+  (e.g. a taught-words target on TR/TE regardless of natural growth).
 
 ---
 

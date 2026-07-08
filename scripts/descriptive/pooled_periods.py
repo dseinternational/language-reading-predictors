@@ -37,19 +37,23 @@ Run::
 
 from __future__ import annotations
 
-from pathlib import Path
+import argparse
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
+from language_reading_predictors import paths as _paths
 
 PERIODS = (1, 2, 3)  # wave-to-wave transitions; _gain is NaN at wave 4
 N_BINS = 5  # quantile bins across x
 MIN_BIN_N = 4  # skip bins with fewer points than this
 DPI = 140
 
-_ROOT = Path(__file__).resolve().parents[2]
-_DATA_PATH = _ROOT / "data" / "rli_data_long.csv"
-_OUT_DIR = _ROOT / "output" / "descriptive" / "pooled"
+_DATA_PATH = _paths.DATA_DIR / "rli_data_long.csv"
+
+
+def _out_dir():
+    return _paths.output_root() / "descriptive" / "pooled"
 
 # measure -> (plain name, short slug, x-axis annotation)
 MEASURES = {
@@ -139,16 +143,31 @@ def make_figure(df: pd.DataFrame, number: int, x_col: str, y_col: str) -> None:
     ax.margins(x=0.03)
     fig.tight_layout()
 
-    fig.savefig(_OUT_DIR / out_name, dpi=DPI)
+    fig.savefig(_out_dir() / out_name, dpi=DPI)
     plt.close(fig)
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
+    args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
+
     df = pd.read_csv(_DATA_PATH)
-    _OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir = _out_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
     for number, x_col, y_col in PANELS:
         make_figure(df, number, x_col, y_col)
-    print(f"wrote {len(PANELS)} figures to {_OUT_DIR}")
+    print(f"wrote {len(PANELS)} figures to {out_dir}")
 
 
 if __name__ == "__main__":

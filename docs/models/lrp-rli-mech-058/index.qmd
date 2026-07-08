@@ -1,0 +1,70 @@
+---
+title: "LRP58: Mechanism model — letter-sound knowledge (L) -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP58 estimates the adjusted association $f^L$ between letter-sound knowledge and word reading,
+using all three phase transitions.
+
+## Adjustment set
+
+- $G$ — linear confounder (one coefficient $\beta_G$).
+- $A$ — standard confounder, conditioned on **linearly by default**: a
+  $\gamma_A\,z(\text{age})$ term enters whenever age is a declared confounder and
+  the age GP is off. The nonparametric age-GP flag is **off by default**; re-enable
+  via `ModelSpec.extra={"use_age_gp": True}` for a smooth-age sensitivity fit.
+- $E$ — confounds $L$ and $W$ ($E \to L$ and $E \to W$). Condition on.
+- $R$ — confounds $L$ through $E$ ($R \to E \to L$) and affects $W$. Condition on.
+- $W_{\text{pre}}$ — baseline word reading.
+
+::: {.callout-important title="DAG decision: B is NOT in the adjustment set"}
+
+Phoneme blending $B$ is a descendant of $L$ in the literacy-development cascade
+($L \to \cdots \to B$) and should **not** be conditioned on: doing so would
+change the estimand toward a direct-only component and can introduce collider
+bias. The same argument excludes $F$ (CELF) and $P$ (phonetic spelling) from the
+adjustment set.
+
+This is the single most sensitive modelling decision in the mechanism-model
+set. If a reviewer believes $B$ is an independent cause of $W$ not mediated
+through $L$, they should fit the alternative (conditioning on $B$) and
+compare $f^L$ estimates.
+
+:::
+
+### Interpretation caveats
+
+- NUCA for $(L_{\text{post}}, W_{\text{post}})$ — not testable.
+- Measurement error in $L_{\text{post}}$ attenuates $f^L$.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mechanism.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

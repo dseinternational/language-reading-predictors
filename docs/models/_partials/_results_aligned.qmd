@@ -1,3 +1,7 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 ## Results
 
 The aligned per-protocol design has no clean randomised treatment coefficient.
@@ -21,7 +25,7 @@ if factor_summary is not None and "role" in factor_summary.columns:
             "Read coefficients as associated with the aligned post-score, never as "
             "randomised treatment effects.\n"
         )
-        _cols = [c for c in ["term", "mean", "lo", "hi", "prob_positive"] if c in _assoc.columns]
+        _cols = [c for c in ["term", "median", "lo", "hi", "prob_positive"] if c in _assoc.columns]
         print(_assoc[_cols].to_markdown(index=False))
         print("\n:::")
 ```
@@ -52,4 +56,3 @@ if cohort_marginal is not None:
         f"P(> 0) = {_c.prob_trt_pos:.3f}. This is per-protocol and not randomised."
     )
 ```
-

@@ -4,7 +4,8 @@
 """
 Model factories for the statistical models.
 
-Three factories are provided:
+One ``build_*`` factory per model family (keyed by :class:`ModelSpec.kind`), the
+most-used being:
 
 - :func:`build_itt_model` — the LRPITT ITT suite (one outcome, RCT phase) and its
   SES-adjusted companions; the floored outcomes use its ``bernoulli_offfloor``
@@ -14,15 +15,25 @@ Three factories are provided:
 - :func:`build_mechanism_model` — LRP56, LRP57, LRP58 (adjustment-set
   mechanism regressions on ``W_post`` using all phases).
 
-All three return a tuple ``(model, variables)`` where ``variables`` is a dict
-mapping names to PyMC variables, used by the pipeline to extract posterior
-draws and assemble report tables.
+The rest cover the remaining families: :func:`build_mediation_model`,
+:func:`build_did_model`, :func:`build_gain_factors_model`,
+:func:`build_level_factors_model`, :func:`build_aligned_model`,
+:func:`build_adjusted_model`, :func:`build_correlated_factor_model`,
+:func:`build_dose_response_model`, :func:`build_lcsm_model`,
+:func:`build_two_mediator_model`, :func:`build_horseshoe_model`,
+:func:`build_growth_model` and :func:`build_historical_growth_model`. See
+``definitions.py`` for the authoritative family/kind registry.
+
+Each returns a :class:`BuiltModel` carrying the PyMC ``model``, a ``variables``
+dict mapping names to PyMC variables (used by the pipeline to extract posterior
+draws and assemble report tables), the row-subset ``prepared`` data, and any
+``extras`` the reporting layer needs (e.g. treatment-interaction moderators).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable
+from dataclasses import dataclass, field
+from typing import Any, Iterable
 
 import numpy as np
 import pymc as pm
@@ -81,6 +92,29 @@ def _tau_sigma_for(outcome_symbol: str, override: float | None = None) -> float:
     )
 
 
+def _alpha_sigma_for(outcome_symbol: str, override: float | None = None) -> float:
+    """Intercept prior SD for a single-outcome ANCOVA (prior-critical-review 2026-07-07).
+
+    Mirrors :func:`_tau_sigma_for`: returns ``override`` when given (prior-
+    sensitivity fits), else the outcome tier — the tighter ``ALPHA_SIGMA_DISTAL``
+    (1.0) for the broad high-denominator standardised-transfer outcomes
+    (``measures.DISTAL_OUTCOMES``) and the wider ``ALPHA_SIGMA_PROXIMAL`` (1.5)
+    otherwise. A no-op for proximal outcomes, so only distal-outcome fits tighten.
+    Applies to the free ``alpha`` intercept of the ANCOVA families whose linear
+    predictor already carries the outcome level in the ``gamma_own * logit(y_pre)``
+    term (so ``alpha``'s mean is a ~0 deviation, tiered by SD — not re-anchored;
+    see :func:`priors.alpha_prior`). The growth/LCSM *level* models instead anchor
+    the intercept mean and do not use this.
+    """
+    if override is not None:
+        return override
+    return (
+        _priors.ALPHA_SIGMA_DISTAL
+        if is_distal(outcome_symbol)
+        else _priors.ALPHA_SIGMA_PROXIMAL
+    )
+
+
 def _add_child_random_intercept(
     eta: pt.TensorVariable,
     child_idx: pt.TensorVariable,
@@ -113,6 +147,16 @@ class BuiltModel:
     values; this attribute exposes the actually-used data so the pipeline can
     align posterior indices to input rows.
     """
+    extras: dict[str, Any] = field(default_factory=dict)
+    """Optional per-model artefacts the pipeline needs but that are not RVs.
+
+    Used to carry the exact moderator vectors of any treatment×covariate
+    interactions (aligned with ``prepared``'s ``obs_id`` order) so the
+    average-marginal-effect report can net out the *full* per-row treatment
+    contribution — not just the treatment main effect — without recomputing
+    (and risking drift from) the standardisation the factory used. See
+    ``reporting._itt_ame_draws``'s ``moderators`` argument.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +180,7 @@ def build_itt_model(
     tau_moderator_is_covariate: bool = False,
     tau_moderator_interaction: bool = True,
     tau_sigma: float | None = None,
+    alpha_sigma: float | None = None,
 ) -> BuiltModel:
     """
     Build the single-outcome ITT model used by the LRPITT suite (and its SES
@@ -226,6 +271,15 @@ def build_itt_model(
         standardised-transfer outcomes in ``measures.DISTAL_OUTCOMES``,
         ``TAU_SIGMA_PROXIMAL`` (0.5) otherwise. Pass an explicit value for a
         prior-sensitivity fit (``scripts/tau_prior_sensitivity.py``).
+    alpha_sigma
+        Override the intercept prior SD (prior-critical-review 2026-07-07,
+        Finding 1). ``None`` (default) uses the outcome tier via
+        :func:`_alpha_sigma_for`: ``ALPHA_SIGMA_DISTAL`` (1.0) for the
+        high-denominator broad-transfer outcomes, ``ALPHA_SIGMA_PROXIMAL`` (1.5)
+        otherwise — a no-op for proximal outcomes. The intercept is a *deviation*
+        (the level is carried by ``gamma_own * logit(y_pre)``), so this tiers its
+        SD rather than re-anchoring its mean. Pass an explicit value for a
+        prior-sensitivity fit.
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
@@ -330,7 +384,9 @@ def build_itt_model(
             pm.Data("z_tau_moderator", z_M, dims="obs_id") if z_M is not None else None
         )
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(own, alpha_sigma)
+        ).to_pymc("alpha")
         tau0 = _priors.tau_prior(
             sigma=_tau_sigma_for(own, tau_sigma)
         ).to_pymc("tau")
@@ -395,7 +451,20 @@ def build_itt_model(
             pm.Bernoulli("y_offfloor", logit_p=eta, observed=off_floor, dims="obs_id")
 
     variables = _variables_dict(model)
-    return BuiltModel(model=model, variables=variables, prepared=prepared)
+    # Expose the tau-moderator vector so the AME report can net out the full
+    # per-row treatment contribution ``(tau + gamma_tau_int·z_M)·G`` when a
+    # linear tau moderator with interaction is fitted (Part B; latent — no
+    # registered spec sets ``tau_moderator_symbol`` today). ``gamma_tau_mod`` is
+    # a main effect and cancels in the toggle, so only ``gamma_tau_int`` enters.
+    tau_moderators: list[tuple[str, np.ndarray]] = []
+    if z_M is not None and tau_moderator_interaction:
+        tau_moderators.append(("gamma_tau_int", np.asarray(z_M, dtype=float)))
+    return BuiltModel(
+        model=model,
+        variables=variables,
+        prepared=prepared,
+        extras={"tau_interaction_moderators": tau_moderators},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -503,6 +572,11 @@ def build_joint_model(
 
         # Per-outcome scalar parameters — shared constructors (priors.py) so
         # the joint model cannot drift from the ITT / mechanism factories (issue #79).
+        # alpha and tau are kept **common** (untiered) across outcomes here — the
+        # joint is the deliberately uniform-prior cross-check against the tiered
+        # single-outcome ITT fits (the note keeps the common tau; the intercept
+        # follows the same rationale). Per-outcome alpha-SD tiering (Finding 1) in
+        # the joint is a documented follow-up.
         alpha = _priors.alpha_prior().to_pymc("alpha", dims="outcome")
         tau = _priors.tau_prior().to_pymc("tau", dims="outcome")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")
@@ -697,6 +771,12 @@ def build_mechanism_model(
     clean no-interaction baseline (e.g. LRP73base) that differs from the full
     model by exactly the interaction term, for a nested PSIS-LOO comparison.
     """
+    # Materialise once: ``confounder_symbols`` is iterated several times below
+    # (keep-mask, coefficient loop, the "A in confounders" check, and the
+    # "every declared confounder reaches eta" invariant). A generator argument
+    # would be exhausted after the first pass and silently drop every confounder
+    # — the exact failure the invariant exists to catch.
+    confounder_symbols = tuple(confounder_symbols)
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
     if mechanism_symbol not in prepared.pre_logit:
@@ -748,11 +828,22 @@ def build_mechanism_model(
         z_L, _ = standardise(mech_post_logit)
     if moderator_symbol is not None:
         if moderator_is_covariate:
-            # Continuous covariate moderator (currently age): use the
-            # already-standardised A_std, re-standardised on the kept rows so
-            # gamma_mod reads as the moderator effect at mean L and gamma_int is
-            # unit-free — consistent with the count-moderator path.
-            z_M, _ = standardise(prepared.A_std)
+            # Continuous covariate moderator: dispatch on ``moderator_symbol`` so
+            # the label matches the vector (like the ITT factory). ``"A"`` is age
+            # (``prepared.A_std``); any other symbol must be a ``prepared.covariates``
+            # key. Re-standardised on the kept rows so gamma_mod reads at mean L and
+            # gamma_int is unit-free. Raising on an unknown symbol prevents the old
+            # silent behaviour of fitting age moderation regardless of the symbol.
+            if moderator_symbol == "A":
+                raw_M = prepared.A_std
+            elif moderator_symbol in prepared.covariates:
+                raw_M = prepared.covariates[moderator_symbol]
+            else:
+                raise KeyError(
+                    f"Covariate moderator {moderator_symbol!r} not in "
+                    "prepared.covariates (use 'A' for age)."
+                )
+            z_M, _ = standardise(raw_M)
         else:
             moderator_post_logit = logit_safe(
                 prepared.post_counts[moderator_symbol],
@@ -795,7 +886,9 @@ def build_mechanism_model(
                 f"{s}_post_logit", c_val_np, dims="obs_id"
             )
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         alpha_phase = pm.Normal(
             "alpha_phase", mu=0.0, sigma=0.5, dims="phase"
         )
@@ -1036,7 +1129,9 @@ def build_dose_response_model(
                 f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id"
             )
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         alpha_phase = pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
@@ -1167,6 +1262,17 @@ def build_did_model(
     if own not in prepared.post_counts or own not in prepared.pre_logit:
         raise KeyError(f"Outcome {own!r} missing pre/post in prepared data")
     periods = tuple(int(p) for p in periods)
+    # The time / treated indicators below hard-code the waitlist-crossover 2×2
+    # (P1 untreated-waitlist vs P2 crossover, ``is_p2 = phase >= 1``,
+    # ``treated = (G==1) | (phase>=1)``). They are only correct for the
+    # crossover pair ``(0, 1)``; any other window would silently mislabel the
+    # time and treatment cells (e.g. ``(1, 2)`` makes both indicators constant,
+    # leaving delta / beta_period unidentified). Fail loudly instead.
+    if periods != (0, 1):
+        raise ValueError(
+            "build_did_model hard-codes the P1-vs-P2 crossover contrast and "
+            f"requires periods=(0, 1); got {periods}."
+        )
     if dose and "attend" not in prepared.covariates:
         raise KeyError("dose=True requires the 'attend' covariate to be loaded")
     if period_varying_dose and not dose:
@@ -1195,7 +1301,9 @@ def build_did_model(
         period_d = pm.Data("period", is_p2, dims="obs_id")
         own_pre_d = pm.Data("own_pre_logit", pre_logit, dims="obs_id")
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         beta_period = _priors.tau_prior().to_pymc("beta_period")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
@@ -1217,7 +1325,12 @@ def build_did_model(
         eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
 
         if dose:
-            z_attend = pm.Data("z_attend", prepared.covariates["attend"], dims="obs_id")
+            # Re-standardise the dose covariate on the kept rows: it was z-scored
+            # over all stacked transitions (P1–P3) at load time, but this model is
+            # fit on ``periods`` (P1–P2) only, so without this the dose slope would
+            # be "per SD of dose pooled over P1–P3", not per SD of the fitted rows.
+            attend_std, _ = standardise(prepared.covariates["attend"])
+            z_attend = pm.Data("z_attend", attend_std, dims="obs_id")
             if period_varying_dose:
                 # Partial-pooled per-period dose slopes (non-centred): each
                 # period's slope shrinks toward the shared mean mu_dose. The
@@ -1228,7 +1341,12 @@ def build_did_model(
                     np.asarray(periods), prepared.phase
                 ).astype(np.int64)
                 dose_phase_idx = pm.Data("dose_phase_idx", period_pos, dims="obs_id")
-                mu_dose = _priors.tau_prior().to_pymc("mu_dose")
+                # Use the dose-response factory's dose-slope prior (beta_mech,
+                # Normal(0, 1)) — NOT tau — so the shared dose-slope summary compares
+                # like with like (the docstring says this model mirrors
+                # build_dose_response_model). Previously these reused tau_prior,
+                # silently differing from the model they are compared against.
+                mu_dose = _priors.beta_mech_prior().to_pymc("mu_dose")
                 sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
                 beta_dose_phase = pm.Deterministic(
                     "beta_dose_phase",
@@ -1239,7 +1357,8 @@ def build_did_model(
                 )
                 eta_full = eta_base + beta_dose_phase[dose_phase_idx] * z_attend
             else:
-                beta_dose = _priors.tau_prior().to_pymc("beta_dose")
+                # Match build_dose_response_model's dose-slope prior (beta_mech).
+                beta_dose = _priors.beta_mech_prior().to_pymc("beta_dose")
                 eta_full = eta_base + beta_dose * z_attend
         else:
             treated_d = pm.Data("treated", treated, dims="obs_id")
@@ -1891,7 +2010,7 @@ def build_adjusted_model(
     outcome_symbol: str = "W",
     predictors: Iterable[str] = ("L", "lang", "B", "age", "blocks", "behav"),
     language_composite_symbols: Iterable[str] = ("R", "E", "F"),
-    predictor_slope_sigma: float = 0.5,
+    predictor_slope_sigma: float = 0.3,
 ) -> BuiltModel:
     """Between-child adjusted model: standardised T1 baselines -> word-reading gain.
 
@@ -1935,7 +2054,9 @@ def build_adjusted_model(
     coords = {"obs_id": np.arange(prepared.n_obs)}
     with pm.Model(coords=coords) as model:
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
         eta = alpha + gamma_own * own_pre_d
 
@@ -2330,7 +2451,7 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
 # ability (``blocks``) is the observed handle on GA. SES is intentionally NOT a
 # factor: it is not a DAG node and was found statistically redundant, so it is
 # excluded from the core sets (it can be added later as a robustness companion,
-# as for the ITT suite's lrpitt13). Attendance / dose (``IS``) is a DAG collider
+# as for the ITT suite's lrp-rli-itt-013). Attendance / dose (``IS``) is a DAG collider
 # and is never conditioned on.
 # ---------------------------------------------------------------------------
 
@@ -2431,9 +2552,15 @@ def build_gain_factors_model(
         pair for pair in interactions if include_trt or "trt" not in pair
     ]
 
+    # Standardise the interaction-term components on the *kept* rows (used for the
+    # interaction products and AME moderators). Main effects are entered on their
+    # natural scales (raw logit baselines; age uses ``prepared.A_std``).
+    # Re-standardise the ability covariate here too: treated_only (…b) variants drop
+    # the untreated period-1 rows, so the load-time scaler (over all periods) would
+    # otherwise mislabel the “per 1 SD” unit for the treated-only fit.
     term_vecs: dict[str, np.ndarray] = {"trt": trt, "age": prepared.A_std}
     if ability_covariate is not None:
-        term_vecs["ability"] = prepared.covariates[ability_covariate]  # already z-scored
+        term_vecs["ability"], _ = standardise(prepared.covariates[ability_covariate])
     term_vecs["own"], _ = standardise(prepared.pre_logit[own])
     for s in skill_symbols:
         term_vecs[s], _ = standardise(prepared.pre_logit[s])
@@ -2463,7 +2590,9 @@ def build_gain_factors_model(
             for pair in active_interactions
         }
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         alpha_phase = pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
@@ -2503,7 +2632,30 @@ def build_gain_factors_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    # Expose the treatment×covariate interaction moderators so the pipeline's
+    # average-marginal-effect report can net out the *full* per-row treatment
+    # contribution ``beta_trt + Σ_k gamma_int_trt_k · z_k`` — not just
+    # ``beta_trt`` (issue: gain-family AME ignored the fitted trt interactions).
+    # Each entry is ``(gamma_int coefficient name, standardised moderator vector)``
+    # for a fitted interaction with ``trt`` as one member; the moderator is the
+    # *other* member's term vector, exactly as multiplied into ``eta``. Only
+    # populated when the treatment term is present (``include_trt``).
+    trt_moderators: list[tuple[str, np.ndarray]] = []
+    if include_trt:
+        for pair in active_interactions:
+            if "trt" not in pair:
+                continue
+            other = pair[0] if pair[1] == "trt" else pair[1]
+            trt_moderators.append(
+                (f"gamma_int_{pair[0]}_{pair[1]}", np.asarray(term_vecs[other], dtype=float))
+            )
+
+    return BuiltModel(
+        model=model,
+        variables=_variables_dict(model),
+        prepared=prepared,
+        extras={"trt_interaction_moderators": trt_moderators},
+    )
 
 
 def build_level_factors_model(
@@ -2580,7 +2732,9 @@ def build_level_factors_model(
             else None
         )
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         alpha_time = pm.Normal("alpha_time", mu=0.0, sigma=0.5, dims="phase")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
@@ -2679,14 +2833,22 @@ def build_aligned_model(
 
     post = prepared.post_counts[own].astype(np.int64)
     cohort = prepared.G.astype(float)
-    own_pre_std, _ = standardise(prepared.pre_logit[own])
+    # Enter the own baseline on the *raw* logit scale, like every sibling factory
+    # (ITT, mechanism, gain/level-factors, DiD): the ``gamma_own ~ Normal(1, 0.5)``
+    # prior encodes "logit-post ≈ logit-pre" (a slope near 1 in logit units), which
+    # only holds on the raw logit scale. Standardising the baseline here (as before)
+    # left that prior mean of 1 meaning "1 logit per SD of baseline logit" — an
+    # unintended, measure-dependent prior for this precision term.
+    own_pre_logit = prepared.pre_logit[own]
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     with pm.Model(coords=coords) as model:
-        own_pre_d = pm.Data("own_pre_logit", own_pre_std, dims="obs_id")
+        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
 
-        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + gamma_own * own_pre_d + gamma_A * A_std_d
@@ -2732,10 +2894,10 @@ def build_lcsm_model(
     panel: WavePanel,
     *,
     reading_symbol: str = "W",
-    coupling_prior_sigma: float = 0.5,
+    coupling_prior_sigma: float = 0.3,
     self_prior_sigma: float = 0.5,
     intercept_prior_sigma: float = 1.5,
-    covariate_prior_sigma: float = 0.5,
+    covariate_prior_sigma: float = 0.3,
     use_process_noise: bool = True,
     shared_process_noise: bool = False,
     sigma_proc_prior_sigma: float = 0.5,
@@ -2903,6 +3065,166 @@ def build_lcsm_model(
     return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
 
 
+def build_growth_model(
+    panel: WavePanel,
+    *,
+    baseline_covariate: str = "blocks",
+    use_shared_factor: bool = False,
+    intercept_prior_sigma: float = 1.5,
+    slope_prior_sigma: float = 0.5,
+    assoc_prior_sigma: float = 0.3,
+    re_intercept_prior_sigma: float = 0.5,
+    re_slope_prior_sigma: float = 0.5,
+    loading_prior_sigma: float = 0.5,
+    kappa_prior_sigma: float = 50.0,
+) -> BuiltModel:
+    """Joint multivariate latent growth-curve model (LRP69/70) on the logit scale.
+
+    Characterises each measure's within-child trajectory across the waves and asks
+    whether a **baseline** covariate (``blocks``, the t1-only WPPSI Block Design
+    non-verbal score) predicts trajectory *shape*. For measure ``k``, child ``i``,
+    wave ``t`` (with ``a`` = standardised age)::
+
+        theta[i,t,k]   = intercept[i,k] + slope[i,k] * a[i,t]
+        intercept[i,k] = alpha_k + delta_k * z(blocks_i) + sigma0_k * z0[i,k]
+        slope[i,k]     = beta_k  + gamma_k * z(blocks_i) + [loading_k * G_i]
+                                 + sigma1_k * z1[i,k]
+        y[i,t,k] ~ BetaBinomial(N_k, mu = sigmoid(theta[i,t,k]), kappa_k)
+
+    Growth is **linear in standardised age** — the identifiable choice at four
+    waves. ``gamma_k`` (baseline non-verbal ability -> growth *rate*) is the
+    headline Q5 estimand; ``delta_k`` is the effect on baseline *level*. Both are
+    **adjusted / GA-confounded associations, never causal** (block design is an
+    off-DAG ability proxy; see ``notes/202606231600-dag-revision-consolidated.md``).
+
+    The child-level random intercept and slope are **independent per measure** —
+    the within-measure intercept-slope correlation is deliberately omitted at
+    n~54, mirroring the joint ITT model's disabled LKJ residual correlation (found
+    prior-dominated at this sample size, ``notes/202604181600-lrp52-58-findings.md``).
+    Everything is non-centred for sampling.
+
+    ``use_shared_factor`` adds a rank-1 shared child-level growth-tempo factor
+    ``G_i ~ Normal(0, 1)`` loading (positively, for identification) on every
+    measure's slope — the genuinely *joint* layer (LRP70): does a common
+    developmental tempo couple the measures, and (read out post-hoc) does baseline
+    non-verbal ability predict it? ``LOO(LRP69 vs LRP70)`` shows whether the factor
+    earns its keep. The core LRP69 keeps ``use_shared_factor=False``.
+
+    Observed counts enter via a **masked** Beta-Binomial (the LRP55 flattened-mask
+    idiom): only the unmasked cells in ``panel.obs_mask`` are observed, so a child
+    missing one score still contributes its other waves. The intervention-dose
+    covariate is **omitted** (the locked DAG's ``IS`` collider, as in
+    :func:`build_lcsm_model`).
+    """
+    OUT = tuple(panel.outcomes)
+    K = len(OUT)
+    N = panel.n_children
+    T = panel.n_waves
+    if T < 2:
+        raise ValueError("growth model needs at least two waves")
+    if baseline_covariate not in panel.baseline:
+        raise KeyError(
+            f"baseline_covariate {baseline_covariate!r} not loaded; pass "
+            f"baseline_covariates=({baseline_covariate!r},) to load_wave_panel."
+        )
+
+    # Observed counts / mask / denominators stacked as (N, T, K) in OUT order.
+    counts_int = np.stack(
+        [np.nan_to_num(panel.counts[s], nan=0.0).astype(np.int64) for s in OUT],
+        axis=2,
+    )
+    mask = np.stack([panel.obs_mask[s] for s in OUT], axis=2)  # (N, T, K) bool
+    n_trials_vec = np.array([panel.n_trials[s] for s in OUT], dtype=int)  # (K,)
+    zb = np.asarray(panel.baseline[baseline_covariate], dtype=float)  # (N,) standardised
+
+    # Intercept anchor: grand-mean observed logit per measure (the intercept is the
+    # logit level at mean age, age_std = 0). Guard the all-NaN case loudly.
+    missing = [s for s in OUT if not np.isfinite(panel.logit[s]).any()]
+    if missing:
+        raise ValueError(
+            "growth intercept anchor is undefined (no observed value) for: "
+            f"{', '.join(missing)}."
+        )
+    intercept_anchor = np.array(
+        [np.nanmean(panel.logit[s]) for s in OUT], dtype=float
+    )
+
+    coords = {"child": np.arange(N), "wave": panel.waves, "outcome": list(OUT)}
+
+    from dse_research_utils.math.constants import EPSILON  # local import
+
+    with pm.Model(coords=coords) as model:
+        age = pm.Data("age_std", panel.age_std, dims=("child", "wave"))
+        blocks = pm.Data("blocks_std", zb, dims="child")
+
+        # Population growth parameters (per measure).
+        alpha = pm.Normal(
+            "alpha", mu=intercept_anchor, sigma=intercept_prior_sigma, dims="outcome"
+        )
+        beta = pm.Normal("beta", mu=0.0, sigma=slope_prior_sigma, dims="outcome")
+        # Baseline non-verbal ability -> trajectory shape (the Q5 estimands):
+        # delta on the baseline level, gamma on the growth rate (headline).
+        delta = pm.Normal("delta", mu=0.0, sigma=assoc_prior_sigma, dims="outcome")
+        gamma = pm.Normal("gamma", mu=0.0, sigma=assoc_prior_sigma, dims="outcome")
+        # Child-level random intercept + slope (independent per measure).
+        sigma_intercept = pm.HalfNormal(
+            "sigma_intercept", sigma=re_intercept_prior_sigma, dims="outcome"
+        )
+        sigma_slope = pm.HalfNormal(
+            "sigma_slope", sigma=re_slope_prior_sigma, dims="outcome"
+        )
+        z_intercept = pm.Normal("z_intercept", 0.0, 1.0, dims=("child", "outcome"))
+        z_slope = pm.Normal("z_slope", 0.0, 1.0, dims=("child", "outcome"))
+        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome")
+
+        # child x outcome intercepts and slopes (non-centred).
+        intercept = pm.Deterministic(
+            "intercept",
+            alpha[None, :]
+            + delta[None, :] * blocks[:, None]
+            + sigma_intercept[None, :] * z_intercept,
+            dims=("child", "outcome"),
+        )
+        slope_mean = beta[None, :] + gamma[None, :] * blocks[:, None]
+        if use_shared_factor:
+            # Rank-1 shared child-level growth-tempo factor: positive loadings so
+            # G is a common "faster growth on every measure" tempo (identification).
+            G = pm.Normal("G_tempo", 0.0, 1.0, dims="child")
+            loading = pm.HalfNormal(
+                "loading", sigma=loading_prior_sigma, dims="outcome"
+            )
+            slope_mean = slope_mean + loading[None, :] * G[:, None]
+        slope = pm.Deterministic(
+            "slope",
+            slope_mean + sigma_slope[None, :] * z_slope,
+            dims=("child", "outcome"),
+        )
+
+        # Latent logit trajectory (linear in standardised age).
+        theta = pm.Deterministic(
+            "theta",
+            intercept[:, None, :] + slope[:, None, :] * age[:, :, None],
+            dims=("child", "wave", "outcome"),
+        )
+
+        # Masked Beta-Binomial observation (LRP55 flattened-mask idiom).
+        mu = pm.math.sigmoid(theta)
+        mu_clip = pm.math.clip(mu, EPSILON, 1 - EPSILON)
+        alpha_bb = (mu_clip * kappa[None, None, :]).reshape((-1,))
+        beta_bb = ((1 - mu_clip) * kappa[None, None, :]).reshape((-1,))
+        idx_i, idx_t, idx_k = np.nonzero(mask)
+        lin = np.ravel_multi_index((idx_i, idx_t, idx_k), (N, T, K))
+        pm.BetaBinomial(
+            "y_obs",
+            n=n_trials_vec[idx_k],
+            alpha=alpha_bb[lin],
+            beta=beta_bb[lin],
+            observed=counts_int[idx_i, idx_t, idx_k],
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
+
+
 # ---------------------------------------------------------------------------
 # Historical group-by-wave growth (RLMHG, #165 - first non-RLI dataset)
 # ---------------------------------------------------------------------------
@@ -2913,7 +3235,7 @@ def build_historical_growth_model(
     *,
     measure: str = "basread",
     eta_prior_sigma: float = 1.5,
-    sigma_subject_prior_sigma: float = 1.0,
+    sigma_subject_prior_sigma: float = 0.5,
     kappa_prior_sigma: float = 50.0,
 ) -> BuiltModel:
     """Descriptive group-by-wave growth model for a historical cohort.
@@ -2928,7 +3250,7 @@ def build_historical_growth_model(
     model: ``group`` carries no treatment semantics, there is no baseline-as-
     precision term and no adjustment set. Deterministics expose the group-by-wave
     expected item score, within-group interval growth, and pairwise total-growth
-    contrasts. Ported from the standalone ``rlmhg01`` script (#163) onto the
+    contrasts. Ported from the standalone ``lrp-rlm-hg-001`` script (#163) onto the
     shared pipeline (#165).
     """
     df = panel.long

@@ -31,6 +31,29 @@ class LGBMLogPipeline(LGBMPipeline):
 
     _estimator_label: str = "LGBMRegressor (log1p-wrapped)"
 
+    def configure_model(self) -> None:
+        # ``check_inverse=False`` on the TransformedTargetRegressor means sklearn
+        # will NOT warn if log1p/expm1 do not round-trip. log1p is only defined for
+        # y > -1 (log1p(-1) = -inf, log1p(y < -1) = NaN), and with the check off a
+        # y <= -1 would slip through and silently poison the fit with NaN targets.
+        # Guard here (configure_model runs after prepare_data, so context.y is set,
+        # and before cross_validate / fit_model) with a clear error naming this
+        # pipeline. No registered model uses this pipeline today, so this is
+        # defensive — but cheap and unambiguous if one ever does.
+        y = self.context.y
+        if y is not None:
+            bad = np.asarray(y, dtype="float64")
+            bad = bad[np.isfinite(bad) & (bad <= -1.0)]
+            if bad.size:
+                raise ValueError(
+                    "LGBMLogPipeline applies np.log1p to the target, which is only "
+                    f"defined for values > -1, but {bad.size} target value(s) are "
+                    f"<= -1 (min {float(bad.min())}). Use a pipeline without a log "
+                    "transform (e.g. LGBMPipeline or LGBMSignedLogPipeline) for a "
+                    "target that can reach or fall below -1."
+                )
+        super().configure_model()
+
     def _wrap_estimator(self, lgbm):
         return TransformedTargetRegressor(
             regressor=lgbm,

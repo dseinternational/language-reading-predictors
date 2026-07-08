@@ -1,0 +1,10 @@
+---
+title: "Discussion"
+abstract: "Draft scaffold; discussion pending."
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+The discussion has not yet been written. It should be drafted only after the result chapters have been filled from converged models, with uncertainty, prior sensitivity, and causal limitations carried through explicitly.

@@ -1,0 +1,64 @@
+---
+title: "LRP56: Mechanism model — receptive vocabulary (R) -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP56 estimates the adjusted association $f^R$ between receptive vocabulary and word reading
+using *all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with
+phase-specific intercepts. The mechanism variable enters as a 1-D HSGP on
+$\text{logit}_*(R_{\text{post}}, N_R)$.
+
+## Adjustment set
+
+The model conditions on this DAG-motivated adjustment set to reduce confounding
+of the $R_{\text{post}}$--$W_{\text{post}}$ association:
+
+- $G$ — $G \to R$ and $G \to W$ (linear, one coefficient $\beta_G$).
+- $A$ — $A \to R$ and $A \to W$. Age is conditioned on **linearly by default**: a
+  $\gamma_A\,z(\text{age})$ term enters whenever age is a declared confounder and
+  the age GP is off. The nonparametric age-GP flag is **off by default**; re-enable
+  via `ModelSpec.extra={"use_age_gp": True}` for a smooth-age sensitivity fit.
+- $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
+
+$E$ is a *descendant* of $R$ (path $R \to E$) that also affects $W$.
+Conditioning on $E$ would change the estimand by removing the $R \to E \to W$
+pathway and pulling the estimated $f^R$ toward the direct-only component. $E$ is
+therefore **not** in the adjustment set.
+
+### Interpretation caveats
+
+- *No unmeasured confounder assumption* (NUCA) for $(R_{\text{post}}, W_{\text{post}})$: strong and not testable.
+- $R_{\text{post}}$ is measured with error; if measurement error is non-negligible, $f^R$ attenuates toward zero (a latent-$R$ extension is out of scope here).
+- Across-phase pooling assumes the structural relationship is stable over time; a phase-specific sensitivity fit is available via the `phase_specific_mechanism` flag.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mechanism.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

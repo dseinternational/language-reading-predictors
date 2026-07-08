@@ -12,16 +12,17 @@ from language_reading_predictors.statistical_models.registry import discover_mod
 
 
 def _expected_model_modules() -> set[str]:
-    """Model modules implied by the naming convention: non-package submodules whose
-    name carries a number (``lrpitt01``, ``rlmhg01`` ...). Infrastructure modules
-    are digit-free, so this stays allowlist-free while failing on any missing or
-    unexpected model."""
+    """Canonical CLI ids implied by the naming convention: non-package submodules
+    whose name carries a number (``lrp_rli_itt_001``, ``lrp_rlm_hg_001`` ...), with
+    the module underscores rendered as hyphens (the registry key form since #168
+    Phase 2). Infrastructure modules are digit-free, so this stays allowlist-free
+    while failing on any missing or unexpected model."""
     import pkgutil
 
     from language_reading_predictors import statistical_models as _pkg
 
     return {
-        info.name
+        info.name.replace("_", "-")
         for info in pkgutil.iter_modules(_pkg.__path__)
         if not info.ispkg and any(ch.isdigit() for ch in info.name)
     }
@@ -36,18 +37,19 @@ def test_discovers_every_model_module():
 
 def test_discovers_known_models_across_families():
     models = discover_models()
-    # Readable family spot-checks (the exact-set test above is the real guard).
+    # Readable family spot-checks, in canonical CLI form (the exact-set test above
+    # is the real guard).
     for mid in (
-        "lrpitt01",  # ITT suite
-        "lrpgf01",  # gain factors
-        "lrplf01",  # level factors
-        "lrpdid01",  # DiD
-        "lrpal01",  # aligned
-        "lrpmm01",  # measurement
-        "lrphs01",  # horseshoe
-        "lrp65",  # adjusted, LAZY spec (get_spec, no module-level SPEC)
-        "lrp67",  # LCSM
-        "rlmhg01",  # historical growth (2nd dataset)
+        "lrp-rli-itt-001",  # ITT suite
+        "lrp-rli-gf-001",  # gain factors
+        "lrp-rli-lf-001",  # level factors
+        "lrp-rli-did-001",  # DiD
+        "lrp-rli-al-001",  # aligned
+        "lrp-rli-mm-001",  # measurement
+        "lrp-rli-hs-001",  # horseshoe
+        "lrp-rli-adj-065",  # adjusted, LAZY spec (get_spec, no module-level SPEC)
+        "lrp-rli-lcsm-067",  # LCSM
+        "lrp-rlm-hg-001",  # historical growth (2nd dataset)
     ):
         assert mid in models, f"{mid} not discovered"
         assert callable(models[mid].fit)

@@ -1,0 +1,14 @@
+<!--
+Transcluded standing caveat for [ASSOCIATION] results. Stated once, reused everywhere —
+edit HERE only. Included via {{< include ../_caveats-association.qmd >}} (from a chapter
+in chapters/) or {{< include _caveats-association.qmd >}} (from a top-level file).
+-->
+
+::: {.callout-important title="Causal status — [ASSOCIATION]"}
+Beyond the single randomised term, **every coefficient in this chapter is an adjusted
+association, not an effect**. Under the locked DAG (@sec-dag) each is confounded by
+latent general ability and — where the predictor is measured at the same wave as the
+outcome — by shared measurement; the per-child random intercept is a *partial* repair,
+not full adjustment. Read these as "associated with, after adjusting for …", **never** as
+"X drives Y".
+:::

@@ -1,0 +1,7 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+# Glossary {#sec-glossary}
+
+The glossary is maintained in `METHODS.md` while the integrated report remains a draft scaffold.

@@ -1,6 +1,10 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
+from typing import ClassVar
+
 
 class Variables:
     """
@@ -424,14 +428,14 @@ class Variables:
 
     SPPHON_NONE = "spphon_none"
     """
-    Never scored more than 0 on SPPHON at any time point (0: scored > 1 at at least one time point; 1: only 
-    ever scored 0 or NaN at all time points).
+    Never scored above 0 on SPPHON at any time point (0: scored > 0 at at least one time point; 1: only
+    ever scored 0 (or NaN) at every time point). Matches the model-side off-floor convention (off-floor = score > 0).
     """
 
     NONWORD_NONE = "nonword_none"
     """
-    Never scored more than 0 on NONWORD at any time point (0: scored > 1 at at least one time point; 1: only 
-    ever scored 0 or NaN at all time points).
+    Never scored above 0 on NONWORD at any time point (0: scored > 0 at at least one time point; 1: only
+    ever scored 0 (or NaN) at every time point). Matches the model-side off-floor convention (off-floor = score > 0).
     """
 
     _NEXT_SUFFIX = "_next"
@@ -616,8 +620,10 @@ class Variables:
     PERIOD = "period"
     """
     Gain-interval index. A gain recorded at baseline wave ``t`` covers
-    period ``t`` (``t`` in {1, 2, 3}; the ``*_gain`` columns are NaN at t4).
-    Numerically equal to :attr:`TIME`, but kept as a separate,
+    period ``t`` (the meaningful range is {1, 2, 3}; the ``*_gain`` columns are
+    NaN at t4). It is set **numerically equal to** :attr:`TIME` for every row, so
+    t4 rows carry ``period == 4`` as a byproduct — that value is only meaningful on
+    gain rows, where t4 is NaN and drops out. Kept as a separate,
     canonically-named column so period-resolved analyses (and the Bayesian
     follow-ups in #104) share a single definition rather than each
     re-deriving it from ``time``.
@@ -625,7 +631,9 @@ class Variables:
     Derived in :func:`data_utils.load_data` (it is not a raw CSV column) and
     deliberately **absent** from :attr:`ALL` / :attr:`NUMERIC` /
     :attr:`CATEGORICAL` so it does not silently enter the default predictor
-    sets. See :data:`Categories.TIME_PERIOD` for the 1-3 label mapping.
+    sets. See :data:`Categories.TIME_PERIOD` for the 1-3 label mapping. When
+    used to filter a *level* (per-timepoint) analysis, exclude ``time == 4``
+    explicitly rather than relying on ``period``.
     """
 
     ON_INTERVENTION = "on_intervention"
@@ -635,14 +643,17 @@ class Variables:
     The immediate group (``group == 1``) is on intervention from period 1;
     the waitlist group (``group == 2``) is off in period 1 only and on once
     it crosses over (``period >= 2``). Equivalently, a row is **off**
-    intervention iff ``(group == 2) & (period == 1)``.
+    intervention iff ``(group == 2) & (period == 1)``. Because ``period``
+    equals ``time`` on every row, t4 rows also evaluate to ``True`` — a
+    byproduct that is only meaningful on gain rows (t4 gains are NaN); a level
+    analysis must exclude ``time == 4`` explicitly.
 
     Derived in :func:`data_utils.load_data`; like :attr:`PERIOD` it is
     deliberately absent from :attr:`ALL` / :attr:`NUMERIC` /
     :attr:`CATEGORICAL`.
     """
 
-    ALL = [
+    ALL: ClassVar[Sequence[str]] = [
         SUBJECT_ID,
         TIME,
         GROUP,
@@ -787,7 +798,7 @@ class Variables:
         YARCSI_NEXT,
     ]
 
-    GAINS = [
+    GAINS: ClassVar[Sequence[str]] = [
         APTGRAM_GAIN,
         APTINFO_GAIN,
         B1EXNT_GAIN,
@@ -828,7 +839,7 @@ class Variables:
         YARCSI_GAIN,
     ]
 
-    NEXTS = [
+    NEXTS: ClassVar[Sequence[str]] = [
         APTGRAM_NEXT,
         APTINFO_NEXT,
         B1EXNT_NEXT,
@@ -869,7 +880,7 @@ class Variables:
         YARCSI_NEXT,
     ]
 
-    NUMERIC = [
+    NUMERIC: ClassVar[Sequence[str]] = [
         AGE,
         BLOCKS,
         APTGRAM,
@@ -930,7 +941,7 @@ class Variables:
     Numeric variables in the dataset, not including gains and next time point variables.
     """
 
-    CATEGORICAL = [
+    CATEGORICAL: ClassVar[Sequence[str]] = [
         TIME,
         GROUP,
         AREA,
@@ -951,7 +962,7 @@ class Variables:
     Categorical variables in the dataset.
     """
 
-    DEFAULT_EXCLUDED = [
+    DEFAULT_EXCLUDED: ClassVar[Sequence[str]] = [
         BLOCKS,  # only at t1
         B1EXTAU,  # included in B1EXTO
         B1RETAU,  # included in B1RETO
@@ -980,18 +991,18 @@ class Variables:
         LSAMMLU,  # only at t1, t2
         LSAMINT,  # only at t1, t2
         LSAMUN,  # only at t1, t2
-        SPPHON_NONE,  # binary indicator of SPPHON < 1 at all time points
-        NONWORD_NONE,  # binary indicator of NONWORD < 1 at all time points
+        SPPHON_NONE,  # binary indicator: SPPHON never > 0 (i.e. 0 or NaN at every time point)
+        NONWORD_NONE,  # binary indicator: NONWORD never > 0 (i.e. 0 or NaN at every time point)
         HEARING_C,  # combines HEARING and EARINF
     ]
 
-    PERIOD_RELATED = [
+    PERIOD_RELATED: ClassVar[Sequence[str]] = [
         ATTEND,  # intervention sessions between time points
         TASCORE,  # TA rating between time points
         TACHANG,  # TA changes between time points
     ]
 
-    CONSTRUCTS: "dict[str, list[str]]" = {
+    CONSTRUCTS: ClassVar[Mapping[str, Sequence[str]]] = {
         "language_composite": ["aptinfo", "aptgram", "celf", "trog"],
         "expressive_vocabulary": [
             "eowpvt", "b1exto", "b1extau", "b1exnt",
@@ -1054,7 +1065,7 @@ class Variables:
                 return construct
         return "other"
 
-    TIME_INVARIANT_BASELINES = [
+    TIME_INVARIANT_BASELINES: ClassVar[Sequence[str]] = [
         HEARING,
         EARINF,
         HEARING_C,
@@ -1099,7 +1110,7 @@ class Variables:
     differences, not within-child change) than for level models.
     """
 
-    NAMES = {
+    NAMES: ClassVar[Mapping[str, str]] = {
         SUBJECT_ID: "Subject ID",
         TIME: "Time",
         GROUP: "Group",
@@ -1139,30 +1150,32 @@ class Variables:
 
 class Predictors:
 
-    DEFAULT_GAIN = [
+    DEFAULT_GAIN: ClassVar[Sequence[str]] = [
         v
         for v in Variables.ALL
         if v != Variables.SUBJECT_ID
         and v not in Variables.DEFAULT_EXCLUDED
         and v not in Variables.GAINS
         and v not in Variables.NEXTS
+        and v not in Variables.PERIOD_RELATED
     ]
     """
-    The default predictor variables for gain outcomes are all measure variables (excluding 
-    subject ID, gain variables and variables included in composites or only measured at t1).
+    The default predictor variables for gain outcomes are all baseline/state variables
+    (excluding subject ID, gain/next variables, variables included in composites or only
+    measured at t1, and intervention-period process measures).
     """
 
-    DEFAULT_GAIN_NUMERIC = [v for v in DEFAULT_GAIN if v in Variables.NUMERIC]
+    DEFAULT_GAIN_NUMERIC: ClassVar[Sequence[str]] = [v for v in DEFAULT_GAIN if v in Variables.NUMERIC]
     """
     All DEFAULT_GAIN predictor variables that are numeric.
     """
 
-    DEFAULT_GAIN_CATEGORICAL = [v for v in DEFAULT_GAIN if v in Variables.CATEGORICAL]
+    DEFAULT_GAIN_CATEGORICAL: ClassVar[Sequence[str]] = [v for v in DEFAULT_GAIN if v in Variables.CATEGORICAL]
     """
     All DEFAULT_GAIN variables that are categorical.
     """
 
-    DEFAULT_LEVEL = [
+    DEFAULT_LEVEL: ClassVar[Sequence[str]] = [
         v
         for v in Variables.ALL
         if v != Variables.SUBJECT_ID
@@ -1177,12 +1190,12 @@ class Predictors:
     included in composites or only measured at t1).
     """
 
-    DEFAULT_LEVEL_NUMERIC = [v for v in DEFAULT_LEVEL if v in Variables.NUMERIC]
+    DEFAULT_LEVEL_NUMERIC: ClassVar[Sequence[str]] = [v for v in DEFAULT_LEVEL if v in Variables.NUMERIC]
     """
     All DEFAULT_LEVEL predictor variables that are numeric.
     """
 
-    DEFAULT_LEVEL_CATEGORICAL = [v for v in DEFAULT_LEVEL if v in Variables.CATEGORICAL]
+    DEFAULT_LEVEL_CATEGORICAL: ClassVar[Sequence[str]] = [v for v in DEFAULT_LEVEL if v in Variables.CATEGORICAL]
     """
     All DEFAULT_LEVEL variables that are categorical.
     """
@@ -1193,35 +1206,35 @@ class Categories:
     Categories for variables and variable values.
     """
 
-    GENDER = {
+    GENDER: ClassVar[Mapping[int, str]] = {
         1: "Male",
         2: "Female",
     }
 
-    AREA = {
+    AREA: ClassVar[Mapping[int, str]] = {
         1: "North",
         2: "South",
     }
 
-    GROUP = {
+    GROUP: ClassVar[Mapping[int, str]] = {
         1: "Initial intervention",
         2: "Wait for intervention",
     }
 
-    TIME = {
+    TIME: ClassVar[Mapping[int, str]] = {
         1: "Time 1",
         2: "Time 2",
         3: "Time 3",
         4: "Time 4",
     }
 
-    TIME_PERIOD = {
+    TIME_PERIOD: ClassVar[Mapping[int, str]] = {
         1: "Period 1",
         2: "Period 2",
         3: "Period 3",
     }
 
-    BEHAVIOUR = {
+    BEHAVIOUR: ClassVar[Mapping[int, str]] = {
         1: "Very good",
         2: "Good",
         3: "Average",
@@ -1229,7 +1242,7 @@ class Categories:
         5: "Very challenging",
     }
 
-    IMPAIRED = {
+    IMPAIRED: ClassVar[Mapping[int, str]] = {
         0: "Normal",
         1: "Impaired",
     }
@@ -1237,12 +1250,12 @@ class Categories:
     Binary indicator of impairment - for VISION and HEARING variables.
     """
 
-    NO_YES = {
+    NO_YES: ClassVar[Mapping[int, str]] = {
         0: "No",
         1: "Yes",
     }
 
-    WEEKLY_READING = {
+    WEEKLY_READING: ClassVar[Mapping[int, str]] = {
         0: "None",
         1: "Once a week",
         2: "Twice a week",
@@ -1253,12 +1266,12 @@ class Categories:
         7: "Seven or more times a week",
     }
 
-    NON_SCORER = {
+    NON_SCORER: ClassVar[Mapping[int, str]] = {
         0: "Scored > 0 at least once",
         1: "Never scored > 0",
     }
 
-    VARIABLES = {
+    VARIABLES: ClassVar[Mapping[int, str]] = {
         0: "Study",
         1: "Health",
         2: "Child and Family",
@@ -1271,12 +1284,12 @@ class Categories:
     Dictionary mapping variable category IDs to category names.
     """
 
-    STUDY = [Variables.TIME, Variables.GROUP, Variables.AREA]
+    STUDY: ClassVar[Sequence[str]] = [Variables.TIME, Variables.GROUP, Variables.AREA]
     """
     Study-related variables.
     """
 
-    HEALTH = [
+    HEALTH: ClassVar[Sequence[str]] = [
         Variables.HEARING,
         Variables.EARINF,
         Variables.HEARING_C,
@@ -1286,7 +1299,7 @@ class Categories:
     Health-related variables.
     """
 
-    CHILD_FAMILY = [
+    CHILD_FAMILY: ClassVar[Sequence[str]] = [
         Variables.AGE,
         Variables.NUMCHIL,
         Variables.MUMOCC,
@@ -1301,11 +1314,11 @@ class Categories:
     Child and family-related variables.
     """
 
-    COGNITION = [
+    COGNITION: ClassVar[Sequence[str]] = [
         Variables.BLOCKS,
     ]
 
-    LANGUAGE = [
+    LANGUAGE: ClassVar[Sequence[str]] = [
         Variables.APTGRAM,
         Variables.APTINFO,
         Variables.ROWPVT,
@@ -1362,7 +1375,7 @@ class Categories:
         Variables.B2RETAU_GAIN,
     ]
 
-    SPEECH = [
+    SPEECH: ClassVar[Sequence[str]] = [
         Variables.ERBNW,
         Variables.ERBTO,
         Variables.ERBWORD,
@@ -1403,7 +1416,7 @@ class Categories:
         Variables.LSAMUN_GAIN,
     ]
 
-    READING = [
+    READING: ClassVar[Sequence[str]] = [
         Variables.EWRSWR,
         Variables.NONWORD,
         Variables.BLENDING,  # ? only spoken words and pictures
@@ -1432,14 +1445,88 @@ class Categories:
         Variables.BLENDING_GAIN,
     ]
 
-    SOCIAL = [
+    SOCIAL: ClassVar[Sequence[str]] = [
         Variables.BEHAV,
         Variables.SDQ,
     ]
 
-    TEACHING = [
+    TEACHING: ClassVar[Sequence[str]] = [
         Variables.ATTEND,
         Variables.ATTEND_CUMUL,
         Variables.TASCORE,
         Variables.TACHANG,
     ]
+
+
+def _freeze_sequence_attrs(cls: type, names: tuple[str, ...]) -> None:
+    for name in names:
+        setattr(cls, name, tuple(getattr(cls, name)))
+
+
+def _freeze_mapping_attrs(cls: type, names: tuple[str, ...]) -> None:
+    for name in names:
+        setattr(cls, name, MappingProxyType(dict(getattr(cls, name))))
+
+
+_freeze_sequence_attrs(
+    Variables,
+    (
+        "ALL",
+        "GAINS",
+        "NEXTS",
+        "NUMERIC",
+        "CATEGORICAL",
+        "DEFAULT_EXCLUDED",
+        "PERIOD_RELATED",
+        "TIME_INVARIANT_BASELINES",
+    ),
+)
+Variables.CONSTRUCTS = MappingProxyType(
+    {construct: tuple(members) for construct, members in Variables.CONSTRUCTS.items()}
+)
+Variables.NAMES = MappingProxyType(dict(Variables.NAMES))
+
+_freeze_sequence_attrs(
+    Predictors,
+    (
+        "DEFAULT_GAIN",
+        "DEFAULT_GAIN_NUMERIC",
+        "DEFAULT_GAIN_CATEGORICAL",
+        "DEFAULT_LEVEL",
+        "DEFAULT_LEVEL_NUMERIC",
+        "DEFAULT_LEVEL_CATEGORICAL",
+    ),
+)
+
+_freeze_mapping_attrs(
+    Categories,
+    (
+        "GENDER",
+        "AREA",
+        "GROUP",
+        "TIME",
+        "TIME_PERIOD",
+        "BEHAVIOUR",
+        "IMPAIRED",
+        "NO_YES",
+        "WEEKLY_READING",
+        "NON_SCORER",
+        "VARIABLES",
+    ),
+)
+_freeze_sequence_attrs(
+    Categories,
+    (
+        "STUDY",
+        "HEALTH",
+        "CHILD_FAMILY",
+        "COGNITION",
+        "LANGUAGE",
+        "SPEECH",
+        "READING",
+        "SOCIAL",
+        "TEACHING",
+    ),
+)
+
+del _freeze_mapping_attrs, _freeze_sequence_attrs

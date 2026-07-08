@@ -1,0 +1,10 @@
+---
+title: "Introduction"
+abstract: "Draft scaffold; substantive introduction pending."
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+This introduction chapter is not yet publication-ready. It remains a scaffold for the study background, aims, and interpretation boundaries.

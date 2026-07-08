@@ -16,6 +16,7 @@ execute:
 date: now
 
 toc: true
+toc-title: Contents
 number-sections: true
 number-depth: 3
 
@@ -25,8 +26,6 @@ csl: apa.csl
 book:
   output-file: language-reading-predictors-report
   title: "Predictors of progress in language and reading skills for children with Down syndrome"
-  abstract: |
-    This exploratory study examines factors associated with progress in language and reading outcomes for children with Down syndrome. It combines gradient-boosting discovery models with Bayesian statistical models to identify useful predictors, estimate interpretable effects, and quantify uncertainty in the Reading and Language Intervention data.
   author:
     - name: Frank Buckley
       orcid: 0000-0002-9708-2705
@@ -49,7 +48,24 @@ book:
       roles: writing
   chapters:
     - index.qmd
-    - intro.qmd
+    - acknowledgements.qmd
+    - summary.qmd
+    - glossary.qmd
+    - part: "Background and aims"
+      chapters:
+        - chapters/intro.qmd
+    - part: "Methods"
+      chapters:
+        - chapters/methods-data.qmd
+        - chapters/methods-models.qmd
+    - part: "Results"
+      chapters:
+        - chapters/results-itt.qmd
+    - part: "Discussion"
+      chapters:
+        - chapters/discussion.qmd
+  appendices:
+    - appendices/ai.qmd
     - references.qmd
 
 format:
@@ -75,3 +91,4 @@ format:
       - right=25mm
       - bottom=30mm
     include-in-header: footer.tex
+    

@@ -32,59 +32,71 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 
-from language_reading_predictors.statistical_models.environment import (
-    STAT_OUTPUT_DIR,
+from language_reading_predictors import paths as _paths
+from language_reading_predictors.statistical_models.measures import (
+    MEASURES,
+    ROPE_DELTA_PROB,
 )
-from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     logit_safe,
 )
 
+# Heavily-floored outcomes whose PRIMARY ITT estimand is the binary off-floor
+# effect (a risk difference), not the graded logit tau shown in the joint. Any of
+# these appearing in a forest/CSV of graded taus is flagged so the artefact does
+# not misrepresent it.
+FLOORED_SYMBOLS: frozenset[str] = frozenset(ROPE_DELTA_PROB)
+
 
 # Single-outcome ITT models (LRPITT suite, #119) overlaid on the LRPITT12 joint, on
-# the outcomes the joint also carries. The floored outcomes P (lrpitt09) and N
-# (lrpitt11) are excluded from the graded overlay: their PRIMARY estimand is the
+# the outcomes the joint also carries. The floored outcomes P (lrp-rli-itt-009) and N
+# (lrp-rli-itt-011) are excluded from the graded overlay: their PRIMARY estimand is the
 # binary off-floor effect, read from their own reports rather than compared to the
 # joint's graded tau. F/T have no standalone ITT in the suite.
 ITT_IDS: list[tuple[str, str]] = [
-    ("lrpitt10", "W"),
-    ("lrpitt05", "R"),
-    ("lrpitt06", "E"),
-    ("lrpitt07", "L"),
-    ("lrpitt08", "B"),
+    ("lrp-rli-itt-010", "W"),
+    ("lrp-rli-itt-005", "R"),
+    ("lrp-rli-itt-006", "E"),
+    ("lrp-rli-itt-007", "L"),
+    ("lrp-rli-itt-008", "B"),
 ]
-MECH_IDS: list[tuple[str, str]] = [("lrp56", "R"), ("lrp57", "E"), ("lrp58", "L")]
-JOINT_ID = "lrpitt12"
+MECH_IDS: list[tuple[str, str]] = [("lrp-rli-mech-056", "R"), ("lrp-rli-mech-057", "E"), ("lrp-rli-mech-058", "L")]
+JOINT_ID = "lrp-rli-itt-012"
 
 # Mechanism models compared by PSIS-LOO: the LRP58 baseline (L -> W) against the
-# interaction extensions. LRP70 (celf) is included only if it has been fitted.
-LOO_COMPARE_IDS: list[str] = ["lrp58", "lrp70", "lrp71"]
+# interaction extensions on the *same* word-reading outcome/rows (a like-for-like
+# elpd comparison). LRP70 is intentionally excluded: it was repurposed to a
+# ``growth``-kind joint growth-curve model (posterior dims child/wave/outcome, no
+# ``obs_id``), so it is a different dataset and a growth-vs-mechanism LOO would be
+# the cross-dataset comparison ``_loo_compare`` forbids. The celf mechanism model
+# is deferred pending a DAG review (see ``lrp-rli-mech-071.py``).
+LOO_COMPARE_IDS: list[str] = ["lrp-rli-mech-058", "lrp-rli-mech-071"]
 
 # Phonics route (LRP72): the interaction model vs its no-interaction baseline,
 # same decoding outcome — a clean nested PSIS-LOO test of the L x B interaction.
 # NOT comparable to the LOO_COMPARE_IDS set (different outcome: decoding vs W).
-PHONICS_LOO_IDS: list[str] = ["lrp72", "lrp72base"]
+PHONICS_LOO_IDS: list[str] = ["lrp-rli-mech-072", "lrp-rli-mech-172"]
 
 # Age moderation (LRP73): interaction vs no-interaction baseline, same word-reading
 # outcome — a clean nested PSIS-LOO test of the L x age interaction.
-AGE_LOO_IDS: list[str] = ["lrp73", "lrp73base"]
+AGE_LOO_IDS: list[str] = ["lrp-rli-mech-073", "lrp-rli-mech-173"]
 
 # Dose-response (LRP77, #104 Phase 2): the period-varying dose model vs its
 # pooled-dose comparator, same word-reading outcome and rows — a nested PSIS-LOO
 # test of whether the dose-gain slope varies by period.
-DOSE_LOO_IDS: list[str] = ["lrp77", "lrp77base"]
+DOSE_LOO_IDS: list[str] = ["lrp-rli-dose-077", "lrp-rli-dose-277"]
 
 # DiD period-resolved letter-sound dose (LRPDID07, #135): the period-varying dose
 # model vs its pooled-dose comparator, same letter-sound outcome and rows — a
 # nested PSIS-LOO test of whether the L dose-gain slope varies by period (the
 # DAG-clean DiD analogue of the LRP77 word-reading test; never conditions on the
 # IS collider attend_cumul).
-DID_DOSE_LOO_IDS: list[str] = ["lrpdid07", "lrpdid07base"]
+DID_DOSE_LOO_IDS: list[str] = ["lrp-rli-did-007", "lrp-rli-did-107"]
 
 
 def _run_dir(model_id: str, config: str) -> str:
-    return os.path.join(STAT_OUTPUT_DIR, "models", f"{model_id}-{config}")
+    return os.path.join(str(_paths.stat_models_dir()), f"{model_id}-{config}")
 
 
 # ---------------------------------------------------------------------------
@@ -101,8 +113,10 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
         df = pd.read_csv(tau_path)
         rows.append(
             {
+                "config": config,
                 "outcome": outcome,
                 "source": model_id,
+                "floored": outcome in FLOORED_SYMBOLS,
                 "tau_median": df["tau_logit_median"].iloc[0],
                 "tau_lo": df["tau_logit_lo"].iloc[0],
                 "tau_hi": df["tau_logit_hi"].iloc[0],
@@ -115,8 +129,10 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
     for _, row in joint.iterrows():
         rows.append(
             {
+                "config": config,
                 "outcome": row["outcome"],
                 "source": JOINT_ID,
+                "floored": row["outcome"] in FLOORED_SYMBOLS,
                 "tau_median": row["tau_median"],
                 "tau_lo": row["tau_lo"],
                 "tau_hi": row["tau_hi"],
@@ -189,7 +205,25 @@ def tau_forest(config: str, out_path: str) -> bool:
         )
     ax.axvline(0.0, color="k", lw=0.75, ls="--")
     ax.set_yticks(y)
-    ax.set_yticklabels(outcomes)
+    # Flag heavily-floored outcomes (P/N): the graded logit tau shown here is NOT
+    # their primary estimand — that is the binary off-floor risk difference, read
+    # from their own reports. Marking them keeps the forest from misrepresenting P.
+    floored_present = [s for s in outcomes if s in FLOORED_SYMBOLS]
+    ax.set_yticklabels(
+        [f"{s} †" if s in FLOORED_SYMBOLS else s for s in outcomes]
+    )
+    if floored_present:
+        ax.text(
+            0.99,
+            -0.14,
+            "† floored outcome — graded τ shown; PRIMARY estimand is the "
+            "binary off-floor risk difference (see model report)",
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            fontsize=7.5,
+            color="#555555",
+        )
     ax.invert_yaxis()
     ax.set_xlabel(r"$\tau$ (logit scale, coefficient on $G=1$ = intervention; positive = benefit)")
     ax.set_title("Treatment effect by outcome")
@@ -255,17 +289,30 @@ def mechanism_forest(config: str, out_path: str) -> bool:
         # outcome_post or mechanism_post are dropped by the mechanism factory,
         # so filter prepared to rows where both W_post and mech_post are
         # observed (and match the trace's obs_id length).
+        #
+        # CAVEAT: the factory ALSO drops rows with missing *confounder* post-scores
+        # (lrp-rli-mech-057 adjusts for R; lrp-rli-mech-058 for E and R). This keep-mask does not model
+        # that, so if confounder-only missingness ever occurs the reconstructed
+        # length will not match the trace and the guard below skips the model. That
+        # skip is a *silent drop of the model from the persisted forest/CSV* — the
+        # warning is deliberately explicit about that so a reader notices a missing
+        # row rather than assuming the model was never fitted.
         mech_post = prepared.post_counts[sym]
         w_post = prepared.post_counts["W"]
         keep = ~(np.isnan(mech_post) | np.isnan(w_post))
         mech_logit = logit_safe(mech_post[keep], MEASURES[sym].n_trials)
 
         if mech_logit.shape[0] != trace.posterior.sizes["obs_id"]:
-            # Fallback: skip rather than silently misalign.
+            # Skip rather than silently misalign. Most likely cause: the factory
+            # dropped rows for missing confounder post-scores that this simplified
+            # keep-mask (outcome + mechanism only) does not account for.
             print(
-                f"[warn] {model_id}: mech_logit size ({mech_logit.shape[0]}) "
-                f"!= trace obs_id size ({trace.posterior.sizes['obs_id']}); "
-                "skipping forest entry."
+                f"[warn] {model_id}: reconstructed mech_logit size "
+                f"({mech_logit.shape[0]}) != trace obs_id size "
+                f"({trace.posterior.sizes['obs_id']}) — likely confounder-only "
+                "missingness the keep-mask does not model. DROPPING this model "
+                "from the persisted mechanism forest AND its CSV (it will be "
+                "absent from the artefact, not merely un-plotted)."
             )
             continue
 
@@ -297,9 +344,16 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close()
 
-    # Also write the underlying numbers.
+    # Also write the underlying numbers. Record the config so a dev-config rerun
+    # does not silently masquerade as the reporting-config artefact.
     pd.DataFrame(
-        {"model": labels, "slope_mean": means, "slope_lo": los, "slope_hi": his}
+        {
+            "config": config,
+            "model": labels,
+            "slope_mean": means,
+            "slope_lo": los,
+            "slope_hi": his,
+        }
     ).to_csv(out_path.replace(".png", ".csv"), index=False)
     return True
 
@@ -336,9 +390,29 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
     if len(traces) < 2:
         return False
 
-    sizes = {mid: t.posterior.sizes["obs_id"] for mid, t in traces.items()}
+    # A trace whose posterior has no ``obs_id`` dim is not a single-outcome
+    # observation model (e.g. a repurposed ``growth``-kind fit with child/wave/
+    # outcome dims) — it cannot participate in a shared-observation LOO, so drop
+    # it with a clear warning rather than crashing on the KeyError.
+    sizes: dict[str, int] = {}
+    for mid, t in list(traces.items()):
+        if "obs_id" not in t.posterior.sizes:
+            print(
+                f"[warn] {mid}: posterior has no 'obs_id' dim "
+                f"(dims={tuple(t.posterior.sizes)}); not an observation-level "
+                "model — skipping from this LOO comparison."
+            )
+            del traces[mid]
+            continue
+        sizes[mid] = t.posterior.sizes["obs_id"]
+
+    if len(traces) < 2:
+        return False
+
     if len(set(sizes.values())) == 1:
         cmp = az.compare(traces)  # ic="loo" by default
+        cmp = cmp.copy()
+        cmp.insert(0, "config", config)  # record the tier that produced the row
         cmp.to_csv(out_path)
         return True
 
@@ -352,6 +426,7 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
         loo = az.loo(t)
         rows.append(
             {
+                "config": config,
                 "model": mid,
                 "n_obs": sizes[mid],
                 "elpd_loo": float(loo.elpd),
@@ -396,9 +471,26 @@ def did_dose_loo_compare(config: str, out_path: str) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="dev")
-    parser.add_argument("--out", default=os.path.join(STAT_OUTPUT_DIR, "comparison"))
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="Comparison output dir (default: <output-root>/statistical_models/comparison).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR); the relative layout is unchanged. Default: "
+            "repo-local output/."
+        ),
+    )
     args = parser.parse_args()
 
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
+    args.out = args.out or str(_paths.stat_comparison_dir())
     os.makedirs(args.out, exist_ok=True)
 
     itt_joint = build_itt_vs_joint(args.config)

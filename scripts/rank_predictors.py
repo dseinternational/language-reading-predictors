@@ -61,8 +61,8 @@ from dse_research_utils.ml.importance import (
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 
-from language_reading_predictors.data_variables import Predictors
-from language_reading_predictors.models.base_pipeline import _OUTPUT_DIR, _clear_directory
+from language_reading_predictors import paths as _paths
+from language_reading_predictors.models.base_pipeline import _clear_directory
 from language_reading_predictors.models.cluster_ranking import (
     SAME_SKILL_SIBLINGS,
     assemble_ranking,
@@ -73,12 +73,12 @@ from language_reading_predictors.models.registry import MODELS
 from language_reading_predictors.stats_utils import distance_corr_matrix
 
 
-_ROOT = Path(__file__).resolve().parent.parent
-RANKING_ROOT = _ROOT / "output" / "ranking"  # gitignored
-# Helper fits go wherever the *installed* pipeline writes — base_pipeline._OUTPUT_DIR,
-# which resolves to the editable install's repo root, NOT necessarily this script's
-# worktree. Use that exact dir so scratch cleanup targets the real fits.
-MODELS_ROOT = _OUTPUT_DIR
+def _ranking_root() -> Path:
+    return _paths.output_root() / "ranking"
+
+
+def _models_root() -> Path:
+    return _paths.gb_models_dir()
 
 
 def _fmt(x, spec: str = "{:.3f}") -> str:
@@ -95,17 +95,35 @@ def _fmt(x, spec: str = "{:.3f}") -> str:
 def make_config(model_id: str, *, kind: str):
     """Return an ad-hoc ``ModelConfig``.
 
-    kind="full"    -> full DEFAULT_* set minus target (no pruning)
-    kind="noskill" -> full set minus target minus curated same-skill siblings
+    kind="full"    -> the registered model's own predictor set (no pruning)
+    kind="noskill" -> that set, minus curated same-skill siblings
+
+    The registered ``ModelConfig.predictor_vars`` is the source of truth: it was
+    resolved by ``ModelDefinition._build_predictors`` honouring the model's own
+    ``exclude`` / ``include`` (and target removal). We MUST reuse it rather than
+    rebuild from the raw ``DEFAULT_*`` pool — the raw pool discards each model's
+    ``exclude`` list and so reintroduces target leakage (e.g. lrpgbl01 targets
+    ``b1retau`` and excludes ``b1reto = b1retau + b1rent``, an exact superset of
+    the target). The target itself is already absent from the registered set.
     """
     base = MODELS[model_id]
     target = base.target_var
-    full = Predictors.DEFAULT_GAIN if target.endswith("_gain") else Predictors.DEFAULT_LEVEL
     siblings = SAME_SKILL_SIBLINGS.get(target, [])
 
-    preds = [p for p in full if p != target]  # leakage guard
+    # Start from the registered, exclude/include-honouring predictor set. It has
+    # already had the target and every registered ``exclude`` var stripped by
+    # ``ModelDefinition._build_predictors``; copy it verbatim (kind="full") and
+    # then drop the curated siblings for kind="noskill".
+    preds = [p for p in base.predictor_vars]
     if kind == "noskill":
         preds = [p for p in preds if p not in siblings]
+
+    # Leakage invariant: the target must not have crept back in. (Registered
+    # excludes are already absent because we started from the resolved set.)
+    if target in preds:
+        raise AssertionError(
+            f"target {target!r} leaked into the ranking predictor set for {model_id}"
+        )
 
     cfg = dataclasses.replace(
         base,
@@ -217,7 +235,7 @@ def cutoff_sensitivity(X, target, cutoffs=(0.2, 0.3, 0.4, 0.5, 0.6)):
     rows = []
     for t in cutoffs:
         cl = hierarchy.fcluster(Z, t=t, criterion="distance")
-        memb = {f: int(c) for f, c in zip(feats, cl)}
+        memb = {f: int(c) for f, c in zip(feats, cl, strict=True)}
         anchor_members = sorted(f for f in feats if memb[f] == memb[anchor])
         rows.append({
             "cutoff": t,
@@ -260,7 +278,7 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
         raise SystemExit(f"unknown model id {model_id!r}; known: {sorted(MODELS)}")
     base = MODELS[model_id]
     run = make_run(base, cv_splits=cv_splits, perm_repeats=perm_repeats, quick=quick)
-    out = RANKING_ROOT / model_id
+    out = _ranking_root() / model_id
     out.mkdir(parents=True, exist_ok=True)
     print(f"\n{'=' * 78}\n  RANK PREDICTORS — {model_id}  "
           f"(cutoff={cutoff}, cv_splits={run.cv_splits}, quick={quick})\n{'=' * 78}")
@@ -270,7 +288,9 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
         cfg_full, target, siblings = make_config(model_id, kind="full")
         full = run_stages(cfg_full, run, cluster_cutoff=cutoff, do_stability=not quick)
         clusters_tbl = pd.read_csv(full.context.output_dir / "cluster_table.csv")
-        clusters_by_feature = dict(zip(clusters_tbl["feature"], clusters_tbl["cluster_id"]))
+        clusters_by_feature = dict(
+            zip(clusters_tbl["feature"], clusters_tbl["cluster_id"], strict=True)
+        )
         cluster_imp = cluster_permutation_importance(
             full, clusters_by_feature, n_repeats=5 if quick else run.perm_importance_repeats)
 
@@ -325,7 +345,7 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
         # from model_id. They are scratch — never real models — but upload.py globs every
         # output/models/ subdir, so leaving them would publish them as if fitted. Remove
         # them here (success or failure); the ranking artefacts are under output/ranking/<id>/.
-        for d in MODELS_ROOT.glob(f"rank_{model_id}_*"):
+        for d in _models_root().glob(f"rank_{model_id}_*"):
             if d.is_dir():
                 shutil.rmtree(d, ignore_errors=True)
 
@@ -369,7 +389,19 @@ def main() -> None:
                     help="permutation-importance repeats (default: the model's registered value)")
     ap.add_argument("--quick", action="store_true",
                     help="fast dev tier: cv=5, repeats=5, skip stability")
+    ap.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR); the relative layout is unchanged. Default: "
+            "repo-local output/."
+        ),
+    )
     args = ap.parse_args()
+    _paths.set_output_root(args.output_dir)
+    print(f"Output root: {_paths.describe_output_root()}")
     run_model(args.model, cutoff=args.cutoff, cv_splits=args.cv_splits,
               perm_repeats=args.perm_repeats, quick=args.quick)
 

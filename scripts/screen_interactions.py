@@ -45,6 +45,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 import os
 
 import numpy as np
@@ -56,6 +57,7 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import GroupKFold
 
 from language_reading_predictors import data_utils
+from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_utils import DEFAULT_GROUPKFOLD_SPLITS
 from language_reading_predictors.data_variables import Predictors, Variables
 from language_reading_predictors.models._reporting import (
@@ -63,13 +65,15 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models.environment import OUTPUT_DIR
 
 RANDOM_SEED = 47
-_SCREEN_DIR = os.path.join(OUTPUT_DIR, "interaction_screen")
+
+
+def _screen_dir() -> str:
+    return str(_paths.output_root() / "interaction_screen")
 
 # target key -> (target column, predictor list, human label)
-TARGETS: dict[str, tuple[str, list[str], str]] = {
+TARGETS: dict[str, tuple[str, Sequence[str], str]] = {
     "level": (Variables.EWRSWR, Predictors.DEFAULT_LEVEL, "reading level (ewrswr)"),
     "gain": (Variables.EWRSWR_GAIN, Predictors.DEFAULT_GAIN, "reading gain (ewrswr_gain)"),
 }
@@ -178,7 +182,7 @@ def screen_target(
     inter = explainer.shap_interaction_values(X)
     main, interactions = _rank_interactions(inter, feature_names)
 
-    out_dir = os.path.join(_SCREEN_DIR, key)
+    out_dir = os.path.join(_screen_dir(), key)
     os.makedirs(out_dir, exist_ok=True)
     main.to_csv(os.path.join(out_dir, "main_effects.csv"), index=False)
     interactions.to_csv(
@@ -222,7 +226,18 @@ def main() -> None:
     parser.add_argument(
         "--top-n", type=int, default=12, help="Rows printed per ranked table."
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=(
+            "Override the output root for this run (highest precedence, above "
+            "DSE_LRP_OUTPUT_DIR). Default: repo-local output/."
+        ),
+    )
     args = parser.parse_args()
+    _paths.set_output_root(args.output_dir)
+    rprint(f"[bold]Output root:[/bold] {_paths.describe_output_root()}")
 
     keys = ["level", "gain"] if args.target == "all" else [args.target]
     for key in keys:
