@@ -23,6 +23,8 @@ format:
 
 ## Overview
 
+**In plain terms.** Did the children offered the intervention understand more vocabulary they were *not* directly taught (a test of whether learning generalised) than those who were not — and how large, and how certain, is that difference? Because group assignment was randomised, this is a genuine causal (intention-to-treat) effect of *being offered* the programme, not just an association.
+
 LRPITT03 is the intention-to-treat (ITT) analysis for not-taught receptive vocabulary, block 1 (`b1rent`). The
 estimand is the total effect of randomised group assignment $G$ on the post-score
 $UR_{\text{post}}$, using the RCT phase only (time 1 $\rightarrow$ time 2).

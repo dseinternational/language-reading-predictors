@@ -23,6 +23,8 @@ format:
 
 ## Overview
 
+**In plain terms.** Using each child as their own control — comparing their word-reading progress while still on the waiting list against their progress once in the programme — did word reading improve more during the intervention? This waitlist-crossover (difference-in-differences) design is a within-person check on the randomised word-reading effect (LRPITT10).
+
 LRPDID01 is the **waitlist-crossover / difference-in-differences** analysis for
 word reading (EWRSWR) (`ewrswr`) - a within-person replication of the randomised ITT effect
 estimated by LRPITT10. It stacks the two early periods (P1 = t1->t2, P2 = t2->t3)
