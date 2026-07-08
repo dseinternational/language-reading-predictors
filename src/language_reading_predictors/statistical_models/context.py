@@ -18,7 +18,7 @@ import dse_research_utils.statistics.models.reporting as _reporting
 import dse_research_utils.statistics.models.sampling as _sampling
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.environment import init_plotting
+from language_reading_predictors.statistical_models import environment as _env
 from language_reading_predictors.statistical_models.preprocessing import (
     LongitudinalPanel,
     PreparedData,
@@ -193,7 +193,7 @@ def make_context(
     # #170). The external field name is retained for cross-repo compatibility.
     # Apply the shared matplotlib house style for every fit path (CLI, notebook,
     # tests, replot) — the CLI also does this via setup.init_script(); idempotent.
-    init_plotting()
+    _env.init_plotting()
 
     reporting = _reporting.ReportingConfiguration(
         model_name=spec.model_id,
