@@ -57,6 +57,10 @@ from language_reading_predictors.models._reporting import (
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.plotting import (
+    save_plotcollection,
+    save_styled_figure,
+)
 
 # Convergence-gate thresholds (issue #125 Area 3; Vehtari et al. 2021 for R-hat)
 # and the per-chain BFMI helper are now owned by the shared package and
@@ -228,8 +232,14 @@ def summary_diagnostics(
         out,
         lambda: azp.plot_trace(tr, var_names=var_names or None),
         "trace_plot.png",
+        title="MCMC trace by chain",
     )
-    _save_pc(out, lambda: azp.plot_energy(tr), "energy_plot.png")
+    _save_pc(
+        out,
+        lambda: azp.plot_energy(tr),
+        "energy_plot.png",
+        title="Energy transitions (NUTS diagnostic)",
+    )
 
     if var_names:
         _save_pc(
@@ -241,21 +251,27 @@ def summary_diagnostics(
                 ci_prob=context.reporting.hdi,
             ),
             "posterior_plot.png",
+            title="Marginal posterior distributions",
         )
         if len(var_names) <= max_vars_for_pairs:
             _save_pc(
                 out,
                 lambda: azp.plot_pair(tr, var_names=var_names),
                 "pair_plot.png",
+                title="Posterior pairwise joint distributions",
             )
 
 
-def _save_pc(out: str, make, name: str) -> None:
-    """Build a PlotCollection and save it, degrading to a warning on failure."""
+def _save_pc(out: str, make, name: str, title: str | None = None) -> None:
+    """Build a PlotCollection and save it, degrading to a warning on failure.
+
+    Routes through :func:`save_plotcollection` so every ArviZ figure gets the
+    house style, a figure-level title (they render untitled otherwise), and an
+    SVG sibling alongside the referenced PNG (issue #208).
+    """
     try:
         pc = make()
-        pc.savefig(os.path.join(out, name), dpi=300)
-        plt.close("all")
+        save_plotcollection(pc, out, name, suptitle=title)
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]{name} skipped: {exc}[/yellow]")
 
@@ -392,7 +408,12 @@ def run_extended_diagnostics(
 
     # Pareto-k reads context.loo (per-observation, not draws) — full trace, fast.
     if context.loo is not None:
-        _save_pc(out, lambda: azp.plot_khat(context.loo), "pareto_k.png")
+        _save_pc(
+            out,
+            lambda: azp.plot_khat(context.loo),
+            "pareto_k.png",
+            title="Pareto-k (LOO influence; flag k > 0.7)",
+        )
 
     # Draw-based plots use a thinned view (full trace hangs plot_rank at reporting
     # scale; thinning is visually identical and reproduces the fast dev path).
@@ -403,6 +424,7 @@ def run_extended_diagnostics(
             out,
             lambda: azp.plot_rank(tr, var_names=[causal_term]),
             "rank_plot.png",
+            title="Rank plot (chain mixing)",
         )
 
     _save_pc(
@@ -413,11 +435,17 @@ def run_extended_diagnostics(
             min_ess=ESS_THRESHOLD,
         ),
         "ess_evolution.png",
+        title="Effective sample size evolution",
     )
 
     try:
         if "posterior_predictive" in context.trace.children:
-            _save_pc(out, lambda: azp.plot_loo_pit(tr), "loo_pit.png")
+            _save_pc(
+                out,
+                lambda: azp.plot_loo_pit(tr),
+                "loo_pit.png",
+                title="LOO-PIT calibration",
+            )
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]loo_pit skipped: {exc}[/yellow]")
 
@@ -441,6 +469,7 @@ def save_prior_posterior_plot(
         out,
         lambda: azp.plot_prior_posterior(tr, var_names=var_names),
         "prior_posterior.png",
+        title="Prior vs posterior overlay",
     )
 
 
@@ -480,6 +509,7 @@ def run_psense(
         out,
         lambda: azp.plot_psense_dist(tr, var_names=var_names),
         "psense.png",
+        title="Prior/likelihood power-scaling sensitivity",
     )
 
 
@@ -568,6 +598,8 @@ def save_prior_predictive_plot(
         obs = obs[np.isfinite(obs)]
         if node == "y_offfloor":
             obs = (obs > 0).astype(float)  # off-floor indicator, to match the node
+        import pandas as pd
+
         plt.figure(figsize=(6, 4))
         plt.hist(
             rep, bins=40, density=True, color="#1f77b4", alpha=0.55,
@@ -576,13 +608,23 @@ def save_prior_predictive_plot(
         plt.hist(obs, bins=20, density=True, color="#d62728", alpha=0.55, label="observed")
         plt.xlabel(f"{outcome_symbol} count")
         plt.ylabel("density")
-        plt.title("Prior-predictive check")
+        plt.title(f"Prior-predictive check ({outcome_symbol})")
         plt.legend()
-        plt.savefig(
-            os.path.join(context.output_dir, "prior_predictive_check.png"),
-            dpi=300,
-            bbox_inches="tight",
+        # Data behind the plot (issue #208): compact distributional summary of the
+        # prior-predictive replicates vs the observed counts (the raw replicate
+        # array is large and already recoverable from trace.nc's prior group).
+        summary = (
+            pd.DataFrame(
+                {
+                    "prior_predictive": pd.Series(rep).describe(),
+                    "observed": pd.Series(obs).describe(),
+                }
+            )
+            .reset_index()
+            .rename(columns={"index": "statistic"})
         )
-        plt.close()
+        save_styled_figure(
+            context.output_dir, "prior_predictive_check", data=summary
+        )
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]Prior-predictive plot failed: {exc}[/yellow]")

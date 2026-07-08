@@ -13,6 +13,10 @@ format:
     toc-depth: 3
 ---
 
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 ::: {.callout-warning title="Warning: Preliminary model output"}
 
 This model output is preliminary and likely to change as the model evolves and further data are received.
@@ -50,6 +54,39 @@ documented starting point for comparison.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
 prevent data leakage across timepoints for the same child.
+
+This model sits in the discovery stage of the two-step workflow: gradient-boosting models surface candidate predictors and interactions, which the Bayesian intervention models (the LRPITT / LRPDID suites) then estimate causally.
+
+::: {.callout-important title="Exploratory — associational, not causal"}
+The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a lever to act on, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. Causal questions are answered by the Bayesian intervention models, not here.
+:::
+
+## What this model found
+
+```{python}
+#| echo: false
+#| output: asis
+from pathlib import Path
+import pandas as pd
+
+_rk = Path("predictor_ranking.csv")
+if _rk.exists():
+    try:
+        from language_reading_predictors.models._reporting import gb_ranking_markdown
+        print(
+            gb_ranking_markdown(
+                pd.read_csv(_rk),
+                target_label="non-word reading level",
+            )
+        )
+    except Exception as _e:  # pragma: no cover - render-env fallback
+        print(f"_Findings summary unavailable: {_e}_")
+else:
+    print(
+        "_Findings summary is produced at the reporting/test tiers "
+        "(needs predictor_ranking.csv)._"
+    )
+```
 
 ## Configuration
 
