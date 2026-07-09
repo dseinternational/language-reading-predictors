@@ -1,0 +1,53 @@
+---
+title: "LRPLF10: Level factors for taught expressive vocabulary (TE)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPLF10 is a **level-factors** model for taught expressive vocabulary (`b1extau`): what is associated with the score *level* at each of the four timepoints (Beta-Binomial logit, child random intercept; no own baseline).
+
+::: {.callout-important title="Causal labelling + level-model crossover caveat"}
+
+Every non-randomised coefficient is an **adjusted association** under the DAG. The group effect is `group x time` (a per-timepoint coefficient `b_grp_time[t]`, trajectory divergence): after t2 the waitlist crosses over, so the **clean randomised contrast lives only at t2** (`b_grp_time[1]`, labelled *causal*); t3/t4 are post-crossover cohort/timing terms. SES excluded (non-DAG / redundant).
+
+:::
+
+## Model
+
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the level count, $N = 24$, with
+$\operatorname{logit}\mu_{t} = \alpha + \alpha_{\text{time}[t]} + b_{\text{grp}[t]}\text{group} + \gamma_A A_{\text{std},t} + g_{\text{ability}[t]}z(\text{blocks}) + \gamma_{\text{grp\_ability}}\,\text{group}\,z(\text{blocks}) + u_{\text{child}}$.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_factors.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

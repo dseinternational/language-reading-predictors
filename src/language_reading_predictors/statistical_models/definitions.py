@@ -222,6 +222,22 @@ _ALIGNED.append(
        "cumulative-session dose sensitivity (collider)", base="lrpal01")
 )
 
+# Taught-vocabulary factor models (#224). Added explicitly rather than via
+# ``_FACTOR_OUTCOMES`` so only the stock gain/level models are generated for
+# TR/TE - the treated-only (``…b``) and onset-aligned families are out of scope.
+_GAIN += [
+    _d("lrpgf09", "gain_factors", "Gain factors", Status.ASSOCIATION, "TR",
+       "ANCOVA gain; only the on-intervention term is causal"),
+    _d("lrpgf10", "gain_factors", "Gain factors", Status.ASSOCIATION, "TE",
+       "ANCOVA gain; only the on-intervention term is causal"),
+]
+_LEVEL += [
+    _d("lrplf09", "level_factors", "Level factors", Status.ASSOCIATION, "TR",
+       "levels view; only the t2 group contrast is randomised"),
+    _d("lrplf10", "level_factors", "Level factors", Status.ASSOCIATION, "TE",
+       "levels view; only the t2 group contrast is randomised"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {

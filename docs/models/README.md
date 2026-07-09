@@ -177,7 +177,7 @@ flagged graded secondary. Design notes: `notes/202606251321-lrpitt-suite-design.
 _(`lrp-rli-itt-016` is intentionally unused — reserved for a deferred descriptive floored-outcome
 trajectory complement.)_
 
-### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-008` (+ `…b`) (`kind="gain_factors"`)
+### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-010` (+ `…b`) (`kind="gain_factors"`)
 
 **Purpose.** A DAG-focused ANCOVA on each outcome's period gain (post-score given its own
 pre-score), stacking every on-intervention and untreated period with a child random
@@ -197,14 +197,16 @@ is treated-only (gains while on intervention). Design note:
 | `lrp-rli-gf-006` | `B`     | `L`                                       | `lrp-rli-gf-106`  |
 | `lrp-rli-gf-007` | `F`     | `R`                                       | `lrp-rli-gf-107`  |
 | `lrp-rli-gf-008` | `T`     | `R`                                       | `lrp-rli-gf-108`  |
+| `lrp-rli-gf-009` | `TR`    | —                                         | —                 |
+| `lrp-rli-gf-010` | `TE`    | `TR`                                      | —                 |
 
-### Level factors — `lrp-rli-lf-001–lrp-rli-lf-008` (`kind="level_factors"`)
+### Level factors — `lrp-rli-lf-001–lrp-rli-lf-010` (`kind="level_factors"`)
 
 **Purpose.** The companion _levels_ view of each outcome (the score at each timepoint, no
 own baseline), with group×time and ability×time as per-timepoint coefficient vectors. Only
 the t2 group contrast is a clean randomised effect; later timepoints are post-crossover and
 flagged as associations. Outcomes mirror the gain-factor family: `lrp-rli-lf-001` `W`, `02` `R`,
-`03` `E`, `04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`.
+`03` `E`, `04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`, `09` `TR`, `10` `TE`.
 
 ### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-006` (`kind="did"`)
 
