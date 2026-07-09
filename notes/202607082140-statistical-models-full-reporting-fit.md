@@ -11,6 +11,7 @@ This section is for readers new to Bayesian reporting (for example, undergraduat
 
 - **Posterior, credible interval.** Each model produces a probability distribution over the effect size (the _posterior_), given the data and the model. We summarise it as a median and a **95 % credible interval** — the range within which the effect lies with 95 % probability. Read "τ = +0.11 [+0.04, +0.18]" as: _our best estimate is +0.11, and the effect is very probably somewhere between +0.04 and +0.18_. Unlike a frequentist confidence interval, this is a direct probability statement about the effect.
 - **P(effect > 0)** is the posterior probability the effect is positive. 0.5 means "no idea about direction"; 0.98 means "98 % sure the intervention helps on this measure". There are no p-values anywhere in this suite.
+- **Evidence labels.** The project's fixed ladder (issue #179; see `notes/202606261304-evidence-strength-and-rope-reporting.md`) qualifies the evidence for a **named claim** — "strong evidence that the intervention helps" — at round-odds boundaries on the direction probability: **inconclusive** (< 0.75) / **suggestive** (≥ 0.75) / **moderate** (≥ 0.91) / **strong** (≥ 0.97) / **very strong** (≥ 0.99). The label is oriented to the favoured direction (a clearly negative effect is evidence of harm, not "inconclusive"), always follows the probability itself, and never describes the effect's _size_ — direction and magnitude are separate questions, so a "very strong" direction can sit on a small effect. Where a result looks like "no effect", the honest label is _inconclusive_, optionally quantified by how much of the posterior falls inside a region of practical equivalence (ROPE) around zero.
 - **Scales.** Most outcomes are counts of correct items on a test with a fixed maximum, so effects are reported as a **risk difference (RD)** — the change in the proportion of items a child gets right (e.g. +0.03 = 3 percentage points) — and, where available, on the **items scale** (e.g. "+2.9 words on a 79-word reading test"), which is the easiest form to picture.
 - **Causal vs association.** Only effects identified by the trial's randomisation are labelled _causal_: the intention-to-treat effect τ, the difference-in-differences δ, and the gain-factor on-intervention term. Every other coefficient — baselines, ages, skill-to-skill couplings, mediator paths — is an _adjusted association_: informative about how skills travel together, but never to be read as "X drives Y".
 - **Floored outcomes.** Two tests (phonetic spelling P, nonword reading N) are so hard for this age group that most children score zero (they sit "on the floor"). A graded effect estimate is nearly meaningless there, so the pre-specified primary estimand is binary: does the intervention change the probability of scoring _above_ zero?
@@ -57,30 +58,32 @@ Nine of the ten sit at **≤ 0.4 % divergences** — a handful of transitions fr
 
 The intention-to-treat (ITT) models ask the trial's primary question: _did being randomised to start the intervention immediately improve each outcome at the end of the randomised phase, compared with waiting?_ Because assignment was random, the two groups differ (on average) only in the intervention, so the group coefficient τ is causal with no adjustment needed; the models include each child's own baseline score and age purely to sharpen precision. τ is reported on the risk-difference scale (median, 95 % credible interval, P(τ>0)); positive = the intervention helps.
 
-| Outcome                        | Model   |     τ (RD) | 95 % CrI         | P(τ>0) | Read as                                    |
-| ------------------------------ | ------- | ---------: | ---------------- | -----: | ------------------------------------------ |
-| Letter-sound knowledge (L)     | itt-007 | **+0.110** | [+0.040, +0.179] |  0.999 | credible, large (≈ +3.5 of 32 sounds)      |
-| Phoneme blending (B)           | itt-008 | **+0.099** | [+0.004, +0.192] |  0.980 | credible (≈ +1 of 10 items)                |
-| Taught expressive vocab (TE)   | itt-002 | **+0.064** | [+0.006, +0.122] |  0.985 | credible (≈ +1.5 of 24 taught words)       |
-| Word reading (W)               | itt-010 | **+0.030** | [+0.004, +0.057] |  0.986 | credible, small (≈ +2.4 of 79 words)       |
-| Taught receptive vocab (TR)    | itt-001 |     +0.057 | [−0.003, +0.117] |  0.968 | leans positive                             |
-| Untaught receptive vocab (UR)  | itt-003 |     +0.050 | [−0.014, +0.116] |  0.937 | leans positive                             |
-| Untaught expressive vocab (UE) | itt-004 |     +0.026 | [−0.041, +0.093] |  0.773 | inconclusive                               |
-| Receptive vocab, ROWPVT (R)    | itt-005 |     +0.001 | [−0.027, +0.030] |  0.539 | null                                       |
-| Expressive vocab, EOWPVT (E)   | itt-006 |     +0.001 | [−0.022, +0.025] |  0.534 | null                                       |
-| Phonetic spelling (P)          | itt-009 |          — | —                |      — | floored; off-floor RD ≈ 0 (0.357 vs 0.360) |
-| Nonword reading (N)            | itt-011 |          — | —                |      — | floored; inconclusive                      |
+| Outcome                        | Model   |     τ (RD) | 95 % CrI         | P(τ>0) | Evidence of benefit | ≈ items                 |
+| ------------------------------ | ------- | ---------: | ---------------- | -----: | ------------------- | ----------------------- |
+| Letter-sound knowledge (L)     | itt-007 | **+0.110** | [+0.040, +0.179] |  0.999 | very strong         | +3.5 of 32 sounds       |
+| Phoneme blending (B)           | itt-008 | **+0.099** | [+0.004, +0.192] |  0.980 | strong              | +1 of 10 items          |
+| Taught expressive vocab (TE)   | itt-002 | **+0.064** | [+0.006, +0.122] |  0.985 | strong              | +1.5 of 24 taught words |
+| Word reading (W)               | itt-010 | **+0.030** | [+0.004, +0.057] |  0.986 | strong              | +2.4 of 79 words        |
+| Taught receptive vocab (TR)    | itt-001 |     +0.057 | [−0.003, +0.117] |  0.968 | moderate            | +1.4 of 24 taught words |
+| Untaught receptive vocab (UR)  | itt-003 |     +0.050 | [−0.014, +0.116] |  0.937 | moderate            | +0.6 of 12 words        |
+| Untaught expressive vocab (UE) | itt-004 |     +0.026 | [−0.041, +0.093] |  0.773 | suggestive          | +0.3 of 12 words        |
+| Receptive vocab, ROWPVT (R)    | itt-005 |     +0.001 | [−0.027, +0.030] |  0.539 | inconclusive        | +0.2 of 170 words       |
+| Expressive vocab, EOWPVT (E)   | itt-006 |     +0.001 | [−0.022, +0.025] |  0.534 | inconclusive        | +0.2 of 170 words       |
+| Phonetic spelling (P)          | itt-009 |          — | —                |      — | inconclusive        | floored (see below)     |
+| Nonword reading (N)            | itt-011 |          — | —                |      — | inconclusive        | floored                 |
 
-**The coherent story: the intervention credibly moves the reading/phonics-proximal and directly-taught skills — letter-sound knowledge, phoneme blending, word reading, and taught expressive vocabulary — while broad standardised vocabulary (ROWPVT, EOWPVT) is flat.** The gradient runs exactly as a phonics-and-taught-words intervention predicts: strongest on letter sounds, present on blending and word reading, present for _taught_ words but fading to inconclusive for _untaught_ words (the generalisation contrast itt-015 puts P(taught-expressive > untaught-expressive) at 0.79 — suggestive, not decisive), and absent on the broad norm-referenced vocabulary tests. The two heavily-floored outcomes (spelling, nonword reading) carry too little off-floor movement to estimate — for spelling the off-floor rate is essentially identical between arms (35.7 % vs 36.0 %).
+Direction and magnitude are separate claims: for letter sounds the evidence of _some_ benefit is very strong (P(τ>0) = 0.999), while the evidence that the benefit clears the pre-specified 2-item minimally-important difference is suggestive (P(benefit ≥ 2 sounds) = 0.91). For the two flat vocabulary outcomes the ROPE quantifies the "no effect" reading: 58 % (R) and 67 % (E) of the posterior lies within ±2 items of zero, so the honest label is inconclusive-and-probably-negligible, not merely "not significant".
+
+**The coherent story: there is strong-to-very-strong evidence that the intervention improves the reading/phonics-proximal and directly-taught skills — letter-sound knowledge, phoneme blending, word reading, and taught expressive vocabulary — while the evidence for any effect on broad standardised vocabulary (ROWPVT, EOWPVT) is inconclusive and probably negligible.** The gradient runs exactly as a phonics-and-taught-words intervention predicts: strongest on letter sounds, present on blending and word reading, present for _taught_ words but fading to inconclusive for _untaught_ words (the generalisation contrast itt-015 puts P(taught-expressive > untaught-expressive) at 0.79 — suggestive, not decisive), and absent on the broad norm-referenced vocabulary tests. The two heavily-floored outcomes (spelling, nonword reading) carry too little off-floor movement to estimate — for spelling the off-floor rate is essentially identical between arms (35.7 % vs 36.0 %).
 
 ## The effect is robust across adjustment and across three independent estimators
 
 The word-reading and letter-sound effects survive both robustness adjustments and reappear, at consistent magnitude, in designs that do not share the ITT model's assumptions. In plain terms: three different ways of slicing the same trial — comparing the randomised groups (ITT), comparing each child with themself before and during the intervention (DiD), and pooling every on- and off-intervention period into one adjusted gains model (gain factors) — all land on the same answer.
 
 - **General-ability adjustment** (block-design covariate, itt-017–024): L +0.110, W +0.028, TE +0.061 — essentially unchanged.
-- **SES adjustment + matched complete-case comparators** (itt-013/113/014/114): L +0.107 to +0.123, W +0.030 — unchanged (the SES-adjusted W in itt-013 widens just across 0, but its complete-case sibling itt-014 stays credible).
-- **Within-person waitlist-crossover DiD** (`did` family): the wait-list group's untreated first period is compared with its own treated second period, using the immediate group to anchor how much children improve anyway with time. Each child is their own control, so stable child-level differences cancel. W δ +0.367 [+0.050, +0.685], L δ +0.560 [+0.183, +0.934], B δ +0.437 [+0.012, +0.851], TE +0.300 (P 0.97), R null — the same ranking, on the logit scale, from a completely different identification strategy.
-- **Gain-factor ANCOVA and level-factor models** — detailed in their own sections below — agree again: gains W +0.037 / L +0.097 with R/E null, and the levels view shows the group gap opening exactly at the end of the randomised phase for letter sounds.
+- **SES adjustment + matched complete-case comparators** (itt-013/113/014/114): L +0.107 to +0.123, W +0.030 — unchanged (the SES-adjusted W in itt-013 slips to moderate as its interval widens just across 0, but its complete-case sibling itt-014 stays strong).
+- **Within-person waitlist-crossover DiD** (`did` family): the wait-list group's untreated first period is compared with its own treated second period, using the immediate group to anchor how much children improve anyway with time. Each child is their own control, so stable child-level differences cancel. W δ +0.367 [+0.050, +0.685], P(δ>0) = 0.99 (strong); L δ +0.560 [+0.183, +0.934], P = 1.00 (very strong); B δ +0.437 [+0.012, +0.851], P = 0.98 (strong); TE +0.300, P = 0.97 (moderate); R inconclusive (P = 0.50) — the same ranking, on the logit scale, from a completely different identification strategy.
+- **Gain-factor ANCOVA and level-factor models** — detailed in their own sections below — agree again: gains W +0.037 / L +0.097 with R/E inconclusive, and the levels view shows the group gap opening exactly at the end of the randomised phase for letter sounds.
 
 Three estimators built on different assumptions converge on the **same causal ordering: letter sounds ≫ blending ≈ word reading > taught vocabulary ≫ broad vocabulary ≈ 0.**
 
@@ -90,25 +93,25 @@ The eight gain-factor models (gf-001–008, one per outcome W/R/E/L/P/B/F/T) are
 
 **The causal term.** The marginal on-intervention effect, on the risk-difference and items scales:
 
-| Outcome               | Model  | τ (RD) | 95 % CrI         | Items scale             | P(τ>0) |
-| --------------------- | ------ | -----: | ---------------- | ----------------------- | -----: |
-| Letter sounds (L)     | gf-004 | +0.097 | [+0.029, +0.168] | **+3.1** of 32 sounds   |  0.994 |
-| Word reading (W)      | gf-001 | +0.037 | [+0.006, +0.065] | **+2.9** of 79 words    |  0.995 |
-| Phoneme blending (B)  | gf-006 | +0.072 | [−0.012, +0.160] | +0.7 of 10 items        |  0.911 |
-| Basic concepts (F)    | gf-007 | +0.049 | [−0.010, +0.111] | +0.9 of 18 items        |  0.864 |
-| Phonetic spelling (P) | gf-005 | +0.031 | [−0.054, +0.105] | (off-floor probability) |  0.753 |
-| Receptive grammar (T) | gf-008 | +0.012 | [−0.041, +0.066] | +0.4 of 32 items        |  0.680 |
-| Expressive vocab (E)  | gf-003 | +0.002 | [−0.023, +0.027] | +0.4 of 170 words       |  0.544 |
-| Receptive vocab (R)   | gf-002 | −0.005 | [−0.038, +0.025] | −0.9 of 170 words       |  0.365 |
+| Outcome               | Model  | τ (RD) | 95 % CrI         | Items scale             | P(τ>0) | Evidence of benefit |
+| --------------------- | ------ | -----: | ---------------- | ----------------------- | -----: | ------------------- |
+| Letter sounds (L)     | gf-004 | +0.097 | [+0.029, +0.168] | **+3.1** of 32 sounds   |  0.994 | very strong         |
+| Word reading (W)      | gf-001 | +0.037 | [+0.006, +0.065] | **+2.9** of 79 words    |  0.995 | very strong         |
+| Phoneme blending (B)  | gf-006 | +0.072 | [−0.012, +0.160] | +0.7 of 10 items        |  0.911 | moderate            |
+| Basic concepts (F)    | gf-007 | +0.049 | [−0.010, +0.111] | +0.9 of 18 items        |  0.864 | suggestive          |
+| Phonetic spelling (P) | gf-005 | +0.031 | [−0.054, +0.105] | (off-floor probability) |  0.753 | suggestive          |
+| Receptive grammar (T) | gf-008 | +0.012 | [−0.041, +0.066] | +0.4 of 32 items        |  0.680 | inconclusive        |
+| Expressive vocab (E)  | gf-003 | +0.002 | [−0.023, +0.027] | +0.4 of 170 words       |  0.544 | inconclusive        |
+| Receptive vocab (R)   | gf-002 | −0.005 | [−0.038, +0.025] | −0.9 of 170 words       |  0.365 | inconclusive        |
 
-In plain words: a child on the intervention gains, over one period, about **three more letter sounds and three more sight words** than an equivalent child not yet on it — small but credibly real — while the broad vocabulary tests move not at all. This reproduces the ITT ordering from a model with completely different structure.
+In plain words: a child on the intervention gains, over one period, about **three more letter sounds and three more sight words** than an equivalent child not yet on it — a small effect, but with very strong evidence it is real (P(τ>0) ≥ 0.99) — while the evidence for any movement on the broad vocabulary tests is inconclusive. This reproduces the ITT ordering from a model with completely different structure.
 
 **The adjusted associations — what travels with progress.** Consistent patterns across the eight outcomes (all associations, none causal):
 
 - **A child's own baseline dominates everywhere.** `gamma_own` is the largest term in every model (+0.60 to +0.86, all P ≈ 1.00): where a child starts on a skill is by far the best predictor of where they end the period. This is the Bayesian mirror of the gradient-boosting finding that each outcome's own baseline tops every predictor ranking.
 - **Skill-to-skill couplings follow the reading DAG.** Baseline **letter-sound knowledge predicts gains in the code-related skills**: word reading (gamma_L +0.09, P 0.97), blending (+0.16, P 1.00) and — together with blending itself (+0.46, P 0.99) — phonetic spelling (+0.33, P 0.96). Baseline **receptive vocabulary predicts gains in the language-side skills**: expressive vocabulary (+0.21, P 1.00), basic concepts (+0.41, P 1.00) and grammar (+0.46, P 1.00). The two routes barely cross — vocabulary does not predict code gains and letter sounds do not predict vocabulary gains.
 - **General (non-verbal) ability** is associated with faster letter-sound (+0.24, P 0.95) and basic-concept (+0.49, P 1.00) progress, but adds little elsewhere once the own baseline is in the model.
-- **Age leans slightly negative** for word reading (−0.12, P(>0) = 0.01) and grammar (−0.13): older children gain marginally less at the same starting score, consistent with the adjusted-association model (adj-065) where age is the only credible baseline predictor of word-reading gain (−0.26).
+- **Age is negatively associated with progress** in word reading (−0.12, P(<0) = 0.99, very strong) and grammar (−0.13, P(<0) = 1.00, very strong) — a small association, but the direction is clear: older children gain marginally less at the same starting score. This is consistent with the adjusted-association model (adj-065), where age is the only baseline predictor of word-reading gain with very strong evidence (−0.26, P(<0) = 0.99).
 - **The focal interactions are mostly inconclusive.** Treatment × ability and treatment × baseline interactions hover near zero for the flagship outcomes W and L — no evidence the intervention works better for more able children or for higher starters. The scattered exceptions (a positive treatment × ability term for R/E/T, a negative one for F) are small and not consistent enough across outcomes to interpret.
 - **The treated-only companions (gf-101–108)** refit each model on on-intervention periods alone, asking what predicts progress _while being taught_. They reproduce the same structure — own baseline dominant (+0.34 to +0.86), L→W/B/P and R→E/F/T couplings, negative age for W — which says the predictor landscape is not an artefact of mixing treated and untreated periods.
 
@@ -118,43 +121,43 @@ The eight level-factor models (lf-001–008) are the companion _levels_ view: in
 
 The t2 (randomised) group contrast, on the logit scale:
 
-| Outcome               | Model  | t2 contrast | 95 % CrI         | P(>0) | Read as        |
-| --------------------- | ------ | ----------: | ---------------- | ----: | -------------- |
-| Letter sounds (L)     | lf-004 |  **+0.491** | [+0.009, +0.963] | 0.977 | credible       |
-| Phoneme blending (B)  | lf-006 |      +0.303 | [−0.188, +0.786] | 0.888 | leans positive |
-| Word reading (W)      | lf-001 |      +0.221 | [−0.263, +0.709] | 0.813 | leans positive |
-| Basic concepts (F)    | lf-007 |      +0.134 | [−0.221, +0.490] | 0.772 | leans positive |
-| Receptive grammar (T) | lf-008 |      +0.027 | [−0.232, +0.288] | 0.584 | null           |
-| Expressive vocab (E)  | lf-003 |      −0.003 | [−0.200, +0.196] | 0.489 | null           |
-| Phonetic spelling (P) | lf-005 |      −0.006 | [−0.823, +0.817] | 0.494 | null (floored) |
-| Receptive vocab (R)   | lf-002 |      −0.037 | [−0.225, +0.150] | 0.349 | null           |
+| Outcome               | Model  | t2 contrast | 95 % CrI         | P(>0) | Evidence of benefit    |
+| --------------------- | ------ | ----------: | ---------------- | ----: | ---------------------- |
+| Letter sounds (L)     | lf-004 |  **+0.491** | [+0.009, +0.963] | 0.977 | strong                 |
+| Phoneme blending (B)  | lf-006 |      +0.303 | [−0.188, +0.786] | 0.888 | suggestive             |
+| Word reading (W)      | lf-001 |      +0.221 | [−0.263, +0.709] | 0.813 | suggestive             |
+| Basic concepts (F)    | lf-007 |      +0.134 | [−0.221, +0.490] | 0.772 | suggestive             |
+| Receptive grammar (T) | lf-008 |      +0.027 | [−0.232, +0.288] | 0.584 | inconclusive           |
+| Expressive vocab (E)  | lf-003 |      −0.003 | [−0.200, +0.196] | 0.489 | inconclusive           |
+| Phonetic spelling (P) | lf-005 |      −0.006 | [−0.823, +0.817] | 0.494 | inconclusive (floored) |
+| Receptive vocab (R)   | lf-002 |      −0.037 | [−0.225, +0.150] | 0.349 | inconclusive           |
 
-Same ordering again — letter sounds clearest, blending and word reading leaning positive, vocabulary flat — though with wider intervals than the gain models, because a single-timepoint contrast throws away the within-child information the gains view exploits. That is itself an instructive methods point: **levels models answer "who is ahead right now?", gains models answer "who moved?", and the gains view is the more sensitive of the two here.**
+Same ordering again — strong evidence for letter sounds, suggestive for blending and word reading, inconclusive for vocabulary — though with wider intervals than the gain models, because a single-timepoint contrast throws away the within-child information the gains view exploits. That is itself an instructive methods point: **levels models answer "who is ahead right now?", gains models answer "who moved?", and the gains view is the more sensitive of the two here.**
 
-The full group×time profiles carry a second, satisfying signature. For letter sounds the profile runs −0.08 (t1, baseline noise) → **+0.49 (t2, end of the randomised phase)** → +0.13 (t3) → +0.32 (t4); word reading and blending show the same rise-then-narrow shape. The t3 shrinkage is exactly what should happen if the intervention works: the wait-list group has just crossed over and is catching up, so the gap closes. The partial re-widening at t4 for letter sounds and blending (P ≈ 0.90) hints that the head-start group holds an edge, but post-crossover contrasts are associations and are flagged as such. The vocabulary and grammar profiles are flat at every timepoint — the null is not an artefact of when we looked.
+The full group×time profiles carry a second, satisfying signature. For letter sounds the profile runs −0.08 (t1, baseline noise) → **+0.49 (t2, end of the randomised phase)** → +0.13 (t3) → +0.32 (t4); word reading and blending show the same rise-then-narrow shape. The t3 shrinkage is exactly what should happen if the intervention works: the wait-list group has just crossed over and is catching up, so the gap closes. The partial re-widening at t4 for letter sounds and blending (P ≈ 0.90, suggestive) hints that the head-start group holds an edge, but post-crossover contrasts are associations and are flagged as such. The vocabulary and grammar profiles are flat at every timepoint — the inconclusive vocabulary result is not an artefact of when we looked.
 
-The ability×time vectors add one more association: non-verbal ability is most strongly tied to letter-sound levels early (t1 +0.35, credible) and fades by t4 (+0.11) — as instruction accumulates, where a child sits on letter sounds is decreasingly about general ability. The single wait-list-specific ability interaction (`gamma_grp_ability`) is inconclusive throughout.
+The ability×time vectors add one more association: non-verbal ability is most strongly tied to letter-sound levels early (t1 +0.35 [+0.07, +0.63], P = 0.99, very strong) and fades by t4 (+0.11, inconclusive) — as instruction accumulates, where a child sits on letter sounds is decreasingly about general ability. The single wait-list-specific ability interaction (`gamma_grp_ability`) is inconclusive throughout.
 
 ## Mechanism and mediation — how the reading gain arises
 
 These couplings are **adjusted associations, not causal drivers**, but they are internally consistent and answer the "through what?" question the trial itself cannot.
 
-- **Mediation (g-formula NDE/NIE decomposition):** the intervention's effect on word reading runs **through letter-sound knowledge**. Single-mediator (med-059): the indirect path via L is +0.023 [+0.006, +0.045], P 0.998, ≈ 62 % of the total effect, with a non-credible direct effect. Two-mediator (med-064): the path via L is +0.025 [+0.006, +0.048] P 0.998, whereas the path via expressive vocabulary is ≈ 0 [−0.009, +0.007]. In plain words: the intervention improved word reading mainly _by_ improving letter-sound knowledge, not by improving vocabulary — the same conclusion the ITT ranking implies.
+- **Mediation (g-formula NDE/NIE decomposition):** the intervention's effect on word reading runs **through letter-sound knowledge**. Single-mediator (med-059): the indirect path via L is +0.023 [+0.006, +0.045], P = 0.998 (very strong), ≈ 62 % of the total effect, while the evidence for a direct effect on its own is only suggestive (P = 0.85). Two-mediator (med-064): the path via L is +0.025 [+0.006, +0.048], P = 0.998 (very strong), whereas the path via expressive vocabulary is ≈ 0 [−0.009, +0.007] (inconclusive). In plain words: the intervention improved word reading mainly _by_ improving letter-sound knowledge, not by improving vocabulary — the same conclusion the ITT ranking implies.
 - **Mechanism GP slopes** (marginal, adjusted): E→W +0.271 [−0.001, +0.593] (the strongest, all but excluding 0), R→W +0.131, L→W +0.090 — all positive-leaning associations with word reading, credible intervals touching 0.
-- **Latent coupled change-score model (lcsm-067):** prior letter-sound score → later reading change +0.135 [+0.025, +0.256] P 0.99, and prior expressive-vocabulary score → later reading change +0.284 [+0.054, +0.521] P 0.99 — both credible cross-lagged couplings; reading shows negative self-feedback (regression to the mean).
+- **Latent coupled change-score model (lcsm-067):** prior letter-sound score → later reading change +0.135 [+0.025, +0.256], P = 0.99, and prior expressive-vocabulary score → later reading change +0.284 [+0.054, +0.521], P = 0.99 — very strong evidence for both cross-lagged couplings (as associations); reading shows negative self-feedback (regression to the mean).
 - **Dose-response:** pooled cumulative-session slope +0.127 [+0.028, +0.227] P 0.99 (dose-277); period-resolved slopes ≈ +0.13 per period (P ≈ 0.95). More sessions track more word-reading gain (dose is a partial collider, so this is a sensitivity view, not a clean causal dose curve).
 
 ## Secondary and cross-check families
 
 - **Regularised-horseshoe predictor ranking (cross-check of the gradient-boosting ranking):** for word-reading _level_ (hs-002), letter sounds (P 0.99) and expressive vocabulary (P 0.99) are selected decisively, then grammar and age. For word-reading _gain_ (hs-001) nothing is selected (top probability 0.59, age) — echoing the gradient-boosting result that change scores are near-noise. The Bayesian and gradient-boosting rankings agree.
-- **Correlated-domain-factor measurement model (mm-001):** the three latent domains are strongly correlated — vocabulary↔grammar 0.80, vocabulary↔code 0.74, code↔grammar 0.65 (all credible) — supporting a correlated-skill-system reading of the battery. (Structural coefficients held back pending the reparameterisation noted above.)
-- **Multivariate growth curves (gc-069/070):** between-child gamma associations are inconclusive for R/E/W and credibly positive only for grammar (T ≈ +0.11).
+- **Correlated-domain-factor measurement model (mm-001):** the three latent domains are strongly correlated — vocabulary↔grammar 0.80, vocabulary↔code 0.74, code↔grammar 0.65 (P ≈ 1.00, very strong) — supporting a correlated-skill-system reading of the battery. (Structural coefficients held back pending the reparameterisation noted above.)
+- **Multivariate growth curves (gc-069/070):** between-child gamma associations are inconclusive for R/E/W; only grammar shows a positive association (T ≈ +0.11, P ≈ 0.97, moderate-to-strong).
 - **Aligned per-protocol (`al` family):** cohort contrast +0.217 [−0.109, +0.544], correctly flagged **non-causal** (confounded by age-at-onset and cohort timing) — no term in this family is presented as causal, by design.
-- **Adjusted between-child association (adj-065):** of the baseline predictors of word-reading gain, only age is credible (−0.259, older children gaining less); language composite (+0.225, P 0.93) and letter sounds (+0.159, P 0.89) lean positive but are not decisive.
+- **Adjusted between-child association (adj-065):** of the baseline predictors of word-reading gain, only age carries very strong evidence (−0.259 [−0.463, −0.057], P(<0) = 0.99; older children gaining less); the language composite (+0.225, P = 0.93, moderate) and letter sounds (+0.159, P = 0.89, suggestive) are weaker.
 - **Historical-cohort growth reproduction (rlm-hg-001, separate study):** converged cleanly (r̂ 1.00, 0 divergences).
 
 ## Caveats
 
-- **This is preliminary, small-sample research** (≈ 159 children after cleaning; some outcomes far fewer). Credible intervals are wide, and the "credible" calls above rest on 95 % intervals that in several cases only just exclude zero.
+- **This is preliminary, small-sample research** (≈ 159 children after cleaning; some outcomes far fewer). Credible intervals are wide, and several of the "strong" and "very strong" direction calls above sit on 95 % intervals that only just exclude zero — and, per the design analysis in the evidence-labels note, small-sample point estimates that clear a threshold are on average magnitude-inflated (the winner's curse), so lead with the interval, not the point.
 - **Only τ (and the DiD δ, and the gain-factor on-intervention marginal) is causal.** Every mechanism slope, mediation path, coupling, growth gamma, horseshoe coefficient and adjusted association is an adjusted association and must not be read as "X drives Y".
 - **`lrp-rli-mm-001` needs a sampling fix** before its structural coefficients are quoted; its correlations are fine. The nine other divergence-flagged fits are usable as-is but the mechanism GP models would benefit from a re-run at a higher `target_accept` if any single slope becomes load-bearing.
