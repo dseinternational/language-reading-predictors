@@ -61,4 +61,6 @@ Read direction + uncertainty, never a bare ranking.
 - **Ranking:** read `predictor_ranking.csv` / `cluster_ranking.csv` **with** the SHAP beeswarm (`shap_summary.png`) — permutation importance and SHAP disagree, so state the **direction**.
 - **Expected split:** level (`gbl`) models are autoregressive → high pooled R² (median ~0.6, up to ~0.98 for near-tautological composites); gain (`gbg`) models are near-noise → low R² (~0.02–0.27, regression-to-the-mean). Rankings are dominated by each outcome's own baseline + `time`/`age`, with `trog`, `aptinfo`, `spphon`/`blending`, `yarclet` recurring as cross-predictors. Gain models carry little predictable signal beyond baseline — the **Step 2 Bayesian models do the causal work** (see `lrp-fit-statistical`).
 
-Record the run (config, N fitted/failed, R² spread, blob location) in a dated `notes/` note. Pre-commit: `ruff check src/`, `npm run format:check`, `npm run spellcheck`.
+- **Language discipline:** GB fits produce rankings and associations, not evidence about causal claims — describe them as "predicts"/"is associated with", never "drives"/"improves". Reserve the project's evidence ladder (inconclusive/suggestive/moderate/strong/very strong, issue #179) for the Bayesian models' posterior probabilities; do not apply it to importance scores or R².
+
+Record the run (config, N fitted/failed, R² spread, blob location) in a dated `notes/` note with the AI-authorship label. Pre-commit: `ruff check src/`, `npm run format:check`, `npm run spellcheck`.
