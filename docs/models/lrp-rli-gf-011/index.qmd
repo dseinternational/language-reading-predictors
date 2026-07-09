@@ -1,0 +1,66 @@
+---
+title: "LRPGF11: Gain factors for nonword reading (N) — off-floor"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPGF11 is the **gain-factors** model for nonword reading (`nonword`).
+
+::: {.callout-important title="Floored outcome - off-floor likelihood"}
+
+Nonword reading (6 items) is **heavily floored** (most period post-scores are zero; the at-floor rate runs 72% → 40% across t1–t4), so a graded Beta-Binomial gain would be driven by a few dispersed tail values rather than the factor contrasts. Following the suite's floor rule, the likelihood is a **Bernoulli on the binary off-floor indicator** (period post $> 0$): the linear predictor models the **log-odds of coming off the floor**. `beta_trt` is the off-floor log-odds of being on intervention, and its items-scale marginal collapses to the **off-floor risk difference** (reported against the 10 pp δ adopted for floored outcomes).
+
+:::
+
+::: {.callout-important title="Causal labelling (DAG guardrails)"}
+
+Only the randomised on-intervention term is causal (period-1 contrast). Own baseline, age, ability (blocks) and the upstream code skills letter sounds (L) and blending (B) are **adjusted associations** confounded by latent general ability (child random intercept repairs the time-invariant part) - "associated with", never "drives". This is the causal-term counterpart of the mech-072/172 L/B→N association. Sessions/dose are never conditioned on (collider); SES is excluded (non-DAG / redundant).
+
+:::
+
+## Model
+
+$$
+(N_{\text{post}} > 0) \sim \operatorname{Bernoulli}(\operatorname{expit}(\eta)),\quad
+\eta = \alpha + \alpha_{\text{period}} + \beta_{\text{trt}}\text{OnIntervention}
+  + \gamma_{\text{own}}\operatorname{logit}_*(N_{\text{pre}}) + \gamma_A A_{\text{std}}
+  + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s\in\{L,B\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
+  + \textstyle\sum\text{interactions} + u_{\text{child}}.
+$$
+
+No Beta-Binomial concentration (`kappa`) under the off-floor Bernoulli. Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_factors.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
