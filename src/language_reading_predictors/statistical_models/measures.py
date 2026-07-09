@@ -81,19 +81,20 @@ MEASURES: dict[str, Measure] = {
         "TR", V.B1RETAU, 24, "Taught receptive vocabulary, block 1 (b1retau)",
         n_trials_confirmed=True,
     ),
-    # Not-taught comparison sets. Burgoyne et al. (2012), Table 3, tabulates only
-    # the 24-item taught tests; the not-taught set's item count is not documented.
-    # Observed maximum is 12 for both modalities (consistent with a half-size
-    # 3-words-x-4-types control set), so 12 is used as the denominator and flagged
-    # unconfirmed - probability-scale summaries for these outcomes are therefore
-    # approximate pending the data dictionary.
+    # Not-taught comparison sets. Confirmed against the RLI assessment word list
+    # (#214): each block's word set is 9 words x 4 types (nouns, verbs,
+    # adjectives, prepositions) = 36, split 6 taught + 3 not-taught per type, so
+    # 24 taught and 12 not-taught in each modality. (Burgoyne et al. 2012, Table 3
+    # tabulated only the 24-item taught tests, leaving the not-taught count
+    # undocumented until the word list resolved it.) 12 is the denominator for
+    # both the expressive (b1exnt) and receptive (b1rent) not-taught tests.
     "UE": Measure(
         "UE", V.B1EXNT, 12, "Not-taught expressive vocabulary, block 1 (b1exnt)",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
     "UR": Measure(
         "UR", V.B1RENT, 12, "Not-taught receptive vocabulary, block 1 (b1rent)",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
 }
 
@@ -158,8 +159,8 @@ with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
 # Per-outcome delta on the *items* scale, adopted 2026-06-26
 # (notes/202606261304-evidence-strength-and-rope-reporting.md): delta = half a
 # period's natural maturation gain, floored at 1 item and rounded. Confirmed by the
-# education lead 2026-07-01 (issue #144): the rule and W = 1 stand; UR/UE remain
-# denominator-provisional (scale length unconfirmed — see ``unconfirmed_ceilings``).
+# education lead 2026-07-01 (issue #144): the rule and W = 1 stand. UR/UE scale
+# length is now confirmed at 12 (#214), so their items δ is no longer provisional.
 # Consumed by ``reporting.rope_summary`` to report
 # ``P(benefit >= delta)``. F/T (concepts/grammar) are outside the ITT suite and not
 # yet agreed, so they are deliberately absent (a look-up raises).

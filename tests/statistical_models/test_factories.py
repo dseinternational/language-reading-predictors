@@ -111,9 +111,9 @@ def test_taught_block1_measures_registered():
     assert not set(TAUGHT_BLOCK1_OUTCOMES) & set(ITT_OUTCOMES)
     assert MEASURES["TE"].n_trials == 24 and MEASURES["TE"].n_trials_confirmed
     assert MEASURES["TR"].n_trials == 24 and MEASURES["TR"].n_trials_confirmed
-    # Not-taught ceilings are observed-max and flagged unconfirmed.
-    assert MEASURES["UE"].n_trials == 12 and not MEASURES["UE"].n_trials_confirmed
-    assert MEASURES["UR"].n_trials == 12 and not MEASURES["UR"].n_trials_confirmed
+    # Not-taught sets are the half-size 3x4 control (12 items), confirmed (#214).
+    assert MEASURES["UE"].n_trials == 12 and MEASURES["UE"].n_trials_confirmed
+    assert MEASURES["UR"].n_trials == 12 and MEASURES["UR"].n_trials_confirmed
 
 
 def test_itt_factory_taught_outcome_with_cross_symbols(tmp_path):
