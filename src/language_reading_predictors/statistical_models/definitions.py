@@ -163,6 +163,13 @@ _DID = [
     _d("lrpdid06", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "dose-response sensitivity (sessions)", base="lrpdid01"),
     _d("lrpdid07", "did", "Within-person DiD", Status.ROBUSTNESS, "L", "session-dose response (period-resolved)", base="lrpdid02"),
     _d("lrpdid07base", "did", "Within-person DiD", Status.COMPANION, "L", "pooled-dose comparator", base="lrpdid07"),
+    # Waitlist-crossover extensions (#226): graded outcomes only. TR/E replicate
+    # their ITT siblings; F (basic concepts) has no ITT sibling (outside the eight
+    # standardised outcomes). The floored P/N DiDs need off-floor support in the
+    # DiD factory and are a separate follow-up.
+    _d("lrpdid08", "did", "Within-person DiD", Status.ROBUSTNESS, "TR", "waitlist-crossover replication", base="lrpitt01"),
+    _d("lrpdid09", "did", "Within-person DiD", Status.ROBUSTNESS, "E", "waitlist-crossover replication", base="lrpitt06"),
+    _d("lrpdid10", "did", "Within-person DiD", Status.ROBUSTNESS, "F", "waitlist-crossover (no randomised ITT sibling)"),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------

@@ -1,0 +1,84 @@
+---
+title: "LRPDID10: Waitlist-crossover (DiD) effect on basic concept knowledge (CELF) (F)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPDID10 is the **waitlist-crossover / difference-in-differences** analysis for
+basic concept knowledge (`celf`). It stacks the two early periods (P1 = t1->t2,
+P2 = t2->t3) for both arms; each child is their **own control** (a child random
+intercept), and the immediate arm - treated in both periods - anchors the
+time/maturation trend.
+
+::: {.callout-note title="What this estimand is, and is not"}
+
+The waitlist arm is the **only untreated cell** (P1) and crosses to the
+intervention in P2. The treatment coefficient is a **difference-in-differences**:
+the waitlist's P1->P2 gain jump *over and above* the immediate arm's P1->P2 change,
+identified jointly by the period-1 between-arm contrast and the waitlist's own
+crossover, with stable child traits differenced out by the random intercept.
+
+Unlike the other DiD models, basic concepts (CELF) has **no standalone randomised
+ITT model** in the suite (F sits outside the eight standardised ITT outcomes), so
+there is no RCT sibling to triangulate against. Identification leans wholly on the
+parallel-trends assumption and the immediate arm as an (imperfect, also-treated)
+time anchor - read it as a within-person estimate, not a randomised result.
+
+:::
+
+::: {.callout-note title="Sign convention and the ceiling"}
+
+Positive => the intervention helps. The Beta-Binomial **logit** link absorbs
+ceiling effects: an immediate-arm child near the top of a bounded test makes a
+small P2 gain *expected*, not a spurious negative time trend - which is exactly the
+failure mode of a raw-gain DiD on the count scale.
+
+:::
+
+## Model
+
+$$
+\eta_{i,p} = \alpha + \beta_{\text{period}}\,[p = \text{P2}]
+           + \delta\,\text{Treated}_{i,p}
+           + \gamma_{\text{own}}\,\text{logit}_*(F_{\mathrm{pre},i,p}, N)
+           + \gamma_A\,A_{\text{std},i,p} + u_{\text{child},i},
+$$
+
+with Beta-Binomial likelihood on the period post-count, $N = 18$. ``Treated`` is
+1 when the child is receiving the intervention that period (immediate: both;
+waitlist: P2 only). Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_did.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
