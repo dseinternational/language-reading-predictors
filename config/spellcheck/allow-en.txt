@@ -475,3 +475,7 @@ autoregressor
 unconfounded
 RMSEA
 partialled
+Hayiou
+Crosbie
+Ozanne
+Leavett
