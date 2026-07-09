@@ -29,6 +29,7 @@ HPDI
 hpdi
 lengthscale
 Missingness
+MNAR
 MCMC
 NUCA
 nutpie
