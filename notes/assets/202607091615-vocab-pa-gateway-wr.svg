@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="500" viewBox="0 0 720 500" role="img" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" fill="#2a2d31">
+<title>Expressive vocabulary reaches word reading only through the phoneme-awareness gateway</title>
+<desc>In the current DAG, taught and standardised expressive vocabulary point into phoneme awareness (blending), speech production and expressive language. Only phoneme awareness has any onward path to reading, so it is the sole gateway (cut-vertex) from expressive vocabulary to word reading, nonword reading and phonetic spelling. Speech production is a childless sink. Letter-sound knowledge has no edge to or from vocabulary and drives the phonics route independently. Receptive vocabulary has a direct edge to word reading that expressive vocabulary lacks.</desc>
+<rect x="0" y="0" width="720" height="500" fill="#ffffff"/>
+<rect x="4" y="4" width="712" height="492" rx="12" fill="none" stroke="#e6e9ed" stroke-width="1"/>
+<defs>
+<marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fdb"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c2872a"/></marker>
+<marker id="at" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f9e78"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f98"/></marker>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d0433f"/></marker>
+</defs>
+
+<!-- lane labels -->
+<text x="111" y="26" text-anchor="middle" font-size="11.5" fill="#8a8f98" font-weight="500">expressive vocabulary</text>
+<text x="365" y="26" text-anchor="middle" font-size="11.5" fill="#8a8f98" font-weight="500">gateway</text>
+<text x="615" y="26" text-anchor="middle" font-size="11.5" fill="#8a8f98" font-weight="500">reading outcomes</text>
+
+<!-- edges: vocabulary internal -->
+<line x1="111" y1="92" x2="111" y2="150" stroke="#2f6fdb" stroke-width="1.5" marker-end="url(#ab)"/>
+<text x="118" y="124" text-anchor="start" font-size="10.5" fill="#5a5f66">transfer</text>
+
+<!-- gateway edges (the bottleneck), thick amber -->
+<line x1="170" y1="76" x2="296" y2="162" stroke="#c2872a" stroke-width="3" marker-end="url(#aa)"/>
+<line x1="170" y1="170" x2="296" y2="173" stroke="#c2872a" stroke-width="3" marker-end="url(#aa)"/>
+
+<!-- gateway out -->
+<line x1="432" y1="163" x2="554" y2="143" stroke="#c2872a" stroke-width="2" marker-end="url(#aa)"/>
+<line x1="432" y1="180" x2="554" y2="264" stroke="#c2872a" stroke-width="2" marker-end="url(#aa)"/>
+<line x1="432" y1="190" x2="553" y2="378" stroke="#c2872a" stroke-width="2" marker-end="url(#aa)"/>
+
+<!-- sink edges (red dashed) -->
+<line x1="170" y1="64" x2="248" y2="62" stroke="#d0433f" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+<line x1="152" y1="150" x2="286" y2="82" stroke="#d0433f" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+
+<!-- phonics engine (teal), vocabulary-independent -->
+<line x1="359" y1="372" x2="363" y2="198" stroke="#2f9e78" stroke-width="1.6" marker-end="url(#at)"/>
+<line x1="418" y1="378" x2="554" y2="150" stroke="#2f9e78" stroke-width="1.6" marker-end="url(#at)"/>
+<line x1="418" y1="388" x2="554" y2="272" stroke="#2f9e78" stroke-width="1.6" marker-end="url(#at)"/>
+<line x1="418" y1="395" x2="552" y2="391" stroke="#2f9e78" stroke-width="1.6" marker-end="url(#at)"/>
+
+<!-- reading internal -->
+<line x1="611" y1="160" x2="616" y2="370" stroke="#8a8f98" stroke-width="1.4" marker-end="url(#ag)"/>
+<line x1="615" y1="290" x2="617" y2="370" stroke="#8a8f98" stroke-width="1.4" marker-end="url(#ag)"/>
+
+<!-- receptive direct route (blue), the asymmetry -->
+<path d="M170,398 C 300,452 452,452 554,404" fill="none" stroke="#2f6fdb" stroke-width="2" marker-end="url(#ab)"/>
+<text x="362" y="470" text-anchor="middle" font-size="11" fill="#2f6fdb">RV → WR: receptive has a direct route — expressive vocabulary has no EV → WR edge</text>
+
+<!-- nodes -->
+<rect x="52" y="52" width="118" height="40" rx="6" fill="#dbe8fb" stroke="#2f6fdb"/>
+<text x="111" y="70" text-anchor="middle" font-size="12.5" fill="#17417a">taught expressive</text>
+<text x="111" y="84" text-anchor="middle" font-size="10.5" fill="#17417a" fill-opacity="0.72">TE</text>
+
+<rect x="52" y="150" width="118" height="40" rx="6" fill="#dbe8fb" stroke="#2f6fdb"/>
+<text x="111" y="168" text-anchor="middle" font-size="12.5" fill="#17417a">expressive vocab</text>
+<text x="111" y="182" text-anchor="middle" font-size="10.5" fill="#17417a" fill-opacity="0.72">EV · eowpvt</text>
+
+<rect x="52" y="372" width="118" height="40" rx="6" fill="#dbe8fb" stroke="#2f6fdb"/>
+<text x="111" y="390" text-anchor="middle" font-size="12.5" fill="#17417a">receptive vocab</text>
+<text x="111" y="404" text-anchor="middle" font-size="10.5" fill="#17417a" fill-opacity="0.72">RV · rowpvt</text>
+
+<!-- SP sink -->
+<rect x="250" y="44" width="104" height="38" rx="6" fill="#fbe1e0" stroke="#d0433f" stroke-dasharray="4 3"/>
+<text x="302" y="61" text-anchor="middle" font-size="12.5" fill="#7a1f1c">speech · SP</text>
+<text x="302" y="75" text-anchor="middle" font-size="10" fill="#7a1f1c" fill-opacity="0.85">sink — no children</text>
+<text x="368" y="42" text-anchor="start" font-size="10.5" fill="#d0433f">no path to reading · flip proposed (#233)</text>
+
+<!-- PA gateway (amber, emphasised) -->
+<rect x="298" y="150" width="134" height="46" rx="7" fill="#fdecd2" stroke="#c2872a" stroke-width="2.5"/>
+<text x="365" y="170" text-anchor="middle" font-size="13" fill="#7a4e12" font-weight="500">phoneme aware.</text>
+<text x="365" y="185" text-anchor="middle" font-size="10.5" fill="#7a4e12" fill-opacity="0.82">PA · blending only</text>
+<text x="365" y="214" text-anchor="middle" font-size="10.5" fill="#c2872a" font-weight="500">sole gateway · cut-vertex</text>
+<text x="365" y="228" text-anchor="middle" font-size="10" fill="#8a6a2a">every EV/TE → reading route passes here</text>
+
+<!-- LS phonics engine (teal) -->
+<rect x="300" y="372" width="118" height="40" rx="6" fill="#dcefe7" stroke="#2f9e78"/>
+<text x="359" y="390" text-anchor="middle" font-size="12.5" fill="#14503a">letter–sound · LS</text>
+<text x="359" y="404" text-anchor="middle" font-size="10" fill="#14503a" fill-opacity="0.82">yarclet</text>
+<text x="359" y="352" text-anchor="middle" font-size="10.5" fill="#2f9e78">no edge to / from vocabulary — phonics engine is vocabulary-independent</text>
+
+<!-- reading outcomes -->
+<rect x="556" y="120" width="118" height="40" rx="6" fill="#eceef1" stroke="#9aa0a8"/>
+<text x="615" y="138" text-anchor="middle" font-size="12.5">nonword reading</text>
+<text x="615" y="152" text-anchor="middle" font-size="10.5" fill-opacity="0.72">NW · vocab-independent</text>
+
+<rect x="556" y="250" width="118" height="40" rx="6" fill="#eceef1" stroke="#9aa0a8"/>
+<text x="615" y="268" text-anchor="middle" font-size="12.5">phonetic spelling</text>
+<text x="615" y="282" text-anchor="middle" font-size="10.5" fill-opacity="0.72">PS · floored</text>
+
+<rect x="556" y="372" width="124" height="42" rx="6" fill="#e6edf6" stroke="#2f6fdb" stroke-width="2"/>
+<text x="618" y="391" text-anchor="middle" font-size="13" fill="#17417a" font-weight="500">word reading</text>
+<text x="618" y="405" text-anchor="middle" font-size="10.5" fill="#17417a" fill-opacity="0.72">WR · outcome</text>
+
+<!-- legend -->
+<line x1="48" y1="488" x2="68" y2="488" stroke="#c2872a" stroke-width="3"/>
+<text x="74" y="492" text-anchor="start" font-size="10.5" fill="#5a5f66">vocab → reading (via PA only)</text>
+<line x1="250" y1="488" x2="270" y2="488" stroke="#2f9e78" stroke-width="1.8"/>
+<text x="276" y="492" text-anchor="start" font-size="10.5" fill="#5a5f66">phonics engine (LS)</text>
+<line x1="410" y1="488" x2="430" y2="488" stroke="#2f6fdb" stroke-width="2"/>
+<text x="436" y="492" text-anchor="start" font-size="10.5" fill="#5a5f66">receptive / transfer</text>
+<line x1="560" y1="488" x2="580" y2="488" stroke="#d0433f" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="586" y="492" text-anchor="start" font-size="10.5" fill="#5a5f66">into sink</text>
+</svg>
