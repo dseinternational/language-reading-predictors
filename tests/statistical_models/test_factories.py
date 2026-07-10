@@ -38,6 +38,7 @@ from language_reading_predictors.statistical_models.measures import (
     is_distal,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    HEARING_STATUS_COVARIATES,
     load_and_prepare,
 )
 
@@ -139,6 +140,20 @@ def test_itt_factory_default_cross_is_all_itt_outcomes(tmp_path):
     built = build_itt_model(prep, outcome_symbol="W")  # cross_symbols defaults None
     names = {v.name for v in built.model.free_RVs}
     assert {f"gamma_{s}" for s in ITT_OUTCOMES if s != "W"}.issubset(names)
+
+
+def test_itt_factory_hearing_status_adjuster():
+    """#244: hearing status (HS) enters the ITT via adjust_for without dropping rows."""
+    base = load_and_prepare(phase_mode="itt", outcomes=("W",))
+    prep = load_and_prepare(
+        phase_mode="itt", outcomes=("W",), covariates=HEARING_STATUS_COVARIATES
+    )
+    assert prep.n_obs == base.n_obs  # missing hearing status costs no children
+    built = build_itt_model(
+        prep, outcome_symbol="W", cross_symbols=(), adjust_for=HEARING_STATUS_COVARIATES
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_hs", "gamma_hs_missing"}.issubset(names)
 
 
 def test_itt_factory_rejects_unknown_cross_symbol(tmp_path):

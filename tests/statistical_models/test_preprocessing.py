@@ -18,12 +18,33 @@ from language_reading_predictors.statistical_models.measures import (
     unconfirmed_ceilings,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    HEARING_STATUS_COVARIATES,
+    add_hearing_status,
     logit_safe,
     standardise,
     load_and_prepare,
     load_and_prepare_aligned,
     load_and_prepare_lagged_outcome,
 )
+
+
+def test_add_hearing_status_missing_indicator():
+    """#244: hearing_c -> hs + hs_missing (missing-indicator; no NaN, no row loss)."""
+    df = pd.DataFrame({V.HEARING_C: [1.0, 0.0, np.nan, 1.0, np.nan]})
+    out = add_hearing_status(df)
+    assert list(out["hs"]) == [1.0, 0.0, 0.0, 1.0, 0.0]  # unknown filled to clear ref
+    assert list(out["hs_missing"]) == [0.0, 0.0, 1.0, 0.0, 1.0]  # unknown flagged
+    assert int(out[["hs", "hs_missing"]].isna().sum().sum()) == 0
+
+
+def test_load_and_prepare_hearing_status_keeps_all_rows():
+    """#244: adjusting for HS via the missing-indicator covariates drops no rows."""
+    base = load_and_prepare(phase_mode="itt", outcomes=("W",))
+    with_hs = load_and_prepare(
+        phase_mode="itt", outcomes=("W",), covariates=HEARING_STATUS_COVARIATES
+    )
+    assert with_hs.n_obs == base.n_obs  # hearing missingness costs no children
+    assert set(HEARING_STATUS_COVARIATES) <= set(with_hs.covariates)
 
 
 def test_logit_safe_haldane_correction():

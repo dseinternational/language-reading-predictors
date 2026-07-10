@@ -137,6 +137,22 @@ def is_distal(symbol: str | None) -> bool:
     return symbol in DISTAL_OUTCOMES
 
 
+# --- Revised-DAG hearing-status adjacency (2026-07-10, #233/#244) -------------
+# The revised graph (dag/dag-language-reading.dagitty) adds hearing status as a
+# common cause: HS -> { TR RV TE EV SP RW PA LS }. HS is therefore an upstream
+# confounder for any observational estimand whose exposure/outcome is one of these
+# nodes, and enters those models' DAG-derived adjustment sets (wired as the
+# ``hs`` / ``hs_missing`` covariates - see preprocessing.add_hearing_status; the
+# per-family application is issues #245-247). Recorded in DAG-node names;
+# measure-symbol equivalents: RV=R, EV=E, PA=B (blending), LS=L (SP/RW/TR/TE as-is).
+HS_CHILDREN: frozenset[str] = frozenset(
+    {"TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"}
+)
+"""DAG children of hearing status (`HS`) under the 2026-07-10 revision — the nodes
+for which `HS` is an upstream confounder to adjust in the observational
+(mechanism / mediation / factor) families."""
+
+
 LRPITT_OUTCOMES: tuple[str, ...] = (
     "TR", "TE", "UR", "UE", "R", "E", "L", "B", "P", "W", "N",
 )
