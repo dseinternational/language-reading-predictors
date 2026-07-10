@@ -168,6 +168,36 @@ def add_hearing_status(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+#: Continuous revised-DAG confounder covariates that enter the observational
+#: adjustment sets (#245): speech production (SP = ``deapp_c``) and word/nonword
+#: repetition / phonological memory (RW = ``erbto``). Handled by
+#: :func:`add_missing_indicator_covariates` with the hearing-status policy.
+MISSING_INDICATOR_COVARIATES: tuple[str, ...] = ("deapp_c", "erbto")
+
+
+def add_missing_indicator_covariates(df: pd.DataFrame) -> pd.DataFrame:
+    """Fill + flag the continuous DAG-confounder covariates SP / RW (#245).
+
+    ``deapp_c`` (speech production, SP) and ``erbto`` (word/nonword repetition =
+    phonological memory, RW) are common causes in the revised DAG and so enter the
+    mechanism / factor adjustment sets. Both are ~94-96% complete; to keep the
+    within-child panel intact they take the same **missing-indicator** policy as
+    hearing status (:func:`add_hearing_status`): the value is filled to its column
+    mean (arm-blind; becomes 0 after standardisation) and a ``{col}_missing``
+    indicator carries the unknown group as its own adjustment level. Both derived
+    columns are NaN-free, so adjusting for them never drops rows. A no-op for any
+    column absent from the frame (e.g. other datasets).
+    """
+    out = df.copy()
+    for col in MISSING_INDICATOR_COVARIATES:
+        if col not in out.columns:
+            continue
+        v = pd.to_numeric(out[col], errors="coerce")
+        out[col] = v.fillna(v.mean())
+        out[f"{col}_missing"] = v.isna().astype(float)
+    return out
+
+
 def load_and_prepare(
     path: str | Path | None = None,
     phase_mode: str = "itt",
@@ -265,6 +295,10 @@ def load_and_prepare(
     # Derive the missing-indicator hearing-status covariates (HS; #244) up front so
     # ``hs`` / ``hs_missing`` are available as complete adjusters (no row dropping).
     df = add_hearing_status(df)
+    # Same for the continuous DAG-confounder covariates SP (deapp_c) and RW (erbto)
+    # (#245): fill + ``{col}_missing`` so they can be adjusted for without dropping
+    # within-child rows.
+    df = add_missing_indicator_covariates(df)
 
     covariates = tuple(covariates)
     baseline_covariates = tuple(baseline_covariates)

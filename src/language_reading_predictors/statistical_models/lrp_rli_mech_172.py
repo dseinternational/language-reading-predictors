@@ -27,11 +27,13 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="N",
     mechanism_symbol="L",
-    # B added as a plain confounder (main effect only); N_pre is the baseline.
+    # B added as a plain confounder (main effect only); N_pre is the baseline. The
+    # revised-DAG L backdoor adjusters (HS, attend, SP; #245) enter via adjust_for.
     adjustment=["G", "A", "N_pre", "B"],
     extra={
         "adjust_baseline_symbol": "N",
         "outcomes": ["L", "B", "N"],
+        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
         "linear_mechanism": True,
         "use_age_gp": False,
         "phase_specific_mechanism": False,

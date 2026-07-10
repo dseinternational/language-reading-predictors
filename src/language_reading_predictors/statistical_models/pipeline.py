@@ -1407,10 +1407,17 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # A model may restrict the prepared outcomes (e.g. LRP72 uses only L/B/N) so
     # ``drop_missing_pre`` does not discard rows for measures the model ignores.
     extra_outcomes = spec.extra.get("outcomes")
+    # Raw-covariate adjusters (revised-DAG confounders that are not bounded-count
+    # measures): hearing (hs/hs_missing), speech (deapp_c), phonological memory
+    # (erbto), sessions (attend). Loaded standardised from each transition's pre
+    # row so they can enter as linear adjustment terms (#245).
+    adjust_for = tuple(spec.extra.get("adjust_for", ()))
     if extra_outcomes is not None:
-        prepared = load_and_prepare(phase_mode="all", outcomes=tuple(extra_outcomes))
+        prepared = load_and_prepare(
+            phase_mode="all", outcomes=tuple(extra_outcomes), covariates=adjust_for
+        )
     else:
-        prepared = load_and_prepare(phase_mode="all")
+        prepared = load_and_prepare(phase_mode="all", covariates=adjust_for)
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -1419,6 +1426,8 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     moderator_symbol = spec.extra.get("moderator_symbol")
     # Drop the autoregressive baseline (any ``*_pre`` token, e.g. W_pre / N_pre)
     # from the confounder list — it enters via ``adjust_baseline_symbol``.
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
     confounders = [s for s in spec.adjustment if not s.endswith("_pre")]
     if moderator_symbol is not None:
         # The moderator is carried by its standardised main effect + interaction
@@ -1432,7 +1441,9 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         mechanism_symbol=spec.mechanism_symbol,
         outcome_symbol=spec.outcome_symbol or "W",
         adjust_baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
-        confounder_symbols=tuple(s for s in confounders if s in ("G", "A") or len(s) == 1),
+        confounder_symbols=tuple(
+            s for s in confounders if s in ("G", "A") or s in MEASURES
+        ),
         use_age_gp=spec.extra.get("use_age_gp", False),
         phase_specific_mechanism=spec.extra.get("phase_specific_mechanism", False),
         use_subject_random_intercept=spec.extra.get(
@@ -1442,6 +1453,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         moderator_is_covariate=spec.extra.get("moderator_is_covariate", False),
         include_interaction=spec.extra.get("include_interaction", True),
         linear_mechanism=spec.extra.get("linear_mechanism", False),
+        adjust_for=adjust_for,
     )
     _attach_built(ctx, built)
 
@@ -1455,6 +1467,8 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     section_header("Summary diagnostics")
     _mech_vars = ["alpha", "beta_G", "gamma_own", "kappa"]
+    _mech_vars += [f"gamma_{s}" for s in confounders if s in MEASURES]
+    _mech_vars += [f"gamma_{c}" for c in adjust_for]
     if "A" in confounders and not spec.extra.get("use_age_gp", False):
         _mech_vars.append("gamma_A")
     if spec.extra.get("use_subject_random_intercept", True):

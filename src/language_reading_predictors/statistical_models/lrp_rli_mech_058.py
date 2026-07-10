@@ -3,18 +3,20 @@
 
 """LRP58 - Mechanism model: letter-sound knowledge (L) -> word reading (W).
 
-Adjustment set (DAG-derived):
+Revised-DAG (2026-07-10, #245) adjustment set. The revision drops EV->LS (SP is
+now the speech->code cause), so the observed parents of LS are {A, HS, IG, IS, SP}:
 
-- G, A: standard confounders.
-- E: confounds L and W (E -> L and E -> W). Must be conditioned on.
-- R: confounds L through E (R -> E -> L) and affects W. Conditioning on R
-  closes the backdoor via E.
-- W_pre: baseline word reading.
+- G, A: group (beta_G) and age (linear gamma_A).
+- HS (hs / hs_missing): hearing, a new common cause of letter sounds.
+- IS (attend): intervention sessions - a common cause of L and W.
+- SP (deapp_c): speech production - now a cause of letter-sound knowledge.
+- W_pre: autoregressive baseline.
 
-B (phoneme blending) is a descendant of L in the literacy-development
-cascade and must NOT be conditioned on (conditioning on a descendant of L
-would introduce collider bias and attenuate f^L). F and P are also excluded
-for the same reason. This decision is documented in the accompanying report.
+The old E / R adjusters are REMOVED: under the revised DAG neither expressive nor
+receptive vocabulary is a parent of LS, and conditioning on EV (a common effect of
+SP and RW, which both also reach WR) would open a collider path. B (blending) is a
+descendant of L and stays excluded, as do F and P. GA is latent (child
+random-intercept proxy), so f^L is an adjusted association, not a causal effect.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -26,12 +28,12 @@ SPEC = ModelSpec(
     title="Mechanism model: letter-sound knowledge (L) -> word reading (W)",
     outcome_symbol="W",
     mechanism_symbol="L",
-    adjustment=["G", "A", "E", "R", "W_pre"],
-    # Age GP off, subject random intercept on — see
-    #  and
-    #.
+    adjustment=["G", "A", "W_pre"],
+    # Age GP off (age enters linearly), subject random intercept on.
     extra={
+        "outcomes": ("W", "L"),
         "adjust_baseline_symbol": "W",
+        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
         "use_age_gp": False,
         "phase_specific_mechanism": False,
         "use_subject_random_intercept": True,

@@ -26,13 +26,13 @@ Design choices:
   mechanism enters as a single linear slope `beta_mech·z(logit L)`.
 - **Minimal outcomes** (`outcomes=["L","B","N"]`): only the symbols this model
   uses, so `drop_missing_pre` does not discard rows for unrelated measures.
-- **Adjustment set {G, A, N_pre}** — group, age, and baseline decoding
-  (autoregressive). **Word reading `W` is deliberately excluded**: it is a
+- **Adjustment set {G, A, HS, IS(attend), SP, N_pre}** — the revised-DAG parents
+  of L (group via beta_G, age, hearing, sessions, speech; #245) plus baseline
+  decoding (autoregressive). **Word reading `W` is deliberately excluded**: it is a
   sibling/descendant of decoding, so conditioning on it is over-control / a
-  collider risk (same error class as the celf/LRP70 issue). Vocabulary/concepts
-  are not plausible confounders of the code-based-route -> decoding path. L and B are
-  treated as parallel prerequisites; the interaction estimand does not require
-  resolving whether L precedes B. Documented in the report.
+  collider risk (same error class as the celf/LRP70 issue). L and B are treated as
+  parallel prerequisites; the interaction estimand does not require resolving
+  whether L precedes B. Documented in the report.
 
 Data caveat: `nonword` is 57% floored (median 0) but informative and moving
 (28% -> 60% of children decode >=1 nonword across t1..t4); predictors (L, B) are
@@ -60,6 +60,7 @@ SPEC = ModelSpec(
     extra={
         "adjust_baseline_symbol": "N",
         "outcomes": ["L", "B", "N"],
+        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
         "moderator_symbol": "B",
         "linear_mechanism": True,
         "use_age_gp": False,
