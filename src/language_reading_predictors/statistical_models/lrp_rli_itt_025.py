@@ -7,10 +7,10 @@ Standalone ITT for basic concepts (#228 suite-gap Tier-1): F previously had only
 gain-factor / level-factor / aligned models and no standalone randomised ITT.
 Uniform DAG-faithful ITT (issue #119): randomisation identifies tau by the empty
 adjustment set, so the own baseline and linear age are precision terms only and no
-cross-baselines enter. Basic concepts sits outside the eight standardised ITT
-outcomes and has no education-lead-agreed ROPE delta, so the report gives the
+cross-baselines enter. Basic concepts is one of the eight standardised ITT
+outcomes but has no education-lead-agreed ROPE delta, so the report gives the
 effect tau (size / direction / probability) but omits the P(benefit >= delta)
-meaningful-benefit table the other ITT outcomes carry. Sign convention: positive
+meaningful-benefit table the ROPE-anchored outcomes carry. Sign convention: positive
 tau means the intervention raises the outcome.
 """
 
