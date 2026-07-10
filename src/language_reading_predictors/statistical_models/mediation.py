@@ -42,8 +42,10 @@ because ``IS`` is itself a descendant of the exposure (VanderWeele, Vansteelandt
 The outputs are therefore model-based g-formula decompositions under the stated
 (cross-world) assumptions, not identified natural effects; an *interventional*
 (rather than natural) mediation estimand would be the route to a defensible
-target quantity. See the DAG note (202607101444-dag-explanation-review-draft.md,
-sec. 11, ID-2) and the model reports' assumptions sections.
+target quantity. The exposure-induced structure is encoded in the base DAG
+(``dag/dag-language-reading.dagitty``: ``IG -> IS`` and
+``IS -> { TR TE PA LS WR ... }``); see also the model reports' assumptions
+sections.
 """
 
 from __future__ import annotations
