@@ -238,6 +238,18 @@ _LEVEL += [
        "levels view; only the t2 group contrast is randomised"),
 ]
 
+# Nonword-reading factor models (#225). Off-floor Bernoulli likelihood like
+# gf-005/lf-005 (phonetic spelling); added explicitly, same rationale as the
+# taught-vocabulary entries above.
+_GAIN += [
+    _d("lrpgf11", "gain_factors", "Gain factors", Status.ASSOCIATION, "N",
+       "ANCOVA gain; only the on-intervention term is causal"),
+]
+_LEVEL += [
+    _d("lrplf11", "level_factors", "Level factors", Status.ASSOCIATION, "N",
+       "levels view; only the t2 group contrast is randomised"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
