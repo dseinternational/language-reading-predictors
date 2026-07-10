@@ -116,6 +116,34 @@ def test_taught_block1_measures_registered():
     assert MEASURES["UR"].n_trials == 12 and MEASURES["UR"].n_trials_confirmed
 
 
+def test_ps_is_outcome_only_not_a_word_reading_predictor():
+    """#248 (2026-07-10 DAG revision): PS->WR is dropped and phonetic spelling
+    ('P') is terminal. Guard that P never enters a word-reading predictor set - it
+    appears only as an outcome (gf-005 / lf-005 / itt-009 model it)."""
+    from language_reading_predictors.statistical_models import (
+        lrp_rli_adj_065,
+        lrp_rli_hs_001,
+        lrp_rli_hs_002,
+    )
+    from language_reading_predictors.statistical_models.definitions import (
+        FLOORED,
+        MODEL_REGISTRY,
+    )
+
+    # PS is floored, so it is excluded from the "non-floored baseline" predictor
+    # sets the word-reading models use.
+    assert "P" in FLOORED
+    # The explicit word-reading predictor models must not list P.
+    assert "P" not in lrp_rli_hs_001.SPEC.extra["predictors"]  # W-gain ranking
+    assert "P" not in lrp_rli_hs_002.SPEC.extra["predictors"]  # W-level ranking
+    adj = lrp_rli_adj_065.get_spec()  # baseline predictors of W gain (ADJ-065)
+    assert "P" not in adj.extra["predictor_symbols"]
+    assert "P" not in adj.extra["language_composite_symbols"]
+    assert "P" not in adj.adjustment
+    # PS still exists as an outcome in the suite.
+    assert any(d.outcome == "P" for d in MODEL_REGISTRY.values())
+
+
 def test_itt_factory_taught_outcome_with_cross_symbols(tmp_path):
     """LRP74-style: an ITT outcome outside ITT_OUTCOMES, conditioned only on its
     own baseline plus a chosen cross-baseline (the matched standardised vocab)."""
