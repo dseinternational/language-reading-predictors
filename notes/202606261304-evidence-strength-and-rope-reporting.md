@@ -355,8 +355,9 @@ sensible `δ` could be built from.
 | P phonetic spelling    |    92 |         8.5 (21.1) |              — |        — |           — |        2.1 | **prob δ ≈ 0.10** |
 | N nonword              |     6 |                  — |              — |        — |           — |        0.1 | **prob δ ≈ 0.10** |
 
-\* UR/UE scale length is unconfirmed (absent from the data dictionary), so their
-items `δ` is doubly provisional.
+\* UR/UE scale length is confirmed at 12 (#214), from the RLI assessment word
+list: each block tests 3 not-taught words of each of the 4 types (vs 6-per-type =
+24 taught). Their items `δ` is no longer provisional.
 
 ### The adopted principle and its consequence
 
@@ -396,10 +397,14 @@ The education lead reviewed and confirmed the thresholds:
   floored outcomes at 10 / 15 / 20 pp), so the meaningful-benefit claim's
   robustness to the δ choice is explicit rather than hidden in one number.
 
+Resolved since:
+
+- **UR/UE scale length** confirmed at 12 (#214), from the RLI assessment word list
+  — 3 not-taught words × 4 types per block (the taught set is 6 × 4 = 24). Their
+  items δ is no longer provisional.
+
 Still open (data-owner / education-lead):
 
-- confirming **UR/UE scale length** — their denominators are unconfirmed, so their
-  items δ stays provisional pending the data dictionary;
 - any **per-outcome override** where an absolute domain target beats the formula
   (e.g. a taught-words target on TR/TE regardless of natural growth).
 
