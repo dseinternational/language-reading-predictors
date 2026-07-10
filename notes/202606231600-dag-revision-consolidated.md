@@ -53,6 +53,10 @@ RG -> EG
 }
 ```
 
+A rendered, colour-coded view of this graph — regenerated from the same structure with Graphviz — is at [`notes/assets/dag-language-reading.svg`](assets/dag-language-reading.svg) (source alongside as `assets/dag-language-reading.dot`; regenerate with `dot -Tsvg notes/assets/dag-language-reading.dot -o notes/assets/dag-language-reading.svg`). Causal flow reads left → right to the `WR` outcome, with every substantive edge drawn and coloured by domain. The two universal parents `A` (age) and `GA` (latent general ability) point into every observed node; in the figure their 32 edges are summarised in a note rather than drawn, for legibility (this is the only place the picture departs from the `dag { … }` block above).
+
+![Rendered view of the locked language & reading DAG](assets/dag-language-reading.svg)
+
 ### Node definitions
 
 | Symbol      | Construct (measure)                                              | Role                                             |
