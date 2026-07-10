@@ -12,6 +12,9 @@
 Date: 2026-06-23 — **Status: LOCKED** (supersedes the in-progress drafts in this
 note's history).
 
+> [!IMPORTANT]
+> **Superseded on 2026-07-10.** After the critical reviews in `notes/202607091430-…` and `notes/202607091615-…` (issue #233), the team revised this structure — reversing the speech edge, adding hearing status, widening phonological memory, adding direct expressive-vocabulary → word-reading routes, and demoting phonetic spelling to an outcome. The current authoritative graph is [`dag/dag-language-reading.dagitty`](../dag/dag-language-reading.dagitty) and the decision record is [`notes/202607101100-dag-revision-team-decisions.md`](202607101100-dag-revision-team-decisions.md). This note is retained **unchanged as the historical 2026-06-23 record**; the `dag { … }` block and node definitions below describe the _previous_ structure.
+
 ## Purpose
 
 Records the final causal DAG for the **step-2 Bayesian models** (ITT, joint,
@@ -22,7 +25,7 @@ dose nodes, taught vs standardised vocabulary, the reading/phonics route, phonet
 spelling, and speech production. This is the design artefact those models should be
 built against; it changes no code yet.
 
-Machine-readable copy (paste into dagitty.net): [`notes/dag-language-reading.dagitty`](dag-language-reading.dagitty).
+Machine-readable copy of **this 2026-06-23 structure**: the `dag { … }` block below. (The former `notes/dag-language-reading.dagitty` file was moved to [`dag/dag-language-reading.dagitty`](../dag/dag-language-reading.dagitty) and **revised on 2026-07-10**, so it no longer matches this note — see the supersession banner above.)
 
 ## The locked DAG
 
@@ -52,6 +55,8 @@ PS -> { WR }
 RG -> EG
 }
 ```
+
+A colour-coded Graphviz rendering of the DAG lives at [`dag/dag-language-reading.svg`](../dag/dag-language-reading.svg) (source `dag/dag-language-reading.dot`). **Note:** that figure now shows the **revised 2026-07-10 graph**, not the 2026-06-23 structure recorded in the `dag { … }` block above; the original rendering of this locked structure is preserved in the git history of `notes/assets/dag-language-reading.svg`. Causal flow reads left → right to the `WR` outcome; the two universal parents `A` (age) and `GA` (latent general ability) point into every observed node and are summarised in a figure note rather than drawn, for legibility.
 
 ### Node definitions
 
