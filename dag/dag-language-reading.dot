@@ -4,23 +4,25 @@ digraph LRP_DAG {
   labelloc="t";
   fontname="Helvetica-Bold";
   fontsize=17;
-  label="Language & reading causal DAG — locked 2026-06-23  (causal flow left → right)";
-  nodesep=0.30;
+  label="Language & reading causal DAG — revised 2026-07-10  (causal flow left → right)";
+  nodesep=0.28;
   ranksep=0.95;
   concentrate=false;
   splines=true;
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
         margin="0.11,0.06", penwidth=1.3, color="#9aa0a8", fillcolor="#eceef1"];
-  edge [penwidth=1.2, arrowsize=0.75];
+  edge [penwidth=1.1, arrowsize=0.7];
 
   // ================= NODES =================
   IG [label="IG\nintervention group\n(randomised)", fillcolor="#dbe8fb", color="#2f6fdb"];
   IS [label="IS\nsessions (dose)", fillcolor="#dbe8fb", color="#2f6fdb"];
 
+  HS [label="HS\nhearing status", fillcolor="#dfe3ef", color="#5560a6"];
+
   TR [label="TR\ntaught receptive", fillcolor="#e7ddf5", color="#7a52b3"];
   TE [label="TE\ntaught expressive", fillcolor="#e7ddf5", color="#7a52b3"];
 
-  RW [label="RW\nword repetition", fillcolor="#d6ebe4", color="#2f9e78"];
+  RW [label="RW\nword repetition\n(phon. memory)", fillcolor="#d6ebe4", color="#2f9e78"];
   RV [label="RV\nreceptive vocab", fillcolor="#d6ebe4", color="#2f9e78"];
   EV [label="EV\nexpressive vocab", fillcolor="#d6ebe4", color="#2f9e78"];
 
@@ -28,14 +30,15 @@ digraph LRP_DAG {
   RG [label="RG\nreceptive grammar", fillcolor="#eceef1", color="#9aa0a8"];
   EI [label="EI\nexpressive info", fillcolor="#eceef1", color="#9aa0a8"];
   EG [label="EG\nexpressive grammar", fillcolor="#eceef1", color="#9aa0a8"];
-  SP [label="SP\nspeech production", fillcolor="#fbe1e0", color="#d0433f"];
+
+  SP [label="SP\nspeech production\n(motor-difficulty proxy)", fillcolor="#fbe1e0", color="#d0433f"];
 
   LS [label="LS\nletter–sound", fillcolor="#fdecd2", color="#c2872a"];
   PA [label="PA\nphoneme aware.\n(blending)", fillcolor="#fdecd2", color="#c2872a"];
   NW [label="NW\nnonword reading", fillcolor="#fdecd2", color="#c2872a"];
-  PS [label="PS\nphonetic spelling", fillcolor="#fdecd2", color="#c2872a"];
+  PS [label="PS\nphonetic spelling\n(outcome)", fillcolor="#fdecd2", color="#c2872a", penwidth=2.2];
 
-  WR [label="WR\nWORD READING\n(outcome)", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6, fontname="Helvetica-Bold"];
+  WR [label="WR\nWORD READING\n(primary outcome)", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6, fontname="Helvetica-Bold"];
 
   // background common causes (shown, edges summarised)
   ABG [label="A · age\nGA · general ability (latent)\n→ common causes of EVERY observed node\n(16 edges each; omitted for clarity)",
@@ -45,15 +48,19 @@ digraph LRP_DAG {
     <table border="0" cellborder="0" cellspacing="1" cellpadding="3">
       <tr><td colspan="2" align="left"><b>domain</b></td></tr>
       <tr><td bgcolor="#dbe8fb" width="18"> </td><td align="left">intervention</td></tr>
+      <tr><td bgcolor="#dfe3ef" width="18"> </td><td align="left">hearing status</td></tr>
       <tr><td bgcolor="#e7ddf5" width="18"> </td><td align="left">taught vocabulary</td></tr>
-      <tr><td bgcolor="#d6ebe4" width="18"> </td><td align="left">standardised vocab / repetition</td></tr>
+      <tr><td bgcolor="#d6ebe4" width="18"> </td><td align="left">standardised vocab / phon. memory</td></tr>
       <tr><td bgcolor="#eceef1" width="18"> </td><td align="left">language &amp; grammar (no path to WR)</td></tr>
-      <tr><td bgcolor="#fbe1e0" width="18"> </td><td align="left">speech (sink)</td></tr>
+      <tr><td bgcolor="#fbe1e0" width="18"> </td><td align="left">speech (now a cause)</td></tr>
       <tr><td bgcolor="#fdecd2" width="18"> </td><td align="left">code / reading route</td></tr>
-      <tr><td bgcolor="#cfe0f7" width="18"> </td><td align="left">outcome</td></tr>
+      <tr><td bgcolor="#cfe0f7" width="18"> </td><td align="left">primary outcome (WR); PS also terminal</td></tr>
     </table>>];
 
   // ================= EDGES (colored by source domain) =================
+  edge [color="#5560a6"];            // hearing status
+  HS -> {TR RV TE EV SP RW PA LS};
+
   edge [color="#2f6fdb"];            // intervention
   IG -> IS;
   IG -> {TR TE PA LS WR PS EI EG};
@@ -61,12 +68,15 @@ digraph LRP_DAG {
 
   edge [color="#7a52b3"];            // taught vocabulary
   TR -> {TE RV EV LF RG WR};
-  TE -> {EV EG EI PA SP};
+  TE -> {EV EG EI PA WR};
 
-  edge [color="#2f9e78"];            // standardised vocab / phono memory
-  RW -> EV;
+  edge [color="#2f9e78"];            // standardised vocab / phon. memory
+  RW -> {TE EV TR RV PA NW PS};
   RV -> {EV LF RG WR};
-  EV -> {EG EI PA SP};
+  EV -> {EG EI PA WR};
+
+  edge [color="#d0433f"];            // speech (now upstream cause)
+  SP -> {TE EV LS PA NW};
 
   edge [color="#9aa0a8"];            // grammar internal
   RG -> EG;
@@ -75,13 +85,12 @@ digraph LRP_DAG {
   LS -> {NW PA PS WR};
   PA -> {NW WR PS};
   NW -> WR;
-  PS -> WR;
 
   // ================= RANK HINTS =================
-  {rank=source; IG; ABG; LEG;}
-  {rank=same; TR; TE; RW;}
+  {rank=source; IG; HS; ABG; LEG;}
+  {rank=same; SP; RW;}
+  {rank=same; TR; TE;}
   {rank=same; RV; EV;}
-  {rank=same; LF; RG; EI; EG; SP;}
   {rank=same; NW; PS;}
   {rank=sink; WR;}
 }
