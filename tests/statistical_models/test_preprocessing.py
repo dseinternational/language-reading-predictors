@@ -66,6 +66,17 @@ def test_add_missing_indicator_covariates():
     assert int(out[cols].isna().sum().sum()) == 0
 
 
+def test_load_and_prepare_missing_indicator_covariates_keep_rows():
+    """#245/#246: requesting SP/RW as covariates exposes them without dropping rows
+    (they are filled by add_missing_indicator_covariates)."""
+    base = load_and_prepare(phase_mode="all", outcomes=("W",))
+    with_cov = load_and_prepare(
+        phase_mode="all", outcomes=("W",), covariates=("deapp_c", "erbto")
+    )
+    assert with_cov.n_obs == base.n_obs  # SP/RW missingness costs no rows
+    assert {"deapp_c", "erbto"} <= set(with_cov.covariates)
+
+
 def test_logit_safe_haldane_correction():
     # y=0 with N=10 -> log((0.5)/(10.5)) = log(1/21)
     assert logit_safe(np.array([0]), 10)[0] == pytest.approx(np.log(0.5 / 10.5))

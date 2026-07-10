@@ -193,7 +193,10 @@ def add_missing_indicator_covariates(df: pd.DataFrame) -> pd.DataFrame:
         if col not in out.columns:
             continue
         v = pd.to_numeric(out[col], errors="coerce")
-        out[col] = v.fillna(v.mean())
+        # A wholly-missing column has a NaN mean; fall back to 0 so the filled
+        # column is genuinely NaN-free (its indicator is then all-ones).
+        fill = v.mean()
+        out[col] = v.fillna(0.0 if pd.isna(fill) else fill)
         out[f"{col}_missing"] = v.isna().astype(float)
     return out
 

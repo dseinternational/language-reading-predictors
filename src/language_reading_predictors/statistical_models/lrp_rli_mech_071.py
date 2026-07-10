@@ -4,8 +4,8 @@
 """LRP71 - Mechanism model: letter-sound (L) -> word reading (W), with a LINEAR
 moderation by expressive vocabulary (E = eowpvt).
 
-This is the first interaction model in the suite. It extends LRP58 (L -> W,
-adjustment {G, A, E, R, W_pre}) with
+This is the first interaction model in the suite. It extends LRP58 (L -> W, revised
+adjustment {G, A, HS, IS(attend), SP, W_pre}; #245) with
 
     ... + gamma_mod * z(E_post) + gamma_int * z(logit L_post) * z(E_post)
 
