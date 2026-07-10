@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="415" viewBox="0 0 680 415" role="img" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" fill="#2a2d31">
+<title>The Burgoyne 2019 latent path model redrawn as a causal DAG</title>
+<desc>Speech difficulty, oral language and nonverbal IQ (all t1, mutually correlated) each point into phoneme awareness and the other t1 skills; phoneme awareness and the other t1 skills point into t2 reading. The speech to phoneme awareness to reading path is highlighted. The direct speech to reading path was dropped as fully mediated. An unmeasured confounder between phoneme awareness and t2 reading is assumed absent.</desc>
+<rect x="0" y="0" width="680" height="415" fill="#ffffff"/>
+<rect x="4" y="4" width="672" height="407" rx="12" fill="none" stroke="#e6e9ed" stroke-width="1"/>
+<defs>
+<marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fdb"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f98"/></marker>
+<marker id="arx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d0433f"/></marker>
+</defs>
+<path d="M104,70 C 104,32 582,22 582,154" fill="none" stroke="#d0433f" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arx)"/>
+<text x="330" y="20" text-anchor="middle" font-size="12" fill="#d0433f">direct path dropped — fully mediated</text>
+<path d="M104,118 L104,182" fill="none" stroke="#8a8f98" stroke-width="1.5" stroke-dasharray="4 4" marker-start="url(#ag)" marker-end="url(#ag)"/>
+<path d="M104,230 L104,294" fill="none" stroke="#8a8f98" stroke-width="1.5" stroke-dasharray="4 4" marker-start="url(#ag)" marker-end="url(#ag)"/>
+<text x="150" y="154" text-anchor="start" font-size="11.5" fill="#8a8f98">correlated</text>
+<text x="150" y="266" text-anchor="start" font-size="11.5" fill="#8a8f98">correlated</text>
+<line x1="164" y1="200" x2="298" y2="116" stroke="#8a8f98" stroke-width="1.4" marker-end="url(#ag)"/>
+<line x1="164" y1="310" x2="298" y2="126" stroke="#8a8f98" stroke-width="1.4" marker-end="url(#ag)"/>
+<line x1="164" y1="214" x2="298" y2="270" stroke="#8a8f98" stroke-width="1.4" marker-end="url(#ag)"/>
+<line x1="164" y1="320" x2="298" y2="286" stroke="#8a8f98" stroke-width="1.4" marker-end="url(#ag)"/>
+<line x1="164" y1="106" x2="298" y2="258" stroke="#8a8f98" stroke-width="1.2" stroke-dasharray="4 4" marker-end="url(#ag)"/>
+<text x="243" y="182" text-anchor="middle" font-size="11" fill="#8a8f98">ns</text>
+<line x1="438" y1="272" x2="522" y2="192" stroke="#8a8f98" stroke-width="1.4" marker-end="url(#ag)"/>
+<line x1="164" y1="98" x2="298" y2="104" stroke="#2f6fdb" stroke-width="2.6" marker-end="url(#ab)"/>
+<line x1="438" y1="110" x2="522" y2="176" stroke="#2f6fdb" stroke-width="2.6" marker-end="url(#ab)"/>
+<path d="M438,124 C 500,250 512,232 524,196" fill="none" stroke="#d0433f" stroke-width="1.6" stroke-dasharray="5 4" marker-start="url(#arx)" marker-end="url(#arx)"/>
+<text x="512" y="268" text-anchor="middle" font-size="11.5" fill="#d0433f">unmeasured confounder?</text>
+<text x="512" y="283" text-anchor="middle" font-size="11.5" fill="#d0433f">assumed absent</text>
+<rect x="44" y="70" width="120" height="48" rx="6" fill="#dbe8fb" stroke="#2f6fdb"/>
+<text x="104" y="91" text-anchor="middle" font-size="13.5" fill="#17417a">speech difficulty</text>
+<text x="104" y="106" text-anchor="middle" font-size="11" fill="#17417a" fill-opacity="0.72">t1 · exposure (0/1)</text>
+<rect x="44" y="182" width="120" height="48" rx="6" fill="#eceef1" stroke="#9aa0a8"/>
+<text x="104" y="203" text-anchor="middle" font-size="13.5">oral language</text>
+<text x="104" y="218" text-anchor="middle" font-size="11" fill-opacity="0.7">t1 · latent</text>
+<rect x="44" y="294" width="120" height="48" rx="6" fill="#eceef1" stroke="#9aa0a8"/>
+<text x="104" y="315" text-anchor="middle" font-size="13.5">nonverbal IQ</text>
+<text x="104" y="330" text-anchor="middle" font-size="11" fill-opacity="0.7">t1 · control</text>
+<rect x="300" y="78" width="138" height="52" rx="6" fill="#dbe8fb" stroke="#2f6fdb"/>
+<text x="369" y="100" text-anchor="middle" font-size="13.5" fill="#17417a">phoneme awareness</text>
+<text x="369" y="116" text-anchor="middle" font-size="11" fill="#17417a" fill-opacity="0.72">t1 · mediator</text>
+<rect x="300" y="250" width="138" height="58" rx="6" fill="#eceef1" stroke="#9aa0a8"/>
+<text x="369" y="273" text-anchor="middle" font-size="13.5">other t1 skills</text>
+<text x="369" y="289" text-anchor="middle" font-size="11" fill-opacity="0.7">LSK · RAN · reading t1</text>
+<rect x="524" y="156" width="116" height="52" rx="6" fill="#dbe8fb" stroke="#2f6fdb"/>
+<text x="582" y="178" text-anchor="middle" font-size="13.5" fill="#17417a">reading</text>
+<text x="582" y="194" text-anchor="middle" font-size="11" fill="#17417a" fill-opacity="0.72">t2 · outcome</text>
+<line x1="48" y1="362" x2="70" y2="362" stroke="#2f6fdb" stroke-width="2.6"/>
+<text x="76" y="366" text-anchor="start" font-size="11.5" fill="#5a5f66">causal path examined</text>
+<line x1="250" y1="362" x2="272" y2="362" stroke="#8a8f98" stroke-width="1.6"/>
+<text x="278" y="366" text-anchor="start" font-size="11.5" fill="#5a5f66">estimated / adjusted-for</text>
+<line x1="48" y1="384" x2="70" y2="384" stroke="#d0433f" stroke-width="1.6" stroke-dasharray="5 4"/>
+<text x="76" y="388" text-anchor="start" font-size="11.5" fill="#5a5f66">confounding: correlated · dropped · unmeasured</text>
+</svg>
