@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: CC-BY-4.0
 // Language & reading causal DAG — figure source for docs/report (Ch 2, fig-dag).
-// Faithful to the locked structure in notes/dag-language-reading.dagitty.
+// Faithful to the revised structure in dag/dag-language-reading.dagitty
+// (2026-07-10 team revision, #243/#233): SP reversed to a source, hearing HS added,
+// RW (phonological memory) widened, direct TE->WR / EV->WR, PS demoted to an outcome.
 // Regenerate the figure with:
 //   dot -Tpng -Gdpi=200 docs/report/images/dag-language-reading.dot \
 //       -o docs/report/images/dag-language-reading.png
@@ -23,14 +25,15 @@ digraph DAG {
   edge [color="#d98200"];
   IS -> { TR TE PA LS WR PS EI EG };
   edge [color="#444444", penwidth=1.0, arrowsize=0.6];
+  HS -> { TR RV TE EV SP RW PA LS };
   TR -> { TE RV EV LF RG WR };
-  TE -> { EV EG EI PA SP };
-  RW -> EV;
+  TE -> { EV EG EI PA WR };
+  RW -> { TE EV TR RV PA NW PS };
   RV -> { EV LF RG WR };
-  EV -> { EG EI PA SP };
+  EV -> { EG EI PA WR };
+  SP -> { TE EV LS PA NW };
   LS -> { NW PA PS WR };
   NW -> WR;
   PA -> { NW WR PS };
-  PS -> WR;
   RG -> EG;
 }
