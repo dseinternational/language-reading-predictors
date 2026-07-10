@@ -12,6 +12,8 @@ The authoritative causal DAG(s) for the study. This is the design artefact the *
 | `dag-language-reading.dot`     | Graphviz source for a colour-coded, left-to-right rendering.                                                                                                               |
 | `dag-language-reading.svg`     | Rendered figure (regenerated from the `.dot`; self-contained, safe to embed).                                                                                              |
 
+The prose exposition of the structure — its assumptions, the TD/DS/IDD evidence, honest weaknesses and alternatives considered — is maintained as a review draft in [`../notes/202607101444-dag-explanation-review-draft.md`](../notes/202607101444-dag-explanation-review-draft.md).
+
 Regenerate the figure after editing the `.dot`:
 
 ```bash
