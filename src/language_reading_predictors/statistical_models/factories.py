@@ -1204,6 +1204,7 @@ def build_did_model(
     use_age: bool = True,
     dose: bool = False,
     period_varying_dose: bool = False,
+    likelihood: str = "beta_binomial",
 ) -> BuiltModel:
     """Waitlist-crossover / difference-in-differences model for one outcome.
 
@@ -1255,6 +1256,13 @@ def build_did_model(
         toward the shared mean. Mirrors :func:`build_dose_response_model`; the
         nested ``period_varying_dose=False`` model is its pooled comparator for a
         PSIS-LOO test of period variation (#135). Requires ``dose=True``.
+    likelihood
+        ``"beta_binomial"`` (default) fits the graded post-count. For heavily
+        floored outcomes (P, N) pass ``"bernoulli_offfloor"``: the observation is a
+        Bernoulli on the binary off-floor indicator (period post > 0) and ``delta``
+        is the within-person DiD on the log-odds of coming off the floor (its
+        items-scale marginal, with ``n_trials=1``, is an off-floor risk difference).
+        No ``kappa`` under the Bernoulli. Requires ``dose=False``.
     """
     if prepared.phase_mode != "all":
         raise ValueError("build_did_model requires phase_mode='all'")
@@ -1272,6 +1280,15 @@ def build_did_model(
         raise ValueError(
             "build_did_model hard-codes the P1-vs-P2 crossover contrast and "
             f"requires periods=(0, 1); got {periods}."
+        )
+    if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(
+            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
+            f"got {likelihood!r}"
+        )
+    if likelihood == "bernoulli_offfloor" and dose:
+        raise ValueError(
+            "bernoulli_offfloor is the floor-rule binary estimand; use dose=False"
         )
     if dose and "attend" not in prepared.covariates:
         raise KeyError("dose=True requires the 'attend' covariate to be loaded")
@@ -1366,15 +1383,21 @@ def build_did_model(
             eta_full = eta_base + delta * treated_d
 
         eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
-        kappa = _scalar_prior("kappa", _priors.kappa_prior)
-        beta_binomial_from_logit(
-            "y_post",
-            eta_full,
-            n_trials=n_trials,
-            kappa=kappa,
-            observed=post,
-            dims="obs_id",
-        )
+        if likelihood == "beta_binomial":
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post",
+                eta_full,
+                n_trials=n_trials,
+                kappa=kappa,
+                observed=post,
+                dims="obs_id",
+            )
+        else:  # bernoulli_offfloor: floor-rule PRIMARY estimand, Pr(post > 0); no kappa
+            off_floor = (post > 0).astype(np.int64)
+            pm.Bernoulli(
+                "y_offfloor", logit_p=eta_full, observed=off_floor, dims="obs_id"
+            )
 
     return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
 

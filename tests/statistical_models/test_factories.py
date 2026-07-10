@@ -884,6 +884,51 @@ def test_did_factory_requires_all_phase_mode(tmp_path):
         build_did_model(prep, outcome_symbol="W")
 
 
+def test_did_factory_bernoulli_offfloor(tmp_path):
+    """Floor-rule DiD (#226): a Bernoulli on the off-floor indicator, no kappa, a
+    y_offfloor node taking only 0/1; the DiD terms (delta, beta_period) are kept."""
+    prep = _prep_all(tmp_path, n_children=20)
+    built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
+    names = {v.name for v in built.model.free_RVs}
+    assert "kappa" not in names
+    assert {"alpha", "beta_period", "delta", "gamma_own"}.issubset(names)
+    assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
+    assert "eta_base" in {v.name for v in built.model.deterministics}
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=44)
+    yof = pp.prior_predictive["y_offfloor"].values
+    assert set(np.unique(yof)).issubset({0, 1})
+
+
+def test_did_factory_rejects_bad_likelihood_and_offfloor_dose(tmp_path):
+    """Unknown likelihood raises; off-floor is the binary estimand and rejects dose."""
+    prep = _prep_all(tmp_path, n_children=15)
+    with pytest.raises(ValueError):
+        build_did_model(prep, outcome_symbol="W", likelihood="poisson")
+    prep.covariates["attend"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    with pytest.raises(ValueError):
+        build_did_model(
+            prep, outcome_symbol="P", dose=True, likelihood="bernoulli_offfloor"
+        )
+
+
+def test_did_diag_vars_match_offfloor_build(tmp_path):
+    """_did_diag_vars drops kappa under the off-floor likelihood and names only RVs
+    the off-floor DiD builds, else summary_diagnostics raises KeyError at run time."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.pipeline import _did_diag_vars
+
+    prep = _prep_all(tmp_path, n_children=15)
+    built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
+    names = {v.name for v in built.model.free_RVs} | {
+        v.name for v in built.model.deterministics
+    }
+    diag = _did_diag_vars(SimpleNamespace(extra={"likelihood": "bernoulli_offfloor"}))
+    assert "kappa" not in diag
+    assert not (set(diag) - names)
+
+
 # ---------------------------------------------------------------------------
 # Correlated-domain-factor measurement model (kind="corr_factor", #134)
 # ---------------------------------------------------------------------------

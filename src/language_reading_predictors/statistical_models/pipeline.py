@@ -1275,13 +1275,16 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
     """Coefficients to summarise for a crossover/DiD fit, given the spec."""
     dose = bool(spec.extra.get("dose", False))
     period_varying = dose and bool(spec.extra.get("period_varying_dose", False))
+    off_floor = spec.extra.get("likelihood") == "bernoulli_offfloor"
     if not dose:
         dose_vars = ["delta"]
     elif period_varying:
         dose_vars = ["mu_dose", "sigma_dose", "beta_dose_phase"]
     else:
         dose_vars = ["beta_dose"]
-    v = ["alpha", "beta_period", *dose_vars, "gamma_own", "kappa"]
+    v = ["alpha", "beta_period", *dose_vars, "gamma_own"]
+    if not off_floor:  # the off-floor Bernoulli has no dispersion parameter
+        v.append("kappa")
     if spec.extra.get("use_age", True):
         v.append("gamma_A")
     if spec.extra.get("use_child_re", True):
@@ -1298,6 +1301,8 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     sym = spec.outcome_symbol
     dose = bool(spec.extra.get("dose", False))
     period_varying = dose and bool(spec.extra.get("period_varying_dose", False))
+    likelihood = spec.extra.get("likelihood", "beta_binomial")
+    off_floor = likelihood == "bernoulli_offfloor"
     # Phase-stacked frame; load only this outcome so the complete-case mask does
     # not drop rows for measures the model never uses. The dose variant also needs
     # the per-period intervention-session count.
@@ -1319,6 +1324,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_age=spec.extra.get("use_age", True),
         dose=dose,
         period_varying_dose=period_varying,
+        likelihood=likelihood,
     )
     _attach_built(ctx, built)
 
@@ -1333,7 +1339,10 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_did_diag_vars(spec))
 
-    _run_ppc(ctx)
+    if off_floor:
+        _run_ppc(ctx, var_names=["y_offfloor"])
+    else:
+        _run_ppc(ctx)
 
     section_header("Extended diagnostics")
     _did_effect = "mu_dose" if period_varying else ("beta_dose" if dose else "delta")
@@ -1368,8 +1377,9 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         did_s = _report.did_summary(
             ctx.trace,
             ci_prob=ctx.reporting.hdi,
-            n_trials=MEASURES[sym].n_trials,
+            n_trials=1 if off_floor else MEASURES[sym].n_trials,
             dose=dose,
+            off_floor=off_floor,
         )
         did_df = pd.DataFrame([did_s])
         did_df.to_csv(os.path.join(ctx.output_dir, "did_summary.csv"), index=False)
@@ -1378,7 +1388,9 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             metrics_table(
                 [{"metric": k, "value": v} for k, v in did_s.items()],
                 title=(
-                    f"crossover/DiD effect ({sym}) - {int(ctx.reporting.hdi * 100)}% CI "
+                    f"crossover/DiD effect ({sym}"
+                    f"{', off-floor risk difference' if off_floor else ''}) - "
+                    f"{int(ctx.reporting.hdi * 100)}% CI "
                     "(equal-tailed); positive = intervention helps"
                 ),
                 columns=["metric", "value"],

@@ -691,6 +691,7 @@ def did_summary(
     ci_prob: float,
     n_trials: int,
     dose: bool = False,
+    off_floor: bool = False,
 ) -> dict[str, float]:
     """Summarise the waitlist-crossover / difference-in-differences effect (kind="did").
 
@@ -702,6 +703,12 @@ def did_summary(
     central intervals at coverage ``ci_prob``. With ``dose=True`` the key
     coefficient is ``beta_dose`` (effect per 1 SD of intervention sessions) and no
     items translation is produced.
+
+    With ``off_floor=True`` (the floor-rule DiD for heavily-floored P / N, fitted
+    as a Bernoulli on the off-floor indicator) the caller passes ``n_trials=1`` so
+    ``delta_items_*`` is the off-floor RISK DIFFERENCE — the change in the
+    probability of coming off the floor, not an item count. The returned
+    ``off_floor`` flag lets the report partial label the scale accordingly.
     """
     posterior = trace.posterior
     lo_q = (1 - ci_prob) / 2
@@ -739,6 +746,7 @@ def did_summary(
     out["delta_items_mean"] = float(np.mean(eff))
     out["delta_items_lo"] = float(np.quantile(eff, lo_q))
     out["delta_items_hi"] = float(np.quantile(eff, hi_q))
+    out["off_floor"] = bool(off_floor)
     return out
 
 
