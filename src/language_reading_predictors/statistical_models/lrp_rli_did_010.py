@@ -8,11 +8,10 @@ knowledge. Stacks the two early periods (P1 = t1->t2, P2 = t2->t3) for both arms
 with each child as their own control (a child random intercept) and the immediate
 arm anchoring the time/maturation trend.
 
-Unlike the other DiD models, basic concepts (CELF) has **no** standalone randomised
-ITT model in the suite (F sits outside the eight standardised ITT outcomes), so this
-is the within-person estimate of whether the intervention lifts concept knowledge -
-read it as triangulation under the parallel-trends assumption, not a replication of
-a randomised result. Same waitlist-crossover structure and Beta-Binomial-on-logit
+Basic concepts (CELF) is one of the eight standardised ITT outcomes; its standalone
+randomised ITT is LRPITT25 (added under #228). Read this DiD as the within-person
+triangulation of that randomised estimate under the parallel-trends assumption, not
+an independent replication. Same waitlist-crossover structure and Beta-Binomial-on-logit
 convention as the rest of the family.
 
 Sign convention: positive => intervention helps.

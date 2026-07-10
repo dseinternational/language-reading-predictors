@@ -41,11 +41,12 @@ the waitlist's P1->P2 gain jump *over and above* the immediate arm's P1->P2 chan
 identified jointly by the period-1 between-arm contrast and the waitlist's own
 crossover, with stable child traits differenced out by the random intercept.
 
-Unlike the other DiD models, basic concepts (CELF) has **no standalone randomised
-ITT model** in the suite (F sits outside the eight standardised ITT outcomes), so
-there is no RCT sibling to triangulate against. Identification leans wholly on the
-parallel-trends assumption and the immediate arm as an (imperfect, also-treated)
-time anchor - read it as a within-person estimate, not a randomised result.
+Basic concepts (CELF) is one of the eight standardised ITT outcomes, and its
+standalone randomised ITT is **LRPITT25** (added under #228). This DiD is the
+within-person triangulation of that randomised estimate: identification still rests
+on the parallel-trends assumption and the immediate arm as an (imperfect,
+also-treated) time anchor, so read it alongside LRPITT25, not as a standalone
+randomised result.
 
 :::
 
