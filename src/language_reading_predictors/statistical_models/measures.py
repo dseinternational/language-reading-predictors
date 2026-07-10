@@ -138,6 +138,33 @@ def is_distal(symbol: str | None) -> bool:
     return symbol in DISTAL_OUTCOMES
 
 
+# --- Revised-DAG hearing-status adjacency (2026-07-10, #233/#244) -------------
+# The revised graph (dag/dag-language-reading.dagitty) adds hearing status as a
+# common cause: HS -> { TR RV TE EV SP RW PA LS }. HS is therefore an upstream
+# confounder for any observational estimand whose exposure/outcome is one of these
+# nodes, and enters those models' DAG-derived adjustment sets (wired as the
+# ``hs`` / ``hs_missing`` covariates - see preprocessing.add_hearing_status; the
+# per-family application is issues #245-247).
+#
+# Split across two namespaces to avoid silent membership bugs: the DAG-node set
+# records the graph verbatim, while the measure-symbol set is what suite code
+# (which works in symbols) should test outcome symbols against. SP (speech) and
+# RW (phonological memory) are DAG-only nodes with no registered outcome measure,
+# so they map to no symbol.
+HS_CHILDREN_DAG_NODES: frozenset[str] = frozenset(
+    {"TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"}
+)
+"""DAG children of hearing status (`HS`) under the 2026-07-10 revision, in DAG-node
+names (RV/EV/PA/LS, *not* this module's measure symbols). For symbol-keyed
+membership use :data:`HS_CHILD_SYMBOLS`."""
+
+HS_CHILD_SYMBOLS: frozenset[str] = frozenset({"TR", "TE", "R", "E", "L", "B"})
+"""The registered-outcome children of `HS` in this module's measure symbols
+(RV->R, EV->E, PA->B blending, LS->L; TR/TE unchanged) — the set suite code should
+test outcome symbols against when deciding whether `HS` enters an adjustment set.
+SP/RW are DAG-only nodes (no outcome measure) and so are absent here."""
+
+
 LRPITT_OUTCOMES: tuple[str, ...] = (
     "TR", "TE", "UR", "UE", "R", "E", "L", "B", "P", "W", "N",
 )
