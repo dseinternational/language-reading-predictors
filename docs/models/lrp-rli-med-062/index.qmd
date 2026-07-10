@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -107,6 +111,20 @@ phonics-route share is *not* assumption-free.
   confounders the mechanism programme identified: $A$ (age), $E$ (expressive vocab),
   $R$ (receptive vocab), plus the baseline composite and $W_{t1}$. Residual
   confounding by anything unmeasured would bias the NDE/NIE split.
+- **A second, structural non-identification — independent of the confounding
+  above.** Even setting the route $\to W$ confounding aside, the natural
+  direct/indirect split is **not point-identified**, because intervention **dose**
+  (sessions attended — $\text{IS}$ in the DAG) is a **treatment-induced
+  mediator–outcome confounder**: the randomised group drives dose, and dose points
+  into both the route composite and word reading. Randomising $G$ does not identify
+  natural effects in that structure, and — unlike ordinary confounding — the
+  problem is **not repaired by measuring and adjusting dose**, because dose is
+  itself a descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI
+  [10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
+  The output below is therefore a **model-based g-formula decomposition under the
+  stated (cross-world) assumptions, not an identified natural effect**; an
+  **interventional** (rather than natural) mediation estimand would be the route to
+  a defensible target quantity.
 - Confounders are taken at **baseline (t1), not post (t2)** — the **cross-world**
   assumption.
 - Consistency and positivity are assumed.
@@ -118,7 +136,9 @@ phonics-route share is *not* assumption-free.
 ::: {.callout-important title="Triangulation, not a precise causal split"}
 Read the output below as triangulation. With $n \approx 53$, contemporaneous
 mediator/outcome measurement, and the no-unmeasured-confounding assumption, expect
-**wide intervals**. "Most of the word-reading gain is phonics-route-compatible, with
+**wide intervals**. These are model-based g-formula decompositions under the stated
+assumptions, **not identified natural effects** (see the exposure-induced-confounder
+bullet above). "Most of the word-reading gain is phonics-route-compatible, with
 a residual lexical share that cannot be ruled out" is the honest result — not a
 point percentage. The temporal-ordering sensitivity section below refits with the
 **outcome at t3** (mediator at t2) as a further triangulation point for the

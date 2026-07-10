@@ -36,6 +36,15 @@ precedence); the binding, unverifiable assumption is no unmeasured
 mediator-outcome confounding; children can sight-read words without decoding, so W
 does not reveal *how* they read; ``n ~ 53`` means **wide** intervals. All language
 stays associational / under stated assumptions.
+
+**Not an identified natural effect — a second obstacle independent of latent GA.**
+Dose IS (sessions) is a treatment-induced (exposure-induced) mediator-outcome
+confounder (IG -> IS; IS -> L, E, W), so NDE/NIE are not identified even if GA
+were observed, and are *not* repaired by adjusting IS, itself a descendant of the
+exposure (VanderWeele, Vansteelandt & Robins 2014,
+doi:10.1097/EDE.0000000000000034). These are model-based g-formula decompositions
+under stated (cross-world) assumptions; an interventional (rather than natural)
+estimand would be the defensible target.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

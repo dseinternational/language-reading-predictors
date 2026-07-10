@@ -28,6 +28,22 @@ intervention raises reading. With ``treat = 1`` (intervention) and ``ctrl = 0``
 
 reported on the response scale (probability and word-count out of N_W), which is
 the natural and interpretable scale for the g-formula decomposition.
+
+These are **not identified natural effects**. Two structural obstacles block a
+natural NDE/NIE interpretation, and neither is removed by more data: (1) every
+mediator->outcome path is confounded by latent general ability (and, at a single
+wave, by shared timing); (2) independently, intervention dose ``IS`` (sessions
+attended) is a *treatment-induced (exposure-induced) mediator-outcome confounder*
+-- ``IG -> IS`` and ``IS`` points into both the candidate mediators and word
+reading -- so natural direct/indirect effects are not identified even by
+randomising ``IG`` and are **not** repaired by measuring and adjusting ``IS``,
+because ``IS`` is itself a descendant of the exposure (VanderWeele, Vansteelandt
+& Robins 2014, Epidemiology 25(2):300-306, doi:10.1097/EDE.0000000000000034).
+The outputs are therefore model-based g-formula decompositions under the stated
+(cross-world) assumptions, not identified natural effects; an *interventional*
+(rather than natural) mediation estimand would be the route to a defensible
+target quantity. See the DAG note (202607101444-dag-explanation-review-draft.md,
+sec. 11, ID-2) and the model reports' assumptions sections.
 """
 
 from __future__ import annotations

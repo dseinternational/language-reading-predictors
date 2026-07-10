@@ -3,10 +3,24 @@
 This section splits the treatment's effect into the part that flows through the mediator and the part that does not. The direct effect (NDE) is what treatment does on its own, the indirect effect (NIE) is what it does by moving the mediator, and the total effect is the two added together (NDE + NIE).
 
 The mediation quantities are computed by counterfactual simulation from the
-posterior g-formula. They are not products of coefficients. The decomposition is
-causal only when the model-specific assumption section says the no-unmeasured
-mediator-outcome-confounding and cross-world assumptions are defensible; otherwise
-read it as an adjusted decomposition.
+posterior g-formula. They are **not** products of coefficients, and they are
+**not identified natural effects**. Two structural obstacles block a natural
+NDE/NIE interpretation, and neither is removed by more data. First, every
+mediator→outcome path is confounded by latent general ability (and, at a single
+wave, by shared timing), so the split rests on an unverifiable
+no-unmeasured-confounding assumption. Second — and independently — intervention
+dose (sessions attended, `IS` in the DAG) is a **treatment-induced
+(exposure-induced) mediator–outcome confounder**: it is a descendant of the
+randomised group and points into both the mediator and word reading, so natural
+direct/indirect effects are **not identified even by randomisation** and are
+**not repaired by measuring and adjusting dose**, because dose is itself a
+descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI
+[10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
+Read these outputs as **model-based g-formula decompositions under the stated
+(cross-world) assumptions, not identified natural effects**; an **interventional**
+(rather than natural) mediation estimand would be the route to a defensible target
+quantity. The model-specific assumptions section states the design-specific
+version.
 
 _How to read the mediation table:_ each row is one decomposition quantity. `NDE` is the direct effect (treatment acting on its own), `NIE` is the indirect effect (treatment acting through the mediator), and `total` is their sum. The `words_*` columns give the posterior median and 95% credible interval in words; `prob_pos` is the probability the effect exceeds zero. `proportion_mediated` is the share of the total that runs through the mediator, and is unstable whenever the total can cross zero.
 

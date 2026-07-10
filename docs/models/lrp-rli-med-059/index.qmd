@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -102,6 +106,21 @@ proportion mediated is *not* assumption-free.
   vocab), plus the baselines $L_{t1}, W_{t1}$. Residual confounding by anything
   unmeasured (e.g. a general "literacy readiness" not captured by these) would
   bias the split between NDE and NIE.
+- **A second, structural non-identification — independent of the confounding
+  above.** Even setting the $L \to W$ confounding aside, the natural
+  direct/indirect split is **not point-identified** in this design, because
+  intervention **dose** (sessions attended — $\text{IS}$ in the DAG) is a
+  **treatment-induced mediator–outcome confounder**: the randomised group drives
+  dose ($G \to \text{IS}$), and dose points into both the mediator and word
+  reading ($\text{IS} \to L$, $\text{IS} \to W$). Randomising $G$ does not identify
+  natural effects in that structure, and — unlike ordinary confounding — the
+  problem is **not repaired by measuring and adjusting dose**, because dose is
+  itself a descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI
+  [10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
+  The NDE/NIE below are therefore **model-based g-formula decompositions under the
+  stated (cross-world) assumptions, not identified natural effects**; an
+  **interventional** (rather than natural) mediation estimand would be the route to
+  a defensible target quantity.
 - Confounders are taken at **baseline (t1), not post (t2)**: a mediator–outcome
   confounder must not itself be affected by treatment (the **cross-world**
   assumption). Conditioning on post-treatment vocabulary would violate this.
@@ -116,8 +135,9 @@ The proportion mediated below is the estimate *given* no unmeasured $L \to W$
 confounding **and** the assumed temporal precedence of $L_{t2}$ over the
 contemporaneously-measured $W_{t2}$ (the same-wave caveat above; triangulated in
 the temporal-ordering sensitivity section). It is a structured, interpretable
-decomposition — not proof of mechanism. The headline is the estimate **with its
-full uncertainty**, not a point percentage.
+decomposition — a **model-based g-formula decomposition under the stated
+assumptions, not an identified natural effect** — not proof of mechanism. The
+headline is the estimate **with its full uncertainty**, not a point percentage.
 :::
 
 {{< include _partials/_priors.qmd >}}

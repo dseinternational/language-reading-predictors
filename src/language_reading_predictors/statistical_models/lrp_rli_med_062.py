@@ -38,6 +38,15 @@ assumption, expect wide intervals. "Most of the word-reading gain is
 code-based-route-compatible, with a residual lexical share that cannot be ruled out"
 is the honest result; the Total should reconcile in sign and rough magnitude with
 LRP52's tau_W.
+
+**Not an identified natural effect.** As in LRP59, a second structural obstacle
+survives randomisation: dose IS (sessions) is a treatment-induced
+(exposure-induced) mediator-outcome confounder (IG -> IS; IS -> route, W), so
+NDE/NIE are not identified and are *not* repaired by adjusting IS, itself a
+descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014,
+doi:10.1097/EDE.0000000000000034). This is a model-based g-formula decomposition
+under stated (cross-world) assumptions; an interventional (rather than natural)
+estimand would be the defensible target.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
