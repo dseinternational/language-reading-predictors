@@ -81,19 +81,20 @@ MEASURES: dict[str, Measure] = {
         "TR", V.B1RETAU, 24, "Taught receptive vocabulary, block 1 (b1retau)",
         n_trials_confirmed=True,
     ),
-    # Not-taught comparison sets. Burgoyne et al. (2012), Table 3, tabulates only
-    # the 24-item taught tests; the not-taught set's item count is not documented.
-    # Observed maximum is 12 for both modalities (consistent with a half-size
-    # 3-words-x-4-types control set), so 12 is used as the denominator and flagged
-    # unconfirmed - probability-scale summaries for these outcomes are therefore
-    # approximate pending the data dictionary.
+    # Not-taught comparison sets. Confirmed against the RLI assessment word list
+    # (#214): each block's word set is 9 words x 4 types (nouns, verbs,
+    # adjectives, prepositions) = 36, split 6 taught + 3 not-taught per type, so
+    # 24 taught and 12 not-taught in each modality. (Burgoyne et al. 2012, Table 3
+    # tabulated only the 24-item taught tests, leaving the not-taught count
+    # undocumented until the word list resolved it.) 12 is the denominator for
+    # both the expressive (b1exnt) and receptive (b1rent) not-taught tests.
     "UE": Measure(
         "UE", V.B1EXNT, 12, "Not-taught expressive vocabulary, block 1 (b1exnt)",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
     "UR": Measure(
         "UR", V.B1RENT, 12, "Not-taught receptive vocabulary, block 1 (b1rent)",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
 }
 
@@ -137,6 +138,33 @@ def is_distal(symbol: str | None) -> bool:
     return symbol in DISTAL_OUTCOMES
 
 
+# --- Revised-DAG hearing-status adjacency (2026-07-10, #233/#244) -------------
+# The revised graph (dag/dag-language-reading.dagitty) adds hearing status as a
+# common cause: HS -> { TR RV TE EV SP RW PA LS }. HS is therefore an upstream
+# confounder for any observational estimand whose exposure/outcome is one of these
+# nodes, and enters those models' DAG-derived adjustment sets (wired as the
+# ``hs`` / ``hs_missing`` covariates - see preprocessing.add_hearing_status; the
+# per-family application is issues #245-247).
+#
+# Split across two namespaces to avoid silent membership bugs: the DAG-node set
+# records the graph verbatim, while the measure-symbol set is what suite code
+# (which works in symbols) should test outcome symbols against. SP (speech) and
+# RW (phonological memory) are DAG-only nodes with no registered outcome measure,
+# so they map to no symbol.
+HS_CHILDREN_DAG_NODES: frozenset[str] = frozenset(
+    {"TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"}
+)
+"""DAG children of hearing status (`HS`) under the 2026-07-10 revision, in DAG-node
+names (RV/EV/PA/LS, *not* this module's measure symbols). For symbol-keyed
+membership use :data:`HS_CHILD_SYMBOLS`."""
+
+HS_CHILD_SYMBOLS: frozenset[str] = frozenset({"TR", "TE", "R", "E", "L", "B"})
+"""The registered-outcome children of `HS` in this module's measure symbols
+(RV->R, EV->E, PA->B blending, LS->L; TR/TE unchanged) — the set suite code should
+test outcome symbols against when deciding whether `HS` enters an adjustment set.
+SP/RW are DAG-only nodes (no outcome measure) and so are absent here."""
+
+
 LRPITT_OUTCOMES: tuple[str, ...] = (
     "TR", "TE", "UR", "UE", "R", "E", "L", "B", "P", "W", "N",
 )
@@ -158,8 +186,8 @@ with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
 # Per-outcome delta on the *items* scale, adopted 2026-06-26
 # (notes/202606261304-evidence-strength-and-rope-reporting.md): delta = half a
 # period's natural maturation gain, floored at 1 item and rounded. Confirmed by the
-# education lead 2026-07-01 (issue #144): the rule and W = 1 stand; UR/UE remain
-# denominator-provisional (scale length unconfirmed — see ``unconfirmed_ceilings``).
+# education lead 2026-07-01 (issue #144): the rule and W = 1 stand. UR/UE scale
+# length is now confirmed at 12 (#214), so their items δ is no longer provisional.
 # Consumed by ``reporting.rope_summary`` to report
 # ``P(benefit >= delta)``. F/T (concepts/grammar) are outside the ITT suite and not
 # yet agreed, so they are deliberately absent (a look-up raises).

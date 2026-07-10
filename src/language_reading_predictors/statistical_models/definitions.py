@@ -222,11 +222,21 @@ _ALIGNED.append(
        "cumulative-session dose sensitivity (collider)", base="lrpal01")
 )
 
+# Suite-gap Tier-1 additions (#228): standalone ITTs for the two outcomes that had
+# only factor/aligned models (F basic concepts, T receptive grammar), and a site
+# (area) robustness check on the flagship word-reading (W) and letter-sound (L) ITTs.
+_ITT_TIER1 = [
+    _d("lrpitt25", "itt", "ITT suite", Status.MODEL_OF_RECORD, "F", "randomised ITT effect"),
+    _d("lrpitt26", "itt", "ITT suite", Status.MODEL_OF_RECORD, "T", "randomised ITT effect"),
+    _d("lrpitt27", "itt", "Site robustness", Status.ROBUSTNESS, "W", "site (area) adjustment", base="lrpitt10"),
+    _d("lrpitt28", "itt", "Site robustness", Status.ROBUSTNESS, "L", "site (area) adjustment", base="lrpitt07"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1)
 }
 
 

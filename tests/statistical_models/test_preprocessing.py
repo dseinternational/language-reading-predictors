@@ -18,12 +18,33 @@ from language_reading_predictors.statistical_models.measures import (
     unconfirmed_ceilings,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    HEARING_STATUS_COVARIATES,
+    add_hearing_status,
     logit_safe,
     standardise,
     load_and_prepare,
     load_and_prepare_aligned,
     load_and_prepare_lagged_outcome,
 )
+
+
+def test_add_hearing_status_missing_indicator():
+    """#244: hearing_c -> hs + hs_missing (missing-indicator; no NaN, no row loss)."""
+    df = pd.DataFrame({V.HEARING_C: [1.0, 0.0, np.nan, 1.0, np.nan]})
+    out = add_hearing_status(df)
+    assert list(out["hs"]) == [1.0, 0.0, 0.0, 1.0, 0.0]  # unknown filled to clear ref
+    assert list(out["hs_missing"]) == [0.0, 0.0, 1.0, 0.0, 1.0]  # unknown flagged
+    assert int(out[["hs", "hs_missing"]].isna().sum().sum()) == 0
+
+
+def test_load_and_prepare_hearing_status_keeps_all_rows():
+    """#244: adjusting for HS via the missing-indicator covariates drops no rows."""
+    base = load_and_prepare(phase_mode="itt", outcomes=("W",))
+    with_hs = load_and_prepare(
+        phase_mode="itt", outcomes=("W",), covariates=HEARING_STATUS_COVARIATES
+    )
+    assert with_hs.n_obs == base.n_obs  # hearing missingness costs no children
+    assert set(HEARING_STATUS_COVARIATES) <= set(with_hs.covariates)
 
 
 def test_logit_safe_haldane_correction():
@@ -226,11 +247,10 @@ def test_lagged_outcome_missing_later_wave_is_nan(tmp_path):
 
 
 def test_measure_ceilings_documented():
-    """#80: ITT-outcome ceilings are documented (W=79, P=92). The only
-    unconfirmed ceilings are the not-taught taught-vocabulary measures (UE/UR),
-    whose item counts are not tabulated in the paper (LRP74-76; pending the data
-    dictionary) — see ``measures.py`` and the LRP74-76 note."""
-    assert set(unconfirmed_ceilings()) == {"UE", "UR"}
+    """#80: ITT-outcome ceilings are documented (W=79, P=92). Since #214 the
+    not-taught taught-vocabulary measures (UE/UR) are also confirmed at 12 (the
+    half-size 3x4 control set), so no measure ceiling remains unconfirmed."""
+    assert unconfirmed_ceilings() == []
     assert MEASURES["W"].n_trials == 79
     assert MEASURES["P"].n_trials == 92
 

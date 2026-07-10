@@ -32,18 +32,18 @@ intervention benefit (`G = 2 − group`).
 
 ## At a glance
 
-| Layer | Family (id prefix)                                                        | Count | Purpose                                                                                           |
-| ----- | ------------------------------------------------------------------------- | ----: | ------------------------------------------------------------------------------------------------- |
-| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)               |    50 | Rank predictors of each outcome's gain and level                                                  |
-| 2     | ITT suite (`lrp-rli-itt`)                                                 |    26 | Randomised intervention effect on each outcome (+ joint, SES, ability robustness, generalisation) |
-| 2     | Gain factors (`lrp-rli-gf`)                                               |    16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain              |
-| 2     | Level factors (`lrp-rli-lf`)                                              |     8 | Companion levels view: group×time and ability×time per timepoint                                  |
-| 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                  |     6 | Within-person replication of the ITT via the waitlist crossover                                   |
-| 2     | Aligned per-protocol (`lrp-rli-al`)                                       |     9 | Onset-aligned single 40-week gain per child (associational)                                       |
-| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073` incl. `172`/`173`)           |     8 | Adjusted dose-response of one skill on another                                                    |
-| 2     | Mediation (`lrp-rli-med-059`, `62`, `64`)                                 |     3 | How much of a reading gain runs through a given skill                                             |
-| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `67`, `77` incl. `77a`/`77base`) |     5 | Baseline predictors, within-child change, and dose–response of word reading                       |
-| 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                    |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape |
+| Layer | Family (id prefix)                                                        | Count | Purpose                                                                                                  |
+| ----- | ------------------------------------------------------------------------- | ----: | -------------------------------------------------------------------------------------------------------- |
+| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)               |    50 | Rank predictors of each outcome's gain and level                                                         |
+| 2     | ITT suite (`lrp-rli-itt`)                                                 |    30 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation) |
+| 2     | Gain factors (`lrp-rli-gf`)                                               |    16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                     |
+| 2     | Level factors (`lrp-rli-lf`)                                              |     8 | Companion levels view: group×time and ability×time per timepoint                                         |
+| 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                  |     6 | Within-person replication of the ITT via the waitlist crossover                                          |
+| 2     | Aligned per-protocol (`lrp-rli-al`)                                       |     9 | Onset-aligned single 40-week gain per child (associational)                                              |
+| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073` incl. `172`/`173`)           |     8 | Adjusted dose-response of one skill on another                                                           |
+| 2     | Mediation (`lrp-rli-med-059`, `62`, `64`)                                 |     3 | How much of a reading gain runs through a given skill                                                    |
+| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `67`, `77` incl. `77a`/`77base`) |     5 | Baseline predictors, within-child change, and dose–response of word reading                              |
+| 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                    |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape        |
 
 Counts are of base models on `main`. Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
@@ -143,7 +143,7 @@ g-formula, and the floor rule live in the package; each fit writes `trace.nc`,
 `diagnostics_summary.json` (the convergence gate), per-family CSVs, and diagnostic plots
 to `output/statistical_models/models/{model_id}-{config}/`.
 
-### ITT suite — `lrp-rli-itt-001–lrp-rli-itt-024` (`kind="itt"` / `"joint"`)
+### ITT suite — `lrp-rli-itt-001–lrp-rli-itt-028` (`kind="itt"` / `"joint"`)
 
 **Purpose.** The headline causal layer: the randomised intention-to-treat effect `τ` of
 group assignment on each outcome. Under the locked DAG the ITT is identified by the
@@ -173,6 +173,9 @@ flagged graded secondary. Design notes: `notes/202606251321-lrpitt-suite-design.
 | `lrp-rli-itt-017–020`     | `TR`,`TE`,`UR`,`UE` | Ability-adjusted (block-design) robustness across the taught/untaught vocabulary family        |
 | `lrp-rli-itt-021` / `22`  | `R` / `E`           | Ability-adjusted robustness, standardised vocabulary                                           |
 | `lrp-rli-itt-023` / `24`  | `L` / `W`           | Ability-adjusted robustness, letter sounds and word reading                                    |
+| `lrp-rli-itt-025`         | `F`                 | ITT on basic concepts (CELF) — effect only (no agreed δ, so no meaningful-benefit table)       |
+| `lrp-rli-itt-026`         | `T`                 | ITT on receptive grammar (TROG-2) — effect only (no agreed δ)                                  |
+| `lrp-rli-itt-027` / `28`  | `W` / `L`           | Site-adjusted (`area`, North/South) robustness — `area` complete, so no matched comparator     |
 
 _(`lrp-rli-itt-016` is intentionally unused — reserved for a deferred descriptive floored-outcome
 trajectory complement.)_
