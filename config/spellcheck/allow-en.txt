@@ -470,3 +470,15 @@ Sénéchal
 Stanovich
 Tunmer
 Walley
+bidirected
+autoregressor
+unconfounded
+RMSEA
+partialled
+Hayiou
+Crosbie
+Ozanne
+Leavett
+Graphviz
+Tsvg
+workstream
