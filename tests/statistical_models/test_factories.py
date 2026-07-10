@@ -38,6 +38,7 @@ from language_reading_predictors.statistical_models.measures import (
     is_distal,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    HEARING_STATUS_COVARIATES,
     load_and_prepare,
 )
 
@@ -111,9 +112,37 @@ def test_taught_block1_measures_registered():
     assert not set(TAUGHT_BLOCK1_OUTCOMES) & set(ITT_OUTCOMES)
     assert MEASURES["TE"].n_trials == 24 and MEASURES["TE"].n_trials_confirmed
     assert MEASURES["TR"].n_trials == 24 and MEASURES["TR"].n_trials_confirmed
-    # Not-taught ceilings are observed-max and flagged unconfirmed.
-    assert MEASURES["UE"].n_trials == 12 and not MEASURES["UE"].n_trials_confirmed
-    assert MEASURES["UR"].n_trials == 12 and not MEASURES["UR"].n_trials_confirmed
+    # Not-taught sets are the half-size 3x4 control (12 items), confirmed (#214).
+    assert MEASURES["UE"].n_trials == 12 and MEASURES["UE"].n_trials_confirmed
+    assert MEASURES["UR"].n_trials == 12 and MEASURES["UR"].n_trials_confirmed
+
+
+def test_ps_is_outcome_only_not_a_word_reading_predictor():
+    """#248 (2026-07-10 DAG revision): PS->WR is dropped and phonetic spelling
+    ('P') is terminal. Guard that P never enters a word-reading predictor set - it
+    appears only as an outcome (gf-005 / lf-005 / itt-009 model it)."""
+    from language_reading_predictors.statistical_models import (
+        lrp_rli_adj_065,
+        lrp_rli_hs_001,
+        lrp_rli_hs_002,
+    )
+    from language_reading_predictors.statistical_models.definitions import (
+        FLOORED,
+        MODEL_REGISTRY,
+    )
+
+    # PS is floored, so it is excluded from the "non-floored baseline" predictor
+    # sets the word-reading models use.
+    assert "P" in FLOORED
+    # The explicit word-reading predictor models must not list P.
+    assert "P" not in lrp_rli_hs_001.SPEC.extra["predictors"]  # W-gain ranking
+    assert "P" not in lrp_rli_hs_002.SPEC.extra["predictors"]  # W-level ranking
+    adj = lrp_rli_adj_065.get_spec()  # baseline predictors of W gain (ADJ-065)
+    assert "P" not in adj.extra["predictor_symbols"]
+    assert "P" not in adj.extra["language_composite_symbols"]
+    assert "P" not in adj.adjustment
+    # PS still exists as an outcome in the suite.
+    assert any(d.outcome == "P" for d in MODEL_REGISTRY.values())
 
 
 def test_itt_factory_taught_outcome_with_cross_symbols(tmp_path):
@@ -139,6 +168,20 @@ def test_itt_factory_default_cross_is_all_itt_outcomes(tmp_path):
     built = build_itt_model(prep, outcome_symbol="W")  # cross_symbols defaults None
     names = {v.name for v in built.model.free_RVs}
     assert {f"gamma_{s}" for s in ITT_OUTCOMES if s != "W"}.issubset(names)
+
+
+def test_itt_factory_hearing_status_adjuster():
+    """#244: hearing status (HS) enters the ITT via adjust_for without dropping rows."""
+    base = load_and_prepare(phase_mode="itt", outcomes=("W",))
+    prep = load_and_prepare(
+        phase_mode="itt", outcomes=("W",), covariates=HEARING_STATUS_COVARIATES
+    )
+    assert prep.n_obs == base.n_obs  # missing hearing status costs no children
+    built = build_itt_model(
+        prep, outcome_symbol="W", cross_symbols=(), adjust_for=HEARING_STATUS_COVARIATES
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_hs", "gamma_hs_missing"}.issubset(names)
 
 
 def test_itt_factory_rejects_unknown_cross_symbol(tmp_path):
