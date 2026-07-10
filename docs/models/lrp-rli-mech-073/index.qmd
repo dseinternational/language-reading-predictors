@@ -56,7 +56,9 @@ test that honestly, not to find a positive.
 
 ## Adjustment set
 
-LRP58's $\{G, A, E, R, W_{\text{pre}}\}$.
+The revised LRP58 set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$
+(the old $E$/$R$ adjusters are dropped — neither vocabulary is a parent of $L$ in
+the revised DAG). Age is this model's moderator.
 
 ::: {.callout-note title="Both LRP58 and LRP73 condition on age linearly — but via different terms"}
 
@@ -67,9 +69,9 @@ family) *does* adjust for age as fit. LRP73 is the exception: because age is its
 *moderator*, the linear $\gamma_A$ term is skipped (it would be collinear with the
 moderator main effect) and the age adjustment is realised instead by the moderator
 main effect $\gamma_{\text{mod}}\,z(\text{age})$. The moderator is therefore both
-the age adjustment and the thing whose interaction with $L$ we test. $E$ and $R$
-enter as confounders; $W_{\text{pre}}$ is the autoregressive baseline; $W$ (the
-outcome) is of course not conditioned on.
+the age adjustment and the thing whose interaction with $L$ we test. The revised
+confounders ($HS$, $IS$, $SP$) enter linearly; $W_{\text{pre}}$ is the
+autoregressive baseline; $W$ (the outcome) is of course not conditioned on.
 
 :::
 

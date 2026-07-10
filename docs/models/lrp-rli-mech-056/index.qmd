@@ -33,17 +33,24 @@ $\text{logit}_*(R_{\text{post}}, N_R)$.
 The model conditions on this DAG-motivated adjustment set to reduce confounding
 of the $R_{\text{post}}$--$W_{\text{post}}$ association:
 
-- $G$ — $G \to R$ and $G \to W$ (linear, one coefficient $\beta_G$).
-- $A$ — $A \to R$ and $A \to W$. Age is conditioned on **linearly by default**: a
-  $\gamma_A\,z(\text{age})$ term enters whenever age is a declared confounder and
-  the age GP is off. The nonparametric age-GP flag is **off by default**; re-enable
-  via `ModelSpec.extra={"use_age_gp": True}` for a smooth-age sensitivity fit.
+Observed parents of $R$ (RV) under the revised DAG (#245): $\{A, HS, RW, TR\}$.
+
+- $G$ — group; always conditioned on via $\beta_G$.
+- $A$ — age; conditioned on **linearly by default** (a $\gamma_A\,z(\text{age})$
+  term whenever age is a declared confounder and the age GP is off, as here).
+- $TR$ — taught receptive vocabulary, a parent of $R$ that also causes $W$
+  (measure confounder). **New under the revised DAG.**
+- $HS$ — hearing status (`hs` / `hs_missing`), a new common cause of vocabulary
+  skills. **New (#245).**
+- $RW$ — phonological memory (`erbto`), now an upstream cause of $R$. **New (#245).**
 - $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
 
 $E$ is a *descendant* of $R$ (path $R \to E$) that also affects $W$.
 Conditioning on $E$ would change the estimand by removing the $R \to E \to W$
 pathway and pulling the estimated $f^R$ toward the direct-only component. $E$ is
-therefore **not** in the adjustment set.
+therefore **not** in the adjustment set. $GA$ (general ability) is latent and
+cannot be conditioned on; the child random intercept proxies its time-invariant
+part, so $f^R$ stays an adjusted association.
 
 ### Interpretation caveats
 

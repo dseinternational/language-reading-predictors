@@ -28,18 +28,21 @@ using all three phase transitions.
 
 ## Adjustment set
 
-- $G$ — standard confounder (linear, one coefficient $\beta_G$).
-- $A$ — standard confounder, conditioned on **linearly by default**: a
-  $\gamma_A\,z(\text{age})$ term enters whenever age is a declared confounder and
-  the age GP is off. The nonparametric age-GP flag is **off by default**; re-enable
-  via `ModelSpec.extra={"use_age_gp": True}` for a smooth-age sensitivity fit.
-- $R$ — *must* be conditioned on: $R \to E$ and $R \to W$, so $R$ opens a backdoor path.
+Observed parents of $E$ (EV) under the revised DAG (#245): $\{A, HS, TR, TE, R, RW, SP\}$.
+
+- $G$ — group; always conditioned on via $\beta_G$.
+- $A$ — age; conditioned on linearly by default ($\gamma_A\,z(\text{age})$).
+- $TR$, $TE$, $R$ — taught receptive/expressive and standardised receptive
+  vocabulary; parents of $E$ that also cause $W$ (measure confounders). $TR$/$TE$
+  are **new under the revised DAG**.
+- $HS$ (`hs` / `hs_missing`), $RW$ (`erbto`), $SP$ (`deapp_c`) — hearing,
+  phonological memory and speech production; covariate adjusters **newly
+  required (#245)**.
 - $W_{\text{pre}}$ — baseline.
 
-$F$, $L$, $P$, $B$ are either descendants of $E$ or lie on post-$E$ mediation
-paths. Conditioning on them would block legitimate indirect effects and
-change the estimand toward a direct-only component, so they are **not** in the
-adjustment set.
+$F$, $L$, $P$, $B$ are descendants of $E$ or lie on post-$E$ mediation paths and
+are **not** conditioned on. $GA$ is latent (child random-intercept proxy), so
+$f^E$ is an adjusted association.
 
 ### Interpretation caveats
 

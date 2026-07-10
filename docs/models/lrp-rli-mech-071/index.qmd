@@ -61,22 +61,22 @@ $\mathrm{Normal}(0, 0.3)$ cross-coupling prior.
 
 ## Adjustment set
 
-Identical to LRP58: $\{G, A, E, R, W_{\text{pre}}\}$.
+The revised LRP58 set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$.
+The revision drops $EV \to LS$, so $E$ and $R$ are no longer confounders of
+$L \to W$ — $E$ now enters this model **only** as the tested moderator.
 
-- $G$ — linear confounder (one coefficient $\beta_G$).
-- $A$ — standard confounder; age-GP flag **off by default**.
-- $E$ — confounds $L$ and $W$ ($E \to L$ and $E \to W$). Conditioned on.
-- $R$ — confounds $L$ through $E$ ($R \to E \to L$) and affects $W$.
+- $G$ — group; always conditioned on via $\beta_G$.
+- $A$ — age; conditioned on linearly by default.
+- $HS$ (`hs` / `hs_missing`), $IS$ (`attend`), $SP$ (`deapp_c`) — hearing, sessions
+  and speech; the revised parents of $L$. **New (#245).**
 - $W_{\text{pre}}$ — baseline word reading.
 
-::: {.callout-important title="E enters as the standardised moderator, not the raw-logit confounder"}
+::: {.callout-important title="E enters as the tested moderator only"}
 
-$E$ is both the DAG-required adjuster and the moderator. To avoid a collinear
-duplicate main effect, the pipeline removes $E$ from the plain confounder loop:
-$E$ is represented **only** by $\gamma_{\text{mod}}\, z(E)$ (main effect) and
-$\gamma_{\text{int}}\, z(L)\, z(E)$ (interaction). The standardised main effect
-spans the same column space as the raw-logit confounder term, so the
-DAG-required $E$-adjustment is fully preserved.
+Under the revised DAG $E$ is **no longer a confounder** of $L \to W$ (the
+$EV \to LS$ edge is dropped). $E$ enters purely as the tested moderator —
+$\gamma_{\text{mod}}\, z(E)$ (main effect) and $\gamma_{\text{int}}\, z(L)\, z(E)$
+(interaction); the confounders of $L \to W$ are the revised set above.
 
 :::
 

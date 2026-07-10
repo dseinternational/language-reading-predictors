@@ -47,6 +47,25 @@ def test_load_and_prepare_hearing_status_keeps_all_rows():
     assert set(HEARING_STATUS_COVARIATES) <= set(with_hs.covariates)
 
 
+def test_add_missing_indicator_covariates():
+    """#245: deapp_c / erbto -> mean-filled value + {col}_missing (no NaN)."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        add_missing_indicator_covariates,
+    )
+
+    df = pd.DataFrame(
+        {"deapp_c": [2.0, 4.0, np.nan, 6.0], "erbto": [np.nan, 1.0, 3.0, 5.0]}
+    )
+    out = add_missing_indicator_covariates(df)
+    assert list(out["deapp_c_missing"]) == [0.0, 0.0, 1.0, 0.0]
+    assert list(out["erbto_missing"]) == [1.0, 0.0, 0.0, 0.0]
+    # unknown filled to the column mean (arm-blind; becomes 0 after standardisation)
+    assert out["deapp_c"].iloc[2] == pytest.approx(np.nanmean([2.0, 4.0, 6.0]))
+    assert out["erbto"].iloc[0] == pytest.approx(np.nanmean([1.0, 3.0, 5.0]))
+    cols = ["deapp_c", "deapp_c_missing", "erbto", "erbto_missing"]
+    assert int(out[cols].isna().sum().sum()) == 0
+
+
 def test_logit_safe_haldane_correction():
     # y=0 with N=10 -> log((0.5)/(10.5)) = log(1/21)
     assert logit_safe(np.array([0]), 10)[0] == pytest.approx(np.log(0.5 / 10.5))
