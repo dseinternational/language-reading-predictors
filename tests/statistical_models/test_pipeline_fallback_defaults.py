@@ -28,7 +28,13 @@ RECONCILED_FACTORY_DEFAULTS = [
     (factories.build_historical_growth_model, "eta_prior_sigma", 1.5),
     (factories.build_historical_growth_model, "sigma_subject_prior_sigma", 0.5),
     (factories.build_historical_growth_model, "kappa_prior_sigma", 50.0),
-    (factories.build_correlated_factor_model, "loading_sigma", 1.0),
+    # Recalibrated for the small-n funnel fix: a positive-mode
+    # TruncatedNormal(loading_mu, loading_sigma) loading prior + a tighter
+    # HalfNormal(residual_sigma) residual prior replace the original
+    # HalfNormal(1)/HalfNormal(1) pair. See build_correlated_factor_model.
+    (factories.build_correlated_factor_model, "loading_mu", 0.6),
+    (factories.build_correlated_factor_model, "loading_sigma", 0.5),
+    (factories.build_correlated_factor_model, "residual_sigma", 0.5),
     (factories.build_correlated_factor_model, "predictor_slope_sigma", 0.5),
     (factories.build_growth_model, "assoc_prior_sigma", 0.3),
     (factories.build_growth_model, "re_intercept_prior_sigma", 0.5),

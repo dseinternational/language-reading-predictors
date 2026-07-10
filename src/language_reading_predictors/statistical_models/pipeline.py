@@ -3451,6 +3451,15 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     _require_spec(spec, "corr_factor")
 
     ctx = make_context(spec, config)
+    # The correlated-factor CFA is a small-n latent model; even with the factor
+    # scores marginalised out of the measurement likelihood a few boundary
+    # divergences survive at the tier-default target_accept, so lift it via the spec
+    # (the strict gate requires zero), as the horseshoe fit does for its funnel.
+    target_accept = spec.extra.get("target_accept")
+    if target_accept is not None:
+        ctx.sampling.target_accept = max(
+            ctx.sampling.target_accept, float(target_accept)
+        )
 
     section_header("Prepare data")
     domains = {
@@ -3477,9 +3486,17 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         domains=domains,
         structural_covariates=structural_covs,
         use_age=spec.extra.get("use_age", True),
+        loading_mu=spec.extra.get(
+            "loading_mu",
+            _default_of(_factories.build_correlated_factor_model, "loading_mu"),
+        ),
         loading_sigma=spec.extra.get(
             "loading_sigma",
             _default_of(_factories.build_correlated_factor_model, "loading_sigma"),
+        ),
+        residual_sigma=spec.extra.get(
+            "residual_sigma",
+            _default_of(_factories.build_correlated_factor_model, "residual_sigma"),
         ),
         predictor_slope_sigma=spec.extra.get(
             "predictor_slope_sigma",

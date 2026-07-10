@@ -49,6 +49,13 @@ SPEC = ModelSpec(
         },
         "structural_covariates": ("blocks",),
         "use_age": True,
+        # Small-n latent-factor geometry: the factory marginalises the factor
+        # scores out of the measurement likelihood (killing the funnel; BFMI/ESS/
+        # R-hat all pass), and this lifts target_accept above the reporting-tier
+        # default (0.95) to clear the last residual boundary divergences the strict
+        # gate requires to be zero. See
+        # notes/202607101638-mm-001-convergence-reparameterisation.md.
+        "target_accept": 0.999,
     },
 )
 
