@@ -1,0 +1,68 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
+> [!NOTE]
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+
+> [!IMPORTANT]
+> This is a **decision record, not a deliberation note**. The team met on 2026-07-10 to consider `notes/202607091430-dag-critical-review-td-atypical-literature.md` and `notes/202607091615-vocab-reading-subgraph-critical-review.md` (issue #233) and agreed the structural changes below. They **supersede the 2026-06-23 lock** (`notes/202606231600-dag-revision-consolidated.md`). The revised machine-readable graph, its Graphviz source and the rendered figure now live in the repo-root `dag/` directory. This note records what was decided, why, what it means for identification, and the follow-up work it triggers.
+
+# DAG revision — team decisions (2026-07-10)
+
+Date: 2026-07-10. The two review notes above set out, against the typically-developing (TD) and Down-syndrome (DS) reading-science literature, where the 2026-06-23 base DAG looked wrong or under-specified: the direction of the speech edge, the near-absence of hearing, the under-played role of phonological memory, the single phoneme-awareness bottleneck from expressive vocabulary to reading, and the status of phonetic spelling. The team has now acted on them. This note is the decision log and the source of the follow-up issue list for model adjustments; the deliberation and citations live in the two review notes and are not repeated here.
+
+## 1. What was decided
+
+Six structural edits to the base DAG plus one new workstream. In DAG terms (symbols as in `dag/dag-language-reading.dagitty`):
+
+| # | Decision | Edge change | Rationale (short) |
+|---|----------|-------------|-------------------|
+| 1 | Standardised vocabulary stays downstream of taught vocabulary | (no change) `TR -> RV`, `TR -> EV`, `TE -> EV` retained | Near-vs-far transfer: the bespoke b1/b2 measures are the proximal product of teaching; the norm-referenced rowpvt/eowpvt capture generalisation. Confirms the existing structure. |
+| 2 | Speech is a **cause**, not a consequence, of expressive vocabulary and the sound-producing code skills | drop `TE -> SP`, `EV -> SP`; add `SP -> TE`, `SP -> EV`, `SP -> LS`, `SP -> PA`, `SP -> NW` | For these children `SP` (deapp_c) is a proxy for **pervasive, persistent speech-motor difficulty**, present from the outset — so it is upstream of what the child can say (expressive vocabulary) and of every code-route task that **requires producing or sequencing speech sounds**: letter–sound (produce the sound on cue), phoneme-awareness *blending* (hold and blend sounds aloud), and nonword reading (articulate novel phoneme strings). It is not a downstream reflection of vocabulary size. |
+| 3 | Add hearing status | add `HS -> { TR RV TE EV SP RW PA LS }` | Conductive hearing loss and repeated ear infections are common and consequential in DS; hearing is a common cause of taught and standardised vocabulary, speech, phonological memory, phoneme awareness and letter–sound learning. Omitting it left those associations open to hearing confounding. |
+| 4 | Give phonological memory its proper reach | add `RW -> { TE EV TR RV PA NW PS }` (was `RW -> EV` only) | `RW` (word + nonword repetition, erbto) indexes phonological short-term memory, a well-evidenced driver of new-word learning (taught and standardised), of blending, and of nonword reading and phonetic spelling. The old graph understated it. |
+| 5 | Expressive vocabulary helps word reading directly | add `TE -> WR`, `EV -> WR` | Gains in expressive vocabulary are expected to support word reading **over and above** receptive vocabulary and beyond the phoneme-awareness route — a lexical/semantic contribution the old graph denied expressive vocabulary (it reached `WR` only through `PA`). |
+| 6 | Phonetic spelling is an **outcome**, not a predictor of word reading | drop `PS -> WR` | The `PS` task involves **writing letters**; it is a reading/spelling outcome in its own right, not a cause of word reading. It becomes terminal, alongside `WR`. |
+| 7 | Time-lagged DAG and models | — | A contemporaneous (single-wave) DAG cannot express maturation or the direction of change over waves. A **time-lagged DAG and matching models are a separate workstream**, to be recorded alongside the current graph in `dag/`. |
+
+### Note on decision 2 (why both speech edges reverse)
+
+The 2026-06-23 graph had **both** `TE -> SP` and `EV -> SP`. Reversing the expressive-vocabulary → speech relation to `SP -> EV` (and `SP -> TE`) forces the taught edge to reverse too: keeping `TE -> SP` alongside the new `SP -> TE` would create a 2-cycle and break acyclicity. So both old speech in-edges are dropped and `SP` becomes an upstream cause of `TE`, `EV`, `LS`, `PA` and `NW`. This is the decision the team stated (“`SP -> TE` and `SP -> EV` in place of `EV -> SP`”, plus `SP -> LS`, `SP -> PA`, `SP -> NW`), made explicit.
+
+## 2. The revised graph
+
+The authoritative machine-readable graph is `dag/dag-language-reading.dagitty` (20 nodes; roots `A`, `GA`, `HS`, `IG`; verified acyclic). A colour-coded, left-to-right rendering — regenerated from the same structure with Graphviz — is `dag/dag-language-reading.svg` (source `dag/dag-language-reading.dot`; regenerate with `dot -Tsvg dag/dag-language-reading.dot -o dag/dag-language-reading.svg`). As before, the two universal parents `A` and `GA` point into every observed node; their 32 edges are summarised in a note in the figure for legibility (the only place the picture departs from the `dag { … }` block). `HS`, unlike `A`/`GA`, is drawn explicitly.
+
+![Revised language & reading DAG (2026-07-10)](../dag/dag-language-reading.svg)
+
+## 3. What this changes for identification — and what it does not
+
+**Robust (no change).** The primary causal estimand is untouched. `IG` is randomised and parent-less, so the **intention-to-treat effect `IG -> WR` is still identified by the empty adjustment set**; none of edits 2–6 opens a back-door from `IG`. The whole ITT/joint suite (LRP-RLI-ITT-\*, the DiD/waitlist family) is therefore unaffected in its identification. A bonus: `HS`, `RW` and `SP` at baseline are pre-randomisation child characteristics, so they are now available as **optional precision covariates** for ITT (they cannot bias τ; they can tighten it).
+
+**Changed (adjustment sets must be re-derived).** Every observational coupling — mechanism slopes, mediation decompositions, adjusted associations — is only ever an adjusted association, never causal (per `METHODS.md`), and the *correct* adjustment set now differs:
+
+- **`SP` is now a confounder — and it sits directly on the code route.** With `SP -> {TE, EV, LS, PA, NW}` and each of those on a path to `WR`, `SP` is a common cause of exposure and outcome for any mechanism/mediation estimand whose exposure is `TE`, `EV`, `LS`, **`PA` or `NW`**. Because `SP -> PA` and `SP -> NW` are direct, `SP` confounds `PA -> WR` and `NW -> WR` even without going through `LS`. It **must enter the adjustment set** for all of those exposures. Previously it was a childless sink and never confounded anything.
+- **`HS` is a confounder** for estimands whose exposure is any of `{TR, RV, TE, EV, SP, RW, PA, LS}` — a clean, exogenous baseline confounder that must be adjusted.
+- **`RW` now confounds far more.** With `RW -> {TE, EV, TR, RV, PA, NW, PS}`, it is a common cause for estimands with those exposures (e.g. `PA -> WR` is confounded by `RW -> PA` and `RW ->` … `-> WR`). Previously `RW -> EV` only.
+- **The “`PA` is the sole gateway” finding is retired.** Edit 5 (`TE -> WR`, `EV -> WR`) means expressive vocabulary no longer reaches `WR` only through phoneme awareness. The cut-vertex argument of `notes/202607091615-…` no longer holds; any mediation model that treated expressive vocabulary’s effect on reading as **fully `PA`-mediated** now has a direct arm, so its NDE/NIE split changes.
+- **`PS` is terminal.** Dropping `PS -> WR` removes it as a predictor/mediator of word reading; it is now a reading outcome to be modelled in its own right.
+
+## 4. Follow-up issues for model adjustments
+
+Proposed as separate tracked issues (this note is the parent rationale). Ordered roughly by dependency.
+
+1. **Adopt the revised DAG as canonical.** Point code and docs that reference the base graph at `dag/dag-language-reading.dagitty`; retire references to `notes/dag-language-reading.dagitty`. (This note + the file moves are the first step.)
+2. **Wire `HS` (`hearing_c`) into the Bayesian adjustment sets.** The variable already exists in `data_variables.py` (`HEARING_C` = impaired hearing **or** repeated ear infections) and already reaches the gradient-boosting predictor sweep via `DEFAULT_GAIN`/`DEFAULT_LEVEL`, so **no new data collection is required**. Confirm t1 completeness/missingness and add `HS` to the DAG-derived covariate construction used by the statistical-model factories.
+3. **Re-derive adjustment sets for the `mechanism` family** (LRP-RLI-MECH-056–058, 071, 072/172, 073/173): add `HS`, `RW`, `SP` where the exposure is a vocabulary / `LS` / `PA` measure, per §3.
+4. **Revisit the `mediation` families for the direct vocabulary→reading arms** (MED-059, **MED-062 reading-route composite**, MED-064 two-mediator g-formula): re-specify with `TE -> WR` / `EV -> WR` present and `PS` terminal; the NDE/NIE decomposition changes.
+5. **Re-derive the `gain_factors` / `level_factors` upstream-skill adjustments** (GF/LF-001–008): the “upstream DAG skills” set changes for W/R/E/L/P/B/F/T now that `SP`, `HS` and a wider `RW` sit upstream of the vocabulary and code nodes.
+6. **Update the remaining DAG-dependent families** — `adjusted` (ADJ-065), `mediation_multi`, `dose_response`, `lcsm`, `growth` — checking each adjustment set against the revised graph.
+7. **Add `PS`-as-outcome models** (or re-target existing ones) now that `PS` is terminal, and stop using `PS` as a `WR` predictor anywhere.
+8. **Consider `SP` and `HS` as ITT precision covariates** (optional; identification-neutral) across the ITT/joint suite.
+9. **Regenerate the stale DAG figures** carried elsewhere: `docs/report/images/dag-language-reading.{dot,png}` and the ADJ-065 model DAG `docs/models/lrp-rli-adj-065/dag.{svg,png}` both still show the 2026-06-23 structure.
+10. **Time-lagged DAG workstream** (decision 7): open a tracking issue; the lagged graph and its models will be recorded in `dag/` (e.g. `dag/dag-language-reading-lagged.dagitty`).
+
+## 5. Provenance and open questions
+
+- **`HS` treated as exogenous.** We encode `HS` as a root (no parents), matching the team’s statement. Age-related change in conductive hearing (fluctuating middle-ear problems that often ease with age) makes `A -> HS` defensible; it is deliberately left out of the contemporaneous graph and is a natural candidate to revisit in the **time-lagged** workstream.
+- **`SP` measure caveat.** `SP` is `deapp_c` (the DEAP picture composite). Per the DEAP-scoring memo, the CSV `deapp*` columns are a lenient trial-era scoring, ~20 points above the blind-transcription PCC reported in Burgoyne, Buckley & Baxter (2021) for the same cohort; `SP`’s **role** as a motor-difficulty proxy is unaffected, but its scaling should not be read as PCC.
+- The literature grounding for each edit (speech-motor persistence, hearing in DS, phonological memory and word learning, the lexical contribution of expressive vocabulary to reading) is set out with citations in `notes/202607091430-…` (Part A, speech/hearing) and `notes/202607091615-…`; DOIs there were verified during drafting, and the older references remain flagged for final check before they enter the report.
