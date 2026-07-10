@@ -209,7 +209,7 @@ the t2 group contrast is a clean randomised effect; later timepoints are post-cr
 flagged as associations. Outcomes mirror the gain-factor family: `lrp-rli-lf-001` `W`, `02` `R`,
 `03` `E`, `04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`.
 
-### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-006` (`kind="did"`)
+### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-010` (+ `lrp-rli-did-107`) (`kind="did"`)
 
 **Purpose.** A within-person replication of the randomised ITT, using the waitlist arm's
 crossover: each child is partly their own control, with the immediate arm anchoring the
@@ -217,14 +217,18 @@ time/maturation trend (Beta-Binomial logit so the ceiling is respected). A secon
 non-randomised view that triangulates the ITT. Design note:
 `notes/202606260702-did-crossover-design.md`.
 
-| Model             | Outcome | Purpose                                                             |
-| ----------------- | ------- | ------------------------------------------------------------------- |
-| `lrp-rli-did-001` | `W`     | Within-person DiD effect on word reading                            |
-| `lrp-rli-did-002` | `L`     | Within-person DiD effect on letter-sound knowledge                  |
-| `lrp-rli-did-003` | `B`     | Within-person DiD effect on phoneme blending                        |
-| `lrp-rli-did-004` | `TE`    | Within-person DiD effect on taught expressive vocabulary            |
-| `lrp-rli-did-005` | `R`     | Within-person DiD effect on receptive vocabulary (the null control) |
-| `lrp-rli-did-006` | `W`     | Word-reading DiD with a session **dose-response** term              |
+| Model             | Outcome | Purpose                                                                                                                                 |
+| ----------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-did-001` | `W`     | Within-person DiD effect on word reading                                                                                                |
+| `lrp-rli-did-002` | `L`     | Within-person DiD effect on letter-sound knowledge                                                                                      |
+| `lrp-rli-did-003` | `B`     | Within-person DiD effect on phoneme blending                                                                                            |
+| `lrp-rli-did-004` | `TE`    | Within-person DiD effect on taught expressive vocabulary                                                                                |
+| `lrp-rli-did-005` | `R`     | Within-person DiD effect on receptive vocabulary (the null control)                                                                     |
+| `lrp-rli-did-006` | `W`     | Word-reading DiD with a session **dose-response** term                                                                                  |
+| `lrp-rli-did-007` | `L`     | Letter-sound DiD with a **period-resolved** session dose slope (#135); `lrp-rli-did-107` is its pooled (no-period-variation) comparator |
+| `lrp-rli-did-008` | `TR`    | Within-person DiD effect on taught receptive vocabulary                                                                                 |
+| `lrp-rli-did-009` | `E`     | Within-person DiD effect on standardised expressive vocabulary                                                                          |
+| `lrp-rli-did-010` | `F`     | Within-person DiD effect on basic concept knowledge                                                                                     |
 
 ### Aligned per-protocol — `lrp-rli-al-001–lrp-rli-al-008` (+ `lrp-rli-al-101`) (`kind="aligned"`)
 
