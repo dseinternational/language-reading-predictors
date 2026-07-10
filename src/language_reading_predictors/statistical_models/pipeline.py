@@ -3457,9 +3457,13 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # (the strict gate requires zero), as the horseshoe fit does for its funnel.
     target_accept = spec.extra.get("target_accept")
     if target_accept is not None:
-        ctx.sampling.target_accept = max(
-            ctx.sampling.target_accept, float(target_accept)
-        )
+        target_accept = float(target_accept)
+        if not 0.0 < target_accept < 1.0:
+            raise ValueError(
+                "spec.extra['target_accept'] must be in the open interval (0, 1); "
+                f"got {target_accept!r}"
+            )
+        ctx.sampling.target_accept = max(ctx.sampling.target_accept, target_accept)
 
     section_header("Prepare data")
     domains = {

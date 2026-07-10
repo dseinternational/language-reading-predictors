@@ -2418,7 +2418,15 @@ def build_correlated_factor_model(
         #   cond_mean_i = V Lambda' diag(sigma^-2) Z_i
         # Reintroduce the factor scores for the structural leg, non-centred around
         # the conditional mean so factor_z stays standard-normal (no funnel).
-        corr_inv = pt.linalg.inv(corr)
+        # The two D×D inverses use an explicit ``inv`` rather than a ``solve`` with
+        # an identity RHS: at D = 3 the conditioning difference is negligible (the
+        # inverses agree with a Cholesky solve to machine precision), the
+        # ``solve → cholesky`` path is unsupported by the Numba forward-sampling
+        # backend used for the prior/posterior-predictive draws (it rejects a
+        # ``cholesky`` on the read-only buffer a ``solve`` returns), and — decisive
+        # here — the ``solve`` variant empirically produced a boundary divergence
+        # that trips the strict zero-divergence gate, whereas ``inv`` clears it.
+        corr_inv = pt.linalg.inv(corr)  # (D, D)
         A = Lambda.T * (1.0 / sig2)[None, :]  # (D, J) = Lambda' diag(sigma^-2)
         V = pt.linalg.inv(corr_inv + A @ Lambda)  # (D, D)
         W = V @ A  # (D, J)
