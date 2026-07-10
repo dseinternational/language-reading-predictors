@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="410" viewBox="0 0 680 410" role="img" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" fill="#2a2d31">
+<title>Side-by-side of the TD speech-to-reading path and the Down syndrome sub-graph</title>
+<desc>Left: in typically developing children speech points to phoneme awareness which points to reading, adjusted for a single observed nonverbal IQ. Right: the Down syndrome graph has the same spine but with three breaks marked — the speech orientation is contested, the phoneme-awareness-to-reading path is weak, and general ability is a latent confounder that cannot be adjusted.</desc>
+<rect x="0" y="0" width="680" height="410" fill="#ffffff"/>
+<rect x="4" y="4" width="672" height="402" rx="12" fill="none" stroke="#e6e9ed" stroke-width="1"/>
+<defs>
+<marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fdb"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f98"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c2872a"/></marker>
+<marker id="arx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d0433f"/></marker>
+</defs>
+<text x="176" y="26" text-anchor="middle" font-size="13.5" font-weight="500">typically developing — Burgoyne 2019</text>
+<text x="500" y="26" text-anchor="middle" font-size="13.5" font-weight="500">Down syndrome — our DAG (+ #233)</text>
+<line x1="340" y1="42" x2="340" y2="352" stroke="#d7dbe0" stroke-width="1"/>
+<line x1="176" y1="96" x2="176" y2="150" stroke="#2f6fdb" stroke-width="2.6" marker-end="url(#ab)"/>
+<line x1="176" y1="194" x2="176" y2="248" stroke="#2f6fdb" stroke-width="2.6" marker-end="url(#ab)"/>
+<line x1="252" y1="194" x2="238" y2="178" stroke="#8a8f98" stroke-width="1.4" marker-end="url(#ag)"/>
+<line x1="252" y1="212" x2="238" y2="256" stroke="#8a8f98" stroke-width="1.4" marker-end="url(#ag)"/>
+<text x="190" y="126" text-anchor="start" font-size="11" fill="#2f6fdb">strong</text>
+<text x="190" y="224" text-anchor="start" font-size="11" fill="#2f6fdb">strong</text>
+<line x1="496" y1="96" x2="496" y2="150" stroke="#c2872a" stroke-width="2.6" marker-end="url(#aa)"/>
+<line x1="496" y1="194" x2="496" y2="248" stroke="#8a8f98" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ag)"/>
+<line x1="586" y1="150" x2="558" y2="92" stroke="#d0433f" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arx)"/>
+<line x1="574" y1="171" x2="558" y2="171" stroke="#d0433f" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arx)"/>
+<line x1="586" y1="192" x2="558" y2="252" stroke="#d0433f" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arx)"/>
+<rect x="116" y="54" width="120" height="42" rx="6" fill="#dbe8fb" stroke="#2f6fdb"/>
+<text x="176" y="80" text-anchor="middle" font-size="13.5" fill="#17417a">speech</text>
+<rect x="116" y="150" width="120" height="44" rx="6" fill="#dbe8fb" stroke="#2f6fdb"/>
+<text x="176" y="171" text-anchor="middle" font-size="13" fill="#17417a">phoneme aware.</text>
+<text x="176" y="186" text-anchor="middle" font-size="11" fill="#17417a" fill-opacity="0.72">mediator</text>
+<rect x="116" y="248" width="120" height="42" rx="6" fill="#dbe8fb" stroke="#2f6fdb"/>
+<text x="176" y="274" text-anchor="middle" font-size="13.5" fill="#17417a">reading (t2)</text>
+<rect x="250" y="176" width="86" height="44" rx="6" fill="#eceef1" stroke="#9aa0a8"/>
+<text x="293" y="197" text-anchor="middle" font-size="12">nonverbal IQ</text>
+<text x="293" y="211" text-anchor="middle" font-size="10.5" fill-opacity="0.72">observed · adjusted</text>
+<rect x="436" y="54" width="120" height="42" rx="6" fill="#eceef1" stroke="#9aa0a8"/>
+<text x="496" y="80" text-anchor="middle" font-size="13.5">speech</text>
+<rect x="436" y="150" width="120" height="44" rx="6" fill="#eceef1" stroke="#9aa0a8"/>
+<text x="496" y="171" text-anchor="middle" font-size="13">phoneme aware.</text>
+<text x="496" y="186" text-anchor="middle" font-size="11" fill-opacity="0.7">= blending only</text>
+<rect x="436" y="248" width="120" height="42" rx="6" fill="#eceef1" stroke="#9aa0a8"/>
+<text x="496" y="274" text-anchor="middle" font-size="13.5">word reading</text>
+<rect x="574" y="150" width="66" height="44" rx="6" fill="#fbe1e0" stroke="#d0433f" stroke-dasharray="4 3"/>
+<text x="607" y="171" text-anchor="middle" font-size="13" fill="#7a1f1c">GA</text>
+<text x="607" y="186" text-anchor="middle" font-size="10.5" fill="#7a1f1c" fill-opacity="0.85">latent</text>
+<circle cx="424" cy="75" r="11" fill="#c2872a"/>
+<text x="424" y="79" text-anchor="middle" font-size="12" font-weight="500" fill="#ffffff">1</text>
+<circle cx="516" cy="221" r="11" fill="#d0433f"/>
+<text x="516" y="225" text-anchor="middle" font-size="12" font-weight="500" fill="#ffffff">2</text>
+<circle cx="607" cy="126" r="11" fill="#d0433f"/>
+<text x="607" y="130" text-anchor="middle" font-size="12" font-weight="500" fill="#ffffff">3</text>
+<line x1="48" y1="366" x2="68" y2="366" stroke="#2f6fdb" stroke-width="2.6"/>
+<text x="74" y="370" text-anchor="start" font-size="11.5" fill="#5a5f66">holds in TD</text>
+<line x1="180" y1="366" x2="200" y2="366" stroke="#c2872a" stroke-width="2.6"/>
+<text x="206" y="370" text-anchor="start" font-size="11.5" fill="#5a5f66">proposed / contested (#233)</text>
+<line x1="410" y1="366" x2="430" y2="366" stroke="#8a8f98" stroke-width="1.8" stroke-dasharray="5 4"/>
+<text x="436" y="370" text-anchor="start" font-size="11.5" fill="#5a5f66">weak path in DS</text>
+<line x1="48" y1="388" x2="68" y2="388" stroke="#d0433f" stroke-width="1.5" stroke-dasharray="4 4"/>
+<text x="74" y="392" text-anchor="start" font-size="11.5" fill="#5a5f66">latent confound — cannot be adjusted (contrast TD's single observed test)</text>
+</svg>

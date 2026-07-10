@@ -1,6 +1,9 @@
 // Language & reading causal BASE DAG — Down Syndrome Education International
-// LOCKED 2026-06-23. See notes/202606231600-dag-revision-consolidated.md for the
-// full deliberation, cautions, and identification implications.
+// REVISED 2026-07-10 (team meeting). Supersedes the 2026-06-23 lock.
+// See notes/202607101100-dag-revision-team-decisions.md for the full
+// deliberation, cautions, and identification implications; the superseded
+// 2026-06-23 structure remains recorded in
+// notes/202606231600-dag-revision-consolidated.md.
 // Paste into https://www.dagitty.net/dags.html to render/inspect.
 //
 // AUTHORITATIVE BASE graph: encodes causal STRUCTURE only. Exposure / outcome
@@ -10,43 +13,55 @@
 // GA [latent] is annotated, because being unobserved is a structural property,
 // not an analysis-specific role.
 //
-// Verified acyclic (19 nodes). Roots: A, GA, IG.
+// This is the CONTEMPORANEOUS (single-wave) structure. A time-lagged DAG is a
+// separate workstream and will be recorded alongside this file in dag/.
+//
+// Verified acyclic (20 nodes). Roots: A, GA, HS, IG.
 //
 // Node definitions (symbol - construct (measure)):
 //   A  - Age
 //   GA - General Ability [latent]
+//   HS - Hearing Status (hearing_c: impaired hearing OR repeated ear infections)
 //   IG - Intervention Group (randomised)
 //   IS - Intervention Sessions (attend)
 //   RV - Receptive Vocabulary (rowpvt)
 //   EV - Expressive Vocabulary (eowpvt)
 //   LF - Language Fundamentals
 //   RG - Receptive Grammar (trog)
-//   RW - Word Repetition (word+nonword: erbto)
+//   RW - Word Repetition / phonological memory (word+nonword: erbto)
 //   EI - Expressive Information (aptinfo)
 //   EG - Expressive Grammar (aptgram)
-//   SP - Speech Production (deapp_c)
+//   SP - Speech Production (deapp_c) — proxy for pervasive, persistent speech-motor difficulty
 //   LS - Letter Sound Knowledge (yarclet)
 //   NW - Non-word Reading
 //   PA - Phonological Awareness / 'blending'
-//   PS - Phonetic Spelling
-//   WR - Word Reading
+//   PS - Phonetic Spelling (outcome; the task involves writing letters)
+//   WR - Word Reading (primary outcome)
 //   TE - Taught Expressive (b1/b2, as available)
 //   TR - Taught Receptive (b1/b2, as available)
+//
+// Changes from the 2026-06-23 lock (team meeting 2026-07-10):
+//   + HS added:                   HS -> { TR RV TE EV SP RW PA LS }
+//   ~ SP reversed (now a cause):  drop TE->SP, EV->SP;  add SP -> { TE EV LS PA NW }
+//   + RW (phon. memory) widened:  RW -> { TE EV TR RV PA NW PS }  (was RW -> EV)
+//   + Direct vocab -> reading:    add TE -> WR, EV -> WR
+//   - PS demoted to outcome:      drop PS -> WR
 
 dag {
 GA [latent]
 A  -> { IS TR TE PA LS WR PS RV EV LF RG RW EI EG SP NW }
 GA -> { IS TR TE PA LS WR PS RV EV LF RG RW EI EG SP NW }
+HS -> { TR RV TE EV SP RW PA LS }
 IG -> { IS TR TE PA LS WR PS EI EG }
 IS -> { TR TE PA LS WR PS EI EG }
 TR -> { TE RV EV LF RG WR }
-TE -> { EV EG EI PA SP }
-RW -> EV
+TE -> { EV EG EI PA WR }
+RW -> { TE EV TR RV PA NW PS }
 RV -> { EV LF RG WR }
-EV -> { EG EI PA SP }
+EV -> { EG EI PA WR }
+SP -> { TE EV LS PA NW }
 LS -> { NW PA PS WR }
 NW -> WR
 PA -> { NW WR PS }
-PS -> { WR }
 RG -> EG
 }

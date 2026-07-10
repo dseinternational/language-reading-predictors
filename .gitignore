@@ -157,4 +157,6 @@ Desktop.ini
 .env.*
 *.local
 *.ipynb
-/.claude
+# Keep .claude local (settings, state) but track shared skills.
+/.claude/*
+!/.claude/skills/
