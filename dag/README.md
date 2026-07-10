@@ -6,11 +6,11 @@ The authoritative causal DAG(s) for the study. This is the design artefact the *
 
 ## Files
 
-| File | What it is |
-|------|-----------|
+| File                           | What it is                                                                                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dag-language-reading.dagitty` | Authoritative machine-readable base DAG (contemporaneous / single-wave). Paste into [dagitty.net](https://www.dagitty.net/dags.html) to render or inspect adjustment sets. |
-| `dag-language-reading.dot` | Graphviz source for a colour-coded, left-to-right rendering. |
-| `dag-language-reading.svg` | Rendered figure (regenerated from the `.dot`; self-contained, safe to embed). |
+| `dag-language-reading.dot`     | Graphviz source for a colour-coded, left-to-right rendering.                                                                                                               |
+| `dag-language-reading.svg`     | Rendered figure (regenerated from the `.dot`; self-contained, safe to embed).                                                                                              |
 
 Regenerate the figure after editing the `.dot`:
 
