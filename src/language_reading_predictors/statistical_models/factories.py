@@ -1454,6 +1454,20 @@ class MediationData:
     route_symbols: tuple[str, ...] = ()
 
 
+def _baseline_confounder_value(prepared: PreparedData, symbol: str) -> np.ndarray:
+    """Baseline value column for a mediation-family confounder (#246).
+
+    Bounded-count measures enter on their t1 logit scale (``prepared.pre_logit``);
+    the revised-DAG raw confounders that are not measures — hearing (``hs`` /
+    ``hs_missing``), speech (``deapp_c``), phonological memory (``erbto``) — enter
+    from ``prepared.covariates`` (already standardised, taken from the t1 pre-row in
+    the ITT phase, so treatment-unaffected as the cross-world assumption requires).
+    """
+    if symbol in prepared.pre_logit:
+        return prepared.pre_logit[symbol]
+    return prepared.covariates[symbol]
+
+
 def _build_outcome_leg(
     *,
     mediator_node,
@@ -1554,10 +1568,12 @@ def build_mediation_model(
         )
     if mediator_kind != "beta_binomial":
         raise ValueError(f"Unknown mediator_kind {mediator_kind!r}")
-    needed = {mediator_symbol, outcome_symbol, *confounder_symbols}
-    for s in needed:
+    for s in (mediator_symbol, outcome_symbol):
         if s not in prepared.pre_logit:
             raise KeyError(f"Symbol {s!r} missing from prepared data")
+    for s in confounder_symbols:
+        if s not in prepared.pre_logit and s not in prepared.covariates:
+            raise KeyError(f"Confounder {s!r} not in prepared pre_logit or covariates")
 
     from language_reading_predictors.statistical_models.preprocessing import (
         logit_safe,
@@ -1582,7 +1598,9 @@ def build_mediation_model(
 
     L1 = prepared.pre_logit[mediator_symbol]
     W1 = prepared.pre_logit[outcome_symbol]
-    conf_logit = {s: prepared.pre_logit[s] for s in confounder_symbols}
+    conf_logit = {
+        s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
+    }
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     G_f = prepared.G.astype(float)
@@ -1698,10 +1716,12 @@ def _build_route_composite_model(
     """
     if not route_symbols:
         raise ValueError("gaussian_composite requires non-empty route_symbols")
-    needed = {outcome_symbol, *route_symbols, *confounder_symbols}
-    for s in needed:
+    for s in (outcome_symbol, *route_symbols):
         if s not in prepared.pre_logit:
             raise KeyError(f"Symbol {s!r} missing from prepared data")
+    for s in confounder_symbols:
+        if s not in prepared.pre_logit and s not in prepared.covariates:
+            raise KeyError(f"Confounder {s!r} not in prepared pre_logit or covariates")
 
     # Keep rows with the outcome post and every route post observed.
     keep = ~np.isnan(prepared.post_counts[outcome_symbol])
@@ -1715,7 +1735,9 @@ def _build_route_composite_model(
     c_pre_std, c_post_std = _build_route_composite(prepared, route_symbols)
 
     W1 = prepared.pre_logit[outcome_symbol]
-    conf_logit = {s: prepared.pre_logit[s] for s in confounder_symbols}
+    conf_logit = {
+        s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
+    }
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     G_f = prepared.G.astype(float)
@@ -1844,10 +1866,12 @@ def build_two_mediator_model(
             "build_two_mediator_model hard-codes L/E variable names; "
             f"mediator_symbols must be ('L', 'E'), got {mediator_symbols!r}"
         )
-    needed = {outcome_symbol, mL, mE, *confounder_symbols}
-    for s in needed:
+    for s in (outcome_symbol, mL, mE):
         if s not in prepared.pre_logit:
             raise KeyError(f"Symbol {s!r} missing from prepared data")
+    for s in confounder_symbols:
+        if s not in prepared.pre_logit and s not in prepared.covariates:
+            raise KeyError(f"Confounder {s!r} not in prepared pre_logit or covariates")
 
     from language_reading_predictors.statistical_models.preprocessing import (
         logit_safe,
@@ -1873,7 +1897,9 @@ def build_two_mediator_model(
     L1 = prepared.pre_logit[mL]
     E1 = prepared.pre_logit[mE]
     W1 = prepared.pre_logit[outcome_symbol]
-    conf_logit = {s: prepared.pre_logit[s] for s in confounder_symbols}
+    conf_logit = {
+        s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
+    }
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     G_f = prepared.G.astype(float)

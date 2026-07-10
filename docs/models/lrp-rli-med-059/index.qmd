@@ -78,8 +78,8 @@ intervention raises reading**.
 - **Mediator** $M = L_{t2}$ (letter-sound at t2), with baseline $L_{t1}$.
 - **Outcome** $Y = W_{t2}$ (word reading at t2), with baseline $W_{t1}$.
 - Paths: $G \to L_{t2} \to W_{t2}$ (indirect) and $G \to W_{t2}$ (direct).
-- Mediator–outcome confounders $C$: age $A$, expressive vocab $E_{t1}$, receptive
-  vocab $R_{t1}$ — each $\to L_{t2}$ and $\to W_{t2}$.
+- Mediator–outcome confounders $C$ (revised DAG, #246): age $A$, hearing $HS$,
+  speech production $SP$ — each a pre-treatment cause of $L_{t2}$ and $W_{t2}$.
 
 A joint model fits both legs simultaneously (two Beta-Binomial likelihoods on the
 logit scale), including a $G \times M$ interaction so the decomposition admits
@@ -96,12 +96,14 @@ proportion mediated is *not* assumption-free.
 - Randomisation in phase 0 delivers two of the four mediation assumptions for
   free: **no unmeasured confounding of $G \to Y$ and of $G \to M$.**
 - **No unmeasured mediator–outcome ($L \to W$) confounding** — the binding,
-  unverifiable assumption and the main limitation. We adjust for the measured
-  $L \to W$ confounders the mechanism programme identified: $A$ (age), $E$
-  (expressive vocab — LRP58 found it independently predicts $W$), $R$ (receptive
-  vocab), plus the baselines $L_{t1}, W_{t1}$. Residual confounding by anything
-  unmeasured (e.g. a general "literacy readiness" not captured by these) would
-  bias the split between NDE and NIE.
+  unverifiable assumption and the main limitation. Under the revised DAG (#246) the
+  admissible $L \to W$ confounders are $A$ (age), $HS$ (hearing) and $SP$ (speech
+  production), plus the baselines $L_{t1}, W_{t1}$. The earlier $E$/$R$ (expressive
+  and receptive vocab) adjusters are **dropped**: both are now descendants of the
+  intervention ($IG \to TE \to EV$, $IG \to TR \to RV$), so conditioning on them
+  would adjust a **treatment-affected** confounder and violate the cross-world
+  assumption (the recanting-witness problem). Residual confounding by anything
+  unmeasured would still bias the split between NDE and NIE.
 - Confounders are taken at **baseline (t1), not post (t2)**: a mediator–outcome
   confounder must not itself be affected by treatment (the **cross-world**
   assumption). Conditioning on post-treatment vocabulary would violate this.

@@ -449,6 +449,18 @@ def load_and_prepare(
     covariate_values: dict[str, np.ndarray] = {}
     covariate_scalers: dict[str, Standardiser] = {}
     for c in (*covariates, *baseline_covariates):
+        if merged[c].nunique(dropna=True) <= 1:
+            # Constant on the loaded rows (e.g. a missing-indicator with no missing
+            # values in this subset): carries no information and cannot be
+            # standardised, so drop it rather than divide by zero. It receives no
+            # model coefficient; callers that iterate covariates must tolerate a
+            # requested covariate being absent.
+            warnings.warn(
+                f"load_and_prepare: covariate {c!r} is constant on the loaded rows; "
+                "dropping it (no coefficient).",
+                stacklevel=2,
+            )
+            continue
         z, scaler = standardise(merged[c])
         covariate_values[c] = z
         covariate_scalers[c] = scaler

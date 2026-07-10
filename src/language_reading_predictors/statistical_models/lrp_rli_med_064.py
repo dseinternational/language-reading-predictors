@@ -17,9 +17,12 @@ Design (see `factories.build_two_mediator_model` + `mediation.decompose_two_medi
   baseline; the **outcome** leg adds both standardised post-mediators and their
   treatment interactions. NDE/NIE are computed by counterfactual simulation (the
   g-formula), not from coefficients.
-- **Adjustment {G, A, R, W_pre, L_t1, E_t1}**: receptive vocabulary R is the
-  remaining mediator-outcome confounder (E is now a *mediator*, not a confounder),
-  taken at baseline (cross-world assumption).
+- **Adjustment {G, A, HS, RW, SP, W_pre, L_t1, E_t1}** (revised DAG, #246): the
+  pre-treatment {L,E}->W confounders are age (A), hearing (HS), phonological memory
+  (RW; erbto) and speech (SP; deapp_c), taken at baseline. R is **dropped** — under
+  the revised DAG RV is a descendant of the intervention (IG->TR->RV), so it is a
+  treatment-affected confounder (recanting-witness) and inadmissible; E is a
+  *mediator* here, not a confounder.
 
 Framing (the headline is robust; the split is exploratory):
 
@@ -50,7 +53,10 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="W",
     mechanism_symbol=None,  # two mediators; named in extra["mediators"]
-    adjustment=["G", "A", "R", "W_pre", "L_t1", "E_t1"],
+    adjustment=[
+        "G", "A", "W_pre", "L_t1", "E_t1",
+        "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
+    ],
     extra={
         "mediators": ("L", "E"),
         # Path-specific split ordering for the exploratory NIE_L / NIE_E (L first).

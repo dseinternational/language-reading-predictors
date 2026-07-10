@@ -22,14 +22,16 @@ Design (see `factories.build_mediation_model` + `mediation.decompose`):
   computed by counterfactual simulation from the posterior (the g-formula), NOT
   as a coefficient product (invalid on the logit scale).
 
-**Adjustment set {G, A, E, R, L_t1, W_pre}** — randomisation handles G->Y and G->M
-confounding; the binding unverifiable assumption is no unmeasured mediator-outcome
-(L->W) confounding, so we adjust for the measured L->W confounders the mechanism
-work identified: age (A), expressive vocab (E; LRP58 found it independently
-predicts W), receptive vocab (R), and the baselines L_t1, W_t1. Confounders are
-taken at **baseline (t1)**, not post (t2), to respect the cross-world assumption
-(a mediator-outcome confounder must not be affected by treatment). The report
-states the assumptions prominently and names residual confounding as the limit.
+**Adjustment set {G, A, HS, SP, L_t1, W_pre}** (revised DAG, #246) — randomisation
+handles G->Y and G->M confounding; the binding unverifiable assumption is no
+unmeasured mediator-outcome (L->W) confounding. Under the revised DAG the L->W
+confounders are age (A), hearing (HS; hs/hs_missing) and speech production
+(SP; deapp_c), all pre-treatment, plus the baselines L_t1, W_t1. The old E/R
+adjusters are **dropped**: EV and RV are now descendants of the intervention
+(IG->TE->EV, IG->TR->RV), so conditioning on them would adjust a **treatment-affected**
+confounder and violate the cross-world assumption (the recanting-witness problem).
+Confounders are taken at **baseline (t1)**, not post (t2). The report states the
+assumptions prominently and names residual confounding as the limit.
 
 Expect **wide** posteriors (n ~ 53). The headline is the proportion mediated with
 its full uncertainty; a wide interval pointing at "mostly via letter-sounds" is a
@@ -49,7 +51,10 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="W",
     mechanism_symbol="L",  # the mediator
-    adjustment=["G", "A", "E", "R", "L_t1", "W_pre"],
+    adjustment=[
+        "G", "A", "L_t1", "W_pre",
+        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+    ],
     extra={},
 )
 

@@ -25,12 +25,14 @@ Design (see `factories._build_route_composite_model` + `mediation.decompose`):
   Beta-Binomial); the outcome leg and the counterfactual NDE/NIE decomposition
   are identical to LRP59. The "code-based-route share" is NIE / Total.
 
-**Adjustment set {G, A, E, R, W_pre}** (+ the baseline composite, handled
-internally). As in LRP59, randomisation handles the G->Y and G->M confounding; the
-binding unverifiable assumption is no unmeasured mediator-outcome confounding, so
-we adjust for the measured route->reading confounders the mechanism work
-identified — age (A), expressive (E) and receptive (R) vocabulary — at **baseline
-(t1)** to respect the cross-world assumption.
+**Adjustment set {G, A, HS, RW, SP, W_pre}** (revised DAG, #246; + the baseline
+composite, handled internally). As in LRP59, randomisation handles the G->Y and
+G->M confounding; the binding unverifiable assumption is no unmeasured
+mediator-outcome confounding, so we adjust for the pre-treatment route->reading
+confounders the revised DAG requires — age (A), hearing (HS), phonological memory
+(RW; erbto) and speech production (SP; deapp_c) — at **baseline (t1)**. The old E/R
+adjusters are **dropped** as treatment-affected (IG->TE->EV, IG->TR->RV), which
+would violate the cross-world assumption.
 
 Read this as **triangulation, not a precise causal split**: with n ~ 53,
 contemporaneous mediator/outcome measurement, and the no-unmeasured-confounding
@@ -52,7 +54,10 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="W",
     mechanism_symbol=None,  # the mediator is a composite, not a single measure
-    adjustment=["G", "A", "E", "R", "W_pre"],
+    adjustment=[
+        "G", "A", "W_pre",
+        "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
+    ],
     extra={
         "mediator_kind": "gaussian_composite",
         # Code-based-route composite. P dropped per the measurement-sensitivity audit.

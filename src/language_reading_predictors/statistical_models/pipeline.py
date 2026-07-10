@@ -1767,7 +1767,7 @@ def _fit_t3_sensitivity(
 
     outcome_symbol = spec.outcome_symbol or "W"
     prepared_t3 = load_and_prepare_lagged_outcome(
-        outcome_symbol, outcome_time=_T3_SENSITIVITY_TIME
+        outcome_symbol, outcome_time=_T3_SENSITIVITY_TIME, covariates=confounders
     )
     built_t3, med_t3 = _factories.build_mediation_model(
         prepared_t3,
@@ -1806,16 +1806,24 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     section_header("Prepare data")
     # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
-    prepared = load_and_prepare(phase_mode="itt")
+    # Confounders that are raw covariates (revised-DAG hearing/speech/phon-memory;
+    # #246) are loaded standardised from the t1 pre-row (treatment-unaffected).
+    confounders = tuple(
+        s for s in spec.adjustment if s not in ("G", "A", "L_t1", "W_pre")
+    )
+    prepared = load_and_prepare(phase_mode="itt", covariates=confounders)
+    # A missing-indicator can be constant on the ITT-phase rows (SP/RW are near-
+    # complete at t1); load_and_prepare drops such covariates, so keep only those
+    # actually present as confounders.
+    confounders = tuple(
+        c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
+    )
     ctx.prepared = prepared
 
     _print_header(ctx)
 
     section_header("Build model")
 
-    confounders = tuple(
-        s for s in spec.adjustment if s not in ("G", "A", "L_t1", "W_pre")
-    )
     mediator_kind = spec.extra.get("mediator_kind", "beta_binomial")
     route_symbols = tuple(spec.extra.get("route_symbols", ()))
     built, med_data = _factories.build_mediation_model(
@@ -2420,7 +2428,18 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     section_header("Prepare data")
     # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
-    prepared = load_and_prepare(phase_mode="itt")
+    # Confounders that are raw covariates (revised-DAG hearing/speech/phon-memory;
+    # #246) are loaded standardised from the t1 pre-row (treatment-unaffected).
+    confounders = tuple(
+        s
+        for s in spec.adjustment
+        if s not in ("G", "A", "W_pre", "L_t1", "E_t1")
+    )
+    prepared = load_and_prepare(phase_mode="itt", covariates=confounders)
+    # Drop any missing-indicator that is constant on the ITT-phase rows (see fit_mediation).
+    confounders = tuple(
+        c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
+    )
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -2428,11 +2447,6 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     section_header("Build model")
 
     mediators = tuple(spec.extra.get("mediators", ("L", "E")))
-    confounders = tuple(
-        s
-        for s in spec.adjustment
-        if s not in ("G", "A", "W_pre", "L_t1", "E_t1")
-    )
     built, med_data = _factories.build_two_mediator_model(
         prepared,
         outcome_symbol=spec.outcome_symbol or "W",

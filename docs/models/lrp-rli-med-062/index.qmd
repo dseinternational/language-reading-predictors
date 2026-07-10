@@ -87,8 +87,9 @@ intervention raises reading**.
 - **Outcome** $Y = W_{t2}$ (word reading at t2), with baseline $W_{t1}$.
 - Paths: $G \to M \to W_{t2}$ (indirect, phonics route) and $G \to W_{t2}$ (direct,
   residual / lexical-compatible).
-- Mediator–outcome confounders $C$: age $A$, expressive vocab $E_{t1}$, receptive
-  vocab $R_{t1}$.
+- Mediator–outcome confounders $C$ (revised DAG, #246): age $A$, hearing $HS$,
+  phonological memory $RW$, speech production $SP$ — pre-treatment causes of the
+  route composite and $W_{t2}$.
 
 A joint model fits both legs simultaneously, including a $G \times M$ interaction so
 the decomposition admits exposure–mediator interaction. **NDE/NIE are computed by
@@ -103,10 +104,13 @@ phonics-route share is *not* assumption-free.
 - Randomisation in phase 0 delivers **no unmeasured confounding of $G \to Y$ and of
   $G \to M$** for free.
 - **No unmeasured mediator–outcome (route $\to W$) confounding** — the binding,
-  unverifiable assumption and the main limitation. We adjust for the measured
-  confounders the mechanism programme identified: $A$ (age), $E$ (expressive vocab),
-  $R$ (receptive vocab), plus the baseline composite and $W_{t1}$. Residual
-  confounding by anything unmeasured would bias the NDE/NIE split.
+  unverifiable assumption and the main limitation. Under the revised DAG (#246) the
+  admissible confounders are $A$ (age), $HS$ (hearing), $RW$ (phonological memory)
+  and $SP$ (speech production), plus the baseline composite and $W_{t1}$. The
+  earlier $E$/$R$ (vocab) adjusters are **dropped** as treatment-affected
+  ($IG \to TE \to EV$, $IG \to TR \to RV$) — conditioning on them would violate the
+  cross-world assumption. Residual confounding by anything unmeasured would still
+  bias the NDE/NIE split.
 - Confounders are taken at **baseline (t1), not post (t2)** — the **cross-world**
   assumption.
 - Consistency and positivity are assumed.
