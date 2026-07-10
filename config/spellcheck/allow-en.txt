@@ -41,6 +41,7 @@ BFMI
 ELPD
 estimand
 estimands
+estimability
 confounders
 cumul
 dadedu
@@ -500,3 +501,5 @@ Puranik
 Otaiba
 Fidler
 Disabil
+VanderWeele
+Vansteelandt
