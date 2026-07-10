@@ -8,10 +8,3 @@ if _has("loo.txt"):
 else:
     print("_No LOO summary for this model (e.g. the mediation family does not compute one)._")
 ```
-
-## Configuration
-
-```{python}
-# | echo: false
-config
-```
