@@ -163,6 +163,13 @@ _DID = [
     _d("lrpdid06", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "dose-response sensitivity (sessions)", base="lrpdid01"),
     _d("lrpdid07", "did", "Within-person DiD", Status.ROBUSTNESS, "L", "session-dose response (period-resolved)", base="lrpdid02"),
     _d("lrpdid07base", "did", "Within-person DiD", Status.COMPANION, "L", "pooled-dose comparator", base="lrpdid07"),
+    # Waitlist-crossover extensions (#226): graded outcomes only. TR/E replicate
+    # their ITT siblings; F (basic concepts) has no ITT sibling (outside the eight
+    # standardised outcomes). The floored P/N DiDs need off-floor support in the
+    # DiD factory and are a separate follow-up.
+    _d("lrpdid08", "did", "Within-person DiD", Status.ROBUSTNESS, "TR", "waitlist-crossover replication", base="lrpitt01"),
+    _d("lrpdid09", "did", "Within-person DiD", Status.ROBUSTNESS, "E", "waitlist-crossover replication", base="lrpitt06"),
+    _d("lrpdid10", "did", "Within-person DiD", Status.ROBUSTNESS, "F", "waitlist-crossover (no randomised ITT sibling)"),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------
@@ -250,11 +257,21 @@ _LEVEL += [
        "levels view; only the t2 group contrast is randomised"),
 ]
 
+# Suite-gap Tier-1 additions (#228): standalone ITTs for the two outcomes that had
+# only factor/aligned models (F basic concepts, T receptive grammar), and a site
+# (area) robustness check on the flagship word-reading (W) and letter-sound (L) ITTs.
+_ITT_TIER1 = [
+    _d("lrpitt25", "itt", "ITT suite", Status.MODEL_OF_RECORD, "F", "randomised ITT effect"),
+    _d("lrpitt26", "itt", "ITT suite", Status.MODEL_OF_RECORD, "T", "randomised ITT effect"),
+    _d("lrpitt27", "itt", "Site robustness", Status.ROBUSTNESS, "W", "site (area) adjustment", base="lrpitt10"),
+    _d("lrpitt28", "itt", "Site robustness", Status.ROBUSTNESS, "L", "site (area) adjustment", base="lrpitt07"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1)
 }
 
 
