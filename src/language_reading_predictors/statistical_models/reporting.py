@@ -692,7 +692,7 @@ def did_summary(
     n_trials: int,
     dose: bool = False,
     off_floor: bool = False,
-) -> dict[str, float]:
+) -> dict[str, float | bool]:
     """Summarise the waitlist-crossover / difference-in-differences effect (kind="did").
 
     For the binary model ``delta`` is the treatment effect on the logit scale, and
@@ -727,7 +727,7 @@ def did_summary(
             f"{name}_favoured_label": evidence_label(max(prob_pos, 1.0 - prob_pos)),
         }
 
-    out: dict[str, float] = {}
+    out: dict[str, float | bool] = {}
     out.update(_summ("beta_period"))
     if dose:
         out.update(_summ("beta_dose"))
