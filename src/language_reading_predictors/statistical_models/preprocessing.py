@@ -138,7 +138,7 @@ def _default_data_path() -> Path:
 #: Missing-indicator hearing-status covariates derived by :func:`add_hearing_status`
 #: (revised DAG 2026-07-10, #244): ``hs`` = impaired (1) vs clear (0, the reference,
 #: with unknown filled to it); ``hs_missing`` = 1 when hearing status is unknown.
-#: Both are complete, so adjusting for them never drops rows (n stays 54).
+#: Both are complete, so adjusting for them never triggers NaN-driven complete-case dropping.
 HEARING_STATUS_COVARIATES: tuple[str, str] = ("hs", "hs_missing")
 
 
@@ -147,9 +147,9 @@ def add_hearing_status(df: pd.DataFrame) -> pd.DataFrame:
 
     The revised DAG (2026-07-10, #233/#244) makes hearing status a common cause of
     the vocabulary and code skills, so it enters the observational adjustment sets.
-    ``hearing_c`` (impaired hearing OR repeated ear infections) is missing for 10 of
-    54 children; per the #244 team decision HS enters by the **missing-indicator
-    method** so every child is retained (n = 54) - see
+    ``hearing_c`` (impaired hearing OR repeated ear infections) is missing for some
+    children; per the #244 team decision HS enters by the **missing-indicator
+    method** so no child is dropped for unknown hearing status - see
     ``notes/202607101100-dag-revision-team-decisions.md``. Adds two complete columns:
 
     - ``hs`` - 1 = impaired, 0 = clear (unknown filled to the clear reference);
@@ -263,7 +263,7 @@ def load_and_prepare(
     csv_path = Path(path) if path is not None else _default_data_path()
     df = pd.read_csv(csv_path)
     # Derive the missing-indicator hearing-status covariates (HS; #244) up front so
-    # ``hs`` / ``hs_missing`` are available as complete adjusters (n stays 54).
+    # ``hs`` / ``hs_missing`` are available as complete adjusters (no row dropping).
     df = add_hearing_status(df)
 
     covariates = tuple(covariates)
