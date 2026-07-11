@@ -131,6 +131,7 @@ _JOINT = [
     _d("lrpitt12", "joint", "Joint", Status.JOINT, None, "cross-outcome consistency + contrasts"),
     _d("lrpitt15", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (expressive)"),
     _d("lrpitt15b", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (receptive)"),
+    _d("lrpitt16", "joint", "Generalisation", Status.ROBUSTNESS, None, "modality contrast: taught expressive vs taught receptive"),
 ]
 
 # --- SES adjustment + matched complete-case comparators ---------------------------
@@ -185,6 +186,7 @@ _MECH = [
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp62", "mediation", "Mediation", Status.ASSOCIATION, "W", "reading-route composite mediation"),
     _d("lrp64", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs expressive vocabulary)"),
+    _d("lrp66", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs phoneme blending)"),
 ]
 
 # --- DAG-focused associations, dose-response, latent structure and cross-checks ----

@@ -2414,10 +2414,15 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     section_header("Build model")
 
     mediators = tuple(spec.extra.get("mediators", ("L", "E")))
+    # Drop the structural symbols and the two mediator baselines ({m}_t1) from the
+    # adjustment set; whatever remains are the measured mediator-outcome
+    # confounders C. Keyed off ``mediators`` so a non-(L, E) pair excludes its own
+    # baselines (LRP64 -> L_t1/E_t1; LRP66 -> L_t1/B_t1).
+    _mediator_baselines = tuple(f"{m}_t1" for m in mediators)
     confounders = tuple(
         s
         for s in spec.adjustment
-        if s not in ("G", "A", "W_pre", "L_t1", "E_t1")
+        if s not in ("G", "A", "W_pre", *_mediator_baselines)
     )
     built, med_data = _factories.build_two_mediator_model(
         prepared,
@@ -2445,7 +2450,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
 
-    _run_ppc(ctx, var_names=["L_post", "E_post", "y_post"])
+    _run_ppc(ctx, var_names=[f"{mediators[0]}_post", f"{mediators[1]}_post", "y_post"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=coef_vars)

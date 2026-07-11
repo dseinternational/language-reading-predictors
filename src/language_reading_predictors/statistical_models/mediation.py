@@ -243,19 +243,23 @@ def decompose_two_mediator(
         return post[name].stack(_s=("chain", "draw")).values
 
     confs = med.confounder_symbols
+    # The first mediator leg is always L; the second is parameterised by its
+    # symbol ``mE`` so the trace-variable names match the factory (LRP64 ``E``,
+    # LRP66 ``B``). When mE == 'E' this reads exactly the original node names.
+    mL, mE = med.mediator_symbols
 
     # Outcome model.
     b0, b_G, b_L, b_E, b_GL, b_GE, b_W, b_A = (
-        d("b0"), d("b_G"), d("b_L"), d("b_E"), d("b_GL"), d("b_GE"), d("b_W"), d("b_A")
+        d("b0"), d("b_G"), d("b_L"), d(f"b_{mE}"), d("b_GL"), d(f"b_G{mE}"), d("b_W"), d("b_A")
     )
     b_conf = {s: d(f"b_{s}") for s in confs}
     # Mediator legs.
     aL0, aL_G, aL_L, aL_A = d("aL0"), d("aL_G"), d("aL_L"), d("aL_A")
     aL_conf = {s: d(f"aL_{s}") for s in confs}
     kappa_L = d("kappa_L")
-    aE0, aE_G, aE_E, aE_A = d("aE0"), d("aE_G"), d("aE_E"), d("aE_A")
-    aE_conf = {s: d(f"aE_{s}") for s in confs}
-    kappa_E = d("kappa_E")
+    aE0, aE_G, aE_E, aE_A = d(f"a{mE}0"), d(f"a{mE}_G"), d(f"a{mE}_{mE}"), d(f"a{mE}_A")
+    aE_conf = {s: d(f"a{mE}_{s}") for s in confs}
+    kappa_E = d(f"kappa_{mE}")
 
     A = med.A_std[None, :]
     W1 = med.W1_logit[None, :]
@@ -320,16 +324,16 @@ def decompose_two_mediator(
     total = y_TT_TT - y_CC_CC
     nde = y_TT_CC - y_CC_CC
     nie_joint = y_TT_TT - y_TT_CC
-    if order not in (("L", "E"), ("E", "L")):
+    if order not in ((mL, mE), (mE, mL)):
         raise ValueError(
-            f"order must be ('L', 'E') or ('E', 'L'); got {order!r}"
+            f"order must be {(mL, mE)!r} or {(mE, mL)!r}; got {order!r}"
         )
-    if order == ("L", "E"):
-        nie_L = y_T_Lt_Ec - y_TT_CC  # move L first (E at control)
-        nie_E = y_TT_TT - y_T_Lt_Ec  # then move E (L at treated)
+    if order == (mL, mE):
+        nie_L = y_T_Lt_Ec - y_TT_CC  # move L first (mE at control)
+        nie_E = y_TT_TT - y_T_Lt_Ec  # then move mE (L at treated)
     else:
-        nie_E = y_T_Lc_Et - y_TT_CC  # move E first (L at control)
-        nie_L = y_TT_TT - y_T_Lc_Et  # then move L (E at treated)
+        nie_E = y_T_Lc_Et - y_TT_CC  # move mE first (L at control)
+        nie_L = y_TT_TT - y_T_Lc_Et  # then move L (mE at treated)
 
     lo_q, hi_q = (1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2
 
@@ -349,8 +353,8 @@ def decompose_two_mediator(
         row("total", total),
         row("NDE", nde),
         row("NIE_joint", nie_joint),
-        row("NIE_L", nie_L),
-        row("NIE_E", nie_E),
+        row(f"NIE_{mL}", nie_L),
+        row(f"NIE_{mE}", nie_E),
     ]
 
     with np.errstate(divide="ignore", invalid="ignore"):

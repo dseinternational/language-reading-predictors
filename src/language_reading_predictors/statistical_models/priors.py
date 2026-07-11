@@ -415,6 +415,7 @@ _RV_TO_CTOR: dict[str, str] = {
     # and the prior table would misreport their Normal(0, 1) scale as Normal(0, 0.3).
     "b_L": "b_path",
     "b_E": "b_path",
+    "b_B": "b_path",  # LRP66 blending mediator -> reading b-path (same Normal(0, 1))
     "sigma_M": "sigma_mediator",
     "eta_main": "eta_main",
     "eta_tau": "eta_tau",
