@@ -9,7 +9,7 @@
 - **Sampling preset (`rep-lite`):** 4 chains × 4000 draws × 4000 tune, `target_accept = 0.95` — reporting-grade rigour (same acceptance target as `reporting`) but lighter draws, since ESS, not raw draws, is the binding convergence metric.
 - **Scope:** all 89 registered models across 16 families (96 output directories, counting per-model sensitivity/companion sub-fits).
 - **Wall time:** 35 min 49 s (16-core workstation); exit code 0, 0 fits failed. Reports were **not** rendered (`--render` omitted); findings below read the result CSVs directly.
-- **Cross-model comparison:** `python scripts/compare_statistical_models.py --config rep-lite` ran cleanly (`itt_vs_joint_tau.csv`, `tau_forest.png`, `mechanism_forest.{png,csv}`, nested PSIS-LOO tables).
+- **Cross-model comparison:** `python scripts/compare_statistical_models.py --config rep-lite` ran cleanly (`itt_vs_joint_tau.csv`, `tau_forest.png`, `mechanism_forest.{png,csv}`, nested PSIS-LOO tables). Extended with a **mediation-family comparison** (`mediation_family.csv` + `mediation_family_forest.png`) — every g-formula route to word reading lined up on the shared words scale (decomposition summaries, not a nested-LOO test).
 - Preliminary research data — all estimates provisional.
 
 ## Convergence gate (checked before interpreting)
@@ -288,4 +288,4 @@ The benefit **decreases** with ability for both outcomes — the opposite of a c
 
 ## Artefacts
 
-`output/statistical_models/models/<model_id>-rep-lite/` (per model) and `output/statistical_models/comparison/`. Traces (`trace.nc`) retained locally; not uploaded.
+`output/statistical_models/models/<model_id>-rep-lite/` (per model) and `output/statistical_models/comparison/` (incl. `mediation_family.{csv,png}`). The original 89-model sweep was not rendered (`--render` omitted); the nine models added this day (MED-066/068/074/075/076/078/079/080, ITT-016) each have a thin `docs/models/<id>/index.qmd` template and were **rendered to HTML** in their output dirs. Traces (`trace.nc`) retained locally; not uploaded.
