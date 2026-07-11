@@ -1,0 +1,63 @@
+---
+title: "LRP78: Interventional-effects decomposition of word reading via letter sounds"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+Every other mediation model reports **natural** direct/indirect effects (NDE/NIE). But the
+DAG's identification analysis (ID-2) states that dose is a **treatment-induced
+mediator–outcome confounder** of the letter-sound → reading path — and under a
+treatment-induced confounder the natural effects are formally **not identified**. The
+randomised **interventional** analogue effects (Vansteelandt & VanderWeele; VanderWeele,
+Vansteelandt & Tchetgen Tchetgen 2014) remain well-defined in exactly that setting, because
+the mediator is set to a random draw from its *population* arm-$g$ distribution rather than
+the unit's own natural counterfactual — severing the unit-level link to the treatment-induced
+confounder.
+
+LRP78 is the estimand-class repair of [LRP59](../lrp-rli-med-059): the same joint mediator +
+outcome model ($L \to W$, adjustment $\{G, A, E, R, W_\text{pre}, L_{t1}\}$), but the
+g-formula returns the **interventional direct/indirect effects** ($\text{IDE}$ / $\text{IIE}$)
+instead of NDE/NIE. Compare its $\text{IIE}$ against LRP59's NIE: agreement means the natural
+decomposition was not badly distorted by the dose confounder; divergence flags that it was.
+
+## Design
+
+Same as LRP59 (phase 0, $n \approx 53$). The decomposition permutes the simulated mediator
+across units per replicate (a fresh population draw for each counterfactual cell). The t3
+temporal-ordering sensitivity is skipped (it is a natural-effect construction).
+
+## Assumptions
+
+The interventional effects fix the *treatment-induced*-confounder problem, but the
+mediator–outcome relationship is **still $GA$-confounded** (ID-2's other leg), so IDE/IIE
+remain **adjusted associations** under stated assumptions — a *better* estimand class, not a
+causal route. $n \approx 53 \Rightarrow$ wide intervals.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
