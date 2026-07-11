@@ -207,12 +207,13 @@ Five further mediation analyses were drafted and fitted at `rep-lite` to probe w
 | Model            | Route / estimand                   | Indirect effect                | P(>0) |
 | ---------------- | ---------------------------------- | ------------------------------ | ----- |
 | **MED-068** (#3) | via taught-expressive vocab (TE)   | NIE +0.64 [−0.36, +1.94]       | 0.897 |
+| **MED-080**      | via taught-receptive vocab (TR)    | NIE +0.54 [−0.29, +1.88]       | 0.875 |
 | **MED-074** (#1) | via nonword decoding (N)           | NIE +0.13 [−0.30, +0.78]       | 0.706 |
 | **MED-075** (#2) | sequential L → B → W (joint block) | NIE_joint +1.64 [+0.16, +3.40] | 0.986 |
 | **MED-076** (#5) | longitudinal L(t2) → W(t4)         | NIE +3.20 [+0.93, +5.97]       | 0.998 |
 | **MED-078** (#4) | interventional (IIE) via L         | IIE +1.71 [+0.48, +3.34]       | 0.998 |
 
-**#3 Taught-expressive vocabulary route (MED-068).** The DAG revision's new `TE → WR` edge (decision 5) does carry a route, but a **modest and inconclusive** one: NIE +0.64 words (~26% of the +2.44 total), with most of the effect direct/residual (NDE +1.81, P=0.946). So the lexical route is not zero, but neither is it established — the phonics route dominates.
+**#3 Taught-vocabulary route (MED-068 expressive; MED-080 receptive companion).** The DAG's taught → reading edges (`TE → WR` from decision 5; `TR → WR` predating it) each carry a route, but a **modest and inconclusive** one, and the two modalities are **symmetric**: taught-expressive NIE +0.64 (P=0.897, ~26% of the +2.44 total) and taught-receptive NIE +0.54 (P=0.875, ~22%), with most of the effect direct/residual in both (NDE +1.81 / +1.88). The intervention moves taught vocabulary through **production and comprehension alike**, but neither routes a decisive share into reading. Note the taught-receptive → reading _association_ is if anything the firmer of the two (b_M +0.45, P=0.998 vs TE +0.36, P=0.979) — so the inconclusive NIE reflects the diffuse total effect, not a weak mediator–outcome link. The lexical route is not zero, but neither is it established — the phonics route dominates.
 
 **#1 Decoding route (MED-074).** The route through nonword decoding — the skill the DAG labels the "code-route mediator" — is **≈0 and inconclusive** (NIE +0.13, P=0.706), with the effect essentially all direct (NDE +2.59, P=0.987). This is **floor-limited** (N is 62% floored, n_trials=6): treatment barely moves measured decoding off the floor, so it cannot carry the reading gain — consistent with the documented DS whole-word/sight-word reliance and the `NW` floor, and with the DS-uncertain forward direction. Read as floor-limited, not as evidence against a decoding mechanism.
 
@@ -222,7 +223,7 @@ Five further mediation analyses were drafted and fitted at `rep-lite` to probe w
 
 **#4 Interventional effects (MED-078).** The estimand-class repair for the DAG's own ID-2 point that dose is a treatment-induced mediator-outcome confounder (under which the natural NDE/NIE are _not_ identified). The randomised interventional indirect effect **IIE +1.71 (P=0.998) is within Monte-Carlo noise of the natural NIE +1.78** — so the natural-effect letter-sound decomposition was **not** materially distorted by the dose confounder. (The interventional effects fix only the treatment-induced-confounder leg; both remain GA-confounded associations.)
 
-**Cross-cutting.** Across all six mediators now tested — L, and as a _second_ route E (MED-064), B parallel (MED-066), B sequential (MED-075), TE (MED-068), N (MED-074) — **no measure carries an independent route to word reading beyond letter-sound knowledge.** The letter-sound route strengthens under stricter temporal ordering (t4) and survives the interventional estimand-class fix; every alternative route (decoding behaviour, taught or standardised vocabulary, blending) is ≈0 or, for TE, modest-and-inconclusive. Letter-sound knowledge is the mediator of record.
+**Cross-cutting.** Across all seven mediators now tested — L, and as a _second_ route E (MED-064), B parallel (MED-066), B sequential (MED-075), TE (MED-068), TR (MED-080), N (MED-074) — **no measure carries an independent route to word reading beyond letter-sound knowledge.** The letter-sound route strengthens under stricter temporal ordering (t4) and survives the interventional estimand-class fix; every alternative route (decoding behaviour, taught expressive/receptive or standardised vocabulary, blending) is ≈0 or, for the taught-vocab pair, modest-and-inconclusive. Letter-sound knowledge is the mediator of record.
 
 _Infrastructure note:_ these reused the single- and two-mediator g-formula machinery, generalised so the mediator symbol is no longer hard-coded to L/E (MED-064/066 remain byte-identical), plus new options for a lagged-outcome primary fit (`outcome_time`), an `L → B` chain edge, and randomised-interventional draws. See the accompanying PR.
 
@@ -241,6 +242,7 @@ The intervention→letter-sounds leg is already causal (randomised, $\tau_L$, P=
 | **L — letter sounds**          | **+0.60**      | [+0.29, +0.91] | **1.000**  | **2.04 / 1.59**      |
 | T — grammar (negative control) | +0.25          | [−0.04, +0.53] | 0.956      | 1.52 / 1.16          |
 | TE — taught expressive vocab   | +0.36          | [+0.02, +0.73] | 0.979      | 1.68 / 1.09          |
+| TR — taught receptive vocab    | +0.45          | [+0.16, +0.75] | 0.998      | 1.82 / 1.38          |
 | N — nonword decoding           | +0.27          | [+0.05, +0.49] | 0.992      | 1.55 / 1.19          |
 
 The letter-sound association is **~2.4× the grammar negative-control** and unambiguous (P=1.000), where grammar's is half the size with a CI touching zero. Read as a calibration: even a causally-inert mediator carries a residual $b_M\approx0.25$, so the adjustment set does **not** fully close the $GA$ back-door — but letter sounds sits well above that confounding floor. (The full NIE _through_ grammar is ≈0 — total +2.23, NIE +0.14, P=0.712 — but that is uninformative because the intervention barely moves grammar; $b_M$ is the clean negative-control quantity.)

@@ -108,6 +108,7 @@ MEDIATION_IDS: list[tuple[str, str, str]] = [
     ("lrp-rli-med-066", "{L,B} — joint (parallel)", "NIE_joint"),
     ("lrp-rli-med-075", "L→B→W — sequential", "NIE_joint"),
     ("lrp-rli-med-068", "TE — taught expressive vocab", "NIE"),
+    ("lrp-rli-med-080", "TR — taught receptive vocab", "NIE"),
     ("lrp-rli-med-074", "N — nonword decoding (floored)", "NIE"),
     ("lrp-rli-med-076", "L — longitudinal (t2→t4)", "NIE"),
     ("lrp-rli-med-078", "L — interventional (IIE)", "IIE"),
