@@ -200,6 +200,32 @@ Joint Beta-Binomial over the randomised window; both τ are causal (randomised-w
 
 Together these close the two gaps flagged in the mediation/contrast review: the reading mechanism is letter-sound-specific (blending carries no independent route), and the taught-vocabulary effect is modality-symmetric.
 
+## Mediation deep-dive — five new routes (Tier-1 & Tier-2, added 2026-07-11)
+
+Five further mediation analyses were drafted and fitted at `rep-lite` to probe what carries the word-reading (W) gain beyond the single-mediator letter-sound story. All pass the full convergence gate (0 divergences, r̂ = 1.00, min ESS 5800–8500). All are **ID-2 adjusted associations** (GA-confounded; and, except #4, natural effects assume away the treatment-induced dose confounder) — decompositions under stated assumptions, never causal routes; n ≈ 50–53 → wide intervals. Words are out of test length.
+
+| Model            | Route / estimand                   | Indirect effect                | P(>0) |
+| ---------------- | ---------------------------------- | ------------------------------ | ----- |
+| **MED-068** (#3) | via taught-expressive vocab (TE)   | NIE +0.64 [−0.36, +1.94]       | 0.897 |
+| **MED-074** (#1) | via nonword decoding (N)           | NIE +0.13 [−0.30, +0.78]       | 0.706 |
+| **MED-075** (#2) | sequential L → B → W (joint block) | NIE_joint +1.64 [+0.16, +3.40] | 0.986 |
+| **MED-076** (#5) | longitudinal L(t2) → W(t4)         | NIE +3.20 [+0.93, +5.97]       | 0.998 |
+| **MED-078** (#4) | interventional (IIE) via L         | IIE +1.71 [+0.48, +3.34]       | 0.998 |
+
+**#3 Taught-expressive vocabulary route (MED-068).** The DAG revision's new `TE → WR` edge (decision 5) does carry a route, but a **modest and inconclusive** one: NIE +0.64 words (~26% of the +2.44 total), with most of the effect direct/residual (NDE +1.81, P=0.946). So the lexical route is not zero, but neither is it established — the phonics route dominates.
+
+**#1 Decoding route (MED-074).** The route through nonword decoding — the skill the DAG labels the "code-route mediator" — is **≈0 and inconclusive** (NIE +0.13, P=0.706), with the effect essentially all direct (NDE +2.59, P=0.987). This is **floor-limited** (N is 62% floored, n_trials=6): treatment barely moves measured decoding off the floor, so it cannot carry the reading gain — consistent with the documented DS whole-word/sight-word reliance and the `NW` floor, and with the DS-uncertain forward direction. Read as floor-limited, not as evidence against a decoding mechanism.
+
+**#2 Sequential code route (MED-075).** Reframing L and B as a **chain** (adding the `L → B` edge) rather than parallel competitors: the `L → B` coupling is positive but only **suggestive** (aB_L +0.122, P=0.818), the joint `{L, B}` indirect (+1.64) is **identical to the parallel MED-066 joint** (+1.65), and the blending-beyond-L path stays ≈0 (NIE_B −0.21, P=0.288). Together with MED-066 this settles the picture: blending is (suggestively) _downstream_ of letter sounds and adds no independent route — the code-route mediation is letter-sound-driven whether B is modelled as parallel or sequential. (Per-path split is exploratory / convention-dependent; the joint block and the coupling are the interpretable outputs.)
+
+**#5 Longitudinal ordering (MED-076).** With the mediator held at t2 and the outcome pushed to **t4** (two waves later, so the mediator strictly precedes the outcome), the letter-sound indirect effect is the **strongest of any mediation fit** (NIE +3.20, P=0.998) and the direct effect **vanishes** (NDE −0.77, P=0.313). Tightening temporal precedence does not weaken the letter-sound route — it removes the residual direct path entirely. Caveat: the t2→t4 increment is not randomised (both arms treated by then); this is a within-design triangulation, **not** the full wave-unrolled model (issue #250).
+
+**#4 Interventional effects (MED-078).** The estimand-class repair for the DAG's own ID-2 point that dose is a treatment-induced mediator-outcome confounder (under which the natural NDE/NIE are _not_ identified). The randomised interventional indirect effect **IIE +1.71 (P=0.998) is within Monte-Carlo noise of the natural NIE +1.78** — so the natural-effect letter-sound decomposition was **not** materially distorted by the dose confounder. (The interventional effects fix only the treatment-induced-confounder leg; both remain GA-confounded associations.)
+
+**Cross-cutting.** Across all six mediators now tested — L, and as a _second_ route E (MED-064), B parallel (MED-066), B sequential (MED-075), TE (MED-068), N (MED-074) — **no measure carries an independent route to word reading beyond letter-sound knowledge.** The letter-sound route strengthens under stricter temporal ordering (t4) and survives the interventional estimand-class fix; every alternative route (decoding behaviour, taught or standardised vocabulary, blending) is ≈0 or, for TE, modest-and-inconclusive. Letter-sound knowledge is the mediator of record.
+
+_Infrastructure note:_ these reused the single- and two-mediator g-formula machinery, generalised so the mediator symbol is no longer hard-coded to L/E (MED-064/066 remain byte-identical), plus new options for a lagged-outcome primary fit (`outcome_time`), an `L → B` chain edge, and randomised-interventional draws. See the accompanying PR.
+
 ## Caveats
 
 - **Small sample** (52–54 children in the between-child fits; 33–34 in SES complete-case). Threshold-clearing point estimates are magnitude-inflated on average — the intervals are the honest summary.

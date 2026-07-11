@@ -1413,6 +1413,9 @@ class MediationData:
     n_trials_W: int
     mediator_kind: str = "beta_binomial"
     confounder_symbols: tuple[str, ...] = ()
+    #: The mediator's data symbol (L for LRP59, TE for LRP68, N for LRP74); the
+    #: own-baseline coefficient node is ``a_{mediator_symbol}``.
+    mediator_symbol: str = "L"
     # Beta-Binomial single mediator (LRP59).
     L1_logit: np.ndarray | None = None
     L2_count: np.ndarray | None = None
@@ -1560,7 +1563,11 @@ def build_mediation_model(
 
     with pm.Model(coords=coords) as model:
         G_d = pm.Data("G", G_f, dims="obs_id")
-        L1_d = pm.Data("L_pre_logit", L1, dims="obs_id")
+        # Mediator baseline / own-baseline coef / likelihood are parameterised by
+        # ``mediator_symbol`` so a non-L mediator (LRP68 TE, LRP74 N) gets correctly
+        # labelled nodes; when mediator_symbol == 'L' every name is byte-identical to
+        # the original LRP59 build.
+        L1_d = pm.Data(f"{mediator_symbol}_pre_logit", L1, dims="obs_id")
         W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         conf_d = {
@@ -1569,10 +1576,10 @@ def build_mediation_model(
         }
         z_med_d = pm.Data("z_med", z_med, dims="obs_id")
 
-        # --- Mediator model: logit(L_t2) ---
+        # --- Mediator model: logit(mediator_t2) ---
         a0 = _priors.alpha_prior().to_pymc("a0")
         a_G = _priors.tau_prior().to_pymc("a_G")
-        a_L = _priors.gamma_own_prior().to_pymc("a_L")
+        a_L = _priors.gamma_own_prior().to_pymc(f"a_{mediator_symbol}")
         a_A = _priors.gamma_cross_prior().to_pymc("a_A")
         mu_M = a0 + a_G * G_d + a_L * L1_d + a_A * A_d
         for s in confounder_symbols:
@@ -1581,7 +1588,7 @@ def build_mediation_model(
         mu_M = pm.Deterministic("mu_M", mu_M, dims="obs_id")
         kappa_M = _priors.kappa_prior().to_pymc("kappa_M")
         beta_binomial_from_logit(
-            "L_post", mu_M, n_trials=N_med, kappa=kappa_M,
+            f"{mediator_symbol}_post", mu_M, n_trials=N_med, kappa=kappa_M,
             observed=L2_count, dims="obs_id",
         )
 
@@ -1610,6 +1617,7 @@ def build_mediation_model(
         n_trials_W=int(N_out),
         med_mean=float(med_scaler.mean),
         med_sd=float(med_scaler.sd),
+        mediator_symbol=mediator_symbol,
     )
     built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
     return built, med_data
@@ -1772,6 +1780,9 @@ class TwoMediatorData:
     zE_sd: float
     mediator_symbols: tuple[str, str] = ("L", "E")
     confounder_symbols: tuple[str, ...] = ("R",)
+    #: Sequential code route (LRP75): the second mediator regresses on post-L, so
+    #: the g-formula must draw it conditional on the simulated first mediator.
+    chain: bool = False
 
 
 def build_two_mediator_model(
@@ -1780,6 +1791,7 @@ def build_two_mediator_model(
     outcome_symbol: str = "W",
     mediator_symbols: tuple[str, str] = ("L", "E"),
     confounder_symbols: Iterable[str] = ("R",),
+    chain: bool = False,
 ) -> tuple[BuiltModel, TwoMediatorData]:
     """Joint two-mediator + outcome model for the ITT-phase decomposition (LRP64).
 
@@ -1892,6 +1904,13 @@ def build_two_mediator_model(
         for s in confounder_symbols:
             aE_c = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{s}")
             mu_E = mu_E + aE_c * conf_d[s]
+        if chain:
+            # Sequential code route (LRP75): the second mediator is downstream of
+            # the first (L -> B), so post-L (``z_L``) enters the mE leg. The
+            # coefficient a{mE}_L is the L->B coupling; the g-formula then draws the
+            # second mediator conditional on the *simulated* L.
+            aE_L = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{mL}")
+            mu_E = mu_E + aE_L * zL_d
         mu_E = pm.Deterministic(f"mu_{mE}", mu_E, dims="obs_id")
         kappa_E = _priors.kappa_prior().to_pymc(f"kappa_{mE}")
         beta_binomial_from_logit(
@@ -1942,6 +1961,7 @@ def build_two_mediator_model(
         zE_sd=float(zE_scaler.sd),
         mediator_symbols=(mL, mE),
         confounder_symbols=confounder_symbols,
+        chain=chain,
     )
     built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
     return built, med_data
