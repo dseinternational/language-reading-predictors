@@ -226,6 +226,57 @@ Five further mediation analyses were drafted and fitted at `rep-lite` to probe w
 
 _Infrastructure note:_ these reused the single- and two-mediator g-formula machinery, generalised so the mediator symbol is no longer hard-coded to L/E (MED-064/066 remain byte-identical), plus new options for a lagged-outcome primary fit (`outcome_time`), an `L → B` chain edge, and randomised-interventional draws. See the accompanying PR.
 
+## Interrogating the letter-sound story — causality, measures, heterogeneity (added 2026-07-11)
+
+Three probes of whether the letter-sound mediation result can be over-read.
+
+### (a) How far can we call letter sounds _causal_, not just associational?
+
+The intervention→letter-sounds leg is already causal (randomised, $\tau_L$, P=0.998); the **letter-sounds→reading** leg is the confounded one (DAG ID-2 names latent general ability $GA$ and treatment-induced dose). Two new analyses bound how much of that leg could be confounding.
+
+**Negative-control mediator (LRP-RLI-MED-079, rep-lite, gate PASS).** The DAG _severs_ grammar (TROG, `T`) from word reading — it has **no causal path** — yet grammar is strongly correlated with DS reading (Byrne et al. 2002). So the residual grammar→reading association after the _same_ adjustment set is a direct readout of leftover $GA$ confounding. Comparing the mediator→outcome slope $b_M$ (per SD of standardised mediator, logit scale):
+
+| Mediator                       | $b_M$ (median) | 95 % CI        | P($b_M$>0) | E-value (point / CI) |
+| ------------------------------ | -------------- | -------------- | ---------- | -------------------- |
+| **L — letter sounds**          | **+0.60**      | [+0.29, +0.91] | **1.000**  | **2.04 / 1.59**      |
+| T — grammar (negative control) | +0.25          | [−0.04, +0.53] | 0.956      | 1.52 / 1.16          |
+| TE — taught expressive vocab   | +0.36          | [+0.02, +0.73] | 0.979      | 1.68 / 1.09          |
+| N — nonword decoding           | +0.27          | [+0.05, +0.49] | 0.992      | 1.55 / 1.19          |
+
+The letter-sound association is **~2.4× the grammar negative-control** and unambiguous (P=1.000), where grammar's is half the size with a CI touching zero. Read as a calibration: even a causally-inert mediator carries a residual $b_M\approx0.25$, so the adjustment set does **not** fully close the $GA$ back-door — but letter sounds sits well above that confounding floor. (The full NIE _through_ grammar is ≈0 — total +2.23, NIE +0.14, P=0.712 — but that is uninformative because the intervention barely moves grammar; $b_M$ is the clean negative-control quantity.)
+
+**E-value.** An unmeasured confounder ($GA$) would need to be associated with **both** letter-sound level and word reading by a risk ratio of at least **≈2.0** (point) — **≈1.6** to drag the CI to null — over and above the measured age/vocabulary/baseline adjustment, to explain away the letter-sound association. Grammar's placebo association only needs ≈1.5 / ≈1.2. So letter sounds is the more confounding-robust route, but an E-value of ~2 is a _moderate_ bar that a strong DS ability factor could plausibly meet — this is triangulation, not proof. (E-values use the logit→$d$→RR approximation; treat as a rough guide.)
+
+**Verdict on (a):** together with the temporal-precedence (MED-076, direct effect vanishes at t4), the dose-confounder-robust interventional fit (MED-078), and the low-ability-benefits-most gradient below (inconsistent with pure ability-sorting), the letter-sound route is defensibly **more than a bare association** — but the grammar residual (0.25 ≠ 0) and a mid-range E-value mean we stop short of a causal claim. A within-person / $GA$-differencing design (removing stable ability) is the remaining lever.
+
+### (2) Could vocabulary's weakness be a _measurement_ artefact? — partly, yes.
+
+Effective resolution differs sharply across measures (phase-0 window, n=50):
+
+| Measure                    | Denominator | Range actually used | Floor    |
+| -------------------------- | ----------- | ------------------- | -------- |
+| Letter sounds (L)          | 32          | **91 %**            | 0 %      |
+| Taught vocab (TE / TR)     | 24          | 62–67 %             | 0 %      |
+| Standardised vocab (R / E) | 170         | **31–36 %**         | 0 %      |
+| Nonword decoding (N)       | 6           | —                   | **62 %** |
+
+The **standardised vocabulary measures occupy only ~a third of their scale** in this cohort (normed on a broad population; DS children cluster low) — severe **range restriction**, which attenuates _both_ the detectable ITT effect and the mediator→outcome slope (regression dilution). And the intervention _did_ move vocabulary where it is well-measured (taught TE showed a strong ITT effect). So the honest reading is **"no detectable diffuse transfer to coarse standardised measures,"** not "no vocabulary role" — we cannot distinguish a true null from measure insensitivity. N is measurement-crippled outright (6 items, 62 % floored), so its ≈0 route is uninformative about decoding. Next step: reliability/errors-in-variables treatment (the MM-001 latent-factor model is the natural home once its funnel is fixed).
+
+### (3) Is the effect carried by a capable minority? — no; if anything the opposite.
+
+Gains are broad, and the **causal effect is largest in the least able children** (phase-0 window):
+
+- **86 %** of treated children gained on letter sounds, **89 %** on word reading (11–14 % flat/declined); the **median** treated child gained +6.5 letter sounds / +3 words.
+- Treatment effect (arm difference) by baseline block-design ability tertile:
+
+| Ability tertile | L: treated − control | W: treated − control |
+| --------------- | -------------------- | -------------------- |
+| **Low**         | **+6.1**             | **+3.8**             |
+| Mid             | +3.5                 | +2.1                 |
+| High            | +1.3                 | +1.5                 |
+
+The benefit **decreases** with ability for both outcomes — the opposite of a capable-minority story; letter-sound gain is also negatively correlated with baseline ability (−0.24) and own baseline (−0.47), i.e. room-to-grow / ceiling. Concentration is mild (top gain-quartile holds 46 % of L / 56 % of W total gain — normal right-skew). Caveats: n per tertile cell is 6–11 (noisy), and "low-ability gains more" on letter sounds is partly a ceiling artefact (high-ability children start nearer the 32-item cap). This gradient also feeds (a): a pure $GA$ confound would concentrate the effect in _high_-ability children, not the lowest.
+
 ## Caveats
 
 - **Small sample** (52–54 children in the between-child fits; 33–34 in SES complete-case). Threshold-clearing point estimates are magnitude-inflated on average — the intervals are the honest summary.

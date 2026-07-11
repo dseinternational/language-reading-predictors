@@ -505,3 +505,4 @@ VanderWeele
 Vansteelandt
 Tchetgen
 ignorability
+tertile

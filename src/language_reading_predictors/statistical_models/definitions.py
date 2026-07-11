@@ -192,6 +192,7 @@ _MECH = [
     _d("lrp75", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "sequential code route (letter sounds -> blending -> reading)"),
     _d("lrp76", "mediation", "Mediation", Status.ASSOCIATION, "W", "longitudinal-ordering (letter sounds t2 -> reading t4)"),
     _d("lrp78", "mediation", "Mediation", Status.ASSOCIATION, "W", "interventional-effects decomposition via letter sounds"),
+    _d("lrp79", "mediation", "Mediation", Status.ASSOCIATION, "W", "negative-control mediator (grammar; calibrates GA confounding)"),
 ]
 
 # --- DAG-focused associations, dose-response, latent structure and cross-checks ----
