@@ -58,7 +58,10 @@ def main() -> None:
     parser.add_argument(
         "--config",
         default="dev",
-        help="Sampling configuration: dev, test, reporting (see dse_research_utils.sampling)",
+        help=(
+            "Sampling configuration: dev, test, rep-lite, reporting "
+            "(rep-lite is reporting-grade rigour but lighter — see dse_research_utils.sampling)"
+        ),
     )
     parser.add_argument(
         "--render",
