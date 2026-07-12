@@ -1,0 +1,96 @@
+---
+title: "LRPMM101: Prior sensitivity for the correlated-domain-factor measurement model"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPMM101 is the **prior-sensitivity companion** to [LRPMM01](../lrp-rli-mm-001). It is the
+same model, the same data and the same sampler settings, differing in exactly one
+thing: the **loading and residual priors**.
+
+| | LRPMM01 (reference) | LRPMM101 (this model) |
+| --- | --- | --- |
+| loading $\lambda_j$ | $\text{HalfNormal}(1)$ | $\text{TruncatedNormal}(0.6,\ 0.5,\ \text{lower}=0)$ |
+| residual $\sigma_j$ | $\text{HalfNormal}(1)$ | $\text{HalfNormal}(0.5)$ |
+| everything else | — | identical, including `target_accept` = 0.999 |
+
+Holding the sampler equal is deliberate: the prior is the **single free variable**, so
+any difference in the posterior is attributable to it and to nothing else.
+
+## Why this model exists
+
+The convergence fix for LRPMM01 (see
+`notes/202607101638-mm-001-convergence-reparameterisation.md`) originally did two things
+at once: it **marginalised** the factor scores out of the Gaussian measurement likelihood,
+*and* it **recalibrated** these priors. It then reported the posterior as unchanged, "only
+the sampler geometry" having moved.
+
+Only the first half of that is true. The conjugate rewrite **is** measure-preserving. A
+prior change is not — so the two were confounded, and neither could be assessed on its own.
+LRPMM101 separates them.
+
+## What the ablation found
+
+A 2×2 over {original, recalibrated} priors × {0.95, 0.999} `target_accept`, reporting tier
+(6 chains × 6000 draws):
+
+| priors | `target_accept` = 0.95 | `target_accept` = 0.999 |
+| --- | --- | --- |
+| original $\text{HalfNormal}(1)$ | **FAIL** — 571 divergences, min ESS 370 | **PASS** — 0 divergences, min ESS 2200 |
+| recalibrated | **FAIL** — 528 divergences, min ESS 850 | **PASS** — 0 divergences, min ESS 1700 |
+
+The prior recalibration is therefore **neither necessary nor sufficient** for convergence:
+at 0.95 both prior sets fail by a comparable margin, and at 0.999 both pass. What actually
+clears the gate is the **marginalisation** (which repairs the energy diagnostic, BFMI
+0.21 → ≈ 0.87) plus the **raised `target_accept`** (which clears the boundary divergences
+the strict gate requires to be zero).
+
+And the two posteriors agree to within Monte-Carlo error — factor correlations within 0.02,
+every structural slope to the third decimal. The data dominate the prior.
+
+Meanwhile the recalibration is **not free**. It moves the prior-implied median communality
+from **0.50 to 0.79**, and $P(\text{communality} > 0.8)$ from **0.29 to 0.49**. With only two
+indicators per factor at $n \approx 51$ that is a substantive prior commitment about how well
+the indicators measure their domain — which is precisely the quantity the model exists to
+estimate. Buying nothing and costing that, the recalibration was **reverted** in LRPMM01 and
+is retained here as the sensitivity fit.
+
+::: {.callout-important title="Measurement / triangulation, NOT causal"}
+
+As with LRPMM01: per the locked DAG's **ID-2**, every factor → gain slope is a
+**latent-ability-confounded adjusted association**. The randomised causal claim lives in the
+ITT suite (`lrp-rli-itt-010` for word reading) and the `gain_factors` randomised term, not
+here.
+
+:::
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_corr_factor.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

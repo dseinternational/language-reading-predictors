@@ -49,11 +49,20 @@ SPEC = ModelSpec(
         },
         "structural_covariates": ("blocks",),
         "use_age": True,
-        # Small-n latent-factor geometry: the factory marginalises the factor
-        # scores out of the measurement likelihood (killing the funnel; BFMI/ESS/
-        # R-hat all pass), and this lifts target_accept above the reporting-tier
-        # default (0.95) to clear the last residual boundary divergences the strict
-        # gate requires to be zero. See
+        # Small-n latent-factor geometry. Two independent things were needed:
+        #
+        # 1. The factory MARGINALISES the factor scores out of the measurement
+        #    likelihood, which kills the funnel (BFMI 0.21 -> ~0.87). This is
+        #    measure-preserving: it changes the geometry, not the posterior.
+        # 2. target_accept is lifted above the reporting preset's 0.95 to clear the
+        #    residual boundary divergences the strict gate requires to be zero.
+        #
+        # The priors are the model's ORIGINAL HalfNormal(1) ones (the factory
+        # defaults). An earlier revision recalibrated them at the same time; the
+        # LRPMM101 2x2 ablation showed that bought nothing — at 0.95 both prior sets
+        # fail (571 vs 528 divergences), at 0.999 both pass, and the posteriors agree
+        # to within Monte-Carlo error — so the recalibration was reverted and now
+        # lives in LRPMM101 as a prior-sensitivity companion. See
         # notes/202607101638-mm-001-convergence-reparameterisation.md.
         "target_accept": 0.999,
     },
