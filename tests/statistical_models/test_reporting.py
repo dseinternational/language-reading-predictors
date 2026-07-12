@@ -13,7 +13,7 @@ import xarray as xr
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
-    _eti_bands,
+    eti_bands,
     evidence_label,
     favoured_direction,
     level_t2_marginal_effect,
@@ -635,7 +635,7 @@ def test_eti_bands_nesting_and_quantiles():
     # and the 95% bounds are the 2.5 / 97.5 quantiles.
     rng = np.random.default_rng(4)
     x = rng.normal(0.0, 1.0, 50000)
-    b = _eti_bands(x)
+    b = eti_bands(x)
     assert set(b) == {"lo50", "hi50", "lo90", "hi90", "lo95", "hi95"}
     assert b["lo50"] > b["lo90"] > b["lo95"]
     assert b["hi50"] < b["hi90"] < b["hi95"]

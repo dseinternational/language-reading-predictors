@@ -81,7 +81,7 @@ def test_dataset_metadata_reaches_config_json(tmp_path):
     ctx = SimpleNamespace(
         spec=spec,
         prepared=SimpleNamespace(n_obs=27, n_children=9, n_phases=2, dropped_rows=0),
-        reporting=SimpleNamespace(output_dir=str(tmp_path), hdi=0.94),
+        reporting=SimpleNamespace(output_dir=str(tmp_path), ci_prob=0.94),
         sampling=SimpleNamespace(
             draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
         ),
@@ -105,7 +105,7 @@ def test_existing_spec_defaults_are_rli(tmp_path):
     ctx = SimpleNamespace(
         spec=spec,
         prepared=SimpleNamespace(n_obs=10, n_children=5, n_phases=1, dropped_rows=0),
-        reporting=SimpleNamespace(output_dir=str(tmp_path), hdi=0.95),
+        reporting=SimpleNamespace(output_dir=str(tmp_path), ci_prob=0.95),
         sampling=SimpleNamespace(
             draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
         ),

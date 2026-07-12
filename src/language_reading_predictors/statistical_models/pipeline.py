@@ -697,7 +697,7 @@ def _emit_itt_extras(
             term=term,
             varying_term=varying_term,
             moderators=moderators,
-            ci_prob=ctx.reporting.hdi,
+            ci_prob=ctx.reporting.ci_prob,
         )
         pd.DataFrame([pf]).to_csv(
             os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
@@ -980,7 +980,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Treatment-effect summary")
     tau_s = _report.tau_summary_itt(
         ctx.trace,
-        ci_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.ci_prob,
         # built.prepared is the (possibly row-subset) frame the model was fit
         # on, so G aligns with eta's obs_id axis (finding #2 in issue #78).
         G=built.prepared.G,
@@ -992,7 +992,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_table(
         metrics_table(
             [{"metric": k, "value": v} for k, v in tau_s.items()],
-            title=f"tau ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)",
+            title=f"tau ({spec.outcome_symbol}) - {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)",
             columns=["metric", "value"],
         )
     )
@@ -1013,7 +1013,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             G=built.prepared.G,
             n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
             delta=delta_items,
-            ci_prob=ctx.reporting.hdi,
+            ci_prob=ctx.reporting.ci_prob,
             moderators=tau_moderators,
         )
         rope_df = pd.DataFrame([rope_s])
@@ -1053,7 +1053,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # gamma_tau_int and the moderator main effect gamma_tau_mod, when a linear
     # tau moderator was fit. Returns {} (nothing written) for the standard
     # main-effect ITT models, so this is a no-op unless the moderator is present.
-    tau_mod_s = _report.tau_moderation_summary(ctx.trace, ci_prob=ctx.reporting.hdi)
+    tau_mod_s = _report.tau_moderation_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
     if tau_mod_s:
         tau_mod_df = pd.DataFrame([tau_mod_s])
         tau_mod_df.to_csv(
@@ -1157,7 +1157,7 @@ def _fit_itt_floor_rule(
 
     section_header("Off-floor treatment-effect summary (PRIMARY)")
     off = _report.tau_summary_offfloor(
-        ctx.trace, ci_prob=ctx.reporting.hdi, G=built.prepared.G
+        ctx.trace, ci_prob=ctx.reporting.ci_prob, G=built.prepared.G
     )
     pd.DataFrame([off]).to_csv(
         os.path.join(ctx.output_dir, "tau_summary.csv"), index=False
@@ -1167,7 +1167,7 @@ def _fit_itt_floor_rule(
         metrics_table(
             [{"metric": k, "value": v} for k, v in off.items()],
             title=(
-                f"off-floor tau ({own}) - {int(ctx.reporting.hdi * 100)}% CI "
+                f"off-floor tau ({own}) - {int(ctx.reporting.ci_prob * 100)}% CI "
                 "(equal-tailed); positive = intervention raises Pr(off-floor)"
             ),
             columns=["metric", "value"],
@@ -1202,7 +1202,7 @@ def _fit_itt_floor_rule(
             G=built.prepared.G,
             n_trials=1,
             delta=delta_prob,
-            ci_prob=ctx.reporting.hdi,
+            ci_prob=ctx.reporting.ci_prob,
             varying_term="",
         )
         rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
@@ -1257,7 +1257,7 @@ def _fit_itt_floor_rule(
         trace_g, label=f"{spec.model_id} graded secondary", var_names=["tau"]
     )
     graded = _report.tau_summary_itt(
-        trace_g, ci_prob=ctx.reporting.hdi, G=built_g.prepared.G
+        trace_g, ci_prob=ctx.reporting.ci_prob, G=built_g.prepared.G
     )
     graded["converged"] = graded_conv["converged"]
     pd.DataFrame([graded]).to_csv(
@@ -1357,13 +1357,13 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Treatment-effect summary")
     outcomes = list(ctx.trace.posterior["outcome"].values)
-    tau_df = _report.tau_summary_joint(ctx.trace, outcomes, ci_prob=ctx.reporting.hdi)
+    tau_df = _report.tau_summary_joint(ctx.trace, outcomes, ci_prob=ctx.reporting.ci_prob)
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
     ctx.tables["tau_summary"] = tau_df
     print_table(
         ranked_dataframe_table(
             tau_df,
-            title=f"tau by outcome - {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)",
+            title=f"tau by outcome - {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)",
             columns=["outcome", "tau_median", "tau_lo", "tau_hi", "prob_pos"],
             rank_column=False,
         )
@@ -1383,7 +1383,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         pair = tuple(difference)
         section_header("Treatment-effect difference")
         diff_s = _report.tau_difference_summary(
-            ctx.trace, outcomes, pair, ci_prob=ctx.reporting.hdi
+            ctx.trace, outcomes, pair, ci_prob=ctx.reporting.ci_prob
         )
         diff_df = pd.DataFrame([diff_s])
         diff_df.to_csv(os.path.join(ctx.output_dir, "tau_difference.csv"), index=False)
@@ -1393,7 +1393,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 [{"metric": k, "value": v} for k, v in diff_s.items()],
                 title=(
                     f"tau[{pair[0]}] - tau[{pair[1]}] "
-                    f"- {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)"
+                    f"- {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
                 ),
                 columns=["metric", "value"],
             )
@@ -1528,7 +1528,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
         did_s = _report.did_summary(
             ctx.trace,
-            ci_prob=ctx.reporting.hdi,
+            ci_prob=ctx.reporting.ci_prob,
             n_trials=1 if off_floor else MEASURES[sym].n_trials,
             dose=dose,
             off_floor=off_floor,
@@ -1542,7 +1542,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 title=(
                     f"crossover/DiD effect ({sym}"
                     f"{', off-floor risk difference' if off_floor else ''}) - "
-                    f"{int(ctx.reporting.hdi * 100)}% CI "
+                    f"{int(ctx.reporting.ci_prob * 100)}% CI "
                     "(equal-tailed); positive = intervention helps"
                 ),
                 columns=["metric", "value"],
@@ -1703,7 +1703,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Linear-moderation summary (gamma_int / gamma_mod), when a moderator is set.
     if moderator_symbol is not None:
         section_header("Interaction summary")
-        gi = _report.gamma_interaction_summary(ctx.trace, ci_prob=ctx.reporting.hdi)
+        gi = _report.gamma_interaction_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
         gi_df = pd.DataFrame([gi])
         gi_df.to_csv(
             os.path.join(ctx.output_dir, "interaction_summary.csv"), index=False
@@ -1714,7 +1714,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
                 [{"metric": k, "value": v} for k, v in gi.items()],
                 title=(
                     f"Linear moderation by {moderator_symbol} "
-                    f"- {int(ctx.reporting.hdi * 100)}% CI (equal-tailed)"
+                    f"- {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
                 ),
                 columns=["metric", "value"],
             )
@@ -1892,7 +1892,7 @@ def _summarise_draws(values: np.ndarray, ci_prob: float) -> dict[str, float]:
     """Mean, equal-tailed CI and P(>0) for a 1-D array of posterior draws.
 
     ``ci_prob`` is the interval *coverage* probability (equal-tailed), read from
-    ``ctx.reporting.hdi`` — see the naming note in ``context.make_context`` (#170).
+    ``ctx.reporting.ci_prob`` — see the naming note in ``context.make_context`` (#170).
     """
     lo_q = (1.0 - ci_prob) / 2.0
     return {
@@ -1908,7 +1908,7 @@ def _write_dose_slope_summary(
 ) -> None:
     """Posterior dose slope (overall + per-period) on the per-1-SD logit scale."""
     post = ctx.trace.posterior
-    ci_prob = ctx.reporting.hdi
+    ci_prob = ctx.reporting.ci_prob
     rows: list[dict[str, object]] = []
 
     def _draws(name: str) -> np.ndarray:
@@ -2011,7 +2011,7 @@ def _fit_t3_sensitivity(
     return _med.decompose(
         trace_t3,
         med_t3,
-        ci_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.ci_prob,
     )
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
@@ -2127,7 +2127,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     med_df = _med.decompose(
         ctx.trace,
         med_data,
-        ci_prob=ctx.reporting.hdi,
+        ci_prob=ctx.reporting.ci_prob,
         interventional=_interventional,
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
@@ -2292,7 +2292,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
 
     section_header("Factor summary")
     fs = _report.factor_summary(
-        ctx.trace, _gf_coef_names(spec), ci_prob=ctx.reporting.hdi,
+        ctx.trace, _gf_coef_names(spec), ci_prob=ctx.reporting.ci_prob,
         causal_terms=("beta_trt",),
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
@@ -2301,7 +2301,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     print_table(
         ranked_dataframe_table(
             fs,
-            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
+            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.ci_prob * 100)}% CrI",
             columns=["term", "role", "median", "lo", "hi", "prob_positive"],
             rank_column=False,
             precision=3,
@@ -2327,7 +2327,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             trt=trt,
             n_trials=n_marg,
             moderators=trt_moderators,
-            ci_prob=ctx.reporting.hdi,
+            ci_prob=ctx.reporting.ci_prob,
         )
         pd.DataFrame([tme]).to_csv(
             os.path.join(ctx.output_dir, "treatment_marginal.csv"), index=False
@@ -2347,7 +2347,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             pf = _report.prior_pushforward(
                 ctx.prior_samples, G=trt, n_trials=n_marg,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
-                ci_prob=ctx.reporting.hdi,
+                ci_prob=ctx.reporting.ci_prob,
             )
             pd.DataFrame([pf]).to_csv(
                 os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
@@ -2376,7 +2376,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 G=trt,
                 n_trials=n_marg,
                 delta=delta_items,
-                ci_prob=ctx.reporting.hdi,
+                ci_prob=ctx.reporting.ci_prob,
                 term="beta_trt",
                 varying_term="",
                 moderators=trt_moderators,
@@ -2401,7 +2401,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             # floored ITT path (#125 Area 4; #130 follow-up).
             rope_s = _report.rope_summary(
                 ctx.trace, G=trt, n_trials=1, delta=delta_prob,
-                ci_prob=ctx.reporting.hdi, term="beta_trt", varying_term="",
+                ci_prob=ctx.reporting.ci_prob, term="beta_trt", varying_term="",
                 moderators=trt_moderators,
             )
             rope_s["provisional_delta"] = True
@@ -2501,7 +2501,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # the other timepoints are post-crossover (see the level-model caveat).
     causal = ("b_grp_time[1]",) if extra.get("group_by_time", True) else ()
     fs = _report.factor_summary(
-        ctx.trace, _lf_coef_names(spec), ci_prob=ctx.reporting.hdi, causal_terms=causal
+        ctx.trace, _lf_coef_names(spec), ci_prob=ctx.reporting.ci_prob, causal_terms=causal
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
     ctx.tables["factor_summary"] = fs
@@ -2509,7 +2509,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     print_table(
         ranked_dataframe_table(
             fs,
-            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
+            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.ci_prob * 100)}% CrI",
             columns=["term", "role", "median", "lo", "hi", "prob_positive"],
             rank_column=False,
             precision=3,
@@ -2542,8 +2542,8 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         )
         n_marg = int(built.prepared.n_trials[spec.outcome_symbol])
         items = ame_prob * n_marg
-        rope_s = _report._rope_card(
-            contrast_draws, items, delta=delta_items, ci_prob=ctx.reporting.hdi
+        rope_s = _report.rope_card(
+            contrast_draws, items, delta=delta_items, ci_prob=ctx.reporting.ci_prob
         )
         rope_df = pd.DataFrame([rope_s])
         rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
@@ -2636,7 +2636,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Per-protocol design: NOTHING is a clean randomised effect, so no term is
     # flagged causal -- every coefficient (cohort included) is an association.
     fs = _report.factor_summary(
-        ctx.trace, _al_coef_names(spec), ci_prob=ctx.reporting.hdi, causal_terms=()
+        ctx.trace, _al_coef_names(spec), ci_prob=ctx.reporting.ci_prob, causal_terms=()
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
     ctx.tables["factor_summary"] = fs
@@ -2645,7 +2645,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_table(
         ranked_dataframe_table(
             fs,
-            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.hdi * 100)}% CrI",
+            title=f"Factor summary ({spec.outcome_symbol}) - {int(ctx.reporting.ci_prob * 100)}% CrI",
             columns=["term", "role", "median", "lo", "hi", "prob_positive"],
             rank_column=False,
             precision=3,
@@ -2661,7 +2661,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
         cme = _report.treatment_marginal_effect(
             ctx.trace, trt=cohort, n_trials=n_marg, term="beta_cohort",
-            ci_prob=ctx.reporting.hdi,
+            ci_prob=ctx.reporting.ci_prob,
         )
         pd.DataFrame([cme]).to_csv(
             os.path.join(ctx.output_dir, "cohort_marginal.csv"), index=False
@@ -2766,7 +2766,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     med_df = _med.decompose_two_mediator(
         ctx.trace,
         med_data,
-        hdi_prob=ctx.reporting.hdi,
+        hdi_prob=ctx.reporting.ci_prob,
         order=tuple(spec.extra.get("order", ("L", "E"))),
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
@@ -3112,7 +3112,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     # 94% intervals (the brief's convention) rather than the project-wide 95%.
     ctx = make_context(spec, config, ci_prob=0.94)
-    hdi = ctx.reporting.hdi
+    hdi = ctx.reporting.ci_prob
 
     section_header("Prepare data")
     measure_outcomes = tuple(
@@ -3434,7 +3434,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         _coef_row(
             f"g_{s} (prior {s} -> {reading_symbol} change)",
             post[f"g_{s}"].values,
-            ctx.reporting.hdi,
+            ctx.reporting.ci_prob,
         )
         for s in cross
     ]
@@ -3444,7 +3444,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ("d_age", f"d_age[{reading_symbol}] (age -> reading change)"),
     ):
         rows.append(
-            _coef_row(label, post[name].sel(outcome=reading_symbol).values, ctx.reporting.hdi)
+            _coef_row(label, post[name].sel(outcome=reading_symbol).values, ctx.reporting.ci_prob)
         )
     coupling_df = pd.DataFrame(rows)
     coupling_df.to_csv(os.path.join(ctx.output_dir, "coupling_summary.csv"), index=False)
@@ -3453,7 +3453,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ranked_dataframe_table(
             coupling_df,
             title=(
-                f"Reading-change couplings - {int(ctx.reporting.hdi * 100)}% CI "
+                f"Reading-change couplings - {int(ctx.reporting.ci_prob * 100)}% CI "
                 "(equal-tailed)"
             ),
             columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
@@ -3536,7 +3536,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # gamma (growth-rate) rows are the answer; delta (level) and beta (mean slope)
     # round out the trajectory characterisation. All adjusted associations.
     section_header("Non-verbal ability -> trajectory shape (Q5)")
-    gs = _report.growth_association_summary(ctx.trace, ci_prob=ctx.reporting.hdi)
+    gs = _report.growth_association_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
     gs.to_csv(
         os.path.join(ctx.output_dir, "growth_association_summary.csv"), index=False
     )
@@ -3573,7 +3573,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         zc = (zb - zb.mean())[:, None]
         denom = np.sqrt((Gc**2).sum(0) * (zc**2).sum(0)) + 1e-12
         corr = (Gc * zc).sum(0) / denom  # (S,)
-        lo_q = (1 - ctx.reporting.hdi) / 2
+        lo_q = (1 - ctx.reporting.ci_prob) / 2
         tempo_corr = {
             "median": float(np.median(corr)),
             "lo": float(np.quantile(corr, lo_q)),
@@ -3714,7 +3714,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
             growth,
             title=(
                 f"{measure_label} growth (items) - "
-                f"{int(ctx.reporting.hdi * 100)}% CI (equal-tailed)"
+                f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
             ),
             columns=["label", "readgrp_label", "mean", "q2_5", "q97_5", "p_gt_0"],
             rank_column=False,
@@ -3867,7 +3867,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     _diag.save_prior_posterior_plot(ctx, var_names=summary_vars)
 
     post = ctx.trace.posterior
-    hdi = ctx.reporting.hdi
+    hdi = ctx.reporting.ci_prob
     lo_q = (1.0 - hdi) / 2.0
 
     # --- Loadings + communalities (the measurement headline) ---
