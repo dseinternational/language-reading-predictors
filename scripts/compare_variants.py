@@ -133,7 +133,11 @@ def _pairwise_table(
                 "std_diff": std_diff,
                 "nb_p": nb_p,
                 "b_wins": wins_b,
-                "n_folds": int(len(common)),
+                # The count of folds actually used — after dropping non-finite pairs
+                # — so b_wins/n_folds is consistent with the corrected t-test and
+                # win-count (issue #272 review). Differs from len(common) only when
+                # a fold had a NaN on one side.
+                "n_folds": int(diff.size),
             }
         )
 
