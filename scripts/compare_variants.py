@@ -14,13 +14,18 @@ and all its variants use ``GroupKFold(n_splits=10)`` at seed 47.
 For each metric the script reports:
 
 - mean score per model,
-- mean paired difference (model B − model A),
-- paired-sample *t*-test *p*-value,
-- Wilcoxon signed-rank *p*-value (more robust to non-normal residuals),
+- mean paired difference (model B − model A) and its SD,
+- the **Nadeau–Bengio corrected** resampled paired *t*-test *p*-value,
 - win count (folds where B < A for error metrics, B > A for R²).
 
-Output is a markdown table so it can be pasted straight into notes or
-PR descriptions.
+CV fold scores are **not** independent — every pair of training sets shares most
+of the ~54 children — so a *naive* paired *t*-test / Wilcoxon over the folds is
+badly anti-conservative (Dietterich 1998; Nadeau & Bengio 2003, DOI
+10.1023/A:1024068626366) and would overstate the evidence for a variant. The
+reported *p* therefore inflates the variance of the mean difference by
+``(1/K + n_test/n_train)`` (for K-fold, ``n_test/n_train = 1/(K−1)``); read it as a
+rough guide alongside the mean difference and win-count, not a licence for a
+"``p < 0.05``" claim. Output is a markdown table for notes / PR descriptions.
 
 Usage
 -----
@@ -47,6 +52,27 @@ from language_reading_predictors import paths as _paths
 _METRICS_LOWER_IS_BETTER = {"mae", "rmse", "medae"}
 _METRICS_HIGHER_IS_BETTER = {"r2"}
 _ALL_METRICS = sorted(_METRICS_LOWER_IS_BETTER | _METRICS_HIGHER_IS_BETTER)
+
+
+def _nadeau_bengio_p(diff: np.ndarray) -> float:
+    """Corrected resampled paired *t*-test p-value (Nadeau & Bengio 2003).
+
+    K-fold CV scores are not independent — every pair of training sets overlaps
+    heavily — so the naive paired *t*-test underestimates the variance of the mean
+    difference and is anti-conservative (Dietterich 1998). The corrected test
+    inflates that variance by ``(1/K + n_test/n_train)``; for K-fold the
+    test/train size ratio is ``1/(K−1)``. Two-sided, ``df = K − 1``. Returns NaN
+    when there are fewer than two folds or the differences are degenerate.
+    """
+    k = int(diff.size)
+    if k < 2:
+        return float("nan")
+    var = float(np.var(diff, ddof=1))
+    if not np.isfinite(var) or var == 0.0:
+        return float("nan")
+    correction = 1.0 / k + 1.0 / (k - 1)
+    t_stat = float(np.mean(diff)) / np.sqrt(correction * var)
+    return float(2.0 * stats.t.sf(abs(t_stat), df=k - 1))
 
 
 def _load_cv(model_id: str) -> pd.DataFrame:
@@ -89,20 +115,9 @@ def _pairwise_table(
         mean_diff = float(np.mean(diff)) if diff.size else float("nan")
         std_diff = float(np.std(diff, ddof=1)) if diff.size > 1 else float("nan")
 
-        if diff.size >= 2:
-            t_res = stats.ttest_rel(sb, sa)
-        else:
-            t_res = type("TT", (), {"pvalue": float("nan")})()  # ad-hoc holder
-
-        # Wilcoxon rejects identical vectors; guard for it.
-        if diff.size == 0 or np.all(diff == 0):
-            w_p = float("nan")
-        else:
-            try:
-                w_res = stats.wilcoxon(diff, zero_method="wilcox")
-                w_p = float(w_res.pvalue)
-            except ValueError:
-                w_p = float("nan")
+        # Nadeau–Bengio corrected resampled t-test: the naive paired t / Wilcoxon
+        # treat overlapping-fold scores as independent and overstate the evidence.
+        nb_p = _nadeau_bengio_p(diff)
 
         wins_b = (
             int(np.sum(sb < sa)) if lower_is_better else int(np.sum(sb > sa))
@@ -116,8 +131,7 @@ def _pairwise_table(
                 "mean_b": float(np.mean(sb)),
                 "mean_diff": mean_diff,
                 "std_diff": std_diff,
-                "t_p": float(t_res.pvalue),
-                "wilcoxon_p": w_p,
+                "nb_p": nb_p,
                 "b_wins": wins_b,
                 "n_folds": int(len(common)),
             }
@@ -143,17 +157,21 @@ def _format_markdown(df: pd.DataFrame, metric: str) -> str:
     header = (
         f"### {metric.upper()} ({direction})\n\n"
         "| A | B | mean(A) | mean(B) | mean(B−A) | std(B−A) | "
-        "paired *t* p | Wilcoxon p | B wins |\n"
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|\n"
+        "corrected *t* p | B wins |\n"
+        "|---|---|---:|---:|---:|---:|---:|---:|\n"
     )
     rows = [
         f"| `{r.a}` | `{r.b}` | {r.mean_a:.3f} | {r.mean_b:.3f} | "
         f"{r.mean_diff:+.3f} | {r.std_diff:.3f} | "
-        f"{_format_p(r.t_p)} | {_format_p(r.wilcoxon_p)} | "
+        f"{_format_p(r.nb_p)} | "
         f"{r.b_wins}/{r.n_folds} |"
         for r in df.itertuples()
     ]
-    return header + "\n".join(rows) + "\n"
+    footer = (
+        "\n_Corrected t p_: Nadeau–Bengio resampled paired t-test "
+        "(fold scores are dependent; read as a guide, not a `p<0.05` claim).\n"
+    )
+    return header + "\n".join(rows) + footer
 
 
 def main() -> None:

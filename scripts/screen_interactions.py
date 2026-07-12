@@ -5,10 +5,12 @@
 
 A discovery utility (the first step of the project's two-step philosophy): it
 ranks candidate pairwise interactions so the moderator choice for the Bayesian
-suite is *auditable*, not hand-picked. It is not inferential — see the caveats
-in  (pooled rows,
-SHAP attributing link-curvature to "interactions"; confirm any signal in a
-Bayesian model with subject random effects).
+suite is *auditable*, not hand-picked. It is not inferential: SHAP can attribute
+link-curvature to "interactions", and the pooled rows ignore the 3-4 repeated
+measures per child. Confirm any signal in a Bayesian model with subject random
+effects (LRP71/72/73). The predictor sets and the 2026-07-06 exclusion of
+period-related process measures are recorded in
+``notes/202607061945-period-related-gain-predictors.md``.
 
 Method (matches the note's spec):
 
@@ -26,8 +28,12 @@ Two targets are screened with the canonical registry predictor sets:
 - ``ewrswr`` (reading level)      -> ``Predictors.DEFAULT_LEVEL``
 - ``ewrswr_gain`` (reading gain)  -> ``Predictors.DEFAULT_GAIN``
 
-(``DEFAULT_LEVEL`` excludes period-related dose variables such as ``attend``;
-``DEFAULT_GAIN`` keeps them.)
+Both ``DEFAULT_LEVEL`` and ``DEFAULT_GAIN`` now exclude the period-related process
+measures (``attend`` / ``tascore`` / ``tachang``) — a deliberate 2026-07-06
+decision (``notes/202607061945``). Re-running the screen therefore no longer
+surfaces any attend/tascore/tachang interactions, so it will **not** reproduce
+the original LRP71/72/73 moderator-selection ranking, which predates that change;
+the exact predictor list used for a run is recorded in its ``cv_mae.txt``.
 
 Outputs, under ``output/interaction_screen/<level|gain>/``:
 
@@ -164,17 +170,23 @@ def screen_target(
     # the ``ewrswr`` baseline legitimately stays in DEFAULT_GAIN.
     predictors = [p for p in predictors if p != target]
 
-    _df, X, y, groups = data_utils.load_and_filter(target, predictors)
-    X = _prepare_X(X)
-    feature_names = list(X.columns)
+    _df, X_raw, y, groups = data_utils.load_and_filter(target, predictors)
+    X_raw = X_raw.replace({pd.NA: np.nan}).astype("float64")
+    feature_names = list(X_raw.columns)
     rprint(
-        f"  n_obs={len(X)}  n_children={groups.nunique()}  "
+        f"  n_obs={len(X_raw)}  n_children={groups.nunique()}  "
         f"n_features={len(feature_names)}"
     )
 
-    cv_mean, cv_sd, n_splits = _cv_mae(X, y, groups, n_estimators, learning_rate)
+    # CV MAE on the RAW (NaN-bearing) matrix: LightGBM handles missing values
+    # natively, so no fold sees full-sample column means — the leak that
+    # inflated the reported CV MAE when imputation ran before the split
+    # (issue #272 item 3). The SHAP interaction values below still need a
+    # fully-observed matrix, so imputation is applied to the full-fit model only.
+    cv_mean, cv_sd, n_splits = _cv_mae(X_raw, y, groups, n_estimators, learning_rate)
     rprint(f"  GroupKFold({n_splits}) MAE: {cv_mean:.3f} +/- {cv_sd:.3f}")
 
+    X = _prepare_X(X_raw)
     model = _build_model(n_estimators, learning_rate)
     model.fit(X, y)
 
@@ -192,8 +204,12 @@ def screen_target(
         f.write(
             f"target={target}\n"
             f"predictors={predictors}\n"
+            "predictor_set_note=period-related process measures (attend/tascore/"
+            "tachang) excluded from DEFAULT_GAIN and DEFAULT_LEVEL since "
+            "2026-07-06 (notes/202607061945); this list is the ranking's provenance\n"
             f"lightgbm: objective=mae, n_estimators={n_estimators}, "
             f"learning_rate={learning_rate}, random_state={RANDOM_SEED}\n"
+            "cv_mae: GroupKFold on the raw matrix (LightGBM native NaN; no imputation leak)\n"
             f"n_obs={len(X)}, n_children={groups.nunique()}\n"
             f"GroupKFold({n_splits}) MAE = {cv_mean:.4f} +/- {cv_sd:.4f}\n"
         )
