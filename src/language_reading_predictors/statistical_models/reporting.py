@@ -13,73 +13,19 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
-from dse_research_utils.statistics.evidence import evidence_label, odds_string
+from dse_research_utils.statistics.evidence import (
+    evidence_label,
+    favoured_direction,
+    odds_string,
+)
+from dse_research_utils.statistics.intervals import eti_bands, hdi_1d
+from dse_research_utils.statistics.rope import rope_card
 from scipy.special import expit
 
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
-
-
-def _hdi_bounds(draws: np.ndarray, prob: float) -> tuple[float, float]:
-    """Highest-density interval (HPDI) bounds for 1-D posterior ``draws``.
-
-    A *sensitivity companion* to the equal-tailed interval reported elsewhere in
-    this module: for a skewed or bounded-scale posterior the HPDI is the narrowest
-    interval covering ``prob`` mass, so it can differ materially from the
-    equal-tailed quantiles. The HPDI is **not** transformation-invariant, so
-    callers report it per scale (logit / probability / items) rather than mapping
-    it between scales. Uses :func:`arviz.hdi` (``prob=`` keyword in the installed
-    ArviZ 1.x).
-    """
-    lo, hi = np.asarray(az.hdi(np.asarray(draws, dtype=float), prob=prob)).ravel()[:2]
-    return float(lo), float(hi)
-
-
-def _eti_bands(
-    draws: np.ndarray, *, probs: tuple[float, ...] = (0.5, 0.9, 0.95)
-) -> dict[str, float]:
-    """Equal-tailed interval bounds at each coverage in ``probs``, keyed
-    ``lo{pct}`` / ``hi{pct}`` (e.g. ``lo50`` / ``hi50``).
-
-    The suite's fixed posterior-band convention (#177): the central **50%**
-    interval (where the middle half of the posterior mass sits — a visual aid, not
-    a decision threshold), the equal-tailed **90%** sensitivity / compatibility
-    band, and the equal-tailed **95%** headline interval. Equal-tailed throughout
-    (see ``METHODS.md``); the HDI/HPDI is a separate per-scale sensitivity
-    companion (:func:`_hdi_bounds`) and is never labelled with an ``eti`` band key.
-    """
-    draws = np.asarray(draws, dtype=float)
-    out: dict[str, float] = {}
-    for p in probs:
-        lo, hi = np.quantile(draws, [(1 - p) / 2, 1 - (1 - p) / 2])
-        pct = int(round(p * 100))
-        out[f"lo{pct}"] = float(lo)
-        out[f"hi{pct}"] = float(hi)
-    return out
-
-
-def favoured_direction(prob_positive: float) -> dict[str, float | str]:
-    """Evidence for the *favoured* direction of a signed effect (#179).
-
-    :func:`evidence_label` needs a probability already oriented to a **named**
-    claim. For a sign claim the favoured direction is ``"positive"`` when
-    ``P(effect > 0) >= 0.5`` else ``"negative"``; the claim probability is
-    ``max(P>0, P<0)`` and the label qualifies the evidence for THAT direction — so
-    a clearly negative effect reads as strong evidence of harm / a negative
-    association rather than the "inconclusive" that ``evidence_label(P>0)`` returns
-    for the *positive* claim. The raw ``P(effect > 0)`` is still reported
-    separately (the benefit claim); callers supply the direction words (benefit /
-    harm for treatment effects, positive / negative for associations).
-    """
-    p_pos = float(prob_positive)
-    prob = max(p_pos, 1.0 - p_pos)
-    return {
-        "favoured_direction": "positive" if p_pos >= 0.5 else "negative",
-        "favoured_direction_prob": prob,
-        "favoured_direction_label": evidence_label(prob),
-    }
 
 
 def _itt_ame_draws(
@@ -213,9 +159,9 @@ def tau_summary_itt(
     ``*_lo`` / ``*_hi`` values are the equal-tailed headline credible interval
     (95% by default); ``*_lo50`` / ``*_hi50`` (the central 50% interval, a visual
     aid) and ``*_lo90`` / ``*_hi90`` (the equal-tailed 90% sensitivity band) follow
-    the fixed band convention (#177, see :func:`_eti_bands`). The ``*_hpdi_lo`` /
+    the fixed band convention (#177, see :func:`eti_bands`). The ``*_hpdi_lo`` /
     ``*_hpdi_hi`` values are the highest-density interval (HPDI) at ``ci_prob`` — a
-    per-scale sensitivity companion (see :func:`_hdi_bounds`), not a replacement,
+    per-scale sensitivity companion (see :func:`hdi_1d`), not a replacement,
     since the HPDI is not transformation-invariant across the logit and
     probability scales.
     """
@@ -224,12 +170,12 @@ def tau_summary_itt(
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_median = float(np.median(tau_draws))
     lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
-    tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(tau_draws, ci_prob)
-    tau_b = _eti_bands(tau_draws, probs=(0.5, 0.9))
+    tau_hpdi_lo, tau_hpdi_hi = hdi_1d(tau_draws, ci_prob)
+    tau_b = eti_bands(tau_draws, probs=(0.5, 0.9))
     marg_median = float(np.median(marginal))
     marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
-    marg_hpdi_lo, marg_hpdi_hi = _hdi_bounds(marginal, ci_prob)
-    marg_b = _eti_bands(marginal, probs=(0.5, 0.9))
+    marg_hpdi_lo, marg_hpdi_hi = hdi_1d(marginal, ci_prob)
+    marg_b = eti_bands(marginal, probs=(0.5, 0.9))
     prob_pos = float(np.mean(tau_draws > 0))
     # Posterior mean retained as a *secondary* field on each scale (issue #144):
     # the median leads (transformation-invariant, and it discounts the
@@ -366,68 +312,6 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
     return "\n".join(parts)
 
 
-def _rope_card(
-    effect_draws: np.ndarray,
-    items: np.ndarray,
-    *,
-    delta: float,
-    ci_prob: float,
-) -> dict[str, float | str]:
-    """Assemble the ROPE report card from logit-effect and items-effect draws.
-
-    The formatting core shared by every ROPE report so they emit an identical
-    ``rope_summary.csv`` schema: :func:`rope_summary` (ITT ``tau`` and the gain
-    family's ``beta_trt``) and :func:`level_t2_marginal_effect`'s consumer (the
-    level family's t2 randomised contrast). ``effect_draws`` are the logit-scale
-    effect draws ``(S,)`` (used for the ``pd`` direction probability), ``items`` the
-    matching items-scale average marginal effect per draw ``(S,)``, ``delta`` the
-    items-scale ROPE half-width. The point estimate is the **median** because it is
-    transformation-invariant across the logit and items scales. The ``tau_logit_*``
-    keys are retained verbatim across families (as :func:`tau_summary_offfloor`
-    already reuses the ``tau`` schema) so one CSV layout serves the whole suite.
-
-    ``*_hpdi_lo`` / ``*_hpdi_hi`` add the highest-density interval at ``ci_prob``
-    for the logit effect and the items scale — a per-scale sensitivity companion
-    to the equal-tailed ``*_lo`` / ``*_hi`` fields, kept alongside them (the HPDI
-    is not transformation-invariant, so it is reported per scale).
-    """
-    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
-    pd_ = float(np.mean(effect_draws > 0))
-    p_benefit = float(np.mean(items >= delta))
-    tau_hpdi_lo, tau_hpdi_hi = _hdi_bounds(effect_draws, ci_prob)
-    items_hpdi_lo, items_hpdi_hi = _hdi_bounds(items, ci_prob)
-    tau_b90 = _eti_bands(effect_draws, probs=(0.9,))
-    items_b90 = _eti_bands(items, probs=(0.9,))
-    return {
-        "tau_logit_median": float(np.median(effect_draws)),
-        "tau_logit_lo50": float(np.quantile(effect_draws, 0.25)),
-        "tau_logit_hi50": float(np.quantile(effect_draws, 0.75)),
-        "tau_logit_lo90": tau_b90["lo90"],
-        "tau_logit_hi90": tau_b90["hi90"],
-        "tau_logit_lo": float(np.quantile(effect_draws, lo_q)),
-        "tau_logit_hi": float(np.quantile(effect_draws, hi_q)),
-        "tau_logit_hpdi_lo": tau_hpdi_lo,
-        "tau_logit_hpdi_hi": tau_hpdi_hi,
-        "items_median": float(np.median(items)),
-        "items_lo50": float(np.quantile(items, 0.25)),
-        "items_hi50": float(np.quantile(items, 0.75)),
-        "items_lo90": items_b90["lo90"],
-        "items_hi90": items_b90["hi90"],
-        "items_lo": float(np.quantile(items, lo_q)),
-        "items_hi": float(np.quantile(items, hi_q)),
-        "items_hpdi_lo": items_hpdi_lo,
-        "items_hpdi_hi": items_hpdi_hi,
-        "delta_items": float(delta),
-        "pd": pd_,
-        "prob_benefit_ge_delta": p_benefit,
-        "prob_in_rope": float(np.mean(np.abs(items) <= delta)),
-        "prob_harm_ge_delta": float(np.mean(items <= -delta)),
-        "direction_label": evidence_label(pd_),
-        "benefit_label": evidence_label(p_benefit),
-        **favoured_direction(pd_),
-    }
-
-
 def rope_summary(
     trace: xr.DataTree,
     *,
@@ -468,7 +352,7 @@ def rope_summary(
         moderators=moderators,
     )
     items = ame_prob * float(n_trials)
-    return _rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
+    return rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
 
 
 def rope_sensitivity(
@@ -899,7 +783,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,
         "dropped_rows": context.prepared.dropped_rows if context.prepared else None,
-        "ci_prob": context.reporting.hdi,
+        "ci_prob": context.reporting.ci_prob,
         "sampling": {
             "draws": context.sampling.draws,
             "tune": context.sampling.tune,
@@ -1014,7 +898,7 @@ def growth_association_summary(
     One row per element of each vector coefficient in ``coefs`` (each carries the
     ``outcome`` dim): the posterior **median** (the house lead statistic, robust to
     the Type-M inflation at this n), the fixed 50 / 90 / 95 equal-tailed bands
-    (:func:`_eti_bands`, #177), ``prob_positive`` = ``P(coef > 0)`` and the
+    (:func:`eti_bands`, #177), ``prob_positive`` = ``P(coef > 0)`` and the
     evidence-language fields (:func:`favoured_direction`, #179).
 
     ``gamma`` (baseline non-verbal ability -> growth *rate*) is the headline Q5
@@ -1046,7 +930,7 @@ def growth_association_summary(
                     "median": float(np.median(d)),
                     "prob_positive": prob_pos,
                     "direction_label": evidence_label(prob_pos),
-                    **_eti_bands(d),
+                    **eti_bands(d),
                     **favoured_direction(prob_pos),
                 }
             )
@@ -1128,7 +1012,7 @@ def level_t2_marginal_effect(
 
     Returns ``(contrast_draws, ame_prob)`` — the logit-scale ``b_grp_time[t2]`` draws
     ``(S,)`` (the term flagged causal in the report) and the probability-scale average
-    marginal effect per draw ``(S,)``, ready for :func:`_rope_card`. ``ability`` is the
+    marginal effect per draw ``(S,)``, ready for :func:`rope_card`. ``ability`` is the
     standardised ability covariate aligned with ``eta``'s ``obs_id`` axis (pass
     ``None`` when the model has no group×ability term).
     """

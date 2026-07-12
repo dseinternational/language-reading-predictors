@@ -186,11 +186,10 @@ def make_context(
     ci_prob: float = 0.95,
     random_seed: int = 47,
 ) -> StatisticalFitContext:
-    # ``ReportingConfiguration.hdi`` (dse_research_utils) stores the interval
-    # *coverage* probability, not a highest-density-interval flag: the suite reads
-    # it back as ``ci_prob`` and reports equal-tailed intervals, with the HPDI kept
-    # as a separate per-scale sensitivity companion (see reporting._hdi_bounds,
-    # #170). The external field name is retained for cross-repo compatibility.
+    # This suite reports equal-tailed intervals at ``ci_prob`` coverage, with the HPDI
+    # kept as a separate per-scale sensitivity companion (dse_research_utils
+    # intervals.hdi_1d, #170); ``interval_kind="eti"`` records that convention on the
+    # shared ReportingConfiguration so the tables, plots, and diagnostics summary agree.
     # Apply the shared matplotlib house style for every fit path (CLI, notebook,
     # tests, replot) — the CLI also does this via setup.init_script(); idempotent.
     _env.init_plotting()
@@ -199,7 +198,8 @@ def make_context(
         model_name=spec.model_id,
         config_name=config,
         output_root_dir=str(_paths.stat_dir()),
-        hdi=ci_prob,
+        ci_prob=ci_prob,
+        interval_kind="eti",
     )
     sampling = _sampling.get_sampling_configuration(config, random_seed=random_seed)
     ctx = StatisticalFitContext(spec=spec, reporting=reporting, sampling=sampling)

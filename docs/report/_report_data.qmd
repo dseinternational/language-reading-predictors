@@ -16,7 +16,8 @@ chapter's location and of Quarto's execution directory.
 #| echo: false
 from pathlib import Path
 
-import pandas as pd
+from dse_research_utils.report.data import ReportData
+from dse_research_utils.report.data import show_or_pending as _show_or_pending
 
 
 def _repo_root(start: Path | None = None) -> Path:
@@ -29,32 +30,37 @@ def _repo_root(start: Path | None = None) -> Path:
 
 OUT_ROOT = _repo_root() / "output" / "statistical_models" / "models"
 
+# Shared per-model artefact reader (dse_research_utils) over this report's
+# <MODEL_ID>-<config> layout; the graceful "pending fit" degradation lives there too.
+_report = ReportData(
+    lambda model_id, config: OUT_ROOT / f"{model_id}-{config}",
+    default_config="reporting",
+)
+
 
 def model_dir(model_id: str, config: str = "reporting") -> Path:
     """Output directory for a fitted model at a sampling config."""
-    return OUT_ROOT / f"{model_id}-{config}"
+    return _report.model_dir(model_id, config)
 
 
 def load_summary(model_id: str, name: str, config: str = "reporting"):
     """A summary / diagnostic CSV for a fitted model, or None if not present."""
-    p = model_dir(model_id, config) / f"{name}.csv"
-    return pd.read_csv(p) if p.exists() else None
+    return _report.load_summary(model_id, name, config)
 
 
 def fig(model_id: str, filename: str, config: str = "reporting") -> str:
     """Relative path to a figure produced for a model (for embedding)."""
-    return str(model_dir(model_id, config) / filename)
+    return _report.fig(model_id, filename, config)
 
 
 def show_or_pending(df, what: str):
     """Render a DataFrame if present, else a visible 'pending fit' placeholder."""
-    if df is None:
-        from IPython.display import Markdown
-
-        return Markdown(
-            f"> **Pending fit** — {what} will appear here once the model has been "
-            f"fitted (`scripts/fit_statistical_model.py`) and its output is present "
-            f"under `output/statistical_models/models/`."
-        )
-    return df
+    return _show_or_pending(
+        df,
+        what,
+        hint=(
+            "its output is present under `output/statistical_models/models/` "
+            "(run `scripts/fit_statistical_model.py`)"
+        ),
+    )
 ```

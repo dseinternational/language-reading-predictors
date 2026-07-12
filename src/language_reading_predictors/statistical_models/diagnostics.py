@@ -185,13 +185,13 @@ def summary_diagnostics(
             context.trace,
             var_names=var_names,
             round_to=3,
-            ci_prob=context.reporting.hdi,
+            ci_prob=context.reporting.ci_prob,
             ci_kind="eti",
         )
         summary.to_csv(os.path.join(out, "diagnostics.csv"))
         context.tables["diagnostics"] = summary
 
-        ci_pct = int(round(context.reporting.hdi * 100))
+        ci_pct = int(round(context.reporting.ci_prob * 100))
         interval_cols = _interval_cols(summary.columns)
         wanted = [
             c
@@ -248,7 +248,7 @@ def summary_diagnostics(
                 tr,
                 var_names=var_names,
                 group="posterior",
-                ci_prob=context.reporting.hdi,
+                ci_prob=context.reporting.ci_prob,
             ),
             "posterior_plot.png",
             title="Marginal posterior distributions",
@@ -366,8 +366,12 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
         "n_divergences": None,
     }
     try:
+        # ``round_to="none"`` (the string) genuinely disables rounding; ``round_to=None``
+        # falls through to ``rcParams["stats.round_to"]`` (2 sig figs) and would silently
+        # gate on rounded R-hat/ESS — the dseinternational/research#65 bug this check must
+        # not reproduce (it advertises "unrounded" signals above).
         summ = az.summary(
-            trace, var_names=var_names, round_to=None, kind="diagnostics"
+            trace, var_names=var_names, round_to="none", kind="diagnostics"
         )
         max_rhat = float(summ["r_hat"].max())
         min_ess = float(min(summ["ess_bulk"].min(), summ["ess_tail"].min()))
