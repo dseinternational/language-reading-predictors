@@ -30,9 +30,11 @@ composite, handled internally). As in LRP59, randomisation handles the G->Y and
 G->M confounding; the binding unverifiable assumption is no unmeasured
 mediator-outcome confounding, so we adjust for the pre-treatment route->reading
 confounders the revised DAG requires — age (A), hearing (HS), phonological memory
-(RW; erbto) and speech production (SP; deapp_c) — at **baseline (t1)**. The old E/R
-adjusters are **dropped** as treatment-affected (IG->TE->EV, IG->TR->RV), which
-would violate the cross-world assumption.
+(RW; erbto) and speech production (SP; deapp_c) — at **baseline (t1)**. Baseline
+expressive / receptive vocabulary (E, R) are **retained** pending the time-indexed
+d-separation (#264): they are measured at t1 (pre-randomisation), so they cannot be
+descendants of the t1->t2 intervention and the treatment-affected /
+recanting-witness argument does not apply; whether they stay is #264's call.
 
 Read this as **triangulation, not a precise causal split**: with n ~ 53,
 contemporaneous mediator/outcome measurement, and the no-unmeasured-confounding

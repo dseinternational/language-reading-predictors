@@ -551,6 +551,13 @@ def build_mediation_family(config: str) -> pd.DataFrame | None:
         direct_row = "IDE" if indirect_row == "IIE" else "NDE"
         total = df.loc["total"] if "total" in df.index else None
         direct = df.loc[direct_row] if direct_row in df.index else None
+
+        # Median-first (#268); fall back to the mean column for pre-#268 CSVs.
+        def _w(series) -> float:
+            if series is None:
+                return float("nan")
+            return float(series.get("words_median", series.get("words_mean")))
+
         rows.append(
             {
                 "config": config,
@@ -558,12 +565,12 @@ def build_mediation_family(config: str) -> pd.DataFrame | None:
                 "route": label,
                 "estimand": indirect_row,
                 "converged": _gate_ok(model_id, config),
-                "indirect_words": float(ind["words_mean"]),
+                "indirect_words": _w(ind),
                 "indirect_lo": float(ind["words_lo"]),
                 "indirect_hi": float(ind["words_hi"]),
                 "indirect_prob_pos": float(ind["prob_pos"]),
-                "total_words": float(total["words_mean"]) if total is not None else np.nan,
-                "direct_words": float(direct["words_mean"]) if direct is not None else np.nan,
+                "total_words": _w(total),
+                "direct_words": _w(direct),
             }
         )
     if not rows:

@@ -99,14 +99,19 @@ def decompose(
     control Monte-Carlo noise from the mediator draw; the posterior itself
     supplies the inferential uncertainty.
 
-    ``interventional=True`` (LRP78) returns the **randomised interventional
-    analogue** effects (IDE / IIE) instead of the natural NDE / NIE. Each unit's
-    mediator is drawn from the *population* arm-g distribution (the simulated
-    mediator column is permuted across units) rather than from that unit's own
-    counterfactual, which breaks the unit-level mediator-confounder link. That is
-    exactly what makes the estimand identified under a **treatment-induced
-    mediator-outcome confounder** (dose ``IS``, DAG ID-2) — the setting in which
-    the natural-effect NDE/NIE are *not* identified. Rows are labelled
+    ``interventional=True`` (LRP78) labels the decomposition as the **randomised
+    interventional analogue** (IDE / IIE) rather than the natural NDE / NIE. The
+    mediator is drawn from its fitted **covariate-conditional** law ``P(M | C, g)``
+    within strata (VanderWeele, Vansteelandt & Robins 2014) — which is exactly the
+    distribution the g-formula already simulates. In this fully parametric model
+    with no unit-level latent terms the interventional draw therefore **coincides
+    numerically** with the natural-branch computation: the ``interventional`` flag
+    changes the estimand's *interpretation* (an interventional effect requiring no
+    cross-world quantity, only no-unmeasured-mediator-outcome-confounding; #260),
+    not the number. It is **not** a marginal population permutation, and it does
+    **not** turn a treatment-induced dose (``IS``) confounder into an identified
+    quantity — ``IS`` never enters the fitted model, so the interventional
+    functional cannot repair, or diagnose, dose confounding. Rows are labelled
     ``IDE``/``IIE`` and the proportion is ``IIE/Total``.
     """
     post = trace.posterior
@@ -151,15 +156,24 @@ def decompose(
     y_treat_Mctrl = np.zeros(S)
 
     def draw_m(zm: np.ndarray) -> np.ndarray:
-        # Natural: keep each unit's own mediator draw. Interventional (LRP78):
-        # permute the mediator across units so each unit receives a random draw
-        # from the population arm-g distribution (a fresh permutation per call, so
-        # the treated/control cells get independent population draws) — the
-        # randomised interventional analogue, robust to a treatment-induced
-        # mediator-outcome confounder.
-        if not interventional:
-            return zm
-        return zm[:, rng.permutation(zm.shape[1])]
+        # Both the natural and the interventional analogue draw the mediator from
+        # its fitted COVARIATE-CONDITIONAL law P(M | C, g) — exactly what
+        # ``mediator_p`` / ``mediator_mu`` simulate above (``zm``). In this fully
+        # parametric g-formula with no unit-level latent terms, the within-stratum
+        # interventional draw therefore coincides *numerically* with the
+        # natural-branch computation, so ``interventional`` is an interpretive
+        # relabelling (an interventional IDE/IIE under weaker cross-world
+        # assumptions; #260, #268), NOT a different number.
+        #
+        # It is deliberately NOT the marginal population permutation an earlier
+        # version used (``zm[:, rng.permutation(...)]``): that draws M from the
+        # marginal arm-g distribution, pairing mediator values with off-support
+        # covariate profiles through the nonlinear G×M logit, which targets a
+        # cruder estimand — and, crucially, its divergence from the natural
+        # decomposition reflects that covariate decoupling, NOT the treatment-
+        # induced dose (IS) confounding (IS never enters the fitted model), so it
+        # cannot support an IIE-vs-NIE dose-distortion diagnostic.
+        return zm
 
     if med.mediator_kind == "gaussian_composite":
         # LRP62: continuous standardised route composite ~ Normal. The mediator
@@ -224,9 +238,12 @@ def decompose(
     def row(name: str, draws: np.ndarray) -> dict:
         return {
             "quantity": name,
+            # Median-first (house convention; #268). Mean kept as a secondary column.
+            "prob_median": float(np.median(draws)),
             "prob_mean": float(np.mean(draws)),
             "prob_lo": float(np.quantile(draws, lo_q)),
             "prob_hi": float(np.quantile(draws, hi_q)),
+            "words_median": float(np.median(draws) * N_W),
             "words_mean": float(np.mean(draws) * N_W),
             "words_lo": float(np.quantile(draws, lo_q) * N_W),
             "words_hi": float(np.quantile(draws, hi_q) * N_W),
@@ -245,9 +262,13 @@ def decompose(
     rows.append(
         {
             "quantity": "proportion_mediated",
-            "prob_mean": float(np.median(prop)),
+            # A ratio: report its median (the mean is unstable when Total crosses
+            # zero); no longer overloaded onto prob_mean (#268).
+            "prob_median": float(np.median(prop)),
+            "prob_mean": float(np.mean(prop)),
             "prob_lo": float(np.quantile(prop, lo_q)),
             "prob_hi": float(np.quantile(prop, hi_q)),
+            "words_median": np.nan,
             "words_mean": np.nan,
             "words_lo": np.nan,
             "words_hi": np.nan,
@@ -420,9 +441,12 @@ def decompose_two_mediator(
     def row(name: str, draws: np.ndarray) -> dict:
         return {
             "quantity": name,
+            # Median-first (house convention; #268). Mean kept as a secondary column.
+            "prob_median": float(np.median(draws)),
             "prob_mean": float(np.mean(draws)),
             "prob_lo": float(np.quantile(draws, lo_q)),
             "prob_hi": float(np.quantile(draws, hi_q)),
+            "words_median": float(np.median(draws) * N_W),
             "words_mean": float(np.mean(draws) * N_W),
             "words_lo": float(np.quantile(draws, lo_q) * N_W),
             "words_hi": float(np.quantile(draws, hi_q) * N_W),
@@ -443,9 +467,13 @@ def decompose_two_mediator(
     rows.append(
         {
             "quantity": "proportion_mediated",
-            "prob_mean": float(np.median(prop)),
+            # A ratio: report its median (the mean is unstable when Total crosses
+            # zero); no longer overloaded onto prob_mean (#268).
+            "prob_median": float(np.median(prop)),
+            "prob_mean": float(np.mean(prop)),
             "prob_lo": float(np.quantile(prop, lo_q)),
             "prob_hi": float(np.quantile(prop, hi_q)),
+            "words_median": np.nan,
             "words_mean": np.nan,
             "words_lo": np.nan,
             "words_hi": np.nan,
