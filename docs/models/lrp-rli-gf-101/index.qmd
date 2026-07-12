@@ -32,10 +32,13 @@ to on-intervention period rows (it excludes the waitlist arm's untreated period 
 Once restricted to on-intervention rows, the on-intervention indicator is constant,
 so the treatment term and its interactions are **dropped**: there is no randomised
 contrast here. This model reports the **adjusted associations** of the remaining
-factors (own baseline, age, cognitive ability, skills L/R, age $\times$ ability)
-with word-reading gains *among the treated*. Under the locked DAG every coefficient
-is confounded by latent general ability (the child random intercept repairs the
-time-invariant part) — read as "associated with", never "drives". SES is excluded
+factors (own baseline, age, cognitive ability, skills TR/TE/R/E/L/N/B, age $\times$ ability)
+with word-reading gains *among the treated*. Under the revised DAG
+(`dag/dag-language-reading.dagitty`, revised 2026-07-10) every coefficient is an
+adjusted association: the child random intercept is a partial, shrunken stand-in for
+between-child heterogeneity and does **not** control latent general ability, so these
+internal slopes remain descriptive associations — read as "associated with", never
+"drives". SES is excluded
 (non-DAG / redundant). Compare these associations with LRPGF01.
 
 :::
@@ -47,7 +50,7 @@ $$
   + \gamma_{\text{own}}\operatorname{logit}_*(W_{\text{pre}})
   + \gamma_A A_{\text{std}}
   + \gamma_{\text{ability}}\,z(\text{blocks})
-  + \sum_{s\in\{L,R\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
+  + \sum_{s\in\{TR,TE,R,E,L,N,B\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
   + \gamma_{\text{int}}\,(\text{age}\times\text{ability})
   + u_{\text{child}[i]},
 $$
