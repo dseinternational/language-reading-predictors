@@ -1,0 +1,63 @@
+---
+title: "LRP74: Does word reading route through nonword decoding? (floor-limited mediation)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+The revised DAG labels nonword reading $N$ the **"code route (mediator)"** — the decoding
+step between the phonics skills and word reading $W$. Yet every existing mediation model
+routes reading through the phonics *knowledge* directly, skipping the decoding *behaviour*.
+LRP74 fills that gap: a single-mediator g-formula decomposition of the intervention's
+word-reading effect through $N$. Because nonwords cannot be sight-read, a route through $N$
+isolates genuine decoding in a way a route to $W$ does not.
+
+## Design
+
+Phase 0 only, $n \approx 50$. Mediator $N_{t2}$ (Beta-Binomial on $N_{t1}$); outcome
+$W_{t2}$. Adjustment $\{G, A, E, R, W_\text{pre}, N_{t1}\}$ — vocabulary $E, R$ are the
+mediator–outcome confounders (the whole-word route that bypasses decoding). Letter sounds
+$L$ and blending $B$ are *upstream* of $N$, so they are on the $G \to \dots \to N$ path and
+are **not** adjusted.
+
+## Assumptions — read this first {#sec-assumptions}
+
+Two caveats specific to this model, beyond the usual ID-2 ($GA$-confounding, treatment-induced
+dose confounder):
+
+- **$N$ is heavily floored** in this cohort (the documented $NW$ floor; a corrected DS
+  decoding deficit $g \approx -0.89$). If the intervention barely moves $N$ off the floor the
+  indirect effect is $\approx 0$ with wide intervals — read that as **floor-limited**, not as
+  evidence of no route.
+- **Direction is contested in DS.** Roch & Jarrold (2012) found the *longitudinal* arrow
+  running $WR \to NW$ (and level-gated), so the forward $NW \to WR$ mediation imported from TD
+  is only weakly corroborated in DS. This is an adjusted association under a **stated,
+  DS-uncertain** forward direction.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
