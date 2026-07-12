@@ -28,7 +28,16 @@ RECONCILED_FACTORY_DEFAULTS = [
     (factories.build_historical_growth_model, "eta_prior_sigma", 1.5),
     (factories.build_historical_growth_model, "sigma_subject_prior_sigma", 0.5),
     (factories.build_historical_growth_model, "kappa_prior_sigma", 50.0),
+    # The ORIGINAL HalfNormal(1)/HalfNormal(1) pair: TruncatedNormal(mu=0, sigma=1,
+    # lower=0) is exactly HalfNormal(1). A revision of #261 briefly recalibrated
+    # these to (0.6, 0.5)/0.5 alongside the marginalisation, but the LRPMM101 2x2
+    # ablation showed the recalibration neither clears the gate nor moves the
+    # posterior, while it does shift prior-implied median communality 0.50 -> 0.79.
+    # It was reverted; LRPMM101 carries it as a prior-sensitivity fit. These
+    # defaults must therefore stay at the original values.
+    (factories.build_correlated_factor_model, "loading_mu", 0.0),
     (factories.build_correlated_factor_model, "loading_sigma", 1.0),
+    (factories.build_correlated_factor_model, "residual_sigma", 1.0),
     (factories.build_correlated_factor_model, "predictor_slope_sigma", 0.5),
     (factories.build_growth_model, "assoc_prior_sigma", 0.3),
     (factories.build_growth_model, "re_intercept_prior_sigma", 0.5),

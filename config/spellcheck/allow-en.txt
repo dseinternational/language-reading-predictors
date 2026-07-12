@@ -20,6 +20,7 @@ Baylis
 Behavioral
 Belzak
 Bertelson
+Betancourt
 Biometrika
 Birkinshaw
 Boudreau
@@ -436,6 +437,7 @@ pytest
 readgrp
 reframing
 reparameterisation
+reparameterised
 resid
 residualised
 residualized
