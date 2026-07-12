@@ -503,3 +503,6 @@ Fidler
 Disabil
 VanderWeele
 Vansteelandt
+Tchetgen
+ignorability
+tertile

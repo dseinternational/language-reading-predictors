@@ -1413,6 +1413,9 @@ class MediationData:
     n_trials_W: int
     mediator_kind: str = "beta_binomial"
     confounder_symbols: tuple[str, ...] = ()
+    #: The mediator's data symbol (L for LRP59, TE for LRP68, N for LRP74); the
+    #: own-baseline coefficient node is ``a_{mediator_symbol}``.
+    mediator_symbol: str = "L"
     # Beta-Binomial single mediator (LRP59).
     L1_logit: np.ndarray | None = None
     L2_count: np.ndarray | None = None
@@ -1567,7 +1570,11 @@ def build_mediation_model(
 
     with pm.Model(coords=coords) as model:
         G_d = pm.Data("G", G_f, dims="obs_id")
-        L1_d = pm.Data("L_pre_logit", L1, dims="obs_id")
+        # Mediator baseline / own-baseline coef / likelihood are parameterised by
+        # ``mediator_symbol`` so a non-L mediator (LRP68 TE, LRP74 N) gets correctly
+        # labelled nodes; when mediator_symbol == 'L' every name is byte-identical to
+        # the original LRP59 build.
+        L1_d = pm.Data(f"{mediator_symbol}_pre_logit", L1, dims="obs_id")
         W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         conf_d = {
@@ -1576,10 +1583,10 @@ def build_mediation_model(
         }
         z_med_d = pm.Data("z_med", z_med, dims="obs_id")
 
-        # --- Mediator model: logit(L_t2) ---
+        # --- Mediator model: logit(mediator_t2) ---
         a0 = _priors.alpha_prior().to_pymc("a0")
         a_G = _priors.tau_prior().to_pymc("a_G")
-        a_L = _priors.gamma_own_prior().to_pymc("a_L")
+        a_L = _priors.gamma_own_prior().to_pymc(f"a_{mediator_symbol}")
         a_A = _priors.gamma_cross_prior().to_pymc("a_A")
         mu_M = a0 + a_G * G_d + a_L * L1_d + a_A * A_d
         for s in confounder_symbols:
@@ -1588,7 +1595,7 @@ def build_mediation_model(
         mu_M = pm.Deterministic("mu_M", mu_M, dims="obs_id")
         kappa_M = _priors.kappa_prior().to_pymc("kappa_M")
         beta_binomial_from_logit(
-            "L_post", mu_M, n_trials=N_med, kappa=kappa_M,
+            f"{mediator_symbol}_post", mu_M, n_trials=N_med, kappa=kappa_M,
             observed=L2_count, dims="obs_id",
         )
 
@@ -1617,6 +1624,7 @@ def build_mediation_model(
         n_trials_W=int(N_out),
         med_mean=float(med_scaler.mean),
         med_sd=float(med_scaler.sd),
+        mediator_symbol=mediator_symbol,
     )
     built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
     return built, med_data
@@ -1779,6 +1787,9 @@ class TwoMediatorData:
     zE_sd: float
     mediator_symbols: tuple[str, str] = ("L", "E")
     confounder_symbols: tuple[str, ...] = ("R",)
+    #: Sequential code route (LRP75): the second mediator regresses on post-L, so
+    #: the g-formula must draw it conditional on the simulated first mediator.
+    chain: bool = False
 
 
 def build_two_mediator_model(
@@ -1787,13 +1798,17 @@ def build_two_mediator_model(
     outcome_symbol: str = "W",
     mediator_symbols: tuple[str, str] = ("L", "E"),
     confounder_symbols: Iterable[str] = ("R",),
+    chain: bool = False,
 ) -> tuple[BuiltModel, TwoMediatorData]:
     """Joint two-mediator + outcome model for the ITT-phase decomposition (LRP64).
 
     Generalises :func:`build_mediation_model` to **two named count mediators** so
     the word-reading effect can be split into a path via letter-sound knowledge, a
-    path via expressive vocabulary, and a direct/residual path. Three Beta-Binomial
-    legs share the randomised treatment ``G`` and a baseline-covariate adjustment::
+    path via a second mediator (expressive vocabulary ``E`` in LRP64, phoneme
+    blending ``B`` in LRP66), and a direct/residual path. The first leg is fixed to
+    ``L``; the second is parameterised by ``mediator_symbols[1]``. Three
+    Beta-Binomial legs share the randomised treatment ``G`` and a baseline-covariate
+    adjustment::
 
         L_t2 ~ aL0 + aL_G·G + aL_L·logit(L_t1) + aL_A·A + sum aL_c·C_t1
         E_t2 ~ aE0 + aE_G·G + aE_E·logit(E_t1) + aE_A·A + sum aE_c·C_t1
@@ -1814,13 +1829,16 @@ def build_two_mediator_model(
         raise ValueError("Two-mediator factory requires phase_mode='itt'")
     confounder_symbols = tuple(confounder_symbols)
     mL, mE = mediator_symbols
-    # The PyMC node and coefficient names below are hard-coded to the L/E legs
-    # (L_pre_logit, z_L, aL_*, b_L, ...), so only the ('L', 'E') pair is
-    # supported; other symbols would silently mislabel the fitted variables.
-    if (mL, mE) != ("L", "E"):
+    # The FIRST mediator leg's node/coefficient names are hard-coded to L
+    # (L_pre_logit, z_L, aL_*, b_L, b_GL, L_post); the SECOND leg is
+    # parameterised by its symbol ``mE`` ({mE}_pre_logit, z_{mE}, a{mE}_*,
+    # b_{mE}, b_G{mE}, {mE}_post, kappa_{mE}). When mE == 'E' every generated
+    # name is byte-identical to the original LRP64 build, so ('L', 'E') is
+    # unchanged; ('L', 'B') etc. get correctly-labelled second-leg variables.
+    if mL != "L":
         raise NotImplementedError(
-            "build_two_mediator_model hard-codes L/E variable names; "
-            f"mediator_symbols must be ('L', 'E'), got {mediator_symbols!r}"
+            "build_two_mediator_model hard-codes the first leg to L; "
+            f"mediator_symbols[0] must be 'L', got {mediator_symbols!r}"
         )
     needed = {outcome_symbol, mL, mE, *confounder_symbols}
     for s in needed:
@@ -1860,14 +1878,14 @@ def build_two_mediator_model(
         G_d = pm.Data("G", G_f, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         L1_d = pm.Data("L_pre_logit", L1, dims="obs_id")
-        E1_d = pm.Data("E_pre_logit", E1, dims="obs_id")
+        E1_d = pm.Data(f"{mE}_pre_logit", E1, dims="obs_id")
         W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
         conf_d = {
             s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
             for s in confounder_symbols
         }
         zL_d = pm.Data("z_L", zL, dims="obs_id")
-        zE_d = pm.Data("z_E", zE, dims="obs_id")
+        zE_d = pm.Data(f"z_{mE}", zE, dims="obs_id")
 
         # --- Mediator L (letter-sound) ---
         aL0 = _priors.alpha_prior().to_pymc("aL0")
@@ -1884,28 +1902,35 @@ def build_two_mediator_model(
             "L_post", mu_L, n_trials=N_L, kappa=kappa_L, observed=L2, dims="obs_id"
         )
 
-        # --- Mediator E (expressive vocabulary) ---
-        aE0 = _priors.alpha_prior().to_pymc("aE0")
-        aE_G = _priors.tau_prior().to_pymc("aE_G")
-        aE_E = _priors.gamma_own_prior().to_pymc("aE_E")
-        aE_A = _priors.gamma_cross_prior().to_pymc("aE_A")
+        # --- Mediator 2 (``mE``; expressive vocabulary in LRP64, blending in LRP66) ---
+        aE0 = _priors.alpha_prior().to_pymc(f"a{mE}0")
+        aE_G = _priors.tau_prior().to_pymc(f"a{mE}_G")
+        aE_E = _priors.gamma_own_prior().to_pymc(f"a{mE}_{mE}")
+        aE_A = _priors.gamma_cross_prior().to_pymc(f"a{mE}_A")
         mu_E = aE0 + aE_G * G_d + aE_E * E1_d + aE_A * A_d
         for s in confounder_symbols:
-            aE_c = _priors.gamma_cross_prior().to_pymc(f"aE_{s}")
+            aE_c = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{s}")
             mu_E = mu_E + aE_c * conf_d[s]
-        mu_E = pm.Deterministic("mu_E", mu_E, dims="obs_id")
-        kappa_E = _priors.kappa_prior().to_pymc("kappa_E")
+        if chain:
+            # Sequential code route (LRP75): the second mediator is downstream of
+            # the first (L -> B), so post-L (``z_L``) enters the mE leg. The
+            # coefficient a{mE}_L is the L->B coupling; the g-formula then draws the
+            # second mediator conditional on the *simulated* L.
+            aE_L = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{mL}")
+            mu_E = mu_E + aE_L * zL_d
+        mu_E = pm.Deterministic(f"mu_{mE}", mu_E, dims="obs_id")
+        kappa_E = _priors.kappa_prior().to_pymc(f"kappa_{mE}")
         beta_binomial_from_logit(
-            "E_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id"
+            f"{mE}_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id"
         )
 
         # --- Outcome W ---
         b0 = _priors.alpha_prior().to_pymc("b0")
         b_G = _priors.tau_prior().to_pymc("b_G")
         b_L = _priors.b_path_prior().to_pymc("b_L")
-        b_E = _priors.b_path_prior().to_pymc("b_E")
+        b_E = _priors.b_path_prior().to_pymc(f"b_{mE}")
         b_GL = _priors.gamma_cross_prior().to_pymc("b_GL")
-        b_GE = _priors.gamma_cross_prior().to_pymc("b_GE")
+        b_GE = _priors.gamma_cross_prior().to_pymc(f"b_G{mE}")
         b_W = _priors.gamma_own_prior().to_pymc("b_W")
         b_A = _priors.gamma_cross_prior().to_pymc("b_A")
         eta_Y = (
@@ -1943,6 +1968,7 @@ def build_two_mediator_model(
         zE_sd=float(zE_scaler.sd),
         mediator_symbols=(mL, mE),
         confounder_symbols=confounder_symbols,
+        chain=chain,
     )
     built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
     return built, med_data
