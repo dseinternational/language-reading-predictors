@@ -28,7 +28,7 @@ format:
 LRPITT01 is the intention-to-treat (ITT) analysis for taught receptive vocabulary, block 1 (`b1retau`). The
 estimand is the total effect of randomised group assignment $G$ on the post-score
 $TR_{\text{post}}$, using the RCT phase only (time 1 $\rightarrow$ time 2).
-This model supersedes LRP75 (which conditioned on the standardised-vocabulary cross-baseline).
+This model supersedes the pre-#168 taught-receptive ITT model (legacy id LRP75, which conditioned on the standardised-vocabulary cross-baseline — unrelated to the current `lrp-rli-med-075`, which reuses the number 75).
 
 ::: {.callout-note title="Identification and sign convention"}
 

@@ -42,9 +42,10 @@ and three focal interactions (`trt×ability`, `trt×own`, `age×ability`):
 | F   | Basic concept knowledge (CELF) |       18 | R                      | Beta-Binomial           |
 | T   | Receptive grammar (TROG-2)     |       32 | R                      | Beta-Binomial           |
 
-Skills enter as the standardised pre-score logit of the upstream measure (e.g.
-word reading is regressed on baseline letter sounds **L** and receptive
-vocabulary **R**). They are reported as **adjusted associations**, never as
+Skills enter as the raw Haldane pre-score logit of the upstream measure (matching
+the equation above — they are not standardised; e.g. word reading is regressed on
+baseline letter sounds **L** and receptive vocabulary **R**). They are reported as
+**adjusted associations**, never as
 "X drives Y".
 
 ### Decision 1 — SES is excluded, and that is the DAG-faithful choice

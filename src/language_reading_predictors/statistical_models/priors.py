@@ -142,11 +142,15 @@ def kappa_prior(sigma: float = 50.0) -> Continuous:
     (Parametrised by ``sigma`` so the dispersion prior can be anchored once
     against the tests' normative raw-score SDs — an admissible external source,
     #141's still-unused anchor — prior-critical-review 2026-07-07, recommendation
-    5. The default ``50`` is permissive but arbitrary; the review found the
-    prior-predictive over-dispersion is location-driven, not ``kappa``-driven, so
-    this is lower priority and the default is unchanged pending the normative-SD
-    calibration. The docstring's numeric value is what ``_dist_from_doc`` extracts
-    for the name-only table path.)
+    5. The default ``50`` is only *partly* permissive: it is generous for the
+    low-denominator outcomes, but on high-denominator outcomes (e.g. R / E at
+    ``n_trials`` up to 170) it concentrates ``kappa`` well below ``n``, so it
+    effectively **enforces a minimum over-dispersion** — the near-Binomial limit
+    (``kappa >> n``) is off the table. That is deliberate here (the review found
+    the prior-predictive over-dispersion to be location-driven, not
+    ``kappa``-driven, so raising the cap is lower priority), and the default is
+    unchanged pending the normative-SD calibration. The docstring's numeric value
+    is what ``_dist_from_doc`` extracts for the name-only table path.)
     """
     return pz.HalfNormal(sigma=sigma)
 

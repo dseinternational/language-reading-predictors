@@ -171,7 +171,7 @@ _DID = [
     # on the log-odds of coming off the floor - mirroring siblings LRPITT09/11.
     _d("lrpdid08", "did", "Within-person DiD", Status.ROBUSTNESS, "TR", "waitlist-crossover replication", base="lrpitt01"),
     _d("lrpdid09", "did", "Within-person DiD", Status.ROBUSTNESS, "E", "waitlist-crossover replication", base="lrpitt06"),
-    _d("lrpdid10", "did", "Within-person DiD", Status.ROBUSTNESS, "F", "waitlist-crossover (no randomised ITT sibling)"),
+    _d("lrpdid10", "did", "Within-person DiD", Status.ROBUSTNESS, "F", "waitlist-crossover replication", base="lrpitt25"),
     _d("lrpdid11", "did", "Within-person DiD", Status.ROBUSTNESS, "P", "waitlist-crossover replication (off-floor)", base="lrpitt09"),
     _d("lrpdid12", "did", "Within-person DiD", Status.ROBUSTNESS, "N", "waitlist-crossover replication (off-floor)", base="lrpitt11"),
 ]
@@ -263,22 +263,49 @@ MODEL_REGISTRY: dict[str, ModelDefinition] = {
 
 # --- Provenance: deleted predecessors and reserved / deferred models --------------
 # Not built (no module); recorded for the supersession map and roadmap only.
+#
+# These are *pre-#168* numeric ids. Some numbers were later reused by unrelated
+# canonical models — 70 by the growth curve ``lrp-rli-gc-070``, and 74/75/76 by the
+# mediation models ``lrp-rli-med-074/075/076`` — so a bare "LRP74" here is NOT the
+# live ``lrp-rli-med-074``. To keep that unambiguous the reused keys carry a
+# ``[pre-#168 …]`` qualifier so they no longer read as, or match, a live legacy
+# alias; ``provenance_alias_collisions()`` guards against any future bare-id reuse.
 SUPERSEDED: dict[str, str] = {
     "LRP52": "lrpitt10",   # word reading
     "LRP53": "lrpitt05",   # receptive vocabulary
     "LRP54": "lrpitt06",   # expressive vocabulary
-    "LRP74": "lrpitt02",   # taught expressive
-    "LRP75": "lrpitt01",   # taught receptive
+    "LRP74 [pre-#168 taught-expressive ITT]": "lrpitt02",  # ≠ live lrp-rli-med-074
+    "LRP75 [pre-#168 taught-receptive ITT]": "lrpitt01",   # ≠ live lrp-rli-med-075
     "LRP55": "lrpitt12",   # joint
     "LRP60": "lrpitt13",   # SES (word reading)
     "LRP60a": "lrpitt14",  # SES matched comparator
-    "LRP76": "lrpitt15",   # generalisation contrast
+    "LRP76 [pre-#168 generalisation contrast]": "lrpitt15",  # ≠ live lrp-rli-med-076
 }
 
 RESERVED: dict[str, str] = {
     "LRP16": "descriptive developmental-trajectory model (the trajectory question is the companion vocabulary-growth report)",
-    "LRP70": "CELF-moderated mechanism, deferred pending a DAG review of conditioning on a descendant of letter-sound knowledge",
+    "LRP70 [pre-#168 reserved]": "CELF-moderated mechanism, deferred pending a DAG review of conditioning on a descendant of letter-sound knowledge (the number 70 is now the live growth curve lrp-rli-gc-070)",
 }
+
+
+def provenance_alias_collisions() -> list[str]:
+    """Provenance keys that are also a *live* model's legacy alias (should be empty).
+
+    A bare ``LRPnn``/``LRPnnx`` key in ``SUPERSEDED`` / ``RESERVED`` that equals a
+    live model's legacy alias is ambiguous: the same string resolves to two
+    different models. Qualified keys (e.g. ``"LRP74 [pre-#168 …]"``) do not match
+    the bare pattern and are therefore skipped. ``tests`` asserts this is empty so
+    a future entry cannot silently collide (issue #273).
+    """
+    import re
+
+    bare = re.compile(r"^lrp\d+[a-z]?$")
+    live_aliases = {model_ids.to_legacy(mid).lower() for mid in MODEL_REGISTRY}
+    return [
+        key
+        for key in (*SUPERSEDED, *RESERVED)
+        if bare.match(key.lower()) and key.lower() in live_aliases
+    ]
 
 
 def models_by_status(status: Status) -> list[ModelDefinition]:

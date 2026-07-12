@@ -655,6 +655,17 @@ def load_and_prepare_lagged_outcome(
     )
     # Align the later-wave outcome to the ITT base rows by subject; missing -> NaN.
     new_post = later.reindex(base.subject_ids).to_numpy(dtype=float)
+    # Beta-Binomial ceiling guard (#80), same as load_and_prepare: a replaced
+    # later-wave count above n_trials would silently produce a NaN/-inf
+    # log-likelihood. Fail loudly (issue #273).
+    m = MEASURES[outcome_symbol]
+    finite = new_post[np.isfinite(new_post)]
+    if finite.size and finite.max() > m.n_trials:
+        raise ValueError(
+            f"Measure {outcome_symbol!r} ({col} at t{outcome_time}) has value "
+            f"{finite.max():g} above its n_trials ceiling {m.n_trials}; "
+            "fix measures.py or check the source data."
+        )
     post_counts = dict(base.post_counts)
     post_counts[outcome_symbol] = new_post
     return replace(base, post_counts=post_counts)

@@ -1826,6 +1826,16 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
         f = z_L[:, None] * b[None, :]  # (n_obs, n_sample)
         kind = "linear"
     else:
+        # No f_mech / beta_mech in the posterior — e.g. a phase_specific_mechanism
+        # fit, whose per-phase f_mech is not registered under either name, so the
+        # curve would be silently skipped. Warn loudly rather than no-op (issue
+        # #273); register the phase-specific curve as pm.Deterministic("f_mech",
+        # ..., dims="obs_id") in the factory if such a model is ever shipped.
+        rprint(
+            "[yellow]_write_mechanism_curve: no 'f_mech'/'beta_mech' in the "
+            f"posterior for {ctx.spec.model_id} (phase_specific_mechanism?); "
+            "no mechanism_curve.csv/plot written.[/yellow]"
+        )
         return
 
     order = np.argsort(mech_logit)
@@ -2568,14 +2578,18 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Extended diagnostics")
     _lf_group_by_time = extra.get("group_by_time", True)
-    _causal_lf = None if _lf_group_by_time else "beta_grp"
+    # For the shipped group-by-time LF models the flagged-causal term is the t2
+    # element of the per-timepoint group vector, ``b_grp_time`` (``b_grp_time[1]``,
+    # which reporting.level_t2_marginal_effect reads into the causal ROPE card), so
+    # it must get the same prior-sensitivity + forest evidence as tau/beta_trt
+    # rather than being skipped (issue #273).
+    _causal_lf = "b_grp_time" if _lf_group_by_time else "beta_grp"
     _diag.write_diagnostics_summary(ctx, var_names=_lf_diag_vars(spec))
     _diag.run_extended_diagnostics(ctx, causal_term=_causal_lf)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag_vars(spec))
-    if _causal_lf is not None:
-        _save_forest_plot(ctx, [_causal_lf])
-        _diag.run_psense(ctx, var_names=[_causal_lf])
+    _save_forest_plot(ctx, [_causal_lf])
+    _diag.run_psense(ctx, var_names=[_causal_lf])
 
     section_header("Factor summary")
     # Only the t2 group contrast (b_grp_time[1]) is the clean randomised effect;
@@ -3636,11 +3650,15 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     )
 
-    # Factor layer: does baseline non-verbal ability predict the *common* growth
-    # tempo? Read out post-hoc as the per-draw correlation between each child's
-    # latent tempo G_i and their standardised block-design score. G_tempo is
-    # independent a priori but the posterior can still correlate G and blocks
-    # through the likelihood, so this is a descriptive post-hoc read-out only.
+    # Factor layer: is there *residual* coupling between baseline non-verbal
+    # ability and the common growth tempo, beyond what the model already
+    # attributes to block-design directly (the gamma/delta terms)? Block-design
+    # enters the trajectory as a predictor, so G_tempo is the shared tempo net of
+    # that modelled effect — this correlation is therefore a *residual*
+    # association, not the total "does ability predict tempo". Read out post-hoc as
+    # the per-draw correlation between each child's latent tempo G_i and their
+    # standardised block-design score: independent a priori, but the posterior can
+    # still correlate G and blocks through the likelihood. Descriptive only.
     tempo_corr: dict[str, float] | None = None
     if use_factor and "G_tempo" in ctx.trace.posterior:
         G = (
@@ -3666,7 +3684,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
         ctx.tables["growth_tempo_corr"] = pd.DataFrame([tempo_corr])
         rprint(
-            f"[bold]blocks <-> growth-tempo corr:[/bold] {tempo_corr['median']:+.3f} "
+            f"[bold]blocks <-> growth-tempo residual corr:[/bold] {tempo_corr['median']:+.3f} "
             f"[{tempo_corr['lo']:+.3f}, {tempo_corr['hi']:+.3f}] "
             f"P(>0)={tempo_corr['prob_pos']:.3f}"
         )

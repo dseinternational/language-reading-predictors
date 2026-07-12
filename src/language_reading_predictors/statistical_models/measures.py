@@ -61,7 +61,10 @@ MEASURES: dict[str, Measure] = {
     "F": Measure("F", V.CELF, 18, "Basic concept knowledge (CELF)", n_trials_confirmed=True),
     # TROG-2: 8 blocks of 4 = 32 items. Observed max 27.
     "T": Measure("T", V.TROG, 32, "Receptive grammar (TROG-2)", n_trials_confirmed=True),
-    # Nonword reading: 6 items. Post-only; not used as a baseline.
+    # Nonword reading: 6 items. It has t1 data, but ~72% of children are at the
+    # floor at baseline (a near-degenerate pre), so it is not co-loaded as an
+    # autoregressive baseline — doing so would drop rows to complete cases for
+    # little signal.
     "N": Measure("N", V.NONWORD, 6, "Nonword reading", n_trials_confirmed=True),
     # --- Taught-vocabulary block tests (intervention-fidelity outcomes) -------
     # Bespoke tests of the words explicitly taught in the intervention (Block 1,

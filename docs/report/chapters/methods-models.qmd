@@ -8,3 +8,11 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 This chapter is a placeholder for the study-level modelling narrative. The current operative methods are in `METHODS.md`: gradient-boosting models rank full default predictor sets using subject-grouped cross-validation, and Bayesian models report posterior medians, credible intervals, tail probabilities, and explicit causal-versus-association roles after convergence checks.
+
+## The locked DAG {#sec-dag}
+
+_[Scaffold]_ The causal directed acyclic graph that licenses each estimand's causal-vs-association status lives in `dag/dag-language-reading.dagitty` (rendered `dag/dag-language-reading.svg`). Randomisation makes the intervention group a root, so the intention-to-treat effect is the one quantity identified as causal; observational couplings are adjusted associations. This section carries the `@sec-dag` anchor that the standing caveat partials (`_caveats-causal.qmd`, `_caveats-association.qmd`) cross-reference; the full DAG exposition is pending.
+
+## Evidence labels: the effect-vs-evidence bridge {#sec-bridge}
+
+_[Scaffold]_ Evidence labels qualify the strength of the _evidence_ for an effect, never the effect _size_. This section carries the `@sec-bridge` anchor referenced by the evidence-at-a-glance table and the caveat partials; the label ladder is pending.

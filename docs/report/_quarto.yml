@@ -60,6 +60,7 @@ book:
         - chapters/methods-models.qmd
     - part: "Results"
       chapters:
+        - evidence-table.qmd
         - chapters/results-itt.qmd
     - part: "Discussion"
       chapters:
