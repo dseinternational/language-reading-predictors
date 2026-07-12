@@ -1513,6 +1513,16 @@ def build_mediation_model(
     treatment (the cross-world assumption), so post-treatment values are
     inadmissible here. Documented in the report.
 
+    The resulting NDE/NIE are **not identified natural effects**: beyond the
+    latent-general-ability confounding of the mediator->outcome path, dose ``IS``
+    is a treatment-induced (exposure-induced) mediator-outcome confounder, so the
+    decomposition is model-based under stated (cross-world) assumptions. An
+    interventional estimand (``decompose(..., interventional=True)``; LRP78) drops
+    the cross-world requirement and so escapes the ``IS`` obstacle, but it still
+    assumes no unmeasured mediator-outcome confounding, which latent general
+    ability violates here — a weaker-assumption target, not an identified one. See
+    the :mod:`mediation` module docstring and the report assumptions sections.
+
     Requires ``prepared.phase_mode == 'itt'`` (the single randomised t1->t2
     transition; one row per child, so no subject random intercept).
     """
