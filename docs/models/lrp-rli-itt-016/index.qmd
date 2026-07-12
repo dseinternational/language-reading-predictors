@@ -1,0 +1,55 @@
+---
+title: "LRPITT16: Modality contrast — taught expressive (TE) vs taught receptive (TR) vocabulary"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+The generalisation contrasts [LRPITT15](../lrp-rli-itt-015) (expressive: TE vs UE) and
+[LRPITT15b](../lrp-rli-itt-115) (receptive: TR vs UR) each compare taught vs not-taught
+*within* a modality. Neither asks whether the intervention moved the directly-taught words
+more in the **expressive** modality than in the **receptive** modality. LRPITT16 supplies that
+missing contrast: the two Block 1 *taught* outcomes — expressive taught target words $TE$ and
+receptive taught target words $TR$ — are modelled jointly over the randomised window, and the
+headline quantity is the difference in intervention benefit, $\tau[TE] - \tau[TR]$.
+
+A positive contrast means the programme moved the taught words more in production than in
+comprehension. Both $\tau$ are causal (randomised-window ITT effects), so the contrast is a
+clean comparison of two randomised effects — but the two outcomes are on different item
+denominators, so it is read on the logit scale.
+
+## Design
+
+Two-outcome joint Beta-Binomial over the randomised phase-0 window ($G = 1$ intervention,
+$G = 0$ wait-list), own baseline + linear age, no cross-baselines. LKJ residual correlation is
+**off**, mirroring the convergence-safe fallback of the LRPITT15 companions: with
+$n \approx 53$ and two outcomes the residual correlation is weakly identified and the
+conservative choice widens the difference slightly rather than risk poor mixing.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_joint.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

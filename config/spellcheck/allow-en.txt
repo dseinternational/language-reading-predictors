@@ -505,3 +505,6 @@ VanderWeele
 Vansteelandt
 reparameterised
 Betancourt
+Tchetgen
+ignorability
+tertile

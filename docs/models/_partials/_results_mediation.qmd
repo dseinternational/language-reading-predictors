@@ -22,8 +22,8 @@ mediation_summary if mediation_summary is not None else "No mediation summary."
 if mediation_summary is not None:
     _m = mediation_summary.set_index("quantity")
     _total_name = "total" if "total" in _m.index else None
-    _indirect_name = (
-        "NIE_joint" if "NIE_joint" in _m.index else ("NIE" if "NIE" in _m.index else None)
+    _indirect_name = next(
+        (n for n in ("NIE_joint", "NIE", "IIE") if n in _m.index), None
     )
     if _total_name and _indirect_name:
         _tot = _m.loc[_total_name]
