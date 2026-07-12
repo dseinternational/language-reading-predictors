@@ -243,6 +243,21 @@ def ell_prior() -> Continuous:
     return pz.InverseGamma(alpha=3.0, beta=1.0)
 
 
+def ell_prior_mech() -> Continuous:
+    """Mechanism-curve GP lengthscale ell ~ InverseGamma(5, 5) (issue #265).
+
+    On standardised inputs the default ``ell_prior`` (``InverseGamma(3, 1)``, mode
+    0.25 / mean 0.5) keeps non-negligible mass on very short lengthscales, which at
+    n ≈ 157 forces the ``f_mech`` HSGP toward a wiggly, weakly-identified fit — the
+    boundary-geometry neck that leaves residual divergences on mech-058/071/158.
+    ``InverseGamma(5, 5)`` (mode 0.83 / mean 1.25) shifts the mass to
+    moderate-to-long lengthscales — a smoother curve — while still allowing genuine
+    curvature. Scoped to the mechanism GPs so the ITT age-GP and dose-response GP,
+    which converge cleanly under the default, do not regress.
+    """
+    return pz.InverseGamma(alpha=5.0, beta=5.0)
+
+
 def eta_partial_pool_prior() -> Continuous:
     """Joint-model outcome-specific age-GP amplitude ~ HalfNormal(0.3)."""
     return pz.HalfNormal(sigma=0.3)

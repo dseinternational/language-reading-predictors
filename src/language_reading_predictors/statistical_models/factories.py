@@ -67,6 +67,12 @@ from language_reading_predictors.statistical_models.preprocessing import (
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+# Basis count for the mechanism-curve HSGP (issue #265). Fewer functions than the
+# generic default (20) shrink the parameter space feeding the boundary-geometry
+# funnel; at n ~ 157 with a smooth curve, ~12 is more resolution than the data
+# support. Scoped to f_mech so other GP-bearing models keep the default.
+_MECH_HSGP_M = 10
+
 
 def _scalar_prior(name: str, prior_ctor) -> pt.TensorVariable:
     return prior_ctor().to_pymc(name)
@@ -414,7 +420,11 @@ def build_itt_model(
             f_A = build_hsgp_1d("f_A", prepared.A_std)
             eta = eta + f_A
         if use_own_baseline_gp:
-            f_ypre = build_hsgp_1d("f_ypre", y_pre_logit)
+            # Standardise the own-baseline logit before the GP so the lengthscale /
+            # boundary / basis priors stay in their calibrated (unit-SD) regime
+            # (issue #273 item 13 / #265); the age GP above already uses A_std.
+            y_pre_std, _ = standardise(y_pre_logit)
+            f_ypre = build_hsgp_1d("f_ypre", y_pre_std)
             eta = eta + f_ypre
 
         # Treatment effect, with the optional linear tau-moderator (Part B). The
@@ -839,15 +849,21 @@ def build_mechanism_model(
 
     own_pre_logit = prepared.pre_logit[adjust_baseline_symbol]
 
-    # Standardised inputs for the LINEAR moderation term, computed on the kept
-    # rows so the mean/sd match the data the model is fit to. ``z_L`` re-uses the
-    # mechanism logit (a *centred* version, so gamma_mod reads as the moderator
-    # effect at the mean of L); ``f_mech`` keeps the raw logit. The keep-mask
-    # above guarantees the moderator post-score has no NaNs at this point.
+    # Standardised mechanism logit, computed on the kept rows so the mean/sd match
+    # the fitted data. Used both for the LINEAR moderation term ``z_L`` (a centred
+    # version, so gamma_mod reads as the moderator effect at the mean of L) and —
+    # issue #265 / #273 item 13 — as the HSGP ``f_mech`` input. Feeding the GP the
+    # *raw* logit (spread wider than unit SD) miscalibrated the lengthscale
+    # (``InverseGamma(3, 1)``), boundary factor ``c`` and basis count ``m``, all of
+    # which are set for standardised inputs — the boundary-geometry neck that left a
+    # residual divergence at reporting tier. Standardising the input fixes the
+    # geometry without moving the fitted curve (f_mech is still evaluated per-obs and
+    # plotted against the raw logit).
+    mech_logit_std, _ = standardise(mech_post_logit)
     z_L: np.ndarray | None = None
     z_M: np.ndarray | None = None
     if moderator_symbol is not None or linear_mechanism:
-        z_L, _ = standardise(mech_post_logit)
+        z_L = mech_logit_std
     if moderator_symbol is not None:
         if moderator_is_covariate:
             # Continuous covariate moderator: dispatch on ``moderator_symbol`` so
@@ -1013,14 +1029,38 @@ def build_mechanism_model(
             phase_specific = []
             for p in range(prepared.n_phases):
                 phase_specific.append(
-                    build_hsgp_1d(f"f_mech_phase{p}", mech_post_logit)
+                    build_hsgp_1d(
+                        f"f_mech_phase{p}",
+                        mech_logit_std,
+                        m=_MECH_HSGP_M,
+                        lengthscale_prior=_priors.ell_prior_mech(),
+                    )
                 )
-            f_mech = pt.stack(phase_specific, axis=1)[
-                np.arange(prepared.n_obs), phase_d
-            ]
+            # Register the combined per-observation curve as ``f_mech`` (each row's
+            # phase-specific value), so ``_write_mechanism_curve`` finds it and
+            # writes ``mechanism_curve.csv`` / the plot instead of silently skipping
+            # — the phase-specific ``f_mech_phase{p}`` builders above only register
+            # the per-phase GP hyperparameters, not the selected per-obs curve
+            # (issue #265 review; supersedes the warn-only #273 item 20).
+            f_mech = pm.Deterministic(
+                "f_mech",
+                pt.stack(phase_specific, axis=1)[np.arange(prepared.n_obs), phase_d],
+                dims="obs_id",
+            )
             eta = eta + f_mech
         else:
-            f_mech = build_hsgp_1d("f_mech", mech_post_logit)
+            # Standardised input + a moderate-lengthscale prior + fewer basis
+            # functions (issue #265 / #273 item 13): keeps the HSGP priors in their
+            # calibrated regime and smooths the boundary geometry that left residual
+            # divergences, without discarding the curve. Scoped to f_mech only. The
+            # curve is still plotted against the raw logit downstream, so its
+            # shape/location is unchanged where the old fit was trustworthy.
+            f_mech = build_hsgp_1d(
+                "f_mech",
+                mech_logit_std,
+                m=_MECH_HSGP_M,
+                lengthscale_prior=_priors.ell_prior_mech(),
+            )
             eta = eta + f_mech
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
