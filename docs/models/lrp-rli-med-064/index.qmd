@@ -54,9 +54,13 @@ $G = 0$ the wait-list control (per `#117`); all effects are in the
   Beta-Binomial leg conditioned on its own baseline. **Outcome** $Y = W_{t2}$
   (conditioned on $W_{t1}$). The outcome leg includes both $G\times L$ and $G\times E$
   interactions, so the decomposition admits exposure–mediator interaction.
-- **Mediator–outcome confounder** $C$: receptive vocabulary $R_{t1}$ (expressive vocab
-  is now a *mediator*, not a confounder), plus age $A$. Taken at **baseline (t1)** —
-  the cross-world assumption.
+- **Mediator–outcome confounders** $C$: receptive vocab $R$, age $A$, and the
+  revised-DAG common causes hearing $HS$, phonological memory $RW$ and speech
+  production $SP$ (entered by the missing-indicator method, #246), all taken at
+  **baseline (t1)** so none is treatment-affected (the cross-world assumption).
+  Expressive vocab is a *mediator* here, not a confounder. Whether $R$ remains a
+  confounder once the revised DAG's edges are settled is a time-indexed
+  d-separation question tracked in #264; it is **retained** here pending that.
 - The natural (in)direct effects are computed by **counterfactual simulation from the
   posterior** (the g-formula), not from coefficients.
 

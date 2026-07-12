@@ -82,8 +82,8 @@ intervention raises reading**.
 - **Mediator** $M = L_{t2}$ (letter-sound at t2), with baseline $L_{t1}$.
 - **Outcome** $Y = W_{t2}$ (word reading at t2), with baseline $W_{t1}$.
 - Paths: $G \to L_{t2} \to W_{t2}$ (indirect) and $G \to W_{t2}$ (direct).
-- Mediator–outcome confounders $C$: age $A$, expressive vocab $E_{t1}$, receptive
-  vocab $R_{t1}$ — each $\to L_{t2}$ and $\to W_{t2}$.
+- Mediator–outcome confounders $C$ (revised DAG, #246): age $A$, hearing $HS$,
+  speech production $SP$ — each a pre-treatment cause of $L_{t2}$ and $W_{t2}$.
 
 A joint model fits both legs simultaneously (two Beta-Binomial likelihoods on the
 logit scale), including a $G \times M$ interaction so the decomposition admits
@@ -101,11 +101,16 @@ proportion mediated is *not* assumption-free.
   free: **no unmeasured confounding of $G \to Y$ and of $G \to M$.**
 - **No unmeasured mediator–outcome ($L \to W$) confounding** — the binding,
   unverifiable assumption and the main limitation. We adjust for the measured
-  $L \to W$ confounders the mechanism programme identified: $A$ (age), $E$
-  (expressive vocab — LRP58 found it independently predicts $W$), $R$ (receptive
-  vocab), plus the baselines $L_{t1}, W_{t1}$. Residual confounding by anything
-  unmeasured (e.g. a general "literacy readiness" not captured by these) would
-  bias the split between NDE and NIE.
+  $L \to W$ confounders: $A$ (age), $E$ (expressive vocab — LRP58 found it
+  independently predicts $W$), $R$ (receptive vocab), the revised-DAG common causes
+  $HS$ (hearing), $SP$ (speech production) and $RW$ (phonological memory) — entered
+  by the missing-indicator method so no child is dropped (#246) — plus the baselines
+  $L_{t1}, W_{t1}$. All are taken at **baseline (t1)**, so none is treatment-affected.
+  Whether $E$/$R$ are still confounders (vs harmless precision terms) once the
+  revised DAG's edges are settled is a time-indexed d-separation question tracked in
+  #264; they are **retained** here pending that. Residual confounding by anything
+  unmeasured (e.g. a general "literacy readiness" not captured by these) would bias
+  the split between NDE and NIE.
 - **A second, structural non-identification — independent of the confounding
   above.** Even setting the $L \to W$ confounding aside, the natural
   direct/indirect split is **not point-identified** in this design, because

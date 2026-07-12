@@ -33,7 +33,7 @@ from __future__ import annotations
 import inspect
 import os
 import shutil
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -98,6 +98,21 @@ def _default_of(fn, param: str) -> float:
     ``test_pipeline_fallback_defaults`` guards that this stays in step.
     """
     return inspect.signature(fn).parameters[param].default
+
+
+def _raw_covariate_confounders(confounders: Iterable[str]) -> tuple[str, ...]:
+    """The confounders that are raw covariates, needing ``covariates=`` loading.
+
+    A mediation adjustment set mixes two kinds of confounder: bounded-count skill
+    measures (E, R, ...) that arrive via ``prepared.pre_logit`` (they are in
+    ``ITT_OUTCOMES`` or ``spec.extra['outcomes']``), and revised-DAG raw covariates
+    (hearing ``hs``/``hs_missing``, speech ``deapp_c``, phonological memory
+    ``erbto`` + missing indicators; #246) that must be requested as ``covariates``.
+    A symbol is a raw covariate exactly when it is not a bounded-count measure.
+    """
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    return tuple(c for c in confounders if c not in MEASURES)
 
 
 def _require_spec(
@@ -1965,7 +1980,10 @@ def _fit_t3_sensitivity(
         {"outcomes": tuple(_extra_outcomes)} if _extra_outcomes is not None else {}
     )
     prepared_t3 = load_and_prepare_lagged_outcome(
-        outcome_symbol, outcome_time=_T3_SENSITIVITY_TIME, **_lag_kwargs
+        outcome_symbol,
+        outcome_time=_T3_SENSITIVITY_TIME,
+        covariates=_raw_covariate_confounders(confounders),
+        **_lag_kwargs,
     )
     built_t3, med_t3 = _factories.build_mediation_model(
         prepared_t3,
@@ -2004,11 +2022,25 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     section_header("Prepare data")
     # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
+    mediator_symbol = spec.mechanism_symbol or "L"
+    # Drop the structural markers and the mediator's own baseline ({mediator}_t1,
+    # handled inside the factory) from the adjustment set; the rest are confounders.
+    # The set mixes bounded-count skill measures (E, R — arriving via pre_logit) and
+    # revised-DAG RAW covariates (hearing ``hs``/``hs_missing``, speech ``deapp_c``,
+    # phonological memory ``erbto`` + indicators; #246), which must be requested as
+    # covariates and are taken from the t1 pre-row (treatment-unaffected). Models
+    # with no raw covariates get ``covariates=()`` — a no-op, so LRP59/62/64/66 and
+    # the #263 mediation family are unchanged unless a spec adds raw confounders.
+    confounders = tuple(
+        s
+        for s in spec.adjustment
+        if s not in ("G", "A", "W_pre", f"{mediator_symbol}_t1")
+    )
+    _raw_cov = _raw_covariate_confounders(confounders)
     # A mediator or confounder outside ``ITT_OUTCOMES`` (e.g. taught-expressive TE,
     # nonword N) must be requested via ``extra["outcomes"]`` so it is loaded; this
     # also restricts the complete-case mask to the symbols the model uses (mirrors
-    # fit_itt). Models within ITT_OUTCOMES omit it and load the default set
-    # unchanged, so LRP59/62/64/66 are byte-identical.
+    # fit_itt).
     _extra_outcomes = spec.extra.get("outcomes")
     _outcome_time = spec.extra.get("outcome_time")
     if _outcome_time is not None:
@@ -2025,29 +2057,29 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             spec.outcome_symbol or "W",
             outcome_time=int(_outcome_time),
             outcomes=_lag_outcomes,
+            covariates=_raw_cov,
         )
     elif _extra_outcomes is not None:
         prepared = load_and_prepare(
             phase_mode="itt",
             outcomes=tuple(_extra_outcomes),
+            covariates=_raw_cov,
             drop_missing_pre=bool(spec.extra.get("drop_missing_pre", True)),
         )
     else:
-        prepared = load_and_prepare(phase_mode="itt")
+        prepared = load_and_prepare(phase_mode="itt", covariates=_raw_cov)
     ctx.prepared = prepared
+    # A missing-indicator can be constant on the ITT-phase rows (SP/RW are near-
+    # complete at t1) and be dropped by the loader; keep only confounders actually
+    # present, so no vacuous coefficient is fitted for a dropped covariate.
+    confounders = tuple(
+        c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
+    )
 
     _print_header(ctx)
 
     section_header("Build model")
 
-    mediator_symbol = spec.mechanism_symbol or "L"
-    # Drop the structural markers and the mediator's own baseline ({mediator}_t1,
-    # handled inside the factory) from the adjustment set; the rest are confounders.
-    confounders = tuple(
-        s
-        for s in spec.adjustment
-        if s not in ("G", "A", "W_pre", f"{mediator_symbol}_t1")
-    )
     mediator_kind = spec.extra.get("mediator_kind", "beta_binomial")
     route_symbols = tuple(spec.extra.get("route_symbols", ()))
     built, med_data = _factories.build_mediation_model(
@@ -2141,8 +2173,17 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         )
 
     _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
+    # Record the REQUESTED adjustment set and the confounders ACTUALLY fitted
+    # separately (#246 review, P2). A raw covariate can be dropped by the loader
+    # when its missing-indicator is constant on the ITT rows; recording only
+    # ``spec.adjustment`` would then imply a coefficient that was never estimated.
+    _requested_raw = _raw_covariate_confounders(
+        s for s in spec.adjustment if s not in ("G", "A", "W_pre", f"{mediator_symbol}_t1")
+    )
     _extra_meta = {
         "adjustment": spec.adjustment,
+        "effective_confounders": list(confounders),
+        "dropped_confounders": [c for c in _requested_raw if c not in confounders],
         "n_obs": prepared.n_obs,
         "mediation": _summary,
     }
@@ -2660,24 +2701,32 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     section_header("Prepare data")
     # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
-    prepared = load_and_prepare(phase_mode="itt")
-    ctx.prepared = prepared
-
-    _print_header(ctx)
-
-    section_header("Build model")
-
     mediators = tuple(spec.extra.get("mediators", ("L", "E")))
     # Drop the structural symbols and the two mediator baselines ({m}_t1) from the
-    # adjustment set; whatever remains are the measured mediator-outcome
-    # confounders C. Keyed off ``mediators`` so a non-(L, E) pair excludes its own
-    # baselines (LRP64 -> L_t1/E_t1; LRP66 -> L_t1/B_t1).
+    # adjustment set; whatever remains are the measured mediator-outcome confounders
+    # C. Keyed off ``mediators`` so a non-(L, E) pair excludes its own baselines
+    # (LRP64 -> L_t1/E_t1; LRP66 -> L_t1/B_t1). The set mixes bounded-count measures
+    # (E, R — via pre_logit) and revised-DAG raw covariates (hs/deapp_c/erbto; #246 —
+    # requested as covariates, taken from the t1 pre-row); ``covariates=()`` is a
+    # no-op for models with no raw confounders.
     _mediator_baselines = tuple(f"{m}_t1" for m in mediators)
     confounders = tuple(
         s
         for s in spec.adjustment
         if s not in ("G", "A", "W_pre", *_mediator_baselines)
     )
+    _raw_cov = _raw_covariate_confounders(confounders)
+    prepared = load_and_prepare(phase_mode="itt", covariates=_raw_cov)
+    # Drop any missing-indicator constant on the ITT-phase rows (see fit_mediation).
+    confounders = tuple(
+        c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
+    )
+    ctx.prepared = prepared
+
+    _print_header(ctx)
+
+    section_header("Build model")
+
     built, med_data = _factories.build_two_mediator_model(
         prepared,
         outcome_symbol=spec.outcome_symbol or "W",
@@ -2736,10 +2785,18 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     )
 
     _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
+    # Requested vs actually-fitted confounders, recorded separately (#246 review, P2).
+    _requested_raw = _raw_covariate_confounders(
+        s
+        for s in spec.adjustment
+        if s not in ("G", "A", "W_pre", *(f"{m}_t1" for m in mediators))
+    )
     _report.write_run_metadata(
         ctx,
         extra={
             "adjustment": spec.adjustment,
+            "effective_confounders": list(confounders),
+            "dropped_confounders": [c for c in _requested_raw if c not in confounders],
             "n_obs": ctx.prepared.n_obs,
             "mediators": list(mediators),
             "n_trials_W": med_data.n_trials_W,
