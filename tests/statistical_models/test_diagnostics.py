@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import arviz as az
 import numpy as np
 import pytest
 import xarray as xr
@@ -63,3 +64,88 @@ def test_thin_for_plots_thins_large_traces_only():
         }
     )
     assert diag.thin_for_plots(small, max_draws=1000) is small
+
+
+def _synthetic_trace(shift, *, n=800, chains=4, seed=1, n_div=0):
+    """A DataTree with a tunable between-chain mean shift and divergence count.
+
+    ``shift`` sets each chain's mean to ``shift * chain_index``, so a larger shift
+    pushes R-hat up while ESS stays comfortable — enough to land R-hat in the
+    (1.01, 1.05) band that the rounding bug (issue #274 item 1) would hide.
+    """
+    rng = np.random.default_rng(seed)
+    draws = np.stack([rng.normal(loc=shift * c, scale=1.0, size=n) for c in range(chains)])
+    post = xr.Dataset(
+        {"tau": (("chain", "draw"), draws)},
+        coords={"chain": range(chains), "draw": range(n)},
+    )
+    div = np.zeros((chains, n), dtype=bool)
+    if n_div:
+        div.reshape(-1)[:n_div] = True
+    ss = xr.Dataset(
+        {"diverging": (("chain", "draw"), div)},
+        coords={"chain": range(chains), "draw": range(n)},
+    )
+    return xr.DataTree.from_dict({"posterior": post, "sample_stats": ss})
+
+
+def test_subfit_convergence_gates_on_unrounded_rhat():
+    # Regression for issue #274 item 1: a true max R-hat in (1.01, 1.05) must FAIL
+    # the gate. The bug was az.summary(round_to=None) rounding to 2 sig figs, so a
+    # 1.0156 R-hat rounded to 1.0 and slipped through the <= 1.01 gate.
+    dt = _synthetic_trace(0.12)
+    res = diag.subfit_convergence(dt, label="borderline", var_names=["tau"])
+
+    # Core regression check (independent of ArviZ's rounding behaviour): the gate
+    # reports the UNROUNDED max R-hat — it matches an explicit round_to="none"
+    # reference — and therefore fails.
+    ref = float(az.summary(dt, var_names=["tau"], round_to="none", kind="diagnostics")["r_hat"].max())
+    assert res["max_rhat"] == pytest.approx(ref)
+    assert diag.RHAT_MAX < res["max_rhat"] < 1.05  # genuinely in the hidden band
+    assert res["min_ess"] >= diag.ESS_THRESHOLD  # so only R-hat can fail the gate
+    assert res["converged"] is False
+
+    # Illustration (not load-bearing): with ArviZ's current default 2-sig-fig
+    # rounding the same R-hat rounds to 1.0 and would have slipped the <= 1.01 gate.
+    # Guarded so a future ArviZ change to the round_to=None default cannot break the
+    # regression test above.
+    rounded = float(az.summary(dt, var_names=["tau"], round_to=None, kind="diagnostics")["r_hat"].max())
+    if rounded != pytest.approx(ref):  # ArviZ still rounds round_to=None
+        assert rounded <= diag.RHAT_MAX  # would have slipped through
+
+
+def test_subfit_convergence_passes_clean_and_flags_divergences():
+    clean = diag.subfit_convergence(_synthetic_trace(0.0), label="clean", var_names=["tau"])
+    assert clean["converged"] is True
+    assert clean["n_divergences"] == 0
+
+    div = diag.subfit_convergence(_synthetic_trace(0.0, n_div=3), label="div", var_names=["tau"])
+    assert div["n_divergences"] == 3
+    assert div["converged"] is False  # zero-divergence gate is strict
+
+
+def test_gate_var_names_unions_free_rvs_with_curated_and_filters_present():
+    # Issue #274 item 2: the gate must scan the model's free RVs (incl. the
+    # per-child intercept vector) unioned with the curated headline terms, and
+    # drop any name a given fit does not instantiate.
+    rv = lambda name: SimpleNamespace(name=name)  # noqa: E731
+    model = SimpleNamespace(free_RVs=[rv("mu"), rv("u_child_raw"), rv("sigma_child")])
+    post = xr.Dataset(
+        {
+            k: (("chain", "draw"), np.zeros((2, 5)))
+            for k in ("mu", "u_child_raw", "sigma_child", "tau")
+        }
+    )
+    ctx = SimpleNamespace(model=model, trace=SimpleNamespace(posterior=post))
+
+    names = diag._gate_var_names(ctx, ["tau", "beta_absent"])
+
+    assert "u_child_raw" in names  # free RV now gated
+    assert "tau" in names  # curated headline deterministic kept
+    assert "beta_absent" not in names  # not present in posterior -> dropped
+    assert len(names) == len(set(names))  # de-duplicated
+
+
+def test_gate_var_names_falls_back_without_model():
+    ctx = SimpleNamespace(model=None, trace=None)
+    assert diag._gate_var_names(ctx, ["tau"]) == ["tau"]

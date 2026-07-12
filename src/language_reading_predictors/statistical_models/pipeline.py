@@ -2232,7 +2232,10 @@ def _gf_diag_vars(spec: ModelSpec) -> list[str]:
         if spec.extra.get("likelihood") == "bernoulli_offfloor"
         else ["kappa", "sigma_child"]
     )
-    return ["alpha", *_gf_coef_names(spec), *tail]
+    # Include the per-phase intercept vector, mirroring _lf_diag_vars' alpha_time
+    # (issue #274 item 2); the gate already covers it via the free-RV scan, this
+    # keeps the human-readable diagnostics.csv consistent across the two families.
+    return ["alpha", "alpha_phase", *_gf_coef_names(spec), *tail]
 
 
 def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:

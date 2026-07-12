@@ -14,7 +14,10 @@ chapter's location and of Quarto's execution directory.
 ```{python}
 #| label: report-data-setup
 #| echo: false
+import json
 from pathlib import Path
+
+from IPython.display import Markdown
 
 from dse_research_utils.report.data import ReportData
 from dse_research_utils.report.data import show_or_pending as _show_or_pending
@@ -62,5 +65,44 @@ def show_or_pending(df, what: str):
             "its output is present under `output/statistical_models/models/` "
             "(run `scripts/fit_statistical_model.py`)"
         ),
+    )
+
+
+def load_diagnostics(model_id: str, config: str = "reporting"):
+    """The convergence-gate payload (``diagnostics_summary.json``), or None.
+
+    ``passed`` is the gate verdict; ``checks`` breaks it down (rhat / ess /
+    divergences / bfmi).
+    """
+    path = model_dir(model_id, config) / "diagnostics_summary.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return None
+
+
+def show_gated(model_id: str, df, what: str, config: str = "reporting"):
+    """Render results only when the model's convergence gate passed (issue #274).
+
+    A fit whose gate verdict is REVIEW "is not interpretable — fix the model, do
+    not report it" (METHODS.md). So if the gate exists and ``passed`` is not
+    ``True``, a visible convergence warning is rendered *in place of* the numbers
+    rather than publishing them unflagged in the headline report. When the gate
+    passes — or has not been written yet (model not fitted) — this defers to
+    :func:`show_or_pending` for the usual pending-fit degradation.
+    """
+    diag = load_diagnostics(model_id, config)
+    if diag is None or diag.get("passed") is True:
+        return show_or_pending(df, what)
+    checks = diag.get("checks", {}) or {}
+    failed = ", ".join(k for k, v in checks.items() if not v) or "unknown"
+    return Markdown(
+        f"**⚠ Convergence: REVIEW — {what} withheld.** "
+        f"`{model_id}` did not pass the convergence gate "
+        f"(failed: {failed}; max R-hat {diag.get('max_rhat')}, "
+        f"min ESS {diag.get('min_ess')}, divergences {diag.get('divergences')}). "
+        "Its estimates are not interpretable and are withheld until it converges."
     )
 ```

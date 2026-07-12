@@ -34,6 +34,7 @@ import os
 import shutil
 import warnings
 
+import arviz as az
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -98,6 +99,36 @@ def _prepare_and_build(spec):
     )
 
 
+def _refit_convergence(model, idata) -> dict:
+    """Unrounded max R-hat / min ESS (over free RVs) + divergence count (issue #274).
+
+    ``round_to="none"`` — the string — genuinely disables rounding (``round_to=None``
+    would fall through to ``rcParams["stats.round_to"]`` at 2 sig figs and let a
+    borderline R-hat pass); free RVs match the headline gate's coverage.
+    """
+    try:
+        free = [rv.name for rv in model.free_RVs]
+        summ = az.summary(idata, var_names=free, round_to="none", kind="diagnostics")
+        max_rhat = float(np.nanmax(summ["r_hat"].values))
+        min_ess = float(np.nanmin(summ[["ess_bulk", "ess_tail"]].min(axis=1).values))
+    except Exception:  # pragma: no cover - defensive
+        max_rhat, min_ess = float("nan"), float("nan")
+    n_div = None
+    try:
+        if "diverging" in idata.sample_stats:
+            n_div = int(np.asarray(idata.sample_stats["diverging"].values).sum())
+    except Exception:  # pragma: no cover - defensive
+        pass
+    converged = bool(
+        np.isfinite(max_rhat)
+        and max_rhat <= 1.01
+        and np.isfinite(min_ess)
+        and min_ess >= 400
+        and n_div == 0
+    )
+    return dict(max_rhat=max_rhat, min_ess=min_ess, n_div=n_div, converged=converged)
+
+
 def fit_outcome(mod_name, sym, draws, tune, chains, seed):
     module = __import__(
         f"language_reading_predictors.statistical_models.{mod_name}", fromlist=["SPEC"]
@@ -111,7 +142,6 @@ def fit_outcome(mod_name, sym, draws, tune, chains, seed):
             target_accept=0.9,
             progressbar=False,
             random_seed=seed,
-            compute_convergence_checks=False,
         )
     # SimpleNamespace-like trace wrapper for the reporting helpers (.posterior).
     trace = type("T", (), {"posterior": idata.posterior})()
@@ -121,6 +151,10 @@ def fit_outcome(mod_name, sym, draws, tune, chains, seed):
     # Per-draw items-scale average marginal effect (shared core).
     _, ame_prob = _report._itt_ame_draws(trace, G=G)
     items = ame_prob * n_trials
+    # Record convergence for this refit: the evidence-strength note is built from
+    # these tau/s, so a silently non-converged refit must be surfaced and must
+    # block --refresh-note (issue #274 item 2).
+    conv = _refit_convergence(built.model, idata)
     return dict(
         sym=sym,
         trace=trace,
@@ -131,6 +165,7 @@ def fit_outcome(mod_name, sym, draws, tune, chains, seed):
         mean=float(tau.mean()),
         sd=float(tau.std(ddof=1)),
         n=int(G.shape[0]),
+        **conv,
     )
 
 
@@ -324,6 +359,15 @@ def main():
         print(f"{r['sym']+' '+LABELS[r['sym']]:26.26s} {r['n']:4d} "
               f"{r['mean']:8.3f} {r['sd']:7.3f} {abs(r['mean']/r['sd']):7.2f}")
 
+    print("\nconvergence (refits, issue #274):")
+    for r in sorted(results, key=lambda x: x["sym"]):
+        flag = "OK" if r["converged"] else "REVIEW"
+        print(
+            f"  {r['sym']:3s} max R-hat={r['max_rhat']:.4f} "
+            f"min ESS={r['min_ess']:.0f} div={r['n_div']}  [{flag}]"
+        )
+    all_converged = all(r["converged"] for r in results)
+
     da_png = os.path.join(out_dir, "type_s_m_design_analysis.png")
     da_pdf = os.path.join(out_dir, "type_s_m_design_analysis.pdf")
     rope_png = os.path.join(out_dir, "rope_continuous_reporting.png")
@@ -334,6 +378,17 @@ def main():
     print(f"\nWROTE {da_png}\nWROTE {rope_png}")
 
     if args.refresh_note:
+        if not all_converged:
+            failing = [r["sym"] for r in results if not r["converged"]]
+            raise SystemExit(
+                "--refresh-note refused: "
+                f"{len(failing)} refit(s) did not meet the convergence gate "
+                f"({', '.join(failing)}). The committed note must not be refreshed "
+                "from non-converged refits — inspect the printed diagnostics: low ESS "
+                "/ high R-hat usually clears with larger --draws/--tune, but "
+                "divergences (or a non-finite BFMI) point to a geometry problem that "
+                "needs reparameterisation, not just more draws."
+            )
         notes_assets = os.path.join(str(_paths.DOCS_DIR), "..", "notes", "assets")
         notes_assets = os.path.normpath(notes_assets)
         os.makedirs(notes_assets, exist_ok=True)
