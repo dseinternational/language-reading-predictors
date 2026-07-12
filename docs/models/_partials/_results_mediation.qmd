@@ -17,10 +17,20 @@ direct/indirect effects are **not identified even by randomisation** and are
 descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI
 [10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
 Read these outputs as **model-based g-formula decompositions under the stated
-(cross-world) assumptions, not identified natural effects**; an **interventional**
-(rather than natural) mediation estimand would be the route to a defensible target
-quantity. The model-specific assumptions section states the design-specific
-version.
+(cross-world) assumptions, not identified natural effects**.
+
+An **interventional** (rather than natural) mediation estimand — fitted for the
+letter-sound route as `lrp-rli-med-078` — addresses the **second** obstacle only.
+It invokes no cross-world quantity, so it is not defeated by the exposure-induced
+confounder. It does **not** remove the first: identification of stochastic
+interventional (in)direct effects still requires no unmeasured mediator–outcome
+confounding (Hejazi, Rudolph, van der Laan & Díaz 2022, assumption A5, DOI
+[10.1093/biostatistics/kxac002](https://doi.org/10.1093/biostatistics/kxac002)),
+which latent general ability violates here, and their positivity requirement (A3)
+and the absence of temporal ordering between mediator and outcome both remain
+binding. The interventional estimand is therefore a **weaker-assumption target,
+not an identified one**. The model-specific assumptions section states the
+design-specific version.
 
 _How to read the mediation table:_ each row is one decomposition quantity. `NDE` is the direct effect (treatment acting on its own), `NIE` is the indirect effect (treatment acting through the mediator), and `total` is their sum. The `words_*` columns give the posterior median and 95% credible interval in words; `prob_pos` is the probability the effect exceeds zero. `proportion_mediated` is the share of the total that runs through the mediator, and is unstable whenever the total can cross zero.
 

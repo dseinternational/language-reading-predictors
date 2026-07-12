@@ -39,12 +39,18 @@ stays associational / under stated assumptions.
 
 **Not an identified natural effect — a second obstacle independent of latent GA.**
 Dose IS (sessions) is a treatment-induced (exposure-induced) mediator-outcome
-confounder (IG -> IS; IS -> L, E, W), so NDE/NIE are not identified even if GA
+confounder. In the authoritative graph the routes are ``IG -> IS``, then
+``IS -> LS (= L)``, ``IS -> TE -> EV (= E)`` and ``IS -> WR (= W)`` — note there is
+no direct ``IS -> E`` edge; IS is an *ancestor* of E via taught-expressive TE, which
+is enough for the confounding conclusion. So NDE/NIE are not identified even if GA
 were observed, and are *not* repaired by adjusting IS, itself a descendant of the
 exposure (VanderWeele, Vansteelandt & Robins 2014,
 doi:10.1097/EDE.0000000000000034). These are model-based g-formula decompositions
-under stated (cross-world) assumptions; an interventional (rather than natural)
-estimand would be the defensible target.
+under stated (cross-world) assumptions. An interventional (rather than natural)
+estimand — see LRP78 — relaxes the cross-world requirement and so escapes *this*
+obstacle, but it is not thereby identified: it still assumes no unmeasured
+mediator-outcome confounding (Hejazi, Rudolph, van der Laan & Diaz 2022, A5,
+doi:10.1093/biostatistics/kxac002), which latent GA violates here.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

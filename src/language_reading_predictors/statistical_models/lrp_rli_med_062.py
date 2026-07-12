@@ -45,8 +45,12 @@ survives randomisation: dose IS (sessions) is a treatment-induced
 NDE/NIE are not identified and are *not* repaired by adjusting IS, itself a
 descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014,
 doi:10.1097/EDE.0000000000000034). This is a model-based g-formula decomposition
-under stated (cross-world) assumptions; an interventional (rather than natural)
-estimand would be the defensible target.
+under stated (cross-world) assumptions. An interventional (rather than natural)
+estimand — fitted for the letter-sound route as LRP78 — escapes *this* obstacle
+(no cross-world quantity is invoked) but is not thereby identified: it still
+assumes no unmeasured mediator-outcome confounding (Hejazi, Rudolph, van der Laan
+& Diaz 2022, A5, doi:10.1093/biostatistics/kxac002), which latent GA violates
+here. A weaker-assumption target, not a defensible one.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

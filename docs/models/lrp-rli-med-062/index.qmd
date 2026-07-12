@@ -122,9 +122,16 @@ phonics-route share is *not* assumption-free.
   itself a descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI
   [10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
   The output below is therefore a **model-based g-formula decomposition under the
-  stated (cross-world) assumptions, not an identified natural effect**; an
-  **interventional** (rather than natural) mediation estimand would be the route to
-  a defensible target quantity.
+  stated (cross-world) assumptions, not an identified natural effect**. An
+  **interventional** (rather than natural) mediation estimand — fitted for the
+  letter-sound route as `lrp-rli-med-078` — escapes *this* obstacle, since it
+  invokes no cross-world quantity. It is **not thereby identified**: it still
+  assumes no unmeasured mediator–outcome confounding (Hejazi, Rudolph, van der Laan
+  & Díaz 2022, assumption A5, DOI
+  [10.1093/biostatistics/kxac002](https://doi.org/10.1093/biostatistics/kxac002)),
+  which latent $GA$ violates here, and its positivity requirement and the missing
+  temporal ordering remain binding. It is a weaker-assumption target, not a
+  defensible one.
 - Confounders are taken at **baseline (t1), not post (t2)** — the **cross-world**
   assumption.
 - Consistency and positivity are assumed.

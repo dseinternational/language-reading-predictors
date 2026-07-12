@@ -40,9 +40,20 @@ randomising ``IG`` and are **not** repaired by measuring and adjusting ``IS``,
 because ``IS`` is itself a descendant of the exposure (VanderWeele, Vansteelandt
 & Robins 2014, Epidemiology 25(2):300-306, doi:10.1097/EDE.0000000000000034).
 The outputs are therefore model-based g-formula decompositions under the stated
-(cross-world) assumptions, not identified natural effects; an *interventional*
-(rather than natural) mediation estimand would be the route to a defensible
-target quantity. The exposure-induced structure is encoded in the base DAG
+(cross-world) assumptions, not identified natural effects.
+
+An *interventional* (rather than natural) mediation estimand -- available here via
+``decompose(..., interventional=True)`` and fitted as LRP78 -- addresses the
+*second* obstacle only: it invokes no cross-world quantity, so the exposure-induced
+confounder does not defeat it. It does **not** address the first. Identification of
+stochastic interventional (in)direct effects still requires no unmeasured
+mediator-outcome confounding (Hejazi, Rudolph, van der Laan & Diaz 2022,
+Biostatistics 24(3):686-707, assumption A5, doi:10.1093/biostatistics/kxac002),
+which latent general ability violates here; their positivity requirement (A3) and
+the absence of temporal ordering between mediator and outcome also remain binding.
+Treat IDE/IIE as a *weaker-assumption* target, not an identified one.
+
+The exposure-induced structure is encoded in the base DAG
 (``dag/dag-language-reading.dagitty``: ``IG -> IS`` and
 ``IS -> { TR TE PA LS WR ... }``); see also the model reports' assumptions
 sections.
@@ -261,9 +272,13 @@ def decompose_two_mediator(
 
     - ``total`` — the intervention's total effect on word reading.
     - ``NDE`` — the direct / residual path (neither mediator moves).
-    - ``NIE_joint`` — the **headline**: the joint indirect effect through the
-      ``{L, E}`` block (both mediators allowed to respond). This is the robust,
-      assumption-light quantity (the same philosophy as LRP62's route composite).
+    - ``NIE_joint`` — the **preferred descriptive decomposition**: the joint
+      indirect effect through the ``{L, E}`` block (both mediators allowed to
+      respond). Its *only* advantage is that it is **less sensitive to mediator
+      ordering** than the path split (the same philosophy as LRP62's route
+      composite). It is **not** robust or identified in any stronger sense: like
+      every quantity here it remains subject to latent-general-ability confounding
+      and to exposure-induced ``IS`` confounding (see the module docstring).
     - ``NIE_L`` / ``NIE_E`` — the **exploratory** path-specific indirect effects,
       under the mediator ``order`` (default L before E): ``NIE_L`` moves L from its
       control to its treated draw with E held at control, then ``NIE_E`` moves E
