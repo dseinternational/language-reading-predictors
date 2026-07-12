@@ -35,17 +35,19 @@ intervention benefit (`G = 2 − group`).
 | Layer | Family (id prefix)                                                        | Count | Purpose                                                                                                  |
 | ----- | ------------------------------------------------------------------------- | ----: | -------------------------------------------------------------------------------------------------------- |
 | 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)               |    50 | Rank predictors of each outcome's gain and level                                                         |
-| 2     | ITT suite (`lrp-rli-itt`)                                                 |    30 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation) |
+| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)                     |    31 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation) |
 | 2     | Gain factors (`lrp-rli-gf`)                                               |    16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                     |
 | 2     | Level factors (`lrp-rli-lf`)                                              |     8 | Companion levels view: group×time and ability×time per timepoint                                         |
 | 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                  |    13 | Within-person replication of the ITT via the waitlist crossover (floored `P`/`N` off-floor)              |
 | 2     | Aligned per-protocol (`lrp-rli-al`)                                       |     9 | Onset-aligned single 40-week gain per child (associational)                                              |
-| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073` incl. `172`/`173`)           |     8 | Adjusted dose-response of one skill on another                                                           |
-| 2     | Mediation (`lrp-rli-med-059`, `62`, `64`)                                 |     3 | How much of a reading gain runs through a given skill                                                    |
-| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `67`, `77` incl. `77a`/`77base`) |     5 | Baseline predictors, within-child change, and dose–response of word reading                              |
+| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)    |     9 | Adjusted dose-response of one skill on another                                                           |
+| 2     | Mediation (`lrp-rli-med-059`–`080`; g-formula + interventional)           |    11 | How much of a reading gain runs through a given skill                                                    |
+| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `lcsm-067`, `dose-077` variants) |     5 | Baseline predictors, within-child change, and dose–response of word reading                              |
+| 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                    |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                   |
+| 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)              |     2 | Correlated domain-factor measurement model of the skills                                                 |
 | 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                    |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape        |
 
-Counts are of base models on `main`. Layer-2 selection variants (`…b` / `…base` / `…d`)
+Counts are of base models on `main` (108 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
 
 ## Outcome symbols (Layer 2)

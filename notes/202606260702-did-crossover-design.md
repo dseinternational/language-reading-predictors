@@ -117,9 +117,14 @@ null for vocabulary; all six converge cleanly (R-hat ≤ 1.002, 0 divergences):
 | TE taught expressive |         +0.30 |    +1.5 |  +0.32 / +1.5 |
 | R receptive vocab    |         −0.00 |    −0.1 |  +0.01 / +0.2 |
 
-The session **dose-response** variant (`lrpdid06`) is positive — `beta_dose`
-+0.17 per 1 SD of sessions attended, P(>0) = 0.997 — so the crossover signal scales
-with intervention intensity, not just the binary treated flag.
+The session **dose-response** variant (`lrpdid06`) has a positive `beta_dose`
+(+0.17 per 1 SD of sessions attended, P(>0) = 0.997), but the session-count
+variation here is near-binary (most treated children cluster near full
+attendance), so this is weak evidence that the crossover signal scales with
+_intensity_ rather than the treated flag — consistent with the aligned note's
+caution on the same dose signal. The period-resolved letter-sound dose model
+`lrpdid07` (and a within-treated analysis) is the better test of a genuine
+dose-response.
 
 ## Implementation
 

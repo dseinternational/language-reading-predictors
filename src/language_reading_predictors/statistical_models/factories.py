@@ -2831,6 +2831,11 @@ def build_gain_factors_model(
     # Re-standardise the ability covariate here too: treated_only (…b) variants drop
     # the untreated period-1 rows, so the load-time scaler (over all periods) would
     # otherwise mislabel the “per 1 SD” unit for the treated-only fit.
+    # Age is intentionally NOT re-standardised: it is deliberately kept on the shared
+    # load-time (all-period) scale so ``gamma_A`` and the age-moderation unit stay
+    # directly comparable between each treated-only (…b) variant and its full
+    # sibling — the small age-distribution shift from dropping period-1 rows is
+    # accepted in exchange for that cross-variant comparability (issue #273).
     term_vecs: dict[str, np.ndarray] = {"trt": trt, "age": prepared.A_std}
     if ability_covariate is not None:
         term_vecs["ability"], _ = standardise(prepared.covariates[ability_covariate])
@@ -3005,6 +3010,11 @@ def build_level_factors_model(
             else None
         )
 
+        # Level factors is own-baseline-free (a level model), so unlike the
+        # growth/LCSM mean-anchor rationale ``alpha`` is deliberately kept on the
+        # zero-centred prior: here the per-timepoint ``alpha_time`` vector carries
+        # the absolute level at each wave, leaving ``alpha`` as a small global
+        # offset for which the zero-centred prior is appropriate (issue #273).
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha")
@@ -3291,6 +3301,12 @@ def build_lcsm_model(
                 for s in OUT
             }
 
+        # Cross-process covariance is deliberately omitted: the initial statuses
+        # (z1_*) and the per-transition process noises (zproc_*) are modelled as
+        # independent across the W/L/E processes. An LKJ-correlated initial-status
+        # block (as the growth model uses) is not reliably estimable at n ~ 54
+        # here, so this is a small-n fallback — it may attenuate the coupling
+        # coefficients g_L / g_E, which is accepted and flagged (issue #273).
         # Initial latent (wave index 0), non-centred.
         x: dict[str, list[pt.TensorVariable]] = {}
         for s in OUT:

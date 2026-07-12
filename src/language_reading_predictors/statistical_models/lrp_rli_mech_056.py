@@ -33,8 +33,9 @@ SPEC = ModelSpec(
     # random intercept (on by default) handles the 157 non-independent rows (up to 3
     # phases × 53 children) and proxies the time-invariant part of latent ability.
     extra={
-        # Load the exposure (R), outcome (W) and the TR measure confounder so TR's
-        # baseline is available; the complete-case mask ignores unused measures.
+        # Load the exposure (R), outcome (W) and the TR measure confounder — TR is a
+        # concurrent parent of R_post and W_post, so it enters at its *post* score
+        # (not baseline); the complete-case mask ignores unused measures.
         "outcomes": ("W", "R", "TR"),
         "adjust_baseline_symbol": "W",
         "adjust_for": ("hs", "hs_missing", "erbto", "erbto_missing"),

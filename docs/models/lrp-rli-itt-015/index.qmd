@@ -60,9 +60,9 @@ would otherwise tighten the difference is ignored — and it converges cleanly.
 ::: {.callout-note title="Denominators and caveats"}
 
 - Taught ($\mathrm{TE}$): $N = 24$ — documented (Burgoyne et al., 2012, Table 3).
-- Not-taught ($\mathrm{UE}$): $N = 12$ — **observed maximum, not documented** and
-  flagged unconfirmed. The logit-scale *difference* is robust to this, but the
-  probability-scale interpretation of $\mathrm{UE}$ is approximate.
+- Not-taught ($\mathrm{UE}$): $N = 12$ — confirmed (#214; `n_trials_confirmed=True`
+  in `measures.py`). The logit-scale *difference* and the probability-scale
+  interpretation of $\mathrm{UE}$ both stand on the confirmed denominator.
 - $n \approx 54$; the causal claim is limited to the randomised window. The two
   outcomes are on different scales, so the difference is a *differential
   logit-scale effect*, not a difference in raw words.

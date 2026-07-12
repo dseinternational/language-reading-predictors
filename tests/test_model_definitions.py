@@ -125,3 +125,19 @@ def test_registry_agrees_with_specs() -> None:
                 f"{model_id}: registry outcome {definition.outcome!r} != "
                 f"SPEC {spec.outcome_symbol!r}"
             )
+
+
+def test_provenance_keys_do_not_alias_live_models():
+    # Issue #273: pre-#168 provenance ids 70/74/75/76 were reused by live models
+    # (gc-070, med-074/075/076). A bare provenance key that equals a live model's
+    # legacy alias is ambiguous; qualified keys are fine. Guard against future
+    # bare-id reuse.
+    from language_reading_predictors.statistical_models.definitions import (
+        provenance_alias_collisions,
+    )
+
+    collisions = provenance_alias_collisions()
+    assert collisions == [], (
+        f"provenance keys collide with live legacy aliases: {collisions} — "
+        "qualify them (e.g. 'LRP74 [pre-#168 ...]') so they don't read as a live id"
+    )
