@@ -45,6 +45,13 @@ SPEC = ModelSpec(
         "use_age_gp": False,
         "phase_specific_mechanism": False,
         "use_subject_random_intercept": True,
+        # LINEAR mechanism, not the HSGP curve — see the matching note in LRP56. The
+        # nonparametric f_mech(E) curve does not converge at reporting tier (~200
+        # divergences, unmoved by target_accept 0.99); the DAG-required adjusters
+        # are kept and the mechanism enters linearly instead, which converges
+        # cleanly (0 divergences), per the #258 review. The estimand is the LINEAR
+        # E -> W adjusted association.
+        "linear_mechanism": True,
     },
 )
 

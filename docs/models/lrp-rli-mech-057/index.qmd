@@ -23,8 +23,17 @@ format:
 
 ## Overview
 
-LRP57 estimates the adjusted association $f^E$ between expressive vocabulary and word reading,
+LRP57 estimates the adjusted association between expressive vocabulary and word reading,
 using all three phase transitions.
+
+::: {.callout-note title="Linear mechanism (estimand note)"}
+As in [LRP56](../lrp-rli-mech-056), the mechanism enters as a **linear slope**
+$\beta_{\text{mech}}$, not the HSGP curve: the nonparametric $f^E$ curve does not
+converge at reporting tier (~200 divergences, unmoved by a higher `target_accept`).
+No DAG-required adjuster is dropped to fix this; the mechanism is entered linearly,
+which converges cleanly, per the #258 review. The estimand is the **linear** $E \to W$
+adjusted association.
+:::
 
 ## Adjustment set
 

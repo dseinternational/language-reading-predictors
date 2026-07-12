@@ -41,6 +41,19 @@ SPEC = ModelSpec(
         "use_age_gp": False,
         "phase_specific_mechanism": False,
         "use_subject_random_intercept": True,
+        # LINEAR mechanism, not the HSGP curve. At reporting tier the nonparametric
+        # f_mech(R) curve does not converge here (~300 divergences on an otherwise
+        # healthy posterior — R-hat 1.0, min ESS ~2600 — and raising target_accept
+        # to 0.99 barely moves it, so it is HSGP geometry, not boundary steps). The
+        # revised DAG adjusters are DAG-required and are NOT dropped to buy
+        # convergence (#258 review). Instead the mechanism enters linearly, which
+        # converges cleanly (0 divergences), following the review's own "consider a
+        # linear mechanism" option. The estimand is thereby the LINEAR R -> W
+        # adjusted association (a single slope), not the nonparametric shape;
+        # recovering the curve would need a reparameterised GP and is left as
+        # follow-up. LRP58 (L -> W) keeps its HSGP curve — only the vocabulary-
+        # predictor mechanisms show this pathology.
+        "linear_mechanism": True,
     },
 )
 

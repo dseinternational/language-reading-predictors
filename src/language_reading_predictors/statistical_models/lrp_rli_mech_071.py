@@ -51,6 +51,11 @@ SPEC = ModelSpec(
         "phase_specific_mechanism": False,
         "use_subject_random_intercept": True,
         "moderator_symbol": "E",
+        # Boundary divergences remain at 0.95 (R-hat 1.0, min ESS ~2400); lift
+        # target_accept for smaller steps, as LRP58 does. The wave fix (#258) already
+        # took this from ~90 divergences (R-hat 1.2, ESS ~9) to ~14, so the residual
+        # is a boundary-step issue, not the interaction geometry the review feared.
+        "target_accept": 0.999,
     },
 )
 
