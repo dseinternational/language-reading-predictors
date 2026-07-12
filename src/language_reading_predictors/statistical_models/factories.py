@@ -712,6 +712,7 @@ def build_mechanism_model(
     moderator_is_covariate: bool = False,
     include_interaction: bool = True,
     linear_mechanism: bool = False,
+    adjust_for: Iterable[str] = (),
 ) -> BuiltModel:
     """
     Mechanism model on the outcome post-score.
@@ -770,6 +771,16 @@ def build_mechanism_model(
     effect ``gamma_mod * z(M)`` is added (no ``gamma_int``). Used to build a
     clean no-interaction baseline (e.g. LRP73base) that differs from the full
     model by exactly the interaction term, for a nested PSIS-LOO comparison.
+
+    ``adjust_for`` (default ()): revised-DAG confounders that are not bounded-count
+    measures and so cannot enter via ``confounder_symbols`` — hearing status
+    (``hs`` / ``hs_missing``), speech production (``deapp_c``), phonological memory
+    (``erbto``), session dose (``attend``). Each must be a key in
+    ``prepared.covariates`` (the pipeline standardises the continuous ones and adds
+    missing-indicators); they enter as linear ``gamma_{c}`` terms with the
+    regularising cross-coupling prior, exactly as in ``build_itt_model`` (#245).
+    Age and group need no entry here: age is absorbed by the phase-specific
+    intercepts and group is always in ``beta_G``.
     """
     # Materialise once: ``confounder_symbols`` is iterated several times below
     # (keep-mask, coefficient loop, the "A in confounders" check, and the
@@ -777,6 +788,7 @@ def build_mechanism_model(
     # would be exhausted after the first pass and silently drop every confounder
     # — the exact failure the invariant exists to catch.
     confounder_symbols = tuple(confounder_symbols)
+    adjust_for = tuple(adjust_for)
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
     if mechanism_symbol not in prepared.pre_logit:
@@ -802,6 +814,10 @@ def build_mechanism_model(
             raise KeyError(f"Confounder {s!r} not recognised")
         if s in prepared.post_counts:
             keep = keep & ~np.isnan(prepared.post_counts[s])
+    for c in adjust_for:
+        if c not in prepared.covariates:
+            raise KeyError(f"Adjuster covariate {c!r} not loaded in prepared data")
+        keep = keep & ~np.isnan(prepared.covariates[c])
     prepared = _subset(prepared, keep)
 
     from language_reading_predictors.statistical_models.preprocessing import (
@@ -885,6 +901,11 @@ def build_mechanism_model(
             confounder_data[s] = pm.Data(
                 f"{s}_post_logit", c_val_np, dims="obs_id"
             )
+        adjust_data: dict[str, pt.TensorVariable] = {}
+        for c in adjust_for:
+            adjust_data[c] = pm.Data(
+                f"{c}_adj", prepared.covariates[c], dims="obs_id"
+            )
 
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
@@ -913,6 +934,14 @@ def build_mechanism_model(
                 continue  # G already in beta_G; A handled via age GP
             gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
             eta = eta + gamma_c * confounder_data[s]
+
+        # Raw-covariate adjusters (revised-DAG confounders that are not bounded-count
+        # measures): hearing (hs/hs_missing), speech (deapp_c), phonological memory
+        # (erbto), session dose (attend). Linear gamma terms, mirroring the
+        # build_itt_model adjust_for path (#245).
+        for c in adjust_for:
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            eta = eta + gamma_c * adjust_data[c]
 
         # Linear moderation of the mechanism effect by the moderator M.
         # ``gamma_mod`` is the moderator main effect (also serves as the

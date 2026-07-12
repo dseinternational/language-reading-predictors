@@ -538,6 +538,36 @@ def test_mechanism_factory_without_random_intercept(tmp_path):
     assert "u_child_raw" not in names
 
 
+def test_mechanism_factory_adjust_for_covariates(tmp_path):
+    """#245: raw-covariate adjusters enter as linear ``gamma_{c}`` terms."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    prep.covariates["hs"] = np.zeros(prep.n_obs)  # binary indicator
+    prep.covariates["sp_std"] = np.linspace(-1.0, 1.0, prep.n_obs)  # continuous
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="R",
+        outcome_symbol="W",
+        confounder_symbols=(),
+        adjust_for=("hs", "sp_std"),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_hs" in names and "gamma_sp_std" in names
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=7)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_mechanism_factory_adjust_for_unknown_covariate_raises(tmp_path):
+    """#245: an adjuster absent from prepared.covariates is a loud KeyError."""
+    p = _write_synthetic(tmp_path, n_children=10)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    with pytest.raises(KeyError):
+        build_mechanism_model(
+            prep, mechanism_symbol="R", outcome_symbol="W", adjust_for=("nope",)
+        )
+
+
 def test_itt_factory_rejects_wrong_phase(tmp_path):
     p = _write_synthetic(tmp_path, n_children=10)
     prep = load_and_prepare(path=p, phase_mode="all")

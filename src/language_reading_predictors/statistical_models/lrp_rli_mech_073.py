@@ -17,15 +17,13 @@ covariate):
 `gamma_int > 0` would mean the code-based route converts to reading *more* strongly at older
 ages. W is not floored, so the nonparametric `f_mech` HSGP is kept (unlike LRP72).
 
-Adjustment set: LRP58's {G, A, E, R, W_pre}. NOTE: the mechanism factory now
-conditions on age **linearly by default** — whenever `A` is a declared confounder
-and the age GP is off (`use_age_gp=False`), a `gamma_A·z(age)` term is added — so
-LRP58 (and the rest of the mechanism family) *does* adjust for the age confounder
-as fit. LRP73 is the one exception: because age is its *moderator*
-(`moderator_is_covariate`), the linear `gamma_A` term is skipped (it would be
-collinear with the moderator main effect) and the age adjustment is realised
-instead by the moderator main effect `gamma_mod·z(age)`, alongside the
-`gamma_int·z(logit L)·z(age)` interaction being tested. Documented in the report.
+Confounder set is the revised LRP58 set {G, A, HS, IS(attend), SP} + W_pre (the
+old E / R adjusters are dropped — neither vocabulary is a parent of LS in the
+revised DAG, 2026-07-10, #245). Age is this model's *moderator*
+(`moderator_is_covariate`), so the linear `gamma_A` term is skipped (it would be
+collinear with the moderator main effect) and the age adjustment is realised by
+`gamma_mod·z(age)` alongside the `gamma_int·z(logit L)·z(age)` interaction being
+tested. Documented in the report.
 
 **Sharp prior expectation.** The two prior interaction models both showed an
 apparent interaction that was really a *between-child ability confound*, which
@@ -52,9 +50,11 @@ SPEC = ModelSpec(
     title="Mechanism model: letter-sound (L) -> word reading (W), moderated by age",
     outcome_symbol="W",
     mechanism_symbol="L",
-    adjustment=["G", "A", "E", "R", "W_pre"],
+    adjustment=["G", "A", "W_pre"],
     extra={
+        "outcomes": ("W", "L"),
         "adjust_baseline_symbol": "W",
+        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
         "moderator_symbol": "A",
         "moderator_is_covariate": True,
         "include_interaction": True,

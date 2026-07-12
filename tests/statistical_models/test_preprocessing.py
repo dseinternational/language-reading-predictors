@@ -19,12 +19,15 @@ from language_reading_predictors.statistical_models.measures import (
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     HEARING_STATUS_COVARIATES,
+    INTERVAL_COVARIATES,
     add_hearing_status,
+    add_missing_indicator_covariates,
     logit_safe,
     standardise,
     load_and_prepare,
     load_and_prepare_aligned,
     load_and_prepare_lagged_outcome,
+    split_covariates_by_wave,
 )
 
 
@@ -45,6 +48,36 @@ def test_load_and_prepare_hearing_status_keeps_all_rows():
     )
     assert with_hs.n_obs == base.n_obs  # hearing missingness costs no children
     assert set(HEARING_STATUS_COVARIATES) <= set(with_hs.covariates)
+
+
+def test_add_missing_indicator_covariates():
+    """#245: deapp_c / erbto -> mean-filled value + {col}_missing (no NaN)."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        add_missing_indicator_covariates,
+    )
+
+    df = pd.DataFrame(
+        {"deapp_c": [2.0, 4.0, np.nan, 6.0], "erbto": [np.nan, 1.0, 3.0, 5.0]}
+    )
+    out = add_missing_indicator_covariates(df)
+    assert list(out["deapp_c_missing"]) == [0.0, 0.0, 1.0, 0.0]
+    assert list(out["erbto_missing"]) == [1.0, 0.0, 0.0, 0.0]
+    # unknown filled to the column mean (arm-blind; becomes 0 after standardisation)
+    assert out["deapp_c"].iloc[2] == pytest.approx(np.nanmean([2.0, 4.0, 6.0]))
+    assert out["erbto"].iloc[0] == pytest.approx(np.nanmean([1.0, 3.0, 5.0]))
+    cols = ["deapp_c", "deapp_c_missing", "erbto", "erbto_missing"]
+    assert int(out[cols].isna().sum().sum()) == 0
+
+
+def test_load_and_prepare_missing_indicator_covariates_keep_rows():
+    """#245/#246: requesting SP/RW as covariates exposes them without dropping rows
+    (they are filled by add_missing_indicator_covariates)."""
+    base = load_and_prepare(phase_mode="all", outcomes=("W",))
+    with_cov = load_and_prepare(
+        phase_mode="all", outcomes=("W",), covariates=("deapp_c", "erbto")
+    )
+    assert with_cov.n_obs == base.n_obs  # SP/RW missingness costs no rows
+    assert {"deapp_c", "erbto"} <= set(with_cov.covariates)
 
 
 def test_logit_safe_haldane_correction():
@@ -416,3 +449,129 @@ def test_load_and_prepare_aligned_requires_dose_when_requested(tmp_path):
     assert prep.n_obs == 11
     assert "dose" in prep.covariates
     assert np.all(np.isfinite(prep.covariates["dose"]))
+
+
+# ---------------------------------------------------------------------------
+# #258 review: constant covariates, and the pre/post wave split
+# ---------------------------------------------------------------------------
+
+
+def _with_speech(df: pd.DataFrame, values) -> pd.DataFrame:
+    """Attach a ``deapp_c`` (speech production, SP) column with the given values."""
+    out = df.copy()
+    out["deapp_c"] = values
+    return add_missing_indicator_covariates(out)
+
+
+def test_constant_missing_indicator_is_dropped_not_fatal_complete_column(tmp_path):
+    """A COMPLETE column gives an all-zero ``_missing`` indicator (sd = 0).
+
+    That previously raised ValueError("Standard deviation of x must be positive.")
+    from inside the loader. It must instead be dropped, with a warning, and reported
+    via ``dropped_covariates`` so callers can report the effective adjustment set.
+    """
+    df = _make_synthetic_long(n_children=16, seed=31)
+    rng = np.random.default_rng(7)
+    df = _with_speech(df, rng.normal(50.0, 8.0, size=len(df)))  # no NaNs at all
+    assert (df["deapp_c_missing"] == 0.0).all()
+
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+
+    with pytest.warns(UserWarning, match="deapp_c_missing.*constant"):
+        prep = load_and_prepare(
+            path=p,
+            phase_mode="all",
+            outcomes=("W",),
+            post_covariates=("deapp_c", "deapp_c_missing"),
+        )
+
+    assert "deapp_c_missing" in prep.dropped_covariates
+    assert "deapp_c_missing" not in prep.covariates  # gets no coefficient
+    assert "deapp_c" in prep.covariates  # the informative one survives
+    assert np.all(np.isfinite(prep.covariates["deapp_c"]))
+
+
+def test_constant_missing_indicator_is_dropped_not_fatal_wholly_missing_column(tmp_path):
+    """A WHOLLY MISSING column gives an all-one ``_missing`` indicator (sd = 0).
+
+    The filled value column is then constant too (every entry is the 0.0 fallback),
+    so BOTH are dropped rather than crashing the loader.
+    """
+    df = _make_synthetic_long(n_children=16, seed=32)
+    df = _with_speech(df, np.nan)  # nothing observed
+    assert (df["deapp_c_missing"] == 1.0).all()
+
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+
+    with pytest.warns(UserWarning, match="constant"):
+        prep = load_and_prepare(
+            path=p,
+            phase_mode="all",
+            outcomes=("W",),
+            post_covariates=("deapp_c", "deapp_c_missing"),
+        )
+
+    assert set(prep.dropped_covariates) == {"deapp_c", "deapp_c_missing"}
+    assert "deapp_c" not in prep.covariates
+    assert "deapp_c_missing" not in prep.covariates
+
+
+def test_split_covariates_by_wave_puts_sessions_pre_and_states_post():
+    """Sessions span the following interval (pre row); states are contemporaneous."""
+    pre, post = split_covariates_by_wave(
+        ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing")
+    )
+    assert pre == ("attend",)
+    assert post == ("hs", "hs_missing", "deapp_c", "deapp_c_missing")
+    assert "attend" in INTERVAL_COVARIATES
+
+
+def test_post_covariates_are_read_from_the_post_row(tmp_path):
+    """A post covariate must take the transition's POST-wave value, not its pre one.
+
+    The contemporaneous DAG puts the state confounders at the same wave as the
+    exposure and outcome; loading them from the pre row fits a hybrid pre/post
+    adjustment set (#258 review, P1).
+    """
+    df = _make_synthetic_long(n_children=14, seed=33)
+    # Make speech a pure function of the wave, so pre and post values cannot coincide.
+    df = _with_speech(df, df[V.TIME].astype(float) * 10.0)
+
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+
+    as_post = load_and_prepare(
+        path=p, phase_mode="all", outcomes=("W",), post_covariates=("deapp_c",)
+    )
+    as_pre = load_and_prepare(
+        path=p, phase_mode="all", outcomes=("W",), covariates=("deapp_c",)
+    )
+
+    assert as_post.covariate_time["deapp_c"] == "post"
+    assert as_pre.covariate_time["deapp_c"] == "pre"
+
+    # Transitions are (1,2), (2,3), (3,4): post waves are 2/3/4, pre waves 1/2/3.
+    post_raw = as_post.covariate_scalers["deapp_c"].inverse(as_post.covariates["deapp_c"])
+    pre_raw = as_pre.covariate_scalers["deapp_c"].inverse(as_pre.covariates["deapp_c"])
+    phase = as_post.phase
+    np.testing.assert_allclose(post_raw, (phase + 2) * 10.0)
+    np.testing.assert_allclose(pre_raw, (phase + 1) * 10.0)
+
+
+def test_covariate_cannot_be_requested_at_both_waves(tmp_path):
+    df = _make_synthetic_long(n_children=8, seed=34)
+    rng = np.random.default_rng(3)
+    df = _with_speech(df, rng.normal(50.0, 8.0, size=len(df)))
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+
+    with pytest.raises(ValueError, match="both the pre and the post row"):
+        load_and_prepare(
+            path=p,
+            phase_mode="all",
+            outcomes=("W",),
+            covariates=("deapp_c",),
+            post_covariates=("deapp_c",),
+        )

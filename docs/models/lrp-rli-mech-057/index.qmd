@@ -23,23 +23,45 @@ format:
 
 ## Overview
 
-LRP57 estimates the adjusted association $f^E$ between expressive vocabulary and word reading,
+LRP57 estimates the adjusted association between expressive vocabulary and word reading,
 using all three phase transitions.
+
+::: {.callout-note title="Linear mechanism (estimand note)"}
+As in [LRP56](../lrp-rli-mech-056), the mechanism enters as a **linear slope**
+$\beta_{\text{mech}}$, not the HSGP curve: the nonparametric $f^E$ curve does not
+converge at reporting tier (~200 divergences, unmoved by a higher `target_accept`).
+No DAG-required adjuster is dropped to fix this; the mechanism is entered linearly,
+which converges cleanly, per the #258 review. The estimand is the **linear** $E \to W$
+adjusted association.
+:::
 
 ## Adjustment set
 
-- $G$ — standard confounder (linear, one coefficient $\beta_G$).
-- $A$ — standard confounder, conditioned on **linearly by default**: a
-  $\gamma_A\,z(\text{age})$ term enters whenever age is a declared confounder and
-  the age GP is off. The nonparametric age-GP flag is **off by default**; re-enable
-  via `ModelSpec.extra={"use_age_gp": True}` for a smooth-age sensitivity fit.
-- $R$ — *must* be conditioned on: $R \to E$ and $R \to W$, so $R$ opens a backdoor path.
+Observed parents of $E$ (EV) under the revised DAG (#245): $\{A, HS, TR, TE, R, RW, SP\}$.
+
+- $G$ — group; always conditioned on via $\beta_G$.
+- $A$ — age; conditioned on linearly by default ($\gamma_A\,z(\text{age})$).
+- $TR$, $TE$, $R$ — taught receptive/expressive and standardised receptive
+  vocabulary; parents of $E$ that also cause $W$ (measure confounders). $TR$/$TE$
+  are **new under the revised DAG**.
+- $HS$ (`hs` / `hs_missing`), $RW$ (`erbto`), $SP$ (`deapp_c`) — hearing,
+  phonological memory and speech production; covariate adjusters **newly
+  required (#245)**.
 - $W_{\text{pre}}$ — baseline.
 
-$F$, $L$, $P$, $B$ are either descendants of $E$ or lie on post-$E$ mediation
-paths. Conditioning on them would block legitimate indirect effects and
-change the estimand toward a direct-only component, so they are **not** in the
-adjustment set.
+$F$, $L$, $P$, $B$ are descendants of $E$ or lie on post-$E$ mediation paths and
+are **not** conditioned on.
+
+$GA$ (latent general ability) is **not** adjusted for, and the child random intercept
+does **not** stand in for it. Under the usual random-effects independence assumption
+$u_{\text{child}}$ absorbs stable residual between-child heterogeneity and the
+repeated-measure dependence, but it cannot block $E \leftarrow GA \rightarrow W$ or
+isolate a within-child association — an omitted trait correlated with the measured
+predictors is precisely what a zero-mean, predictor-independent random effect fails to
+remove. Blocking it would require a within/between decomposition, correlated random
+effects (Mundlak terms), child fixed effects, or a genuine RI-CLPM; none is fitted
+here. **Residual confounding by $GA$ therefore remains**, and $f^E$ is an **adjusted
+association**, not a causal effect.
 
 ### Interpretation caveats
 

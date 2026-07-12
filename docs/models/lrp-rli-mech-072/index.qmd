@@ -57,8 +57,9 @@ plots the **linear** main-effect band $\beta_{\text{mech}}\,z(\operatorname{logi
 
 ## Adjustment set — and why $W$ is excluded
 
-Minimal set: $\{G, A, N_{\text{pre}}\}$ — group, age, and baseline decoding
-(autoregressive).
+Minimal set (#245): $\{G, A, HS, IS(\text{attend}), SP, N_{\text{pre}}\}$ — the
+revised-DAG parents of $L$ (group via $\beta_G$, age, hearing, sessions, speech)
+plus baseline decoding (autoregressive).
 
 ::: {.callout-important title="DAG decision: word reading W is NOT conditioned on"}
 

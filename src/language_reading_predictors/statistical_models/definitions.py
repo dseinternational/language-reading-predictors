@@ -181,6 +181,7 @@ _MECH = [
     _d("lrp56", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "receptive vocabulary -> word reading"),
     _d("lrp57", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "expressive vocabulary -> word reading"),
     _d("lrp58", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "letter sounds -> word reading"),
+    _d("lrp158", "mechanism", "Mechanism", Status.COMPANION, "W", "complete-case comparator (no imputed confounders)", base="lrp58"),
     _d("lrp71", "mechanism", "Moderation", Status.ASSOCIATION, "W", "expressive-vocabulary moderation"),
     _d("lrp72", "mechanism", "Moderation", Status.ASSOCIATION, "N", "phonics route (letter-sound x blending -> decoding)"),
     _d("lrp72base", "mechanism", "Moderation", Status.COMPANION, "N", "no-interaction baseline", base="lrp72"),

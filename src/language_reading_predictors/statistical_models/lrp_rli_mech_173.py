@@ -22,9 +22,11 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="W",
     mechanism_symbol="L",
-    adjustment=["G", "A", "E", "R", "W_pre"],
+    adjustment=["G", "A", "W_pre"],
     extra={
+        "outcomes": ("W", "L"),
         "adjust_baseline_symbol": "W",
+        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
         "moderator_symbol": "A",
         "moderator_is_covariate": True,
         "include_interaction": False,

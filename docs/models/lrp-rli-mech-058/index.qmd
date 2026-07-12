@@ -26,15 +26,30 @@ format:
 LRP58 estimates the adjusted association $f^L$ between letter-sound knowledge and word reading,
 using all three phase transitions.
 
+::: {.callout-warning title="Residual boundary divergence — read the curve accordingly"}
+This model keeps the nonparametric **HSGP** mechanism curve, which is the deliverable here (the
+shape of the letter-sound → reading relationship). At reporting tier, with `target_accept` lifted to
+0.999, a **single boundary divergence** remains on an otherwise-healthy posterior (R-hat = 1.00, min
+ESS ≈ 2400). The HSGP geometry is the source — the vocabulary-predictor mechanisms
+([LRP56](../lrp-rli-mech-056)/[LRP57](../lrp-rli-mech-057)) show the same pathology more strongly and
+were entered linearly to resolve it. Here the curve is retained deliberately, so the model does
+**not** strictly clear the zero-divergence gate; the one divergence is disclosed rather than removed
+by discarding the curve or dropping a DAG-required adjuster. Read the curve as sound but not
+gate-clean, and treat any feature localised near a sampling boundary with corresponding caution.
+:::
+
 ## Adjustment set
 
-- $G$ — linear confounder (one coefficient $\beta_G$).
-- $A$ — standard confounder, conditioned on **linearly by default**: a
-  $\gamma_A\,z(\text{age})$ term enters whenever age is a declared confounder and
-  the age GP is off. The nonparametric age-GP flag is **off by default**; re-enable
-  via `ModelSpec.extra={"use_age_gp": True}` for a smooth-age sensitivity fit.
-- $E$ — confounds $L$ and $W$ ($E \to L$ and $E \to W$). Condition on.
-- $R$ — confounds $L$ through $E$ ($R \to E \to L$) and affects $W$. Condition on.
+Observed parents of $L$ (LS) under the revised DAG (#245): $\{A, HS, IG, IS, SP\}$.
+The revision drops $EV \to LS$ (speech $SP$ is now the code cause), so the old
+$E$/$R$ adjusters are **removed** — and conditioning on $E$, a common effect of
+$SP$ and $RW$ that both reach $W$, would in fact **open a collider path**.
+
+- $G$ — group ($IG$); always conditioned on via $\beta_G$.
+- $A$ — age; conditioned on linearly by default ($\gamma_A\,z(\text{age})$).
+- $HS$ (`hs` / `hs_missing`) — hearing, a new common cause of letter sounds. **New (#245).**
+- $IS$ (`attend`) — intervention sessions, a common cause of $L$ and $W$. **New (#245).**
+- $SP$ (`deapp_c`) — speech production, now a cause of letter-sound knowledge. **New (#245).**
 - $W_{\text{pre}}$ — baseline word reading.
 
 ::: {.callout-important title="DAG decision: B is NOT in the adjustment set"}
