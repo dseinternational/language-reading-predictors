@@ -14,8 +14,8 @@ larger the intervention-window change is than the waitlist-window change. The
 `median` (or `delta_median`) column is the posterior median point estimate (the
 house convention; the posterior `mean` is kept alongside); the `lo`/`hi`
 (or `_lo`/`_hi`) columns bracket the 95% credible interval, the range the effect
-plausibly falls in; and `p_pos` / `prob_delta_pos` is the probability the effect
-is positive (a benefit). The `_items` columns restate `delta` on the raw items
+plausibly falls in; and `prob_delta_pos` (in general `prob_<coefficient>_pos`) is
+the probability the effect is positive (a benefit). The `_items` columns restate `delta` on the raw items
 scale so it reads as a count of items rather than logit units. For a heavily
 floored outcome fitted with the off-floor rule (`P`, `N`), those columns instead
 give a model-implied off-floor **risk difference** — the difference in the
