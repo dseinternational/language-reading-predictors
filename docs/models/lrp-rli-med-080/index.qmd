@@ -1,0 +1,58 @@
+---
+title: "LRP80: Does word reading route through taught-receptive vocabulary? (mediation; TE companion)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+The receptive companion to [LRP68](../lrp-rli-med-068) (taught *expressive* vocabulary $TE$).
+The DAG gives both taught nodes a direct edge to word reading ($TR \to WR$ predates decision 5;
+$TE \to WR$ was added with it), so a $TR \to WR$ mediation is graph-warranted. Running $TE$ and
+$TR$ through the identical machinery asks whether the intervention's word-reading ($W$) gain
+routes through taught *comprehension* as well as through taught *production* — a symmetric check
+on the lexical route.
+
+## Design
+
+Mirrors LRP68, swapping the mediator $TE \to TR$: phase 0 only, $n \approx 53$. Mediator
+$TR_{t2}$ (Beta-Binomial on $TR_{t1}$); outcome $W_{t2}$ with a $G \times TR$ interaction.
+Adjustment $\{G, A, L, E, W_\text{pre}, TR_{t1}\}$ — letter sounds $L$ (the competing code route)
+and standardised *expressive* vocab $E$ are the measured mediator–outcome confounders.
+Standardised *receptive* vocab $R$ is a **descendant** of $TR$ (transfer edge $TR \to RV$), so it
+is deliberately **not** adjusted — mirroring LRP68's exclusion of $E$ for the expressive
+mediator, so each taught-vocab mediation drops its own same-modality standardised measure and
+keeps the cross-modality one plus $L$.
+
+## Assumptions
+
+ID-2: the $TR \to WR$ leg is $GA$-confounded and dose is a treatment-induced mediator–outcome
+confounder, so the NDE/NIE are **adjusted associations, not point-identified**. Contemporaneous
+measurement; $n \approx 53 \Rightarrow$ wide intervals.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

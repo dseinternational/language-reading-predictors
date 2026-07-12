@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -50,12 +54,13 @@ $G = 0$ the wait-list control (per `#117`); all effects are in the
   Beta-Binomial leg conditioned on its own baseline. **Outcome** $Y = W_{t2}$
   (conditioned on $W_{t1}$). The outcome leg includes both $G\times L$ and $G\times E$
   interactions, so the decomposition admits exposure–mediator interaction.
-- **Mediator–outcome confounders** $C$ (revised DAG, #246): age $A$, hearing $HS$,
-  phonological memory $RW$, speech production $SP$, taken at **baseline (t1)** (the
-  cross-world assumption). Receptive vocab $R$ is **dropped** — under the revised DAG
-  $RV$ is a descendant of the intervention ($IG \to TR \to RV$), a treatment-affected
-  confounder (recanting-witness); expressive vocab is a *mediator* here, not a
-  confounder.
+- **Mediator–outcome confounders** $C$: receptive vocab $R$, age $A$, and the
+  revised-DAG common causes hearing $HS$, phonological memory $RW$ and speech
+  production $SP$ (entered by the missing-indicator method, #246), all taken at
+  **baseline (t1)** so none is treatment-affected (the cross-world assumption).
+  Expressive vocab is a *mediator* here, not a confounder. Whether $R$ remains a
+  confounder once the revised DAG's edges are settled is a time-indexed
+  d-separation question tracked in #264; it is **retained** here pending that.
 - The natural (in)direct effects are computed by **counterfactual simulation from the
   posterior** (the g-formula), not from coefficients.
 
@@ -76,6 +81,27 @@ This is a **decomposition under assumptions, not proof of a causal route.**
   cannot even apply the partial latent-ability repair that intercept provides. Lead
   with the joint indirect effect; keep the $\text{NIE}_L$/$\text{NIE}_E$ split
   flagged exploratory.
+- **A second, structural non-identification — independent of $GA$.** The
+  latent-ability confounding above is not the only obstacle. Intervention **dose**
+  (sessions attended — $\text{IS}$ in the DAG) is a **treatment-induced
+  mediator–outcome confounder**: it is a descendant of the randomised group and
+  points into both mediators ($L$, $E$) and word reading. So the natural
+  direct/indirect effects are **not identified even if $GA$ were observed**, and —
+  unlike ordinary confounding — the problem is **not repaired by measuring and
+  adjusting dose**, because dose is itself a descendant of the exposure
+  (VanderWeele, Vansteelandt & Robins 2014, DOI
+  [10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
+  The decomposition below is a **model-based g-formula decomposition under the
+  stated (cross-world) assumptions, not an identified natural effect**. An
+  **interventional** (rather than natural) mediation estimand — fitted for the
+  letter-sound route as `lrp-rli-med-078` — escapes *this* obstacle, since it
+  invokes no cross-world quantity. It is **not thereby identified**: it still
+  assumes no unmeasured mediator–outcome confounding (Hejazi, Rudolph, van der Laan
+  & Díaz 2022, assumption A5, DOI
+  [10.1093/biostatistics/kxac002](https://doi.org/10.1093/biostatistics/kxac002)),
+  which latent $GA$ violates here, and its positivity requirement and the missing
+  temporal ordering remain binding. It is a weaker-assumption target, not a
+  defensible one.
 - **Contemporaneous measurement.** Both mediators and the outcome are at t2 — no
   temporal precedence within the window. Conditioning on baselines mitigates but does
   not remove this.
@@ -86,12 +112,17 @@ This is a **decomposition under assumptions, not proof of a causal route.**
   **ordering-dependent** (see below).
 - Consistency and positivity are assumed.
 
-::: {.callout-important title="Joint effect robust; path split exploratory"}
+::: {.callout-important title="Joint effect less order-sensitive; path split exploratory"}
 With $n \approx 53$, expect **wide intervals**. The **joint indirect effect** (how much
-flows through the $\{L, E\}$ block at all) is the robust quantity. The $\text{NIE}_L$ /
-$\text{NIE}_E$ split is **exploratory**: it assumes a mediator ordering (default $L$
-before $E$) and the conditional-independence above, and is an attribution under those
-assumptions — not a unique partition.
+flows through the $\{L, E\}$ block at all) is the **preferred descriptive
+decomposition**: it is *less sensitive to mediator ordering* than the path split. That
+is its only advantage — it is **not** a robust or identified quantity, because it
+remains subject to both latent-general-ability confounding and exposure-induced $IS$
+confounding. The $\text{NIE}_L$ / $\text{NIE}_E$ split is **exploratory**: it assumes a
+mediator ordering (default $L$ before $E$) and the conditional-independence above, and
+is an attribution under those assumptions — not a unique partition. Both are
+model-based g-formula decompositions under the stated assumptions, **not identified
+natural effects** (see the exposure-induced-confounder bullet above).
 :::
 
 {{< include _partials/_priors.qmd >}}

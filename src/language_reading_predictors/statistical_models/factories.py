@@ -1442,6 +1442,9 @@ class MediationData:
     n_trials_W: int
     mediator_kind: str = "beta_binomial"
     confounder_symbols: tuple[str, ...] = ()
+    #: The mediator's data symbol (L for LRP59, TE for LRP68, N for LRP74); the
+    #: own-baseline coefficient node is ``a_{mediator_symbol}``.
+    mediator_symbol: str = "L"
     # Beta-Binomial single mediator (LRP59).
     L1_logit: np.ndarray | None = None
     L2_count: np.ndarray | None = None
@@ -1553,6 +1556,16 @@ def build_mediation_model(
     treatment (the cross-world assumption), so post-treatment values are
     inadmissible here. Documented in the report.
 
+    The resulting NDE/NIE are **not identified natural effects**: beyond the
+    latent-general-ability confounding of the mediator->outcome path, dose ``IS``
+    is a treatment-induced (exposure-induced) mediator-outcome confounder, so the
+    decomposition is model-based under stated (cross-world) assumptions. An
+    interventional estimand (``decompose(..., interventional=True)``; LRP78) drops
+    the cross-world requirement and so escapes the ``IS`` obstacle, but it still
+    assumes no unmeasured mediator-outcome confounding, which latent general
+    ability violates here — a weaker-assumption target, not an identified one. See
+    the :mod:`mediation` module docstring and the report assumptions sections.
+
     Requires ``prepared.phase_mode == 'itt'`` (the single randomised t1->t2
     transition; one row per child, so no subject random intercept).
     """
@@ -1607,7 +1620,11 @@ def build_mediation_model(
 
     with pm.Model(coords=coords) as model:
         G_d = pm.Data("G", G_f, dims="obs_id")
-        L1_d = pm.Data("L_pre_logit", L1, dims="obs_id")
+        # Mediator baseline / own-baseline coef / likelihood are parameterised by
+        # ``mediator_symbol`` so a non-L mediator (LRP68 TE, LRP74 N) gets correctly
+        # labelled nodes; when mediator_symbol == 'L' every name is byte-identical to
+        # the original LRP59 build.
+        L1_d = pm.Data(f"{mediator_symbol}_pre_logit", L1, dims="obs_id")
         W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         conf_d = {
@@ -1616,10 +1633,10 @@ def build_mediation_model(
         }
         z_med_d = pm.Data("z_med", z_med, dims="obs_id")
 
-        # --- Mediator model: logit(L_t2) ---
+        # --- Mediator model: logit(mediator_t2) ---
         a0 = _priors.alpha_prior().to_pymc("a0")
         a_G = _priors.tau_prior().to_pymc("a_G")
-        a_L = _priors.gamma_own_prior().to_pymc("a_L")
+        a_L = _priors.gamma_own_prior().to_pymc(f"a_{mediator_symbol}")
         a_A = _priors.gamma_cross_prior().to_pymc("a_A")
         mu_M = a0 + a_G * G_d + a_L * L1_d + a_A * A_d
         for s in confounder_symbols:
@@ -1628,7 +1645,7 @@ def build_mediation_model(
         mu_M = pm.Deterministic("mu_M", mu_M, dims="obs_id")
         kappa_M = _priors.kappa_prior().to_pymc("kappa_M")
         beta_binomial_from_logit(
-            "L_post", mu_M, n_trials=N_med, kappa=kappa_M,
+            f"{mediator_symbol}_post", mu_M, n_trials=N_med, kappa=kappa_M,
             observed=L2_count, dims="obs_id",
         )
 
@@ -1657,6 +1674,7 @@ def build_mediation_model(
         n_trials_W=int(N_out),
         med_mean=float(med_scaler.mean),
         med_sd=float(med_scaler.sd),
+        mediator_symbol=mediator_symbol,
     )
     built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
     return built, med_data
@@ -1823,6 +1841,9 @@ class TwoMediatorData:
     zE_sd: float
     mediator_symbols: tuple[str, str] = ("L", "E")
     confounder_symbols: tuple[str, ...] = ("R",)
+    #: Sequential code route (LRP75): the second mediator regresses on post-L, so
+    #: the g-formula must draw it conditional on the simulated first mediator.
+    chain: bool = False
 
 
 def build_two_mediator_model(
@@ -1831,13 +1852,17 @@ def build_two_mediator_model(
     outcome_symbol: str = "W",
     mediator_symbols: tuple[str, str] = ("L", "E"),
     confounder_symbols: Iterable[str] = ("R",),
+    chain: bool = False,
 ) -> tuple[BuiltModel, TwoMediatorData]:
     """Joint two-mediator + outcome model for the ITT-phase decomposition (LRP64).
 
     Generalises :func:`build_mediation_model` to **two named count mediators** so
     the word-reading effect can be split into a path via letter-sound knowledge, a
-    path via expressive vocabulary, and a direct/residual path. Three Beta-Binomial
-    legs share the randomised treatment ``G`` and a baseline-covariate adjustment::
+    path via a second mediator (expressive vocabulary ``E`` in LRP64, phoneme
+    blending ``B`` in LRP66), and a direct/residual path. The first leg is fixed to
+    ``L``; the second is parameterised by ``mediator_symbols[1]``. Three
+    Beta-Binomial legs share the randomised treatment ``G`` and a baseline-covariate
+    adjustment::
 
         L_t2 ~ aL0 + aL_G·G + aL_L·logit(L_t1) + aL_A·A + sum aL_c·C_t1
         E_t2 ~ aE0 + aE_G·G + aE_E·logit(E_t1) + aE_A·A + sum aE_c·C_t1
@@ -1858,13 +1883,16 @@ def build_two_mediator_model(
         raise ValueError("Two-mediator factory requires phase_mode='itt'")
     confounder_symbols = tuple(confounder_symbols)
     mL, mE = mediator_symbols
-    # The PyMC node and coefficient names below are hard-coded to the L/E legs
-    # (L_pre_logit, z_L, aL_*, b_L, ...), so only the ('L', 'E') pair is
-    # supported; other symbols would silently mislabel the fitted variables.
-    if (mL, mE) != ("L", "E"):
+    # The FIRST mediator leg's node/coefficient names are hard-coded to L
+    # (L_pre_logit, z_L, aL_*, b_L, b_GL, L_post); the SECOND leg is
+    # parameterised by its symbol ``mE`` ({mE}_pre_logit, z_{mE}, a{mE}_*,
+    # b_{mE}, b_G{mE}, {mE}_post, kappa_{mE}). When mE == 'E' every generated
+    # name is byte-identical to the original LRP64 build, so ('L', 'E') is
+    # unchanged; ('L', 'B') etc. get correctly-labelled second-leg variables.
+    if mL != "L":
         raise NotImplementedError(
-            "build_two_mediator_model hard-codes L/E variable names; "
-            f"mediator_symbols must be ('L', 'E'), got {mediator_symbols!r}"
+            "build_two_mediator_model hard-codes the first leg to L; "
+            f"mediator_symbols[0] must be 'L', got {mediator_symbols!r}"
         )
     for s in (outcome_symbol, mL, mE):
         if s not in prepared.pre_logit:
@@ -1908,14 +1936,14 @@ def build_two_mediator_model(
         G_d = pm.Data("G", G_f, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         L1_d = pm.Data("L_pre_logit", L1, dims="obs_id")
-        E1_d = pm.Data("E_pre_logit", E1, dims="obs_id")
+        E1_d = pm.Data(f"{mE}_pre_logit", E1, dims="obs_id")
         W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
         conf_d = {
             s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
             for s in confounder_symbols
         }
         zL_d = pm.Data("z_L", zL, dims="obs_id")
-        zE_d = pm.Data("z_E", zE, dims="obs_id")
+        zE_d = pm.Data(f"z_{mE}", zE, dims="obs_id")
 
         # --- Mediator L (letter-sound) ---
         aL0 = _priors.alpha_prior().to_pymc("aL0")
@@ -1932,28 +1960,35 @@ def build_two_mediator_model(
             "L_post", mu_L, n_trials=N_L, kappa=kappa_L, observed=L2, dims="obs_id"
         )
 
-        # --- Mediator E (expressive vocabulary) ---
-        aE0 = _priors.alpha_prior().to_pymc("aE0")
-        aE_G = _priors.tau_prior().to_pymc("aE_G")
-        aE_E = _priors.gamma_own_prior().to_pymc("aE_E")
-        aE_A = _priors.gamma_cross_prior().to_pymc("aE_A")
+        # --- Mediator 2 (``mE``; expressive vocabulary in LRP64, blending in LRP66) ---
+        aE0 = _priors.alpha_prior().to_pymc(f"a{mE}0")
+        aE_G = _priors.tau_prior().to_pymc(f"a{mE}_G")
+        aE_E = _priors.gamma_own_prior().to_pymc(f"a{mE}_{mE}")
+        aE_A = _priors.gamma_cross_prior().to_pymc(f"a{mE}_A")
         mu_E = aE0 + aE_G * G_d + aE_E * E1_d + aE_A * A_d
         for s in confounder_symbols:
-            aE_c = _priors.gamma_cross_prior().to_pymc(f"aE_{s}")
+            aE_c = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{s}")
             mu_E = mu_E + aE_c * conf_d[s]
-        mu_E = pm.Deterministic("mu_E", mu_E, dims="obs_id")
-        kappa_E = _priors.kappa_prior().to_pymc("kappa_E")
+        if chain:
+            # Sequential code route (LRP75): the second mediator is downstream of
+            # the first (L -> B), so post-L (``z_L``) enters the mE leg. The
+            # coefficient a{mE}_L is the L->B coupling; the g-formula then draws the
+            # second mediator conditional on the *simulated* L.
+            aE_L = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{mL}")
+            mu_E = mu_E + aE_L * zL_d
+        mu_E = pm.Deterministic(f"mu_{mE}", mu_E, dims="obs_id")
+        kappa_E = _priors.kappa_prior().to_pymc(f"kappa_{mE}")
         beta_binomial_from_logit(
-            "E_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id"
+            f"{mE}_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id"
         )
 
         # --- Outcome W ---
         b0 = _priors.alpha_prior().to_pymc("b0")
         b_G = _priors.tau_prior().to_pymc("b_G")
         b_L = _priors.b_path_prior().to_pymc("b_L")
-        b_E = _priors.b_path_prior().to_pymc("b_E")
+        b_E = _priors.b_path_prior().to_pymc(f"b_{mE}")
         b_GL = _priors.gamma_cross_prior().to_pymc("b_GL")
-        b_GE = _priors.gamma_cross_prior().to_pymc("b_GE")
+        b_GE = _priors.gamma_cross_prior().to_pymc(f"b_G{mE}")
         b_W = _priors.gamma_own_prior().to_pymc("b_W")
         b_A = _priors.gamma_cross_prior().to_pymc("b_A")
         eta_Y = (
@@ -1991,6 +2026,7 @@ def build_two_mediator_model(
         zE_sd=float(zE_scaler.sd),
         mediator_symbols=(mL, mE),
         confounder_symbols=confounder_symbols,
+        chain=chain,
     )
     built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
     return built, med_data
@@ -2298,7 +2334,19 @@ def build_correlated_factor_model(
     domains: dict[str, tuple[str, ...]] | None = None,
     structural_covariates: Iterable[str] = ("blocks",),
     use_age: bool = True,
+    # The ORIGINAL priors: TruncatedNormal(mu=0, sigma=1, lower=0) IS HalfNormal(1),
+    # so these defaults reproduce the pre-#261 prior exactly while keeping the more
+    # general TruncatedNormal parameterisation available to the sensitivity model.
+    # An earlier revision of #261 recalibrated these to (0.6, 0.5) / 0.5 alongside
+    # the marginalisation. The 2x2 ablation (LRPMM101; see
+    # notes/202607101638-mm-001-convergence-reparameterisation.md) showed that the
+    # recalibration is neither necessary nor sufficient for convergence — raising
+    # target_accept is what clears the gate — while it does move the prior-implied
+    # median communality from 0.50 to 0.79. With two indicators per factor at
+    # n ~ 51 that is a real and unnecessary prior commitment, so the defaults revert.
+    loading_mu: float = 0.0,
     loading_sigma: float = 1.0,
+    residual_sigma: float = 1.0,
     predictor_slope_sigma: float = 0.5,
     lkj_eta: float = 2.0,
 ) -> BuiltModel:
@@ -2324,6 +2372,31 @@ def build_correlated_factor_model(
     ID-2 each factor->gain slope is a latent-ability-confounded **adjusted
     association**. At n ~ 51 it is fragile and prior-dependent - read the wide
     intervals as the honest result, as the closed LRP66 did.
+
+    **Small-n geometry.** The original build sampled a per-child latent score for
+    every domain and conditioned both the indicators *and* the structural outcome
+    on it; coupled to free ``HalfNormal(1)`` loading and residual scales this gave
+    an energy funnel (the reporting fit failed BFMI on every chain with ~1%
+    divergences at n ~ 51). Because the measurement model is Gaussian in the
+    factors, the indicators are marginalised to an ``MvNormal`` with the factor
+    scores integrated out, and the scores are reintroduced only for the structural
+    leg via their conjugate Gaussian conditional (non-centred, so the standard-
+    normal offset is decoupled from the loading / residual scales). That rewrite is
+    **measure-preserving** -- by conjugacy the posterior over loadings, residuals,
+    factor correlations, scores and slopes is unchanged; only the geometry is -- and
+    it is what repairs the energy diagnostic (BFMI 0.21 -> ~0.87). The reporting fit
+    additionally lifts ``target_accept`` (via the spec) to clear the residual
+    boundary divergences, which the strict gate requires to be exactly zero.
+
+    The priors are the model's **original** ones: ``lambda ~ HalfNormal(1)`` (written
+    as ``TruncatedNormal(mu=0, sigma=1, lower=0)``, which is the same distribution)
+    and ``sigma ~ HalfNormal(1)``. ``loading_mu`` / ``loading_sigma`` /
+    ``residual_sigma`` exist so a prior-sensitivity companion (LRPMM101) can vary
+    them; a 2x2 ablation over {old, recalibrated} priors x {0.95, 0.999}
+    ``target_accept`` showed the priors are neither necessary nor sufficient for
+    convergence and do not move the posterior, so they are not used to buy
+    convergence here. See
+    ``notes/202607101638-mm-001-convergence-reparameterisation.md``.
 
     ``domains`` maps each factor name to its indicator symbols (default vocabulary
     {R, E} / code {L, B} / grammar {F, T}); every domain needs >= 2 indicators to
@@ -2387,11 +2460,21 @@ def build_correlated_factor_model(
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
 
         # --- Measurement: correlated unit-variance domain factors ---
-        # LKJ correlation matrix; factor variances are fixed to 1 by transforming
-        # standard normals through the correlation's Cholesky (the LKJCholeskyCov
-        # sds are unused). The residual variance sigma_indicator is free, so a
-        # loading is a coefficient on the unit-variance factor; the standardised
-        # loading / indicator-factor correlation is reported as sqrt(communality).
+        # The per-child factor scores are MARGINALISED OUT of the Gaussian
+        # measurement likelihood. The original build sampled a latent
+        # score for every child x domain and conditioned both the indicators and the
+        # structural outcome on it; coupled to the free loading / residual scales
+        # this gave an energy funnel (the reporting fit failed BFMI on every chain
+        # with ~1% divergences at n ~ 51). Because the measurement model is Gaussian
+        # in the factors, the indicators marginalise analytically to
+        # ``Z_i ~ MVN(0, Lambda Corr Lambda' + diag(sigma^2))`` with no per-child
+        # latent, and the factor scores are reintroduced ONLY for the (non-Gaussian)
+        # structural leg via their conjugate Gaussian conditional -- non-centred
+        # around the data-informed conditional mean, so the standard-normal offset
+        # ``factor_z`` is decoupled from the loading / residual scales. This is a
+        # measure-preserving reparameterisation: the posterior over loadings,
+        # residuals, factor correlations, factor scores and slopes is unchanged;
+        # only the sampler geometry is.
         _, corr, _ = pm.LKJCholeskyCov(
             "factor_cov",
             n=D,
@@ -2400,24 +2483,114 @@ def build_correlated_factor_model(
             compute_corr=True,
         )
         pm.Deterministic("factor_corr", corr, dims=("domain", "domain_b"))
-        L_corr = pt.linalg.cholesky(corr)
-        z_factor = pm.Normal("factor_z", 0.0, 1.0, dims=("obs_id", "domain"))
-        factors = pm.Deterministic(
-            "factors", z_factor @ L_corr.T, dims=("obs_id", "domain")
-        )
 
-        lam = pm.HalfNormal("lambda_load", sigma=loading_sigma, dims="indicator")
-        sigma_ind = pm.HalfNormal("sigma_indicator", sigma=1.0, dims="indicator")
-        mu_Z = lam[None, :] * factors[:, domain_idx]
-        pm.Normal(
-            "Z_obs",
-            mu=mu_Z,
-            sigma=sigma_ind[None, :],
-            observed=Z_d,
-            dims=("obs_id", "indicator"),
+        # The headline quantities of this model are the D*(D-1)/2 unique
+        # off-diagonal factor correlations, but ``factor_corr`` cannot be used to
+        # gate them: it carries a constant unit diagonal and a duplicated lower
+        # triangle, and a constant has undefined R-hat / zero variance, so ESS and
+        # R-hat computed over the full matrix are meaningless (they silently pass).
+        # Expose the unique off-diagonals as their own 1-D vector so the strict
+        # convergence gate evaluates exactly the numbers the report releases.
+        # (A single-factor model has no off-diagonals, so the node is skipped: the
+        # downstream gate treats a missing var_name as nothing to check.)
+        iu, ju = np.triu_indices(D, k=1)
+        if len(iu):
+            corr_pair_names = [
+                f"{domain_names[i]}~{domain_names[j]}"
+                for i, j in zip(iu, ju, strict=True)
+            ]
+            model.add_coords({"factor_pair": corr_pair_names})
+            pm.Deterministic(
+                "factor_corr_pairs",
+                pt.stack([corr[i, j] for i, j in zip(iu, ju, strict=True)]),
+                dims="factor_pair",
+            )
+
+        # Free per-indicator loading and residual RVs. Defaults reproduce the
+        # original HalfNormal(1) priors; the TruncatedNormal form only exists so a
+        # prior-sensitivity companion can shift the loading mode off zero.
+        #
+        # NB the earlier claim that a HalfNormal(residual_sigma=0.5) "caps the
+        # residual SD below the unit total variance of a standardised indicator" was
+        # wrong: a HalfNormal has unbounded support and merely makes sigma > 1
+        # unlikely (~5% of prior mass). No cap is imposed, or needed.
+        lam = pm.TruncatedNormal(
+            "lambda_load",
+            mu=loading_mu,
+            sigma=loading_sigma,
+            lower=0.0,
+            dims="indicator",
+        )
+        sigma_ind = pm.HalfNormal(
+            "sigma_indicator", sigma=residual_sigma, dims="indicator"
         )
         pm.Deterministic(
             "communality", lam**2 / (lam**2 + sigma_ind**2), dims="indicator"
+        )
+
+        # Sparse loading matrix Lambda (J x D): indicator j loads on its domain only.
+        onehot = np.zeros((len(ind_names), D), dtype=float)
+        onehot[np.arange(len(ind_names)), domain_idx] = 1.0
+        Lambda = lam[:, None] * pt.as_tensor_variable(onehot)  # (J, D)
+        sig2 = sigma_ind**2  # (J,)
+
+        # Marginal measurement likelihood (factor scores integrated out):
+        # Sigma_Z = Lambda Corr Lambda' + diag(sigma^2), fed to the MVN via its
+        # Cholesky for stability.
+        Sigma_Z = Lambda @ corr @ Lambda.T + pt.diag(sig2)
+        L_Z = pt.linalg.cholesky(Sigma_Z)
+        pm.MvNormal(
+            "Z_obs",
+            mu=pt.zeros(len(ind_names)),
+            chol=L_Z,
+            observed=Z_d,
+            dims=("obs_id", "indicator"),
+        )
+
+        # Conjugate Gaussian conditional p(factors | Z, params) = MVN(cond_mean, V):
+        #   V        = (Corr^{-1} + Lambda' diag(sigma^-2) Lambda)^{-1}
+        #   cond_mean_i = V Lambda' diag(sigma^-2) Z_i
+        # Reintroduce the factor scores for the structural leg, non-centred around
+        # the conditional mean so factor_z stays standard-normal (no funnel).
+        # The two D×D inverses use an explicit ``inv`` rather than a ``solve`` with
+        # an identity RHS: at D = 3 the conditioning difference is negligible (the
+        # inverses agree with a Cholesky solve to machine precision), the
+        # ``solve → cholesky`` path is unsupported by the Numba forward-sampling
+        # backend used for the prior/posterior-predictive draws (it rejects a
+        # ``cholesky`` on the read-only buffer a ``solve`` returns), and — decisive
+        # here — the ``solve`` variant empirically produced a boundary divergence
+        # that trips the strict zero-divergence gate, whereas ``inv`` clears it.
+        # PREDICTIVE-SIMULATION CAVEAT (read before interpreting any PPC here).
+        # ``cond_mean`` is built from the *data container* ``Z_d``, not from the
+        # ``Z_obs`` random variable. That is correct for inference — the factor
+        # scores should condition on the observed indicators — but it means the two
+        # observed nodes are NOT jointly simulated in a forward pass:
+        #
+        #   * ``Z_obs`` replicates the indicators from the marginal MVN, and
+        #   * ``factors`` (hence ``y_post``) stays conditioned on the OBSERVED Z.
+        #
+        # So a replicated indicator is statistically independent of the replicated
+        # factor it nominally loads on, and drawing both nodes does *not* constitute
+        # a draw from the joint model. Read them as two separate checks: ``Z_obs``
+        # is a marginal check of the measurement covariance, and ``y_post`` is a
+        # check of the structural leg CONDITIONAL on the observed indicators. The
+        # same caveat applies to the prior predictive, and more sharply: the
+        # ``y_post`` prior draws condition on the observed Z, so they are not a
+        # prior predictive of the outcome in the usual (data-free) sense.
+        #
+        # A coherent joint simulation would require separate generative nodes
+        # (factors ~ MVN(0, Corr); Z | factors; y | factors) alongside the
+        # inferential ones. Not done here — the labelling above is the honest
+        # description of what the pipeline currently emits.
+        corr_inv = pt.linalg.inv(corr)  # (D, D)
+        A = Lambda.T * (1.0 / sig2)[None, :]  # (D, J) = Lambda' diag(sigma^-2)
+        V = pt.linalg.inv(corr_inv + A @ Lambda)  # (D, D)
+        W = V @ A  # (D, J)
+        L_V = pt.linalg.cholesky(V)
+        cond_mean = Z_d @ W.T  # (n, D)
+        z_factor = pm.Normal("factor_z", 0.0, 1.0, dims=("obs_id", "domain"))
+        factors = pm.Deterministic(
+            "factors", cond_mean + z_factor @ L_V.T, dims=("obs_id", "domain")
         )
 
         # --- Structural: outcome gain ~ factors (+ covariates), Beta-Binomial ---

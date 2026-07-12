@@ -1,0 +1,57 @@
+---
+title: "LRP68: Does word reading route through taught-expressive vocabulary? (mediation)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+The 2026-07-10 DAG revision added the direct edges $TE \to WR$ and $EV \to WR$ (decision 5)
+precisely so estimands conditioning on the phonics gateway no longer force the non-phonemic
+*expressive* route to zero by construction. LRP68 exercises that edge: a single-mediator
+g-formula decomposition of the intervention's word-reading ($W$) effect through
+**taught-expressive vocabulary $TE$** — the whole-word / paired-associate route, motivated
+within DS by Mengoni, Nash & Hulme (2014). $TE$ (the bespoke taught words) is a more proximal
+product of this whole-word programme than the standardised $E$ used in
+[LRP64](../lrp-rli-med-064).
+
+## Design
+
+Phase 0 only, $n \approx 53$. Mediator $TE_{t2}$ (Beta-Binomial on $TE_{t1}$); outcome
+$W_{t2}$ with a $G\times TE$ interaction. Adjustment $\{G, A, L, R, W_\text{pre}, TE_{t1}\}$
+— letter-sound $L$ (the competing code route) and receptive vocab $R$ are the measured
+mediator–outcome confounders. Standardised $E$ is a *descendant* of $TE$ (transfer edge
+$TE \to EV$), so it is deliberately **not** adjusted (over-control).
+
+## Assumptions
+
+ID-2: the $TE \to WR$ leg is $GA$-confounded and dose is a treatment-induced
+mediator–outcome confounder, so the NDE/NIE are **adjusted associations, not
+point-identified**. Contemporaneous measurement; $n \approx 53 \Rightarrow$ wide intervals.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

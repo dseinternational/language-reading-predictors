@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -104,13 +108,35 @@ phonics-route share is *not* assumption-free.
 - Randomisation in phase 0 delivers **no unmeasured confounding of $G \to Y$ and of
   $G \to M$** for free.
 - **No unmeasured mediator–outcome (route $\to W$) confounding** — the binding,
-  unverifiable assumption and the main limitation. Under the revised DAG (#246) the
-  admissible confounders are $A$ (age), $HS$ (hearing), $RW$ (phonological memory)
-  and $SP$ (speech production), plus the baseline composite and $W_{t1}$. The
-  earlier $E$/$R$ (vocab) adjusters are **dropped** as treatment-affected
-  ($IG \to TE \to EV$, $IG \to TR \to RV$) — conditioning on them would violate the
-  cross-world assumption. Residual confounding by anything unmeasured would still
-  bias the NDE/NIE split.
+  unverifiable assumption and the main limitation. We adjust for the measured
+  confounders: $A$ (age), $E$ (expressive vocab), $R$ (receptive vocab), the
+  revised-DAG common causes $HS$ (hearing), $RW$ (phonological memory) and $SP$
+  (speech production) — entered by the missing-indicator method (#246) — plus the
+  baseline composite and $W_{t1}$, all at **baseline (t1)** so none is
+  treatment-affected. Whether $E$/$R$ remain confounders once the revised DAG is
+  settled is tracked in #264; they are **retained** here pending that. Residual
+  confounding by anything unmeasured would bias the NDE/NIE split.
+- **A second, structural non-identification — independent of the confounding
+  above.** Even setting the route $\to W$ confounding aside, the natural
+  direct/indirect split is **not point-identified**, because intervention **dose**
+  (sessions attended — $\text{IS}$ in the DAG) is a **treatment-induced
+  mediator–outcome confounder**: the randomised group drives dose, and dose points
+  into both the route composite and word reading. Randomising $G$ does not identify
+  natural effects in that structure, and — unlike ordinary confounding — the
+  problem is **not repaired by measuring and adjusting dose**, because dose is
+  itself a descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI
+  [10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
+  The output below is therefore a **model-based g-formula decomposition under the
+  stated (cross-world) assumptions, not an identified natural effect**. An
+  **interventional** (rather than natural) mediation estimand — fitted for the
+  letter-sound route as `lrp-rli-med-078` — escapes *this* obstacle, since it
+  invokes no cross-world quantity. It is **not thereby identified**: it still
+  assumes no unmeasured mediator–outcome confounding (Hejazi, Rudolph, van der Laan
+  & Díaz 2022, assumption A5, DOI
+  [10.1093/biostatistics/kxac002](https://doi.org/10.1093/biostatistics/kxac002)),
+  which latent $GA$ violates here, and its positivity requirement and the missing
+  temporal ordering remain binding. It is a weaker-assumption target, not a
+  defensible one.
 - Confounders are taken at **baseline (t1), not post (t2)** — the **cross-world**
   assumption.
 - Consistency and positivity are assumed.
@@ -122,7 +148,9 @@ phonics-route share is *not* assumption-free.
 ::: {.callout-important title="Triangulation, not a precise causal split"}
 Read the output below as triangulation. With $n \approx 53$, contemporaneous
 mediator/outcome measurement, and the no-unmeasured-confounding assumption, expect
-**wide intervals**. "Most of the word-reading gain is phonics-route-compatible, with
+**wide intervals**. These are model-based g-formula decompositions under the stated
+assumptions, **not identified natural effects** (see the exposure-induced-confounder
+bullet above). "Most of the word-reading gain is phonics-route-compatible, with
 a residual lexical share that cannot be ruled out" is the honest result — not a
 point percentage. The temporal-ordering sensitivity section below refits with the
 **outcome at t3** (mediator at t2) as a further triangulation point for the

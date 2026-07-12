@@ -131,6 +131,7 @@ _JOINT = [
     _d("lrpitt12", "joint", "Joint", Status.JOINT, None, "cross-outcome consistency + contrasts"),
     _d("lrpitt15", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (expressive)"),
     _d("lrpitt15b", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (receptive)"),
+    _d("lrpitt16", "joint", "Generalisation", Status.ROBUSTNESS, None, "modality contrast: taught expressive vs taught receptive"),
 ]
 
 # --- SES adjustment + matched complete-case comparators ---------------------------
@@ -183,8 +184,16 @@ _MECH = [
     _d("lrp73", "mechanism", "Moderation", Status.ASSOCIATION, "W", "age-moderated letter-sound -> word reading"),
     _d("lrp73base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp73"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
+    _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
+    _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),
+    _d("lrp74", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via nonword decoding (floor-limited)"),
     _d("lrp62", "mediation", "Mediation", Status.ASSOCIATION, "W", "reading-route composite mediation"),
     _d("lrp64", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs expressive vocabulary)"),
+    _d("lrp66", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs phoneme blending)"),
+    _d("lrp75", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "sequential code route (letter sounds -> blending -> reading)"),
+    _d("lrp76", "mediation", "Mediation", Status.ASSOCIATION, "W", "longitudinal-ordering (letter sounds t2 -> reading t4)"),
+    _d("lrp78", "mediation", "Mediation", Status.ASSOCIATION, "W", "interventional-effects decomposition via letter sounds"),
+    _d("lrp79", "mediation", "Mediation", Status.ASSOCIATION, "W", "negative-control mediator (grammar; calibrates GA confounding)"),
 ]
 
 # --- DAG-focused associations, dose-response, latent structure and cross-checks ----
@@ -197,6 +206,7 @@ _STRUCT = [
     _d("lrp77a", "dose_response", "Dose-response", Status.ROBUSTNESS, "W", "ability-adjusted sensitivity", base="lrp77"),
     _d("lrp77base", "dose_response", "Dose-response", Status.COMPANION, "W", "pooled-dose-slope comparator", base="lrp77"),
     _d("lrpmm01", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "correlated-domain-factor measurement model (vocabulary / code / grammar)"),
+    _d("lrpmm101", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "prior sensitivity for LRPMM01 (recalibrated loading / residual priors)", base="lrpmm01"),
     _d("lrphs01", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading gain)"),
     _d("lrphs02", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading level)"),
 ]

@@ -94,6 +94,26 @@ DOSE_LOO_IDS: list[str] = ["lrp-rli-dose-077", "lrp-rli-dose-277"]
 # IS collider attend_cumul).
 DID_DOSE_LOO_IDS: list[str] = ["lrp-rli-did-007", "lrp-rli-did-107"]
 
+# Mediation family (#84 + the 2026-07 expansion): every g-formula route to word
+# reading, compared on the shared response (words-out-of-test-length) scale. The
+# mediation fits carry no PSIS-LOO (the g-formula is not a pointwise-likelihood
+# model), so this is a decomposition-summary comparison, not a nested-LOO test.
+# ``(model_id, human label, indirect-effect row)`` — the row is the model's
+# headline indirect effect (NIE for single mediators, NIE_joint for the two-mediator
+# blocks, IIE for the interventional analogue).
+MEDIATION_IDS: list[tuple[str, str, str]] = [
+    ("lrp-rli-med-059", "L — letter sounds", "NIE"),
+    ("lrp-rli-med-062", "L+B — code route (composite)", "NIE"),
+    ("lrp-rli-med-064", "{L,E} — joint block", "NIE_joint"),
+    ("lrp-rli-med-066", "{L,B} — joint (parallel)", "NIE_joint"),
+    ("lrp-rli-med-075", "L→B→W — sequential", "NIE_joint"),
+    ("lrp-rli-med-068", "TE — taught expressive vocab", "NIE"),
+    ("lrp-rli-med-080", "TR — taught receptive vocab", "NIE"),
+    ("lrp-rli-med-074", "N — nonword decoding (floored)", "NIE"),
+    ("lrp-rli-med-076", "L — longitudinal (t2→t4)", "NIE"),
+    ("lrp-rli-med-078", "L — interventional (IIE)", "IIE"),
+]
+
 
 def _run_dir(model_id: str, config: str) -> str:
     return os.path.join(str(_paths.stat_models_dir()), f"{model_id}-{config}")
@@ -464,6 +484,80 @@ def did_dose_loo_compare(config: str, out_path: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Mediation family — indirect-effect comparison (decomposition summaries)
+# ---------------------------------------------------------------------------
+
+
+def build_mediation_family(config: str) -> pd.DataFrame | None:
+    """One row per mediation route: its headline indirect effect + total + direct,
+    on the shared words scale, read from each model's ``mediation_summary.csv``."""
+    rows: list[dict] = []
+    for model_id, label, indirect_row in MEDIATION_IDS:
+        path = os.path.join(_run_dir(model_id, config), "mediation_summary.csv")
+        if not os.path.exists(path):
+            continue
+        df = pd.read_csv(path).set_index("quantity")
+        if indirect_row not in df.index:
+            continue
+        ind = df.loc[indirect_row]
+        direct_row = "IDE" if indirect_row == "IIE" else "NDE"
+        total = df.loc["total"] if "total" in df.index else None
+        direct = df.loc[direct_row] if direct_row in df.index else None
+        rows.append(
+            {
+                "config": config,
+                "model": model_id,
+                "route": label,
+                "estimand": indirect_row,
+                "indirect_words": float(ind["words_mean"]),
+                "indirect_lo": float(ind["words_lo"]),
+                "indirect_hi": float(ind["words_hi"]),
+                "indirect_prob_pos": float(ind["prob_pos"]),
+                "total_words": float(total["words_mean"]) if total is not None else np.nan,
+                "direct_words": float(direct["words_mean"]) if direct is not None else np.nan,
+            }
+        )
+    if not rows:
+        return None
+    return pd.DataFrame(rows)
+
+
+def mediation_family_forest(df: pd.DataFrame, out_path: str) -> bool:
+    """Forest of every mediation route's indirect effect on the words scale."""
+    if df is None or df.empty:
+        return False
+    d = df.iloc[::-1].reset_index(drop=True)  # top-to-bottom = table order
+    y = np.arange(len(d))
+    fig, ax = plt.subplots(figsize=(8, 0.55 * len(d) + 1.6))
+    strong = d["indirect_prob_pos"] >= 0.97
+    colors = ["#1f77b4" if s else "#9ecae1" for s in strong]
+    ax.errorbar(
+        d["indirect_words"], y,
+        xerr=[d["indirect_words"] - d["indirect_lo"], d["indirect_hi"] - d["indirect_words"]],
+        fmt="none", ecolor="#666666", capsize=3, zorder=1,
+    )
+    ax.scatter(d["indirect_words"], y, c=colors, s=45, zorder=2)
+    for k in y:
+        ax.annotate(f"P={d['indirect_prob_pos'][k]:.2f}",
+                    (d["indirect_hi"][k], y[k]), textcoords="offset points",
+                    xytext=(6, 0), va="center", fontsize=7.5, color="#555555")
+    ax.axvline(0.0, color="k", lw=0.75, ls="--")
+    ax.set_yticks(y)
+    ax.set_yticklabels(
+        [f"{r}  [{e}]" for r, e in zip(d["route"], d["estimand"], strict=True)],
+        fontsize=8.5,
+    )
+    ax.set_xlabel("Indirect effect on word reading (words out of test length; positive = route carries benefit)")
+    ax.set_title("Mediation family — routes to word reading (g-formula; all ID-2 adjusted associations)")
+    ax.text(0.99, -0.13, "Darker = strong (P≥0.97). All estimands GA-confounded; letter-sound routes only.",
+            transform=ax.transAxes, ha="right", va="top", fontsize=7.5, color="#555555")
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    return True
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -542,6 +636,17 @@ def main() -> None:
         print(f"Wrote {did_dose_path}")
     else:
         print("Skipping DiD L-dose LOO compare: LRPDID07 / LRPDID07base runs missing.")
+
+    med_family = build_mediation_family(args.config)
+    if med_family is not None:
+        med_csv = os.path.join(args.out, "mediation_family.csv")
+        med_family.to_csv(med_csv, index=False)
+        print(f"Wrote {med_csv}")
+        med_png = os.path.join(args.out, "mediation_family_forest.png")
+        if mediation_family_forest(med_family, med_png):
+            print(f"Wrote {med_png}")
+    else:
+        print("Skipping mediation-family comparison: no mediation runs found.")
 
 
 if __name__ == "__main__":
