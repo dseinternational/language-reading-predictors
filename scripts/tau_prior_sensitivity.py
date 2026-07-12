@@ -10,14 +10,18 @@ rather than a binary significant/not read.
 
 The two-tier proposal keeps the wider ``Normal(0, 0.5)`` for proximal outcomes and
 tightens the broad standardised-transfer (distal) outcomes to ``Normal(0, 0.3)``.
-This sweep is the evidence for that choice: distal R/E should be stable (already
-near-null) and proximal L/W should keep their direction across defensible SDs.
+This sweep is the evidence for that choice: the distal outcomes should be stable
+across defensible SDs and proximal L/W should keep their direction. The default
+now covers **every distal member** — the clearly-null R/E and the *borderline*
+UR/UE/T/F — so the certifying sweep is not limited to the null outcomes (issue
+#267): the printed table lets a reviewer check whether any evidence-ladder
+boundary moves between SD 0.3 and 0.5 for the borderline members.
 
 Usage::
 
     python scripts/tau_prior_sensitivity.py                 # dev config (fast)
     python scripts/tau_prior_sensitivity.py --config test   # more draws
-    python scripts/tau_prior_sensitivity.py --outcomes R E L W
+    python scripts/tau_prior_sensitivity.py --outcomes R E UR UE T F L W
 
 Writes ``output/statistical_models/tau_prior_sensitivity/tau_prior_sensitivity.csv``
 and prints the table.
@@ -42,7 +46,10 @@ from language_reading_predictors.statistical_models.measures import MEASURES
 # anchor so the comparison is symmetric.
 DISTAL_SIGMAS = (0.2, 0.25, 0.3, 0.5)
 PROXIMAL_SIGMAS = (0.25, 0.5, 0.75)
-DEFAULT_OUTCOMES = ("R", "E", "L", "W")
+# Every distal member (clearly-null R/E and borderline UR/UE/T/F) plus the L/W
+# proximal anchors — so the certifying sweep is not limited to the null outcomes
+# (issue #267).
+DEFAULT_OUTCOMES = ("R", "E", "UR", "UE", "T", "F", "L", "W")
 
 
 def _sigmas_for(symbol: str) -> tuple[float, ...]:

@@ -39,10 +39,21 @@ dispersed tail values rather than by the arm contrast. Under the floor rule this
 model therefore:
 
 - drops the degenerate own baseline and uses an **age-only** predictor;
-- reports the **binary "off-floor at t2"** effect, $\Pr(\text{post} > 0)$, as the
-  **PRIMARY** estimand — this is where the randomised signal verifiably lives; and
-- retains the graded Beta-Binomial $\tau$ only as a flagged, **detection-limited
-  SECONDARY**, read alongside the per-arm mover counts and never on its own.
+- reports the **off-floor transition** effect,
+  $\Pr(\text{post} > 0 \mid \text{at floor at } t_1)$, restricted to the
+  **baseline-floored at-risk** children, as the **PRIMARY** estimand — the
+  pre-specified quantity (#119) where the randomised signal verifiably lives, and
+  *not* $\Pr(\text{post} > 0)$ over everyone (which mixes already-off-floor
+  children into the mover analysis and dilutes the contrast). Conditioning on
+  baseline floor status is pre-randomisation, so this stays a valid subgroup ITT; and
+- retains two flagged, **detection-limited SECONDARIES**, read only alongside the
+  per-arm mover counts and never on their own: the graded Beta-Binomial $\tau$
+  over all children, and the **graded contrast among the off-floor children**
+  ($\text{post} > 0$) — an *untruncated* proxy for the conditional-above-floor mean
+  $\mathrm{E}[\text{post} \mid \text{post} > 0]$ (a zero-truncated Beta-Binomial is
+  not cleanly available, so the plain fit slightly overstates it), whose contrast
+  also conditions on a post-randomisation event and is therefore not a clean
+  randomised effect.
 
 :::
 
