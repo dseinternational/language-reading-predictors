@@ -26,8 +26,12 @@ format:
 LRPITT12 estimates the joint posterior over the treatment effects of the LRPITT
 suite, using the RCT phase only. It delivers cross-outcome contrasts (e.g.
 "is $\tau_L$ more positive than $\tau_W$?") and acts as a consistency check on the
-single-outcome LRPITT models — the joint $\tau_k$ should reproduce each
-single-outcome $\tau_k$ within Monte Carlo error.
+single-outcome LRPITT models. The proximal $\tau_k$ should track their
+single-outcome counterparts closely; the distal outcomes (R, E, UR, UE) carry the
+tiered $\mathrm{Normal}(0, 0.3)$ prior in the single-outcome suite but the untiered
+$\mathrm{Normal}(0, 0.5)$ prior here, so they may differ by a **prior-driven** amount
+that is not Monte Carlo noise (and the joint is fit on $n = 53$ vs the
+single-outcome $n = 54$).
 
 The model is a **linear Beta-Binomial across ten outcomes** with shared predictor
 structure mirroring the single-outcome suite: outcome-specific intercepts,

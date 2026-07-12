@@ -10,6 +10,23 @@ the blue dwarfs the red the prior is barely informative.
 ```{python}
 # | echo: false
 # | output: asis
+# For the correlated-factor measurement model the y_post prior draws are NOT
+# data-free: the factory reconstructs the factor scores from the observed
+# indicator matrix (cond_mean = Z_d @ W.T), so the y_post prior/posterior
+# predictive conditions on the observed indicators (issue #271).
+if config.get("kind") == "corr_factor":
+    print(
+        "_Note:_ for this measurement model the `y_post` prior draws are **not** "
+        "data-free — the factor scores are reconstructed from the observed "
+        "indicator matrix, so this prior-predictive (and the posterior-predictive) "
+        "conditions on the observed indicators rather than generating outcomes from "
+        "the prior alone.\n"
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
 print(_img("prior_predictive_check.png", "Prior-predictive vs observed"))
 if not _has("prior_predictive_check.png"):
     print("_No prior-predictive plot available for this model._")

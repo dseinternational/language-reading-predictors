@@ -77,11 +77,15 @@ print(
 )
 ```
 
-### Baseline non-verbal ability → baseline **level** (`delta`)
+### Baseline non-verbal ability → **level at sample-mean age** (`delta`)
 
 _How to read the table:_ same columns as above, but the association is now with the
-starting point rather than the growth rate — a positive `median (logit)` and
-`P(>0)` mean higher-ability children tend to start higher on that measure.
+_level_ rather than the growth rate. Age is standardised over all child-wave cells,
+so the intercept — and hence `delta` — is the level at the **pooled mean (mid-study)
+age**, not at study entry. A positive `median (logit)` and `P(>0)` mean
+higher-ability children are higher on that measure at mid-study; where the growth
+rate also differs (`gamma` ≠ 0) the entry-level association is
+`delta + gamma · E[age_std at t1]`, and `E[age_std at t1]` is negative.
 
 ```{python}
 # | echo: false

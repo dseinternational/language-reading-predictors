@@ -557,9 +557,12 @@ def test_rope_summary_accepts_named_treatment_term():
 
 
 def test_level_t2_marginal_effect_nets_group_ability_interaction():
-    # The level t2 AME must net out BOTH the t2 contrast and the group×ability
-    # interaction over the t2 rows only. Build a trace with a per-timepoint
-    # b_grp_time vector and a scalar gamma_grp_ability, then compare to a loop.
+    # Issue #271 item 5: the level t2 AME nets out the FULL group contribution
+    # (t2 contrast + group×ability interaction) to recover the untreated baseline,
+    # but adds back ONLY b_grp_time[t2] — the clean randomised effect at MEAN
+    # ability. The time-invariant gamma_grp_ability is deliberately excluded from
+    # the causal card. Build a trace with a per-timepoint b_grp_time vector and a
+    # scalar gamma_grp_ability, then compare to a loop.
     n_chain, n_draw, n_obs, n_phase = 1, 4, 6, 4
     rng = np.random.default_rng(2)
     eta = rng.normal(0.0, 1.0, (n_chain, n_draw, n_obs))
@@ -592,9 +595,10 @@ def test_level_t2_marginal_effect_nets_group_ability_interaction():
     for s in range(n_draw):
         diffs = []
         for i in rows:
-            d_i = b_flat[s, 1] + g_flat[s] * ability[i]
-            e0 = e_flat[s, i] - d_i * G[i]
-            diffs.append(expit(e0 + d_i) - expit(e0))
+            d_i = b_flat[s, 1] + g_flat[s] * ability[i]  # full group contribution
+            e0 = e_flat[s, i] - d_i * G[i]  # untreated baseline (nets the interaction)
+            add_back = b_flat[s, 1]  # only b_grp_time[t2], at mean ability
+            diffs.append(expit(e0 + add_back) - expit(e0))
         ref.append(np.mean(diffs))
     assert contrast == pytest.approx(b_flat[:, 1])  # logit contrast = b_grp_time[t2]
     assert ame == pytest.approx(np.array(ref))

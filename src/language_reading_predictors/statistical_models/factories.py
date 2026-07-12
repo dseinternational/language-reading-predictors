@@ -681,6 +681,12 @@ def build_joint_model(
         flat_n = n_trials_vec[idx_col]
         flat_obs = post_counts_int[idx_row, idx_col]
 
+        # Record each flattened cell's outcome index (0..K-1, matching the "outcome"
+        # coord order) as constant data, so the prior/posterior-predictive plotter
+        # can select one outcome's cells rather than pooling counts with
+        # denominators 6..170 into one histogram (issue #271 item 2).
+        pm.Data("y_post_cell_outcome", idx_col.astype("int64"))
+
         pm.BetaBinomial(
             "y_post",
             n=flat_n,
