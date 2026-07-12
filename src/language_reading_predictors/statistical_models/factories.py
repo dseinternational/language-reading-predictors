@@ -1043,7 +1043,10 @@ def build_dose_response_model(
     outcome_symbol: str = "W",
     adjust_baseline_symbol: str = "W",
     dose_covariate: str = "attend",
-    dose_stage_covariate: str | None = "attend_cumul",
+    # Default OFF (issue #269): conditioning on cumulative prior dose (a running sum
+    # of the IS collider) reopens the latent-GA backdoor, so the headline fits do not
+    # adjust it. Set it explicitly only for the flagged collider-sensitivity fit.
+    dose_stage_covariate: str | None = None,
     period_varying_dose: bool = True,
     use_subject_random_intercept: bool = True,
     adjust_group: bool = True,

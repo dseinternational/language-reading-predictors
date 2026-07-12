@@ -57,9 +57,11 @@ with $\beta_{\text{dose}[p]} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$
 ## Adjustment set (locked DAG)
 
 The focal edge is $\text{dose} \to \text{outcome}$. Sessions is the locked DAG's
-`IS` node; this is the ID-3 **observational** dose-response (adjust $\{IG, A\}$,
-never condition on `IS` itself). Dose has one parent, `intervention`, so the
-back-door set is $\{G, W_{\text{pre}}, A\}$ — but for distinct reasons:
+`IS` node; this is the ID-3 **observational** dose-response (adjust $\{IG, A\}$).
+The per-period `attend` is the model's *exposure* — regressing the outcome on it is
+the estimand, not an ITT-rule "conditioning on `IS`" violation. Dose has one parent,
+`intervention`, so the back-door set is $\{G, W_{\text{pre}}, A\}$ — but for
+distinct reasons:
 
 - **$G$ — the sole confounder.** Conditioning on the arm blocks the only back-door
   $\text{dose} \leftarrow \text{intervention} \to \text{outcome}$. **Coding:
@@ -71,9 +73,12 @@ back-door set is $\{G, W_{\text{pre}}, A\}$ — but for distinct reasons:
 - **age — not a dose confounder.** v5 has $\text{age} \to \text{outcome}$ but no
   $\text{age} \to \text{dose}$, so age is a precision / maturation covariate only.
 
-**Cumulative dose** (`attend_cumul`, prior sessions) enters as a control so a
-dose-stage effect is not misread as a period effect (it is 0 for everyone in
-period 1).
+**Cumulative dose** (`attend_cumul`, the running sum of prior-period sessions) is
+**not** conditioned on: it is a deterministic aggregate of the `IS` collider, so
+adjusting it reopens the latent-general-ability back door
+$\text{dose} \leftarrow \text{GA} \to \text{outcome}$ and can bias the dose slope,
+$\beta_G$ and $\beta_{\text{period}}$ (issue #269). It is available only as a
+flagged **collider-sensitivity** option, never in the headline.
 
 **Sample.** All gain rows are kept, including the waitlist controls' period-1
 `attend == 0` rows — the **zero-dose anchor** that identifies the slope.

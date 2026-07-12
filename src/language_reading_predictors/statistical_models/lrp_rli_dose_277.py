@@ -24,7 +24,8 @@ SPEC = ModelSpec(
     extra={
         "adjust_baseline_symbol": "W",
         "dose_covariate": "attend",
-        "dose_stage_covariate": "attend_cumul",
+        # No cumulative-dose (attend_cumul) control — IS collider (#269). Matching
+        # dose-077 keeps the period-varying-vs-pooled nested LOO test clean.
         "period_varying_dose": False,
         "use_subject_random_intercept": True,
         "outcomes": ("W",),
