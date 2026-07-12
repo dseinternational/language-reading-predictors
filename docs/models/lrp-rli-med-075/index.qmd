@@ -1,0 +1,68 @@
+---
+title: "LRP75: Sequential code route — letter sounds → blending → word reading"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+The parallel split [LRP66](../lrp-rli-med-066) found phoneme blending $B$ adds essentially
+nothing to word reading $W$ *over and above* letter-sound knowledge $L$. The DAG's code
+skeleton explains why: it is a **chain** ($L$/$B \to$ decoding $\to W$, with $L$ feeding
+$B$'s downstream products), so $B$ is largely *downstream* of $L$, not a competing parallel
+route — a parallel model cannot see that. LRP75 fits the sequential version: the blending
+leg regresses on post-letter-sounds (the $L \to B$ edge, coefficient $a_{B\leftarrow L}$),
+and the g-formula draws $B$ **conditional on the simulated $L$**, so the joint indirect
+effect carries the $L \to B \to W$ sub-path.
+
+## What to read (and what not to)
+
+- **Robust headline** — the **joint indirect effect through the $\{L, B\}$ block**: both
+  mediators respond to treatment *including the $L \to B$ coupling*. Compare it to LRP66's
+  joint $\{L, B\}$ effect — close agreement confirms the chain edge changes only how the
+  effect is apportioned, not how much flows through the block.
+- **The $L \to B$ coupling** ($a_{B\leftarrow L}$, a fitted coefficient, an *association*):
+  a clearly-positive value is the direct evidence that $B$ is downstream of $L$.
+- **Per-path $\text{NIE}_L$ / $\text{NIE}_B$**: reported but **exploratory and
+  convention-dependent** — in the chained draw the second mediator moves with its own
+  exposure *and* with the $L$ it is conditioned on, so the apportionment depends on the
+  ordering and cross-world assumptions. The joint block and the coupling are the
+  interpretable outputs.
+
+## Design
+
+Phase 0 only, $n \approx 53$. Mediators $L$ and $B$ (Beta-Binomial legs; the $B$ leg adds
+$a_{B\leftarrow L}\, z(L_{t2})$). Adjustment $\{G, A, E, R, W_\text{pre}, L_{t1}, B_{t1}\}$.
+
+## Assumptions
+
+ID-2 throughout ($GA$-confounded + treatment-induced dose confounder), so every quantity is
+an adjusted association / decomposition under stated assumptions, never a causal route;
+contemporaneous measurement; $n \approx 53 \Rightarrow$ wide intervals.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

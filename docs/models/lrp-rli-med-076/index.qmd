@@ -1,0 +1,58 @@
+---
+title: "LRP76: Longitudinal-ordering mediation — letter sounds (t2) → word reading (t4)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+Every contemporaneous mediation model measures the mediator and the outcome at the *same*
+wave (t2), so it cannot establish temporal precedence — the weakness the DAG's §12 flags and
+scopes to a wave-unrolled workstream (issue #250). Those models carry a t3 *sensitivity*
+(mediator at t2, outcome at t3). LRP76 promotes that ordering to the **primary** estimand and
+pushes the separation to the maximum the panel allows: the mediator (letter-sound knowledge
+$L$) stays at t2, the outcome (word reading $W$) is taken at **t4**, so the mediator strictly
+precedes the outcome by two waves. (The t3 sensitivity is skipped — it would double-lag.)
+
+## Design
+
+Mediator $L_{t2}$ (Beta-Binomial on $L_{t1}$); outcome $W_{t4}$ (conditioned on $W_{t1}$,
+loaded via the lagged-outcome preparation). Adjustment $\{G, A, E, R, W_\text{pre}, L_{t1}\}$
+— identical to [LRP59](../lrp-rli-med-059).
+
+## Assumptions — read this first {#sec-assumptions}
+
+The **t2 → t4 increment is NOT randomised** — by t4 both arms have been treated (the wait-list
+has crossed over), so this is a **triangulation design** for the temporal-precedence question,
+read under stated assumptions, **not** a cleaner causal estimate than the contemporaneous
+LRP59. It is a within-current-design longitudinal check, and is explicitly *not* the full
+wave-unrolled cross-lagged model (issue #250), which additionally handles time-varying
+confounding. ID-2 applies throughout; the NIE is an adjusted association under a stated forward
+direction. $n \approx 53 \Rightarrow$ wide intervals.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

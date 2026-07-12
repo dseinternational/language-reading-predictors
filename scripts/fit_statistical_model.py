@@ -58,7 +58,10 @@ def main() -> None:
     parser.add_argument(
         "--config",
         default="dev",
-        help="Sampling configuration: dev, test, reporting (see dse_research_utils.sampling)",
+        help=(
+            "Sampling configuration: dev, test, rep-lite, reporting "
+            "(rep-lite is reporting-grade rigour but lighter — see dse_research_utils.sampling)"
+        ),
     )
     parser.add_argument(
         "--render",
@@ -104,6 +107,12 @@ def main() -> None:
         def _override(cfg: str = "dev", random_seed: int = 47):
             s = _orig(cfg, random_seed=random_seed)
             s.target_accept = args.target_accept
+            # Mark the value as an explicit CLI override so a model-specific
+            # ``spec.extra["target_accept"]`` cannot silently outrank it. Precedence
+            # is CLI > model-specific default > config preset; without this flag a
+            # `--target-accept 0.95` was replaced by a spec's 0.999, which made
+            # diagnostic reproduction and ablation misleading.
+            s.target_accept_overridden = True
             return s
 
         _S.get_sampling_configuration = _override

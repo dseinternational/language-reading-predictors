@@ -118,6 +118,41 @@ def _require_spec(
         raise ValueError(msg)
 
 
+def _apply_spec_target_accept(ctx: StatisticalFitContext, spec: ModelSpec) -> None:
+    """Apply a model-specific ``spec.extra['target_accept']`` with explicit precedence.
+
+    Precedence is **CLI override > model-specific default > config preset**.
+
+    Some models (the horseshoe's global-local funnel, the small-n correlated-factor
+    CFA) need a higher ``target_accept`` than their tier preset gives, and declare
+    it in ``spec.extra``. That must not silently outrank an explicit
+    ``--target-accept`` from the command line: the previous
+    ``max(preset_or_cli, spec_value)`` meant a deliberate ``--target-accept 0.95``
+    was replaced by a spec's 0.999, so a diagnostic reproduction or an ablation
+    silently did not run at the requested setting. ``scripts/fit_statistical_model``
+    flags a CLI override on the sampling config; when that flag is set the spec
+    value is ignored.
+    """
+    target_accept = spec.extra.get("target_accept")
+    if target_accept is None:
+        return
+    target_accept = float(target_accept)
+    if not 0.0 < target_accept < 1.0:
+        raise ValueError(
+            "spec.extra['target_accept'] must be in the open interval (0, 1); "
+            f"got {target_accept!r}"
+        )
+    if getattr(ctx.sampling, "target_accept_overridden", False):
+        rprint(
+            "[yellow]Keeping the CLI --target-accept "
+            f"({ctx.sampling.target_accept}) over {spec.model_id}'s "
+            f"spec default ({target_accept}).[/yellow]"
+        )
+        return
+    # No CLI override: the model-specific value takes precedence over the preset.
+    ctx.sampling.target_accept = target_accept
+
+
 def _print_header(ctx: StatisticalFitContext) -> None:
     """Print the start-of-fit banner panel."""
     spec = ctx.spec
@@ -298,11 +333,14 @@ def _prior_table_overrides(
     elif spec.kind in ("mediation", "mediation_multi"):
         # The mediation coefficients ``a_G`` (group→mediator) and ``b_G``
         # (group→outcome direct path) reuse the ``tau`` constructor's scale but
-        # are structural building blocks of the g-formula, not the reported causal
-        # estimand: the causal NDE/NIE come from the counterfactual simulation
+        # are structural building blocks of the g-formula, not the reported
+        # estimand: the NDE/NIE come from the counterfactual simulation
         # (``mediation_summary.csv``), never a raw coefficient. Label them adjusted
         # associations so the prior table does not imply a bare coefficient is the
-        # causal effect (the suite's "only the simulated effect is causal" rule).
+        # reported quantity. The simulated NDE/NIE are **not** causal either: they
+        # are not identified natural effects (latent GA confounds the
+        # mediator->outcome path, and dose ``IS`` is a treatment-induced
+        # mediator-outcome confounder). See the :mod:`mediation` module docstring.
         role["a_G"] = "association"
         role["b_G"] = "association"
     elif spec.kind == "mechanism":
@@ -1764,8 +1802,14 @@ def _fit_t3_sensitivity(
     from language_reading_predictors.statistical_models import mediation as _med
 
     outcome_symbol = spec.outcome_symbol or "W"
+    # Match the primary fit's load set so a mediator/confounder outside
+    # ITT_OUTCOMES (TE, N) is present in the lagged-outcome frame too.
+    _extra_outcomes = spec.extra.get("outcomes")
+    _lag_kwargs = (
+        {"outcomes": tuple(_extra_outcomes)} if _extra_outcomes is not None else {}
+    )
     prepared_t3 = load_and_prepare_lagged_outcome(
-        outcome_symbol, outcome_time=_T3_SENSITIVITY_TIME
+        outcome_symbol, outcome_time=_T3_SENSITIVITY_TIME, **_lag_kwargs
     )
     built_t3, med_t3 = _factories.build_mediation_model(
         prepared_t3,
@@ -1804,21 +1848,55 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     section_header("Prepare data")
     # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
-    prepared = load_and_prepare(phase_mode="itt")
+    # A mediator or confounder outside ``ITT_OUTCOMES`` (e.g. taught-expressive TE,
+    # nonword N) must be requested via ``extra["outcomes"]`` so it is loaded; this
+    # also restricts the complete-case mask to the symbols the model uses (mirrors
+    # fit_itt). Models within ITT_OUTCOMES omit it and load the default set
+    # unchanged, so LRP59/62/64/66 are byte-identical.
+    _extra_outcomes = spec.extra.get("outcomes")
+    _outcome_time = spec.extra.get("outcome_time")
+    if _outcome_time is not None:
+        # Longitudinal-ordering primary fit (LRP76): the mediator stays at t2 but
+        # the outcome is taken from a later wave (t3/t4), so the mediator strictly
+        # precedes the outcome — promoting the temporal-ordering check from a
+        # sensitivity to the primary estimand. The t2 -> t{outcome_time} increment
+        # is NOT randomised (both arms treated after t2), so this is a
+        # triangulation design, read under stated assumptions, not a cleaner τ.
+        _lag_outcomes = (
+            tuple(_extra_outcomes) if _extra_outcomes is not None else ITT_OUTCOMES
+        )
+        prepared = load_and_prepare_lagged_outcome(
+            spec.outcome_symbol or "W",
+            outcome_time=int(_outcome_time),
+            outcomes=_lag_outcomes,
+        )
+    elif _extra_outcomes is not None:
+        prepared = load_and_prepare(
+            phase_mode="itt",
+            outcomes=tuple(_extra_outcomes),
+            drop_missing_pre=bool(spec.extra.get("drop_missing_pre", True)),
+        )
+    else:
+        prepared = load_and_prepare(phase_mode="itt")
     ctx.prepared = prepared
 
     _print_header(ctx)
 
     section_header("Build model")
 
+    mediator_symbol = spec.mechanism_symbol or "L"
+    # Drop the structural markers and the mediator's own baseline ({mediator}_t1,
+    # handled inside the factory) from the adjustment set; the rest are confounders.
     confounders = tuple(
-        s for s in spec.adjustment if s not in ("G", "A", "L_t1", "W_pre")
+        s
+        for s in spec.adjustment
+        if s not in ("G", "A", "W_pre", f"{mediator_symbol}_t1")
     )
     mediator_kind = spec.extra.get("mediator_kind", "beta_binomial")
     route_symbols = tuple(spec.extra.get("route_symbols", ()))
     built, med_data = _factories.build_mediation_model(
         prepared,
-        mediator_symbol=spec.mechanism_symbol or "L",
+        mediator_symbol=mediator_symbol,
         outcome_symbol=spec.outcome_symbol or "W",
         confounder_symbols=confounders,
         mediator_kind=mediator_kind,
@@ -1826,10 +1904,10 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     )
     _attach_built(ctx, built)
 
-    # The mediator observed node differs by kind: Beta-Binomial "L_post" vs the
-    # Gaussian composite "M_post".
+    # The mediator observed node differs by kind: Beta-Binomial "{mediator}_post"
+    # vs the Gaussian composite "M_post".
     is_gaussian = mediator_kind == "gaussian_composite"
-    mediator_node = "M_post" if is_gaussian else "L_post"
+    mediator_node = "M_post" if is_gaussian else f"{mediator_symbol}_post"
     # Diagnose every scalar coefficient the model actually built (deterministics
     # and the observed mediator/outcome nodes are not free RVs), so the list
     # tracks the fitted confounder set instead of a hand-maintained constant.
@@ -1857,10 +1935,12 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.save_prior_posterior_plot(ctx, var_names=coef_vars)
 
     section_header("Mediation decomposition (g-formula)")
+    _interventional = spec.extra.get("estimand") == "interventional"
     med_df = _med.decompose(
         ctx.trace,
         med_data,
         ci_prob=ctx.reporting.hdi,
+        interventional=_interventional,
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
     ctx.tables["mediation_summary"] = med_df
@@ -1878,39 +1958,45 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Triangulation for the contemporaneous-measurement caveat (issue #84): the
     # mediator now precedes the outcome in time. NB the t2 -> t3 increment is not
     # randomised (both arms treated after t2), so read this as triangulation only.
-    section_header("Temporal-ordering sensitivity (outcome at t3)")
-    med_df_t3 = _fit_t3_sensitivity(
-        ctx,
-        spec,
-        confounders=confounders,
-        mediator_kind=mediator_kind,
-        route_symbols=route_symbols,
-    )
-    med_df_t3.to_csv(
-        os.path.join(ctx.output_dir, "mediation_summary_t3.csv"), index=False
-    )
-    ctx.tables["mediation_summary_t3"] = med_df_t3
-    print_table(
-        ranked_dataframe_table(
-            med_df_t3,
-            title="Temporal-ordering sensitivity (outcome W at t3; NOT randomised)",
-            columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
-            rank_column=False,
-            precision=3,
+    # Skipped when the primary fit is ALREADY longitudinal (outcome_time set, LRP76)
+    # — the sensitivity would double-lag and duplicate the primary estimand.
+    med_df_t3 = None
+    if _outcome_time is None and not _interventional:
+        section_header("Temporal-ordering sensitivity (outcome at t3)")
+        med_df_t3 = _fit_t3_sensitivity(
+            ctx,
+            spec,
+            confounders=confounders,
+            mediator_kind=mediator_kind,
+            route_symbols=route_symbols,
         )
-    )
+        med_df_t3.to_csv(
+            os.path.join(ctx.output_dir, "mediation_summary_t3.csv"), index=False
+        )
+        ctx.tables["mediation_summary_t3"] = med_df_t3
+        print_table(
+            ranked_dataframe_table(
+                med_df_t3,
+                title="Temporal-ordering sensitivity (outcome W at t3; NOT randomised)",
+                columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
+                rank_column=False,
+                precision=3,
+            )
+        )
 
     _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
-    _summary_t3 = {r["quantity"]: r for r in med_df_t3.to_dict("records")}
-    _report.write_run_metadata(
-        ctx,
-        extra={
-            "adjustment": spec.adjustment,
-            "n_obs": prepared.n_obs,
-            "mediation": _summary,
-            "mediation_t3_sensitivity": _summary_t3,
-        },
-    )
+    _extra_meta = {
+        "adjustment": spec.adjustment,
+        "n_obs": prepared.n_obs,
+        "mediation": _summary,
+    }
+    if med_df_t3 is not None:
+        _extra_meta["mediation_t3_sensitivity"] = {
+            r["quantity"]: r for r in med_df_t3.to_dict("records")
+        }
+    if _outcome_time is not None:
+        _extra_meta["outcome_time"] = int(_outcome_time)
+    _report.write_run_metadata(ctx, extra=_extra_meta)
 
     return _finalize_report(ctx)
 
@@ -2426,16 +2512,22 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     section_header("Build model")
 
     mediators = tuple(spec.extra.get("mediators", ("L", "E")))
+    # Drop the structural symbols and the two mediator baselines ({m}_t1) from the
+    # adjustment set; whatever remains are the measured mediator-outcome
+    # confounders C. Keyed off ``mediators`` so a non-(L, E) pair excludes its own
+    # baselines (LRP64 -> L_t1/E_t1; LRP66 -> L_t1/B_t1).
+    _mediator_baselines = tuple(f"{m}_t1" for m in mediators)
     confounders = tuple(
         s
         for s in spec.adjustment
-        if s not in ("G", "A", "W_pre", "L_t1", "E_t1")
+        if s not in ("G", "A", "W_pre", *_mediator_baselines)
     )
     built, med_data = _factories.build_two_mediator_model(
         prepared,
         outcome_symbol=spec.outcome_symbol or "W",
         mediator_symbols=mediators,
         confounder_symbols=confounders,
+        chain=bool(spec.extra.get("chain", False)),
     )
     _attach_built(ctx, built)
 
@@ -2457,7 +2549,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
 
-    _run_ppc(ctx, var_names=["L_post", "E_post", "y_post"])
+    _run_ppc(ctx, var_names=[f"{mediators[0]}_post", f"{mediators[1]}_post", "y_post"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=coef_vars)
@@ -2680,9 +2772,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     ctx = make_context(spec, config, ci_prob=0.94)
     # The horseshoe has a funnel geometry (global-local scales); lift target_accept
     # above the tier default so the sampler takes smaller steps near the neck.
-    target_accept = e.get("target_accept")
-    if target_accept is not None:
-        ctx.sampling.target_accept = max(ctx.sampling.target_accept, float(target_accept))
+    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     measure_syms = tuple(
@@ -3463,6 +3553,11 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     _require_spec(spec, "corr_factor")
 
     ctx = make_context(spec, config)
+    # The correlated-factor CFA is a small-n latent model; even with the factor
+    # scores marginalised out of the measurement likelihood a few boundary
+    # divergences survive at the tier-default target_accept, so lift it via the spec
+    # (the strict gate requires zero), as the horseshoe fit does for its funnel.
+    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     domains = {
@@ -3489,9 +3584,17 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         domains=domains,
         structural_covariates=structural_covs,
         use_age=spec.extra.get("use_age", True),
+        loading_mu=spec.extra.get(
+            "loading_mu",
+            _default_of(_factories.build_correlated_factor_model, "loading_mu"),
+        ),
         loading_sigma=spec.extra.get(
             "loading_sigma",
             _default_of(_factories.build_correlated_factor_model, "loading_sigma"),
+        ),
+        residual_sigma=spec.extra.get(
+            "residual_sigma",
+            _default_of(_factories.build_correlated_factor_model, "residual_sigma"),
         ),
         predictor_slope_sigma=spec.extra.get(
             "predictor_slope_sigma",
@@ -3505,7 +3608,18 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     summary_vars = [
         "alpha", "gamma_own", "kappa", "beta_factor", "lambda_load", "sigma_indicator",
+        # The headline factor correlations MUST be in the gated set: they are what
+        # the report releases, and the global checks (divergences, BFMI) are not a
+        # substitute for parameter-specific R-hat / ESS on them. ``factor_corr``
+        # itself is unusable for this — its constant unit diagonal has undefined
+        # R-hat and zero variance — so the factory exposes the unique off-diagonals
+        # as ``factor_corr_pairs``. ``factor_z`` is the latent-score offset the
+        # structural leg consumes; gate it too.
+        "factor_z",
     ]
+    # Only present when there are >= 2 domains (a single factor has no off-diagonal).
+    if len(domains) > 1:
+        summary_vars.append("factor_corr_pairs")
     if spec.extra.get("use_age", True):
         summary_vars.append("beta_age")
     summary_vars += [f"beta_{c}" for c in structural_covs]
@@ -3523,8 +3637,14 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=summary_vars)
 
-    # Sample both observed nodes (the indicator matrix + the structural outcome)
-    # so the posterior-predictive PPC plot covers every observed variable.
+    # Sample both observed nodes (the indicator matrix + the structural outcome).
+    # These are two SEPARATE checks, not a joint predictive draw: the factor scores
+    # condition on the observed indicator data (``Z_d``), not on the replicated
+    # ``Z_obs``, so a replicated indicator is independent of the replicated factor
+    # it loads on. ``Z_obs`` is a marginal check of the measurement covariance;
+    # ``y_post`` is a check of the structural leg *conditional on the observed
+    # indicators*. Together they do not certify the joint model. See the
+    # predictive-simulation caveat in ``build_correlated_factor_model``.
     _run_ppc(ctx, var_names=["Z_obs", "y_post"])
 
     section_header("Extended diagnostics")
