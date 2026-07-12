@@ -3,12 +3,23 @@
 
 """LRPGF07 - gain factors for CELF basic concepts (F).
 
-DAG-focused gain-factors model (#127): associations with how much children
-gain in CELF basic concepts across the three period transitions (ANCOVA, Beta-Binomial
-logit, child random intercept). Only the randomised on-intervention term is
-causal; the own baseline, age, ability (blocks), and the upstream DAG skill receptive vocabulary (R) are adjusted
-associations under the DAG (confounded by latent GA; the child intercept
-repairs the time-invariant part). SES excluded (non-DAG / redundant).
+DAG-focused gain-factors model (#127; adjustment set re-derived against the revised
+2026-07-10 DAG, ``dag/dag-language-reading.dagitty``, #247). Associations with how much
+children gain in CELF basic concepts / language fundamentals (LF) across the three
+period transitions (ANCOVA, Beta-Binomial logit, child random intercept).
+
+Under the revised DAG the measured parents of LF are receptive vocabulary (R) and taught
+receptive vocabulary (TR); LF has no non-measure confounder parent, so ``adjust_for`` is
+empty. The adjustment set is the own baseline + age + ability (blocks) + ``skill_symbols``
+(R, TR).
+
+Only the randomised on-intervention term is causal — and its **period-1** average
+marginal effect (the genuinely randomised, all-untreated-baseline transition) is the
+ITT-anchor estimand, not the all-transition pool (#247 P2). ``beta_trt`` itself is the
+on-intervention log-odds contrast. Every other coefficient is an *adjusted association*:
+the child random intercept is a partial, shrunken stand-in for between-child
+heterogeneity — it does **not** control latent general ability, so those slopes remain
+descriptive associations. SES excluded (non-DAG / redundant).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -21,8 +32,9 @@ SPEC = ModelSpec(
     title="Gain factors for CELF basic concepts (F)",
     outcome_symbol="F",
     extra={
-        "skill_symbols": ("R",),
+        "skill_symbols": ("R", "TR"),
         "ability_covariate": V.BLOCKS,
+        "adjust_for": (),
         "interactions": (("trt", "ability"), ("trt", "own"), ("age", "ability")),
         "treated_only": False,
     },

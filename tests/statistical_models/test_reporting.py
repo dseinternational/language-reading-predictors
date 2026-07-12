@@ -472,6 +472,37 @@ def test_treatment_marginal_effect_folds_onto_core_and_reports_median():
     assert "trt_items_mean" not in out and "trt_prob_mean" not in out
 
 
+def test_treatment_marginal_effect_row_mask_restricts_to_subset():
+    # #247 P2: the gain family passes a period-1 row_mask so the treatment marginal is
+    # averaged over only the randomised (all-untreated-baseline) transition. The masked
+    # AME must equal the hand-rolled AME over just the masked rows, differ from the
+    # all-rows AME, and leave the logit-scale prob_trt_pos (a summary of the draws)
+    # untouched.
+    eta = np.array(
+        [[[0.0, 1.0, -0.5, 0.3], [0.2, -1.0, 0.3, -0.4], [0.4, 0.1, -0.2, 0.6]]]
+    )
+    beta = np.array([[0.4, 0.6, 0.5]])
+    trt = np.array([1.0, 0.0, 1.0, 0.0])
+    n_trials = 20
+    mask = np.array([True, True, False, False])  # the "period-1" rows
+
+    trace = _trace_named(eta, beta_trt=beta)
+    out = treatment_marginal_effect(trace, trt=trt, n_trials=n_trials, row_mask=mask)
+    out_all = treatment_marginal_effect(trace, trt=trt, n_trials=n_trials)
+
+    b = beta.reshape(-1)  # (S,)
+    e = eta.reshape(-1, 4)  # (S, n_obs)
+    eta0 = e - b[:, None] * trt[None, :]
+    contrib = expit(eta0 + b[:, None]) - expit(eta0)  # (S, n_obs)
+    ame_masked = contrib[:, mask].mean(axis=1)
+    assert out["trt_prob_median"] == pytest.approx(float(np.median(ame_masked)))
+    assert out["trt_items_median"] == pytest.approx(float(np.median(ame_masked * n_trials)))
+    # The mask genuinely changes the estimate (guards against a no-op mask)…
+    assert abs(out["trt_prob_median"] - out_all["trt_prob_median"]) > 1e-6
+    # …but the logit-scale direction probability is unaffected (it summarises beta_trt).
+    assert out["prob_trt_pos"] == pytest.approx(out_all["prob_trt_pos"])
+
+
 def _trace_named_vec(eta, *, scalars=None, vectors=None):
     """Trace with ``eta`` (chain, draw, obs), named scalar and per-obs vector vars."""
     n_chain, n_draw, n_obs = eta.shape

@@ -37,6 +37,7 @@ def _itt_ame_draws(
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     group: str = "posterior",
+    row_mask: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Per-draw treatment effect and its probability-scale average marginal effect.
 
@@ -73,6 +74,14 @@ def _itt_ame_draws(
     prior-predictive estimand check (issue #125 Area 1/2). The prior group must
     carry ``term`` and ``eta_name`` — it does, since :func:`run_prior_predictive`
     now samples all free RVs + deterministics.
+
+    ``row_mask`` (default None = all rows): restrict the observation average to a
+    subset of ``obs_id`` rows. The gain-factor family passes the **period-1** mask
+    (``phase == 0``) so the marginal treatment effect is averaged only over the
+    genuinely randomised, all-untreated-baseline transition — not the post-crossover
+    transitions that carry no untreated observations and baselines that may already
+    be treatment-affected (#247 P2). A boolean or integer-index array aligned with
+    ``eta``'s ``obs_id`` axis; ITT/level paths leave it None (unchanged behaviour).
     """
     posterior = getattr(trace, group)
     term_draws = posterior[term].stack(sample=("chain", "draw")).values  # (S,)
@@ -116,7 +125,18 @@ def _itt_ame_draws(
             )
         delta = delta + np.outer(mod, coef_draws)  # (n_obs, S)
     eta0 = eta - delta * G[:, None]  # untreated baseline (G=0 = control) per obs/draw
-    ame_prob = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)  # (S,)
+    contrib = expit(eta0 + delta) - expit(eta0)  # (n_obs, S)
+    if row_mask is not None:
+        m = np.asarray(row_mask)
+        if m.dtype == bool and m.shape[0] != eta.shape[0]:
+            raise ValueError(
+                f"row_mask has {m.shape[0]} rows but eta has {eta.shape[0]} "
+                "observations; pass the fitted-subset mask."
+            )
+        contrib = contrib[m]
+        if contrib.shape[0] == 0:
+            raise ValueError("row_mask selects no observations for the marginal effect.")
+    ame_prob = contrib.mean(axis=0)  # (S,)
     return term_draws, ame_prob
 
 
@@ -323,6 +343,7 @@ def rope_summary(
     varying_term: str = "tau_i",
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
+    row_mask: np.ndarray | None = None,
 ) -> dict[str, float | str]:
     """ROPE-anchored continuous report card for a randomised treatment effect.
 
@@ -349,7 +370,7 @@ def rope_summary(
     """
     effect_draws, ame_prob = _itt_ame_draws(
         trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name,
-        moderators=moderators,
+        moderators=moderators, row_mask=row_mask,
     )
     items = ame_prob * float(n_trials)
     return rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
@@ -365,6 +386,7 @@ def rope_sensitivity(
     varying_term: str = "tau_i",
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
+    row_mask: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """How the meaningful-benefit claim moves as the threshold δ varies (issue #144).
 
@@ -383,7 +405,7 @@ def rope_sensitivity(
     """
     _effect_draws, ame_prob = _itt_ame_draws(
         trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name,
-        moderators=moderators,
+        moderators=moderators, row_mask=row_mask,
     )
     items = ame_prob * float(n_trials)
     rows: list[dict[str, float | str]] = []
@@ -444,6 +466,7 @@ def prior_pushforward(
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     ci_prob: float = 0.95,
+    row_mask: np.ndarray | None = None,
 ) -> dict[str, float]:
     """Push the **prior** on the effect through the items-scale AME (issue #125 Area 1/2).
 
@@ -464,6 +487,7 @@ def prior_pushforward(
         eta_name=eta_name,
         moderators=moderators,
         group="prior",
+        row_mask=row_mask,
     )
     items = ame_prob * float(n_trials)
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
@@ -953,6 +977,7 @@ def treatment_marginal_effect(
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     ci_prob: float = 0.95,
+    row_mask: np.ndarray | None = None,
 ) -> dict[str, float]:
     """Items-scale average marginal effect of the treatment term (LRPGF, #127).
 
@@ -972,10 +997,16 @@ def treatment_marginal_effect(
     transformation-invariant across the logit and items scales, matching the ROPE
     convention adopted in #130 (notes/202606261304-evidence-strength-and-rope-
     reporting.md). ``prob_trt_pos`` is ``P(term > 0)`` on the logit scale.
+
+    ``row_mask`` (default None = all fitted rows): restrict the observation average to
+    a row subset. The gain-factor family passes the **period-1** mask (``phase == 0``)
+    so the marginal is averaged only over the genuinely randomised transition, not the
+    post-crossover ones that carry no untreated observations (#247 P2). The logit-scale
+    ``prob_trt_pos`` is unaffected — it summarises the ``term`` draws directly.
     """
     b, ame_prob = _itt_ame_draws(
         trace, G=trt, term=term, varying_term="", eta_name=eta_name,
-        moderators=moderators,
+        moderators=moderators, row_mask=row_mask,
     )
     ame_items = float(n_trials) * ame_prob
     lo_q = (1 - ci_prob) / 2

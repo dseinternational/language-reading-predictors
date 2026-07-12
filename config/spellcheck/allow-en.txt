@@ -330,6 +330,7 @@ expm
 extau
 exto
 federated
+fittable
 fontsize
 fpsyg
 functionals

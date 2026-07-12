@@ -2789,6 +2789,7 @@ def build_gain_factors_model(
     outcome_symbol: str,
     skill_symbols: Iterable[str] = (),
     ability_covariate: str | None = None,
+    adjust_for: Iterable[str] = (),
     interactions: Iterable[tuple[str, str]] = (),
     treated_only: bool = False,
     likelihood: str = "beta_binomial",
@@ -2829,6 +2830,18 @@ def build_gain_factors_model(
     vocabulary ``{"trt", "age", "ability", "own", <skill symbols>}``; each adds a
     ``gamma_int_<a>_<b>`` coefficient on the product of the two standardised terms.
     All non-causal coefficients are adjusted associations under the DAG.
+
+    ``adjust_for`` (default ()): revised-DAG confounders that are not bounded-count
+    measures and so cannot enter via ``skill_symbols`` — hearing status (``hs`` /
+    ``hs_missing``), speech production (``deapp_c`` / ``deapp_c_missing``) and
+    phonological memory (``erbto`` / ``erbto_missing``) (#247). Each must be a key in
+    ``prepared.covariates`` (the pipeline requests them via ``covariates=`` and
+    standardises the continuous ones / adds missing-indicators). They enter as linear
+    ``gamma_{c}`` terms with the regularising cross-coupling prior, exactly as in
+    ``build_mechanism_model`` (#245/#258) — reused, not duplicated. These are
+    exogenous, non-treatment-affected confounders (``IG`` has no edge to ``HS``,
+    ``SP`` or ``RW``), so conditioning on them does not block the randomised
+    ``beta_trt`` contrast; like every non-causal term they are adjusted associations.
     """
     if prepared.phase_mode != "all":
         raise ValueError("build_gain_factors_model requires phase_mode='all'")
@@ -2846,6 +2859,10 @@ def build_gain_factors_model(
             raise KeyError(f"Skill {s!r} has no baseline in prepared data")
     if ability_covariate is not None and ability_covariate not in prepared.covariates:
         raise KeyError(f"ability_covariate {ability_covariate!r} not in prepared.covariates")
+    adjust_for = tuple(adjust_for)
+    for c in adjust_for:
+        if c not in prepared.covariates:
+            raise KeyError(f"Adjuster covariate {c!r} not loaded in prepared data")
 
     valid_terms = {"trt", "age", "own", *skill_symbols}
     if ability_covariate is not None:
@@ -2856,10 +2873,13 @@ def build_gain_factors_model(
             if k not in valid_terms:
                 raise KeyError(f"interaction term {k!r} not available; have {sorted(valid_terms)}")
 
-    # Drop rows missing the outcome post, the own baseline, or any skill baseline.
+    # Drop rows missing the outcome post, the own baseline, any skill baseline, or
+    # any raw-covariate adjuster.
     keep = ~np.isnan(prepared.post_counts[own]) & ~np.isnan(prepared.pre_logit[own])
     for s in skill_symbols:
         keep = keep & ~np.isnan(prepared.pre_logit[s])
+    for c in adjust_for:
+        keep = keep & ~np.isnan(prepared.covariates[c])
     on_intervention = (prepared.G == 1) | (prepared.phase >= 1)
     if treated_only:
         keep = keep & on_intervention
@@ -2912,6 +2932,10 @@ def build_gain_factors_model(
             s: pm.Data(f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id")
             for s in skill_symbols
         }
+        adjust_d = {
+            c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id")
+            for c in adjust_for
+        }
         int_d = {
             pair: pm.Data(f"int_{pair[0]}_{pair[1]}", _interaction_product(term_vecs, *pair), dims="obs_id")
             for pair in active_interactions
@@ -2937,6 +2961,13 @@ def build_gain_factors_model(
         for s in skill_symbols:
             gamma_s = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
             eta = eta + gamma_s * skill_d[s]
+        # Raw-covariate adjusters (revised-DAG confounders that are not bounded-count
+        # measures): hearing (hs/hs_missing), speech (deapp_c), phonological memory
+        # (erbto). Linear gamma terms, mirroring build_mechanism_model's adjust_for
+        # path (#245/#258, #247).
+        for c in adjust_for:
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            eta = eta + gamma_c * adjust_d[c]
         for pair in active_interactions:
             gi = _priors.gamma_cross_prior().to_pymc(f"gamma_int_{pair[0]}_{pair[1]}")
             eta = eta + gi * int_d[pair]
@@ -2990,6 +3021,7 @@ def build_level_factors_model(
     *,
     outcome_symbol: str,
     ability_covariate: str | None = None,
+    adjust_for: Iterable[str] = (),
     group_by_time: bool = True,
     ability_by_time: bool = True,
     group_ability: bool = True,
@@ -3020,6 +3052,19 @@ def build_level_factors_model(
     ``ability_by_time`` False to collapse either to a single time-invariant
     coefficient. Only the randomised contrast is causal; all other terms are
     adjusted associations under the DAG.
+
+    ``adjust_for`` (default ()): revised-DAG confounders that are not bounded-count
+    measures — hearing status (``hs`` / ``hs_missing``), speech production
+    (``deapp_c`` / ``deapp_c_missing``) and phonological memory (``erbto`` /
+    ``erbto_missing``) (#247). Each enters as a linear ``gamma_{c}`` term with the
+    cross-coupling prior, reusing ``build_mechanism_model``'s idiom. These are
+    exogenous, **non**-treatment-affected roots/upstream nodes (``IG`` has no edge to
+    ``HS``/``SP``/``RW``), so they do not sit on the causal path from group and their
+    adjustment does not block the randomised t2 contrast. Note the level model takes
+    **no** measure-skill adjusters (unlike the gain factory's ``skill_symbols``): a
+    levels model conditioning on another evolving skill's *contemporaneous* level
+    would condition on a post-treatment mediator/collider and bias the group×time
+    trajectory it exists to estimate.
     """
     if prepared.phase_mode != "levels":
         raise ValueError("build_level_factors_model requires phase_mode='levels'")
@@ -3035,8 +3080,14 @@ def build_level_factors_model(
         raise KeyError(f"ability_covariate {ability_covariate!r} not in prepared.covariates")
     if group_ability and ability_covariate is None:
         raise ValueError("group_ability interaction requires an ability_covariate")
+    adjust_for = tuple(adjust_for)
+    for c in adjust_for:
+        if c not in prepared.covariates:
+            raise KeyError(f"Adjuster covariate {c!r} not loaded in prepared data")
 
     keep = ~np.isnan(prepared.post_counts[own])
+    for c in adjust_for:
+        keep = keep & ~np.isnan(prepared.covariates[c])
     prepared = _subset(prepared, keep)
 
     post = prepared.post_counts[own].astype(np.int64)
@@ -3058,6 +3109,10 @@ def build_level_factors_model(
             if ability is not None
             else None
         )
+        adjust_d = {
+            c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id")
+            for c in adjust_for
+        }
 
         # Level factors is own-baseline-free (a level model), so unlike the
         # growth/LCSM mean-anchor rationale ``alpha`` is deliberately kept on the
@@ -3096,6 +3151,12 @@ def build_level_factors_model(
             ga_prod = pm.Data("int_group_ability", G_f * np.asarray(ability, dtype=float), dims="obs_id")
             gamma_grp_ability = _priors.gamma_cross_prior().to_pymc("gamma_grp_ability")
             eta = eta + gamma_grp_ability * ga_prod
+
+        # Raw-covariate adjusters (revised-DAG exogenous confounders HS/SP/RW): linear
+        # gamma terms, mirroring build_mechanism_model's adjust_for path (#247).
+        for c in adjust_for:
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            eta = eta + gamma_c * adjust_d[c]
 
         if use_subject_random_intercept:
             eta = _add_child_random_intercept(

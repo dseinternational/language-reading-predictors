@@ -1096,6 +1096,32 @@ def test_gain_factors_skills_ability_interactions(tmp_path):
     assert mods["gamma_int_trt_ability"].mean() == pytest.approx(0.0, abs=1e-9)
 
 
+def test_gain_factors_adjust_for_covariates(tmp_path):
+    """#247: revised-DAG raw-covariate confounders enter as linear ``gamma_{c}`` terms
+    alongside the skill baselines, mirroring the mechanism factory's adjust_for path."""
+    prep = _prep_all(tmp_path, n_children=20)
+    prep.covariates["hs"] = np.zeros(prep.n_obs)  # binary indicator
+    prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)  # continuous
+    built = build_gain_factors_model(
+        prep,
+        outcome_symbol="E",
+        skill_symbols=("R",),
+        adjust_for=("hs", "erbto"),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_R", "gamma_hs", "gamma_erbto"}.issubset(names)
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=71)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_gain_factors_adjust_for_unknown_covariate_raises(tmp_path):
+    """#247: an adjuster absent from prepared.covariates is a loud KeyError."""
+    prep = _prep_all(tmp_path, n_children=15)
+    with pytest.raises(KeyError):
+        build_gain_factors_model(prep, outcome_symbol="W", adjust_for=("nope",))
+
+
 def test_gain_factors_treated_only_drops_treatment(tmp_path):
     """treated_only restricts to on-intervention rows; the then-constant beta_trt
     and every trt interaction drop out while non-trt interactions survive."""
@@ -1160,6 +1186,33 @@ def test_level_factors_factory_builds(tmp_path):
     # group x time is a per-timepoint vector over the four timepoints
     assert pp.prior["b_grp_time"].shape[-1] == 4
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_level_factors_adjust_for_covariates(tmp_path):
+    """#247: the level factory takes the exogenous raw-covariate confounders via
+    adjust_for (and, deliberately, no measure-skill adjusters)."""
+    prep = _prep_levels(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    prep.covariates["hs"] = np.zeros(prep.n_obs)
+    prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_level_factors_model(
+        prep, outcome_symbol="R", ability_covariate="blocks",
+        adjust_for=("hs", "erbto"),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_hs", "gamma_erbto"}.issubset(names)
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=72)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_level_factors_adjust_for_unknown_covariate_raises(tmp_path):
+    """#247: an adjuster absent from prepared.covariates is a loud KeyError."""
+    prep = _prep_levels(tmp_path, n_children=15)
+    with pytest.raises(KeyError):
+        build_level_factors_model(
+            prep, outcome_symbol="W", group_ability=False, adjust_for=("nope",)
+        )
 
 
 def test_level_factors_bernoulli_offfloor(tmp_path):
