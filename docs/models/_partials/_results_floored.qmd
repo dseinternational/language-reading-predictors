@@ -3,10 +3,15 @@
 ::: {.callout-important title="Floored outcome — binary off-floor estimand is PRIMARY"}
 
 This outcome is heavily floored at the post-score, so the pre-specified, arm-blind
-floor rule applies: the **PRIMARY** estimand is the average **risk difference in
-P(coming off the floor)** (a Bernoulli on `post > 0`), and a graded Beta-Binomial
-is reported only as a flagged, **detection-limited SECONDARY**. Positive = the
-intervention raises the probability of coming off the floor.
+floor rule applies (#119): the **PRIMARY** estimand is the average **risk
+difference in the off-floor transition** — `Pr(post > 0 | at floor at t1)`, a
+Bernoulli on `post > 0` restricted to the **baseline-floored at-risk** children
+(conditioning on baseline floor status is pre-randomisation, so the arm contrast
+stays valid). Two flagged, **detection-limited SECONDARIES** are read only
+alongside the mover table and never alone: the graded Beta-Binomial over all
+children, and the hurdle conditional above-floor mean `E[post | post > 0]` (whose
+contrast conditions on a post-randomisation event, so it is not a clean randomised
+effect). Positive = the intervention raises the probability of coming off the floor.
 
 :::
 

@@ -660,6 +660,75 @@ def load_and_prepare_lagged_outcome(
     return replace(base, post_counts=post_counts)
 
 
+def _subset_prepared(prepared: PreparedData, mask: np.ndarray) -> PreparedData:
+    """Return a copy of ``prepared`` keeping only the rows where ``mask`` is True.
+
+    All row-indexed arrays (ids, phase, group, age, every pre/post/covariate
+    column) are filtered together; ``child_idx`` is re-derived on the kept
+    subjects, and ``n_obs`` / ``n_children`` recomputed. Age is left on its
+    original (full-sample) standardised scale — as a precision covariate its unit
+    does not have to be re-anchored on the subset.
+    """
+    mask = np.asarray(mask, dtype=bool)
+    subject_ids = np.asarray(prepared.subject_ids)[mask]
+    _, child_idx = np.unique(subject_ids, return_inverse=True)
+
+    def _f(arr):
+        return np.asarray(arr)[mask]
+
+    return replace(
+        prepared,
+        subject_ids=subject_ids,
+        child_idx=child_idx,
+        phase=_f(prepared.phase),
+        G=_f(prepared.G),
+        A_months=_f(prepared.A_months),
+        A_std=_f(prepared.A_std),
+        pre_logit={k: _f(v) for k, v in prepared.pre_logit.items()},
+        post_counts={k: _f(v) for k, v in prepared.post_counts.items()},
+        covariates={k: _f(v) for k, v in prepared.covariates.items()},
+        n_obs=int(mask.sum()),
+        n_children=int(np.unique(subject_ids).size),
+    )
+
+
+def restrict_to_baseline_floored(prepared: PreparedData, symbol: str) -> PreparedData:
+    """Restrict to rows where ``symbol`` is at the floor (score 0) at the pre-wave.
+
+    The heavily-floored floor-rule outcomes (P, N) pre-specify their PRIMARY ITT
+    estimand (issue #119) as the off-floor **transition among baseline-floored
+    children**: ``Pr(post > 0 | pre == 0)`` — *not* ``Pr(post > 0)`` over everyone
+    (which mixes already-off-floor children into a mover analysis and dilutes the
+    contrast). Baseline floor status is measured **pre-randomisation**, so
+    conditioning on it keeps the randomised arm contrast valid (a legitimate
+    subgroup ITT). Returns a new :class:`PreparedData` over the at-risk rows.
+    """
+    if symbol not in prepared.pre_logit:
+        raise ValueError(
+            f"cannot restrict to baseline-floored {symbol!r}: its pre-score is not "
+            "loaded (the at-risk subset needs the t1 score)"
+        )
+    n = prepared.n_trials[symbol]
+    floor_logit = float(logit_safe(np.array([0.0]), n)[0])
+    pre = np.asarray(prepared.pre_logit[symbol], dtype=float)
+    mask = np.isclose(pre, floor_logit)
+    return _subset_prepared(prepared, mask)
+
+
+def restrict_to_off_floor(prepared: PreparedData, symbol: str) -> PreparedData:
+    """Restrict to rows where ``symbol``'s post-score is above the floor (> 0).
+
+    The hurdle SECONDARY (issue #119) for the floored outcomes is the conditional
+    above-floor mean ``E[post | post > 0]``. Conditioning on ``post > 0`` is
+    **post-randomisation** (a truncation-by-outcome selection), so the treatment
+    contrast on this subset is *not* a clean randomised effect — it must be
+    reported flagged, never as an ITT estimand.
+    """
+    post = np.asarray(prepared.post_counts[symbol], dtype=float)
+    mask = np.isfinite(post) & (post > 0)
+    return _subset_prepared(prepared, mask)
+
+
 def load_and_prepare_aligned(
     *,
     path: str | Path | None = None,

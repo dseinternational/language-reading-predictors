@@ -77,6 +77,8 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare_lagged_outcome,
     load_longitudinal_panel,
     load_wave_panel,
+    restrict_to_baseline_floored,
+    restrict_to_off_floor,
     split_covariates_by_wave,
 )
 
@@ -1103,10 +1105,17 @@ def _fit_itt_floor_rule(
             "floor rule is pre-specified and arm-blind - remove floor_rule or "
             "check the data."
         )
+    # Restrict the PRIMARY to the baseline-floored at-risk subset (pre == 0 at t1),
+    # so the estimand is the pre-specified off-floor TRANSITION Pr(post > 0 | pre == 0)
+    # rather than off-floor prevalence over everyone (issue #267 / #119). pre == 0 is
+    # pre-randomisation, so this is a legitimate subgroup ITT.
+    at_risk = restrict_to_baseline_floored(prepared, own)
     rprint(
         f"  Floor rule: {own} is {p0:.0%} floored at t2 "
-        f"(>= {_floor.FLOOR_THRESHOLD:.0%}); binary off-floor estimand is PRIMARY, "
-        "graded Beta-Binomial is SECONDARY (detection-limited)."
+        f"(>= {_floor.FLOOR_THRESHOLD:.0%}); PRIMARY is the off-floor TRANSITION "
+        f"Pr(off-floor at t2 | at floor at t1) on the {at_risk.n_obs} baseline-floored "
+        f"children (of {prepared.n_obs}); graded Beta-Binomial + hurdle "
+        "conditional-above-floor are flagged SECONDARIES."
     )
 
     common = dict(
@@ -1119,10 +1128,10 @@ def _fit_itt_floor_rule(
         adjust_for=adjust_for,
     )
 
-    # ----- PRIMARY: binary off-floor (Bernoulli on post > 0) -----
-    section_header("Build model (PRIMARY: binary off-floor)")
+    # ----- PRIMARY: binary off-floor TRANSITION (Bernoulli on post > 0 | pre == 0) -----
+    section_header("Build model (PRIMARY: off-floor transition among baseline-floored)")
     built = _factories.build_itt_model(
-        prepared, likelihood="bernoulli_offfloor", **common
+        at_risk, likelihood="bernoulli_offfloor", **common
     )
     _attach_built(ctx, built)
     _render_model_graph(ctx)
@@ -1167,8 +1176,9 @@ def _fit_itt_floor_rule(
         metrics_table(
             [{"metric": k, "value": v} for k, v in off.items()],
             title=(
-                f"off-floor tau ({own}) - {int(ctx.reporting.ci_prob * 100)}% CI "
-                "(equal-tailed); positive = intervention raises Pr(off-floor)"
+                f"off-floor transition tau ({own}, baseline-floored at-risk) - "
+                f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed); positive = "
+                "intervention raises Pr(off-floor at t2 | at floor at t1)"
             ),
             columns=["metric", "value"],
         )
@@ -1228,42 +1238,70 @@ def _fit_itt_floor_rule(
         )
         ctx.tables["rope_sensitivity"] = sens_df
 
-    # ----- SECONDARY: graded Beta-Binomial (detection-limited) -----
-    section_header("Build model (SECONDARY: graded Beta-Binomial, detection-limited)")
-    built_g = _factories.build_itt_model(prepared, likelihood="beta_binomial", **common)
     s = ctx.sampling
-    with built_g.model:
-        trace_g = pm.sample(
-            draws=s.draws,
-            tune=s.tune,
-            chains=s.chains,
-            cores=s.cores,
-            target_accept=s.target_accept,
-            nuts_sampler="nutpie",
-            return_inferencedata=True,
-            random_seed=s.random_seed,
-            progressbar=False,
-        )
-        trace_g = pm.sample_posterior_predictive(
-            trace_g,
-            var_names=["y_post"],
-            extend_inferencedata=True,
-            random_seed=s.random_seed,
-            progressbar=False,
-        )
 
-    # Gate the graded secondary trace (it bypasses diagnostics_summary.json).
-    graded_conv = _diag.subfit_convergence(
-        trace_g, label=f"{spec.model_id} graded secondary", var_names=["tau"]
-    )
-    graded = _report.tau_summary_itt(
-        trace_g, ci_prob=ctx.reporting.ci_prob, G=built_g.prepared.G
-    )
-    graded["converged"] = graded_conv["converged"]
+    def _fit_secondary(built_x, *, label: str):
+        with built_x.model:
+            tr = pm.sample(
+                draws=s.draws,
+                tune=s.tune,
+                chains=s.chains,
+                cores=s.cores,
+                target_accept=s.target_accept,
+                nuts_sampler="nutpie",
+                return_inferencedata=True,
+                random_seed=s.random_seed,
+                progressbar=False,
+            )
+            tr = pm.sample_posterior_predictive(
+                tr,
+                var_names=["y_post"],
+                extend_inferencedata=True,
+                random_seed=s.random_seed,
+                progressbar=False,
+            )
+        conv = _diag.subfit_convergence(tr, label=label, var_names=["tau"])
+        summ = _report.tau_summary_itt(tr, ci_prob=ctx.reporting.ci_prob, G=built_x.prepared.G)
+        summ["converged"] = conv["converged"]
+        return tr, summ
+
+    # ----- SECONDARY (flagged cross-check): graded Beta-Binomial over ALL children.
+    # Not the primary — it mixes already-off-floor children into a mover analysis and
+    # is detection-limited; read only beside the mover table, never alone (#119).
+    section_header("Build model (SECONDARY cross-check: graded Beta-Binomial, all children)")
+    built_g = _factories.build_itt_model(prepared, likelihood="beta_binomial", **common)
+    trace_g, graded = _fit_secondary(built_g, label=f"{spec.model_id} graded cross-check")
     pd.DataFrame([graded]).to_csv(
         os.path.join(ctx.output_dir, "tau_summary_graded.csv"), index=False
     )
     ctx.tables["tau_summary_graded"] = pd.DataFrame([graded])
+
+    # ----- SECONDARY (flagged): hurdle conditional-above-floor mean E[post | post>0].
+    # The #119 hurdle branch. Conditioning on post>0 is POST-randomisation (selection
+    # on outcome), so its treatment contrast is NOT a clean randomised effect — it is
+    # reported flagged, never as an ITT estimand.
+    hurdle = None
+    off_floor_data = restrict_to_off_floor(prepared, own)
+    if off_floor_data.n_obs >= 8 and int(np.unique(off_floor_data.G).size) == 2:
+        section_header(
+            "Build model (SECONDARY hurdle: conditional above-floor mean | post>0)"
+        )
+        built_h = _factories.build_itt_model(
+            off_floor_data, likelihood="beta_binomial", **common
+        )
+        _trace_h, hurdle = _fit_secondary(
+            built_h, label=f"{spec.model_id} hurdle conditional-above-floor"
+        )
+        hurdle["n_off_floor"] = int(off_floor_data.n_obs)
+        pd.DataFrame([hurdle]).to_csv(
+            os.path.join(ctx.output_dir, "tau_summary_hurdle.csv"), index=False
+        )
+        ctx.tables["tau_summary_hurdle"] = pd.DataFrame([hurdle])
+    else:
+        rprint(
+            f"[yellow]hurdle conditional-above-floor secondary skipped for {own}: "
+            f"only {off_floor_data.n_obs} off-floor rows (need >= 8, both arms).[/yellow]"
+        )
 
     # Proportion-at-zero PPC on the graded model: does the graded Beta-Binomial
     # reproduce the observed floor? (Usually not - the motivation for the binary
@@ -1282,9 +1320,13 @@ def _fit_itt_floor_rule(
                 "outcome": own,
                 "proportion_at_zero": p0,
                 "threshold": _floor.FLOOR_THRESHOLD,
+                "primary_estimand": "Pr(off-floor at t2 | at floor at t1)",
+                "at_risk_n": int(at_risk.n_obs),
+                "total_n": int(prepared.n_obs),
             },
             "tau_offfloor_primary": off,
             "tau_graded_secondary": graded,
+            "tau_hurdle_secondary": hurdle,
             "proportion_at_zero_ppc": {k: v for k, v in ppc0.items() if k != "rep"},
             "adjust_for": list(adjust_for),
         },
@@ -2368,6 +2410,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         from language_reading_predictors.statistical_models.measures import (
             ROPE_DELTA,
             ROPE_DELTA_PROB,
+            ROPE_DELTA_PROB_GRID,
         )
 
         delta_items = ROPE_DELTA.get(spec.outcome_symbol)
@@ -2399,14 +2442,16 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 term="beta_trt", varying_term="", moderators=trt_moderators,
             )
         elif off_floor and delta_prob is not None:
-            # Off-floor risk-difference ROPE (provisional delta), matching the
-            # floored ITT path (#125 Area 4; #130 follow-up).
+            # Off-floor risk-difference ROPE, matching the floored ITT path
+            # (#125 Area 4). The 10 pp δ was signed off by the education lead
+            # (2026-07-01, #144), so it is NOT provisional; the ITT floored path
+            # sets provisional_delta=False and this mirrors it.
             rope_s = _report.rope_summary(
                 ctx.trace, G=trt, n_trials=1, delta=delta_prob,
                 ci_prob=ctx.reporting.ci_prob, term="beta_trt", varying_term="",
                 moderators=trt_moderators,
             )
-            rope_s["provisional_delta"] = True
+            rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
             rope_s["delta_scale"] = "risk_difference"
             pd.DataFrame([rope_s]).to_csv(
                 os.path.join(ctx.output_dir, "rope_summary.csv"), index=False
@@ -2417,6 +2462,16 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 ctx, spec.outcome_symbol, trt, 1, delta_prob,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
             )
+            # δ-sensitivity sweep on the risk-difference scale (#144): 10/15/20 pp,
+            # the grid the sign-off mandates (mirrors the floored ITT path).
+            sens_df = _report.rope_sensitivity(
+                ctx.trace, G=trt, n_trials=1, deltas=ROPE_DELTA_PROB_GRID,
+                term="beta_trt", varying_term="", moderators=trt_moderators,
+            )
+            sens_df.to_csv(
+                os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
+            )
+            ctx.tables["rope_sensitivity"] = sens_df
 
     _report.write_run_metadata(ctx, extra=meta_extra)
     return _finalize_report(ctx)
