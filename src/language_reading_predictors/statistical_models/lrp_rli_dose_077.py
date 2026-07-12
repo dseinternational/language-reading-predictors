@@ -22,8 +22,20 @@ Causal structure (locked DAG; notes/202606231600-dag-revision-consolidated.md)
 ------------------------------------------------------------------------------
 The focal edge is ``sessions (dose) -> outcome``. Sessions is the locked DAG's
 ``IS`` node; this is the ID-3 **observational** dose-response (adjust ``{IG, A}``,
-never condition on ``IS`` itself), labelled an adjusted association. Dose has one
-parent, ``intervention``, so the back-door adjustment set is ``{G, W_pre, A}``
+labelled an adjusted association). The per-period ``attend`` is the model's
+*exposure* — regressing the outcome on it is the estimand, not a "conditioning on
+IS" violation of the ITT rule. What the ID-3 rule forbids is conditioning on
+*other* functions of ``IS`` that open a back door: in particular the **cumulative
+prior dose** ``attend_cumul`` (a running sum of earlier-period ``IS``), which an
+earlier version adjusted via ``dose_stage_covariate`` — reopening the latent-GA
+back door. That term is **dropped** from the headline here (#269); so nothing
+downstream of, or aggregating, the focal dose is conditioned on. It remains
+available only as a **flagged sensitivity option** (set
+``extra["dose_stage_covariate"] = "attend_cumul"``, the dose-response analogue of
+the aligned family's cumulative-session collider sensitivity) — read any movement
+of the slope under it as a back-door sensitivity, not a better estimate. Dose has
+one parent,
+``intervention``, so the back-door adjustment set is ``{G, W_pre, A}``
 but as: **G (arm) is the sole confounder** (blocks ``dose <- intervention ->
 outcome``); **W_pre** is the regression-to-the-mean / autoregression control
 (parameterisation, not a back-door); **age** is a precision / maturation
@@ -61,7 +73,9 @@ SPEC = ModelSpec(
     extra={
         "adjust_baseline_symbol": "W",
         "dose_covariate": "attend",
-        "dose_stage_covariate": "attend_cumul",
+        # No cumulative-dose (attend_cumul) control: it conditions on the IS collider
+        # and reopens the latent-GA backdoor (#269). It is available only as a flagged
+        # sensitivity option (set dose_stage_covariate="attend_cumul").
         "period_varying_dose": True,
         "use_subject_random_intercept": True,
         "outcomes": ("W",),

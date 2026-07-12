@@ -1867,7 +1867,9 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Prepare data")
     dose_cov = spec.extra.get("dose_covariate", "attend")
-    dose_stage_cov = spec.extra.get("dose_stage_covariate", "attend_cumul")
+    # Default OFF (issue #269): the cumulative-dose (attend_cumul) control conditions
+    # on the IS collider; only the flagged sensitivity variant sets it.
+    dose_stage_cov = spec.extra.get("dose_stage_covariate")
     ability = tuple(spec.extra.get("ability_adjust_symbols", ()))
     outcomes = tuple(spec.extra.get("outcomes", (spec.outcome_symbol or "W",)))
     cov_cols = tuple(c for c in (dose_cov, dose_stage_cov) if c)

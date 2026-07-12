@@ -90,6 +90,19 @@ conditional on that period's pre-count) rather than differencing scores.
 robust to stable between-child differences and gives the design its added value
 over the between-arm RCT.
 
+### Decision 5 — the graded own-baseline (`gamma_own`) is a treatment-affected control (#269)
+
+The **graded** DiD models (`lrp-rli-did-001`–`009`) condition on the period-start
+score via `gamma_own`. For the crossover arm's second period that score is
+**post-treatment** (measured after its first on-intervention block), so `gamma_own`
+adjusts a **treatment-affected baseline** (Rosenbaum 1984, doi:10.2307/2981697) and
+the child intercept does not restore the total-effect reading. The parallel-trends
+assumption also lives on the **logit-with-ceiling** scale, not the raw-count scale.
+The off-floor P/N models (DID-011/012) already drop the own-baseline term for
+exactly this reason (#257); the graded δ is reported with the caveat surfaced in
+its report callout rather than with the term removed (removing it would change the
+graded parameterisation, and the concern is disclosed, not silent).
+
 ## What this is — and is not
 
 - **Triangulation, not independent replication.** The DiD shares the waitlist-P1

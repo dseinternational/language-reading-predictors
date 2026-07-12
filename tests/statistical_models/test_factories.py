@@ -693,14 +693,24 @@ def test_dose_response_factory_builds_period_varying(tmp_path):
     built = build_dose_response_model(prep, outcome_symbol="W", period_varying_dose=True)
     free = {v.name for v in built.model.free_RVs}
     dets = {v.name for v in built.model.deterministics}
-    # period-varying dose slope (partial pooled), arm, age, dose-stage, subject RI
+    # period-varying dose slope (partial pooled), arm, age, subject RI
     assert {"mu_dose", "sigma_dose", "beta_dose_phase_raw", "beta_G", "gamma_A",
-            "gamma_dose_stage", "sigma_child"}.issubset(free)
+            "sigma_child"}.issubset(free)
     assert "beta_dose_phase" in dets
     assert "beta_dose" not in free  # pooled slope only in the comparator
+    # The cumulative-dose (attend_cumul) control is OFF by default (#269): it
+    # conditions on the IS collider, so it is only the flagged sensitivity option.
+    assert "gamma_dose_stage" not in free
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=5)
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+    # Explicitly opting into the collider-sensitivity control re-adds gamma_dose_stage.
+    built_sens = build_dose_response_model(
+        prep, outcome_symbol="W", period_varying_dose=True,
+        dose_stage_covariate="attend_cumul",
+    )
+    assert "gamma_dose_stage" in {v.name for v in built_sens.model.free_RVs}
 
 
 def test_dose_response_factory_pooled_slope(tmp_path):

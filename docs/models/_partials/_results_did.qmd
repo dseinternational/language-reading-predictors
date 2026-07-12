@@ -8,6 +8,18 @@ In plain terms: this compares each child to themselves — the change while
 waiting against the change after crossing over to the intervention — so every
 child is their own control and stable child-level differences cancel out.
 
+::: {.callout-warning title="Treatment-affected period-start score (graded DiD)"}
+The **graded** waitlist-crossover models (`lrp-rli-did-001`–`009`) condition on the
+period-start score through `gamma_own`. For the crossover arm's second period that
+score is **post-treatment** (measured after its first on-intervention block), so
+`gamma_own` adjusts a **treatment-affected baseline** (Rosenbaum 1984,
+[doi:10.2307/2981697](https://doi.org/10.2307/2981697)) — a child random intercept
+does not restore the total-effect reading. The parallel-trends assumption also
+holds on the **logit-with-ceiling** scale here, not the raw-count scale. This is
+the same concern the off-floor P/N models (DID-011/012) remove by dropping the
+own-baseline term (#257); read the graded δ with it in mind.
+:::
+
 _How to read the contrast table:_ each row is one estimated quantity. `delta` is
 the within-person difference-in-differences (DiD) treatment contrast: how much
 larger the intervention-window change is than the waitlist-window change. The
