@@ -20,6 +20,7 @@ Baylis
 Behavioral
 Belzak
 Bertelson
+Betancourt
 Biometrika
 Birkinshaw
 Boudreau

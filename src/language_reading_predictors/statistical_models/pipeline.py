@@ -204,6 +204,41 @@ def _effective_adjustment(
     }
 
 
+def _apply_spec_target_accept(ctx: StatisticalFitContext, spec: ModelSpec) -> None:
+    """Apply a model-specific ``spec.extra['target_accept']`` with explicit precedence.
+
+    Precedence is **CLI override > model-specific default > config preset**.
+
+    Some models (the horseshoe's global-local funnel, the small-n correlated-factor
+    CFA) need a higher ``target_accept`` than their tier preset gives, and declare
+    it in ``spec.extra``. That must not silently outrank an explicit
+    ``--target-accept`` from the command line: the previous
+    ``max(preset_or_cli, spec_value)`` meant a deliberate ``--target-accept 0.95``
+    was replaced by a spec's 0.999, so a diagnostic reproduction or an ablation
+    silently did not run at the requested setting. ``scripts/fit_statistical_model``
+    flags a CLI override on the sampling config; when that flag is set the spec
+    value is ignored.
+    """
+    target_accept = spec.extra.get("target_accept")
+    if target_accept is None:
+        return
+    target_accept = float(target_accept)
+    if not 0.0 < target_accept < 1.0:
+        raise ValueError(
+            "spec.extra['target_accept'] must be in the open interval (0, 1); "
+            f"got {target_accept!r}"
+        )
+    if getattr(ctx.sampling, "target_accept_overridden", False):
+        rprint(
+            "[yellow]Keeping the CLI --target-accept "
+            f"({ctx.sampling.target_accept}) over {spec.model_id}'s "
+            f"spec default ({target_accept}).[/yellow]"
+        )
+        return
+    # No CLI override: the model-specific value takes precedence over the preset.
+    ctx.sampling.target_accept = target_accept
+
+
 def _print_header(ctx: StatisticalFitContext) -> None:
     """Print the start-of-fit banner panel."""
     spec = ctx.spec
@@ -1491,6 +1526,10 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _require_spec(spec, "mechanism", mechanism=True)
 
     ctx = make_context(spec, config)
+    # Some mechanism fits keep the HSGP curve and need a higher target_accept for
+    # the residual boundary divergences (LRP58/71/158); honour it with the shared
+    # CLI > model-specific > preset precedence.
+    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     # A model may restrict the prepared outcomes (e.g. LRP72 uses only L/B/N) so
@@ -2864,9 +2903,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     ctx = make_context(spec, config, ci_prob=0.94)
     # The horseshoe has a funnel geometry (global-local scales); lift target_accept
     # above the tier default so the sampler takes smaller steps near the neck.
-    target_accept = e.get("target_accept")
-    if target_accept is not None:
-        ctx.sampling.target_accept = max(ctx.sampling.target_accept, float(target_accept))
+    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     measure_syms = tuple(
@@ -3647,6 +3684,11 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     _require_spec(spec, "corr_factor")
 
     ctx = make_context(spec, config)
+    # The correlated-factor CFA is a small-n latent model; even with the factor
+    # scores marginalised out of the measurement likelihood a few boundary
+    # divergences survive at the tier-default target_accept, so lift it via the spec
+    # (the strict gate requires zero), as the horseshoe fit does for its funnel.
+    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     domains = {
@@ -3673,9 +3715,17 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         domains=domains,
         structural_covariates=structural_covs,
         use_age=spec.extra.get("use_age", True),
+        loading_mu=spec.extra.get(
+            "loading_mu",
+            _default_of(_factories.build_correlated_factor_model, "loading_mu"),
+        ),
         loading_sigma=spec.extra.get(
             "loading_sigma",
             _default_of(_factories.build_correlated_factor_model, "loading_sigma"),
+        ),
+        residual_sigma=spec.extra.get(
+            "residual_sigma",
+            _default_of(_factories.build_correlated_factor_model, "residual_sigma"),
         ),
         predictor_slope_sigma=spec.extra.get(
             "predictor_slope_sigma",
@@ -3689,7 +3739,18 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     summary_vars = [
         "alpha", "gamma_own", "kappa", "beta_factor", "lambda_load", "sigma_indicator",
+        # The headline factor correlations MUST be in the gated set: they are what
+        # the report releases, and the global checks (divergences, BFMI) are not a
+        # substitute for parameter-specific R-hat / ESS on them. ``factor_corr``
+        # itself is unusable for this — its constant unit diagonal has undefined
+        # R-hat and zero variance — so the factory exposes the unique off-diagonals
+        # as ``factor_corr_pairs``. ``factor_z`` is the latent-score offset the
+        # structural leg consumes; gate it too.
+        "factor_z",
     ]
+    # Only present when there are >= 2 domains (a single factor has no off-diagonal).
+    if len(domains) > 1:
+        summary_vars.append("factor_corr_pairs")
     if spec.extra.get("use_age", True):
         summary_vars.append("beta_age")
     summary_vars += [f"beta_{c}" for c in structural_covs]
@@ -3707,8 +3768,14 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=summary_vars)
 
-    # Sample both observed nodes (the indicator matrix + the structural outcome)
-    # so the posterior-predictive PPC plot covers every observed variable.
+    # Sample both observed nodes (the indicator matrix + the structural outcome).
+    # These are two SEPARATE checks, not a joint predictive draw: the factor scores
+    # condition on the observed indicator data (``Z_d``), not on the replicated
+    # ``Z_obs``, so a replicated indicator is independent of the replicated factor
+    # it loads on. ``Z_obs`` is a marginal check of the measurement covariance;
+    # ``y_post`` is a check of the structural leg *conditional on the observed
+    # indicators*. Together they do not certify the joint model. See the
+    # predictive-simulation caveat in ``build_correlated_factor_model``.
     _run_ppc(ctx, var_names=["Z_obs", "y_post"])
 
     section_header("Extended diagnostics")
