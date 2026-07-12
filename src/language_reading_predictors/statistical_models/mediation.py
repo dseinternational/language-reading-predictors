@@ -58,6 +58,7 @@ def decompose(
     ci_prob: float = 0.95,
     n_replicates: int = 50,
     seed: int = 47,
+    interventional: bool = False,
 ) -> pd.DataFrame:
     """Return the NDE / NIE / Total / proportion-mediated posterior summary.
 
@@ -68,6 +69,16 @@ def decompose(
     re-simulated ``n_replicates`` times per posterior draw and averaged, to
     control Monte-Carlo noise from the mediator draw; the posterior itself
     supplies the inferential uncertainty.
+
+    ``interventional=True`` (LRP78) returns the **randomised interventional
+    analogue** effects (IDE / IIE) instead of the natural NDE / NIE. Each unit's
+    mediator is drawn from the *population* arm-g distribution (the simulated
+    mediator column is permuted across units) rather than from that unit's own
+    counterfactual, which breaks the unit-level mediator-confounder link. That is
+    exactly what makes the estimand identified under a **treatment-induced
+    mediator-outcome confounder** (dose ``IS``, DAG ID-2) — the setting in which
+    the natural-effect NDE/NIE are *not* identified. Rows are labelled
+    ``IDE``/``IIE`` and the proportion is ``IIE/Total``.
     """
     post = trace.posterior
     # Confounders come from the fitted model (via MediationData), so the
@@ -110,6 +121,17 @@ def decompose(
     y_ctrl_Mctrl = np.zeros(S)
     y_treat_Mctrl = np.zeros(S)
 
+    def draw_m(zm: np.ndarray) -> np.ndarray:
+        # Natural: keep each unit's own mediator draw. Interventional (LRP78):
+        # permute the mediator across units so each unit receives a random draw
+        # from the population arm-g distribution (a fresh permutation per call, so
+        # the treated/control cells get independent population draws) — the
+        # randomised interventional analogue, robust to a treatment-induced
+        # mediator-outcome confounder.
+        if not interventional:
+            return zm
+        return zm[:, rng.permutation(zm.shape[1])]
+
     if med.mediator_kind == "gaussian_composite":
         # LRP62: continuous standardised route composite ~ Normal. The mediator
         # is already on the standardised scale the outcome model consumes, so the
@@ -129,12 +151,13 @@ def decompose(
         for _ in range(n_replicates):
             zm_treat = rng.normal(mu_treat, sigma_M[:, None])
             zm_ctrl = rng.normal(mu_ctrl, sigma_M[:, None])
-            y_treat_Mtreat += outcome_p(_TREAT, zm_treat).mean(axis=1)
-            y_ctrl_Mctrl += outcome_p(_CTRL, zm_ctrl).mean(axis=1)
-            y_treat_Mctrl += outcome_p(_TREAT, zm_ctrl).mean(axis=1)
+            y_treat_Mtreat += outcome_p(_TREAT, draw_m(zm_treat)).mean(axis=1)
+            y_ctrl_Mctrl += outcome_p(_CTRL, draw_m(zm_ctrl)).mean(axis=1)
+            y_treat_Mctrl += outcome_p(_TREAT, draw_m(zm_ctrl)).mean(axis=1)
     else:
         # LRP59: single count mediator ~ Beta-Binomial, standardised logit -> z_m.
-        a0, a_G, a_L, a_A = d("a0"), d("a_G"), d("a_L"), d("a_A")
+        # The own-baseline coef is a_{mediator_symbol} (a_L for L, a_TE for TE, ...).
+        a0, a_G, a_L, a_A = d("a0"), d("a_G"), d(f"a_{med.mediator_symbol}"), d("a_A")
         a_conf = {s: d(f"a_{s}") for s in confounder_symbols}
         kappa_M = d("kappa_M")
         L1 = med.L1_logit[None, :]
@@ -155,9 +178,9 @@ def decompose(
             k_ctrl = rng.binomial(N_L, rng.beta(a_beta_c, b_beta_c))
             zm_treat = (logit_safe(k_treat, N_L) - med.med_mean) / med.med_sd
             zm_ctrl = (logit_safe(k_ctrl, N_L) - med.med_mean) / med.med_sd
-            y_treat_Mtreat += outcome_p(_TREAT, zm_treat).mean(axis=1)
-            y_ctrl_Mctrl += outcome_p(_CTRL, zm_ctrl).mean(axis=1)
-            y_treat_Mctrl += outcome_p(_TREAT, zm_ctrl).mean(axis=1)
+            y_treat_Mtreat += outcome_p(_TREAT, draw_m(zm_treat)).mean(axis=1)
+            y_ctrl_Mctrl += outcome_p(_CTRL, draw_m(zm_ctrl)).mean(axis=1)
+            y_treat_Mctrl += outcome_p(_TREAT, draw_m(zm_ctrl)).mean(axis=1)
 
     y_treat_Mtreat /= n_replicates
     y_ctrl_Mctrl /= n_replicates
@@ -181,7 +204,8 @@ def decompose(
             "prob_pos": float(np.mean(draws > 0)),
         }
 
-    rows = [row("total", total), row("NDE", nde), row("NIE", nie)]
+    direct_label, indirect_label = ("IDE", "IIE") if interventional else ("NDE", "NIE")
+    rows = [row("total", total), row(direct_label, nde), row(indirect_label, nie)]
 
     # Proportion mediated = NIE / Total. The ratio is unstable when Total can
     # cross zero, so report the posterior median + interval and P(Total>0); the
@@ -243,19 +267,23 @@ def decompose_two_mediator(
         return post[name].stack(_s=("chain", "draw")).values
 
     confs = med.confounder_symbols
+    # The first mediator leg is always L; the second is parameterised by its
+    # symbol ``mE`` so the trace-variable names match the factory (LRP64 ``E``,
+    # LRP66 ``B``). When mE == 'E' this reads exactly the original node names.
+    mL, mE = med.mediator_symbols
 
     # Outcome model.
     b0, b_G, b_L, b_E, b_GL, b_GE, b_W, b_A = (
-        d("b0"), d("b_G"), d("b_L"), d("b_E"), d("b_GL"), d("b_GE"), d("b_W"), d("b_A")
+        d("b0"), d("b_G"), d("b_L"), d(f"b_{mE}"), d("b_GL"), d(f"b_G{mE}"), d("b_W"), d("b_A")
     )
     b_conf = {s: d(f"b_{s}") for s in confs}
     # Mediator legs.
     aL0, aL_G, aL_L, aL_A = d("aL0"), d("aL_G"), d("aL_L"), d("aL_A")
     aL_conf = {s: d(f"aL_{s}") for s in confs}
     kappa_L = d("kappa_L")
-    aE0, aE_G, aE_E, aE_A = d("aE0"), d("aE_G"), d("aE_E"), d("aE_A")
-    aE_conf = {s: d(f"aE_{s}") for s in confs}
-    kappa_E = d("kappa_E")
+    aE0, aE_G, aE_E, aE_A = d(f"a{mE}0"), d(f"a{mE}_G"), d(f"a{mE}_{mE}"), d(f"a{mE}_A")
+    aE_conf = {s: d(f"a{mE}_{s}") for s in confs}
+    kappa_E = d(f"kappa_{mE}")
 
     A = med.A_std[None, :]
     W1 = med.W1_logit[None, :]
@@ -289,10 +317,26 @@ def decompose_two_mediator(
             mu = mu + a_conf[s][:, None] * conf[s]
         return np.clip(_sigmoid(mu), EPSILON, 1 - EPSILON)
 
+    # Sequential code route (LRP75): the second mediator regresses on post-L via
+    # a{mE}_L, so its probability depends on the *simulated* first mediator (zL).
+    aE_L = d(f"a{mE}_{mL}") if med.chain else None
+
+    def mediator2_p(g, zL_val):
+        """Second-mediator success prob under exposure ``g``; chained on ``zL_val``
+        (the simulated first mediator on its standardised scale) when med.chain."""
+        mu = aE0[:, None] + aE_G[:, None] * g + aE_E[:, None] * E1 + aE_A[:, None] * A
+        for s in confs:
+            mu = mu + aE_conf[s][:, None] * conf[s]
+        if med.chain:
+            mu = mu + aE_L[:, None] * zL_val
+        return np.clip(_sigmoid(mu), EPSILON, 1 - EPSILON)
+
     pL_t = mediator_p(aL0, aL_G, aL_L, aL_A, aL_conf, L1, _TREAT)
     pL_c = mediator_p(aL0, aL_G, aL_L, aL_A, aL_conf, L1, _CTRL)
-    pE_t = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _TREAT)
-    pE_c = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _CTRL)
+    # Parallel model: the second mediator is independent of L, so precompute once.
+    if not med.chain:
+        pE_t = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _TREAT)
+        pE_c = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _CTRL)
 
     def zdraw(p, kappa, N, mean, sd):
         k = rng.binomial(N, rng.beta(p * kappa[:, None], (1 - p) * kappa[:, None]))
@@ -307,8 +351,15 @@ def decompose_two_mediator(
     for _ in range(n_replicates):
         zL_t = zdraw(pL_t, kappa_L, N_L, med.zL_mean, med.zL_sd)
         zL_c = zdraw(pL_c, kappa_L, N_L, med.zL_mean, med.zL_sd)
-        zE_t = zdraw(pE_t, kappa_E, N_E, med.zE_mean, med.zE_sd)
-        zE_c = zdraw(pE_c, kappa_E, N_E, med.zE_mean, med.zE_sd)
+        if med.chain:
+            # Draw the second mediator conditional on the simulated L: treated B
+            # under treated L, control B under control L (carrying L -> B -> W into
+            # the joint indirect effect).
+            zE_t = zdraw(mediator2_p(_TREAT, zL_t), kappa_E, N_E, med.zE_mean, med.zE_sd)
+            zE_c = zdraw(mediator2_p(_CTRL, zL_c), kappa_E, N_E, med.zE_mean, med.zE_sd)
+        else:
+            zE_t = zdraw(pE_t, kappa_E, N_E, med.zE_mean, med.zE_sd)
+            zE_c = zdraw(pE_c, kappa_E, N_E, med.zE_mean, med.zE_sd)
         y_TT_TT += outcome_p(_TREAT, zL_t, zE_t).mean(axis=1)
         y_TT_CC += outcome_p(_TREAT, zL_c, zE_c).mean(axis=1)
         y_CC_CC += outcome_p(_CTRL, zL_c, zE_c).mean(axis=1)
@@ -320,16 +371,16 @@ def decompose_two_mediator(
     total = y_TT_TT - y_CC_CC
     nde = y_TT_CC - y_CC_CC
     nie_joint = y_TT_TT - y_TT_CC
-    if order not in (("L", "E"), ("E", "L")):
+    if order not in ((mL, mE), (mE, mL)):
         raise ValueError(
-            f"order must be ('L', 'E') or ('E', 'L'); got {order!r}"
+            f"order must be {(mL, mE)!r} or {(mE, mL)!r}; got {order!r}"
         )
-    if order == ("L", "E"):
-        nie_L = y_T_Lt_Ec - y_TT_CC  # move L first (E at control)
-        nie_E = y_TT_TT - y_T_Lt_Ec  # then move E (L at treated)
+    if order == (mL, mE):
+        nie_L = y_T_Lt_Ec - y_TT_CC  # move L first (mE at control)
+        nie_E = y_TT_TT - y_T_Lt_Ec  # then move mE (L at treated)
     else:
-        nie_E = y_T_Lc_Et - y_TT_CC  # move E first (L at control)
-        nie_L = y_TT_TT - y_T_Lc_Et  # then move L (E at treated)
+        nie_E = y_T_Lc_Et - y_TT_CC  # move mE first (L at control)
+        nie_L = y_TT_TT - y_T_Lc_Et  # then move L (mE at treated)
 
     lo_q, hi_q = (1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2
 
@@ -349,8 +400,8 @@ def decompose_two_mediator(
         row("total", total),
         row("NDE", nde),
         row("NIE_joint", nie_joint),
-        row("NIE_L", nie_L),
-        row("NIE_E", nie_E),
+        row(f"NIE_{mL}", nie_L),
+        row(f"NIE_{mE}", nie_E),
     ]
 
     with np.errstate(divide="ignore", invalid="ignore"):

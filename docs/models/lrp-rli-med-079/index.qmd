@@ -1,0 +1,64 @@
+---
+title: "LRP79: Negative-control mediator — apparent word-reading route through grammar (calibrates GA confounding)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+A calibration model for the causal-vs-associational question about the letter-sound route
+([LRP59](../lrp-rli-med-059)). The DAG **severs grammar from word reading**: receptive
+grammar (TROG, $T$) has *no directed path* to word reading $W$ — on the simple-view logic,
+grammar loads on reading *comprehension*, not word-level recognition. So any indirect effect
+this g-formula reports through $T$ **cannot be a causal route** — it can only be residual
+latent-general-ability ($GA$) confounding that survived the adjustment set. $T$ is a
+**negative control**: it estimates how large a spurious mediated association the *same*
+machinery and adjustment set manufacture for a mediator the DAG says is causally inert for
+reading.
+
+## What to read
+
+- The residual **mediator → outcome slope** $b_M$ (grammar → reading, after
+  $\{A, E, R, W_\text{pre}\}$) is the readout. Grammar is strongly *correlated* with DS word
+  reading (Byrne, MacDonald & Buckley 2002: age-partialled TROG–reading $r \approx 0.54$–$0.63$,
+  *stronger* than vocabulary), so a large residual $b_M$ would show the adjustment does **not**
+  close the $GA$ back-door — calibrating how much of LRP59's letter-sound $b_M$ could likewise
+  be confounding. A residual $b_M$ near zero shows adjustment substantially closes it, so
+  LRP59's clearly-positive $b_M$ reflects more than the generic ability bleed-through that
+  inflates *every* skill–reading correlation.
+- The full **NIE through $T$** is reported too, but the ITT effect on grammar is $\approx 0$,
+  so a small NIE is partly "the intervention barely moves $T$", not only "$T$ does not predict
+  reading". The $b_M$ comparison is the cleaner negative-control quantity.
+
+## Design
+
+Mirrors LRP59, swapping the mediator $L \to T$: phase 0 only, mediator $T_{t2}$
+(Beta-Binomial on $T_{t1}$), outcome $W_{t2}$, adjustment $\{G, A, E, R, W_\text{pre}, T_{t1}\}$.
+All ID-2 caveats apply; nothing here is a causal route.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

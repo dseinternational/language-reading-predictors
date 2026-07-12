@@ -1,0 +1,63 @@
+---
+title: "LRP66: Do letter-sounds and blending act as independent phonics paths to word reading? (two-mediator decomposition)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+The route-composite [LRP62](../lrp-rli-med-062) bundles letter-sound knowledge $L$ and
+phoneme blending $B$ into a single code-based route and cannot say how much runs through
+blending *over and above* letter sounds. LRP66 is the phonics analogue of
+[LRP64](../lrp-rli-med-064) (which split $L$ vs expressive vocabulary): a **two-mediator**
+decomposition of the word-reading ($W$) effect into a letter-sound path $L$, a
+blending path $B$, and a direct/residual path.
+
+We report the **joint indirect effect** through the $\{L, B\}$ block (the robust headline)
+plus a clearly-flagged **exploratory** path split $\text{NIE}_L$ / $\text{NIE}_B$.
+
+## Design and causal structure
+
+Phase 0 only (`phase_mode="itt"`, t1 → t2), $n \approx 53$, one row per child ($G = 1$
+intervention, $G = 0$ wait-list). Two count mediators $L_{t2}$ and $B_{t2}$ (Beta-Binomial
+legs on their own baselines); outcome $W_{t2}$ with $G\times L$ and $G\times B$
+interactions. Adjustment $\{G, A, E, R, W_\text{pre}, L_{t1}, B_{t1}\}$ — the two
+vocabulary measures $E, R$ are the measured mediator–outcome confounders of the
+code-route → reading path, at baseline (cross-world assumption).
+
+## Assumptions — read this first {#sec-assumptions}
+
+A **decomposition under assumptions, not proof of a causal route.** Randomisation secures
+$G\to Y$ and $G\to M$; the binding, unverifiable assumption is **no unmeasured
+mediator–outcome confounding** — the locked DAG (ID-2) names latent general ability $GA$
+and treatment-induced dose as the threats, so every quantity here is an **adjusted
+association**, not point-identified. $L$ and $B$ are strongly correlated phonics skills, so
+read the per-path split with particular caution. Contemporaneous measurement; sight-reading;
+$n \approx 53 \Rightarrow$ wide intervals.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
