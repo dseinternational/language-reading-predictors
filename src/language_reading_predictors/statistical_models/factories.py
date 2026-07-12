@@ -1036,9 +1036,17 @@ def build_mechanism_model(
                         lengthscale_prior=_priors.ell_prior_mech(),
                     )
                 )
-            f_mech = pt.stack(phase_specific, axis=1)[
-                np.arange(prepared.n_obs), phase_d
-            ]
+            # Register the combined per-observation curve as ``f_mech`` (each row's
+            # phase-specific value), so ``_write_mechanism_curve`` finds it and
+            # writes ``mechanism_curve.csv`` / the plot instead of silently skipping
+            # — the phase-specific ``f_mech_phase{p}`` builders above only register
+            # the per-phase GP hyperparameters, not the selected per-obs curve
+            # (issue #265 review; supersedes the warn-only #273 item 20).
+            f_mech = pm.Deterministic(
+                "f_mech",
+                pt.stack(phase_specific, axis=1)[np.arange(prepared.n_obs), phase_d],
+                dims="obs_id",
+            )
             eta = eta + f_mech
         else:
             # Standardised input + a moderate-lengthscale prior + fewer basis
