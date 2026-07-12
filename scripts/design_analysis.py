@@ -384,7 +384,10 @@ def main():
                 "--refresh-note refused: "
                 f"{len(failing)} refit(s) did not meet the convergence gate "
                 f"({', '.join(failing)}). The committed note must not be refreshed "
-                "from non-converged refits — re-run with larger --draws/--tune."
+                "from non-converged refits — inspect the printed diagnostics: low ESS "
+                "/ high R-hat usually clears with larger --draws/--tune, but "
+                "divergences (or a non-finite BFMI) point to a geometry problem that "
+                "needs reparameterisation, not just more draws."
             )
         notes_assets = os.path.join(str(_paths.DOCS_DIR), "..", "notes", "assets")
         notes_assets = os.path.normpath(notes_assets)

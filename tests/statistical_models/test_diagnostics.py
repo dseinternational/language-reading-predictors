@@ -96,14 +96,22 @@ def test_subfit_convergence_gates_on_unrounded_rhat():
     dt = _synthetic_trace(0.12)
     res = diag.subfit_convergence(dt, label="borderline", var_names=["tau"])
 
+    # Core regression check (independent of ArviZ's rounding behaviour): the gate
+    # reports the UNROUNDED max R-hat — it matches an explicit round_to="none"
+    # reference — and therefore fails.
+    ref = float(az.summary(dt, var_names=["tau"], round_to="none", kind="diagnostics")["r_hat"].max())
+    assert res["max_rhat"] == pytest.approx(ref)
     assert diag.RHAT_MAX < res["max_rhat"] < 1.05  # genuinely in the hidden band
     assert res["min_ess"] >= diag.ESS_THRESHOLD  # so only R-hat can fail the gate
     assert res["converged"] is False
 
-    # Prove the fix matters: the *buggy* rounded read would have passed.
+    # Illustration (not load-bearing): with ArviZ's current default 2-sig-fig
+    # rounding the same R-hat rounds to 1.0 and would have slipped the <= 1.01 gate.
+    # Guarded so a future ArviZ change to the round_to=None default cannot break the
+    # regression test above.
     rounded = float(az.summary(dt, var_names=["tau"], round_to=None, kind="diagnostics")["r_hat"].max())
-    assert rounded <= diag.RHAT_MAX  # 1.0 — would have slipped through
-    assert res["max_rhat"] > diag.RHAT_MAX  # unrounded — correctly caught
+    if rounded != pytest.approx(ref):  # ArviZ still rounds round_to=None
+        assert rounded <= diag.RHAT_MAX  # would have slipped through
 
 
 def test_subfit_convergence_passes_clean_and_flags_divergences():

@@ -202,7 +202,12 @@ def tau_forest(config: str, out_path: str) -> bool:
     if not os.path.exists(joint_path):
         return False  # joint run not fitted — main() reports the skip
     joint = pd.read_csv(joint_path)
+    # Gate-awareness (issue #274 review): a REVIEW fit "is not interpretable"
+    # (METHODS.md), so mark any non-converged run feeding this forest rather than
+    # plotting its tau unflagged.
+    joint_ok = _gate_ok(JOINT_ID, config)
     uni: dict[str, tuple[float, float, float]] = {}
+    uni_review: set[str] = set()
     for model_id, outcome in ITT_IDS:
         p = os.path.join(_run_dir(model_id, config), "tau_summary.csv")
         if not os.path.exists(p):
@@ -213,6 +218,8 @@ def tau_forest(config: str, out_path: str) -> bool:
             float(df["tau_logit_lo"].iloc[0]),
             float(df["tau_logit_hi"].iloc[0]),
         )
+        if not _gate_ok(model_id, config):
+            uni_review.add(outcome)
 
     outcomes = list(joint["outcome"].values)
     y = np.arange(len(outcomes))
@@ -227,7 +234,7 @@ def tau_forest(config: str, out_path: str) -> bool:
         ],
         fmt="o",
         color="#1f77b4",
-        label="LRPITT12 (joint)",
+        label="LRPITT12 (joint)" + ("" if joint_ok else " — REVIEW: not converged"),
         capsize=3,
     )
     # Univariate overlay, offset vertically for readability.
@@ -258,15 +265,27 @@ def tau_forest(config: str, out_path: str) -> bool:
     # their primary estimand — that is the binary off-floor risk difference, read
     # from their own reports. Marking them keeps the forest from misrepresenting P.
     floored_present = [s for s in outcomes if s in FLOORED_SYMBOLS]
-    ax.set_yticklabels(
-        [f"{s} †" if s in FLOORED_SYMBOLS else s for s in outcomes]
-    )
+
+    def _ylabel(s: str) -> str:
+        return s + (" †" if s in FLOORED_SYMBOLS else "") + (" ‡" if s in uni_review else "")
+
+    ax.set_yticklabels([_ylabel(s) for s in outcomes])
+    _caption = []
     if floored_present:
+        _caption.append(
+            "† floored outcome — graded τ shown; PRIMARY estimand is the "
+            "binary off-floor risk difference (see model report)"
+        )
+    if uni_review or not joint_ok:
+        _caption.append(
+            "‡ single-outcome fit did not pass the convergence gate (REVIEW — not "
+            "interpretable)" + ("; the joint fit is REVIEW too" if not joint_ok else "")
+        )
+    if _caption:
         ax.text(
             0.99,
             -0.14,
-            "† floored outcome — graded τ shown; PRIMARY estimand is the "
-            "binary off-floor risk difference (see model report)",
+            "\n".join(_caption),
             transform=ax.transAxes,
             ha="right",
             va="top",
