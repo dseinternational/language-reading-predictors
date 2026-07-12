@@ -31,6 +31,19 @@ taken at **baseline (t1)**, not post (t2), to respect the cross-world assumption
 (a mediator-outcome confounder must not be affected by treatment). The report
 states the assumptions prominently and names residual confounding as the limit.
 
+**Not an identified natural effect.** Beyond the unmeasured L->W confounding, a
+second, structural obstacle survives even randomisation: dose IS (sessions) is a
+treatment-induced (exposure-induced) mediator-outcome confounder (IG -> IS; IS ->
+L, W), so NDE/NIE are not identified and are *not* repaired by adjusting IS,
+which is itself a descendant of the exposure (VanderWeele, Vansteelandt & Robins
+2014, doi:10.1097/EDE.0000000000000034). Read the output as a model-based
+g-formula decomposition under stated (cross-world) assumptions. An interventional
+(rather than natural) estimand — fitted for this route as LRP78 — escapes *this*
+obstacle (no cross-world quantity is invoked) but is not thereby identified: it
+still assumes no unmeasured mediator-outcome confounding (Hejazi, Rudolph, van der
+Laan & Diaz 2022, A5, doi:10.1093/biostatistics/kxac002), which latent GA violates
+here. A weaker-assumption target, not a defensible one.
+
 Expect **wide** posteriors (n ~ 53). The headline is the proportion mediated with
 its full uncertainty; a wide interval pointing at "mostly via letter-sounds" is a
 legitimate result, and so is "inconclusive". The Total should reconcile in sign

@@ -333,11 +333,14 @@ def _prior_table_overrides(
     elif spec.kind in ("mediation", "mediation_multi"):
         # The mediation coefficients ``a_G`` (group→mediator) and ``b_G``
         # (group→outcome direct path) reuse the ``tau`` constructor's scale but
-        # are structural building blocks of the g-formula, not the reported causal
-        # estimand: the causal NDE/NIE come from the counterfactual simulation
+        # are structural building blocks of the g-formula, not the reported
+        # estimand: the NDE/NIE come from the counterfactual simulation
         # (``mediation_summary.csv``), never a raw coefficient. Label them adjusted
         # associations so the prior table does not imply a bare coefficient is the
-        # causal effect (the suite's "only the simulated effect is causal" rule).
+        # reported quantity. The simulated NDE/NIE are **not** causal either: they
+        # are not identified natural effects (latent GA confounds the
+        # mediator->outcome path, and dose ``IS`` is a treatment-induced
+        # mediator-outcome confounder). See the :mod:`mediation` module docstring.
         role["a_G"] = "association"
         role["b_G"] = "association"
     elif spec.kind == "mechanism":
