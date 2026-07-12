@@ -734,7 +734,7 @@ def _save_forest_plot(
             tr,
             var_names=var_names,
             combined=True,
-            ci_kind="eti",
+            ci_kind=ctx.reporting.interval_kind,
             ci_probs=(0.5, 0.95),
         )
         try:

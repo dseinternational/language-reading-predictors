@@ -178,15 +178,17 @@ def summary_diagnostics(
         var_names = scalar_vars
 
     if var_names:
-        # Equal-tailed central interval (issue #125 0c / #101): the report cards
-        # and prose use equal-tailed quantiles, so the diagnostics table must too
-        # — ``ci_kind="hdi"`` here was inconsistent with the rest of the suite.
+        # Central interval driven by the shared reporting config (issue #125 0c /
+        # #101): the report cards and prose use equal-tailed quantiles
+        # (``interval_kind="eti"``), so the diagnostics table follows the same
+        # convention via ``context.reporting.interval_kind`` rather than hard-coding
+        # it — keeping the table, plots and config in step.
         summary = az.summary(
             context.trace,
             var_names=var_names,
             round_to=3,
             ci_prob=context.reporting.ci_prob,
-            ci_kind="eti",
+            ci_kind=context.reporting.interval_kind,
         )
         summary.to_csv(os.path.join(out, "diagnostics.csv"))
         context.tables["diagnostics"] = summary
@@ -315,7 +317,7 @@ def _summarise_deterministics(
         if not present:
             return
         summary = az.summary(
-            context.trace, var_names=present, round_to=3, ci_kind="eti"
+            context.trace, var_names=present, round_to=3, ci_kind=context.reporting.interval_kind
         )
         summary.to_csv(os.path.join(context.output_dir, "diagnostics_deterministics.csv"))
         context.tables["diagnostics_deterministics"] = summary
