@@ -127,7 +127,7 @@ def test_registry_agrees_with_specs() -> None:
             )
 
 
-def test_provenance_keys_do_not_alias_live_models():
+def test_provenance_keys_do_not_alias_live_models() -> None:
     # Issue #273: pre-#168 provenance ids 70/74/75/76 were reused by live models
     # (gc-070, med-074/075/076). A bare provenance key that equals a live model's
     # legacy alias is ambiguous; qualified keys are fine. Guard against future
