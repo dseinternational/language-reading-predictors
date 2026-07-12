@@ -1204,6 +1204,7 @@ def build_did_model(
     use_age: bool = True,
     dose: bool = False,
     period_varying_dose: bool = False,
+    likelihood: str = "beta_binomial",
 ) -> BuiltModel:
     """Waitlist-crossover / difference-in-differences model for one outcome.
 
@@ -1255,6 +1256,19 @@ def build_did_model(
         toward the shared mean. Mirrors :func:`build_dose_response_model`; the
         nested ``period_varying_dose=False`` model is its pooled comparator for a
         PSIS-LOO test of period variation (#135). Requires ``dose=True``.
+    likelihood
+        ``"beta_binomial"`` (default) fits the graded post-count. For heavily
+        floored outcomes (P, N) pass ``"bernoulli_offfloor"``: the observation is a
+        Bernoulli on the binary off-floor indicator (period post > 0), so ``delta``
+        is the within-person DiD on the log-odds of *being off the floor at period
+        end* — off-floor PREVALENCE, ``Pr(post > 0)``, not the floor-exit transition
+        ``Pr(post > 0 | pre = 0)``. Its items-scale marginal (``n_trials=1``) is a
+        model-implied off-floor risk difference from toggling ``Treated``, not a
+        probability-scale DiD cross-difference (parallel trends holds on the
+        log-odds scale). This branch also drops the own-baseline (``gamma_own``)
+        term: the period-start score is post-treatment for the immediate arm's P2,
+        so conditioning on it would adjust a treatment-affected variable (#257
+        review). No ``kappa`` under the Bernoulli. Requires ``dose=False``.
     """
     if prepared.phase_mode != "all":
         raise ValueError("build_did_model requires phase_mode='all'")
@@ -1272,6 +1286,15 @@ def build_did_model(
         raise ValueError(
             "build_did_model hard-codes the P1-vs-P2 crossover contrast and "
             f"requires periods=(0, 1); got {periods}."
+        )
+    if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(
+            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
+            f"got {likelihood!r}"
+        )
+    if likelihood == "bernoulli_offfloor" and dose:
+        raise ValueError(
+            "bernoulli_offfloor is the floor-rule binary estimand; use dose=False"
         )
     if dose and "attend" not in prepared.covariates:
         raise KeyError("dose=True requires the 'attend' covariate to be loaded")
@@ -1299,15 +1322,31 @@ def build_did_model(
         coords["dose_phase"] = np.arange(len(periods))
     with pm.Model(coords=coords) as model:
         period_d = pm.Data("period", is_p2, dims="obs_id")
-        own_pre_d = pm.Data("own_pre_logit", pre_logit, dims="obs_id")
+        # The off-floor branch drops the own-baseline term, so it does not build the
+        # ``own_pre_logit`` data node — the period-start score may legitimately be
+        # missing there (``pre_required=()``), and a NaN data node would be a trap.
+        if likelihood != "bernoulli_offfloor":
+            own_pre_d = pm.Data("own_pre_logit", pre_logit, dims="obs_id")
 
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha")
         beta_period = _priors.tau_prior().to_pymc("beta_period")
-        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
-        eta = alpha + beta_period * period_d + gamma_own * own_pre_d
+        eta = alpha + beta_period * period_d
+
+        # Own-baseline (autoregressive) conditioning. In the graded beta-binomial DiD
+        # this is a precision term on a within-child change model. In the OFF-FLOOR
+        # (prevalence) branch it is dropped: the period-start score enters the
+        # immediate arm's period-1 rows *after* that arm's period-0 treatment, so
+        # ``gamma_own`` there would condition on a treatment-affected variable and a
+        # child random intercept does not restore the total-effect / ITT-replication
+        # reading (Rosenbaum 1984, doi:10.2307/2981697; #257 review). The off-floor
+        # estimand is Pr(off-floor at period end) identified by the period x treated
+        # DiD structure plus the child intercept, so no own-baseline term is needed.
+        if likelihood != "bernoulli_offfloor":
+            gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+            eta = eta + gamma_own * own_pre_d
 
         if use_age:
             A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
@@ -1366,15 +1405,21 @@ def build_did_model(
             eta_full = eta_base + delta * treated_d
 
         eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
-        kappa = _scalar_prior("kappa", _priors.kappa_prior)
-        beta_binomial_from_logit(
-            "y_post",
-            eta_full,
-            n_trials=n_trials,
-            kappa=kappa,
-            observed=post,
-            dims="obs_id",
-        )
+        if likelihood == "beta_binomial":
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post",
+                eta_full,
+                n_trials=n_trials,
+                kappa=kappa,
+                observed=post,
+                dims="obs_id",
+            )
+        else:  # bernoulli_offfloor: off-floor PREVALENCE Pr(post > 0); no kappa
+            off_floor = (post > 0).astype(np.int64)
+            pm.Bernoulli(
+                "y_offfloor", logit_p=eta_full, observed=off_floor, dims="obs_id"
+            )
 
     return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
 

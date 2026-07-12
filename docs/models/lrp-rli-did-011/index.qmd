@@ -1,0 +1,118 @@
+---
+title: "LRPDID11: Waitlist-crossover (DiD) ITT effect on phonetic spelling (SPPHON) (P), off-floor"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPDID11 is the **waitlist-crossover / difference-in-differences** analysis for
+phonetic spelling (`spphon`), and a within-person triangulation of the randomised
+floor-rule ITT (LRPITT09). It stacks the two early periods (P1 = t1->t2, P2 =
+t2->t3) for both arms; each child is their **own control** (a child random
+intercept), and the immediate arm - treated in both periods - anchors the
+time/maturation trend.
+
+::: {.callout-important title="The estimand is off-floor prevalence, not floor exit"}
+
+Phonetic spelling is heavily floored (a large share of period post-scores are
+zero). On the graded count scale a handful of dispersed tail values, not the arm
+contrast, would drive the fit, so the observation is a **Bernoulli on the binary
+"off-floor" indicator** (period post > 0), with no dispersion parameter.
+
+The quantity is **off-floor prevalence**, `Pr(post > 0)` at each period end over
+*every* child in the period — **not** the floor-exit transition
+`Pr(post > 0 | pre = 0)` that #119 defines as the ITT floor-rule *primary*. The two
+are materially different here: a child already off the floor at period start who
+stays off counts identically to one who moved off, so prevalence blends "already
+off + stayed" with "came off." This model uses prevalence **deliberately** (see the
+next callout for why), and its sibling **LRPITT09** carries the transition primary
+on the single randomised t1→t2 phase. Read `delta` on the off-floor prevalence
+scale — *being* off the floor at period end — never as "coming off the floor" or as
+a graded gain.
+
+:::
+
+::: {.callout-note title="What this estimand is, and is not"}
+
+The waitlist arm is the **only untreated cell** (P1) and crosses to the
+intervention in P2. The treatment coefficient is a **difference-in-differences**:
+the waitlist's P1→P2 jump in the off-floor probability *over and above* the
+immediate arm's P1→P2 change, identified jointly by the period-1 between-arm
+contrast and the waitlist's own crossover, with stable child traits differenced out
+by the random intercept.
+
+**Why prevalence and not the floor-exit transition.** Restricting to the floored
+risk set (`pre = 0`) would target floor exit directly, but for the DiD it is not
+clean: the immediate arm's P2 floored risk set is selected by that arm's *own* P1
+treatment (those it already moved off are gone), a post-treatment selection that
+contaminates the maturation-trend anchor. Prevalence keeps the DiD identification
+clean, which suits its purpose — a within-person **replication** of the randomised
+effect, not an independent estimate of floor exit.
+
+**No own-baseline term.** Unlike the graded family, this model does **not**
+condition on the period-start score. For the immediate arm's P2 that score is
+post-P1-treatment, so a `gamma_own` term would adjust a treatment-affected variable
+and the child intercept would not restore the total-effect reading (Rosenbaum 1984).
+
+::: {.callout-warning title="Parallel trends is on the log-odds scale"}
+The linear predictor is additive in `logit(p)`, so the common-trend restriction is
+on **conditional log-odds**, not probabilities. Equal log-odds changes generally
+produce **unequal** probability changes when the arms' baseline risks differ. So
+`delta_items` is a **standardised, model-implied** off-floor risk difference —
+obtained by toggling `Treated` at the fitted covariates — **not** a probability-scale
+DiD cross-difference (Puhani 2012, [doi:10.1016/j.econlet.2011.11.025](https://doi.org/10.1016/j.econlet.2011.11.025)).
+:::
+
+This off-floor DiD estimand is flagged for review sign-off (#226); read it as a
+within-person triangulation of LRPITT09, not an independent randomised result.
+
+:::
+
+## Model
+
+With $\eta_{i,p} = \alpha + \beta_{\text{period}}\,[p = \text{P2}]
++ \delta\,\text{Treated}_{i,p}
++ \gamma_{\text{own}}\,\text{logit}_*(P_{\mathrm{pre},i,p})
++ \gamma_A\,A_{\text{std},i,p} + u_{\text{child},i}$:
+
+$$
+[\,P_{\text{post},i,p} > 0\,] \sim \text{Bernoulli}\big(\sigma(\eta_{i,p})\big).
+$$
+
+`Treated` is 1 when the child is receiving the intervention that period (immediate:
+both; waitlist: P2 only). There is no dispersion $\kappa$ under the Bernoulli.
+Priors follow the shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_did.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

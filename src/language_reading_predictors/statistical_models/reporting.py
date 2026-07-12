@@ -691,7 +691,8 @@ def did_summary(
     ci_prob: float,
     n_trials: int,
     dose: bool = False,
-) -> dict[str, float]:
+    off_floor: bool = False,
+) -> dict[str, float | bool | str]:
     """Summarise the waitlist-crossover / difference-in-differences effect (kind="did").
 
     For the binary model ``delta`` is the treatment effect on the logit scale, and
@@ -702,12 +703,20 @@ def did_summary(
     central intervals at coverage ``ci_prob``. With ``dose=True`` the key
     coefficient is ``beta_dose`` (effect per 1 SD of intervention sessions) and no
     items translation is produced.
+
+    With ``off_floor=True`` (the off-floor prevalence DiD for heavily-floored P / N,
+    fitted as a Bernoulli on the off-floor indicator) the caller passes
+    ``n_trials=1`` so ``delta_items_*`` is a model-implied off-floor RISK DIFFERENCE
+    — the difference in the probability of *being* off the floor at period end
+    obtained by toggling ``Treated``, not an item count and not a probability-scale
+    DiD cross-difference. The returned ``off_floor`` flag lets the report partial
+    label the scale accordingly.
     """
     posterior = trace.posterior
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
 
-    def _summ(name: str) -> dict[str, float]:
+    def _summ(name: str) -> dict[str, float | str]:
         d = posterior[name].stack(sample=("chain", "draw")).values
         prob_pos = float(np.mean(d > 0))
         return {
@@ -720,7 +729,7 @@ def did_summary(
             f"{name}_favoured_label": evidence_label(max(prob_pos, 1.0 - prob_pos)),
         }
 
-    out: dict[str, float] = {}
+    out: dict[str, float | bool] = {}
     out.update(_summ("beta_period"))
     if dose:
         out.update(_summ("beta_dose"))
@@ -739,6 +748,7 @@ def did_summary(
     out["delta_items_mean"] = float(np.mean(eff))
     out["delta_items_lo"] = float(np.quantile(eff, lo_q))
     out["delta_items_hi"] = float(np.quantile(eff, hi_q))
+    out["off_floor"] = bool(off_floor)
     return out
 
 
