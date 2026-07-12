@@ -2013,6 +2013,8 @@ def _fit_t3_sensitivity(
         med_t3,
         ci_prob=ctx.reporting.ci_prob,
     )
+
+
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
     _require_spec(spec, "mediation")
