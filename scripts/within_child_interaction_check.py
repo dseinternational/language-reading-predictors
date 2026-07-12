@@ -8,20 +8,28 @@ an apparent ``mechanism × moderator`` interaction may be a **between-child
 ability confound** (children who are higher on one skill tend to be higher on the
 other and read better) rather than a within-child effect. This script fits an OLS
 of the logit outcome on ``z(mechanism)``, ``z(moderator)`` and their product,
-three ways:
+four ways:
 
 1. **pooled (naive)** — classical SE; ignores the 3-4 rows/child, so it
    overstates the interaction (the inflation the exploration warned about).
 2. **pooled (cluster-robust by subject)** — honest SE for the pooled estimate.
-3. **within-child (subject fixed effects)** — subject dummies absorb all
-   between-child variation, so the interaction coefficient is the *within-child*
-   effect. Cluster-robust SE.
+3. **subject fixed effects on the raw product** — subject dummies absorb the
+   between-child *levels*, but by Frisch–Waugh–Lovell the FE estimator still uses
+   the within-child variation of the **raw** product ``xL·xM``, which retains
+   cross-level terms (between-child levels × within-child changes). So this
+   coefficient is **not** a clean within-child interaction. Kept only as a
+   contrast against estimator 4. Cluster-robust SE.
+4. **within-child (double-demeaned product)** — the genuine within-child
+   interaction: the product of the *within-demeaned* components
+   ``(xL − x̄L_i)·(xM − x̄M_i)`` alongside subject fixed effects
+   (Giesselmann & Schmidt-Catran 2020, DOI 10.1177/0081175020966850). This is the
+   estimator the verdict reads. Cluster-robust SE.
 
-If the interaction is large pooled but collapses to ~0 within-child, it is a
+If the interaction is large pooled but collapses to ~0 on estimator 4, it is a
 between-child confound, not a developmental/skill-combination effect. This is the
 check that contextualises LRP71 (phonics×vocab) and LRP72 (blending×letter-sound);
 LRP73 (letter-sound×age) is its primary use — age is overwhelmingly a
-between-child variable.
+between-child variable, so the FE-raw-product contamination is largest there.
 
 The outcome / predictors are entered on the same logit scale the Bayesian models
 use; OLS here is a rough linear diagnostic, not the inferential model (note: the
@@ -96,6 +104,11 @@ def run_check(mechanism: str, moderator: str, outcome: str) -> pd.DataFrame:
     subject = prepared.subject_ids[keep]
 
     df = pd.DataFrame({"y": y, "xL": xL, "xM": xM, "subject": subject.astype(str)})
+    # Within-child (double-)demeaned components and their product — the genuine
+    # within-child interaction regressor (estimator 4).
+    df["xL_dm"] = df.groupby("subject")["xL"].transform(lambda s: s - s.mean())
+    df["xM_dm"] = df.groupby("subject")["xM"].transform(lambda s: s - s.mean())
+    df["xLM_dm"] = df["xL_dm"] * df["xM_dm"]
     groups = df["subject"]
     n_obs, n_children = len(df), df["subject"].nunique()
 
@@ -106,14 +119,18 @@ def run_check(mechanism: str, moderator: str, outcome: str) -> pd.DataFrame:
     within_fe = smf.ols("y ~ xL * xM + C(subject)", data=df).fit(
         cov_type="cluster", cov_kwds={"groups": groups}
     )
+    within_demeaned = smf.ols(
+        "y ~ xL_dm + xM_dm + xLM_dm + C(subject)", data=df
+    ).fit(cov_type="cluster", cov_kwds={"groups": groups})
 
     rows = []
-    for name, fit in [
-        ("pooled_naive", pooled_naive),
-        ("pooled_cluster", pooled_cluster),
-        ("within_child_fe", within_fe),
+    for name, fit, term in [
+        ("pooled_naive", pooled_naive, "xL:xM"),
+        ("pooled_cluster", pooled_cluster, "xL:xM"),
+        ("within_child_fe_raw", within_fe, "xL:xM"),
+        ("within_child_demeaned", within_demeaned, "xLM_dm"),
     ]:
-        r = _interaction_row(fit)
+        r = _interaction_row(fit, term=term)
         r.update({"estimator": name, "n_obs": n_obs, "n_children": n_children})
         rows.append(r)
     out = pd.DataFrame(rows)[
@@ -156,10 +173,10 @@ def main() -> None:
     print(f"\nWrote {path}")
 
     naive = out.loc[out.estimator == "pooled_naive", "t"].iloc[0]
-    within = out.loc[out.estimator == "within_child_fe", "t"].iloc[0]
+    within = out.loc[out.estimator == "within_child_demeaned", "t"].iloc[0]
     print(
-        f"\nInteraction |t|: pooled-naive={abs(naive):.2f} -> within-child="
-        f"{abs(within):.2f}. "
+        f"\nInteraction |t|: pooled-naive={abs(naive):.2f} -> within-child "
+        f"(double-demeaned)={abs(within):.2f}. "
         + (
             "Collapses within-child => between-child confound."
             if abs(within) < 2 <= abs(naive)
