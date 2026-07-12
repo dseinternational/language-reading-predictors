@@ -3,8 +3,25 @@
 ```{python}
 # | echo: false
 # | output: asis
+_RE_KINDS_LOO = {
+    "mechanism",
+    "gain_factors",
+    "level_factors",
+    "did",
+    "dose_response",
+    "lcsm",
+    "growth",
+}
 if _has("loo.txt"):
     print("```\n" + open(_here / "loo.txt").read() + "\n```")
+    if config.get("kind") in _RE_KINDS_LOO:
+        print(
+            "\n_Note:_ this family carries a per-child random intercept, so its "
+            "PSIS-LOO is **conditional** (within-child, one-row-out) — elpd predicts a "
+            "held-out child × phase/period row given that child's own fitted intercept, "
+            "not a new child. It is comparable only against models with the same "
+            "grouping on the same rows (as the nested interaction/dose comparators are)."
+        )
 else:
     print("_No LOO summary for this model (e.g. the mediation family does not compute one)._")
 ```

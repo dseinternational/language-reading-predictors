@@ -149,3 +149,30 @@ def test_gate_var_names_unions_free_rvs_with_curated_and_filters_present():
 def test_gate_var_names_falls_back_without_model():
     ctx = SimpleNamespace(model=None, trace=None)
     assert diag._gate_var_names(ctx, ["tau"]) == ["tau"]
+
+
+def test_thin_posterior_only_keeps_prior_full():
+    # Issue #270 item 1: thinning must not decimate the small 1-chain prior group.
+    dt = xr.DataTree.from_dict(
+        {
+            "posterior": xr.Dataset(
+                {"tau": (("chain", "draw"), np.zeros((6, 6000)))},
+                coords={"chain": range(6), "draw": range(6000)},
+            ),
+            "prior": xr.Dataset(
+                {"tau": (("chain", "draw"), np.zeros((1, 1000)))},
+                coords={"chain": range(1), "draw": range(1000)},
+            ),
+        }
+    )
+    thinned = diag.thin_posterior_only(dt, max_draws=1000)
+    post_total = thinned.posterior.sizes["chain"] * thinned.posterior.sizes["draw"]
+    assert post_total <= 1100  # posterior thinned
+    assert post_total < 36000
+    assert thinned.prior.sizes["draw"] == 1000  # prior untouched (was the bug)
+
+    # A small posterior is returned unchanged.
+    small = xr.DataTree.from_dict(
+        {"posterior": xr.Dataset({"tau": (("chain", "draw"), np.zeros((2, 250)))})}
+    )
+    assert diag.thin_posterior_only(small, max_draws=1000) is small
