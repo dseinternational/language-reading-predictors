@@ -22,15 +22,18 @@ Design (see `factories.build_mediation_model` + `mediation.decompose`):
   computed by counterfactual simulation from the posterior (the g-formula), NOT
   as a coefficient product (invalid on the logit scale).
 
-**Adjustment set {G, A, HS, SP, L_t1, W_pre}** (revised DAG, #246) — randomisation
-handles G->Y and G->M confounding; the binding unverifiable assumption is no
-unmeasured mediator-outcome (L->W) confounding. Under the revised DAG the L->W
-confounders are age (A), hearing (HS; hs/hs_missing) and speech production
-(SP; deapp_c), all pre-treatment, plus the baselines L_t1, W_t1. The old E/R
-adjusters are **dropped**: EV and RV are now descendants of the intervention
-(IG->TE->EV, IG->TR->RV), so conditioning on them would adjust a **treatment-affected**
-confounder and violate the cross-world assumption (the recanting-witness problem).
-Confounders are taken at **baseline (t1)**, not post (t2). The report states the
+**Adjustment set {G, A, E, R, HS, SP, L_t1, W_pre}** (revised DAG, #246) —
+randomisation handles G->Y and G->M confounding; the binding unverifiable
+assumption is no unmeasured mediator-outcome (L->W) confounding. Under the revised
+DAG the L->W confounders are age (A), hearing (HS; hs/hs_missing) and speech
+production (SP; deapp_c), plus the baselines L_t1, W_pre. **Baseline expressive /
+receptive vocabulary (E, R) are retained** pending the time-indexed d-separation
+(#264): they are measured at **t1 (pre-randomisation)**, so they cannot be
+descendants of the t1->t2 intervention and the recanting-witness / treatment-
+affected-confounder argument does not apply to them; the descendant relation read
+off the contemporaneous graph is not sufficient to drop a baseline measurement.
+Whether they stay is #264's call, on a proper wave-unrolled derivation. All
+confounders enter at **baseline (t1)**, not post (t2). The report states the
 assumptions prominently and names residual confounding as the limit.
 
 **Not an identified natural effect.** Beyond the unmeasured L->W confounding, a

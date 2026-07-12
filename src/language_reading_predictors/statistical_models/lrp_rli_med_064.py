@@ -17,12 +17,14 @@ Design (see `factories.build_two_mediator_model` + `mediation.decompose_two_medi
   baseline; the **outcome** leg adds both standardised post-mediators and their
   treatment interactions. NDE/NIE are computed by counterfactual simulation (the
   g-formula), not from coefficients.
-- **Adjustment {G, A, HS, RW, SP, W_pre, L_t1, E_t1}** (revised DAG, #246): the
+- **Adjustment {G, A, R, HS, RW, SP, W_pre, L_t1, E_t1}** (revised DAG, #246): the
   pre-treatment {L,E}->W confounders are age (A), hearing (HS), phonological memory
-  (RW; erbto) and speech (SP; deapp_c), taken at baseline. R is **dropped** — under
-  the revised DAG RV is a descendant of the intervention (IG->TR->RV), so it is a
-  treatment-affected confounder (recanting-witness) and inadmissible; E is a
-  *mediator* here, not a confounder.
+  (RW; erbto) and speech (SP; deapp_c), taken at baseline. Baseline receptive
+  vocabulary (R) is **retained** pending the time-indexed d-separation (#264): it is
+  measured at t1 (pre-randomisation), so it cannot be a descendant of the t1->t2
+  intervention and the treatment-affected / recanting-witness argument does not
+  apply; whether it stays is #264's call. E is a *mediator* here (E_t1 is its
+  baseline), not a confounder.
 
 Framing (the headline is robust; the split is exploratory):
 

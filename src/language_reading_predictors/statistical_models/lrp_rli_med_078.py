@@ -4,32 +4,32 @@
 """LRP78 - interventional-effects decomposition of word reading via letter sounds.
 
 Every other mediation model reports **natural** direct/indirect effects (NDE/NIE).
-But the DAG's own identification analysis (ID-2, §11) states that dose ``IS`` is a
-**treatment-induced mediator-outcome confounder** of the letter-sound -> reading
-path — and under a treatment-induced confounder the natural effects are formally
-**not identified** (no adjustment set recovers them). The randomised
-**interventional** analogue effects (Vansteelandt & VanderWeele; VanderWeele,
-Vansteelandt & Tchetgen Tchetgen 2014) remain well-defined in exactly that setting,
-because the mediator is set to a random draw from its *population* arm-g
-distribution rather than the unit's own natural counterfactual — severing the
-unit-level link to the treatment-induced confounder.
+The natural effects rely on a *cross-world* quantity, and under this DAG they are
+**not identified** — latent general ability confounds the mediator->outcome path,
+and the intervention dose ``IS`` is a treatment-induced mediator-outcome confounder
+(ID-2, §11). The randomised **interventional** analogue (IDE / IIE; VanderWeele,
+Vansteelandt & Robins 2014) invokes no cross-world quantity and so escapes the
+dose obstacle, but it still assumes **no unmeasured mediator-outcome confounding**
+(Hejazi et al. 2022, assumption A5) — a weaker-assumption target, not an identified
+one. See METHODS.md and #260.
 
-LRP78 is therefore the estimand-class repair of LRP59: the same joint mediator +
-outcome model (letter sounds L -> word reading W, adjustment {G, A, E, R, W_pre,
-L_t1}), but the g-formula returns the **interventional direct/indirect effects**
-(IDE / IIE) instead of NDE / NIE. Compare its IIE against LRP59's NIE: agreement
-means the natural decomposition was not badly distorted by the dose confounder;
-divergence flags that it was.
+LRP78 is the interventional-*interpretation* companion to LRP59: the **same** joint
+mediator + outcome model (letter sounds L -> word reading W) with the **same**
+adjustment set, but the decomposition is labelled interventional (IDE / IIE). The
+mediator is drawn from its fitted covariate-conditional law ``P(M | C, g)`` within
+strata — exactly what the g-formula already simulates — so in this fully parametric
+model with no unit-level latent terms the interventional draw **coincides
+numerically** with LRP59's natural-branch computation. The difference is
+interpretive (a weaker-assumption estimand class), not a different number.
 
-Implementation: `mediation.decompose(interventional=True)` permutes the simulated
-mediator across units per replicate (a fresh population draw for each
-counterfactual cell). The t3 temporal-ordering sensitivity is skipped (it is a
-natural-effect construction; the interventional estimand is the point here).
-
-Honesty: the interventional effects fix the *treatment-induced*-confounder problem,
-but the mediator-outcome relationship is **still `GA`-confounded** (ID-2's other
-leg), so IDE/IIE remain adjusted associations under stated assumptions — a *better*
-estimand class, not a causal route. ``n ~ 53`` -> wide intervals.
+Do **not** read an IIE-vs-NIE gap as a dose-distortion diagnostic: ``IS`` never
+enters the fitted model, so the interventional functional can neither repair nor
+detect dose confounding. (An earlier version drew the mediator from the *marginal*
+population distribution by permuting it across units — a cruder estimand whose
+divergence from LRP59 reflected covariate decoupling, not dose confounding — which
+is corrected in ``mediation.decompose``; #268.) The t3 temporal-ordering
+sensitivity is skipped (a natural-effect construction). ``n ~ 53`` -> wide
+intervals; IDE/IIE remain adjusted associations under stated assumptions.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -40,11 +40,16 @@ SPEC = ModelSpec(
     kind="mediation",
     title=(
         "Interventional-effects decomposition: word reading (W) via letter sounds "
-        "(L), robust to the treatment-induced dose confounder"
+        "(L) - the interventional-interpretation companion to LRP59"
     ),
     outcome_symbol="W",
     mechanism_symbol="L",  # the mediator
-    adjustment=["G", "A", "E", "R", "W_pre", "L_t1"],
+    # Mirror LRP59 exactly (post-#259) so the IDE/IIE-vs-NDE/NIE comparison is
+    # like-for-like: same adjustment set, only the estimand class differs (#268).
+    adjustment=[
+        "G", "A", "E", "R", "L_t1", "W_pre",
+        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+    ],
     extra={"estimand": "interventional"},
 )
 

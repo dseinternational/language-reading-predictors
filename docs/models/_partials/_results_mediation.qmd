@@ -53,17 +53,17 @@ if mediation_summary is not None:
         _tot = _m.loc[_total_name]
         _ind = _m.loc[_indirect_name]
         print(
-            f"**Total effect:** {_tot.words_mean:+.1f} words "
+            f"**Total effect:** {_tot.words_median:+.1f} words "
             f"(95% CrI {_tot.words_lo:+.1f} to {_tot.words_hi:+.1f}); "
             f"P(> 0) = {_tot.prob_pos:.3f}.\n\n"
-            f"**Indirect path (`{_indirect_name}`):** {_ind.words_mean:+.1f} words "
+            f"**Indirect path (`{_indirect_name}`):** {_ind.words_median:+.1f} words "
             f"(95% CrI {_ind.words_lo:+.1f} to {_ind.words_hi:+.1f}); "
             f"P(> 0) = {_ind.prob_pos:.3f}."
         )
     if "proportion_mediated" in _m.index:
         _p = _m.loc["proportion_mediated"]
         print(
-            f"\n\n**Proportion mediated/share:** median {_p.prob_mean:.2f} "
+            f"\n\n**Proportion mediated/share:** median {_p.prob_median:.2f} "
             f"(95% CrI {_p.prob_lo:.2f} to {_p.prob_hi:.2f}). This ratio is "
             "unstable when the total effect can cross zero; lead with Total, "
             "NDE, and NIE intervals."
