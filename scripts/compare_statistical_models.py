@@ -24,6 +24,8 @@ Requires ``trace.nc`` and ``tau_summary.csv`` under
 from __future__ import annotations
 
 import argparse
+import glob
+import json
 import os
 
 import arviz as az
@@ -119,6 +121,30 @@ def _run_dir(model_id: str, config: str) -> str:
     return os.path.join(str(_paths.stat_models_dir()), f"{model_id}-{config}")
 
 
+def _gate_status(model_id: str, config: str) -> str:
+    """Convergence-gate verdict for a fitted run (issue #274 item 3).
+
+    Reads ``diagnostics_summary.json`` from the run directory and returns
+    ``"PASS"`` / ``"REVIEW"`` / ``"MISSING"``. A ``REVIEW`` fit "is not
+    interpretable — fix the model, do not report it" (METHODS.md), so a tau/slope
+    from such a run must never enter the comparison forests unmarked.
+    """
+    path = os.path.join(_run_dir(model_id, config), "diagnostics_summary.json")
+    if not os.path.exists(path):
+        return "MISSING"
+    try:
+        with open(path) as f:
+            payload = json.load(f)
+    except Exception:  # pragma: no cover - defensive
+        return "MISSING"
+    return "PASS" if payload.get("passed") is True else "REVIEW"
+
+
+def _gate_ok(model_id: str, config: str) -> bool:
+    """True only if the run exists and its gate passed."""
+    return _gate_status(model_id, config) == "PASS"
+
+
 # ---------------------------------------------------------------------------
 # ITT vs joint
 # ---------------------------------------------------------------------------
@@ -137,6 +163,7 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
                 "outcome": outcome,
                 "source": model_id,
                 "floored": outcome in FLOORED_SYMBOLS,
+                "converged": _gate_ok(model_id, config),
                 "tau_median": df["tau_logit_median"].iloc[0],
                 "tau_lo": df["tau_logit_lo"].iloc[0],
                 "tau_hi": df["tau_logit_hi"].iloc[0],
@@ -146,6 +173,7 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
     if not os.path.exists(joint_path):
         return None
     joint = pd.read_csv(joint_path)
+    joint_ok = _gate_ok(JOINT_ID, config)
     for _, row in joint.iterrows():
         rows.append(
             {
@@ -153,6 +181,7 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
                 "outcome": row["outcome"],
                 "source": JOINT_ID,
                 "floored": row["outcome"] in FLOORED_SYMBOLS,
+                "converged": joint_ok,
                 "tau_median": row["tau_median"],
                 "tau_lo": row["tau_lo"],
                 "tau_hi": row["tau_hi"],
@@ -509,6 +538,7 @@ def build_mediation_family(config: str) -> pd.DataFrame | None:
                 "model": model_id,
                 "route": label,
                 "estimand": indirect_row,
+                "converged": _gate_ok(model_id, config),
                 "indirect_words": float(ind["words_mean"]),
                 "indirect_lo": float(ind["words_lo"]),
                 "indirect_hi": float(ind["words_hi"]),
@@ -562,6 +592,45 @@ def mediation_family_forest(df: pd.DataFrame, out_path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _report_gate_status(config: str) -> None:
+    """Print a convergence-gate roll-call for every fitted run of this config.
+
+    Any REVIEW fit whose tau/slope feeds a comparison below is thereby surfaced
+    (issue #274 item 3): the comparison CSVs carry a per-row ``converged`` flag,
+    and this roll-call names the offenders up front so a non-converged fit's
+    numbers cannot slip into the forests unnoticed. A REVIEW fit "is not
+    interpretable — fix the model, do not report it" (METHODS.md).
+    """
+    models_dir = str(_paths.stat_models_dir())
+    suffix = f"-{config}"
+    run_dirs = sorted(
+        d
+        for d in glob.glob(os.path.join(models_dir, f"*{suffix}"))
+        if os.path.isdir(d) and os.path.exists(os.path.join(d, "config.json"))
+    )
+    if not run_dirs:
+        return
+    review: list[str] = []
+    missing: list[str] = []
+    for d in run_dirs:
+        model_id = os.path.basename(d)[: -len(suffix)]
+        status = _gate_status(model_id, config)
+        if status == "REVIEW":
+            review.append(model_id)
+        elif status == "MISSING":
+            missing.append(model_id)
+    n = len(run_dirs)
+    n_pass = n - len(review) - len(missing)
+    print(f"\nConvergence gate ({config}): {n_pass}/{n} PASS")
+    if review:
+        print("  ⚠ REVIEW (not interpretable — flagged in the comparison CSVs):")
+        for model_id in review:
+            print(f"      {model_id}")
+    if missing:
+        print(f"  ({len(missing)} run(s) with no diagnostics_summary.json)")
+    print()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="dev")
@@ -586,6 +655,8 @@ def main() -> None:
     print(f"Output root: {_paths.describe_output_root()}")
     args.out = args.out or str(_paths.stat_comparison_dir())
     os.makedirs(args.out, exist_ok=True)
+
+    _report_gate_status(args.config)
 
     itt_joint = build_itt_vs_joint(args.config)
     if itt_joint is not None:

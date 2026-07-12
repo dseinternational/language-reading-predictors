@@ -325,6 +325,43 @@ def _summarise_deterministics(
         rprint(f"[yellow]deterministics summary skipped: {exc}[/yellow]")
 
 
+def _gate_var_names(
+    context: StatisticalFitContext, curated: list[str] | None
+) -> list[str] | None:
+    """Full-coverage variable set for the convergence gate (issue #274 item 2).
+
+    The per-family ``var_names`` lists passed by the pipeline are hand-curated
+    *headline scalars* — right for the human-readable ``diagnostics.csv`` and the
+    prior-overlay, but they silently omit the parameters where hierarchical models
+    at n ~ tens actually fail: the non-centred per-child intercept vector
+    (``u_child_raw``), the HSGP amplitude / lengthscale / basis-weight RVs, and the
+    joint model's LKJ block. So the gate scanned only the scalars it already
+    trusted.
+
+    Gate R-hat / ESS over the model's **free RVs** instead — which include exactly
+    those, and *exclude* the per-observation deterministics (``eta`` / ``theta`` /
+    ``f_mech``) that ``var_names=None`` would drag in and that would bloat and slow
+    the scan — unioned with the curated headline terms so the causal
+    *deterministics* (``tau``, ``delta``, the AMEs) stay covered as well. Names are
+    filtered to those actually present in the posterior so a headline term a given
+    fit does not instantiate cannot make ``az.summary`` raise. Falls back to the
+    curated list if the model is unavailable.
+    """
+    if context.model is None:
+        return curated
+    try:
+        free = [rv.name for rv in context.model.free_RVs]
+    except Exception:  # pragma: no cover - defensive
+        return curated
+    names = list(dict.fromkeys([*free, *(curated or [])]))  # de-dup, preserve order
+    try:
+        post = context.trace.posterior
+        names = [n for n in names if n in post]
+    except Exception:  # pragma: no cover - defensive
+        pass
+    return names or None
+
+
 def write_diagnostics_summary(
     context: StatisticalFitContext,
     *,
@@ -334,16 +371,25 @@ def write_diagnostics_summary(
 
     Thin wrapper over :func:`dse_research_utils.statistics.diagnostics.write_diagnostics_summary`
     so the convergence gate (and its JSON schema) is defined once across DSE
-    projects. The shared implementation evaluates the gate on *unrounded* R-hat
-    (``round_to=None`` — a borderline 1.01004 would otherwise round to 1.0100 and
-    slip through) and treats a non-finite per-chain BFMI as a failure rather than
-    letting it pass order-dependently. Written unconditionally for every family
-    (incl. mediation, which has no LOO) so the report's banner always renders.
+    projects. The shared implementation (>= v0.7.0) evaluates the gate on
+    *unrounded* R-hat / ESS — ``round_to="none"``, the string; ``round_to=None``
+    would fall through to ``rcParams["stats.round_to"]`` (2 sig figs) so a
+    borderline 1.01004 would round to 1.0100 and slip through the ``<= 1.01`` gate
+    (dseinternational/research#65) — and treats a non-finite per-chain BFMI as a
+    failure rather than letting it pass order-dependently. Written unconditionally
+    for every family (incl. mediation, which has no LOO) so the report's banner
+    always renders.
+
+    The R-hat / ESS scan runs over :func:`_gate_var_names` (the model's free RVs +
+    the curated headline terms), **not** the ``var_names`` alone, so the per-child
+    random-intercept vector and the GP / LKJ hyperparameters are gated (issue
+    #274 item 2). The curated ``var_names`` still drive the human-readable
+    ``diagnostics.csv`` (via :func:`summary_diagnostics`) and the prior-overlay.
     """
     return _shared_write_diagnostics_summary(
         context.trace,
         context.output_dir,
-        var_names=var_names,
+        var_names=_gate_var_names(context, var_names),
         tables=context.tables,
     )
 
