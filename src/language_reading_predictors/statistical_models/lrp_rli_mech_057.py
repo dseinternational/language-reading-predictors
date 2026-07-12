@@ -14,8 +14,15 @@ Revised-DAG (2026-07-10, #245) adjustment set. Observed parents of EV are
 - W_pre: autoregressive baseline.
 
 F, L, P, B are descendants of E or lie on post-E mediation paths and are
-excluded. GA is latent (child random-intercept proxy), so f^E is an adjusted
-association, not a causal effect.
+excluded.
+
+GA (latent general ability) is NOT adjusted for, and the child random intercept does
+**not** stand in for it: a zero-mean, predictor-independent random effect captures
+stable residual heterogeneity and repeated-measure dependence, but cannot block
+``E <- GA -> W`` or isolate a within-child association. That would need a
+within/between decomposition, Mundlak terms, child fixed effects or an RI-CLPM, none
+of which is fitted here. **Residual confounding by GA remains**, and f^E is an
+**adjusted association**, not a causal effect.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -38,6 +45,13 @@ SPEC = ModelSpec(
         "use_age_gp": False,
         "phase_specific_mechanism": False,
         "use_subject_random_intercept": True,
+        # LINEAR mechanism, not the HSGP curve — see the matching note in LRP56. The
+        # nonparametric f_mech(E) curve does not converge at reporting tier (~200
+        # divergences, unmoved by target_accept 0.99); the DAG-required adjusters
+        # are kept and the mechanism enters linearly instead, which converges
+        # cleanly (0 divergences), per the #258 review. The estimand is the LINEAR
+        # E -> W adjusted association.
+        "linear_mechanism": True,
     },
 )
 

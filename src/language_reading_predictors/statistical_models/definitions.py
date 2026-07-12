@@ -164,13 +164,16 @@ _DID = [
     _d("lrpdid06", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "dose-response sensitivity (sessions)", base="lrpdid01"),
     _d("lrpdid07", "did", "Within-person DiD", Status.ROBUSTNESS, "L", "session-dose response (period-resolved)", base="lrpdid02"),
     _d("lrpdid07base", "did", "Within-person DiD", Status.COMPANION, "L", "pooled-dose comparator", base="lrpdid07"),
-    # Waitlist-crossover extensions (#226): graded outcomes only. TR/E replicate
-    # their ITT siblings; F (basic concepts) has no ITT sibling (outside the eight
-    # standardised outcomes). The floored P/N DiDs need off-floor support in the
-    # DiD factory and are a separate follow-up.
+    # Waitlist-crossover extensions (#226). TR/E replicate their ITT siblings;
+    # F (basic concepts) has no ITT sibling (outside the eight standardised
+    # outcomes). The floored P/N DiDs (011/012) take the off-floor floor rule -
+    # a Bernoulli on the off-floor indicator, so delta is the within-person effect
+    # on the log-odds of coming off the floor - mirroring siblings LRPITT09/11.
     _d("lrpdid08", "did", "Within-person DiD", Status.ROBUSTNESS, "TR", "waitlist-crossover replication", base="lrpitt01"),
     _d("lrpdid09", "did", "Within-person DiD", Status.ROBUSTNESS, "E", "waitlist-crossover replication", base="lrpitt06"),
     _d("lrpdid10", "did", "Within-person DiD", Status.ROBUSTNESS, "F", "waitlist-crossover (no randomised ITT sibling)"),
+    _d("lrpdid11", "did", "Within-person DiD", Status.ROBUSTNESS, "P", "waitlist-crossover replication (off-floor)", base="lrpitt09"),
+    _d("lrpdid12", "did", "Within-person DiD", Status.ROBUSTNESS, "N", "waitlist-crossover replication (off-floor)", base="lrpitt11"),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------
@@ -178,6 +181,7 @@ _MECH = [
     _d("lrp56", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "receptive vocabulary -> word reading"),
     _d("lrp57", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "expressive vocabulary -> word reading"),
     _d("lrp58", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "letter sounds -> word reading"),
+    _d("lrp158", "mechanism", "Mechanism", Status.COMPANION, "W", "complete-case comparator (no imputed confounders)", base="lrp58"),
     _d("lrp71", "mechanism", "Moderation", Status.ASSOCIATION, "W", "expressive-vocabulary moderation"),
     _d("lrp72", "mechanism", "Moderation", Status.ASSOCIATION, "N", "phonics route (letter-sound x blending -> decoding)"),
     _d("lrp72base", "mechanism", "Moderation", Status.COMPANION, "N", "no-interaction baseline", base="lrp72"),

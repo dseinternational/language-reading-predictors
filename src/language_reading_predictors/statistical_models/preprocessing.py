@@ -122,6 +122,22 @@ class PreparedData:
     """Standardised non-outcome covariates keyed by source column name."""
     covariate_scalers: dict[str, Standardiser] = field(default_factory=dict)
     """Mean / SD scalers for entries in :attr:`covariates`."""
+    covariate_time: dict[str, str] = field(default_factory=dict)
+    """Measurement wave each entry of :attr:`covariates` was read from.
+
+    One of ``"pre"`` (the transition's pre row — interval variables such as
+    sessions), ``"post"`` (the transition's post row, contemporaneous with the
+    exposure and outcome — state variables such as hearing) or ``"baseline"`` (the
+    t1 row, broadcast across rows). Recorded so a fit can persist the **effective**
+    adjustment set with its timing, rather than only the requested symbols.
+    """
+    dropped_covariates: tuple[str, ...] = ()
+    """Requested covariates dropped because they were constant on the fitted rows.
+
+    A ``{col}_missing`` indicator goes constant when the column is complete (all
+    zero) or wholly missing (all one). Such a covariate gets **no coefficient**, so
+    it must not appear in the reported adjustment set.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +191,38 @@ def add_hearing_status(df: pd.DataFrame) -> pd.DataFrame:
 MISSING_INDICATOR_COVARIATES: tuple[str, ...] = ("deapp_c", "erbto")
 
 
+#: Covariates whose value describes the **interval following** the row's wave rather
+#: than the state *at* that wave — so they are correctly read from the transition's
+#: **pre** row, not its post row.
+#:
+#: Only ``attend`` (cumulative intervention sessions) has this semantics: it counts
+#: sessions delivered *during* the pre -> post interval, and it is recorded at t1-t3
+#: with no t4 value at all, which is what a "sessions during the following interval"
+#: variable looks like.
+#:
+#: Everything else in an adjustment set is a **state** (hearing status, speech
+#: production, phonological memory), measured at every wave, and the authoritative
+#: DAG is **contemporaneous** — so those must be read from the same wave as the
+#: exposure, the outcome and the bounded-count confounders, i.e. the **post** row.
+#: Reading them from the pre row would fit a hybrid pre/post adjustment set that is
+#: not the observed-parent set any graph licenses (#258 review, P1).
+INTERVAL_COVARIATES: frozenset[str] = frozenset({"attend"})
+
+
+def split_covariates_by_wave(
+    names: tuple[str, ...],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Split adjustment covariates into (pre-row, post-row) by their semantics.
+
+    See :data:`INTERVAL_COVARIATES`. Interval variables (sessions) belong on the
+    transition's pre row; state variables belong on its post row, contemporaneous
+    with the exposure and outcome.
+    """
+    pre = tuple(c for c in names if c in INTERVAL_COVARIATES)
+    post = tuple(c for c in names if c not in INTERVAL_COVARIATES)
+    return pre, post
+
+
 def add_missing_indicator_covariates(df: pd.DataFrame) -> pd.DataFrame:
     """Fill + flag the continuous DAG-confounder covariates SP / RW (#245).
 
@@ -206,7 +254,9 @@ def load_and_prepare(
     phase_mode: str = "itt",
     outcomes: tuple[str, ...] = ITT_OUTCOMES,
     covariates: tuple[str, ...] = (),
+    post_covariates: tuple[str, ...] = (),
     baseline_covariates: tuple[str, ...] = (),
+    require_observed: tuple[str, ...] = (),
     drop_missing_pre: bool = True,
     restrict_complete: tuple[str, ...] = (),
     post_time: int = 4,
@@ -311,6 +361,15 @@ def load_and_prepare(
     extra_cols = list(dict.fromkeys([*covariates, *restrict_complete]))
     out_cols = [MEASURES[s].column for s in outcomes]
 
+    post_covariates = tuple(post_covariates)
+    overlap = set(post_covariates) & set(extra_cols)
+    if overlap:
+        raise ValueError(
+            "A covariate cannot be read from both the pre and the post row: "
+            f"{sorted(overlap)} appear in both `covariates`/`restrict_complete` "
+            "and `post_covariates`."
+        )
+
     # ``itt``/``all`` are autoregressive (pre -> post over a transition); ``levels``
     # is not (the score at each timepoint is the outcome, no own baseline).
     has_pre = phase_mode in {"itt", "all", "span"}
@@ -334,7 +393,14 @@ def load_and_prepare(
                 df[V.TIME] == t_pre,
                 [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols + extra_cols,
             ].copy()
-            post = df.loc[df[V.TIME] == t_post, [V.SUBJECT_ID] + out_cols].copy()
+            # State covariates (hearing, speech, phonological memory) are read from
+            # the POST row, contemporaneous with the exposure, outcome and bounded
+            # confounders — the DAG is a contemporaneous graph. Interval covariates
+            # (sessions) stay on the pre row. See ``INTERVAL_COVARIATES``.
+            post = df.loc[
+                df[V.TIME] == t_post,
+                [V.SUBJECT_ID] + out_cols + list(post_covariates),
+            ].copy()
             pre = pre.rename(columns={c: f"{c}_pre" for c in out_cols})
             post = post.rename(columns={c: f"{c}_post" for c in out_cols})
             m_frame = pre.merge(post, on=V.SUBJECT_ID, how="inner")
@@ -350,9 +416,14 @@ def load_and_prepare(
         timepoints = [1, 2, 3, 4]
         per_tp_frames: list[pd.DataFrame] = []
         for tp_idx, t in enumerate(timepoints):
+            # No pre/post split here: the row IS the wave, so a post covariate and a
+            # pre covariate are the same column. Take both from the timepoint row.
             frame = df.loc[
                 df[V.TIME] == t,
-                [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols + extra_cols,
+                [V.SUBJECT_ID, V.GROUP, V.AGE]
+                + out_cols
+                + extra_cols
+                + list(post_covariates),
             ].copy()
             frame = frame.rename(columns={c: f"{c}_post" for c in out_cols})
             frame["phase"] = tp_idx
@@ -390,11 +461,35 @@ def load_and_prepare(
     n_before = len(merged)
 
     if drop_missing_pre:
-        required = [V.GROUP, V.AGE] + required_pre + extra_cols + list(baseline_covariates)
+        required = (
+            [V.GROUP, V.AGE]
+            + required_pre
+            + extra_cols
+            + list(post_covariates)
+            + list(baseline_covariates)
+        )
         mask_complete = merged[required].notna().all(axis=1)
         # Also require at least one post outcome to be present.
         mask_any_post = merged[required_post].notna().any(axis=1)
         merged = merged[mask_complete & mask_any_post].reset_index(drop=True)
+
+    # COMPLETE-CASE sensitivity (#258 review). ``hs`` / ``deapp_c`` / ``erbto`` reach
+    # the frame already mean-filled, with a ``{col}_missing`` flag carrying the
+    # unknown group as its own adjustment level. That keeps every child, but
+    # mean-imputation plus an indicator does **not** by itself guarantee adequate
+    # confounding control — it assumes the imputed group's confounder effect is
+    # captured by a single intercept shift. ``require_observed`` drops the imputed
+    # rows so a fit can be re-run on genuinely observed confounders only, and the
+    # two compared. The indicators then go constant (all zero) and are dropped
+    # downstream, so the comparator estimates no vacuous coefficient.
+    for name in require_observed:
+        flag = f"{name}_missing"
+        if flag not in merged.columns:
+            raise KeyError(
+                f"require_observed={name!r} needs a {flag!r} column; it is produced "
+                "by add_hearing_status / add_missing_indicator_covariates."
+            )
+        merged = merged[merged[flag] == 0.0].reset_index(drop=True)
 
     dropped = n_before - len(merged)
     if dropped > 0:
@@ -451,22 +546,39 @@ def load_and_prepare(
 
     covariate_values: dict[str, np.ndarray] = {}
     covariate_scalers: dict[str, Standardiser] = {}
-    for c in (*covariates, *baseline_covariates):
-        if merged[c].nunique(dropna=True) <= 1:
-            # Constant on the loaded rows (e.g. a missing-indicator with no missing
-            # values in this subset): carries no information and cannot be
-            # standardised, so drop it rather than divide by zero. It receives no
-            # model coefficient; callers that iterate covariates must tolerate a
-            # requested covariate being absent.
-            warnings.warn(
-                f"load_and_prepare: covariate {c!r} is constant on the loaded rows; "
-                "dropping it (no coefficient).",
-                stacklevel=2,
-            )
-            continue
-        z, scaler = standardise(merged[c])
-        covariate_values[c] = z
-        covariate_scalers[c] = scaler
+    covariate_time: dict[str, str] = {}
+    dropped_covariates: list[str] = []
+    _wave_of = [
+        (covariates, "pre"),
+        (post_covariates, "post"),
+        (baseline_covariates, "baseline"),
+    ]
+    for names, wave in _wave_of:
+        for c in names:
+            col = merged[c]
+            # A CONSTANT covariate carries no information and cannot be
+            # standardised (sd = 0). This is not hypothetical: a ``{col}_missing``
+            # indicator is all-zero when the column is complete on the fitted rows
+            # and all-one when it is wholly missing, and either case previously
+            # raised ValueError("Standard deviation of x must be positive.") from
+            # deep inside the loader. Drop it with a warning instead, and record it
+            # so the caller can report the *effective* adjustment set rather than
+            # the requested one (#258 review, P1/P2).
+            sd = float(np.nanstd(np.asarray(col, dtype=float), ddof=1))
+            if not np.isfinite(sd) or sd <= 0:
+                dropped_covariates.append(c)
+                warnings.warn(
+                    f"load_and_prepare: covariate {c!r} is constant on the fitted "
+                    f"rows (sd = {sd:g}); dropping it. It carries no information "
+                    "and cannot be standardised. The effective adjustment set will "
+                    "not include it.",
+                    stacklevel=2,
+                )
+                continue
+            z, scaler = standardise(col)
+            covariate_values[c] = z
+            covariate_scalers[c] = scaler
+            covariate_time[c] = wave
 
     phase_arr = merged["phase"].to_numpy(dtype=np.int64)
 
@@ -483,6 +595,8 @@ def load_and_prepare(
         n_trials=n_trials_dict,
         covariates=covariate_values,
         covariate_scalers=covariate_scalers,
+        covariate_time=covariate_time,
+        dropped_covariates=tuple(dropped_covariates),
         n_obs=int(len(merged)),
         n_children=int(len(np.unique(child_idx))),
         n_phases=n_phases,

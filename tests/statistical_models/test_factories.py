@@ -914,6 +914,82 @@ def test_did_factory_requires_all_phase_mode(tmp_path):
         build_did_model(prep, outcome_symbol="W")
 
 
+def test_did_factory_bernoulli_offfloor(tmp_path):
+    """Off-floor prevalence DiD (#226/#257): a Bernoulli on the off-floor indicator,
+    no kappa, a y_offfloor node taking only 0/1; the DiD terms (delta, beta_period)
+    are kept. gamma_own is DROPPED — the prevalence estimand does not condition on
+    the treatment-affected period-start score (#257 review)."""
+    prep = _prep_all(tmp_path, n_children=20)
+    built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
+    names = {v.name for v in built.model.free_RVs}
+    assert "kappa" not in names
+    assert {"alpha", "beta_period", "delta"}.issubset(names)
+    assert "gamma_own" not in names  # no own-baseline conditioning in the prevalence DiD
+    # and the own-baseline data node is not even built (its pre-score may be missing)
+    assert "own_pre_logit" not in {v.name for v in built.model.named_vars.values()}
+    assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
+    assert "eta_base" in {v.name for v in built.model.deterministics}
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=44)
+    yof = pp.prior_predictive["y_offfloor"].values
+    assert set(np.unique(yof)).issubset({0, 1})
+
+
+def test_did_offfloor_observed_vector_is_prevalence_over_all_rows(tmp_path):
+    """The off-floor observed vector is Pr(post > 0) over EVERY kept row in the
+    fitted periods — prevalence, not the floored-risk-set transition (#257 review).
+
+    Asserts the actual fitted risk set (all rows, not just pre == 0) and that the
+    observed 0/1 vector equals ``post > 0``, so the estimand cannot silently drift
+    back to a transition or to a graded count."""
+    prep = _prep_all(tmp_path, n_children=24)
+    built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
+    fitted = built.prepared
+    post = fitted.post_counts["P"].astype(float)
+    # Risk set = every kept row in periods (0, 1); NOT restricted to pre == 0.
+    assert np.all(np.isin(fitted.phase, (0, 1)))
+    assert np.all(np.isfinite(post))  # rows with missing post are the only ones dropped
+    # The observed 0/1 vector fed to the Bernoulli equals ``post > 0`` over ALL rows.
+    obs_rv = built.model["y_offfloor"]
+    observed = np.asarray(built.model.rvs_to_values[obs_rv].eval())
+    np.testing.assert_array_equal(observed, (post > 0).astype(int))
+    # It is the prevalence numerator over the full risk set, so its size is n_obs,
+    # not the (smaller) floored-risk-set mover count.
+    assert observed.shape[0] == fitted.n_obs
+    assert observed.sum() == int((post > 0).sum())
+
+
+def test_did_factory_rejects_bad_likelihood_and_offfloor_dose(tmp_path):
+    """Unknown likelihood raises; off-floor is the binary estimand and rejects dose."""
+    prep = _prep_all(tmp_path, n_children=15)
+    with pytest.raises(ValueError):
+        build_did_model(prep, outcome_symbol="W", likelihood="poisson")
+    prep.covariates["attend"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    with pytest.raises(ValueError):
+        build_did_model(
+            prep, outcome_symbol="P", dose=True, likelihood="bernoulli_offfloor"
+        )
+
+
+def test_did_diag_vars_match_offfloor_build(tmp_path):
+    """_did_diag_vars drops kappa under the off-floor likelihood and names only RVs
+    the off-floor DiD builds, else summary_diagnostics raises KeyError at run time."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.pipeline import _did_diag_vars
+
+    prep = _prep_all(tmp_path, n_children=15)
+    built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
+    names = {v.name for v in built.model.free_RVs} | {
+        v.name for v in built.model.deterministics
+    }
+    diag = _did_diag_vars(SimpleNamespace(extra={"likelihood": "bernoulli_offfloor"}))
+    assert "kappa" not in diag
+    assert "gamma_own" not in diag  # prevalence DiD drops own-baseline conditioning
+    assert "gamma_own" not in names
+    assert not (set(diag) - names)
+
+
 # ---------------------------------------------------------------------------
 # Correlated-domain-factor measurement model (kind="corr_factor", #134)
 # ---------------------------------------------------------------------------

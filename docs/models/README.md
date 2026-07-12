@@ -38,7 +38,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | ITT suite (`lrp-rli-itt`)                                                 |    30 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation) |
 | 2     | Gain factors (`lrp-rli-gf`)                                               |    16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                     |
 | 2     | Level factors (`lrp-rli-lf`)                                              |     8 | Companion levels view: group×time and ability×time per timepoint                                         |
-| 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                  |     6 | Within-person replication of the ITT via the waitlist crossover                                          |
+| 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                  |    13 | Within-person replication of the ITT via the waitlist crossover (floored `P`/`N` off-floor)              |
 | 2     | Aligned per-protocol (`lrp-rli-al`)                                       |     9 | Onset-aligned single 40-week gain per child (associational)                                              |
 | 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073` incl. `172`/`173`)           |     8 | Adjusted dose-response of one skill on another                                                           |
 | 2     | Mediation (`lrp-rli-med-059`, `62`, `64`)                                 |     3 | How much of a reading gain runs through a given skill                                                    |
@@ -209,13 +209,16 @@ the t2 group contrast is a clean randomised effect; later timepoints are post-cr
 flagged as associations. Outcomes mirror the gain-factor family: `lrp-rli-lf-001` `W`, `02` `R`,
 `03` `E`, `04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`.
 
-### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-010` (+ `lrp-rli-did-107`) (`kind="did"`)
+### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-012` (+ `lrp-rli-did-107`) (`kind="did"`)
 
 **Purpose.** A within-person replication of the randomised ITT, using the waitlist arm's
 crossover: each child is partly their own control, with the immediate arm anchoring the
 time/maturation trend (Beta-Binomial logit so the ceiling is respected). A second,
-non-randomised view that triangulates the ITT. Design note:
-`notes/202606260702-did-crossover-design.md`.
+non-randomised view that triangulates the ITT. The heavily floored outcomes (`P`, `N`)
+instead take the suite's **off-floor floor rule** — a Bernoulli on the off-floor
+indicator — so their `delta` is the within-person effect on the log-odds of coming off
+the floor (an off-floor risk difference on the items scale), mirroring their ITT siblings.
+Design note: `notes/202606260702-did-crossover-design.md`.
 
 | Model             | Outcome | Purpose                                                                                                                                 |
 | ----------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -229,6 +232,8 @@ non-randomised view that triangulates the ITT. Design note:
 | `lrp-rli-did-008` | `TR`    | Within-person DiD effect on taught receptive vocabulary                                                                                 |
 | `lrp-rli-did-009` | `E`     | Within-person DiD effect on standardised expressive vocabulary                                                                          |
 | `lrp-rli-did-010` | `F`     | Within-person DiD effect on basic concept knowledge                                                                                     |
+| `lrp-rli-did-011` | `P`     | Within-person DiD effect on phonetic spelling (off-floor)                                                                               |
+| `lrp-rli-did-012` | `N`     | Within-person DiD effect on nonword reading (off-floor)                                                                                 |
 
 ### Aligned per-protocol — `lrp-rli-al-001–lrp-rli-al-008` (+ `lrp-rli-al-101`) (`kind="aligned"`)
 
