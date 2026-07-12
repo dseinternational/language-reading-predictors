@@ -529,6 +529,7 @@ def tau_moderation_summary(
         if name not in posterior:
             continue
         d = posterior[name].stack(sample=("chain", "draw")).values
+        out[f"{name}_median"] = float(np.median(d))  # median-first (#271)
         out[f"{name}_mean"] = float(np.mean(d))
         out[f"{name}_lo"] = float(np.quantile(d, lo_q))
         out[f"{name}_hi"] = float(np.quantile(d, hi_q))
@@ -604,6 +605,9 @@ def did_summary(
         d = posterior[name].stack(sample=("chain", "draw")).values
         prob_pos = float(np.mean(d > 0))
         return {
+            # Median-first to match the ITT tau_summary_itt convention (#144 / #271);
+            # the mean is kept as a secondary column.
+            f"{name}_median": float(np.median(d)),
             f"{name}_mean": float(np.mean(d)),
             f"{name}_lo": float(np.quantile(d, lo_q)),
             f"{name}_hi": float(np.quantile(d, hi_q)),
@@ -629,6 +633,7 @@ def did_summary(
         .values
     )  # (n_obs, S)
     eff = (expit(eta_base + delta[None, :]) - expit(eta_base)).mean(axis=0) * n_trials
+    out["delta_items_median"] = float(np.median(eff))
     out["delta_items_mean"] = float(np.mean(eff))
     out["delta_items_lo"] = float(np.quantile(eff, lo_q))
     out["delta_items_hi"] = float(np.quantile(eff, hi_q))
@@ -686,6 +691,7 @@ def gamma_interaction_summary(
         if name not in posterior:
             continue
         d = posterior[name].stack(sample=("chain", "draw")).values
+        out[f"{name}_median"] = float(np.median(d))  # median-first (#271)
         out[f"{name}_mean"] = float(np.mean(d))
         out[f"{name}_lo"] = float(np.quantile(d, lo_q))
         out[f"{name}_hi"] = float(np.quantile(d, hi_q))
@@ -744,6 +750,7 @@ def tau_difference_summary(
     hi_q = 1 - lo_q
     return {
         "contrast": f"{a}_minus_{b}",
+        "diff_logit_median": float(np.median(diff)),  # median-first (#271)
         "diff_logit_mean": float(np.mean(diff)),
         "diff_logit_lo": float(np.quantile(diff, lo_q)),
         "diff_logit_hi": float(np.quantile(diff, hi_q)),
@@ -1007,8 +1014,13 @@ def level_t2_marginal_effect(
     also carries the group×ability interaction — so the plain ``eta - term*G`` removal
     of :func:`_itt_ame_draws` does not apply. Restricting to the t2 rows, per draw we
     net out the *full* group contribution to recover the untreated baseline
-    ``eta0 = eta - (b_grp_time[t2] + gamma_grp_ability*ability)*G``, add it back at
-    ``G=1``, and average ``expit(eta1) - expit(eta0)`` over the t2 rows.
+    ``eta0 = eta - (b_grp_time[t2] + gamma_grp_ability*ability)*G``, then add back
+    **only** ``b_grp_time[t2]`` at ``G=1`` and average ``expit(eta1) - expit(eta0)``
+    over the t2 rows. ``gamma_grp_ability`` is a single *time-invariant* coefficient
+    (identified mostly from the non-randomised t1/t3/t4 rows), so it is deliberately
+    excluded from this causal AME — the card is the clean randomised t2 effect **at
+    mean ability**; the group×ability moderation is reported separately, not folded
+    into the causal claim (issue #271 item 5).
 
     Returns ``(contrast_draws, ame_prob)`` — the logit-scale ``b_grp_time[t2]`` draws
     ``(S,)`` (the term flagged causal in the report) and the probability-scale average
@@ -1054,7 +1066,15 @@ def level_t2_marginal_effect(
     eta_t2 = eta[mask]  # (m, S)
     G_t2 = G[mask]  # (m,)
     eta0 = eta_t2 - delta_rows * G_t2[:, None]  # untreated baseline at the t2 profile
-    ame_prob = (expit(eta0 + delta_rows) - expit(eta0)).mean(axis=0)  # (S,)
+    # Restrict the causal card to the clean randomised main contrast at MEAN
+    # ability: ``gamma_grp_ability`` is a single time-invariant coefficient
+    # (identified mostly from the non-randomised t1/t3/t4 rows), so folding it into
+    # the t2 AME would borrow a non-randomised component and ~4×-attenuate any real
+    # t2 moderation. Net the *full* group contribution out to recover the untreated
+    # baseline, but add back only ``b_grp_time[t2]`` (ability is standardised, so
+    # "mean ability" simply drops the interaction). The interaction is reported
+    # separately, not in the causal card (issue #271 item 5).
+    ame_prob = (expit(eta0 + contrast_draws[None, :]) - expit(eta0)).mean(axis=0)  # (S,)
     return contrast_draws, ame_prob
 
 

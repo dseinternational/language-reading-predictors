@@ -46,8 +46,8 @@ if _diff is not None:
     _d = _diff.iloc[0]
     print("### Generalisation contrast\n")
     print(
-        f"`{_d.contrast}`: difference in logit-scale effect "
-        f"{_d.diff_logit_mean:+.3f} (95% CrI {_d.diff_logit_lo:+.3f} to "
+        f"`{_d.contrast}`: median difference in logit-scale effect "
+        f"{_d.diff_logit_median:+.3f} (95% CrI {_d.diff_logit_lo:+.3f} to "
         f"{_d.diff_logit_hi:+.3f}); P(difference > 0) = {_d.prob_diff_pos:.3f}. "
         "A positive difference means the directly-taught words moved more than the "
         "not-taught comparison words (limited generalisation)."

@@ -68,7 +68,10 @@ $$
 $$
 
 $\gamma_m$ (baseline non-verbal ability → growth **rate**) is the headline Q5
-estimand; $\delta_m$ is the effect on the baseline **level**. Observed counts enter
+estimand; $\delta_m$ is the effect on the **level at the sample-mean (mid-study)
+age** — age is standardised over all child-wave cells, so the intercept is at the
+pooled mean age, not at study entry (the entry-level association is
+$\delta_m + \gamma_m\,\mathbb{E}[\text{age\_std at } t_1]$). Observed counts enter
 a **masked** Beta-Binomial ($\kappa_m$ dispersion) so a child missing one score
 still contributes its other waves. The child random intercept and slope are
 **independent per measure** — the within-measure intercept–slope correlation is

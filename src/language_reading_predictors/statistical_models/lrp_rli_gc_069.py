@@ -18,7 +18,10 @@ knowledge (``L`` = YARC-LSK) - each on the logit scale via a masked Beta-Binomia
 complete for all 54 children) enters as a per-child, standardised predictor of
 trajectory shape: ``gamma_k`` on the growth *rate* is the headline Q5 estimand -
 "does a child's baseline non-verbal ability predict how fast measure k grows?" -
-and ``delta_k`` is the effect on the baseline *level*.
+and ``delta_k`` is the effect on the *level at the sample-mean (mid-study) age* —
+``age_std`` is standardised over all child-wave cells, so the intercept is the
+level at the pooled mean age, NOT at study entry. The entry-level association is
+``delta_k + gamma_k * E[age_std at t1]`` (and ``E[age_std at t1] < 0``).
 
 **This is an adjusted, GA-confounded association, never causal.** Per the locked
 DAG (``notes/202606231600-dag-revision-consolidated.md``) block design is an

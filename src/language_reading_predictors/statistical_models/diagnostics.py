@@ -559,6 +559,33 @@ def save_trace(context: StatisticalFitContext, filename: str = "trace.nc") -> st
     return path
 
 
+def _joint_cell_outcome_index(
+    context: StatisticalFitContext, outcome_symbol: str
+) -> tuple[np.ndarray | None, str]:
+    """Per-cell outcome index for the joint model's flattened ``y_post``, or None.
+
+    Returns ``(index, outcome_symbol)``. ``index`` is the constant-data
+    ``y_post_cell_outcome`` array (each flattened cell's outcome position in the
+    ``outcome`` coord); ``None`` for the non-joint families that never register it.
+    When ``outcome_symbol`` is not one of the joint's outcomes, falls back to the
+    first outcome so the plot still compares like with like (issue #271 item 2).
+    """
+    try:
+        cd = context.prior_samples.constant_data
+        if "y_post_cell_outcome" not in cd:
+            return None, outcome_symbol
+        idx = np.asarray(cd["y_post_cell_outcome"].values).ravel().astype(int)
+        outcomes = [
+            str(o)
+            for o in context.prior_samples.prior_predictive.coords["outcome"].values
+        ]
+        if outcome_symbol not in outcomes:
+            outcome_symbol = outcomes[0]
+        return idx, outcome_symbol
+    except Exception:  # pragma: no cover - defensive
+        return None, outcome_symbol
+
+
 def save_prior_predictive_plot(
     context: StatisticalFitContext,
     outcome_symbol: str,
@@ -599,7 +626,17 @@ def save_prior_predictive_plot(
             else:
                 pp = pp.isel(outcome=0)
                 outcome_symbol = outcome_coord[0]
-        rep = np.asarray(pp.values, dtype=float).ravel()
+        rep = np.asarray(pp.values, dtype=float)
+        # The joint model's ``y_post`` is a *flattened* (obs×outcome) BetaBinomial
+        # with no ``outcome`` dim, so the guard above is inert. Select this
+        # outcome's cells by the per-cell outcome index stored as constant data,
+        # otherwise the histogram pools denominators 6..170 (issue #271 item 2).
+        cell_idx, outcome_symbol = _joint_cell_outcome_index(context, outcome_symbol)
+        if cell_idx is not None and cell_idx.size == rep.shape[-1]:
+            outcomes = [str(o) for o in context.prior_samples.prior_predictive.coords["outcome"].values]
+            tgt = outcomes.index(outcome_symbol)
+            rep = rep[..., cell_idx == tgt]
+        rep = rep.ravel()
         obs = np.asarray(context.prepared.post_counts[outcome_symbol], dtype=float)
         obs = obs[np.isfinite(obs)]
         if node == "y_offfloor":

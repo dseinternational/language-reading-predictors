@@ -11,7 +11,8 @@ child is their own control and stable child-level differences cancel out.
 _How to read the contrast table:_ each row is one estimated quantity. `delta` is
 the within-person difference-in-differences (DiD) treatment contrast: how much
 larger the intervention-window change is than the waitlist-window change. The
-`mean` (or `delta_mean`) column is the posterior average estimate; the `lo`/`hi`
+`median` (or `delta_median`) column is the posterior median point estimate (the
+house convention; the posterior `mean` is kept alongside); the `lo`/`hi`
 (or `_lo`/`_hi`) columns bracket the 95% credible interval, the range the effect
 plausibly falls in; and `p_pos` / `prob_delta_pos` is the probability the effect
 is positive (a benefit). The `_items` columns restate `delta` on the raw items
@@ -36,32 +37,32 @@ from language_reading_predictors.statistical_models.reporting import odds_string
 if did_summary is not None:
     _d = did_summary.iloc[0]
     _off = "off_floor" in did_summary.columns and bool(_d["off_floor"])
-    if "delta_mean" in did_summary.columns:
+    if "delta_median" in did_summary.columns:
         _items = ""
-        if "delta_items_mean" in did_summary.columns:
+        if "delta_items_median" in did_summary.columns:
             if _off:
                 _items = (
-                    f", about a **{_d.delta_items_mean:+.3f} off-floor risk "
+                    f", about a **{_d.delta_items_median:+.3f} off-floor risk "
                     f"difference** (model-implied difference in Pr(off-floor at "
                     f"period end) from toggling Treated; 95% CrI "
                     f"{_d.delta_items_lo:+.3f} to {_d.delta_items_hi:+.3f})"
                 )
             else:
                 _items = (
-                    f", about **{_d.delta_items_mean:+.1f} items** "
+                    f", about **{_d.delta_items_median:+.1f} items** "
                     f"(95% CrI {_d.delta_items_lo:+.1f} to {_d.delta_items_hi:+.1f})"
                 )
         print(
-            f"**DiD treatment contrast (`delta`):** mean {_d.delta_mean:+.3f} "
+            f"**DiD treatment contrast (`delta`):** median {_d.delta_median:+.3f} "
             f"on the {'log-odds of being off the floor at period end' if _off else 'logit scale'} "
             f"(95% CrI {_d.delta_lo:+.3f} to {_d.delta_hi:+.3f}); "
             f"P(delta > 0) = {_d.prob_delta_pos:.3f} "
             f"({_odds(_d.prob_delta_pos)}).{_items}"
         )
-    if "delta_mean" not in did_summary.columns and "beta_dose_mean" in did_summary.columns:
+    if "delta_median" not in did_summary.columns and "beta_dose_median" in did_summary.columns:
         print(
-            f"**Session-dose association (`beta_dose`):** mean "
-            f"{_d.beta_dose_mean:+.3f} logit units per 1 SD sessions "
+            f"**Session-dose association (`beta_dose`):** median "
+            f"{_d.beta_dose_median:+.3f} logit units per 1 SD sessions "
             f"(95% CrI {_d.beta_dose_lo:+.3f} to {_d.beta_dose_hi:+.3f}); "
             f"P(> 0) = {_d.prob_beta_dose_pos:.3f}."
         )
