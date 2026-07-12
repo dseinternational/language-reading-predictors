@@ -325,7 +325,11 @@ def thin_posterior_only(trace, max_draws: int = 1000):
             groups[name] = ds
         return type(trace).from_dict(groups)
     except Exception:  # pragma: no cover - defensive
-        return thin_for_plots(trace, max_draws)
+        # Return the trace UNCHANGED rather than falling back to thin_for_plots:
+        # that would thin the whole tree (including the small prior group) and
+        # reintroduce the exact bug this helper exists to avoid (issue #270 review).
+        # An un-thinned prior-overlay is slower but correct.
+        return trace
 
 
 def _summarise_deterministics(
