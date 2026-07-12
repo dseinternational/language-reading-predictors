@@ -34,20 +34,22 @@ t2->t3) for both arms; each child is their **own control** (a child random
 intercept), and the immediate arm - treated in both periods - anchors the
 time/maturation trend.
 
-::: {.callout-important title="Floored outcome — the estimand is the off-floor risk difference"}
+::: {.callout-important title="The estimand is off-floor prevalence, not floor exit"}
 
 Nonword reading is heavily floored (a large share of period post-scores are zero).
 On the graded count scale a handful of dispersed tail values, not the arm contrast,
-would drive the fit, so - exactly as its randomised ITT sibling LRPITT11 does -
-this model takes the pre-specified, arm-blind **floor rule** (#119): the
-observation is a **Bernoulli on the binary "off-floor" indicator** (period post >
-0), with no dispersion parameter.
+would drive the fit, so the observation is a **Bernoulli on the binary "off-floor"
+indicator** (period post > 0), with no dispersion parameter.
 
-The DiD contrast `delta` is therefore the within-person effect on the **log-odds of
-coming off the floor**, and its marginal (`delta_items`, on the `n_trials = 1`
-scale) is an off-floor **risk difference** — the change in the probability of
-coming off the floor — **not** an item count. Read `delta` alongside that risk
-difference, never as a graded gain.
+The quantity is **off-floor prevalence**, `Pr(post > 0)` at each period end over
+*every* child in the period — **not** the floor-exit transition
+`Pr(post > 0 | pre = 0)` that #119 defines as the ITT floor-rule *primary*. The two
+differ materially: a child already off the floor at period start who stays off
+counts identically to one who moved off, so prevalence blends "already off +
+stayed" with "came off." This model uses prevalence **deliberately** (see the next
+callout), and its sibling **LRPITT11** carries the transition primary on the single
+randomised t1→t2 phase. Read `delta` on the off-floor prevalence scale — *being* off
+the floor at period end — never as "coming off the floor" or a graded gain.
 
 :::
 
@@ -55,16 +57,36 @@ difference, never as a graded gain.
 
 The waitlist arm is the **only untreated cell** (P1) and crosses to the
 intervention in P2. The treatment coefficient is a **difference-in-differences**:
-the waitlist's P1->P2 jump in the off-floor probability *over and above* the
-immediate arm's P1->P2 change, identified jointly by the period-1 between-arm
-contrast and the waitlist's own crossover, with stable child traits differenced
-out by the random intercept.
+the waitlist's P1→P2 jump in the off-floor probability *over and above* the
+immediate arm's P1→P2 change, identified jointly by the period-1 between-arm
+contrast and the waitlist's own crossover, with stable child traits differenced out
+by the random intercept.
 
-Because the likelihood is now binary, the **parallel-trends assumption applies to
-the off-floor probability scale** (the arms would have tracked one another in
-Pr(off-floor) absent the intervention), not to a graded count. This off-floor DiD
-estimand is flagged for review sign-off (#226); read it as a within-person
-triangulation of LRPITT11, not an independent randomised result.
+**Why prevalence and not the floor-exit transition.** Restricting to the floored
+risk set (`pre = 0`) would target floor exit directly, but for the DiD it is not
+clean: the immediate arm's P2 floored risk set is selected by that arm's *own* P1
+treatment, a post-treatment selection that contaminates the maturation-trend
+anchor. Prevalence keeps the DiD identification clean, which suits its purpose — a
+within-person **replication** of the randomised effect, not an independent estimate
+of floor exit.
+
+**No own-baseline term.** Unlike the graded family, this model does **not**
+condition on the period-start score. For the immediate arm's P2 that score is
+post-P1-treatment, so a `gamma_own` term would adjust a treatment-affected variable
+and the child intercept would not restore the total-effect reading (Rosenbaum
+1984). A side benefit: rows with a missing period-start score are no longer dropped.
+
+::: {.callout-warning title="Parallel trends is on the log-odds scale"}
+The linear predictor is additive in `logit(p)`, so the common-trend restriction is
+on **conditional log-odds**, not probabilities. Equal log-odds changes generally
+produce **unequal** probability changes when the arms' baseline risks differ. So
+`delta_items` is a **standardised, model-implied** off-floor risk difference —
+obtained by toggling `Treated` at the fitted covariates — **not** a probability-scale
+DiD cross-difference (Puhani 2012, [doi:10.1016/j.econlet.2011.11.025](https://doi.org/10.1016/j.econlet.2011.11.025)).
+:::
+
+This off-floor DiD estimand is flagged for review sign-off (#226); read it as a
+within-person triangulation of LRPITT11, not an independent randomised result.
 
 :::
 

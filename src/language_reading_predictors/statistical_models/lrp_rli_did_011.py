@@ -9,18 +9,38 @@ the two early periods (P1 = t1->t2, P2 = t2->t3) for both arms, with each child 
 their own control (a child random intercept) and the immediate arm anchoring the
 time/maturation trend.
 
-Phonetic spelling is heavily floored, so - like its ITT sibling - this model takes
-the suite's **floor rule** (#119): the observation is a Bernoulli on the binary
-off-floor indicator (period post > 0), not the graded Beta-Binomial count. The DiD
-contrast ``delta`` is therefore the within-person effect on the LOG-ODDS of coming
-off the floor, and its marginal (``delta_items``, n_trials = 1) is an off-floor
-RISK DIFFERENCE - the change in the probability of coming off the floor - not an
-item count. Same waitlist-crossover design as the graded family; only the
-likelihood differs (no dispersion kappa).
+Phonetic spelling is heavily floored, so the observation is a Bernoulli on the
+binary off-floor indicator (period post > 0), not the graded Beta-Binomial count.
 
-The parallel-trends assumption now applies to the off-floor PROBABILITY scale
-rather than the graded count - flagged for review sign-off (#226). Sign convention:
-positive => intervention helps (raises Pr(off-floor)).
+ESTIMAND - off-floor PREVALENCE, not floor exit (#257 review, decision (a)). This
+models ``Pr(post > 0)`` at each period end, over *every* child in the period, NOT
+the transition ``Pr(post > 0 | pre = 0)`` that #119 defines as the ITT floor-rule
+PRIMARY. Those differ materially here: a child already off the floor at period
+start who stays off counts the same as one who moved off, so the prevalence
+quantity blends "already off + stayed" with "came off". We use prevalence
+deliberately, because the DiD's job is a within-person REPLICATION of the
+randomised effect and prevalence keeps that identification clean: the transition
+estimand's floored risk set is, for the immediate arm's P2, selected by that arm's
+own P1 treatment (a post-treatment / collider selection), which would contaminate
+the maturation-trend anchor. The transition primary is carried cleanly by the ITT
+sibling LRPITT09 on the single randomised t1->t2 phase (baseline risk set); this
+model complements it on the prevalence scale rather than duplicating it.
+
+No own-baseline term. Unlike the graded family this model does NOT condition on the
+period-start score: for the immediate arm's P2 that score is post-P1-treatment, so
+``gamma_own`` would adjust a treatment-affected variable and a child intercept does
+not restore the total-effect reading (Rosenbaum 1984, doi:10.2307/2981697). The
+prevalence DiD is identified by the period x treated structure plus the child
+intercept. (A consequence: a missing period-start score no longer drops the row.)
+
+The DiD contrast ``delta`` is the within-person effect on the LOG-ODDS of being
+off the floor at period end. Its marginal (``delta_items``, n_trials = 1) is a
+model-implied off-floor RISK DIFFERENCE obtained by toggling ``Treated`` at the
+fitted covariates - NOT a probability-scale DiD cross-difference. Parallel trends
+is imposed on the LOG-ODDS scale (the linear predictor is additive in logit p);
+equal log-odds trends do not imply equal probability trends when baseline risks
+differ (Puhani 2012, doi:10.1016/j.econlet.2011.11.025). Sign convention: positive
+=> intervention helps (raises Pr(off-floor)). Flagged for review sign-off (#226).
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

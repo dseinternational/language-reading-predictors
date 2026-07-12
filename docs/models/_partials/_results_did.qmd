@@ -17,8 +17,9 @@ plausibly falls in; and `p_pos` / `prob_delta_pos` is the probability the effect
 is positive (a benefit). The `_items` columns restate `delta` on the raw items
 scale so it reads as a count of items rather than logit units. For a heavily
 floored outcome fitted with the off-floor rule (`P`, `N`), those columns instead
-give the off-floor **risk difference** — the change in the probability of coming
-off the floor — because the estimand there is binary, not a graded count.
+give a model-implied off-floor **risk difference** — the difference in the
+probability of *being* off the floor at period end — because the estimand there is
+off-floor prevalence, binary, not a graded count.
 
 ```{python}
 # | echo: false
@@ -41,7 +42,8 @@ if did_summary is not None:
             if _off:
                 _items = (
                     f", about a **{_d.delta_items_mean:+.3f} off-floor risk "
-                    f"difference** (the change in Pr(off-floor); 95% CrI "
+                    f"difference** (model-implied difference in Pr(off-floor at "
+                    f"period end) from toggling Treated; 95% CrI "
                     f"{_d.delta_items_lo:+.3f} to {_d.delta_items_hi:+.3f})"
                 )
             else:
@@ -51,7 +53,7 @@ if did_summary is not None:
                 )
         print(
             f"**DiD treatment contrast (`delta`):** mean {_d.delta_mean:+.3f} "
-            f"on the {'log-odds of coming off the floor' if _off else 'logit scale'} "
+            f"on the {'log-odds of being off the floor at period end' if _off else 'logit scale'} "
             f"(95% CrI {_d.delta_lo:+.3f} to {_d.delta_hi:+.3f}); "
             f"P(delta > 0) = {_d.prob_delta_pos:.3f} "
             f"({_odds(_d.prob_delta_pos)}).{_items}"

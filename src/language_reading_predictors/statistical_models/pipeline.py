@@ -1320,9 +1320,12 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
         dose_vars = ["mu_dose", "sigma_dose", "beta_dose_phase"]
     else:
         dose_vars = ["beta_dose"]
-    v = ["alpha", "beta_period", *dose_vars, "gamma_own"]
-    if not off_floor:  # the off-floor Bernoulli has no dispersion parameter
-        v.append("kappa")
+    v = ["alpha", "beta_period", *dose_vars]
+    if not off_floor:
+        # The off-floor (prevalence) DiD drops both the own-baseline term
+        # (conditioning on a treatment-affected period-start score; #257 review) and
+        # the dispersion parameter (a Bernoulli has none).
+        v += ["gamma_own", "kappa"]
     if spec.extra.get("use_age", True):
         v.append("gamma_A")
     if spec.extra.get("use_child_re", True):
@@ -1346,8 +1349,18 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # the per-period intervention-session count.
     outcomes = tuple(spec.extra.get("outcomes", (sym,)))
     covariates = ("attend",) if dose else ()
+    # The off-floor (prevalence) model no longer conditions on the own baseline
+    # (see build_did_model), so a missing period-start score is no reason to drop a
+    # row. Requiring it needlessly discarded four nonword P1 observations (#257
+    # review); with pre_required=() those rows are kept, matching the estimand,
+    # which needs only the period-end off-floor indicator. The graded beta-binomial
+    # model still requires the pre-score (default), because it uses it.
+    pre_required = () if off_floor else None
     prepared = load_and_prepare(
-        phase_mode="all", outcomes=outcomes, covariates=covariates
+        phase_mode="all",
+        outcomes=outcomes,
+        covariates=covariates,
+        pre_required=pre_required,
     )
     ctx.prepared = prepared
 
