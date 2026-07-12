@@ -41,8 +41,18 @@ Observed parents of $E$ (EV) under the revised DAG (#245): $\{A, HS, TR, TE, R, 
 - $W_{\text{pre}}$ — baseline.
 
 $F$, $L$, $P$, $B$ are descendants of $E$ or lie on post-$E$ mediation paths and
-are **not** conditioned on. $GA$ is latent (child random-intercept proxy), so
-$f^E$ is an adjusted association.
+are **not** conditioned on.
+
+$GA$ (latent general ability) is **not** adjusted for, and the child random intercept
+does **not** stand in for it. Under the usual random-effects independence assumption
+$u_{\text{child}}$ absorbs stable residual between-child heterogeneity and the
+repeated-measure dependence, but it cannot block $E \leftarrow GA \rightarrow W$ or
+isolate a within-child association — an omitted trait correlated with the measured
+predictors is precisely what a zero-mean, predictor-independent random effect fails to
+remove. Blocking it would require a within/between decomposition, correlated random
+effects (Mundlak terms), child fixed effects, or a genuine RI-CLPM; none is fitted
+here. **Residual confounding by $GA$ therefore remains**, and $f^E$ is an **adjusted
+association**, not a causal effect.
 
 ### Interpretation caveats
 

@@ -14,8 +14,15 @@ Revised-DAG (2026-07-10, #245) adjustment set. Observed parents of EV are
 - W_pre: autoregressive baseline.
 
 F, L, P, B are descendants of E or lie on post-E mediation paths and are
-excluded. GA is latent (child random-intercept proxy), so f^E is an adjusted
-association, not a causal effect.
+excluded.
+
+GA (latent general ability) is NOT adjusted for, and the child random intercept does
+**not** stand in for it: a zero-mean, predictor-independent random effect captures
+stable residual heterogeneity and repeated-measure dependence, but cannot block
+``E <- GA -> W`` or isolate a within-child association. That would need a
+within/between decomposition, Mundlak terms, child fixed effects or an RI-CLPM, none
+of which is fitted here. **Residual confounding by GA remains**, and f^E is an
+**adjusted association**, not a causal effect.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

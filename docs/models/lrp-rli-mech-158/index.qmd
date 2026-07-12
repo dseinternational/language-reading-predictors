@@ -1,0 +1,84 @@
+---
+title: "LRP158: Mechanism model — letter-sound (L) → word reading (W), complete-case comparator"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP158 is the **complete-case comparator** for [LRP58](../lrp-rli-mech-058). It is identical in
+every respect — same adjustment set, same likelihood, same priors, same sampler — except that the
+**mean-imputed rows are dropped**, so every confounder is genuinely observed.
+
+## Why a comparator is needed
+
+The revised-DAG confounders enter LRP58 by the **missing-indicator method**: hearing ($HS$), speech
+production ($SP$) and phonological memory ($RW$) are filled to their column mean and a
+`{col}_missing` flag carries the unknown group as its own adjustment level. That keeps every child,
+which matters at $n \approx 54$.
+
+But preserving rows is not the same as controlling confounding. The method assumes the imputed
+group's confounder effect is captured by a **single intercept shift** — that within the "unknown"
+stratum the confounder is unrelated to exposure and outcome once the flag is in the model. That is
+an assumption, not a property of the method, and it is doing real work here:
+
+| confounder | missing |
+| --- | --- |
+| hearing (`hearing_c`) | **10 of 54 children, at every wave** (≈ 19%) |
+| speech production (`deapp_c`) | ≈ 4% of rows |
+| phonological memory (`erbto`) | ≈ 6.5% of rows |
+| **complete on all three, every wave** | **35 of 54 children** |
+
+## How to read this model
+
+::: {.callout-important title="A comparator, not a competitor"}
+
+If the mechanism slope here **agrees** with LRP58's, the imputation is not driving the result, and
+LRP58 stands as the primary (higher-powered) fit.
+
+If they **diverge**, the imputation is load-bearing and *neither* fit should be reported without the
+other.
+
+This model is smaller, so its intervals are **wider by construction**. That is the price of the
+restriction, not a finding — do not read the wider interval as weaker evidence.
+
+:::
+
+::: {.callout-warning title="Still an adjusted association, not a mechanism"}
+
+Latent general ability ($GA$) is **not** adjusted for, and the child random intercept does **not**
+stand in for it: a zero-mean, predictor-independent random effect absorbs stable residual
+heterogeneity but cannot block $L \leftarrow GA \rightarrow W$. **Residual confounding by $GA$
+remains**, so $f^L$ is an **adjusted association**, never a causal effect. The randomised causal
+claim lives in the ITT suite.
+
+:::
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mechanism.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

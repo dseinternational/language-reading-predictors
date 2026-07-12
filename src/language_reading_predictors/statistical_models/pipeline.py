@@ -77,6 +77,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare_lagged_outcome,
     load_longitudinal_panel,
     load_wave_panel,
+    split_covariates_by_wave,
 )
 
 
@@ -116,6 +117,91 @@ def _require_spec(
     if mechanism and spec.mechanism_symbol is None:
         msg = f"{spec.model_id}: mechanism_symbol is required for {kind!r} models"
         raise ValueError(msg)
+
+
+def _effective_adjustment(
+    spec: ModelSpec,
+    prepared,
+    *,
+    measure_confounders: tuple[str, ...] = (),
+    adjust_for: tuple[str, ...] = (),
+    baseline_symbol: str | None = None,
+) -> dict:
+    """Describe the adjustment set the model **actually fitted**.
+
+    ``spec.adjustment`` records what was *requested*; it is not what is fitted.
+    ``ModelSpec.extra["adjust_for"]`` never reached ``config.json`` at all, so a
+    model could report ``{G, A, W_pre}`` while conditioning on hearing, speech,
+    sessions and their missingness indicators — a material misdescription that made
+    exact auditing impossible (#258 review, P1). And a covariate that turns out
+    constant on the fitted rows is dropped by the loader and gets no coefficient, so
+    listing it would imply a term that was never estimated.
+
+    The returned record therefore names, for every term that carries a coefficient,
+    its source column, its measurement wave, and whether it is a missingness
+    indicator — plus the requested-but-dropped terms, explicitly.
+    """
+    terms = []
+    for s in measure_confounders:
+        if s == "G":
+            # The randomised arm: time-invariant, not a wave-indexed measurement.
+            terms.append(
+                {
+                    "term": "G",
+                    "kind": "treatment",
+                    "source_column": "group",
+                    "wave": "time_invariant",
+                    "missing_indicator": False,
+                }
+            )
+        elif s == "A":
+            # Age is read from the transition's pre row (age at the start of it).
+            terms.append(
+                {
+                    "term": "A",
+                    "kind": "covariate",
+                    "source_column": "age",
+                    "wave": "pre",
+                    "missing_indicator": False,
+                }
+            )
+        else:
+            # Bounded-count measure confounders are taken at the POST wave,
+            # contemporaneous with the exposure and the outcome.
+            terms.append(
+                {
+                    "term": s,
+                    "kind": "measure",
+                    "source_column": prepared.column_map.get(s, s),
+                    "wave": "post",
+                    "missing_indicator": False,
+                }
+            )
+    for c in adjust_for:
+        terms.append(
+            {
+                "term": c,
+                "kind": "covariate",
+                "source_column": c,
+                "wave": prepared.covariate_time.get(c, "unknown"),
+                "missing_indicator": c.endswith("_missing"),
+            }
+        )
+    if baseline_symbol:
+        terms.append(
+            {
+                "term": f"{baseline_symbol}_pre",
+                "kind": "autoregressive_baseline",
+                "source_column": prepared.column_map.get(baseline_symbol, baseline_symbol),
+                "wave": "pre",
+                "missing_indicator": False,
+            }
+        )
+    return {
+        "requested": list(spec.adjustment) + list(spec.extra.get("adjust_for", ())),
+        "fitted": terms,
+        "dropped_constant": list(prepared.dropped_covariates),
+    }
 
 
 def _print_header(ctx: StatisticalFitContext) -> None:
@@ -1412,16 +1498,39 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     extra_outcomes = spec.extra.get("outcomes")
     # Raw-covariate adjusters (revised-DAG confounders that are not bounded-count
     # measures): hearing (hs/hs_missing), speech (deapp_c), phonological memory
-    # (erbto), sessions (attend). Loaded standardised from each transition's pre
-    # row so they can enter as linear adjustment terms (#245).
+    # (erbto), sessions (attend). Entered as standardised linear terms (#245).
+    #
+    # WAVE: split by semantics, not loaded wholesale from the pre row (#258 review,
+    # P1). The DAG is contemporaneous, and the exposure, outcome and bounded-count
+    # confounders are all read from the transition's POST row — so the *state*
+    # covariates (hearing, speech, phonological memory) must come from the post row
+    # too. Reading them from the pre row fits a hybrid pre/post adjustment set that
+    # no graph licenses. Only ``attend`` is an *interval* variable (sessions
+    # delivered during the pre -> post window; recorded t1-t3, absent at t4), so it
+    # alone belongs on the pre row. See ``preprocessing.INTERVAL_COVARIATES``.
     adjust_for = tuple(spec.extra.get("adjust_for", ()))
+    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
+    # Complete-case comparator: drop the mean-imputed rows so the confounders are
+    # genuinely observed. Mean-imputation + a missingness indicator keeps every
+    # child, but does not by itself guarantee adequate confounding control, so the
+    # imputed fit needs this comparator beside it (#258 review).
+    require_observed = tuple(spec.extra.get("require_observed", ()))
+    _kw = {
+        "covariates": pre_adj,
+        "post_covariates": post_adj,
+        "require_observed": require_observed,
+    }
     if extra_outcomes is not None:
         prepared = load_and_prepare(
-            phase_mode="all", outcomes=tuple(extra_outcomes), covariates=adjust_for
+            phase_mode="all", outcomes=tuple(extra_outcomes), **_kw
         )
     else:
-        prepared = load_and_prepare(phase_mode="all", covariates=adjust_for)
+        prepared = load_and_prepare(phase_mode="all", **_kw)
     ctx.prepared = prepared
+    # A constant covariate (e.g. a ``_missing`` indicator that is all-zero on the
+    # fitted rows) is dropped by the loader and receives no coefficient, so it must
+    # not be built into the model nor reported as adjusted-for.
+    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
 
     _print_header(ctx)
 
@@ -1494,7 +1603,23 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     section_header("Mechanism curve")
     _write_mechanism_curve(ctx)
 
-    meta_extra = {"loo_elpd": float(ctx.loo.elpd), "adjustment": spec.adjustment}
+    # Record the adjustment set that was actually FITTED — with each term's source
+    # column, measurement wave and missing-indicator status — not just the requested
+    # symbols. ``spec.adjustment`` alone materially misdescribed the model, because
+    # the ``adjust_for`` covariates never reached config.json (#258 review, P1).
+    meta_extra = {
+        "loo_elpd": float(ctx.loo.elpd),
+        "adjustment": spec.adjustment,
+        "effective_adjustment": _effective_adjustment(
+            spec,
+            prepared,
+            measure_confounders=tuple(
+                s for s in confounders if s in ("G", "A") or s in MEASURES
+            ),
+            adjust_for=adjust_for,
+            baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
+        ),
+    }
 
     # Linear-moderation summary (gamma_int / gamma_mod), when a moderator is set.
     if moderator_symbol is not None:
