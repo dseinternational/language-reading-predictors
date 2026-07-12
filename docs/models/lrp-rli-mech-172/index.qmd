@@ -24,8 +24,11 @@ format:
 ## Overview
 
 LRP72base is the no-interaction companion to [LRP72](../lrp-rli-mech-072/). It uses the
-same outcome, data window and linear letter-sound mechanism, but enters phoneme
-blending (`B`) as a main-effect adjuster only. There is no `gamma_int` term.
+same outcome, data window and linear letter-sound mechanism, and enters phoneme
+blending (`B`) through the **same** moderator main effect $\gamma_{\text{mod}} z(B)$ as
+LRP72, with `include_interaction=False` dropping only the $\gamma_{\text{int}}$ ($L \times B$)
+term. The two models therefore differ by *exactly* the interaction, with an identical
+prior on the blending main effect — a clean nested comparison.
 
 The purpose is model comparison: LRP72 versus LRP72base asks whether adding the
 letter-sound x blending interaction improves predictive fit for nonword decoding.
@@ -37,7 +40,7 @@ $$
 \eta = \alpha + \alpha_{\text{phase}}
   + \beta_G G
   + \beta_{\text{mech}} z(\operatorname{logit} L_{\text{post}})
-  + \gamma_B \operatorname{logit}_*(B_{\text{post}})
+  + \gamma_{\text{mod}} z(B)
   + \gamma_{\text{own}}\operatorname{logit}_*(N_{\text{pre}})
   + \gamma_A A_{\text{std}}
   + u_{\text{child}}.

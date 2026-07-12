@@ -15,20 +15,42 @@ diag if diag is not None else "No diagnostics table."
 ```{python}
 # | echo: false
 # | output: asis
-# Pareto-k is load-bearing at n ≈ 33–54 (one influential child can drive elpd);
-# rank and ESS-evolution check mixing.
+# Pareto-k is load-bearing at n ≈ 33–54 (one influential observation can drive
+# elpd); rank and ESS-evolution check mixing. The pointwise LOO unit and the
+# conditional-vs-marginal reading depend on the family (issue #270 item 4): the
+# stacked random-intercept families score one child×phase/period row *given that
+# child's own intercept*, not one whole child under new-child prediction.
+_RE_KINDS = {
+    "mechanism",
+    "gain_factors",
+    "level_factors",
+    "did",
+    "dose_response",
+    "lcsm",
+    "growth",
+}
+_is_re = config.get("kind") in _RE_KINDS
+_pareto_unit = "one observation (a child × phase/period row)" if _is_re else "one child"
+_loo_caveat = (
+    " Because this family carries a per-child random intercept, PSIS-LOO here is "
+    "**conditional** (within-child, one-row-out): elpd scores predicting a held-out "
+    "row _given that child's own fitted intercept_, so it is comparable only across "
+    "models with the same grouping on the same rows — it is not new-child prediction."
+    if _is_re
+    else ""
+)
 print(_img("pareto_k.png", "Pareto-k (LOO influence; flag k > 0.7)"))
 print(_img("rank_plot.png", "Rank plot of the effect (mixing)"))
 print(_img("ess_evolution.png", "ESS evolution (target 400)"))
 print(_img("loo_pit.png", "LOO-PIT calibration"))
 print(
-    "\n_How to read these:_ **Pareto-k** — each point is one child's influence on the "
-    "leave-one-out fit; all should sit below 0.7 (points above are overly influential "
-    "and make LOO unreliable). **Rank plot** — the chains' ranks should look uniform "
-    "and interleaved (a sloped or lumpy plot signals poor mixing). **ESS-evolution** — "
-    "should climb steadily above the 400 target as sampling proceeds. **LOO-PIT** — the "
-    "line should hug zero; large excursions mean the model is mis-calibrated over part "
-    "of the outcome range."
+    f"\n_How to read these:_ **Pareto-k** — each point is {_pareto_unit}'s influence on "
+    "the leave-one-out fit; all should sit below 0.7 (points above are overly "
+    "influential and make LOO unreliable)." + _loo_caveat + " **Rank plot** — the "
+    "chains' ranks should look uniform and interleaved (a sloped or lumpy plot signals "
+    "poor mixing). **ESS-evolution** — should climb steadily above the 400 target as "
+    "sampling proceeds. **LOO-PIT** — the line should hug zero; large excursions mean "
+    "the model is mis-calibrated over part of the outcome range."
 )
 ```
 

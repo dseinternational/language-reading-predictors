@@ -300,6 +300,34 @@ def thin_for_plots(trace, max_draws: int = 1000):
         return trace
 
 
+def thin_posterior_only(trace, max_draws: int = 1000):
+    """Thin *only* the posterior group; leave the other groups (notably the small
+    1-chain prior) at full resolution.
+
+    :func:`thin_for_plots` applies its stride to the whole DataTree, so at
+    reporting scale (posterior 6×6000 → stride 36) it also decimates the 1×1000
+    ``prior`` group to ~28 jagged draws — which then misrepresents the
+    prior-vs-posterior overlay ("how far the data moved each parameter from its
+    prior"). Only the posterior is large enough to need thinning for plotting, so
+    thin that alone and keep every other group intact (issue #270 item 1).
+    """
+    try:
+        post = trace.posterior.to_dataset()
+        total = int(post.sizes.get("chain", 1)) * int(post.sizes.get("draw", 1))
+        if total <= max_draws:
+            return trace
+        k = int(np.ceil(total / max_draws))
+        groups = {}
+        for name in trace.children:
+            ds = trace[name].to_dataset()
+            if name == "posterior":
+                ds = ds.isel(draw=slice(None, None, k))
+            groups[name] = ds
+        return type(trace).from_dict(groups)
+    except Exception:  # pragma: no cover - defensive
+        return thin_for_plots(trace, max_draws)
+
+
 def _summarise_deterministics(
     context: StatisticalFitContext, scalar_var_names: list[str] | None
 ) -> None:
@@ -479,10 +507,15 @@ def run_extended_diagnostics(
             title="Rank plot (chain mixing)",
         )
 
+    # ESS evolution must use the *full* trace: thinning caps the plotted ESS near
+    # min(n_thinned_draws, true ESS), so a 36k-draw fit would show ESS pinned well
+    # under the 400 reference line and contradict the "ESS climbs above 400"
+    # guidance (issue #270 item 1). Only the pathologically-slow plot_rank needs
+    # the thinned view.
     _save_pc(
         out,
         lambda: azp.plot_ess_evolution(
-            tr,
+            context.trace,
             var_names=[causal_term] if causal_term else None,
             min_ess=ESS_THRESHOLD,
         ),
@@ -516,7 +549,9 @@ def save_prior_posterior_plot(
     out = context.output_dir
     import arviz_plots as azp
 
-    tr = thin_for_plots(context.trace)
+    # Thin only the posterior: thinning the whole tree would decimate the small
+    # 1-chain prior group and misrepresent the overlay (issue #270 item 1).
+    tr = thin_posterior_only(context.trace)
     _save_pc(
         out,
         lambda: azp.plot_prior_posterior(tr, var_names=var_names),
@@ -539,11 +574,14 @@ def run_psense(
     secondary at this n). Kallioinen et al. 2024.
     """
     out = context.output_dir
-    tr = thin_for_plots(context.trace)
     try:
         import arviz_stats as azs
 
-        s = azs.psense_summary(tr, var_names=var_names)
+        # The published psense_summary.csv is a numeric diagnostic — compute it on
+        # the FULL trace (thin_for_plots' own contract: "numeric summaries always
+        # use the full trace"); the thinned view is only for the figure below
+        # (issue #270 item 2).
+        s = azs.psense_summary(context.trace, var_names=var_names)
         if hasattr(s, "to_dataframe"):
             df = s.to_dataframe()
         else:
@@ -557,6 +595,7 @@ def run_psense(
 
     import arviz_plots as azp
 
+    tr = thin_for_plots(context.trace)
     _save_pc(
         out,
         lambda: azp.plot_psense_dist(tr, var_names=var_names),
