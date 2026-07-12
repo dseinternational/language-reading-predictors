@@ -61,6 +61,17 @@ restriction, not a finding — do not read the wider interval as weaker evidence
 
 :::
 
+::: {.callout-warning title="Residual boundary divergences"}
+
+Like [LRP58](../lrp-rli-mech-058), this model keeps the nonparametric HSGP curve and lifts
+`target_accept` to 0.999; a few boundary divergences remain on an otherwise-healthy posterior
+(R-hat = 1.00, min ESS ≈ 3000). It does **not** strictly clear the zero-divergence gate. The
+divergences are HSGP geometry, disclosed rather than removed by discarding the curve — see LRP58's
+note. As the comparator, its purpose is the *comparison* of slopes with LRP58, and both carry the
+same residual, so the comparison itself is unaffected.
+
+:::
+
 ::: {.callout-warning title="Still an adjusted association, not a mechanism"}
 
 Latent general ability ($GA$) is **not** adjusted for, and the child random intercept does **not**

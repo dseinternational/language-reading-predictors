@@ -56,6 +56,10 @@ SPEC = ModelSpec(
         "use_subject_random_intercept": True,
         # ... except that the imputed rows are dropped, so HS and SP are observed.
         "require_observed": ("hs", "deapp_c"),
+        # Matches LRP58: HSGP curve kept, target_accept lifted for boundary steps. A
+        # few boundary divergences remain (the HSGP geometry LRP58 also shows);
+        # disclosed in the report rather than removed by dropping the curve.
+        "target_accept": 0.999,
     },
 )
 

@@ -43,6 +43,17 @@ $\gamma_{\text{int}} > 0$ means letter-sound converts to reading *more* strongly
 for higher-vocabulary children. Both coefficients use the regularising
 $\mathrm{Normal}(0, 0.3)$ cross-coupling prior.
 
+::: {.callout-warning title="Residual boundary divergences — read the interaction accordingly"}
+This model retains the nonparametric **HSGP** $f^L$ curve (matching
+[LRP58](../lrp-rli-mech-058)). Correcting the adjustment-set measurement wave (#258) took this fit
+from ~90 divergences (R-hat 1.2, min ESS ≈ 9 — genuinely unusable) to **~13** at `target_accept` =
+0.999, on an otherwise-healthy posterior (R-hat = 1.00, min ESS ≈ 2600). So the earlier instability
+was largely the hybrid pre/post adjustment set, not the interaction structure. The residual is HSGP
+boundary geometry, disclosed here rather than removed by dropping the curve or a DAG-required
+adjuster — the model does **not** strictly clear the zero-divergence gate. Read the moderation
+$\gamma_{\text{int}}$ as usable but not gate-clean.
+:::
+
 ::: {.callout-note title="Reading the interaction"}
 
 - The HSGP $f^L$ is **unchanged** — it is still a flexible function of the *raw*
