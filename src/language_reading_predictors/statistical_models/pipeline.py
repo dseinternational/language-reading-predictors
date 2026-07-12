@@ -1110,12 +1110,24 @@ def _fit_itt_floor_rule(
     # rather than off-floor prevalence over everyone (issue #267 / #119). pre == 0 is
     # pre-randomisation, so this is a legitimate subgroup ITT.
     at_risk = restrict_to_baseline_floored(prepared, own)
+    # Guard: the subgroup ITT is only identified if the at-risk subset keeps both
+    # arms and enough rows. If a future floored outcome had (say) all baseline-floored
+    # children in one arm, tau would be unidentified and the PRIMARY posterior
+    # degenerate — fail loudly rather than publish it (issue #267 review).
+    _n_arms = int(np.unique(at_risk.G).size)
+    if at_risk.n_obs < 10 or _n_arms < 2:
+        raise ValueError(
+            f"floor rule for {own!r}: the baseline-floored at-risk subset is "
+            f"degenerate (n={at_risk.n_obs}, arms present={_n_arms}) — the subgroup "
+            "ITT Pr(post>0 | pre==0) is not identified. Re-check the floor rule / "
+            "data or fit a different estimand."
+        )
     rprint(
         f"  Floor rule: {own} is {p0:.0%} floored at t2 "
         f"(>= {_floor.FLOOR_THRESHOLD:.0%}); PRIMARY is the off-floor TRANSITION "
         f"Pr(off-floor at t2 | at floor at t1) on the {at_risk.n_obs} baseline-floored "
-        f"children (of {prepared.n_obs}); graded Beta-Binomial + hurdle "
-        "conditional-above-floor are flagged SECONDARIES."
+        f"children (of {prepared.n_obs}); a graded Beta-Binomial over all children "
+        "and a graded contrast among off-floor children are flagged SECONDARIES."
     )
 
     common = dict(
@@ -1276,23 +1288,30 @@ def _fit_itt_floor_rule(
     )
     ctx.tables["tau_summary_graded"] = pd.DataFrame([graded])
 
-    # ----- SECONDARY (flagged): hurdle conditional-above-floor mean E[post | post>0].
-    # The #119 hurdle branch. Conditioning on post>0 is POST-randomisation (selection
-    # on outcome), so its treatment contrast is NOT a clean randomised effect — it is
-    # reported flagged, never as an ITT estimand.
+    # ----- SECONDARY (flagged): graded contrast AMONG the off-floor children.
+    # The #119 hurdle branch reads the graded score conditional on having come off
+    # the floor. Two caveats keep this honest: (1) conditioning on post>0 is
+    # POST-randomisation (selection on outcome), so the contrast is NOT a clean
+    # randomised effect; and (2) this fits a *plain* Beta-Binomial to the post>0
+    # subset — an untruncated proxy for the conditional-above-floor mean
+    # E[post | post>0], because a zero-truncated Beta-Binomial is not cleanly
+    # supported here (its vectorised logcdf is undefined); the untruncated fit
+    # slightly overstates the conditional mean (issue #267 review). Reported flagged,
+    # never as an ITT estimand.
     hurdle = None
     off_floor_data = restrict_to_off_floor(prepared, own)
     if off_floor_data.n_obs >= 8 and int(np.unique(off_floor_data.G).size) == 2:
         section_header(
-            "Build model (SECONDARY hurdle: conditional above-floor mean | post>0)"
+            "Build model (SECONDARY: graded contrast among off-floor children | post>0)"
         )
         built_h = _factories.build_itt_model(
             off_floor_data, likelihood="beta_binomial", **common
         )
         _trace_h, hurdle = _fit_secondary(
-            built_h, label=f"{spec.model_id} hurdle conditional-above-floor"
+            built_h, label=f"{spec.model_id} off-floor-subset graded contrast"
         )
         hurdle["n_off_floor"] = int(off_floor_data.n_obs)
+        hurdle["untruncated_proxy"] = True
         pd.DataFrame([hurdle]).to_csv(
             os.path.join(ctx.output_dir, "tau_summary_hurdle.csv"), index=False
         )

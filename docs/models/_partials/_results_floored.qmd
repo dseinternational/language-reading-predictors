@@ -9,9 +9,12 @@ Bernoulli on `post > 0` restricted to the **baseline-floored at-risk** children
 (conditioning on baseline floor status is pre-randomisation, so the arm contrast
 stays valid). Two flagged, **detection-limited SECONDARIES** are read only
 alongside the mover table and never alone: the graded Beta-Binomial over all
-children, and the hurdle conditional above-floor mean `E[post | post > 0]` (whose
-contrast conditions on a post-randomisation event, so it is not a clean randomised
-effect). Positive = the intervention raises the probability of coming off the floor.
+children, and a graded contrast among the off-floor children (`post > 0`) — an
+_untruncated_ proxy for the conditional-above-floor mean `E[post | post > 0]` (a
+zero-truncated Beta-Binomial is not cleanly available, so the plain fit slightly
+overstates it), whose contrast also conditions on a post-randomisation event, so it
+is not a clean randomised effect. Positive = the intervention raises the
+probability of coming off the floor.
 
 :::
 

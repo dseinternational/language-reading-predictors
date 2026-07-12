@@ -48,9 +48,12 @@ model therefore:
   baseline floor status is pre-randomisation, so this stays a valid subgroup ITT; and
 - retains two flagged, **detection-limited SECONDARIES**, read only alongside the
   per-arm mover counts and never on their own: the graded Beta-Binomial $\tau$
-  over all children, and the hurdle **conditional above-floor mean**
-  $\mathrm{E}[\text{post} \mid \text{post} > 0]$ (whose contrast conditions on a
-  post-randomisation event and is therefore not a clean randomised effect).
+  over all children, and the **graded contrast among the off-floor children**
+  ($\text{post} > 0$) — an *untruncated* proxy for the conditional-above-floor mean
+  $\mathrm{E}[\text{post} \mid \text{post} > 0]$ (a zero-truncated Beta-Binomial is
+  not cleanly available, so the plain fit slightly overstates it), whose contrast
+  also conditions on a post-randomisation event and is therefore not a clean
+  randomised effect.
 
 :::
 
