@@ -15,13 +15,13 @@ There are two sensible ways to do this. They agree on almost everything. They di
 
 Each wave holds the full cascade we already use (`SP → LS`, `LS → PA → NW → WR`, `RV → EV`, and the feeders). Between waves we add each skill to itself at the next wave (carry-over, grey), and the reverse edges from word reading to vocabulary, blending and memory at the next wave (dashed pink). This is the standard "unrolled" dynamic DAG.
 
-![Option A: the base DAG copied at each wave](../dag/dag-language-reading-lagged-per-wave.svg)
+![Option A: the base DAG copied at each wave](../dag/dag-language-reading-lagged-per-wave.png)
 
 ## Option B — pure-lagged (what the draft `.dagitty` encodes now)
 
 No skill affects another within the same wave. Every skill-to-skill effect is moved across a wave instead, so letter-sound at wave `t` affects blending at wave `t+1` rather than the same wave. Carry-over and the reverse edges are the same as in A. It gives a clean order in time, but it makes a strong claim: that nothing in the skill chain acts within a measurement interval. For waves about a year apart that is hard to defend, and it is why the picture is two bare columns rather than our usual diagram.
 
-![Option B: pure-lagged](../dag/dag-language-reading-lagged.svg)
+![Option B: pure-lagged](../dag/dag-language-reading-lagged.png)
 
 ## Trade-offs
 
