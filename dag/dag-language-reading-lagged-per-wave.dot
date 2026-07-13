@@ -1,7 +1,7 @@
 digraph COPYPASTE {
   rankdir=LR; compound=true; bgcolor="white"; splines=true;
   labelloc="t"; fontname="Helvetica-Bold"; fontsize=17;
-  label="Time-lagged DAG the way you described it — the base cascade, copied per wave, linked across time";
+  label="Language & reading causal DAG — TIME-LAGGED unroll, Option A (ADOPTED 2026-07-13): the base cascade, copied per wave, linked across time";
   nodesep=0.22; ranksep=0.85;
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, margin="0.11,0.06", penwidth=1.3, color="#9aa0a8", fillcolor="#eceef1"];
   edge [arrowsize=0.7, penwidth=1.15];

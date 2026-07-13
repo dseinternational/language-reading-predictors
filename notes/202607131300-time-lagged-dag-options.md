@@ -3,7 +3,10 @@
 # Time-lagged DAG: two options for the team
 
 > [!NOTE]
-> Drafted by an LLM-based AI tool (Claude Code/Opus 4.8). For team review; the choice below is the team's to make.
+> Drafted by an LLM-based AI tool (Claude Code/Opus 4.8); decision status updated by Claude Code/Fable 5.
+
+> [!IMPORTANT]
+> **Decision (2026-07-13): Option A adopted.** The reasoning — plausibility at the study's 20-week assessment interval, identification, honesty of the record, and adjustment sets — is recorded in the PR #288 discussion. `dag/dag-language-reading-lagged.dagitty` now encodes Option A; the Option B figure below is kept for the decision record. The remainder of this note is preserved as the decision input.
 
 ## Why unroll the DAG over time
 
@@ -11,21 +14,21 @@ The base DAG is a single snapshot. In it, language causes reading. We also think
 
 There are two sensible ways to do this. They agree on almost everything. They differ on one question: can a skill affect another skill within the same wave, or only by the next wave?
 
-## Option A — the base DAG, copied at each wave (recommended)
+## Option A — the base DAG, copied at each wave (recommended; **adopted 2026-07-13**)
 
 Each wave holds the full cascade we already use (`SP → LS`, `LS → PA → NW → WR`, `RV → EV`, and the feeders). Between waves we add each skill to itself at the next wave (carry-over, grey), and the reverse edges from word reading to vocabulary, blending and memory at the next wave (dashed pink). This is the standard "unrolled" dynamic DAG.
 
 ![Option A: the base DAG copied at each wave](../dag/dag-language-reading-lagged-per-wave.png)
 
-## Option B — pure-lagged (what the draft `.dagitty` encodes now)
+## Option B — pure-lagged (considered, not adopted)
 
-No skill affects another within the same wave. Every skill-to-skill effect is moved across a wave instead, so letter-sound at wave `t` affects blending at wave `t+1` rather than the same wave. Carry-over and the reverse edges are the same as in A. It gives a clean order in time, but it makes a strong claim: that nothing in the skill chain acts within a measurement interval. For waves about a year apart that is hard to defend, and it is why the picture is two bare columns rather than our usual diagram.
+No skill affects another within the same wave. Every skill-to-skill effect is moved across a wave instead, so letter-sound at wave `t` affects blending at wave `t+1` rather than the same wave. Carry-over and the reverse edges are the same as in A. It gives a clean order in time, but it makes a strong claim: that nothing in the skill chain acts within a measurement interval. Assessments in this study are 20 weeks apart, and the tightly coupled cascade steps (letter-sounds feeding blending and decoding) act on a timescale of days to weeks — so the claim is not defensible even at 20 weeks, and it is why the picture is two bare columns rather than our usual diagram.
 
 ![Option B: pure-lagged](../dag/dag-language-reading-lagged.png)
 
 ## Trade-offs
 
-|                                     | A: base DAG per wave                                                                     | B: pure-lagged (current draft)                                                           |
+|                                     | A: base DAG per wave (adopted)                                                           | B: pure-lagged (not adopted)                                                             |
 | ----------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Skill-to-skill arrows within a wave | Yes, the full cascade                                                                    | None                                                                                     |
 | Reads like                          | Our base DAG, twice                                                                      | Two bare columns                                                                         |
@@ -38,7 +41,7 @@ The only reason to unroll at all is the reading-to-language feedback. That is th
 
 ## Still open (from the critical review)
 
-1. **A vs B** — the choice above. The draft `.dagitty` currently encodes B; adopting A means rewriting it to put the cascade inside each wave.
+1. ~~**A vs B** — the choice above.~~ **Resolved 2026-07-13: Option A adopted** (PR #288 discussion); the `.dagitty` has been rewritten to put the cascade inside each wave.
 2. **Waitlist crossover.** The two-slice template assumes the same structure at every transition. The intervention's active window is arm-specific (immediate arm t1→t2, waitlist arm t2→t3), so a single generic template hides that. Worth a crossover-aware slice before any cross-lagged / LCSM model is built on it.
 3. **Reverse edges** need a one-line justification each. `WR → EV` (print exposure) is well grounded; `WR → RW` (reading → phonological memory) is the most tentative and easy to drop.
 

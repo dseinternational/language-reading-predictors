@@ -1,6 +1,6 @@
 digraph LRP_LAGGED {
   rankdir=LR; bgcolor="white"; labelloc="t"; fontname="Helvetica-Bold"; fontsize=17;
-  label="Language & reading causal DAG — TIME-LAGGED unroll: wave t → t+1  (draft, PR #288)";
+  label="Language & reading causal DAG — TIME-LAGGED unroll, Option B (pure-lagged; considered, NOT adopted — kept for the decision record)";
   nodesep=0.24; ranksep=1.5; splines=true;
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, margin="0.11,0.06", penwidth=1.3, color="#9aa0a8", fillcolor="#eceef1"];
   edge [arrowsize=0.7];

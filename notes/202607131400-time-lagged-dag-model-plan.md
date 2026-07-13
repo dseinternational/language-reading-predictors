@@ -1,7 +1,9 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Time-lagged DAG and models: plan for discussion
 
 > [!NOTE]
-> Drafted by an LLM-based AI tool (Claude Code/Opus 4.8). For discussion before implementation (#250; models #229 / #264).
+> Drafted by an LLM-based AI tool (Claude Code/Opus 4.8); decision status updated by Claude Code/Fable 5. For discussion before implementation (#250; models #229 / #264).
 
 ## Aim
 
@@ -9,7 +11,7 @@ Agree a time-lagged DAG and a realistic model plan before building anything. The
 
 ## Where we already are
 
-- **Draft lagged DAG (#288):** two options, A recommended, with figures and a note.
+- **Lagged DAG (#288):** two options were drawn, A recommended, with figures and a note. **Option A was adopted 2026-07-13** (PR #288 discussion) and the `.dagitty` now encodes it.
 - **`lrp-rli-lcsm-067` already exists.** It unrolls the question over all four waves: reading change is coupled to a child's prior-wave letter-sound and vocabulary standing, with the coupling pooled across the three transitions (t1→t2, t2→t3, t3→t4) as a deliberate constraint at n≈54.
 - **A full RI-CLPM was judged not estimable at this sample size and never built.** The LRP67 docstring records it as the dropped companion; there is no RI-CLPM model in the suite. Growth and correlated-factor models do exist.
 
@@ -21,12 +23,12 @@ This shaped every longitudinal choice so far and it shapes this one. At n≈54 w
 
 The consequence for this discussion: **the A-vs-B question is about which edges and adjustment sets we can justify, not about fitting the whole graph.** Whatever we choose, the fitted models stay parsimonious.
 
-## Decision 1: DAG structure, A vs B
+## Decision 1: DAG structure, A vs B — **resolved: A adopted (2026-07-13)**
 
-- **Option A (recommended):** the base DAG copied at each wave, joined by carry-over and the reverse reading-to-language edges. Keeps the within-wave cascade.
-- **Option B (current draft):** pure-lagged; no within-wave skill edges, every effect acts across a wave.
+- **Option A (adopted):** the base DAG copied at each wave, joined by carry-over and the reverse reading-to-language edges. Keeps the within-wave cascade.
+- **Option B (not adopted):** pure-lagged; no within-wave skill edges, every effect acts across a wave.
 
-Figures and the full explanation are in #288 (`notes/202607131300-time-lagged-dag-options.md`). Note that LRP67's coupling is already lagged (change depends on prior-wave levels), so at the model level we are close to B in practice regardless; A is the more faithful description of what we believe, and it is what justifies adding a within-wave path later if the sample ever allows.
+The reasoning — plausibility at the 20-week assessment interval, identification, honesty of the record, adjustment sets — is recorded in the PR #288 discussion; figures and the full explanation are in `notes/202607131300-time-lagged-dag-options.md`. Note that LRP67's coupling is already lagged (change depends on prior-wave levels), so at the model level we stay lagged in practice regardless; A is the more faithful description of what we believe, and it is what justifies adding a within-wave path later if the sample ever allows.
 
 ## Decision 2: the open sub-decisions
 
@@ -43,7 +45,7 @@ Figures and the full explanation are in #288 (`notes/202607131300-time-lagged-da
 
 ## Proposed order
 
-- **Phase 0 (now):** settle the DAG. Needs the A-vs-B call and the sub-decisions, at a short meeting. Blocked on the hearing review for the `HS` decision. This note plus the #288 figures are the input.
+- **Phase 0 (now):** settle the DAG. The A-vs-B call is made (A, 2026-07-13); the remaining sub-decisions (reverse-edge pre-specification, crossover handling) still need the short meeting. This note plus the #288 figures are the input.
 - **Phase 1:** one pre-specified reverse-coupling extension of LRP67 (reading → vocabulary change), the headline RLI test. Dev-tier fit, diagnostics, report. Decides whether the reverse edge earns its place.
 - **Phase 2:** temporal mediation (#264) using the lagged adjustment sets.
 - **Phase 3:** crossover-aware structure (arm and period) if Phases 1–2 hold up.
@@ -52,7 +54,7 @@ Each phase is a pre-registered spec, a dev-tier fit, then a report, the same wor
 
 ## For the meeting
 
-1. Option A or B.
+1. ~~Option A or B.~~ Resolved: A adopted (2026-07-13, PR #288 discussion).
 2. Which reverse edges are pre-specified versus exploratory.
 3. How to handle the waitlist crossover.
 4. The hearing review result, which sets whether `HS` is time-varying.
