@@ -28,6 +28,18 @@ from language_reading_predictors.statistical_models.context import (
 )
 
 
+def band90(draws: np.ndarray) -> tuple[float, float]:
+    """Equal-tailed 90 % band ``(lo05, hi95)`` reported alongside the 95 % headline.
+
+    A single sensitivity band so the summary builders that report only a headline
+    ``ci_prob`` (95 %) interval can also carry the narrower 90 % equal-tailed
+    interval without re-deriving quantiles at each call site. The wider ITT / growth
+    summaries use the shared ``eti_bands`` helper (50 / 90 / 95); this covers the
+    families that emit a single headline interval.
+    """
+    return float(np.quantile(draws, 0.05)), float(np.quantile(draws, 0.95))
+
+
 def _itt_ame_draws(
     trace: xr.DataTree,
     *,
@@ -574,6 +586,7 @@ def tau_moderation_summary(
         out[f"{name}_mean"] = float(np.mean(d))
         out[f"{name}_lo"] = float(np.quantile(d, lo_q))
         out[f"{name}_hi"] = float(np.quantile(d, hi_q))
+        out[f"{name}_lo90"], out[f"{name}_hi90"] = band90(d)
         out[f"prob_{name}_pos"] = float(np.mean(d > 0))
     return out
 
@@ -645,6 +658,7 @@ def did_summary(
     def _summ(name: str) -> dict[str, float | str]:
         d = posterior[name].stack(sample=("chain", "draw")).values
         prob_pos = float(np.mean(d > 0))
+        lo90, hi90 = band90(d)
         return {
             # Median-first to match the ITT tau_summary_itt convention (#144 / #271);
             # the mean is kept as a secondary column.
@@ -652,6 +666,8 @@ def did_summary(
             f"{name}_mean": float(np.mean(d)),
             f"{name}_lo": float(np.quantile(d, lo_q)),
             f"{name}_hi": float(np.quantile(d, hi_q)),
+            f"{name}_lo90": lo90,
+            f"{name}_hi90": hi90,
             f"prob_{name}_pos": prob_pos,
             f"{name}_direction_label": evidence_label(prob_pos),
             f"{name}_favoured_direction": "positive" if prob_pos >= 0.5 else "negative",
@@ -678,6 +694,7 @@ def did_summary(
     out["delta_items_mean"] = float(np.mean(eff))
     out["delta_items_lo"] = float(np.quantile(eff, lo_q))
     out["delta_items_hi"] = float(np.quantile(eff, hi_q))
+    out["delta_items_lo90"], out["delta_items_hi90"] = band90(eff)
     out["off_floor"] = bool(off_floor)
     return out
 
@@ -705,6 +722,8 @@ def tau_summary_joint(
                 "tau_median": float(np.median(d)),
                 "tau_lo": float(np.quantile(d, lo_q)),
                 "tau_hi": float(np.quantile(d, hi_q)),
+                "tau_lo90": band90(d)[0],
+                "tau_hi90": band90(d)[1],
                 "prob_pos": float(np.mean(d > 0)),
             }
         )
@@ -736,6 +755,7 @@ def gamma_interaction_summary(
         out[f"{name}_mean"] = float(np.mean(d))
         out[f"{name}_lo"] = float(np.quantile(d, lo_q))
         out[f"{name}_hi"] = float(np.quantile(d, hi_q))
+        out[f"{name}_lo90"], out[f"{name}_hi90"] = band90(d)
         out[f"prob_{name}_pos"] = float(np.mean(d > 0))
     return out
 
@@ -795,6 +815,8 @@ def tau_difference_summary(
         "diff_logit_mean": float(np.mean(diff)),
         "diff_logit_lo": float(np.quantile(diff, lo_q)),
         "diff_logit_hi": float(np.quantile(diff, hi_q)),
+        "diff_logit_lo90": band90(diff)[0],
+        "diff_logit_hi90": band90(diff)[1],
         "prob_diff_pos": float(np.mean(diff > 0)),
     }
 
@@ -903,6 +925,7 @@ def factor_summary(
     def _row(term: str, base: str, d: np.ndarray) -> dict[str, object]:
         causal = term in causal_terms or base in causal_terms
         prob_pos = float(np.mean(d > 0))
+        lo90, hi90 = band90(d)
         return {
             "term": term,
             "role": "causal" if causal else "association",
@@ -910,6 +933,8 @@ def factor_summary(
             "mean": float(np.mean(d)),
             "lo": float(np.quantile(d, lo_q)),
             "hi": float(np.quantile(d, hi_q)),
+            "lo90": lo90,
+            "hi90": hi90,
             "prob_positive": prob_pos,
             "direction_label": evidence_label(prob_pos),
             **favoured_direction(prob_pos),
@@ -1028,13 +1053,19 @@ def treatment_marginal_effect(
     ame_items = float(n_trials) * ame_prob
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
+    prob_lo90, prob_hi90 = band90(ame_prob)
+    items_lo90, items_hi90 = band90(ame_items)
     return {
         "trt_prob_median": float(np.median(ame_prob)),
         "trt_prob_lo": float(np.quantile(ame_prob, lo_q)),
         "trt_prob_hi": float(np.quantile(ame_prob, hi_q)),
+        "trt_prob_lo90": prob_lo90,
+        "trt_prob_hi90": prob_hi90,
         "trt_items_median": float(np.median(ame_items)),
         "trt_items_lo": float(np.quantile(ame_items, lo_q)),
         "trt_items_hi": float(np.quantile(ame_items, hi_q)),
+        "trt_items_lo90": items_lo90,
+        "trt_items_hi90": items_hi90,
         "prob_trt_pos": float(np.mean(b > 0)),
     }
 
