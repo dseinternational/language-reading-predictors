@@ -79,6 +79,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_wave_panel,
     restrict_to_baseline_floored,
     restrict_to_off_floor,
+    split_confounders_by_timing,
     split_covariates_by_wave,
 )
 
@@ -142,6 +143,7 @@ def _effective_adjustment(
     *,
     measure_confounders: tuple[str, ...] = (),
     adjust_for: tuple[str, ...] = (),
+    ability_covariate: str | None = None,
     baseline_symbol: str | None = None,
     skill_baselines: tuple[str, ...] = (),
 ) -> dict:
@@ -163,6 +165,12 @@ def _effective_adjustment(
     ``measure_confounders`` of the mechanism/mediation families — enter at the period
     **pre** (baseline) wave, not the post wave (#247). They are always fitted (the
     keep-mask requires their baselines), so they never appear in ``dropped_constant``.
+
+    ``ability_covariate`` records the gain-/level-factor cognitive-ability adjuster
+    (block design), a between-child t1 baseline broadcast across the panel and fitted
+    as ``gamma_ability``. It was previously absent from the record even though the
+    factory conditions on it, so the audited set understated the fitted set by one
+    term across the whole factor family (this review's finding B2).
     """
     terms = []
     for s in skill_baselines:
@@ -222,6 +230,20 @@ def _effective_adjustment(
                 "missing_indicator": c.endswith("_missing"),
             }
         )
+    if ability_covariate and ability_covariate in prepared.covariates:
+        # Cognitive-ability (block-design) adjuster — a between-child t1 baseline
+        # broadcast across the panel, fitted as ``gamma_ability``. Guarded on
+        # presence so an ability covariate that went constant (and was dropped by
+        # the loader) is reported under ``dropped_constant``, not as fitted.
+        terms.append(
+            {
+                "term": ability_covariate,
+                "kind": "ability_covariate",
+                "source_column": ability_covariate,
+                "wave": prepared.covariate_time.get(ability_covariate, "baseline"),
+                "missing_indicator": False,
+            }
+        )
     if baseline_symbol:
         terms.append(
             {
@@ -235,6 +257,7 @@ def _effective_adjustment(
     return {
         "requested": list(spec.adjustment)
         + list(skill_baselines)
+        + ([ability_covariate] if ability_covariate else [])
         + list(spec.extra.get("adjust_for", ())),
         "fitted": terms,
         "dropped_constant": list(prepared.dropped_covariates),
@@ -466,6 +489,21 @@ def _prior_table_overrides(
         # mediator-outcome confounder). See the :mod:`mediation` module docstring.
         role["a_G"] = "association"
         role["b_G"] = "association"
+        # B3 (review 2026-07-13): in the SINGLE-mediator outcome leg every confounder
+        # coefficient is ``b_{symbol}`` built from gamma_cross_prior (Normal(0, 0.3)).
+        # But ``b_E``/``b_B`` are *also* globally mapped to the ``b_path`` constructor
+        # (Normal(0, 1)) for the TWO-mediator models, where E/B are the mediators —
+        # so in LRP59/62/78 (E a confounder) that global mapping mislabels the prior
+        # table's rationale + panel (the distribution column, read off the RV, stays
+        # correct). Route every confounder ``b_X`` (X not a structural term) to
+        # gamma_cross. ``mediation_multi`` is left alone: there b_L/b_E or b_L/b_B ARE
+        # the mediator b-paths, and its other confounders already route to gamma_cross
+        # via the RV-distribution fallback.
+        if spec.kind == "mediation" and context.model is not None:
+            _structural_b = {"M", "G", "GM", "W", "A"}
+            for rv in context.model.free_RVs:
+                if rv.name.startswith("b_") and rv.name[2:] not in _structural_b:
+                    ctor[rv.name] = "gamma_cross"
     elif spec.kind == "mechanism":
         # ``beta_G`` reuses the tau constructor (its Normal(0, 0.5) scale) but here
         # it is the group main effect entered as a DAG backdoor adjustment, not the
@@ -938,6 +976,12 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             pre_required=pre_required,
         )
     ctx.prepared = prepared
+    # Re-filter the requested adjusters to those actually present after loading: a
+    # covariate (or a ``{col}_missing`` indicator) that goes constant on the fitted
+    # rows is dropped by the loader, and build_itt_model raises on an absent adjuster.
+    # Mirror the gain-/level-factor and mechanism pipelines, which drop-and-continue so
+    # a dropped-constant adjuster does not abort the whole ITT fit (Group-C cleanup).
+    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
 
     _print_header(ctx)
 
@@ -1504,11 +1548,12 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
     else:
         dose_vars = ["beta_dose"]
     v = ["alpha", "beta_period", *dose_vars]
+    # Neither branch has an own-baseline term any more (A2, 2026-07-13): ``gamma_own``
+    # was dropped from both, since the immediate arm's P2 period-start score is
+    # treatment-affected. The graded Beta-Binomial keeps the dispersion ``kappa``; the
+    # off-floor Bernoulli has none.
     if not off_floor:
-        # The off-floor (prevalence) DiD drops both the own-baseline term
-        # (conditioning on a treatment-affected period-start score; #257 review) and
-        # the dispersion parameter (a Bernoulli has none).
-        v += ["gamma_own", "kappa"]
+        v += ["kappa"]
     if spec.extra.get("use_age", True):
         v.append("gamma_A")
     if spec.extra.get("use_child_re", True):
@@ -1532,13 +1577,14 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # the per-period intervention-session count.
     outcomes = tuple(spec.extra.get("outcomes", (sym,)))
     covariates = ("attend",) if dose else ()
-    # The off-floor (prevalence) model no longer conditions on the own baseline
-    # (see build_did_model), so a missing period-start score is no reason to drop a
-    # row. Requiring it needlessly discarded four nonword P1 observations (#257
-    # review); with pre_required=() those rows are kept, matching the estimand,
-    # which needs only the period-end off-floor indicator. The graded beta-binomial
-    # model still requires the pre-score (default), because it uses it.
-    pre_required = () if off_floor else None
+    # Neither DiD branch conditions on the own baseline any more (see build_did_model:
+    # for the immediate arm's P2 the period-start score is post-treatment, so a
+    # ``gamma_own`` term would bias the differenced ``delta``; A2, team decision
+    # 2026-07-13). A missing period-start score is therefore no reason to drop a row —
+    # the estimand needs only the period-end score / off-floor indicator — so neither
+    # branch requires the pre-score. (Previously only the off-floor branch relaxed
+    # this, which needlessly discarded four nonword P1 observations, #257 review.)
+    pre_required = ()
     prepared = load_and_prepare(
         phase_mode="all",
         outcomes=outcomes,
@@ -1982,19 +2028,25 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     return _finalize_report(ctx)
 
 
-def _summarise_draws(values: np.ndarray, ci_prob: float) -> dict[str, float]:
-    """Mean, equal-tailed CI and P(>0) for a 1-D array of posterior draws.
+def _summarise_draws(
+    values: np.ndarray, ci_prob: float, *, include_p_pos: bool = True
+) -> dict[str, float]:
+    """Mean, equal-tailed CI and (optionally) P(>0) for a 1-D array of draws.
 
     ``ci_prob`` is the interval *coverage* probability (equal-tailed), read from
     ``ctx.reporting.ci_prob`` — see the naming note in ``context.make_context`` (#170).
+    ``include_p_pos=False`` omits the directional ``P(>0)`` for a strictly-positive
+    quantity (e.g. a between-period SD) where it is trivially 1 and meaningless.
     """
     lo_q = (1.0 - ci_prob) / 2.0
-    return {
+    out = {
         "mean": float(np.mean(values)),
         "lo": float(np.quantile(values, lo_q)),
         "hi": float(np.quantile(values, 1.0 - lo_q)),
-        "p_pos": float(np.mean(values > 0.0)),
     }
+    if include_p_pos:
+        out["p_pos"] = float(np.mean(values > 0.0))
+    return out
 
 
 def _write_dose_slope_summary(
@@ -2016,7 +2068,10 @@ def _write_dose_slope_summary(
                 {"term": f"dose_period{p + 1}", **_summarise_draws(bdp[p], ci_prob)}
             )
         rows.append(
-            {"term": "sigma_dose_between_period", **_summarise_draws(_draws("sigma_dose"), ci_prob)}
+            {
+                "term": "sigma_dose_between_period",
+                **_summarise_draws(_draws("sigma_dose"), ci_prob, include_p_pos=False),
+            }
         )
     else:
         rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), ci_prob)})
@@ -2101,12 +2156,18 @@ def _fit_t3_sensitivity(
             progressbar=False,
         )
     # Gate this temporal-ordering sensitivity sub-fit (bypasses the primary gate).
-    _diag.subfit_convergence(trace_t3, label=f"{spec.model_id} t3 sensitivity")
-    return _med.decompose(
+    conv = _diag.subfit_convergence(trace_t3, label=f"{spec.model_id} t3 sensitivity")
+    df_t3 = _med.decompose(
         trace_t3,
         med_t3,
         ci_prob=ctx.reporting.ci_prob,
     )
+    # Persist the verdict onto the published rows: this sub-fit bypasses the primary
+    # gate, and the verdict was previously computed then discarded so the t3 table
+    # shipped with no convergence flag (this review's finding B1). Flows through to
+    # both mediation_summary_t3.csv and the mediation_t3_sensitivity metadata block.
+    df_t3["converged"] = conv["converged"]
+    return df_t3
 
 
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -2351,7 +2412,10 @@ def _gf_coef_names(
     names: list[str] = []
     if not treated_only:
         names.append("beta_trt")
-    names += ["gamma_own", "gamma_A"]
+    # gamma_own drops on the off-floor (Bernoulli) path (A4) — see build_gain_factors_model.
+    if extra.get("likelihood") != "bernoulli_offfloor":
+        names.append("gamma_own")
+    names.append("gamma_A")
     if extra.get("ability_covariate"):
         names.append("gamma_ability")
     names += [f"gamma_{s}" for s in extra.get("skill_symbols", ())]
@@ -2393,17 +2457,22 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     off_floor = likelihood == "bernoulli_offfloor"
     obs_node = "y_offfloor" if off_floor else "y_post"
     baseline_covariates = (ability_covariate,) if ability_covariate else ()
-    # Revised-DAG raw-covariate confounders (hearing/speech/phonological memory;
-    # #247). Split by wave exactly as fit_mechanism: these are *state* covariates,
-    # read from the transition's POST row (the DAG is contemporaneous), so pre_adj
-    # is empty and post_adj carries them. Re-filter after loading — a constant
-    # ``_missing`` indicator is dropped by the loader and must not be built or gated.
+    # Revised-DAG raw-covariate confounders (hearing/speech/phonological memory; #247).
+    # Timing (review finding A1; team decision 2026-07-13): the language-proximal SP/RW
+    # confounders (deapp_c/erbto + their missing indicators) are read at the pre-
+    # randomisation BASELINE (t1) — at the period-1 post wave (t2) they may already be
+    # treatment-affected, so conditioning there would adjust a descendant of the exposure
+    # and bias the randomised beta_trt. Hearing (hs) is exogenous to a language
+    # intervention and stays contemporaneous (post); ``attend`` (if ever present) stays on
+    # the interval pre row. Re-filter after loading — a constant ``_missing`` indicator is
+    # dropped by the loader and must not be built or gated.
     adjust_for = tuple(extra.get("adjust_for", ()))
     pre_adj, post_adj = split_covariates_by_wave(adjust_for)
+    baseline_adj, post_adj = split_confounders_by_timing(post_adj)
     prepared = load_and_prepare(
         phase_mode="all",
         outcomes=(spec.outcome_symbol, *skill_symbols),
-        baseline_covariates=baseline_covariates,
+        baseline_covariates=(*baseline_covariates, *baseline_adj),
         covariates=pre_adj,
         post_covariates=post_adj,
     )
@@ -2475,6 +2544,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             spec,
             built.prepared,
             adjust_for=adjust_for,
+            ability_covariate=ability_covariate,
             baseline_symbol=spec.outcome_symbol,
             skill_baselines=skill_symbols,
         ),
@@ -2655,17 +2725,23 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     off_floor = likelihood == "bernoulli_offfloor"
     obs_node = "y_offfloor" if off_floor else "y_post"
     baseline_covariates = (ability_covariate,) if ability_covariate else ()
-    # Revised-DAG raw-covariate confounders (hearing/speech/phonological memory;
-    # #247). State covariates → the timepoint's POST row (the DAG is contemporaneous),
-    # so pre_adj is empty and post_adj carries them; re-filter after loading so a
-    # constant ``_missing`` indicator dropped by the loader is not built or gated. The
-    # level model takes no measure-skill adjusters (they are post-treatment mediators).
+    # Revised-DAG raw-covariate confounders (hearing/speech/phonological memory; #247).
+    # Timing (review finding A1; team decision 2026-07-13): the language-proximal SP/RW
+    # confounders (deapp_c/erbto + missing indicators) are read at the pre-randomisation
+    # BASELINE (t1) — the clean randomised contrast here is the t2 group term, and at t2
+    # these language-proximal states may already be treatment-affected, so a
+    # contemporaneous read would condition the causal contrast on a descendant of the
+    # exposure. Hearing (hs) is exogenous and stays contemporaneous (post). Re-filter
+    # after loading so a constant ``_missing`` indicator dropped by the loader is not
+    # built or gated. The level model takes no measure-skill adjusters (post-treatment
+    # mediators).
     adjust_for = tuple(extra.get("adjust_for", ()))
     pre_adj, post_adj = split_covariates_by_wave(adjust_for)
+    baseline_adj, post_adj = split_confounders_by_timing(post_adj)
     prepared = load_and_prepare(
         phase_mode="levels",
         outcomes=(spec.outcome_symbol,),
-        baseline_covariates=baseline_covariates,
+        baseline_covariates=(*baseline_covariates, *baseline_adj),
         covariates=pre_adj,
         post_covariates=post_adj,
     )
@@ -2740,7 +2816,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         # covariates (#247). The level model carries no skill baselines — only the
         # exogenous raw-covariate confounders (hs/deapp_c/erbto) at the split wave.
         "effective_adjustment": _effective_adjustment(
-            spec, built.prepared, adjust_for=adjust_for
+            spec, built.prepared, adjust_for=adjust_for, ability_covariate=ability_covariate
         ),
     }
     # ROPE-anchored continuous report for the one causal term — the t2 randomised
@@ -2748,13 +2824,22 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # as a per-timepoint vector and also carries a group×ability interaction, so the
     # t2 items-scale AME nets both group terms out at the t2 rows
     # (reporting.level_t2_marginal_effect) rather than reusing the gain core. Emitted
-    # only for graded outcomes with an agreed delta (ROPE_DELTA -> W/R/E/L/B) and when
-    # the t2 contrast exists (group_by_time); P (off-floor) and F/T are skipped, as in
-    # the ITT path.
-    from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+    # when the t2 contrast exists (group_by_time): graded outcomes with an agreed items
+    # delta (ROPE_DELTA -> W/R/E/L/B) report on the items scale; the floored outcomes P
+    # and N report the off-floor risk difference (A4, 2026-07-13) — previously they got
+    # no probability-scale card at all; F/T (no agreed delta) are still skipped.
+    from language_reading_predictors.statistical_models.measures import (
+        ROPE_DELTA,
+        ROPE_DELTA_PROB,
+        ROPE_DELTA_PROB_GRID,
+    )
 
     delta_items = ROPE_DELTA.get(spec.outcome_symbol)
-    if delta_items is not None and not off_floor and extra.get("group_by_time", True):
+    delta_prob = ROPE_DELTA_PROB.get(spec.outcome_symbol)
+    _gbt = extra.get("group_by_time", True)
+    _graded_card = delta_items is not None and not off_floor and _gbt
+    _offfloor_card = off_floor and delta_prob is not None and _gbt
+    if _graded_card or _offfloor_card:
         ability = (
             built.prepared.covariates[ability_covariate]
             if ability_covariate is not None
@@ -2766,11 +2851,30 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             G=built.prepared.G,
             ability=ability,
         )
-        n_marg = int(built.prepared.n_trials[spec.outcome_symbol])
+        if _graded_card:
+            n_marg = int(built.prepared.n_trials[spec.outcome_symbol])
+            delta = delta_items
+            title = (
+                f"ROPE summary (t2 contrast, {spec.outcome_symbol}, "
+                f"delta={delta_items:g} items)"
+            )
+        else:
+            # Off-floor (Bernoulli) t2 contrast: expit(eta) = Pr(off-floor), so the
+            # probability-scale AME from level_t2_marginal_effect IS the off-floor risk
+            # difference (n_trials = 1), matching the gain-factor off-floor path.
+            n_marg = 1
+            delta = delta_prob
+            title = (
+                f"ROPE summary (t2 off-floor risk difference, "
+                f"{spec.outcome_symbol}, delta={delta_prob:g})"
+            )
         items = ame_prob * n_marg
         rope_s = _report.rope_card(
-            contrast_draws, items, delta=delta_items, ci_prob=ctx.reporting.ci_prob
+            contrast_draws, items, delta=delta, ci_prob=ctx.reporting.ci_prob
         )
+        if _offfloor_card:
+            rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
+            rope_s["delta_scale"] = "risk_difference"
         rope_df = pd.DataFrame([rope_s])
         rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
         ctx.tables["rope_summary"] = rope_df
@@ -2778,11 +2882,33 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         print_table(
             metrics_table(
                 [{"metric": k, "value": v} for k, v in rope_s.items()],
-                title=f"ROPE summary (t2 contrast, {spec.outcome_symbol}, delta={delta_items:g} items)",
+                title=title,
                 columns=["metric", "value"],
             )
         )
-        _save_rope_plot(ctx, spec.outcome_symbol, None, n_marg, delta_items, items=items)
+        _save_rope_plot(ctx, spec.outcome_symbol, None, n_marg, delta, items=items)
+        if _offfloor_card:
+            # δ-sensitivity sweep on the risk-difference grid (10/15/20 pp), mirroring
+            # the gain-factor off-floor path (#144). Built from the same ``items``
+            # (risk-difference) draws so it cannot drift from the headline card.
+            sens_rows = []
+            for d in ROPE_DELTA_PROB_GRID:
+                d = float(d)
+                p_benefit = float(np.mean(items >= d))
+                sens_rows.append(
+                    {
+                        "delta_items": d,
+                        "prob_benefit_ge_delta": p_benefit,
+                        "prob_in_rope": float(np.mean(np.abs(items) <= d)),
+                        "prob_harm_ge_delta": float(np.mean(items <= -d)),
+                        "benefit_label": _report.evidence_label(p_benefit),
+                    }
+                )
+            sens_df = pd.DataFrame(sens_rows)
+            sens_df.to_csv(
+                os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
+            )
+            ctx.tables["rope_sensitivity"] = sens_df
 
     _report.write_run_metadata(ctx, extra=meta_extra)
     return _finalize_report(ctx)
@@ -3068,6 +3194,13 @@ def _sample_model(model, sampling, *, label: str = "sub-fit"):
     traces never overwrite the headline ``ctx.trace`` / ``trace.nc``. A convergence
     check runs on the result and warns loudly if the sub-fit failed the gate, since
     these traces bypass the primary ``diagnostics_summary.json`` gate.
+
+    Returns ``(trace, conv)`` where ``conv`` is the
+    :func:`diagnostics.subfit_convergence` verdict dict (``converged``/``max_rhat``/
+    ``min_ess``/``n_divergences``). The caller persists ``conv["converged"]`` onto the
+    sub-fit's published CSV: previously the verdict was computed and discarded, so the
+    bivariate / prior-sweep / SES sensitivity tables were reported with no convergence
+    flag despite bypassing the primary gate (this review's finding B1).
     """
     import pymc as pm
 
@@ -3083,14 +3216,19 @@ def _sample_model(model, sampling, *, label: str = "sub-fit"):
             random_seed=sampling.random_seed,
             progressbar=False,
         )
-    _diag.subfit_convergence(trace, label=label)
-    return trace
+    conv = _diag.subfit_convergence(trace, label=label)
+    return trace, conv
 
 
-def _beta_summary(trace, name: str, hdi: float) -> dict:
-    """Posterior mean, equal-tailed ``hdi``-coverage interval, and P(>0) for ``name``."""
+def _beta_summary(trace, name: str, ci_prob: float) -> dict:
+    """Posterior mean, equal-tailed ``ci_prob``-coverage interval, and P(>0) for ``name``.
+
+    The interval is equal-tailed at ``ci_prob`` coverage, not an HDI — the parameter
+    was previously named ``hdi``, which misdescribed it (the callers already pass
+    ``ctx.reporting.ci_prob``).
+    """
     draws = trace.posterior[name].stack(sample=("chain", "draw")).values
-    lo_q, hi_q = (1 - hdi) / 2, 1 - (1 - hdi) / 2
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     return {
         "mean": float(np.mean(draws)),
         "lo": float(np.quantile(draws, lo_q)),
@@ -3391,7 +3529,12 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _adjusted_diag_vars = ["alpha", "gamma_own", "kappa", *beta_names]
 
     section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=_adjusted_diag_vars)
+    # Capture the primary gate verdict so the sub-fit tables can label their
+    # primary-derived rows (the adjusted/mutual associations and the headline-sigma
+    # prior-sweep rows come from ``ctx.trace``, which this gate covers) consistently
+    # with the sub-fits' own ``subfit_convergence`` flags (this review's finding B1).
+    _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=_adjusted_diag_vars)
+    _primary_converged = bool(_primary_gate.get("passed")) if _primary_gate else None
     _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_adjusted_diag_vars)
@@ -3400,6 +3543,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Predictor associations (adjusted vs bivariate)")
     adjusted = {k: _beta_summary(ctx.trace, f"beta_{k}", hdi) for k in headline}
     bivariate: dict[str, dict] = {}
+    biv_converged: dict[str, object] = {}
     for k in headline:
         b = _factories.build_adjusted_model(
             prepared,
@@ -3408,8 +3552,9 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             language_composite_symbols=lang_symbols,
             predictor_slope_sigma=sigma0,
         )
-        t = _sample_model(b.model, ctx.sampling, label=f"{spec.model_id} bivariate {k}")
+        t, conv = _sample_model(b.model, ctx.sampling, label=f"{spec.model_id} bivariate {k}")
         bivariate[k] = _beta_summary(t, f"beta_{k}", hdi)
+        biv_converged[k] = conv["converged"]
 
     rows = []
     for k in headline:
@@ -3426,6 +3571,10 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 "biv_lo": bv["lo"],
                 "biv_hi": bv["hi"],
                 "biv_prob_pos": bv["prob_pos"],
+                # Convergence flags: the adjusted column is the primary (gated) fit;
+                # the bivariate column is a sub-fit that bypasses the primary gate (B1).
+                "adj_converged": _primary_converged,
+                "biv_converged": biv_converged[k],
             }
         )
     assoc_df = pd.DataFrame(rows)
@@ -3455,6 +3604,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     for sig in [sigma0, *prior_sens]:
         if sig == sigma0:
             tr = ctx.trace
+            sig_converged = _primary_converged  # headline sigma is the gated primary
         else:
             b = _factories.build_adjusted_model(
                 prepared,
@@ -3463,12 +3613,18 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 language_composite_symbols=lang_symbols,
                 predictor_slope_sigma=sig,
             )
-            tr = _sample_model(
+            tr, conv = _sample_model(
                 b.model, ctx.sampling, label=f"{spec.model_id} prior-sweep sigma={sig}"
             )
+            sig_converged = conv["converged"]
         for k in headline:
             ps_rows.append(
-                {"sigma": sig, "predictor": k, **_beta_summary(tr, f"beta_{k}", hdi)}
+                {
+                    "sigma": sig,
+                    "predictor": k,
+                    **_beta_summary(tr, f"beta_{k}", hdi),
+                    "converged": sig_converged,
+                }
             )
     ps_df = pd.DataFrame(ps_rows)
     ps_df.to_csv(os.path.join(ctx.output_dir, "prior_sensitivity.csv"), index=False)
@@ -3503,7 +3659,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             language_composite_symbols=lang_symbols,
             predictor_slope_sigma=sigma0,
         )
-        t = _sample_model(b.model, ctx.sampling, label=f"{spec.model_id} SES complete-case")
+        t, conv = _sample_model(b.model, ctx.sampling, label=f"{spec.model_id} SES complete-case")
         ses_n = int(b.prepared.n_children)
         ses_rows = [
             {
@@ -3511,6 +3667,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 "label": _adj_label(k),
                 "n_children": ses_n,
                 **_beta_summary(t, f"beta_{k}", hdi),
+                "converged": conv["converged"],
             }
             for k in ses_predictors
         ]
@@ -4040,7 +4197,6 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
     built = _factories.build_correlated_factor_model(
         prepared,
         outcome_symbol=outcome,
