@@ -311,6 +311,7 @@ documentclass
 dropna
 dse
 dseinternational
+dseresearch
 dtype
 earinf
 econlet
