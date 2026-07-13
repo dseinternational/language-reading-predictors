@@ -11,7 +11,7 @@ Separate workstream agreed at the 2026-07-10 DAG revision (decision 7; `notes/20
 
 The authoritative `dag/dag-language-reading.dagitty` is **contemporaneous** (single-wave): every skill→skill edge is a concurrent association whose direction is assigned by theory, and it cannot express maturation or the direction of change over the four waves. Making measurement occasions explicit does four things at once:
 
-1. **Reciprocal edges become representable** instead of confessed-away — `PA_t → WR_{t+1}` *and* `WR_t → PA_{t+1}` can both appear, so which direction dominates is an empirical (cross-lagged) question rather than an acyclicity casualty.
+1. **Reciprocal edges become representable** instead of confessed-away — `PA_t → WR_{t+1}` _and_ `WR_t → PA_{t+1}` can both appear, so which direction dominates is an empirical (cross-lagged) question rather than an acyclicity casualty.
 2. **Reading → language coexists with language → reading** without a cycle — `WR_t → EV_{t+1}` (the founding RLI hypothesis) alongside `EV_t → PA_{t+1} → WR_{t+2}`.
 3. **Adjustment sets become readable off the graph** — each outcome's confounders are its **parents at the prior wave**, which removes the judgement the contemporaneous graph forced onto the gain/level-factor sweep (#247).
 4. **Temporal precedence is explicit**, which settles whether baseline vocabulary is an admissible mediation confounder (#264, below).
@@ -31,7 +31,7 @@ Verified acyclic (37 nodes, 157 edges).
 
 ## What it newly identifies
 
-- **#264 (mediation E/R).** With waves explicit, `E_t1`/`R_t1` are unambiguously **pre-treatment** for the t1→t2 window, so the descendant-of-treatment argument that #246 used (and that was overturned) does not apply to the baseline value. Reading the graph, a mediator `M_{t+1}`'s admissible confounders are its prior-wave parents, which *include* baseline vocabulary where vocabulary is a parent — so `E_t1`/`R_t1` come out **in** for the vocabulary-adjacent mediators, on a derivation rather than an assertion. The per-mediator derivation is #264's deliverable.
+- **#264 (mediation E/R).** With waves explicit, `E_t1`/`R_t1` are unambiguously **pre-treatment** for the t1→t2 window, so the descendant-of-treatment argument that #246 used (and that was overturned) does not apply to the baseline value. Reading the graph, a mediator `M_{t+1}`'s admissible confounders are its prior-wave parents, which _include_ baseline vocabulary where vocabulary is a parent — so `E_t1`/`R_t1` come out **in** for the vocabulary-adjacent mediators, on a derivation rather than an assertion. The per-mediator derivation is #264's deliverable.
 - **Cross-lagged dominance tests** — `PA_t→WR_{t+1}` vs `WR_t→PA_{t+1}`; reading→language (`WR→EV`) — become first-class hypotheses the LCSM machinery can probe.
 - **Maturation / direction of change** — expressible via autoregression + per-wave age.
 
