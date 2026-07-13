@@ -1314,6 +1314,13 @@ def build_did_model(
     standardised intervention-session count for that period) — a dose-response
     sensitivity; the caller must have loaded ``covariates=("attend",)``.
 
+    **No own-baseline term in either likelihood branch** (A2 / #257 review): for the
+    immediate arm's P2 the period-start score is post-P1-treatment, so a ``gamma_own``
+    term would adjust a treatment-affected variable and bias the differenced
+    ``delta``. ``delta`` is identified by the period × treated structure plus the
+    child random intercept (each child their own control) instead; the graded and
+    off-floor branches differ only in likelihood.
+
     Parameters
     ----------
     periods
@@ -1342,10 +1349,8 @@ def build_did_model(
         ``Pr(post > 0 | pre = 0)``. Its items-scale marginal (``n_trials=1``) is a
         model-implied off-floor risk difference from toggling ``Treated``, not a
         probability-scale DiD cross-difference (parallel trends holds on the
-        log-odds scale). This branch also drops the own-baseline (``gamma_own``)
-        term: the period-start score is post-treatment for the immediate arm's P2,
-        so conditioning on it would adjust a treatment-affected variable (#257
-        review). No ``kappa`` under the Bernoulli. Requires ``dose=False``.
+        log-odds scale). No ``kappa`` under the Bernoulli (neither branch has an
+        own-baseline ``gamma_own`` term — see above). Requires ``dose=False``.
     """
     if prepared.phase_mode != "all":
         raise ValueError("build_did_model requires phase_mode='all'")
