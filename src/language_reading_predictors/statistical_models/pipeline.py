@@ -1809,6 +1809,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Mechanism curve: f_mech vs mech_post_logit grid (logit-contribution scale only).
     section_header("Mechanism curve")
     _write_mechanism_curve(ctx)
+    _write_readiness_threshold(ctx)
 
     # Record the adjustment set that was actually FITTED — with each term's source
     # column, measurement wave and missing-indicator status — not just the requested
@@ -1923,6 +1924,64 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     plt.title(f"Mechanism curve ({kind}): {sym} -> {outcome}")
     # mechanism_curve.csv (the plotted band) is written just above.
     save_styled_figure(ctx.output_dir, "mechanism_curve")
+
+
+def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
+    """Readiness-threshold summary for the mechanism curve (#230 §2).
+
+    Post-processes the fitted nonparametric mechanism curve (``f_mech``) into a
+    posterior for the predictor level at which the outcome starts to move - the
+    "knee", e.g. "does reading only move above ~k letter sounds?". Only the GP
+    mechanism has a curve to find a knee in; linear / phase-specific fits (no
+    ``f_mech``) are skipped quietly. Writes ``readiness_threshold.csv`` and a
+    plot. Guarded by the caller.
+    """
+    post = ctx.trace.posterior
+    if "f_mech" not in post:
+        return
+
+    from scipy.special import expit
+
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+    )
+    from language_reading_predictors.statistical_models.readiness import (
+        readiness_threshold,
+    )
+
+    sym = ctx.spec.mechanism_symbol
+    N = MEASURES[sym].n_trials
+    mech_logit = logit_safe(ctx.prepared.post_counts[sym], N)
+    f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
+
+    try:
+        df = readiness_threshold(mech_logit, f, N)
+    except ValueError as exc:
+        rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
+        return
+    df.to_csv(os.path.join(ctx.output_dir, "readiness_threshold.csv"), index=False)
+
+    knee = df[df["estimand"] == "knee (max slope)"].iloc[0]
+    order = np.argsort(mech_logit)
+    x_count = N * expit(mech_logit[order])
+    mean = f[order].mean(axis=1)
+    outcome = ctx.spec.outcome_symbol or "W"
+    plt.figure(figsize=(6, 4))
+    plt.plot(x_count, mean, color="#1f77b4", lw=2)
+    plt.axvspan(
+        knee["count_lo"],
+        knee["count_hi"],
+        color="#d62728",
+        alpha=0.15,
+        label="knee 95% CI",
+    )
+    plt.axvline(knee["count_median"], color="#d62728", lw=1.5, label="knee median")
+    plt.xlabel(f"{sym} (raw count, out of {N})")
+    plt.ylabel(f"{outcome} logit contribution")
+    plt.title(f"Readiness threshold: {sym} -> {outcome}")
+    plt.legend(fontsize=8)
+    save_styled_figure(ctx.output_dir, "readiness_threshold")
 
 
 # ---------------------------------------------------------------------------
