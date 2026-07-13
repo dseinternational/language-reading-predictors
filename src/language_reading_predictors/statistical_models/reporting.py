@@ -128,10 +128,27 @@ def _itt_ame_draws(
     contrib = expit(eta0 + delta) - expit(eta0)  # (n_obs, S)
     if row_mask is not None:
         m = np.asarray(row_mask)
-        if m.dtype == bool and m.shape[0] != eta.shape[0]:
+        # Validate dtype + dimensionality so a 2-D or float mask fails loudly rather
+        # than silently changing the indexing semantics of ``contrib[m]`` (which would
+        # yield a wrong AME). Only a 1-D boolean mask (length n_obs) or a 1-D integer
+        # index array (in range) is accepted.
+        if m.ndim != 1:
+            raise ValueError(f"row_mask must be 1-D, got a {m.ndim}-D array.")
+        if m.dtype == bool:
+            if m.shape[0] != eta.shape[0]:
+                raise ValueError(
+                    f"boolean row_mask has {m.shape[0]} entries but eta has "
+                    f"{eta.shape[0]} observations; pass the fitted-subset mask."
+                )
+        elif np.issubdtype(m.dtype, np.integer):
+            if m.size and (int(m.min()) < 0 or int(m.max()) >= eta.shape[0]):
+                raise ValueError(
+                    f"integer row_mask has indices outside [0, {eta.shape[0]})."
+                )
+        else:
             raise ValueError(
-                f"row_mask has {m.shape[0]} rows but eta has {eta.shape[0]} "
-                "observations; pass the fitted-subset mask."
+                "row_mask must be a boolean mask or integer index array, got dtype "
+                f"{m.dtype}."
             )
         contrib = contrib[m]
         if contrib.shape[0] == 0:

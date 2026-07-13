@@ -3,7 +3,7 @@
 
 """LRPLF11 - level factors for nonword reading (N), off-floor.
 
-DAG-focused level-factors model (#224): associations with the nonword-reading off-floor
+DAG-focused level-factors model (#225): associations with the nonword-reading off-floor
 status at each of the four timepoints. Nonword reading is heavily floored, so the level
 outcome is the off-floor indicator (score > 0) at each timepoint — being off the floor
 **at post** (post>0) pools zero→positive movement, persistence above zero and

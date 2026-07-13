@@ -3,9 +3,9 @@
 
 """LRPGF11 - gain factors for nonword reading (N), off-floor.
 
-DAG-focused gain-factors model (#224; adjustment set re-derived against the revised
-2026-07-10 DAG, ``dag/dag-language-reading.dagitty``, #247). Associations with how much
-children move off the nonword-reading floor across the three period transitions.
+DAG-focused gain-factors model (#225; adjustment set re-derived against the revised
+2026-07-10 DAG, ``dag/dag-language-reading.dagitty``, #247). Associations with being
+off the nonword-reading floor **at post** across the three period transitions.
 
 Nonword reading (6 items) is heavily floored (most period post-scores are zero; the
 at-floor rate runs 72% -> 40% across t1-t4), so a graded Beta-Binomial gain would be

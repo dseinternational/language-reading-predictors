@@ -502,6 +502,31 @@ def test_treatment_marginal_effect_row_mask_restricts_to_subset():
     # …but the logit-scale direction probability is unaffected (it summarises beta_trt).
     assert out["prob_trt_pos"] == pytest.approx(out_all["prob_trt_pos"])
 
+    # An integer index array is an accepted alternative form and must agree with the
+    # boolean mask selecting the same rows.
+    out_idx = treatment_marginal_effect(
+        trace, trt=trt, n_trials=n_trials, row_mask=np.array([0, 1])
+    )
+    assert out_idx["trt_prob_median"] == pytest.approx(out["trt_prob_median"])
+
+
+def test_treatment_marginal_effect_row_mask_rejects_malformed():
+    # #286 review: a 2-D, float, wrong-length, or out-of-range row_mask must fail loudly
+    # rather than silently change the indexing semantics of the AME.
+    eta = np.array([[[0.0, 1.0, -0.5, 0.3], [0.2, -1.0, 0.3, -0.4]]])
+    beta = np.array([[0.4, 0.6]])
+    trt = np.array([1.0, 0.0, 1.0, 0.0])
+    trace = _trace_named(eta, beta_trt=beta)
+    kw = dict(trt=trt, n_trials=20)
+    with pytest.raises(ValueError, match="1-D"):
+        treatment_marginal_effect(trace, row_mask=np.ones((2, 4), dtype=bool), **kw)
+    with pytest.raises(ValueError, match="boolean row_mask has 3 entries"):
+        treatment_marginal_effect(trace, row_mask=np.array([True, False, True]), **kw)
+    with pytest.raises(ValueError, match="integer row_mask has indices"):
+        treatment_marginal_effect(trace, row_mask=np.array([0, 4]), **kw)
+    with pytest.raises(ValueError, match="boolean mask or integer"):
+        treatment_marginal_effect(trace, row_mask=np.array([0.0, 1.0]), **kw)
+
 
 def _trace_named_vec(eta, *, scalars=None, vectors=None):
     """Trace with ``eta`` (chain, draw, obs), named scalar and per-obs vector vars."""
