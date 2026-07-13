@@ -61,15 +61,26 @@ fitted model is a regression, not a latent-factor SEM).
 - Baseline conditioning: ``W_pre`` (T1 word reading) enters linearly via
   ``gamma_own`` - the "gain" framing, shared with the mechanism models.
 - Tested covariates (entered to *demonstrate* whether they carry independent
-  signal, not assumed non-independent): non-verbal MA (block design, T1) and
-  behaviour (T1). SES has notable missingness, so it enters a separate
-  sensitivity fit on complete cases rather than the headline model.
+  signal, not assumed non-independent): non-verbal MA (block design, T1),
+  behaviour (T1), and — added under the revised 2026-07-10 DAG
+  (``dag/dag-language-reading.dagitty``) — the three upstream traits it now places
+  above the baseline-skill cluster: hearing status (HS = ``hearing_c``), speech
+  production (SP = ``deapp_c``) and phonological memory (RW = ``erbto``), each
+  entered by the missing-indicator method so no child is dropped for a missing
+  trait (#247). A ``_missing`` indicator that is constant on the fitted rows is
+  dropped by the loader and carries no coefficient. SES has notable missingness, so
+  it enters a separate sensitivity fit on complete cases rather than the headline
+  model.
 
 Report each predictor's adjusted coefficient alongside its bivariate (total)
 association, so the shared-variance shift is visible. Prediction to test (NOT the
 assumed result): letter sounds + the language composite retain credible signal;
-non-verbal MA / SES / behaviour shrink toward zero. Wide intervals at n ~ 51 are
-the honest result.
+non-verbal MA / SES / behaviour / hearing / speech / phonological memory shrink
+toward zero. Wide intervals at n ~ 51 are the honest result. Note the revised DAG
+routes each upstream trait's effect on gain mostly *through* the baseline-skill
+cluster already conditioned on, so a near-zero adjusted coefficient means "no
+signal beyond the measured skills", not "unrelated to gain"; the residual
+time-lagged confounding is deferred to the wave-unrolled DAG (#250).
 """
 
 from __future__ import annotations
@@ -99,8 +110,8 @@ _EDGE_LIST: list[tuple[str, str]] = [
     ("ses", "g"),
     # Age acts *through* general ability (developmental level), not directly on
     # the individual skills — the apparent direct age->skill link was an
-    # over-adjustment artefact (locked DAG, notes/202606231600-dag-revision-consolidated.md). A direct age->gain edge remains
-    # (younger children gain more, net of baseline).
+    # over-adjustment artefact (revised DAG, dag/dag-language-reading.dagitty). A
+    # direct age->gain edge remains (younger children gain more, net of baseline).
     ("age", "g"),
     ("age", "wgain"),
     # The starting skills that carry the gain signal.
@@ -109,12 +120,27 @@ _EDGE_LIST: list[tuple[str, str]] = [
     ("blend", "wgain"),
     # Baseline coupling / regression to the mean (conditioned on).
     ("wpre", "wgain"),
+    # Revised-DAG upstream traits (2026-07-10, dag/dag-language-reading.dagitty):
+    # hearing (HS), speech production (SP) and phonological memory (RW) are causes
+    # of the baseline-skill cluster. Their -> gain edges are under test (dashed),
+    # exactly like non-verbal MA / behaviour (#247).
+    ("hs", "ls"),
+    ("hs", "lang"),
+    ("hs", "blend"),
+    ("sp", "ls"),
+    ("sp", "lang"),
+    ("sp", "blend"),
+    ("rw", "lang"),
+    ("rw", "blend"),
     # Edges under test - the model decides whether these are non-zero once the
     # language + letter-sound signal is in. (Follow-up span is uniform - all
     # children have four waves - so time-between-waves is not a node.)
     ("nvma", "wgain"),
     ("behav", "wgain"),
     ("ses", "wgain"),
+    ("hs", "wgain"),
+    ("sp", "wgain"),
+    ("rw", "wgain"),
 ]
 
 _NODE_PROPS: dict[str, dict[str, str]] = {
@@ -132,6 +158,9 @@ _NODE_PROPS: dict[str, dict[str, str]] = {
     "blend": {"label": "Blending (T1)"},
     "nvma": {"label": "Non-verbal MA (T1)\\nblock design"},
     "behav": {"label": "Behaviour (T1)"},
+    "hs": {"label": "Hearing status (T1)\\nhearing_c"},
+    "sp": {"label": "Speech production (T1)\\ndeapp_c"},
+    "rw": {"label": "Phon. memory (T1)\\nerbto"},
     "wpre": {"label": "Word reading (T1)\\nW_pre", "shape": "box"},
     "wgain": {
         "label": "Word-reading gain\\n(T1 -> last wave; W_last | W_T1)",
@@ -149,6 +178,9 @@ _EDGE_PROPS: dict[tuple[str, str], dict[str, str]] = {
     ("nvma", "wgain"): {"style": "dashed", "color": "grey45"},
     ("behav", "wgain"): {"style": "dashed", "color": "grey45"},
     ("ses", "wgain"): {"style": "dashed", "color": "grey45"},
+    ("hs", "wgain"): {"style": "dashed", "color": "grey45"},
+    ("sp", "wgain"): {"style": "dashed", "color": "grey45"},
+    ("rw", "wgain"): {"style": "dashed", "color": "grey45"},
 }
 
 
@@ -204,7 +236,9 @@ def get_spec() -> "ModelSpec":
         kind="adjusted",
         title="Adjusted model: independent baseline predictors of word-reading gain",
         outcome_symbol="W",
-        adjustment=["L", "lang", "B", "A", "W_pre", "blocks", "behav"],
+        adjustment=[
+            "L", "lang", "B", "A", "W_pre", "blocks", "behav", "hs", "deapp_c", "erbto"
+        ],
         extra={
             # Headline = genuinely between-child: one row per child, T1 baselines,
             # full-study gain (W at last wave conditioned on W_T1). No phase
@@ -216,8 +250,23 @@ def get_spec() -> "ModelSpec":
             # Equal-weight language composite (receptive + expressive + concepts).
             "language_composite_symbols": ["R", "E", "F"],
             "use_age_predictor": True,
-            # Continuous covariates entered to test independent signal.
-            "covariates": ["blocks", "behav"],
+            # Continuous covariates entered to test independent signal. The revised
+            # 2026-07-10 DAG adds three upstream traits — hearing (HS = hs), speech
+            # production (SP = deapp_c) and phonological memory (RW = erbto) — as
+            # causes of the baseline-skill cluster; they are entered here (with the
+            # missing-indicator method) to test whether any carries independent
+            # word-reading-gain signal net of the language/letter-sound cluster (#247).
+            # A constant _missing indicator on the fitted rows is dropped by the loader.
+            "covariates": [
+                "blocks",
+                "behav",
+                "hs",
+                "hs_missing",
+                "deapp_c",
+                "deapp_c_missing",
+                "erbto",
+                "erbto_missing",
+            ],
             # SES sensitivity fit on the SES-complete subset (not the headline model).
             "ses_covariates": ["mumedupost16"],
             # Fixed weakly-informative slope prior + the sensitivity sweep that

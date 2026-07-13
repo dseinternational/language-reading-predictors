@@ -54,9 +54,9 @@ $$
 with $\beta_{\text{dose}[p]} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$
 (partial-pooled period slopes).
 
-## Adjustment set (locked DAG)
+## Adjustment set (revised DAG)
 
-The focal edge is $\text{dose} \to \text{outcome}$. Sessions is the locked DAG's
+The focal edge is $\text{dose} \to \text{outcome}$. Sessions is the revised DAG's
 `IS` node; this is the ID-3 **observational** dose-response (adjust $\{IG, A\}$).
 The per-period `attend` is the model's *exposure* — regressing the outcome on it is
 the estimand, not an ITT-rule "conditioning on `IS`" violation. Dose has one parent,

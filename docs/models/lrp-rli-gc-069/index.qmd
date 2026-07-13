@@ -76,7 +76,7 @@ a **masked** Beta-Binomial ($\kappa_m$ dispersion) so a child missing one score
 still contributes its other waves. The child random intercept and slope are
 **independent per measure** — the within-measure intercept–slope correlation is
 deliberately omitted at n≈54, mirroring the joint ITT model's disabled LKJ residual
-correlation. The intervention-dose covariate is omitted (the locked DAG's `IS`
+correlation. The intervention-dose covariate is omitted (the revised DAG's `IS`
 collider). Everything is non-centred.
 
 {{< include _partials/_priors.qmd >}}

@@ -2914,6 +2914,13 @@ _ADJ_LABELS = {
     "age": "Age (T1)",
     "blocks": "Non-verbal MA (T1)",
     "behav": "Behaviour (T1)",
+    # Revised-DAG upstream traits, entered as tested covariates (#247).
+    "hs": "Hearing status (T1)",
+    "hs_missing": "Hearing missing (indicator)",
+    "deapp_c": "Speech production (T1)",
+    "deapp_c_missing": "Speech missing (indicator)",
+    "erbto": "Phonological memory (T1)",
+    "erbto_missing": "Phon. memory missing (indicator)",
     "mumedupost16": "SES: mother post-16 educ.",
     "dadedupost16": "SES: father post-16 educ.",
 }
@@ -3197,14 +3204,6 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     prior_sens = list(e.get("prior_sensitivity_sigmas", [0.5, 0.7]))
     use_age = bool(e.get("use_age_predictor", True))
 
-    # Headline predictor key order: skills, language composite, age, covariates.
-    headline = (
-        list(predictor_symbols)
-        + ["lang"]
-        + (["age"] if use_age else [])
-        + covariates
-    )
-
     # 94% intervals (the brief's convention) rather than the project-wide 95%.
     ctx = make_context(spec, config, ci_prob=0.94)
     hdi = ctx.reporting.ci_prob
@@ -3220,6 +3219,17 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         covariates=tuple(covariates),
     )
     ctx.prepared = prepared
+    # Drop any covariate the loader removed as constant on the fitted rows (e.g. a
+    # `_missing` indicator that is all-zero once the complete cases are kept) so the
+    # model never requests a coefficient for a term that was never estimated (#247).
+    covariates = [c for c in covariates if c in prepared.covariates]
+    # Headline predictor key order: skills, language composite, age, tested covariates.
+    headline = (
+        list(predictor_symbols)
+        + ["lang"]
+        + (["age"] if use_age else [])
+        + covariates
+    )
     _print_header(ctx)
 
     section_header("Build model")

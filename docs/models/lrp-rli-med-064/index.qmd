@@ -71,8 +71,7 @@ This is a **decomposition under assumptions, not proof of a causal route.**
 - Randomisation in phase 0 secures **no unmeasured confounding of $G\to Y$ and
   $G\to M$** for free.
 - **No unmeasured mediator–outcome confounding** — the binding, unverifiable
-  assumption and the main limitation. The locked DAG (`#115`,
-  `notes/202606231600-dag-revision-consolidated.md`, ID-2) names the specific threat:
+  assumption and the main limitation. The revised DAG (`dag/dag-language-reading.dagitty`, ID-2) names the specific threat:
   **latent general ability $GA$** confounds the mediator→outcome paths, so the
   NDE/NIE and the $\text{NIE}_L$/$\text{NIE}_E$ split are **adjusted associations,
   not point-identified**. We adjust for $A$, $R$, and the baselines, but $GA$ is

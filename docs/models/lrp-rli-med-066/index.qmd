@@ -46,7 +46,7 @@ code-route → reading path, at baseline (cross-world assumption).
 
 A **decomposition under assumptions, not proof of a causal route.** Randomisation secures
 $G\to Y$ and $G\to M$; the binding, unverifiable assumption is **no unmeasured
-mediator–outcome confounding** — the locked DAG (ID-2) names latent general ability $GA$
+mediator–outcome confounding** — the revised DAG (ID-2) names latent general ability $GA$
 and treatment-induced dose as the threats, so every quantity here is an **adjusted
 association**, not point-identified. $L$ and $B$ are strongly correlated phonics skills, so
 read the per-path split with particular caution. Contemporaneous measurement; sight-reading;

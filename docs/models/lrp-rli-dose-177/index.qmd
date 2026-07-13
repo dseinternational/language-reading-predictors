@@ -27,11 +27,13 @@ LRP77a is the **ability-adjusted sensitivity fit** for [LRP77](../lrp-rli-dose-0
 the identical period-resolved dose-response model with the **baseline-skill
 cluster** added to the adjustment set: letter-sound knowledge ($L$), expressive
 vocabulary ($E$) and phoneme blending ($B$), each as its baseline (pre) logit.
-These are the reflective indicators of latent general ability $g$ in the locked
+These are the reflective indicators of latent general ability $g$ in the revised
 DAG, alongside the already-adjusted baseline reading $W_{\text{pre}}$.
 
-**Why.** The locked DAG omits $g \to \text{dose}$ ($GA \to IS$), but if abler children attended more
-(Frank 2012) then $g$ is a common cause of dose and outcome and
+**Why.** The dose model's headline identification treats arm $G$ as the sole
+confounder (no $g \to \text{dose}$), but the revised DAG carries $GA \to IS$ (latent),
+so if abler children attended more (Frank 2012) then $g$ is a common cause of dose and
+outcome and
 $\{G, W_{\text{pre}}, A\}$ no longer identifies the dose effect — and because dose
 is **not** randomised, randomisation does not rescue it. Conditioning on the
 baseline-skill cluster blocks that path (only *pre*-dose skills, never anything
