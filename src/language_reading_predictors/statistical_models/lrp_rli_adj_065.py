@@ -64,7 +64,8 @@ fitted model is a regression, not a latent-factor SEM).
   signal, not assumed non-independent): non-verbal MA (block design, T1),
   behaviour (T1), and — added under the revised 2026-07-10 DAG
   (``dag/dag-language-reading.dagitty``) — the three upstream traits it now places
-  above the baseline-skill cluster: hearing status (HS = ``hearing_c``), speech
+  above the baseline-skill cluster: hearing status (HS = ``hs``, derived from
+  ``hearing_c``), speech
   production (SP = ``deapp_c``) and phonological memory (RW = ``erbto``), each
   entered by the missing-indicator method so no child is dropped for a missing
   trait (#247). A ``_missing`` indicator that is constant on the fitted rows is
@@ -158,7 +159,7 @@ _NODE_PROPS: dict[str, dict[str, str]] = {
     "blend": {"label": "Blending (T1)"},
     "nvma": {"label": "Non-verbal MA (T1)\\nblock design"},
     "behav": {"label": "Behaviour (T1)"},
-    "hs": {"label": "Hearing status (T1)\\nhearing_c"},
+    "hs": {"label": "Hearing status (T1)\\nhs (from hearing_c)"},
     "sp": {"label": "Speech production (T1)\\ndeapp_c"},
     "rw": {"label": "Phon. memory (T1)\\nerbto"},
     "wpre": {"label": "Word reading (T1)\\nW_pre", "shape": "box"},

@@ -21,7 +21,7 @@ post-count of W conditional on its own baseline logit (``adjust_baseline_symbol`
 Causal structure (revised DAG; dag/dag-language-reading.dagitty)
 ---------------------------------------------------------------
 The focal edge is ``sessions (dose) -> outcome``. Sessions is the revised DAG's
-``IS`` node; this is the ID-3 **observational** dose-response (adjust ``{IG, A}``,
+``IS`` node; this is the ID-3 **observational** dose-response (adjust ``{G, A}``,
 labelled an adjusted association). The per-period ``attend`` is the model's
 *exposure* — regressing the outcome on it is the estimand, not a "conditioning on
 IS" violation of the ITT rule. What the ID-3 rule forbids is conditioning on
