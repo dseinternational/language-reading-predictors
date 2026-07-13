@@ -9,23 +9,23 @@ Date: 2026-07-13 — relates to issue #230 §3 (measurement and missingness debt
 
 ## The question
 
-Issue #230 §3 flags that the suite's complete-case comparators only handle *covariate* missingness, not *outcome* dropout, and asks whether a delta-adjustment / pattern-mixture MNAR sensitivity is needed on the flagship models. That sensitivity only has bite if there is meaningful outcome attrition to be informative about. This audit checks whether there is.
+Issue #230 §3 flags that the suite's complete-case comparators only handle _covariate_ missingness, not _outcome_ dropout, and asks whether a delta-adjustment / pattern-mixture MNAR sensitivity is needed on the flagship models. That sensitivity only has bite if there is meaningful outcome attrition to be informative about. This audit checks whether there is.
 
 ## The evidence
 
 Per outcome: children with a non-missing score at each wave, and attrition across the windows the headline estimands use — the randomised **ITT window** (t1 baseline but no t2 post), the **DiD crossover window** (t2 but no t3), and the **maintenance wave** (t3 but no t4). Cohort n = 54.
 
-| Outcome                   | t1  | t2  | t3  | t4  | ITT-window | DiD-window | t4 |
-| ------------------------- | --- | --- | --- | --- | ---------- | ---------- | -- |
-| W word reading            | 53  | 53  | 53  | 51  | 0          | 0          | 2  |
-| R receptive vocabulary    | 54  | 54  | 54  | 53  | 0          | 0          | 1  |
-| E expressive vocabulary   | 54  | 54  | 54  | 53  | 0          | 0          | 1  |
-| L letter-sound knowledge  | 54  | 54  | 54  | 52  | 0          | 0          | 2  |
-| B phoneme blending        | 54  | 54  | 54  | 53  | 0          | 0          | 1  |
-| F basic concepts (CELF)   | 54  | 54  | 54  | 52  | 0          | 0          | 2  |
-| T receptive grammar       | 54  | 54  | 54  | 53  | 0          | 0          | 1  |
-| P phonetic spelling       | 54  | 53  | 53  | 54  | 1          | 0          | 0  |
-| N nonword reading         | 50  | 53  | 52  | 52  | 0          | 1          | 1  |
+| Outcome                  | t1  | t2  | t3  | t4  | ITT-window | DiD-window | t4  |
+| ------------------------ | --- | --- | --- | --- | ---------- | ---------- | --- |
+| W word reading           | 53  | 53  | 53  | 51  | 0          | 0          | 2   |
+| R receptive vocabulary   | 54  | 54  | 54  | 53  | 0          | 0          | 1   |
+| E expressive vocabulary  | 54  | 54  | 54  | 53  | 0          | 0          | 1   |
+| L letter-sound knowledge | 54  | 54  | 54  | 52  | 0          | 0          | 2   |
+| B phoneme blending       | 54  | 54  | 54  | 53  | 0          | 0          | 1   |
+| F basic concepts (CELF)  | 54  | 54  | 54  | 52  | 0          | 0          | 2   |
+| T receptive grammar      | 54  | 54  | 54  | 53  | 0          | 0          | 1   |
+| P phonetic spelling      | 54  | 53  | 53  | 54  | 1          | 0          | 0   |
+| N nonword reading        | 50  | 53  | 52  | 52  | 0          | 1          | 1   |
 
 ## Reading
 
