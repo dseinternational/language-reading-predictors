@@ -32,23 +32,23 @@ intervention benefit (`G = 2 − group`).
 
 ## At a glance
 
-| Layer | Family (id prefix)                                                        | Count | Purpose                                                                                                  |
-| ----- | ------------------------------------------------------------------------- | ----: | -------------------------------------------------------------------------------------------------------- |
-| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)               |    50 | Rank predictors of each outcome's gain and level                                                         |
-| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)                     |    31 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation) |
-| 2     | Gain factors (`lrp-rli-gf`)                                               |    19 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                     |
-| 2     | Level factors (`lrp-rli-lf`)                                              |    11 | Companion levels view: group×time and ability×time per timepoint                                         |
-| 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                  |    13 | Within-person replication of the ITT via the waitlist crossover (floored `P`/`N` off-floor)              |
-| 2     | Aligned per-protocol (`lrp-rli-al`)                                       |     9 | Onset-aligned single 40-week gain per child (associational)                                              |
-| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)    |     9 | Adjusted dose-response of one skill on another                                                           |
-| 2     | Mediation (`lrp-rli-med-059`–`080`; g-formula + interventional)           |    11 | How much of a reading gain runs through a given skill                                                    |
-| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `lcsm-067`, `dose-077` variants) |     5 | Baseline predictors, within-child change, and dose–response of word reading                              |
-| 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                    |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                   |
-| 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)              |     2 | Correlated domain-factor measurement model of the skills                                                 |
-| 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                    |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape        |
-| 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                         |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                        |
+| Layer | Family (id prefix)                                                        | Count | Purpose                                                                                                                      |
+| ----- | ------------------------------------------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)               |    50 | Rank predictors of each outcome's gain and level                                                                             |
+| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)                     |    31 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation)                     |
+| 2     | Gain factors (`lrp-rli-gf`)                                               |    19 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                         |
+| 2     | Level factors (`lrp-rli-lf`)                                              |    11 | Companion levels view: group×time and ability×time per timepoint                                                             |
+| 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                  |    14 | Within-person replication of the ITT via the waitlist crossover (floored `P`/`N` off-floor) + treatment-effect heterogeneity |
+| 2     | Aligned per-protocol (`lrp-rli-al`)                                       |     9 | Onset-aligned single 40-week gain per child (associational)                                                                  |
+| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)    |     9 | Adjusted dose-response of one skill on another                                                                               |
+| 2     | Mediation (`lrp-rli-med-059`–`080`; g-formula + interventional)           |    11 | How much of a reading gain runs through a given skill                                                                        |
+| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `lcsm-067`, `dose-077` variants) |     5 | Baseline predictors, within-child change, and dose–response of word reading                                                  |
+| 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                    |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                       |
+| 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)              |     2 | Correlated domain-factor measurement model of the skills                                                                     |
+| 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                    |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                            |
+| 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                         |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                            |
 
-Counts are of base models on `main` (116 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
+Counts are of base models on `main` (117 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
 
 ## Outcome symbols (Layer 2)
@@ -224,7 +224,7 @@ post-treatment mediator of the group×time effect (#247). Outcomes mirror the ga
 family: `lrp-rli-lf-001` `W`, `02` `R`, `03` `E`, `04` `L`, `05` `P` (off-floor), `06` `B`,
 `07` `F`, `08` `T`, `09` `TR`, `10` `TE`, `11` `N` (off-floor).
 
-### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-012` (+ `lrp-rli-did-107`) (`kind="did"`)
+### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-013` (+ `lrp-rli-did-107`) (`kind="did"`)
 
 **Purpose.** A within-person replication of the randomised ITT, using the waitlist arm's
 crossover: each child is partly their own control, with the immediate arm anchoring the
@@ -235,20 +235,21 @@ indicator — so their `delta` is the within-person effect on the log-odds of co
 the floor (an off-floor risk difference on the items scale), mirroring their ITT siblings.
 Design note: `notes/202606260702-did-crossover-design.md`.
 
-| Model             | Outcome | Purpose                                                                                                                                 |
-| ----------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `lrp-rli-did-001` | `W`     | Within-person DiD effect on word reading                                                                                                |
-| `lrp-rli-did-002` | `L`     | Within-person DiD effect on letter-sound knowledge                                                                                      |
-| `lrp-rli-did-003` | `B`     | Within-person DiD effect on phoneme blending                                                                                            |
-| `lrp-rli-did-004` | `TE`    | Within-person DiD effect on taught expressive vocabulary                                                                                |
-| `lrp-rli-did-005` | `R`     | Within-person DiD effect on receptive vocabulary (the null control)                                                                     |
-| `lrp-rli-did-006` | `W`     | Word-reading DiD with a session **dose-response** term                                                                                  |
-| `lrp-rli-did-007` | `L`     | Letter-sound DiD with a **period-resolved** session dose slope (#135); `lrp-rli-did-107` is its pooled (no-period-variation) comparator |
-| `lrp-rli-did-008` | `TR`    | Within-person DiD effect on taught receptive vocabulary                                                                                 |
-| `lrp-rli-did-009` | `E`     | Within-person DiD effect on standardised expressive vocabulary                                                                          |
-| `lrp-rli-did-010` | `F`     | Within-person DiD effect on basic concept knowledge                                                                                     |
-| `lrp-rli-did-011` | `P`     | Within-person DiD effect on phonetic spelling (off-floor)                                                                               |
-| `lrp-rli-did-012` | `N`     | Within-person DiD effect on nonword reading (off-floor)                                                                                 |
+| Model             | Outcome | Purpose                                                                                                                                                   |
+| ----------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-did-001` | `W`     | Within-person DiD effect on word reading                                                                                                                  |
+| `lrp-rli-did-002` | `L`     | Within-person DiD effect on letter-sound knowledge                                                                                                        |
+| `lrp-rli-did-003` | `B`     | Within-person DiD effect on phoneme blending                                                                                                              |
+| `lrp-rli-did-004` | `TE`    | Within-person DiD effect on taught expressive vocabulary                                                                                                  |
+| `lrp-rli-did-005` | `R`     | Within-person DiD effect on receptive vocabulary (the null control)                                                                                       |
+| `lrp-rli-did-006` | `W`     | Word-reading DiD with a session **dose-response** term                                                                                                    |
+| `lrp-rli-did-007` | `L`     | Letter-sound DiD with a **period-resolved** session dose slope (#135); `lrp-rli-did-107` is its pooled (no-period-variation) comparator                   |
+| `lrp-rli-did-008` | `TR`    | Within-person DiD effect on taught receptive vocabulary                                                                                                   |
+| `lrp-rli-did-009` | `E`     | Within-person DiD effect on standardised expressive vocabulary                                                                                            |
+| `lrp-rli-did-010` | `F`     | Within-person DiD effect on basic concept knowledge                                                                                                       |
+| `lrp-rli-did-011` | `P`     | Within-person DiD effect on phonetic spelling (off-floor)                                                                                                 |
+| `lrp-rli-did-012` | `N`     | Within-person DiD effect on nonword reading (off-floor)                                                                                                   |
+| `lrp-rli-did-013` | `W`     | Word-reading DiD with a per-child random on-intervention slope; reports `sigma_delta`, the between-child SD (treatment-effect heterogeneity, #230 §2/§4a) |
 
 ### Aligned per-protocol — `lrp-rli-al-001–lrp-rli-al-008` (+ `lrp-rli-al-101`) (`kind="aligned"`)
 

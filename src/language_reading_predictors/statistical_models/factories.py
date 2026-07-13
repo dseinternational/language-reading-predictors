@@ -1286,6 +1286,7 @@ def build_did_model(
     use_age: bool = True,
     dose: bool = False,
     period_varying_dose: bool = False,
+    use_varying_delta: bool = False,
     likelihood: str = "beta_binomial",
 ) -> BuiltModel:
     """Waitlist-crossover / difference-in-differences model for one outcome.
@@ -1344,6 +1345,12 @@ def build_did_model(
         toward the shared mean. Mirrors :func:`build_dose_response_model`; the
         nested ``period_varying_dose=False`` model is its pooled comparator for a
         PSIS-LOO test of period variation (#135). Requires ``dose=True``.
+    use_varying_delta
+        Add a non-centred per-child random slope on the treated indicator,
+        ``delta_i = delta + sigma_delta * z_i``, and report ``sigma_delta`` — the
+        between-child SD of the crossover treatment effect — as the treatment-effect
+        heterogeneity variance component (#230 §2/§4a). ``delta`` remains the
+        population-mean effect. Requires ``dose=False`` and ``use_child_re=True``.
     likelihood
         ``"beta_binomial"`` (default) fits the graded post-count. For heavily
         floored outcomes (P, N) pass ``"bernoulli_offfloor"``: the observation is a
@@ -1386,6 +1393,16 @@ def build_did_model(
         raise KeyError("dose=True requires the 'attend' covariate to be loaded")
     if period_varying_dose and not dose:
         raise ValueError("period_varying_dose=True requires dose=True")
+    if use_varying_delta and dose:
+        raise ValueError(
+            "use_varying_delta is the binary treatment-effect heterogeneity variant; "
+            "use dose=False"
+        )
+    if use_varying_delta and not use_child_re:
+        # A per-child random *slope* on the treatment without a per-child random
+        # *intercept* is rarely sensible and would confound level with responsiveness;
+        # require the intercept (it also provides the shared child index).
+        raise ValueError("use_varying_delta=True requires use_child_re=True")
 
     post = prepared.post_counts[own]
     keep = np.isin(prepared.phase, periods) & ~np.isnan(post)
@@ -1480,7 +1497,23 @@ def build_did_model(
         else:
             treated_d = pm.Data("treated", treated, dims="obs_id")
             delta = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc("delta")
-            eta_full = eta_base + delta * treated_d
+            if use_varying_delta:
+                # Treatment-effect heterogeneity as a variance component (#230 §2/§4a):
+                # a per-child on-intervention slope delta_i = delta + sigma_delta * z_i
+                # (non-centred — mandatory here to avoid a Neal's funnel), whose SD is
+                # the reported estimand. ``delta`` stays the population-mean effect, so
+                # the DiD summary and AME read it unchanged; ``sigma_delta`` answers
+                # "is the treatment effect homogeneous across children?".
+                sigma_delta = _priors.sigma_delta_prior().to_pymc("sigma_delta")
+                v_delta = pm.Deterministic(
+                    "v_delta",
+                    sigma_delta * pm.Normal("v_delta_raw", 0.0, 1.0, dims="child"),
+                    dims="child",
+                )
+                delta_i = pm.Deterministic("delta_i", delta + v_delta, dims="child")
+                eta_full = eta_base + delta_i[child_idx_d] * treated_d
+            else:
+                eta_full = eta_base + delta * treated_d
 
         eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
         if likelihood == "beta_binomial":

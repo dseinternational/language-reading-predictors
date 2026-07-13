@@ -1704,7 +1704,41 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
         v.append("gamma_A")
     if spec.extra.get("use_child_re", True):
         v.append("sigma_child")
+    if spec.extra.get("use_varying_delta", False):
+        v.append("sigma_delta")
     return v
+
+
+# Negligible-heterogeneity threshold on the logit scale for the "does the between-child
+# treatment-effect SD concentrate near zero?" diagnostic (#230 §4a): an order of magnitude
+# below the delta / tau prior scale (Normal(0, 0.5)).
+_SIGMA_DELTA_ROPE = 0.1
+
+
+def _did_heterogeneity_summary(trace, *, ci_prob: float) -> dict[str, float]:
+    """Between-child SD of the on-intervention effect + its concentration near zero.
+
+    Reports ``sigma_delta`` (median + equal-tailed CI on the logit scale), the ROPE-style
+    ``P(sigma_delta < delta_het)`` "concentrates near zero" probability, and the prior mass
+    below the same threshold under the HalfNormal(0.5) prior — so the reader can see the
+    data moved it (#230 §2/§4a). A near-zero posterior is the clean "no reliable
+    between-child variation" result that supports *not* gate-keeping on early response.
+    """
+    import math
+
+    sd = np.asarray(trace.posterior["sigma_delta"].values).reshape(-1)
+    lo, hi = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    # HalfNormal(0.5) CDF at the threshold = erf(x / (sigma * sqrt(2))); sigma matches
+    # priors.sigma_delta_prior (HalfNormal(0.5)).
+    prior_below = math.erf(_SIGMA_DELTA_ROPE / (0.5 * math.sqrt(2.0)))
+    key = f"P(sigma_delta<{_SIGMA_DELTA_ROPE})"
+    return {
+        "sigma_delta_median": float(np.median(sd)),
+        "sigma_delta_ci_low": float(np.quantile(sd, lo)),
+        "sigma_delta_ci_high": float(np.quantile(sd, hi)),
+        key: float(np.mean(sd < _SIGMA_DELTA_ROPE)),
+        f"prior_{key}": float(prior_below),
+    }
 
 
 def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -1750,6 +1784,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_age=spec.extra.get("use_age", True),
         dose=dose,
         period_varying_dose=period_varying,
+        use_varying_delta=spec.extra.get("use_varying_delta", False),
         likelihood=likelihood,
     )
     _attach_built(ctx, built)
@@ -1823,9 +1858,33 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         )
 
+        het = None
+        if spec.extra.get("use_varying_delta", False):
+            section_header("Treatment-effect heterogeneity (variance component)")
+            het = _did_heterogeneity_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
+            pd.DataFrame([het]).to_csv(
+                os.path.join(ctx.output_dir, "heterogeneity_summary.csv"), index=False
+            )
+            ctx.tables["heterogeneity_summary"] = pd.DataFrame([het])
+            print_table(
+                metrics_table(
+                    [{"metric": k, "value": v} for k, v in het.items()],
+                    title=(
+                        f"treatment-effect heterogeneity ({sym}): between-child SD of the "
+                        "on-intervention effect (logit); near-zero = homogeneous response"
+                    ),
+                    columns=["metric", "value"],
+                )
+            )
+
         _report.write_run_metadata(
             ctx,
-            extra={"loo_elpd": float(ctx.loo.elpd), "did_summary": did_s, "dose": dose},
+            extra={
+                "loo_elpd": float(ctx.loo.elpd),
+                "did_summary": did_s,
+                "dose": dose,
+                **({"heterogeneity_summary": het} if het is not None else {}),
+            },
         )
 
     return _finalize_report(ctx)
