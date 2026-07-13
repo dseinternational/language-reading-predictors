@@ -10,6 +10,11 @@ scripts/fit_statistical_model.py all``). Produces, under
 - ``itt_vs_joint_tau.csv`` — per-outcome tau from the LRPITT single-outcome
   fits alongside tau_k from the LRPITT12 joint (consistency check), on the shared
   (non-floored) outcomes W, R, E, L, B.
+- ``triangulation_consistency.csv`` — per-outcome cross-*design* consistency of the
+  randomised on-intervention effect (single-outcome ITT ``tau`` vs waitlist-crossover
+  DiD ``delta`` vs gain-factor ``beta_trt``): whether the designs agree in direction
+  and their intervals overlap on the shared logit scale. A consistency check, never a
+  pooled estimate — the designs share the same trial data (issue #230 §6).
 - ``tau_forest.png`` — forest plot of the LRPITT12 joint taus, overlaid with
   the LRPITT single-outcome taus on those shared outcomes.
 - ``mechanism_forest.png`` — forest plot of the marginal slope of each
@@ -188,6 +193,137 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
             }
         )
     return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Cross-design triangulation (#230 §6)
+# ---------------------------------------------------------------------------
+
+# Per shared graded outcome, the three independent designs that each estimate the
+# randomised on-intervention effect on the SAME logit scale: the single-outcome ITT
+# tau, the waitlist-crossover DiD delta, and the gain-factor on-intervention beta_trt.
+# (outcome, itt_id, did_id, gain_factor_id). The floored outcomes P/N are excluded —
+# their primary estimand is a binary off-floor risk difference, not this graded logit
+# effect — as are F/T (no standalone ITT / DiD in the suite).
+TRIANGULATION_OUTCOMES: list[tuple[str, str, str, str]] = [
+    ("W", "lrp-rli-itt-010", "lrp-rli-did-001", "lrp-rli-gf-001"),
+    ("R", "lrp-rli-itt-005", "lrp-rli-did-005", "lrp-rli-gf-002"),
+    ("E", "lrp-rli-itt-006", "lrp-rli-did-009", "lrp-rli-gf-003"),
+    ("L", "lrp-rli-itt-007", "lrp-rli-did-002", "lrp-rli-gf-004"),
+    ("B", "lrp-rli-itt-008", "lrp-rli-did-003", "lrp-rli-gf-006"),
+]
+
+
+def _itt_effect(model_id: str, config: str) -> dict | None:
+    """Single-outcome ITT tau (logit) from ``tau_summary.csv``, or None if absent."""
+    p = os.path.join(_run_dir(model_id, config), "tau_summary.csv")
+    if not os.path.exists(p):
+        return None
+    df = pd.read_csv(p)
+    return {
+        "median": float(df["tau_logit_median"].iloc[0]),
+        "lo": float(df["tau_logit_lo"].iloc[0]),
+        "hi": float(df["tau_logit_hi"].iloc[0]),
+        "prob_pos": float(df["prob_tau_pos"].iloc[0]),
+    }
+
+
+def _did_effect(model_id: str, config: str) -> dict | None:
+    """Waitlist-crossover DiD delta (logit) from ``did_summary.csv``, or None."""
+    p = os.path.join(_run_dir(model_id, config), "did_summary.csv")
+    if not os.path.exists(p):
+        return None
+    df = pd.read_csv(p)
+    return {
+        "median": float(df["delta_median"].iloc[0]),
+        "lo": float(df["delta_lo"].iloc[0]),
+        "hi": float(df["delta_hi"].iloc[0]),
+        "prob_pos": float(df["prob_delta_pos"].iloc[0]),
+    }
+
+
+def _gain_factor_effect(model_id: str, config: str) -> dict | None:
+    """Gain-factor on-intervention ``beta_trt`` (logit) from ``factor_summary.csv``."""
+    p = os.path.join(_run_dir(model_id, config), "factor_summary.csv")
+    if not os.path.exists(p):
+        return None
+    df = pd.read_csv(p)
+    row = df[df["term"] == "beta_trt"]
+    if row.empty:
+        return None
+    return {
+        "median": float(row["median"].iloc[0]),
+        "lo": float(row["lo"].iloc[0]),
+        "hi": float(row["hi"].iloc[0]),
+        "prob_pos": float(row["prob_positive"].iloc[0]),
+    }
+
+
+_TRIANGULATION_DESIGNS: tuple[tuple[str, str], ...] = (
+    ("itt", "ITT tau"),
+    ("did", "DiD delta"),
+    ("gf", "gain-factor beta_trt"),
+)
+
+
+def build_triangulation(config: str) -> pd.DataFrame | None:
+    """Per-outcome cross-design consistency of the randomised on-intervention effect.
+
+    For each shared graded outcome (W/R/E/L/B) reads the logit-scale treatment effect
+    from up to three independent designs — single-outcome ITT (``tau``),
+    waitlist-crossover DiD (``delta``) and the gain-factor ANCOVA (``beta_trt``) — and
+    reports whether they **agree in direction** (all favour the same side of zero) and
+    whether their credible intervals **mutually overlap**. ``consistent`` is true when
+    both hold. The direction/overlap verdict is computed over the *converged* designs
+    (``diagnostics_summary.json`` gate PASS); it is left blank (``pd.NA``) when fewer
+    than two converged designs are available.
+
+    This is a **consistency check, not a pooled estimate**: the three designs share the
+    same trial data, so their effects must never be averaged into one headline — the
+    value is in whether qualitatively distinct designs triangulate on the same story
+    (issue #230 §6). Returns ``None`` if no outcome has at least two design summaries.
+    """
+    readers = {"itt": _itt_effect, "did": _did_effect, "gf": _gain_factor_effect}
+    rows: list[dict] = []
+    for outcome, itt_id, did_id, gf_id in TRIANGULATION_OUTCOMES:
+        ids = {"itt": itt_id, "did": did_id, "gf": gf_id}
+        ests: dict[str, dict] = {}
+        for key, model_id in ids.items():
+            e = readers[key](model_id, config)
+            if e is not None:
+                e["source"] = model_id
+                e["converged"] = _gate_ok(model_id, config)
+                ests[key] = e
+        if len(ests) < 2:
+            continue  # nothing to triangulate for this outcome
+        converged = {k: v for k, v in ests.items() if v["converged"]}
+        assessable = len(converged) >= 2
+        use = converged if assessable else ests
+        probs = [v["prob_pos"] for v in use.values()]
+        los = [v["lo"] for v in use.values()]
+        his = [v["hi"] for v in use.values()]
+        direction_agree = all(p >= 0.5 for p in probs) or all(p <= 0.5 for p in probs)
+        intervals_overlap = max(los) <= min(his)
+        row: dict = {
+            "config": config,
+            "outcome": outcome,
+            "n_designs": len(ests),
+            "n_converged": len(converged),
+            "all_converged": len(converged) == len(ests),
+            "direction_agree": direction_agree if assessable else pd.NA,
+            "intervals_overlap": intervals_overlap if assessable else pd.NA,
+            "consistent": (direction_agree and intervals_overlap) if assessable else pd.NA,
+        }
+        for key, _label in _TRIANGULATION_DESIGNS:
+            v = ests.get(key)
+            row[f"{key}_source"] = v["source"] if v else ""
+            row[f"{key}_median"] = v["median"] if v else pd.NA
+            row[f"{key}_lo"] = v["lo"] if v else pd.NA
+            row[f"{key}_hi"] = v["hi"] if v else pd.NA
+            row[f"{key}_prob_pos"] = v["prob_pos"] if v else pd.NA
+            row[f"{key}_converged"] = v["converged"] if v else pd.NA
+        rows.append(row)
+    return pd.DataFrame(rows) if rows else None
 
 
 # ---------------------------------------------------------------------------
@@ -691,6 +827,17 @@ def main() -> None:
         print(f"Wrote {path}")
     else:
         print("Skipping ITT-vs-joint comparison: one or more runs missing.")
+
+    triangulation = build_triangulation(args.config)
+    if triangulation is not None:
+        path = os.path.join(args.out, "triangulation_consistency.csv")
+        triangulation.to_csv(path, index=False)
+        print(f"Wrote {path}")
+    else:
+        print(
+            "Skipping cross-design triangulation: fewer than two designs available "
+            "for every outcome."
+        )
 
     tau_forest_path = os.path.join(args.out, "tau_forest.png")
     if tau_forest(args.config, tau_forest_path):
