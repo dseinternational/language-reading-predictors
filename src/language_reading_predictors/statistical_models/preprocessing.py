@@ -230,10 +230,13 @@ def add_missing_indicator_covariates(df: pd.DataFrame) -> pd.DataFrame:
     phonological memory, RW) are common causes in the revised DAG and so enter the
     mechanism / factor adjustment sets. Both are ~94-96% complete; to keep the
     within-child panel intact they take the same **missing-indicator** policy as
-    hearing status (:func:`add_hearing_status`): the value is filled to its column
-    mean (arm-blind; becomes 0 after standardisation) and a ``{col}_missing``
-    indicator carries the unknown group as its own adjustment level. Both derived
-    columns are NaN-free, so adjusting for them never drops rows. A no-op for any
+    hearing status (:func:`add_hearing_status`): the value is filled to its
+    (arm-blind) whole-column mean and a ``{col}_missing`` indicator carries the
+    unknown group as its own adjustment level. Both derived columns are NaN-free, so
+    adjusting for them never drops rows. (The fill uses the whole-column mean, while a
+    model standardises on its fitted-wave rows, so an imputed cell is not exactly 0 on
+    that scale — the ``{col}_missing`` indicator absorbs the residual offset as a free
+    intercept shift, so estimates stay unbiased under randomisation.) A no-op for any
     column absent from the frame (e.g. other datasets).
     """
     out = df.copy()
@@ -472,6 +475,19 @@ def load_and_prepare(
         # Also require at least one post outcome to be present.
         mask_any_post = merged[required_post].notna().any(axis=1)
         merged = merged[mask_complete & mask_any_post].reset_index(drop=True)
+    else:
+        # drop_missing_pre=False bypasses the complete-case + any-post masking above,
+        # so missing pre-scores / covariates / posts survive into the returned arrays.
+        # No registered spec sets this today, and the factories apply their own
+        # post-NaN keep-masks on the outcome/pre they use — but an age or covariate NaN
+        # is not caught downstream and would poison the logp. Warn loudly so a future
+        # caller wires its own masking rather than shipping NaNs into the model.
+        warnings.warn(
+            "load_and_prepare(drop_missing_pre=False) bypasses NaN masking; missing "
+            "pre-scores or covariates can reach the model. Ensure the caller/factory "
+            "drops them, or keep drop_missing_pre=True.",
+            stacklevel=2,
+        )
 
     # COMPLETE-CASE sensitivity (#258 review). ``hs`` / ``deapp_c`` / ``erbto`` reach
     # the frame already mean-filled, with a ``{col}_missing`` flag carrying the

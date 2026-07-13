@@ -411,7 +411,12 @@ _RV_TO_CTOR: dict[str, str] = {
     "beta_G": "tau",
     "beta_period": "tau",
     "delta": "tau",
-    "beta_dose": "tau",
+    # ``beta_dose`` is built from ``beta_mech_prior`` (Normal(0, 1)) in both the
+    # dose-response and DiD-dose factories — it is a dose slope (association), not a
+    # tau-scaled randomised effect. Map it to ``beta_mech`` so the prior table is
+    # correct by default rather than relying on the per-family override (the "tau"
+    # entry was a leftover from when the slope reused tau_prior).
+    "beta_dose": "beta_mech",
     "beta_trt": "tau",
     "b_grp_time": "tau",
     "beta_grp": "tau",
