@@ -1,0 +1,155 @@
+digraph LRP_LAGGED {
+  rankdir=LR; bgcolor="white"; labelloc="t"; fontname="Helvetica-Bold"; fontsize=17;
+  label="Language & reading causal DAG — TIME-LAGGED unroll: wave t → t+1  (draft, PR #288)";
+  nodesep=0.24; ranksep=1.5; splines=true;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, margin="0.11,0.06", penwidth=1.3, color="#9aa0a8", fillcolor="#eceef1"];
+  edge [arrowsize=0.7];
+  "EG_t" [label="EG (t)\nexpressive grammar", fillcolor="#eceef1", color="#9aa0a8"];
+  "EG_t1" [label="EG (t+1)\nexpressive grammar", fillcolor="#eceef1", color="#9aa0a8"];
+  "EI_t" [label="EI (t)\nexpressive info", fillcolor="#eceef1", color="#9aa0a8"];
+  "EI_t1" [label="EI (t+1)\nexpressive info", fillcolor="#eceef1", color="#9aa0a8"];
+  "EV_t" [label="EV (t)\nexpressive vocab", fillcolor="#d6ebe4", color="#2f9e78"];
+  "EV_t1" [label="EV (t+1)\nexpressive vocab", fillcolor="#d6ebe4", color="#2f9e78"];
+  "HS" [label="HS\nhearing status", fillcolor="#dfe3ef", color="#5560a6"];
+  "IG" [label="IG\nintervention group\n(randomised)", fillcolor="#dbe8fb", color="#2f6fdb"];
+  "IS_t" [label="IS (t)\nsessions (dose)", fillcolor="#dbe8fb", color="#2f6fdb"];
+  "LF_t" [label="LF (t)\nlanguage fund.", fillcolor="#eceef1", color="#9aa0a8"];
+  "LF_t1" [label="LF (t+1)\nlanguage fund.", fillcolor="#eceef1", color="#9aa0a8"];
+  "LS_t" [label="LS (t)\nletter–sound", fillcolor="#fdecd2", color="#c2872a"];
+  "LS_t1" [label="LS (t+1)\nletter–sound", fillcolor="#fdecd2", color="#c2872a"];
+  "NW_t" [label="NW (t)\nnonword reading", fillcolor="#fdecd2", color="#c2872a"];
+  "NW_t1" [label="NW (t+1)\nnonword reading", fillcolor="#fdecd2", color="#c2872a"];
+  "PA_t" [label="PA (t)\nphoneme aware.\n(blending)", fillcolor="#fdecd2", color="#c2872a"];
+  "PA_t1" [label="PA (t+1)\nphoneme aware.\n(blending)", fillcolor="#fdecd2", color="#c2872a"];
+  "PS_t" [label="PS (t)\nphonetic spelling\n(outcome)", fillcolor="#fdecd2", color="#c2872a", penwidth=2.2];
+  "PS_t1" [label="PS (t+1)\nphonetic spelling\n(outcome)", fillcolor="#fdecd2", color="#c2872a", penwidth=2.2];
+  "RG_t" [label="RG (t)\nreceptive grammar", fillcolor="#eceef1", color="#9aa0a8"];
+  "RG_t1" [label="RG (t+1)\nreceptive grammar", fillcolor="#eceef1", color="#9aa0a8"];
+  "RV_t" [label="RV (t)\nreceptive vocab", fillcolor="#d6ebe4", color="#2f9e78"];
+  "RV_t1" [label="RV (t+1)\nreceptive vocab", fillcolor="#d6ebe4", color="#2f9e78"];
+  "RW_t" [label="RW (t)\nword repetition\n(phon. memory)", fillcolor="#d6ebe4", color="#2f9e78"];
+  "RW_t1" [label="RW (t+1)\nword repetition\n(phon. memory)", fillcolor="#d6ebe4", color="#2f9e78"];
+  "SP_t" [label="SP (t)\nspeech production\n(motor-difficulty proxy)", fillcolor="#fbe1e0", color="#d0433f"];
+  "SP_t1" [label="SP (t+1)\nspeech production\n(motor-difficulty proxy)", fillcolor="#fbe1e0", color="#d0433f"];
+  "TE_t" [label="TE (t)\ntaught expressive", fillcolor="#e7ddf5", color="#7a52b3"];
+  "TE_t1" [label="TE (t+1)\ntaught expressive", fillcolor="#e7ddf5", color="#7a52b3"];
+  "TR_t" [label="TR (t)\ntaught receptive", fillcolor="#e7ddf5", color="#7a52b3"];
+  "TR_t1" [label="TR (t+1)\ntaught receptive", fillcolor="#e7ddf5", color="#7a52b3"];
+  "WR_t" [label="WR (t)\nWORD READING\n(primary outcome)", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6, fontname="Helvetica-Bold"];
+  "WR_t1" [label="WR (t+1)\nWORD READING\n(primary outcome)", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6, fontname="Helvetica-Bold"];
+  ABG [label="A · age\nGA · general ability (latent)\n→ common causes of EVERY skill in BOTH waves\n(omitted for clarity; hearing HS is shown)", shape=note, fillcolor="#f7f7f9", color="#6b7280", fontsize=10, style="filled,dashed"];
+  LEG [shape=none, margin=0, label=<
+    <table border="0" cellborder="0" cellspacing="1" cellpadding="3">
+      <tr><td colspan="2" align="left"><b>domain</b></td></tr>
+      <tr><td bgcolor="#dbe8fb" width="18"> </td><td align="left">intervention</td></tr>
+      <tr><td bgcolor="#dfe3ef" width="18"> </td><td align="left">hearing status</td></tr>
+      <tr><td bgcolor="#e7ddf5" width="18"> </td><td align="left">taught vocabulary</td></tr>
+      <tr><td bgcolor="#d6ebe4" width="18"> </td><td align="left">standardised vocab / phon. memory</td></tr>
+      <tr><td bgcolor="#eceef1" width="18"> </td><td align="left">language &amp; grammar (no path to WR)</td></tr>
+      <tr><td bgcolor="#fbe1e0" width="18"> </td><td align="left">speech (cause)</td></tr>
+      <tr><td bgcolor="#fdecd2" width="18"> </td><td align="left">code / reading route</td></tr>
+      <tr><td bgcolor="#cfe0f7" width="18"> </td><td align="left">primary outcome (WR); PS also terminal</td></tr>
+    </table>>];
+  LEG2 [shape=none, margin=0, label=<
+    <table border="0" cellborder="0" cellspacing="1" cellpadding="3">
+      <tr><td colspan="2" align="left"><b>edge</b></td></tr>
+      <tr><td><font color="#2f9e78"><b>&#8212;&#8212;</b></font></td><td align="left">cross-lagged: X<sub>t</sub> &#8594; Y<sub>t+1</sub> (source's domain colour)</td></tr>
+      <tr><td><font color="#b9bec6"><b>&#8212;&#8212;</b></font></td><td align="left">autoregressive: same skill &#8594; next wave</td></tr>
+      <tr><td><font color="#d6006e"><b>- - -</b></font></td><td align="left">reverse (NEW): reading &#8594; language / blending / memory</td></tr>
+    </table>>];
+  "TR_t" -> "TR_t1" [color="#b9bec6", penwidth=1.0];
+  "TE_t" -> "TE_t1" [color="#b9bec6", penwidth=1.0];
+  "RV_t" -> "RV_t1" [color="#b9bec6", penwidth=1.0];
+  "EV_t" -> "EV_t1" [color="#b9bec6", penwidth=1.0];
+  "LF_t" -> "LF_t1" [color="#b9bec6", penwidth=1.0];
+  "RG_t" -> "RG_t1" [color="#b9bec6", penwidth=1.0];
+  "RW_t" -> "RW_t1" [color="#b9bec6", penwidth=1.0];
+  "EI_t" -> "EI_t1" [color="#b9bec6", penwidth=1.0];
+  "EG_t" -> "EG_t1" [color="#b9bec6", penwidth=1.0];
+  "SP_t" -> "SP_t1" [color="#b9bec6", penwidth=1.0];
+  "LS_t" -> "LS_t1" [color="#b9bec6", penwidth=1.0];
+  "NW_t" -> "NW_t1" [color="#b9bec6", penwidth=1.0];
+  "PA_t" -> "PA_t1" [color="#b9bec6", penwidth=1.0];
+  "PS_t" -> "PS_t1" [color="#b9bec6", penwidth=1.0];
+  "WR_t" -> "WR_t1" [color="#b9bec6", penwidth=1.0];
+  "TR_t" -> "TE_t1" [color="#7a52b3", penwidth=1.15];
+  "TR_t" -> "RV_t1" [color="#7a52b3", penwidth=1.15];
+  "TR_t" -> "EV_t1" [color="#7a52b3", penwidth=1.15];
+  "TR_t" -> "LF_t1" [color="#7a52b3", penwidth=1.15];
+  "TR_t" -> "RG_t1" [color="#7a52b3", penwidth=1.15];
+  "TR_t" -> "WR_t1" [color="#7a52b3", penwidth=1.15];
+  "TE_t" -> "EV_t1" [color="#7a52b3", penwidth=1.15];
+  "TE_t" -> "EG_t1" [color="#7a52b3", penwidth=1.15];
+  "TE_t" -> "EI_t1" [color="#7a52b3", penwidth=1.15];
+  "TE_t" -> "PA_t1" [color="#7a52b3", penwidth=1.15];
+  "TE_t" -> "WR_t1" [color="#7a52b3", penwidth=1.15];
+  "RW_t" -> "TE_t1" [color="#2f9e78", penwidth=1.15];
+  "RW_t" -> "EV_t1" [color="#2f9e78", penwidth=1.15];
+  "RW_t" -> "TR_t1" [color="#2f9e78", penwidth=1.15];
+  "RW_t" -> "RV_t1" [color="#2f9e78", penwidth=1.15];
+  "RW_t" -> "PA_t1" [color="#2f9e78", penwidth=1.15];
+  "RW_t" -> "NW_t1" [color="#2f9e78", penwidth=1.15];
+  "RW_t" -> "PS_t1" [color="#2f9e78", penwidth=1.15];
+  "RV_t" -> "EV_t1" [color="#2f9e78", penwidth=1.15];
+  "RV_t" -> "LF_t1" [color="#2f9e78", penwidth=1.15];
+  "RV_t" -> "RG_t1" [color="#2f9e78", penwidth=1.15];
+  "RV_t" -> "WR_t1" [color="#2f9e78", penwidth=1.15];
+  "EV_t" -> "EG_t1" [color="#2f9e78", penwidth=1.15];
+  "EV_t" -> "EI_t1" [color="#2f9e78", penwidth=1.15];
+  "EV_t" -> "PA_t1" [color="#2f9e78", penwidth=1.15];
+  "EV_t" -> "WR_t1" [color="#2f9e78", penwidth=1.15];
+  "SP_t" -> "TE_t1" [color="#d0433f", penwidth=1.15];
+  "SP_t" -> "EV_t1" [color="#d0433f", penwidth=1.15];
+  "SP_t" -> "LS_t1" [color="#d0433f", penwidth=1.15];
+  "SP_t" -> "PA_t1" [color="#d0433f", penwidth=1.15];
+  "SP_t" -> "NW_t1" [color="#d0433f", penwidth=1.15];
+  "LS_t" -> "NW_t1" [color="#c2872a", penwidth=1.15];
+  "LS_t" -> "PA_t1" [color="#c2872a", penwidth=1.15];
+  "LS_t" -> "PS_t1" [color="#c2872a", penwidth=1.15];
+  "LS_t" -> "WR_t1" [color="#c2872a", penwidth=1.15];
+  "NW_t" -> "WR_t1" [color="#c2872a", penwidth=1.15];
+  "PA_t" -> "NW_t1" [color="#c2872a", penwidth=1.15];
+  "PA_t" -> "WR_t1" [color="#c2872a", penwidth=1.15];
+  "PA_t" -> "PS_t1" [color="#c2872a", penwidth=1.15];
+  "RG_t" -> "EG_t1" [color="#9aa0a8", penwidth=1.15];
+  "WR_t" -> "EV_t1" [color="#d6006e", style=dashed, penwidth=2.2];
+  "WR_t" -> "RV_t1" [color="#d6006e", style=dashed, penwidth=2.2];
+  "WR_t" -> "PA_t1" [color="#d6006e", style=dashed, penwidth=2.2];
+  "WR_t" -> "RW_t1" [color="#d6006e", style=dashed, penwidth=2.2];
+  "HS" -> "TR_t" [color="#5560a6", penwidth=1.15];
+  "HS" -> "RV_t" [color="#5560a6", penwidth=1.15];
+  "HS" -> "TE_t" [color="#5560a6", penwidth=1.15];
+  "HS" -> "EV_t" [color="#5560a6", penwidth=1.15];
+  "HS" -> "SP_t" [color="#5560a6", penwidth=1.15];
+  "HS" -> "RW_t" [color="#5560a6", penwidth=1.15];
+  "HS" -> "PA_t" [color="#5560a6", penwidth=1.15];
+  "HS" -> "LS_t" [color="#5560a6", penwidth=1.15];
+  "HS" -> "TR_t1" [color="#5560a6", penwidth=1.15];
+  "HS" -> "RV_t1" [color="#5560a6", penwidth=1.15];
+  "HS" -> "TE_t1" [color="#5560a6", penwidth=1.15];
+  "HS" -> "EV_t1" [color="#5560a6", penwidth=1.15];
+  "HS" -> "SP_t1" [color="#5560a6", penwidth=1.15];
+  "HS" -> "RW_t1" [color="#5560a6", penwidth=1.15];
+  "HS" -> "PA_t1" [color="#5560a6", penwidth=1.15];
+  "HS" -> "LS_t1" [color="#5560a6", penwidth=1.15];
+  "IG" -> "IS_t" [color="#2f6fdb", penwidth=1.15];
+  "IG" -> "TR_t1" [color="#2f6fdb", penwidth=1.15];
+  "IG" -> "TE_t1" [color="#2f6fdb", penwidth=1.15];
+  "IG" -> "PA_t1" [color="#2f6fdb", penwidth=1.15];
+  "IG" -> "LS_t1" [color="#2f6fdb", penwidth=1.15];
+  "IG" -> "WR_t1" [color="#2f6fdb", penwidth=1.15];
+  "IG" -> "PS_t1" [color="#2f6fdb", penwidth=1.15];
+  "IG" -> "EI_t1" [color="#2f6fdb", penwidth=1.15];
+  "IG" -> "EG_t1" [color="#2f6fdb", penwidth=1.15];
+  "IS_t" -> "TR_t1" [color="#2f6fdb", penwidth=1.15];
+  "IS_t" -> "TE_t1" [color="#2f6fdb", penwidth=1.15];
+  "IS_t" -> "PA_t1" [color="#2f6fdb", penwidth=1.15];
+  "IS_t" -> "LS_t1" [color="#2f6fdb", penwidth=1.15];
+  "IS_t" -> "WR_t1" [color="#2f6fdb", penwidth=1.15];
+  "IS_t" -> "PS_t1" [color="#2f6fdb", penwidth=1.15];
+  "IS_t" -> "EI_t1" [color="#2f6fdb", penwidth=1.15];
+  "IS_t" -> "EG_t1" [color="#2f6fdb", penwidth=1.15];
+  {rank=source; "IG"; "HS"; "ABG"; "LEG"; "LEG2";}
+  {rank=same; "EG_t"; "EI_t"; "EV_t"; "IS_t"; "LF_t"; "LS_t"; "NW_t"; "PA_t"; "PS_t"; "RG_t"; "RV_t"; "RW_t"; "SP_t"; "TE_t"; "TR_t"; "WR_t";}
+  {rank=same; "EG_t1"; "EI_t1"; "EV_t1"; "LF_t1"; "LS_t1"; "NW_t1"; "PA_t1"; "PS_t1"; "RG_t1"; "RV_t1"; "RW_t1"; "SP_t1"; "TE_t1"; "TR_t1"; "WR_t1";}
+}
