@@ -1305,7 +1305,6 @@ def build_did_model(
 
         eta_{i,p} = alpha + beta_period * [p == P2]
                   + delta * Treated_{i,p}
-                  + gamma_own * logit(pre_{i,p})
                   [ + gamma_A * A_std_{i,p}    if use_age ]
                   [ + u_child_i                if use_child_re ]
 
@@ -1386,7 +1385,6 @@ def build_did_model(
     prepared = _subset(prepared, keep)
 
     post = prepared.post_counts[own].astype(np.int64)
-    pre_logit = prepared.pre_logit[own]
     # P2 indicator (time); Treated indicator (immediate both periods, waitlist P2).
     is_p2 = (prepared.phase >= 1).astype(float)
     treated = ((prepared.G == 1) | (prepared.phase >= 1)).astype(float)
@@ -1400,11 +1398,6 @@ def build_did_model(
         coords["dose_phase"] = np.arange(len(periods))
     with pm.Model(coords=coords) as model:
         period_d = pm.Data("period", is_p2, dims="obs_id")
-        # The off-floor branch drops the own-baseline term, so it does not build the
-        # ``own_pre_logit`` data node — the period-start score may legitimately be
-        # missing there (``pre_required=()``), and a NaN data node would be a trap.
-        if likelihood != "bernoulli_offfloor":
-            own_pre_d = pm.Data("own_pre_logit", pre_logit, dims="obs_id")
 
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
@@ -1413,18 +1406,16 @@ def build_did_model(
 
         eta = alpha + beta_period * period_d
 
-        # Own-baseline (autoregressive) conditioning. In the graded beta-binomial DiD
-        # this is a precision term on a within-child change model. In the OFF-FLOOR
-        # (prevalence) branch it is dropped: the period-start score enters the
-        # immediate arm's period-1 rows *after* that arm's period-0 treatment, so
-        # ``gamma_own`` there would condition on a treatment-affected variable and a
-        # child random intercept does not restore the total-effect / ITT-replication
-        # reading (Rosenbaum 1984, doi:10.2307/2981697; #257 review). The off-floor
-        # estimand is Pr(off-floor at period end) identified by the period x treated
-        # DiD structure plus the child intercept, so no own-baseline term is needed.
-        if likelihood != "bernoulli_offfloor":
-            gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
-            eta = eta + gamma_own * own_pre_d
+        # No own-baseline (autoregressive) conditioning in EITHER likelihood branch
+        # (A2 / #257 review, team decision 2026-07-13). For the immediate arm's P2 the
+        # period-start score is *post* that arm's P1 treatment, so a ``gamma_own`` term
+        # would condition the differenced ``delta`` on a treatment-affected variable — a
+        # lagged-DV/ANCOVA adjustment that biases the total-effect / ITT-replication
+        # reading (Rosenbaum 1984, doi:10.2307/2981697), and a child random intercept
+        # does not restore it. ``delta`` is identified by the period × treated DiD
+        # structure plus the child intercept (each child their own control), so no
+        # own-baseline term is needed; the graded and off-floor branches now differ only
+        # in likelihood (Beta-Binomial vs Bernoulli).
 
         if use_age:
             A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
@@ -2441,7 +2432,15 @@ def build_correlated_factor_model(
     loading_mu: float = 0.0,
     loading_sigma: float = 1.0,
     residual_sigma: float = 1.0,
-    predictor_slope_sigma: float = 0.5,
+    # Reconciled 0.5 -> 0.3 to match the shared ``predictor_slope_prior`` default the
+    # 2026-07-07 prior review settled on (#141); applies to beta_factor, beta_age and
+    # the structural-covariate slopes. The factors are unit-variance, so a per-SD-of-
+    # factor logit slope is on the same scale as a standardised observed predictor, and
+    # 0.3 keeps the CFA's structural priors in step with the rest of the suite rather
+    # than sitting looser without a documented rationale. This also aligns the built RV
+    # with the report's prior_predictor_slope panel (drawn at the 0.3 constructor
+    # default), which previously showed 0.3 against a 0.5 RV (review finding B4, 2026-07-13).
+    predictor_slope_sigma: float = 0.3,
     lkj_eta: float = 2.0,
 ) -> BuiltModel:
     """Correlated-domain-factor measurement model (LRPMM01, #134).
@@ -2921,7 +2920,13 @@ def build_gain_factors_model(
         phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
         child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
-        own_pre_d = pm.Data("own_pre_logit", prepared.pre_logit[own], dims="obs_id")
+        # Own baseline is a precision term for the graded likelihood only; the off-floor
+        # (Bernoulli) path drops it (A4 — see below), so its data node is not built.
+        own_pre_d = (
+            pm.Data("own_pre_logit", prepared.pre_logit[own], dims="obs_id")
+            if likelihood != "bernoulli_offfloor"
+            else None
+        )
         trt_d = pm.Data("on_intervention", trt, dims="obs_id") if include_trt else None
         ability_d = (
             pm.Data(f"{ability_covariate}_std", term_vecs["ability"], dims="obs_id")
@@ -2945,10 +2950,19 @@ def build_gain_factors_model(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha")
         alpha_phase = pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase")
-        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
 
-        eta = alpha + alpha_phase[phase_d] + gamma_own * own_pre_d + gamma_A * A_std_d
+        eta = alpha + alpha_phase[phase_d] + gamma_A * A_std_d
+        # Own-baseline precision term — dropped on the off-floor (Bernoulli) path (A4,
+        # 2026-07-13): its Normal(1, 0.25) "post tracks pre 1:1" prior is calibrated to
+        # graded test-retest reliability and does not transfer to the binary off-floor
+        # indicator, and at the period-1 post baseline it would move the reported
+        # off-floor risk-difference operating point through a treatment-affected value.
+        # The ITT floored specs (use_own_baseline=False) and the DiD off-floor branch
+        # drop it for the same reason.
+        if own_pre_d is not None:
+            gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+            eta = eta + gamma_own * own_pre_d
 
         if include_trt:
             beta_trt = _priors.tau_prior(
@@ -3288,7 +3302,8 @@ def build_lcsm_model(
     *,
     reading_symbol: str = "W",
     coupling_prior_sigma: float = 0.3,
-    self_prior_sigma: float = 0.5,
+    self_prior_mu: float = -0.3,
+    self_prior_sigma: float = 0.2,
     intercept_prior_sigma: float = 1.5,
     covariate_prior_sigma: float = 0.3,
     use_process_noise: bool = True,
@@ -3387,7 +3402,18 @@ def build_lcsm_model(
         a_change = pm.Normal(
             "a_change", mu=0.0, sigma=intercept_prior_sigma, dims="outcome"
         )
-        b_self = pm.Normal("b_self", mu=0.0, sigma=self_prior_sigma, dims="outcome")
+        # Self-feedback of the proportional change-score recursion: the level AR(1)
+        # coefficient is phi = 1 + b_self, so the old ``mu=0`` centred phi on a unit
+        # root (random walk) with ~50% prior mass on explosive phi > 1. A
+        # proportional-change LCSM instead expects mean-reversion toward an asymptote
+        # (negative self-feedback), so b_self is centred at -0.3 (phi ~ 0.7) with a
+        # tighter sd: Normal(-0.3, 0.2) puts ~7% mass on explosive phi > 1 (vs ~50%),
+        # taming the heavy-tailed geometry that drives divergences at n~54 (review
+        # finding A3, 2026-07-13). Still weakly-informative — the data can pull b_self
+        # back toward 0 given signal.
+        b_self = pm.Normal(
+            "b_self", mu=self_prior_mu, sigma=self_prior_sigma, dims="outcome"
+        )
         d_age = pm.Normal("d_age", mu=0.0, sigma=covariate_prior_sigma, dims="outcome")
         # Headline cross-couplings into the reading change (one per other measure).
         g_cross = {

@@ -869,8 +869,13 @@ def test_did_factory_builds(tmp_path):
     prep = load_and_prepare(path=p, phase_mode="all")
     built = build_did_model(prep, outcome_symbol="W")
     names = {v.name for v in built.model.free_RVs}
-    assert {"alpha", "beta_period", "delta", "gamma_own", "gamma_A", "kappa",
+    assert {"alpha", "beta_period", "delta", "gamma_A", "kappa",
             "sigma_child"}.issubset(names)
+    # No own-baseline term in either likelihood branch (A2, 2026-07-13): the immediate
+    # arm's P2 period-start score is post-treatment, so a gamma_own term would bias the
+    # differenced delta; delta is identified by the period × treated DiD structure plus
+    # the child random intercept instead.
+    assert "gamma_own" not in names
     assert "eta_base" in {v.name for v in built.model.deterministics}
     # Only P1/P2 are kept; phase 2 (t3->t4) is dropped.
     assert set(np.unique(built.prepared.phase)).issubset({0, 1})

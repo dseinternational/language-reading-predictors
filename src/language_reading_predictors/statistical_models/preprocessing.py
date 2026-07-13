@@ -223,6 +223,41 @@ def split_covariates_by_wave(
     return pre, post
 
 
+#: Language-proximal *state* confounders — speech production (SP = ``deapp_c``) and
+#: word/nonword repetition / phonological memory (RW = ``erbto``) — that a reading /
+#: language intervention plausibly moves within a single period. In the **causal-term
+#: factor families** (gain / level factors) these are read at the pre-randomisation
+#: **baseline** (t1), not the contemporaneous post wave: at the period-1 post wave (t2)
+#: they may already be treatment-affected, so conditioning on them there would adjust a
+#: descendant of the exposure and bias the randomised effect toward the null (review
+#: finding A1; team decision 2026-07-13, ``notes/202607130922-statistical-models-methodology-review.md``).
+#: Hearing status (``hs``) is exogenous to a language intervention and stays
+#: contemporaneous (post). Each parent's ``_missing`` indicator follows its parent.
+BASELINE_CONFOUNDER_BASES: frozenset[str] = frozenset({"deapp_c", "erbto"})
+
+
+def split_confounders_by_timing(
+    names: tuple[str, ...],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Split state confounders into ``(baseline_t1, contemporaneous_post)`` by proximity.
+
+    See :data:`BASELINE_CONFOUNDER_BASES`. The language-proximal SP / RW confounders
+    (and their ``_missing`` indicators) are routed to the t1 baseline so the causal-term
+    factor families never condition on a possibly-treatment-affected post value; every
+    other state confounder (hearing status) stays contemporaneous. Used only by the
+    gain- / level-factor pipelines, where a randomised effect is reported — the mechanism
+    family (an avowed adjusted association, ``beta_G`` explicitly not a direct effect)
+    keeps the contemporaneous read.
+    """
+
+    def _base(c: str) -> str:
+        return c[: -len("_missing")] if c.endswith("_missing") else c
+
+    baseline = tuple(c for c in names if _base(c) in BASELINE_CONFOUNDER_BASES)
+    post = tuple(c for c in names if c not in baseline)
+    return baseline, post
+
+
 def add_missing_indicator_covariates(df: pd.DataFrame) -> pd.DataFrame:
     """Fill + flag the continuous DAG-confounder covariates SP / RW (#245).
 
