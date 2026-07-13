@@ -13,8 +13,8 @@ The authoritative `dag/dag-language-reading.dagitty` is **contemporaneous** (sin
 
 1. **Reciprocal edges become representable** instead of confessed-away — `PA_t → WR_{t+1}` _and_ `WR_t → PA_{t+1}` can both appear, so which direction dominates is an empirical (cross-lagged) question rather than an acyclicity casualty.
 2. **Reading → language coexists with language → reading** without a cycle — `WR_t → EV_{t+1}` (the founding RLI hypothesis) alongside `EV_t → PA_{t+1} → WR_{t+2}`.
-3. **Adjustment sets become readable off the graph** — each outcome's confounders are its **parents at the prior wave**, which removes the judgement the contemporaneous graph forced onto the gain/level-factor sweep (#247).
-4. **Temporal precedence is explicit**, which settles whether baseline vocabulary is an admissible mediation confounder (#264, below).
+3. **Adjustment sets become readable off the graph** — each outcome's confounders are its **parents at the prior wave**. This would make confounder choices derivable rather than judged case-by-case. Note the #247 sweep is already complete under the contemporaneous graph, so this helps future sweeps, not that one.
+4. **Temporal precedence is explicit**, which supports the #264 resolution that baseline vocabulary is an admissible mediation confounder. It does not settle it on its own: the temporal-precedence argument that resolved #264 does not depend on this file.
 
 ## Convention: a two-slice template
 
@@ -27,9 +27,11 @@ The file is a **template**, not a full unroll: suffix `_t` is a wave and `_t1` t
 - **`HS` kept a stable exogenous root.** `A→HS` (age-related conductive hearing change) is biologically defensible, but `hearing_c` is recorded time-invariantly in this cohort (the same 44/54 non-missing at every wave — one baseline classification carried across waves), so a time-varying `HS_t` or an `A→HS` edge is unidentifiable here. Revisit only if per-wave audiology data appears.
 - **Intervention timing is arm-specific.** `IG` (randomised at baseline) drives the window's sessions `IS` and, ITT, the taught skills at the next wave. The **active window differs by arm** — immediate arm t1→t2, waitlist arm t2→t3 — which the generic template shows as a single active transition; models must apply it to the correct window per arm.
 
-Verified acyclic (37 nodes, 157 edges).
+Verified acyclic (36 nodes, 155 edges).
 
 ## What it newly identifies
+
+These are claims about what the graph makes _derivable_. None is exercised by a fitted model in #250; they land with the #264 and #229 follow-ons.
 
 - **#264 (mediation E/R).** With waves explicit, `E_t1`/`R_t1` are unambiguously **pre-treatment** for the t1→t2 window, so the descendant-of-treatment argument that #246 used (and that was overturned) does not apply to the baseline value. Reading the graph, a mediator `M_{t+1}`'s admissible confounders are its prior-wave parents, which _include_ baseline vocabulary where vocabulary is a parent — so `E_t1`/`R_t1` come out **in** for the vocabulary-adjacent mediators, on a derivation rather than an assertion. The per-mediator derivation is #264's deliverable.
 - **Cross-lagged dominance tests** — `PA_t→WR_{t+1}` vs `WR_t→PA_{t+1}`; reading→language (`WR→EV`) — become first-class hypotheses the LCSM machinery can probe.

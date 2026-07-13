@@ -15,7 +15,11 @@
 // same structure repeats over each adjacent transition t1->t2, t2->t3, t3->t4.
 // (A full t1..t4 unroll is causally equivalent but ~4x the nodes and unreadable.)
 //
-// DESIGN DECISIONS (agreed 2026-07-13; recorded in the companion note):
+// DESIGN DECISIONS -- DRAFT 2026-07-13, FOR TEAM REVIEW (not yet agreed). The lagged-DAG
+//   workstream was agreed 2026-07-10; the choices below (pure-lagged, the reverse-edge set,
+//   the timing convention) are this draft's and are open to revision. See the companion note.
+//   Open decision: pure-lagged vs a base-DAG-copied-per-wave design -- this file currently
+//   encodes PURE LAGGED; the team doc lays out both.
 //   * PURE LAGGED. No within-wave causal edges among skills: every skill->skill
 //     effect is forward in time (X_t -> Y_t1). Within a wave, skills carry only
 //     residual correlation. Only the exogenous drivers (age A, latent ability GA,
@@ -48,7 +52,7 @@
 //   WR word reading, TR/TE taught receptive/expressive vocab.
 //
 // Paste into https://www.dagitty.net/dags.html to render/inspect.
-// Verified acyclic (37 nodes, 157 edges).
+// Verified acyclic (36 nodes, 155 edges).
 
 dag {
 GA [latent]
@@ -69,7 +73,7 @@ NW_t -> NW_t1
 PA_t -> PA_t1
 PS_t -> PS_t1
 WR_t -> WR_t1
-A_t  -> A_t1
+A_t  -> A_t1   // age is deterministic given wave spacing; a placeholder for maturation, not a stochastic cause
 
 // --- cross-lagged (contemporaneous skill->skill, now forward in time) ---
 TR_t -> { TE_t1 RV_t1 EV_t1 LF_t1 RG_t1 WR_t1 }
@@ -88,17 +92,19 @@ WR_t -> { EV_t1 RV_t1 PA_t1 RW_t1 }
 
 // --- age (maturation): exogenous, within-wave each slice ---
 A_t  -> { IS_t TR_t TE_t PA_t LS_t WR_t PS_t RV_t EV_t LF_t RG_t RW_t EI_t EG_t SP_t NW_t }
-A_t1 -> { IS_t1 TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 RV_t1 EV_t1 LF_t1 RG_t1 RW_t1 EI_t1 EG_t1 SP_t1 NW_t1 }
+A_t1 -> { TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 RV_t1 EV_t1 LF_t1 RG_t1 RW_t1 EI_t1 EG_t1 SP_t1 NW_t1 }
 
 // --- latent general ability (time-invariant common cause of every skill) ---
 GA -> { IS_t TR_t TE_t PA_t LS_t WR_t PS_t RV_t EV_t LF_t RG_t RW_t EI_t EG_t SP_t NW_t }
-GA -> { IS_t1 TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 RV_t1 EV_t1 LF_t1 RG_t1 RW_t1 EI_t1 EG_t1 SP_t1 NW_t1 }
+GA -> { TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 RV_t1 EV_t1 LF_t1 RG_t1 RW_t1 EI_t1 EG_t1 SP_t1 NW_t1 }
 
 // --- hearing status (stable exogenous root; A->HS omitted, see header/note) ---
 HS -> { TR_t RV_t TE_t EV_t SP_t RW_t PA_t LS_t }
 HS -> { TR_t1 RV_t1 TE_t1 EV_t1 SP_t1 RW_t1 PA_t1 LS_t1 }
 
 // --- intervention (arm-specific active window: see header/note) ---
+// Sessions are shown only for the active window (IS_t). Second-window dose (IS_t1) would
+// act on wave t+2, off this two-slice template, so it is omitted (it was a dangling node).
 IG -> IS_t
 IG   -> { TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 EI_t1 EG_t1 }
 IS_t -> { TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 EI_t1 EG_t1 }
