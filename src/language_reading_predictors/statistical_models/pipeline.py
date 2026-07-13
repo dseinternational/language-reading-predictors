@@ -976,6 +976,12 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             pre_required=pre_required,
         )
     ctx.prepared = prepared
+    # Re-filter the requested adjusters to those actually present after loading: a
+    # covariate (or a ``{col}_missing`` indicator) that goes constant on the fitted
+    # rows is dropped by the loader, and build_itt_model raises on an absent adjuster.
+    # Mirror the gain-/level-factor and mechanism pipelines, which drop-and-continue so
+    # a dropped-constant adjuster does not abort the whole ITT fit (Group-C cleanup).
+    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
 
     _print_header(ctx)
 
@@ -2022,19 +2028,25 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     return _finalize_report(ctx)
 
 
-def _summarise_draws(values: np.ndarray, ci_prob: float) -> dict[str, float]:
-    """Mean, equal-tailed CI and P(>0) for a 1-D array of posterior draws.
+def _summarise_draws(
+    values: np.ndarray, ci_prob: float, *, include_p_pos: bool = True
+) -> dict[str, float]:
+    """Mean, equal-tailed CI and (optionally) P(>0) for a 1-D array of draws.
 
     ``ci_prob`` is the interval *coverage* probability (equal-tailed), read from
     ``ctx.reporting.ci_prob`` — see the naming note in ``context.make_context`` (#170).
+    ``include_p_pos=False`` omits the directional ``P(>0)`` for a strictly-positive
+    quantity (e.g. a between-period SD) where it is trivially 1 and meaningless.
     """
     lo_q = (1.0 - ci_prob) / 2.0
-    return {
+    out = {
         "mean": float(np.mean(values)),
         "lo": float(np.quantile(values, lo_q)),
         "hi": float(np.quantile(values, 1.0 - lo_q)),
-        "p_pos": float(np.mean(values > 0.0)),
     }
+    if include_p_pos:
+        out["p_pos"] = float(np.mean(values > 0.0))
+    return out
 
 
 def _write_dose_slope_summary(
@@ -2056,7 +2068,10 @@ def _write_dose_slope_summary(
                 {"term": f"dose_period{p + 1}", **_summarise_draws(bdp[p], ci_prob)}
             )
         rows.append(
-            {"term": "sigma_dose_between_period", **_summarise_draws(_draws("sigma_dose"), ci_prob)}
+            {
+                "term": "sigma_dose_between_period",
+                **_summarise_draws(_draws("sigma_dose"), ci_prob, include_p_pos=False),
+            }
         )
     else:
         rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), ci_prob)})
@@ -3170,10 +3185,15 @@ def _sample_model(model, sampling, *, label: str = "sub-fit"):
     return trace, conv
 
 
-def _beta_summary(trace, name: str, hdi: float) -> dict:
-    """Posterior mean, equal-tailed ``hdi``-coverage interval, and P(>0) for ``name``."""
+def _beta_summary(trace, name: str, ci_prob: float) -> dict:
+    """Posterior mean, equal-tailed ``ci_prob``-coverage interval, and P(>0) for ``name``.
+
+    The interval is equal-tailed at ``ci_prob`` coverage, not an HDI — the parameter
+    was previously named ``hdi``, which misdescribed it (the callers already pass
+    ``ctx.reporting.ci_prob``).
+    """
     draws = trace.posterior[name].stack(sample=("chain", "draw")).values
-    lo_q, hi_q = (1 - hdi) / 2, 1 - (1 - hdi) / 2
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     return {
         "mean": float(np.mean(draws)),
         "lo": float(np.quantile(draws, lo_q)),
@@ -4142,7 +4162,6 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     _print_header(ctx)
 
     section_header("Build model")
-    _priors.save_shared_prior_panel(ctx.output_dir)
     built = _factories.build_correlated_factor_model(
         prepared,
         outcome_symbol=outcome,

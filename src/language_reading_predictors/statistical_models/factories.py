@@ -571,7 +571,7 @@ def build_joint_model(
     G_f = prepared.G.astype(float)
 
     with pm.Model(coords=coords) as model:
-        pm.Data("A_std", prepared.A_std, dims="obs_id")
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         G_d = pm.Data("G", G_f, dims="obs_id")
 
         # Pre-score matrix (N_obs, K) - same order as ``outcomes``.
@@ -621,7 +621,11 @@ def build_joint_model(
         # Linear age main effect (per outcome), mirroring the single-outcome suite.
         if use_age_linear:
             gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A", dims="outcome")
-            eta_core = eta_core + gamma_A[None, :] * prepared.A_std[:, None]
+            # Read age from the ``A_std`` Data node (not the raw array) so a future
+            # ``pm.set_data({"A_std": ...})`` updates the linear age term, matching how
+            # ``G_d`` is wired. (The age-GP path below builds its HSGP basis from the
+            # array directly; set_data on GP inputs is a separate concern, out of scope.)
+            eta_core = eta_core + gamma_A[None, :] * A_std_d[:, None]
 
         if use_age_gp:
             if partial_pool_age_gp:
@@ -2287,6 +2291,10 @@ def _resolve_level_predictor(prepared: PreparedData, key: str) -> tuple[str, np.
     values are mean-imputed (0 on the standardised scale) since PyMC — unlike
     LightGBM — cannot take NaN inputs; the ranking is a sensitivity read, not a
     calibrated fit, so mean-imputation is acceptable and is noted in the report.
+    Caveat (Group-C): zero-imputation shrinks a predictor's realised variance in
+    proportion to its missingness, biasing that coefficient toward zero — the ranking
+    therefore systematically disadvantages patchier predictors, which the report
+    should flag alongside the ordering.
     """
     from language_reading_predictors.statistical_models.measures import MEASURES
     from language_reading_predictors.statistical_models.preprocessing import (

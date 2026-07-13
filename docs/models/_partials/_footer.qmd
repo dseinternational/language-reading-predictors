@@ -11,6 +11,7 @@ _RE_KINDS_LOO = {
     "dose_response",
     "lcsm",
     "growth",
+    "historical_growth",
 }
 if _has("loo.txt"):
     print("```\n" + open(_here / "loo.txt").read() + "\n```")
