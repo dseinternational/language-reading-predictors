@@ -163,6 +163,40 @@ def test_rlm_dataset_registered():
     assert dataset.group_labels[1] == "Down syndrome"
 
 
+# The #164 Phase-A per-measure historical-growth sweep registers the other seven
+# Byrne Table 2 measures with a PROVISIONAL observed-max ceiling: n_trials is a
+# placeholder and n_trials_confirmed must be False until confirmed against the
+# instrument manual. basmat is deliberately absent (wave-3+, handled separately).
+_PHASE_A_PROVISIONAL = {
+    "basspel": 18,
+    "woco": 31,
+    "bpvs": 29,
+    "trog": 20,
+    "basdig": 34,
+    "bassim": 18,
+    "basnum": 60,
+}
+
+
+@pytest.mark.parametrize("symbol, ceiling", sorted(_PHASE_A_PROVISIONAL.items()))
+def test_rlm_phase_a_measures_registered_provisional(symbol, ceiling):
+    _dataset_spec, measures = resolve_dataset("rlm")
+    assert symbol in measures, f"{symbol} not registered in RLM_MEASURES"
+    m = measures[symbol]
+    assert m.column == symbol
+    assert m.n_trials == ceiling
+    # Provisional: the ceiling is the observed maximum, not a confirmed instrument
+    # maximum, so this flag must stay False until a data-owner confirms it.
+    assert m.n_trials_confirmed is False
+
+
+def test_rlm_basmat_not_registered():
+    # basmat is wave-3+ only (no wave-1 baseline), so it needs its own wave range
+    # and is intentionally excluded from the waves-1-3 Phase-A registration.
+    _dataset_spec, measures = resolve_dataset("rlm")
+    assert "basmat" not in measures
+
+
 def test_resolve_unknown_study_raises():
     with pytest.raises(KeyError, match="Unknown study_id"):
         resolve_dataset("does_not_exist")

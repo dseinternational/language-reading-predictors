@@ -335,6 +335,7 @@ extau
 exto
 federated
 fittable
+followup
 fontsize
 fpsyg
 functionals
@@ -393,6 +394,7 @@ mainfont
 mathrm
 matplotlib
 medae
+miscalibration
 monofont
 monofontoptions
 morphosyntax
