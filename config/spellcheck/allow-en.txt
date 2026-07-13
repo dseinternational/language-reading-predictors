@@ -468,6 +468,7 @@ spearmanr
 speedup
 spphon
 startswith
+subfit
 subsetting
 subskill
 tachang

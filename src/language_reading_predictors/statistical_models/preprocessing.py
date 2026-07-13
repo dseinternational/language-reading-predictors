@@ -223,6 +223,41 @@ def split_covariates_by_wave(
     return pre, post
 
 
+#: Language-proximal *state* confounders — speech production (SP = ``deapp_c``) and
+#: word/nonword repetition / phonological memory (RW = ``erbto``) — that a reading /
+#: language intervention plausibly moves within a single period. In the **causal-term
+#: factor families** (gain / level factors) these are read at the pre-randomisation
+#: **baseline** (t1), not the contemporaneous post wave: at the period-1 post wave (t2)
+#: they may already be treatment-affected, so conditioning on them there would adjust a
+#: descendant of the exposure and bias the randomised effect toward the null (review
+#: finding A1; team decision 2026-07-13, ``notes/202607130922-statistical-models-methodology-review.md``).
+#: Hearing status (``hs``) is exogenous to a language intervention and stays
+#: contemporaneous (post). Each parent's ``_missing`` indicator follows its parent.
+BASELINE_CONFOUNDER_BASES: frozenset[str] = frozenset({"deapp_c", "erbto"})
+
+
+def split_confounders_by_timing(
+    names: tuple[str, ...],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Split state confounders into ``(baseline_t1, contemporaneous_post)`` by proximity.
+
+    See :data:`BASELINE_CONFOUNDER_BASES`. The language-proximal SP / RW confounders
+    (and their ``_missing`` indicators) are routed to the t1 baseline so the causal-term
+    factor families never condition on a possibly-treatment-affected post value; every
+    other state confounder (hearing status) stays contemporaneous. Used only by the
+    gain- / level-factor pipelines, where a randomised effect is reported — the mechanism
+    family (an avowed adjusted association, ``beta_G`` explicitly not a direct effect)
+    keeps the contemporaneous read.
+    """
+
+    def _base(c: str) -> str:
+        return c[: -len("_missing")] if c.endswith("_missing") else c
+
+    baseline = tuple(c for c in names if _base(c) in BASELINE_CONFOUNDER_BASES)
+    post = tuple(c for c in names if c not in baseline)
+    return baseline, post
+
+
 def add_missing_indicator_covariates(df: pd.DataFrame) -> pd.DataFrame:
     """Fill + flag the continuous DAG-confounder covariates SP / RW (#245).
 
@@ -230,10 +265,13 @@ def add_missing_indicator_covariates(df: pd.DataFrame) -> pd.DataFrame:
     phonological memory, RW) are common causes in the revised DAG and so enter the
     mechanism / factor adjustment sets. Both are ~94-96% complete; to keep the
     within-child panel intact they take the same **missing-indicator** policy as
-    hearing status (:func:`add_hearing_status`): the value is filled to its column
-    mean (arm-blind; becomes 0 after standardisation) and a ``{col}_missing``
-    indicator carries the unknown group as its own adjustment level. Both derived
-    columns are NaN-free, so adjusting for them never drops rows. A no-op for any
+    hearing status (:func:`add_hearing_status`): the value is filled to its
+    (arm-blind) whole-column mean and a ``{col}_missing`` indicator carries the
+    unknown group as its own adjustment level. Both derived columns are NaN-free, so
+    adjusting for them never drops rows. (The fill uses the whole-column mean, while a
+    model standardises on its fitted-wave rows, so an imputed cell is not exactly 0 on
+    that scale — the ``{col}_missing`` indicator absorbs the residual offset as a free
+    intercept shift, so estimates stay unbiased under randomisation.) A no-op for any
     column absent from the frame (e.g. other datasets).
     """
     out = df.copy()
@@ -472,6 +510,19 @@ def load_and_prepare(
         # Also require at least one post outcome to be present.
         mask_any_post = merged[required_post].notna().any(axis=1)
         merged = merged[mask_complete & mask_any_post].reset_index(drop=True)
+    else:
+        # drop_missing_pre=False bypasses the complete-case + any-post masking above,
+        # so missing pre-scores / covariates / posts survive into the returned arrays.
+        # No registered spec sets this today, and the factories apply their own
+        # post-NaN keep-masks on the outcome/pre they use — but an age or covariate NaN
+        # is not caught downstream and would poison the logp. Warn loudly so a future
+        # caller wires its own masking rather than shipping NaNs into the model.
+        warnings.warn(
+            "load_and_prepare(drop_missing_pre=False) bypasses NaN masking; missing "
+            "pre-scores or covariates can reach the model. Ensure the caller/factory "
+            "drops them, or keep drop_missing_pre=True.",
+            stacklevel=2,
+        )
 
     # COMPLETE-CASE sensitivity (#258 review). ``hs`` / ``deapp_c`` / ``erbto`` reach
     # the frame already mean-filled, with a ``{col}_missing`` flag carrying the
