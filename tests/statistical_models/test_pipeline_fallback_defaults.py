@@ -34,11 +34,13 @@ RECONCILED_FACTORY_DEFAULTS = [
     # ablation showed the recalibration neither clears the gate nor moves the
     # posterior, while it does shift prior-implied median communality 0.50 -> 0.79.
     # It was reverted; LRPMM101 carries it as a prior-sensitivity fit. These
-    # defaults must therefore stay at the original values.
+    # loading / residual defaults must therefore stay at the original values.
     (factories.build_correlated_factor_model, "loading_mu", 0.0),
     (factories.build_correlated_factor_model, "loading_sigma", 1.0),
     (factories.build_correlated_factor_model, "residual_sigma", 1.0),
-    (factories.build_correlated_factor_model, "predictor_slope_sigma", 0.5),
+    # Structural-slope prior reconciled 0.5 -> 0.3 to match the shared
+    # predictor_slope_prior default (review finding B4, 2026-07-13).
+    (factories.build_correlated_factor_model, "predictor_slope_sigma", 0.3),
     (factories.build_growth_model, "assoc_prior_sigma", 0.3),
     (factories.build_growth_model, "re_intercept_prior_sigma", 0.5),
 ]

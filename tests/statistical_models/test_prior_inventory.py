@@ -201,11 +201,15 @@ def test_hsgp_amplitude_lengthscale_are_panelled(built_models):
 
 def test_lcsm_inline_priors_not_mislabelled(built_models):
     """The LCSM ``a_change`` / ``b_self`` carry their real Normal(0, 1.5) /
-    Normal(0, 0.5), not gamma_cross's Normal(0, 0.3) (the prefix-fallback bug)."""
+    Normal(-0.3, 0.2), not gamma_cross's Normal(0, 0.3) (the prefix-fallback bug).
+
+    ``b_self`` was recentred to a mean-reverting Normal(-0.3, 0.2) — the level AR(1)
+    coefficient is phi = 1 + b_self, so the old Normal(0, 0.5) centred phi on a unit
+    root with ~50% explosive mass (review finding A3, 2026-07-13)."""
     table = priors.priors_table(built_models["lcsm"])
     by_param = {r["parameter"]: r for _, r in table.iterrows()}
     assert by_param["a_change"]["distribution"] == "Normal(0, 1.5)"
-    assert by_param["b_self"]["distribution"] == "Normal(0, 0.5)"
+    assert by_param["b_self"]["distribution"] == "Normal(-0.3, 0.2)"
     # And none of them are the wrongly-inherited cross-coupling scale.
     assert by_param["a_change"]["distribution"] != "Normal(0, 0.3)"
 
