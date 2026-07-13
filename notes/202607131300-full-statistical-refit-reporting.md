@@ -53,13 +53,13 @@ Reported per the `METHODS.md` / #179 standard: posterior **median**, equal-taile
 | **Taught expressive vocab (TE)** | **+0.064**     | [+0.006, +0.122] | **0.985** | **strong**       |
 | Taught receptive vocab (TR)      | +0.057         | [−0.003, +0.117] | 0.968     | moderate         |
 | Untaught receptive vocab (UR)    | +0.050         | [−0.014, +0.116] | 0.937     | moderate         |
-| Nonword decoding (N)             | +0.100         | [−0.071, +0.268] | 0.877     | suggestive       |
+| Nonword reading (N)              | +0.100         | [−0.071, +0.268] | 0.877     | suggestive       |
 | Untaught expressive vocab (UE)   | +0.026         | [−0.041, +0.093] | 0.773     | suggestive       |
-| Number knowledge (P)             | +0.041         | [−0.098, +0.183] | 0.724     | inconclusive     |
-| **Broad receptive vocab (R)**    | +0.001         | [−0.027, +0.031] | 0.539     | **inconclusive** |
-| **Broad expressive vocab (E)**   | +0.001         | [−0.022, +0.025] | 0.534     | **inconclusive** |
+| Phonetic spelling (P)            | +0.041         | [−0.098, +0.183] | 0.724     | inconclusive     |
+| **Receptive vocabulary (R)**     | +0.001         | [−0.027, +0.031] | 0.539     | **inconclusive** |
+| **Expressive vocabulary (E)**    | +0.001         | [−0.022, +0.025] | 0.534     | **inconclusive** |
 
-The strongest, clearest benefit is on **letter-sound knowledge** (≈ +3–4 of 32 letter sounds; the most approachable framing), then **phoneme blending, word reading and taught expressive vocabulary**. **Broad standardised vocabulary (R/E) is inconclusive and probably negligible** — near-zero medians with tight bands hugging zero (a ROPE reading, not "no effect"). P and N are heavily floored; their primary estimand is an off-floor risk difference (graded τ shown here is the flagged secondary).
+The strongest, clearest benefit is on **letter-sound knowledge** (≈ +3–4 of 32 letter sounds; the most approachable framing), then **phoneme blending, word reading and taught expressive vocabulary**. **Standardised receptive and expressive vocabulary (R/E) is inconclusive and probably negligible** — near-zero medians with tight bands hugging zero (a ROPE reading, not "no effect"). Phonetic spelling (P) and nonword reading (N) are heavily floored; their primary estimand is an off-floor risk difference (graded τ shown here is the flagged secondary).
 
 ### Robustness — the story survives adjustment
 
@@ -73,21 +73,21 @@ The waitlist-crossover difference-in-differences reproduces the randomised effec
 
 ### ANCOVA replication — gain factors (`lrp-rli-gf-001…011`)
 
-On-intervention risk difference (the only causal term): **word reading P = 0.993 (≈ +2.6 words)**, **letter sounds P = 0.991 (≈ +3.3 letter sounds)**, phoneme blending P = 0.903; broad vocab R/E and number P negligible/negative. Consistent with ITT and DiD.
+On-intervention risk difference (the only causal term): **word reading P = 0.993 (≈ +2.6 words)**, **letter sounds P = 0.991 (≈ +3.3 letter sounds)**, phoneme blending P = 0.903; standardised vocabulary (R/E) and phonetic spelling (P) negligible/negative. Consistent with ITT and DiD.
 
 ### Mechanism of the reading gain — mediation (`lrp-rli-med-*`)
 
-The word-reading gain runs **through letter-sound knowledge**, not through broad vocabulary:
+The word-reading gain runs **through letter-sound knowledge (L)**, not through vocabulary:
 
 - `med-059` (single mediator L): **NIE via L P = 0.997, ≈ +1.7 words**; NDE ≈ 0 (P = 0.56); proportion mediated ≈ 0.82.
-- `med-064` (two mediators L + broad expressive E): **NIE_L P = 0.996**, NIE_E ≈ 0 (P = 0.58) — the route is L, not E.
+- `med-064` (two mediators L + expressive vocabulary E): **NIE_L P = 0.996**, NIE_E ≈ 0 (P = 0.58) — the route is L, not E.
 - `med-066` / `med-075` (L + phoneme blending B): NIE_L P = 0.998, NIE_B ≈ 0 / slightly negative — the mediation loads on letter sounds specifically.
 - `med-076` (longitudinal ordering, L at t2): NIE P = 0.999, ≈ +3.1 words.
 - `med-079` (**negative-control mediator, grammar**): NIE ≈ 0 (P = 0.71) — the control behaves as it should, i.e. no spurious route.
 
 ### Cross-checks
 
-- **Horseshoe predictor ranking** (`hs-002`, word reading): top selected predictors are **L (p = 0.995) and broad expressive E (p = 0.992)**, then taught vocab T — corroborates the GB ranking and the mediation finding.
+- **Horseshoe predictor ranking** (`hs-002`, word reading): top selected predictors are **L (p = 0.995) and expressive vocabulary E (p = 0.992)**, then receptive grammar T (p = 0.886) — corroborates the GB ranking and the mediation finding.
 - **Correlated-domain measurement model** (`mm-001`): domain correlations are strong and robust — vocabulary↔code 0.72, vocabulary↔grammar 0.79, code↔grammar 0.65, all P(>0) ≈ 1.0. (Structural leg held cautiously — see gate.)
 
 ## Cross-model comparison artefacts
