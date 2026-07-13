@@ -75,21 +75,23 @@ Everything below is read per the `METHODS.md` / #179 standard set out in the pri
 
 The intention-to-treat (ITT) effect `τ` is the study's headline: the randomised effect of being assigned to the intervention on each outcome.
 
-| Outcome                          | `τ` (risk diff.) | 95 % CI          | P(τ>0)    | Evidence         |
-| -------------------------------- | ---------------- | ---------------- | --------- | ---------------- |
-| **Letter sounds (L)**            | **+0.110**       | [+0.040, +0.179] | **0.999** | **very strong**  |
-| **Phoneme blending (B)**         | **+0.099**       | [+0.005, +0.192] | **0.980** | **strong**       |
-| **Word reading (W)**             | **+0.030**       | [+0.004, +0.057] | **0.986** | **strong**       |
-| **Taught expressive vocab (TE)** | **+0.064**       | [+0.006, +0.122] | **0.985** | **strong**       |
-| Taught receptive vocab (TR)      | +0.057           | [−0.003, +0.117] | 0.968     | moderate         |
-| Untaught receptive vocab (UR)    | +0.050           | [−0.014, +0.116] | 0.937     | moderate         |
-| Basic concepts (F)               | +0.048           | [−0.029, +0.124] | 0.891     | suggestive       |
-| Nonword reading (N)              | +0.100           | [−0.071, +0.268] | 0.877     | suggestive       |
-| Untaught expressive vocab (UE)   | +0.026           | [−0.041, +0.093] | 0.773     | suggestive       |
-| Receptive grammar (T)            | +0.020           | [−0.037, +0.077] | 0.760     | suggestive       |
-| Phonetic spelling (P)            | +0.041           | [−0.098, +0.183] | 0.724     | inconclusive     |
-| **Receptive vocabulary (R)**     | +0.001           | [−0.027, +0.031] | 0.539     | **inconclusive** |
-| **Expressive vocabulary (E)**    | +0.001           | [−0.022, +0.025] | 0.534     | **inconclusive** |
+Both a 90 % and a 95 % equal-tailed credible interval are shown: the 90 % is the tighter everyday band, the 95 % the more conservative one; read them together, not either alone.
+
+| Outcome                          | `τ` (risk diff.) | 90 % CI          | 95 % CI          | P(τ>0)    | Evidence         |
+| -------------------------------- | ---------------- | ---------------- | ---------------- | --------- | ---------------- |
+| **Letter sounds (L)**            | **+0.110**       | [+0.051, +0.168] | [+0.040, +0.179] | **0.999** | **very strong**  |
+| **Phoneme blending (B)**         | **+0.099**       | [+0.020, +0.177] | [+0.005, +0.192] | **0.980** | **strong**       |
+| **Word reading (W)**             | **+0.030**       | [+0.008, +0.052] | [+0.004, +0.057] | **0.986** | **strong**       |
+| **Taught expressive vocab (TE)** | **+0.064**       | [+0.016, +0.113] | [+0.006, +0.122] | **0.985** | **strong**       |
+| Taught receptive vocab (TR)      | +0.057           | [+0.007, +0.107] | [−0.003, +0.117] | 0.968     | moderate         |
+| Untaught receptive vocab (UR)    | +0.050           | [−0.004, +0.105] | [−0.014, +0.116] | 0.937     | moderate         |
+| Basic concepts (F)               | +0.048           | [−0.016, +0.112] | [−0.029, +0.124] | 0.891     | suggestive       |
+| Nonword reading (N)              | +0.100           | [−0.042, +0.241] | [−0.071, +0.268] | 0.877     | suggestive       |
+| Untaught expressive vocab (UE)   | +0.026           | [−0.031, +0.082] | [−0.041, +0.093] | 0.773     | suggestive       |
+| Receptive grammar (T)            | +0.020           | [−0.027, +0.068] | [−0.037, +0.077] | 0.760     | suggestive       |
+| Phonetic spelling (P)            | +0.041           | [−0.075, +0.159] | [−0.098, +0.183] | 0.724     | inconclusive     |
+| **Receptive vocabulary (R)**     | +0.001           | [−0.023, +0.026] | [−0.027, +0.031] | 0.539     | **inconclusive** |
+| **Expressive vocabulary (E)**    | +0.001           | [−0.019, +0.021] | [−0.022, +0.025] | 0.534     | **inconclusive** |
 
 Plainly: the strongest, clearest benefit is on **letter-sound knowledge** — about **+3 to +4 of the 32 letter sounds** (the most concrete framing) — followed by **phoneme blending, word reading and taught expressive vocabulary**. These are the skills the intervention teaches directly, so this is the pattern you would hope to see. **Standardised receptive and expressive vocabulary (R/E) is inconclusive and probably negligible** — near-zero medians with tight bands hugging zero (a ROPE reading, not "no effect"); broad standardised vocabulary is a distant transfer target that a phonics-and-language programme is not expected to shift in a short window. Basic concepts (F) and receptive grammar (T) sit in the suggestive/inconclusive middle.
 
@@ -107,18 +109,18 @@ The ITT effect is identified by an empty adjustment set, but we re-ran the key o
 
 The difference-in-differences (DiD) design uses the waitlist crossover so that **each child partly acts as their own control** (comparing a child's untreated stretch to their treated stretch), with the immediate-start arm anchoring the natural maturation trend. It's a different, non-randomised-comparison route to the same question, so agreement with the ITT is reassuring. The causal quantity is the DiD contrast `δ`; the separate period term is just the maturation trend and is not the effect.
 
-| Outcome                                   | DiD `δ` (logit) | P(δ>0)    | Evidence        | Items reading                 |
-| ----------------------------------------- | --------------- | --------- | --------------- | ----------------------------- |
-| **Letter sounds (L, did-002)**            | **+0.483**      | **0.993** | **very strong** | ≈ +2.8 letter sounds          |
-| **Taught expressive vocab (TE, did-004)** | **+0.358**      | **0.981** | **strong**      | ≈ +1.7 words                  |
-| Phoneme blending (B, did-003)             | +0.343          | 0.934     | moderate        | ≈ +0.7 items                  |
-| Taught receptive vocab (TR, did-008)      | +0.194          | 0.888     | suggestive      | ≈ +1.0 word                   |
-| Basic concepts (F, did-010)               | +0.182          | 0.854     | suggestive      | ≈ +0.7 items                  |
-| Nonword reading (N, did-012, off-floor)   | +0.302          | 0.791     | suggestive      | off-floor                     |
-| Word reading (W, did-001)                 | +0.168          | 0.831     | suggestive      | ≈ +1.3 words                  |
-| Expressive vocabulary (E, did-009)        | +0.037          | 0.655     | inconclusive    | —                             |
-| Phonetic spelling (P, did-011, off-floor) | +0.024          | 0.524     | inconclusive    | off-floor                     |
-| Receptive vocabulary (R, did-005)         | −0.024          | 0.398     | inconclusive    | — (the intended null control) |
+| Outcome                                   | DiD `δ` (logit) | 90 % CI          | 95 % CI          | P(δ>0)    | Evidence        | Items reading                 |
+| ----------------------------------------- | --------------- | ---------------- | ---------------- | --------- | --------------- | ----------------------------- |
+| **Letter sounds (L, did-002)**            | **+0.483**      | [+0.164, +0.805] | [+0.100, +0.872] | **0.993** | **very strong** | ≈ +2.8 letter sounds          |
+| **Taught expressive vocab (TE, did-004)** | **+0.358**      | [+0.078, +0.635] | [+0.019, +0.691] | **0.981** | **strong**      | ≈ +1.7 words                  |
+| Phoneme blending (B, did-003)             | +0.343          | [−0.030, +0.714] | [−0.099, +0.786] | 0.934     | moderate        | ≈ +0.7 items                  |
+| Taught receptive vocab (TR, did-008)      | +0.193          | [−0.070, +0.453] | [−0.123, +0.504] | 0.889     | suggestive      | ≈ +1.0 word                   |
+| Basic concepts (F, did-010)               | +0.182          | [−0.105, +0.468] | [−0.161, +0.521] | 0.854     | suggestive      | ≈ +0.7 items                  |
+| Nonword reading (N, did-012, off-floor)   | +0.302          | [−0.312, +0.927] | [−0.432, +1.046] | 0.791     | suggestive      | off-floor                     |
+| Word reading (W, did-001)                 | +0.168          | [−0.116, +0.457] | [−0.176, +0.515] | 0.831     | suggestive      | ≈ +1.3 words                  |
+| Expressive vocabulary (E, did-009)        | +0.037          | [−0.116, +0.193] | [−0.147, +0.224] | 0.655     | inconclusive    | —                             |
+| Phonetic spelling (P, did-011, off-floor) | +0.024          | [−0.627, +0.679] | [−0.756, +0.803] | 0.524     | inconclusive    | off-floor                     |
+| Receptive vocabulary (R, did-005)         | −0.024          | [−0.173, +0.125] | [−0.201, +0.155] | 0.398     | inconclusive    | — (the intended null control) |
 
 The within-person picture matches the ITT's ranking: **letter sounds is the clearest replication (very strong), then taught expressive vocabulary (strong) and phoneme blending (moderate)**, with word reading suggestive and standardised vocabulary (R/E) inconclusive — including `did-005` receptive vocabulary behaving exactly as the pre-specified **null control** should. The word-reading DiD is weaker than its ITT sibling (suggestive vs strong): the within-person contrast has less information than the full randomised comparison, so this is a difference in power, not in direction. The observational **session dose-response** variants are positive (`did-006` word-reading period slope P = 0.992; `did-107` pooled letter-sound dose P = 0.917) but, because attendance is a downstream collider, these are sensitivity views, not causal.
 
