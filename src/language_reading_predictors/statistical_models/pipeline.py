@@ -143,6 +143,7 @@ def _effective_adjustment(
     measure_confounders: tuple[str, ...] = (),
     adjust_for: tuple[str, ...] = (),
     baseline_symbol: str | None = None,
+    skill_baselines: tuple[str, ...] = (),
 ) -> dict:
     """Describe the adjustment set the model **actually fitted**.
 
@@ -157,8 +158,25 @@ def _effective_adjustment(
     The returned record therefore names, for every term that carries a coefficient,
     its source column, its measurement wave, and whether it is a missingness
     indicator — plus the requested-but-dropped terms, explicitly.
+
+    ``skill_baselines`` records the gain-factor ``skill_symbols``, which — unlike the
+    ``measure_confounders`` of the mechanism/mediation families — enter at the period
+    **pre** (baseline) wave, not the post wave (#247). They are always fitted (the
+    keep-mask requires their baselines), so they never appear in ``dropped_constant``.
     """
     terms = []
+    for s in skill_baselines:
+        # Upstream-skill DAG-parent adjusters, entered as their period baseline
+        # (pre-wave) logit — the ANCOVA lag that precedes that period's treatment.
+        terms.append(
+            {
+                "term": f"{s}_pre",
+                "kind": "measure_baseline",
+                "source_column": prepared.column_map.get(s, s),
+                "wave": "pre",
+                "missing_indicator": False,
+            }
+        )
     for s in measure_confounders:
         if s == "G":
             # The randomised arm: time-invariant, not a wave-indexed measurement.
@@ -215,7 +233,9 @@ def _effective_adjustment(
             }
         )
     return {
-        "requested": list(spec.adjustment) + list(spec.extra.get("adjust_for", ())),
+        "requested": list(spec.adjustment)
+        + list(skill_baselines)
+        + list(spec.extra.get("adjust_for", ())),
         "fitted": terms,
         "dropped_constant": list(prepared.dropped_covariates),
     }
@@ -574,6 +594,7 @@ def _save_rope_plot(
     varying_term: str = "tau_i",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     items: np.ndarray | None = None,
+    row_mask: np.ndarray | None = None,
 ) -> None:
     """ROPE-anchored figure for a randomised effect: the items-scale posterior with
     the region of practical equivalence, and ``P(effect > delta)`` as the
@@ -592,7 +613,7 @@ def _save_rope_plot(
         if items is None:
             _, ame_prob = _report._itt_ame_draws(
                 ctx.trace, G=G, term=term, varying_term=varying_term,
-                moderators=moderators,
+                moderators=moderators, row_mask=row_mask,
             )
             items = ame_prob * float(n_trials)
         med = float(np.median(items))
@@ -2278,11 +2299,20 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 # ---------------------------------------------------------------------------
 
 
-def _gf_coef_names(spec: ModelSpec) -> list[str]:
+def _gf_coef_names(
+    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
+) -> list[str]:
     """Factor coefficients to report in the LRPGF factor table (interpretable
-    terms only; nuisance alpha/alpha_phase/kappa/sigma_child are excluded)."""
+    terms only; nuisance alpha/alpha_phase/kappa/sigma_child are excluded).
+
+    ``adjust_for`` overrides the requested ``spec.extra['adjust_for']`` with the
+    **actually fitted** set (a constant ``_missing`` indicator is dropped by the
+    loader and gets no ``gamma_{c}`` coefficient), so the pipeline passes the
+    post-filter tuple; ``None`` falls back to the requested set (used off the fit
+    path, e.g. in tests)."""
     extra = spec.extra
     treated_only = bool(extra.get("treated_only", False))
+    adj = extra.get("adjust_for", ()) if adjust_for is None else adjust_for
     names: list[str] = []
     if not treated_only:
         names.append("beta_trt")
@@ -2290,6 +2320,7 @@ def _gf_coef_names(spec: ModelSpec) -> list[str]:
     if extra.get("ability_covariate"):
         names.append("gamma_ability")
     names += [f"gamma_{s}" for s in extra.get("skill_symbols", ())]
+    names += [f"gamma_{c}" for c in adj]
     for pair in extra.get("interactions", ()):
         a, b = tuple(pair)
         if treated_only and "trt" in (a, b):
@@ -2298,7 +2329,9 @@ def _gf_coef_names(spec: ModelSpec) -> list[str]:
     return names
 
 
-def _gf_diag_vars(spec: ModelSpec) -> list[str]:
+def _gf_diag_vars(
+    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
+) -> list[str]:
     # No kappa under the off-floor Bernoulli likelihood.
     tail = (
         ["sigma_child"]
@@ -2308,7 +2341,7 @@ def _gf_diag_vars(spec: ModelSpec) -> list[str]:
     # Include the per-phase intercept vector, mirroring _lf_diag_vars' alpha_time
     # (issue #274 item 2); the gate already covers it via the free-RV scan, this
     # keeps the human-readable diagnostics.csv consistent across the two families.
-    return ["alpha", "alpha_phase", *_gf_coef_names(spec), *tail]
+    return ["alpha", "alpha_phase", *_gf_coef_names(spec, adjust_for), *tail]
 
 
 def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -2325,11 +2358,21 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     off_floor = likelihood == "bernoulli_offfloor"
     obs_node = "y_offfloor" if off_floor else "y_post"
     baseline_covariates = (ability_covariate,) if ability_covariate else ()
+    # Revised-DAG raw-covariate confounders (hearing/speech/phonological memory;
+    # #247). Split by wave exactly as fit_mechanism: these are *state* covariates,
+    # read from the transition's POST row (the DAG is contemporaneous), so pre_adj
+    # is empty and post_adj carries them. Re-filter after loading — a constant
+    # ``_missing`` indicator is dropped by the loader and must not be built or gated.
+    adjust_for = tuple(extra.get("adjust_for", ()))
+    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
     prepared = load_and_prepare(
         phase_mode="all",
         outcomes=(spec.outcome_symbol, *skill_symbols),
         baseline_covariates=baseline_covariates,
+        covariates=pre_adj,
+        post_covariates=post_adj,
     )
+    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
     ctx.prepared = prepared
     _print_header(ctx)
 
@@ -2339,6 +2382,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         outcome_symbol=spec.outcome_symbol,
         skill_symbols=skill_symbols,
         ability_covariate=ability_covariate,
+        adjust_for=adjust_for,
         interactions=interactions,
         treated_only=treated_only,
         likelihood=likelihood,
@@ -2354,28 +2398,28 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_gf_diag_vars(spec))
+    _diag.summary_diagnostics(ctx, var_names=_gf_diag_vars(spec, adjust_for))
 
     _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
     _causal_gf = None if treated_only else "beta_trt"
-    _diag.write_diagnostics_summary(ctx, var_names=_gf_diag_vars(spec))
+    _diag.write_diagnostics_summary(ctx, var_names=_gf_diag_vars(spec, adjust_for))
     _diag.run_extended_diagnostics(ctx, causal_term=_causal_gf)
     _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=_gf_diag_vars(spec))
+    _diag.save_prior_posterior_plot(ctx, var_names=_gf_diag_vars(spec, adjust_for))
     if _causal_gf is not None:
         _save_forest_plot(ctx, [_causal_gf])
         _diag.run_psense(ctx, var_names=[_causal_gf])
 
     section_header("Factor summary")
     fs = _report.factor_summary(
-        ctx.trace, _gf_coef_names(spec), ci_prob=ctx.reporting.ci_prob,
+        ctx.trace, _gf_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob,
         causal_terms=("beta_trt",),
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
     ctx.tables["factor_summary"] = fs
-    _save_association_forest(ctx, _gf_coef_names(spec), ("beta_trt",))
+    _save_association_forest(ctx, _gf_coef_names(spec, adjust_for), ("beta_trt",))
     print_table(
         ranked_dataframe_table(
             fs,
@@ -2386,12 +2430,34 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         )
     )
 
-    meta_extra = {"loo_elpd": float(ctx.loo.elpd), "treated_only": treated_only}
+    meta_extra = {
+        "loo_elpd": float(ctx.loo.elpd),
+        "treated_only": treated_only,
+        # Requested vs actually-fitted adjustment set, incl. dropped-constant
+        # covariates (#247 / #258 review P1). Skills enter at the pre baseline; the
+        # raw-covariate confounders (hs/deapp_c/erbto) at the split wave.
+        "effective_adjustment": _effective_adjustment(
+            spec,
+            built.prepared,
+            adjust_for=adjust_for,
+            baseline_symbol=spec.outcome_symbol,
+            skill_baselines=skill_symbols,
+        ),
+    }
     # Items-scale marginal effect of the treatment term. Skipped when
     # treated_only (the on-intervention indicator is then constant and beta_trt
     # is absent).
     if not treated_only:
         trt = ((built.prepared.G == 1) | (built.prepared.phase >= 1)).astype(float)
+        # The marginal treatment effect is averaged over the **period-1** rows only
+        # (#247 P2): period 1 is the genuinely randomised, all-untreated-baseline
+        # transition, so its switch-on-vs-off contrast is the causal ITT-anchor
+        # estimand. The post-crossover transitions (phase >= 1) carry no untreated
+        # observations and baselines that may already be treatment-affected, so
+        # pooling them yields a model-based transported contrast, not the ITT effect.
+        # The logit-scale beta_trt posterior itself is unchanged; only its
+        # probability/items-scale marginalisation is restricted.
+        p1_mask = built.prepared.phase == 0
         # Net out the *full* per-row treatment contribution — ``beta_trt`` plus every
         # fitted treatment interaction (``gamma_int_trt_*``) — so the marginal effect
         # reflects the modelled heterogeneity, not ``beta_trt`` alone. The factory
@@ -2406,6 +2472,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             n_trials=n_marg,
             moderators=trt_moderators,
             ci_prob=ctx.reporting.ci_prob,
+            row_mask=p1_mask,
         )
         pd.DataFrame([tme]).to_csv(
             os.path.join(ctx.output_dir, "treatment_marginal.csv"), index=False
@@ -2425,7 +2492,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             pf = _report.prior_pushforward(
                 ctx.prior_samples, G=trt, n_trials=n_marg,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
-                ci_prob=ctx.reporting.ci_prob,
+                ci_prob=ctx.reporting.ci_prob, row_mask=p1_mask,
             )
             pd.DataFrame([pf]).to_csv(
                 os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
@@ -2459,6 +2526,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 term="beta_trt",
                 varying_term="",
                 moderators=trt_moderators,
+                row_mask=p1_mask,
             )
             rope_df = pd.DataFrame([rope_s])
             rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
@@ -2474,6 +2542,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             _save_rope_plot(
                 ctx, spec.outcome_symbol, trt, n_marg, delta_items,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
+                row_mask=p1_mask,
             )
         elif off_floor and delta_prob is not None:
             # Off-floor risk-difference ROPE, matching the floored ITT path
@@ -2483,7 +2552,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             rope_s = _report.rope_summary(
                 ctx.trace, G=trt, n_trials=1, delta=delta_prob,
                 ci_prob=ctx.reporting.ci_prob, term="beta_trt", varying_term="",
-                moderators=trt_moderators,
+                moderators=trt_moderators, row_mask=p1_mask,
             )
             rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
             rope_s["delta_scale"] = "risk_difference"
@@ -2495,12 +2564,14 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             _save_rope_plot(
                 ctx, spec.outcome_symbol, trt, 1, delta_prob,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
+                row_mask=p1_mask,
             )
             # δ-sensitivity sweep on the risk-difference scale (#144): 10/15/20 pp,
             # the grid the sign-off mandates (mirrors the floored ITT path).
             sens_df = _report.rope_sensitivity(
                 ctx.trace, G=trt, n_trials=1, deltas=ROPE_DELTA_PROB_GRID,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
+                row_mask=p1_mask,
             )
             sens_df.to_csv(
                 os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
@@ -2511,8 +2582,11 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     return _finalize_report(ctx)
 
 
-def _lf_coef_names(spec: ModelSpec) -> list[str]:
+def _lf_coef_names(
+    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
+) -> list[str]:
     extra = spec.extra
+    adj = extra.get("adjust_for", ()) if adjust_for is None else adjust_for
     names = ["b_grp_time" if extra.get("group_by_time", True) else "beta_grp", "gamma_A"]
     if extra.get("ability_covariate"):
         names.append(
@@ -2520,16 +2594,19 @@ def _lf_coef_names(spec: ModelSpec) -> list[str]:
         )
         if extra.get("group_ability", True):
             names.append("gamma_grp_ability")
+    names += [f"gamma_{c}" for c in adj]
     return names
 
 
-def _lf_diag_vars(spec: ModelSpec) -> list[str]:
+def _lf_diag_vars(
+    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
+) -> list[str]:
     tail = (
         ["sigma_child"]
         if spec.extra.get("likelihood") == "bernoulli_offfloor"
         else ["kappa", "sigma_child"]
     )
-    return ["alpha", "alpha_time", *_lf_coef_names(spec), *tail]
+    return ["alpha", "alpha_time", *_lf_coef_names(spec, adjust_for), *tail]
 
 
 def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -2543,11 +2620,21 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     off_floor = likelihood == "bernoulli_offfloor"
     obs_node = "y_offfloor" if off_floor else "y_post"
     baseline_covariates = (ability_covariate,) if ability_covariate else ()
+    # Revised-DAG raw-covariate confounders (hearing/speech/phonological memory;
+    # #247). State covariates → the timepoint's POST row (the DAG is contemporaneous),
+    # so pre_adj is empty and post_adj carries them; re-filter after loading so a
+    # constant ``_missing`` indicator dropped by the loader is not built or gated. The
+    # level model takes no measure-skill adjusters (they are post-treatment mediators).
+    adjust_for = tuple(extra.get("adjust_for", ()))
+    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
     prepared = load_and_prepare(
         phase_mode="levels",
         outcomes=(spec.outcome_symbol,),
         baseline_covariates=baseline_covariates,
+        covariates=pre_adj,
+        post_covariates=post_adj,
     )
+    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
     ctx.prepared = prepared
     _print_header(ctx)
 
@@ -2556,6 +2643,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         prepared,
         outcome_symbol=spec.outcome_symbol,
         ability_covariate=ability_covariate,
+        adjust_for=adjust_for,
         group_by_time=bool(extra.get("group_by_time", True)),
         ability_by_time=bool(extra.get("ability_by_time", True)),
         group_ability=bool(extra.get("group_ability", True)),
@@ -2572,7 +2660,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_lf_diag_vars(spec))
+    _diag.summary_diagnostics(ctx, var_names=_lf_diag_vars(spec, adjust_for))
 
     _run_ppc(ctx, var_names=[obs_node])
 
@@ -2584,10 +2672,10 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # it must get the same prior-sensitivity + forest evidence as tau/beta_trt
     # rather than being skipped (issue #273).
     _causal_lf = "b_grp_time" if _lf_group_by_time else "beta_grp"
-    _diag.write_diagnostics_summary(ctx, var_names=_lf_diag_vars(spec))
+    _diag.write_diagnostics_summary(ctx, var_names=_lf_diag_vars(spec, adjust_for))
     _diag.run_extended_diagnostics(ctx, causal_term=_causal_lf)
     _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag_vars(spec))
+    _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag_vars(spec, adjust_for))
     _save_forest_plot(ctx, [_causal_lf])
     _diag.run_psense(ctx, var_names=[_causal_lf])
 
@@ -2596,11 +2684,11 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # the other timepoints are post-crossover (see the level-model caveat).
     causal = ("b_grp_time[1]",) if extra.get("group_by_time", True) else ()
     fs = _report.factor_summary(
-        ctx.trace, _lf_coef_names(spec), ci_prob=ctx.reporting.ci_prob, causal_terms=causal
+        ctx.trace, _lf_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob, causal_terms=causal
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
     ctx.tables["factor_summary"] = fs
-    _save_association_forest(ctx, _lf_coef_names(spec), causal)
+    _save_association_forest(ctx, _lf_coef_names(spec, adjust_for), causal)
     print_table(
         ranked_dataframe_table(
             fs,
@@ -2611,7 +2699,15 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         )
     )
 
-    meta_extra = {"loo_elpd": float(ctx.loo.elpd)}
+    meta_extra = {
+        "loo_elpd": float(ctx.loo.elpd),
+        # Requested vs actually-fitted adjustment set, incl. dropped-constant
+        # covariates (#247). The level model carries no skill baselines — only the
+        # exogenous raw-covariate confounders (hs/deapp_c/erbto) at the split wave.
+        "effective_adjustment": _effective_adjustment(
+            spec, built.prepared, adjust_for=adjust_for
+        ),
+    }
     # ROPE-anchored continuous report for the one causal term — the t2 randomised
     # contrast b_grp_time[1] (notes/202606261304-...). The level model enters group
     # as a per-timepoint vector and also carries a group×ability interaction, so the

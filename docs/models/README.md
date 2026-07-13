@@ -22,8 +22,8 @@ The project uses a deliberate **two-step methodology** (see `METHODS.md`):
    the DAG supports it, a causal effect. All use a Beta-Binomial likelihood on bounded
    post-score counts via a logit linear predictor.
 
-Both layers are built against the **locked causal DAG**
-(`notes/202606231600-dag-revision-consolidated.md`). The single most important reading
+Both layers are built against the **revised causal DAG**
+(`dag/dag-language-reading.dagitty`, revised 2026-07-10). The single most important reading
 rule across the whole collection: **only the randomised contrast is causal.** In Layer 2
 that is the intervention-group term (`τ`) in the ITT/DiD/gain-factor families. Every
 skill→skill coupling, mechanism slope, mediator→outcome path, and dose–response is a
@@ -36,8 +36,8 @@ intervention benefit (`G = 2 − group`).
 | ----- | ------------------------------------------------------------------------- | ----: | -------------------------------------------------------------------------------------------------------- |
 | 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)               |    50 | Rank predictors of each outcome's gain and level                                                         |
 | 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)                     |    31 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation) |
-| 2     | Gain factors (`lrp-rli-gf`)                                               |    16 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                     |
-| 2     | Level factors (`lrp-rli-lf`)                                              |     8 | Companion levels view: group×time and ability×time per timepoint                                         |
+| 2     | Gain factors (`lrp-rli-gf`)                                               |    19 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                     |
+| 2     | Level factors (`lrp-rli-lf`)                                              |    11 | Companion levels view: group×time and ability×time per timepoint                                         |
 | 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                  |    13 | Within-person replication of the ITT via the waitlist crossover (floored `P`/`N` off-floor)              |
 | 2     | Aligned per-protocol (`lrp-rli-al`)                                       |     9 | Onset-aligned single 40-week gain per child (associational)                                              |
 | 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)    |     9 | Adjusted dose-response of one skill on another                                                           |
@@ -47,7 +47,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)              |     2 | Correlated domain-factor measurement model of the skills                                                 |
 | 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                    |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape        |
 
-Counts are of base models on `main` (108 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
+Counts are of base models on `main` (114 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
 
 ## Outcome symbols (Layer 2)
@@ -148,7 +148,7 @@ to `output/statistical_models/models/{model_id}-{config}/`.
 ### ITT suite — `lrp-rli-itt-001–lrp-rli-itt-028` (`kind="itt"` / `"joint"`)
 
 **Purpose.** The headline causal layer: the randomised intention-to-treat effect `τ` of
-group assignment on each outcome. Under the locked DAG the ITT is identified by the
+group assignment on each outcome. Under the revised DAG the ITT is identified by the
 **empty adjustment set** (the own baseline and linear age enter as _precision_ terms
 only); attendance/dose is never conditioned on (a collider). Heavily-floored outcomes
 (`P`, `N`) take a pre-specified floor rule: a binary off-floor primary estimand plus a
@@ -182,34 +182,46 @@ flagged graded secondary. Design notes: `notes/202606251321-lrpitt-suite-design.
 _(`lrp-rli-itt-016` is intentionally unused — reserved for a deferred descriptive floored-outcome
 trajectory complement.)_
 
-### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-008` (+ `…b`) (`kind="gain_factors"`)
+### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-011` (+ `…b`) (`kind="gain_factors"`)
 
 **Purpose.** A DAG-focused ANCOVA on each outcome's period gain (post-score given its own
 pre-score), stacking every on-intervention and untreated period with a child random
-intercept (the partial latent-ability repair). The randomised on-intervention term is the
-**only** causal coefficient; own baseline, age, cognitive ability (block design), upstream
-DAG skills, and focal interactions are explicit _adjusted associations_. The `…b` variant
-is treated-only (gains while on intervention). Design note:
-`notes/202606261230-gain-level-factors-design.md`.
+intercept — a partial, shrunken stand-in for between-child heterogeneity, **not** a
+control for latent ability. The randomised on-intervention term is the **only** causal
+coefficient, and its probability/items-scale marginal effect is averaged over the
+**period-1** (randomised) transition only; own baseline, age, cognitive ability (block
+design), the upstream DAG skill baselines (`skill_symbols`), the revised-DAG non-measure
+confounders hearing/speech/phonological memory (`adjust_for`), and focal interactions are
+explicit _adjusted associations_. Adjustment sets were re-derived against the revised DAG
+in #247. The `…b` variant is treated-only (gains while on intervention). Design note:
+`notes/202606261230-gain-level-factors-design.md`; re-derivation:
+`notes/202607122200-gf-lf-revised-dag-adjustments.md`.
 
-| Model            | Outcome | Cross-skill terms                         | Treated-only `…b` |
-| ---------------- | ------- | ----------------------------------------- | ----------------- |
-| `lrp-rli-gf-001` | `W`     | letter sounds `L`, receptive vocab `R`    | `lrp-rli-gf-101`  |
-| `lrp-rli-gf-002` | `R`     | —                                         | `lrp-rli-gf-102`  |
-| `lrp-rli-gf-003` | `E`     | `R`                                       | `lrp-rli-gf-103`  |
-| `lrp-rli-gf-004` | `L`     | —                                         | `lrp-rli-gf-104`  |
-| `lrp-rli-gf-005` | `P`     | `L`, `B` (off-floor Bernoulli likelihood) | `lrp-rli-gf-105`  |
-| `lrp-rli-gf-006` | `B`     | `L`                                       | `lrp-rli-gf-106`  |
-| `lrp-rli-gf-007` | `F`     | `R`                                       | `lrp-rli-gf-107`  |
-| `lrp-rli-gf-008` | `T`     | `R`                                       | `lrp-rli-gf-108`  |
+| Model            | Outcome | Skill baselines (`skill_symbols`)         | Confounders (`adjust_for`) | Treated-only `…b` |
+| ---------------- | ------- | ----------------------------------------- | -------------------------- | ----------------- |
+| `lrp-rli-gf-001` | `W`     | `TR`, `TE`, `R`, `E`, `L`, `N`, `B`       | —                          | `lrp-rli-gf-101`  |
+| `lrp-rli-gf-002` | `R`     | `TR`                                      | `HS`, `RW`                 | `lrp-rli-gf-102`  |
+| `lrp-rli-gf-003` | `E`     | `R`, `TR`, `TE`                           | `HS`, `SP`, `RW`           | `lrp-rli-gf-103`  |
+| `lrp-rli-gf-004` | `L`     | —                                         | `HS`, `SP`                 | `lrp-rli-gf-104`  |
+| `lrp-rli-gf-005` | `P`     | `L`, `B` (off-floor Bernoulli likelihood) | `RW`                       | `lrp-rli-gf-105`  |
+| `lrp-rli-gf-006` | `B`     | `L`, `E`, `TE`                            | `HS`, `SP`, `RW`           | `lrp-rli-gf-106`  |
+| `lrp-rli-gf-007` | `F`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-107`  |
+| `lrp-rli-gf-008` | `T`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-108`  |
+| `lrp-rli-gf-009` | `TR`    | —                                         | `HS`, `RW`                 | —                 |
+| `lrp-rli-gf-010` | `TE`    | `TR`                                      | `HS`, `SP`, `RW`           | —                 |
+| `lrp-rli-gf-011` | `N`     | `L`, `B` (off-floor Bernoulli likelihood) | `SP`, `RW`                 | —                 |
 
-### Level factors — `lrp-rli-lf-001–lrp-rli-lf-008` (`kind="level_factors"`)
+### Level factors — `lrp-rli-lf-001–lrp-rli-lf-011` (`kind="level_factors"`)
 
 **Purpose.** The companion _levels_ view of each outcome (the score at each timepoint, no
 own baseline), with group×time and ability×time as per-timepoint coefficient vectors. Only
 the t2 group contrast is a clean randomised effect; later timepoints are post-crossover and
-flagged as associations. Outcomes mirror the gain-factor family: `lrp-rli-lf-001` `W`, `02` `R`,
-`03` `E`, `04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`.
+flagged as associations. Each outcome carries the same revised-DAG exogenous confounders
+(`adjust_for`: hearing/speech/phonological memory) as its gain-factor sibling, but **no**
+measure-skill adjusters — in a levels model a skill's contemporaneous level is a
+post-treatment mediator of the group×time effect (#247). Outcomes mirror the gain-factor
+family: `lrp-rli-lf-001` `W`, `02` `R`, `03` `E`, `04` `L`, `05` `P` (off-floor), `06` `B`,
+`07` `F`, `08` `T`, `09` `TR`, `10` `TE`, `11` `N` (off-floor).
 
 ### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-012` (+ `lrp-rli-did-107`) (`kind="did"`)
 
@@ -265,7 +277,7 @@ phases, with subject random intercepts and optional linear moderation. Every slo
 ### Mediation — `lrp-rli-med-059`, `lrp-rli-med-062`, `lrp-rli-med-064` (`kind="mediation"` / `"mediation_multi"`)
 
 **Purpose.** g-formula NDE/NIE decomposition: how much of the intervention's word-reading
-gain runs through a given skill. Not point-identified under the locked DAG (latent ability +
+gain runs through a given skill. Not point-identified under the revised DAG (latent ability +
 same-wave mediator/outcome) — reported as triangulation, leading with the robust quantity.
 
 | Model             | Purpose                                                                                               |
@@ -305,7 +317,7 @@ _level_.
 | `lrp-rli-gc-070` | `growth` | Adds a rank-1 shared growth-tempo factor: do the measures grow together, and does non-verbal ability predict the common tempo? `LOO(lrp-rli-gc-069 vs lrp-rli-gc-070)` tests whether the factor earns its keep |
 
 `gamma`/`delta` are **adjusted, `GA`-confounded associations, never causal** — block design
-is an off-DAG ability proxy (locked DAG) and the child random intercept only _partially_
+is an off-DAG ability proxy (revised DAG) and the child random intercept only _partially_
 adjusts. Descriptive natural-history, `n≈54` (wide intervals). Byrne-cohort replication is a
 gated follow-up (unconfirmed `bpvs`/`basmat` ceilings; `basmat` is wave-3+, so no baseline).
 

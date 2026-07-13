@@ -31,9 +31,11 @@ baseline; per-timepoint intercepts absorb the maturation trend.
 
 ::: {.callout-important title="Causal labelling + the level-model crossover caveat"}
 
-Under the locked study DAG every non-randomised coefficient is an **adjusted
-association** confounded by latent general ability (the child random intercept
-repairs the time-invariant part) — "associated with", never "drives". **Crucially,
+Under the revised study DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10)
+every non-randomised coefficient is an **adjusted association** confounded by latent
+general ability (the child random intercept is
+only a partial, shrunken stand-in for between-child heterogeneity, not a control for
+that latent general ability) — "associated with", never "drives". **Crucially,
 the group effect is modelled as `group × time` (a per-timepoint group coefficient
 `b_grp_time[t]`, read as trajectory divergence) because after t2 the waitlist
 crosses over: the group difference across the four timepoints is *not* a clean ITT

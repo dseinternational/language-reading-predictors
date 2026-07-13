@@ -1,14 +1,15 @@
 ::: {.callout-note}
-Drafted by a LLM-based AI tool (Codex/GPT-5).
+Drafted by a LLM-based AI tool (Codex/GPT-5); revised by Claude Code/Opus 4.8.
 :::
 
 ## Results
 
 The factor model reports **one** causal coefficient — the randomised
 on-intervention / t2 group contrast — alongside a vector of *adjusted
-associations*. Under the locked DAG every non-randomised coefficient is
-confounded by latent general ability and must be read as *associated with*,
-never *drives*.
+associations*. Under the revised DAG (2026-07-10) every non-randomised coefficient is an
+adjusted association: it is confounded by latent general ability, and the child random
+intercept is only a partial, shrunken stand-in for between-child heterogeneity — **not**
+a control for that ability. Read them as *associated with*, never *drives*.
 
 _In plain terms:_ this section reports one effect the study can call causal — the
 group difference created by randomising who received the intervention — plus a set
@@ -69,10 +70,13 @@ treatment_marginal = _csv("treatment_marginal.csv")
 if treatment_marginal is not None:
     _t = treatment_marginal.iloc[0]
     print(
-        f"On the items scale the treatment average marginal effect is a median of "
+        f"On the items scale the treatment average marginal effect — averaged over the "
+        f"**period-1 (randomised) transition only**, the genuinely all-untreated-baseline "
+        f"contrast that anchors the ITT effect — is a median of "
         f"**{_t.trt_items_median:+.1f} items** "
         f"(95% CrI {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
-        f"P(> 0) = {_t.prob_trt_pos:.3f}.\n"
+        f"P(> 0) = {_t.prob_trt_pos:.3f}. The logit-scale `beta_trt` coefficient itself is "
+        f"the on-intervention log-odds contrast, not the marginal ITT effect.\n"
     )
 print(_img("tau_forest.png", "Posterior of the causal term (forest, reference line at 0)"))
 print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
@@ -110,10 +114,11 @@ if factor_summary is not None and "role" in factor_summary.columns:
         _cols = [c for c in ["term", "median", "lo", "hi", "prob_positive"] if c in _assoc.columns]
         print('::: {.callout-important title="Adjusted associations — not causal"}\n')
         print(
-            "Under the locked DAG every coefficient below is an adjusted association "
-            "confounded by latent general ability (and, for the level model, by the "
-            "post-crossover cohort/timing structure after t2). Read as *associated "
-            "with*, never *drives*.\n"
+            "Under the revised DAG (2026-07-10) every coefficient below is an adjusted "
+            "association confounded by latent general ability — which the child random "
+            "intercept does **not** control (it only absorbs between-child heterogeneity up "
+            "to shrinkage) — and, for the level model, by the post-crossover cohort/timing "
+            "structure after t2. Read as *associated with*, never *drives*.\n"
         )
         print(_assoc[_cols].to_markdown(index=False))
         print("\n:::")

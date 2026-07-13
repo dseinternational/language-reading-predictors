@@ -10,6 +10,17 @@ intercept; no own baseline). group x time is a per-timepoint group effect
 (b_grp_time[1]); ability x time and group x ability complete the focal set.
 Every non-t2 coefficient is an adjusted association under the DAG. SES
 excluded (non-DAG / redundant).
+
+Revised-DAG update (#247; adjustment set re-derived against
+``dag/dag-language-reading.dagitty``, 2026-07-10): this outcome's exogenous non-measure
+confounder parents — hearing (HS), speech production (SP) and/or phonological memory
+(RW), where the DAG has such an edge — enter via ``adjust_for``. Measured skill parents
+are deliberately NOT conditioned on: in a levels model their contemporaneous level is a
+post-treatment mediator of the group×time effect, so adjusting for them would bias the
+very trajectory the model estimates. The clean randomised contrast remains the t2 group
+effect (``b_grp_time[1]``); every other coefficient is an adjusted association, and the
+child random intercept is a partial shrunken stand-in for between-child heterogeneity
+that does not control latent general ability.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -23,6 +34,7 @@ SPEC = ModelSpec(
     outcome_symbol="T",
     extra={
         "ability_covariate": V.BLOCKS,
+        "adjust_for": (),
         "group_by_time": True,
         "ability_by_time": True,
         "group_ability": True,

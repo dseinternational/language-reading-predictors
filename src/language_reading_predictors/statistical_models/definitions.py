@@ -243,6 +243,35 @@ _ALIGNED.append(
        "cumulative-session dose sensitivity (collider)", base="lrpal01")
 )
 
+# Taught-vocabulary factor models (#224, carried forward on the revised DAG in #247).
+# Added explicitly rather than via ``_FACTOR_OUTCOMES`` so only the stock gain/level
+# models are generated for TR/TE - the treated-only (``…b``) and onset-aligned families
+# are out of scope.
+_GAIN += [
+    _d("lrpgf09", "gain_factors", "Gain factors", Status.ASSOCIATION, "TR",
+       "ANCOVA gain; only the on-intervention term is causal"),
+    _d("lrpgf10", "gain_factors", "Gain factors", Status.ASSOCIATION, "TE",
+       "ANCOVA gain; only the on-intervention term is causal"),
+]
+_LEVEL += [
+    _d("lrplf09", "level_factors", "Level factors", Status.ASSOCIATION, "TR",
+       "levels view; only the t2 group contrast is randomised"),
+    _d("lrplf10", "level_factors", "Level factors", Status.ASSOCIATION, "TE",
+       "levels view; only the t2 group contrast is randomised"),
+]
+
+# Nonword-reading factor models (#225, carried forward on the revised DAG in #247).
+# Off-floor Bernoulli likelihood like gf-005/lf-005 (phonetic spelling); added
+# explicitly, same rationale as the taught-vocabulary entries above.
+_GAIN += [
+    _d("lrpgf11", "gain_factors", "Gain factors", Status.ASSOCIATION, "N",
+       "ANCOVA gain; only the on-intervention term is causal"),
+]
+_LEVEL += [
+    _d("lrplf11", "level_factors", "Level factors", Status.ASSOCIATION, "N",
+       "levels view; only the t2 group contrast is randomised"),
+]
+
 # Suite-gap Tier-1 additions (#228): standalone ITTs for the two outcomes that had
 # only factor/aligned models (F basic concepts, T receptive grammar), and a site
 # (area) robustness check on the flagship word-reading (W) and letter-sound (L) ITTs.

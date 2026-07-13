@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -31,22 +35,27 @@ Beta-Binomial likelihood and a child random intercept.
 
 ::: {.callout-important title="Causal labelling (DAG guardrails)"}
 
-Under the locked study DAG (`notes/202606231600-dag-revision-consolidated.md`),
-**only the randomised on-intervention term is causal** — its coefficient is
-identified by the period-1 randomised contrast and reproduces the ITT effect.
-Every other coefficient (own baseline, age, cognitive ability, the upstream skills
-L and R, and all interactions) is an **adjusted association** confounded by latent
-general ability (GA); the child random intercept repairs time-invariant GA up to
-shrinkage, so same-wave predictors are "go-together" associations. Report these as
-"associated with", **never** "drives". Intervention sessions / dose are never
-conditioned on (a DAG collider). SES is excluded: it is not a DAG node and was
-found statistically redundant.
+Under the revised study DAG (`dag/dag-language-reading.dagitty`, revised
+2026-07-10), **only the randomised on-intervention term is causal.** The
+**period-1 average marginal effect** — the genuinely randomised,
+all-untreated-baseline transition — is the ITT-anchor estimand; `beta_trt` itself
+is only the on-intervention log-odds contrast, not the ITT effect. Every other
+coefficient (own baseline, age, cognitive ability, the upstream skills TR, TE, R,
+E, L, N and B, and all interactions) is an **adjusted association**: the child
+random intercept is a partial, shrunken stand-in for between-child heterogeneity
+and does **not** control latent general ability (GA), so these internal slopes
+remain **descriptive associations**. Report these as "associated with", **never**
+"drives". Intervention sessions / dose are never conditioned on (a DAG collider).
+SES is excluded: it is not a DAG node and was found statistically redundant.
 
 :::
 
 **DAG factor set:** on-intervention (causal) · own baseline · age · cognitive
-ability (block design) · letter sounds (L) · receptive vocabulary (R) · child
-random intercept. **Focal interactions:** group $\times$ ability,
+ability (block design) · taught receptive vocabulary (TR) · taught expressive
+vocabulary (TE) · receptive vocabulary (R) · expressive vocabulary (E) · letter
+sounds (L) · nonword reading (N) · blending (B) · child random intercept.
+**Confounders (adjust_for):** none — word reading has no hearing/speech/phonological-memory
+parent in the revised DAG. **Focal interactions:** group $\times$ ability,
 group $\times$ own-baseline, age $\times$ ability.
 
 ## Model
@@ -57,7 +66,7 @@ $$
   + \gamma_{\text{own}}\operatorname{logit}_*(W_{\text{pre}})
   + \gamma_A A_{\text{std}}
   + \gamma_{\text{ability}}\,z(\text{blocks})
-  + \sum_{s\in\{L,R\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
+  + \sum_{s\in\{TR,TE,R,E,L,N,B\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
   + \textstyle\sum\text{interactions}
   + u_{\text{child}[i]},
 $$
