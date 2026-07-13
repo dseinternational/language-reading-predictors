@@ -204,9 +204,9 @@ A separate study, included in the sweep: a reproduction of BAS word-reading grow
 
 All 115 model output dirs + the comparison dir published to the **public research site** (anonymously readable), traces excluded — 116 directories, 0 upload failures. Public access verified (`200 text/html`).
 
-- **Publish run id:** `019f5b61-caf8-70f0-9952-11d9121f30b3`
-- **Report root:** `https://dseresearch.blob.core.windows.net/public/projects/language-reading-predictors/output/019f5b61-caf8-70f0-9952-11d9121f30b3/`
-- **Per-model report:** `<root>/<model-id>-reporting/index.html` — e.g. word reading ITT: `https://dseresearch.blob.core.windows.net/public/projects/language-reading-predictors/output/019f5b61-caf8-70f0-9952-11d9121f30b3/lrp-rli-itt-010-reporting/index.html`
+- **Publish run id:** `019f5c2a-57b2-77d5-8e35-1b4c1454a500` (this run adds the 90 % credible-interval band alongside the 95 % in every report; it supersedes the earlier `019f5b61-…` run)
+- **Report root:** `https://dseresearch.blob.core.windows.net/public/projects/language-reading-predictors/output/019f5c2a-57b2-77d5-8e35-1b4c1454a500/`
+- **Per-model report:** `<root>/<model-id>-reporting/index.html` — e.g. word reading ITT: `https://dseresearch.blob.core.windows.net/public/projects/language-reading-predictors/output/019f5c2a-57b2-77d5-8e35-1b4c1454a500/lrp-rli-itt-010-reporting/index.html`
 - **Comparison artefacts:** `<root>/comparison/` (CSVs + forest PNGs; no landing HTML).
 
 Uploaded via the `AzureCliCredential` wrapper (`az login` has the write role on `dseresearch`; the VM managed identity does not, so the built-in `--upload` flag would 403 — see `lrp-fit-statistical`). Reports had to be **rendered separately** this run: `fit_statistical_model.py all --render` renders only in a batch after every fit finishes, so the externally-killed first sweep left the 112 completed models un-rendered; they were rendered standalone (`quarto render index.qmd`, 111 OK / 0 fail) before the upload.
