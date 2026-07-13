@@ -6,7 +6,7 @@ as a slope and a curve, not as proof that one skill *causes* the other.
 
 Mechanism coefficients and curves are **adjusted associations**. They describe how
 two measured skills go together after the specified adjustment set; they do not
-identify a causal skill-to-skill effect under the locked DAG.
+identify a causal skill-to-skill effect under the revised DAG.
 
 ```{python}
 # | echo: false

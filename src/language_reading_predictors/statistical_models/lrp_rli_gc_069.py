@@ -23,8 +23,8 @@ and ``delta_k`` is the effect on the *level at the sample-mean (mid-study) age* 
 level at the pooled mean age, NOT at study entry. The entry-level association is
 ``delta_k + gamma_k * E[age_std at t1]`` (and ``E[age_std at t1] < 0``).
 
-**This is an adjusted, GA-confounded association, never causal.** Per the locked
-DAG (``notes/202606231600-dag-revision-consolidated.md``) block design is an
+**This is an adjusted, GA-confounded association, never causal.** Per the revised
+DAG (``dag/dag-language-reading.dagitty``) block design is an
 off-DAG ability proxy and latent general ability is the unobserved common cause;
 the child random intercept only *partially* adjusts (``METHODS.md`` § "Causal
 interpretation and its limits"). Report ``gamma_k`` / ``delta_k`` as adjusted

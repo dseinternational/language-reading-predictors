@@ -23,7 +23,7 @@ This asks two questions the independent-core LRP69 cannot:
    slope association, now *incremental* to the tempo.
 
 **Still an adjusted, GA-confounded association, never causal** - the same DAG
-caveats as LRP69 apply (``notes/202606231600-dag-revision-consolidated.md``,
+caveats as LRP69 apply (``dag/dag-language-reading.dagitty``,
 ``METHODS.md``). The shared factor is a parsimonious rank-1 stand-in for
 cross-measure slope covariation, **not** an identified general-ability construct.
 

@@ -48,7 +48,7 @@ are genuinely between-child. A pooled all-phase design with a child random inter
 would instead estimate the *within-child* association — a different question (handled by
 the deferred cross-lagged model), so it is **not** used here. The trade-off is explicit:
 dropping the intercept also **forgoes the partial latent-ability repair** it provides in
-the `gain_factors`/`level_factors` and DiD families (locked DAG ID-2; DiD design note
+the `gain_factors`/`level_factors` and DiD families (revised DAG ID-2; DiD design note
 Decision 4). With general ability `GA` latent, this pure between-child contrast is fully
 exposed to time-invariant ability confounding with **no repair available** — so the
 no-intercept design is the cleaner *match to the between-child estimand*, not a cleaner

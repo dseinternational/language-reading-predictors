@@ -18,10 +18,10 @@ post-count of W conditional on its own baseline logit (``adjust_baseline_symbol`
 = ``W``, ``n_trials`` = 79) - conditional change, never raw change scores
 (Lord's paradox / regression to the mean).
 
-Causal structure (locked DAG; notes/202606231600-dag-revision-consolidated.md)
-------------------------------------------------------------------------------
-The focal edge is ``sessions (dose) -> outcome``. Sessions is the locked DAG's
-``IS`` node; this is the ID-3 **observational** dose-response (adjust ``{IG, A}``,
+Causal structure (revised DAG; dag/dag-language-reading.dagitty)
+---------------------------------------------------------------
+The focal edge is ``sessions (dose) -> outcome``. Sessions is the revised DAG's
+``IS`` node; this is the ID-3 **observational** dose-response (adjust ``{G, A}``,
 labelled an adjusted association). The per-period ``attend`` is the model's
 *exposure* — regressing the outcome on it is the estimand, not a "conditioning on
 IS" violation of the ITT rule. What the ID-3 rule forbids is conditioning on

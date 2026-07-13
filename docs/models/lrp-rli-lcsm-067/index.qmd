@@ -68,7 +68,7 @@ $$
 $$
 
 Letter-sounds and vocabulary changes follow a self-proportional form plus age. The
-intervention-dose covariate is **omitted** — it is the locked DAG's `IS` collider, so
+intervention-dose covariate is **omitted** — it is the revised DAG's `IS` collider, so
 conditioning on it would reopen the latent-`GA` backdoor onto the `g_L`/`g_E` couplings
 (ID-3). Coupling coefficients are **time-invariant** (pooled across the three
 transitions) — a deliberate constraint at this sample size. Observed counts enter a

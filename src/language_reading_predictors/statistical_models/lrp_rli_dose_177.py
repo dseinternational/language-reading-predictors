@@ -7,12 +7,14 @@ Identical to :mod:`lrp-rli-dose-077` (period-varying dose-response on word readi
 the **baseline-skill cluster** added to the adjustment set: letter-sound
 knowledge (L), expressive vocabulary (E) and phoneme blending (B), each as its
 baseline (pre) logit. These are the reflective indicators of latent general
-ability ``g`` in the locked DAG (alongside the already-adjusted baseline reading
+ability ``g`` in the revised DAG (alongside the already-adjusted baseline reading
 W_pre).
 
-Rationale: the locked DAG omits ``g -> dose`` (``GA -> IS``), but if abler children attended more
-(Frank 2012), ``g`` is a common cause of dose and outcome and ``{G, W_pre, A}``
-no longer identifies the dose effect. Conditioning on the baseline-skill cluster
+Rationale: the dose model's headline identification treats arm ``G`` as the sole
+confounder (no ``g -> dose``), but the revised DAG carries ``GA -> IS`` (latent), so
+if abler children attended more (Frank 2012), ``g`` is a common cause of dose and
+outcome and ``{G, W_pre, A}`` no longer identifies the dose effect. Conditioning on
+the baseline-skill cluster
 blocks that path. **Read LRP77a against LRP77:** if the dose slope survives, the
 no-``g``->dose assumption is defensible here; if it collapses, the dose signal is
 substantially ability-confounded and the LRP77 estimate should be downgraded.

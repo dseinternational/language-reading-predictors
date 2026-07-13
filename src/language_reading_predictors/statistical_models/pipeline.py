@@ -3010,6 +3010,13 @@ _ADJ_LABELS = {
     "age": "Age (T1)",
     "blocks": "Non-verbal MA (T1)",
     "behav": "Behaviour (T1)",
+    # Revised-DAG upstream traits, entered as tested covariates (#247).
+    "hs": "Hearing status (T1)",
+    "hs_missing": "Hearing missing (indicator)",
+    "deapp_c": "Speech production (T1)",
+    "deapp_c_missing": "Speech missing (indicator)",
+    "erbto": "Phonological memory (T1)",
+    "erbto_missing": "Phon. memory missing (indicator)",
     "mumedupost16": "SES: mother post-16 educ.",
     "dadedupost16": "SES: father post-16 educ.",
 }
@@ -3293,14 +3300,6 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     prior_sens = list(e.get("prior_sensitivity_sigmas", [0.5, 0.7]))
     use_age = bool(e.get("use_age_predictor", True))
 
-    # Headline predictor key order: skills, language composite, age, covariates.
-    headline = (
-        list(predictor_symbols)
-        + ["lang"]
-        + (["age"] if use_age else [])
-        + covariates
-    )
-
     # 94% intervals (the brief's convention) rather than the project-wide 95%.
     ctx = make_context(spec, config, ci_prob=0.94)
     hdi = ctx.reporting.ci_prob
@@ -3316,6 +3315,17 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         covariates=tuple(covariates),
     )
     ctx.prepared = prepared
+    # Drop any covariate the loader removed as constant on the fitted rows (e.g. a
+    # `_missing` indicator that is all-zero once the complete cases are kept) so the
+    # model never requests a coefficient for a term that was never estimated (#247).
+    covariates = [c for c in covariates if c in prepared.covariates]
+    # Headline predictor key order: skills, language composite, age, tested covariates.
+    headline = (
+        list(predictor_symbols)
+        + ["lang"]
+        + (["age"] if use_age else [])
+        + covariates
+    )
     _print_header(ctx)
 
     section_header("Build model")
@@ -3441,10 +3451,20 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             outcomes=measure_outcomes,
             covariates=tuple(covariates + ses_covs),
         )
+        # Re-filter against the SES-complete subset: a `_missing` indicator can go
+        # constant on this smaller subset even if it survived the headline fit, and the
+        # loader then drops it — so rebuild the predictor list here too, or
+        # ``build_adjusted_model`` would KeyError on the dropped term (#287 review). The
+        # non-covariate predictors (skills / lang / age) are always kept.
+        ses_headline = [
+            k for k in headline if k not in covariates or k in prepared_ses.covariates
+        ]
+        ses_covs_fit = [c for c in ses_covs if c in prepared_ses.covariates]
+        ses_predictors = ses_headline + ses_covs_fit
         b = _factories.build_adjusted_model(
             prepared_ses,
             outcome_symbol=outcome,
-            predictors=headline + ses_covs,
+            predictors=ses_predictors,
             language_composite_symbols=lang_symbols,
             predictor_slope_sigma=sigma0,
         )
@@ -3457,7 +3477,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 "n_children": ses_n,
                 **_beta_summary(t, f"beta_{k}", hdi),
             }
-            for k in headline + ses_covs
+            for k in ses_predictors
         ]
         ses_df = pd.DataFrame(ses_rows)
         ses_df.to_csv(
