@@ -1911,8 +1911,11 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     mean = f_ord.mean(axis=1)
     lo = np.quantile(f_ord, 0.025, axis=1)
     hi = np.quantile(f_ord, 0.975, axis=1)
+    lo90 = np.quantile(f_ord, 0.05, axis=1)
+    hi90 = np.quantile(f_ord, 0.95, axis=1)
     pd.DataFrame(
-        {"mech_logit": x, "f_mean": mean, "f_lo": lo, "f_hi": hi}
+        {"mech_logit": x, "f_mean": mean, "f_lo": lo, "f_hi": hi,
+         "f_lo90": lo90, "f_hi90": hi90}
     ).to_csv(os.path.join(ctx.output_dir, "mechanism_curve.csv"), index=False)
     outcome = ctx.spec.outcome_symbol or "W"
     plt.figure(figsize=(6, 4))
@@ -2043,6 +2046,9 @@ def _summarise_draws(
         "mean": float(np.mean(values)),
         "lo": float(np.quantile(values, lo_q)),
         "hi": float(np.quantile(values, 1.0 - lo_q)),
+        # 90% equal-tailed sensitivity band alongside the headline ci_prob interval.
+        "lo90": float(np.quantile(values, 0.05)),
+        "hi90": float(np.quantile(values, 0.95)),
     }
     if include_p_pos:
         out["p_pos"] = float(np.mean(values > 0.0))
@@ -3198,6 +3204,8 @@ def _beta_summary(trace, name: str, ci_prob: float) -> dict:
         "mean": float(np.mean(draws)),
         "lo": float(np.quantile(draws, lo_q)),
         "hi": float(np.quantile(draws, hi_q)),
+        "lo90": float(np.quantile(draws, 0.05)),
+        "hi90": float(np.quantile(draws, 0.95)),
         "prob_pos": float(np.mean(draws > 0)),
     }
 
@@ -3263,6 +3271,8 @@ def _natural_scale_contrasts(
                 "delta_words_mean": float(np.mean(delta)),
                 "delta_words_lo": float(np.quantile(delta, lo_q)),
                 "delta_words_hi": float(np.quantile(delta, hi_q)),
+                "delta_words_lo90": float(np.quantile(delta, 0.05)),
+                "delta_words_hi90": float(np.quantile(delta, 0.95)),
                 "prob_pos": float(np.mean(delta > 0)),
             }
         )
@@ -3531,10 +3541,14 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 "adj_mean": a["mean"],
                 "adj_lo": a["lo"],
                 "adj_hi": a["hi"],
+                "adj_lo90": a["lo90"],
+                "adj_hi90": a["hi90"],
                 "adj_prob_pos": a["prob_pos"],
                 "biv_mean": bv["mean"],
                 "biv_lo": bv["lo"],
                 "biv_hi": bv["hi"],
+                "biv_lo90": bv["lo90"],
+                "biv_hi90": bv["hi90"],
                 "biv_prob_pos": bv["prob_pos"],
                 # Convergence flags: the adjusted column is the primary (gated) fit;
                 # the bivariate column is a sub-fit that bypasses the primary gate (B1).
@@ -3732,6 +3746,8 @@ def _coef_row(label: str, draws, hdi_prob: float) -> dict:
         "mean": float(np.mean(d)),
         "lo": float(np.quantile(d, lo_q)),
         "hi": float(np.quantile(d, 1 - lo_q)),
+        "lo90": float(np.quantile(d, 0.05)),
+        "hi90": float(np.quantile(d, 0.95)),
         "prob_pos": float(np.mean(d > 0)),
     }
 
@@ -3950,6 +3966,8 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "median": float(np.median(corr)),
             "lo": float(np.quantile(corr, lo_q)),
             "hi": float(np.quantile(corr, 1 - lo_q)),
+            "lo90": float(np.quantile(corr, 0.05)),
+            "hi90": float(np.quantile(corr, 0.95)),
             "prob_pos": float(np.mean(corr > 0)),
         }
         pd.DataFrame([tempo_corr]).to_csv(
@@ -4260,12 +4278,18 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                 "loading_mean": float(np.mean(lam_d)),
                 "loading_lo": float(np.quantile(lam_d, lo_q)),
                 "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
+                "loading_lo90": float(np.quantile(lam_d, 0.05)),
+                "loading_hi90": float(np.quantile(lam_d, 0.95)),
                 "correlation_mean": float(np.mean(corr_d)),
                 "correlation_lo": float(np.quantile(corr_d, lo_q)),
                 "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
+                "correlation_lo90": float(np.quantile(corr_d, 0.05)),
+                "correlation_hi90": float(np.quantile(corr_d, 0.95)),
                 "communality_mean": float(np.mean(com_d)),
                 "communality_lo": float(np.quantile(com_d, lo_q)),
                 "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
+                "communality_lo90": float(np.quantile(com_d, 0.05)),
+                "communality_hi90": float(np.quantile(com_d, 0.95)),
             }
         )
     load_df = pd.DataFrame(load_rows)
@@ -4310,6 +4334,8 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                     "mean": float(np.mean(pair)),
                     "lo": float(np.quantile(pair, lo_q)),
                     "hi": float(np.quantile(pair, 1 - lo_q)),
+                    "lo90": float(np.quantile(pair, 0.05)),
+                    "hi90": float(np.quantile(pair, 0.95)),
                     "prob_pos": float(np.mean(pair > 0)),
                 }
             )

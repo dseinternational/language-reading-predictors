@@ -61,7 +61,8 @@ if structural is not None and len(structural):
     _top = structural.iloc[0]
     print(
         f"First structural row `{_top.coefficient}`: mean {_top['mean']:+.3f} "
-        f"(95% CrI {_top.lo:+.3f} to {_top.hi:+.3f}); "
+        f"(90% CrI {_top.lo90:+.3f} to {_top.hi90:+.3f}; "
+        f"95% {_top.lo:+.3f} to {_top.hi:+.3f}); "
         f"P(> 0) = {_top.prob_pos:.3f}. Compare the full table rather than "
         "ranking factors by point estimate alone."
     )
