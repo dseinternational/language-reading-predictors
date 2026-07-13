@@ -6,14 +6,14 @@ The authoritative causal DAG(s) for the study. This is the design artefact the *
 
 ## Files
 
-| File                                  | What it is                                                                                                                                                                                                            |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dag-language-reading.dagitty`        | Authoritative machine-readable base DAG (contemporaneous / single-wave). Paste into [dagitty.net](https://www.dagitty.net/dags.html) to render or inspect adjustment sets.                                            |
-| `dag-language-reading.dot`            | Graphviz source for a colour-coded, left-to-right rendering.                                                                                                                                                          |
-| `dag-language-reading.svg`            | Rendered figure (regenerated from the `.dot`; self-contained, safe to embed).                                                                                                                                         |
-| `dag-language-reading-lagged.dagitty` | **Draft (#250)** time-lagged / wave-unrolled companion graph — a two-slice `_t → _t1` template. Rationale + design decisions: [`../notes/202607131200-time-lagged-dag.md`](../notes/202607131200-time-lagged-dag.md). |
-| `dag-language-reading-lagged.dot` / `.svg` | Rendered **Option B (pure-lagged)**, the current draft, in house style. |
-| `dag-language-reading-lagged-per-wave.dot` / `.svg` | Rendered **Option A (base DAG copied per wave)**, the alternative under review. |
+| File                                                | What it is                                                                                                                                                                                                            |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dag-language-reading.dagitty`                      | Authoritative machine-readable base DAG (contemporaneous / single-wave). Paste into [dagitty.net](https://www.dagitty.net/dags.html) to render or inspect adjustment sets.                                            |
+| `dag-language-reading.dot`                          | Graphviz source for a colour-coded, left-to-right rendering.                                                                                                                                                          |
+| `dag-language-reading.svg`                          | Rendered figure (regenerated from the `.dot`; self-contained, safe to embed).                                                                                                                                         |
+| `dag-language-reading-lagged.dagitty`               | **Draft (#250)** time-lagged / wave-unrolled companion graph — a two-slice `_t → _t1` template. Rationale + design decisions: [`../notes/202607131200-time-lagged-dag.md`](../notes/202607131200-time-lagged-dag.md). |
+| `dag-language-reading-lagged.dot` / `.svg`          | Rendered **Option B (pure-lagged)**, the current draft, in house style.                                                                                                                                               |
+| `dag-language-reading-lagged-per-wave.dot` / `.svg` | Rendered **Option A (base DAG copied per wave)**, the alternative under review.                                                                                                                                       |
 
 The prose exposition of the structure — its assumptions, the TD/DS/IDD evidence, honest weaknesses and alternatives considered — is maintained as a review draft in [`../notes/202607101444-dag-explanation-review-draft.md`](../notes/202607101444-dag-explanation-review-draft.md).
 

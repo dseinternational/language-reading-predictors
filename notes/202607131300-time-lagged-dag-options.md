@@ -25,12 +25,12 @@ No skill affects another within the same wave. Every skill-to-skill effect is mo
 
 ## Trade-offs
 
-| | A: base DAG per wave | B: pure-lagged (current draft) |
-| --- | --- | --- |
-| Skill-to-skill arrows within a wave | Yes, the full cascade | None |
-| Reads like | Our base DAG, twice | Two bare columns |
-| Main assumption | Skills can affect each other within a measurement interval | The whole cascade takes a full wave to act |
-| Cost | Same-wave effects are harder to identify, because cause and effect are measured together | Strong claim: a skill has no effect on a closely related skill until the next assessment |
+|                                     | A: base DAG per wave                                                                     | B: pure-lagged (current draft)                                                           |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Skill-to-skill arrows within a wave | Yes, the full cascade                                                                    | None                                                                                     |
+| Reads like                          | Our base DAG, twice                                                                      | Two bare columns                                                                         |
+| Main assumption                     | Skills can affect each other within a measurement interval                               | The whole cascade takes a full wave to act                                               |
+| Cost                                | Same-wave effects are harder to identify, because cause and effect are measured together | Strong claim: a skill has no effect on a closely related skill until the next assessment |
 
 ## Recommendation: Option A
 
