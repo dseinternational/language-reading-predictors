@@ -21,7 +21,10 @@ import xarray as xr
 from language_reading_predictors.statistical_models.factories import (
     build_mediation_model,
 )
-from language_reading_predictors.statistical_models.mediation import decompose
+from language_reading_predictors.statistical_models.mediation import (
+    decompose,
+    sensitivity_sweep,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
@@ -81,6 +84,33 @@ def test_decompose_gaussian_composite(tmp_path):
     )
     df = decompose(_fake_trace(names, positive=["sigma_M"]), med, n_replicates=4)
     assert set(df["quantity"]) == _QUANTITIES
+
+
+def test_sensitivity_sweep(tmp_path):
+    """#230: the NIE sensitivity sweep returns a delta-indexed NIE curve plus a
+    summary whose flags are mutually exclusive (already-null / robust / tipping),
+    reusing the g-formula via the ``b_m_shift`` lever."""
+    prep = _prepare(tmp_path)
+    _, med = build_mediation_model(prep, confounder_symbols=("E", "R"))
+    names = _OUTCOME_DRAWS + ["b_E", "b_R"] + _BB_MEDIATOR_DRAWS + ["a_E", "a_R", "kappa_M"]
+    trace = _fake_trace(names, positive=["kappa_M"], seed=1)
+    sweep, summary = sensitivity_sweep(trace, med, n_deltas=6, n_replicates=4)
+    assert sweep["delta"].iloc[0] == 0.0
+    assert {"nie_median", "nie_lo", "nie_hi", "delta_frac_of_bM"} <= set(sweep.columns)
+    assert {
+        "tipping_delta", "tipping_frac_of_bM", "already_null_at_zero",
+        "robust_over_full_sweep", "b_M_effective_mean",
+    } <= set(summary)
+    # Exactly one state holds: already-null at 0, robust over the whole sweep, or a
+    # finite tipping point in between.
+    finite_tip = not summary["already_null_at_zero"] and not summary[
+        "robust_over_full_sweep"
+    ]
+    assert (
+        int(summary["already_null_at_zero"])
+        + int(summary["robust_over_full_sweep"])
+        + int(finite_tip)
+    ) == 1
 
 
 def test_decompose_follows_fitted_confounder_set(tmp_path):
