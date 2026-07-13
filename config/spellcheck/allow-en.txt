@@ -119,6 +119,7 @@ LRPITT
 LRPLF
 LRPMM
 LSAM
+MAXJOBS
 Laan
 Lakens
 Lawson
@@ -191,6 +192,7 @@ Puhani
 Puranik
 Purser
 RLMHG
+RLOG
 RMSE
 RMSEA
 Raftery
@@ -338,6 +340,7 @@ fpsyg
 functionals
 gnombo
 gnomo
+gotchas
 handoff
 hclust
 homoscedasticity
@@ -402,6 +405,8 @@ ncol
 ndarray
 noconstruct
 nogp
+nohup
+noqa
 noncentred
 nonlinear
 nonparametric
@@ -442,13 +447,16 @@ pytest
 readgrp
 reframing
 reparameterisation
+reparameterise
 reparameterised
+repr
 resid
 residualised
 residualized
 resumable
 retau
 reto
+rhat
 ridd
 rlm
 rlmhg
@@ -479,6 +487,7 @@ tiering
 timepoint
 timepoints
 tolist
+toplevel
 trainability
 trog
 unadjustable
