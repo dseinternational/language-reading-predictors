@@ -16,7 +16,7 @@ There are two sensible ways to do this. They agree on almost everything. They di
 
 ## Option A — the base DAG, copied at each wave (recommended; **adopted 2026-07-13**)
 
-Each wave holds the full cascade we already use (`SP → LS`, `LS → PA → NW → WR`, `RV → EV`, and the feeders). Between waves we add each skill to itself at the next wave (carry-over, grey), and the reverse edges from word reading to vocabulary, blending and memory at the next wave (dashed pink). This is the standard "unrolled" dynamic DAG.
+Each wave holds the full cascade we already use (`SP → LS`, `LS → PA → NW → WR`, `RV → EV`, and the feeders). Between waves we add each skill to itself at the next wave (carry-over, grey), and the reverse edges from word reading to taught vocabulary, blending and memory at the next wave (dashed pink; `WR → TE`, `WR → TR`, `WR → PA`, `WR → RW` — target set directed 2026-07-13). This is the standard "unrolled" dynamic DAG.
 
 ![Option A: the base DAG copied at each wave](../dag/dag-language-reading-lagged-per-wave.png)
 
@@ -43,6 +43,6 @@ The only reason to unroll at all is the reading-to-language feedback. That is th
 
 1. ~~**A vs B** — the choice above.~~ **Resolved 2026-07-13: Option A adopted** (PR #288 discussion); the `.dagitty` has been rewritten to put the cascade inside each wave.
 2. **Waitlist crossover.** The two-slice template assumes the same structure at every transition. The intervention's active window is arm-specific (immediate arm t1→t2, waitlist arm t2→t3), so a single generic template hides that. Worth a crossover-aware slice before any cross-lagged / LCSM model is built on it.
-3. **Reverse edges** need a one-line justification each. `WR → EV` (print exposure) is well grounded; `WR → RW` (reading → phonological memory) is the most tentative and easy to drop.
+3. **Reverse edges** need a one-line justification each. The target set was revised 2026-07-13 to the taught-vocabulary measures — `WR → TE`, `WR → TR`, `WR → PA`, `WR → RW` (broad `EV`/`RV` are reached indirectly via the within-wave `TE → EV` / `TR → RV` paths); the per-edge justifications are still to write.
 
 A printable Word version of this note with the figures is available on request (the repo does not track `.docx`).

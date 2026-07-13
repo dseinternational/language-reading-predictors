@@ -32,21 +32,21 @@ The reasoning — plausibility at the 20-week assessment interval, identificatio
 
 ## Decision 2: the open sub-decisions
 
-- **Reverse edges: which to pre-specify.** `WR → EV` (reading to expressive vocabulary, the print-exposure / RLI headline) is the one to test first. `WR → PA` gives the reciprocal blending test. `WR → RW` (reading to phonological memory) is the most tentative and easy to drop.
+- **Reverse edges: which to pre-specify (target set revised 2026-07-13).** The lagged reverse effects of interest are `WR → TE` and `WR → TR` (reading feeding back into the taught-vocabulary measures; broad `EV`/`RV` are then reached indirectly via the within-wave `TE → EV` / `TR → RV` paths), `WR → PA` (the reciprocal blending test) and `WR → RW` (reading to phonological memory). Which of the four are pre-specified versus exploratory is still to decide.
 - **Is hearing time-varying? (Informed by the hearing review, 2026-07-13.)** The evidence says hearing in DS under 12 is genuinely dynamic: conductive glue ear fluctuates and eases across school age (about 93% at age 1 down to about 38% at age 8), with rare but progressive sensorineural loss. So conceptually `HS` is time-varying. But our data holds only a single, parent-reported baseline, which is both static and noisy (parent report correlates poorly with objective hearing loss in DS), so a time-varying `HS_t` is not identifiable from it. Decision: keep `HS` a fixed baseline proxy for now, labelled as such, with the residual time-varying and measurement-error confounding noted as a limitation; and collect an objective per-wave hearing indicator (for example a glue-ear or grommet flag each wave) going forward so `HS` can become time-varying. See the hearing evidence review.
 - **Waitlist crossover.** The intervention's active window is arm-specific (immediate arm t1→t2, waitlist arm t2→t3). The two-slice template hides this; any fitted model must apply the intervention to the correct window per arm.
 - **Age and ability.** Age enters per wave; general ability is latent and time-invariant.
 
 ## Models the lagged DAG justifies (mapped to issues)
 
-- **Coupling extensions of LRP67 (#229).** Formalise the existing LCSM structure and add one pre-specified reverse coupling: does prior-wave reading predict later vocabulary change, over and above the forward path? This is the RLI hypothesis as a direct test. Pooled coupling, three transitions, same as LRP67.
+- **Coupling extensions of LRP67 (#229).** Formalise the existing LCSM structure and add one pre-specified reverse coupling: does prior-wave reading predict later taught-vocabulary change (`WR → TE`), over and above the forward path? This is the RLI hypothesis as a direct test, on the revised reverse-edge target set. Pooled coupling, three transitions, same as LRP67 (the taught measure enters the model alongside W/L/E).
 - **Temporal mediation (#264).** With waves explicit, baseline vocabulary is a clean pre-treatment confounder, and dose → skill → reading can be traced across waves. Interventional estimands where dose is a treatment-induced confounder, as in the current mediation family.
 - **Not RI-CLPM / free cross-lagged.** Stays parked unless the sample grows or a very reduced two-variable version is clearly justified.
 
 ## Proposed order
 
 - **Phase 0 (now):** settle the DAG. The A-vs-B call is made (A, 2026-07-13); the remaining sub-decisions (reverse-edge pre-specification, crossover handling) still need the short meeting. This note plus the #288 figures are the input.
-- **Phase 1:** one pre-specified reverse-coupling extension of LRP67 (reading → vocabulary change), the headline RLI test. Dev-tier fit, diagnostics, report. Decides whether the reverse edge earns its place.
+- **Phase 1:** one pre-specified reverse-coupling extension of LRP67 (reading → taught-vocabulary change, `WR → TE`), the headline RLI test. Dev-tier fit, diagnostics, report. Decides whether the reverse edge earns its place.
 - **Phase 2:** temporal mediation (#264) using the lagged adjustment sets.
 - **Phase 3:** crossover-aware structure (arm and period) if Phases 1–2 hold up.
 
