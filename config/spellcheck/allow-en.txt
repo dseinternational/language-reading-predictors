@@ -118,6 +118,7 @@ LRPHS
 LRPITT
 LRPLF
 LRPMM
+LRPSURV
 LSAM
 Laan
 Lakens
@@ -379,6 +380,7 @@ lrphs
 lrpitt
 lrplf
 lrpmm
+lrpsurv
 lsam
 lsamint
 lsammax
@@ -471,6 +473,7 @@ startswith
 subfit
 subsetting
 subskill
+surv
 tachang
 tascore
 tertile

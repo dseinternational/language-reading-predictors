@@ -1,0 +1,50 @@
+## Results
+
+```{python}
+# | echo: false
+# | output: asis
+# Discrete-time off-floor survival results (#230 §5). Reads the survival_summary.csv
+# the fit writes; renders the log-hazard / hazard-ratio table and the prognostic
+# reading. Guarded so the partial is a no-op if the artifact is absent.
+_surv = _csv("survival_summary.csv")
+_meta = _json("run_metadata.json") or {}
+if _surv is None:
+    print("_No survival summary found for this model._\n")
+else:
+    _n_atrisk = _meta.get("n_at_risk_children")
+    _n_events = _meta.get("n_events")
+    _link = _meta.get("hazard_link", config.get("extra", {}).get("hazard_link", "cloglog"))
+    _lead = (
+        f"Discrete-time off-floor hazard for **{outcome_label}** "
+        f"(**{_link}** link)."
+    )
+    if _n_atrisk is not None:
+        _lead += (
+            f" At-risk set: **{_n_atrisk}** children at the floor at t1"
+            f", **{_n_events}** off-floor events across the three intervals."
+        )
+    print(_lead + "\n\n")
+
+    # Render the summary as a Markdown table without a tabulate dependency.
+    def _fmt(v):
+        if isinstance(v, float):
+            return "—" if v != v else f"{v:.3f}"  # NaN -> em dash
+        return str(v)
+
+    _cols = list(_surv.columns)
+    print("| " + " | ".join(_cols) + " |")
+    print("| " + " | ".join("---" for _ in _cols) + " |")
+    for _, _r in _surv.iterrows():
+        print("| " + " | ".join(_fmt(_r[c]) for c in _cols) + " |")
+
+    print(
+        "\n\nPositive log-hazard terms raise the probability of coming off the floor "
+        "in an interval. `tau` is the intervention-aligned treatment hazard shift, "
+        "read as a **prognostic** association anchored on the immediate arm's randomised "
+        "first interval — by t4 both arms have been treated, so it is not a randomised "
+        "effect of record. Baseline letter-sound knowledge and word reading are "
+        "prognostic, pre-intervention covariates; concurrent letter sounds are "
+        "deliberately excluded as a treatment-affected mediator. Intervals wide at "
+        "n≈50; read direction and ordering, not precise magnitudes.\n"
+    )
+```
