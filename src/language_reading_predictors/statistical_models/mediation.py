@@ -88,6 +88,7 @@ def decompose(
     n_replicates: int = 50,
     seed: int = 47,
     interventional: bool = False,
+    b_m_shift: float = 0.0,
 ) -> pd.DataFrame:
     """Return the NDE / NIE / Total / proportion-mediated posterior summary.
 
@@ -127,6 +128,10 @@ def decompose(
     b0, b_G, b_M, b_GM, b_W, b_A = (
         d("b0"), d("b_G"), d("b_M"), d("b_GM"), d("b_W"), d("b_A")
     )
+    # Sensitivity lever (#230): subtract a bias delta from the mediator->outcome
+    # coefficient — the portion of the fitted b_M one attributes to an unmeasured
+    # mediator-outcome confounder. b_m_shift=0 is the primary (identified) analysis.
+    b_M = b_M - b_m_shift
     b_conf = {s: d(f"b_{s}") for s in confounder_symbols}
 
     # Covariates as (1, n) row vectors for broadcasting against (S, 1) draws.
@@ -284,6 +289,98 @@ def decompose(
         }
     )
     return pd.DataFrame(rows)
+
+
+def sensitivity_sweep(
+    trace: xr.DataTree,
+    med: MediationData,
+    *,
+    ci_prob: float = 0.95,
+    n_deltas: int = 21,
+    delta_max: float | None = None,
+    **decompose_kw,
+) -> tuple[pd.DataFrame, dict]:
+    """Unmeasured mediator-outcome confounding sensitivity for the NIE (#230).
+
+    Sweeps a **non-negative** bias magnitude ``delta`` applied to the mediator->outcome
+    coefficient ``b_M`` in the direction that attenuates the fitted effective slope
+    toward zero (the share of the fitted mediator-outcome association one is willing to
+    attribute to an unmeasured mediator-outcome confounder) and re-runs the g-formula
+    (:func:`decompose`) at each. Returns the NIE across ``delta`` plus a
+    summary whose headline is the **tipping point** ``delta*``: the confounding
+    strength at which the NIE's ``ci_prob`` credible interval first includes 0.
+
+    As a Bayesian E-value analogue, ``delta*`` is also expressed as a fraction of
+    the fitted effective mediator-outcome slope (``b_M + b_GM`` at treatment) — how
+    much of the mediator->reading association would have to be spurious confounding
+    to null the indirect effect. Larger (or "robust across the full sweep") => more
+    robust. This quantifies the no-unmeasured-mediator-outcome-confounding
+    assumption the decomposition otherwise only states.
+    """
+    post = trace.posterior
+
+    def d(name: str) -> np.ndarray:
+        return post[name].stack(_s=("chain", "draw")).values
+
+    ref = float(np.mean(d("b_M") + d("b_GM")))  # effective M->Y slope at treatment
+    ref_mag = abs(ref)
+    ref_eps = 1e-6
+    # ``delta`` is a NON-NEGATIVE magnitude of confounding, applied in the direction that
+    # shrinks the fitted effective slope toward 0 (``b_m_shift = sign(ref) * delta``), so
+    # the sweep attenuates the NIE toward the null whether the fitted slope is positive or
+    # negative (#289 review — a fixed positive subtraction pushed a negative slope *away*
+    # from 0 and silently reported "robust"). Fractions use ``abs(ref)`` so they stay a
+    # positive "share of the fitted slope", with an epsilon guarding a near-zero slope
+    # where they would otherwise explode.
+    shrink_sign = 1.0 if ref >= 0 else -1.0
+    if delta_max is None:
+        delta_max = max(ref_mag * 1.5, 0.5)
+    deltas = np.linspace(0.0, delta_max, n_deltas)
+
+    indirect = {"NIE", "IIE"}
+    rows = []
+    for dlt in deltas:
+        df = decompose(
+            trace, med, ci_prob=ci_prob, b_m_shift=float(shrink_sign * dlt), **decompose_kw
+        )
+        nie = df[df["quantity"].isin(indirect)].iloc[0]
+        rows.append(
+            {
+                "delta": float(dlt),
+                "delta_frac_of_bM": (
+                    float(dlt / ref_mag) if ref_mag > ref_eps else float("nan")
+                ),
+                "nie_median": float(nie["prob_median"]),
+                "nie_lo": float(nie["prob_lo"]),
+                "nie_hi": float(nie["prob_hi"]),
+                "nie_prob_pos": float(nie["prob_pos"]),
+            }
+        )
+    sweep = pd.DataFrame(rows)
+
+    # Tipping point: first delta at which the NIE interval includes 0, from the sign the
+    # NIE takes at delta=0. The sweep shrinks the effective slope toward 0, so the NIE
+    # moves toward 0 as delta grows regardless of the fitted slope's sign; if the interval
+    # already includes 0 at delta=0 the indirect effect is not credibly nonzero, so the
+    # sensitivity question ("how much confounding would null it?") does not apply.
+    nie0 = sweep.iloc[0]
+    already_null = bool(nie0["nie_lo"] <= 0 <= nie0["nie_hi"])
+    positive = nie0["nie_median"] >= 0
+    crossed = sweep[sweep["nie_lo"] <= 0] if positive else sweep[sweep["nie_hi"] >= 0]
+    tip = float(crossed.iloc[0]["delta"]) if len(crossed) else float("nan")
+    summary = {
+        "b_M_effective_mean": ref,
+        "already_null_at_zero": already_null,
+        "tipping_delta": (float("nan") if already_null else tip),
+        "tipping_frac_of_bM": (
+            float(tip / ref_mag)
+            if (ref_mag > ref_eps and not already_null and np.isfinite(tip))
+            else float("nan")
+        ),
+        "nie_median_at_zero": float(nie0["nie_median"]),
+        "robust_over_full_sweep": bool(not already_null and not np.isfinite(tip)),
+    }
+    return sweep, summary
 
 
 def decompose_two_mediator(

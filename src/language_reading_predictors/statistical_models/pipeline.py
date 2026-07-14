@@ -2441,6 +2441,9 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
     ctx.tables["mediation_summary"] = med_df
+    # Print the primary decomposition table before the (slow, ~21x-decompose) sensitivity
+    # sweep, so the main NDE/NIE result shows under its own section header rather than
+    # under the sensitivity header and only after the sweep finishes (#289 review).
     print_table(
         ranked_dataframe_table(
             med_df,
@@ -2450,6 +2453,41 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             precision=3,
         )
     )
+
+    # Unmeasured mediator-outcome confounding sensitivity for the NIE (#230): sweep a
+    # bias off b_M and report the tipping point at which the indirect effect's CI
+    # includes 0 (a Bayesian E-value analogue). Quantifies the no-unmeasured-
+    # confounding assumption the decomposition otherwise only states.
+    section_header("Mediation NIE sensitivity (unmeasured confounding)")
+    sens_sweep, sens_summary = _med.sensitivity_sweep(
+        ctx.trace,
+        med_data,
+        ci_prob=ctx.reporting.ci_prob,
+        interventional=_interventional,
+    )
+    sens_sweep.to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity.csv"), index=False
+    )
+    pd.DataFrame([sens_summary]).to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity_summary.csv"), index=False
+    )
+    ctx.tables["mediation_sensitivity"] = sens_sweep
+    if sens_summary["already_null_at_zero"]:
+        rprint(
+            "  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A "
+            "(no indirect effect to explain away)."
+        )
+    elif sens_summary["robust_over_full_sweep"]:
+        rprint(
+            f"  NIE robust across the full sweep (CI excludes 0 up to "
+            f"delta={sens_sweep['delta'].max():.2f} logit)."
+        )
+    else:
+        rprint(
+            f"  NIE tipping point delta*={sens_summary['tipping_delta']:.3f} logit "
+            f"({sens_summary['tipping_frac_of_bM']:.0%} of the fitted b_M+b_GM) — an "
+            "unmeasured mediator-outcome confounder that strong would null the NIE."
+        )
 
     # --- Temporal-ordering sensitivity: outcome at t3, mediator still at t2 ---
     # Triangulation for the contemporaneous-measurement caveat (issue #84): the

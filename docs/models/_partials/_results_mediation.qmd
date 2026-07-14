@@ -86,3 +86,44 @@ mediation_summary_t3 if mediation_summary_t3 is not None else "No t3 sensitivity
 The t3 sensitivity puts the mediator before the outcome in time, but the later
 contrast is no longer the clean randomised phase-0 contrast. Use it as a direction
 check, not as a replacement estimand.
+
+### Unmeasured mediator–outcome confounding sensitivity
+
+The no-unmeasured-mediator–outcome-confounding assumption above is the binding one; this quantifies how fragile the indirect effect is to violating it. We sweep a bias δ off the mediator→outcome coefficient (`b_M`) — the share of the fitted mediator→reading association one attributes to an unmeasured confounder — and re-run the same g-formula, reporting the **tipping point**: the δ at which the indirect effect's credible interval first includes zero, expressed as a fraction of the fitted coefficient (a Bayesian E-value analogue). Larger ⇒ more robust; it bounds robustness, it does not prove absence of confounding.
+
+```{python}
+# | echo: false
+# | output: asis
+_sens = _csv("mediation_sensitivity_summary.csv")
+if _sens is not None:
+    _s = _sens.iloc[0]
+    _robust = bool(_s.get("robust_over_full_sweep", False))
+    if bool(_s.get("already_null_at_zero", False)):
+        _msg = (
+            "The indirect effect is not credibly non-zero at δ = 0, so there is no "
+            "indirect effect to explain away — the sensitivity question does not apply here."
+        )
+    else:
+        _msg = (
+            (
+                "The indirect effect's interval excludes zero across the entire sweep: "
+                "no single unmeasured mediator–outcome confounder in this range nulls it."
+            )
+            if _robust
+            else (
+                f"**Tipping point:** an unmeasured mediator–outcome confounder inducing "
+                f"a spurious mediator→reading association of δ* ≈ {_s.tipping_delta:.2f} "
+                f"on the logit scale — about **{_s.tipping_frac_of_bM:.0%}** of the "
+                f"fitted mediator→outcome coefficient — would be enough to bring the "
+                f"indirect effect's interval to zero."
+            )
+        )
+    print(_msg)
+else:
+    print("No mediation sensitivity summary.")
+```
+
+```{python}
+# | echo: false
+_csv("mediation_sensitivity.csv")
+```
