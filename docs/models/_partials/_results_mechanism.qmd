@@ -92,6 +92,70 @@ if mechanism_curve is not None and all(c in mechanism_curve.columns for c in ("f
     )
 ```
 
+### Readiness threshold
+
+_Where does the outcome rise fastest?_ This post-processes the mechanism curve above into the predictor count at which the outcome rises fastest per additional item — the curve's steepest rise, its "knee". For letter-sounds to word reading it reads as "reading rises fastest around about _k_ letter sounds". Note the knee is the middle of the rise, not its onset: the outcome is already moving before it, so whether it is near-flat below the knee is answered by the below-knee slope reported alongside, not by the knee itself. It is a feature of the fitted curve over the observed range, not a manipulation effect, so read it as an adjusted association like the curve itself.
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("readiness_threshold.png", "Readiness threshold (steepest rise) on the mechanism curve"))
+```
+
+```{python}
+# | echo: false
+readiness = _csv("readiness_threshold.csv")
+readiness if readiness is not None else "No readiness-threshold table (needs the nonparametric mechanism curve)."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if readiness is not None and len(readiness):
+    _k = readiness.iloc[0]
+    if np.isfinite(_k.knee_count_median):
+        _defined = (
+            " — well defined."
+            if _k.increasing_frac > 0.9
+            else " — treat it cautiously: the curve is flat or falling in many draws, so the knee is ill-defined."
+        )
+        print(
+            f"**Knee (steepest rise):** about **{_k.knee_count_median:.0f}** in raw units "
+            f"(95% CrI {_k.knee_count_ci_low:.0f} to {_k.knee_count_ci_high:.0f}) — the "
+            f"count at which the outcome rises fastest with the predictor. The curve "
+            f"rises overall in {_k.increasing_frac:.0%} of posterior draws" + _defined
+        )
+        print(
+            f"\n\n**Slope below vs above the knee:** median marginal slope about "
+            f"{_k.slope_below_knee_median:.3f} logit units per item below the knee and "
+            f"{_k.slope_above_knee_median:.3f} above it. A below-knee slope near zero "
+            "supports a 'near-flat below, rising above' read; a clearly positive one "
+            "means the outcome is already moving well before the knee."
+        )
+        print(
+            f"\n\n**Half-rise (robustness check):** about {_k.half_rise_count_median:.0f} "
+            f"(95% CrI {_k.half_rise_count_ci_low:.0f} to {_k.half_rise_count_ci_high:.0f}) "
+            "— the count where the curve first reaches the midpoint of its rise. For an "
+            "S-shaped curve this lands near the knee; a large gap between the two flags "
+            "an asymmetric rise."
+        )
+        print(
+            "\n\n_How to read this:_ the figures are the predictor's raw count (for "
+            "letter-sounds, out of its maximum), and the steepest rise is defined on that "
+            "count scale — change in outcome logit per additional item. It is located per "
+            "posterior draw (on quantile-binned curve means, so its resolution is a bin "
+            "width) and summarised over the rising draws only, so the interval is a "
+            "genuine posterior. Read it over the observed range "
+            f"({_k.obs_count_min:.0f}–{_k.obs_count_max:.0f}) only, and as an adjusted "
+            "association — not a threshold the intervention flips."
+        )
+    else:
+        print(
+            f"The fitted curve rises overall in only {_k.increasing_frac:.0%} of "
+            "posterior draws, so a readiness threshold is not defined for this fit."
+        )
+```
+
 ### Model comparison
 
 ```{python}

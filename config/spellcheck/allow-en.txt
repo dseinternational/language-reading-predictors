@@ -362,6 +362,7 @@ iloc
 importorskip
 incl
 invlogit
+isfinite
 isinstance
 iterdir
 iterrows
