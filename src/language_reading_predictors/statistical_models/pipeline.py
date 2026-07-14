@@ -2289,6 +2289,18 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
     ctx.tables["mediation_summary"] = med_df
+    # Print the primary decomposition table before the (slow, ~21x-decompose) sensitivity
+    # sweep, so the main NDE/NIE result shows under its own section header rather than
+    # under the sensitivity header and only after the sweep finishes (#289 review).
+    print_table(
+        ranked_dataframe_table(
+            med_df,
+            title=f"Mediation (intervention-helps; words out of {med_data.n_trials_W})",
+            columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
 
     # Unmeasured mediator-outcome confounding sensitivity for the NIE (#230): sweep a
     # bias off b_M and report the tipping point at which the indirect effect's CI
@@ -2324,15 +2336,6 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             f"({sens_summary['tipping_frac_of_bM']:.0%} of the fitted b_M+b_GM) — an "
             "unmeasured mediator-outcome confounder that strong would null the NIE."
         )
-    print_table(
-        ranked_dataframe_table(
-            med_df,
-            title=f"Mediation (intervention-helps; words out of {med_data.n_trials_W})",
-            columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
-            rank_column=False,
-            precision=3,
-        )
-    )
 
     # --- Temporal-ordering sensitivity: outcome at t3, mediator still at t2 ---
     # Triangulation for the contemporaneous-measurement caveat (issue #84): the

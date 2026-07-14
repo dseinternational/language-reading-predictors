@@ -294,10 +294,11 @@ def sensitivity_sweep(
 ) -> tuple[pd.DataFrame, dict]:
     """Unmeasured mediator-outcome confounding sensitivity for the NIE (#230).
 
-    Sweeps a bias ``delta`` subtracted from the mediator->outcome coefficient
-    ``b_M`` (the share of the fitted mediator-outcome association one is willing to
-    attribute to an unmeasured mediator-outcome confounder) and re-runs the
-    g-formula (:func:`decompose`) at each. Returns the NIE across ``delta`` plus a
+    Sweeps a **non-negative** bias magnitude ``delta`` applied to the mediator->outcome
+    coefficient ``b_M`` in the direction that attenuates the fitted effective slope
+    toward zero (the share of the fitted mediator-outcome association one is willing to
+    attribute to an unmeasured mediator-outcome confounder) and re-runs the g-formula
+    (:func:`decompose`) at each. Returns the NIE across ``delta`` plus a
     summary whose headline is the **tipping point** ``delta*``: the confounding
     strength at which the NIE's ``ci_prob`` credible interval first includes 0.
 
@@ -314,19 +315,33 @@ def sensitivity_sweep(
         return post[name].stack(_s=("chain", "draw")).values
 
     ref = float(np.mean(d("b_M") + d("b_GM")))  # effective M->Y slope at treatment
+    ref_mag = abs(ref)
+    ref_eps = 1e-6
+    # ``delta`` is a NON-NEGATIVE magnitude of confounding, applied in the direction that
+    # shrinks the fitted effective slope toward 0 (``b_m_shift = sign(ref) * delta``), so
+    # the sweep attenuates the NIE toward the null whether the fitted slope is positive or
+    # negative (#289 review — a fixed positive subtraction pushed a negative slope *away*
+    # from 0 and silently reported "robust"). Fractions use ``abs(ref)`` so they stay a
+    # positive "share of the fitted slope", with an epsilon guarding a near-zero slope
+    # where they would otherwise explode.
+    shrink_sign = 1.0 if ref >= 0 else -1.0
     if delta_max is None:
-        delta_max = max(abs(ref) * 1.5, 0.5)
+        delta_max = max(ref_mag * 1.5, 0.5)
     deltas = np.linspace(0.0, delta_max, n_deltas)
 
     indirect = {"NIE", "IIE"}
     rows = []
     for dlt in deltas:
-        df = decompose(trace, med, ci_prob=ci_prob, b_m_shift=float(dlt), **decompose_kw)
+        df = decompose(
+            trace, med, ci_prob=ci_prob, b_m_shift=float(shrink_sign * dlt), **decompose_kw
+        )
         nie = df[df["quantity"].isin(indirect)].iloc[0]
         rows.append(
             {
                 "delta": float(dlt),
-                "delta_frac_of_bM": (float(dlt / ref) if ref else float("nan")),
+                "delta_frac_of_bM": (
+                    float(dlt / ref_mag) if ref_mag > ref_eps else float("nan")
+                ),
                 "nie_median": float(nie["prob_median"]),
                 "nie_lo": float(nie["prob_lo"]),
                 "nie_hi": float(nie["prob_hi"]),
@@ -335,10 +350,11 @@ def sensitivity_sweep(
         )
     sweep = pd.DataFrame(rows)
 
-    # Tipping point: first delta at which the NIE interval includes 0, from the
-    # sign the NIE takes at delta=0. If the interval already includes 0 at delta=0
-    # the indirect effect is not credibly nonzero, so the sensitivity question
-    # ("how much confounding would null it?") does not apply.
+    # Tipping point: first delta at which the NIE interval includes 0, from the sign the
+    # NIE takes at delta=0. The sweep shrinks the effective slope toward 0, so the NIE
+    # moves toward 0 as delta grows regardless of the fitted slope's sign; if the interval
+    # already includes 0 at delta=0 the indirect effect is not credibly nonzero, so the
+    # sensitivity question ("how much confounding would null it?") does not apply.
     nie0 = sweep.iloc[0]
     already_null = bool(nie0["nie_lo"] <= 0 <= nie0["nie_hi"])
     positive = nie0["nie_median"] >= 0
@@ -349,8 +365,8 @@ def sensitivity_sweep(
         "already_null_at_zero": already_null,
         "tipping_delta": (float("nan") if already_null else tip),
         "tipping_frac_of_bM": (
-            float(tip / ref)
-            if (ref and not already_null and np.isfinite(tip))
+            float(tip / ref_mag)
+            if (ref_mag > ref_eps and not already_null and np.isfinite(tip))
             else float("nan")
         ),
         "nie_median_at_zero": float(nie0["nie_median"]),

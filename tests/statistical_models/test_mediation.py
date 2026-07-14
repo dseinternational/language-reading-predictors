@@ -45,16 +45,26 @@ def _prepare(tmp_path, n_children: int = 15):
     return load_and_prepare(path=p, phase_mode="itt")
 
 
-def _fake_trace(names, *, positive=(), chains: int = 2, draws: int = 20, seed: int = 0):
+def _fake_trace(
+    names, *, positive=(), values=None, chains: int = 2, draws: int = 20, seed: int = 0
+):
     """A minimal posterior stand-in: an xarray ``Dataset`` of (chain, draw)
     coefficient draws exposed as ``.posterior`` — exactly what ``decompose``
-    consumes (``trace.posterior[name].stack(...)``)."""
+    consumes (``trace.posterior[name].stack(...)``).
+
+    ``values`` pins a coefficient to a near-constant value (tiny jitter for a
+    non-degenerate posterior), so a deterministic scenario can be constructed.
+    """
     rng = np.random.default_rng(seed)
+    values = values or {}
     data = {}
     for name in names:
-        arr = rng.normal(0.0, 0.2, size=(chains, draws))
-        if name in positive:
-            arr = np.abs(arr) + 5.0  # kappa / sigma must be positive
+        if name in values:
+            arr = float(values[name]) + rng.normal(0.0, 1e-3, size=(chains, draws))
+        else:
+            arr = rng.normal(0.0, 0.2, size=(chains, draws))
+            if name in positive:
+                arr = np.abs(arr) + 5.0  # kappa / sigma must be positive
         data[name] = (("chain", "draw"), arr)
     return SimpleNamespace(posterior=xr.Dataset(data))
 
@@ -111,6 +121,36 @@ def test_sensitivity_sweep(tmp_path):
         + int(summary["robust_over_full_sweep"])
         + int(finite_tip)
     ) == 1
+    # Tie the flags to the value they summarise: a finite tipping_delta iff finite_tip.
+    assert np.isfinite(summary["tipping_delta"]) == finite_tip
+
+
+def test_sensitivity_sweep_attenuates_toward_null_for_both_signs(tmp_path):
+    """#289 review: the sweep must shrink the effective slope toward 0 regardless of its
+    sign. A fixed positive subtraction pushed a *negative* fitted slope further from 0 and
+    silently reported ``robust_over_full_sweep=True``. Here treatment raises the mediator
+    (a_G>0) and |b_M| is large, so the NIE is clearly non-null at delta=0 and must reach a
+    finite tipping point (not "robust") for b_M>0 AND b_M<0."""
+    prep = _prepare(tmp_path)
+    _, med = build_mediation_model(prep, confounder_symbols=("E", "R"))
+    names = _OUTCOME_DRAWS + ["b_E", "b_R"] + _BB_MEDIATOR_DRAWS + ["a_E", "a_R", "kappa_M"]
+    for b_m in (3.0, -3.0):
+        vals = {
+            "b0": 0.0, "b_G": 0.0, "b_M": b_m, "b_GM": 0.0, "b_W": 0.0, "b_A": 0.0,
+            "b_E": 0.0, "b_R": 0.0,
+            "a0": 0.0, "a_G": 1.5, "a_L": 0.0, "a_A": 0.0, "a_E": 0.0, "a_R": 0.0,
+        }
+        trace = _fake_trace(names, positive=["kappa_M"], values=vals, seed=3)
+        _, summary = sensitivity_sweep(trace, med, n_deltas=21, n_replicates=8)
+        assert not summary["already_null_at_zero"], f"b_M={b_m}: NIE should be non-null at 0"
+        assert not summary["robust_over_full_sweep"], (
+            f"b_M={b_m}: sweep must attenuate toward 0 and find a tipping point, not 'robust'"
+        )
+        assert np.isfinite(summary["tipping_delta"])
+        assert 0.0 < summary["tipping_delta"]
+        # Fraction of the fitted slope is a positive magnitude whatever the slope's sign.
+        assert summary["tipping_frac_of_bM"] > 0.0
+        assert np.sign(summary["b_M_effective_mean"]) == np.sign(b_m)
 
 
 def test_decompose_follows_fitted_confounder_set(tmp_path):
