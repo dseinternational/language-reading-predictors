@@ -1,0 +1,66 @@
+---
+title: "LRP86: Does the intervention raise nonword reading via letter-sounds? (off-floor mediation)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP86 is the nonword companion to [LRP59](../lrp-rli-med-059/) (word reading via letter-sounds), testing the code route on the **purest decoding outcome** (#228 item 12). Nonword reading isolates alphabetic decoding with no lexical/whole-word support, so if the intervention's decoding benefit is transmitted by letter-sound knowledge it should surface here. We decompose the intervention's effect on nonword reading into the **natural indirect effect (NIE)** — transmitted by raising letter-sounds $L$ — and the **natural direct effect (NDE)**.
+
+::: {.callout-important title="Off-floor outcome — effects are risk differences"}
+
+Nonword reading is ~57% floored, so — as everywhere in the suite (LRPITT11, LRPDID12, LRPGF11) — the outcome is the **off-floor indicator** ($N_{t2} > 0$), fitted as a Bernoulli. NDE / NIE / total are therefore reported on the **off-floor risk-difference** scale: the change in $\Pr(\text{reads} \ge 1\ \text{nonword})$ attributable to the direct vs the through-letter-sounds path. Off-floor outcomes drop the own-baseline term (the $\mathrm{Normal}(1,\cdot)$ autoregressive prior does not transfer to a binary indicator; a floored baseline logit is degenerate), matching the off-floor ITT/DiD/gain-factor convention.
+
+:::
+
+::: {.callout-note title="Also a test of the DAG's own structure"}
+
+The revised DAG (`dag/dag-language-reading.dagitty`) has **no direct $IG \to NW$ edge** — the intervention is drawn to reach nonword reading *only* through the code skills. So a decomposition in which the indirect path carries the effect (NIE $> 0$, NDE $\approx 0$) also corroborates that exclusion restriction; a large direct effect would flag a missing edge.
+
+:::
+
+## Causal structure and phase
+
+Phase 0 only (`phase_mode="itt"`, t1 → t2 — the randomised window; $G = 2 - \text{group}$, positive = intervention helps). Treatment $G$, mediator $M = L_{t2}$ (conditioned on $L_{t1}$), outcome $Y = \mathbf{1}[N_{t2} > 0]$. Joint mediator + off-floor-outcome model with a $G \times M$ interaction; NDE/NIE by counterfactual simulation from the posterior (the g-formula), not a coefficient product. Blending is **not** added here — the refit found it downstream of letter sounds with no independent code route (LRP66/75), so this starts with $L$ alone; an $L+B$ decomposition on $N$ is a deferred follow-up.
+
+## Assumptions — read this first
+
+The full mediation-assumption treatment (randomisation handles $G\to Y$/$G\to M$; the binding unverifiable assumption is no unmeasured $L\to N$ confounding; the dose-`IS` exposure-induced-confounder non-identification; the contemporaneous $L_{t2}$/$N_{t2}$ same-wave caveat) is as in [LRP59](../lrp-rli-med-059/#sec-assumptions) — read it there. This is a **model-based g-formula decomposition under stated (cross-world) assumptions, not an identified natural effect**; wide at $n \approx 50$.
+
+::: {.callout-important title="Adjustment set — proposed, pending DAG review"}
+
+Under the revised DAG the $L \to N$ confounders are the common parents of letter-sounds and nonword reading: age $A$, speech production $SP$ (`deapp_c`) and phonological memory $RW$ (`erbto`), via the missing-indicator method, plus the mediator baseline $L_{t1}$. **Hearing (HS) is excluded** — it is a parent of letter-sounds but **not** of nonword reading in the revised DAG (the LRPGF11 rule), so it does not confound the $L \to N$ path. **No outcome own-baseline** (off-floor). Mediation adjustment sets are owned by the DAG review (#246/#264); this set is proposed for confirmation.
+
+:::
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

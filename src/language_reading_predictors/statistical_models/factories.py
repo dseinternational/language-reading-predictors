@@ -1582,6 +1582,12 @@ class MediationData:
     # Gaussian composite mediator (LRP62).
     M_pre_std: np.ndarray | None = None
     route_symbols: tuple[str, ...] = ()
+    #: Off-floor (Bernoulli) OUTCOME (#228 item 12, e.g. nonword N): the outcome leg
+    #: is a Bernoulli on the off-floor indicator (post > 0) with no own-baseline term,
+    #: so ``decompose`` reads no ``b_W`` and reports NIE/NDE on the off-floor
+    #: risk-difference (probability) scale (``n_trials_W`` is set to 1, collapsing the
+    #: ``words_*`` columns onto the risk difference). Default False = graded outcome.
+    off_floor: bool = False
 
 
 def _baseline_confounder_value(prepared: PreparedData, symbol: str) -> np.ndarray:
@@ -1608,8 +1614,9 @@ def _build_outcome_leg(
     confounder_symbols: Iterable[str],
     N_out,
     W2_count,
+    outcome_kind: str = "beta_binomial",
 ):
-    """Shared Beta-Binomial outcome leg for the single-mediator-design factories.
+    """Shared outcome leg for the single-mediator-design factories.
 
     Both LRP59 (:func:`build_mediation_model`) and LRP62
     (:func:`_build_route_composite_model`) regress ``logit(W_t2)`` on treatment,
@@ -1617,25 +1624,50 @@ def _build_outcome_leg(
     reading, age, and the baseline confounders — identical save for
     ``mediator_node`` (``z_med`` for LRP59, the route composite for LRP62). Must
     be called inside an open ``pm.Model`` context so the nodes register.
+
+    ``outcome_kind="beta_binomial"`` (default) fits the graded post count and is
+    **byte-identical** to the original build. ``"bernoulli_offfloor"`` (#228 item 12,
+    a heavily-floored outcome such as nonword N) instead fits a Bernoulli on the
+    off-floor indicator ``post > 0`` (node ``y_offfloor``, no ``kappa_Y``) and
+    **drops the own-baseline term** ``b_W * W1`` — mirroring the off-floor ITT / DiD /
+    gain-factor convention (the ``Normal(1, ·)`` autoregressive prior does not
+    transfer to a binary indicator, and a floored baseline logit is degenerate). In
+    that case ``W1_d`` is unused (may be ``None``).
     """
+    off_floor = outcome_kind == "bernoulli_offfloor"
     b0 = _priors.alpha_prior().to_pymc("b0")
     b_G = _priors.tau_prior().to_pymc("b_G")
     b_M = _priors.b_path_prior().to_pymc("b_M")
     b_GM = _priors.gamma_cross_prior().to_pymc("b_GM")
-    b_W = _priors.gamma_own_prior().to_pymc("b_W")
+    if not off_floor:
+        # Own-baseline coefficient — created before b_A so the graded path's free-RV
+        # order (and therefore its sampling) is byte-identical to the original.
+        b_W = _priors.gamma_own_prior().to_pymc("b_W")
     b_A = _priors.gamma_cross_prior().to_pymc("b_A")
-    eta_Y = (
-        b0
-        + b_G * G_d
-        + b_M * mediator_node
-        + b_GM * (G_d * mediator_node)
-        + b_W * W1_d
-        + b_A * A_d
-    )
+    if off_floor:
+        eta_Y = (
+            b0
+            + b_G * G_d
+            + b_M * mediator_node
+            + b_GM * (G_d * mediator_node)
+            + b_A * A_d
+        )
+    else:
+        eta_Y = (
+            b0
+            + b_G * G_d
+            + b_M * mediator_node
+            + b_GM * (G_d * mediator_node)
+            + b_W * W1_d
+            + b_A * A_d
+        )
     for s in confounder_symbols:
         b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
         eta_Y = eta_Y + b_c * conf_d[s]
     eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
+    if off_floor:
+        off = (np.asarray(W2_count) > 0).astype(np.int64)
+        return pm.Bernoulli("y_offfloor", logit_p=eta_Y, observed=off, dims="obs_id")
     kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
     return beta_binomial_from_logit(
         "y_post", eta_Y, n_trials=N_out, kappa=kappa_Y,
@@ -1651,6 +1683,7 @@ def build_mediation_model(
     confounder_symbols: Iterable[str] = ("E", "R"),
     mediator_kind: str = "beta_binomial",
     route_symbols: Iterable[str] = (),
+    outcome_kind: str = "beta_binomial",
 ) -> tuple[BuiltModel, MediationData]:
     """Joint mediator + outcome model for the ITT-phase (phase 0) decomposition.
 
@@ -1708,9 +1741,19 @@ def build_mediation_model(
         )
     if mediator_kind != "beta_binomial":
         raise ValueError(f"Unknown mediator_kind {mediator_kind!r}")
-    for s in (mediator_symbol, outcome_symbol):
+    if outcome_kind not in ("beta_binomial", "bernoulli_offfloor"):
+        raise ValueError(f"Unknown outcome_kind {outcome_kind!r}")
+    off_floor = outcome_kind == "bernoulli_offfloor"
+    # The mediator always needs its baseline (own-baseline coupling a_M). The outcome
+    # needs its baseline only for the graded own-baseline term b_W — an off-floor
+    # (Bernoulli) outcome drops it (see _build_outcome_leg), so its pre-score is not
+    # required and a degenerate/floored baseline logit never enters.
+    required_pre = (mediator_symbol,) if off_floor else (mediator_symbol, outcome_symbol)
+    for s in required_pre:
         if s not in prepared.pre_logit:
             raise KeyError(f"Symbol {s!r} missing from prepared data")
+    if outcome_symbol not in prepared.post_counts:
+        raise KeyError(f"Outcome {outcome_symbol!r} post-count missing from prepared data")
     for s in confounder_symbols:
         if s not in prepared.pre_logit and s not in prepared.covariates:
             raise KeyError(f"Confounder {s!r} not in prepared pre_logit or covariates")
@@ -1737,7 +1780,10 @@ def build_mediation_model(
     z_med, med_scaler = standardise(med_logit)
 
     L1 = prepared.pre_logit[mediator_symbol]
-    W1 = prepared.pre_logit[outcome_symbol]
+    # Off-floor outcome: no own-baseline term, so its pre-score is neither required
+    # nor used (a floored baseline logit would be degenerate). Zeros are a safe,
+    # never-referenced placeholder for the row-aligned MediationData field.
+    W1 = np.zeros(prepared.n_obs) if off_floor else prepared.pre_logit[outcome_symbol]
     conf_logit = {
         s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
     }
@@ -1752,7 +1798,9 @@ def build_mediation_model(
         # labelled nodes; when mediator_symbol == 'L' every name is byte-identical to
         # the original LRP59 build.
         L1_d = pm.Data(f"{mediator_symbol}_pre_logit", L1, dims="obs_id")
-        W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
+        # Outcome own-baseline data node only for the graded path; the off-floor
+        # outcome leg drops the b_W term, so no W_pre_logit node is created.
+        W1_d = None if off_floor else pm.Data("W_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         conf_d = {
             s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
@@ -1776,7 +1824,7 @@ def build_mediation_model(
             observed=L2_count, dims="obs_id",
         )
 
-        # --- Outcome model: logit(W_t2) ---
+        # --- Outcome model: logit(W_t2) (graded) or logit P(off-floor) (Bernoulli) ---
         _build_outcome_leg(
             mediator_node=z_med_d,
             G_d=G_d,
@@ -1786,6 +1834,7 @@ def build_mediation_model(
             confounder_symbols=confounder_symbols,
             N_out=N_out,
             W2_count=W2_count,
+            outcome_kind=outcome_kind,
         )
 
     med_data = MediationData(
@@ -1798,10 +1847,14 @@ def build_mediation_model(
         L2_count=L2_count,
         W2_count=W2_count,
         n_trials_L=int(N_med),
-        n_trials_W=int(N_out),
+        # Off-floor outcome: n_trials_W = 1 so decompose's ``words_* = prob_* · N_W``
+        # collapses onto the off-floor risk difference (the outcome is the binary
+        # off-floor indicator, reported on the probability scale).
+        n_trials_W=(1 if off_floor else int(N_out)),
         med_mean=float(med_scaler.mean),
         med_sd=float(med_scaler.sd),
         mediator_symbol=mediator_symbol,
+        off_floor=off_floor,
     )
     built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
     return built, med_data

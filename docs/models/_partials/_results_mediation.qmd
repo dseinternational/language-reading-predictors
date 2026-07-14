@@ -43,6 +43,26 @@ mediation_summary if mediation_summary is not None else "No mediation summary."
 ```{python}
 # | echo: false
 # | output: asis
+# Off-floor OUTCOME (#228 item 12, e.g. nonword N): the effects are off-floor risk
+# differences, so the words_* columns equal the prob_* columns (n_trials_W = 1).
+_off = (
+    mediation_summary is not None
+    and "off_floor" in mediation_summary.columns
+    and bool(mediation_summary["off_floor"].iloc[0])
+)
+if _off:
+    print(
+        '::: {.callout-important title="Off-floor outcome — effects are risk differences"}\n'
+        "The outcome here is the **off-floor indicator** (post > 0), so NDE / NIE / total "
+        "are **off-floor risk differences** — changes in the probability of coming off the "
+        "floor attributable to the direct vs the through-mediator path — not item counts. "
+        "The `words_*` columns therefore equal the probability-scale columns.\n:::\n"
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
 if mediation_summary is not None:
     _m = mediation_summary.set_index("quantity")
     _total_name = "total" if "total" in _m.index else None

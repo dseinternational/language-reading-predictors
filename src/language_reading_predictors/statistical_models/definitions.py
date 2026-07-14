@@ -203,6 +203,10 @@ _MECH = [
     _d("lrp76", "mediation", "Mediation", Status.ASSOCIATION, "W", "longitudinal-ordering (letter sounds t2 -> reading t4)"),
     _d("lrp78", "mediation", "Mediation", Status.ASSOCIATION, "W", "interventional-effects decomposition via letter sounds"),
     _d("lrp79", "mediation", "Mediation", Status.ASSOCIATION, "W", "negative-control mediator (grammar; calibrates GA confounding)"),
+    # Code route beyond word reading (#228 item 12): the purest decoding outcome
+    # (nonword N, off-floor) and the downstream chain link (blending B), both via L.
+    _d("lrp86", "mediation", "Mediation", Status.ASSOCIATION, "N", "g-formula via letter sounds (nonword, off-floor risk difference)"),
+    _d("lrp87", "mediation", "Mediation", Status.ASSOCIATION, "B", "g-formula via letter sounds (phoneme blending)"),
 ]
 
 # --- DAG-focused associations, dose-response, latent structure and cross-checks ----

@@ -125,9 +125,11 @@ def decompose(
         return post[name].stack(_s=("chain", "draw")).values  # (S,)
 
     # --- Outcome model (shared across mediator kinds) ---
-    b0, b_G, b_M, b_GM, b_W, b_A = (
-        d("b0"), d("b_G"), d("b_M"), d("b_GM"), d("b_W"), d("b_A")
-    )
+    # An off-floor (Bernoulli) outcome (#228 item 12, e.g. nonword N) drops the
+    # own-baseline term b_W, so it is absent from the trace; graded outcomes keep it.
+    off_floor = getattr(med, "off_floor", False)
+    b0, b_G, b_M, b_GM, b_A = d("b0"), d("b_G"), d("b_M"), d("b_GM"), d("b_A")
+    b_W = None if off_floor else d("b_W")
     # Sensitivity lever (#230): subtract a bias delta from the mediator->outcome
     # coefficient — the portion of the fitted b_M one attributes to an unmeasured
     # mediator-outcome confounder. b_m_shift=0 is the primary (identified) analysis.
@@ -143,14 +145,24 @@ def decompose(
     rng = np.random.default_rng(seed)
 
     def outcome_p(g: float, z_m: np.ndarray) -> np.ndarray:
-        eta = (
-            b0[:, None]
-            + b_G[:, None] * g
-            + b_M[:, None] * z_m
-            + b_GM[:, None] * (g * z_m)
-            + b_W[:, None] * W1
-            + b_A[:, None] * A
-        )
+        if off_floor:
+            # No own-baseline term for the off-floor (Bernoulli) outcome.
+            eta = (
+                b0[:, None]
+                + b_G[:, None] * g
+                + b_M[:, None] * z_m
+                + b_GM[:, None] * (g * z_m)
+                + b_A[:, None] * A
+            )
+        else:
+            eta = (
+                b0[:, None]
+                + b_G[:, None] * g
+                + b_M[:, None] * z_m
+                + b_GM[:, None] * (g * z_m)
+                + b_W[:, None] * W1
+                + b_A[:, None] * A
+            )
         for s in confounder_symbols:
             eta = eta + b_conf[s][:, None] * conf[s]
         return _sigmoid(eta)
@@ -257,6 +269,10 @@ def decompose(
             "words_lo90": float(np.quantile(draws, 0.05) * N_W),
             "words_hi90": float(np.quantile(draws, 0.95) * N_W),
             "prob_pos": float(np.mean(draws > 0)),
+            # For an off-floor outcome n_trials_W = 1, so the words_* columns equal
+            # prob_* and both are the off-floor RISK DIFFERENCE; the flag lets the
+            # report label the scale ("off-floor risk difference", not items).
+            "off_floor": bool(off_floor),
         }
 
     direct_label, indirect_label = ("IDE", "IIE") if interventional else ("NDE", "NIE")

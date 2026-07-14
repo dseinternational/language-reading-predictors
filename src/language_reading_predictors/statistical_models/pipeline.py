@@ -2507,6 +2507,14 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     mediator_kind = spec.extra.get("mediator_kind", "beta_binomial")
     route_symbols = tuple(spec.extra.get("route_symbols", ()))
+    # Off-floor (Bernoulli) OUTCOME for a heavily-floored outcome such as nonword N
+    # (#228 item 12): the outcome leg becomes a Bernoulli on the off-floor indicator
+    # (node "y_offfloor") and the g-formula reports NIE/NDE on the off-floor
+    # risk-difference scale. Default "beta_binomial" keeps every existing med model
+    # byte-identical.
+    outcome_kind = spec.extra.get("outcome_kind", "beta_binomial")
+    off_floor = outcome_kind == "bernoulli_offfloor"
+    outcome_node = "y_offfloor" if off_floor else "y_post"
     built, med_data = _factories.build_mediation_model(
         prepared,
         mediator_symbol=mediator_symbol,
@@ -2514,6 +2522,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         confounder_symbols=confounders,
         mediator_kind=mediator_kind,
         route_symbols=route_symbols,
+        outcome_kind=outcome_kind,
     )
     _attach_built(ctx, built)
 
@@ -2532,14 +2541,14 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.run_prior_predictive(ctx, draws=1000)
     # The mediator likelihood is the FIRST observed RV, so name the outcome node
     # explicitly — else the plot overlays mediator draws on the outcome's counts.
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W", node="y_post")
+    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W", node=outcome_node)
 
     _run_sampling_and_loo(ctx, compute_loo=False)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
 
-    _run_ppc(ctx, var_names=[mediator_node, "y_post"])
+    _run_ppc(ctx, var_names=[mediator_node, outcome_node])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=coef_vars)

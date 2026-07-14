@@ -1,0 +1,52 @@
+---
+title: "LRP87: Does the intervention raise phoneme blending via letter-sounds? (mediation)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP87 is the downstream link in the phonological chain (#228 item 12): the companion to [LRP59](../lrp-rli-med-059/) (word reading via letter-sounds) and [LRP86](../lrp-rli-med-086/) (nonword reading via letter-sounds), decomposing the intervention's effect on **phoneme blending** ($B$) into the part transmitted by raising letter-sound knowledge $L$ (NIE) and the direct/residual part (NDE). Together the three trace the code route through its intermediate (blending) and terminal (nonword decoding) outcomes — both previously visible only as associations (mech-072/172).
+
+Blending is graded (~4% floored, 10 items), so this is a standard graded Beta-Binomial mediation, identical in structure to LRP59 with the outcome swapped: phase 0 only (`phase_mode="itt"`, t1 → t2 — the randomised window; $G = 2 - \text{group}$, positive = intervention helps), mediator $M = L_{t2}$ (conditioned on $L_{t1}$), outcome $Y = B_{t2}$ (conditioned on $B_{t1}$), with a $G \times M$ interaction; NDE/NIE on the items scale by counterfactual simulation from the posterior.
+
+## Assumptions — read this first
+
+The full mediation-assumption treatment (randomisation handles $G\to Y$/$G\to M$; the binding unverifiable assumption is no unmeasured $L\to B$ confounding; the dose-`IS` exposure-induced-confounder non-identification; the contemporaneous $L_{t2}$/$B_{t2}$ same-wave caveat) is as in [LRP59](../lrp-rli-med-059/#sec-assumptions) — read it there. A **model-based g-formula decomposition under stated (cross-world) assumptions, not an identified natural effect**; wide at $n \approx 53$.
+
+::: {.callout-important title="Adjustment set — proposed, pending DAG review"}
+
+Under the revised DAG the $L \to B$ (letter-sounds → blending) confounders are the common parents of the two skills: age $A$, hearing $HS$ (`hs`) and speech production $SP$ (`deapp_c`), via the missing-indicator method, plus the baselines $L_{t1}$ and the outcome own-baseline $B_{t1}$. **Phonological memory (RW) is excluded** — it is a parent of blending but **not** of letter-sounds, so it does not confound the $L \to B$ path. **Flag for review:** intervention sessions $IS$ (`attend`) are a common cause of letter-sounds and blending but are **treatment-affected** ($IG \to IS$), so conditioning on them is a recanting-witness / cross-world risk (the reason $E$/$R$ were dropped, #246/#264) — proposed **not** adjusted. Mediation adjustment sets are owned by the DAG review (#246/#264); this set is proposed for confirmation.
+
+:::
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
