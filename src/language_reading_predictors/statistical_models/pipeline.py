@@ -56,6 +56,7 @@ from language_reading_predictors.statistical_models import (
     historical as _historical,
     priors as _priors,
     reporting as _report,
+    survival as _survival,
 )
 from language_reading_predictors.statistical_models.plotting import (
     save_plotcollection,
@@ -927,6 +928,151 @@ def _finalize_report(ctx: StatisticalFitContext) -> StatisticalFitContext:
     return ctx
 
 
+def _survival_summary(
+    trace, *, ci_prob: float, hazard_link: str, use_treatment: bool
+) -> pd.DataFrame:
+    """Off-floor discrete-time hazard summary (log-hazard, hazard ratio, P>0).
+
+    Reports the treatment hazard shift and baseline-covariate slopes on the
+    log-hazard scale (with ``exp`` as a hazard ratio and ``P(effect > 0)``), plus
+    the per-interval baseline off-floor probability for an untreated child at mean
+    covariates, on the model's ``hazard_link`` scale. Equal-tailed intervals at
+    ``ci_prob`` with the posterior median as the point estimate (the suite convention).
+    """
+    post = trace.posterior
+    lo, hi = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+
+    def _row(term: str, draws: np.ndarray, *, as_ratio: bool) -> dict:
+        d = np.asarray(draws).reshape(-1)
+        return {
+            "term": term,
+            "median": float(np.median(d)),
+            "ci_low": float(np.quantile(d, lo)),
+            "ci_high": float(np.quantile(d, hi)),
+            "hazard_ratio": float(np.exp(np.median(d))) if as_ratio else float("nan"),
+            "P(>0)": float(np.mean(d > 0)) if as_ratio else float("nan"),
+        }
+
+    rows: list[dict] = []
+    if use_treatment:
+        rows.append(_row("tau (log hazard shift, treated)", post["tau"].values, as_ratio=True))
+    for name in sorted(v for v in post.data_vars if str(v).startswith("beta_")):
+        rows.append(_row(f"{name} (log hazard, per SD)", post[name].values, as_ratio=True))
+
+    alpha = post["alpha"].stack(sample=("chain", "draw")).transpose("interval", "sample")
+    labels = [str(v) for v in alpha.coords["interval"].values]
+    for i, lab in enumerate(labels):
+        a = alpha.values[i]
+        base = 1.0 - np.exp(-np.exp(a)) if hazard_link == "cloglog" else 1.0 / (1.0 + np.exp(-a))
+        rows.append(
+            {
+                "term": f"baseline off-floor prob [{lab}]",
+                "median": float(np.median(base)),
+                "ci_low": float(np.quantile(base, lo)),
+                "ci_high": float(np.quantile(base, hi)),
+                "hazard_ratio": float("nan"),
+                "P(>0)": float("nan"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Discrete-time off-floor survival fit for a floored outcome P / N (#230 §5).
+
+    Fits a person-period discrete-time hazard for the *time* to come off the floor,
+    generalising the single-transition off-floor estimand of the LRPITT09/11 floor
+    rule to all four waves. Treatment enters as an intervention-aligned hazard shift;
+    the estimand is prognostic (both arms are treated by t4).
+    """
+    _require_spec(spec, "survival", outcome=True)
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    panel = _survival.prepare_survival(spec.outcome_symbol)
+    ctx.prepared = panel
+    _print_header(ctx)
+    rprint(
+        f"  Survival at-risk set: {panel.n_at_risk_children} children at the "
+        f"{spec.outcome_symbol} floor at t1 contribute {panel.n_obs} person-period rows; "
+        f"{panel.n_events} off-floor events."
+    )
+    if panel.dropped_rows:
+        rprint(
+            f"  [yellow]{panel.dropped_rows} at-risk child(ren) contributed no rows "
+            "(t2 score unobserved, so no interval could be placed) and are excluded.[/yellow]"
+        )
+    for name, k in panel.imputed_covariate_rows.items():
+        if k:
+            rprint(
+                f"  [yellow]{k} row(s) had a missing baseline {name}; mean-imputed (z=0).[/yellow]"
+            )
+
+    hazard_link = spec.extra.get("hazard_link", "cloglog")
+    use_treatment = bool(spec.extra.get("use_treatment", True))
+
+    section_header("Build model")
+    built = _survival.build_survival_model(
+        panel, hazard_link=hazard_link, use_treatment=use_treatment
+    )
+    _attach_built(ctx, built)
+    _render_model_graph(ctx)
+
+    diag_vars = (
+        ["alpha"]
+        + [f"beta_{n}" for n in panel.covariates]
+        + (["tau"] if use_treatment else [])
+    )
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+
+    _run_sampling_and_loo(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx, var_names=["y_event"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    if use_treatment:
+        _diag.run_extended_diagnostics(ctx, causal_term="tau")
+    _diag.save_trace(ctx)
+
+    section_header("Off-floor hazard summary")
+    summary = _survival_summary(
+        ctx.trace, ci_prob=ctx.reporting.ci_prob, hazard_link=hazard_link,
+        use_treatment=use_treatment,
+    )
+    summary.to_csv(os.path.join(ctx.output_dir, "survival_summary.csv"), index=False)
+    ctx.tables["survival_summary"] = summary
+    print_table(
+        ranked_dataframe_table(
+            summary,
+            title=(
+                f"Off-floor discrete-time hazard ({spec.outcome_symbol}, {hazard_link}); "
+                "positive = raises Pr(off-floor); prognostic, not a randomised effect"
+            ),
+            columns=list(summary.columns),
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
+            "n_at_risk_children": panel.n_at_risk_children,
+            "n_events": panel.n_events,
+            "hazard_link": hazard_link,
+        },
+    )
+
+    return _finalize_report(ctx)
+
+
 def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _require_spec(spec, "itt", outcome=True)
 
@@ -1558,7 +1704,39 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
         v.append("gamma_A")
     if spec.extra.get("use_child_re", True):
         v.append("sigma_child")
+    if spec.extra.get("use_varying_delta", False):
+        v.append("sigma_delta")
     return v
+
+
+# Negligible-heterogeneity threshold on the logit scale for the "does the between-child
+# treatment-effect SD concentrate near zero?" diagnostic (#230 §4a): an order of magnitude
+# below the delta / tau prior scale (Normal(0, 0.5)).
+_SIGMA_DELTA_ROPE = 0.1
+
+
+def _did_heterogeneity_summary(trace, *, ci_prob: float) -> dict[str, float]:
+    """Between-child SD of the on-intervention effect + its concentration near zero.
+
+    Reports ``sigma_delta`` (median + equal-tailed CI on the logit scale), the ROPE-style
+    ``P(sigma_delta < delta_het)`` "concentrates near zero" probability, and the prior mass
+    below the same threshold under the HalfNormal(0.5) prior — so the reader can see the
+    data moved it (#230 §2/§4a). A near-zero posterior is the clean "no reliable
+    between-child variation" result that supports *not* gate-keeping on early response.
+    """
+    sd = np.asarray(trace.posterior["sigma_delta"].values).reshape(-1)
+    lo, hi = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    # Prior mass below the threshold read straight from the sigma_delta prior constructor
+    # (not a re-typed scale), so prior_P can't silently drift if the prior changes (#294).
+    prior_below = float(_priors.sigma_delta_prior().cdf(_SIGMA_DELTA_ROPE))
+    key = f"P(sigma_delta<{_SIGMA_DELTA_ROPE})"
+    return {
+        "sigma_delta_median": float(np.median(sd)),
+        "sigma_delta_ci_low": float(np.quantile(sd, lo)),
+        "sigma_delta_ci_high": float(np.quantile(sd, hi)),
+        key: float(np.mean(sd < _SIGMA_DELTA_ROPE)),
+        f"prior_{key}": float(prior_below),
+    }
 
 
 def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -1604,6 +1782,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_age=spec.extra.get("use_age", True),
         dose=dose,
         period_varying_dose=period_varying,
+        use_varying_delta=spec.extra.get("use_varying_delta", False),
         likelihood=likelihood,
     )
     _attach_built(ctx, built)
@@ -1677,9 +1856,33 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         )
 
+        het = None
+        if spec.extra.get("use_varying_delta", False):
+            section_header("Treatment-effect heterogeneity (variance component)")
+            het = _did_heterogeneity_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
+            pd.DataFrame([het]).to_csv(
+                os.path.join(ctx.output_dir, "heterogeneity_summary.csv"), index=False
+            )
+            ctx.tables["heterogeneity_summary"] = pd.DataFrame([het])
+            print_table(
+                metrics_table(
+                    [{"metric": k, "value": v} for k, v in het.items()],
+                    title=(
+                        f"treatment-effect heterogeneity ({sym}): between-child SD of the "
+                        "on-intervention effect (logit); near-zero = homogeneous response"
+                    ),
+                    columns=["metric", "value"],
+                )
+            )
+
         _report.write_run_metadata(
             ctx,
-            extra={"loo_elpd": float(ctx.loo.elpd), "did_summary": did_s, "dose": dose},
+            extra={
+                "loo_elpd": float(ctx.loo.elpd),
+                "did_summary": did_s,
+                "dose": dose,
+                **({"heterogeneity_summary": het} if het is not None else {}),
+            },
         )
 
     return _finalize_report(ctx)
@@ -1912,8 +2115,11 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     mean = f_ord.mean(axis=1)
     lo = np.quantile(f_ord, 0.025, axis=1)
     hi = np.quantile(f_ord, 0.975, axis=1)
+    lo90 = np.quantile(f_ord, 0.05, axis=1)
+    hi90 = np.quantile(f_ord, 0.95, axis=1)
     pd.DataFrame(
-        {"mech_logit": x, "f_mean": mean, "f_lo": lo, "f_hi": hi}
+        {"mech_logit": x, "f_mean": mean, "f_lo": lo, "f_hi": hi,
+         "f_lo90": lo90, "f_hi90": hi90}
     ).to_csv(os.path.join(ctx.output_dir, "mechanism_curve.csv"), index=False)
     outcome = ctx.spec.outcome_symbol or "W"
     plt.figure(figsize=(6, 4))
@@ -2102,6 +2308,9 @@ def _summarise_draws(
         "mean": float(np.mean(values)),
         "lo": float(np.quantile(values, lo_q)),
         "hi": float(np.quantile(values, 1.0 - lo_q)),
+        # 90% equal-tailed sensitivity band alongside the headline ci_prob interval.
+        "lo90": float(np.quantile(values, 0.05)),
+        "hi90": float(np.quantile(values, 0.95)),
     }
     if include_p_pos:
         out["p_pos"] = float(np.mean(values > 0.0))
@@ -2348,6 +2557,9 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
     ctx.tables["mediation_summary"] = med_df
+    # Print the primary decomposition table before the (slow, ~21x-decompose) sensitivity
+    # sweep, so the main NDE/NIE result shows under its own section header rather than
+    # under the sensitivity header and only after the sweep finishes (#289 review).
     print_table(
         ranked_dataframe_table(
             med_df,
@@ -2357,6 +2569,41 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             precision=3,
         )
     )
+
+    # Unmeasured mediator-outcome confounding sensitivity for the NIE (#230): sweep a
+    # bias off b_M and report the tipping point at which the indirect effect's CI
+    # includes 0 (a Bayesian E-value analogue). Quantifies the no-unmeasured-
+    # confounding assumption the decomposition otherwise only states.
+    section_header("Mediation NIE sensitivity (unmeasured confounding)")
+    sens_sweep, sens_summary = _med.sensitivity_sweep(
+        ctx.trace,
+        med_data,
+        ci_prob=ctx.reporting.ci_prob,
+        interventional=_interventional,
+    )
+    sens_sweep.to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity.csv"), index=False
+    )
+    pd.DataFrame([sens_summary]).to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity_summary.csv"), index=False
+    )
+    ctx.tables["mediation_sensitivity"] = sens_sweep
+    if sens_summary["already_null_at_zero"]:
+        rprint(
+            "  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A "
+            "(no indirect effect to explain away)."
+        )
+    elif sens_summary["robust_over_full_sweep"]:
+        rprint(
+            f"  NIE robust across the full sweep (CI excludes 0 up to "
+            f"delta={sens_sweep['delta'].max():.2f} logit)."
+        )
+    else:
+        rprint(
+            f"  NIE tipping point delta*={sens_summary['tipping_delta']:.3f} logit "
+            f"({sens_summary['tipping_frac_of_bM']:.0%} of the fitted b_M+b_GM) — an "
+            "unmeasured mediator-outcome confounder that strong would null the NIE."
+        )
 
     # --- Temporal-ordering sensitivity: outcome at t3, mediator still at t2 ---
     # Triangulation for the contemporaneous-measurement caveat (issue #84): the
@@ -3257,6 +3504,8 @@ def _beta_summary(trace, name: str, ci_prob: float) -> dict:
         "mean": float(np.mean(draws)),
         "lo": float(np.quantile(draws, lo_q)),
         "hi": float(np.quantile(draws, hi_q)),
+        "lo90": float(np.quantile(draws, 0.05)),
+        "hi90": float(np.quantile(draws, 0.95)),
         "prob_pos": float(np.mean(draws > 0)),
     }
 
@@ -3322,6 +3571,8 @@ def _natural_scale_contrasts(
                 "delta_words_mean": float(np.mean(delta)),
                 "delta_words_lo": float(np.quantile(delta, lo_q)),
                 "delta_words_hi": float(np.quantile(delta, hi_q)),
+                "delta_words_lo90": float(np.quantile(delta, 0.05)),
+                "delta_words_hi90": float(np.quantile(delta, 0.95)),
                 "prob_pos": float(np.mean(delta > 0)),
             }
         )
@@ -3590,10 +3841,14 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 "adj_mean": a["mean"],
                 "adj_lo": a["lo"],
                 "adj_hi": a["hi"],
+                "adj_lo90": a["lo90"],
+                "adj_hi90": a["hi90"],
                 "adj_prob_pos": a["prob_pos"],
                 "biv_mean": bv["mean"],
                 "biv_lo": bv["lo"],
                 "biv_hi": bv["hi"],
+                "biv_lo90": bv["lo90"],
+                "biv_hi90": bv["hi90"],
                 "biv_prob_pos": bv["prob_pos"],
                 # Convergence flags: the adjusted column is the primary (gated) fit;
                 # the bivariate column is a sub-fit that bypasses the primary gate (B1).
@@ -3791,16 +4046,24 @@ def _coef_row(label: str, draws, hdi_prob: float) -> dict:
         "mean": float(np.mean(d)),
         "lo": float(np.quantile(d, lo_q)),
         "hi": float(np.quantile(d, 1 - lo_q)),
+        "lo90": float(np.quantile(d, 0.05)),
+        "hi90": float(np.quantile(d, 0.95)),
         "prob_pos": float(np.mean(d > 0)),
     }
 
 
 def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    """Latent change-score model (LRP67).
+    """Latent change-score model (LRP67 + the lagged coupling suite, #250).
 
     Fits the coupled McArdle latent change-score model with process noise and
-    reports the reading-change coupling table — the within-trajectory analogue
-    of LRP65's between-child predictors of reading gain.
+    reports the per-target coupling tables. ``spec.extra`` selects the shape:
+    the LRP67 default couples every other measure into the reading change; the
+    lagged reverse-coupling models (LCSM-081/181/082) pass an explicit
+    ``couplings`` map plus ``arm_window_intercepts`` (the crossover-aware
+    arm x window change intercepts, with the window-1 randomised contrast
+    written to ``itt_window1_contrast.csv``) and a shared adjuster
+    ``covariate_block``. ``dominance_pair`` adds the SD-standardised
+    reciprocal-dominance contrast (``dominance_summary.csv``).
     """
     _require_spec(spec, "lcsm")
 
@@ -3809,7 +4072,31 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Prepare data")
     outcomes = tuple(spec.extra.get("outcomes", ("W", "L", "E")))
     reading_symbol = spec.outcome_symbol or "W"
-    panel = load_wave_panel(outcomes=outcomes)
+    couplings_in = spec.extra.get("couplings")
+    couplings: dict[str, tuple[str, ...]] = (
+        {tgt: tuple(srcs) for tgt, srcs in couplings_in.items()}
+        if couplings_in
+        else {reading_symbol: tuple(s for s in outcomes if s != reading_symbol)}
+    )
+    arm_window = bool(spec.extra.get("arm_window_intercepts", False))
+    covariate_block = tuple(spec.extra.get("covariate_block", ()))
+    covariate_targets = tuple(spec.extra.get("covariate_targets", ()))
+    # Loader needs from the covariate block: the hearing dummies come via
+    # include_hearing; everything else names a per-wave source column (its
+    # ``_missing`` companion is derived, not loaded).
+    include_hearing = any(n in ("hs", "hs_missing") for n in covariate_block)
+    wave_cov_cols = tuple(
+        dict.fromkeys(
+            n
+            for n in covariate_block
+            if n not in ("hs", "hs_missing") and not n.endswith("_missing")
+        )
+    )
+    panel = load_wave_panel(
+        outcomes=outcomes,
+        wave_covariates=wave_cov_cols,
+        include_hearing=include_hearing,
+    )
     ctx.prepared = panel
 
     _print_header(ctx)
@@ -3818,6 +4105,10 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     built = _factories.build_lcsm_model(
         panel,
         reading_symbol=reading_symbol,
+        couplings=couplings,
+        arm_window_intercepts=arm_window,
+        covariate_block=covariate_block,
+        covariate_targets=covariate_targets,
         coupling_prior_sigma=spec.extra.get(
             "coupling_prior_sigma",
             _default_of(_factories.build_lcsm_model, "coupling_prior_sigma"),
@@ -3829,8 +4120,16 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     _render_model_graph(ctx)
 
-    cross = [s for s in outcomes if s != reading_symbol]
-    diag_vars = [f"g_{s}" for s in cross]
+    # Coupling parameter names mirror the factory's rule: single target keeps
+    # LRP67's ``g_{src}``; multiple targets carry the target (``g_{src}_{tgt}``).
+    single_target = len(couplings) == 1
+    coupling_names = {
+        (src, tgt): (f"g_{src}" if single_target else f"g_{src}_{tgt}")
+        for tgt, srcs in couplings.items()
+        for src in srcs
+    }
+    diag_vars = list(coupling_names.values())
+    diag_vars += [f"b_{name}" for name in covariate_block]
     diag_vars += ["a_change", "b_self", "d_age", "sigma1", "kappa"]
     if spec.extra.get("use_process_noise", True):
         diag_vars.append("sigma_proc")
@@ -3853,25 +4152,58 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
-    # Reading-change coupling table — the headline "what predicts reading
-    # change" output and the basis for the LRP65 (between-child) sanity-check.
-    section_header("Reading-change coupling summary")
+    # Per-target coupling table — the headline "what predicts whose change"
+    # output. For LRP67 (single reading target) this reproduces the historical
+    # reading-change table, labels included.
+    section_header("Change-coupling summary")
     post = ctx.trace.posterior
     rows = [
         _coef_row(
-            f"g_{s} (prior {s} -> {reading_symbol} change)",
-            post[f"g_{s}"].values,
+            f"{pname} (prior {src} -> {tgt} change)",
+            post[pname].values,
             ctx.reporting.ci_prob,
         )
-        for s in cross
+        for (src, tgt), pname in coupling_names.items()
     ]
-    for name, label in (
-        ("b_self", f"b_self[{reading_symbol}] (reading self-feedback)"),
-        ("a_change", f"a_change[{reading_symbol}] (reading baseline change)"),
-        ("d_age", f"d_age[{reading_symbol}] (age -> reading change)"),
-    ):
+    for name in covariate_block:
         rows.append(
-            _coef_row(label, post[name].sel(outcome=reading_symbol).values, ctx.reporting.ci_prob)
+            _coef_row(
+                f"b_{name} ({name} -> {'/'.join(covariate_targets)} change)",
+                post[f"b_{name}"].values,
+                ctx.reporting.ci_prob,
+            )
+        )
+    for tgt in couplings:
+        # LRP67's historical row labels are kept verbatim for the single
+        # reading-target shape.
+        legacy = single_target and tgt == reading_symbol
+        rows.append(
+            _coef_row(
+                f"b_self[{tgt}] (reading self-feedback)"
+                if legacy
+                else f"b_self[{tgt}] ({tgt} self-feedback)",
+                post["b_self"].sel(outcome=tgt).values,
+                ctx.reporting.ci_prob,
+            )
+        )
+        if not arm_window:
+            rows.append(
+                _coef_row(
+                    f"a_change[{tgt}] (reading baseline change)"
+                    if legacy
+                    else f"a_change[{tgt}] ({tgt} baseline change)",
+                    post["a_change"].sel(outcome=tgt).values,
+                    ctx.reporting.ci_prob,
+                )
+            )
+        rows.append(
+            _coef_row(
+                f"d_age[{tgt}] (age -> reading change)"
+                if legacy
+                else f"d_age[{tgt}] (age -> {tgt} change)",
+                post["d_age"].sel(outcome=tgt).values,
+                ctx.reporting.ci_prob,
+            )
         )
     coupling_df = pd.DataFrame(rows)
     coupling_df.to_csv(os.path.join(ctx.output_dir, "coupling_summary.csv"), index=False)
@@ -3880,7 +4212,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ranked_dataframe_table(
             coupling_df,
             title=(
-                f"Reading-change couplings - {int(ctx.reporting.ci_prob * 100)}% CI "
+                f"Change couplings - {int(ctx.reporting.ci_prob * 100)}% CI "
                 "(equal-tailed)"
             ),
             columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
@@ -3889,13 +4221,93 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     )
 
+    # Window-1 randomised contrast on the latent change scale (immediate -
+    # waitlist), the built-in consistency check against the ITT suite. Only the
+    # arm x window shape carries it.
+    itt_rows: list[dict] = []
+    if arm_window:
+        section_header("Window-1 randomised contrast (ITT consistency check)")
+        for s in outcomes:
+            itt_rows.append(
+                _coef_row(
+                    f"itt_w1[{s}] (immediate - waitlist, window-1 latent change)",
+                    post["itt_w1_contrast"].sel(outcome=s).values,
+                    ctx.reporting.ci_prob,
+                )
+            )
+        itt_df = pd.DataFrame(itt_rows)
+        itt_df.to_csv(
+            os.path.join(ctx.output_dir, "itt_window1_contrast.csv"), index=False
+        )
+        ctx.tables["itt_window1_contrast"] = itt_df
+        print_table(
+            ranked_dataframe_table(
+                itt_df,
+                title="Window-1 arm contrast (latent logit change)",
+                columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
+                rank_column=False,
+                precision=3,
+            )
+        )
+
+    # Reciprocal-dominance contrast (LCSM-082): per draw, standardise each
+    # direction's coupling by the model's own latent scales (g* = g *
+    # sd(prior source levels) / sd(target changes)) and report |g*_AB| - |g*_BA|.
+    dom_rows: list[dict] = []
+    dominance_pair = spec.extra.get("dominance_pair")
+    if dominance_pair:
+        a, b = dominance_pair
+        section_header(f"Reciprocal dominance: {a} <-> {b}")
+        x = post["x_latent"]
+
+        def _std_coupling(src: str, tgt: str):
+            g = post[coupling_names[(src, tgt)]]
+            sd_src = x.isel(wave=slice(0, -1)).sel(outcome=src).std(
+                dim=("child", "wave")
+            )
+            sd_dt = x.sel(outcome=tgt).diff("wave").std(dim=("child", "wave"))
+            return g * sd_src / sd_dt
+
+        g_ab = _std_coupling(a, b)  # prior a -> b change
+        g_ba = _std_coupling(b, a)  # prior b -> a change
+        contrast = abs(g_ab) - abs(g_ba)
+        dom_rows = [
+            _coef_row(f"std g ({a} -> {b} change)", g_ab.values, ctx.reporting.ci_prob),
+            _coef_row(f"std g ({b} -> {a} change)", g_ba.values, ctx.reporting.ci_prob),
+            _coef_row(
+                f"|std g {a}->{b}| - |std g {b}->{a}| (dominance)",
+                contrast.values,
+                ctx.reporting.ci_prob,
+            ),
+        ]
+        dom_df = pd.DataFrame(dom_rows)
+        dom_df.to_csv(
+            os.path.join(ctx.output_dir, "dominance_summary.csv"), index=False
+        )
+        ctx.tables["dominance_summary"] = dom_df
+        print_table(
+            ranked_dataframe_table(
+                dom_df,
+                title="SD-standardised reciprocal couplings",
+                columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
+                rank_column=False,
+                precision=3,
+            )
+        )
+
     _report.write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
             "outcomes": list(outcomes),
             "reading_symbol": reading_symbol,
+            "couplings": {tgt: list(srcs) for tgt, srcs in couplings.items()},
+            "arm_window_intercepts": arm_window,
+            "covariate_block": list(covariate_block),
+            "covariate_targets": list(covariate_targets),
             "coupling_summary": rows,
+            **({"itt_window1_contrast": itt_rows} if itt_rows else {}),
+            **({"dominance_summary": dom_rows} if dom_rows else {}),
         },
     )
 
@@ -4009,6 +4421,8 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "median": float(np.median(corr)),
             "lo": float(np.quantile(corr, lo_q)),
             "hi": float(np.quantile(corr, 1 - lo_q)),
+            "lo90": float(np.quantile(corr, 0.05)),
+            "hi90": float(np.quantile(corr, 0.95)),
             "prob_pos": float(np.mean(corr > 0)),
         }
         pd.DataFrame([tempo_corr]).to_csv(
@@ -4319,12 +4733,18 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                 "loading_mean": float(np.mean(lam_d)),
                 "loading_lo": float(np.quantile(lam_d, lo_q)),
                 "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
+                "loading_lo90": float(np.quantile(lam_d, 0.05)),
+                "loading_hi90": float(np.quantile(lam_d, 0.95)),
                 "correlation_mean": float(np.mean(corr_d)),
                 "correlation_lo": float(np.quantile(corr_d, lo_q)),
                 "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
+                "correlation_lo90": float(np.quantile(corr_d, 0.05)),
+                "correlation_hi90": float(np.quantile(corr_d, 0.95)),
                 "communality_mean": float(np.mean(com_d)),
                 "communality_lo": float(np.quantile(com_d, lo_q)),
                 "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
+                "communality_lo90": float(np.quantile(com_d, 0.05)),
+                "communality_hi90": float(np.quantile(com_d, 0.95)),
             }
         )
     load_df = pd.DataFrame(load_rows)
@@ -4369,6 +4789,8 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                     "mean": float(np.mean(pair)),
                     "lo": float(np.quantile(pair, lo_q)),
                     "hi": float(np.quantile(pair, 1 - lo_q)),
+                    "lo90": float(np.quantile(pair, 0.05)),
+                    "hi90": float(np.quantile(pair, 0.95)),
                     "prob_pos": float(np.mean(pair > 0)),
                 }
             )

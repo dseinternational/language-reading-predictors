@@ -1,0 +1,141 @@
+// Language & reading causal DAG — TIME-LAGGED (wave-unrolled) companion graph.
+// Down Syndrome Education International. Companion to the authoritative
+// contemporaneous graph dag/dag-language-reading.dagitty (single-wave).
+//
+// STRUCTURE: Option A — the base DAG copied at each wave — ADOPTED 2026-07-13
+// (decision recorded in the PR #288 discussion; both options and the reasoning
+// are in notes/202607131300-time-lagged-dag-options.md). The pure-lagged
+// alternative (Option B) considered and not adopted remains drawn in
+// dag/dag-language-reading-lagged.svg for the decision record.
+//
+// WHY: the contemporaneous graph cannot express maturation or the direction of
+// change over the four waves. Unrolling over time (a) makes the reciprocal edges
+// representable instead of confessed-away, (b) lets reading -> language coexist
+// with language -> reading without a cycle, (c) makes every gain-factor / LCSM /
+// mediation adjustment set literally readable off the graph (the parents at the
+// prior wave), and (d) supports the #264 resolution that baseline vocabulary is
+// an admissible mediation confounder, via explicit temporal precedence.
+//
+// CONVENTION: a two-slice TEMPLATE. Suffix _t = a wave, _t1 = the next wave; the
+// same structure repeats over each adjacent transition t1->t2, t2->t3, t3->t4.
+// Assessments are ~20 weeks apart (the 40-week programme spans two transitions).
+// (A full t1..t4 unroll is causally equivalent but ~4x the nodes and unreadable.)
+//
+// DESIGN DECISIONS — Option A ADOPTED 2026-07-13 (PR #288 discussion). The
+//   lagged-DAG workstream was agreed 2026-07-10; the A-vs-B structure choice is
+//   now made. Still open for review: the per-edge reverse-edge justifications
+//   and a crossover-aware slice (see the notes).
+//   * WITHIN-WAVE CASCADE (Option A). Each wave holds the full base-DAG skill
+//     cascade; waves are joined by carry-over (X_t -> X_t1) and the lagged
+//     reverse WR edges only. Forward influence of one skill on a *different*
+//     skill at the next wave is mediated — X_t -> X_t1 -> Y_t1 and
+//     X_t -> Y_t -> Y_t1 — rather than drawn as direct cross-lagged edges (the
+//     standard unrolled treatment). Rationale: assessments are ~20 weeks apart,
+//     and the tightly coupled cascade steps (letter-sounds feeding blending and
+//     decoding) act on a timescale of days to weeks, so a pure-lagged graph
+//     would assert dynamics we believe exist do not. The within-wave paths are
+//     part of the causal description, NOT an estimation demand: at n~54 the
+//     fitted models estimate lagged, pooled couplings only (model-plan note).
+//     The previously flagged within-wave LS->WR carve-out is moot under A —
+//     the whole cascade is within-wave.
+//   * REVERSE / RECIPROCAL edges (all lagged — they must cross the wave to
+//     stay acyclic; target set directed by the team 2026-07-13):
+//     WR_t -> TE_t1, WR_t -> TR_t1 (reading feeding back into the TAUGHT
+//     vocabulary measures; broad vocabulary is then reached indirectly via the
+//     within-wave TE_t1 -> EV_t1 / TR_t1 -> RV_t1 paths, so the founding RLI
+//     reading -> language hypothesis is routed through the taught words),
+//     WR_t -> PA_t1 (reciprocal with the within-wave PA -> WR — the
+//     cross-lagged test of which direction dominates), and WR_t -> RW_t1
+//     (reading -> phonological memory). Each edge still needs its one-line
+//     justification for the record (see the notes). An earlier draft pointed
+//     the vocabulary feedback at the standardised measures (WR -> EV/RV);
+//     superseded by this set.
+//   * HS is kept a STABLE EXOGENOUS ROOT. A -> HS (age-related conductive
+//     hearing change) is biologically defensible but omitted: hearing_c is
+//     recorded time-invariantly in this cohort (same 44/54 at every wave), so a
+//     time-varying HS_t / an A->HS edge is unidentifiable here. Revisit if
+//     per-wave audiology ever exists.
+//   * INTERVENTION timing is ARM-SPECIFIC. IG (randomised at baseline) drives
+//     the sessions IS in this window and, ITT, the taught skills at the next
+//     wave. The ACTIVE window differs by arm (immediate: t1->t2; waitlist:
+//     t2->t3); the template shows one generic active window and the note
+//     records the crossover.
+//
+// Node key (same constructs as the contemporaneous graph; _t / _t1 = wave):
+//   A age, GA general ability [latent], HS hearing, IG intervention group
+//   (randomised), IS intervention sessions, RV/EV receptive/expressive vocab,
+//   LF language fundamentals, RG receptive grammar, RW phonological memory,
+//   EI/EG expressive information/grammar, SP speech, LS letter sounds,
+//   NW nonword reading, PA phonological awareness (blending), PS phonetic spelling,
+//   WR word reading, TR/TE taught receptive/expressive vocab.
+//
+// Paste into https://www.dagitty.net/dags.html to render/inspect.
+// Verified acyclic (36 nodes, 195 edges).
+
+dag {
+GA [latent]
+
+// --- WAVE t: the full base-DAG cascade, within-wave ---
+TR_t -> { TE_t RV_t EV_t LF_t RG_t WR_t }
+TE_t -> { EV_t EG_t EI_t PA_t WR_t }
+RW_t -> { TE_t EV_t TR_t RV_t PA_t NW_t PS_t }
+RV_t -> { EV_t LF_t RG_t WR_t }
+EV_t -> { EG_t EI_t PA_t WR_t }
+SP_t -> { TE_t EV_t LS_t PA_t NW_t }
+LS_t -> { NW_t PA_t PS_t WR_t }
+NW_t -> WR_t
+PA_t -> { NW_t WR_t PS_t }
+RG_t -> EG_t
+
+// --- WAVE t+1: the full base-DAG cascade, within-wave ---
+TR_t1 -> { TE_t1 RV_t1 EV_t1 LF_t1 RG_t1 WR_t1 }
+TE_t1 -> { EV_t1 EG_t1 EI_t1 PA_t1 WR_t1 }
+RW_t1 -> { TE_t1 EV_t1 TR_t1 RV_t1 PA_t1 NW_t1 PS_t1 }
+RV_t1 -> { EV_t1 LF_t1 RG_t1 WR_t1 }
+EV_t1 -> { EG_t1 EI_t1 PA_t1 WR_t1 }
+SP_t1 -> { TE_t1 EV_t1 LS_t1 PA_t1 NW_t1 }
+LS_t1 -> { NW_t1 PA_t1 PS_t1 WR_t1 }
+NW_t1 -> WR_t1
+PA_t1 -> { NW_t1 WR_t1 PS_t1 }
+RG_t1 -> EG_t1
+
+// --- autoregressive (stability / carry-over) ---
+TR_t -> TR_t1
+TE_t -> TE_t1
+RV_t -> RV_t1
+EV_t -> EV_t1
+LF_t -> LF_t1
+RG_t -> RG_t1
+RW_t -> RW_t1
+EI_t -> EI_t1
+EG_t -> EG_t1
+SP_t -> SP_t1
+LS_t -> LS_t1
+NW_t -> NW_t1
+PA_t -> PA_t1
+PS_t -> PS_t1
+WR_t -> WR_t1
+A_t  -> A_t1   // age is deterministic given wave spacing; a placeholder for maturation, not a stochastic cause
+
+// --- reverse / reciprocal (lagged; must cross the wave to stay acyclic) ---
+WR_t -> { TE_t1 TR_t1 PA_t1 RW_t1 }
+
+// --- age (maturation): exogenous, within-wave each slice ---
+A_t  -> { IS_t TR_t TE_t PA_t LS_t WR_t PS_t RV_t EV_t LF_t RG_t RW_t EI_t EG_t SP_t NW_t }
+A_t1 -> { TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 RV_t1 EV_t1 LF_t1 RG_t1 RW_t1 EI_t1 EG_t1 SP_t1 NW_t1 }
+
+// --- latent general ability (time-invariant common cause of every skill) ---
+GA -> { IS_t TR_t TE_t PA_t LS_t WR_t PS_t RV_t EV_t LF_t RG_t RW_t EI_t EG_t SP_t NW_t }
+GA -> { TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 RV_t1 EV_t1 LF_t1 RG_t1 RW_t1 EI_t1 EG_t1 SP_t1 NW_t1 }
+
+// --- hearing status (stable exogenous root; A->HS omitted, see header/note) ---
+HS -> { TR_t RV_t TE_t EV_t SP_t RW_t PA_t LS_t }
+HS -> { TR_t1 RV_t1 TE_t1 EV_t1 SP_t1 RW_t1 PA_t1 LS_t1 }
+
+// --- intervention (arm-specific active window: see header/note) ---
+// Sessions are shown only for the active window (IS_t). Second-window dose (IS_t1) would
+// act on wave t+2, off this two-slice template, so it is omitted (it was a dangling node).
+IG -> IS_t
+IG   -> { TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 EI_t1 EG_t1 }
+IS_t -> { TR_t1 TE_t1 PA_t1 LS_t1 WR_t1 PS_t1 EI_t1 EG_t1 }
+}

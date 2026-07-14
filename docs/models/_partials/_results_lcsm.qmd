@@ -33,7 +33,8 @@ if coupling_summary is not None:
         _r = _g.iloc[0]
         print(
             f"Headline coupling `{_r.coefficient}`: mean {_r['mean']:+.3f} "
-            f"(95% CrI {_r.lo:+.3f} to {_r.hi:+.3f}); "
+            f"(90% CrI {_r.lo90:+.3f} to {_r.hi90:+.3f}; "
+            f"95% {_r.lo:+.3f} to {_r.hi:+.3f}); "
             f"P(> 0) = {_r.prob_pos:.3f}. Read agreement with LRP65 and the "
             "mechanism models rather than treating this one coefficient as decisive."
         )
@@ -47,3 +48,48 @@ wide interval or fragile sampler is an honest finding, not just a nuisance.
 
 :::
 
+
+```{python}
+# | echo: false
+# | output: asis
+# Crossover-aware shapes (LCSM-081/082) also write the window-1 randomised arm
+# contrast; absent for the pooled-intercept LRP67, so this renders nothing there.
+_itt = _csv("itt_window1_contrast.csv")
+if _itt is not None:
+    print("### Window-1 randomised contrast (ITT consistency check)\n")
+    print(
+        "The arm x window change intercepts make the window-1 cell contrast "
+        "(immediate - waitlist) a **randomised** latent ITT contrast on the "
+        "logit change scale. It is reported as a consistency check against the "
+        "ITT suite (direction and rough magnitude), not as a new headline "
+        "effect.\n"
+    )
+```
+
+```{python}
+# | echo: false
+_itt if _itt is not None else None
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Reciprocal-dominance shapes (LCSM-082) also write the SD-standardised
+# contrast; absent elsewhere, so this renders nothing there.
+_dom = _csv("dominance_summary.csv")
+if _dom is not None:
+    print("### Reciprocal dominance (SD-standardised couplings)\n")
+    print(
+        "Each direction's coupling is standardised per posterior draw by the "
+        "model's own latent scales (`g* = g * sd(prior source levels) / "
+        "sd(target changes)`), so the two directions are comparable; the "
+        "dominance row is the posterior of the absolute-value difference. Both "
+        "directions are broadly-confounded adjusted associations - read the "
+        "contrast as hypothesis-generating only.\n"
+    )
+```
+
+```{python}
+# | echo: false
+_dom if _dom is not None else None
+```

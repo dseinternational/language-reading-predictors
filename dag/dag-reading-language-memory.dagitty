@@ -1,0 +1,77 @@
+// Reading, language & memory causal DAG — Byrne, MacDonald & Buckley (2002)
+// cohort (study_id="rlm"). Down Syndrome Education International.
+// PROPOSAL 2026-07-13 (Claude Code/Fable 5). See
+// notes/202607131500-byrne-dag-proposal.md for the full construct crosswalk,
+// the RLI-edge mapping, the readgrp / reading-matched selection caveat, the
+// latent extensions and the lagged companion.
+// Paste into https://www.dagitty.net/dags.html to render/inspect.
+//
+// This is the BYRNE analogue of the authoritative RLI base graph
+// dag/dag-language-reading.dagitty (revised 2026-07-10). It keeps the RLI
+// causal SKELETON among the skills that have a Byrne counterpart, DROPS the RLI
+// nodes with no measure in the prepared extract, COLLAPSES the unmeasured code
+// route into direct edges, and REPLACES the randomised intervention (IG/IS)
+// with the observational cohort factor readgrp. Exposure/outcome roles are
+// assigned per analysis; only GA is annotated latent (a structural property).
+//
+// CONTEMPORANEOUS (single-wave) structure, matching the RLI base graph. The
+// study's founding reciprocal question (does reading feed language & memory?)
+// is inherently longitudinal and belongs in a time-lagged companion — see the
+// note (mirrors dag/dag-language-reading-lagged.dagitty for RLI).
+//
+// Node symbols = Byrne CSV columns (study-local, per datasets.py), with the RLI
+// symbol they map to in [brackets]:
+//   age     - Age in months                                        [A]
+//   GA      - General Ability [latent]                             [GA]
+//   readgrp - Reading group / cohort factor (1 Down syndrome,
+//             2 average readers, 3 reading-matched) — OBSERVATIONAL,
+//             non-manipulable; NOT the RLI randomised exposure      [replaces IG/IS]
+//   bassim  - BAS similarities / verbal reasoning   (GA indicator) [new]
+//   basmat  - BAS matrices / non-verbal reasoning   (GA indicator; wave 3+) [new]
+//   basdig  - BAS recall of digits (verbal short-term / phon. memory) [RW]
+//   bpvs    - British Picture Vocabulary Scale (receptive vocabulary)  [RV]
+//   trog    - Test for Reception of Grammar (receptive grammar)        [RG]
+//   basread - BAS word reading (primary outcome)                       [WR]
+//   basspel - BAS spelling (outcome; involves writing letters)         [PS]
+//   basnum  - BAS number skills (arithmetic outcome)              [new]
+//   woco    - WORD reading comprehension (outcome)                [new; Simple View]
+//   (speed  - processing speed, wave 3+ only, sparse — documented in the note,
+//             deliberately kept OUT of the edge block)
+//
+// Adaptation summary (full table in the note):
+//   * IG/IS  -> readgrp   (randomised cause replaced by an observational cohort
+//                          marker; NO term here is a clean causal effect).
+//   * DROP   HS EV LF EI EG SP LS PA NW TE TR  (no measure in the extract).
+//   * COLLAPSE the code route (LS/PA/NW): basdig -> basread and bpvs -> basread
+//                          now stand in for RLI's ...-> (code route) -> WR chain.
+//   * ADD    woco, basnum, bassim, basmat, and the GA indicator structure.
+//   * basread is NO LONGER a sink: woco (reading comprehension) sits downstream.
+//
+// Verified acyclic (12 nodes; roots age, GA, readgrp). The age <-> readgrp
+// bidirected edge is a DESIGN-induced association (reading-matched children are
+// younger by construction), not a causal arrow; it leaves the graph acyclic.
+
+dag {
+GA [latent]
+
+// --- universal parents (as in RLI: age & GA into every observed node; here
+//     readgrp too, as the cohort/population marker) ---
+age     -> { bassim basmat basdig basnum bpvs trog basread basspel woco }
+GA      -> { bassim basmat basdig basnum bpvs trog basread basspel woco }
+readgrp -> { bassim basmat basdig basnum bpvs trog basread basspel woco }
+
+// --- verbal short-term / phonological memory (RLI RW), code route collapsed ---
+basdig -> { bpvs basread basspel basnum woco }
+
+// --- receptive vocabulary (RLI RV) ---
+bpvs -> { trog basread woco }
+
+// --- receptive grammar (RLI RG) -> reading comprehension (Simple View) ---
+trog -> woco
+
+// --- word reading (RLI WR) -> reading comprehension (Simple View) ---
+basread -> woco
+
+// --- design-induced association (matching), NOT causal: reading-matched younger ---
+age <-> readgrp
+}
