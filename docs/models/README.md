@@ -264,20 +264,22 @@ so _no_ term is causal — every coefficient is an association. Design note:
 `04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`; **`lrp-rli-al-101`** adds a
 cumulative-session dose sensitivity term (a collider — sensitivity only).
 
-### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073` (`kind="mechanism"`)
+### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073`, `lrp-rli-mech-088–lrp-rli-mech-089` (`kind="mechanism"`)
 
 **Purpose.** The adjustment-set dose-response of one measured skill on another across all
 phases, with subject random intercepts and optional linear moderation. Every slope is an
 **adjusted association** (latent-ability confounded), not a causal effect.
 
-| Model                         | Path    | Purpose                                                                                               |
-| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| `lrp-rli-mech-056`            | `R → W` | Receptive vocabulary → word reading                                                                   |
-| `lrp-rli-mech-057`            | `E → W` | Expressive vocabulary → word reading                                                                  |
-| `lrp-rli-mech-058`            | `L → W` | Letter-sound knowledge → word reading                                                                 |
-| `lrp-rli-mech-071`            | `L → W` | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                          |
-| `lrp-rli-mech-072` / `72base` | `L → N` | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction) |
-| `lrp-rli-mech-073` / `73base` | `L → W` | Letter sounds → word reading, moderated by age (with / without the interaction)                       |
+| Model                         | Path     | Purpose                                                                                               |
+| ----------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `lrp-rli-mech-056`            | `R → W`  | Receptive vocabulary → word reading                                                                   |
+| `lrp-rli-mech-057`            | `E → W`  | Expressive vocabulary → word reading                                                                  |
+| `lrp-rli-mech-058`            | `L → W`  | Letter-sound knowledge → word reading                                                                 |
+| `lrp-rli-mech-071`            | `L → W`  | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                          |
+| `lrp-rli-mech-072` / `72base` | `L → N`  | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction) |
+| `lrp-rli-mech-073` / `73base` | `L → W`  | Letter sounds → word reading, moderated by age (with / without the interaction)                       |
+| `lrp-rli-mech-088`            | `TR → W` | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)           |
+| `lrp-rli-mech-089`            | `TE → W` | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)         |
 
 ### Mediation — `lrp-rli-med-059`, `lrp-rli-med-062`, `lrp-rli-med-064` (`kind="mediation"` / `"mediation_multi"`)
 
