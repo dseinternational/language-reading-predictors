@@ -80,6 +80,34 @@ def test_decompose_beta_binomial(tmp_path):
     assert effects[["prob_mean", "words_mean"]].notna().all().all()
 
 
+def test_decompose_offfloor_outcome(tmp_path):
+    """#228 item 12 (LRP86, nonword N): an off-floor (Bernoulli) OUTCOME. The outcome
+    leg drops the own-baseline b_W, so decompose must NOT read it, and it reports
+    NIE/NDE on the off-floor risk-difference scale (n_trials_W = 1, so words_* ==
+    prob_*)."""
+    prep = _prepare(tmp_path)
+    _, med = build_mediation_model(
+        prep, confounder_symbols=("E", "R"), outcome_kind="bernoulli_offfloor"
+    )
+    assert med.off_floor is True
+    assert med.n_trials_W == 1
+    # Fake trace WITHOUT b_W (never created on the off-floor leg) and WITHOUT kappa_Y
+    # (the Bernoulli has no dispersion) — so if decompose read b_W it would KeyError.
+    names = (
+        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_E", "b_R"]
+        + _BB_MEDIATOR_DRAWS
+        + ["a_E", "a_R", "kappa_M"]
+    )
+    df = decompose(_fake_trace(names, positive=["kappa_M"]), med, n_replicates=4)
+    assert set(df["quantity"]) == _QUANTITIES
+    eff = df[df["quantity"].isin(["total", "NDE", "NIE"])]
+    assert eff[["prob_mean", "words_mean"]].notna().all().all()
+    # n_trials_W = 1 => the items ("words") columns collapse onto the risk difference.
+    assert np.allclose(eff["prob_mean"].to_numpy(), eff["words_mean"].to_numpy())
+    # Every row carries the off_floor flag so the report labels the scale.
+    assert bool(df["off_floor"].iloc[0]) is True
+
+
 def test_decompose_gaussian_composite(tmp_path):
     """LRP62: Gaussian route-composite mediator, confounders {E, R}."""
     prep = _prepare(tmp_path)
