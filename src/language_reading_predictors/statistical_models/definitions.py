@@ -178,7 +178,7 @@ _DID = [
     # Treatment-effect heterogeneity variance component (#230 §2/§4a): a per-child random
     # on-intervention slope whose SD (sigma_delta) is the estimand — the honest first rung
     # of the non-responder question. delta stays the population-mean crossover effect.
-    _d("lrpdid13", "did", "Within-person DiD", Status.ASSOCIATION, "W", "treatment-effect heterogeneity (random on-intervention slope)", base="lrpdid01"),
+    _d("lrpdid13", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "treatment-effect heterogeneity (random on-intervention slope)", base="lrpdid01"),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------
