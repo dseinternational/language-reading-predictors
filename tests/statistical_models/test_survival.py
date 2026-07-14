@@ -91,7 +91,8 @@ def test_readiness_knee_finds_a_late_rising_curve():
     fmean = np.where(lvals < 20, 0.0, (lvals - 20) * 0.3)
     f = np.repeat(fmean[:, None], 60, axis=1)  # (n_obs, draws), noise-free
     out = reporting._readiness_knee(f, ell, n_trials=n_trials, n_bins=6)
-    assert 0.0 <= out["knee_lettersounds_median"] <= float(n_trials)
-    assert out["knee_lettersounds_median"] > 15.0  # rises only in the upper range
+    assert 0.0 <= out["knee_count_median"] <= float(n_trials)
+    assert out["knee_count_median"] > 15.0  # rises only in the upper range
     assert out["slope_above_knee_median"] >= out["slope_below_knee_median"]
+    assert out["increasing_frac"] == 1.0  # noise-free rising curve
     assert out["n_obs"] == n_obs

@@ -637,8 +637,18 @@ def _readiness_knee(
     Pure-numpy core of :func:`readiness_threshold` (split out so the knee logic is
     unit-testable without a trace, #293 review). ``f`` is ``(n_obs, n_draws)`` HSGP
     curve draws; ``ell`` is the ``(n_obs,)`` Haldane-corrected mechanism logit.
+
+    The knee is the *steepest rise* of the binned curve — the predictor level at
+    which the outcome rises fastest per additional item — not the onset of the
+    rise; ``slope_below/above_knee_median`` support the "flat below, rising above"
+    read. ``half_rise_count_*`` is a complementary mid-rise summary (where the
+    curve first reaches the midpoint of its binned range). Both are summarised
+    over the *increasing* draws only (net end-to-end rise on the binned curve;
+    the share is ``increasing_frac``) — on a flat or falling draw the estimands
+    are undefined, and a low ``increasing_frac`` flags an ill-defined knee
+    (#297 review).
     """
-    # Inverse Haldane-corrected logit -> approximate letter-sound count, clipped to range.
+    # Inverse Haldane-corrected logit -> approximate predictor count, clipped to range.
     # ell = log((y+0.5)/(n-y+0.5)) => expit(ell) = (y+0.5)/(n+1), so y = (n+1)*expit(ell) - 0.5
     # (the denominator is n+1, not n; #293 review).
     L = np.clip((n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
@@ -646,7 +656,7 @@ def _readiness_knee(
     edges = np.unique(np.quantile(L, np.linspace(0.0, 1.0, n_bins + 1)))
     nb = len(edges) - 1
     if nb < 2:
-        raise ValueError("Too few distinct letter-sound bins to locate a knee.")
+        raise ValueError("Too few distinct predictor bins to locate a knee.")
     centers = 0.5 * (edges[:-1] + edges[1:])
     idx = np.clip(np.digitize(L, edges[1:-1]), 0, nb - 1)
     binmean = np.full((nb, f.shape[1]), np.nan)
@@ -657,26 +667,70 @@ def _readiness_knee(
     slope = np.diff(binmean, axis=0) / np.diff(centers)[:, None]  # (nb-1, S)
     knee_bin = np.nanargmax(slope, axis=0)  # steepest-rise interval per draw
     knee_L = 0.5 * (centers[knee_bin] + centers[knee_bin + 1])  # (S,)
+
+    # Net end-to-end rise per draw; the estimand summaries pool these draws only.
+    increasing = binmean[-1] > binmean[0]  # (S,) — NaN endpoints compare False
+
+    # Per-draw half-rise: where the binned curve first reaches the midpoint of its
+    # range, linearly interpolated between the straddling bin centres.
+    lo_f = np.nanmin(binmean, axis=0)  # (S,)
+    hi_f = np.nanmax(binmean, axis=0)
+    target = 0.5 * (lo_f + hi_f)
+    first = np.argmax(binmean >= target[None, :], axis=0)  # first bin at/above midpoint
+    half_L = np.full(f.shape[1], centers[0])  # first==0: starts at/above the midpoint
+    interior = first > 0
+    if interior.any():
+        s = np.flatnonzero(interior)
+        j = first[s]
+        f_lo, f_hi = binmean[j - 1, s], binmean[j, s]
+        with np.errstate(invalid="ignore", divide="ignore"):
+            t = np.where(f_hi > f_lo, (target[s] - f_lo) / (f_hi - f_lo), 0.0)
+        half_L[s] = centers[j - 1] + t * (centers[j] - centers[j - 1])
+
     lo, hi = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
-    kmed = float(np.median(knee_L))
+
+    def _q(a: np.ndarray) -> tuple[float, float, float]:
+        a = a[np.isfinite(a)]
+        if not a.size:
+            return (float("nan"),) * 3
+        return (
+            float(np.median(a)),
+            float(np.quantile(a, lo)),
+            float(np.quantile(a, hi)),
+        )
+
+    kmed, k_lo, k_hi = _q(knee_L[increasing])
+    hmed, h_lo, h_hi = _q(half_L[increasing])
+
     # Classify each between-bin interval by its midpoint relative to the median knee, so
     # the knee interval itself counts as "above" and the "above" set is never empty when
     # the steepest rise is the top interval (a late-accelerating curve).
-    interval_mid = 0.5 * (centers[:-1] + centers[1:])
-    below = interval_mid < kmed
-    slope_below = np.nanmean(np.where(below[:, None], slope, np.nan), axis=0)
-    slope_above = np.nanmean(np.where(~below[:, None], slope, np.nan), axis=0)
+    if np.isfinite(kmed):
+        interval_mid = 0.5 * (centers[:-1] + centers[1:])
+        below = interval_mid < kmed
+        slope_below = np.nanmean(np.where(below[:, None], slope, np.nan), axis=0)
+        slope_above = np.nanmean(np.where(~below[:, None], slope, np.nan), axis=0)
+    else:  # no increasing draws — the below/above split is undefined
+        slope_below = slope_above = np.full(f.shape[1], np.nan)
 
     def _med(a: np.ndarray) -> float:
-        a = a[np.isfinite(a)]
+        a = a[np.isfinite(a) & increasing]
         return float(np.median(a)) if a.size else float("nan")
 
     return {
-        "knee_lettersounds_median": kmed,
-        "knee_lettersounds_ci_low": float(np.quantile(knee_L, lo)),
-        "knee_lettersounds_ci_high": float(np.quantile(knee_L, hi)),
+        "knee_count_median": kmed,
+        "knee_count_ci_low": k_lo,
+        "knee_count_ci_high": k_hi,
+        "half_rise_count_median": hmed,
+        "half_rise_count_ci_low": h_lo,
+        "half_rise_count_ci_high": h_hi,
         "slope_below_knee_median": _med(slope_below),
         "slope_above_knee_median": _med(slope_above),
+        "increasing_frac": float(np.mean(increasing)),
+        "obs_count_min": float(L.min()),
+        "obs_count_max": float(L.max()),
+        "ci_prob": float(ci_prob),
+        "n_draws": int(f.shape[1]),
         "n_obs": int(f.shape[0]),
         "n_bins": int(nb),
     }
@@ -689,15 +743,19 @@ def readiness_threshold(
     ci_prob: float = 0.95,
     n_bins: int = 6,
 ) -> dict[str, float]:
-    """Readiness-threshold estimand: the letter-sound count where reading takes off (#230 §5).
+    """Readiness-threshold estimand: the steepest rise of a mechanism curve (#230 §2/§5).
 
-    Post-processes an HSGP mechanism model's adjusted L->W curve ``f_mech`` to locate its
-    steepest rise — the "knee" of the surface, in letter-sound count units — answering
-    "does reading move only above ~k letter sounds?". For each posterior draw the
-    per-observation ``f_mech`` is binned over the observed letter-sound range (quantile
-    bins) and the steepest between-bin rise is found; the knee is that interval's midpoint,
-    giving a posterior over the knee location. Reports its median + equal-tailed CI and the
-    mean marginal slope below vs above it (a "flat below, rising above" read).
+    Post-processes an HSGP mechanism model's adjusted curve ``f_mech`` to locate its
+    steepest rise — the "knee", in the predictor's raw count units. For each posterior
+    draw the per-observation ``f_mech`` is binned over the observed predictor range
+    (quantile bins) and the steepest between-bin rise is found; the knee is that
+    interval's midpoint, giving a posterior over the knee location. Reports its median
+    + equal-tailed CI, a complementary half-rise summary, and the mean marginal slope
+    below vs above the knee (a "flat below, rising above" read). Note the knee is where
+    the outcome rises *fastest* — the middle of the rise, not its onset; for the
+    letter-sound -> word-reading mechanism (``lrp-rli-mech-058``) read it as "reading
+    rises fastest around ~k letter sounds", and let the below-knee slope say whether it
+    is near-flat before that.
 
     Pure post-processing (no re-fit): needs the ``f_mech`` posterior and the
     ``mech_post_logit`` constant-data node of a standard HSGP mechanism fit (e.g.
