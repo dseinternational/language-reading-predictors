@@ -175,6 +175,10 @@ _DID = [
     _d("lrpdid10", "did", "Within-person DiD", Status.ROBUSTNESS, "F", "waitlist-crossover replication", base="lrpitt25"),
     _d("lrpdid11", "did", "Within-person DiD", Status.ROBUSTNESS, "P", "waitlist-crossover replication (off-floor)", base="lrpitt09"),
     _d("lrpdid12", "did", "Within-person DiD", Status.ROBUSTNESS, "N", "waitlist-crossover replication (off-floor)", base="lrpitt11"),
+    # Treatment-effect heterogeneity variance component (#230 §2/§4a): a per-child random
+    # on-intervention slope whose SD (sigma_delta) is the estimand — the honest first rung
+    # of the non-responder question. delta stays the population-mean crossover effect.
+    _d("lrpdid13", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "treatment-effect heterogeneity (random on-intervention slope)", base="lrpdid01"),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------

@@ -191,6 +191,22 @@ def sigma_dose_phase_prior() -> Continuous:
     return pz.HalfNormal(sigma=0.5)
 
 
+def sigma_delta_prior() -> Continuous:
+    """Between-child SD of the on-intervention effect sigma_delta ~ HalfNormal(0.5).
+
+    Used by ``build_did_model(use_varying_delta=True)`` for the treatment-effect
+    heterogeneity variance component (#230 §2/§4a): the per-child on-intervention
+    slope is ``delta_i = delta + sigma_delta * z_i`` (non-centred), so ``sigma_delta``
+    is the between-child SD of the crossover treatment effect on the logit scale — the
+    reported estimand for "is the treatment effect homogeneous?". The 0.5 scale matches
+    the population effect prior (``tau``/``delta`` ~ Normal(0, 0.5)) and the child
+    random-intercept SD (``sigma_child`` ~ HalfNormal(0.5)), so it is weakly-informative
+    and lets the data pull the SD toward zero — the whole point of the estimand (a
+    near-zero posterior is the clean "no reliable between-child variation" result).
+    """
+    return pz.HalfNormal(sigma=0.5)
+
+
 def b_path_prior(sigma: float = 1.0) -> Continuous:
     """Mediator -> outcome slope (b-path) ~ Normal(0, 1).
 
@@ -361,6 +377,7 @@ _EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
     "alpha_distal": alpha_prior_distal,
     "beta_mech": beta_mech_prior,
     "sigma_dose": sigma_dose_phase_prior,
+    "sigma_delta": sigma_delta_prior,
     "b_path": b_path_prior,
     "sigma_mediator": sigma_mediator_prior,
     "eta_partial_pool": eta_partial_pool_prior,
@@ -390,6 +407,7 @@ _ROLE_BY_CTOR: dict[str, str] = {
     "predictor_slope": "association",
     "beta_mech": "association",
     "sigma_dose": "nuisance",
+    "sigma_delta": "nuisance",
     "b_path": "association",
     "sigma_mediator": "nuisance",
     "eta_main": "gp",
@@ -433,6 +451,7 @@ _RV_TO_CTOR: dict[str, str] = {
     "beta_mech": "beta_mech",
     "mu_dose": "beta_mech",
     "sigma_dose": "sigma_dose",
+    "sigma_delta": "sigma_delta",
     "b_M": "b_path",
     # Two-mediator (mediation_multi / LRP64) mediator -> outcome b-paths. Without
     # these explicit entries they fall through the ``b_`` prefix to gamma_cross
