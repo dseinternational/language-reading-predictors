@@ -1,0 +1,89 @@
+---
+title: "LRPMM02: Errors-in-variables code→word-reading mechanism (latent code factor)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPMM02 is the measurement-error-corrected counterpart of the letter-sound → word-reading mechanism ([mech-058](../lrp-rli-mech-058/)), for #228 item 14. `METHODS.md` flags that the mechanism models "do not separately model measurement error", so mech-058's HSGP association between the **observed** letter-sound logit and word reading is attenuated by the noise in the letter-sound test. LRPMM02 corrects for that attenuation by regressing word reading on a **latent code factor** (built from letter sounds `L` + blending `B`), so the observed-indicator noise loads onto the residuals, not the structural slope.
+
+::: {.callout-important title="Identification — why the full three-factor model is kept"}
+
+A standalone one-factor / two-indicator code model (L + B alone) is **under-identified** (4 parameters vs 3 covariance elements). So LRPMM02 keeps [LRPMM01](../lrp-rli-mm-001/)'s full, identified three-factor measurement model (code {L, B} / vocabulary {R, E} / grammar {F, T}) — the cross-factor correlations and the other indicators supply the covariances that pin the code factor's loadings and residuals — but the **structural leg regresses word reading on the code factor only**, isolating the code→reading slope.
+
+:::
+
+::: {.callout-important title="Measurement / triangulation, NOT causal"}
+
+Per the locked DAG's **ID-2**, `beta_code` is a **latent-ability-confounded adjusted association**, never "code drives reading" — the errors-in-variables correction removes *measurement* attenuation, not confounding. The randomised causal claim lives in the ITT suite (`lrp-rli-itt-010`). Fragile and prior-dependent at n ~ 51; the wide intervals are the honest result.
+
+:::
+
+::: {.callout-note title="What differs from LRPMM01, and from mech-058"}
+
+**vs LRPMM01 — a deliberate bracketing pair:** LRPMM01 adjusts the code slope for the co-varying **latent** vocabulary and grammar factors (its "unique code contribution among constructs"). LRPMM02 instead adjusts for an **observed** confounder set — the randomised arm `G`, age, own word-reading baseline, hearing (HS), speech production (SP) and phonological memory (RW = `erbto`) — so `beta_code` is the errors-in-variables analogue of the *mech-058 estimand*. RW is in the set (beyond the L-only mech-058 mirror) because the exposure is a code factor on **L and B**, and blending has parents letter sounds does not — `RW → PA` (and `TE → PA`, `EV → PA`) — so anything with an arrow into either indicator's true score confounds the factor→reading slope. Read the two together: **mm-001 = latent-adjusted code slope, mm-002 = observed-set code slope** — a bracketing pair. mm-002's named residual-confounding direction is **vocabulary via the blending indicator** (`TE → PA` / `EV → PA` stay in the residuals; conditioning on *observed* noisy vocabulary inside an errors-in-variables model is incoherent, and its fully-latent form is exactly mm-001's structural leg).
+
+**vs mech-058 (frame):** the measurement model is between-child (`phase_mode="span"`, t1 baselines → t4 word reading), not mech-058's phase-stacked within-transition frame — a close companion, not an identical re-fit. The head-to-head attenuation comparison is therefore against **mech-058's observed-L slope** (same adjustment set, error-uncorrected), **not** mm-001 (which differs by adjustment set, not by error handling). Intervention dose (`attend`) is omitted for a **temporal** reason: the exposure is the **t1** code factor and sessions begin after t1, so there is no arrow into this pre-treatment exposure — IS is simply not a confounder here (it is *not* a collider; the collider argument would apply only to a post-treatment exposure, per the #309/#311 pattern).
+
+:::
+
+::: {.callout-warning title="Convergence — gate-flagged on nuisance factor correlations"}
+
+At reporting draws (0 divergences) the **headline `beta_code` and every reported deliverable** — the structural covariates and all six loadings / communalities — converge cleanly; the strict gate is missed only on a few **factor-correlation Cholesky elements**, because isolating the structural leg to the code factor removes the outcome's information from the vocabulary/grammar factors, so their correlations mix a little worse. Those correlations are **identification nuisance here, not this model's deliverable** — [LRPMM01](../lrp-rli-mm-001/) is the model of record for the factor-correlation matrix. Read `beta_code` as usable; the factor correlations from this fit, cautiously. (Exact per-parameter R̂ / ESS are read live from `diagnostics_summary.json` in the diagnostics section below; the headline figures refresh on the reporting-tier refit that follows the RW-adjustment addition.)
+
+:::
+
+## Model
+
+**Measurement** (correlated unit-variance factors; loadings positive; free residual $\sigma_j$, so the indicator-factor correlation is $\lambda_j/\sqrt{\lambda_j^2+\sigma_j^2}=\sqrt{\text{communality}}$):
+
+$$
+\mathbf{f}_i \sim \mathcal{N}(\mathbf{0}, \Omega), \quad \Omega \sim \text{LKJ}(\eta),
+\qquad
+Z_{ij} \sim \mathcal{N}\!\big(\lambda_j\, f_{i,\,d(j)},\ \sigma_j\big),
+$$
+
+over all three factors. **Structural** (Beta-Binomial word-reading leg on the **code factor only**, adjusted for the mech-058 set):
+
+$$
+\eta_i = \alpha + \gamma_{\text{own}}\,\text{logit}_*(W_{\mathrm{pre},i}, N)
+        + \beta_{\text{code}}\, f_{i,\text{code}}
+        + \beta_G\,G_i + \beta_A\,A_{\text{std},i}
+        + \sum_{c}\beta_c\,z(c_i),
+$$
+
+with $c \in \{\text{hs}, \text{hs\_missing}, \text{deapp\_c}, \text{deapp\_c\_missing}, \text{erbto}, \text{erbto\_missing}\}$ (hearing, speech and phonological memory, missing-indicator method). $\beta_{\text{code}}$ is the measurement-error-corrected code→reading slope; the report shows L's and B's **communality** (how well each measures latent code). No `blocks` (mech-058 does not adjust for ability); no `attend` (the t1 code exposure precedes sessions, so IS is not a confounder here).
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_corr_factor.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

@@ -238,6 +238,7 @@ _STRUCT = [
     _d("lrp84", "dose_response", "Dose-response", Status.ASSOCIATION, "B", "period-resolved intervention dose -> phoneme blending"),
     _d("lrpmm01", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "correlated-domain-factor measurement model (vocabulary / code / grammar)"),
     _d("lrpmm101", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "prior sensitivity for LRPMM01 (recalibrated loading / residual priors)", base="lrpmm01"),
+    _d("lrpmm02", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "errors-in-variables code->word-reading mechanism slope (latent code factor, mech-058 adjustment)", base="lrpmm01"),
     _d("lrphs01", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading gain)"),
     _d("lrphs02", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading level)"),
     # Ranking cross-check for the flagship letter-sound outcome L (#228 item 3);

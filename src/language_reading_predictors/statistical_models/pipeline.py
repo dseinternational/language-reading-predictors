@@ -4927,6 +4927,12 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     }
     outcome = spec.outcome_symbol or "W"
     structural_covs = tuple(spec.extra.get("structural_covariates", ("blocks",)))
+    # #228 item 14 (errors-in-variables mechanism): optionally regress the outcome on a
+    # SUBSET of the fitted factors (e.g. just "code") and/or add the randomised arm G as
+    # an adjusted-association covariate. Defaults reproduce mm-001/101 exactly.
+    _sf = spec.extra.get("structural_factors")
+    structural_factors = tuple(_sf) if _sf is not None else None
+    use_group = bool(spec.extra.get("use_group", False))
     indicator_syms = tuple(dict.fromkeys(s for v in domains.values() for s in v))
     measure_outcomes = tuple(dict.fromkeys((outcome, *indicator_syms)))
     prepared = load_and_prepare(
@@ -4936,6 +4942,20 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         covariates=structural_covs,
     )
     ctx.prepared = prepared
+    # A structural covariate can go constant on the fitted span rows — e.g. an
+    # ``erbto_missing`` indicator that is all-zero because phonological memory is
+    # observed for every fitted child at t1 — so the loader drops it. Re-filter to the
+    # covariates actually present, mirroring the mechanism/mediation pipelines'
+    # #247/#258 re-filter, so the factory is not asked for a coefficient on a dropped
+    # covariate (it raises KeyError otherwise) and the effective set is honest.
+    _dropped_structural = tuple(c for c in structural_covs if c not in prepared.covariates)
+    if _dropped_structural:
+        structural_covs = tuple(c for c in structural_covs if c in prepared.covariates)
+        rprint(
+            "[yellow]fit_correlated_factor: dropped constant structural covariate(s) "
+            f"{list(_dropped_structural)} (not in prepared.covariates on the fitted "
+            "rows).[/yellow]"
+        )
     _print_header(ctx)
 
     section_header("Build model")
@@ -4944,6 +4964,8 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         outcome_symbol=outcome,
         domains=domains,
         structural_covariates=structural_covs,
+        structural_factors=structural_factors,
+        use_group=use_group,
         use_age=spec.extra.get("use_age", True),
         loading_mu=spec.extra.get(
             "loading_mu",
@@ -4984,6 +5006,8 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     if spec.extra.get("use_age", True):
         summary_vars.append("beta_age")
     summary_vars += [f"beta_{c}" for c in structural_covs]
+    if use_group:
+        summary_vars.append("beta_G")
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000, var_names=["Z_obs", "y_post"])
@@ -5106,13 +5130,19 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     # --- Structural slopes: factor -> reading gain (adjusted associations) ---
     section_header("Structural slopes (factor -> gain)")
+    # The structural leg regresses on all domain factors (beta_factor dims "domain")
+    # unless structural_factors isolated a subset (dims "struct_domain", #228 item 14).
+    struct_names = list(structural_factors) if structural_factors is not None else dnames
+    _bf_dim = "struct_domain" if structural_factors is not None else "domain"
     struct_rows = [
-        _coef_row(f"beta_{d}", post["beta_factor"].isel(domain=k).values, hdi)
-        for k, d in enumerate(dnames)
+        _coef_row(f"beta_{d}", post["beta_factor"].isel({_bf_dim: k}).values, hdi)
+        for k, d in enumerate(struct_names)
     ]
-    extra_terms = (["beta_age"] if spec.extra.get("use_age", True) else []) + [
-        f"beta_{c}" for c in structural_covs
-    ]
+    extra_terms = (
+        (["beta_G"] if use_group else [])
+        + (["beta_age"] if spec.extra.get("use_age", True) else [])
+        + [f"beta_{c}" for c in structural_covs]
+    )
     struct_rows += [_coef_row(t, post[t].values, hdi) for t in extra_terms]
     struct_df = pd.DataFrame(struct_rows)
     struct_df.to_csv(os.path.join(ctx.output_dir, "structural_summary.csv"), index=False)

@@ -2517,6 +2517,8 @@ def build_correlated_factor_model(
     outcome_symbol: str = "W",
     domains: dict[str, tuple[str, ...]] | None = None,
     structural_covariates: Iterable[str] = ("blocks",),
+    structural_factors: tuple[str, ...] | None = None,
+    use_group: bool = False,
     use_age: bool = True,
     # The ORIGINAL priors: TruncatedNormal(mu=0, sigma=1, lower=0) IS HalfNormal(1),
     # so these defaults reproduce the pre-#261 prior exactly while keeping the more
@@ -2613,6 +2615,15 @@ def build_correlated_factor_model(
                 "correlated factor needs at least two indicators to be identified."
             )
     D = len(domain_names)
+    if structural_factors is not None:
+        structural_factors = tuple(structural_factors)
+        _bad = [d for d in structural_factors if d not in domain_names]
+        if _bad:
+            raise ValueError(
+                f"structural_factors {_bad} not in domains {domain_names}; the full "
+                "measurement model is kept for identification, but the structural leg "
+                "may regress on a chosen subset of the fitted factors (#228 item 14)."
+            )
 
     # One row per child: drop children missing the outcome post-score.
     post = prepared.post_counts[outcome_symbol]
@@ -2647,6 +2658,8 @@ def build_correlated_factor_model(
         "domain": domain_names,
         "domain_b": domain_names,
     }
+    if structural_factors is not None:
+        coords["struct_domain"] = list(structural_factors)
     with pm.Model(coords=coords) as model:
         Z_d = pm.Data("Z", Z, dims=("obs_id", "indicator"))
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
@@ -2786,12 +2799,34 @@ def build_correlated_factor_model(
         )
 
         # --- Structural: outcome gain ~ factors (+ covariates), Beta-Binomial ---
+        # ``structural_factors`` (default None) regresses on ALL fitted domain factors
+        # (mm-001). When set (e.g. ("code",), #228 item 14) the full measurement model
+        # is kept for identification but the structural leg uses only the named
+        # factor(s) — isolating one latent construct's measurement-error-corrected slope.
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
-        beta_factor = pm.Normal(
-            "beta_factor", 0.0, predictor_slope_sigma, dims="domain"
-        )
-        eta = alpha + gamma_own * own_pre_d + pm.math.dot(factors, beta_factor)
+        if structural_factors is None:
+            beta_factor = pm.Normal(
+                "beta_factor", 0.0, predictor_slope_sigma, dims="domain"
+            )
+            struct = pm.math.dot(factors, beta_factor)
+        else:
+            _sidx = [domain_names.index(d) for d in structural_factors]
+            beta_factor = pm.Normal(
+                "beta_factor", 0.0, predictor_slope_sigma, dims="struct_domain"
+            )
+            struct = pm.math.dot(factors[:, _sidx], beta_factor)
+        eta = alpha + gamma_own * own_pre_d + struct
+
+        if use_group:
+            # Randomised arm as an adjusted-association covariate (NOT a randomised
+            # effect here) on the association-scale predictor_slope prior — mirrors the
+            # mech-058 adjustment set for the errors-in-variables mechanism (#228 item 14).
+            G_d = pm.Data("G", np.asarray(prepared.G, dtype=float), dims="obs_id")
+            beta_G = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                "beta_G"
+            )
+            eta = eta + beta_G * G_d
 
         if use_age:
             A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
