@@ -1748,3 +1748,132 @@ def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame
     )
     df.insert(0, "rank", np.arange(1, len(df) + 1))
     return df
+
+
+# ---------------------------------------------------------------------------
+# Longitudinal correlated-domain-factor model (LRP-RLI-LCF-001, #313)
+# ---------------------------------------------------------------------------
+
+
+def _factor_corr_draws(trace: xr.DataTree, group: str = "posterior") -> tuple:
+    """Return ``(corr, waves, domains)`` from a longitudinal-CFA ``factor_corr`` node.
+
+    ``corr`` is a numpy array of shape ``(S, T, D, D)`` (sample × wave × domain ×
+    domain), ``waves`` the wave labels, ``domains`` the domain names.
+    """
+    post = getattr(trace, group)
+    fc = post["factor_corr"].stack(sample=("chain", "draw"))
+    fc = fc.transpose("sample", "wave", "domain", "domain_b")
+    corr = np.asarray(fc.values)  # (S, T, D, D)
+    waves = [w.item() if hasattr(w, "item") else w for w in fc.coords["wave"].values]
+    domains = [str(d) for d in fc.coords["domain"].values]
+    return corr, waves, domains
+
+
+def longitudinal_factor_correlations(
+    trace: xr.DataTree, *, ci_prob: float = 0.95, group: str = "posterior"
+) -> pd.DataFrame:
+    """Per-wave latent factor correlations (the #313 headline).
+
+    One row per (wave, unique off-diagonal domain pair): the posterior mean and
+    equal-tailed ``ci_prob`` interval (plus a 90 % band) of the within-wave latent
+    correlation, and ``prob_pos`` = ``P(rho > 0)``. These are **disattenuated
+    descriptive associations** — the latent skill coupling with binomial counting
+    noise modelled out — never causal.
+    """
+    corr, waves, domains = _factor_corr_draws(trace, group)
+    D = len(domains)
+    lo_q = (1 - ci_prob) / 2
+    rows: list[dict] = []
+    for w_i, w in enumerate(waves):
+        for i in range(D):
+            for j in range(i + 1, D):
+                d = corr[:, w_i, i, j]
+                lo90, hi90 = band90(d)
+                rows.append(
+                    {
+                        "wave": w,
+                        "domain_i": domains[i],
+                        "domain_j": domains[j],
+                        "mean": float(np.mean(d)),
+                        "sd": float(np.std(d)),
+                        "lo": float(np.quantile(d, lo_q)),
+                        "hi": float(np.quantile(d, 1 - lo_q)),
+                        "lo90": lo90,
+                        "hi90": hi90,
+                        "prob_pos": float(np.mean(d > 0)),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def longitudinal_conditional_slopes(
+    trace: xr.DataTree, *, ci_prob: float = 0.95, group: str = "posterior"
+) -> pd.DataFrame:
+    """Per-wave conditional (partial) latent slopes among the domain factors.
+
+    For each wave and each ordered pair ``(target, predictor)`` the partial
+    regression coefficient of the (unit-variance) target factor on the predictor
+    factor **controlling for every other factor**, derived per draw from the
+    within-wave latent correlation matrix (the multiple-regression coefficient
+    ``beta = R[pred, pred]^-1 R[pred, target]``). This is the disattenuated
+    analogue of the concurrent family's mutually-adjusted regression slopes (#312):
+    an **adjusted association**, not a causal effect. With two predictors the
+    coefficient is a partial slope; with one it coincides with the pairwise
+    correlation.
+    """
+    corr, waves, domains = _factor_corr_draws(trace, group)
+    S, T, D, _ = corr.shape
+    lo_q = (1 - ci_prob) / 2
+    rows: list[dict] = []
+    for w_i, w in enumerate(waves):
+        R = corr[:, w_i]  # (S, D, D)
+        for a in range(D):
+            preds = [k for k in range(D) if k != a]
+            R_pp = R[:, preds][:, :, preds]  # (S, P, P)
+            r_pa = R[:, preds, a]  # (S, P)
+            beta = np.linalg.solve(R_pp, r_pa[..., None])[..., 0]  # (S, P)
+            for bi, b in enumerate(preds):
+                d = beta[:, bi]
+                lo90, hi90 = band90(d)
+                rows.append(
+                    {
+                        "wave": w,
+                        "target": domains[a],
+                        "predictor": domains[b],
+                        "mean": float(np.mean(d)),
+                        "sd": float(np.std(d)),
+                        "lo": float(np.quantile(d, lo_q)),
+                        "hi": float(np.quantile(d, 1 - lo_q)),
+                        "lo90": lo90,
+                        "hi90": hi90,
+                        "prob_pos": float(np.mean(d > 0)),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def disattenuation_crosscheck(
+    latent_df: pd.DataFrame, observed_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Merge latent factor correlations with observed indicator correlations.
+
+    ``latent_df`` is :func:`longitudinal_factor_correlations` output; ``observed_df``
+    carries the raw same-wave observed correlation (``observed_corr``) for each
+    ``(wave, domain_i, domain_j)`` — the mean pairwise correlation between the two
+    domains' standardised indicators. The disattenuation check: measurement-error
+    correction can only **inflate** a correlation, so the latent ``|mean|`` should be
+    ``>=`` the observed ``|observed_corr|``; ``latent_ge_observed = False`` (a
+    reversal) is a red flag for the latent model at this wave/pair. ``gap`` is
+    ``|latent| - |observed|``.
+    """
+    merged = latent_df.merge(
+        observed_df, on=["wave", "domain_i", "domain_j"], how="left"
+    )
+    lat = merged["mean"].abs()
+    obs = merged["observed_corr"].abs()
+    merged["gap"] = lat - obs
+    # A small tolerance absorbs Monte-Carlo noise so a trivially-negative gap does
+    # not read as a genuine reversal.
+    merged["latent_ge_observed"] = (lat + 1e-3) >= obs
+    return merged

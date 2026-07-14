@@ -1,0 +1,94 @@
+---
+title: "LRP-RLI-LCF-001: Longitudinal correlated-domain-factor model (per-wave latent skill correlations)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP-RLI-LCF-001 is the four-wave extension of the cross-sectional
+[`corr_factor`](../lrp-rli-mm-001/) CFA. It estimates **correlated domain factors** —
+vocabulary, code, and grammar — at each of the four timepoints and reports the
+**per-wave latent skill correlation matrices** together with the disattenuated slopes
+derived from them. It is the symmetric, measurement-error-corrected counterpart to the
+concurrent regression family ([`lrp-rli-ca-001`](../lrp-rli-ca-001/), issue #312): the
+regression family gives directed, covariate-conditional observed slopes; this gives the
+underlying latent correlation web with the binomial counting noise on both sides
+modelled out.
+
+::: {.callout-important title="Measurement / triangulation, NOT causal"}
+This is a **measurement** model. Every latent correlation and every slope derived from
+it is a **descriptive association** (locked DAG, ID-2); the instrument improves the
+measurement match, it does **not** identify effects. The randomised causal claims live
+in the ITT/DiD suites and the mediation models, not here.
+:::
+
+::: {.callout-note title="Fragility at n ~ 54"}
+A longitudinal latent model at n ~ 54 is fragile and prior-dependent — more so than the
+single-wave `mm-001`, since it carries a within-wave correlation per wave plus an
+across-wave trait/state structure. Read the **wide intervals as the honest result**; the
+reporting-tier re-fit gives the final magnitudes. A prior-sensitivity companion and the
+invariance relaxation (configural / AR-across-wave, chosen by LOO) are follow-ups.
+:::
+
+## Model
+
+**Factors.** Vocabulary {R, E, TR, TE}, code {L, B}, grammar {F, T} — taught vocabulary
+folds into the vocabulary domain (all four indicators observed at every wave). Heavily
+floored P/N are excluded.
+
+**Measurement (scalar-invariant, factor scores marginalised out).** For indicator $j$
+of domain $d$ at wave $t$, on the pooled-standardised logit scale, with wave-invariant
+loadings $\lambda_j$ and residual SDs $\sigma_j$:
+
+$$
+z_{ijt} = \lambda_j\, f_{i,d(j),t} + \varepsilon_{ijt}, \qquad
+\varepsilon_{ijt} \sim \mathcal{N}(0, \sigma_j^2),
+$$
+
+with per-wave factor means carried by a zero-sum-over-waves $\mu_{d,t}$. Each factor is
+unit-variance at every wave; the **within-wave factor correlation** $\Omega_t \sim
+\text{LKJ}(\eta)$ (per wave) is the headline.
+
+**Across-wave (trait / state).** $f_{i,d,t} = \sqrt{\pi_d}\,\tau_{i,d} +
+\sqrt{1-\pi_d}\,s_{i,d,t}$: a stable per-child trait $\tau_i \sim \mathcal{N}(0,
+\Omega_\tau)$ (shared across waves) plus a wave-specific state $s_{i,t} \sim
+\mathcal{N}(0, \Omega_{s,t})$ (independent across waves). PSD by construction, unit
+factor variance preserved, each wave's within-correlation free, and the across-wave
+autocorrelation equals the trait share $\pi_d$.
+
+The Gaussian factor scores are **marginalised out** (the `mm-001` funnel fix): each
+child's observed indicator cells are an $\mathcal{MVN}$ with covariance $\Sigma_z =
+\Lambda \Sigma_f \Lambda' + \operatorname{diag}(\sigma^2)$ sliced to that child's
+observed cells — no per-child latent RV, so no funnel. Missing cells are masked, not
+dropped (one $\mathcal{MVN}$ per observed-cell pattern), so a child missing one wave
+still contributes its other cells.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_long_corr_factor.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

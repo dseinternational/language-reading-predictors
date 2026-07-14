@@ -48,8 +48,9 @@ intervention benefit (`G = 2 − group`).
 | 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                            |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                            |
 | 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                                 |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                            |
 | 2     | Concurrent associations (`lrp-rli-ca`)                                            |     1 | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                           |
+| 2     | Longitudinal correlated-factor model (`lrp-rli-lcf-001`)                          |     1 | Per-wave latent skill correlations (disattenuated counterpart to the concurrent regression family)                           |
 
-Counts are of base models on `main` (120 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
+Counts are of base models on `main` (137 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
 
 ## Outcome symbols (Layer 2)
@@ -381,6 +382,28 @@ factor model #313 is the follow-on instrument), and **collinearity shrinkage** (
 correlated predictor cluster, so the adjusted-vs-bivariate gap is itself informative; both are
 reported). Group is a non-interpretable nuisance. Extension: letter sounds and taught vocabulary
 as further focal outcomes once the word-reading model settles the pattern.
+
+### Longitudinal correlated-domain-factor model — `lrp-rli-lcf-001` (`kind="long_corr_factor"`)
+
+**Purpose.** The symmetric, disattenuated counterpart to the concurrent regression family (#313,
+descriptive-association workstream #314) and the four-wave extension of the cross-sectional
+`corr_factor` CFA (`lrp-rli-mm-001`). It estimates correlated **vocabulary {R,E,TR,TE} / code {L,B}
+/ grammar {F,T}** domain factors at every timepoint over the child×wave panel and reports the
+**per-wave latent skill correlation matrices** plus the conditional latent slopes derived from them
+— the skill coupling with the binomial counting noise on both sides modelled out. Scalar-invariant
+loadings, per-wave within-factor LKJ correlations, a trait/state across-wave decomposition, and the
+factor scores marginalised out (the `mm-001` funnel fix); missing cells are masked, not dropped.
+
+| Model             | Kind               | Outcome | Purpose                                                      |
+| ----------------- | ------------------ | ------- | ------------------------------------------------------------ |
+| `lrp-rli-lcf-001` | `long_corr_factor` | `W`     | per-wave latent skill correlations (vocabulary/code/grammar) |
+
+**Measurement / triangulation only.** Every latent correlation and slope is a descriptive
+association (ID-2), never causal. Fragile and prior-dependent at n ≈ 54 — read the wide intervals
+as the honest result. A self-contained **disattenuation cross-check** (latent correlation ≥ observed,
+since measurement-error correction can only inflate) anchors it against the #312 regression AMEs.
+Follow-ups: a prior-sensitivity companion and the invariance relaxation (configural / AR-across-wave,
+chosen by LOO). See `notes/202607142330-lrp313-longitudinal-corr-factor.md`.
 
 ---
 

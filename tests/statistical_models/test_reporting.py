@@ -17,10 +17,13 @@ from language_reading_predictors.statistical_models.reporting import (
     ConcurrentTerm,
     association_marginals,
     concurrent_marginals,
+    disattenuation_crosscheck,
     eti_bands,
     evidence_label,
     favoured_direction,
     level_t2_marginal_effect,
+    longitudinal_conditional_slopes,
+    longitudinal_factor_correlations,
     offfloor_mover_table,
     proportion_at_zero_ppc,
     rope_markdown,
@@ -1044,3 +1047,77 @@ def test_concurrent_marginals_k_row_skipped_at_full_ceiling():
     term = ConcurrentTerm("B", "beta_B", sd_logit=1.0, n_items=10, mean_prop=0.97, k_items=2)
     df = concurrent_marginals(trace, terms=[term], n_trials=79)
     assert list(df.scale) == ["+1 SD"]
+
+
+# --- Longitudinal correlated-domain-factor reporting (LRP-RLI-LCF-001, #313) -------
+
+
+def _lcf_trace(waves=(1, 2, 3, 4), domains=("vocabulary", "code", "grammar"), seed=0):
+    """Synthetic longitudinal-CFA posterior: a valid within-wave correlation matrix
+    per (chain, draw, wave)."""
+    rng = np.random.default_rng(seed)
+    C, Dr, T, D = 2, 60, len(waves), len(domains)
+    arr = np.zeros((C, Dr, T, D, D))
+    for c in range(C):
+        for d in range(Dr):
+            for t in range(T):
+                A = rng.normal(size=(D, D))
+                S = A @ A.T
+                s = np.sqrt(np.diag(S))
+                arr[c, d, t] = S / np.outer(s, s)
+    ds = xr.Dataset(
+        {"factor_corr": (("chain", "draw", "wave", "domain", "domain_b"), arr)},
+        coords={
+            "wave": list(waves),
+            "domain": list(domains),
+            "domain_b": list(domains),
+        },
+    )
+    return xr.DataTree.from_dict({"posterior": ds})
+
+
+def test_longitudinal_factor_correlations_shape_and_columns():
+    dt = _lcf_trace()
+    df = longitudinal_factor_correlations(dt, ci_prob=0.95)
+    # 4 waves × C(3,2)=3 unique pairs.
+    assert len(df) == 4 * 3
+    assert {"wave", "domain_i", "domain_j", "mean", "lo", "hi", "prob_pos"}.issubset(df.columns)
+    # Only upper-triangular pairs, and the mean is a valid correlation.
+    assert ((df["mean"] >= -1) & (df["mean"] <= 1)).all()
+    assert (df["lo"] <= df["hi"]).all()
+
+
+def test_longitudinal_conditional_slopes_shape():
+    dt = _lcf_trace()
+    df = longitudinal_conditional_slopes(dt, ci_prob=0.95)
+    # 4 waves × (target, predictor) ordered pairs = 3 targets × 2 predictors = 6.
+    assert len(df) == 4 * 6
+    assert {"wave", "target", "predictor", "mean", "prob_pos"}.issubset(df.columns)
+    # target != predictor always.
+    assert (df["target"] != df["predictor"]).all()
+
+
+def test_longitudinal_conditional_slope_equals_correlation_with_one_predictor():
+    # With a single other factor, the partial slope IS the pairwise correlation.
+    dt = _lcf_trace(domains=("a", "b"))
+    corr = longitudinal_factor_correlations(dt, ci_prob=0.9)
+    slopes = longitudinal_conditional_slopes(dt, ci_prob=0.9)
+    # wave 1, target a on predictor b vs the a~b correlation.
+    c1 = corr[(corr.wave == 1)].iloc[0]["mean"]
+    s1 = slopes[(slopes.wave == 1) & (slopes.target == "a") & (slopes.predictor == "b")].iloc[0]["mean"]
+    assert s1 == pytest.approx(c1, abs=1e-6)
+
+
+def test_disattenuation_crosscheck_flags_reversals():
+    dt = _lcf_trace()
+    corr = longitudinal_factor_correlations(dt, ci_prob=0.95)
+    obs = corr[["wave", "domain_i", "domain_j"]].copy()
+    # Observed correlation just under each latent |mean| for all but one row (a
+    # forced reversal) where it is well above.
+    obs["observed_corr"] = (corr["mean"].abs() - 0.05).clip(lower=0.0).values
+    obs.iloc[0, obs.columns.get_loc("observed_corr")] = 0.999
+    xc = disattenuation_crosscheck(corr, obs)
+    assert "gap" in xc.columns and "latent_ge_observed" in xc.columns
+    # Exactly the forced row reverses (latent below observed).
+    assert int((~xc["latent_ge_observed"]).sum()) == 1
+    assert not bool(xc.iloc[0]["latent_ge_observed"])
