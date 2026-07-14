@@ -1577,9 +1577,18 @@ def concurrent_marginals(
             and term.sd_logit > 0
         ):
             p = float(np.clip(term.mean_prop, eps, 1 - eps))
-            p_k = float(np.clip(p + term.k_items / term.n_items, eps, 1 - eps))
-            dz = (logit(p_k) - logit(p)) / term.sd_logit
-            perturbations.append((f"+{term.k_items} items", dz))
+            # Cap the increment to what actually fits below the ceiling at the mean
+            # operating point: a fixed +k with ``p + k/N > 1`` would be silently
+            # clamped, reporting a smaller-than-labelled (or near-zero) shift. Use the
+            # largest whole-item ``k_eff <= k`` with ``p + k_eff/N <= 1 - eps`` and
+            # label that; if even +1 item exceeds the ceiling, no positive increment is
+            # representable, so skip the row.
+            max_k = int(np.floor((1.0 - eps - p) * term.n_items))
+            k_eff = min(int(term.k_items), max_k)
+            if k_eff >= 1:
+                p_k = p + k_eff / term.n_items
+                dz = (logit(p_k) - logit(p)) / term.sd_logit
+                perturbations.append((f"+{k_eff} items", dz))
 
         for scale_label, dz in perturbations:
             delta_eta = beta * dz  # (S,), scalar shift per draw (no interactions)

@@ -1018,3 +1018,29 @@ def test_concurrent_marginals_no_k_row_without_items_metadata():
     term = ConcurrentTerm("age", "beta_age", sd_logit=1.0)
     df = concurrent_marginals(trace, terms=[term], n_trials=79)
     assert list(df.scale) == ["+1 SD"]
+
+
+def test_concurrent_marginals_k_row_caps_at_ceiling():
+    # Near the ceiling a fixed +k that would push p past 1 is CAPPED to the largest
+    # whole increment that still fits below the ceiling, and the row is relabelled to
+    # the effective k (not silently clamped to a smaller-than-labelled shift).
+    rng = np.random.default_rng(37)
+    eta = rng.normal(0.0, 1.0, (1, 200, 8))
+    beta = rng.normal(0.4, 0.2, (1, 200))
+    trace = _trace_named_vec(eta, scalars={"beta_B": beta})
+    # mean 0.88 on a 10-item scale: +5 → 1.38 (over ceiling); only +1 (→0.98) fits.
+    term = ConcurrentTerm("B", "beta_B", sd_logit=1.2, n_items=10, mean_prop=0.88, k_items=5)
+    df = concurrent_marginals(trace, terms=[term], n_trials=79)
+    assert set(df.scale) == {"+1 SD", "+1 items"}  # capped from +5 to +1
+
+
+def test_concurrent_marginals_k_row_skipped_at_full_ceiling():
+    # If even +1 item exceeds the ceiling, no positive increment is representable, so
+    # the +k row is skipped entirely (only the +1 SD row remains).
+    rng = np.random.default_rng(41)
+    eta = rng.normal(0.0, 1.0, (1, 150, 6))
+    beta = rng.normal(0.3, 0.2, (1, 150))
+    trace = _trace_named_vec(eta, scalars={"beta_B": beta})
+    term = ConcurrentTerm("B", "beta_B", sd_logit=1.0, n_items=10, mean_prop=0.97, k_items=2)
+    df = concurrent_marginals(trace, terms=[term], n_trials=79)
+    assert list(df.scale) == ["+1 SD"]

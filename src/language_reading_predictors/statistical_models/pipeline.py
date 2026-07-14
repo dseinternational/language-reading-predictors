@@ -4459,18 +4459,34 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     measure_outcomes = tuple(dict.fromkeys([outcome, *predictor_symbols]))
     prepared_all = load_and_prepare(phase_mode="levels", outcomes=measure_outcomes)
 
-    # Timepoints present, and each wave's row count (children with the focal outcome).
+    # Timepoints present; each wave's row count and its usable predictor set (a
+    # predictor whose same-wave logit has positive variance on the wave's rows —
+    # anything constant/all-missing at that wave is dropped, and a wave with no usable
+    # predictor is skipped below).
     wave_indices = sorted({int(p) for p in np.unique(prepared_all.phase)})
     wave_subsets: dict[int, object] = {}
     wave_n: dict[int, int] = {}
+    wave_preds: dict[int, list[str]] = {}
+    dropped_by_wave: dict[int, list[str]] = {}
     for w in wave_indices:
         sub = _subset_prepared(prepared_all, prepared_all.phase == w)
         keep = ~np.isnan(sub.post_counts[outcome])
         sub = _subset_prepared(sub, keep)
         wave_subsets[w] = sub
         wave_n[w] = sub.n_obs
-    # Primary wave = most rows (best-powered gate); tie → latest timepoint.
-    primary_wave = max(wave_indices, key=lambda w: (wave_n[w], w))
+        wave_preds[w], dropped_by_wave[w] = _ca_wave_predictors(sub, predictor_symbols)
+    # Primary wave = most rows (best-powered gate); tie → latest timepoint. Choose it
+    # ONLY among waves that actually have a usable predictor: a wave whose predictors
+    # are all constant/all-missing is skipped in the fit loop, so making it primary
+    # would leave ``wave_fits[primary_wave]`` unset and crash the fit.
+    fittable_waves = [w for w in wave_indices if wave_preds[w]]
+    if not fittable_waves:
+        raise ValueError(
+            f"{spec.model_id}: no wave has a usable predictor (all "
+            f"{predictor_symbols} are constant/all-missing at every timepoint); "
+            "cannot fit the concurrent model."
+        )
+    primary_wave = max(fittable_waves, key=lambda w: (wave_n[w], w))
 
     # Provisional; replaced with the primary-wave subset once known so the report's
     # header / n_obs describe the gated fit.
@@ -4489,11 +4505,9 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
 
     # ---- Fit each wave's mutually-adjusted model --------------------------------
     wave_fits: dict[int, dict] = {}
-    dropped_by_wave: dict[int, list[str]] = {}
     for w in wave_indices:
         sub = wave_subsets[w]
-        preds, dropped = _ca_wave_predictors(sub, predictor_symbols)
-        dropped_by_wave[w] = dropped
+        preds = wave_preds[w]
         tp = w + 1  # 1-based timepoint for reports
         if not preds:
             rprint(f"[yellow]Concurrent: wave t{tp} has no usable predictors; skipped.[/yellow]")
