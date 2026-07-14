@@ -20,11 +20,12 @@ Design (see `factories.build_two_mediator_model` + `mediation.decompose_two_medi
 - **Adjustment {G, A, R, HS, RW, SP, W_pre, L_t1, E_t1}** (revised DAG, #246): the
   pre-treatment {L,E}->W confounders are age (A), hearing (HS), phonological memory
   (RW; erbto) and speech (SP; deapp_c), taken at baseline. Baseline receptive
-  vocabulary (R) is **retained** pending the time-indexed d-separation (#264): it is
-  measured at t1 (pre-randomisation), so it cannot be a descendant of the t1->t2
-  intervention and the treatment-affected / recanting-witness argument does not
-  apply; whether it stays is #264's call. E is a *mediator* here (E_t1 is its
-  baseline), not a confounder.
+  vocabulary (R) is **retained — settled by the time-indexed d-separation** (#264;
+  ``notes/202607142340-lrp264-mediation-adjustment-dsep.md``): on the wave-unrolled
+  graph it is not a descendant of the t1->t2 intervention, and it is the admissible
+  baseline proxy for the treatment-affected contemporaneous RV state, a parent of
+  the EV mediator. E is a *mediator* here (E_t1 is its baseline — a member of the
+  strictly-valid parent set, per the same derivation), not a confounder.
 
 Framing (the headline is robust; the split is exploratory):
 
@@ -71,7 +72,8 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol=None,  # two mediators; named in extra["mediators"]
     adjustment=[
-        # R retained pending the time-indexed d-separation (#264); E is a *mediator*
+        # R retained — settled by the time-indexed d-separation (#264;
+        # notes/202607142340-lrp264-mediation-adjustment-dsep.md); E is a *mediator*
         # here (not a confounder), so only R re-enters. The revised-DAG common causes
         # HS/RW/SP are added by the missing-indicator method (#246).
         "G", "A", "R", "W_pre", "L_t1", "E_t1",

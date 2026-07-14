@@ -279,6 +279,7 @@ beeswarms
 behav
 bidirected
 bifactor
+blockable
 brms
 bytree
 celf
@@ -472,6 +473,7 @@ reframing
 reparameterisation
 reparameterise
 reparameterised
+replite
 repr
 resid
 residualised

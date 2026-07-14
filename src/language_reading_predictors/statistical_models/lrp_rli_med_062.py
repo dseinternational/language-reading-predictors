@@ -31,10 +31,12 @@ G->M confounding; the binding unverifiable assumption is no unmeasured
 mediator-outcome confounding, so we adjust for the pre-treatment route->reading
 confounders the revised DAG requires — age (A), hearing (HS), phonological memory
 (RW; erbto) and speech production (SP; deapp_c) — at **baseline (t1)**. Baseline
-expressive / receptive vocabulary (E, R) are **retained** pending the time-indexed
-d-separation (#264): they are measured at t1 (pre-randomisation), so they cannot be
-descendants of the t1->t2 intervention and the treatment-affected /
-recanting-witness argument does not apply; whether they stay is #264's call.
+expressive / receptive vocabulary (E, R) are **retained — settled by the
+time-indexed d-separation** (#264;
+``notes/202607142340-lrp264-mediation-adjustment-dsep.md``): on the wave-unrolled
+graph they are not descendants of the t1->t2 intervention, dropping them changes
+no backdoor-blocking status, and E is the admissible baseline proxy for the
+treatment-affected contemporaneous EV state on the blending-block backdoors.
 
 Read this as **triangulation, not a precise causal split**: with n ~ 53,
 contemporaneous mediator/outcome measurement, and the no-unmeasured-confounding
@@ -70,7 +72,8 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol=None,  # the mediator is a composite, not a single measure
     adjustment=[
-        # E/R retained pending the time-indexed d-separation (#264); the revised-DAG
+        # E/R retained — settled by the time-indexed d-separation (#264;
+        # notes/202607142340-lrp264-mediation-adjustment-dsep.md); the revised-DAG
         # common causes HS/RW/SP added by the missing-indicator method (#246).
         "G", "A", "E", "R", "W_pre",
         "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
