@@ -204,6 +204,11 @@ _MECH = [
 _STRUCT = [
     _d("lrp65", "adjusted", "Adjusted association", Status.ASSOCIATION, "W", "between-child independent baseline predictors of word-reading gain"),
     _d("lrp67", "lcsm", "Latent change score", Status.ASSOCIATION, "W", "coupled letter-sounds and vocabulary predicting reading change"),
+    # Lagged reverse-coupling suite on the time-lagged DAG (#250; design
+    # notes/202607141030-time-lagged-model-designs.md).
+    _d("lrp81", "lcsm", "Latent change score", Status.ASSOCIATION, "TE", "lagged reverse coupling: prior word reading predicting taught-vocabulary change (W->TE, W->TR)"),
+    _d("lrp181", "lcsm", "Latent change score", Status.COMPANION, "TE", "no-reverse-coupling LOO comparator", base="lrp81"),
+    _d("lrp82", "lcsm", "Latent change score", Status.ASSOCIATION, "W", "reciprocal dominance: blending <-> word reading lagged cross-couplings (exploratory)"),
     _d("lrp69", "growth", "Growth curve", Status.ASSOCIATION, None, "joint multivariate growth curves: baseline non-verbal ability predicting trajectory shape (independent-core)"),
     _d("lrp70", "growth", "Growth curve", Status.ASSOCIATION, None, "joint multivariate growth curves with a shared growth-tempo factor", base="lrp69"),
     _d("lrp77", "dose_response", "Dose-response", Status.ASSOCIATION, "W", "period-resolved intervention dose -> word reading"),

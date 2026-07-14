@@ -1,0 +1,49 @@
+---
+title: "LCSM-181: No-reverse-coupling comparator (LOO baseline for LCSM-081)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LCSM-181 is the pre-specified **LOO comparator** for LCSM-081: identical in
+every respect — outcomes `TE` / `TR` / `W`, arm × window change intercepts,
+the `hs` / `erbto` / `deapp_c` adjuster block, the `TR → TE` confounder
+coupling, the same observed cells — except that the two reverse couplings
+($g_{W \to TE}$, $g_{W \to TR}$) are removed, so prior word reading no longer
+enters the taught-vocabulary change equations.
+
+PSIS-LOO of LCSM-081 against this model is the design note's "does the reverse
+edge earn its place predictively" readout
+(`notes/202607141030-time-lagged-model-designs.md`): the reverse-coupling
+hypothesis needs LCSM-081 to be **not LOO-worse** than this baseline, alongside
+the couplings' own direction and credible intervals. This model makes no
+substantive claim of its own — its coupling table (the `TR → TE` adjuster term
+and self-feedbacks) is reported for completeness only.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_lcsm.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
