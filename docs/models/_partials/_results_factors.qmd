@@ -45,7 +45,8 @@ if factor_summary is not None and "role" in factor_summary.columns:
         print(
             f"**Causal (randomised) term — `{_r.term}`:** posterior median "
             f"{_r['median']:+.3f} on the logit scale "
-            f"(95% CrI {_r['lo']:+.3f} to {_r['hi']:+.3f}); "
+            f"(90% CrI {_r['lo90']:+.3f} to {_r['hi90']:+.3f}; "
+            f"95% {_r['lo']:+.3f} to {_r['hi']:+.3f}); "
             f"P(> 0) = {_r.prob_positive:.3f} ({_odds(_r.prob_positive)}{_lab}). "
             f"This is the only coefficient identified by randomisation."
         )
@@ -74,7 +75,8 @@ if treatment_marginal is not None:
         f"**period-1 (randomised) transition only**, the genuinely all-untreated-baseline "
         f"contrast that anchors the ITT effect — is a median of "
         f"**{_t.trt_items_median:+.1f} items** "
-        f"(95% CrI {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
+        f"(90% CrI {_t.trt_items_lo90:+.1f} to {_t.trt_items_hi90:+.1f}; "
+        f"95% {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
         f"P(> 0) = {_t.prob_trt_pos:.3f}. The logit-scale `beta_trt` coefficient itself is "
         f"the on-intervention log-odds contrast, not the marginal ITT effect.\n"
     )
