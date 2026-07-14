@@ -1,7 +1,7 @@
-# LCSM change-on-change extension (#229): spec and assumption set
-
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8). This is a specification and assumption set for discussion, per #229's request to write these out **before** committing to a fit. No model is fitted here.
+
+# LCSM change-on-change extension (#229): spec and assumption set
 
 ## Question
 
@@ -24,7 +24,7 @@ mean_ΔW[t] = a_W + b_W·x_W[t-1]
            + d_age·age[t-1]
 ```
 
-for c in {L, E}, where `Δx_c[t-1] = x_c[t-1] - x_c[t-2]` is the previous transition's latent change in c. `h_L` and `h_E` are the new headline coefficients: does prior letter-sound / vocabulary **growth** predict later reading **growth**, over and above prior level. The McArdle latent true-score layer is kept, so measurement floors (P, N) and noise stay out of the change estimates.
+for c in {L, E}, where `Δx_c[t-1] = x_c[t-1] - x_c[t-2]` is the previous transition's latent change in c. `h_L` and `h_E` are the new headline coefficients: does prior letter-sound / vocabulary **growth** predict later reading **growth**, over and above prior level. The McArdle latent true-score layer is kept, so measurement floors and noise stay out of the change estimates — the flooring here is on the modelled measures (word reading `W`, where many children read ≈0 at t1, and early letter-sounds `L`), not the suite's floored `P`/`N`, which this LCSM does not include (`lcsm-067`/`068` model only `["W", "L", "E"]`).
 
 ## Factory sketch (`build_lcsm_model`)
 
@@ -40,7 +40,8 @@ Everything else (non-centred parameterisation, masked Beta-Binomial, `kappa`, pr
 ## Assumptions and limits (to carry into the report)
 
 - **Associational, across all periods.** Over the four waves the waitlist arm crosses over, so between-child treatment is no longer randomised. Any skill-to-skill coupling here describes how L, E and W co-develop, not that L drives W. Only the Phase-0 randomised mediation (`med-059` / `med-064`) carries a causal label.
-- **Two transitions only.** Four waves give three change transitions; lagged change-to-change needs a prior transition, so only two are usable. At n≈54 power is thin. The deliverable is **direction agreement** with the Phase-0 mediation, not a precise gain split. This is almost certainly why `lcsm-067` couples to prior levels (three transitions) rather than prior changes.
+- **The `h` coefficients never touch the randomised window.** By construction (factory step 3) the lagged-change terms enter only for transitions `k ≥ 1` — the reading changes over t2→t3 and t3→t4, both **post-crossover**. The one randomised transition (Phase 0, t1→t2, `k = 0`) contributes no `h` term. So `h_L`/`h_E` are identified **entirely** from post-crossover, associational data, and the direction-agreement deliverable below sets an all-post-crossover coupling against a randomised mediation result estimated on a window the `h` terms never see — which bounds how much weight that agreement argument can bear.
+- **Two transitions only.** Four waves give three change transitions; lagged change-to-change needs a prior transition, so only two are usable. At n≈54 power is thin. The deliverable is **direction agreement** with the Phase-0 mediation, not a precise gain split. This is an additional reason to prefer prior levels over prior changes here — though the `lcsm-067` docstring frames its level choice as the within-child complement of LRP65 (predicting gain from baseline levels), not as a transition-count compromise.
 - **Between- and within-child variance are not separable.** RI-CLPM is not estimable at this sample size (recorded in the `lcsm-067` docstring), so `g_c` and `h_c` partly carry the fact that abler children grow on everything. Do not read a large `h_E` as "vocabulary growth drives reading growth".
 - **Temporal order is preserved** (prior change then later change), which keeps it honest. Do **not** fit specification 3 (contemporaneous `ΔW ~ ΔL + ΔE`): reading practice builds letter-sounds within the same window, so direction is ambiguous; the shared measurement occasion inflates the covariance; and it is regression-to-the-mean prone. That is covariation, not mechanism.
 
