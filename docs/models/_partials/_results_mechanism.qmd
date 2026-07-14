@@ -69,7 +69,7 @@ else:
 print(
     f"\n_How to read the mechanism curve:_ {_axis_read}; "
     "the vertical axis is that variable's contribution to the outcome, "
-    "in logit units. The solid line is the posterior-median contribution and "
+    "in logit units. The solid line is the posterior-mean contribution and "
     "the shaded band its credible interval, so the band's width shows how uncertain "
     "the curve is at each point (it is typically wider where the data thin out). An "
     "upward slope means higher earlier-skill scores are associated with a higher "
