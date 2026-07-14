@@ -28,6 +28,18 @@ from language_reading_predictors.statistical_models.context import (
 )
 
 
+def band90(draws: np.ndarray) -> tuple[float, float]:
+    """Equal-tailed 90 % band ``(lo05, hi95)`` reported alongside the 95 % headline.
+
+    A single sensitivity band so the summary builders that report only a headline
+    ``ci_prob`` (95 %) interval can also carry the narrower 90 % equal-tailed
+    interval without re-deriving quantiles at each call site. The wider ITT / growth
+    summaries use the shared ``eti_bands`` helper (50 / 90 / 95); this covers the
+    families that emit a single headline interval.
+    """
+    return float(np.quantile(draws, 0.05)), float(np.quantile(draws, 0.95))
+
+
 def _itt_ame_draws(
     trace: xr.DataTree,
     *,
@@ -574,6 +586,7 @@ def tau_moderation_summary(
         out[f"{name}_mean"] = float(np.mean(d))
         out[f"{name}_lo"] = float(np.quantile(d, lo_q))
         out[f"{name}_hi"] = float(np.quantile(d, hi_q))
+        out[f"{name}_lo90"], out[f"{name}_hi90"] = band90(d)
         out[f"prob_{name}_pos"] = float(np.mean(d > 0))
     return out
 
@@ -611,6 +624,102 @@ def proportion_at_zero_ppc(
     }
 
 
+def _readiness_knee(
+    f: np.ndarray,
+    ell: np.ndarray,
+    *,
+    n_trials: int,
+    ci_prob: float = 0.95,
+    n_bins: int = 6,
+) -> dict[str, float]:
+    """Locate the readiness knee from a per-observation ``f_mech`` posterior + logit input.
+
+    Pure-numpy core of :func:`readiness_threshold` (split out so the knee logic is
+    unit-testable without a trace, #293 review). ``f`` is ``(n_obs, n_draws)`` HSGP
+    curve draws; ``ell`` is the ``(n_obs,)`` Haldane-corrected mechanism logit.
+    """
+    # Inverse Haldane-corrected logit -> approximate letter-sound count, clipped to range.
+    # ell = log((y+0.5)/(n-y+0.5)) => expit(ell) = (y+0.5)/(n+1), so y = (n+1)*expit(ell) - 0.5
+    # (the denominator is n+1, not n; #293 review).
+    L = np.clip((n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
+
+    edges = np.unique(np.quantile(L, np.linspace(0.0, 1.0, n_bins + 1)))
+    nb = len(edges) - 1
+    if nb < 2:
+        raise ValueError("Too few distinct letter-sound bins to locate a knee.")
+    centers = 0.5 * (edges[:-1] + edges[1:])
+    idx = np.clip(np.digitize(L, edges[1:-1]), 0, nb - 1)
+    binmean = np.full((nb, f.shape[1]), np.nan)
+    for b in range(nb):
+        m = idx == b
+        if m.any():
+            binmean[b] = f[m].mean(axis=0)
+    slope = np.diff(binmean, axis=0) / np.diff(centers)[:, None]  # (nb-1, S)
+    knee_bin = np.nanargmax(slope, axis=0)  # steepest-rise interval per draw
+    knee_L = 0.5 * (centers[knee_bin] + centers[knee_bin + 1])  # (S,)
+    lo, hi = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    kmed = float(np.median(knee_L))
+    # Classify each between-bin interval by its midpoint relative to the median knee, so
+    # the knee interval itself counts as "above" and the "above" set is never empty when
+    # the steepest rise is the top interval (a late-accelerating curve).
+    interval_mid = 0.5 * (centers[:-1] + centers[1:])
+    below = interval_mid < kmed
+    slope_below = np.nanmean(np.where(below[:, None], slope, np.nan), axis=0)
+    slope_above = np.nanmean(np.where(~below[:, None], slope, np.nan), axis=0)
+
+    def _med(a: np.ndarray) -> float:
+        a = a[np.isfinite(a)]
+        return float(np.median(a)) if a.size else float("nan")
+
+    return {
+        "knee_lettersounds_median": kmed,
+        "knee_lettersounds_ci_low": float(np.quantile(knee_L, lo)),
+        "knee_lettersounds_ci_high": float(np.quantile(knee_L, hi)),
+        "slope_below_knee_median": _med(slope_below),
+        "slope_above_knee_median": _med(slope_above),
+        "n_obs": int(f.shape[0]),
+        "n_bins": int(nb),
+    }
+
+
+def readiness_threshold(
+    trace: xr.DataTree,
+    *,
+    n_trials: int,
+    ci_prob: float = 0.95,
+    n_bins: int = 6,
+) -> dict[str, float]:
+    """Readiness-threshold estimand: the letter-sound count where reading takes off (#230 §5).
+
+    Post-processes an HSGP mechanism model's adjusted L->W curve ``f_mech`` to locate its
+    steepest rise — the "knee" of the surface, in letter-sound count units — answering
+    "does reading move only above ~k letter sounds?". For each posterior draw the
+    per-observation ``f_mech`` is binned over the observed letter-sound range (quantile
+    bins) and the steepest between-bin rise is found; the knee is that interval's midpoint,
+    giving a posterior over the knee location. Reports its median + equal-tailed CI and the
+    mean marginal slope below vs above it (a "flat below, rising above" read).
+
+    Pure post-processing (no re-fit): needs the ``f_mech`` posterior and the
+    ``mech_post_logit`` constant-data node of a standard HSGP mechanism fit (e.g.
+    ``lrp-rli-mech-058``). ``n_trials`` is the mechanism predictor's item ceiling (letter
+    sounds = 32) used to back-transform the logit input to an approximate count.
+    """
+    post = trace.posterior
+    if "f_mech" not in post:
+        raise KeyError(
+            "trace has no 'f_mech' posterior — the readiness threshold needs an HSGP "
+            "mechanism fit (not the linear-mechanism or phase-specific variant)."
+        )
+    # The HSGP ``f_mech`` carries an auto-named obs dimension (e.g. ``f_mech_dim_0``),
+    # not ``obs_id``; take whichever non-sample dim it has. Its rows are in the model's
+    # observation order, aligned to the ``mech_post_logit`` constant-data node below.
+    f_stacked = post["f_mech"].stack(sample=("chain", "draw"))
+    obs_dim = next(d for d in f_stacked.dims if d != "sample")
+    f = f_stacked.transpose(obs_dim, "sample").values  # (n_obs, S)
+    ell = np.asarray(trace.constant_data["mech_post_logit"].values).reshape(-1)  # (n_obs,)
+    return _readiness_knee(f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins)
+
+
 def did_summary(
     trace: xr.DataTree,
     *,
@@ -645,6 +754,7 @@ def did_summary(
     def _summ(name: str) -> dict[str, float | str]:
         d = posterior[name].stack(sample=("chain", "draw")).values
         prob_pos = float(np.mean(d > 0))
+        lo90, hi90 = band90(d)
         return {
             # Median-first to match the ITT tau_summary_itt convention (#144 / #271);
             # the mean is kept as a secondary column.
@@ -652,6 +762,8 @@ def did_summary(
             f"{name}_mean": float(np.mean(d)),
             f"{name}_lo": float(np.quantile(d, lo_q)),
             f"{name}_hi": float(np.quantile(d, hi_q)),
+            f"{name}_lo90": lo90,
+            f"{name}_hi90": hi90,
             f"prob_{name}_pos": prob_pos,
             f"{name}_direction_label": evidence_label(prob_pos),
             f"{name}_favoured_direction": "positive" if prob_pos >= 0.5 else "negative",
@@ -678,6 +790,7 @@ def did_summary(
     out["delta_items_mean"] = float(np.mean(eff))
     out["delta_items_lo"] = float(np.quantile(eff, lo_q))
     out["delta_items_hi"] = float(np.quantile(eff, hi_q))
+    out["delta_items_lo90"], out["delta_items_hi90"] = band90(eff)
     out["off_floor"] = bool(off_floor)
     return out
 
@@ -705,6 +818,8 @@ def tau_summary_joint(
                 "tau_median": float(np.median(d)),
                 "tau_lo": float(np.quantile(d, lo_q)),
                 "tau_hi": float(np.quantile(d, hi_q)),
+                "tau_lo90": band90(d)[0],
+                "tau_hi90": band90(d)[1],
                 "prob_pos": float(np.mean(d > 0)),
             }
         )
@@ -736,6 +851,7 @@ def gamma_interaction_summary(
         out[f"{name}_mean"] = float(np.mean(d))
         out[f"{name}_lo"] = float(np.quantile(d, lo_q))
         out[f"{name}_hi"] = float(np.quantile(d, hi_q))
+        out[f"{name}_lo90"], out[f"{name}_hi90"] = band90(d)
         out[f"prob_{name}_pos"] = float(np.mean(d > 0))
     return out
 
@@ -795,6 +911,8 @@ def tau_difference_summary(
         "diff_logit_mean": float(np.mean(diff)),
         "diff_logit_lo": float(np.quantile(diff, lo_q)),
         "diff_logit_hi": float(np.quantile(diff, hi_q)),
+        "diff_logit_lo90": band90(diff)[0],
+        "diff_logit_hi90": band90(diff)[1],
         "prob_diff_pos": float(np.mean(diff > 0)),
     }
 
@@ -903,6 +1021,7 @@ def factor_summary(
     def _row(term: str, base: str, d: np.ndarray) -> dict[str, object]:
         causal = term in causal_terms or base in causal_terms
         prob_pos = float(np.mean(d > 0))
+        lo90, hi90 = band90(d)
         return {
             "term": term,
             "role": "causal" if causal else "association",
@@ -910,6 +1029,8 @@ def factor_summary(
             "mean": float(np.mean(d)),
             "lo": float(np.quantile(d, lo_q)),
             "hi": float(np.quantile(d, hi_q)),
+            "lo90": lo90,
+            "hi90": hi90,
             "prob_positive": prob_pos,
             "direction_label": evidence_label(prob_pos),
             **favoured_direction(prob_pos),
@@ -1028,13 +1149,19 @@ def treatment_marginal_effect(
     ame_items = float(n_trials) * ame_prob
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
+    prob_lo90, prob_hi90 = band90(ame_prob)
+    items_lo90, items_hi90 = band90(ame_items)
     return {
         "trt_prob_median": float(np.median(ame_prob)),
         "trt_prob_lo": float(np.quantile(ame_prob, lo_q)),
         "trt_prob_hi": float(np.quantile(ame_prob, hi_q)),
+        "trt_prob_lo90": prob_lo90,
+        "trt_prob_hi90": prob_hi90,
         "trt_items_median": float(np.median(ame_items)),
         "trt_items_lo": float(np.quantile(ame_items, lo_q)),
         "trt_items_hi": float(np.quantile(ame_items, hi_q)),
+        "trt_items_lo90": items_lo90,
+        "trt_items_hi90": items_hi90,
         "prob_trt_pos": float(np.mean(b > 0)),
     }
 

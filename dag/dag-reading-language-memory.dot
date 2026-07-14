@@ -1,0 +1,74 @@
+digraph RLM_DAG {
+  rankdir=LR;
+  bgcolor="white";
+  labelloc="t";
+  fontname="Helvetica-Bold";
+  fontsize=17;
+  label="Reading, language & memory DAG — Byrne, MacDonald & Buckley (2002) cohort  (causal flow left → right)";
+  nodesep=0.30;
+  ranksep=1.05;
+  concentrate=false;
+  splines=true;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+        margin="0.11,0.06", penwidth=1.3, color="#9aa0a8", fillcolor="#eceef1"];
+  edge [penwidth=1.1, arrowsize=0.7];
+
+  // ================= NODES =================
+  readgrp [label="readgrp\nreading group / cohort\n(OBSERVATIONAL, not randomised)",
+           fillcolor="#dbe8fb", color="#2f6fdb"];
+
+  bassim [label="bassim\nverbal reasoning\n(GA indicator)", fillcolor="#efe9dc", color="#8a7a52"];
+  basmat [label="basmat\nnon-verbal reasoning\n(GA indicator; wave 3+)", fillcolor="#efe9dc", color="#8a7a52"];
+
+  basdig [label="basdig\ndigit recall\n(verbal STM / phon. memory)  [RW]", fillcolor="#d6ebe4", color="#2f9e78"];
+  bpvs   [label="bpvs\nreceptive vocab  [RV]", fillcolor="#d6ebe4", color="#2f9e78"];
+  trog   [label="trog\nreceptive grammar  [RG]", fillcolor="#eceef1", color="#9aa0a8"];
+
+  basread [label="basread\nWORD READING\n(primary outcome)  [WR]", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6, fontname="Helvetica-Bold"];
+  basspel [label="basspel\nspelling (outcome)  [PS]", fillcolor="#fdecd2", color="#c2872a", penwidth=2.2];
+  basnum  [label="basnum\nnumber skills (outcome)", fillcolor="#eceef1", color="#9aa0a8"];
+  woco    [label="woco\nreading comprehension\n(outcome; Simple View)", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.2];
+
+  // background common causes (shown, edges summarised)
+  ABG [label="age · age (months)\nGA · general ability (latent)\n→ common causes of EVERY observed node\n(9 edges each; omitted for clarity).\nreadgrp also → every observed node.",
+       shape=note, fillcolor="#f7f7f9", color="#6b7280", fontsize=10, style="filled,dashed"];
+
+  LEG [shape=none, margin=0, label=<
+    <table border="0" cellborder="0" cellspacing="1" cellpadding="3">
+      <tr><td colspan="2" align="left"><b>domain  (RLI symbol in [ ])</b></td></tr>
+      <tr><td bgcolor="#dbe8fb" width="18"> </td><td align="left">cohort factor readgrp (replaces IG/IS; NOT causal)</td></tr>
+      <tr><td bgcolor="#efe9dc" width="18"> </td><td align="left">general-ability indicators (GA now measured)</td></tr>
+      <tr><td bgcolor="#d6ebe4" width="18"> </td><td align="left">phon. memory / vocab  [RW, RV]</td></tr>
+      <tr><td bgcolor="#eceef1" width="18"> </td><td align="left">grammar / arithmetic  [RG]</td></tr>
+      <tr><td bgcolor="#fdecd2" width="18"> </td><td align="left">spelling outcome  [PS]</td></tr>
+      <tr><td bgcolor="#cfe0f7" width="18"> </td><td align="left">reading outcomes: word reading [WR] + comprehension</td></tr>
+    </table>>];
+
+  // ================= EDGES (colored by source domain) =================
+  edge [color="#2f6fdb"];            // cohort factor
+  readgrp -> {bassim basmat basdig bpvs trog basread basspel basnum woco};
+
+  edge [color="#2f9e78"];            // phon. memory / vocab
+  basdig -> {bpvs basread basspel basnum woco};
+  bpvs   -> {trog basread woco};
+
+  edge [color="#9aa0a8"];            // grammar -> comprehension
+  trog -> woco;
+
+  edge [color="#2f6fdb"];            // word reading -> comprehension (Simple View)
+  basread -> woco;
+
+  // design-induced association (matching): reading-matched younger. Not causal.
+  edge [color="#b0453f", style=dashed, dir=both, arrowsize=0.6, constraint=false];
+  age_note -> readgrp [label=" age↔group\n (design)", fontsize=9, fontcolor="#b0453f"];
+  age_note [label="age", shape=box, style="rounded,filled", fillcolor="#f7f7f9", color="#6b7280"];
+
+  // ================= RANK HINTS =================
+  {rank=source; readgrp; ABG; LEG;}
+  {rank=same; bassim; basmat;}
+  {rank=same; basdig;}
+  {rank=same; bpvs;}
+  {rank=same; trog; basread;}
+  {rank=same; basspel; basnum;}
+  {rank=sink; woco;}
+}

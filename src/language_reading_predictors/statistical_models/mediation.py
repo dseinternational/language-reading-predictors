@@ -248,10 +248,14 @@ def decompose(
             "prob_mean": float(np.mean(draws)),
             "prob_lo": float(np.quantile(draws, lo_q)),
             "prob_hi": float(np.quantile(draws, hi_q)),
+            "prob_lo90": float(np.quantile(draws, 0.05)),
+            "prob_hi90": float(np.quantile(draws, 0.95)),
             "words_median": float(np.median(draws) * N_W),
             "words_mean": float(np.mean(draws) * N_W),
             "words_lo": float(np.quantile(draws, lo_q) * N_W),
             "words_hi": float(np.quantile(draws, hi_q) * N_W),
+            "words_lo90": float(np.quantile(draws, 0.05) * N_W),
+            "words_hi90": float(np.quantile(draws, 0.95) * N_W),
             "prob_pos": float(np.mean(draws > 0)),
         }
 
@@ -273,10 +277,14 @@ def decompose(
             "prob_mean": float(np.mean(prop)),
             "prob_lo": float(np.quantile(prop, lo_q)),
             "prob_hi": float(np.quantile(prop, hi_q)),
+            "prob_lo90": float(np.quantile(prop, 0.05)),
+            "prob_hi90": float(np.quantile(prop, 0.95)),
             "words_median": np.nan,
             "words_mean": np.nan,
             "words_lo": np.nan,
             "words_hi": np.nan,
+            "words_lo90": np.nan,
+            "words_hi90": np.nan,
             "prob_pos": float(np.mean(total > 0)),  # P(Total > 0) for context
         }
     )
@@ -543,10 +551,14 @@ def decompose_two_mediator(
             "prob_mean": float(np.mean(draws)),
             "prob_lo": float(np.quantile(draws, lo_q)),
             "prob_hi": float(np.quantile(draws, hi_q)),
+            "prob_lo90": float(np.quantile(draws, 0.05)),
+            "prob_hi90": float(np.quantile(draws, 0.95)),
             "words_median": float(np.median(draws) * N_W),
             "words_mean": float(np.mean(draws) * N_W),
             "words_lo": float(np.quantile(draws, lo_q) * N_W),
             "words_hi": float(np.quantile(draws, hi_q) * N_W),
+            "words_lo90": float(np.quantile(draws, 0.05) * N_W),
+            "words_hi90": float(np.quantile(draws, 0.95) * N_W),
             "prob_pos": float(np.mean(draws > 0)),
         }
 
@@ -570,10 +582,14 @@ def decompose_two_mediator(
             "prob_mean": float(np.mean(prop)),
             "prob_lo": float(np.quantile(prop, lo_q)),
             "prob_hi": float(np.quantile(prop, hi_q)),
+            "prob_lo90": float(np.quantile(prop, 0.05)),
+            "prob_hi90": float(np.quantile(prop, 0.95)),
             "words_median": np.nan,
             "words_mean": np.nan,
             "words_lo": np.nan,
             "words_hi": np.nan,
+            "words_lo90": np.nan,
+            "words_hi90": np.nan,
             "prob_pos": float(np.mean(total > 0)),  # P(Total > 0) for context
         }
     )

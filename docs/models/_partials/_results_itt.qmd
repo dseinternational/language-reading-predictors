@@ -33,7 +33,8 @@ if tau_summary is not None:
     print(
         f"On the probability scale the average marginal effect of the intervention on "
         f"{outcome_label} is **{_t.tau_prob_median:+.3f}** (risk difference){_items} "
-        f"(equal-tailed 95% credible interval {_t.tau_prob_lo:+.3f} to {_t.tau_prob_hi:+.3f}). "
+        f"(equal-tailed 90% credible interval {_t.tau_prob_lo90:+.3f} to {_t.tau_prob_hi90:+.3f}; "
+        f"95% {_t.tau_prob_lo:+.3f} to {_t.tau_prob_hi:+.3f}). "
         f"P(intervention helps) = {_t.prob_tau_pos:.3f} ({_odds(_t.prob_tau_pos)}{_lab})."
     )
     if str(_t.get("favoured_direction", "positive")) == "negative":

@@ -62,12 +62,14 @@ if did_summary is not None:
             else:
                 _items = (
                     f", about **{_d.delta_items_median:+.1f} items** "
-                    f"(95% CrI {_d.delta_items_lo:+.1f} to {_d.delta_items_hi:+.1f})"
+                    f"(90% CrI {_d.delta_items_lo90:+.1f} to {_d.delta_items_hi90:+.1f}; "
+                    f"95% {_d.delta_items_lo:+.1f} to {_d.delta_items_hi:+.1f})"
                 )
         print(
             f"**DiD treatment contrast (`delta`):** median {_d.delta_median:+.3f} "
             f"on the {'log-odds of being off the floor at period end' if _off else 'logit scale'} "
-            f"(95% CrI {_d.delta_lo:+.3f} to {_d.delta_hi:+.3f}); "
+            f"(90% CrI {_d.delta_lo90:+.3f} to {_d.delta_hi90:+.3f}; "
+            f"95% {_d.delta_lo:+.3f} to {_d.delta_hi:+.3f}); "
             f"P(delta > 0) = {_d.prob_delta_pos:.3f} "
             f"({_odds(_d.prob_delta_pos)}).{_items}"
         )
@@ -75,7 +77,8 @@ if did_summary is not None:
         print(
             f"**Session-dose association (`beta_dose`):** median "
             f"{_d.beta_dose_median:+.3f} logit units per 1 SD sessions "
-            f"(95% CrI {_d.beta_dose_lo:+.3f} to {_d.beta_dose_hi:+.3f}); "
+            f"(90% CrI {_d.beta_dose_lo90:+.3f} to {_d.beta_dose_hi90:+.3f}; "
+            f"95% {_d.beta_dose_lo:+.3f} to {_d.beta_dose_hi:+.3f}); "
             f"P(> 0) = {_d.prob_beta_dose_pos:.3f}."
         )
 if dose_slope_summary is not None:

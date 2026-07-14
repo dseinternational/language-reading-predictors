@@ -30,7 +30,8 @@ if dose_slope_summary is not None and len(dose_slope_summary):
     print(
         f"**Headline dose association (`{_main.term}`):** posterior mean "
         f"{_main['mean']:+.3f} logit units per 1 SD sessions "
-        f"(95% CrI {_main.lo:+.3f} to {_main.hi:+.3f}); "
+        f"(90% CrI {_main.lo90:+.3f} to {_main.hi90:+.3f}; "
+        f"95% {_main.lo:+.3f} to {_main.hi:+.3f}); "
         f"P(> 0) = {_main.p_pos:.3f}."
     )
     if "sigma_dose_between_period" in set(dose_slope_summary.term):
@@ -39,7 +40,8 @@ if dose_slope_summary is not None and len(dose_slope_summary):
         ].iloc[0]
         print(
             f"\n\nBetween-period slope SD: mean {_s['mean']:.3f} "
-            f"(95% CrI {_s.lo:.3f} to {_s.hi:.3f}). Small values mean the "
+            f"(90% CrI {_s.lo90:.3f} to {_s.hi90:.3f}; "
+            f"95% {_s.lo:.3f} to {_s.hi:.3f}). Small values mean the "
             "period slopes shrink toward a common dose association."
         )
 ```

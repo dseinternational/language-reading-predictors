@@ -118,7 +118,9 @@ LRPHS
 LRPITT
 LRPLF
 LRPMM
+LRPSURV
 LSAM
+MAXJOBS
 Laan
 Lakens
 Lawson
@@ -191,6 +193,7 @@ Puhani
 Puranik
 Purser
 RLMHG
+RLOG
 RMSE
 RMSEA
 Raftery
@@ -287,6 +290,7 @@ communalities
 comprehender
 confounder
 confounders
+crosswalk
 cumul
 cutoff
 dadedu
@@ -300,6 +304,7 @@ deappav
 deappfi
 deappin
 deappvo
+deconfounds
 dedup
 deterministics
 diag
@@ -311,6 +316,7 @@ documentclass
 dropna
 dse
 dseinternational
+dseresearch
 dtype
 earinf
 econlet
@@ -332,11 +338,13 @@ extau
 exto
 federated
 fittable
+followup
 fontsize
 fpsyg
 functionals
 gnombo
 gnomo
+gotchas
 handoff
 hclust
 homoscedasticity
@@ -379,6 +387,7 @@ lrphs
 lrpitt
 lrplf
 lrpmm
+lrpsurv
 lsam
 lsamint
 lsammax
@@ -389,6 +398,7 @@ mainfont
 mathrm
 matplotlib
 medae
+miscalibration
 monofont
 monofontoptions
 morphosyntax
@@ -401,6 +411,8 @@ ncol
 ndarray
 noconstruct
 nogp
+nohup
+noqa
 noncentred
 nonlinear
 nonparametric
@@ -441,13 +453,16 @@ pytest
 readgrp
 reframing
 reparameterisation
+reparameterise
 reparameterised
+repr
 resid
 residualised
 residualized
 resumable
 retau
 reto
+rhat
 ridd
 rlm
 rlmhg
@@ -471,6 +486,7 @@ startswith
 subfit
 subsetting
 subskill
+surv
 tachang
 tascore
 tertile
@@ -478,6 +494,7 @@ tiering
 timepoint
 timepoints
 tolist
+toplevel
 trainability
 trog
 unadjustable
