@@ -3791,12 +3791,12 @@ def build_growth_model(
             # ``gamma_int`` is on unit-scaled age0 × unit-scaled ability, matching the
             # gain-factor interaction's scale. Missing baseline age -> 0 (the mean).
             a0 = np.asarray(panel.age_std[:, 0], dtype=float)
-            finite = a0[np.isfinite(a0)]
-            mu0 = float(finite.mean()) if finite.size else 0.0
-            sd0 = float(finite.std()) if finite.size else 0.0
-            age0_np = np.where(
-                np.isfinite(a0), (a0 - mu0) / (sd0 if sd0 > 0 else 1.0), 0.0
-            )
+            # Standardise across children with the shared helper (nanstd ddof=1,
+            # matching every other standardised term; it raises on a degenerate
+            # zero-variance axis rather than silently falling back to sd=1 and
+            # fitting a flat interaction).
+            age0_z, _ = standardise(a0)
+            age0_np = np.where(np.isfinite(age0_z), age0_z, 0.0)
             age0 = pm.Data("age0_std", age0_np, dims="child")
             gamma_age = pm.Normal("gamma_age", 0.0, assoc_prior_sigma, dims="outcome")
             gamma_int = pm.Normal("gamma_int", 0.0, assoc_prior_sigma, dims="outcome")
