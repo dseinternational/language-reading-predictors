@@ -2012,6 +2012,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Mechanism curve: f_mech vs mech_post_logit grid (logit-contribution scale only).
     section_header("Mechanism curve")
     _write_mechanism_curve(ctx)
+    _write_readiness_threshold(ctx)
 
     # Record the adjustment set that was actually FITTED — with each term's source
     # column, measurement wave and missing-indicator status — not just the requested
@@ -2129,6 +2130,64 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     plt.title(f"Mechanism curve ({kind}): {sym} -> {outcome}")
     # mechanism_curve.csv (the plotted band) is written just above.
     save_styled_figure(ctx.output_dir, "mechanism_curve")
+
+
+def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
+    """Readiness-threshold summary for the mechanism curve (#230 §2/§5).
+
+    Post-processes the fitted nonparametric mechanism curve (``f_mech``) into a
+    posterior for the predictor count at which the outcome rises *fastest* — the
+    "knee" (the steepest rise, not the onset), via
+    :func:`reporting.readiness_threshold`. Only the GP mechanism has a curve to
+    find a knee in; linear / phase-specific fits (no ``f_mech``) are skipped
+    quietly. Writes ``readiness_threshold.csv`` and a plot. Guarded by the
+    caller.
+    """
+    post = ctx.trace.posterior
+    if "f_mech" not in post:
+        return
+
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    sym = ctx.spec.mechanism_symbol
+    N = MEASURES[sym].n_trials
+
+    try:
+        summary = _report.readiness_threshold(ctx.trace, n_trials=N)
+    except ValueError as exc:
+        rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
+        return
+    pd.DataFrame([summary]).to_csv(
+        os.path.join(ctx.output_dir, "readiness_threshold.csv"), index=False
+    )
+
+    # Mean curve on the raw count scale (inverse Haldane-corrected logit, as in
+    # reporting._readiness_knee) with the knee posterior overlaid.
+    ell = np.asarray(ctx.trace.constant_data["mech_post_logit"].values).reshape(-1)
+    f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
+    order = np.argsort(ell)
+    x_count = np.clip(
+        (N + 1.0) / (1.0 + np.exp(-ell[order])) - 0.5, 0.0, float(N)
+    )
+    mean = f[order].mean(axis=1)
+    outcome = ctx.spec.outcome_symbol or "W"
+    plt.figure(figsize=(6, 4))
+    plt.plot(x_count, mean, color="#1f77b4", lw=2)
+    plt.axvspan(
+        summary["knee_count_ci_low"],
+        summary["knee_count_ci_high"],
+        color="#d62728",
+        alpha=0.15,
+        label="knee 95% CI",
+    )
+    plt.axvline(
+        summary["knee_count_median"], color="#d62728", lw=1.5, label="knee median"
+    )
+    plt.xlabel(f"{sym} (raw count, out of {N})")
+    plt.ylabel(f"{outcome} logit contribution")
+    plt.title(f"Readiness threshold (steepest rise): {sym} -> {outcome}")
+    plt.legend(fontsize=8)
+    save_styled_figure(ctx.output_dir, "readiness_threshold")
 
 
 # ---------------------------------------------------------------------------
