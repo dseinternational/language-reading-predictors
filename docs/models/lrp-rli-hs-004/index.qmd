@@ -1,0 +1,62 @@
+---
+title: "LRPHS04: Regularized-horseshoe ranking cross-check - letter-sound level"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPHS04 is the level companion to [`lrp-rli-hs-003`](../lrp-rli-hs-003/), and the letter-sound counterpart to [`lrp-rli-hs-002`](../lrp-rli-hs-002/) (word-reading level): an **independent Bayesian sensitivity check** on the gradient-boosting predictor ranking for letter-sound **level** (GB `lrp-rli-gbl-009`). A regularized (Finnish) horseshoe sparse regression regresses the concurrent letter-sound count on the standardised **same-wave** levels of the other constructs (plus age), with a subject random intercept for the repeated timepoints; all coefficients share a global-local shrinkage prior. Predictors are ranked by posterior `P(|beta| > delta)` and compared to the GB _cluster_ ranking.
+
+::: {.callout-important title="Ranking cross-check, NOT causal"}
+
+A ranking cross-check, not a causal model. In the concurrent-level framing a high naive association is partly same-wave same-construct correlation, so read the ordering as exploratory. Every coefficient is a latent-ability-confounded adjusted association; the randomised causal effect lives in the ITT suite (`lrp-rli-itt-007`).
+
+:::
+
+::: {.callout-note title="Concurrent-level framing"}
+
+One row per child × timepoint (`phase_mode="levels"`, ~215 rows over 54 children), mirroring hs-002. Unlike the gain model this omits the RLI-blocks / behaviour covariates: they are wave-sparse (missing at baseline), and requiring them would collapse the levels frame to one row per child, destroying the repeated-measures structure the subject random intercept needs. Weakly-informative priors, not tuned.
+
+:::
+
+## Model
+
+Beta-Binomial concurrent letter-sound count with standardised same-wave predictor levels entering under a regularized-horseshoe prior, plus a subject random intercept $u_{\text{child}}$:
+
+$$
+\eta_{i} = \alpha + u_{\text{child}[i]} + \sum_k \beta_k\, z_{k,i},
+\qquad
+\beta_k \sim \mathcal{N}\!\big(0,\ \tau\, \tilde{\lambda}_k\big).
+$$
+
+Construct predictor set: the non-floored concurrent measure levels **other than the outcome** — word reading `W`, receptive/expressive vocabulary `R`/`E`, blending `B`, basic concepts `F`, receptive grammar `T` — plus age.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_horseshoe.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
