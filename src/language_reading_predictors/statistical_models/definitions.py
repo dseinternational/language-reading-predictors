@@ -220,11 +220,19 @@ _STRUCT = [
     _d("lrp77", "dose_response", "Dose-response", Status.ASSOCIATION, "W", "period-resolved intervention dose -> word reading"),
     _d("lrp77a", "dose_response", "Dose-response", Status.ROBUSTNESS, "W", "ability-adjusted sensitivity", base="lrp77"),
     _d("lrp77base", "dose_response", "Dose-response", Status.COMPANION, "W", "pooled-dose-slope comparator", base="lrp77"),
+    # Dose-response coverage for the two largest ITT effects, L and B (#228 item 2);
+    # the W family covers only word reading. Same observational IS->outcome estimand.
+    _d("lrp83", "dose_response", "Dose-response", Status.ASSOCIATION, "L", "period-resolved intervention dose -> letter sounds"),
+    _d("lrp84", "dose_response", "Dose-response", Status.ASSOCIATION, "B", "period-resolved intervention dose -> phoneme blending"),
     _d("lrpmm01", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "correlated-domain-factor measurement model (vocabulary / code / grammar)"),
     _d("lrpmm101", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "prior sensitivity for LRPMM01 (recalibrated loading / residual priors)", base="lrpmm01"),
     _d("lrpmm02", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "errors-in-variables code->word-reading mechanism slope (latent code factor, mech-058 adjustment)", base="lrpmm01"),
     _d("lrphs01", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading gain)"),
     _d("lrphs02", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading level)"),
+    # Ranking cross-check for the flagship letter-sound outcome L (#228 item 3);
+    # hs-001/002 cover word reading only. Cross-checked vs GB gbg-009 / gbl-009.
+    _d("lrphs03", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "L", "regularised-horseshoe ranking cross-check (letter-sound gain)"),
+    _d("lrphs04", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "L", "regularised-horseshoe ranking cross-check (letter-sound level)"),
 ]
 
 # --- Factor families (gain / level) and onset-aligned per-protocol ----------------
