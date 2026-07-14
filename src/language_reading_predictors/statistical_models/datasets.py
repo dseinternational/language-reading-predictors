@@ -84,11 +84,18 @@ RLM_GROUP_LABELS: dict[int, str] = {
     3: "Reading-matched",
 }
 
-# Only ``basread`` is registered for now: it is the sole measure the first
-# historical model (``lrp-rlm-hg-001``) fits, and 87 is its confirmed BAS word-reading
-# ceiling (matching the observed maximum in the prepared extract). The remaining
-# Byrne measures (basspel / bpvs / trog / woco / basdig / bassim / basnum /
-# basmat) are added under #164 as their instrument ceilings are confirmed.
+# ``basread`` uses its confirmed BAS word-reading ceiling (87, matching the
+# observed maximum in the prepared extract). The other seven Byrne Table 2
+# measures are registered for the per-measure historical-growth sweep (#164
+# Phase A) with a **provisional** ceiling equal to the observed maximum in the
+# extract and ``n_trials_confirmed=False``: the Beta-Binomial denominator is a
+# placeholder until each instrument's true maximum is confirmed against its
+# manual (the data-owner decision in
+# ``notes/202607021052-issue-164-byrne-followup-plan.md``, decision 3). This
+# mirrors how ``basread`` itself began (observed-max placeholder) and is why the
+# per-measure reports flag their ceiling as unconfirmed. ``basmat`` stays
+# unregistered here: it is wave-3+ only (no wave-1 baseline), so it needs its own
+# wave range and is handled separately.
 RLM_MEASURES: dict[str, StudyMeasure] = {
     "basread": StudyMeasure(
         symbol="basread",
@@ -96,6 +103,56 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=87,
         label="BAS word reading",
         n_trials_confirmed=True,
+    ),
+    # --- #164 Phase A: provisional observed-max ceilings (n_trials_confirmed=False) ---
+    "basspel": StudyMeasure(
+        symbol="basspel",
+        column="basspel",
+        n_trials=18,
+        label="BAS spelling",
+        n_trials_confirmed=False,
+    ),
+    "woco": StudyMeasure(
+        symbol="woco",
+        column="woco",
+        n_trials=31,
+        label="WORD reading comprehension",
+        n_trials_confirmed=False,
+    ),
+    "bpvs": StudyMeasure(
+        symbol="bpvs",
+        column="bpvs",
+        n_trials=29,
+        label="BPVS receptive vocabulary",
+        n_trials_confirmed=False,
+    ),
+    "trog": StudyMeasure(
+        symbol="trog",
+        column="trog",
+        n_trials=20,
+        label="TROG receptive grammar",
+        n_trials_confirmed=False,
+    ),
+    "basdig": StudyMeasure(
+        symbol="basdig",
+        column="basdig",
+        n_trials=34,
+        label="BAS recall of digits",
+        n_trials_confirmed=False,
+    ),
+    "bassim": StudyMeasure(
+        symbol="bassim",
+        column="bassim",
+        n_trials=18,
+        label="BAS similarities/verbal reasoning",
+        n_trials_confirmed=False,
+    ),
+    "basnum": StudyMeasure(
+        symbol="basnum",
+        column="basnum",
+        n_trials=60,
+        label="BAS number skills",
+        n_trials_confirmed=False,
     ),
 }
 

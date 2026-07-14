@@ -56,6 +56,7 @@ from language_reading_predictors.statistical_models import (
     historical as _historical,
     priors as _priors,
     reporting as _report,
+    survival as _survival,
 )
 from language_reading_predictors.statistical_models.plotting import (
     save_plotcollection,
@@ -925,6 +926,151 @@ def _finalize_report(ctx: StatisticalFitContext) -> StatisticalFitContext:
     _copy_report_template(ctx)
     _print_footer(ctx)
     return ctx
+
+
+def _survival_summary(
+    trace, *, ci_prob: float, hazard_link: str, use_treatment: bool
+) -> pd.DataFrame:
+    """Off-floor discrete-time hazard summary (log-hazard, hazard ratio, P>0).
+
+    Reports the treatment hazard shift and baseline-covariate slopes on the
+    log-hazard scale (with ``exp`` as a hazard ratio and ``P(effect > 0)``), plus
+    the per-interval baseline off-floor probability for an untreated child at mean
+    covariates, on the model's ``hazard_link`` scale. Equal-tailed intervals at
+    ``ci_prob`` with the posterior median as the point estimate (the suite convention).
+    """
+    post = trace.posterior
+    lo, hi = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+
+    def _row(term: str, draws: np.ndarray, *, as_ratio: bool) -> dict:
+        d = np.asarray(draws).reshape(-1)
+        return {
+            "term": term,
+            "median": float(np.median(d)),
+            "ci_low": float(np.quantile(d, lo)),
+            "ci_high": float(np.quantile(d, hi)),
+            "hazard_ratio": float(np.exp(np.median(d))) if as_ratio else float("nan"),
+            "P(>0)": float(np.mean(d > 0)) if as_ratio else float("nan"),
+        }
+
+    rows: list[dict] = []
+    if use_treatment:
+        rows.append(_row("tau (log hazard shift, treated)", post["tau"].values, as_ratio=True))
+    for name in sorted(v for v in post.data_vars if str(v).startswith("beta_")):
+        rows.append(_row(f"{name} (log hazard, per SD)", post[name].values, as_ratio=True))
+
+    alpha = post["alpha"].stack(sample=("chain", "draw")).transpose("interval", "sample")
+    labels = [str(v) for v in alpha.coords["interval"].values]
+    for i, lab in enumerate(labels):
+        a = alpha.values[i]
+        base = 1.0 - np.exp(-np.exp(a)) if hazard_link == "cloglog" else 1.0 / (1.0 + np.exp(-a))
+        rows.append(
+            {
+                "term": f"baseline off-floor prob [{lab}]",
+                "median": float(np.median(base)),
+                "ci_low": float(np.quantile(base, lo)),
+                "ci_high": float(np.quantile(base, hi)),
+                "hazard_ratio": float("nan"),
+                "P(>0)": float("nan"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Discrete-time off-floor survival fit for a floored outcome P / N (#230 §5).
+
+    Fits a person-period discrete-time hazard for the *time* to come off the floor,
+    generalising the single-transition off-floor estimand of the LRPITT09/11 floor
+    rule to all four waves. Treatment enters as an intervention-aligned hazard shift;
+    the estimand is prognostic (both arms are treated by t4).
+    """
+    _require_spec(spec, "survival", outcome=True)
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    panel = _survival.prepare_survival(spec.outcome_symbol)
+    ctx.prepared = panel
+    _print_header(ctx)
+    rprint(
+        f"  Survival at-risk set: {panel.n_at_risk_children} children at the "
+        f"{spec.outcome_symbol} floor at t1 contribute {panel.n_obs} person-period rows; "
+        f"{panel.n_events} off-floor events."
+    )
+    if panel.dropped_rows:
+        rprint(
+            f"  [yellow]{panel.dropped_rows} at-risk child(ren) contributed no rows "
+            "(t2 score unobserved, so no interval could be placed) and are excluded.[/yellow]"
+        )
+    for name, k in panel.imputed_covariate_rows.items():
+        if k:
+            rprint(
+                f"  [yellow]{k} row(s) had a missing baseline {name}; mean-imputed (z=0).[/yellow]"
+            )
+
+    hazard_link = spec.extra.get("hazard_link", "cloglog")
+    use_treatment = bool(spec.extra.get("use_treatment", True))
+
+    section_header("Build model")
+    built = _survival.build_survival_model(
+        panel, hazard_link=hazard_link, use_treatment=use_treatment
+    )
+    _attach_built(ctx, built)
+    _render_model_graph(ctx)
+
+    diag_vars = (
+        ["alpha"]
+        + [f"beta_{n}" for n in panel.covariates]
+        + (["tau"] if use_treatment else [])
+    )
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+
+    _run_sampling_and_loo(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx, var_names=["y_event"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    if use_treatment:
+        _diag.run_extended_diagnostics(ctx, causal_term="tau")
+    _diag.save_trace(ctx)
+
+    section_header("Off-floor hazard summary")
+    summary = _survival_summary(
+        ctx.trace, ci_prob=ctx.reporting.ci_prob, hazard_link=hazard_link,
+        use_treatment=use_treatment,
+    )
+    summary.to_csv(os.path.join(ctx.output_dir, "survival_summary.csv"), index=False)
+    ctx.tables["survival_summary"] = summary
+    print_table(
+        ranked_dataframe_table(
+            summary,
+            title=(
+                f"Off-floor discrete-time hazard ({spec.outcome_symbol}, {hazard_link}); "
+                "positive = raises Pr(off-floor); prognostic, not a randomised effect"
+            ),
+            columns=list(summary.columns),
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
+            "n_at_risk_children": panel.n_at_risk_children,
+            "n_events": panel.n_events,
+            "hazard_link": hazard_link,
+        },
+    )
+
+    return _finalize_report(ctx)
 
 
 def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -1911,8 +2057,11 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     mean = f_ord.mean(axis=1)
     lo = np.quantile(f_ord, 0.025, axis=1)
     hi = np.quantile(f_ord, 0.975, axis=1)
+    lo90 = np.quantile(f_ord, 0.05, axis=1)
+    hi90 = np.quantile(f_ord, 0.95, axis=1)
     pd.DataFrame(
-        {"mech_logit": x, "f_mean": mean, "f_lo": lo, "f_hi": hi}
+        {"mech_logit": x, "f_mean": mean, "f_lo": lo, "f_hi": hi,
+         "f_lo90": lo90, "f_hi90": hi90}
     ).to_csv(os.path.join(ctx.output_dir, "mechanism_curve.csv"), index=False)
     outcome = ctx.spec.outcome_symbol or "W"
     plt.figure(figsize=(6, 4))
@@ -2043,6 +2192,9 @@ def _summarise_draws(
         "mean": float(np.mean(values)),
         "lo": float(np.quantile(values, lo_q)),
         "hi": float(np.quantile(values, 1.0 - lo_q)),
+        # 90% equal-tailed sensitivity band alongside the headline ci_prob interval.
+        "lo90": float(np.quantile(values, 0.05)),
+        "hi90": float(np.quantile(values, 0.95)),
     }
     if include_p_pos:
         out["p_pos"] = float(np.mean(values > 0.0))
@@ -3198,6 +3350,8 @@ def _beta_summary(trace, name: str, ci_prob: float) -> dict:
         "mean": float(np.mean(draws)),
         "lo": float(np.quantile(draws, lo_q)),
         "hi": float(np.quantile(draws, hi_q)),
+        "lo90": float(np.quantile(draws, 0.05)),
+        "hi90": float(np.quantile(draws, 0.95)),
         "prob_pos": float(np.mean(draws > 0)),
     }
 
@@ -3263,6 +3417,8 @@ def _natural_scale_contrasts(
                 "delta_words_mean": float(np.mean(delta)),
                 "delta_words_lo": float(np.quantile(delta, lo_q)),
                 "delta_words_hi": float(np.quantile(delta, hi_q)),
+                "delta_words_lo90": float(np.quantile(delta, 0.05)),
+                "delta_words_hi90": float(np.quantile(delta, 0.95)),
                 "prob_pos": float(np.mean(delta > 0)),
             }
         )
@@ -3531,10 +3687,14 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 "adj_mean": a["mean"],
                 "adj_lo": a["lo"],
                 "adj_hi": a["hi"],
+                "adj_lo90": a["lo90"],
+                "adj_hi90": a["hi90"],
                 "adj_prob_pos": a["prob_pos"],
                 "biv_mean": bv["mean"],
                 "biv_lo": bv["lo"],
                 "biv_hi": bv["hi"],
+                "biv_lo90": bv["lo90"],
+                "biv_hi90": bv["hi90"],
                 "biv_prob_pos": bv["prob_pos"],
                 # Convergence flags: the adjusted column is the primary (gated) fit;
                 # the bivariate column is a sub-fit that bypasses the primary gate (B1).
@@ -3732,6 +3892,8 @@ def _coef_row(label: str, draws, hdi_prob: float) -> dict:
         "mean": float(np.mean(d)),
         "lo": float(np.quantile(d, lo_q)),
         "hi": float(np.quantile(d, 1 - lo_q)),
+        "lo90": float(np.quantile(d, 0.05)),
+        "hi90": float(np.quantile(d, 0.95)),
         "prob_pos": float(np.mean(d > 0)),
     }
 
@@ -3950,6 +4112,8 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "median": float(np.median(corr)),
             "lo": float(np.quantile(corr, lo_q)),
             "hi": float(np.quantile(corr, 1 - lo_q)),
+            "lo90": float(np.quantile(corr, 0.05)),
+            "hi90": float(np.quantile(corr, 0.95)),
             "prob_pos": float(np.mean(corr > 0)),
         }
         pd.DataFrame([tempo_corr]).to_csv(
@@ -4260,12 +4424,18 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                 "loading_mean": float(np.mean(lam_d)),
                 "loading_lo": float(np.quantile(lam_d, lo_q)),
                 "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
+                "loading_lo90": float(np.quantile(lam_d, 0.05)),
+                "loading_hi90": float(np.quantile(lam_d, 0.95)),
                 "correlation_mean": float(np.mean(corr_d)),
                 "correlation_lo": float(np.quantile(corr_d, lo_q)),
                 "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
+                "correlation_lo90": float(np.quantile(corr_d, 0.05)),
+                "correlation_hi90": float(np.quantile(corr_d, 0.95)),
                 "communality_mean": float(np.mean(com_d)),
                 "communality_lo": float(np.quantile(com_d, lo_q)),
                 "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
+                "communality_lo90": float(np.quantile(com_d, 0.05)),
+                "communality_hi90": float(np.quantile(com_d, 0.95)),
             }
         )
     load_df = pd.DataFrame(load_rows)
@@ -4310,6 +4480,8 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                     "mean": float(np.mean(pair)),
                     "lo": float(np.quantile(pair, lo_q)),
                     "hi": float(np.quantile(pair, 1 - lo_q)),
+                    "lo90": float(np.quantile(pair, 0.05)),
+                    "hi90": float(np.quantile(pair, 0.95)),
                     "prob_pos": float(np.mean(pair > 0)),
                 }
             )

@@ -1,0 +1,69 @@
+---
+title: "LRPSURV09: time-to-off-floor survival for phonetic spelling (P)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+**In plain terms.** Among the children who scored zero on phonetic spelling at the start
+of the study, *when* did they first come off that floor, and what predicted it? Rather than
+the single first-window off-floor transition (the LRPITT09 floor rule), this model uses all
+four waves: a discrete-time survival model for the time to first come off the phonetic-
+spelling floor, with the intervention entering as a shift in the hazard of coming off.
+
+**Estimand and design.** The at-risk set is the children at the phonetic-spelling floor at
+t1. The outcome is the interval (t1→t2, t2→t3, t3→t4) in which a child first scores above
+zero. The hazard carries a per-interval baseline, the *baseline* (t1) letter-sound knowledge
+and word reading as prognostic covariates, and an intervention-aligned treatment hazard shift
+(the immediate arm is treated in every interval; the waitlist arm from its crossover).
+`G = 2 − group`, so a positive `tau` means the intervention raises the off-floor hazard.
+
+**This is prognostic, not causal.** By t4 both arms have been treated, so the treatment term
+is an association anchored on the immediate arm's randomised first interval. Unlike nonword
+reading, phonetic spelling's first-window off-floor signal does not replicate cleanly at the
+waitlist crossover (see the descriptive note), so the treatment hazard shift here is expected
+to be weak and uncertain. Read the covariate ordering, not the treatment magnitude.
+
+## Model
+
+With interval baseline hazard $\alpha_k$, treatment-on indicator $\text{trt}_{ik}$, and
+standardised baseline covariates $L_{0,i}$ (letter sounds) and $W_{0,i}$ (word reading),
+the discrete-time hazard of coming off the floor uses a complementary-log-log link:
+
+$$
+\text{cloglog}\big(h_{ik}\big) = \alpha_k + \tau\,\text{trt}_{ik}
+  + \beta_L\,L_{0,i} + \beta_W\,W_{0,i},
+\qquad [\,\text{off floor in interval } k\,]_{ik} \sim \text{Bernoulli}(h_{ik}).
+$$
+
+A logistic-hazard link is the documented sensitivity variant.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_survival.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

@@ -64,12 +64,13 @@ FAMILY_BY_KIND: dict[str, str] = {
     "dose_response": "dose",
     "growth": "gc",
     "historical_growth": "hg",
+    "survival": "surv",
 }
 
 #: Family codes that are embedded in the legacy id itself (so no ``kind`` is needed
 #: to parse them), in the order the legacy id spells them.
 _EMBEDDED_FAMILIES: tuple[str, ...] = (
-    "itt", "gf", "lf", "al", "did", "hs", "mm", "gbg", "gbl", "hg",
+    "itt", "gf", "lf", "al", "did", "hs", "mm", "gbg", "gbl", "hg", "surv",
 )
 
 #: Legacy prefix -> (project, study). ``rlm`` is a *study* under the ``lrp`` project.
