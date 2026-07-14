@@ -33,7 +33,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_level_fa
 SPEC = ModelSpec(
     model_id="lrp-rli-lf-001",
     kind="level_factors",
-    title="Level factors for word reading (W)",
+    title="Factors associated with the level of word reading (W)",
     outcome_symbol="W",
     extra={
         "ability_covariate": V.BLOCKS,

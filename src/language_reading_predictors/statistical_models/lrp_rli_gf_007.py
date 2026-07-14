@@ -29,7 +29,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-007",
     kind="gain_factors",
-    title="Gain factors for CELF basic concepts (F)",
+    title="Factors associated with gains in CELF basic concepts (F)",
     outcome_symbol="F",
     extra={
         "skill_symbols": ("R", "TR"),

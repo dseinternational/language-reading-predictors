@@ -30,7 +30,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_level_fa
 SPEC = ModelSpec(
     model_id="lrp-rli-lf-008",
     kind="level_factors",
-    title="Level factors for TROG receptive grammar (T)",
+    title="Factors associated with the level of TROG receptive grammar (T)",
     outcome_symbol="T",
     extra={
         "ability_covariate": V.BLOCKS,

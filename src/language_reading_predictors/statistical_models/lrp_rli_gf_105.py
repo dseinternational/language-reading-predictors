@@ -37,7 +37,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-105",
     kind="gain_factors",
-    title="Gain factors for phonetic spelling (P), off-floor, treated-only",
+    title="Factors associated with gains in phonetic spelling (P), off-floor, treated-only",
     outcome_symbol="P",
     extra={
         "skill_symbols": ("L", "B"),

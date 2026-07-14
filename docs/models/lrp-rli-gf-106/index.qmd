@@ -1,5 +1,5 @@
 ---
-title: "LRPGF06b: Gain factors for phoneme blending (blending) (B), treated-only"
+title: "LRPGF06b: Factors associated with gains in phoneme blending (blending) (B), treated-only"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

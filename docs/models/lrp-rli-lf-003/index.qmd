@@ -1,5 +1,5 @@
 ---
-title: "LRPLF03: Level factors for expressive vocabulary (E)"
+title: "LRPLF03: Factors associated with the level of expressive vocabulary (E)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

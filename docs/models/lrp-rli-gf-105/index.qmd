@@ -1,5 +1,5 @@
 ---
-title: "LRPGF05b: Gain factors for phonetic spelling (P), off-floor, treated-only"
+title: "LRPGF05b: Factors associated with gains in phonetic spelling (P), off-floor, treated-only"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

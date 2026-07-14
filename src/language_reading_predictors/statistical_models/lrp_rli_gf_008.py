@@ -29,7 +29,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-008",
     kind="gain_factors",
-    title="Gain factors for TROG receptive grammar (T)",
+    title="Factors associated with gains in TROG receptive grammar (T)",
     outcome_symbol="T",
     extra={
         "skill_symbols": ("R", "TR"),
