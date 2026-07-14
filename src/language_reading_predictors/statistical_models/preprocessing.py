@@ -599,12 +599,13 @@ def load_and_prepare(
                     # Corrupt cell(s): treat as missing (NaN) so the factory keep-mask
                     # drops the row, rather than raising. Opt-in per measure only.
                     bad = np.asarray(arr, dtype=float) > m.n_trials
-                    print(
-                        f"  load_and_prepare: {s} ({m.column}_{which}) has "
+                    warnings.warn(
+                        f"load_and_prepare: {s} ({m.column}_{which}) has "
                         f"{int(bad.sum())} value(s) above the n_trials ceiling "
                         f"{m.n_trials} (max {finite.max():g}); setting to NaN "
                         "(dropped as missing) — corrupt source cell, flag to the "
-                        "data owner."
+                        "data owner.",
+                        stacklevel=2,
                     )
                     if which == "post":
                         post_counts[s] = np.where(bad, np.nan, np.asarray(post_counts[s], dtype=float))
