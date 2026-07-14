@@ -1,0 +1,71 @@
+## Results
+
+The block-2 exposure model is a within-programme **association**, not a randomised experiment. Block 2 of the taught-vocabulary programme has no t1 baseline and no randomised contrast, so identification borrows the *staggered* block-2 teaching: the immediate arm is taught block 2 in phase 2 (measured at t3) while the wait-list arm is still on block 1; the wait-list arm reaches block 2 in phase 3 (t4). The focal `delta` is the shift in the block-2 taught-word level attributable to block 2 being **actively taught**.
+
+_In plain terms:_ each child is partly their own control (a child random intercept), and per-timepoint intercepts absorb the shared maturation trend; what is left is how much block-2 taught-word knowledge jumps when a child's block-2 teaching switches on — read against the not-taught comparators (a positive jump on taught words but not on not-taught words is the specificity / fidelity check).
+
+::: {.callout-important title="Association (parallel-trends): block-2-active vs block-1-active"}
+
+`delta` is an **adjusted association**, not a randomised effect. There is no period in which block-2 exposure was randomised (block 2 is absent at t1 and equal across arms at t2), so `delta` is causal only under **parallel trends** — block-2 taught-vocabulary trajectories would have moved together across arms absent block-2 teaching. Over t2→t3 the wait-list arm is on **block 1**, not idle, so the contrast is "block-2-active *vs block-1-active*", never treated-vs-untreated. The child random intercept absorbs stable between-child (hence between-arm) differences and `alpha_time` the shared maturation trend; **age-at-block-2** (immediate children reach block 2 younger) and any arm-specific slope difference remain confounded. Read as *associated with*, never *drives*. Denominators (24 taught / 12 not-taught) mirror block 1 and are **confirmed against the block-2 word list** (9 words × 4 word-classes, 6 taught / 3 not-taught per class; #214).
+
+:::
+
+```{python}
+# | echo: false
+block_exposure_summary = _csv("block_exposure_summary.csv")
+block_exposure_summary
+```
+
+_How to read the effect summary:_ `delta` is the block-active exposure effect on the logit (log-odds) scale; `delta_median` is the posterior median (the house convention; `delta_mean` is kept alongside), the `_lo`/`_hi` columns bracket the 95% credible interval, and `prob_delta_pos` is the posterior probability the effect is positive. The `delta_items_*` columns restate the effect on the raw items scale — the average marginal change in the expected block-2 taught-word count from toggling exposure on across the fitted rows.
+
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.reporting import odds_string as _odds
+
+if block_exposure_summary is not None:
+    _d = block_exposure_summary.iloc[0]
+    _items = (
+        f", about **{_d.delta_items_median:+.1f} items** "
+        f"(90% CrI {_d.delta_items_lo90:+.1f} to {_d.delta_items_hi90:+.1f}; "
+        f"95% {_d.delta_items_lo:+.1f} to {_d.delta_items_hi:+.1f})"
+    )
+    print(
+        f"**Block-active exposure effect (`delta`, association):** median "
+        f"{_d.delta_median:+.3f} on the logit scale "
+        f"(90% CrI {_d.delta_lo90:+.3f} to {_d.delta_hi90:+.3f}; "
+        f"95% {_d.delta_lo:+.3f} to {_d.delta_hi:+.3f}); "
+        f"P(delta > 0) = {_d.prob_delta_pos:.3f} "
+        f"({_odds(_d.prob_delta_pos)}, *{_d.delta_direction_label}* evidence for the "
+        f"direction).{_items}"
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("delta_forest.png", "Posterior of the block-active exposure effect (forest, reference line at 0)"))
+print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect; posterior mass to its right favours more taught-word learning under block-2 exposure. This is an adjusted association, not a causal effect.")
+```
+
+### Coefficient summary (all associations)
+
+```{python}
+# | echo: false
+factor_summary = _csv("factor_summary.csv")
+factor_summary
+```
+
+_Every coefficient here is an adjusted association_ — `delta` (the focal block-active exposure term), the age precision term, and the revised-DAG adjusters (hearing, and speech/phonological memory where carried). None is identified by randomisation.
+
+```{python}
+# | echo: false
+# | output: asis
+_assoc_forest = _img(
+    "association_forest.png",
+    "Adjusted-association coefficients (forest, reference line at 0) — not causal",
+)
+print(_assoc_forest)
+if _assoc_forest:
+    print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect. Every coefficient here is an adjusted association, not a causal effect.")
+```

@@ -71,8 +71,11 @@ MEASURES: dict[str, Measure] = {
     # weeks 1-20), tested both ways and split into the directly-taught target
     # words and a not-taught comparison set. Block 1 is taught in phase 1, so its
     # baseline is t1 and its randomised post-score is t2 - the ITT window. (Block
-    # 2 is introduced in phase 2 and has no t1 baseline, so it is not modelled
-    # here.) See ``docs/models/lrp-rli-itt-002`` and Burgoyne et al. (2012), Table 3.
+    # 2 is introduced in phase 2 and has no t1 baseline, so it carries no
+    # randomised contrast; it is modelled instead by the block-exposure family
+    # ``bx`` on its staggered teaching - see ``TAUGHT_BLOCK2_OUTCOMES`` below and
+    # ``factories.build_block_exposure_model``.) See ``docs/models/lrp-rli-itt-002``
+    # and Burgoyne et al. (2012), Table 3.
     #
     # Taught tests: "Six words of each type (nouns, adverbs, adjectives,
     # prepositions)" = 24 items; the paper tabulates the maximum as (24).
@@ -99,6 +102,35 @@ MEASURES: dict[str, Measure] = {
         "UR", V.B1RENT, 12, "Not-taught receptive vocabulary, block 1 (b1rent)",
         n_trials_confirmed=True,
     ),
+    # --- Block-2 taught-vocabulary tests (block-exposure family `bx`) ----------
+    # The second taught word set (Block 2, weeks 21-40), same instrument as block
+    # 1. It has no t1 baseline (introduced in phase 2) and no randomised contrast,
+    # so the `bx` family estimates a staggered block-active exposure association
+    # (immediate arm taught block 2 in phase 2 while the waitlist is still on
+    # block 1; waitlist reaches block 2 in phase 3). Denominators MIRROR block 1
+    # under the #214 per-block word-list logic (each block: 9 words x 4 types = 36,
+    # split 6 taught + 3 not-taught per type -> 24 taught / 12 not-taught per
+    # modality), and the observed maxima are consistent (b2extau 21, b2retau 24,
+    # b2exnt 10, b2rent 12 excluding one corrupt cell). Confirmed against the
+    # block-2 word list (2026-07-14): 24 taught / 12 not-taught per modality, exactly
+    # as block 1, so ``n_trials_confirmed=True``. (The one corrupt b2rent cell > 12 is
+    # a separate source-data fix, handled by the UR2 loader drop.)
+    "TE2": Measure(
+        "TE2", V.B2EXTAU, 24, "Taught expressive vocabulary, block 2 (b2extau)",
+        n_trials_confirmed=True,
+    ),
+    "TR2": Measure(
+        "TR2", V.B2RETAU, 24, "Taught receptive vocabulary, block 2 (b2retau)",
+        n_trials_confirmed=True,
+    ),
+    "UE2": Measure(
+        "UE2", V.B2EXNT, 12, "Not-taught expressive vocabulary, block 2 (b2exnt)",
+        n_trials_confirmed=True,
+    ),
+    "UR2": Measure(
+        "UR2", V.B2RENT, 12, "Not-taught receptive vocabulary, block 2 (b2rent)",
+        n_trials_confirmed=True,
+    ),
 }
 
 
@@ -117,6 +149,13 @@ TAUGHT_BLOCK1_OUTCOMES: tuple[str, ...] = ("TE", "TR", "UE", "UR")
 """Block-1 taught-vocabulary family: taught/not-taught x expressive/receptive."""
 
 
+TAUGHT_BLOCK2_OUTCOMES: tuple[str, ...] = ("TE2", "TR2", "UE2", "UR2")
+"""Block-2 taught-vocabulary family (block-exposure `bx`): taught/not-taught x
+expressive/receptive. Modelled as a staggered block-active exposure association
+(no randomised contrast; block 2 has no t1 baseline) — see
+:func:`factories.build_block_exposure_model`."""
+
+
 # --- Treatment-effect prior tier (issue #141) --------------------------------
 # The randomised treatment-effect prior tau is tiered by how *proximal* the
 # outcome is to what the intervention directly teaches. A single logit prior is
@@ -127,13 +166,14 @@ TAUGHT_BLOCK1_OUTCOMES: tuple[str, ...] = ("TE", "TR", "UE", "UR")
 # proximal-only pattern; Donolato et al. 2023's weak receptive-vocabulary
 # transfer), so they take a tighter tau prior; the proximal directly-taught /
 # decoding outcomes keep the wider default.
-DISTAL_OUTCOMES: frozenset[str] = frozenset({"R", "E", "T", "F", "UR", "UE"})
+DISTAL_OUTCOMES: frozenset[str] = frozenset({"R", "E", "T", "F", "UR", "UE", "UR2", "UE2"})
 """Broad standardised-transfer outcomes taking the tighter (distal) tau prior:
 receptive/expressive vocabulary (R, E), grammar (T), basic concepts (F), and the
-not-taught vocabulary comparison sets (UR, UE). Everything else — the directly
-taught vocabulary (TR, TE), decoding (L, W, B) and the floored P/N — is proximal
-and keeps the wider default. Membership is a substantive judgement owned by the
-education/research team, not a statistical one."""
+not-taught vocabulary comparison sets (UR, UE and their block-2 counterparts
+UR2, UE2). Everything else — the directly taught vocabulary (TR, TE, TR2, TE2),
+decoding (L, W, B) and the floored P/N — is proximal and keeps the wider default.
+Membership is a substantive judgement owned by the education/research team, not a
+statistical one."""
 
 
 def is_distal(symbol: str | None) -> bool:
@@ -204,6 +244,12 @@ ROPE_DELTA: dict[str, float] = {
     "UR": 1.0,
     "UE": 1.0,
     "B": 1.0,
+    # Block-2 taught-vocabulary family (block-exposure `bx`), same items-scale δ
+    # as their block-1 counterparts.
+    "TE2": 1.0,
+    "TR2": 1.0,
+    "UE2": 1.0,
+    "UR2": 1.0,
 }
 
 # Floored outcomes: the ITT estimand is the probability of coming off the floor, so

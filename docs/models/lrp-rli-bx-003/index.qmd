@@ -1,0 +1,49 @@
+---
+title: "LRPBX03: Block-2 not-taught expressive vocabulary, block-active exposure (UE2)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPBX03 is a **block-exposure** model for block-2 **not-taught** expressive vocabulary (`b2exnt`, out of 12): the expressive specificity / placebo comparator to the taught expressive model (LRPBX01), with the same staggered block-active exposure structure.
+
+Because these words were **not** taught in block 2, a block-2 exposure effect on them should be ≈ 0. A positive exposure effect on the taught outcome (LRPBX01) together with a null effect here is the within-family intervention-fidelity check: the programme moves the words it teaches, not incidental vocabulary. Adjusters match the taught expressive model so the only difference is the outcome.
+
+## Model
+
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the block-2 not-taught word count, $N = 12$, with
+$\operatorname{logit}\mu_{i,t} = \alpha + \alpha_{\text{time}[t]} + \delta\,\text{exposed}_{i,t} + \gamma_A A_{\text{std},t} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{c}\gamma_c\,z(c) + u_{\text{child}}$, where $\text{exposed}_{i,t}=1$ once child $i$ has been taught block 2 by timepoint $t$ (immediate from t3, wait-list from t4), and the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech production (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator (SP/RW read at the t1 baseline). No own-baseline term.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_block_exposure.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
