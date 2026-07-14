@@ -396,6 +396,7 @@ mainfont
 mathrm
 matplotlib
 medae
+miscalibration
 monofont
 monofontoptions
 morphosyntax

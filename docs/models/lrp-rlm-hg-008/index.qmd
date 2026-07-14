@@ -1,0 +1,97 @@
+---
+title: "RLMHG08: Historical BAS number-skills growth, waves 1-3 (Byrne et al.)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+RLMHG08 is a per-measure sibling of `lrp-rlm-hg-001` (word reading): a descriptive
+group-by-wave growth model for BAS number skills over the first three annual waves
+of the Byrne, MacDonald & Buckley reading-language-memory cohort
+(`study_id="rlm"`), for the three reading groups (Down syndrome, average readers,
+reading-matched), on the complete-case subset that reproduces the paper's Table 2.
+
+::: {.callout-important title="Descriptive natural-history, NOT an intervention effect"}
+
+`readgrp` is a **cohort factor**, not a randomised or assigned condition, and this
+model carries no treatment, baseline-as-precision, or adjustment-set structure.
+Every quantity here is a **descriptive** group-by-wave expected score or growth
+rate — natural-history evidence, not a causal effect. The intervention-effect
+estimands live in the RLI (`lrp-rli-...`) suite.
+
+:::
+
+::: {.callout-warning title="Provisional Beta-Binomial ceiling"}
+
+The Beta-Binomial denominator ($N = 60$) is the **observed maximum** in the
+prepared extract, not a manual-confirmed instrument ceiling
+(`n_trials_confirmed=False`). Confirming the true maximum against the instrument
+manual is a data-owner decision
+(`notes/202607021052-issue-164-byrne-followup-plan.md`, decision 3); until then,
+read the fitted cells as provisional. The shared prior scales are reused from
+`lrp-rlm-hg-001`; the prior-predictive check below flags any miscalibration.
+
+:::
+
+::: {.callout-note title="Audit baseline"}
+
+The model is fit on the per-measure complete-case subset (subjects with this
+measure observed at all three waves). The observed group-by-wave means reproduce
+the paper's Table 2 complete-case figures for this measure and are written beside
+the posterior summaries as the audit baseline.
+
+:::
+
+## Model
+
+For child $i$ in reading group $g[i]$ at wave $t$, the bounded BAS number skills
+count (denominator $N = 60$) is Beta-Binomial with an age-free, group-by-wave
+population mean and a stable per-child offset:
+
+$$
+\text{score}_{it} \sim \mathrm{BetaBinomial}(N,\ p_{it},\ \kappa),
+\qquad
+\operatorname{logit}(p_{it}) = \eta_{g[i],\,t} + u_i .
+$$
+
+$\eta_{g,t}$ is the population group-by-wave expected score (a $3 \times 3$
+grid); $u_i$ is a non-centred, **group-centred** per-child random intercept
+($u_i = (z_i - \bar z_{g[i]})\,\sigma_{\text{subject}}$) so the
+group-by-wave level $\eta$ carries the group mean; $\kappa$ is measurement
+overdispersion. Deterministic quantities report the expected item score per group
+and wave, within-group growth across the two annual intervals, and pairwise
+total-growth (wave 1 to wave 3) contrasts between groups.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_historical_growth.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

@@ -1,15 +1,15 @@
 ## Results
 
-This model is a reproduction / audit baseline: it re-fits word-reading growth on
-a historical cohort and checks the fitted cells against the published Table 2
-means, so a mismatch flags a data or modelling problem before any newer analysis
-is trusted.
+This model is a reproduction / audit baseline: it re-fits this measure's
+group-by-wave growth on a historical cohort and checks the fitted cells against
+the published Table 2 means, so a mismatch flags a data or modelling problem
+before any newer analysis is trusted. (See the Overview for which measure and
+wave range this report covers.)
 
-Descriptive group-by-wave BAS word-reading growth for the historical cohort.
-These are **natural-history** estimates — expected scores and growth rates by
-reading group — not intervention effects. `readgrp` is a cohort factor, so
-between-group contrasts describe how the groups differ, not what caused the
-difference.
+Descriptive group-by-wave growth for the historical cohort. These are
+**natural-history** estimates — expected scores and growth rates by reading group
+— not intervention effects. `readgrp` is a cohort factor, so between-group
+contrasts describe how the groups differ, not what caused the difference.
 
 ### Group-by-wave fitted vs observed
 
