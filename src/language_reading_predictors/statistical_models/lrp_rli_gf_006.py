@@ -30,7 +30,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-006",
     kind="gain_factors",
-    title="Gain factors for phoneme blending (blending) (B)",
+    title="Factors associated with gains in phoneme blending (blending) (B)",
     outcome_symbol="B",
     extra={
         "skill_symbols": ("L", "E", "TE"),

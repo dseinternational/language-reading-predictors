@@ -198,6 +198,8 @@ in #247. The `…b` variant is treated-only (gains while on intervention). Desig
 `notes/202606261230-gain-level-factors-design.md`; re-derivation:
 `notes/202607122200-gf-lf-revised-dag-adjustments.md`.
 
+**Naming note.** "Factors" here (and in the level-factors family below) carries its plain-English sense — the observed covariates _associated with_ gains or levels — not the factor-analysis sense: these are regression models with no latent variables. The latent measurement model is `lrp-rli-mm-001` (`kind="corr_factor"`).
+
 | Model            | Outcome | Skill baselines (`skill_symbols`)         | Confounders (`adjust_for`) | Treated-only `…b` |
 | ---------------- | ------- | ----------------------------------------- | -------------------------- | ----------------- |
 | `lrp-rli-gf-001` | `W`     | `TR`, `TE`, `R`, `E`, `L`, `N`, `B`       | —                          | `lrp-rli-gf-101`  |
@@ -223,6 +225,7 @@ measure-skill adjusters — in a levels model a skill's contemporaneous level is
 post-treatment mediator of the group×time effect (#247). Outcomes mirror the gain-factor
 family: `lrp-rli-lf-001` `W`, `02` `R`, `03` `E`, `04` `L`, `05` `P` (off-floor), `06` `B`,
 `07` `F`, `08` `T`, `09` `TR`, `10` `TE`, `11` `N` (off-floor).
+The gain-factors naming note applies here too: "factors" means observed regression covariates, not latent factors.
 
 ### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-013` (+ `lrp-rli-did-107`) (`kind="did"`)
 

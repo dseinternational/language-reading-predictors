@@ -1,5 +1,5 @@
 ---
-title: "LRPGF09: Gain factors for taught receptive vocabulary (TR)"
+title: "LRPGF09: Factors associated with gains in taught receptive vocabulary (TR)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

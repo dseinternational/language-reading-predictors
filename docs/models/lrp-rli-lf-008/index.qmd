@@ -1,5 +1,5 @@
 ---
-title: "LRPLF08: Level factors for TROG receptive grammar (T)"
+title: "LRPLF08: Factors associated with the level of TROG receptive grammar (T)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

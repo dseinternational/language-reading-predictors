@@ -41,7 +41,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-011",
     kind="gain_factors",
-    title="Gain factors for nonword reading (N), off-floor",
+    title="Factors associated with gains in nonword reading (N), off-floor",
     outcome_symbol="N",
     extra={
         "skill_symbols": ("L", "B"),
