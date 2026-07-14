@@ -52,12 +52,24 @@ if interaction_summary is not None and len(interaction_summary):
 ```{python}
 # | echo: false
 # | output: asis
+_mech_is_covariate = bool((config.get("extra") or {}).get("mechanism_is_covariate", False))
 print(_img("mechanism_curve.png", "Adjusted mechanism curve"))
+if _mech_is_covariate:
+    _axis_read = (
+        "the horizontal axis is the mechanism variable's raw score (this exposure "
+        "is a continuous covariate, not a bounded-count measure, so no logit "
+        "transform applies)"
+    )
+else:
+    _axis_read = (
+        "the horizontal axis is the mechanism "
+        "variable (the earlier skill, on the logit scale — negative values are lower "
+        "scores)"
+    )
 print(
-    "\n_How to read the mechanism curve:_ the horizontal axis is the mechanism "
-    "variable (the earlier skill, on the logit scale — negative values are lower "
-    "scores); the vertical axis is that variable's contribution to the outcome, "
-    "also in logit units. The solid line is the posterior-median contribution and "
+    f"\n_How to read the mechanism curve:_ {_axis_read}; "
+    "the vertical axis is that variable's contribution to the outcome, "
+    "in logit units. The solid line is the posterior-median contribution and "
     "the shaded band its credible interval, so the band's width shows how uncertain "
     "the curve is at each point (it is typically wider where the data thin out). An "
     "upward slope means higher earlier-skill scores are associated with a higher "
@@ -76,7 +88,8 @@ mechanism_curve.head(15) if mechanism_curve is not None else "No mechanism curve
 ```{python}
 # | echo: false
 # | output: asis
-if mechanism_curve is not None and all(c in mechanism_curve.columns for c in ("f_mean", "mech_logit")):
+_x_col = "mech_x" if _mech_is_covariate else "mech_logit"
+if mechanism_curve is not None and all(c in mechanism_curve.columns for c in ("f_mean", _x_col)):
     _rng = mechanism_curve.f_mean.max() - mechanism_curve.f_mean.min()
     print(
         f"Across the fitted mechanism range, the posterior-mean contribution spans "
@@ -85,7 +98,7 @@ if mechanism_curve is not None and all(c in mechanism_curve.columns for c in ("f
     )
     print(
         "\n\n_How to read the curve table:_ one row per plotted point along the "
-        "mechanism axis. `mech_logit` is that point's position on the horizontal axis "
+        f"mechanism axis. `{_x_col}` is that point's position on the horizontal axis "
         "and `f_mean` the posterior-mean height of the curve there; the interval "
         "columns beside them are the shaded band's lower and upper edges. The table is "
         "just the plotted curve in numbers — the figure above is the quicker read."

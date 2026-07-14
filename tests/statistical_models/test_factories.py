@@ -632,6 +632,61 @@ def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
     assert "gamma_A" not in names
 
 
+def test_mechanism_factory_covariate_exposure_builds(tmp_path):
+    """#311 route (b): a standardised-covariate exposure (e.g. erbto) enters as
+    ``beta_mech * z(covariate)``; no ``f_mech`` is created, and the
+    ``mech_covariate`` Data node replaces ``mech_post_logit``."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    prep.covariates["erbto"] = np.linspace(-1.5, 1.5, prep.n_obs)
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="erbto",
+        outcome_symbol="W",
+        confounder_symbols=("G", "A"),
+        linear_mechanism=True,
+        mechanism_is_covariate=True,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "beta_mech" in names
+    assert "gamma_A" in names
+    assert not any(v.name == "f_mech" for v in built.model.deterministics)
+    assert "mech_covariate" in built.model.named_vars
+    assert "mech_post_logit" not in built.model.named_vars
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=11)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_mechanism_factory_covariate_exposure_requires_linear(tmp_path):
+    """A covariate exposure with the HSGP curve is refused: the curve, its priors
+    and the readiness-threshold post-processing assume a bounded-count logit."""
+    p = _write_synthetic(tmp_path, n_children=10)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    with pytest.raises(ValueError, match="linear_mechanism"):
+        build_mechanism_model(
+            prep,
+            mechanism_symbol="erbto",
+            outcome_symbol="W",
+            mechanism_is_covariate=True,
+        )
+
+
+def test_mechanism_factory_covariate_exposure_missing_raises(tmp_path):
+    """A covariate exposure absent from prepared.covariates is a loud KeyError."""
+    p = _write_synthetic(tmp_path, n_children=10)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    with pytest.raises(KeyError, match="prepared.covariates"):
+        build_mechanism_model(
+            prep,
+            mechanism_symbol="erbto",
+            outcome_symbol="W",
+            linear_mechanism=True,
+            mechanism_is_covariate=True,
+        )
+
+
 def test_adjusted_factory_builds(tmp_path):
     """Between-child adjusted build: standardised T1 predictors, no random intercept."""
     p = _write_synthetic(tmp_path, n_children=30)
