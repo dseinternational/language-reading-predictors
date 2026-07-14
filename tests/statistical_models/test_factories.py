@@ -19,6 +19,7 @@ from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.factories import (
     build_adjusted_model,
     build_aligned_model,
+    build_concurrent_model,
     build_correlated_factor_model,
     build_did_model,
     build_dose_response_model,
@@ -726,6 +727,68 @@ def test_adjusted_factory_bivariate_single_predictor(tmp_path):
     built = build_adjusted_model(prep, predictors=["lang"])
     betas = {v.name for v in built.model.free_RVs if v.name.startswith("beta_")}
     assert betas == {"beta_lang"}
+
+
+def test_concurrent_factory_builds(tmp_path):
+    """#312: one-wave concurrent model — standardised same-wave logit predictors, age,
+    group nuisance; no own-baseline, no phase/child random intercept."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _subset_prepared,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=30)
+    prep = load_and_prepare(
+        path=p, phase_mode="levels", outcomes=("W", "L", "B", "TR", "TE", "R", "E")
+    )
+    wave = _subset_prepared(prep, prep.phase == 1)  # a single timepoint
+    built = build_concurrent_model(
+        wave, outcome_symbol="W", predictor_symbols=["L", "B", "TR", "TE", "R", "E"]
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"beta_L", "beta_B", "beta_TR", "beta_TE", "beta_R", "beta_E"}.issubset(names)
+    assert "beta_age" in names
+    assert "beta_group_nuisance" in names
+    # Level, not gain: no own baseline; genuinely between-child: no random intercept.
+    assert "gamma_own" not in names
+    assert "alpha_phase" not in names
+    assert "sigma_child" not in names and "u_child_raw" not in names
+    assert built.prepared.n_obs == built.prepared.n_children  # one row per child
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=5)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_concurrent_factory_rejects_non_levels_frame(tmp_path):
+    p = _write_synthetic(tmp_path, n_children=12)
+    prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W", "L"))
+    with pytest.raises(ValueError, match="phase_mode='levels'"):
+        build_concurrent_model(prep, outcome_symbol="W", predictor_symbols=["L"])
+
+
+def test_concurrent_factory_rejects_multi_row_per_child(tmp_path):
+    """Passing the full (all-wave) levels frame — many rows per child — is refused: the
+    factory expects a single-wave subset."""
+    p = _write_synthetic(tmp_path, n_children=12)
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "L"))
+    with pytest.raises(ValueError, match="one row per child"):
+        build_concurrent_model(prep, outcome_symbol="W", predictor_symbols=["L"])
+
+
+def test_concurrent_factory_bivariate_single_predictor(tmp_path):
+    """A single predictor with age/group off is the truly-unadjusted bivariate fit."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _subset_prepared,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "L"))
+    wave = _subset_prepared(prep, prep.phase == 2)
+    built = build_concurrent_model(
+        wave, outcome_symbol="W", predictor_symbols=["L"],
+        include_age=False, include_group=False,
+    )
+    betas = {v.name for v in built.model.free_RVs if v.name.startswith("beta_")}
+    assert betas == {"beta_L"}
 
 
 def test_adjusted_factory_rejects_pooled_phase(tmp_path):

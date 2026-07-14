@@ -1481,6 +1481,144 @@ def association_marginals(
     return pd.DataFrame(rows)
 
 
+@dataclass
+class ConcurrentTerm:
+    """One standardised predictor for the concurrent-associations items-scale marginals (#312).
+
+    The concurrent family (``kind="concurrent"``) fits, per wave, a between-child
+    Beta-Binomial regression of the focal outcome's *level* on the standardised
+    same-wave logits of a set of predictor skills (main effects only — no
+    interactions, unlike the gain family). Each predictor's coefficient
+    ``beta_{label}`` is therefore per-SD-of-the-raw-logit, and a ``+1 SD`` (or, for
+    a bounded-count predictor, a ``+k items``) perturbation maps to a *scalar*
+    linear-predictor shift per posterior draw — so :func:`concurrent_marginals`
+    needs none of the per-observation interaction machinery of
+    :func:`association_marginals`.
+
+    Attributes
+    ----------
+    label
+        Predictor name for the report row (e.g. ``"L"``, ``"TR"``, ``"age"``).
+    coef
+        Posterior variable name of the predictor's standardised main-effect
+        coefficient (``"beta_L"`` etc.).
+    sd_logit
+        SD of the predictor's raw same-wave logit on the fitted rows — the data-scale
+        size of ``+1 SD``. A ``+k items`` increment at the mean operating point is
+        ``Δz = (logit(p̄ + k/N) − logit(p̄)) / sd_logit`` standardised units.
+    n_items
+        Denominator of the predictor when it is a bounded-count measure; enables the
+        ``+k items`` row. ``None`` for age / continuous predictors.
+    mean_prop
+        Mean baseline proportion of a bounded-count predictor on the fitted rows — the
+        operating point at which the ``+k items`` perturbation is evaluated.
+    k_items
+        The per-predictor items increment for the ``+k items`` row (the pipeline sets
+        it per measure, e.g. ``max(1, round(n_items / 10))``, so a fixed ``+5`` does
+        not span 3 %–50 % of scales that differ tenfold — the #310/#325 caveat).
+    """
+
+    label: str
+    coef: str
+    sd_logit: float
+    n_items: int | None = None
+    mean_prop: float | None = None
+    k_items: int | None = None
+
+
+def concurrent_marginals(
+    trace: xr.DataTree,
+    *,
+    terms: Sequence[ConcurrentTerm],
+    n_trials: int,
+    eta_name: str = "eta",
+    ci_prob: float = 0.95,
+    group: str = "posterior",
+) -> pd.DataFrame:
+    """Per-predictor items-scale marginals for the concurrent family (#312).
+
+    For each predictor in ``terms`` it forms the per-draw change in the linear
+    predictor from a ``+1 SD`` perturbation of that predictor (and, for a
+    bounded-count predictor, a ``+k items`` perturbation at the mean operating
+    point), holding every other predictor at its observed value, and averages the
+    probability-scale change ``expit(η + Δη) − expit(η)`` over the fitted rows.
+    Reported on the probability and items scales (``n_trials`` = the *focal
+    outcome's* denominator × probability), with an equal-tailed ``ci_prob`` interval
+    and a 90 % band.
+
+    Because the concurrent model has **no interaction terms**, the shift is a scalar
+    per draw: ``Δη_s = β_s · Δz`` where ``Δz = 1`` for ``+1 SD`` and
+    ``Δz = (logit(p̄ + k/N) − logit(p̄)) / sd_logit`` for ``+k items``. This is the
+    mutually-adjusted association's marginal — every row carries
+    ``role = "association"``; no term here is causal (post-treatment conditioning is
+    intentional, per the family's documented estimand).
+    """
+    posterior = getattr(trace, group)
+    eta = (
+        posterior[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
+
+    lo_q = (1 - ci_prob) / 2
+    hi_q = 1 - lo_q
+    eps = 1e-6
+    rows: list[dict[str, float | str]] = []
+
+    for term in terms:
+        beta = posterior[term.coef].stack(sample=("chain", "draw")).values.ravel()  # (S,)
+
+        perturbations: list[tuple[str, float]] = [("+1 SD", 1.0)]
+        if (
+            term.n_items
+            and term.mean_prop is not None
+            and term.k_items
+            and term.sd_logit > 0
+        ):
+            p = float(np.clip(term.mean_prop, eps, 1 - eps))
+            # Cap the increment to what actually fits below the ceiling at the mean
+            # operating point: a fixed +k with ``p + k/N > 1`` would be silently
+            # clamped, reporting a smaller-than-labelled (or near-zero) shift. Use the
+            # largest whole-item ``k_eff <= k`` with ``p + k_eff/N <= 1 - eps`` and
+            # label that; if even +1 item exceeds the ceiling, no positive increment is
+            # representable, so skip the row.
+            max_k = int(np.floor((1.0 - eps - p) * term.n_items))
+            k_eff = min(int(term.k_items), max_k)
+            if k_eff >= 1:
+                p_k = p + k_eff / term.n_items
+                dz = (logit(p_k) - logit(p)) / term.sd_logit
+                perturbations.append((f"+{k_eff} items", dz))
+
+        for scale_label, dz in perturbations:
+            delta_eta = beta * dz  # (S,), scalar shift per draw (no interactions)
+            ame_prob = (
+                expit(eta + delta_eta[None, :]) - expit(eta)
+            ).mean(axis=0)  # (S,)
+            ame_items = float(n_trials) * ame_prob
+            prob_lo90, prob_hi90 = band90(ame_prob)
+            items_lo90, items_hi90 = band90(ame_items)
+            rows.append(
+                {
+                    "term": term.label,
+                    "role": "association",
+                    "scale": scale_label,
+                    "prob_median": float(np.median(ame_prob)),
+                    "prob_lo": float(np.quantile(ame_prob, lo_q)),
+                    "prob_hi": float(np.quantile(ame_prob, hi_q)),
+                    "prob_lo90": prob_lo90,
+                    "prob_hi90": prob_hi90,
+                    "items_median": float(np.median(ame_items)),
+                    "items_lo": float(np.quantile(ame_items, lo_q)),
+                    "items_hi": float(np.quantile(ame_items, hi_q)),
+                    "items_lo90": items_lo90,
+                    "items_hi90": items_hi90,
+                    "prob_pos": float(np.mean(ame_items > 0)),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def level_t2_marginal_effect(
     trace: xr.DataTree,
     *,

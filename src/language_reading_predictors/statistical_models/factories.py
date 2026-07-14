@@ -2393,6 +2393,135 @@ def build_adjusted_model(
 
 
 # ---------------------------------------------------------------------------
+# LRP-CA: concurrent conditional-associations family (#312, workstream #314)
+#
+# Per-wave, cross-sectional, between-child Beta-Binomial regression of a focal
+# outcome's LEVEL on the standardised same-wave logits of a set of predictor
+# skills, plus age and a non-interpretable group nuisance term. One row per child
+# at a single wave: no own-baseline (this is a level, not a gain), no child random
+# intercept (one row per child, so the coefficients are genuinely between-child
+# associations — a random intercept would tilt them toward the within-child
+# question, as in the LRP65 note). The pipeline fits it once per wave and reports
+# the four waves side by side. EVERY coefficient is an adjusted association — the
+# family makes NO causal claim, so conditioning on post-treatment skill levels is
+# intentional and licensed (contrast the level-factors family, which excludes
+# cross-skill terms precisely to protect a causal group×time contrast).
+# ---------------------------------------------------------------------------
+
+
+def build_concurrent_model(
+    prepared: PreparedData,
+    *,
+    outcome_symbol: str = "W",
+    predictor_symbols: Iterable[str] = ("L", "B", "TR", "TE", "R", "E"),
+    include_age: bool = True,
+    include_group: bool = True,
+    predictor_slope_sigma: float = 0.3,
+) -> BuiltModel:
+    """Concurrent conditional-associations model for ONE wave (#312).
+
+    Expects a single-wave subset of the ``phase_mode="levels"`` frame (the pipeline
+    slices ``prepared.phase == wave_idx`` before calling), so there is exactly one
+    row per child. The focal outcome's post-count level is conditioned on the
+    standardised same-wave logits of ``predictor_symbols`` (each a mutually-adjusted
+    ``beta_{sym}`` on the raw-logit's standardised scale), optionally standardised age
+    (``beta_age``) and a group nuisance term (``beta_group_nuisance``, flagged
+    non-interpretable — it only absorbs arm composition):
+
+        eta_i = alpha + Σ_k beta_k · z_k(logit predictor_k)_i
+                     [+ beta_age · z(age)_i] [+ beta_group_nuisance · G_i]
+
+    with a Beta-Binomial likelihood on the outcome post-count. Missing predictor
+    values are mean-imputed (0 on the standardised scale) — PyMC cannot take NaN
+    inputs and the associations are a descriptive read; a predictor's realised
+    variance shrinks with its missingness, biasing that coefficient toward zero (the
+    report flags this, as in the horseshoe level model). Rows missing the focal
+    OUTCOME are dropped by the caller (an outcome cannot be imputed).
+
+    Regularising ``Normal(0, predictor_slope_sigma)`` slopes are essential: with
+    n ≈ 53 and a strongly inter-correlated predictor cluster, the mutually-adjusted
+    coefficients are collinearity-shrunk, and each answers a *different* conditional
+    question (the Table-2 fallacy — see the report). ``beta_{sym}`` is per-SD of the
+    raw same-wave logit; the pipeline records each logit's SD so a ``+k items``
+    marginal can be pushed through :func:`reporting.concurrent_marginals`.
+    """
+    if prepared.phase_mode != "levels":
+        raise ValueError(
+            "Concurrent model requires a phase_mode='levels' subset (one wave); "
+            f"got {prepared.phase_mode!r}"
+        )
+    if outcome_symbol not in prepared.post_counts:
+        raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
+
+    # One row per child at this wave: drop children missing the focal outcome.
+    keep = ~np.isnan(prepared.post_counts[outcome_symbol])
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+    if prepared.n_obs != prepared.n_children:
+        raise ValueError(
+            "Concurrent model expects one row per child (a single wave); got "
+            f"{prepared.n_obs} rows over {prepared.n_children} children — pass a "
+            "single-wave subset."
+        )
+
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+        standardise,
+    )
+
+    post = prepared.post_counts[outcome_symbol].astype(np.int64)
+    N = prepared.n_trials[outcome_symbol]
+    predictor_symbols = tuple(predictor_symbols)
+
+    coords = {"obs_id": np.arange(prepared.n_obs)}
+    with pm.Model(coords=coords) as model:
+        alpha = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha")
+        eta = alpha
+
+        for sym in predictor_symbols:
+            if sym not in prepared.post_counts:
+                raise KeyError(
+                    f"Concurrent predictor {sym!r} missing from prepared data"
+                )
+            z, _ = standardise(logit_safe(prepared.post_counts[sym], prepared.n_trials[sym]))
+            z = np.nan_to_num(z)  # mean-impute missing (0 on the standardised scale)
+            z_d = pm.Data(f"z_{sym}", z, dims="obs_id")
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                f"beta_{sym}"
+            )
+            eta = eta + beta * z_d
+
+        if include_age:
+            age_d = pm.Data(
+                "z_age", np.nan_to_num(np.asarray(prepared.A_std, dtype=float)),
+                dims="obs_id",
+            )
+            beta_age = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                "beta_age"
+            )
+            eta = eta + beta_age * age_d
+
+        if include_group:
+            # Group as a NON-INTERPRETABLE nuisance: absorbs arm composition at this
+            # wave so it does not leak into the skill coefficients. A wide Normal(0, 1)
+            # (not the regularising association prior) — it is not an association we
+            # report, just a composition control. The report flags it as such.
+            g_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
+            beta_group = pm.Normal("beta_group_nuisance", mu=0.0, sigma=1.0)
+            eta = eta + beta_group * g_d
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+
+
+# ---------------------------------------------------------------------------
 # LRPHS: regularized-horseshoe predictor-ranking models (#116 Phase E)
 # ---------------------------------------------------------------------------
 
