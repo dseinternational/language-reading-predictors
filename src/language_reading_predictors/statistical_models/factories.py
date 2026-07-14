@@ -3314,6 +3314,10 @@ def build_lcsm_model(
     panel: WavePanel,
     *,
     reading_symbol: str = "W",
+    couplings: dict[str, tuple[str, ...]] | None = None,
+    arm_window_intercepts: bool = False,
+    covariate_block: tuple[str, ...] = (),
+    covariate_targets: tuple[str, ...] = (),
     coupling_prior_sigma: float = 0.3,
     self_prior_mu: float = -0.3,
     self_prior_sigma: float = 0.2,
@@ -3325,7 +3329,7 @@ def build_lcsm_model(
     sigma_init_prior_sigma: float = 1.0,
     kappa_prior_sigma: float = 50.0,
 ) -> BuiltModel:
-    """Full coupled latent change-score model (LRP67) on the logit scale.
+    """Full coupled latent change-score model (LRP67 + the lagged suite) on the logit scale.
 
     A latent logit true-score ``x_m[i, t]`` is modelled for each measure ``m``
     (default ``W`` reading, ``L`` letter-sounds, ``E`` expressive vocabulary),
@@ -3336,18 +3340,42 @@ def build_lcsm_model(
         x_m[i, t] = x_m[i, t-1] + Delta_m[i, t]
         Delta_m[i, t] = mean_Delta_m[i, t] + sigma_proc_m * zproc_m[i, t]
 
-    The headline coupling is on the **reading** change: prior-wave letter-sounds
-    and vocabulary predict subsequent reading change (the longitudinal,
-    within-trajectory analogue of LRP65's between-child story)::
+    ``couplings`` maps each **target** measure to the source measures whose
+    prior-wave levels enter its change equation (prior *level* -> subsequent
+    *change*, pooled over transitions). The default — ``None`` — reproduces
+    LRP67 exactly: every non-``reading_symbol`` measure couples into the
+    reading change::
 
         mean_Delta_W = a_W + b_W * x_W[t-1]
                      + sum_{c != W} g_c * x_c[t-1]
                      + d_age_W * age[t-1]
 
-    Non-reading measures get a self-proportional change plus age only. The
-    intervention-dose covariate is **omitted**: it is the locked DAG's ``IS``
-    collider, so conditioning on it would reopen the latent-``GA`` backdoor onto
-    the letter-sound -> reading couplings (ID-3).
+    With a single target the coupling parameters keep LRP67's ``g_{src}``
+    names; with multiple targets they are ``g_{src}_{tgt}`` (the lagged
+    reverse-coupling models LCSM-081/082, #250). Uncoupled measures get a
+    self-proportional change plus age only.
+
+    ``arm_window_intercepts`` replaces the pooled per-measure change intercept
+    with **arm x window cells** ``a_change[arm, trans, outcome]`` — required
+    for any model pooling couplings across transitions, because the waitlist
+    crossover makes the randomised arm a confounder of every transition-2+
+    coupling (verified d-separation, ``notes/202607141030-time-lagged-model-designs.md``).
+    The window-1 cell contrast is exposed as the deterministic
+    ``itt_w1_contrast`` (immediate - waitlist, per outcome): a randomised
+    latent ITT contrast on the change scale, reported as a consistency check
+    against the ITT suite. The intervention-dose covariate stays **omitted**:
+    it is the locked DAG's ``IS`` collider, so conditioning on it would reopen
+    the latent-``GA`` backdoor onto the couplings (ID-3); the arm x window
+    cells derive from randomised ``IG`` + design timing instead.
+
+    ``covariate_block`` names adjuster covariates on the panel — time-invariant
+    (``panel.child_covariates``, e.g. ``hs``/``hs_missing``) or per-wave
+    (``panel.wave_covariates``, e.g. ``erbto``/``deapp_c`` + indicators), the
+    latter read at the transition's **prior** wave (the lagged DAG's
+    parents-at-the-prior-wave rule). Each covariate gets one slope
+    ``b_{name}`` **shared** across the ``covariate_targets`` change equations —
+    the recommended parameter-sparing default at n~54.
+
     All change coefficients are **time-invariant** (pooled across the 3
     transitions) — a deliberate constraint at n~54. Everything is non-centred
     for sampling.
@@ -3372,8 +3400,51 @@ def build_lcsm_model(
     T = panel.n_waves
     if T < 2:
         raise ValueError("LCSM needs at least two waves")
-    cross = [s for s in OUT if s != reading_symbol]
     jidx = {s: i for i, s in enumerate(OUT)}
+
+    if couplings is None:
+        couplings = {reading_symbol: tuple(s for s in OUT if s != reading_symbol)}
+    couplings = {tgt: tuple(srcs) for tgt, srcs in couplings.items()}
+    for tgt, srcs in couplings.items():
+        unknown = [s for s in (tgt, *srcs) if s not in OUT]
+        if unknown:
+            raise KeyError(
+                f"coupling symbols {unknown} not in panel.outcomes {OUT}"
+            )
+        if tgt in srcs:
+            raise ValueError(
+                f"target {tgt!r} cannot couple to itself (that is b_self)"
+            )
+
+    if arm_window_intercepts and panel.group is None:
+        raise ValueError(
+            "arm_window_intercepts=True needs a panel with a group column"
+        )
+    covariate_block = tuple(covariate_block)
+    covariate_targets = tuple(covariate_targets)
+    if bool(covariate_block) != bool(covariate_targets):
+        raise ValueError(
+            "covariate_block and covariate_targets must be given together"
+        )
+    unknown_tgt = [s for s in covariate_targets if s not in OUT]
+    if unknown_tgt:
+        raise KeyError(
+            f"covariate_targets {unknown_tgt} not in panel.outcomes {OUT}"
+        )
+    cov_arrays: dict[str, np.ndarray] = {}
+    cov_is_wave: dict[str, bool] = {}
+    for name in covariate_block:
+        if name in panel.wave_covariates:
+            cov_arrays[name] = panel.wave_covariates[name]
+            cov_is_wave[name] = True
+        elif name in panel.child_covariates:
+            cov_arrays[name] = panel.child_covariates[name]
+            cov_is_wave[name] = False
+        else:
+            raise KeyError(
+                f"covariate {name!r} not on the panel; request it via "
+                "load_wave_panel(wave_covariates=..., include_hearing=...)"
+            )
 
     # Observed counts / mask / denominators stacked as (N, T, K) in OUT order.
     counts_int = np.stack(
@@ -3403,18 +3474,41 @@ def build_lcsm_model(
         "trans": panel.waves[1:],  # transitions into waves 2..T
         "outcome": list(OUT),
     }
+    if arm_window_intercepts:
+        coords["arm"] = ["immediate", "waitlist"]
+        # Row index into the arm dimension per child (group 1 -> 0, group 2 -> 1).
+        arm_idx = (np.asarray(panel.group) == 2).astype(int)
 
     from dse_research_utils.math.constants import EPSILON  # local import
 
     with pm.Model(coords=coords) as model:
         age = pm.Data("age_std", panel.age_std, dims=("child", "wave"))
+        cov_data: dict[str, pt.TensorVariable] = {}
+        for name in covariate_block:
+            dims = ("child", "wave") if cov_is_wave[name] else ("child",)
+            cov_data[name] = pm.Data(f"cov_{name}", cov_arrays[name], dims=dims)
 
         # Structural parameters (time-invariant, pooled over transitions).
         mu1 = pm.Normal("mu1", mu=w1_anchor, sigma=1.0, dims="outcome")
         sigma1 = pm.HalfNormal("sigma1", sigma=sigma_init_prior_sigma, dims="outcome")
-        a_change = pm.Normal(
-            "a_change", mu=0.0, sigma=intercept_prior_sigma, dims="outcome"
-        )
+        if arm_window_intercepts:
+            a_change = pm.Normal(
+                "a_change",
+                mu=0.0,
+                sigma=intercept_prior_sigma,
+                dims=("arm", "trans", "outcome"),
+            )
+            # Window-1 randomised contrast on the latent change scale
+            # (immediate - waitlist), the built-in ITT-suite consistency check.
+            pm.Deterministic(
+                "itt_w1_contrast",
+                a_change[0, 0, :] - a_change[1, 0, :],
+                dims="outcome",
+            )
+        else:
+            a_change = pm.Normal(
+                "a_change", mu=0.0, sigma=intercept_prior_sigma, dims="outcome"
+            )
         # Self-feedback of the proportional change-score recursion: the level AR(1)
         # coefficient is phi = 1 + b_self, so the old ``mu=0`` centred phi on a unit
         # root (random walk) with ~50% prior mass on explosive phi > 1. A
@@ -3428,9 +3522,22 @@ def build_lcsm_model(
             "b_self", mu=self_prior_mu, sigma=self_prior_sigma, dims="outcome"
         )
         d_age = pm.Normal("d_age", mu=0.0, sigma=covariate_prior_sigma, dims="outcome")
-        # Headline cross-couplings into the reading change (one per other measure).
-        g_cross = {
-            s: pm.Normal(f"g_{s}", mu=0.0, sigma=coupling_prior_sigma) for s in cross
+        # Headline cross-couplings (prior source level -> target change). With a
+        # single target the parameters keep LRP67's ``g_{src}`` names; with
+        # multiple targets the target joins the name (``g_{src}_{tgt}``).
+        single_target = len(couplings) == 1
+        g_par: dict[tuple[str, str], pt.TensorVariable] = {}
+        for tgt, srcs in couplings.items():
+            for src in srcs:
+                pname = f"g_{src}" if single_target else f"g_{src}_{tgt}"
+                g_par[(src, tgt)] = pm.Normal(
+                    pname, mu=0.0, sigma=coupling_prior_sigma
+                )
+        # Adjuster-covariate slopes, shared across the covariate_targets
+        # equations (the parameter-sparing default at n~54).
+        b_cov = {
+            name: pm.Normal(f"b_{name}", mu=0.0, sigma=covariate_prior_sigma)
+            for name in covariate_block
         }
         kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome")
 
@@ -3471,11 +3578,19 @@ def build_lcsm_model(
             t = k + 1
             prev = {s: x[s][t - 1] for s in OUT}
             for s in OUT:
-                m = a_change[jidx[s]] + b_self[jidx[s]] * prev[s]
+                if arm_window_intercepts:
+                    m = a_change[arm_idx, k, jidx[s]] + b_self[jidx[s]] * prev[s]
+                else:
+                    m = a_change[jidx[s]] + b_self[jidx[s]] * prev[s]
                 m = m + d_age[jidx[s]] * age[:, t - 1]
-                if s == reading_symbol:
-                    for cs in cross:
-                        m = m + g_cross[cs] * prev[cs]
+                for src in couplings.get(s, ()):
+                    m = m + g_par[(src, s)] * prev[src]
+                if s in covariate_targets:
+                    for name in covariate_block:
+                        v = cov_data[name]
+                        # Per-wave states are read at the prior wave (the lagged
+                        # DAG's parents-at-the-prior-wave rule).
+                        m = m + b_cov[name] * (v[:, t - 1] if cov_is_wave[name] else v)
                 delta = m
                 if use_process_noise:
                     delta = delta + sigma_proc[s] * zproc[s][:, k]
