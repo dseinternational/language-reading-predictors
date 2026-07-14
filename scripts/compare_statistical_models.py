@@ -282,6 +282,25 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
     same trial data, so their effects must never be averaged into one headline — the
     value is in whether qualitatively distinct designs triangulate on the same story
     (issue #230 §6). Returns ``None`` if no outcome has at least two design summaries.
+
+    Two interpretation caveats (#295 review), why the flags are read qualitatively:
+
+    - **The three logit effects are on the same *scale* but not the same conditioning
+      set.** ITT ``tau`` adjusts for own baseline + age; the gain-factor ``beta_trt``
+      additionally adjusts for ability, upstream DAG skills and the exogenous
+      confounders; DiD ``delta`` is a within-person contrast with a period anchor.
+      Because the logit link is **non-collapsible**, a more-adjusted conditional
+      log-odds effect is expected to be systematically larger in magnitude even under an
+      identical truth. Direction agreement is robust to this, but ``intervals_overlap``
+      compares *magnitudes*, so a ``consistent = False`` driven by non-overlap can be a
+      conditioning-set artefact rather than a genuine design disagreement — read it
+      alongside the direction flag, not on its own.
+    - **Direction is a coarse sign check at the 0.5 boundary.** Two essentially-null
+      designs with opposite-sign medians (``prob_pos`` e.g. 0.55 and 0.45) are marked
+      ``direction_agree = False`` even though neither shows a real signal; a
+      ``direction_agree = False`` with wide, overlapping intervals is a null-result
+      artefact, not a contradiction. (``prob_pos == 0.5`` exactly is treated as agreeing
+      with either side, which is harmless.)
     """
     readers = {"itt": _itt_effect, "did": _did_effect, "gf": _gain_factor_effect}
     rows: list[dict] = []

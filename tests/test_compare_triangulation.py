@@ -134,3 +134,16 @@ def test_verdict_is_na_when_fewer_than_two_converged(cmp_mod, out_root):
     e = {r["outcome"]: r for _, r in df.iterrows()}["E"]
     assert e["n_designs"] == 2 and e["n_converged"] == 1
     assert pd.isna(e["consistent"]) and pd.isna(e["direction_agree"])
+
+
+def test_all_negative_overlapping_is_consistent(cmp_mod, out_root):
+    # All three designs negative (prob_pos < 0.5) with overlapping intervals -> consistent
+    # via the all(p <= 0.5) branch (the positive case is covered above; #295 review).
+    _write_itt(cmp_mod, "lrp-rli-itt-007", median=-0.30, lo=-0.55, hi=-0.05, prob=0.02)
+    _write_did(cmp_mod, "lrp-rli-did-002", median=-0.25, lo=-0.50, hi=-0.02, prob=0.04)
+    _write_gf(cmp_mod, "lrp-rli-gf-004", median=-0.35, lo=-0.60, hi=-0.10, prob=0.01)
+    df = cmp_mod.build_triangulation("dev")
+    lrow = {r["outcome"]: r for _, r in df.iterrows()}["L"]
+    assert bool(lrow["direction_agree"]) is True
+    assert bool(lrow["intervals_overlap"]) is True  # max(lo)=-0.50 <= min(hi)=-0.10
+    assert bool(lrow["consistent"]) is True
