@@ -280,10 +280,12 @@ def test_lagged_outcome_missing_later_wave_is_nan(tmp_path):
 
 
 def test_measure_ceilings_documented():
-    """#80: ITT-outcome ceilings are documented (W=79, P=92). Since #214 the
-    not-taught taught-vocabulary measures (UE/UR) are also confirmed at 12 (the
-    half-size 3x4 control set), so no measure ceiling remains unconfirmed."""
-    assert unconfirmed_ceilings() == []
+    """#80: ITT-outcome ceilings are documented (W=79, P=92). Since #214 the block-1
+    not-taught measures (UE/UR) are confirmed at 12 (the half-size 3x4 control set).
+    The block-2 taught-vocabulary measures (TE2/TR2/UE2/UR2, #228 item 5) inherit the
+    block-1 24/12 denominators but are marked unconfirmed pending a direct block-2
+    word-list check, so they are the only unconfirmed ceilings."""
+    assert set(unconfirmed_ceilings()) == {"TE2", "TR2", "UE2", "UR2"}
     assert MEASURES["W"].n_trials == 79
     assert MEASURES["P"].n_trials == 92
 

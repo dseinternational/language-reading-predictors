@@ -111,6 +111,7 @@ LGBM
 LKJ
 LOSO
 LRPAL
+LRPBX
 LRPGBG
 LRPGBL
 LRPGF
@@ -380,6 +381,7 @@ logit
 logits
 looic
 lrpal
+lrpbx
 lrpdid
 lrpgbg
 lrpgbl

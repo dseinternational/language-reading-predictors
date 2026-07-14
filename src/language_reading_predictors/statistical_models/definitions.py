@@ -47,6 +47,10 @@ OUTCOMES: dict[str, str] = {
     "N": "nonword reading",
     "F": "CELF basic concepts",
     "T": "TROG receptive grammar",
+    "TE2": "taught expressive vocabulary, block 2",
+    "TR2": "taught receptive vocabulary, block 2",
+    "UE2": "not-taught expressive vocabulary, block 2",
+    "UR2": "not-taught receptive vocabulary, block 2",
 }
 
 #: Outcomes that take the pre-specified floor rule (a binary off-floor estimand).
@@ -72,6 +76,7 @@ KINDS: frozenset[str] = frozenset(
         "growth",
         "historical_growth",
         "survival",
+        "block_exposure",
     }
 )
 
@@ -302,11 +307,23 @@ _SURV = [
     _d("lrpsurv11", "survival", "Floor-sitter survival", Status.ASSOCIATION, "N", "time-to-off-floor discrete-time hazard", base="lrpitt11"),
 ]
 
+# Block-2 taught-vocabulary block-active exposure family (#228 item 5): block 2 has no
+# t1 baseline and no randomised contrast, so a staggered-adoption exposure association
+# (immediate arm taught block 2 in phase 2 while the wait-list is still on block 1;
+# wait-list reaches block 2 in phase 3). TE2 is the informative (expressive) outcome;
+# TR2 is near-ceiling; UE2/UR2 are the not-taught specificity comparators.
+_BX = [
+    _d("lrpbx01", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "TE2", "staggered block-2 exposure; association (parallel trends)"),
+    _d("lrpbx02", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "TR2", "staggered block-2 exposure; association (parallel trends)"),
+    _d("lrpbx03", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "UE2", "not-taught comparator (specificity)"),
+    _d("lrpbx04", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "UR2", "not-taught comparator (specificity)"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX)
 }
 
 

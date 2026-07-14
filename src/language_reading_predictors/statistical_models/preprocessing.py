@@ -299,6 +299,7 @@ def load_and_prepare(
     restrict_complete: tuple[str, ...] = (),
     post_time: int = 4,
     pre_required: tuple[str, ...] | None = None,
+    drop_ceiling_violations: tuple[str, ...] = (),
 ) -> PreparedData:
     """
     Load ``rli_data_long.csv`` and build arrays for the model factories.
@@ -358,6 +359,15 @@ def load_and_prepare(
     post_time
         The post wave for ``phase_mode="span"`` (default 4 = last wave). Ignored
         for the other modes.
+    drop_ceiling_violations
+        Outcome symbols for which an observed count *above* its ``n_trials``
+        ceiling is treated as a **corrupt cell** — set to NaN (dropped as missing,
+        with a logged warning) instead of raising the fail-loud ceiling guard.
+        Default ``()`` preserves the guard for every measure. Narrowly opt-in for a
+        known single-cell data corruption (the block-2 not-taught receptive measure
+        ``UR2`` has one impossible ``b2rent=31`` value against its 12-item ceiling;
+        see ``fit_block_exposure`` / #228 item 5); flag such cells to the data owner
+        rather than relying on this indefinitely.
 
     Returns
     -------
@@ -585,11 +595,27 @@ def load_and_prepare(
         for which, arr in checks:
             finite = arr[np.isfinite(arr)]
             if finite.size and finite.max() > m.n_trials:
-                raise ValueError(
-                    f"Measure {s!r} ({m.column}_{which}) has value "
-                    f"{finite.max():g} above its n_trials ceiling {m.n_trials}; "
-                    "fix measures.py or check the source data."
-                )
+                if s in drop_ceiling_violations:
+                    # Corrupt cell(s): treat as missing (NaN) so the factory keep-mask
+                    # drops the row, rather than raising. Opt-in per measure only.
+                    bad = np.asarray(arr, dtype=float) > m.n_trials
+                    print(
+                        f"  load_and_prepare: {s} ({m.column}_{which}) has "
+                        f"{int(bad.sum())} value(s) above the n_trials ceiling "
+                        f"{m.n_trials} (max {finite.max():g}); setting to NaN "
+                        "(dropped as missing) — corrupt source cell, flag to the "
+                        "data owner."
+                    )
+                    if which == "post":
+                        post_counts[s] = np.where(bad, np.nan, np.asarray(post_counts[s], dtype=float))
+                    else:  # pre: NaN the merged column so logit_safe below sees NaN
+                        merged.loc[bad, f"{m.column}_pre"] = np.nan
+                else:
+                    raise ValueError(
+                        f"Measure {s!r} ({m.column}_{which}) has value "
+                        f"{finite.max():g} above its n_trials ceiling {m.n_trials}; "
+                        "fix measures.py or check the source data."
+                    )
         if has_pre:
             pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
         n_trials_dict[s] = m.n_trials

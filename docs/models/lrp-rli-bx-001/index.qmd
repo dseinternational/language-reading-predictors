@@ -1,0 +1,49 @@
+---
+title: "LRPBX01: Block-2 taught expressive vocabulary, block-active exposure (TE2)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRPBX01 is a **block-exposure** model for block-2 taught expressive vocabulary (`b2extau`, out of 24): a staggered block-active exposure association across the post-baseline timepoints (Beta-Binomial logit, child random intercept; no own baseline). Block 2 of the taught-vocabulary programme has no t1 baseline and no randomised contrast, so the effect is identified from the *staggered* teaching — the immediate arm reaches block 2 in phase 2 (measured at t3) while the wait-list arm is still on block 1, and the wait-list arm reaches block 2 in phase 3 (t4).
+
+This is the informative outcome of the block-2 family: the expressive taught-word divergence appears at t3 (immediate 9.9 vs wait-list 8.5 of 24, equal at t2). It is the block-2 companion to the block-1 taught expressive model (LRPLF10 / LRPGF10) and an internal replication of the taught-word effect, read against the not-taught comparators (LRPBX03/04) for specificity.
+
+## Model
+
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the block-2 taught-word count, $N = 24$, with
+$\operatorname{logit}\mu_{i,t} = \alpha + \alpha_{\text{time}[t]} + \delta\,\text{exposed}_{i,t} + \gamma_A A_{\text{std},t} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{c}\gamma_c\,z(c) + u_{\text{child}}$, where $\text{exposed}_{i,t}=1$ once child $i$ has been taught block 2 by timepoint $t$ (immediate from t3, wait-list from t4), and the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech production (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator (SP/RW read at the t1 baseline). No own-baseline term: block 2 has no t1 score, and identification rests on `alpha_time`, the child random intercept and the staggered exposure switch.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_block_exposure.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
