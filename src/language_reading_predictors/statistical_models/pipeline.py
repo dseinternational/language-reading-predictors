@@ -1724,13 +1724,11 @@ def _did_heterogeneity_summary(trace, *, ci_prob: float) -> dict[str, float]:
     data moved it (#230 §2/§4a). A near-zero posterior is the clean "no reliable
     between-child variation" result that supports *not* gate-keeping on early response.
     """
-    import math
-
     sd = np.asarray(trace.posterior["sigma_delta"].values).reshape(-1)
     lo, hi = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
-    # HalfNormal(0.5) CDF at the threshold = erf(x / (sigma * sqrt(2))); sigma matches
-    # priors.sigma_delta_prior (HalfNormal(0.5)).
-    prior_below = math.erf(_SIGMA_DELTA_ROPE / (0.5 * math.sqrt(2.0)))
+    # Prior mass below the threshold read straight from the sigma_delta prior constructor
+    # (not a re-typed scale), so prior_P can't silently drift if the prior changes (#294).
+    prior_below = float(_priors.sigma_delta_prior().cdf(_SIGMA_DELTA_ROPE))
     key = f"P(sigma_delta<{_SIGMA_DELTA_ROPE})"
     return {
         "sigma_delta_median": float(np.median(sd)),

@@ -3,7 +3,7 @@
 
 """LRPDID13 - treatment-effect heterogeneity variance component (word reading, W), #230.
 
-A waitlist-crossover DiD on word reading (the clean anchor outcome, strongest DiD signal)
+A waitlist-crossover DiD on word reading (the anchor outcome with the strongest DiD signal)
 with a **per-child random slope on the on-intervention indicator**: the crossover effect
 is ``delta_i = delta + sigma_delta * z_i`` (non-centred). ``delta`` is the population-mean
 effect (read exactly as the other DiDs); ``sigma_delta`` — the between-child SD of the

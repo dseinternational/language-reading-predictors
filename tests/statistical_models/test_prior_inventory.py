@@ -120,6 +120,11 @@ def _representative_models(tmp_path) -> dict[str, object]:
     ).model
 
     models["did"] = build_did_model(allp, outcome_symbol="W").model
+    # Heterogeneity variant (#294): guards the sigma_delta prior + v_delta_raw offset,
+    # which the plain did model above does not exercise.
+    models["did_varying_delta"] = build_did_model(
+        allp, outcome_symbol="W", use_varying_delta=True
+    ).model
 
     models["mediation"] = build_mediation_model(
         itt, mediator_symbol="L", outcome_symbol="W", confounder_symbols=("E", "R")
@@ -175,6 +180,27 @@ def test_every_family_prior_is_documented(built_models):
             if row["panel"] and row["panel"] not in priors.ALL_PRIORS:
                 problems.append(f"{fam}:{row['parameter']} panel={row['panel']!r} not in ALL_PRIORS")
     assert not problems, "Undocumented priors:\n" + "\n".join(problems)
+
+
+def test_did_varying_delta_guards_and_rvs(tmp_path):
+    """``use_varying_delta`` raises on the disallowed combinations and, when enabled,
+    exposes ``sigma_delta`` / ``v_delta_raw`` / ``delta_i`` (the heterogeneity component, #294)."""
+    p = _write_synthetic(tmp_path)
+    allp = load_and_prepare(path=p, phase_mode="all")
+    dosep = load_and_prepare(
+        path=p, phase_mode="all", outcomes=("W",), covariates=("attend",)
+    )
+    # A random slope on the treatment needs the child random intercept.
+    with pytest.raises(ValueError):
+        build_did_model(allp, outcome_symbol="W", use_varying_delta=True, use_child_re=False)
+    # The heterogeneity variant is the binary treated indicator, not a dose slope.
+    with pytest.raises(ValueError):
+        build_did_model(dosep, outcome_symbol="W", use_varying_delta=True, dose=True)
+    built = build_did_model(allp, outcome_symbol="W", use_varying_delta=True)
+    free = {rv.name for rv in built.model.free_RVs}
+    dets = {d.name for d in built.model.deterministics}
+    assert "sigma_delta" in free and "v_delta_raw" in free
+    assert "delta_i" in dets
 
 
 def test_used_panels_exist_for_every_family(built_models):

@@ -74,6 +74,19 @@ intercept–slope (LKJ) form is deferred as a prior-dominated sensitivity at $n 
 
 ## Treatment-effect heterogeneity
 
+::: {.callout-warning title="What `sigma_delta` separates — and what it conflates"}
+`sigma_delta` is identified almost entirely from the **waitlist crossers**, each contributing
+a single within-child P1→P2 difference. The immediate arm is `Treated = 1` in _both_ periods,
+so for those children the random intercept $u_i$ and the random slope $v_i$ enter only as their
+sum and cannot be separated within-child; with independent `HalfNormal(0.5)` priors on
+`sigma_child` and `sigma_delta`, the immediate arm's level heterogeneity is partitioned between
+the two SDs by the prior rather than the data. Read `sigma_delta` as between-child variation in
+the **waitlist-crossover** effect that, for the immediate arm, is not cleanly separable from
+intercept heterogeneity — the `P(sigma_delta < 0.1)`-vs-prior comparison below is the honesty
+check, and the correlated intercept–slope (LKJ) form is the deferred sensitivity that would
+address the conflation directly.
+:::
+
 ```{python}
 # | echo: false
 # | output: asis
