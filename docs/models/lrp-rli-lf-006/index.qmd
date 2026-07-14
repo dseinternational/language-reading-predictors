@@ -1,5 +1,5 @@
 ---
-title: "LRPLF06: Level factors for phoneme blending (blending) (B)"
+title: "LRPLF06: Factors associated with the level of phoneme blending (blending) (B)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

@@ -111,6 +111,7 @@ LGBM
 LKJ
 LOSO
 LRPAL
+LRPBX
 LRPGBG
 LRPGBL
 LRPGF
@@ -297,6 +298,7 @@ dadedu
 dadedupost
 dadocc
 dagitty
+dataclass
 dcor
 dcorr
 deapp
@@ -322,6 +324,7 @@ dtype
 earinf
 econlet
 ecresq
+elementwise
 eowpvt
 equating
 erbnw
@@ -381,6 +384,7 @@ logit
 logits
 looic
 lrpal
+lrpbx
 lrpdid
 lrpgbg
 lrpgbl

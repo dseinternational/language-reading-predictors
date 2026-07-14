@@ -198,6 +198,8 @@ in #247. The `…b` variant is treated-only (gains while on intervention). Desig
 `notes/202606261230-gain-level-factors-design.md`; re-derivation:
 `notes/202607122200-gf-lf-revised-dag-adjustments.md`.
 
+**Naming note.** "Factors" here (and in the level-factors family below) carries its plain-English sense — the observed covariates _associated with_ gains or levels — not the factor-analysis sense: these are regression models with no latent variables. The latent measurement model is `lrp-rli-mm-001` (`kind="corr_factor"`).
+
 | Model            | Outcome | Skill baselines (`skill_symbols`)         | Confounders (`adjust_for`) | Treated-only `…b` |
 | ---------------- | ------- | ----------------------------------------- | -------------------------- | ----------------- |
 | `lrp-rli-gf-001` | `W`     | `TR`, `TE`, `R`, `E`, `L`, `N`, `B`       | —                          | `lrp-rli-gf-101`  |
@@ -223,6 +225,7 @@ measure-skill adjusters — in a levels model a skill's contemporaneous level is
 post-treatment mediator of the group×time effect (#247). Outcomes mirror the gain-factor
 family: `lrp-rli-lf-001` `W`, `02` `R`, `03` `E`, `04` `L`, `05` `P` (off-floor), `06` `B`,
 `07` `F`, `08` `T`, `09` `TR`, `10` `TE`, `11` `N` (off-floor).
+The gain-factors naming note applies here too: "factors" means observed regression covariates, not latent factors.
 
 ### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-013` (+ `lrp-rli-did-107`) (`kind="did"`)
 
@@ -261,20 +264,22 @@ so _no_ term is causal — every coefficient is an association. Design note:
 `04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`; **`lrp-rli-al-101`** adds a
 cumulative-session dose sensitivity term (a collider — sensitivity only).
 
-### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073` (`kind="mechanism"`)
+### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073`, `lrp-rli-mech-088–lrp-rli-mech-089` (`kind="mechanism"`)
 
 **Purpose.** The adjustment-set dose-response of one measured skill on another across all
 phases, with subject random intercepts and optional linear moderation. Every slope is an
 **adjusted association** (latent-ability confounded), not a causal effect.
 
-| Model                         | Path    | Purpose                                                                                               |
-| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| `lrp-rli-mech-056`            | `R → W` | Receptive vocabulary → word reading                                                                   |
-| `lrp-rli-mech-057`            | `E → W` | Expressive vocabulary → word reading                                                                  |
-| `lrp-rli-mech-058`            | `L → W` | Letter-sound knowledge → word reading                                                                 |
-| `lrp-rli-mech-071`            | `L → W` | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                          |
-| `lrp-rli-mech-072` / `72base` | `L → N` | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction) |
-| `lrp-rli-mech-073` / `73base` | `L → W` | Letter sounds → word reading, moderated by age (with / without the interaction)                       |
+| Model                         | Path     | Purpose                                                                                               |
+| ----------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `lrp-rli-mech-056`            | `R → W`  | Receptive vocabulary → word reading                                                                   |
+| `lrp-rli-mech-057`            | `E → W`  | Expressive vocabulary → word reading                                                                  |
+| `lrp-rli-mech-058`            | `L → W`  | Letter-sound knowledge → word reading                                                                 |
+| `lrp-rli-mech-071`            | `L → W`  | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                          |
+| `lrp-rli-mech-072` / `72base` | `L → N`  | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction) |
+| `lrp-rli-mech-073` / `73base` | `L → W`  | Letter sounds → word reading, moderated by age (with / without the interaction)                       |
+| `lrp-rli-mech-088`            | `TR → W` | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)           |
+| `lrp-rli-mech-089`            | `TE → W` | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)         |
 
 ### Mediation — `lrp-rli-med-059`, `lrp-rli-med-062`, `lrp-rli-med-064` (`kind="mediation"` / `"mediation_multi"`)
 

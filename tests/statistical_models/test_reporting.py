@@ -13,6 +13,8 @@ import xarray as xr
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
+    AssociationTerm,
+    association_marginals,
     eti_bands,
     evidence_label,
     favoured_direction,
@@ -786,3 +788,154 @@ def test_rope_markdown_harm_wording_for_negative_effect():
         "is harmful — *very strong evidence*" in md
         or "is harmful — *strong evidence*" in md
     )
+
+
+# ---------------------------------------------------------------------------
+# association_marginals — per-covariate items-scale association marginals (#310)
+# ---------------------------------------------------------------------------
+
+
+def _assoc_ame_ref(eta, coef, *, main_scale, dz, interactions=()):
+    """Reference per-draw AME for a +Δz covariate perturbation, by explicit loop.
+
+    ``eta`` (chain, draw, obs); ``coef`` (chain, draw); ``interactions`` a list of
+    ``(gamma_int (chain, draw), z_partner (obs,))``. Mirrors the maths the helper
+    vectorises: Δη_i = coef·(dz·main_scale) + Σ γ_int·z_partner_i·dz."""
+    n_draw, n_obs = eta.shape[1], eta.shape[2]
+    per_draw = []
+    for d in range(n_draw):
+        diffs = []
+        for i in range(n_obs):
+            de = coef[0, d] * dz * main_scale
+            for gi, zp in interactions:
+                de += gi[0, d] * zp[i] * dz
+            diffs.append(expit(eta[0, d, i] + de) - expit(eta[0, d, i]))
+        per_draw.append(np.mean(diffs))
+    return np.array(per_draw)
+
+
+def test_association_marginals_sign_and_scale_consistency():
+    # Guard (#310): for a covariate with no interaction the items-scale AME must be
+    # sign-consistent with the logit coefficient, prob_pos must equal P(coef > 0), and
+    # items must be exactly n_trials × prob. Compared to an explicit-loop reference.
+    rng = np.random.default_rng(7)
+    n_obs, n_trials = 9, 24
+    eta = rng.normal(0.0, 1.0, (1, 400, n_obs))
+    gamma = rng.normal(0.5, 0.2, (1, 400))  # mostly-positive skill-baseline coefficient
+    trace = _trace_named_vec(eta, scalars={"gamma_L": gamma})
+    term = AssociationTerm(
+        "L", "gamma_L", main_scale=1.5, interactions=(),
+        n_items=40, mean_prop=0.4, sd_items=6.0,
+    )
+
+    df = association_marginals(trace, terms=[term], n_trials=n_trials, ci_prob=0.9)
+    sd_row = df[df.scale == "+1 SD"].iloc[0]
+
+    ref = _assoc_ame_ref(eta, gamma, main_scale=1.5, dz=1.0)
+    assert sd_row["prob_median"] == pytest.approx(float(np.median(ref)))
+    # Scale: items = n_trials × prob, exactly.
+    assert sd_row["items_median"] == pytest.approx(n_trials * sd_row["prob_median"])
+    # Sign consistency + prob_pos ties to the logit coefficient (no interaction, so the
+    # per-draw AME sign is exactly the coefficient sign).
+    assert np.sign(sd_row["items_median"]) == np.sign(float(np.median(gamma)))
+    assert sd_row["prob_pos"] == pytest.approx(float(np.mean(gamma.reshape(-1) > 0)))
+    assert sd_row["role"] == "association"
+
+
+def test_association_marginals_per_k_items_row_for_bounded_count():
+    # A bounded-count covariate (n_items + mean_prop set) gets a "+k items" companion
+    # row evaluated at the mean proportion; its Δz maps the items increment into
+    # standardised units and matches the loop reference.
+    rng = np.random.default_rng(11)
+    n_obs, n_trials, n_items, k, main_scale = 8, 30, 40, 5, 1.5
+    eta = rng.normal(0.0, 1.0, (1, 300, n_obs))
+    gamma = rng.normal(0.6, 0.2, (1, 300))
+    trace = _trace_named_vec(eta, scalars={"gamma_L": gamma})
+    p = 0.35
+    term = AssociationTerm(
+        "L", "gamma_L", main_scale=main_scale, interactions=(),
+        n_items=n_items, mean_prop=p,
+    )
+
+    df = association_marginals(
+        trace, terms=[term], n_trials=n_trials, k_items=k, ci_prob=0.9
+    )
+    assert set(df.scale) == {"+1 SD", f"+{k} items"}
+    k_row = df[df.scale == f"+{k} items"].iloc[0]
+
+    from scipy.special import logit as _logit
+
+    dz = (_logit(p + k / n_items) - _logit(p)) / main_scale
+    ref = _assoc_ame_ref(eta, gamma, main_scale=main_scale, dz=dz)
+    assert k_row["prob_median"] == pytest.approx(float(np.median(ref)))
+    assert k_row["items_median"] == pytest.approx(n_trials * k_row["prob_median"])
+
+
+def test_association_marginals_nets_interaction_contribution():
+    # A covariate that participates in an interaction: the +1 SD AME must include the
+    # interaction's per-row contribution (γ_int · z_partner), matching the loop.
+    rng = np.random.default_rng(13)
+    n_obs, n_trials = 7, 20
+    eta = rng.normal(0.0, 1.0, (1, 300, n_obs))
+    gamma = rng.normal(0.3, 0.2, (1, 300))          # gamma_ability
+    gint = rng.normal(-0.2, 0.15, (1, 300))         # gamma_int_trt_ability
+    z_trt = (rng.random(n_obs) > 0.5).astype(float)  # partner = treatment indicator
+    trace = _trace_named_vec(
+        eta, scalars={"gamma_ability": gamma, "gamma_int_trt_ability": gint}
+    )
+    term = AssociationTerm(
+        "ability", "gamma_ability", main_scale=1.0,
+        interactions=(("gamma_int_trt_ability", z_trt),),
+    )
+
+    df = association_marginals(trace, terms=[term], n_trials=n_trials, ci_prob=0.9)
+    sd_row = df[df.scale == "+1 SD"].iloc[0]
+
+    ref = _assoc_ame_ref(
+        eta, gamma, main_scale=1.0, dz=1.0,
+        interactions=[(gint, z_trt)],
+    )
+    assert sd_row["prob_median"] == pytest.approx(float(np.median(ref)))
+
+
+def test_association_marginals_off_floor_items_equal_prob():
+    # Floor-rule path (#310): off-floor outcomes (P, N) pass n_trials=1, so the items
+    # scale collapses to the off-floor probability delta — items == prob exactly, and
+    # the off_floor flag is recorded. The own baseline is dropped upstream, so the term
+    # list here is a skill covariate only (as the pipeline builds for an off-floor fit).
+    rng = np.random.default_rng(17)
+    eta = rng.normal(-0.3, 1.0, (1, 250, 8))
+    gamma = rng.normal(0.4, 0.2, (1, 250))
+    trace = _trace_named_vec(eta, scalars={"gamma_L": gamma})
+    term = AssociationTerm("L", "gamma_L", main_scale=1.2, interactions=(),
+                           n_items=40, mean_prop=0.3)
+
+    df = association_marginals(
+        trace, terms=[term], n_trials=1, off_floor=True, ci_prob=0.9
+    )
+    assert bool(df["off_floor"].iloc[0]) is True
+    for _, r in df.iterrows():
+        assert r["items_median"] == pytest.approx(r["prob_median"])
+        assert r["items_lo"] == pytest.approx(r["prob_lo"])
+        assert r["items_hi"] == pytest.approx(r["prob_hi"])
+
+
+def test_association_marginals_row_mask_restricts_averaging_population():
+    # The averaging population is configurable: row_mask=None averages over ALL rows
+    # (the association default), a mask restricts it, and a malformed mask fails loudly.
+    rng = np.random.default_rng(19)
+    eta = rng.normal(0.0, 1.0, (1, 200, 6))
+    gamma = rng.normal(0.5, 0.2, (1, 200))
+    trace = _trace_named_vec(eta, scalars={"gamma_L": gamma})
+    term = AssociationTerm("L", "gamma_L", main_scale=1.0, interactions=())
+
+    mask = np.array([True, True, False, False, False, False])
+    masked = association_marginals(trace, terms=[term], n_trials=10, row_mask=mask)
+    ref = _assoc_ame_ref(eta[:, :, :2], gamma, main_scale=1.0, dz=1.0)
+    assert masked[masked.scale == "+1 SD"].iloc[0]["prob_median"] == pytest.approx(
+        float(np.median(ref))
+    )
+    with pytest.raises(ValueError, match="boolean row_mask has 3 entries"):
+        association_marginals(
+            trace, terms=[term], n_trials=10, row_mask=np.array([True, False, True])
+        )

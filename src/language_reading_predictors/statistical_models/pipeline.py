@@ -82,6 +82,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     restrict_to_off_floor,
     split_confounders_by_timing,
     split_covariates_by_wave,
+    standardise,
 )
 
 
@@ -2714,6 +2715,105 @@ def _gf_diag_vars(
     return ["alpha", "alpha_phase", *_gf_coef_names(spec, adjust_for), *tail]
 
 
+def _gf_association_terms(
+    spec: ModelSpec,
+    built: _factories.BuiltModel,
+    *,
+    adjust_for: tuple[str, ...],
+    off_floor: bool,
+) -> list[_report.AssociationTerm]:
+    """Per-covariate ``AssociationTerm`` list for the gain items-scale marginals (#310).
+
+    Reconstructs — from the *fitted* subset ``built.prepared`` — the exact standardised
+    term vectors ``build_gain_factors_model`` used, so each covariate's ``+1 SD``
+    perturbation is pushed through :func:`reporting.association_marginals` on the same
+    scale the model was built on. The own baseline and skill baselines enter the linear
+    predictor on the **raw logit** scale (their ``main_scale`` is that logit's SD) while
+    their interactions use the standardised vector; age and cognitive ability are
+    standardised throughout (``main_scale = 1``). Raw-covariate adjusters enter
+    standardised with no interactions; their ``_missing`` companions are nuisance 0/1
+    indicators (a ``+1 SD`` shift on them is not an interpretable association) and are
+    skipped. The own baseline is dropped on the off-floor (Bernoulli) path, matching the
+    factory (its ``gamma_own`` is not built there).
+    """
+    from scipy.special import expit as _expit
+    from scipy.special import logit as _logit
+
+    AT = _report.AssociationTerm
+    bp = built.prepared
+    own = spec.outcome_symbol
+    extra = spec.extra
+    skill_symbols = tuple(extra.get("skill_symbols", ()))
+    ability_covariate = extra.get("ability_covariate")
+    interactions = tuple(tuple(p) for p in extra.get("interactions", ()))
+    treated_only = bool(extra.get("treated_only", False))
+
+    # Standardised term vectors + main-effect scales, matching the factory on kept rows.
+    term_vecs: dict[str, np.ndarray] = {"age": np.asarray(bp.A_std, dtype=float)}
+    scales: dict[str, float] = {"age": 1.0}
+    if ability_covariate is not None:
+        z_ab, _ = standardise(bp.covariates[ability_covariate])
+        term_vecs["ability"] = z_ab
+        scales["ability"] = 1.0
+    z_own, s_own = standardise(bp.pre_logit[own])
+    term_vecs["own"] = z_own
+    scales["own"] = s_own.sd
+    for s in skill_symbols:
+        z_s, sc = standardise(bp.pre_logit[s])
+        term_vecs[s] = z_s
+        scales[s] = sc.sd
+    # The treatment indicator: a covariate marginal holds it fixed, but a ``trt ×
+    # covariate`` interaction still moves with the covariate, so it must be available as
+    # a partner. Omitted under treated_only (then constant, and the factory drops it).
+    if not treated_only:
+        term_vecs["trt"] = ((bp.G == 1) | (bp.phase >= 1)).astype(float)
+    active_interactions = [
+        pair for pair in interactions if not treated_only or "trt" not in pair
+    ]
+
+    def _ints_for(key: str) -> tuple[tuple[str, np.ndarray], ...]:
+        out: list[tuple[str, np.ndarray]] = []
+        for pair in active_interactions:
+            if key not in pair:
+                continue
+            other = pair[0] if pair[1] == key else pair[1]
+            if other not in term_vecs:  # partner unavailable (e.g. trt under treated_only)
+                continue
+            out.append(
+                (f"gamma_int_{pair[0]}_{pair[1]}", np.asarray(term_vecs[other], dtype=float))
+            )
+        return tuple(out)
+
+    def _sd_items(sd_logit: float, p: float, n: int) -> float:
+        # Items equivalent of +1 SD of a bounded-count covariate, at its mean proportion.
+        return float(n * (_expit(_logit(p) + sd_logit) - p))
+
+    terms: list[_report.AssociationTerm] = []
+    if not off_floor:
+        p_own = float(np.mean(_expit(bp.pre_logit[own])))
+        n_own = int(bp.n_trials[own])
+        terms.append(
+            AT("own", "gamma_own", scales["own"], _ints_for("own"),
+               n_items=n_own, mean_prop=p_own, sd_items=_sd_items(scales["own"], p_own, n_own))
+        )
+    terms.append(AT("age", "gamma_A", 1.0, _ints_for("age")))
+    if ability_covariate is not None:
+        terms.append(AT("ability", "gamma_ability", 1.0, _ints_for("ability")))
+    for s in skill_symbols:
+        p_s = float(np.mean(_expit(bp.pre_logit[s])))
+        n_s = int(bp.n_trials[s])
+        terms.append(
+            AT(s, f"gamma_{s}", scales[s], _ints_for(s),
+               n_items=n_s, mean_prop=p_s, sd_items=_sd_items(scales[s], p_s, n_s))
+        )
+    for c in adjust_for:
+        if c.endswith("_missing"):
+            continue
+        sd_c = float(np.std(np.asarray(bp.covariates[c], dtype=float), ddof=1))
+        terms.append(AT(c, f"gamma_{c}", sd_c, ()))
+    return terms
+
+
 def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _require_spec(spec, "gain_factors", outcome=True)
     ctx = make_context(spec, config)
@@ -2954,6 +3054,47 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             )
             ctx.tables["rope_sensitivity"] = sens_df
 
+    # --- Per-covariate items-scale association marginals (#310) ---
+    # The adjusted-association analogue of the treatment marginal: for each covariate
+    # (own baseline, age, cognitive ability, skill baselines, raw-covariate adjusters)
+    # push a +1 SD perturbation — and, for the bounded-count baselines, a +k-items one —
+    # through the posterior onto the probability / items scales. Runs for the treated_only
+    # (…b) companions too (they keep the covariate associations even without beta_trt).
+    # Averaging population = ALL stacked rows (row_mask=None): these are descriptive
+    # associations, not the randomised period-1 contrast, so every fitted observation
+    # counts. That choice is recorded in config.json (meta_extra) as well as the note.
+    assoc_terms = _gf_association_terms(
+        spec, built, adjust_for=adjust_for, off_floor=off_floor
+    )
+    if assoc_terms:
+        n_assoc = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
+        am = _report.association_marginals(
+            ctx.trace,
+            terms=assoc_terms,
+            n_trials=n_assoc,
+            off_floor=off_floor,
+            ci_prob=ctx.reporting.ci_prob,
+            row_mask=None,
+        )
+        am.to_csv(
+            os.path.join(ctx.output_dir, "association_marginals.csv"), index=False
+        )
+        ctx.tables["association_marginals"] = am
+        meta_extra["association_marginals"] = {
+            "averaging_population": "all_stacked_rows",
+            "k_items": 5,
+            "terms": [t.label for t in assoc_terms],
+        }
+        print_table(
+            ranked_dataframe_table(
+                am,
+                title=f"Association marginals ({spec.outcome_symbol}) - items scale",
+                columns=["term", "scale", "items_median", "items_lo", "items_hi", "prob_pos"],
+                rank_column=False,
+                precision=3,
+            )
+        )
+
     _report.write_run_metadata(ctx, extra=meta_extra)
     return _finalize_report(ctx)
 
@@ -3182,6 +3323,154 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             ctx.tables["rope_sensitivity"] = sens_df
 
     _report.write_run_metadata(ctx, extra=meta_extra)
+    return _finalize_report(ctx)
+
+
+def _bx_coef_names(
+    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
+) -> list[str]:
+    """Interpretable block-exposure coefficients (alpha/alpha_time/kappa/sigma_child excluded)."""
+    extra = spec.extra
+    adj = extra.get("adjust_for", ()) if adjust_for is None else adjust_for
+    names = ["delta", "gamma_A"]
+    if extra.get("ability_covariate"):
+        names.append("gamma_ability")
+    names += [f"gamma_{c}" for c in adj]
+    return names
+
+
+def _bx_diag_vars(
+    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
+) -> list[str]:
+    off_floor = spec.extra.get("likelihood") == "bernoulli_offfloor"
+    tail: list[str] = [] if off_floor else ["kappa"]
+    if spec.extra.get("use_child_re", True):
+        tail.append("sigma_child")
+    return ["alpha", "alpha_time", *_bx_coef_names(spec, adjust_for), *tail]
+
+
+def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Block-2 taught-vocabulary staggered block-active exposure fit (LRPBX, #228 item 5).
+
+    Data-load like ``fit_level_factors`` (per-timepoint levels frame + the revised-DAG
+    adjuster wiring); effect readout like ``fit_did`` (the focal ``delta`` + its
+    items-scale AME). ``delta`` is an association (parallel-trends), so the factor
+    summary flags no causal term.
+    """
+    _require_spec(spec, "block_exposure", outcome=True)
+    ctx = make_context(spec, config)
+    extra = spec.extra
+
+    section_header("Prepare data")
+    sym = spec.outcome_symbol
+    ability_covariate = extra.get("ability_covariate")
+    likelihood = extra.get("likelihood", "beta_binomial")
+    off_floor = likelihood == "bernoulli_offfloor"
+    obs_node = "y_offfloor" if off_floor else "y_post"
+    baseline_covariates = (ability_covariate,) if ability_covariate else ()
+    # Revised-DAG raw-covariate confounders, split by timing exactly as the
+    # level-factor path (#247, A1 2026-07-13): language-proximal SP/RW (deapp_c/erbto)
+    # read at the pre-randomisation baseline, hearing (hs) contemporaneous. Re-filter
+    # after loading so a constant ``_missing`` indicator the loader drops is not gated.
+    adjust_for = tuple(extra.get("adjust_for", ()))
+    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
+    baseline_adj, post_adj = split_confounders_by_timing(post_adj)
+    prepared = load_and_prepare(
+        phase_mode="levels",
+        outcomes=(sym,),
+        baseline_covariates=(*baseline_covariates, *baseline_adj),
+        covariates=pre_adj,
+        post_covariates=post_adj,
+        drop_ceiling_violations=tuple(extra.get("drop_ceiling_violations", ())),
+    )
+    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
+    ctx.prepared = prepared
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_block_exposure_model(
+        prepared,
+        outcome_symbol=sym,
+        ability_covariate=ability_covariate,
+        adjust_for=adjust_for,
+        use_child_re=bool(extra.get("use_child_re", True)),
+        likelihood=likelihood,
+    )
+    _attach_built(ctx, built)
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, sym, node=obs_node)
+
+    _run_sampling_and_loo(ctx)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=_bx_diag_vars(spec, adjust_for))
+
+    _run_ppc(ctx, var_names=[obs_node])
+
+    section_header("Extended diagnostics")
+    # ``delta`` is the focal (association) effect — gets the prior-sensitivity +
+    # forest evidence, exactly as the level-factor group term does.
+    _diag.write_diagnostics_summary(ctx, var_names=_bx_diag_vars(spec, adjust_for))
+    _diag.run_extended_diagnostics(ctx, causal_term="delta")
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=_bx_diag_vars(spec, adjust_for))
+    _save_forest_plot(
+        ctx, ["delta"], name="delta_forest.png",
+        title="Block-active exposure effect (forest, reference line at 0)",
+    )
+    _diag.run_psense(ctx, var_names=["delta"])
+
+    section_header("Factor summary")
+    # No randomised contrast: block-active exposure is an association (parallel trends),
+    # so no term is flagged causal.
+    fs = _report.factor_summary(
+        ctx.trace, _bx_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob,
+        causal_terms=(),
+    )
+    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
+    ctx.tables["factor_summary"] = fs
+    _save_association_forest(ctx, _bx_coef_names(spec, adjust_for), ())
+    print_table(
+        ranked_dataframe_table(
+            fs,
+            title=f"Factor summary ({sym}) - {int(ctx.reporting.ci_prob * 100)}% CrI",
+            columns=["term", "role", "median", "lo", "hi", "prob_positive"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    section_header("Block-2 exposure effect summary")
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    bx_s = _report.block_exposure_summary(
+        ctx.trace,
+        ci_prob=ctx.reporting.ci_prob,
+        n_trials=1 if off_floor else MEASURES[sym].n_trials,
+    )
+    bx_df = pd.DataFrame([bx_s])
+    bx_df.to_csv(os.path.join(ctx.output_dir, "block_exposure_summary.csv"), index=False)
+    ctx.tables["block_exposure_summary"] = bx_df
+    print_table(
+        metrics_table(
+            [{"metric": k, "value": v} for k, v in bx_s.items()],
+            title=(
+                f"block-2 exposure effect ({sym}) - "
+                f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed); "
+                "association (parallel-trends), positive = more taught-word learning"
+            ),
+            columns=["metric", "value"],
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={"loo_elpd": float(ctx.loo.elpd), "block_exposure_summary": bx_s},
+    )
     return _finalize_report(ctx)
 
 

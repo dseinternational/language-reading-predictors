@@ -129,6 +129,51 @@ if factor_summary is not None and "role" in factor_summary.columns:
 ```{python}
 # | echo: false
 # | output: asis
+# Items-scale association marginals (#310): the interpretable companion to the
+# logit-scale adjusted associations above. For each covariate, the average marginal
+# effect of a +1 SD perturbation (and, for the bounded-count baselines, a +k-items
+# one) on the outcome, averaged over ALL fitted rows. Every row is an association.
+association_marginals = _csv("association_marginals.csv")
+if association_marginals is not None and len(association_marginals):
+    _am = association_marginals
+    _off = bool(_am["off_floor"].iloc[0]) if "off_floor" in _am.columns else False
+    _unit = "off-floor probability" if _off else "items"
+    print('::: {.callout-important title="Items-scale associations — not causal"}\n')
+    print(
+        f"Each row translates one adjusted-association coefficient onto an interpretable "
+        f"scale: the average marginal effect on **{outcome_label}** of a +1 SD increase in "
+        f"the covariate (and, for the bounded-count baselines, a reader-friendly +5-items "
+        f"increase), averaged over **all fitted rows** — the descriptive averaging "
+        f"population, in contrast to the treatment marginal's randomised period-1 rows. "
+        f"These are the same adjusted associations as the logit table above, so every row "
+        f"is *associated with*, never *drives*"
+        + (
+            " — and for this floored outcome the effect is a change in the probability of "
+            "being off the floor, not an item count."
+            if _off
+            else "."
+        )
+        + "\n"
+    )
+    _assoc_cols = [
+        c
+        for c in ["term", "scale", "items_median", "items_lo", "items_hi", "prob_pos", "sd_items"]
+        if c in _am.columns
+    ]
+    print(_am[_assoc_cols].round(3).to_markdown(index=False))
+    print(
+        f"\n_How to read it:_ `items_median` is the {_unit} change (best single estimate), "
+        f"`items_lo`/`items_hi` its 95% credible interval, `prob_pos` the posterior "
+        f"probability the association is positive, and `sd_items` (bounded-count "
+        f"covariates only) how many items a +1 SD move is at the mean baseline — so "
+        f"\"+1 SD\" can be read back in items."
+    )
+    print("\n:::")
+```
+
+```{python}
+# | echo: false
+# | output: asis
 # Forest of the adjusted-association coefficients — the visual companion to the
 # table above, so the cross-skill predictor->outcome relationships are seen, not
 # only tabulated. Empty string when the plot is absent (e.g. a treated-only model).

@@ -30,7 +30,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_level_fa
 SPEC = ModelSpec(
     model_id="lrp-rli-lf-007",
     kind="level_factors",
-    title="Level factors for CELF basic concepts (F)",
+    title="Factors associated with the level of CELF basic concepts (F)",
     outcome_symbol="F",
     extra={
         "ability_covariate": V.BLOCKS,
