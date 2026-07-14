@@ -78,6 +78,7 @@ KINDS: frozenset[str] = frozenset(
         "survival",
         "block_exposure",
         "concurrent",
+        "long_corr_factor",
     }
 )
 
@@ -345,11 +346,19 @@ _CA = [
     _d("lrpca01", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "per-wave conditional associations of concurrent skills with word reading"),
 ]
 
+# --- Longitudinal correlated-domain-factor model (#313, descriptive-association #314)
+# Per-wave latent skill correlations (vocabulary {R,E,TR,TE} / code {L,B} / grammar
+# {F,T}) over the four-wave panel: the symmetric, disattenuated counterpart to the
+# concurrent regression family (_CA). Every quantity is a descriptive association.
+_LCF = [
+    _d("lrplcf01", "long_corr_factor", "Measurement model", Status.ASSOCIATION, "W", "longitudinal correlated-domain-factor model (per-wave latent skill correlations)"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA, *_LCF)
 }
 
 

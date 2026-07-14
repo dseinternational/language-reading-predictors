@@ -67,6 +67,7 @@ GBDT
 Gabry
 Galuschka
 Gathercole
+Gaussians
 Gelman
 Gesel
 Gillon
@@ -118,6 +119,7 @@ LRPGBL
 LRPGF
 LRPHS
 LRPITT
+LRPLCF
 LRPLF
 LRPMM
 LRPSURV
@@ -290,8 +292,10 @@ colwidths
 commensurate
 communalities
 comprehender
+configural
 confounder
 confounders
+crosscheck
 crosswalk
 cumul
 cutoff
@@ -311,6 +315,8 @@ deconfounds
 dedup
 deterministics
 diag
+disattenuated
+disattenuation
 disconfirmed
 distracter
 distracters
@@ -393,6 +399,7 @@ lrpgbl
 lrpgf
 lrphs
 lrpitt
+lrplcf
 lrplf
 lrpmm
 lrpsurv
@@ -403,6 +410,7 @@ lsammlu
 lsamto
 lsamun
 mainfont
+mathcal
 mathrm
 matplotlib
 medae
@@ -524,6 +532,7 @@ woco
 workstream
 worktree
 worktrees
+xcheck
 yarclet
 yarcsi
 ypre

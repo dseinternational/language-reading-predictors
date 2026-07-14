@@ -27,6 +27,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_itt_model,
     build_joint_model,
     build_level_factors_model,
+    build_longitudinal_corr_factor_model,
     build_mechanism_model,
     build_mediation_model,
     build_two_mediator_model,
@@ -789,6 +790,107 @@ def test_concurrent_factory_bivariate_single_predictor(tmp_path):
     )
     betas = {v.name for v in built.model.free_RVs if v.name.startswith("beta_")}
     assert betas == {"beta_L"}
+
+
+# --- Longitudinal correlated-domain-factor model (LRP-RLI-LCF-001, #313) ----------
+
+_LCF_TEST_DOMAINS = {
+    "vocabulary": ("R", "E", "TR", "TE"),
+    "code": ("L", "B"),
+    "grammar": ("F", "T"),
+}
+
+
+def _lcf_panel(tmp_path, n_children=40):
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_wave_panel,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=n_children)
+    indicators = tuple(s for v in _LCF_TEST_DOMAINS.values() for s in v)
+    return load_wave_panel(path=p, outcomes=indicators)
+
+
+def test_longitudinal_corr_factor_builds(tmp_path):
+    """#313: four-wave CFA — invariant loadings/residuals, per-wave within-factor
+    correlations, trait/state across-wave structure, factor scores marginalised out
+    (per-pattern MvNormal nodes; no per-child latent RV)."""
+    panel = _lcf_panel(tmp_path)
+    built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS)
+    free = {v.name for v in built.model.free_RVs}
+    assert {"lambda_load", "sigma_indicator", "trait_share", "trait_corr_chol", "factor_mean"}.issubset(free)
+    assert {f"state_corr_chol_w{w}" for w in panel.waves}.issubset(free)
+    # LKJCorr carries only the correlation's d.o.f. — no nuisance sd_dist scales.
+    assert not any(v.name.endswith("_stds") for v in built.model.free_RVs)
+    # Fully marginalised: no per-child latent factor score RV.
+    assert "factor_z" not in free and "factors" not in free
+    dets = {v.name for v in built.model.deterministics}
+    assert {"factor_corr", "factor_corr_pairs", "Sigma_z", "mean_z", "communality"}.issubset(dets)
+    # One observed MvNormal per observed-cell pattern; every child is used (masked,
+    # not dropped).
+    assert built.extras["z_nodes"] == [v.name for v in built.model.observed_RVs]
+    assert built.extras["n_used_children"] == panel.n_children
+    # Finite logp at the initial point, and prior-predictive draws succeed.
+    ip = built.model.initial_point()
+    assert np.isfinite(built.model.compile_logp()(ip))
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, var_names=built.extras["z_nodes"], random_seed=3)
+    assert pp.prior_predictive[built.extras["z_nodes"][0]].sizes["chain"] == 1
+
+
+def test_longitudinal_corr_factor_rejects_singleton_domain(tmp_path):
+    panel = _lcf_panel(tmp_path, n_children=12)
+    with pytest.raises(ValueError, match="at least two indicators"):
+        build_longitudinal_corr_factor_model(
+            panel, domains={"vocabulary": ("R",), "code": ("L", "B")}
+        )
+
+
+def test_longitudinal_corr_factor_sigma_z_positive_definite(tmp_path):
+    """Regression guard: PyMC's LKJCorr forward-samples the Cholesky factor, not the
+    correlation matrix. The factory must use the correlation (LKJCholeskyCov) so the
+    marginal indicator covariance is PD under the prior — otherwise prior-predictive
+    Cholesky fails with 'Matrix is not positive definite'."""
+    panel = _lcf_panel(tmp_path, n_children=30)
+    built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS)
+    with built.model:
+        pr = pm.sample_prior_predictive(
+            draws=100, var_names=["Sigma_z", "factor_corr"], random_seed=5
+        )
+    S = pr.prior["Sigma_z"].values[0]  # (draws, C, C)
+    mins = np.array([np.linalg.eigvalsh(S[i]).min() for i in range(S.shape[0])])
+    assert (mins > 0).all(), f"Sigma_z not PD under prior (min eig {mins.min():.2e})"
+    # Each within-wave factor_corr block is a valid correlation matrix.
+    fc = pr.prior["factor_corr"].values[0]  # (draws, wave, D, D)
+    D = fc.shape[-1]
+    assert np.allclose(fc[..., np.arange(D), np.arange(D)], 1.0, atol=1e-6)
+    assert np.allclose(fc, np.swapaxes(fc, -1, -2), atol=1e-6)
+    assert (np.abs(fc) <= 1.0 + 1e-6).all()
+
+
+def test_longitudinal_corr_factor_masks_missing_cells(tmp_path):
+    """A child missing a whole later wave still contributes its other waves: the
+    factory groups children into observed-cell patterns rather than dropping them."""
+    import pandas as pd
+
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_wave_panel,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=25)
+    indicators = tuple(s for v in _LCF_TEST_DOMAINS.values() for s in v)
+    # Blank out every indicator at t4 for one child (a whole-wave dropout).
+    df = pd.read_csv(p)
+    ind_cols = [MEASURES[s].column for s in indicators]
+    victim = df[V.SUBJECT_ID].unique()[0]
+    df.loc[(df[V.SUBJECT_ID] == victim) & (df[V.TIME] == 4), ind_cols] = np.nan
+    df.to_csv(p, index=False)
+
+    panel = load_wave_panel(path=p, outcomes=indicators)
+    built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS)
+    # Still uses all children; more than one observed-cell pattern now.
+    assert built.extras["n_used_children"] == panel.n_children
+    assert len(built.extras["z_nodes"]) >= 2
 
 
 def test_adjusted_factory_rejects_pooled_phase(tmp_path):
