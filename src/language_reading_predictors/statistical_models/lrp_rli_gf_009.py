@@ -33,7 +33,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-009",
     kind="gain_factors",
-    title="Gain factors for taught receptive vocabulary (TR)",
+    title="Factors associated with gains in taught receptive vocabulary (TR)",
     outcome_symbol="TR",
     extra={
         "skill_symbols": (),

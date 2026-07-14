@@ -30,7 +30,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_level_fa
 SPEC = ModelSpec(
     model_id="lrp-rli-lf-006",
     kind="level_factors",
-    title="Level factors for phoneme blending (blending) (B)",
+    title="Factors associated with the level of phoneme blending (blending) (B)",
     outcome_symbol="B",
     extra={
         "ability_covariate": V.BLOCKS,

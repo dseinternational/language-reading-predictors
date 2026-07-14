@@ -1,5 +1,5 @@
 ---
-title: "LRPGF02b: Gain factors for receptive vocabulary (R), treated-only"
+title: "LRPGF02b: Factors associated with gains in receptive vocabulary (R), treated-only"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

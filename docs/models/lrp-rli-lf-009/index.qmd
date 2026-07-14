@@ -1,5 +1,5 @@
 ---
-title: "LRPLF09: Level factors for taught receptive vocabulary (TR)"
+title: "LRPLF09: Factors associated with the level of taught receptive vocabulary (TR)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

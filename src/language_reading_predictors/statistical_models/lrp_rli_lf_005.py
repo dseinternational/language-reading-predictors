@@ -29,7 +29,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_level_fa
 SPEC = ModelSpec(
     model_id="lrp-rli-lf-005",
     kind="level_factors",
-    title="Level factors for phonetic spelling (P), off-floor",
+    title="Factors associated with the level of phonetic spelling (P), off-floor",
     outcome_symbol="P",
     extra={
         "ability_covariate": V.BLOCKS,

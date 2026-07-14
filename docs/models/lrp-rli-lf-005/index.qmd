@@ -1,5 +1,5 @@
 ---
-title: "LRPLF05: Level factors for phonetic spelling (P), off-floor"
+title: "LRPLF05: Factors associated with the level of phonetic spelling (P), off-floor"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"

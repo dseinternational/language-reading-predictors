@@ -30,7 +30,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-003",
     kind="gain_factors",
-    title="Gain factors for expressive vocabulary (E)",
+    title="Factors associated with gains in expressive vocabulary (E)",
     outcome_symbol="E",
     extra={
         "skill_symbols": ("R", "TR", "TE"),

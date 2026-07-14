@@ -30,7 +30,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_level_fa
 SPEC = ModelSpec(
     model_id="lrp-rli-lf-003",
     kind="level_factors",
-    title="Level factors for expressive vocabulary (E)",
+    title="Factors associated with the level of expressive vocabulary (E)",
     outcome_symbol="E",
     extra={
         "ability_covariate": V.BLOCKS,

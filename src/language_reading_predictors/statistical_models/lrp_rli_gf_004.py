@@ -29,7 +29,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-004",
     kind="gain_factors",
-    title="Gain factors for letter sounds (L)",
+    title="Factors associated with gains in letter sounds (L)",
     outcome_symbol="L",
     extra={
         "skill_symbols": (),
