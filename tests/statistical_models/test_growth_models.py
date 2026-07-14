@@ -218,3 +218,29 @@ def test_growth_factory_requires_loaded_baseline(tmp_path):
     panel = load_wave_panel(path=p, outcomes=_OUTCOMES)  # no baseline_covariates
     with pytest.raises(KeyError, match="blocks"):
         build_growth_model(panel, baseline_covariate="blocks")
+
+
+def test_growth_factory_age_ability_interaction_adds_terms(tmp_path):
+    """The #228 item-10 branch adds the baseline-age main effect, its interaction
+    with ability, and the standardised baseline-age data container — and only when
+    opted in. The extra terms must also compose into a samplable model."""
+    p = _write_growth_csv(tmp_path, n_children=20)
+    panel = load_wave_panel(
+        path=p, outcomes=_OUTCOMES, baseline_covariates=("blocks",)
+    )
+    built = build_growth_model(panel, age_ability_interaction=True)
+    rv = {v.name for v in built.model.free_RVs}
+    assert {"gamma_age", "gamma_int"}.issubset(rv)
+    assert "age0_std" in set(built.model.named_vars)  # the pm.Data container
+
+    # Opt-in: the default build carries none of the interaction terms.
+    base = build_growth_model(panel)
+    assert not ({"gamma_age", "gamma_int"} & {v.name for v in base.model.free_RVs})
+    assert "age0_std" not in set(base.model.named_vars)
+
+    # The interaction folds into the slope mean without shape errors.
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=2)
+    y = pp.prior_predictive["y_obs"].values
+    assert y.shape[-1] == _n_observed(panel)
+    assert y.min() >= 0
