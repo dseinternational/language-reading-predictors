@@ -315,6 +315,7 @@ documentclass
 dropna
 dse
 dseinternational
+dsep
 dseresearch
 dtype
 earinf
@@ -407,6 +408,7 @@ mumedupost
 mumocc
 ncol
 ndarray
+networkx
 noconstruct
 nogp
 nohup
@@ -495,7 +497,9 @@ toplevel
 trainability
 trog
 unadjustable
+unblockable
 unconfounded
+unfittable
 univariates
 unmodelled
 unrepresentable
