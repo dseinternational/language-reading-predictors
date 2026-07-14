@@ -38,12 +38,12 @@ All four **clear the convergence gate** (0 divergences, R̂ ≤ 1.002, min ESS �
 
 ## Data caveats
 
-- **Denominators not yet independently confirmed for block 2.** TE2/TR2 = 24 and UE2/UR2 = 12 mirror block 1 under the #214 per-block word-list logic (9 words × 4 types = 36, split 6 taught + 3 not-taught per type per modality), and the observed maxima are consistent (b2extau 21, b2retau 24, b2exnt 10, b2rent 12 excluding one corrupt cell). They are marked `n_trials_confirmed=False` (surfaced by `measures.unconfirmed_ceilings()`) pending a direct check against the block-2 word list — flip to `True` once confirmed.
+- **Denominators confirmed for block 2 (2026-07-14).** TE2/TR2 = 24 and UE2/UR2 = 12, checked directly against the block-2 word list: each block is 9 words × 4 word-classes = 36, split 6 taught + 3 not-taught per class → 24 taught / 12 not-taught per modality, block 2 exactly as block 1 (the #214 logic). The observed maxima are consistent (b2extau 21, b2retau 24, b2exnt 10, b2rent 12 excluding one corrupt cell). Marked `n_trials_confirmed=True`; `measures.unconfirmed_ceilings()` is now empty.
 - **One corrupt source cell.** `b2rent` has a single impossible value (subject `ID_0D60E282E4368506` at t4: `b2rent = 31` against the 12-item ceiling, with `b2reto = 10 < b2retau = 21` — total below taught). `bx-004` sets that one cell to NaN (dropped, logged) via the opt-in `drop_ceiling_violations=("UR2",)` loader flag; the denominator stays 12. The global fail-loud ceiling guard is unchanged for every other measure. Flagged here for a source-data fix.
 
 ## Files
 
-- `measures.py` — TE2/TR2/UE2/UR2 registered (denominators 24/12, `n_trials_confirmed=False`); `TAUGHT_BLOCK2_OUTCOMES`; distal/ROPE membership.
+- `measures.py` — TE2/TR2/UE2/UR2 registered (denominators 24/12, `n_trials_confirmed=True`, confirmed against the word list); `TAUGHT_BLOCK2_OUTCOMES`; distal/ROPE membership.
 - `factories.py` — `build_block_exposure_model` (new).
 - `pipeline.py` — `fit_block_exposure` (+ `_bx_coef_names`/`_bx_diag_vars`).
 - `reporting.py` — `block_exposure_summary`.
@@ -54,7 +54,7 @@ All four **clear the convergence gate** (0 divergences, R̂ ≤ 1.002, min ESS �
 
 ## Next steps
 
-1. Confirm the block-2 taught / not-taught word counts against the source word list, then flip `n_trials_confirmed` to `True` (or correct the denominators).
+1. ~~Confirm the block-2 word counts against the source word list, then flip `n_trials_confirmed` to `True`.~~ Done (2026-07-14): the block-2 word list confirms 24 taught / 12 not-taught, flags flipped to `True`.
 2. Fix the corrupt `b2rent` cell at source.
 3. The four chapters render cleanly and all four fits clear the gate at reporting draws; they fold into the next full-suite refit + publish.
 

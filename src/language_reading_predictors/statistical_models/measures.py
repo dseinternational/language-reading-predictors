@@ -111,24 +111,25 @@ MEASURES: dict[str, Measure] = {
     # under the #214 per-block word-list logic (each block: 9 words x 4 types = 36,
     # split 6 taught + 3 not-taught per type -> 24 taught / 12 not-taught per
     # modality), and the observed maxima are consistent (b2extau 21, b2retau 24,
-    # b2exnt 10, b2rent 12 excluding one corrupt cell). They are marked
-    # ``n_trials_confirmed=False`` pending a direct block-2 word-list check
-    # (surfaced by ``unconfirmed_ceilings()``); flip to True once confirmed.
+    # b2exnt 10, b2rent 12 excluding one corrupt cell). Confirmed against the
+    # block-2 word list (2026-07-14): 24 taught / 12 not-taught per modality, exactly
+    # as block 1, so ``n_trials_confirmed=True``. (The one corrupt b2rent cell > 12 is
+    # a separate source-data fix, handled by the UR2 loader drop.)
     "TE2": Measure(
         "TE2", V.B2EXTAU, 24, "Taught expressive vocabulary, block 2 (b2extau)",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
     "TR2": Measure(
         "TR2", V.B2RETAU, 24, "Taught receptive vocabulary, block 2 (b2retau)",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
     "UE2": Measure(
         "UE2", V.B2EXNT, 12, "Not-taught expressive vocabulary, block 2 (b2exnt)",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
     "UR2": Measure(
         "UR2", V.B2RENT, 12, "Not-taught receptive vocabulary, block 2 (b2rent)",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
 }
 
