@@ -846,11 +846,22 @@ def test_longitudinal_corr_factor_rejects_singleton_domain(tmp_path):
         )
 
 
+def test_longitudinal_corr_factor_rejects_single_domain(tmp_path):
+    """A "correlated-domain" model needs >= 2 domains: with one factor there are no
+    cross-domain correlations, and factor_corr_pairs / the cross-check are empty."""
+    panel = _lcf_panel(tmp_path, n_children=12)
+    with pytest.raises(ValueError, match=">= 2 domains"):
+        build_longitudinal_corr_factor_model(
+            panel, domains={"vocabulary": ("R", "E", "TR", "TE")}
+        )
+
+
 def test_longitudinal_corr_factor_sigma_z_positive_definite(tmp_path):
-    """Regression guard: PyMC's LKJCorr forward-samples the Cholesky factor, not the
-    correlation matrix. The factory must use the correlation (LKJCholeskyCov) so the
-    marginal indicator covariance is PD under the prior — otherwise prior-predictive
-    Cholesky fails with 'Matrix is not positive definite'."""
+    """Regression guard: PyMC's LKJCorr value is the Cholesky factor L, not the
+    correlation matrix. The factory must convert it to the correlation via ``L @ L.T``
+    so the marginal indicator covariance is PD under the prior — feeding the raw L as
+    if it were the correlation makes prior-predictive Cholesky fail with 'Matrix is
+    not positive definite'."""
     panel = _lcf_panel(tmp_path, n_children=30)
     built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS)
     with built.model:

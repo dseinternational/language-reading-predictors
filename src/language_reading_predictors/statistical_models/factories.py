@@ -4333,13 +4333,20 @@ def build_longitudinal_corr_factor_model(
     if domains is None:
         domains = {k: tuple(v) for k, v in _LCF_DOMAINS.items()}
     domain_names = list(domains)
+    D = len(domain_names)
+    if D < 2:
+        raise ValueError(
+            f"A correlated-domain-factor model needs >= 2 domains (got {D}: "
+            f"{domain_names}); with a single factor there are no cross-domain "
+            "correlations to estimate and the per-wave off-diagonal (factor_corr_pairs) "
+            "and cross-check outputs would be empty."
+        )
     for d in domain_names:
         if len(tuple(domains[d])) < 2:
             raise ValueError(
                 f"Domain {d!r} has < 2 indicators ({tuple(domains[d])}); a correlated "
                 "factor needs at least two indicators to be identified."
             )
-    D = len(domain_names)
     T = int(panel.n_waves)
     N = int(panel.n_children)
     if T < 2:
