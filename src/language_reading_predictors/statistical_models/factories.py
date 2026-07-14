@@ -2258,6 +2258,235 @@ def build_two_mediator_model(
 
 
 # ---------------------------------------------------------------------------
+# MED-092: period-stacked g-formula mediation on the gain-factor scaffold (#229)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PeriodStackedMediationData:
+    """Row-aligned stacked-period arrays for the period-stacked g-formula (MED-092).
+
+    The stacked analogue of :class:`MediationData`: one row per child x period
+    transition (``phase_mode="all"``), so the g-formula needs the per-row phase
+    index and child index to reconstruct the phase intercepts and per-leg child
+    random intercepts alongside the coefficient draws. Confounder values are
+    carried generically in ``conf_values`` (period-start logits for bounded-count
+    measures; loader-timed standardised values for raw covariates), keyed by
+    symbol, so :func:`mediation.decompose_period_stacked` adjusts for exactly the
+    set the model was fitted with.
+    """
+
+    trt: np.ndarray
+    """Per-row on-intervention indicator (the exposure being decomposed)."""
+    phase_idx: np.ndarray
+    child_idx: np.ndarray
+    n_phases: int
+    n_children: int
+    L1_logit: np.ndarray
+    W1_logit: np.ndarray
+    A_std: np.ndarray
+    conf_values: dict[str, np.ndarray]
+    confounder_symbols: tuple[str, ...]
+    L2_count: np.ndarray
+    W2_count: np.ndarray
+    n_trials_L: int
+    n_trials_W: int
+    med_mean: float
+    med_sd: float
+    mediator_symbol: str = "L"
+
+
+def build_period_stacked_mediation_model(
+    prepared: PreparedData,
+    *,
+    mediator_symbol: str = "L",
+    outcome_symbol: str = "W",
+    confounder_symbols: Iterable[str] = (),
+    sigma_child_prior_sigma: float = 0.5,
+) -> tuple[BuiltModel, PeriodStackedMediationData]:
+    """Joint mediator + outcome model over all stacked periods (MED-092, #229).
+
+    The LRP59 mediation design transplanted onto the **gain-factor scaffold**
+    (``phase_mode="all"``): every on-intervention and untreated period transition
+    is stacked, the exposure is the per-period **on-intervention** indicator
+    ``T`` (the term the gain-factor models already treat as ignorable) rather
+    than the Phase-0 randomised group, and both legs carry the gain-factor
+    machinery — per-phase intercepts and a per-leg child random intercept::
+
+        Mediator: logit(M_post) ~ a0 + a_phase[p] + a_trt*T + a_M*logit(M_pre)
+                                  + a_A*age + sum a_c*C + u_child_M
+        Outcome:  logit(W_post) ~ b0 + b_phase[p] + b_trt*T + b_M*z(logit M_post)
+                                  + b_trtM*T*z + b_W*logit(W_pre) + b_A*age
+                                  + sum b_c*C + u_child_Y
+
+    ``T`` varies between arms **only in period 1** (after the waitlist crossover
+    both arms are on the programme), so the exposure contrast is still anchored
+    on the randomised window; what the stacking buys is that the
+    mediator -> outcome leg (``b_M``, the coefficient that carries the indirect
+    effect) and every covariate coupling are informed by **all** periods instead
+    of the single t1->t2 window. The price is stated plainly: the estimand is a
+    **per-period** decomposition under the gain-factor family's ignorability
+    assumption (on-intervention exchangeable given period-start state, phase,
+    age and the child intercept), not the Phase-0 randomised contrast — read it
+    as a triangulation companion to ``med-059``/``064``, never a replacement.
+
+    Confounders mirror LRP59's set: bounded-count measures (E, R) enter at the
+    **period start** (``prepared.pre_logit``, the sequential g-formula's
+    history-adjustment rule); raw covariates keep the loader's gain-factor
+    timing (hearing contemporaneous, speech/phonological memory at the t1
+    baseline — the A1 timing decision, 2026-07-13). Per-period baselines at
+    post-crossover transitions are descendants of *earlier* periods' exposure —
+    admissible for the per-period estimand, but exactly why no cumulative
+    (multi-period) effect is decomposed here.
+
+    NDE/NIE are computed by counterfactual simulation
+    (:func:`mediation.decompose_period_stacked`), not from coefficients, and are
+    **not identified natural effects** — every LRP59 obstacle (latent-GA
+    mediator-outcome confounding; treatment-induced dose ``IS``) carries over,
+    plus the ignorability trade above. Requires ``phase_mode == 'all'``; the
+    graded Beta-Binomial legs only (no off-floor branch — W and L are graded).
+    """
+    if prepared.phase_mode != "all":
+        raise ValueError(
+            "build_period_stacked_mediation_model requires phase_mode='all'"
+        )
+    confounder_symbols = tuple(confounder_symbols)
+    for s in (mediator_symbol, outcome_symbol):
+        if s not in prepared.pre_logit or s not in prepared.post_counts:
+            raise KeyError(f"Symbol {s!r} needs pre+post scores in prepared data")
+    for s in confounder_symbols:
+        if s not in prepared.pre_logit and s not in prepared.covariates:
+            raise KeyError(f"Confounder {s!r} not in prepared pre_logit or covariates")
+
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+        standardise,
+    )
+
+    # Complete cases on the mediator/outcome pre+post and every confounder value.
+    keep = (
+        ~np.isnan(prepared.post_counts[mediator_symbol])
+        & ~np.isnan(prepared.pre_logit[mediator_symbol])
+        & ~np.isnan(prepared.post_counts[outcome_symbol])
+        & ~np.isnan(prepared.pre_logit[outcome_symbol])
+    )
+    for s in confounder_symbols:
+        keep = keep & ~np.isnan(_baseline_confounder_value(prepared, s))
+    prepared = _subset(prepared, keep)
+
+    N_med = prepared.n_trials[mediator_symbol]
+    N_out = prepared.n_trials[outcome_symbol]
+    L2_count = prepared.post_counts[mediator_symbol].astype(np.int64)
+    W2_count = prepared.post_counts[outcome_symbol].astype(np.int64)
+    trt = ((prepared.G == 1) | (prepared.phase >= 1)).astype(float)
+
+    # Standardised post-mediator logit — the outcome-leg regressor; the scaler is
+    # reused for the counterfactual mediator draws (as in build_mediation_model).
+    med_logit = logit_safe(L2_count, N_med)
+    z_med, med_scaler = standardise(med_logit)
+
+    L1 = prepared.pre_logit[mediator_symbol]
+    W1 = prepared.pre_logit[outcome_symbol]
+    conf_values = {
+        s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
+    }
+
+    coords = {
+        "obs_id": np.arange(prepared.n_obs),
+        "phase": np.arange(prepared.n_phases),
+        "child": np.arange(prepared.n_children),
+    }
+    with pm.Model(coords=coords) as model:
+        phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+        child_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
+        trt_d = pm.Data("on_intervention", trt, dims="obs_id")
+        L1_d = pm.Data(f"{mediator_symbol}_pre_logit", L1, dims="obs_id")
+        W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
+        A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        conf_d = {
+            s: pm.Data(f"{s}_conf", conf_values[s], dims="obs_id")
+            for s in confounder_symbols
+        }
+        z_med_d = pm.Data("z_med", z_med, dims="obs_id")
+
+        # --- Mediator leg: logit(M_post) over all stacked periods ---
+        a0 = _priors.alpha_prior().to_pymc("a0")
+        a_phase = pm.Normal("a_phase", mu=0.0, sigma=0.5, dims="phase")
+        a_trt = _priors.tau_prior().to_pymc("a_trt")
+        a_M = _priors.gamma_own_prior().to_pymc(f"a_{mediator_symbol}")
+        a_A = _priors.gamma_cross_prior().to_pymc("a_A")
+        mu_M = a0 + a_phase[phase_d] + a_trt * trt_d + a_M * L1_d + a_A * A_d
+        for s in confounder_symbols:
+            a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
+            mu_M = mu_M + a_c * conf_d[s]
+        sigma_child_M = pm.HalfNormal("sigma_child_M", sigma=sigma_child_prior_sigma)
+        u_child_M_raw = pm.Normal("u_child_M_raw", mu=0.0, sigma=1.0, dims="child")
+        u_child_M = pm.Deterministic(
+            "u_child_M", sigma_child_M * u_child_M_raw, dims="child"
+        )
+        mu_M = pm.Deterministic("mu_M", mu_M + u_child_M[child_d], dims="obs_id")
+        kappa_M = _priors.kappa_prior().to_pymc("kappa_M")
+        beta_binomial_from_logit(
+            f"{mediator_symbol}_post", mu_M, n_trials=N_med, kappa=kappa_M,
+            observed=L2_count, dims="obs_id",
+        )
+
+        # --- Outcome leg: logit(W_post) over all stacked periods ---
+        b0 = _priors.alpha_prior().to_pymc("b0")
+        b_phase = pm.Normal("b_phase", mu=0.0, sigma=0.5, dims="phase")
+        b_trt = _priors.tau_prior().to_pymc("b_trt")
+        b_M = _priors.b_path_prior().to_pymc("b_M")
+        b_trtM = _priors.gamma_cross_prior().to_pymc("b_trtM")
+        b_W = _priors.gamma_own_prior().to_pymc("b_W")
+        b_A = _priors.gamma_cross_prior().to_pymc("b_A")
+        eta_Y = (
+            b0
+            + b_phase[phase_d]
+            + b_trt * trt_d
+            + b_M * z_med_d
+            + b_trtM * (trt_d * z_med_d)
+            + b_W * W1_d
+            + b_A * A_d
+        )
+        for s in confounder_symbols:
+            b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
+            eta_Y = eta_Y + b_c * conf_d[s]
+        sigma_child_Y = pm.HalfNormal("sigma_child_Y", sigma=sigma_child_prior_sigma)
+        u_child_Y_raw = pm.Normal("u_child_Y_raw", mu=0.0, sigma=1.0, dims="child")
+        u_child_Y = pm.Deterministic(
+            "u_child_Y", sigma_child_Y * u_child_Y_raw, dims="child"
+        )
+        eta_Y = pm.Deterministic("eta", eta_Y + u_child_Y[child_d], dims="obs_id")
+        kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
+        beta_binomial_from_logit(
+            "y_post", eta_Y, n_trials=N_out, kappa=kappa_Y,
+            observed=W2_count, dims="obs_id",
+        )
+
+    med_data = PeriodStackedMediationData(
+        trt=trt,
+        phase_idx=prepared.phase.astype(np.int64),
+        child_idx=prepared.child_idx.astype(np.int64),
+        n_phases=int(prepared.n_phases),
+        n_children=int(prepared.n_children),
+        L1_logit=L1,
+        W1_logit=W1,
+        A_std=prepared.A_std,
+        conf_values=conf_values,
+        confounder_symbols=confounder_symbols,
+        L2_count=L2_count,
+        W2_count=W2_count,
+        n_trials_L=int(N_med),
+        n_trials_W=int(N_out),
+        med_mean=float(med_scaler.mean),
+        med_sd=float(med_scaler.sd),
+        mediator_symbol=mediator_symbol,
+    )
+    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return built, med_data
+
+
+# ---------------------------------------------------------------------------
 # LRP65: between-child adjusted model (T1 baselines -> word-reading gain)
 # ---------------------------------------------------------------------------
 
@@ -3770,6 +3999,7 @@ def build_lcsm_model(
     *,
     reading_symbol: str = "W",
     couplings: dict[str, tuple[str, ...]] | None = None,
+    lagged_change_couplings: dict[str, tuple[str, ...]] | None = None,
     arm_window_intercepts: bool = False,
     covariate_block: tuple[str, ...] = (),
     covariate_targets: tuple[str, ...] = (),
@@ -3809,6 +4039,22 @@ def build_lcsm_model(
     names; with multiple targets they are ``g_{src}_{tgt}`` (the lagged
     reverse-coupling models LCSM-081/082, #250). Uncoupled measures get a
     self-proportional change plus age only.
+
+    ``lagged_change_couplings`` maps each target measure to the source measures
+    whose **previous transition's latent change** enters its change equation
+    (prior *change* -> subsequent *change*; #229 specification 2, LCSM-091)::
+
+        mean_Delta_tgt[t] += sum_c h_c * Delta_c[t-1]
+
+    where ``Delta_c[t-1] = x_c[t-1] - x_c[t-2]`` is the realised latent change
+    (structured mean plus process noise) of source ``c`` over the previous
+    transition. The ``h`` terms enter for transitions ``k >= 1`` only — the
+    first transition has no prior change — so with four waves they are
+    identified from just **two** transitions, both post-crossover; any model
+    using them must therefore also set ``arm_window_intercepts=True`` (the
+    transition-2+ arm-confounding result, ``notes/202607141030-time-lagged-model-designs.md``).
+    Naming mirrors the level couplings: ``h_{src}`` with a single lag target,
+    ``h_{src}_{tgt}`` otherwise.
 
     ``arm_window_intercepts`` replaces the pooled per-measure change intercept
     with **arm x window cells** ``a_change[arm, trans, outcome]`` — required
@@ -3869,6 +4115,34 @@ def build_lcsm_model(
         if tgt in srcs:
             raise ValueError(
                 f"target {tgt!r} cannot couple to itself (that is b_self)"
+            )
+
+    lagged_change_couplings = {
+        tgt: tuple(srcs) for tgt, srcs in (lagged_change_couplings or {}).items()
+    }
+    for tgt, srcs in lagged_change_couplings.items():
+        unknown = [s for s in (tgt, *srcs) if s not in OUT]
+        if unknown:
+            raise KeyError(
+                f"lagged-change coupling symbols {unknown} not in panel.outcomes {OUT}"
+            )
+        if tgt in srcs:
+            raise ValueError(
+                f"target {tgt!r} cannot lag-couple to its own change "
+                "(an AR on changes is not a #229 estimand)"
+            )
+    if lagged_change_couplings:
+        if T < 3:
+            raise ValueError(
+                "lagged change-on-change couplings need at least three waves "
+                "(a prior transition)"
+            )
+        if not arm_window_intercepts:
+            raise ValueError(
+                "lagged_change_couplings requires arm_window_intercepts=True: the "
+                "h terms are identified entirely from post-crossover transitions, "
+                "where the randomised arm confounds every pooled coupling "
+                "(notes/202607141030-time-lagged-model-designs.md)"
             )
 
     if arm_window_intercepts and panel.group is None:
@@ -3988,6 +4262,17 @@ def build_lcsm_model(
                 g_par[(src, tgt)] = pm.Normal(
                     pname, mu=0.0, sigma=coupling_prior_sigma
                 )
+        # Lagged change-on-change couplings (prior source *change* -> target
+        # change; #229 spec 2). Same naming rule and regularising scale as the
+        # level couplings.
+        single_lag_target = len(lagged_change_couplings) == 1
+        h_par: dict[tuple[str, str], pt.TensorVariable] = {}
+        for tgt, srcs in lagged_change_couplings.items():
+            for src in srcs:
+                pname = f"h_{src}" if single_lag_target else f"h_{src}_{tgt}"
+                h_par[(src, tgt)] = pm.Normal(
+                    pname, mu=0.0, sigma=coupling_prior_sigma
+                )
         # Adjuster-covariate slopes, shared across the covariate_targets
         # equations (the parameter-sparing default at n~54).
         b_cov = {
@@ -4029,6 +4314,10 @@ def build_lcsm_model(
             ]
 
         # Latent change-score recursion over transitions (t = 1 .. T-1).
+        # ``delta_hist[s][k]`` is measure ``s``'s realised latent change on
+        # transition ``k`` (structured mean plus process noise) — the lagged
+        # change-on-change regressor for transition ``k + 1``.
+        delta_hist: dict[str, list[pt.TensorVariable]] = {s: [] for s in OUT}
         for k in range(T - 1):
             t = k + 1
             prev = {s: x[s][t - 1] for s in OUT}
@@ -4040,6 +4329,11 @@ def build_lcsm_model(
                 m = m + d_age[jidx[s]] * age[:, t - 1]
                 for src in couplings.get(s, ()):
                     m = m + g_par[(src, s)] * prev[src]
+                # Prior-transition latent change of the lag sources; no term on
+                # the first transition (k = 0), which has no prior change.
+                if k >= 1:
+                    for src in lagged_change_couplings.get(s, ()):
+                        m = m + h_par[(src, s)] * delta_hist[src][k - 1]
                 if s in covariate_targets:
                     for name in covariate_block:
                         v = cov_data[name]
@@ -4049,6 +4343,7 @@ def build_lcsm_model(
                 delta = m
                 if use_process_noise:
                     delta = delta + sigma_proc[s] * zproc[s][:, k]
+                delta_hist[s].append(delta)
                 x[s].append(prev[s] + delta)
 
         # Stack latent to (child, wave, outcome) for reporting + likelihood.

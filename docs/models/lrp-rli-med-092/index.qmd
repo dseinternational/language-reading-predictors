@@ -1,0 +1,119 @@
+---
+title: "MED-092: Does being on the programme raise word reading via letter-sounds? (period-stacked mediation)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by an LLM-based AI tool (Claude Code/Fable 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+MED-092 is the **period-stacked** companion to the Phase-0 mediation suite
+(#229 recommendation 2). LRP59 (`lrp-rli-med-059`) decomposes the randomised
+t1 → t2 intervention effect on word reading (`W`) into the part flowing through
+letter-sound knowledge (`L`) and the rest — but it is pinned to the single
+randomised window (one row per child, $n \approx 53$). This model refits the
+same joint mediator + outcome design over **all three stacked period
+transitions** (the gain-factor scaffold), with the exposure being the
+per-period **on-intervention** indicator $T$ — the term the gain-factor models
+already treat as ignorable — rather than the Phase-0 randomised group.
+
+::: {.callout-warning title="The stated, reviewable trade (read before the headline)"}
+Every quantity here leans on the **gain-factor family's ignorability
+assumption** — being on-intervention is exchangeable given the period-start
+state, phase, age and the child intercept — instead of pure randomisation. The
+on-intervention indicator varies between arms **only in period 1** (after the
+waitlist crossover both arms are on the programme), so the exposure contrast is
+still anchored on the randomised window; what the stacking buys is that the
+mediator → outcome leg ($b_M$, the coefficient carrying the indirect effect)
+and every covariate term are informed by **all** periods. Read this model as a
+**triangulation companion** to `med-059`/`med-064` — direction and rough-share
+agreement is the deliverable — never a replacement.
+:::
+
+## Model structure
+
+Both legs are Beta-Binomial on the logit scale over the stacked
+child × period rows, each with per-phase intercepts and a per-leg child random
+intercept (the gain-factor machinery; the child intercept is a partial,
+shrunken stand-in for stable between-child differences — **not** a control for
+latent general ability):
+
+$$
+\begin{aligned}
+\text{logit}(L_{\text{post}}) &\sim a_0 + a_{\text{phase}}[p] + a_{\text{trt}}\,T
+  + a_L\,\text{logit}(L_{\text{pre}}) + a_A\,\text{age} + \textstyle\sum_c a_c C
+  + u^M_{\text{child}} \\
+\text{logit}(W_{\text{post}}) &\sim b_0 + b_{\text{phase}}[p] + b_{\text{trt}}\,T
+  + b_M\,z(\text{logit}\,L_{\text{post}}) + b_{\text{trt}M}\,T \cdot z
+  + b_W\,\text{logit}(W_{\text{pre}}) + b_A\,\text{age} + \textstyle\sum_c b_c C
+  + u^Y_{\text{child}}
+\end{aligned}
+$$
+
+Confounders mirror LRP59's set: expressive (`E`) and receptive (`R`) vocabulary
+at the **period start** (the sequential g-formula's history-adjustment rule),
+hearing (`hs`) contemporaneous and speech production (`deapp_c`) at the t1
+baseline (the gain-factor timing split, A1 decision 2026-07-13). Period-start
+baselines at post-crossover transitions are descendants of *earlier* periods'
+exposure — admissible for the **per-period** estimand reported here, and
+exactly why no cumulative (multi-period) effect is decomposed.
+
+NDE / NIE / Total are computed by counterfactual simulation from the posterior
+(the g-formula), averaged over the stacked rows' observed states. Two readouts
+are written: `mediation_summary.csv` averages over **all** periods (the
+headline per-period decomposition), and `mediation_summary_p1.csv` restricts
+the averaging to the **period-1** (randomised, all-untreated-baseline) rows —
+the LRP59-comparable readout, mirroring the gain-factor family's period-1
+treatment marginal.
+
+**Reading rule:** all of LRP59's non-identification caveats carry over
+unchanged — latent general ability confounds the mediator → outcome path,
+intervention dose (`IS`) is a treatment-induced mediator–outcome confounder,
+and the mediator and outcome are measured contemporaneously within each period
+— **plus** the ignorability trade above. These are model-based g-formula
+decompositions under stated assumptions, not identified natural effects.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+## Period-1 restriction (LRP59-comparable readout)
+
+_How to read this table:_ the same posterior and the same g-formula, but the
+row averaging is restricted to the period-1 transition — the genuinely
+randomised, all-untreated-baseline window — so the decomposition is directly
+comparable with LRP59's. Agreement in direction and rough share between this
+table, the all-period table above, and LRP59 itself is the triangulation
+deliverable.
+
+```{python}
+# | echo: false
+mediation_summary_p1 = _csv("mediation_summary_p1.csv")
+mediation_summary_p1 if mediation_summary_p1 is not None else "No period-1 summary."
+```
+
+{{< include _partials/_footer.qmd >}}

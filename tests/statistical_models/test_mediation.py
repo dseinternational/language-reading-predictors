@@ -20,9 +20,11 @@ import xarray as xr
 
 from language_reading_predictors.statistical_models.factories import (
     build_mediation_model,
+    build_period_stacked_mediation_model,
 )
 from language_reading_predictors.statistical_models.mediation import (
     decompose,
+    decompose_period_stacked,
     sensitivity_sweep,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -194,3 +196,132 @@ def test_decompose_follows_fitted_confounder_set(tmp_path):
     names = _OUTCOME_DRAWS + ["b_R"] + _BB_MEDIATOR_DRAWS + ["a_R", "kappa_M"]
     df = decompose(_fake_trace(names, positive=["kappa_M"]), med, n_replicates=4)
     assert set(df["quantity"]) == _QUANTITIES
+
+
+# --- MED-092: period-stacked g-formula on the gain-factor scaffold (#229) ----
+
+_PS_SCALARS = [
+    "a0", "a_trt", "a_L", "a_A", "a_E", "a_R", "kappa_M",
+    "b0", "b_trt", "b_M", "b_trtM", "b_W", "b_A", "b_E", "b_R", "kappa_Y",
+]
+
+
+def _prepare_stacked(tmp_path, n_children: int = 15):
+    p = _write_synthetic(tmp_path, n_children=n_children)
+    return load_and_prepare(path=p, phase_mode="all")
+
+
+def _fake_trace_stacked(
+    med, *, chains: int = 2, draws: int = 20, seed: int = 0, values=None
+):
+    """A synthetic posterior for :func:`decompose_period_stacked`: the scalar
+    coefficients plus the vector parameters the stacked design adds (per-phase
+    intercepts and the per-leg child random-intercept deterministics)."""
+    rng = np.random.default_rng(seed)
+    values = values or {}
+    data = {}
+    for name in _PS_SCALARS:
+        if name in values:
+            arr = float(values[name]) + rng.normal(0.0, 1e-3, size=(chains, draws))
+        elif name.startswith("kappa"):
+            arr = np.abs(rng.normal(0.0, 0.2, size=(chains, draws))) + 5.0
+        else:
+            arr = rng.normal(0.0, 0.2, size=(chains, draws))
+        data[name] = (("chain", "draw"), arr)
+    for name, dim, size in (
+        ("a_phase", "phase", med.n_phases),
+        ("b_phase", "phase", med.n_phases),
+        ("u_child_M", "child", med.n_children),
+        ("u_child_Y", "child", med.n_children),
+    ):
+        data[name] = (
+            ("chain", "draw", dim),
+            rng.normal(0.0, 0.1, size=(chains, draws, size)),
+        )
+    return SimpleNamespace(posterior=xr.Dataset(data))
+
+
+def test_period_stacked_factory_builds(tmp_path):
+    """MED-092: both legs get the gain-factor machinery (phase intercepts,
+    per-leg child random intercepts) and the exposure is the on-intervention
+    indicator, not the randomised group."""
+    prep = _prepare_stacked(tmp_path)
+    built, med = build_period_stacked_mediation_model(
+        prep, confounder_symbols=("E", "R")
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {
+        "a_trt", "a_L", "kappa_M", "sigma_child_M",
+        "b_trt", "b_M", "b_trtM", "b_W", "kappa_Y", "sigma_child_Y",
+        "a_phase", "b_phase",
+    }.issubset(names)
+    det = {v.name for v in built.model.deterministics}
+    assert {"u_child_M", "u_child_Y", "mu_M", "eta"}.issubset(det)
+    # Stacked rows: several phases, and the exposure varies (waitlist period 1 off).
+    assert med.n_phases > 1
+    assert set(np.unique(med.trt)) == {0.0, 1.0}
+    assert med.trt.shape == med.phase_idx.shape == med.child_idx.shape
+    import pymc as pm
+
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=1)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_period_stacked_factory_requires_all_phase_mode(tmp_path):
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep_itt = load_and_prepare(path=p, phase_mode="itt")
+    import pytest
+
+    with pytest.raises(ValueError, match="phase_mode='all'"):
+        build_period_stacked_mediation_model(prep_itt)
+
+
+def test_decompose_period_stacked_all_rows_and_p1_mask(tmp_path):
+    """The stacked g-formula returns the standard quantity set, and the period-1
+    row restriction (the LRP59-comparable readout) runs off the same posterior."""
+    prep = _prepare_stacked(tmp_path)
+    _, med = build_period_stacked_mediation_model(prep, confounder_symbols=("E", "R"))
+    trace = _fake_trace_stacked(med)
+    df = decompose_period_stacked(trace, med, n_replicates=4)
+    assert set(df["quantity"]) == _QUANTITIES
+    effects = df[df["quantity"].isin(["total", "NDE", "NIE"])]
+    assert effects[["prob_mean", "words_mean"]].notna().all().all()
+    df_p1 = decompose_period_stacked(
+        trace, med, n_replicates=4, row_mask=med.phase_idx == 0
+    )
+    assert set(df_p1["quantity"]) == _QUANTITIES
+
+
+def test_decompose_period_stacked_positive_exposure_effect(tmp_path):
+    """A pinned-posterior sanity direction check: exposure raises the mediator
+    (a_trt >> 0) and the mediator raises the outcome (b_M >> 0), everything else
+    0 — so the NIE and total must come out positive."""
+    prep = _prepare_stacked(tmp_path)
+    _, med = build_period_stacked_mediation_model(prep, confounder_symbols=("E", "R"))
+    vals = {n: 0.0 for n in _PS_SCALARS if not n.startswith("kappa")}
+    vals.update({"a_trt": 2.0, "b_M": 2.0})
+    trace = _fake_trace_stacked(med, values=vals, seed=5)
+    df = decompose_period_stacked(trace, med, n_replicates=8).set_index("quantity")
+    assert df.loc["NIE", "prob_mean"] > 0
+    assert df.loc["total", "prob_mean"] > 0
+
+
+def test_sensitivity_sweep_period_stacked(tmp_path):
+    """The #230 sweep generalises to the stacked design via ``decompose_fn`` +
+    ``interaction_name`` (its exposure x mediator coefficient is b_trtM)."""
+    prep = _prepare_stacked(tmp_path)
+    _, med = build_period_stacked_mediation_model(prep, confounder_symbols=("E", "R"))
+    trace = _fake_trace_stacked(med, seed=2)
+    sweep, summary = sensitivity_sweep(
+        trace,
+        med,
+        n_deltas=4,
+        n_replicates=4,
+        decompose_fn=decompose_period_stacked,
+        interaction_name="b_trtM",
+    )
+    assert sweep["delta"].iloc[0] == 0.0
+    assert {"tipping_delta", "already_null_at_zero", "robust_over_full_sweep"} <= set(
+        summary
+    )

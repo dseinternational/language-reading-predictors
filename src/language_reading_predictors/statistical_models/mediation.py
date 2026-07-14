@@ -68,6 +68,7 @@ from dse_research_utils.math.constants import EPSILON
 
 from language_reading_predictors.statistical_models.factories import (
     MediationData,
+    PeriodStackedMediationData,
     TwoMediatorData,
 )
 from language_reading_predictors.statistical_models.preprocessing import logit_safe
@@ -78,6 +79,58 @@ _CTRL = 0.0  # wait-list control arm (G = 0)
 
 def _sigmoid(x: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-x))
+
+
+def _effect_row(
+    name: str, draws: np.ndarray, n_words: int, lo_q: float, hi_q: float, off_floor: bool
+) -> dict:
+    """One decomposition-quantity row (shared by the single-mediator g-formulas)."""
+    return {
+        "quantity": name,
+        # Median-first (house convention; #268). Mean kept as a secondary column.
+        "prob_median": float(np.median(draws)),
+        "prob_mean": float(np.mean(draws)),
+        "prob_lo": float(np.quantile(draws, lo_q)),
+        "prob_hi": float(np.quantile(draws, hi_q)),
+        "prob_lo90": float(np.quantile(draws, 0.05)),
+        "prob_hi90": float(np.quantile(draws, 0.95)),
+        "words_median": float(np.median(draws) * n_words),
+        "words_mean": float(np.mean(draws) * n_words),
+        "words_lo": float(np.quantile(draws, lo_q) * n_words),
+        "words_hi": float(np.quantile(draws, hi_q) * n_words),
+        "words_lo90": float(np.quantile(draws, 0.05) * n_words),
+        "words_hi90": float(np.quantile(draws, 0.95) * n_words),
+        "prob_pos": float(np.mean(draws > 0)),
+        # For an off-floor outcome n_trials_W = 1, so the words_* columns equal
+        # prob_* and both are the off-floor RISK DIFFERENCE; the flag lets the
+        # report label the scale ("off-floor risk difference", not items).
+        "off_floor": bool(off_floor),
+    }
+
+
+def _proportion_row(nie: np.ndarray, total: np.ndarray, lo_q: float, hi_q: float) -> dict:
+    """The proportion-mediated row (NIE / Total; unstable when Total crosses 0)."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        prop = nie / total
+    prop = prop[np.isfinite(prop)]
+    return {
+        "quantity": "proportion_mediated",
+        # A ratio: report its median (the mean is unstable when Total crosses
+        # zero); no longer overloaded onto prob_mean (#268).
+        "prob_median": float(np.median(prop)),
+        "prob_mean": float(np.mean(prop)),
+        "prob_lo": float(np.quantile(prop, lo_q)),
+        "prob_hi": float(np.quantile(prop, hi_q)),
+        "prob_lo90": float(np.quantile(prop, 0.05)),
+        "prob_hi90": float(np.quantile(prop, 0.95)),
+        "words_median": np.nan,
+        "words_mean": np.nan,
+        "words_lo": np.nan,
+        "words_hi": np.nan,
+        "words_lo90": np.nan,
+        "words_hi90": np.nan,
+        "prob_pos": float(np.mean(total > 0)),  # P(Total > 0) for context
+    }
 
 
 def decompose(
@@ -253,27 +306,7 @@ def decompose(
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
 
     def row(name: str, draws: np.ndarray) -> dict:
-        return {
-            "quantity": name,
-            # Median-first (house convention; #268). Mean kept as a secondary column.
-            "prob_median": float(np.median(draws)),
-            "prob_mean": float(np.mean(draws)),
-            "prob_lo": float(np.quantile(draws, lo_q)),
-            "prob_hi": float(np.quantile(draws, hi_q)),
-            "prob_lo90": float(np.quantile(draws, 0.05)),
-            "prob_hi90": float(np.quantile(draws, 0.95)),
-            "words_median": float(np.median(draws) * N_W),
-            "words_mean": float(np.mean(draws) * N_W),
-            "words_lo": float(np.quantile(draws, lo_q) * N_W),
-            "words_hi": float(np.quantile(draws, hi_q) * N_W),
-            "words_lo90": float(np.quantile(draws, 0.05) * N_W),
-            "words_hi90": float(np.quantile(draws, 0.95) * N_W),
-            "prob_pos": float(np.mean(draws > 0)),
-            # For an off-floor outcome n_trials_W = 1, so the words_* columns equal
-            # prob_* and both are the off-floor RISK DIFFERENCE; the flag lets the
-            # report label the scale ("off-floor risk difference", not items).
-            "off_floor": bool(off_floor),
-        }
+        return _effect_row(name, draws, N_W, lo_q, hi_q, off_floor)
 
     direct_label, indirect_label = ("IDE", "IIE") if interventional else ("NDE", "NIE")
     rows = [row("total", total), row(direct_label, nde), row(indirect_label, nie)]
@@ -281,39 +314,19 @@ def decompose(
     # Proportion mediated = NIE / Total. The ratio is unstable when Total can
     # cross zero, so report the posterior median + interval and P(Total>0); the
     # decomposition itself (NDE/NIE) is the robust reading.
-    with np.errstate(divide="ignore", invalid="ignore"):
-        prop = nie / total
-    prop = prop[np.isfinite(prop)]
-    rows.append(
-        {
-            "quantity": "proportion_mediated",
-            # A ratio: report its median (the mean is unstable when Total crosses
-            # zero); no longer overloaded onto prob_mean (#268).
-            "prob_median": float(np.median(prop)),
-            "prob_mean": float(np.mean(prop)),
-            "prob_lo": float(np.quantile(prop, lo_q)),
-            "prob_hi": float(np.quantile(prop, hi_q)),
-            "prob_lo90": float(np.quantile(prop, 0.05)),
-            "prob_hi90": float(np.quantile(prop, 0.95)),
-            "words_median": np.nan,
-            "words_mean": np.nan,
-            "words_lo": np.nan,
-            "words_hi": np.nan,
-            "words_lo90": np.nan,
-            "words_hi90": np.nan,
-            "prob_pos": float(np.mean(total > 0)),  # P(Total > 0) for context
-        }
-    )
+    rows.append(_proportion_row(nie, total, lo_q, hi_q))
     return pd.DataFrame(rows)
 
 
 def sensitivity_sweep(
     trace: xr.DataTree,
-    med: MediationData,
+    med: MediationData | PeriodStackedMediationData,
     *,
     ci_prob: float = 0.95,
     n_deltas: int = 21,
     delta_max: float | None = None,
+    decompose_fn=None,
+    interaction_name: str = "b_GM",
     **decompose_kw,
 ) -> tuple[pd.DataFrame, dict]:
     """Unmeasured mediator-outcome confounding sensitivity for the NIE (#230).
@@ -332,13 +345,21 @@ def sensitivity_sweep(
     to null the indirect effect. Larger (or "robust across the full sweep") => more
     robust. This quantifies the no-unmeasured-mediator-outcome-confounding
     assumption the decomposition otherwise only states.
+
+    ``decompose_fn`` (default :func:`decompose`) selects the decomposition the
+    sweep re-runs — pass :func:`decompose_period_stacked` with
+    ``interaction_name="b_trtM"`` for the period-stacked design (MED-092), whose
+    exposure x mediator coefficient carries the on-intervention name.
     """
+    if decompose_fn is None:
+        decompose_fn = decompose
     post = trace.posterior
 
     def d(name: str) -> np.ndarray:
         return post[name].stack(_s=("chain", "draw")).values
 
-    ref = float(np.mean(d("b_M") + d("b_GM")))  # effective M->Y slope at treatment
+    # Effective M->Y slope at treatment/exposure.
+    ref = float(np.mean(d("b_M") + d(interaction_name)))
     ref_mag = abs(ref)
     ref_eps = 1e-6
     # ``delta`` is a NON-NEGATIVE magnitude of confounding, applied in the direction that
@@ -356,7 +377,7 @@ def sensitivity_sweep(
     indirect = {"NIE", "IIE"}
     rows = []
     for dlt in deltas:
-        df = decompose(
+        df = decompose_fn(
             trace, med, ci_prob=ci_prob, b_m_shift=float(shrink_sign * dlt), **decompose_kw
         )
         nie = df[df["quantity"].isin(indirect)].iloc[0]
@@ -397,6 +418,140 @@ def sensitivity_sweep(
         "robust_over_full_sweep": bool(not already_null and not np.isfinite(tip)),
     }
     return sweep, summary
+
+
+def decompose_period_stacked(
+    trace: xr.DataTree,
+    med: PeriodStackedMediationData,
+    *,
+    ci_prob: float = 0.95,
+    n_replicates: int = 50,
+    seed: int = 47,
+    b_m_shift: float = 0.0,
+    row_mask: np.ndarray | None = None,
+) -> pd.DataFrame:
+    """NDE / NIE / Total for the period-stacked design (MED-092, #229).
+
+    The :func:`decompose` g-formula transplanted onto the gain-factor scaffold
+    (:func:`factories.build_period_stacked_mediation_model`): the exposure is
+    the per-period **on-intervention** indicator, and the linear predictors add
+    the per-phase intercepts and per-leg child random intercepts, all read at
+    each row's own phase / child. Effects are averaged over the stacked rows'
+    observed state (period-start baselines, phase, age, child intercept), so
+    the estimand is the **per-period** switch-on-vs-off decomposition given
+    where a child starts the period — under the gain-factor family's
+    ignorability assumption, *not* randomisation. ``row_mask`` restricts the
+    averaging rows (e.g. ``phase == 0`` for the period-1, ITT-anchored readout
+    comparable with LRP59); the posterior itself is always the all-period fit.
+
+    Everything :mod:`mediation`'s docstring says about non-identification
+    carries over unchanged — model-based decomposition under stated
+    assumptions, not identified natural effects. Sign convention: exposure = 1
+    is on-intervention, so positive = being on the programme raises reading.
+    """
+    post = trace.posterior
+
+    def d(name: str) -> np.ndarray:
+        return post[name].stack(_s=("chain", "draw")).values  # (S,)
+
+    def dvec(name: str, dim: str) -> np.ndarray:
+        # Vector parameters as (S, len(dim)), row-indexable by phase/child idx.
+        return post[name].stack(_s=("chain", "draw")).transpose("_s", dim).values
+
+    mask = (
+        np.ones(med.trt.shape[0], dtype=bool)
+        if row_mask is None
+        else np.asarray(row_mask, dtype=bool)
+    )
+    phase_idx = med.phase_idx[mask]
+    child_idx = med.child_idx[mask]
+    confs = med.confounder_symbols
+
+    # --- Outcome leg ---
+    b0, b_trt, b_M, b_trtM, b_W, b_A = (
+        d("b0"), d("b_trt"), d("b_M"), d("b_trtM"), d("b_W"), d("b_A")
+    )
+    # Sensitivity lever (#230), as in :func:`decompose`.
+    b_M = b_M - b_m_shift
+    b_conf = {s: d(f"b_{s}") for s in confs}
+    b_phase_rows = dvec("b_phase", "phase")[:, phase_idx]  # (S, n)
+    uY_rows = dvec("u_child_Y", "child")[:, child_idx]
+
+    # --- Mediator leg ---
+    a0, a_trt, a_M, a_A = d("a0"), d("a_trt"), d(f"a_{med.mediator_symbol}"), d("a_A")
+    a_conf = {s: d(f"a_{s}") for s in confs}
+    a_phase_rows = dvec("a_phase", "phase")[:, phase_idx]
+    uM_rows = dvec("u_child_M", "child")[:, child_idx]
+    kappa_M = d("kappa_M")
+
+    W1 = med.W1_logit[mask][None, :]
+    L1 = med.L1_logit[mask][None, :]
+    A = med.A_std[mask][None, :]
+    conf = {s: med.conf_values[s][mask][None, :] for s in confs}
+    N_W = med.n_trials_W
+    N_L = med.n_trials_L
+    S = b0.shape[0]
+    rng = np.random.default_rng(seed)
+
+    def outcome_p(t: float, z_m: np.ndarray) -> np.ndarray:
+        eta = (
+            b0[:, None]
+            + b_phase_rows
+            + b_trt[:, None] * t
+            + b_M[:, None] * z_m
+            + b_trtM[:, None] * (t * z_m)
+            + b_W[:, None] * W1
+            + b_A[:, None] * A
+            + uY_rows
+        )
+        for s in confs:
+            eta = eta + b_conf[s][:, None] * conf[s]
+        return _sigmoid(eta)
+
+    def mediator_p(t: float) -> np.ndarray:
+        mu = (
+            a0[:, None]
+            + a_phase_rows
+            + a_trt[:, None] * t
+            + a_M[:, None] * L1
+            + a_A[:, None] * A
+            + uM_rows
+        )
+        for s in confs:
+            mu = mu + a_conf[s][:, None] * conf[s]
+        return np.clip(_sigmoid(mu), EPSILON, 1 - EPSILON)
+
+    p_treat, p_ctrl = mediator_p(_TREAT), mediator_p(_CTRL)
+    a_beta_t, b_beta_t = p_treat * kappa_M[:, None], (1 - p_treat) * kappa_M[:, None]
+    a_beta_c, b_beta_c = p_ctrl * kappa_M[:, None], (1 - p_ctrl) * kappa_M[:, None]
+
+    y_treat_Mtreat = np.zeros(S)
+    y_ctrl_Mctrl = np.zeros(S)
+    y_treat_Mctrl = np.zeros(S)
+    for _ in range(n_replicates):
+        k_treat = rng.binomial(N_L, rng.beta(a_beta_t, b_beta_t))
+        k_ctrl = rng.binomial(N_L, rng.beta(a_beta_c, b_beta_c))
+        zm_treat = (logit_safe(k_treat, N_L) - med.med_mean) / med.med_sd
+        zm_ctrl = (logit_safe(k_ctrl, N_L) - med.med_mean) / med.med_sd
+        y_treat_Mtreat += outcome_p(_TREAT, zm_treat).mean(axis=1)
+        y_ctrl_Mctrl += outcome_p(_CTRL, zm_ctrl).mean(axis=1)
+        y_treat_Mctrl += outcome_p(_TREAT, zm_ctrl).mean(axis=1)
+    y_treat_Mtreat /= n_replicates
+    y_ctrl_Mctrl /= n_replicates
+    y_treat_Mctrl /= n_replicates
+
+    total = y_treat_Mtreat - y_ctrl_Mctrl
+    nde = y_treat_Mctrl - y_ctrl_Mctrl
+    nie = y_treat_Mtreat - y_treat_Mctrl
+
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    rows = [
+        _effect_row("total", total, N_W, lo_q, hi_q, False),
+        _effect_row("NDE", nde, N_W, lo_q, hi_q, False),
+        _effect_row("NIE", nie, N_W, lo_q, hi_q, False),
+        _proportion_row(nie, total, lo_q, hi_q),
+    ]
+    return pd.DataFrame(rows)
 
 
 def decompose_two_mediator(
