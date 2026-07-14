@@ -1920,12 +1920,32 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # delivered during the pre -> post window; recorded t1-t3, absent at t4), so it
     # alone belongs on the pre row. See ``preprocessing.INTERVAL_COVARIATES``.
     adjust_for = tuple(spec.extra.get("adjust_for", ()))
-    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
     # Complete-case comparator: drop the mean-imputed rows so the confounders are
     # genuinely observed. Mean-imputation + a missingness indicator keeps every
     # child, but does not by itself guarantee adequate confounding control, so the
     # imputed fit needs this comparator beside it (#258 review).
     require_observed = tuple(spec.extra.get("require_observed", ()))
+    # Covariate exposure (#311 route (b)): the mechanism variable is a standardised
+    # continuous covariate (e.g. phonological memory ``erbto``, whose documented test
+    # maximum is unrecorded, so it cannot honestly be a bounded-count Measure). Load
+    # it — and, when the spec complete-cases on it, its ``_missing`` flag for the
+    # loader's ``require_observed`` filter — alongside the adjusters. It must not
+    # also be in ``adjust_for``: the factory gives it ``beta_mech``, so a ``gamma``
+    # term too would enter it twice.
+    mechanism_is_covariate = bool(spec.extra.get("mechanism_is_covariate", False))
+    load_covariates = adjust_for
+    if mechanism_is_covariate:
+        if spec.mechanism_symbol in adjust_for:
+            raise ValueError(
+                f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} "
+                "must not also appear in adjust_for (it would enter the linear "
+                "predictor twice)."
+            )
+        extra_load: tuple[str, ...] = (spec.mechanism_symbol,)
+        if spec.mechanism_symbol in require_observed:
+            extra_load += (f"{spec.mechanism_symbol}_missing",)
+        load_covariates = tuple(dict.fromkeys((*adjust_for, *extra_load)))
+    pre_adj, post_adj = split_covariates_by_wave(load_covariates)
     _kw = {
         "covariates": pre_adj,
         "post_covariates": post_adj,
@@ -1942,6 +1962,13 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # fitted rows) is dropped by the loader and receives no coefficient, so it must
     # not be built into the model nor reported as adjusted-for.
     adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
+    if mechanism_is_covariate and spec.mechanism_symbol not in prepared.covariates:
+        # The drop-constant policy is fine for an adjuster but fatal for the
+        # exposure itself — there is no model without it.
+        raise ValueError(
+            f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} was "
+            "dropped by the loader (constant on the fitted rows); cannot fit."
+        )
 
     _print_header(ctx)
 
@@ -1977,6 +2004,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         include_interaction=spec.extra.get("include_interaction", True),
         linear_mechanism=spec.extra.get("linear_mechanism", False),
         adjust_for=adjust_for,
+        mechanism_is_covariate=mechanism_is_covariate,
     )
     _attach_built(ctx, built)
 
@@ -2032,6 +2060,23 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
         ),
     }
+    if mechanism_is_covariate:
+        # Record the exposure's raw-units anchor so a report can translate the
+        # per-SD ``beta_mech`` into raw score points: the factory re-standardises
+        # the loader z on the kept rows, so +1 SD of the fitted exposure is
+        # ``loader_sd * sd(z_kept)`` raw points.
+        meta_extra["mechanism_is_covariate"] = True
+        _sc = ctx.prepared.covariate_scalers.get(spec.mechanism_symbol)
+        if _sc is not None:
+            _z_kept = np.asarray(
+                ctx.prepared.covariates[spec.mechanism_symbol], dtype=float
+            )
+            meta_extra["mechanism_exposure_sd_raw"] = float(
+                _sc.sd * np.nanstd(_z_kept, ddof=1)
+            )
+            meta_extra["mechanism_exposure_mean_raw"] = float(
+                _sc.mean + _sc.sd * np.nanmean(_z_kept)
+            )
 
     # Linear-moderation summary (gamma_int / gamma_mod), when a moderator is set.
     if moderator_symbol is not None:
@@ -2071,8 +2116,10 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     ``beta_mech * z(logit(predictor))`` band — the predictor's linear logit
     contribution (at the mean of any moderator) — so the adjusted predictor->outcome
     relationship is still shown rather than left implicit in a coefficient. Both
-    branches hold the adjustment set fixed and write the identical CSV/PNG schema.
-    Guarded by the caller.
+    branches hold the adjustment set fixed and write the same CSV/PNG schema, except
+    for the x column: ``mech_logit`` for a bounded-count measure exposure,
+    ``mech_x`` (the raw covariate score) for a covariate exposure
+    (``mechanism_is_covariate``, always linear). Guarded by the caller.
     """
     post = ctx.trace.posterior
 
@@ -2083,17 +2130,31 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     )
 
     sym = ctx.spec.mechanism_symbol
-    N = MEASURES[sym].n_trials
-    mech_logit = logit_safe(ctx.prepared.post_counts[sym], N)
+    is_covariate = bool(ctx.spec.extra.get("mechanism_is_covariate", False))
+    if is_covariate:
+        # Covariate exposure: x is the raw score (the loader scaler inverted); the
+        # model's z is the loader z re-standardised on the kept rows, exactly as
+        # the factory did it.
+        z_loaded = np.asarray(ctx.prepared.covariates[sym], dtype=float)
+        _scaler = ctx.prepared.covariate_scalers.get(sym)
+        x_vals = _scaler.inverse(z_loaded) if _scaler is not None else z_loaded
+        z_L, _ = standardise(z_loaded)
+        x_col, x_label = "mech_x", f"{sym} (raw score)"
+    else:
+        N = MEASURES[sym].n_trials
+        mech_logit = logit_safe(ctx.prepared.post_counts[sym], N)
+        x_vals = mech_logit
+        # z the same standardisation the factory applied to the logit input.
+        z_L, _ = standardise(mech_logit)
+        x_col, x_label = "mech_logit", f"logit({sym}_post)"
 
     if "f_mech" in post:
         f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
         kind = "GP"
     elif "beta_mech" in post:
-        # Linear mechanism: the predictor enters as beta_mech * z(logit), with z the
-        # same standardisation the factory applied. Build the per-observation logit
-        # contribution so the band mirrors the GP branch (an exact straight line).
-        z_L, _ = standardise(mech_logit)
+        # Linear mechanism: the predictor enters as beta_mech * z. Build the
+        # per-observation contribution so the band mirrors the GP branch (an exact
+        # straight line).
         b = post["beta_mech"].stack(sample=("chain", "draw")).values  # (n_sample,)
         f = z_L[:, None] * b[None, :]  # (n_obs, n_sample)
         kind = "linear"
@@ -2110,8 +2171,8 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
         )
         return
 
-    order = np.argsort(mech_logit)
-    x = mech_logit[order]
+    order = np.argsort(x_vals)
+    x = x_vals[order]
     f_ord = f[order]
     mean = f_ord.mean(axis=1)
     lo = np.quantile(f_ord, 0.025, axis=1)
@@ -2119,14 +2180,14 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     lo90 = np.quantile(f_ord, 0.05, axis=1)
     hi90 = np.quantile(f_ord, 0.95, axis=1)
     pd.DataFrame(
-        {"mech_logit": x, "f_mean": mean, "f_lo": lo, "f_hi": hi,
+        {x_col: x, "f_mean": mean, "f_lo": lo, "f_hi": hi,
          "f_lo90": lo90, "f_hi90": hi90}
     ).to_csv(os.path.join(ctx.output_dir, "mechanism_curve.csv"), index=False)
     outcome = ctx.spec.outcome_symbol or "W"
     plt.figure(figsize=(6, 4))
     plt.plot(x, mean, color="#1f77b4", lw=2)
     plt.fill_between(x, lo, hi, color="#1f77b4", alpha=0.2)
-    plt.xlabel(f"logit({sym}_post)")
+    plt.xlabel(x_label)
     plt.ylabel("predictor logit contribution")
     plt.title(f"Mechanism curve ({kind}): {sym} -> {outcome}")
     # mechanism_curve.csv (the plotted band) is written just above.

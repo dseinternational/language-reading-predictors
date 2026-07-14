@@ -1,0 +1,91 @@
+---
+title: "LRP90: Mechanism model — phonological memory (RW) -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP90 estimates the adjusted association between phonological memory (word and
+nonword repetition, the ERB total) and word reading using *all three phase
+transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with phase-specific intercepts —
+completing the #311 trio after LRP88 (TR$\to$W) and LRP89 (TE$\to$W)
+(descriptive-association workstream #314).
+
+::: {.callout-note title="Covariate exposure (estimand note)"}
+The exposure is the raw ERB total (`erbto`), an integer score whose documented
+test maximum is recorded nowhere in the project — so it cannot honestly enter the
+Beta-Binomial logit machinery as a bounded-count measure (a denominator would have
+to be invented). It enters instead as a **standardised continuous covariate**:
+$\beta_{\text{mech}}$ is the adjusted association per **+1 SD of the observed ERB
+total** (the raw-score size of that SD is recorded in `config.json` as
+`mechanism_exposure_sd_raw`). Rows where the ERB total was not measured are
+**dropped**, not imputed — imputation with a missingness flag is an adjuster
+policy, never acceptable for the exposure itself. The mechanism is necessarily
+**linear** — a single slope, not a shape.
+:::
+
+## Adjustment set
+
+Parents of $RW$ under the revised DAG (2026-07-10): $\{A, GA, HS\}$ — and nothing
+else.
+
+- $G$ — group; always conditioned on via $\beta_G$.
+- $A$ — age; conditioned on linearly (a $\gamma_A\,z(\text{age})$ term).
+- $HS$ — hearing status (`hs` / `hs_missing`), $RW$'s only measured parent;
+  blocks every $RW \leftarrow HS \to \{TR, RV, TE, EV, SP, PA, LS\} \to W$ route
+  at its root.
+- $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
+
+::: {.callout-note title="No session-dose backdoor (contrast with LRP88/LRP89)"}
+The DAG has no $IG \to RW$ or $IS \to RW$ edge: under the locked structure the
+intervention does not move phonological memory, so session dose is **not** a
+common cause of exposure and outcome here, and the flagged-IS caveat that LRP88
+and LRP89 carry does not apply. $RW$'s variation is not intervention-generated —
+in that respect this is the cleanest adjustment set of the #311 trio.
+:::
+
+$TR$, $TE$, $RV$, $EV$, $PA$, $NW$ and $PS$ are *descendants* of $RW$
+($RW \to \{TE, EV, TR, RV, PA, NW, PS\}$) that also affect $W$; conditioning on
+them would block legitimate indirect paths (e.g. $RW \to PA \to NW \to W$) and
+pull the slope toward the direct-only component, so they are **not** in the
+adjustment set. $SP$ is neither a parent nor a descendant of $RW$ and is not
+needed. $GA$ (general ability) is latent and cannot be conditioned on; the child
+random intercept proxies its time-invariant part, so the slope stays an adjusted
+association.
+
+### Interpretation caveats
+
+- *No unmeasured confounder assumption* for $(RW_{\text{post}}, W_{\text{post}})$: strong and not testable — latent general ability is only partially proxied by the child intercept.
+- The ERB total is measured with error; non-negligible error attenuates the slope toward zero.
+- Dropping unmeasured-exposure rows assumes the missingness is unrelated to the association being estimated (missing-at-random given the adjusters); the fitted row count is reported in `config.json`.
+- Across-phase pooling assumes the structural relationship is stable over time; a phase-specific sensitivity fit is available via the `phase_specific_mechanism` flag.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mechanism.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

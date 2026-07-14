@@ -200,6 +200,7 @@ _MECH = [
     # Taught-vocabulary dose-response (#311, descriptive-association workstream #314).
     _d("lrp88", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading"),
     _d("lrp89", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading"),
+    _d("lrp90", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phonological memory (word/nonword repetition) -> word reading"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),

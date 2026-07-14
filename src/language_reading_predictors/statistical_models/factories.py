@@ -733,6 +733,7 @@ def build_mechanism_model(
     include_interaction: bool = True,
     linear_mechanism: bool = False,
     adjust_for: Iterable[str] = (),
+    mechanism_is_covariate: bool = False,
 ) -> BuiltModel:
     """
     Mechanism model on the outcome post-score.
@@ -801,6 +802,20 @@ def build_mechanism_model(
     regularising cross-coupling prior, exactly as in ``build_itt_model`` (#245).
     Age and group need no entry here: age is absorbed by the phase-specific
     intercepts and group is always in ``beta_G``.
+
+    ``mechanism_is_covariate`` (default False): treat the *exposure* as a
+    standardised continuous covariate (a key of ``prepared.covariates``, e.g.
+    phonological memory ``erbto``) rather than a bounded-count measure (#311's
+    route (b): the ERB total's documented test maximum is recorded nowhere in the
+    repo, so registering it as a ``Measure`` would fabricate a denominator). The
+    exposure is re-standardised on the kept rows and enters as
+    ``beta_mech * z(exposure)``; a ``mech_covariate`` Data node replaces
+    ``mech_post_logit``. Requires ``linear_mechanism=True`` — the HSGP curve, its
+    priors and the readiness-threshold post-processing all assume a bounded-count
+    logit exposure. The caller is responsible for restricting to genuinely
+    observed exposure rows (``require_observed`` in the loader): mean-imputation
+    plus a missingness indicator is an *adjuster* policy and is not acceptable for
+    the exposure itself.
     """
     # Materialise once: ``confounder_symbols`` is iterated several times below
     # (keep-mask, coefficient loop, the "A in confounders" check, and the
@@ -811,7 +826,19 @@ def build_mechanism_model(
     adjust_for = tuple(adjust_for)
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
-    if mechanism_symbol not in prepared.pre_logit:
+    if mechanism_is_covariate:
+        if not linear_mechanism:
+            raise ValueError(
+                "mechanism_is_covariate=True requires linear_mechanism=True: the "
+                "HSGP curve, its priors and the readiness-threshold post-processing "
+                "assume a bounded-count logit exposure."
+            )
+        if mechanism_symbol not in prepared.covariates:
+            raise KeyError(
+                f"Covariate mechanism {mechanism_symbol!r} not in "
+                "prepared.covariates (load it via the pipeline's covariate lists)."
+            )
+    elif mechanism_symbol not in prepared.pre_logit:
         raise KeyError(f"Mechanism {mechanism_symbol!r} missing from prepared data")
     if outcome_symbol not in prepared.pre_logit:
         raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
@@ -822,11 +849,14 @@ def build_mechanism_model(
     ):
         raise KeyError(f"Moderator {moderator_symbol!r} missing from prepared data")
 
-    # Outcome post (target) and mechanism post (predictor) are both needed.
+    # Outcome post (target) and mechanism exposure (predictor) are both needed.
     outcome_post = prepared.post_counts[outcome_symbol]
-    mechanism_post = prepared.post_counts[mechanism_symbol]
+    if mechanism_is_covariate:
+        mechanism_vals = prepared.covariates[mechanism_symbol]
+    else:
+        mechanism_vals = prepared.post_counts[mechanism_symbol]
 
-    keep = ~(np.isnan(outcome_post) | np.isnan(mechanism_post))
+    keep = ~(np.isnan(outcome_post) | np.isnan(mechanism_vals))
     if moderator_symbol is not None and not moderator_is_covariate:
         keep = keep & ~np.isnan(prepared.post_counts[moderator_symbol])
     for s in confounder_symbols:
@@ -847,9 +877,16 @@ def build_mechanism_model(
 
     outcome_post = prepared.post_counts[outcome_symbol].astype(np.int64)
     N_outcome = prepared.n_trials[outcome_symbol]
-    N_mechanism = prepared.n_trials[mechanism_symbol]
-
-    mech_post_logit = logit_safe(prepared.post_counts[mechanism_symbol], N_mechanism)
+    if mechanism_is_covariate:
+        # Standardised-covariate exposure: the loader's z-values on the kept rows.
+        # No n_trials / logit transform exists for it (that is the point of the
+        # covariate route: no fabricated denominator).
+        mech_input = prepared.covariates[mechanism_symbol]
+    else:
+        N_mechanism = prepared.n_trials[mechanism_symbol]
+        mech_input = logit_safe(
+            prepared.post_counts[mechanism_symbol], N_mechanism
+        )
 
     own_pre_logit = prepared.pre_logit[adjust_baseline_symbol]
 
@@ -862,8 +899,10 @@ def build_mechanism_model(
     # which are set for standardised inputs — the boundary-geometry neck that left a
     # residual divergence at reporting tier. Standardising the input fixes the
     # geometry without moving the fitted curve (f_mech is still evaluated per-obs and
-    # plotted against the raw logit).
-    mech_logit_std, _ = standardise(mech_post_logit)
+    # plotted against the raw logit). For a covariate exposure the input is the
+    # loader's z-values, re-standardised here on the kept rows so beta_mech reads
+    # per SD of the exposure on the fitted data.
+    mech_logit_std, _ = standardise(mech_input)
     z_L: np.ndarray | None = None
     z_M: np.ndarray | None = None
     if moderator_symbol is not None or linear_mechanism:
@@ -903,7 +942,13 @@ def build_mechanism_model(
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
-        pm.Data("mech_post_logit", mech_post_logit, dims="obs_id")
+        if mechanism_is_covariate:
+            # The exposure is a standardised covariate, not a bounded-count logit;
+            # register it under its own name so introspection cannot mistake it
+            # for a logit-scale measure.
+            pm.Data("mech_covariate", mech_input, dims="obs_id")
+        else:
+            pm.Data("mech_post_logit", mech_input, dims="obs_id")
         phase_d = pm.Data(
             "phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
         )
