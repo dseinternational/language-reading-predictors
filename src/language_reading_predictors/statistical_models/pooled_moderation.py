@@ -55,6 +55,10 @@ def build_pooled_moderation_model(
     ses = np.asarray(ses, dtype=float)
     if effects.shape != ses.shape or effects.ndim != 1 or effects.size < 2:
         raise ValueError("effects and ses must be 1-D of equal length >= 2")
+    if not (np.all(np.isfinite(effects)) and np.all(np.isfinite(ses))):
+        raise ValueError("effects and ses must all be finite (no NaN/Inf)")
+    if np.any(ses <= 0.0):
+        raise ValueError("all ses must be > 0 (standard errors of the per-outcome estimates)")
 
     coords = {"outcome": [f"k{i}" for i in range(effects.size)]}
     with pm.Model(coords=coords) as model:
@@ -105,10 +109,14 @@ def summarise(
         ]
     )
 
+    effects = np.asarray(effects, dtype=float)
+    ses = np.asarray(ses, dtype=float)
     theta = np.asarray(post["theta"].values)  # (chain, draw, outcome)
     theta = theta.reshape(-1, theta.shape[-1])  # (sample, outcome)
-    if theta.shape[1] != len(labels):
-        raise ValueError("labels length must match the number of outcomes in theta")
+    if not (theta.shape[1] == len(labels) == effects.size == ses.size):
+        raise ValueError(
+            "labels, effects, and ses must all match the number of outcomes in theta"
+        )
     by = []
     for i, lab in enumerate(labels):
         d = theta[:, i]

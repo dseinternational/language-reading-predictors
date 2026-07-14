@@ -39,12 +39,27 @@ from language_reading_predictors.statistical_models.pooled_moderation import (
 )
 
 _COEF = "gamma_int_trt_own"
+# The eight standardised outcomes this pooled moderation targets (W/R/E/L/P/B/F/T =
+# gf-001..008). gf-009/010/011 (TR/TE/N) also carry the (trt, own) interaction but are
+# NOT part of this pool, and N is bernoulli_offfloor — a different scale (#299 review).
+_CORE_GF_IDS = tuple(f"lrp-rli-gf-{i:03d}" for i in range(1, 9))
 
 
 def _read_interactions(models_dir: str, suffix: str):
-    """Collect (label, mean, sd) for the trt x own interaction from each gf model."""
+    """Collect (label, mean, sd) for the trt x own interaction from the eight core
+    gain-factor models. Any non-core gf-0* runs present on disk are logged and skipped,
+    so the pool matches the stated 8-outcome target regardless of what has been fitted."""
+    matched = {
+        os.path.basename(d)
+        for d in glob.glob(os.path.join(models_dir, f"lrp-rli-gf-0*-{suffix}"))
+    }
+    core = {f"{gid}-{suffix}" for gid in _CORE_GF_IDS}
+    dropped = sorted(matched - core)
+    if dropped:
+        print(f"  pooled-moderation: skipping non-core gf runs {dropped} (pool is gf-001..008)")
     rows = []
-    for d in sorted(glob.glob(os.path.join(models_dir, f"lrp-rli-gf-0*-{suffix}"))):
+    for gid in _CORE_GF_IDS:
+        d = os.path.join(models_dir, f"{gid}-{suffix}")
         diag = os.path.join(d, "diagnostics.csv")
         if not os.path.exists(diag):
             continue
@@ -56,7 +71,8 @@ def _read_interactions(models_dir: str, suffix: str):
         label = None
         cfg = os.path.join(d, "config.json")
         if os.path.exists(cfg):
-            c = json.load(open(cfg))
+            with open(cfg, encoding="utf-8") as fh:
+                c = json.load(fh)
             label = c.get("outcome_symbol") or c.get("outcome")
         label = label or os.path.basename(d).replace("lrp-rli-", "").replace(
             f"-{suffix}", ""
