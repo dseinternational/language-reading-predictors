@@ -3,7 +3,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 
-# Concurrent conditional-associations family (LRP-CA-001, #312)
+# Concurrent conditional-associations family (LRP-CA, #312)
 
 Date: 2026-07-14
 
@@ -30,9 +30,13 @@ The reader-facing answer ("+n predictor items ↔ +m outcome items") is produced
 
 `ca` is registered as an **embedded** family (own number space from `ca-001`, legacy `lrpca01`), like the recent `bx` family — added to `FAMILY_BY_KIND` and `_EMBEDDED_FAMILIES` in `model_ids.py`, to `KINDS` and a new `_CA` list in `definitions.py`. There is no central kind→fit dispatch: the spec module calls `fit_concurrent` directly (the family convention). Dev smoke fit: 4 waves (n = 53/53/53/51), primary t3; letter sounds carry the clearest adjusted association with word reading at t3/t4 (per-SD ≈ 0.38/0.46, P(>0) ≈ 0.99/1.0), attenuated below their bivariate counterparts as expected under collinearity shrinkage.
 
+## Extension: additional focal outcomes (added 2026-07-14, same day)
+
+The extension flagged in issue #312 — letter sounds and taught vocabulary as further focal outcomes — is delivered as `lrp-rli-ca-002` (L), `lrp-rli-ca-003` (TR) and `lrp-rli-ca-004` (TE), each a spec module reusing the unchanged factory/pipeline. The one design decision the extension had to settle is the **predictor set for a non-W focal**: we fixed the family's core skill set as **{W, L, B, TR, TE, R, E}** and each model conditions its focal on the remaining six — i.e. the focal is swapped out of the ca-001 predictor list and word reading swapped in. The alternative (keeping the ca-001 predictor list minus the focal, never admitting W as a predictor) would have made each model's conditional refer to a different joint measure set, losing the family's read as complementary full conditionals of one joint distribution. Two focal-specific notes: the taught pair (TR/TE) stay in each other's predictor sets — strongly correlated, but the regularising priors absorb the collinearity and the adjusted-vs-bivariate gap is informative; and TR approaches its 24-item ceiling at later waves, which the Beta-Binomial respects but which compresses the resolution of `ca-003`'s later-wave associations (noted in its report). Floored P/N stay excluded both as predictors and as focal outcomes. Per-measure `+k items` increments now also cover W as a predictor (`k = max(1, round(79/10)) = 8`).
+
 ## Follow-on
 
-#313 (longitudinal latent factor model) is the instrument that corrects the regression dilution this regression-style family cannot. The family's own extension is additional focal outcomes (letter sounds, taught vocabulary) once the word-reading model settles the pattern.
+#313 (longitudinal latent factor model) is the instrument that corrects the regression dilution this regression-style family cannot.
 
 ## Known doc drift (pre-existing, not fixed here)
 

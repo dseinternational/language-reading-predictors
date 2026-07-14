@@ -344,6 +344,9 @@ _BX = [
 # term is an association (post-treatment conditioning is intentional; no causal claim).
 _CA = [
     _d("lrpca01", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "per-wave conditional associations of concurrent skills with word reading"),
+    _d("lrpca02", "concurrent", "Concurrent associations", Status.ASSOCIATION, "L", "per-wave conditional associations of concurrent skills with letter sounds"),
+    _d("lrpca03", "concurrent", "Concurrent associations", Status.ASSOCIATION, "TR", "per-wave conditional associations of concurrent skills with taught receptive vocabulary"),
+    _d("lrpca04", "concurrent", "Concurrent associations", Status.ASSOCIATION, "TE", "per-wave conditional associations of concurrent skills with taught expressive vocabulary"),
 ]
 
 # --- Longitudinal correlated-domain-factor model (#313, descriptive-association #314)
