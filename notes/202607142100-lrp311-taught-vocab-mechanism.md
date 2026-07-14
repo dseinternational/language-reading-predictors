@@ -3,7 +3,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 
-# Taught-vocabulary mechanism models TR → W and TE → W; RW → W deferred (#311)
+# Taught-vocabulary and phonological-memory mechanism models: TR → W, TE → W and RW → W (#311)
 
 Date: 2026-07-14
 
@@ -30,3 +30,9 @@ Update (2026-07-14, follow-up PR): route (b) is now implemented as `lrp-rli-mech
 ## Ids
 
 086/087 are claimed by the open PR #309 (mediation code-route); 083–085 were taken by the #228 sweep (dose-083/084, gc-085). The next free bare-family numbers were therefore 088/089 (and 090 reserved in intent for RW → W).
+
+## Reporting fits (2026-07-14)
+
+All three models fitted at `--config reporting` (6000 draws × 6 chains, target_accept 0.95) and **pass the convergence gate** (r̂ ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.3, 0 divergences): LRP88 max r̂ 1.0025, LRP89 1.0008, LRP90 1.0007; min ESS ≈ 3.9k; BFMI 0.91–0.98; zero divergences throughout. `mechanism_curve.csv` and the rendered `index.html` (items-scale translation) are written for each. Slopes as adjusted associations (`beta_mech`, logit scale): TR → W 0.225, 95% CI [0.118, 0.332], P(>0) = 1.000 (very strong evidence of a positive association); TE → W 0.213, [0.064, 0.364], P(>0) = 0.998 (very strong); RW → W 0.099 per +1 SD of the ERB total (= +9.12 points; mean 21.5), [−0.017, 0.218], P(>0) = 0.952 (moderate evidence — the band still spans zero). n = 157/157/149 rows across 53/53/52 children (LRP90 drops 13 mean-imputed exposure rows via `require_observed`). Never causal — the child intercept only proxies the time-invariant part of latent general ability, and TR/TE variation is largely intervention-generated.
+
+Render note: the pipeline's `--render` step needs `QUARTO_PYTHON` pointed at the conda env interpreter — Quarto otherwise executes the `.qmd` with the system Python and fails on `import arviz`. The fits themselves are unaffected (all artefacts write before the render step).
