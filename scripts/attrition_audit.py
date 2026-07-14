@@ -44,7 +44,11 @@ _DATA_PATH = _paths.DATA_DIR / "rli_data_long.csv"
 
 
 def _wide(df: pd.DataFrame, column: str) -> pd.DataFrame:
-    return df.pivot_table(index=V.SUBJECT_ID, columns=V.TIME, values=column)
+    # pivot (not pivot_table): for an audit the counts must be trustworthy, so a
+    # duplicate (subject_id, time) row should *raise* rather than be silently averaged
+    # by the default aggfunc='mean' (#298 review). The panel is balanced today (216 =
+    # 54x4), so this is a guard, not a behaviour change.
+    return df.pivot(index=V.SUBJECT_ID, columns=V.TIME, values=column)
 
 
 def audit(df: pd.DataFrame) -> pd.DataFrame:
@@ -54,10 +58,13 @@ def audit(df: pd.DataFrame) -> pd.DataFrame:
         col = MEASURES[sym].column
         w = _wide(df, col)
         present = {t: w[t].notna() if t in w.columns else pd.Series(False, index=w.index) for t in WAVES}
-        # Window attrition: had the earlier score, missing the next one.
+        # Single-leg attrition: had the earlier score, missing the next one. Column names
+        # are per-LEG (not per-chain): the full DiD crossover chain t1->t2->t3 is complete
+        # for an outcome iff BOTH itt_window_attrition (t1->t2) and t2_to_t3_attrition are 0
+        # (#298 review — avoids over-reading a single column as the whole chain).
         itt_attr = int((present[1] & ~present[2]).sum())  # t1 baseline, no t2 post
-        did_attr = int((present[2] & ~present[3]).sum())  # t2, no t3 (crossover window)
-        t4_attr = int((present[3] & ~present[4]).sum())  # t3, no t4 (maintenance wave)
+        t2_to_t3_attr = int((present[2] & ~present[3]).sum())  # t2, no t3 (crossover leg)
+        t4_attr = int((present[3] & ~present[4]).sum())  # t3, no t4 (maintenance leg)
         rows.append(
             {
                 "outcome": sym,
@@ -67,7 +74,7 @@ def audit(df: pd.DataFrame) -> pd.DataFrame:
                 "n_t3": int(present[3].sum()),
                 "n_t4": int(present[4].sum()),
                 "itt_window_attrition": itt_attr,
-                "did_window_attrition": did_attr,
+                "t2_to_t3_attrition": t2_to_t3_attr,
                 "t4_attrition": t4_attr,
             }
         )
@@ -102,11 +109,12 @@ def main() -> None:
     print("\n=== outcome missingness by wave + window attrition ===")
     print(table.to_string(index=False))
     itt = int(table["itt_window_attrition"].sum())
-    did = int(table["did_window_attrition"].sum())
+    t2t3 = int(table["t2_to_t3_attrition"].sum())
     print(
-        f"\nITT-window attrition (all outcomes): {itt}; "
-        f"DiD-window attrition: {did}; "
-        f"max t4 attrition on any outcome: {int(table['t4_attrition'].max())}."
+        f"\nITT-window (t1->t2) attrition (all outcomes): {itt}; "
+        f"t2->t3 attrition: {t2t3}; "
+        f"max t4 attrition on any outcome: {int(table['t4_attrition'].max())}. "
+        "(The DiD chain t1->t2->t3 is complete for an outcome iff both are 0.)"
     )
     print(f"wrote {out_path}")
 
