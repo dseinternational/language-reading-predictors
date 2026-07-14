@@ -1,0 +1,70 @@
+---
+title: "LCSM-082: Blending ↔ word reading — which direction dominates? (exploratory reciprocal coupling)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LCSM-082 is the **exploratory companion** of the time-lagged suite (#250): the
+cross-lagged dominance question the wave-unrolled DAG makes first-class. Does a
+child's prior-wave **word reading** predict their subsequent **blending**
+change more strongly than prior blending predicts reading change? The forward
+direction (phonological awareness → decoding) is the standard developmental
+account; the reverse (reading experience sharpening phonological awareness) is
+well-attested in typical development. The lagged DAG carries both
+(`PA → WR` within-wave, `WR → PA` lagged), so which dominates is an empirical
+question.
+
+## Model structure
+
+The generalised LCSM scaffold with processes $\{W, B, L\}$ and **reciprocal**
+couplings — prior $B$ into the $W$ change and prior $W$ into the $B$ change —
+plus letter-sounds ($L$), the one cheap measured confounder both directions
+share, coupling into both. Both target equations carry the arm × window change
+intercepts and the shared `hs` / `erbto` / `deapp_c` adjuster block; the $L$
+equation stays bare.
+
+The headline readout is the **SD-standardised dominance contrast**: per
+posterior draw each coupling is standardised by the model's own latent scales
+($g^{*} = g \cdot \mathrm{sd}(x_{\text{source}}) / \mathrm{sd}(\Delta_{\text{target}})$),
+making the two directions comparable, and
+$|g^{*}_{W \to B}| - |g^{*}_{B \to W}|$ is reported with its posterior
+probability.
+
+**Reading rule — stronger caveat than usual.** Unlike LCSM-081, whose
+conditioning set equals a verified sufficient measured backdoor set, the
+verified minimal set for *either* direction here needs roughly thirteen nodes,
+including floored nonword reading and reading two waves back
+(`notes/202607141030-time-lagged-model-designs.md`) — far beyond what is
+fittable at this sample size. Both couplings are therefore **broadly-confounded
+adjusted associations, in both directions**, and the dominance contrast is a
+hypothesis-generator for a future cohort, not an evidence claim. The mild late
+blending ceiling (14–21 % at 10/10 by t3–t4) is absorbed by the Beta-Binomial.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_lcsm.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

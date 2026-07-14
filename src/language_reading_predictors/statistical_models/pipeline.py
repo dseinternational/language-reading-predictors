@@ -2498,6 +2498,9 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     )
     med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
     ctx.tables["mediation_summary"] = med_df
+    # Print the primary decomposition table before the (slow, ~21x-decompose) sensitivity
+    # sweep, so the main NDE/NIE result shows under its own section header rather than
+    # under the sensitivity header and only after the sweep finishes (#289 review).
     print_table(
         ranked_dataframe_table(
             med_df,
@@ -2507,6 +2510,41 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             precision=3,
         )
     )
+
+    # Unmeasured mediator-outcome confounding sensitivity for the NIE (#230): sweep a
+    # bias off b_M and report the tipping point at which the indirect effect's CI
+    # includes 0 (a Bayesian E-value analogue). Quantifies the no-unmeasured-
+    # confounding assumption the decomposition otherwise only states.
+    section_header("Mediation NIE sensitivity (unmeasured confounding)")
+    sens_sweep, sens_summary = _med.sensitivity_sweep(
+        ctx.trace,
+        med_data,
+        ci_prob=ctx.reporting.ci_prob,
+        interventional=_interventional,
+    )
+    sens_sweep.to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity.csv"), index=False
+    )
+    pd.DataFrame([sens_summary]).to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity_summary.csv"), index=False
+    )
+    ctx.tables["mediation_sensitivity"] = sens_sweep
+    if sens_summary["already_null_at_zero"]:
+        rprint(
+            "  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A "
+            "(no indirect effect to explain away)."
+        )
+    elif sens_summary["robust_over_full_sweep"]:
+        rprint(
+            f"  NIE robust across the full sweep (CI excludes 0 up to "
+            f"delta={sens_sweep['delta'].max():.2f} logit)."
+        )
+    else:
+        rprint(
+            f"  NIE tipping point delta*={sens_summary['tipping_delta']:.3f} logit "
+            f"({sens_summary['tipping_frac_of_bM']:.0%} of the fitted b_M+b_GM) — an "
+            "unmeasured mediator-outcome confounder that strong would null the NIE."
+        )
 
     # --- Temporal-ordering sensitivity: outcome at t3, mediator still at t2 ---
     # Triangulation for the contemporaneous-measurement caveat (issue #84): the
@@ -3956,11 +3994,17 @@ def _coef_row(label: str, draws, hdi_prob: float) -> dict:
 
 
 def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    """Latent change-score model (LRP67).
+    """Latent change-score model (LRP67 + the lagged coupling suite, #250).
 
     Fits the coupled McArdle latent change-score model with process noise and
-    reports the reading-change coupling table — the within-trajectory analogue
-    of LRP65's between-child predictors of reading gain.
+    reports the per-target coupling tables. ``spec.extra`` selects the shape:
+    the LRP67 default couples every other measure into the reading change; the
+    lagged reverse-coupling models (LCSM-081/181/082) pass an explicit
+    ``couplings`` map plus ``arm_window_intercepts`` (the crossover-aware
+    arm x window change intercepts, with the window-1 randomised contrast
+    written to ``itt_window1_contrast.csv``) and a shared adjuster
+    ``covariate_block``. ``dominance_pair`` adds the SD-standardised
+    reciprocal-dominance contrast (``dominance_summary.csv``).
     """
     _require_spec(spec, "lcsm")
 
@@ -3969,7 +4013,31 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Prepare data")
     outcomes = tuple(spec.extra.get("outcomes", ("W", "L", "E")))
     reading_symbol = spec.outcome_symbol or "W"
-    panel = load_wave_panel(outcomes=outcomes)
+    couplings_in = spec.extra.get("couplings")
+    couplings: dict[str, tuple[str, ...]] = (
+        {tgt: tuple(srcs) for tgt, srcs in couplings_in.items()}
+        if couplings_in
+        else {reading_symbol: tuple(s for s in outcomes if s != reading_symbol)}
+    )
+    arm_window = bool(spec.extra.get("arm_window_intercepts", False))
+    covariate_block = tuple(spec.extra.get("covariate_block", ()))
+    covariate_targets = tuple(spec.extra.get("covariate_targets", ()))
+    # Loader needs from the covariate block: the hearing dummies come via
+    # include_hearing; everything else names a per-wave source column (its
+    # ``_missing`` companion is derived, not loaded).
+    include_hearing = any(n in ("hs", "hs_missing") for n in covariate_block)
+    wave_cov_cols = tuple(
+        dict.fromkeys(
+            n
+            for n in covariate_block
+            if n not in ("hs", "hs_missing") and not n.endswith("_missing")
+        )
+    )
+    panel = load_wave_panel(
+        outcomes=outcomes,
+        wave_covariates=wave_cov_cols,
+        include_hearing=include_hearing,
+    )
     ctx.prepared = panel
 
     _print_header(ctx)
@@ -3978,6 +4046,10 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     built = _factories.build_lcsm_model(
         panel,
         reading_symbol=reading_symbol,
+        couplings=couplings,
+        arm_window_intercepts=arm_window,
+        covariate_block=covariate_block,
+        covariate_targets=covariate_targets,
         coupling_prior_sigma=spec.extra.get(
             "coupling_prior_sigma",
             _default_of(_factories.build_lcsm_model, "coupling_prior_sigma"),
@@ -3989,8 +4061,16 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     _render_model_graph(ctx)
 
-    cross = [s for s in outcomes if s != reading_symbol]
-    diag_vars = [f"g_{s}" for s in cross]
+    # Coupling parameter names mirror the factory's rule: single target keeps
+    # LRP67's ``g_{src}``; multiple targets carry the target (``g_{src}_{tgt}``).
+    single_target = len(couplings) == 1
+    coupling_names = {
+        (src, tgt): (f"g_{src}" if single_target else f"g_{src}_{tgt}")
+        for tgt, srcs in couplings.items()
+        for src in srcs
+    }
+    diag_vars = list(coupling_names.values())
+    diag_vars += [f"b_{name}" for name in covariate_block]
     diag_vars += ["a_change", "b_self", "d_age", "sigma1", "kappa"]
     if spec.extra.get("use_process_noise", True):
         diag_vars.append("sigma_proc")
@@ -4013,25 +4093,58 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
-    # Reading-change coupling table — the headline "what predicts reading
-    # change" output and the basis for the LRP65 (between-child) sanity-check.
-    section_header("Reading-change coupling summary")
+    # Per-target coupling table — the headline "what predicts whose change"
+    # output. For LRP67 (single reading target) this reproduces the historical
+    # reading-change table, labels included.
+    section_header("Change-coupling summary")
     post = ctx.trace.posterior
     rows = [
         _coef_row(
-            f"g_{s} (prior {s} -> {reading_symbol} change)",
-            post[f"g_{s}"].values,
+            f"{pname} (prior {src} -> {tgt} change)",
+            post[pname].values,
             ctx.reporting.ci_prob,
         )
-        for s in cross
+        for (src, tgt), pname in coupling_names.items()
     ]
-    for name, label in (
-        ("b_self", f"b_self[{reading_symbol}] (reading self-feedback)"),
-        ("a_change", f"a_change[{reading_symbol}] (reading baseline change)"),
-        ("d_age", f"d_age[{reading_symbol}] (age -> reading change)"),
-    ):
+    for name in covariate_block:
         rows.append(
-            _coef_row(label, post[name].sel(outcome=reading_symbol).values, ctx.reporting.ci_prob)
+            _coef_row(
+                f"b_{name} ({name} -> {'/'.join(covariate_targets)} change)",
+                post[f"b_{name}"].values,
+                ctx.reporting.ci_prob,
+            )
+        )
+    for tgt in couplings:
+        # LRP67's historical row labels are kept verbatim for the single
+        # reading-target shape.
+        legacy = single_target and tgt == reading_symbol
+        rows.append(
+            _coef_row(
+                f"b_self[{tgt}] (reading self-feedback)"
+                if legacy
+                else f"b_self[{tgt}] ({tgt} self-feedback)",
+                post["b_self"].sel(outcome=tgt).values,
+                ctx.reporting.ci_prob,
+            )
+        )
+        if not arm_window:
+            rows.append(
+                _coef_row(
+                    f"a_change[{tgt}] (reading baseline change)"
+                    if legacy
+                    else f"a_change[{tgt}] ({tgt} baseline change)",
+                    post["a_change"].sel(outcome=tgt).values,
+                    ctx.reporting.ci_prob,
+                )
+            )
+        rows.append(
+            _coef_row(
+                f"d_age[{tgt}] (age -> reading change)"
+                if legacy
+                else f"d_age[{tgt}] (age -> {tgt} change)",
+                post["d_age"].sel(outcome=tgt).values,
+                ctx.reporting.ci_prob,
+            )
         )
     coupling_df = pd.DataFrame(rows)
     coupling_df.to_csv(os.path.join(ctx.output_dir, "coupling_summary.csv"), index=False)
@@ -4040,7 +4153,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ranked_dataframe_table(
             coupling_df,
             title=(
-                f"Reading-change couplings - {int(ctx.reporting.ci_prob * 100)}% CI "
+                f"Change couplings - {int(ctx.reporting.ci_prob * 100)}% CI "
                 "(equal-tailed)"
             ),
             columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
@@ -4049,13 +4162,93 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     )
 
+    # Window-1 randomised contrast on the latent change scale (immediate -
+    # waitlist), the built-in consistency check against the ITT suite. Only the
+    # arm x window shape carries it.
+    itt_rows: list[dict] = []
+    if arm_window:
+        section_header("Window-1 randomised contrast (ITT consistency check)")
+        for s in outcomes:
+            itt_rows.append(
+                _coef_row(
+                    f"itt_w1[{s}] (immediate - waitlist, window-1 latent change)",
+                    post["itt_w1_contrast"].sel(outcome=s).values,
+                    ctx.reporting.ci_prob,
+                )
+            )
+        itt_df = pd.DataFrame(itt_rows)
+        itt_df.to_csv(
+            os.path.join(ctx.output_dir, "itt_window1_contrast.csv"), index=False
+        )
+        ctx.tables["itt_window1_contrast"] = itt_df
+        print_table(
+            ranked_dataframe_table(
+                itt_df,
+                title="Window-1 arm contrast (latent logit change)",
+                columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
+                rank_column=False,
+                precision=3,
+            )
+        )
+
+    # Reciprocal-dominance contrast (LCSM-082): per draw, standardise each
+    # direction's coupling by the model's own latent scales (g* = g *
+    # sd(prior source levels) / sd(target changes)) and report |g*_AB| - |g*_BA|.
+    dom_rows: list[dict] = []
+    dominance_pair = spec.extra.get("dominance_pair")
+    if dominance_pair:
+        a, b = dominance_pair
+        section_header(f"Reciprocal dominance: {a} <-> {b}")
+        x = post["x_latent"]
+
+        def _std_coupling(src: str, tgt: str):
+            g = post[coupling_names[(src, tgt)]]
+            sd_src = x.isel(wave=slice(0, -1)).sel(outcome=src).std(
+                dim=("child", "wave")
+            )
+            sd_dt = x.sel(outcome=tgt).diff("wave").std(dim=("child", "wave"))
+            return g * sd_src / sd_dt
+
+        g_ab = _std_coupling(a, b)  # prior a -> b change
+        g_ba = _std_coupling(b, a)  # prior b -> a change
+        contrast = abs(g_ab) - abs(g_ba)
+        dom_rows = [
+            _coef_row(f"std g ({a} -> {b} change)", g_ab.values, ctx.reporting.ci_prob),
+            _coef_row(f"std g ({b} -> {a} change)", g_ba.values, ctx.reporting.ci_prob),
+            _coef_row(
+                f"|std g {a}->{b}| - |std g {b}->{a}| (dominance)",
+                contrast.values,
+                ctx.reporting.ci_prob,
+            ),
+        ]
+        dom_df = pd.DataFrame(dom_rows)
+        dom_df.to_csv(
+            os.path.join(ctx.output_dir, "dominance_summary.csv"), index=False
+        )
+        ctx.tables["dominance_summary"] = dom_df
+        print_table(
+            ranked_dataframe_table(
+                dom_df,
+                title="SD-standardised reciprocal couplings",
+                columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
+                rank_column=False,
+                precision=3,
+            )
+        )
+
     _report.write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
             "outcomes": list(outcomes),
             "reading_symbol": reading_symbol,
+            "couplings": {tgt: list(srcs) for tgt, srcs in couplings.items()},
+            "arm_window_intercepts": arm_window,
+            "covariate_block": list(covariate_block),
+            "covariate_targets": list(covariate_targets),
             "coupling_summary": rows,
+            **({"itt_window1_contrast": itt_rows} if itt_rows else {}),
+            **({"dominance_summary": dom_rows} if dom_rows else {}),
         },
     )
 

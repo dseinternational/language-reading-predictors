@@ -32,23 +32,23 @@ intervention benefit (`G = 2 − group`).
 
 ## At a glance
 
-| Layer | Family (id prefix)                                                        | Count | Purpose                                                                                                                      |
-| ----- | ------------------------------------------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)               |    50 | Rank predictors of each outcome's gain and level                                                                             |
-| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)                     |    31 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation)                     |
-| 2     | Gain factors (`lrp-rli-gf`)                                               |    19 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                         |
-| 2     | Level factors (`lrp-rli-lf`)                                              |    11 | Companion levels view: group×time and ability×time per timepoint                                                             |
-| 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                  |    14 | Within-person replication of the ITT via the waitlist crossover (floored `P`/`N` off-floor) + treatment-effect heterogeneity |
-| 2     | Aligned per-protocol (`lrp-rli-al`)                                       |     9 | Onset-aligned single 40-week gain per child (associational)                                                                  |
-| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)    |     9 | Adjusted dose-response of one skill on another                                                                               |
-| 2     | Mediation (`lrp-rli-med-059`–`080`; g-formula + interventional)           |    11 | How much of a reading gain runs through a given skill                                                                        |
-| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `lcsm-067`, `dose-077` variants) |     5 | Baseline predictors, within-child change, and dose–response of word reading                                                  |
-| 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                    |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                       |
-| 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)              |     2 | Correlated domain-factor measurement model of the skills                                                                     |
-| 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                    |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                            |
-| 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                         |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                            |
+| Layer | Family (id prefix)                                                                | Count | Purpose                                                                                                                      |
+| ----- | --------------------------------------------------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)                       |    50 | Rank predictors of each outcome's gain and level                                                                             |
+| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)                             |    31 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation)                     |
+| 2     | Gain factors (`lrp-rli-gf`)                                                       |    19 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                         |
+| 2     | Level factors (`lrp-rli-lf`)                                                      |    11 | Companion levels view: group×time and ability×time per timepoint                                                             |
+| 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                          |    14 | Within-person replication of the ITT via the waitlist crossover (floored `P`/`N` off-floor) + treatment-effect heterogeneity |
+| 2     | Aligned per-protocol (`lrp-rli-al`)                                               |     9 | Onset-aligned single 40-week gain per child (associational)                                                                  |
+| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)            |     9 | Adjusted dose-response of one skill on another                                                                               |
+| 2     | Mediation (`lrp-rli-med-059`–`080`; g-formula + interventional)                   |    11 | How much of a reading gain runs through a given skill                                                                        |
+| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `lcsm-067/081/082`, `dose-077` variants) |     8 | Baseline predictors, within-child change, lagged reverse couplings, and dose–response of word reading                        |
+| 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                            |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                       |
+| 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)                      |     2 | Correlated domain-factor measurement model of the skills                                                                     |
+| 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                            |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                            |
+| 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                                 |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                            |
 
-Counts are of base models on `main` (117 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
+Counts are of base models on `main` (120 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
 
 ## Outcome symbols (Layer 2)
@@ -288,20 +288,25 @@ same-wave mediator/outcome) — reported as triangulation, leading with the robu
 | `lrp-rli-med-062` | Reading-route decomposition: code-based-route (`L` + blending `B`) vs lexical share                   |
 | `lrp-rli-med-064` | Two-mediator split: `L` vs expressive vocabulary `E` (joint indirect + path-specific `NIE_L`/`NIE_E`) |
 
-### Predictor / within-child dynamics — `lrp-rli-adj-065`, `lrp-rli-lcsm-067`, `lrp-rli-dose-077` (+ variants)
+### Predictor / within-child dynamics — `lrp-rli-adj-065`, `lrp-rli-lcsm-067/081/082`, `lrp-rli-dose-077` (+ variants)
 
-**Purpose.** Three complementary, explicitly **associational** views of word-reading
-progress that sit outside the randomised families.
+**Purpose.** Complementary, explicitly **associational** views of skill progress that sit
+outside the randomised families — including the time-lagged reverse-coupling suite built on
+the wave-unrolled DAG (#250; design `notes/202607141030-time-lagged-model-designs.md`).
 
 | Model              | Kind            | Purpose                                                                                                                                                                                                         |
 | ------------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lrp-rli-adj-065`  | `adjusted`      | Between-child: which wave-1 baseline skills go with more subsequent word-reading gain, mutually adjusted                                                                                                        |
 | `lrp-rli-lcsm-067` | `lcsm`          | Within-child latent change-score: prior-wave letter sounds `L` and vocabulary `E` as predictors of reading _change_                                                                                             |
+| `lrp-rli-lcsm-081` | `lcsm`          | Lagged reverse coupling: prior word reading `W` predicting taught-vocabulary (`TE`/`TR`) change — crossover-aware arm × window intercepts + `hs`/`rw`/`sp` adjusters (the verified lagged-DAG backdoor set)     |
+| `lrp-rli-lcsm-181` | `lcsm`          | No-reverse-coupling LOO comparator for `lcsm-081` ("does the reverse edge earn its place predictively")                                                                                                         |
+| `lrp-rli-lcsm-082` | `lcsm`          | Reciprocal dominance (exploratory): blending `B` ↔ word reading `W` lagged cross-couplings with an SD-standardised dominance contrast; broadly confounded in both directions                                    |
 | `lrp-rli-dose-077` | `dose_response` | Period-resolved observational dose-response of intervention sessions → word reading; `lrp-rli-dose-177` adds an ability-adjusted sensitivity, `lrp-rli-dose-277` is the pooled (no-period-variation) comparator |
 
 `lrp-rli-dose-077`'s dose terms are observational (sessions = a DAG collider as exposure): an adjusted
 within-child association, never "more sessions cause more gain". Only the randomised ITT/DiD
-contrasts carry the causal claim.
+contrasts carry the causal claim — in the lagged suite that is solely `lcsm-081/082`'s window-1
+arm contrast (`itt_window1_contrast.csv`), reported as an ITT-suite consistency check.
 
 ### Joint growth curves — `lrp-rli-gc-069`, `lrp-rli-gc-070` (`kind="growth"`)
 

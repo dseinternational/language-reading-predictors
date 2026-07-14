@@ -1,0 +1,92 @@
+---
+title: "LCSM-081: Does prior word reading predict taught-vocabulary change? (lagged reverse coupling)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LCSM-081 is the headline model of the **time-lagged reverse-coupling** suite
+(#250): the founding RLI hypothesis — reading instruction feeding back into
+language — as a direct test on the adopted wave-unrolled DAG. For each
+wave-to-wave transition, does a child's prior-wave **word-reading** standing
+predict their subsequent change in the block-1 **taught** vocabulary measures
+(expressive `TE` and receptive `TR`), over and above the taught measures' own
+carry-over, the intervention windows, and everything measured the lagged graph
+names?
+
+The design and the verified adjustment-set derivations are recorded in
+`notes/202607141030-time-lagged-model-designs.md`. Two features follow directly
+from those derivations:
+
+1. **Arm × window change intercepts.** The waitlist crossover makes the
+   randomised arm a confounder of every transition-2+ coupling (the waitlist
+   arm's block-1 catch-up lands exactly in window 2), so each measure's change
+   intercept is an arm × window cell rather than a pooled constant. The
+   window-1 cell contrast is a randomised latent ITT contrast, reported below
+   as a consistency check against the ITT suite. Sessions stay out of the
+   change equations (the `IS` collider, ID-3).
+2. **The adjuster block completes the measured backdoor set.** With the `TR`
+   process plus time-invariant hearing (`hs`) and prior-wave phonological
+   memory (`erbto`) and speech production (`deapp_c`), the conditioning set for
+   each headline coupling equals the verified sufficient measured set — latent
+   general ability aside, which no measured set can block.
+
+## Model structure
+
+For each measure $m \in \{TE, TR, W\}$, child $i$ and wave $t$, a latent logit
+true-score $x_m[i,t]$ accumulates change scores (the LRP67 McArdle scaffold
+with process noise). The change equations are:
+
+$$
+\begin{aligned}
+\overline{\Delta}_{TE} &= a_{TE}[\text{arm}, w] + b_{TE}\,x_{TE} + g_{W \to TE}\,x_W
+  + g_{TR \to TE}\,x_{TR} + d^{\text{age}}\,\text{age} + \text{(hs / rw / sp block)} \\
+\overline{\Delta}_{TR} &= a_{TR}[\text{arm}, w] + b_{TR}\,x_{TR} + g_{W \to TR}\,x_W
+  + d^{\text{age}}\,\text{age} + \text{(same block)} \\
+\overline{\Delta}_{W} &= a_{W}[\text{arm}, w] + b_{W}\,x_W + d^{\text{age}}\,\text{age}
+\end{aligned}
+$$
+
+with every prior-wave level $x[t-1]$. $g_{W \to TE}$ and $g_{W \to TR}$ are the
+headline coefficients — prior **level** → subsequent **change**, pooled across
+the three transitions, the same specification form as LRP67. The `W` equation
+is deliberately bare: forward couplings into reading are LRP67's estimands, not
+this model's. Observed counts enter a **masked** Beta-Binomial so a child
+missing one score still contributes their other waves.
+
+**Reading rule:** both headline couplings are **adjusted associations** —
+latent general ability is unblockable, the independent initial statuses absorb
+only part of the stable between-child differences, and the RI-CLPM that would
+separate them is not estimable at this sample size. Only the window-1 arm
+contrast is randomised. The pre-specified reading (design note): the RLI
+hypothesis is supported in this cohort if both couplings are positive with
+$P(g > 0) \ge 0.9$ and this model is not LOO-worse than the
+no-reverse-coupling comparator LCSM-181.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_lcsm.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

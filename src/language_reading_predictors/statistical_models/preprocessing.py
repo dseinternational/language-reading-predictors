@@ -993,6 +993,24 @@ class WavePanel:
     """As :attr:`baseline` but the raw (unstandardised) per-child value."""
     baseline_scaler: dict[str, Standardiser] = field(default_factory=dict)
     """Covariate -> :class:`Standardiser` for inverse transforms / reporting."""
+    group: np.ndarray | None = None
+    """Randomised arm per child (1 = immediate, 2 = waitlist), aligned to
+    ``subject_ids``; ``None`` when the source data carries no group column.
+    Added for the crossover-aware lagged coupling models (LCSM-081/082, #250):
+    arm x window change intercepts need the arm."""
+    child_covariates: dict[str, np.ndarray] = field(default_factory=dict)
+    """Time-invariant per-child adjuster covariates kept on their **raw** scale
+    (currently the hearing-status dummies ``hs`` / ``hs_missing`` from
+    :func:`add_hearing_status`, both 0/1). shape (n_children,)."""
+    wave_covariates: dict[str, np.ndarray] = field(default_factory=dict)
+    """Per-wave adjuster covariates, shape (n_children, n_waves). Each requested
+    source column contributes two NaN-free entries: the mean-filled,
+    **standardised** value under its own name and a ``{col}_missing`` 0/1
+    indicator — the :func:`add_missing_indicator_covariates` policy applied to
+    the panel layout. The lagged coupling models read these at the transition's
+    **prior** wave (the lagged DAG's parents-at-the-prior-wave rule)."""
+    wave_covariate_scaler: dict[str, Standardiser] = field(default_factory=dict)
+    """Per-wave covariate -> :class:`Standardiser` for reporting."""
 
     @property
     def n_obs(self) -> int:
@@ -1018,6 +1036,8 @@ def load_wave_panel(
     path: str | Path | None = None,
     outcomes: tuple[str, ...] = ("W", "L", "E"),
     baseline_covariates: tuple[str, ...] = (),
+    wave_covariates: tuple[str, ...] = (),
+    include_hearing: bool = False,
 ) -> WavePanel:
     """Pivot ``rli_data_long.csv`` into a child x wave :class:`WavePanel`.
 
@@ -1026,7 +1046,8 @@ def load_wave_panel(
     with a boolean ``obs_mask`` and the Haldane-corrected logit. ``age`` is
     interpolated within child across waves to fill the occasional missing cell;
     ``attend`` (dose) missings are treated as zero recorded sessions. Age and
-    dose are standardised over all cells.
+    dose are standardised over all cells. The randomised arm is exposed on
+    :attr:`WavePanel.group` when the source data carries a group column.
 
     Masked cells are **not** dropped — the dynamic-model factories observe only
     the unmasked cells (see :func:`factories.build_lcsm_model`), so a child with
@@ -1038,6 +1059,15 @@ def load_wave_panel(
     exposed on :attr:`WavePanel.baseline`. A baseline covariate must be observed
     for every child (it enters every child's trajectory), so a missing value
     raises rather than being masked.
+
+    ``wave_covariates`` names per-wave *state* columns (e.g. ``erbto``
+    phonological memory, ``deapp_c`` speech production) taken by the
+    missing-indicator policy of :func:`add_missing_indicator_covariates`: each
+    is mean-filled, standardised over all cells and exposed on
+    :attr:`WavePanel.wave_covariates` together with a ``{col}_missing`` 0/1
+    indicator, so requesting one never drops a child-wave. ``include_hearing``
+    adds the time-invariant ``hs`` / ``hs_missing`` dummies (raw 0/1, see
+    :func:`add_hearing_status`) to :attr:`WavePanel.child_covariates`.
     """
     csv_path = Path(path) if path is not None else _default_data_path()
     df = pd.read_csv(csv_path)
@@ -1104,6 +1134,75 @@ def load_wave_panel(
         baseline[col] = z
         baseline_scaler[col] = scaler
 
+    # Randomised arm per child. Validated hard rather than trusted: the LCSM
+    # factories index the arm dimension as ``group == 2 -> waitlist, else
+    # immediate``, so a stray code or a within-child inconsistency would
+    # silently mis-assign children to the immediate arm.
+    group: np.ndarray | None = None
+    if V.GROUP in df.columns:
+        gwide = _pivot(V.GROUP)
+        gfirst = np.argmax(~np.isnan(gwide), axis=1)
+        group = gwide[np.arange(n_children), gfirst]
+        if np.isnan(group).any():
+            missing = subject_ids[np.isnan(group)]
+            raise ValueError(
+                f"Group is missing for children {missing.tolist()}; the arm must "
+                "be known for every child in a randomised panel."
+            )
+        # NaN cells compare False, so a child with an occasional missing group
+        # row still passes as long as every observed value agrees.
+        inconsistent = subject_ids[(np.abs(gwide - group[:, None]) > 0).any(axis=1)]
+        if inconsistent.size:
+            raise ValueError(
+                f"Group is not constant within child for {inconsistent.tolist()}; "
+                "the randomised arm cannot change across waves."
+            )
+        bad = sorted(set(group.astype(int)) - {1, 2})
+        if bad:
+            raise ValueError(
+                f"Unexpected group codes {bad}: the wave panel expects the RLI "
+                "coding 1 = immediate, 2 = waitlist."
+            )
+        group = group.astype(int)
+
+    # Per-wave state covariates, missing-indicator policy (fill to the whole-panel
+    # mean + a {col}_missing indicator; see add_missing_indicator_covariates).
+    wave_cov: dict[str, np.ndarray] = {}
+    wave_cov_scaler: dict[str, Standardiser] = {}
+    for col in wave_covariates:
+        raw = _pivot(col)
+        miss = np.isnan(raw)
+        if miss.all():
+            raise ValueError(
+                f"Per-wave covariate {col!r} has no observed values in the panel."
+            )
+        filled = np.where(miss, np.nanmean(raw), raw)
+        z, scaler = standardise(filled)
+        wave_cov[col] = z
+        wave_cov[f"{col}_missing"] = miss.astype(float)
+        wave_cov_scaler[col] = scaler
+
+    # Time-invariant hearing-status dummies (hs / hs_missing, both 0/1) via the
+    # shared #244 derivation; kept raw so the slope reads as the impaired-vs-clear
+    # shift on the logit change scale.
+    child_cov: dict[str, np.ndarray] = {}
+    if include_hearing:
+        hdf = add_hearing_status(df)
+        if "hs" not in hdf.columns:
+            raise ValueError(
+                "include_hearing=True but the data has no hearing_c column."
+            )
+        for col in ("hs", "hs_missing"):
+            wide = (
+                hdf.pivot_table(
+                    index=V.SUBJECT_ID, columns=V.TIME, values=col, aggfunc="first"
+                )
+                .reindex(index=subject_ids, columns=waves)
+                .to_numpy(dtype=float)
+            )
+            first = np.argmax(~np.isnan(wide), axis=1)
+            child_cov[col] = wide[np.arange(n_children), first]
+
     return WavePanel(
         subject_ids=subject_ids,
         n_children=n_children,
@@ -1124,6 +1223,10 @@ def load_wave_panel(
         baseline=baseline,
         baseline_raw=baseline_raw,
         baseline_scaler=baseline_scaler,
+        group=group,
+        child_covariates=child_cov,
+        wave_covariates=wave_cov,
+        wave_covariate_scaler=wave_cov_scaler,
     )
 
 
