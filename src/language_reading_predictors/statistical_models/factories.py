@@ -3816,6 +3816,7 @@ def build_growth_model(
     *,
     baseline_covariate: str = "blocks",
     use_shared_factor: bool = False,
+    age_ability_interaction: bool = False,
     intercept_prior_sigma: float = 1.5,
     slope_prior_sigma: float = 0.5,
     assoc_prior_sigma: float = 0.3,
@@ -3855,6 +3856,15 @@ def build_growth_model(
     developmental tempo couple the measures, and (read out post-hoc) does baseline
     non-verbal ability predict it? ``LOO(LRP69 vs LRP70)`` shows whether the factor
     earns its keep. The core LRP69 keeps ``use_shared_factor=False``.
+
+    ``age_ability_interaction`` (LRP85, #228 item 10) adds a child-level **baseline
+    (t1) age** moderator ``age0`` (standardised across children — distinct from the
+    within-child ``age_std`` time axis) to the slope, with its own main effect
+    ``gamma_age`` and, headline, an ``age0 × ability`` interaction ``gamma_int``:
+    positive ``gamma_int_k`` = older-and-more-able children grow faster on measure k
+    than age and ability predict separately (the gain factors' ``gamma_int_A_ability``
+    brought onto the growth rate). Default off, so LRP69/70 are unaffected. Still an
+    adjusted, GA-confounded association.
 
     Observed counts enter via a **masked** Beta-Binomial (the LRP55 flattened-mask
     idiom): only the unmasked cells in ``panel.obs_mask`` are observed, so a child
@@ -3932,6 +3942,29 @@ def build_growth_model(
             dims=("child", "outcome"),
         )
         slope_mean = beta[None, :] + gamma[None, :] * blocks[:, None]
+        if age_ability_interaction:
+            # Child-level baseline (t1) age, standardised ACROSS children — distinct
+            # from the within-child ``age_std`` time axis the slope multiplies. Its
+            # interaction with ability is the #228 item-10 estimand: older-and-more-
+            # able children grow faster than age and ability predict separately,
+            # bringing the gain factors' ``gamma_int_A_ability`` onto the growth rate.
+            # ``gamma_int`` is on unit-scaled age0 × unit-scaled ability, matching the
+            # gain-factor interaction's scale. Missing baseline age -> 0 (the mean).
+            a0 = np.asarray(panel.age_std[:, 0], dtype=float)
+            # Standardise across children with the shared helper (nanstd ddof=1,
+            # matching every other standardised term; it raises on a degenerate
+            # zero-variance axis rather than silently falling back to sd=1 and
+            # fitting a flat interaction).
+            age0_z, _ = standardise(a0)
+            age0_np = np.where(np.isfinite(age0_z), age0_z, 0.0)
+            age0 = pm.Data("age0_std", age0_np, dims="child")
+            gamma_age = pm.Normal("gamma_age", 0.0, assoc_prior_sigma, dims="outcome")
+            gamma_int = pm.Normal("gamma_int", 0.0, assoc_prior_sigma, dims="outcome")
+            slope_mean = (
+                slope_mean
+                + gamma_age[None, :] * age0[:, None]
+                + gamma_int[None, :] * age0[:, None] * blocks[:, None]
+            )
         if use_shared_factor:
             # Rank-1 shared child-level growth-tempo factor: positive loadings so
             # G is a common "faster growth on every measure" tempo (identification).
