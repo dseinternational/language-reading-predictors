@@ -4933,6 +4933,20 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         covariates=structural_covs,
     )
     ctx.prepared = prepared
+    # A structural covariate can go constant on the fitted span rows — e.g. an
+    # ``erbto_missing`` indicator that is all-zero because phonological memory is
+    # observed for every fitted child at t1 — so the loader drops it. Re-filter to the
+    # covariates actually present, mirroring the mechanism/mediation pipelines'
+    # #247/#258 re-filter, so the factory is not asked for a coefficient on a dropped
+    # covariate (it raises KeyError otherwise) and the effective set is honest.
+    _dropped_structural = tuple(c for c in structural_covs if c not in prepared.covariates)
+    if _dropped_structural:
+        structural_covs = tuple(c for c in structural_covs if c in prepared.covariates)
+        rprint(
+            "[yellow]fit_correlated_factor: dropped constant structural covariate(s) "
+            f"{list(_dropped_structural)} (not in prepared.covariates on the fitted "
+            "rows).[/yellow]"
+        )
     _print_header(ctx)
 
     section_header("Build model")
