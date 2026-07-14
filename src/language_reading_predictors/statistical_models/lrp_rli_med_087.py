@@ -16,21 +16,33 @@ phase 0 only (`phase_mode="itt"`, t1 -> t2, the randomised window); treatment G,
 mediator M = L_t2 (conditioned on L_t1), outcome Y = B_t2 (conditioned on B_t1);
 NDE/NIE on the items scale by counterfactual simulation from the posterior.
 
-**Adjustment set (proposed; for @frankbuckley's DAG review — the #246/#258/#259
-pattern).** The L -> PA (blending) confounders under the revised DAG are the common
-parents of LS and PA: age (A), hearing (HS = `hs`) and speech production
-(SP = `deapp_c`), via the missing-indicator method, plus the baselines L_t1 and the
-outcome own-baseline (the "W_pre" marker, resolved to B's pre-score in the factory).
-**Phonological memory (RW = `erbto`) is excluded** — RW is a parent of PA but NOT of
-LS, so it does not confound the L -> PA path. **Flag for Frank:** intervention
-sessions IS (`attend`) are a common cause of LS and PA but are treatment-affected
-(IG -> IS), so conditioning on them is a recanting-witness / cross-world risk (the
-reason E/R were dropped, #246/#264) — proposed **not** adjusted; Frank to confirm.
+**Adjustment set (mediation criterion; signed off by @frankbuckley 2026-07-14).**
+The L -> PA (blending) confounders under the revised DAG are the common parents of
+LS and PA: age (A), hearing (HS = `hs`) and speech production (SP = `deapp_c`), via
+the missing-indicator method, plus the baselines L_t1 and the outcome own-baseline
+(the "W_pre" marker, resolved to B's pre-score in the factory).
+
+**Phonological memory (RW = `erbto`) considered and excluded — precision-only.** RW
+is a parent of PA but NOT of LS, so it is not a common cause of the mediator and
+outcome and sits on no L -> PA backdoor; the one route it touches, `LS <- HS -> RW ->
+PA`, is already blocked at HS (which is adjusted). Its exclusion is therefore
+identification-clean (recorded here so the #264 re-derivation sees the decision).
+
+**Intervention sessions (IS = `attend`) confirmed NOT adjusted.** IS is a common cause
+of LS and PA but is treatment-affected (IG -> IS): `LS <- IS -> PA` is a recanting
+witness, and no adjustment set rescues natural effects from that structure — while
+adjusting IS would change the estimand and open the collider `IG -> IS <- GA -> B`
+(GA latent), strictly worse. The constructive/quantitative answers are filed as
+follow-ups: #323 (interventional-effects companions, med-078 pattern) and #324 (IS on
+the #289 sensitivity surface). The report names shared session dose as a plausible
+inflator of the NIE via L.
 
 The binding unverifiable assumption is no unmeasured L -> B confounding (latent
 general ability violates it), as for LRP59 — a model-based g-formula decomposition
 under stated (cross-world) assumptions, wide at n ~ 53, not an identified natural
-effect.
+effect. **Provisional pending the time-indexed re-derivation (#250/#264):** a
+contemporaneous-graph derivation like the rest of the family (med-087 is on #264's
+affected-models table).
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -46,10 +58,12 @@ SPEC = ModelSpec(
     outcome_symbol="B",
     mechanism_symbol="L",  # the mediator
     adjustment=[
-        # L->PA confounders (revised DAG, proposed — Frank to confirm): HS (hs), SP
-        # (deapp_c) via missing indicators; RW EXCLUDED (not an L parent); IS/attend
-        # flagged for Frank (treatment-affected). "W_pre" is the outcome-own-baseline
-        # marker (stripped by fit_mediation; the factory uses B's pre-score).
+        # L->PA confounders under the mediation criterion (signed off 2026-07-14): HS
+        # (hs), SP (deapp_c) via missing indicators. RW considered and excluded
+        # (not an LS parent -> precision-only; LS<-HS->RW->PA blocked at HS). IS/attend
+        # confirmed NOT adjusted (treatment-affected recanting witness; see #323/#324).
+        # "W_pre" is the outcome-own-baseline marker (stripped by fit_mediation; the
+        # factory uses B's pre-score).
         "G", "A", "W_pre", "L_t1",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing",
     ],

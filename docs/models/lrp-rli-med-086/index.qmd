@@ -43,15 +43,17 @@ The revised DAG (`dag/dag-language-reading.dagitty`) has **no direct $IG \to NW$
 
 ## Causal structure and phase
 
-Phase 0 only (`phase_mode="itt"`, t1 → t2 — the randomised window; $G = 2 - \text{group}$, positive = intervention helps). Treatment $G$, mediator $M = L_{t2}$ (conditioned on $L_{t1}$), outcome $Y = \mathbf{1}[N_{t2} > 0]$. Joint mediator + off-floor-outcome model with a $G \times M$ interaction; NDE/NIE by counterfactual simulation from the posterior (the g-formula), not a coefficient product. Blending is **not** added here — the refit found it downstream of letter sounds with no independent code route (LRP66/75), so this starts with $L$ alone; an $L+B$ decomposition on $N$ is a deferred follow-up.
+Phase 0 only (`phase_mode="itt"`, t1 → t2 — the randomised window; $G = 2 - \text{group}$, positive = intervention helps). Treatment $G$, mediator $M = L_{t2}$ (conditioned on $L_{t1}$), outcome $Y = \mathbf{1}[N_{t2} > 0]$. Joint mediator + off-floor-outcome model with a $G \times M$ interaction; NDE/NIE by counterfactual simulation from the posterior (the g-formula), not a coefficient product. Baseline blending $B_{t1}$ enters as a **covariate confounder** (not the outcome own-baseline) — it reinforces the phonological-awareness-mediated backdoors and adds precision (the LRP66/75 precedent); a graded $L+B$ *two-mediator* decomposition on $N$ remains a separate follow-up.
 
 ## Assumptions — read this first
 
 The full mediation-assumption treatment (randomisation handles $G\to Y$/$G\to M$; the binding unverifiable assumption is no unmeasured $L\to N$ confounding; the dose-`IS` exposure-induced-confounder non-identification; the contemporaneous $L_{t2}$/$N_{t2}$ same-wave caveat) is as in [LRP59](../lrp-rli-med-059/#sec-assumptions) — read it there. This is a **model-based g-formula decomposition under stated (cross-world) assumptions, not an identified natural effect**; wide at $n \approx 50$.
 
-::: {.callout-important title="Adjustment set — proposed, pending DAG review"}
+**Shared session dose.** Intervention sessions $IS$ (`attend`) are a treatment-induced common cause of the mediator and outcome ($IS \to L$ and $IS \to PA \to N$); following the family precedent they are **not** conditioned on (conditioning on a treatment-affected variable is inadmissible for natural effects), so **shared session dose is a plausible inflator of the NIE via $L$** and the decomposition should be read with that in mind.
 
-Under the revised DAG the $L \to N$ confounders are the common parents of letter-sounds and nonword reading: age $A$, speech production $SP$ (`deapp_c`) and phonological memory $RW$ (`erbto`), via the missing-indicator method, plus the mediator baseline $L_{t1}$. **Hearing (HS) is excluded** — it is a parent of letter-sounds but **not** of nonword reading in the revised DAG (the LRPGF11 rule), so it does not confound the $L \to N$ path. **No outcome own-baseline** (off-floor). Mediation adjustment sets are owned by the DAG review (#246/#264); this set is proposed for confirmation.
+::: {.callout-note title="Adjustment set — signed off (2026-07-14), mediation criterion"}
+
+The set blocks common causes of the mediator $L$ and the outcome $N$ **including indirect routes** — arrows *into the mediator* matter, not just parents of the outcome. Adjusted: age $A$; speech production $SP$ (`deapp_c`); phonological memory $RW$ (`erbto`), a common cause via $L \leftarrow RW \to N$; hearing $HS$ (`hs`/`hs_missing`) — **included**, because $L \leftarrow HS \to PA \to N$ is an open route to nonword reading that $RW$ does not block (HS confounds $L \to N$ through blending even though it is not a nonword *parent*); baseline blending $B_{t1}$ (proximal reinforcement + precision); and the mediator baseline $L_{t1}$. **No outcome own-baseline** (off-floor). Provisional pending the time-indexed re-derivation (#250/#264); $E$/$R$ are legitimately absent (no arrows into $L$).
 
 :::
 
