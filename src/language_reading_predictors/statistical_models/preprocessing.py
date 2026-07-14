@@ -1134,7 +1134,10 @@ def load_wave_panel(
         baseline[col] = z
         baseline_scaler[col] = scaler
 
-    # Randomised arm per child (constant within child; first observed value).
+    # Randomised arm per child. Validated hard rather than trusted: the LCSM
+    # factories index the arm dimension as ``group == 2 -> waitlist, else
+    # immediate``, so a stray code or a within-child inconsistency would
+    # silently mis-assign children to the immediate arm.
     group: np.ndarray | None = None
     if V.GROUP in df.columns:
         gwide = _pivot(V.GROUP)
@@ -1145,6 +1148,20 @@ def load_wave_panel(
             raise ValueError(
                 f"Group is missing for children {missing.tolist()}; the arm must "
                 "be known for every child in a randomised panel."
+            )
+        # NaN cells compare False, so a child with an occasional missing group
+        # row still passes as long as every observed value agrees.
+        inconsistent = subject_ids[(np.abs(gwide - group[:, None]) > 0).any(axis=1)]
+        if inconsistent.size:
+            raise ValueError(
+                f"Group is not constant within child for {inconsistent.tolist()}; "
+                "the randomised arm cannot change across waves."
+            )
+        bad = sorted(set(group.astype(int)) - {1, 2})
+        if bad:
+            raise ValueError(
+                f"Unexpected group codes {bad}: the wave panel expects the RLI "
+                "coding 1 = immediate, 2 = waitlist."
             )
         group = group.astype(int)
 

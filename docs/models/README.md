@@ -46,8 +46,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                            |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                   |
 | 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)                      |     2 | Correlated domain-factor measurement model of the skills                                                 |
 | 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                            |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape        |
-
-| 2 | Floor-sitter survival (`lrp-rli-surv-009`, `011`) | 2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor |
+| 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                                 |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                        |
 
 Counts are of base models on `main` (119 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.

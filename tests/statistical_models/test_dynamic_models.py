@@ -143,6 +143,27 @@ def test_load_wave_panel_group_and_adjuster_covariates(tmp_path):
     assert "erbto" in panel.wave_covariate_scaler
 
 
+def test_load_wave_panel_rejects_bad_group_codes(tmp_path):
+    p = _write_panel_csv(tmp_path, n_children=10)
+    df = pd.read_csv(p)
+    df.loc[df[V.SUBJECT_ID] == "S003", V.GROUP] = 3
+    bad = tmp_path / "rli_badcode.csv"
+    df.to_csv(bad, index=False)
+    with pytest.raises(ValueError, match="Unexpected group codes"):
+        load_wave_panel(path=bad)
+
+
+def test_load_wave_panel_rejects_group_change_within_child(tmp_path):
+    p = _write_panel_csv(tmp_path, n_children=10)
+    df = pd.read_csv(p)
+    sel = (df[V.SUBJECT_ID] == "S004") & (df[V.TIME] == 3)
+    df.loc[sel, V.GROUP] = 3 - int(df.loc[sel, V.GROUP].iloc[0])  # flip the arm
+    bad = tmp_path / "rli_flip.csv"
+    df.to_csv(bad, index=False)
+    with pytest.raises(ValueError, match="not constant within child"):
+        load_wave_panel(path=bad)
+
+
 def test_lcsm_factory_multi_target_couplings_and_arm_window(tmp_path):
     p = _write_panel_csv(tmp_path, n_children=20)
     panel = load_wave_panel(
