@@ -47,7 +47,9 @@ intervention benefit (`G = 2 − group`).
 | 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)                      |     2 | Correlated domain-factor measurement model of the skills                                                 |
 | 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                            |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape        |
 
-Counts are of base models on `main` (117 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
+| 2 | Floor-sitter survival (`lrp-rli-surv-009`, `011`) | 2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor |
+
+Counts are of base models on `main` (119 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
 
 ## Outcome symbols (Layer 2)
@@ -325,6 +327,28 @@ _level_.
 is an off-DAG ability proxy (revised DAG) and the child random intercept only _partially_
 adjusts. Descriptive natural-history, `n≈54` (wide intervals). Byrne-cohort replication is a
 gated follow-up (unconfirmed `bpvs`/`basmat` ceilings; `basmat` is wave-3+, so no baseline).
+
+### Floor-sitter survival — `lrp-rli-surv-009`, `lrp-rli-surv-011` (`kind="survival"`)
+
+**Purpose.** The four-wave generalisation of the floored P/N off-floor rule (siblings
+`lrp-rli-itt-009`/`011`): instead of the single t1→t2 off-floor transition, a **discrete-time
+survival** model for _when_ a child at the floor at baseline first comes off it (issue #230 §5).
+The at-risk set is the children at the floor at t1; one person-period row per still-at-floor
+interval (t1→t2, t2→t3, t3→t4); the event is the first score above zero. The hazard uses a
+complementary-log-log link (logistic variant as sensitivity), with a per-interval baseline
+hazard, baseline (t1) letter-sound knowledge and word reading as prognostic covariates, and an
+intervention-aligned treatment hazard shift `tau` (immediate arm treated throughout, waitlist
+arm from its crossover; `G = 2 − group`, positive = benefit).
+
+| Model              | Kind       | Outcome | Purpose                                                      |
+| ------------------ | ---------- | ------- | ------------------------------------------------------------ |
+| `lrp-rli-surv-009` | `survival` | `P`     | time-to-off-floor hazard, phonetic spelling (base `itt-009`) |
+| `lrp-rli-surv-011` | `survival` | `N`     | time-to-off-floor hazard, nonword reading (base `itt-011`)   |
+
+**Prognostic, not causal.** By t4 both arms have been treated, so `tau` is an association
+anchored on the immediate arm's randomised first interval, not a randomised effect of record;
+concurrent letter sounds are excluded as a treatment-affected mediator. Descriptive companion:
+`notes/…-persistent-floor-sitters-nonword-spelling.md` + `scripts/descriptive/floor_sitters.py`.
 
 ---
 

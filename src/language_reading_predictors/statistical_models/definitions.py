@@ -71,6 +71,7 @@ KINDS: frozenset[str] = frozenset(
         "horseshoe",
         "growth",
         "historical_growth",
+        "survival",
     }
 )
 
@@ -287,11 +288,21 @@ _ITT_TIER1 = [
     _d("lrpitt28", "itt", "Site robustness", Status.ROBUSTNESS, "L", "site (area) adjustment", base="lrpitt07"),
 ]
 
+# Time-to-off-floor survival family (#230 §5): the four-wave generalisation of the
+# floored P/N off-floor rule (siblings LRPITT09/11) — a discrete-time hazard for *when*
+# a floor-sitter comes off the floor. Prognostic (both arms treated by t4), so the
+# treatment hazard shift is an association anchored on the immediate arm's randomised
+# window, not a randomised effect of record.
+_SURV = [
+    _d("lrpsurv09", "survival", "Floor-sitter survival", Status.ASSOCIATION, "P", "time-to-off-floor discrete-time hazard", base="lrpitt09"),
+    _d("lrpsurv11", "survival", "Floor-sitter survival", Status.ASSOCIATION, "N", "time-to-off-floor discrete-time hazard", base="lrpitt11"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV)
 }
 
 
