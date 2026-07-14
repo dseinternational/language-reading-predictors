@@ -611,43 +611,24 @@ def proportion_at_zero_ppc(
     }
 
 
-def readiness_threshold(
-    trace: xr.DataTree,
+def _readiness_knee(
+    f: np.ndarray,
+    ell: np.ndarray,
     *,
     n_trials: int,
     ci_prob: float = 0.95,
     n_bins: int = 6,
 ) -> dict[str, float]:
-    """Readiness-threshold estimand: the letter-sound count where reading takes off (#230 §5).
+    """Locate the readiness knee from a per-observation ``f_mech`` posterior + logit input.
 
-    Post-processes an HSGP mechanism model's adjusted L->W curve ``f_mech`` to locate its
-    steepest rise — the "knee" of the surface, in letter-sound count units — answering
-    "does reading move only above ~k letter sounds?". For each posterior draw the
-    per-observation ``f_mech`` is binned over the observed letter-sound range (quantile
-    bins) and the steepest between-bin rise is found; the knee is that interval's midpoint,
-    giving a posterior over the knee location. Reports its median + equal-tailed CI and the
-    mean marginal slope below vs above it (a "flat below, rising above" read).
-
-    Pure post-processing (no re-fit): needs the ``f_mech`` posterior and the
-    ``mech_post_logit`` constant-data node of a standard HSGP mechanism fit (e.g.
-    ``lrp-rli-mech-058``). ``n_trials`` is the mechanism predictor's item ceiling (letter
-    sounds = 32) used to back-transform the logit input to an approximate count.
+    Pure-numpy core of :func:`readiness_threshold` (split out so the knee logic is
+    unit-testable without a trace, #293 review). ``f`` is ``(n_obs, n_draws)`` HSGP
+    curve draws; ``ell`` is the ``(n_obs,)`` Haldane-corrected mechanism logit.
     """
-    post = trace.posterior
-    if "f_mech" not in post:
-        raise KeyError(
-            "trace has no 'f_mech' posterior — the readiness threshold needs an HSGP "
-            "mechanism fit (not the linear-mechanism or phase-specific variant)."
-        )
-    # The HSGP ``f_mech`` carries an auto-named obs dimension (e.g. ``f_mech_dim_0``),
-    # not ``obs_id``; take whichever non-sample dim it has. Its rows are in the model's
-    # observation order, aligned to the ``mech_post_logit`` constant-data node below.
-    f_stacked = post["f_mech"].stack(sample=("chain", "draw"))
-    obs_dim = next(d for d in f_stacked.dims if d != "sample")
-    f = f_stacked.transpose(obs_dim, "sample").values  # (n_obs, S)
-    ell = np.asarray(trace.constant_data["mech_post_logit"].values).reshape(-1)  # (n_obs,)
     # Inverse Haldane-corrected logit -> approximate letter-sound count, clipped to range.
-    L = np.clip(n_trials / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
+    # ell = log((y+0.5)/(n-y+0.5)) => expit(ell) = (y+0.5)/(n+1), so y = (n+1)*expit(ell) - 0.5
+    # (the denominator is n+1, not n; #293 review).
+    L = np.clip((n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
 
     edges = np.unique(np.quantile(L, np.linspace(0.0, 1.0, n_bins + 1)))
     nb = len(edges) - 1
@@ -686,6 +667,44 @@ def readiness_threshold(
         "n_obs": int(f.shape[0]),
         "n_bins": int(nb),
     }
+
+
+def readiness_threshold(
+    trace: xr.DataTree,
+    *,
+    n_trials: int,
+    ci_prob: float = 0.95,
+    n_bins: int = 6,
+) -> dict[str, float]:
+    """Readiness-threshold estimand: the letter-sound count where reading takes off (#230 §5).
+
+    Post-processes an HSGP mechanism model's adjusted L->W curve ``f_mech`` to locate its
+    steepest rise — the "knee" of the surface, in letter-sound count units — answering
+    "does reading move only above ~k letter sounds?". For each posterior draw the
+    per-observation ``f_mech`` is binned over the observed letter-sound range (quantile
+    bins) and the steepest between-bin rise is found; the knee is that interval's midpoint,
+    giving a posterior over the knee location. Reports its median + equal-tailed CI and the
+    mean marginal slope below vs above it (a "flat below, rising above" read).
+
+    Pure post-processing (no re-fit): needs the ``f_mech`` posterior and the
+    ``mech_post_logit`` constant-data node of a standard HSGP mechanism fit (e.g.
+    ``lrp-rli-mech-058``). ``n_trials`` is the mechanism predictor's item ceiling (letter
+    sounds = 32) used to back-transform the logit input to an approximate count.
+    """
+    post = trace.posterior
+    if "f_mech" not in post:
+        raise KeyError(
+            "trace has no 'f_mech' posterior — the readiness threshold needs an HSGP "
+            "mechanism fit (not the linear-mechanism or phase-specific variant)."
+        )
+    # The HSGP ``f_mech`` carries an auto-named obs dimension (e.g. ``f_mech_dim_0``),
+    # not ``obs_id``; take whichever non-sample dim it has. Its rows are in the model's
+    # observation order, aligned to the ``mech_post_logit`` constant-data node below.
+    f_stacked = post["f_mech"].stack(sample=("chain", "draw"))
+    obs_dim = next(d for d in f_stacked.dims if d != "sample")
+    f = f_stacked.transpose(obs_dim, "sample").values  # (n_obs, S)
+    ell = np.asarray(trace.constant_data["mech_post_logit"].values).reshape(-1)  # (n_obs,)
+    return _readiness_knee(f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins)
 
 
 def did_summary(

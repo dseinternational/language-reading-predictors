@@ -23,8 +23,8 @@ Design (fixed in ``notes/…-persistent-floor-sitters-nonword-spelling.md``):
   sustained-off-floor sensitivity is deferred (it needs a look-ahead risk set — the
   flicker caveat is documented in the descriptive note).
 - **Discrete-time hazard.** ``link(h_ik) = alpha_k + tau * treated_ik + beta_L * L0 +
-  beta_W * W0 + gamma_A * age0``, with a per-interval baseline hazard ``alpha_k``.
-  The default link is complementary-log-log (grouped proportional hazards, the direct
+  beta_W * W0 + beta_A * A0``, with a per-interval baseline hazard ``alpha_k``. The
+  default link is complementary-log-log (grouped proportional hazards, the direct
   survival generalisation of the off-floor logit); a logistic-hazard variant is the
   documented sensitivity.
 - **Treatment as a hazard shift.** ``treated_ik`` is the intervention-aligned (treatment-on)
@@ -32,9 +32,16 @@ Design (fixed in ``notes/…-persistent-floor-sitters-nonword-spelling.md``):
   arm is treated from interval 2 (its crossover), mirroring the DiD ``treated`` term.
   ``G = 2 - group`` (positive = benefit), so a positive ``tau`` raises the hazard of
   coming off the floor.
-- **Covariates** are the *baseline* (t1) letter-sound knowledge, word reading and age —
-  prognostic, pre-intervention quantities (concurrent letter sounds would be a
-  treatment-affected mediator).
+- **Covariates** are the *baseline* (t1) letter-sound knowledge (``L0``), word reading
+  (``W0``) and age (``A0``) — prognostic, pre-intervention quantities, each entering as a
+  weakly-regularised ``beta_*`` slope (concurrent letter sounds would be a
+  treatment-affected mediator, so they are deliberately not used).
+- **No child frailty.** The repeated person-period rows per child could carry a shrunken
+  child random intercept (as the ``gain_factors`` family does), but it is deliberately
+  omitted: at n≈36 at-risk children with ≤3 rows and ~one event each, a frailty term is
+  weakly identified, and the discrete-time hazard likelihood already factorises over
+  person-periods. ``child_idx`` / ``n_children`` are carried on the panel for reporting,
+  not consumed by the model.
 
 **Prognostic, not causal.** By t4 both arms are treated, so only the immediate arm's
 first interval is randomised; the treatment hazard shift is read as a prognostic
@@ -71,6 +78,7 @@ _INTERVALS: tuple[tuple[int, int], ...] = ((1, 2), (2, 3), (3, 4))
 _COVARIATES: tuple[tuple[str, str], ...] = (
     ("L0", V.YARCLET),  # letter-sound knowledge (prerequisite)
     ("W0", V.EWRSWR),  # word reading (sight-word reading without decoding)
+    ("A0", V.AGE),  # baseline age (older children may come off the floor sooner)
 )
 
 
@@ -105,6 +113,9 @@ class SurvivalPanel:
     """Children at floor at t1 who entered the at-risk set."""
     n_events: int
     dropped_rows: int = 0
+    """At-risk children (at floor at t1) who contributed no person-period row because
+    their t2 post-score was unobserved (no interval could be placed). Named ``dropped_rows``
+    for the shared pipeline-header / ``write_run_metadata`` interface."""
     imputed_covariate_rows: dict[str, int] = field(default_factory=dict)
     """Rows whose (missing) baseline covariate was mean-imputed (z = 0), by name."""
 
@@ -126,12 +137,18 @@ def _first_off_floor_wave(scores: dict[int, float]) -> int | None:
     return None
 
 
-def prepare_survival(symbol: str) -> SurvivalPanel:
-    """Build the person-period at-risk table for a floored outcome (``"P"`` or ``"N"``)."""
+def prepare_survival(symbol: str, df: pd.DataFrame | None = None) -> SurvivalPanel:
+    """Build the person-period at-risk table for a floored outcome (``"P"`` or ``"N"``).
+
+    ``df`` is the long-format frame; when ``None`` it is read from
+    ``data/rli_data_long.csv`` (the fit path). Passing a small frame directly makes the
+    person-period expansion unit-testable without a data file.
+    """
     if symbol not in MEASURES:
         raise ValueError(f"Unknown outcome symbol {symbol!r}.")
     col = MEASURES[symbol].column
-    df = pd.read_csv(_paths.DATA_DIR / "rli_data_long.csv")
+    if df is None:
+        df = pd.read_csv(_paths.DATA_DIR / "rli_data_long.csv")
 
     subject_ids: list = []
     interval_idx: list[int] = []
@@ -171,35 +188,52 @@ def prepare_survival(symbol: str) -> SurvivalPanel:
 
     subject_arr = np.asarray(subject_ids)
     _, child_idx = np.unique(subject_arr, return_inverse=True)
+    child_idx = child_idx.astype(np.int64)
+    n_children = int(np.unique(child_idx).size)
 
-    # Standardise baseline covariates (nan-aware), then mean-impute the few missing
-    # values to z = 0 so an at-risk child is never dropped for a missing prerequisite.
+    # Standardise each baseline covariate on the UNIQUE-CHILD baseline (one value per
+    # child), then broadcast the scaler to the person-period rows — so the "per SD" scale
+    # is the child-level SD and does not depend on how many intervals a child contributes
+    # (#293 review). Missing baselines are mean-imputed to z = 0 so an at-risk child is
+    # never dropped for a missing prerequisite.
     covariates: dict[str, np.ndarray] = {}
     scalers: dict[str, Standardiser] = {}
     imputed: dict[str, int] = {}
     for name in cov_rows:
-        raw = np.asarray(cov_rows[name], dtype=float)
-        z, scaler = standardise(raw)
+        row_vals = np.asarray(cov_rows[name], dtype=float)
+        child_vals = np.full(n_children, np.nan)
+        for ci in range(n_children):
+            rows_ci = np.flatnonzero(child_idx == ci)
+            if rows_ci.size:
+                child_vals[ci] = row_vals[rows_ci[0]]  # baseline is constant within child
+        _, scaler = standardise(child_vals)  # mean / SD over children, not rows
+        z = scaler(row_vals)
         missing = ~np.isfinite(z)
         imputed[name] = int(missing.sum())
         z[missing] = 0.0
         covariates[name] = z
         scalers[name] = scaler
 
+    # At-risk children (at the floor at t1) who contributed no person-period row — the
+    # t2 post-score was unobserved, so no interval could be placed. Surfaced rather than
+    # silently dropped (#293 review); the fit prints it.
+    dropped = int(n_at_risk - n_children)
+
     event_arr = np.asarray(event, dtype=np.int64)
     return SurvivalPanel(
         symbol=symbol,
         subject_ids=subject_arr,
-        child_idx=child_idx.astype(np.int64),
+        child_idx=child_idx,
         interval_idx=np.asarray(interval_idx, dtype=np.int64),
         event=event_arr,
         treated=np.asarray(treated, dtype=np.int64),
         G=np.asarray(G_rows, dtype=np.int64),
         covariates=covariates,
         covariate_scalers=scalers,
-        n_children=int(np.unique(child_idx).size),
+        n_children=n_children,
         n_at_risk_children=n_at_risk,
         n_events=int(event_arr.sum()),
+        dropped_rows=dropped,
         imputed_covariate_rows=imputed,
     )
 

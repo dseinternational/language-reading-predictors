@@ -997,6 +997,11 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         f"{spec.outcome_symbol} floor at t1 contribute {panel.n_obs} person-period rows; "
         f"{panel.n_events} off-floor events."
     )
+    if panel.dropped_rows:
+        rprint(
+            f"  [yellow]{panel.dropped_rows} at-risk child(ren) contributed no rows "
+            "(t2 score unobserved, so no interval could be placed) and are excluded.[/yellow]"
+        )
     for name, k in panel.imputed_covariate_rows.items():
         if k:
             rprint(

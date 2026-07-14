@@ -22,7 +22,7 @@ The floor rate falls steadily across the four waves for both measures — the te
 | Nonword reading   | 72% (36/50) | 64% (34/53) | 52% (27/52) | 40% (21/52) |
 | Phonetic spelling | 78% (42/54) | 64% (34/53) | 57% (30/53) | 48% (26/54) |
 
-At t4, 16 children are at floor on **both** measures. The floor is arm-balanced at t4, so there is no crude earlier-start / extra-period signal in who remains: nonword floor is 10/28 in the immediate arm (group 1) versus 11/26 in the waitlist arm (group 2); phonetic spelling is 13/28 versus 13/26.
+At t4, 16 children (of the 52 with both scores observed) are at floor on **both** measures. The floor is arm-balanced at t4, so there is no crude earlier-start / extra-period signal in who remains: on observed t4 scores, nonword floor is 10/27 in the immediate arm (group 1) versus 11/25 in the waitlist arm (group 2); phonetic spelling is 13/28 versus 13/26.
 
 ## A sustained-event definition is needed, because some movement is boundary flicker
 

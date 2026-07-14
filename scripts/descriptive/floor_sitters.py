@@ -236,15 +236,31 @@ def main() -> None:
 
     # 2. t4 overlap and arm balance.
     t4 = df[df.time == tmax].copy()
-    both = int(((t4.nonword == 0) & (t4.spphon == 0)).sum())
-    print(f"\n=== t4 overlap ===\nat floor on BOTH nonword and spphon: {both}")
-    arm = (
-        t4.assign(nonword_floor=(t4.nonword == 0), spphon_floor=(t4.spphon == 0))
-        .groupby("group")[["nonword_floor", "spphon_floor"]]
-        .agg(["sum", "count"])
+    # Overlap and arm balance use NON-MISSING scores only, so a missing t4 score is not
+    # silently counted as "not at floor" and inflating the denominator (consistent with
+    # the per-wave floor-rate denominators above; #293 review).
+    both_obs = t4.dropna(subset=["nonword", "spphon"])
+    both = int(((both_obs.nonword == 0) & (both_obs.spphon == 0)).sum())
+    print(
+        f"\n=== t4 overlap ===\nat floor on BOTH nonword and spphon: {both} "
+        f"(of {len(both_obs)} children with both scores observed)"
     )
-    print("\n=== t4 floor by arm (group 1 = immediate, group 2 = waitlist) ===")
-    print(arm)
+    arm_rows = []
+    for col, label in FLOORED:
+        obs = t4.dropna(subset=[col])
+        agg = (
+            obs.assign(at_floor=(obs[col] == 0))
+            .groupby("group")["at_floor"]
+            .agg(at_floor="sum", n="count")
+        )
+        for grp, r in agg.iterrows():
+            arm_rows.append(
+                {"measure": label, "group": int(grp),
+                 "at_floor": int(r.at_floor), "n": int(r.n)}
+            )
+    arm = pd.DataFrame(arm_rows)
+    print("\n=== t4 floor by arm (group 1 = immediate, group 2 = waitlist; observed only) ===")
+    print(arm.to_string(index=False))
 
     # 3. Sustained / flicker / persistent breakdown (both measures).
     breakdown = pd.DataFrame(
