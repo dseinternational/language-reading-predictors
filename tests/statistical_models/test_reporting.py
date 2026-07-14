@@ -14,7 +14,9 @@ from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
     AssociationTerm,
+    ConcurrentTerm,
     association_marginals,
+    concurrent_marginals,
     eti_bands,
     evidence_label,
     favoured_direction,
@@ -939,3 +941,80 @@ def test_association_marginals_row_mask_restricts_averaging_population():
         association_marginals(
             trace, terms=[term], n_trials=10, row_mask=np.array([True, False, True])
         )
+
+
+# ---------------------------------------------------------------------------
+# concurrent_marginals — per-predictor items-scale marginals, no interactions (#312)
+# ---------------------------------------------------------------------------
+
+
+def _concurrent_ame_ref(eta, beta, *, dz):
+    """Reference per-draw AME for a +Δz standardised perturbation (scalar shift).
+
+    ``eta`` (chain, draw, obs); ``beta`` (chain, draw). The concurrent family has no
+    interactions, so Δη is the scalar ``beta·dz`` broadcast over observations."""
+    n_draw, n_obs = eta.shape[1], eta.shape[2]
+    per_draw = []
+    for d in range(n_draw):
+        de = beta[0, d] * dz
+        diffs = [expit(eta[0, d, i] + de) - expit(eta[0, d, i]) for i in range(n_obs)]
+        per_draw.append(float(np.mean(diffs)))
+    return np.asarray(per_draw)
+
+
+def test_concurrent_marginals_sign_and_scale_consistency():
+    # +1 SD row: items == n_trials × prob exactly, prob_pos ties to P(beta > 0), and
+    # the AME is sign-consistent with the (interaction-free) coefficient.
+    rng = np.random.default_rng(23)
+    n_obs, n_trials = 9, 79
+    eta = rng.normal(0.0, 1.0, (1, 400, n_obs))
+    beta = rng.normal(0.5, 0.2, (1, 400))
+    trace = _trace_named_vec(eta, scalars={"beta_L": beta})
+    term = ConcurrentTerm("L", "beta_L", sd_logit=1.3, n_items=32, mean_prop=0.4, k_items=3)
+
+    df = concurrent_marginals(trace, terms=[term], n_trials=n_trials, ci_prob=0.9)
+    sd_row = df[df.scale == "+1 SD"].iloc[0]
+
+    ref = _concurrent_ame_ref(eta, beta, dz=1.0)
+    assert sd_row["prob_median"] == pytest.approx(float(np.median(ref)))
+    assert sd_row["items_median"] == pytest.approx(n_trials * sd_row["prob_median"])
+    assert np.sign(sd_row["items_median"]) == np.sign(float(np.median(beta)))
+    assert sd_row["prob_pos"] == pytest.approx(float(np.mean(beta.reshape(-1) > 0)))
+    assert sd_row["role"] == "association"
+
+
+def test_concurrent_marginals_k_items_row_uses_sd_logit():
+    # A bounded-count predictor gets a "+k items" row whose Δz divides the mean-point
+    # logit shift by sd_logit (the standardisation the factory applied) — matching the
+    # explicit-loop reference. This is the raw-logit/standardised bridge the pushforward
+    # depends on; a wrong sd_logit here would silently mis-scale every items AME.
+    from scipy.special import logit as _logit
+
+    rng = np.random.default_rng(29)
+    n_obs, n_trials, n_items, k, sd_logit, p = 8, 79, 32, 3, 1.4, 0.35
+    eta = rng.normal(0.0, 1.0, (1, 300, n_obs))
+    beta = rng.normal(0.6, 0.2, (1, 300))
+    trace = _trace_named_vec(eta, scalars={"beta_L": beta})
+    term = ConcurrentTerm(
+        "L", "beta_L", sd_logit=sd_logit, n_items=n_items, mean_prop=p, k_items=k
+    )
+
+    df = concurrent_marginals(trace, terms=[term], n_trials=n_trials, ci_prob=0.9)
+    assert set(df.scale) == {"+1 SD", f"+{k} items"}
+    k_row = df[df.scale == f"+{k} items"].iloc[0]
+
+    dz = (_logit(p + k / n_items) - _logit(p)) / sd_logit
+    ref = _concurrent_ame_ref(eta, beta, dz=dz)
+    assert k_row["prob_median"] == pytest.approx(float(np.median(ref)))
+    assert k_row["items_median"] == pytest.approx(n_trials * k_row["prob_median"])
+
+
+def test_concurrent_marginals_no_k_row_without_items_metadata():
+    # A predictor with no bounded-count metadata (e.g. age) gets only the +1 SD row.
+    rng = np.random.default_rng(31)
+    eta = rng.normal(0.0, 1.0, (1, 200, 6))
+    beta = rng.normal(0.2, 0.2, (1, 200))
+    trace = _trace_named_vec(eta, scalars={"beta_age": beta})
+    term = ConcurrentTerm("age", "beta_age", sd_logit=1.0)
+    df = concurrent_marginals(trace, terms=[term], n_trials=79)
+    assert list(df.scale) == ["+1 SD"]

@@ -1,0 +1,91 @@
+## Results
+
+_In plain terms:_ at each timepoint this model asks how a child's skills go together
+with their word reading *at that same moment* — for two children the same age and
+alike on the other skills, how much more word reading tends to come with a bit more
+of each skill. It is a description of how the skills co-occur wave by wave, **not** a
+statement that one skill causes another.
+
+::: {.callout-important title="These are associations — read them as such"}
+Every number here is an **adjusted association**, never a causal effect. Three things
+shape how to read them:
+
+- **Table-2 fallacy.** Each adjusted coefficient answers a *different* conditional
+  question ("holding the others fixed"), so the column should not be read as a set of
+  competing causal effects — the biggest number is not "the strongest cause".
+- **Regression dilution.** The predictors are observed test scores measured with
+  error, so the associations are pulled **toward zero** relative to the underlying
+  skills. The longitudinal factor model (issue #313) is the follow-on instrument that
+  corrects for this.
+- **Collinearity shrinkage.** With ~53 children and a tightly inter-correlated skill
+  cluster, the regularising priors pull the mutually-adjusted coefficients toward
+  zero, which is why the adjusted column is smaller than the bivariate one. Both are
+  reported; the *gap* between them is itself informative (it shows how much of a raw
+  link is shared with the other skills).
+
+Group enters only as a non-interpretable nuisance term (it absorbs arm composition at
+each wave); its coefficient is not reported as an association.
+:::
+
+### Adjusted vs bivariate associations, by wave
+
+_In plain terms:_ each predictor gets two numbers per wave — a *bivariate* association
+(its raw same-wave link to word reading on its own) and an *adjusted* association (the
+same link once the other skills and age are held fixed). All are per **+1 SD** of the
+predictor, on the logit scale.
+
+```{python}
+# | echo: false
+concurrent = _csv("concurrent_associations.csv")
+concurrent if concurrent is not None else "No concurrent-associations table."
+```
+
+_How to read the table:_ one row per (timepoint, predictor). `adj_*` columns are the
+mutually-adjusted coefficient (per-SD, logit), `biv_*` its standalone bivariate
+counterpart; each carries a 95% credible interval (`*_lo`/`*_hi`) and `*_prob_pos`,
+the posterior probability the association is positive (near 1 = confidently positive,
+near 0 = confidently negative, near 0.5 = undecided). `timepoint` is the wave (t1–t4).
+Where the adjusted estimate sits closer to zero than the bivariate, the other skills
+have absorbed part of that raw link.
+
+```{python}
+# | echo: false
+# | output: asis
+if concurrent is not None and len(concurrent):
+    _prim = (config.get("extra") or {}).get("primary_timepoint")
+    print(
+        f"\n_The forest plot below shows the primary wave (t{_prim}) — the "
+        "best-powered fit, which also carries the convergence gate and posterior "
+        "diagnostics above. The other waves are reported in the tables._"
+    )
+    print("\n\n" + _img("concurrent_associations_forest.png", "Adjusted vs bivariate (primary wave)"))
+    print(
+        "\n_How to read the plot:_ one row per predictor. The blue circle is the "
+        "*adjusted* (mutually-adjusted) coefficient, the grey square the *bivariate* "
+        "one; bars are 95% credible intervals. The dotted line at 0 is no association "
+        "— markers to its right go with more word reading, to its left with less, and "
+        "a bar crossing 0 means the sign is undecided. As above: adjusted associations, "
+        "not causal effects."
+    )
+```
+
+### Items-scale marginals (a reader-friendly size)
+
+_In plain terms:_ this restates the adjusted association on the everyday scale — for a
+realistic change in each predictor (a `+1 SD` shift, and a `+k`-items shift in that
+predictor's own units), how many more words read tend to go with it. The `+k` is set
+per predictor (roughly a tenth of its scale), so a fixed "+5" does not mean 3% of one
+test and 50% of another.
+
+```{python}
+# | echo: false
+concurrent_marginals = _csv("concurrent_marginals.csv")
+concurrent_marginals if concurrent_marginals is not None else "No concurrent-marginals table."
+```
+
+_How to read the table:_ one row per (timepoint, predictor, scale). `items_median`
+(with its `items_lo`/`items_hi` 95% interval) is the associated difference in **words
+read** for that perturbation of the predictor, holding the other skills fixed;
+`prob_pos` is the posterior probability it is positive. The `+k items` rows are
+evaluated at that wave's mean skill level. Read every value as "how much word reading
+tends to differ by", an adjusted association on a plain scale — not a caused gain.

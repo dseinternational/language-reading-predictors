@@ -47,6 +47,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)                      |     2 | Correlated domain-factor measurement model of the skills                                                                     |
 | 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                            |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                            |
 | 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                                 |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                            |
+| 2     | Concurrent associations (`lrp-rli-ca`)                                            |     1 | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                           |
 
 Counts are of base models on `main` (120 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
@@ -354,6 +355,31 @@ arm from its crossover; `G = 2 − group`, positive = benefit).
 anchored on the immediate arm's randomised first interval, not a randomised effect of record;
 concurrent letter sounds are excluded as a treatment-affected mediator. Descriptive companion:
 `notes/…-persistent-floor-sitters-nonword-spelling.md` + `scripts/descriptive/floor_sitters.py`.
+
+### Concurrent conditional associations — `lrp-rli-ca-001` (`kind="concurrent"`)
+
+**Purpose.** The one family that describes how contemporaneous skill levels co-occur with the
+focal outcome at each wave (#312, descriptive-association workstream #314). At every timepoint it
+fits a between-child Beta-Binomial regression of the focal outcome's _level_ on the standardised
+same-wave logits of a skill set (letter sounds, blending, taught receptive/expressive vocabulary,
+receptive/expressive vocabulary), plus age and a group nuisance term — "at wave t, among children
+alike on age and the other skills, +n of a predictor is associated with +m of the outcome". The
+four waves are fitted separately (one row per child per wave) and reported side by side; the
+best-powered wave carries the convergence gate and posterior diagnostics, the others are sub-fits.
+
+| Model            | Kind         | Outcome | Purpose                                                                  |
+| ---------------- | ------------ | ------- | ------------------------------------------------------------------------ |
+| `lrp-rli-ca-001` | `concurrent` | `W`     | per-wave conditional associations of concurrent skills with word reading |
+
+**Association only — three caveats.** Every coefficient is an adjusted association; conditioning
+on contemporaneous (post-treatment) skill levels is intentional because nothing is read causally
+(contrast the level-factors family, which omits cross-skill terms to protect a causal contrast).
+Read with the **Table-2 fallacy** (each coefficient answers a different conditional question),
+**regression dilution** (observed-score predictors attenuate the associations — the longitudinal
+factor model #313 is the follow-on instrument), and **collinearity shrinkage** (n ≈ 53 with a
+correlated predictor cluster, so the adjusted-vs-bivariate gap is itself informative; both are
+reported). Group is a non-interpretable nuisance. Extension: letter sounds and taught vocabulary
+as further focal outcomes once the word-reading model settles the pattern.
 
 ---
 

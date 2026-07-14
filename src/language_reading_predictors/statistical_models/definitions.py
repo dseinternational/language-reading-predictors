@@ -77,6 +77,7 @@ KINDS: frozenset[str] = frozenset(
         "historical_growth",
         "survival",
         "block_exposure",
+        "concurrent",
     }
 )
 
@@ -331,11 +332,18 @@ _BX = [
     _d("lrpbx04", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "UR2", "not-taught comparator (specificity)"),
 ]
 
+# --- Concurrent conditional associations (#312, descriptive-association workstream #314)
+# Per-wave mutually-adjusted associations between contemporaneous skill levels. Every
+# term is an association (post-treatment conditioning is intentional; no causal claim).
+_CA = [
+    _d("lrpca01", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "per-wave conditional associations of concurrent skills with word reading"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA)
 }
 
 
