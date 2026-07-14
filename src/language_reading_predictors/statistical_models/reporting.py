@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import arviz as az
 import numpy as np
@@ -20,7 +21,7 @@ from dse_research_utils.statistics.evidence import (
 )
 from dse_research_utils.statistics.intervals import eti_bands, hdi_1d
 from dse_research_utils.statistics.rope import rope_card
-from scipy.special import expit
+from scipy.special import expit, logit
 
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
@@ -1274,6 +1275,210 @@ def treatment_marginal_effect(
         "trt_items_hi90": items_hi90,
         "prob_trt_pos": float(np.mean(b > 0)),
     }
+
+
+@dataclass(frozen=True)
+class AssociationTerm:
+    """One adjusted-association covariate for the gain-factor items-scale marginals (#310).
+
+    Describes how a single covariate enters the gain-factor linear predictor, so
+    :func:`association_marginals` can push a ``+1 SD`` (and, for bounded-count
+    covariates, a ``+k items``) perturbation of it through the fitted posterior onto
+    the probability / items scales — the covariate analogue of the treatment
+    marginal. The pipeline (which holds the prepared design) builds these; the
+    reporting helper stays agnostic about the gain-factor internals.
+
+    Attributes
+    ----------
+    label
+        Human covariate name for the report row (e.g. ``"own"``, ``"L"``, ``"age"``).
+    coef
+        Posterior variable name of the covariate's main-effect coefficient
+        (e.g. ``"gamma_own"``, ``"gamma_A"``, ``"gamma_ability"``, ``"gamma_L"``).
+    main_scale
+        Data-scale shift of the covariate's *main-effect* input per ``+1`` standardised
+        unit (``b_t``). For age / cognitive ability the main effect already enters on
+        the standardised scale, so ``main_scale = 1``. For the own baseline and skill
+        baselines the main effect enters on the **raw logit** scale while the fitted
+        interactions use the standardised vector, so ``main_scale`` is the SD of that
+        raw logit — ``+1 SD`` shifts the raw-logit input by ``main_scale``.
+    interactions
+        ``(gamma_int_name, z_partner)`` pairs for every fitted interaction this term
+        participates in. Because the interaction inputs are plain elementwise products
+        of standardised vectors (``z_a · z_b``), a ``+1`` shift in this term's
+        standardised value changes the product by exactly the partner's standardised
+        vector — so the per-row interaction contribution to ``Δη`` is
+        ``gamma_int · z_partner``. Treatment interactions are included: the covariate
+        marginal holds the treatment indicator fixed and perturbs the covariate, so a
+        ``trt × covariate`` term does move with the covariate.
+    n_items
+        Denominator of the covariate when it is a bounded-count measure (own / skill
+        baselines); enables the ``+k items`` variant. ``None`` for age / ability /
+        continuous adjusters.
+    mean_prop
+        Mean baseline proportion of a bounded-count covariate on the fitted rows — the
+        operating point at which the ``+k items`` perturbation is evaluated (the logit
+        shift for ``+k items`` is level-dependent, so it is anchored at the mean).
+    sd_items
+        Informational: how many items ``+1 SD`` of a bounded-count covariate is,
+        evaluated at ``mean_prop`` — so a reader can translate the opaque ``+1 SD``.
+    """
+
+    label: str
+    coef: str
+    main_scale: float
+    interactions: tuple[tuple[str, np.ndarray], ...] = ()
+    n_items: int | None = None
+    mean_prop: float | None = None
+    sd_items: float | None = None
+
+
+def association_marginals(
+    trace: xr.DataTree,
+    *,
+    terms: Sequence[AssociationTerm],
+    n_trials: int,
+    off_floor: bool = False,
+    k_items: int = 5,
+    eta_name: str = "eta",
+    ci_prob: float = 0.95,
+    row_mask: np.ndarray | None = None,
+    group: str = "posterior",
+) -> pd.DataFrame:
+    """Per-covariate items-scale association marginals for the gain family (#310).
+
+    The adjusted-association analogue of :func:`treatment_marginal_effect`: for each
+    covariate in ``terms`` it forms the per-draw change in the linear predictor from a
+    ``+1 SD`` perturbation of that covariate, holding everything else at its observed
+    value, and averages the probability-scale change ``expit(η + Δη) − expit(η)`` over
+    observations. Reported on the probability and items scales (``n_trials`` ×
+    probability), with an equal-tailed ``ci_prob`` interval and a 90 % band.
+
+    Per draw ``s`` and observation ``i`` the perturbation's linear-predictor shift is
+
+        Δη_{i,s} = γ_{c,s} · (main_scale) + Σ_k γ^{int}_{k,s} · z^{partner}_{k,i},
+
+    i.e. the covariate's main-effect coefficient scaled to the ``+1 SD`` data shift,
+    plus each fitted interaction's contribution (the interaction inputs are elementwise
+    products of standardised vectors, so a ``+1`` standardised shift moves the product
+    by the partner's standardised vector). This mirrors the treatment marginal's
+    "net out and toggle" idiom (:func:`_itt_ame_draws`), specialised to a covariate
+    increment rather than a 0/1 switch.
+
+    For **bounded-count** covariates (``n_items`` set) a second ``+{k_items} items`` row
+    is emitted, evaluated at the covariate's mean baseline proportion (``mean_prop``):
+    the raw-logit shift ``Δraw = logit(p̄ + k/N) − logit(p̄)`` replaces the ``+1 SD``
+    shift, and the interaction contribution scales by ``Δz = Δraw / main_scale`` (the
+    same shift in standardised units). ``+1 SD`` is opaque to readers; ``+k items`` is
+    the interpretable companion.
+
+    For ``off_floor`` outcomes (``n_trials`` should be passed as ``1``) the items scale
+    collapses to the off-floor probability delta, mirroring the treatment marginal's
+    floor-rule handling.
+
+    ``row_mask`` (default ``None`` = **all** stacked rows): the covariate associations
+    are descriptive, so the natural averaging population is every fitted observation —
+    unlike the treatment marginal, which restricts to the randomised period-1 rows. The
+    choice is pre-specified in the design note and recorded in ``config.json``.
+
+    Every row carries ``role = "association"`` — none of these terms is causal, per the
+    gain family's documented estimand structure.
+    """
+    posterior = getattr(trace, group)
+    eta = (
+        posterior[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
+    n_obs = eta.shape[0]
+
+    mask: np.ndarray | None = None
+    if row_mask is not None:
+        m = np.asarray(row_mask)
+        if m.ndim != 1:
+            raise ValueError(f"row_mask must be 1-D, got a {m.ndim}-D array.")
+        if m.dtype == bool:
+            if m.shape[0] != n_obs:
+                raise ValueError(
+                    f"boolean row_mask has {m.shape[0]} entries but eta has "
+                    f"{n_obs} observations."
+                )
+        elif np.issubdtype(m.dtype, np.integer):
+            if m.size and (int(m.min()) < 0 or int(m.max()) >= n_obs):
+                raise ValueError(f"integer row_mask has indices outside [0, {n_obs}).")
+        else:
+            raise ValueError(
+                "row_mask must be a boolean mask or integer index array, got dtype "
+                f"{m.dtype}."
+            )
+        mask = m
+
+    eta_sel = eta if mask is None else eta[mask]
+    if eta_sel.shape[0] == 0:
+        raise ValueError("row_mask selects no observations for the marginal effect.")
+
+    lo_q = (1 - ci_prob) / 2
+    hi_q = 1 - lo_q
+    rows: list[dict[str, float | str]] = []
+
+    for term in terms:
+        coef = posterior[term.coef].stack(sample=("chain", "draw")).values.ravel()  # (S,)
+
+        # (scale label, standardised shift Δz). +1 SD is Δz = 1; +k items maps the
+        # bounded-count increment to standardised units at the mean operating point.
+        perturbations: list[tuple[str, float]] = [("+1 SD", 1.0)]
+        if term.n_items and term.mean_prop is not None and term.main_scale > 0:
+            eps = 1e-6
+            p = float(np.clip(term.mean_prop, eps, 1 - eps))
+            p_k = float(np.clip(p + k_items / term.n_items, eps, 1 - eps))
+            dz = (logit(p_k) - logit(p)) / term.main_scale
+            perturbations.append((f"+{k_items} items", dz))
+
+        for scale_label, dz in perturbations:
+            # Main-effect shift: γ_c scaled to the requested data increment. Broadcast
+            # over observations (shape (1, S)); promoted to (n_obs, S) by interactions.
+            delta_eta = (coef * (dz * term.main_scale))[None, :]
+            for gi_name, z_partner in term.interactions:
+                gi = posterior[gi_name].stack(sample=("chain", "draw")).values.ravel()  # (S,)
+                zp = np.asarray(z_partner, dtype=float)
+                if zp.shape[0] != n_obs:
+                    raise ValueError(
+                        f"interaction partner for {term.label!r}/{gi_name!r} has "
+                        f"{zp.shape[0]} rows but eta has {n_obs} observations."
+                    )
+                delta_eta = delta_eta + np.outer(zp, gi) * dz  # (n_obs, S)
+
+            de_sel = delta_eta if delta_eta.shape[0] == 1 else (
+                delta_eta if mask is None else delta_eta[mask]
+            )
+            ame_prob = (expit(eta_sel + de_sel) - expit(eta_sel)).mean(axis=0)  # (S,)
+            ame_items = float(n_trials) * ame_prob
+            prob_lo90, prob_hi90 = band90(ame_prob)
+            items_lo90, items_hi90 = band90(ame_items)
+            rows.append(
+                {
+                    "term": term.label,
+                    "role": "association",
+                    "scale": scale_label,
+                    "prob_median": float(np.median(ame_prob)),
+                    "prob_lo": float(np.quantile(ame_prob, lo_q)),
+                    "prob_hi": float(np.quantile(ame_prob, hi_q)),
+                    "prob_lo90": prob_lo90,
+                    "prob_hi90": prob_hi90,
+                    "items_median": float(np.median(ame_items)),
+                    "items_lo": float(np.quantile(ame_items, lo_q)),
+                    "items_hi": float(np.quantile(ame_items, hi_q)),
+                    "items_lo90": items_lo90,
+                    "items_hi90": items_hi90,
+                    "prob_pos": float(np.mean(ame_items > 0)),
+                    "off_floor": bool(off_floor),
+                    "sd_items": (
+                        float(term.sd_items) if term.sd_items is not None else float("nan")
+                    ),
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def level_t2_marginal_effect(

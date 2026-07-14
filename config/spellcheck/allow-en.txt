@@ -298,6 +298,7 @@ dadedu
 dadedupost
 dadocc
 dagitty
+dataclass
 dcor
 dcorr
 deapp
@@ -323,6 +324,7 @@ dtype
 earinf
 econlet
 ecresq
+elementwise
 eowpvt
 equating
 erbnw
