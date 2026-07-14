@@ -1,0 +1,86 @@
+---
+title: "LRP89: Mechanism model — taught expressive vocabulary (TE) -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+## Overview
+
+LRP89 estimates the adjusted association between taught expressive vocabulary and word
+reading using *all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with
+phase-specific intercepts — the expressive companion to LRP88 (#311,
+descriptive-association workstream #314).
+
+::: {.callout-note title="Linear mechanism (estimand note)"}
+The mechanism enters as a **linear slope** $\beta_{\text{mech}}$ on
+$\text{logit}_*(TE_{\text{post}}, N_{TE})$, following the vocabulary-exposure
+precedent (LRP56/57). The estimand is the **linear** $TE \to W$ adjusted association —
+a single slope, not a shape.
+:::
+
+## Adjustment set
+
+Parents of $TE$ under the revised DAG (2026-07-10): $\{A, GA, HS, IG, IS, RW, SP, TR\}$.
+
+- $G$ — group; always conditioned on via $\beta_G$.
+- $A$ — age; conditioned on linearly (a $\gamma_A\,z(\text{age})$ term).
+- $TR$ — taught receptive vocabulary ($TR \to TE$ and $TR \to WR$), the one measured
+  skill confounder; enters at its *post* score, concurrent with the exposure, exactly
+  as in LRP56/57.
+- $HS$ — hearing status (`hs` / `hs_missing`).
+- $SP$ — speech production (`deapp_c` / `deapp_c_missing`); blocks
+  $TE \leftarrow SP \to \{EV, LS, PA, NW\} \to W$.
+- $RW$ — phonological memory (`erbto` / `erbto_missing`).
+- $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
+
+::: {.callout-important title="Open backdoor: intervention sessions (IS) — flagged, not adjusted"}
+$IS \to TE$ and $IS \to WR$ make session dose a genuine common cause, but $IS$ is
+treatment-affected ($IG \to IS$): conditioning on it would insert a post-treatment
+collider between the randomised arm and latent ability ($IG \to IS \leftarrow GA \to W$).
+Following the family precedent and the signed-off #309 handling, the primary model
+leaves $IS$ unadjusted — **shared session dose is a plausible inflator of this
+slope**. A dose-adjusted sensitivity companion is deferred.
+:::
+
+$EV$, $EG$ and $EI$ are *descendants* of $TE$; conditioning on them would block
+legitimate indirect paths (e.g. $TE \to EV \to W$) and pull the slope toward the
+direct-only component, so they are **not** in the adjustment set. $GA$ (general
+ability) is latent and cannot be conditioned on; the child random intercept proxies
+its time-invariant part, so the slope stays an adjusted association. As with LRP88,
+taught-vocabulary variation is largely intervention-generated: the slope describes
+covariation within a treated system.
+
+### Interpretation caveats
+
+- *No unmeasured confounder assumption* for $(TE_{\text{post}}, W_{\text{post}})$: strong and not testable, and the flagged $IS$ backdoor is a named violation direction.
+- $TE_{\text{post}}$ is measured with error; non-negligible error attenuates the slope toward zero.
+- Across-phase pooling assumes the structural relationship is stable over time; a phase-specific sensitivity fit is available via the `phase_specific_mechanism` flag.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mechanism.qmd >}}
+
+{{< include _partials/_footer.qmd >}}
