@@ -4334,6 +4334,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     outcomes = tuple(spec.extra.get("outcomes", ("R", "E", "T", "W", "L")))
     baseline_cov = spec.extra.get("baseline_covariate", "blocks")
     use_factor = bool(spec.extra.get("use_shared_factor", False))
+    age_ability = bool(spec.extra.get("age_ability_interaction", False))
     panel = load_wave_panel(outcomes=outcomes, baseline_covariates=(baseline_cov,))
     ctx.prepared = panel
 
@@ -4344,6 +4345,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         panel,
         baseline_covariate=baseline_cov,
         use_shared_factor=use_factor,
+        age_ability_interaction=age_ability,
     )
     _attach_built(ctx, built)
 
@@ -4354,6 +4356,10 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ]
     if use_factor:
         diag_vars.append("loading")
+    if age_ability:
+        # LRP85 (#228 item 10): baseline-age main effect + the headline
+        # age0 × ability interaction on the growth rate.
+        diag_vars.extend(["gamma_age", "gamma_int"])
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
