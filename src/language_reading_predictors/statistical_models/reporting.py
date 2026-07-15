@@ -2219,3 +2219,561 @@ def disattenuation_crosscheck(
     # A small tolerance absorbs Monte-Carlo noise around a zero gap.
     merged["latent_ge_observed"] = (lat + 1e-3) >= obs
     return merged
+
+
+# --- Key-findings generation (issue #320) -------------------------------------
+# A fit-time distillation of each report's headline result into 3-5 template
+# sentences a science undergraduate can read before any machinery. The generator
+# reads ONLY the fit's own artefacts (family CSVs + diagnostics_summary.json +
+# config.json) and writes ``key_findings.json``; the report partial
+# ``_partials/_key_findings.qmd`` is a dumb renderer of that file. Generating at
+# fit time (not render time) keeps the sentences tied to the fit that produced
+# the numbers (#271); wording fixes and backfill go through
+# ``scripts/regenerate_key_findings.py`` — no refit needed.
+
+KEY_FINDINGS_FILENAME = "key_findings.json"
+KEY_FINDINGS_SCHEMA_VERSION = 1
+KEY_FINDINGS_MAX_SENTENCES = 5
+
+# Plain-language labels for the factor-model coefficients (the family-highlight
+# sentence). Terms not listed here are skipped rather than surfaced raw — a
+# key-findings box must never ask the reader to decode a coefficient name.
+_KF_FACTOR_LABELS: dict[str, str] = {
+    "gamma_own": "the child's own starting point on this measure",
+    "gamma_A": "the child's age",
+    "gamma_ability": "general cognitive ability (block design)",
+    "gamma_R": "receptive vocabulary at the start of the period",
+    "gamma_E": "expressive vocabulary at the start of the period",
+    "gamma_L": "letter-sound knowledge at the start of the period",
+    "gamma_W": "word reading at the start of the period",
+    "gamma_B": "sound blending at the start of the period",
+    "gamma_hs": "hearing",
+    "gamma_deapp_c": "speech accuracy",
+    "gamma_erbto": "phonological memory (nonword repetition)",
+}
+
+
+class _KeyFindingsUnavailable(Exception):
+    """Raised by a builder when the CSVs it needs are missing or unusable."""
+
+
+def _kf_float(value) -> float:
+    """Return ``value`` as a finite float, else raise (the no-``nan`` guard)."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError) as exc:
+        raise _KeyFindingsUnavailable(f"non-numeric value {value!r}") from exc
+    if not np.isfinite(v):
+        raise _KeyFindingsUnavailable(f"non-finite value {value!r}")
+    return v
+
+
+def _kf_pct(prob) -> str:
+    """A probability as a plain percentage string, never rounding to a false
+    certainty (``0.998`` renders as ``99.8``, not ``100``)."""
+    p = _kf_float(prob)
+    if not 0.0 <= p <= 1.0:
+        raise _KeyFindingsUnavailable(f"probability out of range: {p!r}")
+    v = 100.0 * p
+    # Never display a false certainty: an empirical posterior probability of 1
+    # (or 0) just means every retained draw agreed, so cap the display at 99.9
+    # (or floor it at 0.1) rather than claiming 100% / 0%.
+    if round(v) >= 100:
+        return f"{min(v, 99.9):.1f}"
+    if round(v) <= 0:
+        return f"{max(v, 0.1):.1f}"
+    return f"{v:.0f}"
+
+
+def _kf_sentence(text: str, kind: str) -> dict[str, str]:
+    return {"text": text, "kind": kind}
+
+
+def _kf_csv_row(output_dir, name: str) -> dict | None:
+    """First row of ``{output_dir}/{name}`` as a plain dict, or None if absent."""
+    path = os.path.join(str(output_dir), name)
+    if not os.path.exists(path):
+        return None
+    df = pd.read_csv(path)
+    if df.empty:
+        return None
+    return df.iloc[0].to_dict()
+
+
+def _kf_outcome_label(config: Mapping) -> str:
+    """Outcome display label, mirroring the ``_setup.qmd`` derivation."""
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    symbol = config.get("outcome_symbol")
+    measure = MEASURES.get(symbol) if symbol else None
+    if measure is not None:
+        return measure.label
+    return config.get("title") or symbol or "the outcome"
+
+
+def _kf_direction_words(prob_pos, *, is_rd: bool) -> str:
+    """The harm-aware confidence sentence body (#179): evidence for the
+    *favoured* direction, so a clearly negative effect reads as evidence of harm
+    rather than 'inconclusive'."""
+    p = _kf_float(prob_pos)
+    fav = favoured_direction(p)
+    label = fav["favoured_direction_label"]
+    if fav["favoured_direction"] == "positive":
+        claim = (
+            "the intervention raises the chance of coming off the floor"
+            if is_rd
+            else "the intervention helps"
+        )
+    else:
+        claim = (
+            "the intervention lowers the chance of coming off the floor"
+            if is_rd
+            else "the intervention is harmful"
+        )
+    return (
+        f"There is a {_kf_pct(p)}% probability that the true effect is positive "
+        f"— {label} evidence that {claim}."
+    )
+
+
+def _kf_headline_from_rope(rope: Mapping, outcome_label: str, scope: str) -> tuple[str, bool]:
+    """Headline sentence from a ``rope_summary.csv`` row.
+
+    Returns ``(sentence, is_risk_difference)``. ``scope`` is a clause naming the
+    comparison (e.g. 'over the trial period'), so each family can state exactly
+    which contrast the number is."""
+    is_rd = str(rope.get("delta_scale", "")) == "risk_difference"
+    scale = 100.0 if is_rd else 1.0
+    med = _kf_float(rope["items_median"]) * scale
+    lo = _kf_float(rope["items_lo"]) * scale
+    hi = _kf_float(rope["items_hi"]) * scale
+    if is_rd:
+        text = (
+            f"Best estimate: the intervention changed the chance of scoring above "
+            f"zero on {outcome_label} by **{med:+.0f} percentage points** {scope} "
+            f"(95% credible range {lo:+.0f} to {hi:+.0f})."
+        )
+    else:
+        text = (
+            f"Best estimate: the intervention changed {outcome_label} by "
+            f"**{med:+.1f} items** {scope} "
+            f"(95% credible range {lo:+.1f} to {hi:+.1f})."
+        )
+    return text, is_rd
+
+
+def _kf_rope_sentence(rope: Mapping, *, is_rd: bool) -> str:
+    """The magnitude (ROPE) verdict from a ``rope_summary.csv`` row."""
+    delta = _kf_float(rope["delta_items"]) * (100.0 if is_rd else 1.0)
+    if is_rd:
+        unit = "percentage point" if delta == 1 else "percentage points"
+    else:
+        unit = "item" if delta == 1 else "items"
+    p_benefit = _kf_pct(rope["prob_benefit_ge_delta"])
+    p_rope = _kf_pct(rope["prob_in_rope"])
+    return (
+        f"A change of at least {delta:g} {unit} was pre-specified as the smallest "
+        f"difference that would matter in practice: the probability the benefit "
+        f"reaches that size is {p_benefit}%, and the probability the effect is too "
+        f"small to matter either way is {p_rope}%."
+    )
+
+
+def _kf_strongest_factor(output_dir, *, exclude_roles: tuple[str, ...] = ("causal",)) -> str | None:
+    """Family-highlight sentence: the most clearly resolved adjusted association
+    in ``factor_summary.csv``, or None when nothing usable is present.
+
+    Ranked by ``|prob_positive - 0.5|`` (how clearly the direction is resolved),
+    NOT by ``|median|`` — the factor coefficients sit on different scales (the
+    own baseline enters on the raw logit scale, other covariates per SD), so
+    magnitudes are not comparable across terms. Interaction terms and
+    unlabelled coefficients are skipped — the box must stay readable without a
+    code key."""
+    path = os.path.join(str(output_dir), "factor_summary.csv")
+    if not os.path.exists(path):
+        return None
+    df = pd.read_csv(path)
+    needed = {"term", "role", "prob_positive"}
+    if df.empty or not needed.issubset(df.columns):
+        return None
+    rows = df[~df["role"].isin(exclude_roles) & df["term"].isin(_KF_FACTOR_LABELS)]
+    probs = pd.to_numeric(rows["prob_positive"], errors="coerce")
+    rows = rows[np.isfinite(probs)]
+    if rows.empty:
+        return None
+    top = rows.loc[(pd.to_numeric(rows["prob_positive"]) - 0.5).abs().idxmax()]
+    label = _KF_FACTOR_LABELS[str(top["term"])]
+    p = float(top["prob_positive"])
+    fav = favoured_direction(p)
+    ends = (
+        "also tended to score higher afterwards"
+        if fav["favoured_direction"] == "positive"
+        else "tended to score lower afterwards"
+    )
+    return (
+        f"Of the other factors in the model, {label} had the most clearly "
+        f"resolved link with the outcome: children higher on it {ends} "
+        f"(a {_kf_pct(fav['favoured_direction_prob'])}% probability for that "
+        f"direction; an adjusted association, not a cause)."
+    )
+
+
+def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """ITT suite (incl. the floored off-floor primaries): rope card first, tau
+    summary as the no-agreed-delta fallback (F / T)."""
+    outcome_label = _kf_outcome_label(config)
+    rope = _kf_csv_row(output_dir, "rope_summary.csv")
+    sentences: list[dict[str, str]] = []
+    if rope is not None:
+        headline, is_rd = _kf_headline_from_rope(rope, outcome_label, "over the trial period")
+        sentences.append(_kf_sentence(headline, "headline"))
+        sentences.append(
+            _kf_sentence(_kf_direction_words(rope["pd"], is_rd=is_rd), "confidence")
+        )
+        sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
+    else:
+        tau = _kf_csv_row(output_dir, "tau_summary.csv")
+        if tau is None:
+            raise _KeyFindingsUnavailable(
+                "neither rope_summary.csv nor tau_summary.csv is present"
+            )
+        from language_reading_predictors.statistical_models.measures import MEASURES
+
+        measure = MEASURES.get(config.get("outcome_symbol"))
+        if measure is not None:
+            n = measure.n_trials
+            med = _kf_float(tau["tau_prob_median"]) * n
+            lo = _kf_float(tau["tau_prob_lo"]) * n
+            hi = _kf_float(tau["tau_prob_hi"]) * n
+            sentences.append(
+                _kf_sentence(
+                    f"Best estimate: the intervention changed {outcome_label} by "
+                    f"**{med:+.1f} items** over the trial period "
+                    f"(95% credible range {lo:+.1f} to {hi:+.1f}).",
+                    "headline",
+                )
+            )
+        sentences.append(
+            _kf_sentence(_kf_direction_words(tau["prob_tau_pos"], is_rd=False), "confidence")
+        )
+        sentences.append(
+            _kf_sentence(
+                "No minimally-important difference has been agreed for this "
+                "outcome, so no is-it-big-enough-to-matter verdict is reported.",
+                "note",
+            )
+        )
+    sentences.append(
+        _kf_sentence(
+            "Because children were randomly assigned to the intervention or the "
+            "waiting list, this estimate supports a cause-and-effect reading.",
+            "causal",
+        )
+    )
+    return sentences
+
+
+def _kf_build_gain_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Gain (ANCOVA) family: the randomised on-intervention term is the only
+    causal coefficient, averaged over the period-1 transition; treated-only
+    companions have no causal term at all."""
+    outcome_label = _kf_outcome_label(config)
+    treated_only = bool((config.get("extra") or {}).get("treated_only", False))
+    sentences: list[dict[str, str]] = []
+    if treated_only:
+        sentences.append(
+            _kf_sentence(
+                f"This companion model looks only at children while they were "
+                f"receiving the intervention, so it estimates no treatment effect "
+                f"on {outcome_label} — every result in it is an adjusted "
+                f"association, not a cause.",
+                "causal",
+            )
+        )
+        highlight = _kf_strongest_factor(output_dir)
+        if highlight:
+            sentences.append(_kf_sentence(highlight, "highlight"))
+        return sentences
+    rope = _kf_csv_row(output_dir, "rope_summary.csv")
+    scope = "during the randomised first period"
+    if rope is not None:
+        headline, is_rd = _kf_headline_from_rope(rope, outcome_label, scope)
+        sentences.append(_kf_sentence(headline, "headline"))
+        sentences.append(
+            _kf_sentence(_kf_direction_words(rope["pd"], is_rd=is_rd), "confidence")
+        )
+        sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
+    else:
+        tm = _kf_csv_row(output_dir, "treatment_marginal.csv")
+        if tm is None:
+            raise _KeyFindingsUnavailable(
+                "neither rope_summary.csv nor treatment_marginal.csv is present"
+            )
+        med = _kf_float(tm["trt_items_median"])
+        lo = _kf_float(tm["trt_items_lo"])
+        hi = _kf_float(tm["trt_items_hi"])
+        sentences.append(
+            _kf_sentence(
+                f"Best estimate: being on the intervention changed {outcome_label} "
+                f"by **{med:+.1f} items** {scope} "
+                f"(95% credible range {lo:+.1f} to {hi:+.1f}).",
+                "headline",
+            )
+        )
+        sentences.append(
+            _kf_sentence(_kf_direction_words(tm["prob_trt_pos"], is_rd=False), "confidence")
+        )
+    sentences.append(
+        _kf_sentence(
+            "The on-intervention effect is the only cause-and-effect estimate in "
+            "this report (it rests on the randomised first period); every other "
+            "factor is an adjusted association.",
+            "causal",
+        )
+    )
+    highlight = _kf_strongest_factor(output_dir)
+    if highlight:
+        sentences.append(_kf_sentence(highlight, "highlight"))
+    return sentences
+
+
+def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Level family: only the t2 group contrast is randomised; later timepoints
+    are post-crossover associations."""
+    outcome_label = _kf_outcome_label(config)
+    rope = _kf_csv_row(output_dir, "rope_summary.csv")
+    if rope is None:
+        raise _KeyFindingsUnavailable(
+            "rope_summary.csv (the t2 items-scale contrast) is not present"
+        )
+    sentences: list[dict[str, str]] = []
+    headline, is_rd = _kf_headline_from_rope(
+        rope, outcome_label, "at the end of the randomised period (t2)"
+    )
+    sentences.append(_kf_sentence(headline, "headline"))
+    sentences.append(
+        _kf_sentence(_kf_direction_words(rope["pd"], is_rd=is_rd), "confidence")
+    )
+    sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
+    sentences.append(
+        _kf_sentence(
+            "Only this t2 comparison is randomised and supports a cause-and-effect "
+            "reading; group differences at later timepoints — after the "
+            "waiting-list children had crossed over to the intervention — are "
+            "associations.",
+            "causal",
+        )
+    )
+    return sentences
+
+
+def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Waitlist-crossover arm-by-wave family: the t2 arm contrast is the clean
+    randomised quantity; the crossover catch-up is descriptive. Dose companions
+    (no ``tau_t2``) get the honest association wording."""
+    outcome_label = _kf_outcome_label(config)
+    did = _kf_csv_row(output_dir, "did_summary.csv")
+    if did is None:
+        raise _KeyFindingsUnavailable("did_summary.csv is not present")
+    if "tau_t2_items_median" not in did:
+        if any(str(k).startswith("beta_dose") for k in did):
+            # Dose companion: no randomised t2 contrast to headline.
+            return [
+                _kf_sentence(
+                    "This companion model estimates how outcomes vary with the "
+                    "amount of intervention received; that dose relationship is "
+                    "an observational association, not a randomised comparison, "
+                    "so no causal treatment-effect headline is reported.",
+                    "causal",
+                ),
+                _kf_sentence(
+                    "See the results section below for the dose estimates and "
+                    "their uncertainty.",
+                    "note",
+                ),
+            ]
+        raise _KeyFindingsUnavailable(
+            "did_summary.csv predates the arm-by-wave schema (no t2 items-scale "
+            "contrast); refit or regenerate after a refit"
+        )
+    off_floor = bool(did.get("off_floor", False))
+    sentences: list[dict[str, str]] = []
+    if off_floor:
+        med = _kf_float(did["tau_t2_items_median"]) * 100.0
+        lo = _kf_float(did["tau_t2_items_lo"]) * 100.0
+        hi = _kf_float(did["tau_t2_items_hi"]) * 100.0
+        sentences.append(
+            _kf_sentence(
+                f"Best estimate: at t2 — the randomised comparison — being in the "
+                f"immediate-intervention group changed the chance of scoring above "
+                f"zero on {outcome_label} by **{med:+.0f} percentage points** "
+                f"compared with the waiting list "
+                f"(95% credible range {lo:+.0f} to {hi:+.0f}).",
+                "headline",
+            )
+        )
+    else:
+        med = _kf_float(did["tau_t2_items_median"])
+        lo = _kf_float(did["tau_t2_items_lo"])
+        hi = _kf_float(did["tau_t2_items_hi"])
+        higher_lower = "higher" if med >= 0 else "lower"
+        sentences.append(
+            _kf_sentence(
+                f"Best estimate: at t2 — the randomised comparison — children in "
+                f"the immediate-intervention group scored **{abs(med):.1f} items "
+                f"{higher_lower}** on {outcome_label} than the waiting-list "
+                f"children (95% credible range {lo:+.1f} to {hi:+.1f}).",
+                "headline",
+            )
+        )
+    sentences.append(
+        _kf_sentence(
+            _kf_direction_words(did["prob_tau_t2_pos"], is_rd=off_floor), "confidence"
+        )
+    )
+    sentences.append(
+        _kf_sentence(
+            "The t2 contrast is randomised and supports a cause-and-effect "
+            "reading; the arm gaps at t1 and t3, and the catch-up quantity below, "
+            "are descriptive associations.",
+            "causal",
+        )
+    )
+    if bool(did.get("delta_crossover_items_available", False)):
+        try:
+            catch = _kf_float(did["delta_crossover_items_median"])
+        except _KeyFindingsUnavailable:
+            catch = None
+        if catch is not None:
+            unit = "percentage points" if off_floor else "items"
+            moved = "narrowed" if catch > 0 else "widened"
+            scale = 100.0 if off_floor else 1.0
+            sentences.append(
+                _kf_sentence(
+                    f"After the waiting-list children started the intervention, the "
+                    f"gap between the arms {moved} by about "
+                    f"{abs(catch) * scale:.1f} {unit} — a descriptive catch-up "
+                    f"quantity, not a second randomised effect.",
+                    "highlight",
+                )
+            )
+    return sentences
+
+
+def _kf_build_fallback(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Families without a bespoke builder yet (#320 rolls out the core four;
+    the rest follow #321): an honest placeholder, never a wrong summary."""
+    kind = config.get("kind") or "this"
+    return [
+        _kf_sentence(
+            f"A plain-language key-findings summary has not yet been written for "
+            f"the {kind} model family.",
+            "note",
+        ),
+        _kf_sentence(
+            "Unless a term is explicitly flagged as randomised in the results "
+            "below, the estimates in this report are adjusted associations or "
+            "descriptive quantities, not causal effects.",
+            "causal",
+        ),
+        _kf_sentence(
+            "See the results section below for the full estimates with their "
+            "uncertainty.",
+            "note",
+        ),
+    ]
+
+
+_KF_BUILDERS = {
+    "itt": _kf_build_itt,
+    "gain_factors": _kf_build_gain_factors,
+    "level_factors": _kf_build_level_factors,
+    "did": _kf_build_did,
+}
+
+# Human-readable names for the convergence-gate checks (the gate-failed banner).
+_KF_CHECK_LABELS = {
+    "rhat": "R-hat",
+    "ess": "effective sample size",
+    "divergences": "divergent transitions",
+    "bfmi": "sampling energy (BFMI)",
+}
+
+
+def generate_key_findings(output_dir) -> dict:
+    """Build and write ``key_findings.json`` for a fit output directory (#320).
+
+    Reads only artefacts already in ``output_dir`` (``config.json``,
+    ``diagnostics_summary.json`` and the family CSVs), so it can be re-run over
+    an existing fit without refitting. The convergence gate is checked FIRST: a
+    failed gate yields a ``gate_failed`` payload and no findings — students must
+    not meet findings from an unconverged fit. Missing artefacts degrade to a
+    ``not_available`` payload with a reason, never an exception; sentences are
+    capped at :data:`KEY_FINDINGS_MAX_SENTENCES` and can never contain a
+    non-finite number (:func:`_kf_float` raises, and the builder's whole payload
+    then degrades). Returns the payload it wrote.
+    """
+    out = str(output_dir)
+    config = {}
+    config_path = os.path.join(out, "config.json")
+    if os.path.exists(config_path):
+        with open(config_path) as f:
+            config = json.load(f)
+
+    payload: dict = {
+        "schema_version": KEY_FINDINGS_SCHEMA_VERSION,
+        "model_id": config.get("model_id"),
+        "kind": config.get("kind"),
+        "sentences": [],
+    }
+
+    diag_path = os.path.join(out, "diagnostics_summary.json")
+    if not os.path.exists(diag_path):
+        payload["status"] = "not_available"
+        payload["reason"] = (
+            "diagnostics_summary.json is missing, so the convergence gate cannot "
+            "be checked"
+        )
+        return _write_key_findings(out, payload)
+    with open(diag_path) as f:
+        diag = json.load(f)
+    if not diag.get("passed", False):
+        checks = diag.get("checks") or {}
+        failing = [
+            _KF_CHECK_LABELS.get(name, name)
+            for name, ok in checks.items()
+            if not ok
+        ] or ["convergence summary incomplete"]
+        payload["status"] = "gate_failed"
+        payload["failing_checks"] = failing
+        return _write_key_findings(out, payload)
+
+    if not config:
+        payload["status"] = "not_available"
+        payload["reason"] = "config.json is missing"
+        return _write_key_findings(out, payload)
+
+    builder = _KF_BUILDERS.get(config.get("kind"), _kf_build_fallback)
+    try:
+        sentences = builder(out, config)
+    except _KeyFindingsUnavailable as exc:
+        payload["status"] = "not_available"
+        payload["reason"] = str(exc)
+        return _write_key_findings(out, payload)
+    except (KeyError, ValueError, OSError) as exc:
+        # A malformed CSV must degrade to an explicit note, never break a fit
+        # or a render (#320 acceptance criteria).
+        payload["status"] = "not_available"
+        payload["reason"] = f"key-findings builder failed: {exc}"
+        return _write_key_findings(out, payload)
+
+    payload["status"] = "ok"
+    payload["sentences"] = sentences[:KEY_FINDINGS_MAX_SENTENCES]
+    return _write_key_findings(out, payload)
+
+
+def _write_key_findings(output_dir: str, payload: dict) -> dict:
+    with open(os.path.join(output_dir, KEY_FINDINGS_FILENAME), "w") as f:
+        json.dump(payload, f, indent=2)
+        f.write("\n")
+    return payload

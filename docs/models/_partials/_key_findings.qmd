@@ -1,0 +1,45 @@
+```{python}
+# | echo: false
+# | output: asis
+# Key-findings box (#320): a dumb renderer of key_findings.json, which the fit
+# pipeline (or scripts/regenerate_key_findings.py) generates from the fit's own
+# CSVs. All sentence logic lives in reporting.generate_key_findings so the prose
+# cannot drift from the computation (#271). Deliberately self-contained (no
+# _setup.qmd dependency) so the include order can move in the #321 restructure.
+import json as _kf_json
+from pathlib import Path as _KFPath
+
+_kf_path = _KFPath(".") / "key_findings.json"
+if not _kf_path.exists():
+    print(
+        '::: {.callout-note title="Key findings"}\n\n'
+        "A key-findings summary is not available for this fit (it predates the "
+        "key-findings feature). Re-run `scripts/regenerate_key_findings.py` over "
+        "this output directory to generate one, or read the results section "
+        "below.\n\n:::"
+    )
+else:
+    with open(_kf_path) as _kf_fh:
+        _kf = _kf_json.load(_kf_fh)
+    _kf_status = _kf.get("status")
+    if _kf_status == "gate_failed":
+        _kf_checks = ", ".join(_kf.get("failing_checks", [])) or "unknown"
+        print(
+            '::: {.callout-important title="Findings withheld: sampling-quality '
+            'checks failed"}\n\n'
+            f"This fit did not pass the convergence gate (failing: {_kf_checks}), "
+            "so no findings are summarised — estimates from an unconverged fit "
+            "cannot be trusted. See the convergence section for the failing "
+            "diagnostics.\n\n:::"
+        )
+    elif _kf_status == "ok" and _kf.get("sentences"):
+        _kf_lines = "\n".join(f"- {s['text']}" for s in _kf["sentences"])
+        print(f'::: {{.callout-tip title="Key findings"}}\n\n{_kf_lines}\n\n:::')
+    else:
+        _kf_reason = _kf.get("reason") or "the fit's summary files are missing"
+        print(
+            '::: {.callout-note title="Key findings"}\n\n'
+            f"A key-findings summary is not available for this fit ({_kf_reason}). "
+            "See the results section below.\n\n:::"
+        )
+```
