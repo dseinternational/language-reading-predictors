@@ -62,19 +62,19 @@ are included in the family counts and listed in the per-family tables below.
 Layer-2 models refer to outcomes by short symbols; the bounded count maximum (`n`) is the
 Beta-Binomial trial ceiling.
 
-| Symbol      | Measure                                                | `n` | Notes                                  |
-| ----------- | ------------------------------------------------------ | --: | -------------------------------------- |
-| `W`         | Word reading (EWRSWR)                                  |  79 | Headline primary in this reanalysis    |
-| `R`         | Receptive vocabulary (ROWPVT)                          | 170 | Standardised (transfer) measure        |
-| `E`         | Expressive vocabulary (EOWPVT)                         | 170 | Standardised (transfer) measure        |
-| `L`         | Letter-sound knowledge (YARC-LSK)                      |  32 | Direct teaching target                 |
-| `P`         | Phonetic spelling (SPPHON)                             |  92 | Heavily floored (~78 % at zero at t1)  |
-| `B`         | Phoneme blending                                       |  10 | Direct teaching target                 |
-| `F`         | Basic concept knowledge (CELF)                         |  18 |                                        |
-| `T`         | Receptive grammar (TROG-2)                             |  32 |                                        |
-| `N`         | Nonword reading                                        |   6 | Floored and post-only (no t1 baseline) |
-| `TR` / `TE` | Taught receptive / expressive vocabulary (block 1)     |   — | Curated word set taught by RLI         |
-| `UR` / `UE` | Not-taught receptive / expressive vocabulary (block 1) |   — | Generalisation comparators             |
+| Symbol      | Measure                                                | `n` | Notes                                                     |
+| ----------- | ------------------------------------------------------ | --: | --------------------------------------------------------- |
+| `W`         | Word reading (EWRSWR)                                  |  79 | Headline primary in this reanalysis                       |
+| `R`         | Receptive vocabulary (ROWPVT)                          | 170 | Standardised (transfer) measure                           |
+| `E`         | Expressive vocabulary (EOWPVT)                         | 170 | Standardised (transfer) measure                           |
+| `L`         | Letter-sound knowledge (YARC-LSK)                      |  32 | Direct teaching target                                    |
+| `P`         | Phonetic spelling (SPPHON)                             |  92 | Heavily floored (~78 % at zero at t1)                     |
+| `B`         | Phoneme blending                                       |  10 | Direct teaching target                                    |
+| `F`         | Basic concept knowledge (CELF)                         |  18 |                                                           |
+| `T`         | Receptive grammar (TROG-2)                             |  32 |                                                           |
+| `N`         | Nonword reading                                        |   6 | Heavily floored; t1 is missing for four archived children |
+| `TR` / `TE` | Taught receptive / expressive vocabulary (block 1)     |   — | Curated word set taught by RLI                            |
+| `UR` / `UE` | Not-taught receptive / expressive vocabulary (block 1) |   — | Generalisation comparators                                |
 
 ---
 

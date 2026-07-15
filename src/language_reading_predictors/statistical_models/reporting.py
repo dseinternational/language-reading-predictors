@@ -609,12 +609,12 @@ def proportion_at_zero_ppc(
     """Posterior-predictive check on the proportion-at-zero (floor-rule diagnostic).
 
     Compares the observed fraction of zero post-scores to the posterior-predictive
-    distribution of that fraction under the graded Beta-Binomial model — the check
-    that reveals whether the graded model reproduces the floor (it typically does
-    not for ``P``/``N``, which motivates the binary exploratory estimand).
-    Returns the observed proportion, the predictive mean, and the
-    posterior-predictive p-value ``P(rep >= observed)``; the per-draw replicated
-    proportions are returned under ``"rep"`` for plotting.
+    distribution of that fraction under the graded Beta-Binomial model. Returns
+    the observed proportion, the predictive mean, both inclusive predictive tails
+    and their capped two-sided tail area. The inclusive definitions matter because
+    this is a discrete statistic with frequent ties. ``ppc_p_value`` is retained as
+    a compatibility alias for the upper tail. The per-draw replicated proportions
+    are returned under ``"rep"`` for plotting.
     """
     post = np.asarray(prepared.post_counts[symbol], dtype=float)
     finite = post[np.isfinite(post)]
@@ -622,10 +622,16 @@ def proportion_at_zero_ppc(
     pp = trace.posterior_predictive[node]
     yrep = pp.stack(sample=("chain", "draw")).transpose("sample", "obs_id").values  # (S, n_obs)
     rep_p0 = np.mean(yrep == 0.0, axis=1)  # (S,)
+    upper_tail = float(np.mean(rep_p0 >= obs_p0))
+    lower_tail = float(np.mean(rep_p0 <= obs_p0))
+    two_sided_tail = min(1.0, 2.0 * min(upper_tail, lower_tail))
     return {
         "obs_prop_at_zero": obs_p0,
         "ppc_mean_prop_at_zero": float(np.mean(rep_p0)),
-        "ppc_p_value": float(np.mean(rep_p0 >= obs_p0)),
+        "ppc_upper_tail": upper_tail,
+        "ppc_lower_tail": lower_tail,
+        "ppc_two_sided_tail": two_sided_tail,
+        "ppc_p_value": upper_tail,
         "rep": rep_p0,
     }
 

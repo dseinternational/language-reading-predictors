@@ -176,27 +176,41 @@ _csv("offfloor_movers.csv")
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("proportion_at_zero_ppc.png", "Proportion-at-zero PPC (graded model)"))
-print(
-    "\n_How to read it:_ the histogram is the proportion of scores at the floor the "
-    "fitted model predicts across simulated datasets; the vertical line is the "
-    "observed proportion. The observed line sitting inside the bulk of the histogram "
-    "means the model reproduces the floor well."
+_graded = _csv("tau_summary_graded.csv")
+_graded_ok = (
+    _graded is not None
+    and str(_graded.iloc[0].get("converged", "")).lower() == "true"
 )
+if _graded_ok:
+    print(_img("proportion_at_zero_ppc.png", "Proportion-at-zero PPC (graded model)"))
+    print(
+        "\n_How to read it:_ the histogram is the proportion of scores at the floor the "
+        "fitted model predicts across simulated datasets; the vertical line is the "
+        "observed proportion. The observed line sitting inside the bulk of the histogram "
+        "means the model reproduces the floor well."
+    )
+else:
+    print(
+        "::: {.callout-warning title=\"Graded posterior-predictive check suppressed\"}\n"
+        "The graded secondary did not pass its own all-parameter convergence gate, "
+        "so its posterior-predictive check is not interpreted.\n"
+        ":::"
+    )
 ```
 
 ```{python}
 # | echo: false
-_csv("proportion_at_zero_ppc.csv")
+_floor_ppc = _csv("proportion_at_zero_ppc.csv")
+_floor_ppc if _graded_ok else None
 ```
 
 ```{python}
 # | echo: false
 # | output: asis
-_floor_ppc = _csv("proportion_at_zero_ppc.csv")
-if _floor_ppc is not None:
-    _p = float(_floor_ppc.iloc[0].ppc_p_value)
-    _two_sided = min(1.0, 2 * min(_p, 1 - _p))
+if _graded_ok and _floor_ppc is not None:
+    _upper = float(_floor_ppc.iloc[0].ppc_upper_tail)
+    _lower = float(_floor_ppc.iloc[0].ppc_lower_tail)
+    _two_sided = float(_floor_ppc.iloc[0].ppc_two_sided_tail)
     if _two_sided < 0.05:
         _reading = "does not reproduce the aggregate zero rate well"
     elif _two_sided < 0.10:
@@ -204,8 +218,9 @@ if _floor_ppc is not None:
     else:
         _reading = "makes the observed aggregate zero rate unexceptional"
     print(
-        f"The graded Beta-Binomial {_reading} (one-sided posterior-predictive "
-        f"tail area {_p:.3f}; two-sided tail area {_two_sided:.3f}). This check "
+        f"The graded Beta-Binomial {_reading} (inclusive lower/upper "
+        f"posterior-predictive tail areas {_lower:.3f}/{_upper:.3f}; "
+        f"two-sided tail area {_two_sided:.3f}). This check "
         "diagnoses one feature of the working likelihood; it neither makes the "
         "post-hoc binary choice prospective nor, by itself, validates the graded "
         "item-exchangeability assumption."
@@ -223,17 +238,13 @@ The graded effect below is reported for completeness only; with most post-scores
 ```{python}
 # | echo: false
 # | output: asis
-_graded = _csv("tau_summary_graded.csv")
-_graded_ok = False
-if _graded is not None:
-    _graded_ok = str(_graded.iloc[0].get("converged", "")).lower() == "true"
-    if not _graded_ok:
-        print(
-            "::: {.callout-warning title=\"Graded secondary suppressed: convergence gate not passed\"}\n"
-            "The graded secondary exists, but its own all-parameter convergence flag "
-            "is failed or unavailable. Its effect estimate is therefore not rendered.\n"
-            ":::"
-        )
+if _graded is not None and not _graded_ok:
+    print(
+        "::: {.callout-warning title=\"Graded secondary suppressed: convergence gate not passed\"}\n"
+        "The graded secondary exists, but its own all-parameter convergence flag "
+        "is failed or unavailable. Its effect estimate is therefore not rendered.\n"
+        ":::"
+    )
 ```
 
 ```{python}

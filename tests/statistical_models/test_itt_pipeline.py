@@ -242,6 +242,9 @@ def fast_pipeline(monkeypatch, tmp_path):
         lambda *args, **kwargs: {
             "obs_prop_at_zero": 0.75,
             "ppc_mean_prop_at_zero": 0.60,
+            "ppc_upper_tail": 0.20,
+            "ppc_lower_tail": 0.85,
+            "ppc_two_sided_tail": 0.40,
             "ppc_p_value": 0.20,
             "rep": np.array([0.5, 0.7]),
         },
@@ -681,6 +684,10 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
     graded = pd.read_csv(out / "tau_summary_graded.csv").iloc[0]
     assert bool(graded["converged"])
     assert graded["trace_file"] == "trace_graded_secondary.nc"
+    floor_ppc = pd.read_csv(out / "proportion_at_zero_ppc.csv").iloc[0]
+    assert floor_ppc["ppc_upper_tail"] == pytest.approx(0.20)
+    assert floor_ppc["ppc_lower_tail"] == pytest.approx(0.85)
+    assert floor_ppc["ppc_two_sided_tail"] == pytest.approx(0.40)
 
     cfg = json.loads((out / "config.json").read_text())
     floor_meta = cfg["extra"]["floor_rule"]

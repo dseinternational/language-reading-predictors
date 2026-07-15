@@ -133,7 +133,11 @@ def test_floor_report_renders_same_estimand_bounds_and_gates_secondaries():
 
     assert "floor_transition_missingness_bounds.csv" in floor_results
     assert "full_randomised_population" not in floor_results  # driven by the CSV
-    assert "_two_sided" in floor_results
+    assert "ppc_two_sided_tail" in floor_results
+    assert "1 - _p" not in floor_results
+    assert "_floor_ppc if _graded_ok else None" in floor_results
+    assert "if _graded_ok and _floor_ppc is not None" in floor_results
+    assert "Graded posterior-predictive check suppressed" in floor_results
     assert "typically cannot reproduce" not in floor_results
     assert "tau_summary_hurdle.csv" in floor_results
     assert "_hurdle_ok" in floor_results

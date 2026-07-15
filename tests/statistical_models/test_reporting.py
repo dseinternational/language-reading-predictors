@@ -1168,8 +1168,30 @@ def test_proportion_at_zero_ppc():
     out = proportion_at_zero_ppc(prepared, "N", SimpleNamespace(posterior_predictive=pp))
     assert out["obs_prop_at_zero"] == pytest.approx(0.5)  # 2 of 4 are zero
     assert out["ppc_mean_prop_at_zero"] == pytest.approx(0.5)  # mean(0.75, 0.25)
-    assert out["ppc_p_value"] == pytest.approx(0.5)  # P(rep >= 0.5)
+    assert out["ppc_upper_tail"] == pytest.approx(0.5)  # P(rep >= 0.5)
+    assert out["ppc_lower_tail"] == pytest.approx(0.5)  # P(rep <= 0.5)
+    assert out["ppc_two_sided_tail"] == pytest.approx(1.0)
+    assert out["ppc_p_value"] == out["ppc_upper_tail"]  # compatibility alias
     assert out["rep"].shape == (2,)
+
+
+def test_proportion_at_zero_ppc_counts_exact_ties_in_both_tails():
+    prepared = SimpleNamespace(post_counts={"N": np.array([0.0, 1.0])})
+    # Every replicated zero rate exactly equals the observed rate. Both inclusive
+    # tails, and therefore the capped two-sided tail, must be one rather than zero.
+    yrep = np.array([[[0, 1], [0, 1], [0, 1]]], dtype=float)
+    pp = xr.Dataset(
+        {"y_post": (("chain", "draw", "obs_id"), yrep)},
+        coords={"chain": [0], "draw": [0, 1, 2], "obs_id": np.arange(2)},
+    )
+
+    out = proportion_at_zero_ppc(
+        prepared, "N", SimpleNamespace(posterior_predictive=pp)
+    )
+
+    assert out["ppc_upper_tail"] == pytest.approx(1.0)
+    assert out["ppc_lower_tail"] == pytest.approx(1.0)
+    assert out["ppc_two_sided_tail"] == pytest.approx(1.0)
 
 
 def test_eti_bands_nesting_and_quantiles():

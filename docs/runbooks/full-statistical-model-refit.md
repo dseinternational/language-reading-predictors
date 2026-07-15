@@ -11,7 +11,7 @@ A start-to-finish checklist for refitting **every registered Bayesian statistica
 
 This runbook is the operational companion to the [`lrp-fit-statistical`](../../.claude/skills/lrp-fit-statistical/SKILL.md) skill (which covers the _science_ — estimands, the convergence gate, how to read each family) and to `METHODS.md`. It captures the **workflow and the gotchas** — the things that are not obvious from the scripts and that cost time the first time round. A worked example of its output is `notes/202607131300-full-statistical-refit-reporting.md`.
 
-**Time budget:** a full `reporting` sweep of 115 models + renders is roughly **1.5–2 h on 16 cores**. Most fits are fast (a typical ITT fit is ~40 s under `nutpie`); the slow tail is the growth / mediation / HSGP / LCSM / `corr_factor` models. Plan to run the fit step in the background.
+**Time budget:** the current full `reporting` sweep auto-discovers 150 models, including eight historical-cohort models, and should be treated as a several-hour background job on 16 cores. Most fits are fast (a typical ITT fit is ~40 s under `nutpie`); the slow tail is the growth / mediation / HSGP / LCSM / factor models. Recompute the registry count before each sweep rather than relying on this snapshot.
 
 ---
 
@@ -90,10 +90,11 @@ python scripts/fit_statistical_model.py lrp-rli-mm-001 --config reporting --rend
 
 ## Step 2 — Verify the fits and triage the convergence gate
 
-**Confirm all models fitted.** There are 115 registered models; the count must match:
+**Confirm all models fitted.** Compare the auto-discovered registry count with the number of completed reporting directories; they must match. At 2026-07-15 the expected count is 150 (142 RLI models plus eight historical RLM models):
 
 ```bash
-ls -d output/statistical_models/models/*-reporting | wc -l   # expect 115
+python -c "from language_reading_predictors.statistical_models.registry import discover_models; print(len(discover_models()))"
+ls -d output/statistical_models/models/*-reporting | wc -l
 ```
 
 **Read the gate.** Each `diagnostics_summary.json` has `passed` + `checks` = {rhat, ess, divergences, bfmi}. Thresholds: **r̂ ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.30, zero divergences** (the divergence check fails on _any_ divergence). A quick sweep of what passed and what to look at:
@@ -112,12 +113,7 @@ for d in sorted(glob.glob("output/statistical_models/models/*-reporting")):
 PY
 ```
 
-**Triage — do not silently accept or silently reject flags.** Expected, usable flags:
-
-- **Divergence-only, ≤ ~0.5 % of draws** (GP/HSGP mechanism surfaces, dose slopes, horseshoe funnel): within the METHODS ≤ 1 % guidance — **usable**, note them.
-- **A genuine concern** looks like `mm-001` (`corr_factor`): a latent-factor funnel with a mild r̂/ESS miss. Its **correlations are robust** (the deliverable); its **structural leg is read cautiously**. Hold structural coefficients pending a non-centred reparameterisation or higher `--target-accept`.
-
-Confirm **no headline causal estimand sits on a flagged model** before publishing. `--target-accept 0.97` (or `0.99`) is the first lever to chase away divergences on a hard geometry.
+**Triage — a failed gate is not reporting-ready.** Do not interpret or publish a flagged fit as though it passed, including a fit with only a small number of divergences. Refit after addressing the failure: `--target-accept 0.97` (or `0.99`) is the first lever for isolated divergences, while persistent funnels require reparameterisation. Record failed attempts and the corrective action rather than silently dropping them.
 
 ---
 
@@ -240,7 +236,7 @@ Every full refit gets a dated `notes/` note. Follow `METHODS.md` "Interpret / Re
 
 | Family                 | File                                                        | Read                                                                                                                                                                                                |
 | ---------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `itt`                  | `tau_summary.csv` / `rope_summary.csv`                      | `tau_prob_median`, CI, `prob_ame_pos`, `favoured_direction_label` (`prob_tau_pos` is a compatibility alias); floored P/N → `offfloor_movers.csv`                                                   |
+| `itt`                  | `tau_summary.csv` / `rope_summary.csv`                      | `tau_prob_median`, CI, `prob_ame_pos`, `favoured_direction_label` (`prob_tau_pos` is a compatibility alias); floored P/N → `offfloor_movers.csv`                                                    |
 | `joint`                | `tau_contrast_matrix.csv`                                   | pairwise P(effect_i > effect_j); generalisation contrasts                                                                                                                                           |
 | `did`                  | `did_summary.csv`                                           | `tau_t2` is the randomised causal contrast; `arm_gap_t1` checks balance; `arm_gap_t3` and `delta_crossover = tau_t2 - arm_gap_t3` are post-crossover associations; every dose term is observational |
 | `gain_factors`         | `treatment_marginal.csv`                                    | `trt_prob_*` (the only causal coefficient)                                                                                                                                                          |

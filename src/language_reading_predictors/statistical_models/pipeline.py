@@ -725,7 +725,8 @@ def _save_proportion_at_zero_plot(
         plt.xlabel(f"proportion of {symbol} post-scores at zero")
         plt.ylabel("posterior-predictive density")
         plt.title(
-            f"Proportion-at-zero PPC ({symbol}); p = {ppc0['ppc_p_value']:.2f}"
+            f"Proportion-at-zero PPC ({symbol}); two-sided tail = "
+            f"{ppc0['ppc_two_sided_tail']:.2f}"
         )
         plt.legend()
         # Scalar PPC summary (rep excluded) is already written to CSV by the
