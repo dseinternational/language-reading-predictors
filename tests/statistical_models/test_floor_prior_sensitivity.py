@@ -40,6 +40,8 @@ from language_reading_predictors.statistical_models.sensitivity import (
     tau_psense_status,
 )
 
+# ``scripts`` is not an installed package, so load the CLI independently of
+# whether pytest itself placed the repository root on ``sys.path``.
 _SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "tau_prior_sensitivity.py"
 _SCRIPT_SPEC = spec_from_file_location("_lrp_floor_tau_prior_sensitivity", _SCRIPT_PATH)
 if _SCRIPT_SPEC is None or _SCRIPT_SPEC.loader is None:
