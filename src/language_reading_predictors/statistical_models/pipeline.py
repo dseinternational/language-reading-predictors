@@ -726,7 +726,8 @@ def _save_proportion_at_zero_plot(
         plt.xlabel(f"proportion of {symbol} post-scores at zero")
         plt.ylabel("posterior-predictive density")
         plt.title(
-            f"Proportion-at-zero PPC ({symbol}); p = {ppc0['ppc_p_value']:.2f}"
+            f"Proportion-at-zero PPC ({symbol}); two-sided tail = "
+            f"{ppc0['ppc_two_sided_tail']:.2f}"
         )
         plt.legend()
         # Scalar PPC summary (rep excluded) is already written to CSV by the
@@ -882,7 +883,7 @@ def _write_predicted_scores(
 
 
 def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
-    """Heatmap of the joint pairwise contrast matrix P(tau_k > tau_j) (#125 Area 4)."""
+    """Heatmap of joint pairwise probability-scale AME ordering (#125 Area 4)."""
     try:
         import numpy as _np
 
@@ -896,10 +897,11 @@ def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
             for j in range(len(labels)):
                 if _np.isfinite(M[i, j]):
                     ax.text(j, i, f"{M[i, j]:.2f}", ha="center", va="center", fontsize=7)
-        ax.set_title("P(row tau > column tau)", fontsize=9)
+        ax.set_title("P(row AME > column AME)", fontsize=9)
         cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        cbar.set_label("P(row tau > column tau)", fontsize=8)
-        fig.tight_layout()
+        cbar.set_label("P(row AME > column AME)", fontsize=8)
+        # ``save_styled_figure`` owns the layout engine. Switching engines after
+        # a colorbar has been created raises on recent Matplotlib versions.
         save_styled_figure(ctx.output_dir, "contrast_heatmap", fig=fig)
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]Contrast heatmap failed: {exc}[/yellow]")
@@ -1068,6 +1070,133 @@ def _attach_built(ctx: StatisticalFitContext, built) -> None:
     _emit_priors(ctx)
 
 
+def _write_itt_analysis_audit(
+    ctx: StatisticalFitContext,
+    prepared,
+    outcomes: Sequence[str],
+) -> None:
+    """Persist fitted-arm counts and full-randomised extreme-case bounds.
+
+    The fitted frame may be outcome-, covariate- or subgroup-restricted. Bounds
+    are therefore calculated from a fresh outcome-only frame that retains every
+    archived child with a group code, without requiring its baseline. This keeps
+    the 57-person randomised denominator separate from model-specific
+    complete-case selection.
+    """
+
+    from language_reading_predictors.statistical_models.itt_audit import (
+        analysis_set_table,
+        randomised_postscore_bounds,
+    )
+
+    analysis_frames = []
+    bound_frames = []
+    multiple = len(outcomes) > 1
+    for symbol in outcomes:
+        analysis = analysis_set_table(prepared, outcome_symbol=symbol)
+        if multiple:
+            analysis.insert(0, "outcome", symbol)
+        analysis_frames.append(analysis)
+
+        attrition_source = load_and_prepare(
+            path=getattr(prepared, "data_path", None) or None,
+            phase_mode="itt",
+            outcomes=(symbol,),
+            pre_required=(),
+        )
+        bound_frames.append(randomised_postscore_bounds(attrition_source, symbol))
+
+    analysis_df = pd.concat(analysis_frames, ignore_index=True)
+    bounds_df = pd.concat(bound_frames, ignore_index=True)
+    analysis_df.to_csv(os.path.join(ctx.output_dir, "analysis_set.csv"), index=False)
+    bounds_df.to_csv(os.path.join(ctx.output_dir, "attrition_bounds.csv"), index=False)
+    ctx.tables["analysis_set"] = analysis_df
+    ctx.tables["attrition_bounds"] = bounds_df
+
+
+def _write_itt_ppc_calibration(
+    ctx: StatisticalFitContext,
+    prepared,
+    outcomes: Sequence[str],
+    *,
+    node: str = "y_post",
+    filename: str = "posterior_predictive_calibration.csv",
+) -> pd.DataFrame:
+    """Save bounded-score PPC metrics by arm and baseline band.
+
+    Joint fits additionally persist one outcome-wide median/Q3/IQR calibration
+    row per outcome. That marginal shape check catches discrepancies that can be
+    hidden by means and boundary rates calculated in small strata.
+    """
+
+    from language_reading_predictors.statistical_models.ppc_audit import (
+        score_ppc_by_arm_and_baseline,
+        score_ppc_distribution_shape,
+    )
+
+    predictive = np.asarray(ctx.trace.posterior_predictive[node].values, dtype=float)
+    frames = []
+    shape_frames = []
+    if len(outcomes) == 1 and predictive.shape[-1] == prepared.n_obs:
+        symbol = outcomes[0]
+        observed = None
+        denominator = None
+        if node == "y_offfloor":
+            observed = (prepared.post_counts[symbol] > 0).astype(float)
+            denominator = 1
+        frames.append(
+            score_ppc_by_arm_and_baseline(
+                prepared,
+                symbol,
+                predictive,
+                observed_counts=observed,
+                n_trials=denominator,
+                ci_prob=ctx.reporting.ci_prob,
+            )
+        )
+    else:
+        constant = ctx.trace.constant_data
+        cell_rows = np.asarray(constant["y_post_cell_row"].values, dtype=int).ravel()
+        cell_outcomes = np.asarray(
+            constant["y_post_cell_outcome"].values, dtype=int
+        ).ravel()
+        if predictive.shape[-1] != cell_rows.size:
+            raise ValueError("joint posterior-predictive cells do not match cell map")
+        for outcome_index, symbol in enumerate(outcomes):
+            selected = cell_outcomes == outcome_index
+            outcome_rows = cell_rows[selected]
+            frames.append(
+                score_ppc_by_arm_and_baseline(
+                    prepared,
+                    symbol,
+                    predictive[..., selected],
+                    row_indices=outcome_rows,
+                    ci_prob=ctx.reporting.ci_prob,
+                )
+            )
+            shape_frames.append(
+                score_ppc_distribution_shape(
+                    symbol,
+                    predictive[..., selected],
+                    np.asarray(prepared.post_counts[symbol], dtype=float)[outcome_rows],
+                    n_trials=int(prepared.n_trials[symbol]),
+                    ci_prob=ctx.reporting.ci_prob,
+                )
+            )
+
+    calibration = pd.concat(frames, ignore_index=True)
+    calibration.to_csv(os.path.join(ctx.output_dir, filename), index=False)
+    ctx.tables[os.path.splitext(filename)[0]] = calibration
+    if shape_frames:
+        shape_calibration = pd.concat(shape_frames, ignore_index=True)
+        shape_filename = "posterior_predictive_shape_calibration.csv"
+        shape_calibration.to_csv(
+            os.path.join(ctx.output_dir, shape_filename), index=False
+        )
+        ctx.tables[os.path.splitext(shape_filename)[0]] = shape_calibration
+    return calibration
+
+
 def _run_sampling_and_loo(
     ctx: StatisticalFitContext, *, compute_loo: bool = True
 ) -> None:
@@ -1083,6 +1212,7 @@ def _run_sampling_and_loo(
         section_header("LOO-PSIS")
         _diag.compute_log_likelihood_and_loo(ctx)
         _report.write_loo_summary(ctx)
+        _write_loo_influence(ctx)
         _print_loo_row(ctx)
 
 
@@ -1269,9 +1399,10 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # set (default = every other ITT outcome).
     extra_outcomes = spec.extra.get("outcomes")
     cross_symbols = spec.extra.get("cross_symbols")
-    # Post-only / age-only outcomes (e.g. nonword N) exempt their baseline from
-    # the complete-case mask via ``pre_required`` so missing pre-scores on a
-    # baseline the model never uses do not silently drop rows (#119).
+    # Age-only outcomes (e.g. nonword N) can exempt baseline from the loader's
+    # complete-case mask via ``pre_required``. The floor branch then reports
+    # missing eligibility explicitly and restricts its transition estimand to
+    # observed baseline zeros; the all-child graded secondary does not use pre.
     pre_required = spec.extra.get("pre_required")
     if pre_required is not None:
         pre_required = tuple(pre_required)
@@ -1311,8 +1442,9 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Build model")
 
-    # Heavily-floored outcomes (P, N) take the pre-specified floor-rule branch:
-    # a binary off-floor estimand as PRIMARY plus a graded SECONDARY (#119).
+    # Heavily-floored outcomes (P, N) take the post-hoc, data-adaptive
+    # floor-rule branch in this reanalysis: a binary transition estimand as the
+    # exploratory headline plus graded secondary checks (#119/#341).
     if spec.extra.get("floor_rule", False):
         return _fit_itt_floor_rule(ctx, spec, prepared, adjust_for)
 
@@ -1329,8 +1461,13 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         tau_moderator_symbol=spec.extra.get("tau_moderator_symbol"),
         tau_moderator_is_covariate=spec.extra.get("tau_moderator_is_covariate", False),
         tau_moderator_interaction=spec.extra.get("tau_moderator_interaction", True),
+        tau_sigma=spec.extra.get("tau_sigma"),
+        alpha_sigma=spec.extra.get("alpha_sigma"),
+        gamma_own_sigma=spec.extra.get("gamma_own_sigma"),
+        kappa_sigma=spec.extra.get("kappa_sigma"),
     )
     _attach_built(ctx, built)
+    _write_itt_analysis_audit(ctx, built.prepared, (spec.outcome_symbol,))
 
     _render_model_graph(ctx)
 
@@ -1343,6 +1480,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.summary_diagnostics(ctx, var_names=_itt_diag_vars(spec, adjust_for))
 
     _run_ppc(ctx)
+    _write_itt_ppc_calibration(ctx, built.prepared, (spec.outcome_symbol,))
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=_itt_diag_vars(spec, adjust_for))
@@ -1490,11 +1628,13 @@ def _fit_itt_floor_rule(
 ) -> StatisticalFitContext:
     """Floor-rule fit for heavily-floored outcomes P / N (#119).
 
-    Fits two age-only models on the same prepared data: the PRIMARY binary
-    off-floor estimand (Bernoulli on ``post > 0``) and a flagged,
-    detection-limited SECONDARY graded Beta-Binomial. Writes ``tau_summary.csv``
-    (off-floor, primary), the per-arm mover table, the proportion-at-zero PPC,
-    and ``tau_summary_graded.csv``. The floor rule is pre-specified and arm-blind.
+    Fits two age-only models: the post-hoc exploratory binary off-floor
+    transition (Bernoulli on ``post > 0`` among observed baseline zeros) and a
+    flagged, detection-limited secondary graded Beta-Binomial. Writes
+    ``tau_summary.csv`` (off-floor exploratory headline), the per-arm mover table,
+    the proportion-at-zero PPC, and ``tau_summary_graded.csv``. The floor rule is
+    post-hoc and data-adaptive in this reanalysis, although its mechanical gate is
+    applied arm-blind.
     """
     import pymc as pm
 
@@ -1502,39 +1642,96 @@ def _fit_itt_floor_rule(
 
     own = spec.outcome_symbol
 
-    # Pre-specification gate: the floor rule is fixed before fitting and applied
-    # arm-blind, so the outcome must actually qualify (>= 40% at zero at t2).
+    # Data-adaptive gate: the outcome must actually qualify (>= 40% at zero at
+    # t2). Applying it arm-blind avoids using treatment labels in this mechanical
+    # classification, but does not make the post-hoc choice pre-specified.
     p0 = _floor.proportion_at_zero(prepared, own)
     if not _floor.is_floored(prepared, own):
         raise ValueError(
             f"floor_rule set for {own!r}, but only {p0:.0%} of its post-scores "
             f"are at zero at t2 (threshold {_floor.FLOOR_THRESHOLD:.0%}); the "
-            "floor rule is pre-specified and arm-blind - remove floor_rule or "
+            "post-hoc floor gate is arm-blind - remove floor_rule or "
             "check the data."
         )
-    # Restrict the PRIMARY to the baseline-floored at-risk subset (pre == 0 at t1),
-    # so the estimand is the pre-specified off-floor TRANSITION Pr(post > 0 | pre == 0)
-    # rather than off-floor prevalence over everyone (issue #267 / #119). pre == 0 is
-    # pre-randomisation, so this is a legitimate subgroup ITT.
+
+    # Make eligibility and its missingness visible before restricting. The
+    # registered loader retains missing pre-scores for P/N, so without this table
+    # those children would disappear silently when np.isclose(NaN, floor) is false.
+    eligibility = _floor.baseline_floor_eligibility_by_arm(prepared, own)
+    eligibility.to_csv(
+        os.path.join(ctx.output_dir, "baseline_floor_eligibility.csv"), index=False
+    )
+    ctx.tables["baseline_floor_eligibility"] = eligibility
+    eligibility_sensitivity = _floor.baseline_floor_status_bounds(prepared, own)
+    eligibility_sensitivity.to_csv(
+        os.path.join(ctx.output_dir, "floor_eligibility_sensitivity.csv"), index=False
+    )
+    ctx.tables["floor_eligibility_sensitivity"] = eligibility_sensitivity
+    transition_missingness = _floor.binary_transition_missingness_bounds(prepared, own)
+    transition_missingness.to_csv(
+        os.path.join(ctx.output_dir, "floor_transition_missingness_bounds.csv"),
+        index=False,
+    )
+    ctx.tables["floor_transition_missingness_bounds"] = transition_missingness
+    print_table(
+        ranked_dataframe_table(
+            eligibility,
+            title=f"Observed baseline-floor eligibility by arm ({own})",
+            columns=[
+                "arm",
+                "n_loaded",
+                "n_post_observed",
+                "n_pre_observed",
+                "n_pre_missing",
+                "n_pre_floor",
+                "n_pre_above_floor",
+                "n_exploratory_eligible",
+            ],
+            rank_column=False,
+            precision=0,
+        )
+    )
+
+    # Restrict the exploratory headline to children with an *observed* baseline
+    # score of zero. This targets Pr(post > 0 | observed pre == 0), rather than
+    # prevalence over everyone. Baseline status is pre-randomisation, so the arm
+    # contrast remains causally valid for this observed subgroup, subject to the
+    # missingness assumptions stated in the report.
     at_risk = restrict_to_baseline_floored(prepared, own)
+    n_eligible = int(eligibility["n_exploratory_eligible"].sum())
+    # This equality relies on the single-outcome loader requiring this outcome's
+    # post-score; revisit it before applying the floor rule to a joint outcome load.
+    if at_risk.n_obs != n_eligible:
+        raise RuntimeError(
+            f"floor-rule eligibility count drift for {own!r}: restriction kept "
+            f"{at_risk.n_obs}, eligibility table reports {n_eligible}"
+        )
     # Guard: the subgroup ITT is only identified if the at-risk subset keeps both
     # arms and enough rows. If a future floored outcome had (say) all baseline-floored
-    # children in one arm, tau would be unidentified and the PRIMARY posterior
+    # children in one arm, tau would be unidentified and the headline posterior
     # degenerate — fail loudly rather than publish it (issue #267 review).
     _n_arms = int(np.unique(at_risk.G).size)
     if at_risk.n_obs < 10 or _n_arms < 2:
         raise ValueError(
             f"floor rule for {own!r}: the baseline-floored at-risk subset is "
             f"degenerate (n={at_risk.n_obs}, arms present={_n_arms}) — the subgroup "
-            "ITT Pr(post>0 | pre==0) is not identified. Re-check the floor rule / "
+            "contrast Pr(post>0 | observed pre==0) is not identified. Re-check "
+            "the floor rule / "
             "data or fit a different estimand."
         )
+    _write_itt_analysis_audit(ctx, at_risk, (own,))
+    missing_by_arm = ", ".join(
+        f"{row.arm}: {int(row.n_pre_missing)}"
+        for row in eligibility.itertuples(index=False)
+    )
     rprint(
         f"  Floor rule: {own} is {p0:.0%} floored at t2 "
-        f"(>= {_floor.FLOOR_THRESHOLD:.0%}); PRIMARY is the off-floor TRANSITION "
-        f"Pr(off-floor at t2 | at floor at t1) on the {at_risk.n_obs} baseline-floored "
-        f"children (of {prepared.n_obs}); a graded Beta-Binomial over all children "
-        "and a graded contrast among off-floor children are flagged SECONDARIES."
+        f"(>= {_floor.FLOOR_THRESHOLD:.0%}); the post-hoc exploratory headline is "
+        f"Pr(off-floor at t2 | observed at floor at t1) on {at_risk.n_obs} "
+        f"eligible children (of {prepared.n_obs} with an available t2 outcome). "
+        f"Missing baseline eligibility by arm — {missing_by_arm}. A graded "
+        "Beta-Binomial over all children and a graded contrast among off-floor "
+        "children are flagged secondaries."
     )
 
     common = dict(
@@ -1547,8 +1744,11 @@ def _fit_itt_floor_rule(
         adjust_for=adjust_for,
     )
 
-    # ----- PRIMARY: binary off-floor TRANSITION (Bernoulli on post > 0 | pre == 0) -----
-    section_header("Build model (PRIMARY: off-floor transition among baseline-floored)")
+    # ----- EXPLORATORY HEADLINE: binary transition among observed baseline zeros. -----
+    section_header(
+        "Build model (post-hoc headline: off-floor transition among observed "
+        "baseline-floor children)"
+    )
     built = _factories.build_itt_model(
         at_risk, likelihood="bernoulli_offfloor", **common
     )
@@ -1567,6 +1767,12 @@ def _fit_itt_floor_rule(
     )
 
     _run_ppc(ctx, var_names=["y_offfloor"])
+    _write_itt_ppc_calibration(
+        ctx,
+        built.prepared,
+        (own,),
+        node="y_offfloor",
+    )
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(
@@ -1583,7 +1789,7 @@ def _fit_itt_floor_rule(
         overlay_vars=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
     )
 
-    section_header("Off-floor treatment-effect summary (PRIMARY)")
+    section_header("Off-floor treatment-effect summary (post-hoc exploratory headline)")
     off = _report.tau_summary_offfloor(
         ctx.trace, ci_prob=ctx.reporting.ci_prob, G=built.prepared.G
     )
@@ -1595,9 +1801,9 @@ def _fit_itt_floor_rule(
         metrics_table(
             [{"metric": k, "value": v} for k, v in off.items()],
             title=(
-                f"off-floor transition tau ({own}, baseline-floored at-risk) - "
+                f"off-floor transition tau ({own}, observed baseline-floor subgroup) - "
                 f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed); positive = "
-                "intervention raises Pr(off-floor at t2 | at floor at t1)"
+                "intervention raises Pr(off-floor at t2 | observed at floor at t1)"
             ),
             columns=["metric", "value"],
         )
@@ -1679,7 +1885,7 @@ def _fit_itt_floor_rule(
 
     s = ctx.sampling
 
-    def _fit_secondary(built_x, *, label: str):
+    def _fit_secondary(built_x, *, label: str, trace_filename: str):
         with built_x.model:
             tr = pm.sample(
                 draws=s.draws,
@@ -1699,17 +1905,30 @@ def _fit_itt_floor_rule(
                 random_seed=s.random_seed,
                 progressbar=False,
             )
-        conv = _diag.subfit_convergence(tr, label=label, var_names=["tau"])
+        # Gate every free variable: a well-mixed tau cannot rescue a non-mixing
+        # kappa/alpha/age term because those nuisance parameters determine the
+        # fitted mean and posterior predictive distribution (#341).
+        free_names = [rv.name for rv in built_x.model.free_RVs]
+        conv = _diag.subfit_convergence(tr, label=label, var_names=free_names)
         summ = _report.tau_summary_itt(tr, ci_prob=ctx.reporting.ci_prob, G=built_x.prepared.G)
-        summ["converged"] = conv["converged"]
+        summ.update(conv)
+        # Secondary estimates are publication artefacts too. Persist the trace
+        # so every convergence value and posterior can be audited independently
+        # of the exploratory off-floor fit.
+        tr.to_netcdf(os.path.join(ctx.output_dir, trace_filename))
+        summ["trace_file"] = trace_filename
         return tr, summ
 
     # ----- SECONDARY (flagged cross-check): graded Beta-Binomial over ALL children.
-    # Not the primary — it mixes already-off-floor children into a mover analysis and
+    # Not the exploratory headline — it mixes already-off-floor children into a mover analysis and
     # is detection-limited; read only beside the mover table, never alone (#119).
     section_header("Build model (SECONDARY cross-check: graded Beta-Binomial, all children)")
     built_g = _factories.build_itt_model(prepared, likelihood="beta_binomial", **common)
-    trace_g, graded = _fit_secondary(built_g, label=f"{spec.model_id} graded cross-check")
+    trace_g, graded = _fit_secondary(
+        built_g,
+        label=f"{spec.model_id} graded cross-check",
+        trace_filename="trace_graded_secondary.nc",
+    )
     pd.DataFrame([graded]).to_csv(
         os.path.join(ctx.output_dir, "tau_summary_graded.csv"), index=False
     )
@@ -1735,7 +1954,9 @@ def _fit_itt_floor_rule(
             off_floor_data, likelihood="beta_binomial", **common
         )
         _trace_h, hurdle = _fit_secondary(
-            built_h, label=f"{spec.model_id} off-floor-subset graded contrast"
+            built_h,
+            label=f"{spec.model_id} off-floor-subset graded contrast",
+            trace_filename="trace_hurdle_secondary.nc",
         )
         hurdle["n_off_floor"] = int(off_floor_data.n_obs)
         hurdle["untruncated_proxy"] = True
@@ -1749,9 +1970,8 @@ def _fit_itt_floor_rule(
             f"only {off_floor_data.n_obs} off-floor rows (need >= 8, both arms).[/yellow]"
         )
 
-    # Proportion-at-zero PPC on the graded model: does the graded Beta-Binomial
-    # reproduce the observed floor? (Usually not - the motivation for the binary
-    # primary estimand.)
+    # Proportion-at-zero PPC on the graded model: assess whether the graded
+    # Beta-Binomial reproduces the observed floor.
     ppc0 = _report.proportion_at_zero_ppc(built_g.prepared, own, trace_g)
     _save_proportion_at_zero_plot(ctx, own, ppc0)
     pd.DataFrame([{k: v for k, v in ppc0.items() if k != "rep"}]).to_csv(
@@ -1766,11 +1986,23 @@ def _fit_itt_floor_rule(
                 "outcome": own,
                 "proportion_at_zero": p0,
                 "threshold": _floor.FLOOR_THRESHOLD,
-                "primary_estimand": "Pr(off-floor at t2 | at floor at t1)",
+                "status": "post_hoc_data_adaptive",
+                "arm_blind_gate": True,
+                "exploratory_estimand": (
+                    "Pr(off-floor at t2 | observed at floor at t1)"
+                ),
                 "at_risk_n": int(at_risk.n_obs),
                 "total_n": int(prepared.n_obs),
+                "baseline_missing_n": int(eligibility["n_pre_missing"].sum()),
+                "eligibility_by_arm": eligibility.to_dict(orient="records"),
+                "eligibility_status_sensitivity": eligibility_sensitivity.to_dict(
+                    orient="records"
+                ),
+                "transition_missingness_bounds": transition_missingness.to_dict(
+                    orient="records"
+                ),
             },
-            "tau_offfloor_primary": off,
+            "tau_offfloor_exploratory": off,
             "tau_graded_secondary": graded,
             "tau_hurdle_secondary": hurdle,
             "proportion_at_zero_ppc": {k: v for k, v in ppc0.items() if k != "rep"},
@@ -1814,12 +2046,19 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_age_linear=spec.extra.get("use_age_linear", False),
     )
     _attach_built(ctx, built)
+    _write_itt_analysis_audit(ctx, built.prepared, joint_outcomes)
 
     _render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or joint_outcomes[0])
+    for index, symbol in enumerate(joint_outcomes):
+        stem = (
+            "prior_predictive_check"
+            if index == 0
+            else f"prior_predictive_check_{symbol.lower()}"
+        )
+        _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
 
     _run_sampling_and_loo(ctx)
 
@@ -1831,26 +2070,62 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         _joint_vars.append("sigma_outcome")
     _diag.summary_diagnostics(ctx, var_names=_joint_vars)
 
-    _run_ppc(ctx)
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    for index, symbol in enumerate(joint_outcomes):
+        stem = (
+            "posterior_predictive_check"
+            if index == 0
+            else f"posterior_predictive_check_{symbol.lower()}"
+        )
+        _diag.save_joint_posterior_predictive_plot(
+            ctx, symbol, filename_stem=stem
+        )
+    _write_itt_ppc_calibration(ctx, built.prepared, joint_outcomes)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=_joint_vars)
-    _diag.run_extended_diagnostics(ctx, causal_term="tau")
+    # The generic LOO-PIT would pool flattened cells from tests with different
+    # denominators. Save one calibrated plot per outcome instead.
+    _diag.run_extended_diagnostics(ctx, causal_term="tau", include_loo_pit=False)
+    for index, symbol in enumerate(joint_outcomes):
+        stem = "loo_pit" if index == 0 else f"loo_pit_{symbol.lower()}"
+        _diag.save_joint_loo_pit_plot(ctx, symbol, filename_stem=stem)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_joint_vars)
-    # One forest of every outcome's tau — the single most communicative joint artifact.
-    _save_forest_plot(ctx, ["tau"])
+    # The probability-scale AMEs in tau_summary.csv are the headline effects. This
+    # forest is deliberately retained as an explicitly labelled secondary view of
+    # the conditional-logit coefficients.
+    _save_forest_plot(
+        ctx,
+        ["tau"],
+        title="Secondary conditional-logit coefficients (forest, reference line at 0)",
+    )
 
     section_header("Treatment-effect summary")
     outcomes = list(ctx.trace.posterior["outcome"].values)
-    tau_df = _report.tau_summary_joint(ctx.trace, outcomes, ci_prob=ctx.reporting.ci_prob)
+    tau_df = _report.tau_summary_joint(
+        ctx.trace,
+        outcomes,
+        ci_prob=ctx.reporting.ci_prob,
+        G=built.prepared.G,
+    )
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
     ctx.tables["tau_summary"] = tau_df
     print_table(
         ranked_dataframe_table(
             tau_df,
-            title=f"tau by outcome - {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)",
-            columns=["outcome", "tau_median", "tau_lo", "tau_hi", "prob_pos"],
+            title=(
+                "Probability-scale AME by outcome - "
+                f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
+            ),
+            columns=[
+                "outcome",
+                "ame_prob_median",
+                "ame_prob_lo",
+                "ame_prob_hi",
+                "prob_ame_pos",
+            ],
             rank_column=False,
         )
     )
@@ -1875,21 +2150,42 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     ctx.tables["joint_treatment_marginal"] = joint_marginal
 
-    contrast = _report.tau_contrast_matrix(ctx.trace, outcomes)
+    contrast = _report.tau_contrast_matrix(
+        ctx.trace, outcomes, G=built.prepared.G, scale="probability"
+    )
     contrast.to_csv(os.path.join(ctx.output_dir, "tau_contrast_matrix.csv"))
     ctx.tables["tau_contrast_matrix"] = contrast
     _save_contrast_heatmap(ctx, contrast)
 
-    meta_extra: dict = {"loo_elpd": float(ctx.loo.elpd)}
+    logit_contrast = _report.tau_contrast_matrix(
+        ctx.trace, outcomes, G=built.prepared.G, scale="logit"
+    )
+    logit_contrast.to_csv(
+        os.path.join(ctx.output_dir, "tau_contrast_matrix_logit.csv")
+    )
+    ctx.tables["tau_contrast_matrix_logit"] = logit_contrast
 
-    # Headline difference parameter for a two-outcome contrast (LRPITT15/15b: taught vs
-    # not-taught). ``difference = (a, b)`` reports the posterior of tau[a]-tau[b].
+    meta_extra: dict = {
+        "loo_elpd": float(ctx.loo.elpd),
+        "joint_structure": built.extras.get("joint_dependence"),
+        "loo_unit": built.extras.get("loo_unit", "child"),
+        "outcomes": list(joint_outcomes),
+    }
+
+    # Two-outcome contrast (LRPITT15/15b/16). ``difference = (a, b)`` reports the
+    # headline probability-scale AME[a] - AME[b] and retains tau[a] - tau[b] as a
+    # secondary conditional-logit contrast.
     difference = spec.extra.get("difference")
     if difference is not None:
         pair = tuple(difference)
         section_header("Treatment-effect difference")
         diff_s = _report.tau_difference_summary(
-            ctx.trace, outcomes, pair, ci_prob=ctx.reporting.ci_prob
+            ctx.trace,
+            outcomes,
+            pair,
+            ci_prob=ctx.reporting.ci_prob,
+            G=built.prepared.G,
+            metadata=spec.extra.get("difference_metadata"),
         )
         diff_df = pd.DataFrame([diff_s])
         diff_df.to_csv(os.path.join(ctx.output_dir, "tau_difference.csv"), index=False)
@@ -1898,13 +2194,15 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             metrics_table(
                 [{"metric": k, "value": v} for k, v in diff_s.items()],
                 title=(
-                    f"tau[{pair[0]}] - tau[{pair[1]}] "
-                    f"- {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
+                    f"AME[{pair[0]}] - AME[{pair[1]}] (probability-scale headline; "
+                    f"logit secondary) - {int(ctx.reporting.ci_prob * 100)}% CI "
+                    "(equal-tailed)"
                 ),
                 columns=["metric", "value"],
             )
         )
         meta_extra["tau_difference"] = diff_s
+        meta_extra["difference_metadata"] = spec.extra.get("difference_metadata")
 
     _report.write_run_metadata(ctx, extra=meta_extra)
 
@@ -3299,6 +3597,10 @@ def fit_mediation_period_stacked(
     row restriction to ``mediation_summary_p1.csv``. No t3 temporal-ordering
     sensitivity is fitted — the stacked design already spans every window, and
     its mediator/outcome remain contemporaneous within each period by design.
+    The named-IS calibration is deliberately left to #324's family-wide decision:
+    this model's exposure is an ignorability-based per-period treatment indicator,
+    not MED-064's randomised phase-0 group, so importing the treated-arm benchmark
+    here would silently change its interpretation (#335 placement decision).
     """
     _require_spec(spec, "mediation")
     from language_reading_predictors.statistical_models import mediation as _med
@@ -4455,7 +4757,20 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         if s not in ("G", "A", "W_pre", *_mediator_baselines)
     )
     _raw_cov = _raw_covariate_confounders(confounders)
-    prepared = load_and_prepare(phase_mode="itt", covariates=_raw_cov)
+    _calibration = spec.extra.get("named_confounder_calibration")
+    _calibration_symbol = (
+        str(_calibration.get("symbol", "attend")) if _calibration else None
+    )
+    # A named-confounder calibration needs the observed covariate but must not add
+    # it to the fitted natural-effects model: IS is treatment-affected, so
+    # conditioning on it would not identify the NDE/NIE. It is loaded only for the
+    # post-fit, treated-arm omitted-variable-bias benchmark (#335).
+    _loaded_cov = tuple(
+        dict.fromkeys(
+            [*_raw_cov, *([_calibration_symbol] if _calibration_symbol else [])]
+        )
+    )
+    prepared = load_and_prepare(phase_mode="itt", covariates=_loaded_cov)
     # Drop any missing-indicator constant on the ITT-phase rows (see fit_mediation).
     confounders = tuple(
         c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
@@ -4523,6 +4838,70 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         )
     )
 
+    section_header("Per-leg NIE sensitivity (unmeasured confounding)")
+    sens_sweep, sens_summary = _med.sensitivity_sweep_two_mediator(
+        ctx.trace,
+        med_data,
+        ci_prob=ctx.reporting.ci_prob,
+        order=tuple(spec.extra.get("order", ("L", "E"))),
+    )
+    sens_sweep.to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity.csv"), index=False
+    )
+    sens_summary.to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity_summary.csv"), index=False
+    )
+    ctx.tables["mediation_sensitivity"] = sens_sweep
+    ctx.tables["mediation_sensitivity_summary"] = sens_summary
+    for row in sens_summary.to_dict("records"):
+        mediator = row["mediator"]
+        if row["already_null_at_zero"]:
+            rprint(
+                f"  NIE_{mediator} is not credibly nonzero at delta=0 — no "
+                "non-zero path-specific effect to explain away."
+            )
+        elif row["robust_over_full_sweep"]:
+            max_delta = sens_sweep.loc[
+                sens_sweep["mediator"] == mediator, "delta"
+            ].max()
+            rprint(
+                f"  NIE_{mediator} remains nonzero across its full sweep "
+                f"(delta <= {max_delta:.2f} logit)."
+            )
+        else:
+            rprint(
+                f"  NIE_{mediator} tipping point delta*={row['tipping_delta']:.3f} "
+                f"({row['tipping_frac_of_effective_slope']:.0%} of the fitted "
+                "treatment-arm mediator->outcome slope)."
+            )
+        if not row["joint_already_null_at_zero"]:
+            if row["joint_robust_over_full_sweep"]:
+                rprint(
+                    f"  NIE_joint remains nonzero across the {mediator}-leg sweep."
+                )
+            else:
+                rprint(
+                    f"  NIE_joint reaches zero at delta="
+                    f"{row['joint_tipping_delta']:.3f} when attenuating the "
+                    f"{mediator} leg."
+                )
+
+    calibration_df = None
+    if _calibration_symbol:
+        section_header("Named-confounder calibration (intervention sessions)")
+        calibration_df = _med.calibrate_session_confounding(
+            built.prepared,
+            med_data,
+            sens_summary,
+            session_symbol=_calibration_symbol,
+        )
+        calibration_df.to_csv(
+            os.path.join(ctx.output_dir, "mediation_is_calibration.csv"), index=False
+        )
+        ctx.tables["mediation_is_calibration"] = calibration_df
+        for conclusion in calibration_df["conclusion"]:
+            rprint(f"  {conclusion}")
+
     _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
     # Requested vs actually-fitted confounders, recorded separately (#246 review, P2).
     _requested_raw = _raw_covariate_confounders(
@@ -4536,10 +4915,14 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             "adjustment": spec.adjustment,
             "effective_confounders": list(confounders),
             "dropped_confounders": [c for c in _requested_raw if c not in confounders],
-            "n_obs": ctx.prepared.n_obs,
+            "n_obs": built.prepared.n_obs,
             "mediators": list(mediators),
             "n_trials_W": med_data.n_trials_W,
             "mediation": _summary,
+            "mediation_sensitivity": sens_summary.to_dict("records"),
+            "named_confounder_calibration": (
+                calibration_df.to_dict("records") if calibration_df is not None else None
+            ),
         },
     )
 
@@ -4698,13 +5081,13 @@ def _natural_scale_contrasts(
 
 
 def _influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
-    """Per-child PSIS-LOO Pareto-k, to flag whether a few children drive the fit.
+    """Persistable PSIS-LOO Pareto-k values for the likelihood's LOO units.
 
-    Returns ``(dataframe, threshold, n_flagged)`` — the per-child k sorted
+    Returns ``(dataframe, threshold, n_flagged)`` — the pointwise k values sorted
     descending (aligned to ``subject_ids``), the ``good_k`` threshold, and how
-    many children exceed it. At n ~ 51 this guards against a headline association
-    resting on 2-3 influential children. Returns ``(None, None, None)`` if the
-    LOO object exposes no per-observation k.
+    many points exceed it. A point is one child in the single-period ITT/joint
+    families, but one child-by-period row in repeated-measures families. Returns
+    ``(None, None, None)`` if the LOO object exposes no aligned pointwise k.
     """
     if ctx.loo is None or getattr(ctx.loo, "pareto_k", None) is None:
         return None, None, None
@@ -4714,11 +5097,36 @@ def _influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
         return None, None, None
     thr = float(getattr(ctx.loo, "good_k", 0.7) or 0.7)
     df = (
-        pd.DataFrame({"subject_id": ids, "pareto_k": k})
+        pd.DataFrame(
+            {
+                "observation_index": np.arange(len(k), dtype=int),
+                "subject_id": ids,
+                "pareto_k": k,
+            }
+        )
         .sort_values("pareto_k", ascending=False)
         .reset_index(drop=True)
     )
     return df, thr, int((k > thr).sum())
+
+
+def _write_loo_influence(ctx: StatisticalFitContext) -> pd.DataFrame | None:
+    """Persist pointwise Pareto-k values and explicit reliability flags.
+
+    A sampler-convergence PASS does not guarantee that importance-sampled LOO is
+    reliable.  Persisting the values makes the ``k > good_k`` gate available to
+    report templates and downstream audits instead of leaving it visible only in
+    a plot or the free-text ArviZ summary.
+    """
+    influence, threshold, _ = _influence_diagnostics(ctx)
+    if influence is None or threshold is None:
+        return None
+    out = influence.copy()
+    out["good_k_threshold"] = threshold
+    out["loo_reliable"] = out["pareto_k"] <= threshold
+    out.to_csv(os.path.join(ctx.output_dir, "pareto_k.csv"), index=False)
+    ctx.tables["pareto_k"] = out
+    return out
 
 
 def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -6948,11 +7356,15 @@ def _lcf_items_scale(ctx, built) -> pd.DataFrame:
 
 _LCF_CA_COMPARISONS = {
     "L": ("R", "E", "TR", "TE"),
+    "R": ("L", "B"),
+    "E": ("L", "B"),
     "TR": ("L", "B"),
     "TE": ("L", "B"),
 }
 _LCF_CA_MODEL_IDS = {
     "L": "lrp-rli-ca-002",
+    "R": "lrp-rli-ca-005",
+    "E": "lrp-rli-ca-006",
     "TR": "lrp-rli-ca-003",
     "TE": "lrp-rli-ca-004",
 }
@@ -7024,7 +7436,7 @@ def _lcf_concurrent_comparison(
 ) -> pd.DataFrame:
     """Reproducible directed comparison with matching #312 associations.
 
-    For each cross-domain target/predictor pair shared with CA002--004, translate
+    For each cross-domain target/predictor pair shared with CA002--006, translate
     the LCF's latent conditional slope to target items for a one same-wave-SD
     increase in the observed predictor. The translation conditions on the other
     latent domains and is evaluated at the target's observed wave-mean logit. Place
@@ -7419,7 +7831,7 @@ def fit_longitudinal_corr_factor(
         rprint(
             "[yellow]Directed #312 comparison is incomplete: "
             f"{n_ca_available}/{len(concurrent_df)} matching concurrent rows were "
-            "found under this output root/config. Fit CA002--004 at the same tier "
+            "found under this output root/config. Fit CA002--006 at the same tier "
             "to populate the missing side.[/yellow]"
         )
 

@@ -1,3 +1,6 @@
+> [!NOTE]
+> Substantially corrected for floor-estimand provenance by a LLM-based AI tool (Codex/GPT-5) on 2026-07-15.
+
 # LRPITT suite — design decisions (issue #119)
 
 > [!NOTE]
@@ -43,32 +46,16 @@ the immediate-intervention arm), so a **positive τ means the intervention raise
 the outcome**. This overrides the (stale) "negative τ" wording in the issue body,
 which predates the sign flip bundled with the locked DAG.
 
-### Floored outcomes — pre-specified floor rule (P, N)
+### Floored outcomes — post-hoc exploratory floor rule (P, N)
 
-Phonetic spelling (P, ~78% at zero at t2) and nonword reading (N, ~72%) are
-heavily floored at the _outcome_, so a graded Beta-Binomial τ is leveraged by a
-few dispersed tail values rather than by the arm contrast. A rule fixed **before
-fitting** and applied **arm-blind** (`floor.is_floored`, threshold ≥ 40% at zero
-at t2) handles them: drop the degenerate own baseline (age-only predictor), report
-a **binary "off-floor at t2" estimand** (`Pr(post > 0)`, Bernoulli/logistic τ) as
-**PRIMARY**, and retain the graded Beta-Binomial τ only as a flagged,
-**detection-limited SECONDARY** read beside per-arm off-floor mover counts. P and N
-are treated **identically** (the rule removes per-outcome researcher choice).
-Diagnostics: a proportion-at-zero PPC + the mover table. This implements the
-issue's floor-rule branch (the full deliberation is in
-`notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md`). The
-"uniformity-purist" fallback was **not** adopted.
+Phonetic spelling and nonword reading are heavily floored: the baseline zero rates are about 78% for P and 72% for N, while both t2 zero rates are about 64%. A graded Beta-Binomial τ is therefore leveraged by a few dispersed tail values rather than by the arm contrast. The ≥40% t2 gate was adopted after inspecting the trial's outcome distribution and earlier results; arm-blind application reduces treatment-label-driven choice but does not make the rule prospective. The current branch must therefore be described as a **post-hoc, data-adaptive exploratory estimand**. It drops the degenerate own baseline, reports `Pr(post > 0 | observed pre = 0)` among children with observed baseline-floor status as the exploratory headline, and retains the graded Beta-Binomial τ as a flagged, detection-limited secondary read beside per-arm mover counts. Diagnostics include a proportion-at-zero PPC, the mover table, missing eligibility by arm and eligibility-status bounds. The full deliberation is in `notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md`.
 
 Word reading (W, ~40% floored at _baseline_ but not at the t2 post-score) does not
 trip the rule and stays a graded own-baseline model.
 
 ### N post-only handling
 
-Nonword is the repo's "post-only" measure and has four missing t1 baselines. The
-new `pre_required` parameter of `load_and_prepare` exempts N's baseline from the
-complete-case mask (so those four children are kept), while the GROUP/AGE and
-post-presence checks still apply; the factory's `use_own_baseline=False` path never
-indexes the (unused) N baseline.
+Nonword is the repo's "post-only" measure and has missing t1 baselines. The `pre_required` parameter of `load_and_prepare` exempts N's baseline from the initial complete-case mask so missing eligibility remains visible, while the GROUP/AGE and post-presence checks still apply. The transition estimand itself then restricts to children with `observed pre = 0`; it does not silently treat missing baselines as zero or retain them in the fitted subgroup.
 
 ### Joint companion (LRPITT12) — N excluded, P graded
 

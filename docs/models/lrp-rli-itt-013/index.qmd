@@ -1,5 +1,5 @@
 ---
-title: "LRPITT13: SES-adjusted ITT effect of group assignment on word reading (W)"
+title: "LRPITT13: SES-adjusted modified-ITT offer effect on word reading (W)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -23,12 +23,11 @@ format:
 
 ## Overview
 
-LRPITT13 is the **SES-adjusted** ITT analysis for word reading (EWRSWR) (`ewrswr`) — the SES-robustness companion to LRPITT10. It uses the uniform LRPITT spec plus linear adjustment for parental education (`MUMEDUPOST16`, `DADEDUPOST16`) and age first exposed to books (`AGEBOOKS`). Requesting these covariates triggers complete-case dropping, so the fit runs on the SES-complete subset; LRPITT14 is the matched unadjusted comparator on the same rows, so LRPITT13 vs LRPITT14 isolates the SES adjustment with the sample held fixed. The estimand is the total effect of randomised assignment $G$ on $W_{\text{post}}$ (RCT phase only).
+LRPITT13 is the **SES-adjusted available-case modified-ITT** analysis for word reading (EWRSWR) (`ewrswr`)—the SES-robustness companion to LRPITT10. It uses the uniform specification plus linear adjustment for parental education (`MUMEDUPOST16`, `DADEDUPOST16`) and age first exposed to books (`AGEBOOKS`). Requesting these covariates imposes an additional SES complete-case restriction beyond the outcome-specific observed-data requirement; LRPITT14 is the matched unadjusted comparator on exactly those rows, so LRPITT13 versus LRPITT14 isolates adjustment with the selected sample held fixed. The estimand is the randomised offer effect on $W_{\text{post}}$ in that SES-complete fitted sample, not a full-population effect for all 57 randomised children.
 
 ::: {.callout-note title="Identification and sign convention"}
 
-Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
-identified by the **empty adjustment set**. The own baseline, linear age, and the SES adjusters, are
+Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ in the SES-complete fitted sample without adjustment. Extending it beyond that selected observed-data sample requires ignorable exclusion and missingness. The own baseline, linear age, and the SES adjusters, are
 **precision terms only** — they sharpen $\tau$ but are not what licenses the causal
 interpretation. **Sign convention:** $G = 1$ is the intervention arm, so a
 **positive** $\tau$ means the intervention raises the outcome.

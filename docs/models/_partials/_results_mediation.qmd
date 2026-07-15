@@ -109,36 +109,65 @@ check, not as a replacement estimand.
 
 ### Unmeasured mediator–outcome confounding sensitivity
 
-The no-unmeasured-mediator–outcome-confounding assumption above is the binding one; this quantifies how fragile the indirect effect is to violating it. We sweep a bias δ off the mediator→outcome coefficient (`b_M`) — the share of the fitted mediator→reading association one attributes to an unmeasured confounder — and re-run the same g-formula, reporting the **tipping point**: the δ at which the indirect effect's credible interval first includes zero, expressed as a fraction of the fitted coefficient (a Bayesian E-value analogue). Larger ⇒ more robust; it bounds robustness, it does not prove absence of confounding.
+The no-unmeasured-mediator–outcome-confounding assumption above is the binding one; this quantifies how fragile the indirect effect is to violating it. For a single mediator, we sweep a bias δ off `b_M`. For a two-mediator decomposition, we run two one-dimensional sweeps: attenuate one mediator→outcome leg at a time, hold the other fixed, and track both that leg's path-specific NIE and the preferred joint NIE. The tipping point is the δ at which the relevant credible interval first includes zero, also expressed as a fraction of the fitted treatment-arm slope (a Bayesian E-value analogue). Larger means more robust within the stated sweep; it bounds robustness but does not establish the absence of confounding. A two-dimensional surface is omitted because it would multiply g-formula runs without sharpening either per-leg decision at this sample size.
 
 ```{python}
 # | echo: false
 # | output: asis
 _sens = _csv("mediation_sensitivity_summary.csv")
 if _sens is not None:
-    _s = _sens.iloc[0]
-    _robust = bool(_s.get("robust_over_full_sweep", False))
-    if bool(_s.get("already_null_at_zero", False)):
-        _msg = (
-            "The indirect effect is not credibly non-zero at δ = 0, so there is no "
-            "indirect effect to explain away — the sensitivity question does not apply here."
-        )
+    if "mediator" in _sens.columns:
+        for _, _s in _sens.iterrows():
+            _q = _s["quantity"]
+            if bool(_s["already_null_at_zero"]):
+                _leg_msg = (
+                    f"`{_q}` is not credibly non-zero at δ = 0, so there is no "
+                    "non-zero path-specific effect to explain away."
+                )
+            elif bool(_s["robust_over_full_sweep"]):
+                _leg_msg = f"`{_q}` remains non-zero across the full one-leg sweep."
+            else:
+                _leg_msg = (
+                    f"`{_q}` reaches its tipping point at δ* ≈ {_s.tipping_delta:.2f}, "
+                    f"about {_s.tipping_frac_of_effective_slope:.0%} of its fitted "
+                    "treatment-arm mediator→outcome slope."
+                )
+            if bool(_s["joint_already_null_at_zero"]):
+                _joint_msg = "The joint NIE is already inconclusive at δ = 0."
+            elif bool(_s["joint_robust_over_full_sweep"]):
+                _joint_msg = (
+                    f"The joint NIE remains non-zero across the full {_s.mediator}-leg sweep."
+                )
+            else:
+                _joint_msg = (
+                    f"The joint NIE first includes zero at δ ≈ {_s.joint_tipping_delta:.2f} "
+                    f"when the {_s.mediator} leg is attenuated."
+                )
+            print(f"**{_q}:** {_leg_msg} {_joint_msg}\n\n")
     else:
-        _msg = (
-            (
-                "The indirect effect's interval excludes zero across the entire sweep: "
-                "no single unmeasured mediator–outcome confounder in this range nulls it."
+        _s = _sens.iloc[0]
+        _robust = bool(_s.get("robust_over_full_sweep", False))
+        if bool(_s.get("already_null_at_zero", False)):
+            _msg = (
+                "The indirect effect is not credibly non-zero at δ = 0, so there is no "
+                "indirect effect to explain away — the sensitivity question does not apply here."
             )
-            if _robust
-            else (
-                f"**Tipping point:** an unmeasured mediator–outcome confounder inducing "
-                f"a spurious mediator→reading association of δ* ≈ {_s.tipping_delta:.2f} "
-                f"on the logit scale — about **{_s.tipping_frac_of_bM:.0%}** of the "
-                f"fitted mediator→outcome coefficient — would be enough to bring the "
-                f"indirect effect's interval to zero."
+        else:
+            _msg = (
+                (
+                    "The indirect effect's interval excludes zero across the entire sweep: "
+                    "no single unmeasured mediator–outcome confounder in this range nulls it."
+                )
+                if _robust
+                else (
+                    f"**Tipping point:** an unmeasured mediator–outcome confounder inducing "
+                    f"a spurious mediator→reading association of δ* ≈ {_s.tipping_delta:.2f} "
+                    f"on the logit scale — about **{_s.tipping_frac_of_bM:.0%}** of the "
+                    f"fitted mediator→outcome coefficient — would be enough to bring the "
+                    f"indirect effect's interval to zero."
+                )
             )
-        )
-    print(_msg)
+        print(_msg)
 else:
     print("No mediation sensitivity summary.")
 ```
@@ -146,4 +175,22 @@ else:
 ```{python}
 # | echo: false
 _csv("mediation_sensitivity.csv")
+```
+
+```{python}
+# | echo: false
+# | output: asis
+_is_cal = _csv("mediation_is_calibration.csv")
+if _is_cal is not None:
+    print(
+        "### Named-confounder calibration: intervention sessions (IS)\n\n"
+        "The abstract δ sweep is benchmarked against observed phase-0 session attendance. Within the treated arm, each row compares the adjusted mediator→reading slope before and after adding standardised `attend`; the attenuation-aligned change is `delta_is`, with a child-bootstrap interval. Restricting to treated children avoids treating the wait-list arm's structural zero sessions as low voluntary attendance. This same-sample slope-change construction is used for both legs: for E it is a direct adjusted `attend → E` association, empirically representing the DAG's indirect `IS → TE → EV` ancestry without multiplying two separately estimated associations. The stacked DID-007 dose slope is not substituted because its period-stacked estimand and scale are not commensurate with the phase-0 δ. This is a plausibility benchmark, not adjustment that identifies a natural effect.\n\n"
+    )
+    for _sentence in _is_cal["conclusion"]:
+        print(f"- {_sentence}\n")
+```
+
+```{python}
+# | echo: false
+_is_cal if _is_cal is not None else ""
 ```
