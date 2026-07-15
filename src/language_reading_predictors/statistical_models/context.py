@@ -73,6 +73,30 @@ class ModelSpec:
     audit_baseline: str | None = None
     """Reproduction / audit baseline this model checks against, if any."""
 
+    def __post_init__(self) -> None:
+        """Fill the shared RLI ITT audit metadata when a spec omits it.
+
+        The trial randomised 57 children, while the modelling file begins with the
+        54-child t1 analytic cohort.  The randomised arm coefficient therefore has a
+        causal interpretation for the fitted available-case population under an
+        ignorable-selection assumption; it must not be labelled as an unqualified
+        full-population ITT.  Centralising these defaults prevents the 31 registered
+        ITT/joint modules from drifting in their saved metadata.
+        """
+
+        if self.kind not in {"itt", "joint"}:
+            return
+        if self.family is None:
+            self.family = "itt"
+        if self.design is None:
+            self.design = "waitlist_randomised_t1_to_t2_available_case"
+        if self.estimand_type is None:
+            self.estimand_type = "causal_available_case_randomised_effect"
+        if self.causal_status is None:
+            self.causal_status = "randomised_assignment_conditional_on_observed_analysis_set"
+        if self.dataset_ref is None:
+            self.dataset_ref = "rli:rli_data_long.csv; 54 available of 57 randomised"
+
     @property
     def banner(self) -> str:
         return f"{self.model_id.upper()}: {self.title}"

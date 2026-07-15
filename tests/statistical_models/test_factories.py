@@ -206,6 +206,9 @@ def test_joint_factory_two_outcome_taught_contrast(tmp_path):
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=13)
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs * 2
+    assert pp.prior_predictive["y_post"].dims[-1] == "cell"
+    assert pp.constant_data["y_post_cell_outcome"].dims == ("cell",)
+    assert pp.constant_data["y_post_cell_row"].dims == ("cell",)
 
 
 def test_tau_difference_summary_contrast():
@@ -227,12 +230,25 @@ def test_tau_difference_summary_contrast():
         dims=("chain", "draw", "outcome"),
         coords={"outcome": ["TE", "UE"]},
     )
-    trace = SimpleNamespace(posterior=xr.Dataset({"tau": tau}))
+    G = np.array([1.0, 0.0])
+    eta = np.stack([te, ue], axis=-1)[:, :, None, :] * G[None, None, :, None]
+    posterior = xr.Dataset(
+        {
+            "tau": tau,
+            "eta": (("chain", "draw", "obs_id", "outcome"), eta),
+        },
+        coords={"outcome": ["TE", "UE"]},
+    )
+    trace = SimpleNamespace(
+        posterior=posterior,
+        constant_data=xr.Dataset({"G": ("obs_id", G)}),
+    )
     s = tau_difference_summary(trace, ["TE", "UE"], ("TE", "UE"), ci_prob=0.95)
     assert s["contrast"] == "TE_minus_UE"
     assert s["diff_logit_mean"] > 0.4
     assert 0.9 < s["prob_diff_pos"] <= 1.0
     assert s["diff_logit_lo"] < s["diff_logit_mean"] < s["diff_logit_hi"]
+    assert s["diff_prob_median"] > 0
 
 
 def test_joint_factory_builds(tmp_path):
@@ -818,10 +834,19 @@ def test_concurrent_specs_mirror_core_skill_set():
         lrp_rli_ca_002,
         lrp_rli_ca_003,
         lrp_rli_ca_004,
+        lrp_rli_ca_005,
+        lrp_rli_ca_006,
     )
 
     core = {"W", "L", "B", "TR", "TE", "R", "E"}
-    for mod in (lrp_rli_ca_001, lrp_rli_ca_002, lrp_rli_ca_003, lrp_rli_ca_004):
+    for mod in (
+        lrp_rli_ca_001,
+        lrp_rli_ca_002,
+        lrp_rli_ca_003,
+        lrp_rli_ca_004,
+        lrp_rli_ca_005,
+        lrp_rli_ca_006,
+    ):
         spec = mod.SPEC
         preds = set(spec.extra["predictor_symbols"])
         assert spec.outcome_symbol in core
@@ -971,10 +996,16 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
     expected_slope = 2.0 * 0.8 * 0.44 / (0.8**2 * 0.91 + 0.6**2)
     np.testing.assert_allclose(known_slope, expected_slope, rtol=1e-12, atol=1e-12)
 
-    # The directed #312 comparison is generated from its source tables rather than
-    # hand-transcribed. All 8 target/predictor directions x 4 waves are retained.
+    # The directed #312/#336 comparison is generated from its source tables rather
+    # than hand-transcribed. All 12 target/predictor directions x 4 waves are retained.
     ca_tables = {}
-    comparisons = {"L": ("R", "E", "TR", "TE"), "TR": ("L", "B"), "TE": ("L", "B")}
+    comparisons = {
+        "L": ("R", "E", "TR", "TE"),
+        "R": ("L", "B"),
+        "E": ("L", "B"),
+        "TR": ("L", "B"),
+        "TE": ("L", "B"),
+    }
     for target, predictors in comparisons.items():
         ca_tables[target] = pd.DataFrame(
             [
@@ -1000,7 +1031,7 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
     comparison = _lcf_concurrent_comparison(
         comparison_ctx, built, ca_tables=ca_tables
     )
-    assert len(comparison) == 32
+    assert len(comparison) == 48
     assert comparison["ca_available"].all()
     assert comparison["predictor_contrast"].eq("+1 same-wave SD").all()
     assert np.isfinite(comparison["lcf_items_median"]).all()
@@ -1960,6 +1991,30 @@ def test_itt_tau_sigma_override(tmp_path):
     )
     assert _tau_dist(r.model) == "Normal(0, 0.75)"
     assert _tau_dist(w.model) == "Normal(0, 0.25)"
+
+
+def test_itt_gamma_own_sigma_override(tmp_path):
+    """The baseline-coupling sensitivity widens its prior without moving its mean."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    default = build_itt_model(prep, outcome_symbol="W", cross_symbols=())
+    wider = build_itt_model(
+        prep, outcome_symbol="W", cross_symbols=(), gamma_own_sigma=0.5
+    )
+    assert _tau_dist(default.model, "gamma_own") == "Normal(1, 0.25)"
+    assert _tau_dist(wider.model, "gamma_own") == "Normal(1, 0.5)"
+
+
+def test_itt_kappa_sigma_override(tmp_path):
+    """The dispersion sensitivity reaches the PyMC HalfNormal prior scale."""
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    default = build_itt_model(prep, outcome_symbol="W", cross_symbols=())
+    wider = build_itt_model(
+        prep, outcome_symbol="W", cross_symbols=(), kappa_sigma=100.0
+    )
+    assert _tau_dist(default.model, "kappa") == "HalfNormal(50)"
+    assert _tau_dist(wider.model, "kappa") == "HalfNormal(100)"
 
 
 def test_did_and_gain_and_level_treatment_terms_tiered(tmp_path):

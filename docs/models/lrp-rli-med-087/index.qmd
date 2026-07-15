@@ -17,6 +17,8 @@ format:
 
 ::: {.callout-note}
 Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 {{< include _partials/_header.qmd >}}
@@ -37,9 +39,11 @@ The full mediation-assumption treatment (randomisation handles $G\to Y$/$G\to M$
 
 **Shared session dose.** Intervention sessions $IS$ (`attend`) are a treatment-induced common cause of the mediator and outcome ($IS \to L$ and $IS \to PA$); following the family precedent they are **not** conditioned on, so **shared session dose is a plausible inflator of the NIE via $L$**. The results now locate an observed/fitted IS-strength scenario on the NIE sensitivity surface; this quantifies the caveat but does not repair identification.
 
+**Natural versus interventional estimand.** [MED-187](../lrp-rli-med-187/) is the parent+100 interventional companion: the same joint model and adjustment set, but IDE/IIE replace the cross-world NDE/NIE. In this implementation its IIE should match this model's NIE up to sampling and g-formula Monte Carlo error because both use the same fitted covariate-conditional mediator law. That agreement is an implementation check, not evidence that shared dose is harmless; latent general ability still prevents an identified causal mediation reading.
+
 ::: {.callout-note title="Adjustment set — signed off (2026-07-14), mediation criterion"}
 
-Under the revised DAG the $L \to B$ (letter-sounds → blending) confounders are the common parents of the two skills: age $A$, hearing $HS$ (`hs`) and speech production $SP$ (`deapp_c`), via the missing-indicator method, plus the baseline $L_{t1}$ and the outcome own-baseline $B_{t1}$. **Phonological memory ($RW$) considered and excluded — precision-only:** it is a parent of blending but **not** of letter-sounds, so it is not a common cause of the two and sits on no $L \to B$ backdoor (the one route it touches, $L \leftarrow HS \to RW \to B$, is blocked at the adjusted $HS$). **Intervention sessions $IS$ (`attend`) confirmed NOT adjusted:** $L \leftarrow IS \to B$ is a recanting witness ($IS$ is treatment-affected, $IG \to IS$), which no adjustment set rescues, and conditioning on $IS$ would open the collider $IG \to IS \leftarrow GA \to B$ ($GA$ latent) — strictly worse; #323 supplies the interventional-effect companion and #324 supplies the named-confounder calibration. The time-indexed re-derivation (#250/#264) confirmed this structure and that $E$/$R$ are legitimately absent (no arrows into $L$).
+Under the revised DAG the $L \to B$ (letter-sounds → blending) confounders are the common parents of the two skills: age $A$, hearing $HS$ (`hs`) and speech production $SP$ (`deapp_c`), via the missing-indicator method, plus the baseline $L_{t1}$ and the outcome own-baseline $B_{t1}$. **Phonological memory ($RW$) considered and excluded — precision-only:** it is a parent of blending but **not** of letter-sounds, so it is not a common cause of the two and sits on no $L \to B$ backdoor (the one route it touches, $L \leftarrow HS \to RW \to B$, is blocked at the adjusted $HS$). **Intervention sessions $IS$ (`attend`) confirmed NOT adjusted:** $L \leftarrow IS \to B$ is a recanting witness ($IS$ is treatment-affected, $IG \to IS$), which no adjustment set rescues, and conditioning on $IS$ would open the collider $IG \to IS \leftarrow GA \to B$ ($GA$ latent) — strictly worse. MED-187 supplies the interventional estimand; #324 supplies the named-confounder calibration. The time-indexed re-derivation (#250/#264) confirms the set; $E$/$R$ are legitimately absent because they have no arrows into $L$.
 
 :::
 

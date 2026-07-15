@@ -17,7 +17,7 @@ Targets::
 
 The supported set is MED-059, MED-086 and MED-087.  MED-092 has a different
 period-stacked exposure/estimand and remains outside this calibration; the
-two-mediator family is tracked separately by #335.
+two-mediator MED-064 calibration is handled separately by its fit pipeline (#335).
 """
 
 from __future__ import annotations

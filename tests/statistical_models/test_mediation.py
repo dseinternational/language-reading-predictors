@@ -23,13 +23,17 @@ import xarray as xr
 from language_reading_predictors.statistical_models.factories import (
     build_mediation_model,
     build_period_stacked_mediation_model,
+    build_two_mediator_model,
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.mediation import (
     _proportion_row,
+    calibrate_session_confounding,
     decompose,
     decompose_period_stacked,
+    decompose_two_mediator,
     sensitivity_sweep,
+    sensitivity_sweep_two_mediator,
 )
 from language_reading_predictors.statistical_models.mediation_calibration import (
     SlopeEstimate,
@@ -43,6 +47,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
 from .test_factories import _write_synthetic
 
 _QUANTITIES = {"total", "NDE", "NIE", "proportion_mediated"}
+_INTERVENTIONAL_QUANTITIES = {"total", "IDE", "IIE", "proportion_mediated"}
 # Outcome- and mediator-leg coefficients the decomposition reads, minus the
 # per-confounder ``b_<s>`` / ``a_<s>`` terms (added per test to match the
 # fitted confounder set).
@@ -131,6 +136,73 @@ def test_decompose_offfloor_outcome(tmp_path):
     assert np.allclose(eff["prob_mean"].to_numpy(), eff["words_mean"].to_numpy())
     # Every row carries the off_floor flag so the report labels the scale.
     assert bool(df["off_floor"].iloc[0]) is True
+
+
+def test_decompose_interventional_offfloor_outcome(tmp_path):
+    """#323 (MED-186): the interventional flag and Bernoulli off-floor outcome
+    compose cleanly. The rows use IDE/IIE labels, stay on the risk-difference
+    scale and do not require the graded outcome's absent ``b_W`` coefficient."""
+    prep = _prepare(tmp_path)
+    _, med = build_mediation_model(
+        prep, confounder_symbols=("E", "R"), outcome_kind="bernoulli_offfloor"
+    )
+    names = (
+        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_E", "b_R"]
+        + _BB_MEDIATOR_DRAWS
+        + ["a_E", "a_R", "kappa_M"]
+    )
+    trace = _fake_trace(names, positive=["kappa_M"])
+    natural = decompose(trace, med, n_replicates=4)
+    df = decompose(
+        trace,
+        med,
+        n_replicates=4,
+        interventional=True,
+    )
+    assert set(df["quantity"]) == _INTERVENTIONAL_QUANTITIES
+    eff = df[df["quantity"].isin(["total", "IDE", "IIE"])]
+    assert np.allclose(eff["prob_median"], eff["words_median"])
+    assert bool(df["off_floor"].iloc[0]) is True
+    # The current parametric implementation changes estimand labels/interpretation,
+    # not the numerical functional. With the same trace and random seed, the
+    # parent NIE/NDE and companion IIE/IDE must be exactly equal.
+    natural = natural.replace({"quantity": {"NDE": "IDE", "NIE": "IIE"}})
+    numeric = [c for c in df.columns if c not in ("quantity", "off_floor")]
+    assert np.allclose(
+        natural.set_index("quantity").loc[df["quantity"], numeric],
+        df.set_index("quantity").loc[df["quantity"], numeric],
+        equal_nan=True,
+    )
+
+
+def test_code_route_interventional_specs_mirror_their_parents():
+    """The #323 companions may change only the estimand interpretation and
+    identifying metadata; adjustment sets and model-building options must remain
+    exactly aligned with MED-086/087."""
+    from language_reading_predictors.statistical_models.lrp_rli_med_086 import (
+        SPEC as med086,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_med_087 import (
+        SPEC as med087,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_med_186 import (
+        SPEC as med186,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_med_187 import (
+        SPEC as med187,
+    )
+
+    for parent, companion in ((med086, med186), (med087, med187)):
+        assert companion.kind == parent.kind == "mediation"
+        assert companion.outcome_symbol == parent.outcome_symbol
+        assert companion.mechanism_symbol == parent.mechanism_symbol
+        assert companion.adjustment == parent.adjustment
+        assert companion.adjustment is not parent.adjustment
+        assert companion.extra == {
+            **parent.extra,
+            "estimand": "interventional",
+            "companion_of": parent.model_id,
+        }
 
 
 def test_decompose_gaussian_composite(tmp_path):
@@ -366,6 +438,148 @@ def test_decompose_follows_fitted_confounder_set(tmp_path):
     names = _OUTCOME_DRAWS + ["b_R"] + _BB_MEDIATOR_DRAWS + ["a_R", "kappa_M"]
     df = decompose(_fake_trace(names, positive=["kappa_M"]), med, n_replicates=4)
     assert set(df["quantity"]) == _QUANTITIES
+
+
+# --- Two-mediator per-leg sensitivity + IS calibration (#335) ---------------
+
+_TWO_MEDIATOR_DRAWS = [
+    "b0", "b_G", "b_L", "b_E", "b_GL", "b_GE", "b_W", "b_A", "b_R",
+    "aL0", "aL_G", "aL_L", "aL_A", "aL_R", "kappa_L",
+    "aE0", "aE_G", "aE_E", "aE_A", "aE_R", "kappa_E",
+]
+
+
+def _prepare_two_mediator(tmp_path, n_children: int = 30):
+    p = _write_synthetic(tmp_path, n_children=n_children)
+    prep = load_and_prepare(path=p, phase_mode="itt", covariates=("attend",))
+    built, med = build_two_mediator_model(
+        prep,
+        outcome_symbol="W",
+        mediator_symbols=("L", "E"),
+        confounder_symbols=("R",),
+    )
+    return built.prepared, med
+
+
+def _two_mediator_trace(seed: int = 17):
+    values = {name: 0.0 for name in _TWO_MEDIATOR_DRAWS if not name.startswith("kappa")}
+    values.update({"aL_G": 1.5, "aE_G": 1.0, "b_L": 2.5, "b_E": 1.5})
+    return _fake_trace(
+        _TWO_MEDIATOR_DRAWS,
+        positive=("kappa_L", "kappa_E"),
+        values=values,
+        seed=seed,
+    )
+
+
+def test_decompose_two_mediator_per_leg_shift_attenuates_target(tmp_path):
+    """A shift on the L outcome leg must attenuate NIE_L and the joint NIE."""
+    _, med = _prepare_two_mediator(tmp_path)
+    trace = _two_mediator_trace()
+    base = decompose_two_mediator(trace, med, n_replicates=8).set_index("quantity")
+    shifted = decompose_two_mediator(
+        trace,
+        med,
+        n_replicates=8,
+        b_m_shifts={"L": 2.0},
+    ).set_index("quantity")
+    assert abs(shifted.loc["NIE_L", "prob_median"]) < abs(
+        base.loc["NIE_L", "prob_median"]
+    )
+    assert abs(shifted.loc["NIE_joint", "prob_median"]) < abs(
+        base.loc["NIE_joint", "prob_median"]
+    )
+
+
+def test_sensitivity_sweep_two_mediator_reports_each_leg_and_joint(tmp_path):
+    """Each one-dimensional sweep carries its path NIE and NIE_joint robustness."""
+    _, med = _prepare_two_mediator(tmp_path)
+    sweep, summary = sensitivity_sweep_two_mediator(
+        _two_mediator_trace(),
+        med,
+        n_deltas=6,
+        n_replicates=6,
+    )
+    assert set(sweep["mediator"]) == {"L", "E"}
+    assert (sweep.groupby("mediator")["delta"].first() == 0.0).all()
+    assert {
+        "nie_median", "nie_lo", "nie_hi",
+        "nie_joint_median", "nie_joint_lo", "nie_joint_hi",
+        "delta_frac_of_effective_slope",
+    } <= set(sweep.columns)
+    assert set(summary["mediator"]) == {"L", "E"}
+    assert {
+        "tipping_delta", "already_null_at_zero", "robust_over_full_sweep",
+        "joint_tipping_delta", "joint_already_null_at_zero",
+        "joint_robust_over_full_sweep",
+    } <= set(summary.columns)
+
+
+def test_two_mediator_sweep_generalises_to_blending_and_chain(tmp_path):
+    """MED-066 and chained MED-075 use B-labelled variables, not the E defaults."""
+    p = _write_synthetic(tmp_path, n_children=30)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    names = [
+        "b0", "b_G", "b_L", "b_B", "b_GL", "b_GB", "b_W", "b_A", "b_R",
+        "aL0", "aL_G", "aL_L", "aL_A", "aL_R", "kappa_L",
+        "aB0", "aB_G", "aB_B", "aB_A", "aB_R", "kappa_B",
+    ]
+    for chain in (False, True):
+        _, med = build_two_mediator_model(
+            prep,
+            outcome_symbol="W",
+            mediator_symbols=("L", "B"),
+            confounder_symbols=("R",),
+            chain=chain,
+        )
+        chain_names = [*names]
+        if chain:
+            chain_names.append("aB_L")
+        values = {
+            name: 0.0 for name in chain_names if not name.startswith("kappa")
+        }
+        values.update({"aL_G": 1.2, "aB_G": 0.8, "b_L": 2.0, "b_B": 1.0})
+        trace = _fake_trace(
+            chain_names,
+            positive=("kappa_L", "kappa_B"),
+            values=values,
+            seed=23,
+        )
+        sweep, summary = sensitivity_sweep_two_mediator(
+            trace,
+            med,
+            n_deltas=3,
+            n_replicates=3,
+            order=("L", "B"),
+        )
+        assert set(sweep["mediator"]) == {"L", "B"}
+        assert set(summary["quantity"]) == {"NIE_L", "NIE_B"}
+
+
+def test_session_calibration_returns_one_computed_row_per_leg(tmp_path):
+    """The named IS benchmark is treated-arm only and produces both leg readouts."""
+    prepared, med = _prepare_two_mediator(tmp_path, n_children=40)
+    _, summary = sensitivity_sweep_two_mediator(
+        _two_mediator_trace(seed=19),
+        med,
+        n_deltas=5,
+        n_replicates=4,
+    )
+    calibration = calibrate_session_confounding(
+        prepared,
+        med,
+        summary,
+        n_bootstrap=80,
+        seed=4,
+    )
+    assert set(calibration["mediator"]) == {"L", "E"}
+    assert (calibration["n_treated"] >= 8).all()
+    assert {
+        "delta_is", "delta_is_lo", "delta_is_hi", "tipping_delta",
+        "mediator_is_slope", "outcome_is_slope", "is_band_reaches_tipping",
+        "conclusion",
+    } <= set(calibration.columns)
+    assert calibration["conclusion"].str.contains("NIE_").all()
 
 
 # --- MED-092: period-stacked g-formula on the gain-factor scaffold (#229) ----

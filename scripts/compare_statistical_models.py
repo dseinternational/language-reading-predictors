@@ -55,7 +55,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
 )
 
-# Heavily-floored outcomes whose PRIMARY ITT estimand is the binary off-floor
+# Heavily-floored outcomes whose exploratory ITT headline is the binary off-floor
 # effect (a risk difference), not the graded logit tau shown in the joint. Any of
 # these appearing in a forest/CSV of graded taus is flagged so the artefact does
 # not misrepresent it.
@@ -64,7 +64,7 @@ FLOORED_SYMBOLS: frozenset[str] = frozenset(ROPE_DELTA_PROB)
 
 # Single-outcome ITT models (LRPITT suite, #119) overlaid on the LRPITT12 joint, on
 # the outcomes the joint also carries. The floored outcomes P (lrp-rli-itt-009) and N
-# (lrp-rli-itt-011) are excluded from the graded overlay: their PRIMARY estimand is the
+# (lrp-rli-itt-011) are excluded from the graded overlay: their exploratory headline is the
 # binary off-floor effect, read from their own reports rather than compared to the
 # joint's graded tau. F/T have standalone ITTs but are not outcomes in this joint fit.
 ITT_IDS: list[tuple[str, str]] = [
@@ -497,7 +497,7 @@ def tau_forest(config: str, out_path: str) -> bool:
     ax.axvline(0.0, color="k", lw=0.75, ls="--")
     ax.set_yticks(y)
     # Flag heavily-floored outcomes (P/N): the graded logit tau shown here is NOT
-    # their primary estimand — that is the binary off-floor risk difference, read
+    # their exploratory headline — the binary off-floor risk difference, read
     # from their own reports. Marking them keeps the forest from misrepresenting P.
     floored_present = [s for s in outcomes if s in FLOORED_SYMBOLS]
 
@@ -508,8 +508,8 @@ def tau_forest(config: str, out_path: str) -> bool:
     _caption = []
     if floored_present:
         _caption.append(
-            "† floored outcome — graded τ shown; PRIMARY estimand is the "
-            "binary off-floor risk difference (see model report)"
+            "† floored outcome — graded τ shown; post-hoc exploratory headline is "
+            "the binary off-floor risk difference (see model report)"
         )
     if uni_review or not joint_ok:
         _caption.append(

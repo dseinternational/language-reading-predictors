@@ -340,6 +340,7 @@ equating
 erbnw
 erbto
 erbword
+esac
 estimability
 estimand
 estimands
@@ -356,11 +357,14 @@ followup
 fontsize
 fpsyg
 functionals
+getattr
 gnombo
 gnomo
 gotchas
 handoff
+hashlib
 hclust
+hexdigest
 homoscedasticity
 horseshoe
 hpdi
@@ -375,8 +379,9 @@ importorskip
 incl
 invlogit
 isfinite
-isinstance
 isna
+isinstance
+issubset
 iterdir
 iterrows
 jecp
@@ -440,6 +445,7 @@ nonparametric
 nonword
 nonwords
 nonzero
+nunique
 numchil
 numpy
 nutpie
@@ -461,6 +467,7 @@ parentless
 partialled
 partialling
 pathlib
+pipefail
 pred
 preliz
 prob
@@ -476,6 +483,7 @@ reframing
 reparameterisation
 reparameterise
 reparameterised
+removesuffix
 replite
 repr
 resid
@@ -484,6 +492,7 @@ residualized
 resumable
 retau
 reto
+rglob
 rhat
 ridd
 rlm
