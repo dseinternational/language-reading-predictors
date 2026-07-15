@@ -1095,6 +1095,11 @@ def _run_ppc(ctx: StatisticalFitContext, *, var_names: list[str] | None = None) 
 def _finalize_report(ctx: StatisticalFitContext) -> StatisticalFitContext:
     """Copy the Quarto report template, print the footer, and return the context."""
     section_header("Report")
+    # Key-findings distillation (#320): every family writes key_findings.json
+    # here, after its CSVs and diagnostics_summary.json, so the report's
+    # plain-language box is generated from the fit that produced the numbers.
+    kf = _report.generate_key_findings(ctx.output_dir)
+    rprint(f"  Key findings: {kf['status']} ({len(kf['sentences'])} sentences)")
     _copy_report_template(ctx)
     _print_footer(ctx)
     return ctx

@@ -25,6 +25,8 @@ Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 
 {{< include _partials/_convergence.qmd >}}
 
+{{< include _partials/_key_findings.qmd >}}
+
 ## Overview
 
 LRPGF01 is a **gain-factors** model for word reading (`ewrswr`): what is associated

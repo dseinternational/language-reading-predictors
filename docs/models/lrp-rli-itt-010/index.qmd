@@ -17,9 +17,13 @@ format:
 
 {{< include _partials/_header.qmd >}}
 
+{{< include _partials/_reading_guide.qmd >}}
+
 {{< include _partials/_setup.qmd >}}
 
 {{< include _partials/_convergence.qmd >}}
+
+{{< include _partials/_key_findings.qmd >}}
 
 ## Overview
 

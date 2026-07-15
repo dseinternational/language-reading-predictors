@@ -21,6 +21,8 @@ format:
 
 {{< include _partials/_convergence.qmd >}}
 
+{{< include _partials/_key_findings.qmd >}}
+
 ## Overview
 
 LRPLF01 is a **level-factors** model for word reading (`ewrswr`): what is associated

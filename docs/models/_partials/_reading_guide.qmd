@@ -1,0 +1,18 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
+::: {.callout-note collapse="true" title="How to read this report"}
+
+A short primer on the statistical vocabulary these reports assume, written for a reader who knows frequentist statistics but is newer to Bayesian methods. The project glossary in `METHODS.md` covers each idea in more depth.
+
+- **Posterior distribution.** The model's answer is not one number but a distribution over the plausible values of each quantity, combining the prior (what was assumed before seeing the data) with the data. Every estimate below is a summary of a posterior — usually its median plus an interval.
+- **Credible interval.** A 95% credible interval is a range that holds the quantity with 95% probability, given the model and data — the direct probability statement people often wrongly attach to a frequentist confidence interval (which instead describes how the interval-building procedure performs over repeated samples).
+- **Credible vs prediction interval.** A credible interval describes uncertainty about an average quantity such as the treatment effect; a prediction interval describes where an individual child's score might fall, which is always much wider. The intervals in the findings box are credible intervals.
+- **The ROPE and δ.** The ROPE (region of practical equivalence) is a band around zero, from −δ to +δ, inside which an effect is too small to matter in practice. The minimally-important difference δ was pre-specified and signed off before results were read, so the size-that-matters judgement cannot be tuned to the data.
+- **Causal vs association labels.** Only effects backed by randomisation are labelled *causal*: random assignment balances the groups on everything, measured and unmeasured. Every other coefficient is an *adjusted association* — it may reflect confounding, so it is never read as "X drives Y", and the reports enforce that labelling rather than leaving it to the reader.
+- **The logit scale and items.** The models work on the logit (log-odds) scale, which handles bounded test scores cleanly, but logits are hard to read — so headline effects are translated back into test items (or percentage points for the floored measures).
+- **Beta-Binomial.** The likelihood treats each test score as a number of successes out of the test's maximum, with the Beta part absorbing child-to-child overdispersion.
+- **The convergence gate.** Before any estimate is interpreted, the sampler's output must pass automatic checks (R-hat, effective sample size, divergences, sampling energy); if it fails, the report withholds the findings box and flags the fit for review.
+
+:::

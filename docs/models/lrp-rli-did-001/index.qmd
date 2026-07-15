@@ -25,6 +25,8 @@ Substantially revised by a LLM-based AI tool (Codex/GPT-5).
 
 {{< include _partials/_convergence.qmd >}}
 
+{{< include _partials/_key_findings.qmd >}}
+
 ## Overview
 
 **In plain terms.** LRPDID01 asks how the immediate and waitlist arms differ in word reading at t1, t2 and t3 without forcing the randomised t2 contrast to equal post-crossover catch-up. It is a longitudinal sensitivity analysis alongside LRPITT10, not an independent replication.
