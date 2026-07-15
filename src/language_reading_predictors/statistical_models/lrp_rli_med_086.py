@@ -56,11 +56,12 @@ it is not conditioned on (conditioning on a treatment-affected variable is
 inadmissible for natural effects), and the report names shared session dose as a
 plausible inflator of the NIE via L.
 
-**Provisional pending the time-indexed re-derivation (#250/#264).** This is a
-contemporaneous-graph derivation like the rest of the family; the absence of E/R is
-consistent with the 2026-07-12 hold (EV/RV have no arrows into LS, so they sit on no
-L -> N backdoor), not an oversight, and med-086 is on #264's affected-models table for
-the eventual wave-unrolled sweep.
+**Confirmed by the time-indexed re-derivation (#264;**
+``notes/202607142340-lrp264-mediation-adjustment-dsep.md``): on the wave-unrolled
+graph EV/RV do not enter the mediator's parent set, so the absence of E/R stands;
+the shared-dose structure appears explicitly as the witness backdoor
+``LS_2 <- IS_1 -> PA_2 -> NW_2``, blockable only at treatment descendants — the
+caveat-plus-companions handling (#323/#324) is the right response, not adjustment.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

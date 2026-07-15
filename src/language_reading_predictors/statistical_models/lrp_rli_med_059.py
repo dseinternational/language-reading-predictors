@@ -27,12 +27,11 @@ randomisation handles G->Y and G->M confounding; the binding unverifiable
 assumption is no unmeasured mediator-outcome (L->W) confounding. Under the revised
 DAG the L->W confounders are age (A), hearing (HS; hs/hs_missing) and speech
 production (SP; deapp_c), plus the baselines L_t1, W_pre. **Baseline expressive /
-receptive vocabulary (E, R) are retained** pending the time-indexed d-separation
-(#264): they are measured at **t1 (pre-randomisation)**, so they cannot be
-descendants of the t1->t2 intervention and the recanting-witness / treatment-
-affected-confounder argument does not apply to them; the descendant relation read
-off the contemporaneous graph is not sufficient to drop a baseline measurement.
-Whether they stay is #264's call, on a proper wave-unrolled derivation. All
+receptive vocabulary (E, R) are retained — settled by the time-indexed
+d-separation (#264;** ``notes/202607142340-lrp264-mediation-adjustment-dsep.md``):
+on the wave-unrolled graph they are not descendants of the t1->t2 intervention
+(they precede it), dropping them changes no backdoor-blocking status, and they
+open no backdoor — admissible precision terms here. All
 confounders enter at **baseline (t1)**, not post (t2). The report states the
 assumptions prominently and names residual confounding as the limit.
 
@@ -68,7 +67,8 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="L",  # the mediator
     adjustment=[
-        # E/R retained pending the time-indexed d-separation (#264); the revised-DAG
+        # E/R retained — settled by the time-indexed d-separation (#264;
+        # notes/202607142340-lrp264-mediation-adjustment-dsep.md); the revised-DAG
         # common causes HS/SP added by the missing-indicator method (#246).
         "G", "A", "E", "R", "L_t1", "W_pre",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing",
