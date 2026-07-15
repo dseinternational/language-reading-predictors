@@ -1,3 +1,158 @@
+## Treatment-prior sensitivity release gate
+
+The main power-scaling diagnostic is a local derivative check. When it diagnoses a possible prior-data conflict for `tau`, or when a unique and interpretable `tau` diagnostic is unavailable, scientific interpretation additionally requires the explicit estimand-matched grid: the observed-baseline-floor subgroup, Bernoulli off-floor likelihood, treatment-effect prior SD 0.5/1.0/1.5, and linear age adjustment off/on. Every one of the six fits must pass the all-free-variable convergence gate; each content-addressed trace must contain the declared posterior variables and embedded cell provenance; and the grid's data, model, sample counts, primary config hash, primary trace hash, free-variable set, and sampling provenance must match this report. The release evaluator recomputes convergence, risk differences and posterior probabilities from each trace rather than trusting the CSV declarations.
+
+```{python}
+# | echo: false
+# | output: asis
+from language_reading_predictors.statistical_models.sensitivity import (
+    evaluate_floor_sensitivity,
+    load_primary_floor_reference,
+    tau_psense_status,
+)
+
+_floor_tau_sensitivity = _csv("floor_tau_prior_sensitivity.csv")
+_floor_psense = _csv("psense_summary.csv", index_col=0)
+_floor_psense_status = tau_psense_status(_floor_psense)
+_floor_dir_name = _here.resolve().name
+_floor_model_prefix = f"{config.get('model_id', '')}-"
+_floor_config_name = (
+    _floor_dir_name[len(_floor_model_prefix):]
+    if _floor_model_prefix and _floor_dir_name.startswith(_floor_model_prefix)
+    else ""
+)
+_floor_primary_error = None
+try:
+    _floor_primary_reference = load_primary_floor_reference(
+        _here,
+        _symbol,
+        config_name=_floor_config_name,
+    )
+except Exception as _exc:
+    _floor_primary_reference = None
+    _floor_primary_error = str(_exc)
+_floor_sensitivity_status = evaluate_floor_sensitivity(
+    _floor_tau_sensitivity,
+    _symbol,
+    primary_reference=_floor_primary_reference,
+    trace_root=_here,
+    require_hash_suffix=True,
+)
+
+_floor_grid_required = _floor_psense_status in {"conflict", "unavailable"}
+if _floor_grid_required and not _floor_sensitivity_status["ready"]:
+    _reasons = []
+    if not _floor_sensitivity_status["complete"]:
+        _reasons.append(
+            f"the required grid is absent or incomplete "
+            f"({_floor_sensitivity_status['observed_n']} of "
+            f"{_floor_sensitivity_status['expected_n']} cells available)"
+        )
+    if _floor_sensitivity_status["complete"] and not _floor_sensitivity_status["converged"]:
+        _reasons.append("one or more grid fits failed or lacked convergence diagnostics")
+    if not _floor_sensitivity_status["primary_aligned"]:
+        _reasons.append("the grid does not match this report's current config, trace, data, sample counts, or primary sampling provenance")
+    if _floor_sensitivity_status["complete"] and not _floor_sensitivity_status["traces_present"]:
+        _reasons.append("one or more referenced sensitivity traces is absent")
+    if _floor_sensitivity_status["traces_present"] and not _floor_sensitivity_status["traces_validated"]:
+        _reasons.append("one or more sensitivity traces is corrupt, has the wrong hash or filename, or lacks a declared posterior variable")
+    _floor_gate_title = (
+        "Release gate failed: prior-data conflict is unresolved"
+        if _floor_psense_status == "conflict"
+        else "Release gate failed: tau power-scaling is unavailable"
+    )
+    _floor_gate_context = (
+        "The `tau` power-scaling diagnostic reports a possible prior-data conflict"
+        if _floor_psense_status == "conflict"
+        else "A unique, interpretable `tau` power-scaling diagnosis is unavailable"
+    )
+    print(
+        f"::: {{.callout-important title=\"{_floor_gate_title}\"}}\n\n"
+        + _floor_gate_context
+        + ", and "
+        + "; ".join(_reasons)
+        + ". **This analysis is not ready for scientific interpretation.** Run the full "
+        "floor-specific grid and review its provenance, traces, and every convergence flag before interpreting the "
+        "off-floor effect.\n\n:::"
+    )
+elif _floor_psense_status == "conflict":
+    print(
+        "::: {.callout-warning title=\"Prior-data conflict: explicit grid completed\"}\n\n"
+        "The `tau` power-scaling diagnostic reports a possible prior-data conflict. The "
+        "required six-cell, estimand-matched sensitivity grid is complete, every fit passed "
+        "the trace-recomputed all-free-variable convergence gate, every trace reproduces "
+        "the reported effect summaries, and all cell/provenance hashes match this report. This clears "
+        "the computational release gate; it does not make the floor rule prospective or "
+        "remove the stated missingness limitations.\n\n:::"
+    )
+elif _floor_psense_status == "unavailable":
+    print(
+        "::: {.callout-warning title=\"Power-scaling unavailable: explicit grid completed\"}\n\n"
+        "A unique, interpretable `tau` power-scaling diagnosis is unavailable. The complete, "
+        "trace-recomputed, effect-verified and primary-aligned six-cell grid supplies the required "
+        "computational fallback. This does not make the floor rule prospective or remove "
+        "the stated missingness limitations.\n\n:::"
+    )
+elif _floor_sensitivity_status["ready"]:
+    print(
+        "::: {.callout-note title=\"Explicit treatment-prior grid completed\"}\n\n"
+        "The required six-cell, estimand-matched sensitivity grid is complete, every fit "
+        "passed the trace-recomputed all-free-variable convergence gate, every trace "
+        "reproduces the reported effect summaries, and all cell/provenance hashes match "
+        "this report.\n\n:::"
+    )
+```
+
+```{python}
+# | echo: false
+if _floor_tau_sensitivity is not None and _floor_sensitivity_status["ready"]:
+    _floor_sensitivity_display = _floor_tau_sensitivity.reindex(
+        columns=[
+            "tau_sigma",
+            "age_adjusted",
+            "n",
+            "n_intervention",
+            "n_control",
+            "risk_difference_median",
+            "risk_difference_lo",
+            "risk_difference_hi",
+            "prob_risk_difference_positive",
+            "prob_risk_difference_ge_0_10",
+            "converged",
+            "max_rhat",
+            "min_ess",
+            "min_bfmi",
+            "n_divergences",
+            "trace_file",
+        ]
+    ).sort_values(["tau_sigma", "age_adjusted"])
+else:
+    _floor_sensitivity_display = None
+_floor_sensitivity_display
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _floor_sensitivity_status["ready"]:
+    print(
+        "Across the complete grid, the posterior median off-floor risk difference ranged "
+        f"from **{_floor_sensitivity_status['risk_difference_median_min'] * 100:+.1f} to "
+        f"{_floor_sensitivity_status['risk_difference_median_max'] * 100:+.1f} percentage "
+        "points**. The most extreme endpoints among the six 95% credible intervals were "
+        f"{_floor_sensitivity_status['risk_difference_interval_min'] * 100:+.1f} and "
+        f"{_floor_sensitivity_status['risk_difference_interval_max'] * 100:+.1f} percentage "
+        "points; P(intervention helps) ranged from "
+        f"{_floor_sensitivity_status['prob_positive_min']:.3f} to "
+        f"{_floor_sensitivity_status['prob_positive_max']:.3f}, and P(the benefit "
+        "is at least 10 percentage points) ranged from "
+        f"{_floor_sensitivity_status['prob_meaningful_min']:.3f} to "
+        f"{_floor_sensitivity_status['prob_meaningful_max']:.3f}. Treat that range as "
+        "the sensitivity result: completion of the grid does not justify calling the "
+        "adopted-prior estimate prior-robust."
+    )
+```
+
 ## Analysis set and estimand
 
 This is an available-case **modified-ITT reanalysis**, not a full ITT of all 57 randomised children. The repository contains 54 children, the outcome-specific frame additionally requires an observed t2 score, and the transition estimand includes only children whose t1 score was observed at zero. Randomisation supports the offer-effect contrast within that observed baseline-floor subgroup; extending it to children with missing outcomes or unknown floor eligibility assumes their exclusion is ignorable.

@@ -282,6 +282,36 @@ def test_tau_summary_itt_constant_tau_average_marginal_effect():
     assert out["prob_tau_logit_pos"] == pytest.approx(1.0)
 
 
+def test_tau_summary_itt_row_mask_uses_a_common_averaging_population():
+    eta = np.array([[[0.0, 1.0, -0.5], [0.2, -1.0, 0.3]]])
+    tau = np.array([[0.4, 0.6]])
+    G = np.array([1.0, 0.0, 1.0])
+    retained = np.array([False, True, True])
+
+    out = tau_summary_itt(
+        _trace(eta, tau),
+        ci_prob=0.9,
+        G=G,
+        row_mask=retained,
+    )
+
+    tau_flat = tau.reshape(-1)
+    eta_flat = eta.reshape(-1, G.size)
+    eta0 = eta_flat - tau_flat[:, None] * G[None, :]
+    contributions = expit(eta0 + tau_flat[:, None]) - expit(eta0)
+    expected = np.median(contributions[:, retained].mean(axis=1))
+    assert out["tau_prob_median"] == pytest.approx(float(expected))
+    assert out["tau_logit_median"] == pytest.approx(float(np.median(tau)))
+
+    with pytest.raises(ValueError, match="boolean row_mask"):
+        tau_summary_itt(
+            _trace(eta, tau),
+            ci_prob=0.9,
+            G=G,
+            row_mask=np.array([True, False]),
+        )
+
+
 def test_tau_summary_itt_direction_uses_moderated_average_effect():
     """A positive centred tau must not label a negative moderated AME beneficial."""
     n_draw, n_obs = 40, 3
@@ -350,6 +380,42 @@ def test_joint_summaries_use_common_probability_scale():
     secondary = tau_contrast_matrix(trace, ["A", "B"], scale="logit")
     assert primary.loc["A", "B"] < 0.05
     assert secondary.loc["A", "B"] > 0.95
+
+
+def test_joint_summary_row_mask_uses_a_common_averaging_population():
+    rng = np.random.default_rng(220)
+    tau = np.stack(
+        [rng.normal(0.5, 0.02, 200), rng.normal(0.3, 0.02, 200)], axis=-1
+    )[None, ...]
+    G = np.array([1.0, 0.0, 1.0, 0.0])
+    eta0 = np.array([[-3.0, -1.0], [0.0, 1.0], [2.0, 3.0], [-2.0, 0.0]])
+    retained = np.array([False, True, True, True])
+    trace = _joint_trace(tau, eta0, G)
+
+    summary = tau_summary_joint(
+        trace,
+        ["A", "B"],
+        0.95,
+        row_mask=retained,
+    )
+
+    for outcome_index in range(2):
+        draws = tau[0, :, outcome_index]
+        contribution = expit(
+            eta0[retained, outcome_index, None] + draws[None, :]
+        ) - expit(eta0[retained, outcome_index, None])
+        expected = np.median(contribution.mean(axis=0))
+        assert summary.loc[outcome_index, "ame_prob_median"] == pytest.approx(
+            float(expected)
+        )
+
+    with pytest.raises(ValueError, match="boolean row_mask"):
+        tau_summary_joint(
+            trace,
+            ["A", "B"],
+            0.95,
+            row_mask=np.array([True, False]),
+        )
 
 
 def test_joint_difference_uses_metadata_and_retains_logit_secondary():

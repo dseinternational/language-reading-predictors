@@ -58,6 +58,84 @@ def _metric_summary(
     }
 
 
+def score_ppc_distribution_shape(
+    outcome_symbol: str,
+    replicated_counts: np.ndarray,
+    observed_counts: np.ndarray,
+    *,
+    n_trials: int,
+    ci_prob: float = 0.95,
+) -> pd.DataFrame:
+    """Summarise outcome-wide score shape across fitted children.
+
+    Arm/baseline-band checks are intentionally local and can miss a mismatch in
+    the marginal score distribution. For example, a model may reproduce each
+    small stratum's mean and floor rate while placing too little mass in the
+    observed upper tail. This companion check calculates each statistic once in
+    the observed fitted sample and once per replicated dataset. Counts remain on
+    their instrument scale; outcomes are kept on separate rows and are never
+    pooled across different denominators.
+    """
+
+    if not 0 < ci_prob < 1:
+        raise ValueError("ci_prob must be in (0, 1)")
+    if n_trials <= 0:
+        raise ValueError("n_trials must be positive")
+    replicated = np.asarray(replicated_counts, dtype=float)
+    if replicated.ndim < 2:
+        raise ValueError("replicated_counts needs sample and row dimensions")
+    replicated = replicated.reshape(-1, replicated.shape[-1])
+    observed = np.asarray(observed_counts, dtype=float)
+    if observed.shape != (replicated.shape[1],):
+        raise ValueError("observed_counts must align with replicated predictive cells")
+    finite = np.isfinite(observed)
+    if not finite.any():
+        raise ValueError("observed_counts contains no finite scores")
+    observed = observed[finite]
+    replicated = replicated[:, finite]
+    if np.any((observed < 0) | (observed > n_trials)):
+        raise ValueError("observed scores lie outside the requested denominator")
+
+    observed_q25, observed_median, observed_q75 = np.quantile(
+        observed, [0.25, 0.5, 0.75]
+    )
+    replicated_q25 = np.quantile(replicated, 0.25, axis=1)
+    replicated_median = np.quantile(replicated, 0.5, axis=1)
+    replicated_q75 = np.quantile(replicated, 0.75, axis=1)
+    summaries = {
+        "median_count": (replicated_median, observed_median),
+        "upper_quartile_count": (replicated_q75, observed_q75),
+        "interquartile_range_count": (
+            replicated_q75 - replicated_q25,
+            observed_q75 - observed_q25,
+        ),
+    }
+    row: dict[str, str | int | float | bool] = {
+        "outcome": outcome_symbol,
+        "n": int(observed.size),
+        "n_trials": int(n_trials),
+        "ci_prob": float(ci_prob),
+    }
+    for prefix, (replicated_statistic, observed_statistic) in summaries.items():
+        row.update(
+            _metric_summary(
+                replicated_statistic,
+                float(observed_statistic),
+                prefix=prefix,
+                ci_prob=ci_prob,
+            )
+        )
+
+    flagged = [
+        prefix
+        for prefix in summaries
+        if bool(row[f"ppc_{prefix}_outside_interval"])
+    ]
+    row["ppc_shape_flag"] = bool(flagged)
+    row["flagged_statistics"] = ";".join(flagged)
+    return pd.DataFrame([row])
+
+
 def score_ppc_by_arm_and_baseline(
     prepared: PreparedData,
     outcome_symbol: str,
@@ -68,7 +146,7 @@ def score_ppc_by_arm_and_baseline(
     n_trials: int | None = None,
     ci_prob: float = 0.95,
 ) -> pd.DataFrame:
-    """Summarise replicated score location, floor and ceiling by trial arm/band.
+    """Summarise score location, upper quartile and boundary mass by arm/band.
 
     ``replicated_counts`` has arbitrary sample dimensions followed by one row
     dimension. ``row_indices`` maps that last dimension to ``prepared`` (needed
@@ -143,6 +221,12 @@ def score_ppc_by_arm_and_baseline(
                         (rep == 1).mean(axis=1),
                         float(np.mean(obs == 1)),
                         prefix="ceiling_rate",
+                        ci_prob=ci_prob,
+                    ),
+                    **_metric_summary(
+                        np.quantile(rep, 0.75, axis=1),
+                        float(np.quantile(obs, 0.75)),
+                        prefix="upper_quartile_proportion",
                         ci_prob=ci_prob,
                     ),
                 }

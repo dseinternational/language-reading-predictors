@@ -163,6 +163,7 @@ def tau_summary_itt(
     ci_prob: float,
     G: np.ndarray,
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
+    row_mask: np.ndarray | None = None,
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
 
@@ -191,6 +192,9 @@ def tau_summary_itt(
 
     ``G`` is the per-observation treatment indicator from the *fitted* prepared
     data (``built.prepared.G``), aligned with ``eta``'s ``obs_id`` axis.
+    ``row_mask`` optionally restricts only the population over which the AME is
+    averaged; the posterior and all linear predictors still come from the same
+    fitted trace. This supports common-population case-deletion comparisons.
 
     ``ci_prob`` names the *coverage* probability of the headline interval. The
     ``*_lo`` / ``*_hi`` values are the equal-tailed headline credible interval
@@ -208,7 +212,12 @@ def tau_summary_itt(
     as a backward-compatible alias of ``prob_ame_pos`` for existing artefacts and
     downstream readers.
     """
-    tau_draws, marginal = _itt_ame_draws(trace, G=G, moderators=moderators)
+    tau_draws, marginal = _itt_ame_draws(
+        trace,
+        G=G,
+        moderators=moderators,
+        row_mask=row_mask,
+    )
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_median = float(np.median(tau_draws))
@@ -1285,6 +1294,7 @@ def _joint_ame_draws(
     *,
     G: np.ndarray | None = None,
     group: str = "posterior",
+    row_mask: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return logit coefficients and probability-scale AMEs by outcome and draw.
 
@@ -1293,7 +1303,8 @@ def _joint_ame_draws(
     that outcome, of ``expit(eta0 + tau_k) - expit(eta0)``. It is therefore a
     common proportion-correct risk-difference scale even when tests have different
     item denominators. This is the multi-outcome analogue of
-    :func:`_itt_ame_draws`.
+    :func:`_itt_ame_draws`. ``row_mask`` optionally restricts the averaging
+    population and is intersected with each outcome's observed-row mask.
     """
     posterior = getattr(trace, group)
     outcome_names = [str(o) for o in outcomes]
@@ -1324,6 +1335,34 @@ def _joint_ame_draws(
         raise ValueError(f"G must have one entry per fitted row ({eta.shape[1]}), got {G.shape}")
     all_masks = _joint_observed_row_masks(trace, n_outcomes=len(available), n_obs=eta.shape[1])
     masks = all_masks[outcome_indices]
+    if row_mask is not None:
+        selected = np.asarray(row_mask)
+        if selected.ndim != 1:
+            raise ValueError(f"row_mask must be 1-D, got a {selected.ndim}-D array.")
+        if selected.dtype == bool:
+            if selected.shape[0] != eta.shape[1]:
+                raise ValueError(
+                    f"boolean row_mask has {selected.shape[0]} entries but eta has "
+                    f"{eta.shape[1]} observations; pass the fitted-subset mask."
+                )
+        elif np.issubdtype(selected.dtype, np.integer):
+            if selected.size and (
+                int(selected.min()) < 0 or int(selected.max()) >= eta.shape[1]
+            ):
+                raise ValueError(
+                    f"integer row_mask has indices outside [0, {eta.shape[1]})."
+                )
+            selector = np.zeros(eta.shape[1], dtype=bool)
+            selector[selected] = True
+            selected = selector
+        else:
+            raise ValueError(
+                "row_mask must be a boolean mask or integer index array, "
+                f"got dtype {selected.dtype}."
+            )
+        masks = masks & selected[None, :]
+        if np.any(masks.sum(axis=1) == 0):
+            raise ValueError("row_mask leaves a joint outcome with no observations")
     ame = np.empty_like(tau, dtype=float)
     for k in range(len(outcome_names)):
         eta0 = eta[k] - tau[k][None, :] * G[:, None]
@@ -1338,6 +1377,7 @@ def tau_summary_joint(
     ci_prob: float,
     *,
     G: np.ndarray | None = None,
+    row_mask: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Summarise each outcome on probability and logit scales.
 
@@ -1345,9 +1385,11 @@ def tau_summary_joint(
     in proportion correct, a common scale across outcome denominators. The
     ``tau_logit_*`` columns retain the conditional model coefficients as secondary
     summaries. Legacy ``tau_*`` aliases remain for existing comparison scripts
-    and explicitly refer to the logit coefficient.
+    and explicitly refer to the logit coefficient. ``row_mask`` optionally
+    restricts every outcome to a common subset of fitted children, after
+    intersection with that outcome's observed-score rows.
     """
-    draws, ame = _joint_ame_draws(trace, outcomes, G=G)
+    draws, ame = _joint_ame_draws(trace, outcomes, G=G, row_mask=row_mask)
     out = []
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q

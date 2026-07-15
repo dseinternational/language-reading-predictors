@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -637,12 +638,65 @@ def save_prior_posterior_plot(
     # Thin only the posterior: thinning the whole tree would decimate the small
     # 1-chain prior group and misrepresent the overlay (issue #270 item 1).
     tr = thin_posterior_only(context.trace)
-    _save_pc(
-        out,
-        lambda: azp.plot_prior_posterior(tr, var_names=var_names),
-        "prior_posterior.png",
-        title="Prior vs posterior overlay",
-    )
+
+    # ``plot_prior_posterior`` expands every non-sampling coordinate into a
+    # separate panel.  ArviZ's default 40-panel guard therefore rejects the
+    # full joint ITT overlay (five explicitly curated parameter arrays x ten
+    # outcomes = 50 panels) before a figure is created.  Raise the guard only
+    # as far as this caller's explicit selection requires, and only for the
+    # duration of this plot; an unconstrained ``var_names=None`` call retains
+    # the configured safety limit.
+    panel_count = 0
+    if var_names is not None:
+        try:
+            posterior = tr.posterior
+            for name in var_names:
+                if name not in posterior:
+                    continue
+                non_sample_sizes = [
+                    size
+                    for dim, size in posterior[name].sizes.items()
+                    if dim not in {"chain", "draw"}
+                ]
+                panel_count += int(np.prod(non_sample_sizes, dtype=int))
+        except Exception:  # pragma: no cover - plotting remains guarded below
+            panel_count = 0
+
+    configured_limit = az.rcParams["plot.max_subplots"]
+    if (
+        panel_count
+        and configured_limit is not None
+        and panel_count > configured_limit
+    ):
+        rc = {"plot.max_subplots": panel_count}
+    else:
+        rc = {}
+
+    # More than 40 marginal panels need explicit geometry as well as a raised
+    # safety limit. The default four-column auto-layout is too short for a
+    # 50-panel joint overlay: row titles collide with the preceding row's tick
+    # labels. Five columns with roughly 4.4 x 3.4 inches per panel preserves
+    # readable labels while retaining one complete, lightbox-enabled figure.
+    plot_kwargs: dict[str, object] = {}
+    if panel_count > 40:
+        col_wrap = 5
+        n_rows = (panel_count + col_wrap - 1) // col_wrap
+        plot_kwargs = {
+            "col_wrap": col_wrap,
+            "figure_kwargs": {
+                "figsize": (4.4 * col_wrap, 3.4 * n_rows),
+                "gridspec_kw": {"hspace": 0.85, "wspace": 0.25},
+            },
+        }
+    with az.rc_context(rc):
+        _save_pc(
+            out,
+            lambda: azp.plot_prior_posterior(
+                tr, var_names=var_names, **plot_kwargs
+            ),
+            "prior_posterior.png",
+            title="Prior vs posterior overlay",
+        )
 
 
 def run_psense(
@@ -659,6 +713,13 @@ def run_psense(
     secondary at this n). Kallioinen et al. 2024.
     """
     out = context.output_dir
+    summary_path = os.path.join(out, "psense_summary.csv")
+    context.tables.pop("psense_summary", None)
+    try:
+        os.unlink(summary_path)
+    except FileNotFoundError:
+        pass
+    temporary_path: str | None = None
     try:
         import arviz_stats as azs
 
@@ -673,9 +734,22 @@ def run_psense(
             import pandas as pd
 
             df = pd.DataFrame(s)
-        df.to_csv(os.path.join(out, "psense_summary.csv"))
+        descriptor, temporary_path = tempfile.mkstemp(
+            dir=out,
+            prefix=".psense_summary-",
+            suffix=".tmp",
+        )
+        os.close(descriptor)
+        df.to_csv(temporary_path)
+        os.replace(temporary_path, summary_path)
+        temporary_path = None
         context.tables["psense_summary"] = df
     except Exception as exc:  # pragma: no cover
+        if temporary_path is not None:
+            try:
+                os.unlink(temporary_path)
+            except FileNotFoundError:
+                pass
         rprint(f"[yellow]psense_summary skipped: {exc}[/yellow]")
 
     import arviz_plots as azp
@@ -812,6 +886,49 @@ def _predictive_values_for_outcome(
     return values[..., cell_idx == target], outcome_symbol
 
 
+def _shared_count_histogram_edges(
+    replicated: np.ndarray, observed: np.ndarray
+) -> np.ndarray:
+    """Return unit-width bin edges shared by observed and replicated counts."""
+
+    values = np.concatenate(
+        [np.asarray(replicated, dtype=float).ravel(), np.asarray(observed, dtype=float).ravel()]
+    )
+    values = values[np.isfinite(values)]
+    if not values.size:
+        raise ValueError("predictive histogram has no finite values")
+    lower = int(np.floor(values.min()))
+    upper = int(np.ceil(values.max()))
+    return np.arange(lower - 0.5, upper + 1.5, 1.0)
+
+
+def _overlay_count_histograms(
+    replicated: np.ndarray,
+    observed: np.ndarray,
+    *,
+    predictive_label: str,
+) -> None:
+    """Overlay comparable count histograms using exactly the same support."""
+
+    bins = _shared_count_histogram_edges(replicated, observed)
+    plt.hist(
+        replicated,
+        bins=bins,
+        density=True,
+        color="#1f77b4",
+        alpha=0.55,
+        label=predictive_label,
+    )
+    plt.hist(
+        observed,
+        bins=bins,
+        density=True,
+        color="#d62728",
+        alpha=0.55,
+        label="observed",
+    )
+
+
 def save_prior_predictive_plot(
     context: StatisticalFitContext,
     outcome_symbol: str,
@@ -857,11 +974,7 @@ def save_prior_predictive_plot(
         import pandas as pd
 
         plt.figure(figsize=(6, 4))
-        plt.hist(
-            rep, bins=40, density=True, color="#1f77b4", alpha=0.55,
-            label="prior predictive",
-        )
-        plt.hist(obs, bins=20, density=True, color="#d62728", alpha=0.55, label="observed")
+        _overlay_count_histograms(rep, obs, predictive_label="prior predictive")
         plt.xlabel(f"{outcome_symbol} count")
         plt.ylabel("density")
         plt.title(f"Prior-predictive check ({outcome_symbol})")
@@ -918,22 +1031,7 @@ def save_joint_posterior_predictive_plot(
         import pandas as pd
 
         plt.figure(figsize=(6, 4))
-        plt.hist(
-            rep,
-            bins=40,
-            density=True,
-            color="#1f77b4",
-            alpha=0.55,
-            label="posterior predictive",
-        )
-        plt.hist(
-            obs,
-            bins=20,
-            density=True,
-            color="#d62728",
-            alpha=0.55,
-            label="observed",
-        )
+        _overlay_count_histograms(rep, obs, predictive_label="posterior predictive")
         plt.xlabel(f"{outcome_symbol} count")
         plt.ylabel("density")
         plt.title(f"Posterior-predictive check ({outcome_symbol})")

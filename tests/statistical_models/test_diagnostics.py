@@ -5,14 +5,79 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import arviz as az
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
 from language_reading_predictors.statistical_models import diagnostics as diag
+
+
+def test_run_psense_removes_stale_summary_when_recomputation_fails(
+    tmp_path: Path,
+    monkeypatch,
+):
+    import arviz_stats as azs
+
+    summary_path = tmp_path / "psense_summary.csv"
+    summary_path.write_text("stale\n", encoding="utf-8")
+    context = SimpleNamespace(
+        output_dir=str(tmp_path),
+        trace=object(),
+        tables={"psense_summary": "stale"},
+    )
+
+    def _fail(*_args, **_kwargs):
+        raise ValueError("diagnostic failed")
+
+    monkeypatch.setattr(azs, "psense_summary", _fail)
+    monkeypatch.setattr(diag, "_save_pc", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(diag, "thin_for_plots", lambda trace: trace)
+
+    diag.run_psense(context, var_names=["tau"])
+
+    assert not summary_path.exists()
+    assert "psense_summary" not in context.tables
+
+
+def test_run_psense_atomically_replaces_summary(
+    tmp_path: Path,
+    monkeypatch,
+):
+    import arviz_stats as azs
+
+    context = SimpleNamespace(
+        output_dir=str(tmp_path),
+        trace=object(),
+        tables={},
+    )
+    expected = pd.DataFrame({"diagnosis": ["✓"]}, index=["tau"])
+    monkeypatch.setattr(azs, "psense_summary", lambda *_args, **_kwargs: expected)
+    monkeypatch.setattr(diag, "_save_pc", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(diag, "thin_for_plots", lambda trace: trace)
+    real_replace = diag.os.replace
+    replacements: list[tuple[Path, Path]] = []
+
+    def _record_replace(source, destination):
+        replacements.append((Path(source), Path(destination)))
+        real_replace(source, destination)
+
+    monkeypatch.setattr(diag.os, "replace", _record_replace)
+
+    diag.run_psense(context, var_names=["tau"])
+
+    summary_path = tmp_path / "psense_summary.csv"
+    assert len(replacements) == 1
+    assert replacements[0][1] == summary_path
+    assert replacements[0][0].parent == tmp_path
+    assert replacements[0][0].name.startswith(".psense_summary-")
+    assert summary_path.is_file()
+    assert not replacements[0][0].exists()
+    assert context.tables["psense_summary"].equals(expected)
 
 
 def test_interval_cols_matches_eti_and_hdi():
@@ -149,6 +214,25 @@ def test_joint_predictive_selection_fails_closed_on_bad_map():
             node="y_post",
             outcome_symbol="A",
         )
+
+
+def test_predictive_histogram_uses_identical_count_bins(monkeypatch):
+    calls = []
+
+    def record_hist(_values, *, bins, **_kwargs):
+        calls.append(np.asarray(bins))
+
+    monkeypatch.setattr(diag.plt, "hist", record_hist)
+
+    diag._overlay_count_histograms(
+        np.array([0.0, 1.0, 5.0]),
+        np.array([0.0, 2.0, 3.0]),
+        predictive_label="posterior predictive",
+    )
+
+    assert len(calls) == 2
+    np.testing.assert_array_equal(calls[0], calls[1])
+    np.testing.assert_array_equal(calls[0], np.arange(-0.5, 6.0, 1.0))
 
 
 def test_joint_loo_pit_tree_selects_matching_outcome_cells():
@@ -377,3 +461,55 @@ def test_thin_posterior_only_keeps_prior_full():
         {"posterior": xr.Dataset({"tau": (("chain", "draw"), np.zeros((2, 250)))})}
     )
     assert diag.thin_posterior_only(small, max_draws=1000) is small
+
+
+def test_prior_posterior_overlay_raises_subplot_limit_for_curated_vectors(
+    monkeypatch, tmp_path
+):
+    # The full joint ITT overlay has five ten-outcome arrays (50 panels), above
+    # ArviZ's default 40-panel safety limit.  An explicit curated selection must
+    # render without permanently changing the process-wide rcParams setting.
+    variables = {
+        name: (("chain", "draw", "outcome"), np.zeros((1, 2, 10)))
+        for name in ("alpha", "tau", "gamma_own", "kappa", "gamma_A")
+    }
+    trace = xr.DataTree.from_dict(
+        {
+            "posterior": xr.Dataset(variables),
+            "prior": xr.Dataset(variables),
+        }
+    )
+    context = SimpleNamespace(output_dir=str(tmp_path), trace=trace)
+    observed: dict[str, object] = {}
+
+    import arviz_plots as azp
+
+    def fake_plot_prior_posterior(_trace, *, var_names, **kwargs):
+        observed["limit"] = az.rcParams["plot.max_subplots"]
+        observed["var_names"] = var_names
+        observed["plot_kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr(azp, "plot_prior_posterior", fake_plot_prior_posterior)
+    monkeypatch.setattr(
+        diag,
+        "_save_pc",
+        lambda _out, make, _name, title=None: observed.update(
+            result=make(), title=title
+        ),
+    )
+    original_limit = az.rcParams["plot.max_subplots"]
+    selected = ["alpha", "tau", "gamma_own", "kappa", "gamma_A"]
+
+    diag.save_prior_posterior_plot(context, var_names=selected)
+
+    assert observed["limit"] == 50
+    assert observed["var_names"] == selected
+    assert observed["plot_kwargs"] == {
+        "col_wrap": 5,
+        "figure_kwargs": {
+            "figsize": (22.0, 34.0),
+            "gridspec_kw": {"hspace": 0.85, "wspace": 0.25},
+        },
+    }
+    assert az.rcParams["plot.max_subplots"] == original_limit

@@ -8,6 +8,7 @@ import pytest
 
 from language_reading_predictors.statistical_models.ppc_audit import (
     score_ppc_by_arm_and_baseline,
+    score_ppc_distribution_shape,
 )
 
 
@@ -35,6 +36,26 @@ def test_score_ppc_reports_arm_and_baseline_calibration():
     assert not table.ppc_mean_proportion_outside_interval.any()
     assert not table.ppc_floor_rate_outside_interval.any()
     assert not table.ppc_ceiling_rate_outside_interval.any()
+    assert not table.ppc_upper_quartile_proportion_outside_interval.any()
+
+
+def test_score_ppc_distribution_shape_flags_missed_upper_quartile():
+    observed = np.array([0.0, 0.0, 10.0, 10.0])
+    # Every replicated dataset remains at the floor. Means stratified into small
+    # cells could obscure this, but the fitted-sample upper quartile cannot.
+    replicated = np.zeros((2, 20, observed.size))
+
+    table = score_ppc_distribution_shape(
+        "P", replicated, observed, n_trials=10
+    )
+    row = table.iloc[0]
+
+    assert row.observed_upper_quartile_count == 10.0
+    assert row.ppc_upper_quartile_count_hi == 0.0
+    assert row.ppc_upper_quartile_count_two_sided_tail == 0.0
+    assert bool(row.ppc_upper_quartile_count_outside_interval)
+    assert bool(row.ppc_shape_flag)
+    assert "upper_quartile_count" in row.flagged_statistics
 
 
 def test_score_ppc_supports_flattened_joint_row_mapping():

@@ -1062,14 +1062,21 @@ def _write_itt_ppc_calibration(
     node: str = "y_post",
     filename: str = "posterior_predictive_calibration.csv",
 ) -> pd.DataFrame:
-    """Save bounded-score PPC metrics by arm and baseline band."""
+    """Save bounded-score PPC metrics by arm and baseline band.
+
+    Joint fits additionally persist one outcome-wide median/Q3/IQR calibration
+    row per outcome. That marginal shape check catches discrepancies that can be
+    hidden by means and boundary rates calculated in small strata.
+    """
 
     from language_reading_predictors.statistical_models.ppc_audit import (
         score_ppc_by_arm_and_baseline,
+        score_ppc_distribution_shape,
     )
 
     predictive = np.asarray(ctx.trace.posterior_predictive[node].values, dtype=float)
     frames = []
+    shape_frames = []
     if len(outcomes) == 1 and predictive.shape[-1] == prepared.n_obs:
         symbol = outcomes[0]
         observed = None
@@ -1097,12 +1104,22 @@ def _write_itt_ppc_calibration(
             raise ValueError("joint posterior-predictive cells do not match cell map")
         for outcome_index, symbol in enumerate(outcomes):
             selected = cell_outcomes == outcome_index
+            outcome_rows = cell_rows[selected]
             frames.append(
                 score_ppc_by_arm_and_baseline(
                     prepared,
                     symbol,
                     predictive[..., selected],
-                    row_indices=cell_rows[selected],
+                    row_indices=outcome_rows,
+                    ci_prob=ctx.reporting.ci_prob,
+                )
+            )
+            shape_frames.append(
+                score_ppc_distribution_shape(
+                    symbol,
+                    predictive[..., selected],
+                    np.asarray(prepared.post_counts[symbol], dtype=float)[outcome_rows],
+                    n_trials=int(prepared.n_trials[symbol]),
                     ci_prob=ctx.reporting.ci_prob,
                 )
             )
@@ -1110,6 +1127,13 @@ def _write_itt_ppc_calibration(
     calibration = pd.concat(frames, ignore_index=True)
     calibration.to_csv(os.path.join(ctx.output_dir, filename), index=False)
     ctx.tables[os.path.splitext(filename)[0]] = calibration
+    if shape_frames:
+        shape_calibration = pd.concat(shape_frames, ignore_index=True)
+        shape_filename = "posterior_predictive_shape_calibration.csv"
+        shape_calibration.to_csv(
+            os.path.join(ctx.output_dir, shape_filename), index=False
+        )
+        ctx.tables[os.path.splitext(shape_filename)[0]] = shape_calibration
     return calibration
 
 
@@ -1128,6 +1152,7 @@ def _run_sampling_and_loo(
         section_header("LOO-PSIS")
         _diag.compute_log_likelihood_and_loo(ctx)
         _report.write_loo_summary(ctx)
+        _write_loo_influence(ctx)
         _print_loo_row(ctx)
 
 
@@ -4684,13 +4709,13 @@ def _natural_scale_contrasts(
 
 
 def _influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
-    """Per-child PSIS-LOO Pareto-k, to flag whether a few children drive the fit.
+    """Persistable PSIS-LOO Pareto-k values for the likelihood's LOO units.
 
-    Returns ``(dataframe, threshold, n_flagged)`` — the per-child k sorted
+    Returns ``(dataframe, threshold, n_flagged)`` — the pointwise k values sorted
     descending (aligned to ``subject_ids``), the ``good_k`` threshold, and how
-    many children exceed it. At n ~ 51 this guards against a headline association
-    resting on 2-3 influential children. Returns ``(None, None, None)`` if the
-    LOO object exposes no per-observation k.
+    many points exceed it. A point is one child in the single-period ITT/joint
+    families, but one child-by-period row in repeated-measures families. Returns
+    ``(None, None, None)`` if the LOO object exposes no aligned pointwise k.
     """
     if ctx.loo is None or getattr(ctx.loo, "pareto_k", None) is None:
         return None, None, None
@@ -4700,11 +4725,36 @@ def _influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
         return None, None, None
     thr = float(getattr(ctx.loo, "good_k", 0.7) or 0.7)
     df = (
-        pd.DataFrame({"subject_id": ids, "pareto_k": k})
+        pd.DataFrame(
+            {
+                "observation_index": np.arange(len(k), dtype=int),
+                "subject_id": ids,
+                "pareto_k": k,
+            }
+        )
         .sort_values("pareto_k", ascending=False)
         .reset_index(drop=True)
     )
     return df, thr, int((k > thr).sum())
+
+
+def _write_loo_influence(ctx: StatisticalFitContext) -> pd.DataFrame | None:
+    """Persist pointwise Pareto-k values and explicit reliability flags.
+
+    A sampler-convergence PASS does not guarantee that importance-sampled LOO is
+    reliable.  Persisting the values makes the ``k > good_k`` gate available to
+    report templates and downstream audits instead of leaving it visible only in
+    a plot or the free-text ArviZ summary.
+    """
+    influence, threshold, _ = _influence_diagnostics(ctx)
+    if influence is None or threshold is None:
+        return None
+    out = influence.copy()
+    out["good_k_threshold"] = threshold
+    out["loo_reliable"] = out["pareto_k"] <= threshold
+    out.to_csv(os.path.join(ctx.output_dir, "pareto_k.csv"), index=False)
+    ctx.tables["pareto_k"] = out
+    return out
 
 
 def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:

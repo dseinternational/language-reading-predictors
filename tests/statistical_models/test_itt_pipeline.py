@@ -89,6 +89,25 @@ def _prepared(
     )
 
 
+def test_write_loo_influence_persists_subject_and_reliability_gate(tmp_path):
+    ctx = SimpleNamespace(
+        loo=SimpleNamespace(pareto_k=np.array([0.21, 0.82, 0.47]), good_k=0.7),
+        prepared=SimpleNamespace(subject_ids=np.array(["a", "b", "c"])),
+        output_dir=str(tmp_path),
+        tables={},
+    )
+
+    result = pipeline._write_loo_influence(ctx)
+
+    assert result is not None
+    assert result["subject_id"].tolist() == ["b", "c", "a"]
+    assert result["observation_index"].tolist() == [1, 2, 0]
+    assert result["loo_reliable"].tolist() == [False, True, True]
+    persisted = pd.read_csv(tmp_path / "pareto_k.csv")
+    assert persisted["good_k_threshold"].eq(0.7).all()
+    assert "pareto_k" in ctx.tables
+
+
 @pytest.fixture
 def fast_pipeline(monkeypatch, tmp_path):
     """Keep real branch and artifact logic, replacing only expensive fit phases."""
@@ -463,8 +482,17 @@ def test_write_itt_ppc_calibration_real_writer_maps_joint_cells(tmp_path):
     calibration = pipeline._write_itt_ppc_calibration(ctx, prepared, ("W", "L"))
 
     assert (tmp_path / "posterior_predictive_calibration.csv").is_file()
+    assert (tmp_path / "posterior_predictive_shape_calibration.csv").is_file()
     assert calibration.groupby("outcome")["n"].sum().to_dict() == {"L": 3, "W": 4}
     assert not calibration.filter(like="outside_interval").to_numpy().any()
+    shape = pd.read_csv(
+        tmp_path / "posterior_predictive_shape_calibration.csv", keep_default_na=False
+    )
+    assert shape.set_index("outcome")["n"].to_dict() == {"L": 3, "W": 4}
+    assert not shape["ppc_shape_flag"].any()
+    pd.testing.assert_frame_equal(
+        ctx.tables["posterior_predictive_shape_calibration"], shape
+    )
 
 
 def test_tau_summary_itt_names_probability_scale_direction_and_keeps_alias():

@@ -167,11 +167,11 @@ print(
 )
 if _rope is not None:
     print(
-        '::: {.callout-note title="Reading the evidence labels"}\n\n'
+        '\n::: {.callout-note title="Reading the evidence labels"}\n\n'
         "The round-odds labels (*inconclusive / suggestive / moderate / strong / very "
         "strong*) qualify the **evidence**, never the effect *size*, and are run "
         "separately for the direction and meaningful-benefit claims. At this study's "
         "sample size the point estimate is, on average, magnitude-inflated (a Type-M / "
-        "winner's-curse effect), so lead with the interval, not the point.\n\n:::"
+        "winner's-curse effect), so lead with the interval, not the point.\n\n:::\n"
     )
 ```

@@ -12,6 +12,65 @@ _csv("analysis_set.csv")
 _csv("attrition_bounds.csv")
 ```
 
+```{python}
+# | echo: false
+# | output: asis
+_joint_shape = _csv("posterior_predictive_shape_calibration.csv")
+
+
+def _shape_metric_flag(row, metric):
+    outside_column = f"ppc_{metric}_outside_interval"
+    outside = (
+        outside_column in row.index
+        and str(row[outside_column]).strip().lower() == "true"
+    )
+    listed = {
+        name.strip()
+        for name in str(row.get("flagged_statistics", "")).split(";")
+        if name.strip()
+    }
+    return outside or metric in listed
+
+
+if _joint_shape is not None and "ppc_shape_flag" in _joint_shape.columns:
+    _joint_shape_flag = _joint_shape["ppc_shape_flag"].astype(str).str.lower().eq("true")
+    _joint_shape_flagged = _joint_shape.loc[_joint_shape_flag]
+    if not _joint_shape_flagged.empty:
+        _flagged_outcomes = ", ".join(_joint_shape_flagged["outcome"].astype(str))
+        print('\n::: {.callout-warning title="Posterior-predictive shape misfit limits cross-outcome ranking"}\n')
+        print(f"The outcome-level predictive check flags {_flagged_outcomes}: at least one observed distribution-shape statistic lies outside the fitted model's central posterior-predictive interval. These are descriptive diagnostics across several outcomes and shape summaries, not multiplicity-adjusted hypothesis tests; interpret isolated flags in context. Treatment-effect summaries remain estimates under the fitted working model, but comparisons involving a flagged outcome need this predictive-misfit qualification.")
+        _e_rows = _joint_shape_flagged.loc[_joint_shape_flagged["outcome"].astype(str).eq("E")]
+        if not _e_rows.empty:
+            _e = _e_rows.iloc[0]
+            if _shape_metric_flag(_e, "interquartile_range_count"):
+                print(f"\nFor E, the observed interquartile range is {_e.observed_interquartile_range_count:.1f} items, compared with a posterior-predictive {100 * _e.ci_prob:.0f}% interval of {_e.ppc_interquartile_range_count_lo:.1f} to {_e.ppc_interquartile_range_count_hi:.1f} (two-sided predictive tail area {_e.ppc_interquartile_range_count_two_sided_tail:.3f}); the fitted score distribution is more dispersed than observed.")
+        _p_rows = _joint_shape_flagged.loc[_joint_shape_flagged["outcome"].astype(str).eq("P")]
+        if not _p_rows.empty:
+            _p = _p_rows.iloc[0]
+            if _shape_metric_flag(_p, "upper_quartile_count"):
+                print(f"\nFor P, the observed graded-score upper quartile is {_p.observed_upper_quartile_count:.1f} items, compared with a posterior-predictive {100 * _p.ci_prob:.0f}% interval of {_p.ppc_upper_quartile_count_lo:.1f} to {_p.ppc_upper_quartile_count_hi:.1f} (two-sided predictive tail area {_p.ppc_upper_quartile_count_two_sided_tail:.3f}). P is the **graded secondary** outcome; the floor-rule headline is the binary off-floor estimand. Do not use P's graded joint-model AME unqualified in cross-outcome rankings: either omit it from the ranking or label the comparison exploratory and limited by this predictive misfit.")
+        print("\n:::\n")
+```
+
+```{python}
+# | echo: false
+if "_joint_shape_flagged" in globals() and not _joint_shape_flagged.empty:
+    _joint_shape_flagged[
+        [
+            "outcome",
+            "flagged_statistics",
+            "observed_upper_quartile_count",
+            "ppc_upper_quartile_count_lo",
+            "ppc_upper_quartile_count_hi",
+            "ppc_upper_quartile_count_two_sided_tail",
+            "observed_interquartile_range_count",
+            "ppc_interquartile_range_count_lo",
+            "ppc_interquartile_range_count_hi",
+            "ppc_interquartile_range_count_two_sided_tail",
+        ]
+    ]
+```
+
 ## Results — treatment effect by outcome
 
 The registered multi-outcome model is a **product of outcome-specific marginals** fitted in one PyMC graph: it does not estimate residual dependence between outcomes. Each outcome's headline effect is therefore its average marginal effect (AME), expressed as the intervention-minus-control difference in expected proportion correct. This probability scale is comparable across tests with different item denominators. The conditional logit coefficient $\tau_k$ is retained as a secondary model-parameter summary.
