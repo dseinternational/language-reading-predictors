@@ -1032,6 +1032,18 @@ def test_concurrent_marginals_no_k_row_without_items_metadata():
     assert list(df.scale) == ["+1 SD"]
 
 
+def test_concurrent_marginals_skips_k_row_for_nonfinite_mean_items():
+    rng = np.random.default_rng(35)
+    eta = rng.normal(0.0, 1.0, (1, 200, 6))
+    beta = rng.normal(0.2, 0.2, (1, 200))
+    trace = _trace_named_vec(eta, scalars={"beta_L": beta})
+    term = ConcurrentTerm(
+        "L", "beta_L", sd_logit=1.0, n_items=32, mean_items=np.nan, k_items=3
+    )
+    df = concurrent_marginals(trace, terms=[term], n_trials=79)
+    assert list(df.scale) == ["+1 SD"]
+
+
 def test_concurrent_marginals_k_row_caps_at_ceiling():
     # Near the ceiling a fixed +k that would push p past 1 is CAPPED to the largest
     # whole increment that still fits below the ceiling, and the row is relabelled to

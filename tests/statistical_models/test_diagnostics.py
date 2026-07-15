@@ -138,6 +138,23 @@ def test_subfit_convergence_flags_low_bfmi(monkeypatch):
     assert result["converged"] is False
 
 
+def test_subfit_convergence_marks_diagnostic_errors_unchecked(monkeypatch):
+    def fail_summary(*_args, **_kwargs):
+        raise RuntimeError("synthetic diagnostics failure")
+
+    monkeypatch.setattr(diag.az, "summary", fail_summary)
+    result = diag.subfit_convergence(
+        _synthetic_trace(0.0), label="uncheckable", var_names=["tau"]
+    )
+    assert result == {
+        "converged": None,
+        "max_rhat": None,
+        "min_ess": None,
+        "min_bfmi": None,
+        "n_divergences": None,
+    }
+
+
 def test_gate_var_names_unions_free_rvs_with_curated_and_filters_present():
     # Issue #274 item 2: the gate must scan the model's free RVs (incl. the
     # per-child intercept vector) unioned with the curated headline terms, and

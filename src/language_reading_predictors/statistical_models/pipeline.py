@@ -4724,9 +4724,13 @@ _CA_MARGINAL_REQUIRED = {
     "prob_median",
     "prob_lo",
     "prob_hi",
+    "prob_lo90",
+    "prob_hi90",
     "items_median",
     "items_lo",
     "items_hi",
+    "items_lo90",
+    "items_hi90",
     "prob_pos",
     "label",
     "converged",
@@ -4891,10 +4895,12 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         wave_subsets[w] = sub
         wave_n[w] = sub.n_obs
         wave_preds[w], dropped_by_wave[w] = _ca_wave_predictors(sub, predictor_symbols)
-    # Primary wave = most rows (best-powered gate); tie → latest timepoint. Choose it
-    # ONLY among waves that actually have a usable predictor: a wave whose predictors
-    # are all constant/all-missing is skipped in the fit loop, so making it primary
-    # would leave ``wave_fits[primary_wave]`` unset and crash the fit.
+    # Diagnostic anchor = most complete-outcome rows; tie → latest timepoint. This is
+    # an operational artefact-selection rule, not a claim that the wave is best-powered
+    # or substantively primary. Choose it ONLY among waves that actually have a usable
+    # predictor: a wave whose predictors are all constant/all-missing is skipped in the
+    # fit loop, so making it the anchor would leave ``wave_fits[primary_wave]`` unset
+    # and crash the fit.
     fittable_waves = [w for w in wave_indices if wave_preds[w]]
     if not fittable_waves:
         raise ValueError(

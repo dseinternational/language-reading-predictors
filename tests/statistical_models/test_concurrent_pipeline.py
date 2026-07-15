@@ -208,6 +208,14 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
         written = pd.read_csv(tmp_path / f"{stem}.csv")
         assert len(written) == len(ctx.tables[stem])
 
+    with pytest.raises(ValueError, match="prob_lo90"):
+        _write_concurrent_outputs(
+            ctx,
+            association_rows=association_rows,
+            marginal_frames=[pd.DataFrame(marginal_rows).drop(columns="prob_lo90")],
+            diagnostic_rows=diagnostic_rows,
+        )
+
 
 def test_shared_concurrent_results_partial_is_focal_outcome_neutral():
     repo = Path(__file__).resolve().parents[2]

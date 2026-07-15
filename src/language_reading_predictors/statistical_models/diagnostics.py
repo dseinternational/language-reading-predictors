@@ -436,12 +436,13 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
     standalone traces with no gate — a silently non-converged sub-fit would be
     reported without any flag. This computes the same signals as the main gate
     (unrounded max R-hat, min bulk/tail ESS, total divergences and minimum per-chain
-    BFMI) and returns a small dict with a ``converged`` boolean, warning loudly when
-    it fails. It is a *flag*, not a hard stop: sensitivity sub-fits should still be
-    reported, but marked.
+    BFMI) and returns a small dict whose ``converged`` value is ``True`` when the gate
+    passes, ``False`` when it fails, and ``None`` when the diagnostic calculation
+    itself cannot be completed. It is a *flag*, not a hard stop: sensitivity sub-fits
+    should still be reported, but failed or unchecked fits must be marked.
     """
     result = {
-        "converged": True,
+        "converged": None,
         "max_rhat": None,
         "min_ess": None,
         "min_bfmi": None,

@@ -1576,8 +1576,10 @@ def concurrent_marginals(
         if (
             term.n_items
             and term.mean_items is not None
+            and np.isfinite(term.mean_items)
             and term.k_items
             and term.sd_logit > 0
+            and np.isfinite(term.sd_logit)
         ):
             from language_reading_predictors.statistical_models.preprocessing import (
                 logit_safe,

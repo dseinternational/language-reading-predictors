@@ -33,15 +33,15 @@ _How to read the table:_ one row represents one timepoint–predictor pair. The 
 # | output: asis
 if concurrent is not None and len(concurrent):
     _extra = config.get("extra") or {}
-    _prim = _extra.get("primary_timepoint")
+    _prim = _extra.get("diagnostic_anchor_timepoint", _extra.get("primary_timepoint"))
     print(
         f"\n_The forest plot below shows the diagnostic-anchor wave (t{_prim}). "
         "The pipeline selects the wave with the largest complete-outcome sample, "
         "breaking a tie in favour of the latest wave; this operational choice determines "
         "which adjusted fit carries the standard convergence gate and posterior "
         "diagnostics, but it does **not** make that wave substantively primary or prove "
-        "that it has the most statistical power. Every other adjusted and bivariate "
-        "sub-fit has its own convergence flag in the tables._"
+        "that it has the most statistical power. Every published adjusted and bivariate "
+        "fit has its own convergence metrics and verdict in the tables._"
     )
     print(
         "\n\n"
@@ -62,7 +62,7 @@ if concurrent is not None and len(concurrent):
 
 ### Fit-level convergence checks
 
-_In plain terms:_ the report publishes estimates from four adjusted wave fits and one bivariate fit for each wave–predictor pair. The standard diagnostics above apply to the diagnostic-anchor fit; this table records the matching gate quantities for every other published fit so none is interpreted from a Boolean flag alone.
+_In plain terms:_ the report publishes estimates from four adjusted wave fits and one bivariate fit for each wave–predictor pair. The standard diagnostics above apply to the diagnostic-anchor fit; this table records the matching gate quantities for every published fit, including the anchor, so none is interpreted from a Boolean flag alone.
 
 ```{python}
 # | echo: false
