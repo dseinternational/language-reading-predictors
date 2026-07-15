@@ -82,3 +82,23 @@ Ids follow the registered scheme (`lrp-rlm-{family}-NNN`, `study_id="rlm"`), ext
 ## What is explicitly _not_ proposed
 
 No ITT, DiD, aligned per-protocol, or dose-response models — all four require the randomised intervention, sessions, or onset alignment that this cohort does not have. Stating this closes the "why isn't there a Byrne ITT?" question up front: there cannot be one.
+
+## Addendum (2026-07-15) — post-plan families and a Phase E prerequisite
+
+> [!NOTE]
+> Addendum drafted by a LLM-based AI tool (Claude Code/Fable 5), 2026-07-15. Tracked in #338.
+
+This plan mapped the sixteen Layer-2 families as of 2026-07-13. Two descriptive families landed in the RLI suite immediately afterwards (both in the #314 descriptive-association workstream), and #335 added a mediation-robustness requirement — none of which the table above covers. Recorded here so this note stays the single mapping document.
+
+| RLI family (`kind`)                          | Ports?    | Adapted form for Byrne                                                                                                                                                                                                                                                                            | `estimand_type` |
+| -------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `concurrent` (#312, `lrp-rli-ca-*`)          | ✅ strong | per-wave mutually adjusted conditional associations over {`basread`, `basspel`, `woco`, `bpvs`, `trog`, `basdig`, `basnum`} + age, `readgrp` per the group-scope decision; `basread`-focal and `bpvs`-focal first (`lrp-rlm-ca-001`/`002` presumptive), cross-check partner of the `rlm-mm` model | association     |
+| `long_corr_factor` (#313, `lrp-rli-lcf-001`) | ⚠️ defer  | per-wave latent domain correlations; already fragile at RLI n ≈ 54, not the right first instrument at Down-syndrome n = 24 — fit the cross-sectional `rlm-mm-001` (Phase B) first and revisit after                                                                                               | descriptive     |
+
+Three adaptation notes for the `concurrent` port, beyond the standing constraints (ceilings, group scope, selection):
+
+- **The vocabulary side collapses and changes meaning.** Byrne has receptive vocabulary only (`bpvs`; no expressive measure), so the RLI receptive/expressive focal pair (#336) becomes a single `bpvs`-focal model. And with no code-route measures, the RLI reading "vocabulary ↔ reading given phonics" cannot be asked here — the Byrne conditional is "given verbal memory (`basdig`), grammar (`trog`), the ability proxies and age", with the collapsed decoding route (the latent `DEC` extension above) named in the limitations.
+- **Conditioning meets the selection hazard head-on.** The family deliberately conditions on contemporaneous skills, and `basread` is a selection variable wherever group 3 enters — so the group-scope and selection decisions bind harder here than for the growth family.
+- **Power.** The RLI ca fits run n ≈ 53 per wave with seven predictors and lean on regularising priors; Down-syndrome-only Byrne is n = 24 per wave, pooled three-group n ≈ 97 (w1–w4). The DS-only vs pooled framing is the binding decision; either way the slopes stay strongly regularised and the adjusted-vs-bivariate gap is reported per the family convention.
+
+**Phase E prerequisite (from #335/#324).** If Phase E `mechanism`/`mediation` models are ever green-lit, they ship with the #289 unmeasured-confounding sensitivity sweep and a named-confounder calibration from day one — with residual `GA` (beyond the `bassim`/`basmat` proxies, plus the latent `DEC`/`HS` extensions) playing the role RLI's intervention-sessions confounder plays in #324/#335. The measured ability indicators give Byrne an empirical anchor for "GA-strength confounding" that RLI never had; a med-079-style negative control (a DAG-severed pair, e.g. `trog → basnum`) is the natural calibration companion.
