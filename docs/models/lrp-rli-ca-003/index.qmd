@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
