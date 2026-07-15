@@ -93,3 +93,20 @@ if _dom is not None:
 # | echo: false
 _dom if _dom is not None else None
 ```
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("child_fit_panels.png"):
+    print("### Per-child fit\n")
+    print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples for the focal reading measure (observed dots, posterior-predictive band)"))
+    print(
+        "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
+        "child's observed scores on the focal reading measure (named in the figure title) across the "
+        "four waves; the green band is the model's posterior-predictive 95% interval **for that same "
+        "child**, built from the child's fitted latent trajectory (a *same-children* display). To keep "
+        "one figure, only the focal outcome is drawn; the other measures behave analogously. Panels "
+        "flagged with a high Pareto-k are the worst-fitting children (aggregated across all measures), "
+        "shown on purpose; the rest are a seeded random draw."
+    )
+```

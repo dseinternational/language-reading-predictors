@@ -169,6 +169,22 @@ if readiness is not None and len(readiness):
         )
 ```
 
+```{python}
+# | echo: false
+# | output: asis
+if _has("child_fit_panels.png"):
+    print("### Per-child fit\n")
+    print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples (observed dots, posterior-predictive band)"))
+    print(
+        "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
+        f"child's observed {outcome_label} scores across the period transitions; the green band is the "
+        "model's posterior-predictive 95% interval **for that same child**, conditional on their own "
+        "fitted random intercept (a *same-children* display). Panels flagged with a high Pareto-k are "
+        "the worst-fitting children, shown on purpose so the fit is honest about where the subject "
+        "random intercept does and does not capture a child; the rest are a seeded random draw."
+    )
+```
+
 ### Model comparison
 
 ```{python}

@@ -153,6 +153,43 @@ if _has("icon_array.png"):
     )
 ```
 
+```{python}
+# | echo: false
+# | output: asis
+# The binary t1–t3 levels model emits the crossover trajectory; the dose companions
+# are transition-frame and do not, so the heading prints only when the figure exists.
+if _has("group_trajectory.png"):
+    print("### Score trajectories — the crossover picture\n")
+    print(_img("group_trajectory.png", "Per-arm score trajectory across t1–t3, with credible ribbons and observed arm means"))
+    print(
+        f"\n_How to read it:_ each line is the model's posterior **mean** score on {outcome_label} for "
+        "one randomised arm across the waves, with its 95% credible ribbon; filled dots are the observed "
+        "per-arm means. This is the headline crossover picture: the immediate arm pulls ahead at t2 and "
+        "the wait-list arm catches up once it too receives the intervention. The curve is "
+        "**population-level** — the child random intercept is integrated over its distribution and "
+        "averaged over each arm's observed children (g-computation), so it is a *different distribution* "
+        "from the same-children per-child panels below. **Only the t2 gap (`tau_t2`) is randomised**; the "
+        "t3 separation and `delta_crossover` are post-crossover associations, deliberately not read as "
+        "randomised effects."
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("child_fit_panels.png"):
+    print("### Per-child fit\n")
+    print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples (observed dots, posterior-predictive band)"))
+    print(
+        "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
+        f"child's observed {outcome_label} scores across waves; the green band is the model's "
+        "posterior-predictive 95% interval **for that same child**, conditional on their own fitted "
+        "random intercept — a *same-children* display, distinct from the population trajectory above. "
+        "Panels flagged with a high Pareto-k are the worst-fitting children, shown on purpose; the rest "
+        "are a seeded random draw (reproducible across refits)."
+    )
+```
+
 ## Arm-by-time posterior-predictive checks
 
 The pooled posterior-predictive plot can hide a poorly fitted arm-by-time cell. The table and figure below therefore compare each observed cell mean and zero rate with the corresponding posterior-predictive distribution. An upper-tail probability near 0 or 1, or a `True` tail flag, identifies a cell that needs investigation before interpreting contrasts; these are predictive diagnostics, not frequentist hypothesis tests.
