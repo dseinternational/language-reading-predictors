@@ -40,6 +40,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from rich import print as rprint
+from scipy.special import expit
 
 from language_reading_predictors.models._reporting import (
     metrics_table,
@@ -1854,6 +1855,26 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     )
 
+    # Items-scale counterpart for the key-findings range-plus-count headline
+    # (#320).  The joint tau table is deliberately on the common logit scale;
+    # this separate counterfactual pushforward preserves comparability there
+    # while giving each outcome its own readable item-scale marginal and ROPE
+    # probabilities where a minimally-important difference is pre-specified.
+    from language_reading_predictors.statistical_models.measures import ROPE_DELTA
+
+    joint_marginal = _report.joint_treatment_marginals(
+        ctx.trace,
+        outcomes=outcomes,
+        G=built.prepared.G,
+        n_trials=built.prepared.n_trials,
+        deltas=ROPE_DELTA,
+        ci_prob=ctx.reporting.ci_prob,
+    )
+    joint_marginal.to_csv(
+        os.path.join(ctx.output_dir, "joint_treatment_marginal.csv"), index=False
+    )
+    ctx.tables["joint_treatment_marginal"] = joint_marginal
+
     contrast = _report.tau_contrast_matrix(ctx.trace, outcomes)
     contrast.to_csv(os.path.join(ctx.output_dir, "tau_contrast_matrix.csv"))
     ctx.tables["tau_contrast_matrix"] = contrast
@@ -2613,6 +2634,68 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
          "f_lo90": lo90, "f_hi90": hi90}
     ).to_csv(os.path.join(ctx.output_dir, "mechanism_curve.csv"), index=False)
     outcome = ctx.spec.outcome_symbol or "W"
+
+    # Preserve a posterior end-to-end contrast on the outcome-items scale for
+    # the key-findings box (#320).  The contrast compares the lowest and highest
+    # observed exposure values while setting any moderator to its standardised
+    # mean (zero).  Removing the fitted mechanism and moderator contributions
+    # from eta before adding the two endpoint contributions keeps every other
+    # fitted row characteristic fixed and retains the posterior dependence that
+    # the pointwise curve CSV alone cannot reconstruct.
+    eta = (
+        post["eta"]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )
+    eta_base = eta - f
+    if "gamma_mod" in post and "z_moderator" in ctx.trace.constant_data:
+        z_mod = np.asarray(ctx.trace.constant_data["z_moderator"].values).reshape(-1)
+        gamma_mod = post["gamma_mod"].stack(sample=("chain", "draw")).values
+        eta_base = eta_base - z_mod[:, None] * gamma_mod[None, :]
+        if "gamma_int" in post:
+            z_mech = np.asarray(
+                ctx.trace.constant_data["z_mech_logit"].values
+            ).reshape(-1)
+            gamma_int = post["gamma_int"].stack(sample=("chain", "draw")).values
+            eta_base = eta_base - (
+                z_mech[:, None] * z_mod[:, None] * gamma_int[None, :]
+            )
+    endpoint_items = (
+        expit(eta_base + f_ord[-1][None, :])
+        - expit(eta_base + f_ord[0][None, :])
+    ).mean(axis=0) * float(ctx.prepared.n_trials[outcome])
+    lo_q = (1 - ctx.reporting.ci_prob) / 2
+    if is_covariate:
+        exposure_low = float(x[0])
+        exposure_high = float(x[-1])
+        exposure_unit = f"{sym} raw-score units"
+    else:
+        # Invert the Haldane-corrected logit used by preprocessing so the
+        # headline exposure range is in test items, not log-odds.
+        N = ctx.prepared.n_trials[sym]
+        exposure_low = float(np.clip((N + 1) * expit(x[0]) - 0.5, 0, N))
+        exposure_high = float(np.clip((N + 1) * expit(x[-1]) - 0.5, 0, N))
+        exposure_unit = f"{sym} items"
+    mechanism_summary = pd.DataFrame(
+        [
+            {
+                "exposure_low": exposure_low,
+                "exposure_high": exposure_high,
+                "exposure_unit": exposure_unit,
+                "items_median": float(np.median(endpoint_items)),
+                "items_lo": float(np.quantile(endpoint_items, lo_q)),
+                "items_hi": float(np.quantile(endpoint_items, 1 - lo_q)),
+                "items_lo90": float(np.quantile(endpoint_items, 0.05)),
+                "items_hi90": float(np.quantile(endpoint_items, 0.95)),
+                "prob_pos": float(np.mean(endpoint_items > 0)),
+            }
+        ]
+    )
+    mechanism_summary.to_csv(
+        os.path.join(ctx.output_dir, "mechanism_summary.csv"), index=False
+    )
+    ctx.tables["mechanism_summary"] = mechanism_summary
     plt.figure(figsize=(6, 4))
     plt.plot(x, mean, color="#1f77b4", lw=2)
     plt.fill_between(x, lo, hi, color="#1f77b4", alpha=0.2)
@@ -2838,6 +2921,48 @@ def _write_dose_slope_summary(
     df = pd.DataFrame(rows)
     df.to_csv(os.path.join(ctx.output_dir, "dose_slope_summary.csv"), index=False)
     ctx.tables["dose_slope_summary"] = df
+
+    # Natural-scale average marginal association for the key-findings box
+    # (#320): increase the standardised session dose by 1 on every fitted row,
+    # using that row's period-specific slope where the model varies it by period.
+    eta = (
+        post["eta"]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )
+    if period_varying:
+        phase_slopes = (
+            post["beta_dose_phase"]
+            .stack(sample=("chain", "draw"))
+            .transpose("phase", "sample")
+            .values
+        )
+        delta_eta = phase_slopes[np.asarray(ctx.prepared.phase, dtype=int)]
+    else:
+        slope = post["beta_dose"].stack(sample=("chain", "draw")).values
+        delta_eta = np.broadcast_to(slope[None, :], eta.shape)
+    outcome = ctx.spec.outcome_symbol or "W"
+    items = (
+        expit(eta + delta_eta) - expit(eta)
+    ).mean(axis=0) * float(ctx.prepared.n_trials[outcome])
+    lo_q = (1 - ci_prob) / 2
+    marginal = pd.DataFrame(
+        [
+            {
+                "items_median": float(np.median(items)),
+                "items_lo": float(np.quantile(items, lo_q)),
+                "items_hi": float(np.quantile(items, 1 - lo_q)),
+                "items_lo90": float(np.quantile(items, 0.05)),
+                "items_hi90": float(np.quantile(items, 0.95)),
+                "prob_pos": float(np.mean(items > 0)),
+            }
+        ]
+    )
+    marginal.to_csv(
+        os.path.join(ctx.output_dir, "dose_marginal_summary.csv"), index=False
+    )
+    ctx.tables["dose_marginal_summary"] = marginal
     print_table(
         metrics_table(
             [

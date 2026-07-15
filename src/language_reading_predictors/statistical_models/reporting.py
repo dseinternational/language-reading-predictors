@@ -1271,6 +1271,80 @@ def tau_summary_joint(
     return pd.DataFrame(out)
 
 
+def joint_treatment_marginals(
+    trace: xr.DataTree,
+    *,
+    outcomes: Sequence[str],
+    G: np.ndarray,
+    n_trials: Mapping[str, int],
+    deltas: Mapping[str, float],
+    ci_prob: float = 0.95,
+) -> pd.DataFrame:
+    """Items-scale treatment marginals for every outcome in a joint ITT fit.
+
+    The joint model stores ``eta`` on ``(obs_id, outcome)`` and one ``tau`` per
+    outcome.  For each posterior draw and outcome this removes the fitted group
+    contribution to recover the untreated linear predictor, toggles treatment
+    on, averages the probability difference over fitted rows, and multiplies by
+    that outcome's item denominator.  This is the joint analogue of
+    :func:`treatment_marginal_effect`; keeping it as a fitted artefact lets the
+    key-findings builder report the pre-specified range-plus-count headline
+    without approximating item effects from logit coefficients.
+
+    ``deltas`` contains the pre-specified minimally-important item difference
+    where one exists.  Rows without an agreed delta retain the items-scale
+    estimate but leave the ROPE fields missing.
+    """
+    posterior = trace.posterior
+    tau = (
+        posterior["tau"]
+        .stack(sample=("chain", "draw"))
+        .transpose("outcome", "sample")
+    )
+    eta = (
+        posterior["eta"]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "outcome", "sample")
+    )
+    groups = np.asarray(G, dtype=float)
+    if groups.shape[0] != eta.sizes["obs_id"]:
+        raise ValueError(
+            f"G has {groups.shape[0]} rows but eta has {eta.sizes['obs_id']} "
+            "observations"
+        )
+
+    lo_q = (1 - ci_prob) / 2
+    rows: list[dict[str, float | str]] = []
+    for outcome in outcomes:
+        effect = np.asarray(tau.sel(outcome=outcome).values).reshape(-1)
+        eta_k = np.asarray(eta.sel(outcome=outcome).values)
+        eta_zero = eta_k - groups[:, None] * effect[None, :]
+        item_draws = (
+            expit(eta_zero + effect[None, :]) - expit(eta_zero)
+        ).mean(axis=0) * float(n_trials[outcome])
+        delta = deltas.get(outcome)
+        row: dict[str, float | str] = {
+            "outcome": outcome,
+            "items_median": float(np.median(item_draws)),
+            "items_lo": float(np.quantile(item_draws, lo_q)),
+            "items_hi": float(np.quantile(item_draws, 1 - lo_q)),
+            "items_lo90": float(np.quantile(item_draws, 0.05)),
+            "items_hi90": float(np.quantile(item_draws, 0.95)),
+            "prob_pos": float(np.mean(effect > 0)),
+        }
+        if delta is not None:
+            d = float(delta)
+            row.update(
+                {
+                    "delta_items": d,
+                    "prob_benefit_ge_delta": float(np.mean(item_draws >= d)),
+                    "prob_in_rope": float(np.mean(np.abs(item_draws) <= d)),
+                }
+            )
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 def gamma_interaction_summary(
     trace: xr.DataTree,
     *,
@@ -2300,6 +2374,70 @@ def _kf_csv_row(output_dir, name: str) -> dict | None:
     return df.iloc[0].to_dict()
 
 
+def _kf_csv(output_dir, name: str) -> pd.DataFrame | None:
+    """Read one fit CSV, returning ``None`` when it is absent or empty."""
+    path = os.path.join(str(output_dir), name)
+    if not os.path.exists(path):
+        return None
+    df = pd.read_csv(path)
+    return None if df.empty else df
+
+
+def _kf_most_resolved_row(
+    df: pd.DataFrame,
+    *,
+    prob_col: str,
+) -> dict:
+    """Return the row whose direction is clearest, never the largest estimate.
+
+    The ranking is distance of ``P(positive)`` from 0.5.  This avoids presenting
+    differently-scaled coefficients as though their raw magnitudes were
+    comparable, and it keeps the selection rule tied to uncertainty.
+    """
+    if prob_col not in df.columns:
+        raise _KeyFindingsUnavailable(f"{prob_col} is missing")
+    probabilities = pd.to_numeric(df[prob_col], errors="coerce")
+    usable = df[np.isfinite(probabilities)].copy()
+    if usable.empty:
+        raise _KeyFindingsUnavailable(f"{prob_col} has no finite values")
+    usable["_kf_resolution"] = (
+        pd.to_numeric(usable[prob_col], errors="coerce") - 0.5
+    ).abs()
+    return usable.sort_values("_kf_resolution", ascending=False).iloc[0].to_dict()
+
+
+def _kf_plain_label(value) -> str:
+    """Make an artefact identifier readable without inventing a construct name."""
+    return str(value).replace("_", " ").strip()
+
+
+def _kf_measure_label(symbol) -> str:
+    """Display label for a registered measure symbol, else the symbol itself."""
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    measure = MEASURES.get(str(symbol))
+    return measure.label if measure is not None else _kf_plain_label(symbol)
+
+
+def _kf_association_direction(
+    prob_pos,
+    *,
+    positive_claim: str,
+    negative_claim: str,
+) -> str:
+    """Harm-aware direction/strength sentence for a non-causal quantity."""
+    p = _kf_float(prob_pos)
+    fav = favoured_direction(p)
+    positive = fav["favoured_direction"] == "positive"
+    sign = "positive" if positive else "negative"
+    claim = positive_claim if positive else negative_claim
+    return (
+        f"The posterior probability of a {sign} association is "
+        f"{_kf_pct(fav['favoured_direction_prob'])}% — "
+        f"{fav['favoured_direction_label']} evidence that {claim}."
+    )
+
+
 def _kf_outcome_label(config: Mapping) -> str:
     """Outcome display label, mirroring the ``_setup.qmd`` derivation."""
     from language_reading_predictors.statistical_models.measures import MEASURES
@@ -2666,9 +2804,750 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
     return sentences
 
 
+def _kf_build_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Joint ITT: range across outcomes, never a cherry-picked single result."""
+    df = _kf_csv(output_dir, "joint_treatment_marginal.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable(
+            "joint_treatment_marginal.csv is not present; this fit predates the "
+            "joint items-scale pushforward"
+        )
+    required = {"outcome", "items_median", "items_lo", "items_hi", "prob_pos"}
+    if not required.issubset(df.columns):
+        raise _KeyFindingsUnavailable(
+            "joint_treatment_marginal.csv does not have the expected columns"
+        )
+    medians = [_kf_float(v) for v in df["items_median"]]
+    lows = [_kf_float(v) for v in df["items_lo"]]
+    highs = [_kf_float(v) for v in df["items_hi"]]
+    sentences = [
+        _kf_sentence(
+            f"Across the {len(df)} outcomes, the best estimates ranged from "
+            f"**{min(medians):+.1f} to {max(medians):+.1f} items**; the individual "
+            f"95% credible ranges extended from {min(lows):+.1f} to "
+            f"{max(highs):+.1f} items overall.",
+            "headline",
+        )
+    ]
+
+    clearest = _kf_most_resolved_row(df, prob_col="prob_pos")
+    symbol = str(clearest["outcome"])
+    label = _kf_measure_label(symbol)
+    direction = _kf_direction_words(clearest["prob_pos"], is_rd=False)
+    sentences.append(
+        _kf_sentence(
+            f"For {label}, the clearest directional result: "
+            f"{direction[0].lower() + direction[1:]}",
+            "confidence",
+        )
+    )
+
+    if {"delta_items", "prob_benefit_ge_delta"}.issubset(df.columns):
+        deltas = df[
+            np.isfinite(pd.to_numeric(df["delta_items"], errors="coerce"))
+            & np.isfinite(
+                pd.to_numeric(df["prob_benefit_ge_delta"], errors="coerce")
+            )
+        ]
+        if not deltas.empty:
+            probabilities = [
+                _kf_float(v) for v in deltas["prob_benefit_ge_delta"]
+            ]
+            more_likely_than_not = sum(p >= 0.5 for p in probabilities)
+            sentences.append(
+                _kf_sentence(
+                    f"Among the {len(deltas)} outcomes with a pre-specified "
+                    f"smallest-important difference, {more_likely_than_not} were "
+                    f"more likely than not to reach it; the outcome-specific "
+                    f"probabilities ranged from {_kf_pct(min(probabilities))}% to "
+                    f"{_kf_pct(max(probabilities))}%.",
+                    "rope",
+                )
+            )
+    sentences.append(
+        _kf_sentence(
+            "These are intention-to-treat effects from random assignment, so the "
+            "outcome-specific estimates support a cause-and-effect reading.",
+            "causal",
+        )
+    )
+    return sentences
+
+
+def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Adjusted mechanism curve, preferably using its items-scale end contrast."""
+    outcome_label = _kf_outcome_label(config)
+    summary = _kf_csv_row(output_dir, "mechanism_summary.csv")
+    sentences: list[dict[str, str]] = []
+    if summary is not None:
+        med = _kf_float(summary["items_median"])
+        lo = _kf_float(summary["items_lo"])
+        hi = _kf_float(summary["items_hi"])
+        low = _kf_float(summary["exposure_low"])
+        high = _kf_float(summary["exposure_high"])
+        unit = _kf_plain_label(summary.get("exposure_unit", "predictor units"))
+        sentences.append(
+            _kf_sentence(
+                f"Across the fitted exposure range ({low:g} to {high:g} {unit}), "
+                f"{outcome_label} differed by **{med:+.1f} items** on average "
+                f"(95% credible range {lo:+.1f} to {hi:+.1f}).",
+                "headline",
+            )
+        )
+        sentences.append(
+            _kf_sentence(
+                _kf_association_direction(
+                    summary["prob_pos"],
+                    positive_claim="higher exposure accompanies a higher outcome",
+                    negative_claim="higher exposure accompanies a lower outcome",
+                ),
+                "confidence",
+            )
+        )
+    else:
+        curve = _kf_csv(output_dir, "mechanism_curve.csv")
+        if curve is None:
+            raise _KeyFindingsUnavailable(
+                "neither mechanism_summary.csv nor mechanism_curve.csv is present"
+            )
+        x_col = "mech_x" if "mech_x" in curve.columns else "mech_logit"
+        required = {x_col, "f_mean", "f_lo", "f_hi"}
+        if not required.issubset(curve.columns):
+            raise _KeyFindingsUnavailable(
+                "mechanism_curve.csv does not have the expected columns"
+            )
+        ordered = curve.sort_values(x_col)
+        low, high = ordered.iloc[0], ordered.iloc[-1]
+        sentences.append(
+            _kf_sentence(
+                f"Across the fitted predictor range, its model contribution changed "
+                f"from {_kf_float(low['f_mean']):+.2f} logit units "
+                f"(95% range {_kf_float(low['f_lo']):+.2f} to "
+                f"{_kf_float(low['f_hi']):+.2f}) to "
+                f"{_kf_float(high['f_mean']):+.2f} "
+                f"({_kf_float(high['f_lo']):+.2f} to "
+                f"{_kf_float(high['f_hi']):+.2f}).",
+                "headline",
+            )
+        )
+        sentences.append(
+            _kf_sentence(
+                "This older fit has pointwise curve intervals but no saved "
+                "posterior end-to-end contrast, so a single direction probability "
+                "is not available until it is refitted.",
+                "note",
+            )
+        )
+    sentences.append(
+        _kf_sentence(
+            "The curve is an adjusted association between measured skills, not "
+            "evidence that changing one skill would cause the other to change.",
+            "causal",
+        )
+    )
+    return sentences
+
+
+def _kf_build_mediation(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """One- or two-mediator g-formula decomposition."""
+    df = _kf_csv(output_dir, "mediation_summary.csv")
+    if df is None or "quantity" not in df.columns:
+        raise _KeyFindingsUnavailable("mediation_summary.csv is not present")
+    indexed = df.set_index("quantity")
+    if "total" not in indexed.index:
+        raise _KeyFindingsUnavailable(
+            "mediation_summary.csv has no total-effect row"
+        )
+    total = indexed.loc["total"].to_dict()
+    off_floor = str(total.get("off_floor", "false")).lower() in {"true", "1"}
+    scale = 100.0 if off_floor else 1.0
+    unit = "percentage points" if off_floor else "items"
+    med = _kf_float(total["words_median"]) * scale
+    lo = _kf_float(total["words_lo"]) * scale
+    hi = _kf_float(total["words_hi"]) * scale
+    fav = favoured_direction(_kf_float(total["prob_pos"]))
+    positive = fav["favoured_direction"] == "positive"
+    direction = "positive" if positive else "negative"
+    claim = (
+        "the intervention improves the outcome under the fitted model"
+        if positive
+        else "the intervention worsens the outcome under the fitted model"
+    )
+    sentences = [
+        _kf_sentence(
+            f"The model-based total intervention contrast was **{med:+.1f} "
+            f"{unit}** (95% credible range {lo:+.1f} to {hi:+.1f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            f"The posterior probability that this model-based total contrast is "
+            f"{direction} is {_kf_pct(fav['favoured_direction_prob'])}% — "
+            f"{fav['favoured_direction_label']} evidence that {claim}.",
+            "confidence",
+        ),
+    ]
+    indirect_name = next(
+        (name for name in ("NIE_joint", "NIE", "IIE") if name in indexed.index),
+        None,
+    )
+    if indirect_name is not None:
+        indirect = indexed.loc[indirect_name].to_dict()
+        i_med = _kf_float(indirect["words_median"]) * scale
+        i_lo = _kf_float(indirect["words_lo"]) * scale
+        i_hi = _kf_float(indirect["words_hi"]) * scale
+        sentences.append(
+            _kf_sentence(
+                f"The estimated indirect component ({indirect_name}) was "
+                f"{i_med:+.1f} {unit} (95% credible range {i_lo:+.1f} to "
+                f"{i_hi:+.1f}).",
+                "highlight",
+            )
+        )
+    sentences.append(
+        _kf_sentence(
+            "The direct/indirect split is a model-based g-formula decomposition, "
+            "not an identified natural mediation effect: unmeasured "
+            "mediator-outcome confounding remains a binding assumption.",
+            "causal",
+        )
+    )
+    return sentences
+
+
+def _kf_build_aligned(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Onset-aligned per-protocol cohort contrast; every term is associative."""
+    outcome_label = _kf_outcome_label(config)
+    marginal = _kf_csv_row(output_dir, "cohort_marginal.csv")
+    if marginal is None:
+        raise _KeyFindingsUnavailable("cohort_marginal.csv is not present")
+    off_floor = (config.get("extra") or {}).get("likelihood") == "bernoulli_offfloor"
+    scale = 100.0 if off_floor else 1.0
+    unit = "percentage points" if off_floor else "items"
+    med = _kf_float(marginal["trt_items_median"]) * scale
+    lo = _kf_float(marginal["trt_items_lo"]) * scale
+    hi = _kf_float(marginal["trt_items_hi"]) * scale
+    sentences = [
+        _kf_sentence(
+            f"After aligning children by intervention onset, the immediate cohort "
+            f"differed from the waiting-list cohort on {outcome_label} by "
+            f"**{med:+.1f} {unit}** (95% credible range {lo:+.1f} to "
+            f"{hi:+.1f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                marginal["prob_trt_pos"],
+                positive_claim="the immediate cohort tends to score higher",
+                negative_claim="the immediate cohort tends to score lower",
+            ),
+            "confidence",
+        ),
+        _kf_sentence(
+            "This is a per-protocol cohort association, not a randomised treatment "
+            "effect; age at onset and cohort timing can confound it.",
+            "causal",
+        ),
+    ]
+    highlight = _kf_strongest_factor(output_dir, exclude_roles=())
+    if highlight:
+        sentences.append(_kf_sentence(highlight, "highlight"))
+    return sentences
+
+
+def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Between-child adjusted predictor associations on the items scale."""
+    df = _kf_csv(output_dir, "predicted_gain_words.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("predicted_gain_words.csv is not present")
+    row = _kf_most_resolved_row(df, prob_col="prob_pos")
+    label = _kf_plain_label(row.get("label", row.get("predictor", "predictor")))
+    med = _kf_float(row["delta_words_mean"])
+    lo = _kf_float(row["delta_words_lo"])
+    hi = _kf_float(row["delta_words_hi"])
+    outcome_label = _kf_outcome_label(config)
+    return [
+        _kf_sentence(
+            f"The clearest adjusted predictor was {label}: a 1-SD increase was "
+            f"associated with **{med:+.1f} items** of difference in "
+            f"{outcome_label} "
+            f"(95% credible range {lo:+.1f} to {hi:+.1f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                row["prob_pos"],
+                positive_claim="higher values accompany greater gain",
+                negative_claim="higher values accompany less gain",
+            ),
+            "confidence",
+        ),
+        _kf_sentence(
+            "This is a between-child adjusted association; it does not identify "
+            "what would happen if the predictor were changed.",
+            "causal",
+        ),
+    ]
+
+
+def _kf_build_corr_factor(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Cross-sectional correlated-domain measurement model."""
+    correlations = _kf_csv(output_dir, "factor_correlation_summary.csv")
+    structural = _kf_csv(output_dir, "structural_summary.csv")
+    if correlations is None and structural is None:
+        raise _KeyFindingsUnavailable(
+            "neither factor_correlation_summary.csv nor structural_summary.csv is present"
+        )
+    sentences: list[dict[str, str]] = []
+    if correlations is not None:
+        row = _kf_most_resolved_row(correlations, prob_col="prob_pos")
+        pair = (
+            f"{_kf_plain_label(row['domain_i'])} and "
+            f"{_kf_plain_label(row['domain_j'])}"
+        )
+        sentences.extend(
+            [
+                _kf_sentence(
+                    f"The clearest latent-domain correlation was between {pair}: "
+                    f"**{_kf_float(row['mean']):+.2f}** (95% credible range "
+                    f"{_kf_float(row['lo']):+.2f} to "
+                    f"{_kf_float(row['hi']):+.2f}).",
+                    "headline",
+                ),
+                _kf_sentence(
+                    _kf_association_direction(
+                        row["prob_pos"],
+                        positive_claim="the two latent skill areas tend to move together",
+                        negative_claim="the two latent skill areas tend to move oppositely",
+                    ),
+                    "confidence",
+                ),
+            ]
+        )
+    if structural is not None:
+        row = _kf_most_resolved_row(structural, prob_col="prob_pos")
+        sentences.append(
+            _kf_sentence(
+                f"The clearest structural slope was "
+                f"{_kf_plain_label(row['coefficient'])}: "
+                f"{_kf_float(row['mean']):+.2f} logit units (95% credible range "
+                f"{_kf_float(row['lo']):+.2f} to "
+                f"{_kf_float(row['hi']):+.2f}).",
+                "highlight",
+            )
+        )
+        if correlations is None:
+            sentences.append(
+                _kf_sentence(
+                    _kf_association_direction(
+                        row["prob_pos"],
+                        positive_claim="the linked latent quantities tend to move together",
+                        negative_claim="the linked latent quantities tend to move oppositely",
+                    ),
+                    "confidence",
+                )
+            )
+    sentences.append(
+        _kf_sentence(
+            "This is a measurement and triangulation model; its factor "
+            "correlations and structural slopes are associations, not causal effects.",
+            "causal",
+        )
+    )
+    return sentences
+
+
+def _kf_build_dose_response(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Observational session-dose association."""
+    marginal = _kf_csv_row(output_dir, "dose_marginal_summary.csv")
+    outcome_label = _kf_outcome_label(config)
+    sentences: list[dict[str, str]] = []
+    if marginal is not None:
+        sentences.append(
+            _kf_sentence(
+                f"A 1-SD increase in sessions was associated with "
+                f"**{_kf_float(marginal['items_median']):+.1f} items** on "
+                f"{outcome_label} "
+                f"(95% credible range {_kf_float(marginal['items_lo']):+.1f} "
+                f"to {_kf_float(marginal['items_hi']):+.1f}).",
+                "headline",
+            )
+        )
+        sentences.append(
+            _kf_sentence(
+                _kf_association_direction(
+                    marginal["prob_pos"],
+                    positive_claim="higher session dose accompanies a higher outcome",
+                    negative_claim="higher session dose accompanies a lower outcome",
+                ),
+                "confidence",
+            )
+        )
+    else:
+        slopes = _kf_csv(output_dir, "dose_slope_summary.csv")
+        if slopes is None:
+            raise _KeyFindingsUnavailable(
+                "neither dose_marginal_summary.csv nor dose_slope_summary.csv is present"
+            )
+        row = slopes.iloc[0].to_dict()
+        sentences.append(
+            _kf_sentence(
+                f"The headline dose slope was "
+                f"**{_kf_float(row['mean']):+.2f} logit units per 1 SD of "
+                f"sessions** (95% credible range {_kf_float(row['lo']):+.2f} "
+                f"to {_kf_float(row['hi']):+.2f}).",
+                "headline",
+            )
+        )
+        sentences.append(
+            _kf_sentence(
+                _kf_association_direction(
+                    row["p_pos"],
+                    positive_claim="higher session dose accompanies a higher outcome",
+                    negative_claim="higher session dose accompanies a lower outcome",
+                ),
+                "confidence",
+            )
+        )
+    sentences.append(
+        _kf_sentence(
+            "Session dose was not randomised and may reflect ability, attendance "
+            "or availability, so the slope is an observational association.",
+            "causal",
+        )
+    )
+    return sentences
+
+
+def _kf_build_lcsm(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Latent change-score couplings, with an optional randomised-window check."""
+    df = _kf_csv(output_dir, "coupling_summary.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("coupling_summary.csv is not present")
+    directed = df[df["coefficient"].astype(str).str.contains("->", regex=False)]
+    if directed.empty:
+        directed = df
+    row = _kf_most_resolved_row(directed, prob_col="prob_pos")
+    label = _kf_plain_label(row["coefficient"])
+    if "(" in label and label.endswith(")"):
+        label = label.split("(", 1)[1][:-1]
+    sentences = [
+        _kf_sentence(
+            f"The clearest longitudinal coupling was {label}: "
+            f"**{_kf_float(row['mean']):+.2f} logit units** (95% credible range "
+            f"{_kf_float(row['lo']):+.2f} to {_kf_float(row['hi']):+.2f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                row["prob_pos"],
+                positive_claim="a higher earlier level accompanies greater later change",
+                negative_claim="a higher earlier level accompanies less later change",
+            ),
+            "confidence",
+        ),
+        _kf_sentence(
+            "The couplings are conditional predictive associations among latent "
+            "trajectories, not causal skill-to-skill effects.",
+            "causal",
+        ),
+    ]
+    itt = _kf_csv(output_dir, "itt_window1_contrast.csv")
+    if itt is not None:
+        check = _kf_most_resolved_row(itt, prob_col="prob_pos")
+        sentences.append(
+            _kf_sentence(
+                f"The separate randomised window-1 consistency contrast was "
+                f"{_kf_float(check['mean']):+.2f} latent-logit units (95% credible "
+                f"range {_kf_float(check['lo']):+.2f} to "
+                f"{_kf_float(check['hi']):+.2f}); it is a check, not the coupling "
+                f"headline.",
+                "highlight",
+            )
+        )
+    return sentences
+
+
+def _kf_build_horseshoe(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Regularised-horseshoe predictor-ranking sensitivity analysis."""
+    df = _kf_csv(output_dir, "predictor_ranking.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("predictor_ranking.csv is not present")
+    row = df.sort_values("rank").iloc[0].to_dict()
+    label = _kf_plain_label(row["predictor"])
+    direction = "positive" if _kf_float(row["beta_mean"]) >= 0 else "negative"
+    return [
+        _kf_sentence(
+            f"The top-ranked predictor was {label}, with a standardised "
+            f"{direction} association of **{_kf_float(row['beta_mean']):+.2f} "
+            f"logit units** (94% highest-density interval "
+            f"{_kf_float(row['beta_hdi_3']):+.2f} to "
+            f"{_kf_float(row['beta_hdi_97']):+.2f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            f"Its probability of exceeding the pre-specified worth-noticing "
+            f"coefficient threshold was {_kf_pct(row['p_abs_gt_delta'])}%.",
+            "confidence",
+        ),
+        _kf_sentence(
+            "The ranking is an adjusted predictive sensitivity check, not a list "
+            "of causal drivers; closely ranked predictors should not be treated as "
+            "meaningfully ordered.",
+            "causal",
+        ),
+    ]
+
+
+def _kf_build_growth(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Multivariate growth: baseline ability association with growth rate."""
+    df = _kf_csv(output_dir, "growth_association_summary.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("growth_association_summary.csv is not present")
+    gamma = df[df["coefficient"] == "gamma"]
+    if gamma.empty:
+        raise _KeyFindingsUnavailable("growth summary has no gamma rows")
+    row = _kf_most_resolved_row(gamma, prob_col="prob_positive")
+    outcome = _kf_measure_label(row["outcome"])
+    return [
+        _kf_sentence(
+            f"For {outcome}, the clearest result, a 1-SD higher baseline "
+            f"non-verbal ability score was associated with a growth-rate change of "
+            f"**{_kf_float(row['median']):+.2f} logit units** (95% credible range "
+            f"{_kf_float(row['lo95']):+.2f} to "
+            f"{_kf_float(row['hi95']):+.2f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                row["prob_positive"],
+                positive_claim="higher baseline ability accompanies faster growth",
+                negative_claim="higher baseline ability accompanies slower growth",
+            ),
+            "confidence",
+        ),
+        _kf_sentence(
+            "These trajectory coefficients are adjusted associations, not effects "
+            "of changing non-verbal ability.",
+            "causal",
+        ),
+    ]
+
+
+def _kf_build_historical_growth(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Historical-cohort natural-history reproduction."""
+    df = _kf_csv(output_dir, "posterior_growth_summary.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("posterior_growth_summary.csv is not present")
+    within = df[df["readgrp_label"].fillna("").astype(str).str.len() > 0]
+    if within.empty:
+        within = df
+    row = _kf_most_resolved_row(within, prob_col="p_gt_0")
+    group = _kf_plain_label(row.get("readgrp_label", "historical cohort"))
+    fav = favoured_direction(_kf_float(row["p_gt_0"]))
+    positive = fav["favoured_direction"] == "positive"
+    direction = "positive" if positive else "negative"
+    claim = (
+        "scores tend to increase over that interval"
+        if positive
+        else "scores tend to decrease over that interval"
+    )
+    sentences = [
+        _kf_sentence(
+            f"For the {group} group, {_kf_plain_label(row['label'])} was "
+            f"**{_kf_float(row['mean']):+.1f} items** (95% credible range "
+            f"{_kf_float(row['q2_5']):+.1f} to "
+            f"{_kf_float(row['q97_5']):+.1f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            f"The posterior probability that this growth is {direction} is "
+            f"{_kf_pct(fav['favoured_direction_prob'])}% — "
+            f"{fav['favoured_direction_label']} evidence that {claim}.",
+            "confidence",
+        ),
+        _kf_sentence(
+            "This is descriptive natural-history growth in a historical cohort, "
+            "not an intervention effect or an explanation of group differences.",
+            "causal",
+        ),
+    ]
+    cells = _kf_csv(output_dir, "posterior_cell_summary.csv")
+    if cells is not None and "posterior_mean_minus_observed_mean" in cells.columns:
+        gaps = [
+            abs(_kf_float(v)) for v in cells["posterior_mean_minus_observed_mean"]
+        ]
+        sentences.append(
+            _kf_sentence(
+                f"As a reproduction check, the largest fitted-minus-observed cell "
+                f"mean gap was {max(gaps):.1f} items.",
+                "highlight",
+            )
+        )
+    return sentences
+
+
+def _kf_build_survival(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Discrete-time off-floor hazard model."""
+    df = _kf_csv(output_dir, "survival_summary.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("survival_summary.csv is not present")
+    effects = df[np.isfinite(pd.to_numeric(df["P(>0)"], errors="coerce"))]
+    if effects.empty:
+        raise _KeyFindingsUnavailable("survival summary has no directional effects")
+    treatment = effects[effects["term"].astype(str).str.startswith("tau")]
+    row = (treatment.iloc[0] if not treatment.empty else _kf_most_resolved_row(
+        effects, prob_col="P(>0)"
+    )).to_dict()
+    ratio = np.exp(_kf_float(row["median"]))
+    ratio_lo = np.exp(_kf_float(row["ci_low"]))
+    ratio_hi = np.exp(_kf_float(row["ci_high"]))
+    label = _kf_plain_label(row["term"])
+    sentences = [
+        _kf_sentence(
+            f"The {label} corresponded to a hazard ratio of **{ratio:.2f}** "
+            f"(95% credible range {ratio_lo:.2f} to {ratio_hi:.2f}) for coming "
+            f"off the floor in an interval.",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                row["P(>0)"],
+                positive_claim="the reported term accompanies earlier movement off the floor",
+                negative_claim="the reported term accompanies later movement off the floor",
+            ),
+            "confidence",
+        ),
+        _kf_sentence(
+            "This is a prognostic association over all waves; because both arms "
+            "are treated by the final wave, it is not a randomised effect of record.",
+            "causal",
+        ),
+    ]
+    baseline = df[df["term"].astype(str).str.startswith("baseline off-floor prob")]
+    if not baseline.empty:
+        values = [_kf_float(v) for v in baseline["median"]]
+        sentences.append(
+            _kf_sentence(
+                f"For an untreated child at mean covariates, the fitted baseline "
+                f"off-floor probability ranged from {_kf_pct(min(values))}% to "
+                f"{_kf_pct(max(values))}% across intervals.",
+                "highlight",
+            )
+        )
+    return sentences
+
+
+def _kf_build_block_exposure(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Staggered block-2 active-exposure association."""
+    row = _kf_csv_row(output_dir, "block_exposure_summary.csv")
+    if row is None:
+        raise _KeyFindingsUnavailable("block_exposure_summary.csv is not present")
+    off_floor = (config.get("extra") or {}).get("likelihood") == "bernoulli_offfloor"
+    scale = 100.0 if off_floor else 1.0
+    unit = "percentage points" if off_floor else "items"
+    outcome_label = _kf_outcome_label(config)
+    return [
+        _kf_sentence(
+            f"When block-2 teaching was active, {outcome_label} differed by "
+            f"**{_kf_float(row['delta_items_median']) * scale:+.1f} {unit}** "
+            f"(95% credible range "
+            f"{_kf_float(row['delta_items_lo']) * scale:+.1f} to "
+            f"{_kf_float(row['delta_items_hi']) * scale:+.1f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                row["prob_delta_pos"],
+                positive_claim="active block-2 teaching accompanies a higher outcome",
+                negative_claim="active block-2 teaching accompanies a lower outcome",
+            ),
+            "confidence",
+        ),
+        _kf_sentence(
+            "Block-2 exposure was not randomised; this is a parallel-trends "
+            "association comparing block-2-active with block-1-active periods.",
+            "causal",
+        ),
+    ]
+
+
+def _kf_build_concurrent(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Per-wave mutually-adjusted same-time associations."""
+    df = _kf_csv(output_dir, "concurrent_marginals.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("concurrent_marginals.csv is not present")
+    converged = df["converged"].astype(str).str.lower().isin({"true", "1"})
+    rows = df[
+        (df["adjustment"] == "adjusted")
+        & (df["scale"] == "+1 SD")
+        & converged
+    ]
+    if rows.empty:
+        raise _KeyFindingsUnavailable(
+            "no converged adjusted +1 SD concurrent marginals are present"
+        )
+    row = _kf_most_resolved_row(rows, prob_col="prob_pos")
+    label = _kf_plain_label(row.get("label", row["term"]))
+    return [
+        _kf_sentence(
+            f"At t{int(_kf_float(row['timepoint']))}, the clearest adjusted "
+            f"same-wave predictor was {label}: +1 SD was associated with "
+            f"**{_kf_float(row['items_median']):+.1f} outcome items** (95% "
+            f"credible range {_kf_float(row['items_lo']):+.1f} to "
+            f"{_kf_float(row['items_hi']):+.1f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                row["prob_pos"],
+                positive_claim="the two same-wave skills tend to be higher together",
+                negative_claim="the two same-wave skills tend to move oppositely",
+            ),
+            "confidence",
+        ),
+        _kf_sentence(
+            "All concurrent coefficients condition on post-treatment skills and "
+            "are descriptive associations, not causal pathways.",
+            "causal",
+        ),
+    ]
+
+
+def _kf_build_long_corr_factor(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Longitudinal latent-domain measurement model, using its items translation."""
+    df = _kf_csv(output_dir, "latent_items_slopes.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("latent_items_slopes.csv is not present")
+    row = _kf_most_resolved_row(df, prob_col="prob_pos")
+    predictor = _kf_measure_label(row["predictor_indicator"])
+    target = _kf_measure_label(row["target_indicator"])
+    return [
+        _kf_sentence(
+            f"At wave {int(_kf_float(row['wave']))}, the clearest translated latent "
+            f"coupling linked +1 {predictor} item with "
+            f"**{_kf_float(row['items_per_item_mean']):+.2f} {target} items** "
+            f"(95% credible range {_kf_float(row['items_per_item_lo']):+.2f} "
+            f"to {_kf_float(row['items_per_item_hi']):+.2f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                row["prob_pos"],
+                positive_claim="the two latent domains tend to move together",
+                negative_claim="the two latent domains tend to move oppositely",
+            ),
+            "confidence",
+        ),
+        _kf_sentence(
+            "This items-scale slope is a linearised measurement-model "
+            "association at the average operating point, not a caused gain.",
+            "causal",
+        ),
+    ]
+
+
 def _kf_build_fallback(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """Families without a bespoke builder yet (#320 rolls out the core four;
-    the rest follow #321): an honest placeholder, never a wrong summary."""
+    """Unknown future family: an honest placeholder, never a wrong summary."""
     kind = config.get("kind") or "this"
     return [
         _kf_sentence(
@@ -2692,9 +3571,25 @@ def _kf_build_fallback(output_dir, config: Mapping) -> list[dict[str, str]]:
 
 _KF_BUILDERS = {
     "itt": _kf_build_itt,
+    "joint": _kf_build_joint,
+    "mechanism": _kf_build_mechanism,
+    "mediation": _kf_build_mediation,
+    "mediation_multi": _kf_build_mediation,
+    "did": _kf_build_did,
     "gain_factors": _kf_build_gain_factors,
     "level_factors": _kf_build_level_factors,
-    "did": _kf_build_did,
+    "aligned": _kf_build_aligned,
+    "adjusted": _kf_build_adjusted,
+    "corr_factor": _kf_build_corr_factor,
+    "dose_response": _kf_build_dose_response,
+    "lcsm": _kf_build_lcsm,
+    "horseshoe": _kf_build_horseshoe,
+    "growth": _kf_build_growth,
+    "historical_growth": _kf_build_historical_growth,
+    "survival": _kf_build_survival,
+    "block_exposure": _kf_build_block_exposure,
+    "concurrent": _kf_build_concurrent,
+    "long_corr_factor": _kf_build_long_corr_factor,
 }
 
 # Human-readable names for the convergence-gate checks (the gate-failed banner).
