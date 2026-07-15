@@ -142,6 +142,69 @@ def _add_child_random_intercept(
     return eta + u_child[child_idx]
 
 
+def _broadcast_phase_zero(
+    prepared: PreparedData,
+    values: np.ndarray,
+    *,
+    label: str,
+) -> np.ndarray:
+    """Broadcast one phase-zero value per child across that child's rows.
+
+    The DiD redesign uses only genuinely pre-randomisation quantities as
+    precision covariates.  In the transition frame phase zero starts at t1; in
+    the levels frame phase zero *is* t1.  This helper therefore extracts a
+    single t1 value per subject and broadcasts it without ever substituting the
+    treatment-affected t2 value used to start P2.
+    """
+    arr = np.asarray(values, dtype=float)
+    if arr.shape != (prepared.n_obs,):
+        raise ValueError(
+            f"{label} has shape {arr.shape}; expected ({prepared.n_obs},)."
+        )
+    phase_zero = prepared.phase == 0
+    if not np.any(phase_zero):
+        raise ValueError(f"Cannot construct {label}: prepared data have no phase-zero rows.")
+
+    by_subject: dict[Any, float] = {}
+    for subject, value in zip(
+        prepared.subject_ids[phase_zero], arr[phase_zero], strict=True
+    ):
+        if subject in by_subject and not np.isclose(
+            by_subject[subject], value, equal_nan=True
+        ):
+            raise ValueError(
+                f"Cannot construct {label}: subject {subject!r} has conflicting "
+                "phase-zero values."
+            )
+        by_subject[subject] = float(value)
+
+    missing = [s for s in np.unique(prepared.subject_ids) if s not in by_subject]
+    if missing:
+        raise ValueError(
+            f"Cannot construct {label}: {len(missing)} subject(s) lack a phase-zero row."
+        )
+    return np.asarray([by_subject[s] for s in prepared.subject_ids], dtype=float)
+
+
+def _standardise_child_baseline(
+    prepared: PreparedData,
+    values: np.ndarray,
+    *,
+    label: str,
+) -> tuple[np.ndarray, Any]:
+    """Standardise a broadcast child baseline once per child, then rebroadcast."""
+    broadcast = _broadcast_phase_zero(prepared, values, label=label)
+    phase_zero = prepared.phase == 0
+    baseline_z, scaler = standardise(broadcast[phase_zero])
+    by_subject = dict(
+        zip(prepared.subject_ids[phase_zero], baseline_z, strict=True)
+    )
+    return (
+        np.asarray([by_subject[s] for s in prepared.subject_ids], dtype=float),
+        scaler,
+    )
+
+
 @dataclass
 class BuiltModel:
     model: pm.Model
@@ -1326,6 +1389,7 @@ def build_did_model(
     prepared: PreparedData,
     *,
     outcome_symbol: str,
+    waves: Iterable[int] = (0, 1, 2),
     periods: Iterable[int] = (0, 1),
     use_child_re: bool = True,
     use_age: bool = True,
@@ -1334,97 +1398,24 @@ def build_did_model(
     use_varying_delta: bool = False,
     likelihood: str = "beta_binomial",
 ) -> BuiltModel:
-    """Waitlist-crossover / difference-in-differences model for one outcome.
+    """Waitlist-crossover triangulation with explicit arm-by-wave contrasts.
 
-    Stacks the early phase transitions (P1 = t1->t2, P2 = t2->t3) for **both**
-    arms and asks whether being *currently treated* lifts the period gain, with
-    each child as their own control (a child random intercept). Under the trial's
-    waitlist design the only **untreated** cell is the waitlist arm in P1; the
-    immediate arm is treated in both periods and so anchors the period
-    (time / maturation) trend. The treatment coefficient ``delta`` is therefore a
-    difference-in-differences estimate of the ITT effect, identified jointly by
-    the period-1 between-arm contrast and the waitlist's own P1->P2 crossover.
+    Binary models use the t1--t3 levels frame.  They estimate the arm gap at
+    every wave separately: ``tau_t2`` is the clean randomised t2 contrast,
+    ``arm_gap_t3`` is the post-crossover 40-week-vs-20-week association, and
+    ``delta_crossover = tau_t2 - arm_gap_t3`` is waitlist catch-up.  This avoids
+    the legacy restriction that forced those distinct quantities to equal one
+    common-current-treatment coefficient.  The t2 period-start outcome is never
+    conditioned on because it is treatment-affected in the immediate arm.
 
-    Requires ``prepared.phase_mode == "all"`` (the phase-stacked frame). Built on
-    the same Beta-Binomial-on-logit / ANCOVA convention as the ITT suite, so the
-    logit link absorbs ceiling effects: an immediate-arm child near the top of a
-    bounded test makes a small P2 gain *expected*, not a spurious negative trend
-    (the failure mode of a raw-gain difference-in-differences).
-
-    Linear predictor (binary, ``dose=False``):
-
-        eta_{i,p} = alpha + beta_period * [p == P2]
-                  + delta * Treated_{i,p}
-                  [ + gamma_A * A_std_{i,p}    if use_age ]
-                  [ + u_child_i                if use_child_re ]
-
-    where ``Treated_{i,p} = 1`` when child *i* is receiving the intervention in
-    period *p* (immediate: both periods; waitlist: P2 only). With ``dose=True`` the
-    binary ``delta * Treated`` is replaced by ``beta_dose * z(attend)`` (the
-    standardised intervention-session count for that period) — a dose-response
-    sensitivity; the caller must have loaded ``covariates=("attend",)``.
-
-    **No own-baseline term in either likelihood branch** (A2 / #257 review): for the
-    immediate arm's P2 the period-start score is post-P1-treatment, so a ``gamma_own``
-    term would adjust a treatment-affected variable and bias the differenced
-    ``delta``. ``delta`` is identified by the period × treated structure plus the
-    child random intercept (each child their own control) instead; the graded and
-    off-floor branches differ only in likelihood.
-
-    Parameters
-    ----------
-    periods
-        Phase indices to keep (default ``(0, 1)`` = P1, P2). ``beta_period`` is
-        the P2-vs-P1 contrast.
-    use_child_re
-        Add the non-centred child random intercept (the own-control). Default True.
-    use_age
-        Add a linear standardised-age precision term. Default True.
-    dose
-        Use the standardised session count as a continuous treatment intensity
-        instead of the binary treated indicator.
-    period_varying_dose
-        With ``dose=True``, replace the single pooled ``beta_dose`` by
-        partial-pooled per-period slopes ``beta_dose_phase[p] = mu_dose +
-        sigma_dose * z_p`` (non-centred), so each period's dose-gain slope shrinks
-        toward the shared mean. Mirrors :func:`build_dose_response_model`; the
-        nested ``period_varying_dose=False`` model is its pooled comparator for a
-        PSIS-LOO test of period variation (#135). Requires ``dose=True``.
-    use_varying_delta
-        Add a non-centred per-child random slope on the treated indicator,
-        ``delta_i = delta + sigma_delta * z_i``, and report ``sigma_delta`` — the
-        between-child SD of the crossover treatment effect — as the treatment-effect
-        heterogeneity variance component (#230 §2/§4a). ``delta`` remains the
-        population-mean effect. Requires ``dose=False`` and ``use_child_re=True``.
-    likelihood
-        ``"beta_binomial"`` (default) fits the graded post-count. For heavily
-        floored outcomes (P, N) pass ``"bernoulli_offfloor"``: the observation is a
-        Bernoulli on the binary off-floor indicator (period post > 0), so ``delta``
-        is the within-person DiD on the log-odds of *being off the floor at period
-        end* — off-floor PREVALENCE, ``Pr(post > 0)``, not the floor-exit transition
-        ``Pr(post > 0 | pre = 0)``. Its items-scale marginal (``n_trials=1``) is a
-        model-implied off-floor risk difference from toggling ``Treated``, not a
-        probability-scale DiD cross-difference (parallel trends holds on the
-        log-odds scale). No ``kappa`` under the Bernoulli (neither branch has an
-        own-baseline ``gamma_own`` term — see above). Requires ``dose=False``.
+    Dose variants retain P1/P2 transition rows because sessions are interval
+    exposures.  They retain an explicit treatment-presence term, adjust for
+    randomised arm plus the shared t1 outcome and age, and enter sessions centred
+    and scaled among treated rows.  Dose coefficients remain observational.
     """
-    if prepared.phase_mode != "all":
-        raise ValueError("build_did_model requires phase_mode='all'")
     own = outcome_symbol
-    if own not in prepared.post_counts or own not in prepared.pre_logit:
-        raise KeyError(f"Outcome {own!r} missing pre/post in prepared data")
-    periods = tuple(int(p) for p in periods)
-    # The time / treated indicators below hard-code the waitlist-crossover 2×2
-    # (P1 untreated-waitlist vs P2 crossover, ``is_p2 = phase >= 1``,
-    # ``treated = (G==1) | (phase>=1)``). They are only correct for the
-    # crossover pair ``(0, 1)``; any other window would silently mislabel the
-    # time and treatment cells (e.g. ``(1, 2)`` makes both indicators constant,
-    # leaving delta / beta_period unidentified). Fail loudly instead.
-    if periods != (0, 1):
-        raise ValueError(
-            "build_did_model hard-codes the P1-vs-P2 crossover contrast and "
-            f"requires periods=(0, 1); got {periods}."
-        )
+    if own not in prepared.post_counts:
+        raise KeyError(f"Outcome {own!r} missing from prepared data")
     if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
         raise ValueError(
             "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
@@ -1432,133 +1423,292 @@ def build_did_model(
         )
     if likelihood == "bernoulli_offfloor" and dose:
         raise ValueError(
-            "bernoulli_offfloor is the floor-rule binary estimand; use dose=False"
+            "bernoulli_offfloor is the binary prevalence estimand; use dose=False"
         )
-    if dose and "attend" not in prepared.covariates:
-        raise KeyError("dose=True requires the 'attend' covariate to be loaded")
     if period_varying_dose and not dose:
         raise ValueError("period_varying_dose=True requires dose=True")
     if use_varying_delta and dose:
-        raise ValueError(
-            "use_varying_delta is the binary treatment-effect heterogeneity variant; "
-            "use dose=False"
-        )
+        raise ValueError("use_varying_delta is unavailable for dose models")
     if use_varying_delta and not use_child_re:
-        # A per-child random *slope* on the treatment without a per-child random
-        # *intercept* is rarely sensible and would confound level with responsiveness;
-        # require the intercept (it also provides the shared child index).
         raise ValueError("use_varying_delta=True requires use_child_re=True")
 
-    post = prepared.post_counts[own]
-    keep = np.isin(prepared.phase, periods) & ~np.isnan(post)
     if dose:
-        keep = keep & np.isfinite(prepared.covariates["attend"])
-    prepared = _subset(prepared, keep)
-
-    post = prepared.post_counts[own].astype(np.int64)
-    # P2 indicator (time); Treated indicator (immediate both periods, waitlist P2).
-    is_p2 = (prepared.phase >= 1).astype(float)
-    treated = ((prepared.G == 1) | (prepared.phase >= 1)).astype(float)
-    n_trials = prepared.n_trials[own]
-
-    coords = {
-        "obs_id": np.arange(prepared.n_obs),
-        "child": np.arange(prepared.n_children),
-    }
-    if period_varying_dose:
-        coords["dose_phase"] = np.arange(len(periods))
-    with pm.Model(coords=coords) as model:
-        period_d = pm.Data("period", is_p2, dims="obs_id")
-
-        alpha = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha")
-        beta_period = _priors.tau_prior().to_pymc("beta_period")
-
-        eta = alpha + beta_period * period_d
-
-        # No own-baseline (autoregressive) conditioning in EITHER likelihood branch
-        # (A2 / #257 review, team decision 2026-07-13). For the immediate arm's P2 the
-        # period-start score is *post* that arm's P1 treatment, so a ``gamma_own`` term
-        # would condition the differenced ``delta`` on a treatment-affected variable — a
-        # lagged-DV/ANCOVA adjustment that biases the total-effect / ITT-replication
-        # reading (Rosenbaum 1984, doi:10.2307/2981697), and a child random intercept
-        # does not restore it. ``delta`` is identified by the period × treated DiD
-        # structure plus the child intercept (each child their own control), so no
-        # own-baseline term is needed; the graded and off-floor branches now differ only
-        # in likelihood (Beta-Binomial vs Bernoulli).
-
-        if use_age:
-            A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
-            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
-            eta = eta + gamma_A * A_std_d
-
-        if use_child_re:
-            child_idx_d = pm.Data(
-                "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+        if prepared.phase_mode != "all":
+            raise ValueError("DiD dose variants require phase_mode='all'")
+        if own not in prepared.pre_logit:
+            raise KeyError(f"Dose model needs the t1 baseline for outcome {own!r}")
+        if "attend" not in prepared.covariates:
+            raise KeyError("dose=True requires the 'attend' covariate")
+        periods = tuple(int(p) for p in periods)
+        if periods != (0, 1):
+            raise ValueError(
+                "DiD dose variants require periods=(0, 1); "
+                f"got {periods}."
             )
-            eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=0.5)
 
-        # Linear predictor without the treatment term, so the pipeline can read
-        # the off-treatment baseline for the average-marginal-effect translation.
-        eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
+        baseline_t1_all = _broadcast_phase_zero(
+            prepared, prepared.pre_logit[own], label=f"{own} t1 baseline"
+        )
+        age_t1_all, age_scaler = _standardise_child_baseline(
+            prepared, prepared.A_months, label="t1 age"
+        )
+        keep = (
+            np.isin(prepared.phase, periods)
+            & np.isfinite(prepared.post_counts[own])
+            & np.isfinite(prepared.covariates["attend"])
+            & np.isfinite(baseline_t1_all)
+        )
+        baseline_t1 = baseline_t1_all[keep]
+        age_t1 = age_t1_all[keep]
+        prepared = _subset(prepared, keep)
+        post = prepared.post_counts[own].astype(np.int64)
+        is_p2 = (prepared.phase == 1).astype(float)
+        G_f = prepared.G.astype(float)
+        treated = ((prepared.G == 1) | (prepared.phase == 1)).astype(float)
 
-        if dose:
-            # Re-standardise the dose covariate on the kept rows: it was z-scored
-            # over all stacked transitions (P1–P3) at load time, but this model is
-            # fit on ``periods`` (P1–P2) only, so without this the dose slope would
-            # be "per SD of dose pooled over P1–P3", not per SD of the fitted rows.
-            attend_std, _ = standardise(prepared.covariates["attend"])
-            z_attend = pm.Data("z_attend", attend_std, dims="obs_id")
+        loaded_attend = np.asarray(prepared.covariates["attend"], dtype=float)
+        loaded_scaler = prepared.covariate_scalers["attend"]
+        raw_attend = loaded_attend * loaded_scaler.sd + loaded_scaler.mean
+        treated_z, dose_scaler = standardise(raw_attend[treated == 1])
+        dose_centered = np.where(
+            treated == 1,
+            (raw_attend - dose_scaler.mean) / dose_scaler.sd,
+            0.0,
+        )
+        if not np.allclose(dose_centered[treated == 1], treated_z):
+            raise AssertionError("Treated-centred dose standardisation drifted")
+
+        obs_ids = np.asarray(
+            [
+                f"{subject}|P{int(phase) + 1}"
+                for subject, phase in zip(
+                    prepared.subject_ids, prepared.phase, strict=True
+                )
+            ]
+        )
+        coords: dict[str, Any] = {
+            "obs_id": obs_ids,
+            "child": np.arange(prepared.n_children),
+        }
+        if period_varying_dose:
+            coords["dose_phase"] = ["P1", "P2"]
+
+        with pm.Model(coords=coords) as model:
+            period_d = pm.Data("period", is_p2, dims="obs_id")
+            G_d = pm.Data("G", G_f, dims="obs_id")
+            treated_d = pm.Data("treated", treated, dims="obs_id")
+            baseline_t1_d = pm.Data(
+                "baseline_t1_logit", baseline_t1, dims="obs_id"
+            )
+            dose_d = pm.Data("dose_treated_std", dose_centered, dims="obs_id")
+
+            alpha = _priors.alpha_prior(
+                sigma=_alpha_sigma_for(outcome_symbol)
+            ).to_pymc("alpha")
+            beta_period = _priors.tau_prior().to_pymc("beta_period")
+            beta_group = _priors.gamma_cross_prior().to_pymc("beta_group")
+            theta_treated = _priors.tau_prior(
+                sigma=_tau_sigma_for(own)
+            ).to_pymc("theta_treated")
+            gamma_t1 = _priors.gamma_own_prior().to_pymc("gamma_t1")
+            eta = (
+                alpha
+                + beta_period * period_d
+                + beta_group * G_d
+                + theta_treated * treated_d
+                + gamma_t1 * baseline_t1_d
+            )
+            if use_age:
+                age_t1_d = pm.Data("A_t1_std", age_t1, dims="obs_id")
+                gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
+                eta = eta + gamma_A * age_t1_d
+            if use_child_re:
+                child_idx_d = pm.Data(
+                    "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+                )
+                eta = _add_child_random_intercept(
+                    eta, child_idx_d, sigma_prior_sigma=0.5
+                )
+
+            eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
             if period_varying_dose:
-                # Partial-pooled per-period dose slopes (non-centred): each
-                # period's slope shrinks toward the shared mean mu_dose. The
-                # nested pooled model (period_varying_dose=False) is its LOO
-                # comparator (#135). Variable names match build_dose_response_model
-                # so the shared dose-slope summary reads them.
-                period_pos = np.searchsorted(
-                    np.asarray(periods), prepared.phase
-                ).astype(np.int64)
-                dose_phase_idx = pm.Data("dose_phase_idx", period_pos, dims="obs_id")
-                # Use the dose-response factory's dose-slope prior (beta_mech,
-                # Normal(0, 1)) — NOT tau — so the shared dose-slope summary compares
-                # like with like (the docstring says this model mirrors
-                # build_dose_response_model). Previously these reused tau_prior,
-                # silently differing from the model they are compared against.
+                dose_phase_idx = pm.Data(
+                    "dose_phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
+                )
                 mu_dose = _priors.beta_mech_prior().to_pymc("mu_dose")
-                sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
+                sigma_dose = _priors.sigma_dose_phase_prior().to_pymc(
+                    "sigma_dose"
+                )
                 beta_dose_phase = pm.Deterministic(
                     "beta_dose_phase",
                     mu_dose
                     + sigma_dose
-                    * pm.Normal("beta_dose_phase_raw", 0.0, 1.0, dims="dose_phase"),
+                    * pm.Normal(
+                        "beta_dose_phase_raw", 0.0, 1.0, dims="dose_phase"
+                    ),
                     dims="dose_phase",
                 )
-                eta_full = eta_base + beta_dose_phase[dose_phase_idx] * z_attend
+                eta_full = eta_base + beta_dose_phase[dose_phase_idx] * dose_d
             else:
-                # Match build_dose_response_model's dose-slope prior (beta_mech).
                 beta_dose = _priors.beta_mech_prior().to_pymc("beta_dose")
-                eta_full = eta_base + beta_dose * z_attend
-        else:
-            treated_d = pm.Data("treated", treated, dims="obs_id")
-            delta = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc("delta")
-            if use_varying_delta:
-                # Treatment-effect heterogeneity as a variance component (#230 §2/§4a):
-                # a per-child on-intervention slope delta_i = delta + sigma_delta * z_i
-                # (non-centred — mandatory here to avoid a Neal's funnel), whose SD is
-                # the reported estimand. ``delta`` stays the population-mean effect, so
-                # the DiD summary and AME read it unchanged; ``sigma_delta`` answers
-                # "is the treatment effect homogeneous across children?".
-                sigma_delta = _priors.sigma_delta_prior().to_pymc("sigma_delta")
-                v_delta = pm.Deterministic(
-                    "v_delta",
-                    sigma_delta * pm.Normal("v_delta_raw", 0.0, 1.0, dims="child"),
-                    dims="child",
-                )
-                delta_i = pm.Deterministic("delta_i", delta + v_delta, dims="child")
-                eta_full = eta_base + delta_i[child_idx_d] * treated_d
-            else:
-                eta_full = eta_base + delta * treated_d
+                eta_full = eta_base + beta_dose * dose_d
+
+            eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
+            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            beta_binomial_from_logit(
+                "y_post",
+                eta_full,
+                n_trials=prepared.n_trials[own],
+                kappa=kappa,
+                observed=post,
+                dims="obs_id",
+            )
+
+        return BuiltModel(
+            model=model,
+            variables=_variables_dict(model),
+            prepared=prepared,
+            extras={
+                "design": "dose_intensive_margin",
+                "dose_scaler": dose_scaler,
+                "age_t1_scaler": age_scaler,
+                "analysis_row_ids": obs_ids,
+                "raw_attend": raw_attend,
+                "dose_treated_std": dose_centered,
+                "treated": treated,
+            },
+        )
+
+    if prepared.phase_mode != "levels":
+        raise ValueError("Binary DiD triangulation requires phase_mode='levels'")
+    waves = tuple(int(w) for w in waves)
+    if waves != (0, 1, 2):
+        raise ValueError(
+            "Binary DiD triangulation requires waves=(0, 1, 2); "
+            f"got {waves}."
+        )
+
+    age_t1_all, age_scaler = _standardise_child_baseline(
+        prepared, prepared.A_months, label="t1 age"
+    )
+    keep = np.isin(prepared.phase, waves) & np.isfinite(prepared.post_counts[own])
+    age_t1 = age_t1_all[keep]
+    prepared = _subset(prepared, keep)
+    post = prepared.post_counts[own].astype(np.int64)
+    n_trials = prepared.n_trials[own]
+
+    t1 = post[prepared.phase == 0]
+    if not t1.size:
+        raise ValueError(f"Cannot anchor {own}: no observed t1 outcome values")
+    if likelihood == "bernoulli_offfloor":
+        movers = int(np.sum(t1 > 0))
+        alpha_anchor = float(
+            np.log((movers + 0.5) / (t1.size - movers + 0.5))
+        )
+    else:
+        successes = float(np.sum(t1))
+        failures = float(t1.size * n_trials - successes)
+        alpha_anchor = float(
+            np.log((successes + 0.5) / (failures + 0.5))
+        )
+
+    obs_ids = np.asarray(
+        [
+            f"{subject}|t{int(wave) + 1}"
+            for subject, wave in zip(
+                prepared.subject_ids, prepared.phase, strict=True
+            )
+        ]
+    )
+    coords: dict[str, Any] = {
+        "obs_id": obs_ids,
+        "child": np.arange(prepared.n_children),
+        "wave": ["t1", "t2", "t3"],
+        "post_wave": ["t2", "t3"],
+    }
+    waitlist_subjects = np.unique(
+        prepared.subject_ids[(prepared.G == 0) & (prepared.phase == 2)]
+    )
+    if use_varying_delta:
+        if not waitlist_subjects.size:
+            raise ValueError("Crossover heterogeneity requires waitlist children")
+        coords["waitlist_child"] = waitlist_subjects.astype(str)
+
+    with pm.Model(coords=coords) as model:
+        wave_d = pm.Data(
+            "wave_idx", prepared.phase.astype(np.int64), dims="obs_id"
+        )
+        G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
+        child_idx_d = pm.Data(
+            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+        )
+
+        alpha_offset = _priors.alpha_prior(
+            sigma=_alpha_sigma_for(outcome_symbol)
+        ).to_pymc("alpha_offset")
+        alpha = pm.Deterministic("alpha", alpha_anchor + alpha_offset)
+        beta_period = _priors.tau_prior().to_pymc(
+            "beta_period", dims="post_wave"
+        )
+        wave_offset = pt.concatenate(
+            [pt.zeros((1,), dtype=beta_period.dtype), beta_period]
+        )
+        arm_gap_t1 = _priors.gamma_cross_prior().to_pymc("arm_gap_t1")
+        tau_t2 = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc(
+            "tau_t2"
+        )
+        arm_gap_t3 = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc(
+            "arm_gap_t3"
+        )
+        arm_gap_wave = pm.Deterministic(
+            "arm_gap_wave",
+            pt.stack([arm_gap_t1, tau_t2, arm_gap_t3]),
+            dims="wave",
+        )
+        delta_crossover = pm.Deterministic(
+            "delta_crossover", tau_t2 - arm_gap_t3
+        )
+
+        eta_base = alpha + wave_offset[wave_d]
+        if use_age:
+            age_t1_d = pm.Data("A_t1_std", age_t1, dims="obs_id")
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
+            eta_base = eta_base + gamma_A * age_t1_d
+        if use_child_re:
+            eta_base = _add_child_random_intercept(
+                eta_base, child_idx_d, sigma_prior_sigma=0.5
+            )
+        eta_base = pm.Deterministic("eta_base", eta_base, dims="obs_id")
+        eta_full = eta_base + arm_gap_wave[wave_d] * G_d
+
+        if use_varying_delta:
+            waitlist_index = {s: i for i, s in enumerate(waitlist_subjects)}
+            safe_idx = np.asarray(
+                [waitlist_index.get(s, 0) for s in prepared.subject_ids],
+                dtype=np.int64,
+            )
+            waitlist_t3 = ((prepared.G == 0) & (prepared.phase == 2)).astype(float)
+            waitlist_idx_d = pm.Data(
+                "waitlist_crossover_idx", safe_idx, dims="obs_id"
+            )
+            waitlist_t3_d = pm.Data(
+                "waitlist_t3", waitlist_t3, dims="obs_id"
+            )
+            sigma_delta = _priors.sigma_delta_prior().to_pymc("sigma_delta")
+            v_delta = pm.Deterministic(
+                "v_delta",
+                sigma_delta
+                * pm.Normal(
+                    "v_delta_raw", 0.0, 1.0, dims="waitlist_child"
+                ),
+                dims="waitlist_child",
+            )
+            pm.Deterministic(
+                "delta_crossover_i",
+                delta_crossover + v_delta,
+                dims="waitlist_child",
+            )
+            eta_full = eta_full + v_delta[waitlist_idx_d] * waitlist_t3_d
 
         eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
         if likelihood == "beta_binomial":
@@ -1571,13 +1721,26 @@ def build_did_model(
                 observed=post,
                 dims="obs_id",
             )
-        else:  # bernoulli_offfloor: off-floor PREVALENCE Pr(post > 0); no kappa
-            off_floor = (post > 0).astype(np.int64)
+        else:
             pm.Bernoulli(
-                "y_offfloor", logit_p=eta_full, observed=off_floor, dims="obs_id"
+                "y_offfloor",
+                logit_p=eta_full,
+                observed=(post > 0).astype(np.int64),
+                dims="obs_id",
             )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(
+        model=model,
+        variables=_variables_dict(model),
+        prepared=prepared,
+        extras={
+            "design": "arm_by_wave",
+            "alpha_anchor": alpha_anchor,
+            "age_t1_scaler": age_scaler,
+            "analysis_row_ids": obs_ids,
+            "waves": waves,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -3294,11 +3457,12 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
     _, child_idx = np.unique(subject_ids, return_inverse=True)
     child_idx = child_idx.astype(np.int64)
 
+    phase = prepared.phase[keep]
     return replace(
         prepared,
         subject_ids=subject_ids,
         child_idx=child_idx,
-        phase=prepared.phase[keep],
+        phase=phase,
         G=prepared.G[keep],
         A_months=prepared.A_months[keep],
         A_std=prepared.A_std[keep],
@@ -3307,6 +3471,8 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
         covariates={s: v[keep] for s, v in prepared.covariates.items()},
         n_obs=int(keep.sum()),
         n_children=int(len(np.unique(child_idx))),
+        n_phases=int(phase.max()) + 1 if phase.size else 0,
+        dropped_rows=prepared.dropped_rows + int((~keep).sum()),
     )
 
 

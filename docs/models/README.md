@@ -5,7 +5,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 >
-> Substantially edited in the concurrent and longitudinal-factor sections by a LLM-based AI tool (Codex/GPT-5).
+> Substantially edited in the concurrent, longitudinal-factor and waitlist-crossover sections by a LLM-based AI tool (Codex/GPT-5).
 
 A catalogue of every model in this study — what it is, what outcome it targets, and
 what question it answers. It is a map, not a results document: read the per-model
@@ -27,30 +27,31 @@ The project uses a deliberate **two-step methodology** (see `METHODS.md`):
 Both layers are built against the **revised causal DAG**
 (`dag/dag-language-reading.dagitty`, revised 2026-07-10). The single most important reading
 rule across the whole collection: **only the randomised contrast is causal.** In Layer 2
-that is the intervention-group term (`τ`) in the ITT/DiD/gain-factor families. Every
+that is `tau` in the ITT family, `tau_t2` in the arm-by-wave crossover family and
+`beta_trt` in the gain-factor family. Every
 skill→skill coupling, mechanism slope, mediator→outcome path, and dose–response is a
 latent-ability-confounded **adjusted association**, never "X drives Y". Positive `τ` =
 intervention benefit (`G = 2 − group`).
 
 ## At a glance
 
-| Layer | Family (id prefix)                                                                    | Count | Purpose                                                                                                                      |
-| ----- | ------------------------------------------------------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)                           |    50 | Rank predictors of each outcome's gain and level                                                                             |
-| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)                                 |    31 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation)                     |
-| 2     | Gain factors (`lrp-rli-gf`)                                                           |    19 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                         |
-| 2     | Level factors (`lrp-rli-lf`)                                                          |    11 | Companion levels view: group×time and ability×time per timepoint                                                             |
-| 2     | Waitlist-crossover / DiD (`lrp-rli-did`)                                              |    14 | Within-person replication of the ITT via the waitlist crossover (floored `P`/`N` off-floor) + treatment-effect heterogeneity |
-| 2     | Aligned per-protocol (`lrp-rli-al`)                                                   |     9 | Onset-aligned single 40-week gain per child (associational)                                                                  |
-| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)                |     9 | Adjusted dose-response of one skill on another                                                                               |
-| 2     | Mediation (`lrp-rli-med-059`–`092`; g-formula + interventional)                       |    12 | How much of a reading gain runs through a given skill                                                                        |
-| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `lcsm-067/081/082/091`, `dose-077` variants) |     9 | Baseline predictors, within-child change, lagged reverse couplings, change-on-change, and dose–response of word reading      |
-| 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                                |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                       |
-| 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)                          |     2 | Correlated domain-factor measurement model of the skills                                                                     |
-| 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                                |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                            |
-| 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                                     |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                            |
-| 2     | Concurrent associations (`lrp-rli-ca`)                                                |     4 | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                           |
-| 2     | Longitudinal correlated-factor model (`lrp-rli-lcf-001`)                              |     1 | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                 |
+| Layer | Family (id prefix)                                                                    | Count | Purpose                                                                                                                     |
+| ----- | ------------------------------------------------------------------------------------- | ----: | --------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)                           |    50 | Rank predictors of each outcome's gain and level                                                                            |
+| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)                                 |    31 | Randomised intervention effect on each outcome (+ joint, SES, ability & site robustness, generalisation)                    |
+| 2     | Gain factors (`lrp-rli-gf`)                                                           |    19 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                        |
+| 2     | Level factors (`lrp-rli-lf`)                                                          |    11 | Companion levels view: group×time and ability×time per timepoint                                                            |
+| 2     | Waitlist-crossover arm-by-wave (`lrp-rli-did`)                                        |    14 | Randomised t2 arm gap plus separate baseline/post-crossover gaps; observational dose and exploratory catch-up heterogeneity |
+| 2     | Aligned per-protocol (`lrp-rli-al`)                                                   |     9 | Onset-aligned single 40-week gain per child (associational)                                                                 |
+| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)                |     9 | Adjusted dose-response of one skill on another                                                                              |
+| 2     | Mediation (`lrp-rli-med-059`–`092`; g-formula + interventional)                       |    12 | How much of a reading gain runs through a given skill                                                                       |
+| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `lcsm-067/081/082/091`, `dose-077` variants) |     9 | Baseline predictors, within-child change, lagged reverse couplings, change-on-change, and dose–response of word reading     |
+| 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                                |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                      |
+| 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)                          |     2 | Correlated domain-factor measurement model of the skills                                                                    |
+| 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                                |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                           |
+| 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                                     |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                           |
+| 2     | Concurrent associations (`lrp-rli-ca`)                                                |     4 | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                          |
+| 2     | Longitudinal correlated-factor model (`lrp-rli-lcf-001`)                              |     1 | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                |
 
 Counts are of base models on `main` (142 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
@@ -231,32 +232,25 @@ family: `lrp-rli-lf-001` `W`, `02` `R`, `03` `E`, `04` `L`, `05` `P` (off-floor)
 `07` `F`, `08` `T`, `09` `TR`, `10` `TE`, `11` `N` (off-floor).
 The gain-factors naming note applies here too: "factors" means observed regression covariates, not latent factors.
 
-### Waitlist-crossover / difference-in-differences — `lrp-rli-did-001–lrp-rli-did-013` (+ `lrp-rli-did-107`) (`kind="did"`)
+### Waitlist-crossover arm-by-wave sensitivity — `lrp-rli-did-001–lrp-rli-did-013` (+ `lrp-rli-did-107`) (`kind="did"`)
 
-**Purpose.** A within-person replication of the randomised ITT, using the waitlist arm's
-crossover: each child is partly their own control, with the immediate arm anchoring the
-time/maturation trend (Beta-Binomial logit so the ceiling is respected). A second,
-non-randomised view that triangulates the ITT. The heavily floored outcomes (`P`, `N`)
-instead take the suite's **off-floor floor rule** — a Bernoulli on the off-floor
-indicator — so their `delta` is the within-person effect on the log-odds of coming off
-the floor (an off-floor risk difference on the items scale), mirroring their ITT siblings.
-Design note: `notes/202606260702-did-crossover-design.md`.
+**Purpose.** A longitudinal sensitivity analysis alongside the randomised ITT. The binary-treatment models jointly model bounded t1/t2/t3 levels with a separate immediate-minus-waitlist gap at each wave: `arm_gap_t1` checks baseline balance, `tau_t2` is the randomised causal contrast, `arm_gap_t3` is a post-crossover association and `delta_crossover = tau_t2 - arm_gap_t3` describes closure of the arm gap rather than a second treatment effect. A child random intercept partially pools stable between-child differences but does not make every child a fixed-effect control. No model conditions on each period's start outcome: t2 is already treatment-affected for the immediate arm when used as the P2 baseline. The heavily floored outcomes (`P`, `N`) use a Bernoulli on wave-specific off-floor status, so their contrasts concern off-floor **prevalence**, not coming off the floor. Dose variants retain the P1/P2 transition frame, adjust for randomised arm, current treatment, t1 outcome and t1 age, and estimate observational treated-centred session-dose associations. The current design decision is `notes/202607151800-did-arm-wave-redesign.md`; it supersedes the historical restricted-model decision in `notes/202606260702-did-crossover-design.md`.
 
-| Model             | Outcome | Purpose                                                                                                                                                   |
-| ----------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lrp-rli-did-001` | `W`     | Within-person DiD effect on word reading                                                                                                                  |
-| `lrp-rli-did-002` | `L`     | Within-person DiD effect on letter-sound knowledge                                                                                                        |
-| `lrp-rli-did-003` | `B`     | Within-person DiD effect on phoneme blending                                                                                                              |
-| `lrp-rli-did-004` | `TE`    | Within-person DiD effect on taught expressive vocabulary                                                                                                  |
-| `lrp-rli-did-005` | `R`     | Within-person DiD effect on receptive vocabulary (the null control)                                                                                       |
-| `lrp-rli-did-006` | `W`     | Word-reading DiD with a session **dose-response** term                                                                                                    |
-| `lrp-rli-did-007` | `L`     | Letter-sound DiD with a **period-resolved** session dose slope (#135); `lrp-rli-did-107` is its pooled (no-period-variation) comparator                   |
-| `lrp-rli-did-008` | `TR`    | Within-person DiD effect on taught receptive vocabulary                                                                                                   |
-| `lrp-rli-did-009` | `E`     | Within-person DiD effect on standardised expressive vocabulary                                                                                            |
-| `lrp-rli-did-010` | `F`     | Within-person DiD effect on basic concept knowledge                                                                                                       |
-| `lrp-rli-did-011` | `P`     | Within-person DiD effect on phonetic spelling (off-floor)                                                                                                 |
-| `lrp-rli-did-012` | `N`     | Within-person DiD effect on nonword reading (off-floor)                                                                                                   |
-| `lrp-rli-did-013` | `W`     | Word-reading DiD with a per-child random on-intervention slope; reports `sigma_delta`, the between-child SD (treatment-effect heterogeneity, #230 §2/§4a) |
+| Model             | Outcome | Purpose                                                                                                                   |
+| ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-did-001` | `W`     | Arm-by-wave word-reading sensitivity; randomised t2 contrast plus post-crossover contrasts                                |
+| `lrp-rli-did-002` | `L`     | Arm-by-wave letter-sound sensitivity; randomised t2 contrast plus post-crossover contrasts                                |
+| `lrp-rli-did-003` | `B`     | Arm-by-wave phoneme-blending sensitivity; randomised t2 contrast plus post-crossover contrasts                            |
+| `lrp-rli-did-004` | `TE`    | Arm-by-wave taught-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                |
+| `lrp-rli-did-005` | `R`     | Arm-by-wave receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                        |
+| `lrp-rli-did-006` | `W`     | P1/P2 transition model with separate treatment-presence and pooled observational session-dose terms                       |
+| `lrp-rli-did-007` | `L`     | P1/P2 transition model with observational period-resolved session-dose slopes; `lrp-rli-did-107` is its pooled comparator |
+| `lrp-rli-did-008` | `TR`    | Arm-by-wave taught-receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                 |
+| `lrp-rli-did-009` | `E`     | Arm-by-wave standardised-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts          |
+| `lrp-rli-did-010` | `F`     | Arm-by-wave basic-concepts sensitivity; randomised t2 contrast plus post-crossover contrasts                              |
+| `lrp-rli-did-011` | `P`     | Arm-by-wave phonetic-spelling sensitivity on period-end off-floor prevalence                                              |
+| `lrp-rli-did-012` | `N`     | Arm-by-wave nonword-reading sensitivity on period-end off-floor prevalence                                                |
+| `lrp-rli-did-013` | `W`     | Exploratory waitlist-t3 catch-up heterogeneity; the variance component conflates response, maturation, history and noise  |
 
 ### Aligned per-protocol — `lrp-rli-al-001–lrp-rli-al-008` (+ `lrp-rli-al-101`) (`kind="aligned"`)
 

@@ -1,38 +1,20 @@
-## Results
-
-The waitlist-crossover model is a triangulation of the randomised ITT, not an
-independent randomised experiment. Positive coefficients mean higher expected
-post-score under the intervention-coded contrast.
-
-In plain terms: this compares each child to themselves — the change while
-waiting against the change after crossing over to the intervention — so every
-child is their own control and stable child-level differences cancel out.
-
-::: {.callout-warning title="Treatment-affected period-start score (graded DiD)"}
-The **graded** waitlist-crossover models (`lrp-rli-did-001`–`009`) condition on the
-period-start score through `gamma_own`. For the crossover arm's second period that
-score is **post-treatment** (measured after its first on-intervention block), so
-`gamma_own` adjusts a **treatment-affected baseline** (Rosenbaum 1984,
-[doi:10.2307/2981697](https://doi.org/10.2307/2981697)) — a child random intercept
-does not restore the total-effect reading. The parallel-trends assumption also
-holds on the **logit-with-ceiling** scale here, not the raw-count scale. This is
-the same concern the off-floor P/N models (DID-011/012) remove by dropping the
-own-baseline term (#257); read the graded δ with it in mind.
+::: {.callout-note}
+Substantially revised by a LLM-based AI tool (Codex/GPT-5).
 :::
 
-_How to read the contrast table:_ each row is one estimated quantity. `delta` is
-the within-person difference-in-differences (DiD) treatment contrast: how much
-larger the intervention-window change is than the waitlist-window change. The
-`median` (or `delta_median`) column is the posterior median point estimate (the
-house convention; the posterior `mean` is kept alongside); the `lo`/`hi`
-(or `_lo`/`_hi`) columns bracket the 95% credible interval, the range the effect
-plausibly falls in; and `prob_delta_pos` (in general `prob_<coefficient>_pos`) is
-the probability the effect is positive (a benefit). The `_items` columns restate `delta` on the raw items
-scale so it reads as a count of items rather than logit units. For a heavily
-floored outcome fitted with the off-floor rule (`P`, `N`), those columns instead
-give a model-implied off-floor **risk difference** — the difference in the
-probability of *being* off the floor at period end — because the estimand there is
-off-floor prevalence, binary, not a graded count.
+## Results
+
+The waitlist-crossover model is a longitudinal sensitivity analysis alongside the randomised ITT, not an independent randomised experiment. The binary-treatment models estimate separate immediate-minus-waitlist gaps at t1, t2 and t3 without forcing the randomised t2 gap to equal the post-crossover change in that gap.
+
+::: {.callout-important title="Four contrasts with different interpretations"}
+`arm_gap_t1` is a pre-treatment balance quantity. `tau_t2`, the **t2 immediate-minus-waitlist contrast**, is the clean randomised contrast; positive values favour the intervention. `arm_gap_t3` compares two already-treated arms with different exposure histories and is associational. `delta_crossover = tau_t2 - arm_gap_t3` is the amount by which the immediate-arm advantage closes after the waitlist crosses over; positive values indicate catch-up, but this is not a second randomised treatment effect. Agreement between `tau_t2` and its ITT sibling is a parameterisation check on shared data, not independent replication.
+:::
+
+::: {.callout-note title="Why there is no period-start outcome"}
+The binary-treatment models jointly use the t1, t2 and t3 levels and do not condition on each period's start outcome. The t2 score is already treatment-affected for the immediate arm when it becomes the P2 baseline, so including a common period-start `gamma_own` term would condition one arm on an intervention-induced intermediate. The child random intercept partially pools stable between-child differences; it does not perform exact fixed-effect differencing or make every child their own control. The dose variants use the pre-randomisation t1 outcome as one common precision covariate for both transition rows, never the treatment-affected t2 outcome.
+:::
+
+_How to read the contrast table:_ each row is one estimated quantity. The posterior `median` is the house point estimate; `lo`/`hi` bracket the 95% credible interval; and `prob_*_pos` is the posterior probability that the stated contrast is positive. Item-scale columns standardise each wave-specific contrast over the documented fitted rows. For a heavily floored outcome (`P`, `N`), the translated quantity is an off-floor risk difference: a difference in the probability of **being** off floor at that wave. It is off-floor prevalence, not the probability of coming off the floor.
 
 ```{python}
 # | echo: false
@@ -49,31 +31,64 @@ from language_reading_predictors.statistical_models.reporting import odds_string
 if did_summary is not None:
     _d = did_summary.iloc[0]
     _off = "off_floor" in did_summary.columns and bool(_d["off_floor"])
-    if "delta_median" in did_summary.columns:
+    _labels = {
+        "arm_gap_t1": "Pre-treatment arm gap (`arm_gap_t1`; balance quantity)",
+        "tau_t2": "Randomised t2 arm contrast (`tau_t2`; causal)",
+        "arm_gap_t3": "Post-crossover t3 arm gap (`arm_gap_t3`; association)",
+        "delta_crossover": "Closure of the arm gap (`delta_crossover`; association)",
+    }
+
+    def _print_arm_term(_term):
+        if f"{_term}_median" not in did_summary.columns:
+            return
         _items = ""
-        if "delta_items_median" in did_summary.columns:
-            if _off:
-                _items = (
-                    f", about a **{_d.delta_items_median:+.3f} off-floor risk "
-                    f"difference** (model-implied difference in Pr(off-floor at "
-                    f"period end) from toggling Treated; 95% CrI "
-                    f"{_d.delta_items_lo:+.3f} to {_d.delta_items_hi:+.3f})"
-                )
-            else:
-                _items = (
-                    f", about **{_d.delta_items_median:+.1f} items** "
-                    f"(90% CrI {_d.delta_items_lo90:+.1f} to {_d.delta_items_hi90:+.1f}; "
-                    f"95% {_d.delta_items_lo:+.1f} to {_d.delta_items_hi:+.1f})"
-                )
+        if f"{_term}_items_median" in did_summary.columns:
+            _unit = "off-floor risk difference" if _off else "items"
+            _digits = 3 if _off else 1
+            _items = (
+                f", standardized **{_d[f'{_term}_items_median']:+.{_digits}f} {_unit}** "
+                f"(95% CrI {_d[f'{_term}_items_lo']:+.{_digits}f} to "
+                f"{_d[f'{_term}_items_hi']:+.{_digits}f})"
+            )
+        _p = _d[f"prob_{_term}_pos"]
         print(
-            f"**DiD treatment contrast (`delta`):** median {_d.delta_median:+.3f} "
-            f"on the {'log-odds of being off the floor at period end' if _off else 'logit scale'} "
-            f"(90% CrI {_d.delta_lo90:+.3f} to {_d.delta_hi90:+.3f}; "
-            f"95% {_d.delta_lo:+.3f} to {_d.delta_hi:+.3f}); "
-            f"P(delta > 0) = {_d.prob_delta_pos:.3f} "
-            f"({_odds(_d.prob_delta_pos)}).{_items}"
+            f"**{_labels[_term]}:** median {_d[f'{_term}_median']:+.3f} "
+            f"on the {'off-floor log-odds' if _off else 'logit'} scale "
+            f"(90% CrI {_d[f'{_term}_lo90']:+.3f} to {_d[f'{_term}_hi90']:+.3f}; "
+            f"95% {_d[f'{_term}_lo']:+.3f} to {_d[f'{_term}_hi']:+.3f}); "
+            f"P({_term} > 0) = {_p:.3f} ({_odds(_p)}){_items}."
         )
-    if "delta_median" not in did_summary.columns and "beta_dose_median" in did_summary.columns:
+
+    if "tau_t2_median" in did_summary.columns:
+        for _term in ("arm_gap_t1", "tau_t2", "arm_gap_t3", "delta_crossover"):
+            _print_arm_term(_term)
+        if "delta_crossover_sample_average_median" in did_summary.columns:
+            print(
+                "**Exploratory heterogeneous catch-up:** the sample-average child-specific "
+                f"contrast is {_d.delta_crossover_sample_average_median:+.3f} logit units "
+                f"(95% CrI {_d.delta_crossover_sample_average_lo:+.3f} to "
+                f"{_d.delta_crossover_sample_average_hi:+.3f}). This is not an individual "
+                "causal-effect average."
+            )
+    elif "delta_median" in did_summary.columns:
+        print(
+            "**Legacy output detected:** this artefact came from the superseded "
+            "common-current-treatment specification. Refit the model before interpretation."
+        )
+
+    for _term, _label in (
+        ("beta_group", "Post-crossover arm association (`beta_group`)"),
+        ("theta_treated", "Current-treatment/crossover association (`theta_treated`)"),
+    ):
+        if f"{_term}_median" in did_summary.columns:
+            _p = _d[f"prob_{_term}_pos"]
+            print(
+                f"**{_label}:** median {_d[f'{_term}_median']:+.3f} logit units "
+                f"(95% CrI {_d[f'{_term}_lo']:+.3f} to {_d[f'{_term}_hi']:+.3f}); "
+                f"P(> 0) = {_p:.3f}. This coefficient is not a randomised treatment effect."
+            )
+
+    if "beta_dose_median" in did_summary.columns:
         print(
             f"**Session-dose association (`beta_dose`):** median "
             f"{_d.beta_dose_median:+.3f} logit units per 1 SD sessions "
@@ -92,14 +107,37 @@ if dose_slope_summary is not None:
 
 ::: {.callout-important title="Read dose terms as associations"}
 
-Session dose is observational. A positive dose slope means higher session counts
-are associated with larger conditional gains after the model's adjustment set; it
-does **not** mean more sessions were randomised or proven causal.
+Session dose is observational. A positive dose slope means higher treated-centred session counts are associated with a higher period-end outcome after arm, period, current-treatment, t1 outcome and t1 age adjustment; it does **not** mean more sessions were randomised or proven causal. The cell terms account for treatment presence and schedule, leaving dose to describe residual session variation within the supported treated cells.
 
 :::
 
+## Arm-by-time posterior-predictive checks
+
+The pooled posterior-predictive plot can hide a poorly fitted arm-by-time cell. The table and figure below therefore compare each observed cell mean and zero rate with the corresponding posterior-predictive distribution. An upper-tail probability near 0 or 1, or a `True` tail flag, identifies a cell that needs investigation before interpreting contrasts; these are predictive diagnostics, not frequentist hypothesis tests.
+
 ```{python}
 # | echo: false
-# Optional nested comparison copied next to this report by a comparison workflow.
-_csv("did_dose_loo_compare.csv")
+_did_cell_ppc = _csv("did_cell_ppc.csv")
+if _did_cell_ppc is not None:
+    display(_did_cell_ppc)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("did_cell_ppc.png", "Observed and posterior-predictive summaries by arm and time"))
+```
+
+```{python}
+# | echo: false
+# Optional nested comparison copied next to both reports by the comparison workflow.
+_did_loo = _csv("did_dose_loo_compare.csv")
+if _did_loo is not None:
+    display(_did_loo)
+    if "comparison_valid" in _did_loo.columns and not bool(_did_loo["comparison_valid"].iloc[0]):
+        print(
+            "The comparison is **not a valid ranking**. Read `comparison_reason`: the "
+            "workflow withheld `elpd_diff` because a convergence gate or pointwise-row "
+            "identity check failed."
+        )
 ```

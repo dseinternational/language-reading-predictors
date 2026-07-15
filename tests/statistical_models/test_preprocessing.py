@@ -213,6 +213,30 @@ def test_load_and_prepare_drops_missing_pre(tmp_path):
     assert any("dropped" in str(w.message) for w in ws)
 
 
+def test_load_and_prepare_can_keep_missing_outcome_row_for_baseline_recovery(tmp_path):
+    """A factory may retain a phase-zero row, then mask its missing target itself."""
+    df = _make_synthetic_long(n_children=10, seed=31)
+    missing = (df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 1)
+    df.loc[missing, V.EWRSWR] = np.nan
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+
+    default = load_and_prepare(path=p, phase_mode="levels", outcomes=("W",))
+    retained = load_and_prepare(
+        path=p,
+        phase_mode="levels",
+        outcomes=("W",),
+        require_any_post=False,
+    )
+
+    assert default.n_obs == 39
+    assert retained.n_obs == 40
+    s0_t1 = (retained.subject_ids == "S000") & (retained.phase == 0)
+    assert s0_t1.sum() == 1
+    assert np.isnan(retained.post_counts["W"][s0_t1]).all()
+    assert np.isfinite(retained.A_months[s0_t1]).all()
+
+
 def test_load_and_prepare_covariates_are_standardised(tmp_path):
     df = _make_synthetic_long(n_children=10, seed=4)
     df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 1), V.AGEBOOKS] = np.nan

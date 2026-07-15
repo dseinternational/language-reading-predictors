@@ -12,9 +12,10 @@ scripts/fit_statistical_model.py all``). Produces, under
   (non-floored) outcomes W, R, E, L, B.
 - ``triangulation_consistency.csv`` — per-outcome cross-*design* consistency of the
   randomised on-intervention effect (single-outcome ITT ``tau`` vs waitlist-crossover
-  DiD ``delta`` vs gain-factor ``beta_trt``): whether the designs agree in direction
-  and their intervals overlap on the shared logit scale. A consistency check, never a
-  pooled estimate — the designs share the same trial data (issue #230 §6).
+  t2 arm contrast ``tau_t2`` vs gain-factor ``beta_trt``): whether the analyses agree
+  in direction and their intervals overlap on the shared logit scale. A consistency
+  check, never a pooled estimate — the analyses share the same trial data (issue #230
+  §6).
 - ``tau_forest.png`` — forest plot of the LRPITT12 joint taus, overlaid with
   the LRPITT single-outcome taus on those shared outcomes.
 - ``mechanism_forest.png`` — forest plot of the marginal slope of each
@@ -32,6 +33,7 @@ import argparse
 import glob
 import json
 import os
+import shutil
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -40,6 +42,10 @@ import numpy as np
 import pandas as pd
 
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.statistical_models.definitions import (
+    MODEL_REGISTRY,
+    Status,
+)
 from language_reading_predictors.statistical_models.measures import (
     MEASURES,
     ROPE_DELTA_PROB,
@@ -60,7 +66,7 @@ FLOORED_SYMBOLS: frozenset[str] = frozenset(ROPE_DELTA_PROB)
 # the outcomes the joint also carries. The floored outcomes P (lrp-rli-itt-009) and N
 # (lrp-rli-itt-011) are excluded from the graded overlay: their PRIMARY estimand is the
 # binary off-floor effect, read from their own reports rather than compared to the
-# joint's graded tau. F/T have no standalone ITT in the suite.
+# joint's graded tau. F/T have standalone ITTs but are not outcomes in this joint fit.
 ITT_IDS: list[tuple[str, str]] = [
     ("lrp-rli-itt-010", "W"),
     ("lrp-rli-itt-005", "R"),
@@ -199,19 +205,72 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
 # Cross-design triangulation (#230 §6)
 # ---------------------------------------------------------------------------
 
-# Per shared graded outcome, the three independent designs that each estimate the
-# randomised on-intervention effect on the SAME logit scale: the single-outcome ITT
-# tau, the waitlist-crossover DiD delta, and the gain-factor on-intervention beta_trt.
-# (outcome, itt_id, did_id, gain_factor_id). The floored outcomes P/N are excluded —
-# their primary estimand is a binary off-floor risk difference, not this graded logit
-# effect — as are F/T (no standalone ITT / DiD in the suite).
-TRIANGULATION_OUTCOMES: list[tuple[str, str, str, str]] = [
-    ("W", "lrp-rli-itt-010", "lrp-rli-did-001", "lrp-rli-gf-001"),
-    ("R", "lrp-rli-itt-005", "lrp-rli-did-005", "lrp-rli-gf-002"),
-    ("E", "lrp-rli-itt-006", "lrp-rli-did-009", "lrp-rli-gf-003"),
-    ("L", "lrp-rli-itt-007", "lrp-rli-did-002", "lrp-rli-gf-004"),
-    ("B", "lrp-rli-itt-008", "lrp-rli-did-003", "lrp-rli-gf-006"),
-]
+# Per shared graded outcome, the three analyses on the same logit scale:
+# single-outcome ITT tau, waitlist-crossover randomised t2 arm contrast, and gain-factor
+# on-intervention beta_trt. These are not statistically independent designs: they
+# reuse the same trial data, and the DiD additionally imposes crossover/history
+# assumptions. The registry-derived catalogue avoids silently omitting newly completed
+# suites (the previous hand-written list missed TR, TE and F).
+_TRIANGULATION_OUTCOME_ORDER: tuple[str, ...] = (
+    "W",
+    "R",
+    "E",
+    "L",
+    "B",
+    "TR",
+    "TE",
+    "F",
+)
+
+
+def _triangulation_outcomes() -> list[tuple[str, str, str, str]]:
+    """Build the complete non-floored ITT/DiD/gain-factor catalogue.
+
+    Select only the primary member of each family: model-of-record ITTs, ordinary
+    waitlist-crossover arm-by-wave DiDs (not dose or heterogeneity variants), and
+    full-sample gain-factor models (not treated-only companions). Outcomes must be
+    present in all three families and must share the graded logit estimand.
+    """
+    primary_itts = {
+        definition.model_id: definition
+        for definition in MODEL_REGISTRY.values()
+        if definition.kind == "itt" and definition.status is Status.MODEL_OF_RECORD
+    }
+    by_kind: dict[str, dict[str, str]] = {"itt": {}, "did": {}, "gain_factors": {}}
+    for definition in MODEL_REGISTRY.values():
+        outcome = definition.outcome
+        if outcome is None or definition.floored:
+            continue
+        if definition.model_id in primary_itts:
+            by_kind["itt"][outcome] = definition.model_id
+        elif (
+            definition.kind == "did"
+            and definition.status is Status.ROBUSTNESS
+            and definition.base in primary_itts
+        ):
+            by_kind["did"][outcome] = definition.model_id
+        elif (
+            definition.kind == "gain_factors"
+            and definition.status is Status.ASSOCIATION
+            and definition.base is None
+        ):
+            by_kind["gain_factors"][outcome] = definition.model_id
+
+    shared = set.intersection(*(set(ids) for ids in by_kind.values()))
+    ordered = [o for o in _TRIANGULATION_OUTCOME_ORDER if o in shared]
+    ordered.extend(sorted(shared.difference(ordered)))
+    return [
+        (
+            outcome,
+            by_kind["itt"][outcome],
+            by_kind["did"][outcome],
+            by_kind["gain_factors"][outcome],
+        )
+        for outcome in ordered
+    ]
+
+
+TRIANGULATION_OUTCOMES: list[tuple[str, str, str, str]] = _triangulation_outcomes()
 
 
 def _itt_effect(model_id: str, config: str) -> dict | None:
@@ -221,6 +280,7 @@ def _itt_effect(model_id: str, config: str) -> dict | None:
         return None
     df = pd.read_csv(p)
     return {
+        "term": "tau",
         "median": float(df["tau_logit_median"].iloc[0]),
         "lo": float(df["tau_logit_lo"].iloc[0]),
         "hi": float(df["tau_logit_hi"].iloc[0]),
@@ -229,12 +289,27 @@ def _itt_effect(model_id: str, config: str) -> dict | None:
 
 
 def _did_effect(model_id: str, config: str) -> dict | None:
-    """Waitlist-crossover DiD delta (logit) from ``did_summary.csv``, or None."""
+    """Randomised t2 arm contrast from ``did_summary.csv``, or None.
+
+    New arm-by-wave fits report this as ``tau_t2``. The legacy ``delta`` fallback
+    keeps previously fitted artefacts readable; in that constrained model ``delta``
+    was forced to equal the t2 arm contrast, so it is labelled explicitly rather than
+    silently treated as a result from the redesigned model.
+    """
     p = os.path.join(_run_dir(model_id, config), "did_summary.csv")
     if not os.path.exists(p):
         return None
     df = pd.read_csv(p)
+    if "tau_t2_median" in df.columns:
+        return {
+            "term": "tau_t2",
+            "median": float(df["tau_t2_median"].iloc[0]),
+            "lo": float(df["tau_t2_lo"].iloc[0]),
+            "hi": float(df["tau_t2_hi"].iloc[0]),
+            "prob_pos": float(df["prob_tau_t2_pos"].iloc[0]),
+        }
     return {
+        "term": "legacy_delta_constrained_to_t2",
         "median": float(df["delta_median"].iloc[0]),
         "lo": float(df["delta_lo"].iloc[0]),
         "hi": float(df["delta_hi"].iloc[0]),
@@ -252,6 +327,7 @@ def _gain_factor_effect(model_id: str, config: str) -> dict | None:
     if row.empty:
         return None
     return {
+        "term": "beta_trt",
         "median": float(row["median"].iloc[0]),
         "lo": float(row["lo"].iloc[0]),
         "hi": float(row["hi"].iloc[0]),
@@ -261,7 +337,7 @@ def _gain_factor_effect(model_id: str, config: str) -> dict | None:
 
 _TRIANGULATION_DESIGNS: tuple[tuple[str, str], ...] = (
     ("itt", "ITT tau"),
-    ("did", "DiD delta"),
+    ("did", "crossover-model t2 arm contrast"),
     ("gf", "gain-factor beta_trt"),
 )
 
@@ -269,18 +345,18 @@ _TRIANGULATION_DESIGNS: tuple[tuple[str, str], ...] = (
 def build_triangulation(config: str) -> pd.DataFrame | None:
     """Per-outcome cross-design consistency of the randomised on-intervention effect.
 
-    For each shared graded outcome (W/R/E/L/B) reads the logit-scale treatment effect
-    from up to three independent designs — single-outcome ITT (``tau``),
-    waitlist-crossover DiD (``delta``) and the gain-factor ANCOVA (``beta_trt``) — and
+    For each shared graded outcome reads the logit-scale treatment effect from up to
+    three analyses — single-outcome ITT (``tau``), the waitlist-crossover model's
+    randomised t2 arm contrast (``tau_t2``), and gain-factor ANCOVA (``beta_trt``) — and
     reports whether they **agree in direction** (all favour the same side of zero) and
     whether their credible intervals **mutually overlap**. ``consistent`` is true when
     both hold. The direction/overlap verdict is computed over the *converged* designs
     (``diagnostics_summary.json`` gate PASS); it is left blank (``pd.NA``) when fewer
     than two converged designs are available.
 
-    This is a **consistency check, not a pooled estimate**: the three designs share the
-    same trial data, so their effects must never be averaged into one headline — the
-    value is in whether qualitatively distinct designs triangulate on the same story
+    This is a **consistency check, not a pooled estimate**: the three analyses share
+    the same trial data, so their effects must never be averaged into one headline —
+    the value is in whether distinct model specifications triangulate on the same story
     (issue #230 §6). Returns ``None`` if no outcome has at least two design summaries.
 
     Two interpretation caveats (#295 review), why the flags are read qualitatively:
@@ -288,7 +364,10 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
     - **The three logit effects are on the same *scale* but not the same conditioning
       set.** ITT ``tau`` adjusts for own baseline + age; the gain-factor ``beta_trt``
       additionally adjusts for ability, upstream DAG skills and the exogenous
-      confounders; DiD ``delta`` is a within-person contrast with a period anchor.
+      confounders; the crossover model's ``tau_t2`` is the same randomised t2 arm
+      contrast estimated in a longitudinal arm-by-wave likelihood. Because the ITT
+      and crossover fits share the t2 comparison, agreement is a parameterisation
+      check rather than independent evidence.
       Because the logit link is **non-collapsible**, a more-adjusted conditional
       log-odds effect is expected to be systematically larger in magnitude even under an
       identical truth. Direction agreement is robust to this, but ``intervals_overlap``
@@ -336,6 +415,7 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
         for key, _label in _TRIANGULATION_DESIGNS:
             v = ests.get(key)
             row[f"{key}_source"] = v["source"] if v else ""
+            row[f"{key}_term"] = v["term"] if v else ""
             row[f"{key}_median"] = v["median"] if v else pd.NA
             row[f"{key}_lo"] = v["lo"] if v else pd.NA
             row[f"{key}_hi"] = v["hi"] if v else pd.NA
@@ -586,17 +666,137 @@ def mechanism_forest(config: str, out_path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
+_ROW_KEY_CANDIDATES: tuple[tuple[str, ...], ...] = (
+    ("subject_id", "phase_idx"),
+    ("subject_id", "period"),
+    ("subject_id", "phase"),
+    ("subject_id", "timepoint"),
+    ("child_idx", "phase_idx"),
+    ("child_idx", "period"),
+    ("child_idx", "phase"),
+    ("child_idx", "timepoint"),
+    ("child_idx", "wave"),
+)
+
+
+def _meaningful_obs_id(trace: az.InferenceData, n_obs: int) -> np.ndarray | None:
+    """Return a meaningful trace ``obs_id`` coordinate, not PyMC's 0..n-1 default."""
+    for group_name in ("log_likelihood", "observed_data", "constant_data", "posterior"):
+        group = getattr(trace, group_name, None)
+        if group is None or "obs_id" not in group.coords:
+            continue
+        values = np.asarray(group.coords["obs_id"].values)
+        if values.ndim != 1 or values.size != n_obs:
+            continue
+        if np.issubdtype(values.dtype, np.integer) and np.array_equal(
+            values, np.arange(n_obs)
+        ):
+            continue
+        return values
+    return None
+
+
+def _shared_row_identities(
+    traces: dict[str, az.InferenceData], sizes: dict[str, int]
+) -> tuple[dict[str, np.ndarray] | None, str | None]:
+    """Extract an ordered analysis-row identity shared by every trace.
+
+    A non-positional ``obs_id`` coordinate is preferred. Current PyMC traces use a
+    positional coordinate, so the normal route is a stable pair in ``constant_data``
+    such as ``(child_idx, phase_idx)`` or ``(child_idx, period)``. Those pairs identify
+    each child-period row and catch both membership and ordering changes. If no common
+    identity is present, return ``None``: equal row counts alone are not enough to
+    justify an ``elpd_diff``.
+    """
+    coords = {mid: _meaningful_obs_id(trace, sizes[mid]) for mid, trace in traces.items()}
+    if all(coord is not None for coord in coords.values()):
+        return {mid: np.asarray(coord) for mid, coord in coords.items()}, "obs_id"
+
+    constants = {mid: getattr(trace, "constant_data", None) for mid, trace in traces.items()}
+    if any(dataset is None for dataset in constants.values()):
+        return None, None
+    common_row_vars = set.intersection(
+        *(
+            {
+                name
+                for name, data in dataset.data_vars.items()
+                if data.dims == ("obs_id",)
+            }
+            for dataset in constants.values()
+        )
+    )
+
+    for keys in _ROW_KEY_CANDIDATES:
+        if not set(keys).issubset(common_row_vars):
+            continue
+        # ``child_idx`` is re-derived after filtering, so on its own it is weaker
+        # than a raw subject id. Strengthen it with every shared row-level constant
+        # (age, group, exposure, baseline/outcome transforms, etc.). A difference in
+        # any shared fingerprint field triggers the safe per-model fallback.
+        fingerprint_keys = list(keys) + sorted(common_row_vars.difference(keys))
+        identities: dict[str, np.ndarray] = {}
+        for mid, constant in constants.items():
+            columns = []
+            for key in fingerprint_keys:
+                data = constant[key]
+                if data.dims != ("obs_id",) or data.sizes["obs_id"] != sizes[mid]:
+                    break
+                columns.append(np.asarray(data.values))
+            else:
+                identities[mid] = np.column_stack(columns)
+                continue
+            break
+        if len(identities) == len(traces):
+            return identities, f"{'+'.join(keys)}+shared-constant-fingerprint"
+    return None, None
+
+
+def _write_separate_loo(
+    traces: dict[str, az.InferenceData],
+    sizes: dict[str, int],
+    config: str,
+    out_path: str,
+    *,
+    reason: str,
+) -> None:
+    """Write per-model LOO estimates when a shared-row delta is not identified."""
+    rows = []
+    for mid, trace in traces.items():
+        loo = az.loo(trace)
+        rows.append(
+            {
+                "config": config,
+                "model": mid,
+                "n_obs": sizes[mid],
+                "comparison_valid": False,
+                "comparison_reason": reason,
+                "elpd_loo": float(loo.elpd),
+                "se": float(loo.se),
+                "p_loo": float(loo.p),
+            }
+        )
+    pd.DataFrame(rows).to_csv(out_path, index=False)
+
+
 def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
     """Write ``az.compare`` over the fitted models in ``ids`` (LOO).
 
-    Loads every model in ``ids`` that has a trace with a ``log_likelihood``
-    group. ``az.compare`` is only a like-for-like elpd-difference when the models
-    share the same observations, so this asserts equal ``obs_id`` sizes; if they
-    differ it falls back to a per-model ``elpd_loo`` table rather than a
-    misleading delta. Returns False if fewer than two models are available.
+    Loads every *convergence-gate-passing* model in ``ids`` that has a trace with a
+    ``log_likelihood`` group. ``az.compare`` is only a like-for-like elpd-difference
+    when the models share the same observations in the same order, so row identities
+    are verified from trace coordinates or stable ``constant_data`` keys. If identity
+    cannot be proved, it falls back to a clearly marked per-model ``elpd_loo`` table
+    rather than emitting a misleading delta. Returns False if fewer than two eligible
+    models are available.
     """
     traces: dict[str, az.InferenceData] = {}
     for mid in ids:
+        if not _gate_ok(mid, config):
+            print(
+                f"[warn] {mid}: convergence gate {_gate_status(mid, config)}; "
+                "excluding from LOO comparison."
+            )
+            continue
         nc = os.path.join(_run_dir(mid, config), "trace.nc")
         if not os.path.exists(nc):
             continue
@@ -632,32 +832,48 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
     if len(traces) < 2:
         return False
 
-    if len(set(sizes.values())) == 1:
-        cmp = az.compare(traces)  # ic="loo" by default
-        cmp = cmp.copy()
-        cmp.insert(0, "config", config)  # record the tier that produced the row
-        cmp.to_csv(out_path)
+    if len(set(sizes.values())) != 1:
+        reason = f"observation counts differ: {sizes}"
+        print(
+            f"[warn] models do not share observations ({sizes}); "
+            "writing per-model elpd_loo instead of az.compare deltas."
+        )
+        _write_separate_loo(traces, sizes, config, out_path, reason=reason)
         return True
 
-    # Row sets differ — a shared-observation elpd_diff is not valid.
-    print(
-        f"[warn] models do not share observations ({sizes}); "
-        "writing per-model elpd_loo instead of az.compare deltas."
-    )
-    rows = []
-    for mid, t in traces.items():
-        loo = az.loo(t)
-        rows.append(
-            {
-                "config": config,
-                "model": mid,
-                "n_obs": sizes[mid],
-                "elpd_loo": float(loo.elpd),
-                "se": float(loo.se),
-                "p_loo": float(loo.p),
-            }
+    identities, identity_source = _shared_row_identities(traces, sizes)
+    if identities is None:
+        reason = "ordered analysis-row identity unavailable"
+        print(
+            "[warn] models have equal observation counts but no common ordered row "
+            "identity; writing per-model elpd_loo instead of az.compare deltas."
         )
-    pd.DataFrame(rows).to_csv(out_path, index=False)
+        _write_separate_loo(traces, sizes, config, out_path, reason=reason)
+        return True
+
+    reference_id = next(iter(traces))
+    reference = identities[reference_id]
+    mismatched = [
+        mid for mid, identity in identities.items() if not np.array_equal(identity, reference)
+    ]
+    if mismatched:
+        reason = (
+            f"ordered analysis rows differ on {identity_source}: "
+            f"{reference_id} vs {', '.join(mismatched)}"
+        )
+        print(
+            f"[warn] {reason}; writing per-model elpd_loo instead of az.compare "
+            "deltas."
+        )
+        _write_separate_loo(traces, sizes, config, out_path, reason=reason)
+        return True
+
+    cmp = az.compare(traces)  # ic="loo" by default
+    cmp = cmp.copy()
+    cmp.insert(0, "config", config)  # record the tier that produced the row
+    cmp.insert(1, "row_identity", identity_source)
+    cmp.insert(2, "comparison_valid", True)
+    cmp.to_csv(out_path)
     return True
 
 
@@ -683,7 +899,21 @@ def dose_response_loo_compare(config: str, out_path: str) -> bool:
 
 def did_dose_loo_compare(config: str, out_path: str) -> bool:
     """LOO comparison of LRPDID07 vs its pooled comparator (does the L dose vary by period?)."""
-    return _loo_compare(DID_DOSE_LOO_IDS, config, out_path)
+    written = _loo_compare(DID_DOSE_LOO_IDS, config, out_path)
+    if not written:
+        return False
+
+    # Model reports render from their own run directories. Keep the shared comparison
+    # artefact beside both fitted reports so the result cannot silently disappear from
+    # an otherwise complete render. The CSV explicitly marks whether an elpd_diff was
+    # valid; row-mismatch fallbacks remain auditable rather than masquerading as ranks.
+    for model_id in DID_DOSE_LOO_IDS:
+        run_dir = _run_dir(model_id, config)
+        if os.path.isdir(run_dir):
+            destination = os.path.join(run_dir, "did_dose_loo_compare.csv")
+            if os.path.abspath(out_path) != os.path.abspath(destination):
+                shutil.copyfile(out_path, destination)
+    return True
 
 
 # ---------------------------------------------------------------------------

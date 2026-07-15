@@ -30,6 +30,7 @@ Each pipeline:
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import os
 import shutil
@@ -455,12 +456,65 @@ def _prior_table_overrides(
             }
         )
     elif spec.kind == "did":
-        # ``beta_period`` reuses the ``tau`` constructor (its Normal(0, 0.5) scale)
-        # but it is the common time/maturation anchor (the immediate arm's P1→P2
-        # trend), NOT the randomised within-person effect — that is ``delta``.
-        # Report it as an adjusted association, never "causal".
+        # Time offsets and every post-crossover term are associations.  Only the
+        # saturated arm-by-wave model's t2 arm gap is licensed by randomisation.
         role["beta_period"] = "association"
+        role["arm_gap_t1"] = "association"
+        role["arm_gap_t3"] = "association"
+        role["delta_crossover"] = "association"
+        rationale["beta_period"] = (
+            "Wave/period offset; an age, maturation and treatment-history association, "
+            "not a randomised treatment effect."
+        )
+        rationale["arm_gap_t1"] = (
+            "Pre-randomisation immediate-minus-waitlist balance quantity; regularised "
+            "as an association, not interpreted as an effect."
+        )
+        rationale["tau_t2"] = (
+            "Immediate-minus-waitlist t2 contrast identified by the original "
+            "randomisation; the only causal coefficient in the binary crossover model."
+        )
+        rationale["arm_gap_t3"] = (
+            "Post-crossover immediate-minus-waitlist t3 association comparing different "
+            "treatment histories (approximately 40 versus 20 weeks)."
+        )
+        rationale["sigma_delta"] = (
+            "Exploratory between-waitlist-child SD of unexplained t3 catch-up; may mix "
+            "response, maturation, history, period shocks and measurement variation."
+        )
+        if not spec.extra.get("dose", False):
+            role["tau_t2"] = "causal"
+            role["alpha_offset"] = "nuisance"
+            rationale["alpha_offset"] = (
+                "Zero-centred offset around the pooled observed t1 logit anchor; "
+                "the deterministic alpha is the anchored t1 level."
+            )
         if spec.extra.get("dose", False):
+            role["beta_group"] = "association"
+            role["theta_treated"] = "association"
+            role["gamma_t1"] = "precision"
+            rationale["beta_group"] = (
+                "Randomised-arm and prior-treatment-history adjustment in the transition "
+                "dose model; not itself the t2 randomised arm contrast."
+            )
+            rationale["theta_treated"] = (
+                "Modelled current-treatment presence at the mean treated dose; a "
+                "crossover association, not a second randomised ITT effect."
+            )
+            rationale["gamma_t1"] = (
+                "Shared pre-randomisation t1 outcome precision term broadcast to both "
+                "period rows; never the treatment-affected t2 period-start score."
+            )
+            rationale["beta_dose"] = (
+                "Observational intensive-margin association per treated-row SD of raw "
+                "sessions, with untreated rows coded at zero intensity."
+            )
+            rationale["mu_dose"] = (
+                "Average observational intensive-margin session association across P1/P2."
+            )
+            rationale["beta_dose_phase"] = (
+                "Partial-pooled observational intensive-margin session associations by period."
+            )
             # Dose slopes now share build_dose_response_model's ``beta_mech`` prior
             # (Normal(0, 1)) so the shared summary compares like with like.
             if spec.extra.get("period_varying_dose", False):
@@ -548,7 +602,16 @@ def _prior_table_overrides(
     # fitted scale. Only the randomised treatment terms are listed (never the
     # adjusted-association ``beta_G`` / ``beta_cohort``).
     if is_distal(getattr(spec, "outcome_symbol", None)):
-        for _name in ("tau", "beta_trt", "b_grp_time", "beta_grp", "delta"):
+        for _name in (
+            "tau",
+            "beta_trt",
+            "b_grp_time",
+            "beta_grp",
+            "delta",
+            "tau_t2",
+            "arm_gap_t3",
+            "theta_treated",
+        ):
             ctor.setdefault(_name, "tau_distal")
             role.setdefault(_name, "causal")
         # The ANCOVA intercept is likewise tiered for distal outcomes (Normal(0,
@@ -556,6 +619,7 @@ def _prior_table_overrides(
         # ``alpha_distal`` panel so the report rationale matches the fitted scale
         # (the distribution column already reads the true 1.0 off the built RV).
         ctor.setdefault("alpha", "alpha_distal")
+        ctor.setdefault("alpha_offset", "alpha_distal")
 
     return ctor, role, rationale
 
@@ -601,6 +665,51 @@ def _save_ppc(context: StatisticalFitContext) -> None:
         )
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]PPC plot failed: {exc}[/yellow]")
+
+
+def _save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) -> None:
+    """Plot observed and replicated summaries for every fitted DiD design cell."""
+    try:
+        fig, axes = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+        x = np.arange(len(cell_ppc))
+        labels = cell_ppc["cell"].str.replace("_", "\n").tolist()
+
+        for ax, stem, ylabel in (
+            (axes[0], "mean", "cell mean"),
+            (axes[1], "zero_rate", "proportion at zero"),
+        ):
+            centre = cell_ppc[f"replicated_{stem}_median"].to_numpy(float)
+            lo = cell_ppc[f"replicated_{stem}_lo"].to_numpy(float)
+            hi = cell_ppc[f"replicated_{stem}_hi"].to_numpy(float)
+            observed = cell_ppc[f"observed_{stem}"].to_numpy(float)
+            ax.errorbar(
+                x,
+                centre,
+                yerr=np.vstack((centre - lo, hi - centre)),
+                fmt="o",
+                capsize=4,
+                color="#1f77b4",
+                label="posterior predictive median and 95% interval",
+            )
+            ax.scatter(
+                x,
+                observed,
+                marker="x",
+                s=55,
+                linewidth=2,
+                color="#d62728",
+                label="observed",
+            )
+            ax.set_ylabel(ylabel)
+            ax.grid(axis="y", alpha=0.2)
+        axes[0].legend(loc="best")
+        axes[1].set_xticks(x, labels)
+        axes[1].set_xlabel("fitted arm-by-time cell")
+        fig.suptitle("Cell-stratified posterior-predictive checks")
+        fig.tight_layout()
+        save_styled_figure(ctx.output_dir, "did_cell_ppc", fig=fig)
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]DiD cell PPC plot failed: {exc}[/yellow]")
 
 
 def _save_proportion_at_zero_plot(
@@ -1590,8 +1699,6 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         prepared = load_and_prepare(phase_mode="itt")
     ctx.prepared = prepared
 
-    _print_header(ctx)
-
     section_header("Build model")
 
     built = _factories.build_joint_model(
@@ -1692,16 +1799,27 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
     period_varying = dose and bool(spec.extra.get("period_varying_dose", False))
     off_floor = spec.extra.get("likelihood") == "bernoulli_offfloor"
     if not dose:
-        dose_vars = ["delta"]
-    elif period_varying:
-        dose_vars = ["mu_dose", "sigma_dose", "beta_dose_phase"]
+        v = [
+            "alpha_offset",
+            "beta_period",
+            "arm_gap_t1",
+            "tau_t2",
+            "arm_gap_t3",
+        ]
     else:
-        dose_vars = ["beta_dose"]
-    v = ["alpha", "beta_period", *dose_vars]
-    # Neither branch has an own-baseline term any more (A2, 2026-07-13): ``gamma_own``
-    # was dropped from both, since the immediate arm's P2 period-start score is
-    # treatment-affected. The graded Beta-Binomial keeps the dispersion ``kappa``; the
-    # off-floor Bernoulli has none.
+        dose_vars = (
+            ["mu_dose", "sigma_dose", "beta_dose_phase"]
+            if period_varying
+            else ["beta_dose"]
+        )
+        v = [
+            "alpha",
+            "beta_period",
+            "beta_group",
+            "theta_treated",
+            "gamma_t1",
+            *dose_vars,
+        ]
     if not off_floor:
         v += ["kappa"]
     if spec.extra.get("use_age", True):
@@ -1713,20 +1831,21 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
     return v
 
 
-# Negligible-heterogeneity threshold on the logit scale for the "does the between-child
-# treatment-effect SD concentrate near zero?" diagnostic (#230 §4a): an order of magnitude
-# below the delta / tau prior scale (Normal(0, 0.5)).
+# Negligible-heterogeneity threshold on the logit scale for the "does the
+# between-child waitlist catch-up SD concentrate near zero?" diagnostic (#230
+# §4a): an order of magnitude below the delta / tau prior scale (Normal(0, 0.5)).
 _SIGMA_DELTA_ROPE = 0.1
 
 
 def _did_heterogeneity_summary(trace, *, ci_prob: float) -> dict[str, float]:
-    """Between-child SD of the on-intervention effect + its concentration near zero.
+    """Between-waitlist-child SD of post-crossover catch-up near zero.
 
     Reports ``sigma_delta`` (median + equal-tailed CI on the logit scale), the ROPE-style
     ``P(sigma_delta < delta_het)`` "concentrates near zero" probability, and the prior mass
     below the same threshold under the HalfNormal(0.5) prior — so the reader can see the
     data moved it (#230 §2/§4a). A near-zero posterior is the clean "no reliable
-    between-child variation" result that supports *not* gate-keeping on early response.
+    between-child variation" result. This is exploratory variation in the waitlist
+    arm's t3 catch-up association, not treatment-effect heterogeneity.
     """
     sd = np.asarray(trace.posterior["sigma_delta"].values).reshape(-1)
     lo, hi = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
@@ -1743,6 +1862,119 @@ def _did_heterogeneity_summary(trace, *, ci_prob: float) -> dict[str, float]:
     }
 
 
+def _did_analysis_contract(
+    ctx: StatisticalFitContext,
+    built,
+    *,
+    dose: bool,
+    loaded_prepared,
+) -> dict:
+    """Persist the exact fitted rows and return auditable DiD design metadata."""
+    prepared = built.prepared
+    row_ids = np.asarray(built.extras["analysis_row_ids"], dtype=str)
+    phase_name = "period" if dose else "wave"
+    labels = (
+        np.asarray([f"P{int(p) + 1}" for p in prepared.phase])
+        if dose
+        else np.asarray([f"t{int(p) + 1}" for p in prepared.phase])
+    )
+    manifest = pd.DataFrame(
+        {
+            "row_id": row_ids,
+            "subject_id": prepared.subject_ids.astype(str),
+            "child_idx": prepared.child_idx.astype(int),
+            phase_name: labels,
+            "phase_code": prepared.phase.astype(int),
+            "arm": np.where(prepared.G == 1, "immediate", "waitlist"),
+            "G": prepared.G.astype(int),
+        }
+    )
+    if dose:
+        manifest["treated"] = np.asarray(built.extras["treated"], dtype=int)
+        manifest["sessions_raw"] = np.asarray(
+            built.extras["raw_attend"], dtype=float
+        )
+        manifest["dose_treated_std"] = np.asarray(
+            built.extras["dose_treated_std"], dtype=float
+        )
+    manifest.to_csv(os.path.join(ctx.output_dir, "analysis_rows.csv"), index=False)
+
+    counts = (
+        manifest.groupby([phase_name, "arm"], observed=True)
+        .size()
+        .rename("n")
+        .reset_index()
+        .to_dict("records")
+    )
+    design_codes = (0, 1) if dose else (0, 1, 2)
+    design_eligible = int(np.isin(loaded_prepared.phase, design_codes).sum())
+    contract: dict = {
+        "design": built.extras["design"],
+        "analysis_row_manifest": "analysis_rows.csv",
+        "analysis_row_sha256": hashlib.sha256(
+            "\n".join(row_ids).encode("utf-8")
+        ).hexdigest(),
+        "analysis_row_count": int(len(row_ids)),
+        "loaded_row_count": int(loaded_prepared.n_obs),
+        "loader_dropped_rows": int(loaded_prepared.dropped_rows),
+        "design_excluded_rows": int(loaded_prepared.n_obs - design_eligible),
+        "factory_missing_excluded_rows": int(design_eligible - len(row_ids)),
+        "fitted_n_phases": int(prepared.n_phases),
+        "cell_counts": counts,
+        "arm_coding": "G=1 immediate; G=0 waitlist",
+        "use_age": bool(ctx.spec.extra.get("use_age", True)),
+        "use_child_re": bool(ctx.spec.extra.get("use_child_re", True)),
+        "use_varying_delta": bool(
+            ctx.spec.extra.get("use_varying_delta", False)
+        ),
+        "likelihood": ctx.spec.extra.get("likelihood", "beta_binomial"),
+    }
+    if dose:
+        scaler = built.extras["dose_scaler"]
+        contract.update(
+            {
+                "analysis_periods": ["P1", "P2"],
+                "baseline_policy": (
+                    "shared pre-randomisation t1 outcome and t1 age; never the "
+                    "treatment-affected P2 period-start score"
+                ),
+                "dose_standardization": {
+                    "scope": "raw sessions among treated P1/P2 rows",
+                    "mean": float(scaler.mean),
+                    "sd": float(scaler.sd),
+                    "untreated_value": 0.0,
+                },
+                "dose_terms": {
+                    "theta_treated": "current-treatment presence association",
+                    "beta_dose": "intensive session-dose association",
+                    "beta_group": "randomised-arm/history adjustment",
+                },
+            }
+        )
+    else:
+        contract.update(
+            {
+                "analysis_waves": ["t1", "t2", "t3"],
+                "baseline_policy": (
+                    "t1 is modelled as an outcome level; no period-start outcome "
+                    "is conditioned on"
+                ),
+                "alpha_anchor_logit": float(built.extras["alpha_anchor"]),
+                "arm_gap_orientation": "immediate minus waitlist",
+                "contrast_status": {
+                    "arm_gap_t1": "pre-randomisation balance association",
+                    "tau_t2": "randomised t2 causal contrast",
+                    "arm_gap_t3": "post-crossover 40-week-vs-20-week association",
+                    "delta_crossover": "t2 gap minus t3 gap; catch-up association",
+                },
+                "marginal_standardization": (
+                    "wave-specific fitted-row standardised arm means and gaps"
+                ),
+            }
+        )
+    return contract
+
+
 def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _require_spec(spec, "did", outcome=True)
 
@@ -1754,25 +1986,25 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     period_varying = dose and bool(spec.extra.get("period_varying_dose", False))
     likelihood = spec.extra.get("likelihood", "beta_binomial")
     off_floor = likelihood == "bernoulli_offfloor"
-    # Phase-stacked frame; load only this outcome so the complete-case mask does
-    # not drop rows for measures the model never uses. The dose variant also needs
-    # the per-period intervention-session count.
+    # Binary models use t1--t3 levels so the randomised t2 arm gap and the
+    # post-crossover t3 gap are estimated separately. Dose models retain the
+    # transition frame because sessions are interval exposures.
     outcomes = tuple(spec.extra.get("outcomes", (sym,)))
     covariates = ("attend",) if dose else ()
-    # Neither DiD branch conditions on the own baseline any more (see build_did_model:
-    # for the immediate arm's P2 the period-start score is post-treatment, so a
-    # ``gamma_own`` term would bias the differenced ``delta``; A2, team decision
-    # 2026-07-13). A missing period-start score is therefore no reason to drop a row —
-    # the estimand needs only the period-end score / off-floor indicator — so neither
-    # branch requires the pre-score. (Previously only the off-floor branch relaxed
-    # this, which needlessly discarded four nonword P1 observations, #257 review.)
-    pre_required = ()
-    prepared = load_and_prepare(
-        phase_mode="all",
-        outcomes=outcomes,
-        covariates=covariates,
-        pre_required=pre_required,
-    )
+    if dose:
+        prepared = load_and_prepare(
+            phase_mode="all",
+            outcomes=outcomes,
+            covariates=covariates,
+            pre_required=(),
+            require_any_post=False,
+        )
+    else:
+        prepared = load_and_prepare(
+            phase_mode="levels",
+            outcomes=outcomes,
+            require_any_post=False,
+        )
     ctx.prepared = prepared
 
     _print_header(ctx)
@@ -1781,6 +2013,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     built = _factories.build_did_model(
         prepared,
         outcome_symbol=sym,
+        waves=tuple(spec.extra.get("waves", (0, 1, 2))),
         periods=tuple(spec.extra.get("periods", (0, 1))),
         use_child_re=spec.extra.get("use_child_re", True),
         use_age=spec.extra.get("use_age", True),
@@ -1790,6 +2023,13 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         likelihood=likelihood,
     )
     _attach_built(ctx, built)
+    _print_header(ctx)
+    did_contract = _did_analysis_contract(
+        ctx,
+        built,
+        dose=dose,
+        loaded_prepared=prepared,
+    )
 
     _render_model_graph(ctx)
 
@@ -1806,13 +2046,86 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         _run_ppc(ctx, var_names=["y_offfloor"])
     else:
         _run_ppc(ctx)
+    did_cell_ppc = _report.did_cell_ppc(
+        ctx.trace,
+        phase=ctx.prepared.phase,
+        G=ctx.prepared.G,
+        dose=dose,
+        node="y_offfloor" if off_floor else "y_post",
+        ci_prob=ctx.reporting.ci_prob,
+    )
+    did_cell_ppc.to_csv(
+        os.path.join(ctx.output_dir, "did_cell_ppc.csv"), index=False
+    )
+    ctx.tables["did_cell_ppc"] = did_cell_ppc
+    _save_did_cell_ppc_plot(ctx, did_cell_ppc)
 
     section_header("Extended diagnostics")
-    _did_effect = "mu_dose" if period_varying else ("beta_dose" if dose else "delta")
+    _did_effect = (
+        "mu_dose" if period_varying else ("beta_dose" if dose else "tau_t2")
+    )
     _diag.write_diagnostics_summary(ctx, var_names=_did_diag_vars(spec))
     _diag.run_extended_diagnostics(ctx, causal_term=_did_effect)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_did_diag_vars(spec))
+    _diag.run_psense(ctx, var_names=[_did_effect])
+    if not dose:
+        try:
+            from language_reading_predictors.statistical_models.measures import MEASURES
+
+            prior_pushforward = _report.prior_pushforward(
+                ctx.prior_samples,
+                G=ctx.prepared.G,
+                n_trials=1 if off_floor else MEASURES[sym].n_trials,
+                term="tau_t2",
+                varying_term="",
+                eta_name="eta",
+                ci_prob=ctx.reporting.ci_prob,
+                row_mask=ctx.prepared.phase == 1,
+            )
+            prior_pushforward_df = pd.DataFrame([prior_pushforward])
+            prior_pushforward_df.to_csv(
+                os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
+            )
+            ctx.tables["prior_pushforward"] = prior_pushforward_df
+        except Exception as exc:  # pragma: no cover
+            rprint(f"[yellow]DiD prior pushforward skipped: {exc}[/yellow]")
+        _save_forest_plot(
+            ctx,
+            ["tau_t2", "arm_gap_t3", "delta_crossover"],
+            name="did_contrasts_forest.png",
+            title="Randomised t2 and post-crossover contrasts",
+        )
+
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    section_header(
+        "Dose-model association summary"
+        if dose
+        else "Arm-by-wave crossover contrasts"
+    )
+    did_s = _report.did_summary(
+        ctx.trace,
+        ci_prob=ctx.reporting.ci_prob,
+        n_trials=1 if off_floor else MEASURES[sym].n_trials,
+        dose=dose,
+        off_floor=off_floor,
+        wave=None if dose else ctx.prepared.phase,
+    )
+    did_df = pd.DataFrame([did_s])
+    did_df.to_csv(os.path.join(ctx.output_dir, "did_summary.csv"), index=False)
+    ctx.tables["did_summary"] = did_df
+    print_table(
+        metrics_table(
+            [{"metric": k, "value": v} for k, v in did_s.items()],
+            title=(
+                f"{'dose-model associations' if dose else 'arm-by-wave contrasts'} "
+                f"({sym}{', off-floor probability' if off_floor else ''}) - "
+                f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
+            ),
+            columns=["metric", "value"],
+        )
+    )
 
     if period_varying:
         # Period-resolved dose readout (#135): partial-pooled per-period dose
@@ -1822,72 +2135,51 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # in compare_statistical_models.py, not by this single-fit table.
         section_header("Period-resolved dose-slope summary")
         _write_dose_slope_summary(ctx, period_varying=True)
-        _report.write_run_metadata(
-            ctx,
-            extra={
-                "loo_elpd": float(ctx.loo.elpd),
-                "dose": dose,
-                "period_varying_dose": True,
-                "dose_slope_summary": ctx.tables["dose_slope_summary"].to_dict(
-                    "records"
-                ),
-            },
+    het = None
+    if spec.extra.get("use_varying_delta", False):
+        section_header("Exploratory waitlist catch-up heterogeneity")
+        het = _did_heterogeneity_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
+        pd.DataFrame([het]).to_csv(
+            os.path.join(ctx.output_dir, "heterogeneity_summary.csv"), index=False
         )
-    else:
-        section_header("Crossover / DiD treatment-effect summary")
-        from language_reading_predictors.statistical_models.measures import MEASURES
-
-        did_s = _report.did_summary(
-            ctx.trace,
-            ci_prob=ctx.reporting.ci_prob,
-            n_trials=1 if off_floor else MEASURES[sym].n_trials,
-            dose=dose,
-            off_floor=off_floor,
-        )
-        did_df = pd.DataFrame([did_s])
-        did_df.to_csv(os.path.join(ctx.output_dir, "did_summary.csv"), index=False)
-        ctx.tables["did_summary"] = did_df
+        ctx.tables["heterogeneity_summary"] = pd.DataFrame([het])
         print_table(
             metrics_table(
-                [{"metric": k, "value": v} for k, v in did_s.items()],
+                [{"metric": k, "value": v} for k, v in het.items()],
                 title=(
-                    f"crossover/DiD effect ({sym}"
-                    f"{', off-floor risk difference' if off_floor else ''}) - "
-                    f"{int(ctx.reporting.ci_prob * 100)}% CI "
-                    "(equal-tailed); positive = intervention helps"
+                    f"waitlist catch-up heterogeneity ({sym}): between-child SD of "
+                    "the exploratory t3 catch-up association (logit)"
                 ),
                 columns=["metric", "value"],
             )
         )
 
-        het = None
-        if spec.extra.get("use_varying_delta", False):
-            section_header("Treatment-effect heterogeneity (variance component)")
-            het = _did_heterogeneity_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
-            pd.DataFrame([het]).to_csv(
-                os.path.join(ctx.output_dir, "heterogeneity_summary.csv"), index=False
-            )
-            ctx.tables["heterogeneity_summary"] = pd.DataFrame([het])
-            print_table(
-                metrics_table(
-                    [{"metric": k, "value": v} for k, v in het.items()],
-                    title=(
-                        f"treatment-effect heterogeneity ({sym}): between-child SD of the "
-                        "on-intervention effect (logit); near-zero = homogeneous response"
-                    ),
-                    columns=["metric", "value"],
-                )
-            )
-
-        _report.write_run_metadata(
-            ctx,
-            extra={
-                "loo_elpd": float(ctx.loo.elpd),
-                "did_summary": did_s,
-                "dose": dose,
-                **({"heterogeneity_summary": het} if het is not None else {}),
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "did_summary": did_s,
+            "dose": dose,
+            "period_varying_dose": period_varying,
+            "did_cell_ppc": {
+                "file": "did_cell_ppc.csv",
+                "n_cells": int(len(did_cell_ppc)),
+                "mean_tail_flags": int(did_cell_ppc["mean_tail_flag"].sum()),
+                "zero_tail_flags": int(did_cell_ppc["zero_tail_flag"].sum()),
             },
-        )
+            **did_contract,
+            **(
+                {
+                    "dose_slope_summary": ctx.tables[
+                        "dose_slope_summary"
+                    ].to_dict("records")
+                }
+                if period_varying
+                else {}
+            ),
+            **({"heterogeneity_summary": het} if het is not None else {}),
+        },
+    )
 
     return _finalize_report(ctx)
 

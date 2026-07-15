@@ -18,7 +18,9 @@ from language_reading_predictors.statistical_models.reporting import (
     ConcurrentTerm,
     association_marginals,
     concurrent_marginals,
+    did_cell_ppc,
     disattenuation_crosscheck,
+    did_summary,
     eti_bands,
     evidence_label,
     favoured_direction,
@@ -377,6 +379,358 @@ def _posterior(**arrays):
         },
     )
     return SimpleNamespace(posterior=ds)
+
+
+def _did_trace(eta_base, beta_period, delta, *, delta_i=None):
+    """Trace carrying the deterministics needed by :func:`did_summary`."""
+    n_chain, n_draw, n_obs = eta_base.shape
+    data = {
+        "eta_base": (("chain", "draw", "obs_id"), eta_base),
+        "beta_period": (("chain", "draw"), beta_period),
+        "delta": (("chain", "draw"), delta),
+    }
+    coords = {
+        "chain": np.arange(n_chain),
+        "draw": np.arange(n_draw),
+        "obs_id": np.arange(n_obs),
+    }
+    if delta_i is not None:
+        data["delta_i"] = (("chain", "draw", "child"), delta_i)
+        coords["child"] = np.arange(delta_i.shape[2])
+    return SimpleNamespace(posterior=xr.Dataset(data, coords=coords))
+
+
+def _did_arm_wave_trace(
+    eta_base,
+    arm_gap_t1,
+    tau_t2,
+    arm_gap_t3,
+    *,
+    delta_crossover_i=None,
+):
+    """Synthetic posterior for the redesigned t1/t2/t3 arm-by-wave DiD."""
+    n_chain, n_draw, n_obs = eta_base.shape
+    delta_crossover = tau_t2 - arm_gap_t3
+    data = {
+        "eta_base": (("chain", "draw", "obs_id"), eta_base),
+        "arm_gap_t1": (("chain", "draw"), arm_gap_t1),
+        "tau_t2": (("chain", "draw"), tau_t2),
+        "arm_gap_t3": (("chain", "draw"), arm_gap_t3),
+        "delta_crossover": (("chain", "draw"), delta_crossover),
+    }
+    coords = {
+        "chain": np.arange(n_chain),
+        "draw": np.arange(n_draw),
+        "obs_id": np.arange(n_obs),
+    }
+    if delta_crossover_i is not None:
+        data["delta_crossover_i"] = (
+            ("chain", "draw", "waitlist_child"),
+            delta_crossover_i,
+        )
+        coords["waitlist_child"] = np.arange(delta_crossover_i.shape[2])
+    return SimpleNamespace(posterior=xr.Dataset(data, coords=coords))
+
+
+def test_did_summary_arm_wave_reports_standardized_cells_and_contrasts():
+    eta_base = np.array(
+        [[[-1.0, -0.5, -0.8, 0.2, -0.2, 0.4], [-0.9, -0.4, -0.6, 0.1, 0.0, 0.5]]]
+    )
+    arm_gap_t1 = np.array([[0.1, -0.1]])
+    tau_t2 = np.array([[0.6, 0.8]])
+    arm_gap_t3 = np.array([[0.2, 0.3]])
+    wave = np.array([0, 0, 1, 1, 2, 2])
+    n_trials = 20
+
+    out = did_summary(
+        _did_arm_wave_trace(eta_base, arm_gap_t1, tau_t2, arm_gap_t3),
+        ci_prob=0.9,
+        n_trials=n_trials,
+        wave=wave,
+    )
+
+    eta = eta_base.reshape(-1, eta_base.shape[2]).T  # (n_obs, S)
+
+    def _gap(mask, draws):
+        d = draws.reshape(-1)
+        waitlist = expit(eta[mask]).mean(axis=0)
+        immediate = expit(eta[mask] + d[None, :]).mean(axis=0)
+        return waitlist, immediate, immediate - waitlist
+
+    wait_t1, imm_t1, gap_t1 = _gap(wave == 0, arm_gap_t1)
+    _wait_t2, _imm_t2, gap_t2 = _gap(wave == 1, tau_t2)
+    _wait_t3, _imm_t3, gap_t3 = _gap(wave == 2, arm_gap_t3)
+    assert out["arm_gap_t1_median"] == pytest.approx(float(np.median(arm_gap_t1)))
+    assert out["tau_t2_median"] == pytest.approx(float(np.median(tau_t2)))
+    assert out["delta_crossover_median"] == pytest.approx(
+        float(np.median(tau_t2 - arm_gap_t3))
+    )
+    assert out["t1_waitlist_items_median"] == pytest.approx(
+        float(np.median(wait_t1 * n_trials))
+    )
+    assert out["t1_immediate_items_mean"] == pytest.approx(
+        float(np.mean(imm_t1 * n_trials))
+    )
+    assert out["arm_gap_t1_items_median"] == pytest.approx(
+        float(np.median(gap_t1 * n_trials))
+    )
+    assert out["tau_t2_items_median"] == pytest.approx(
+        float(np.median(gap_t2 * n_trials))
+    )
+    assert out["delta_crossover_items_median"] == pytest.approx(
+        float(np.median((gap_t2 - gap_t3) * n_trials))
+    )
+    assert out["delta_crossover_items_available"] is True
+    assert out["tau_t2_items_n_rows"] == 2
+    assert out["off_floor"] is False
+
+
+def test_did_summary_varying_crossover_reports_waitlist_sample_average():
+    eta_base = np.zeros((1, 3, 6))
+    arm_gap_t1 = np.zeros((1, 3))
+    tau_t2 = np.array([[0.6, 0.7, 0.8]])
+    arm_gap_t3 = np.array([[0.2, 0.2, 0.3]])
+    delta_i = np.array([[[0.1, 0.9], [0.2, 1.0], [0.3, 1.1]]])
+    wave = np.array([0, 0, 1, 1, 2, 2])
+
+    out = did_summary(
+        _did_arm_wave_trace(
+            eta_base,
+            arm_gap_t1,
+            tau_t2,
+            arm_gap_t3,
+            delta_crossover_i=delta_i,
+        ),
+        ci_prob=0.9,
+        n_trials=20,
+        wave=wave,
+    )
+
+    sample_average = delta_i.reshape(-1, delta_i.shape[2]).mean(axis=1)
+    assert out["delta_crossover_sample_average_median"] == pytest.approx(
+        float(np.median(sample_average))
+    )
+    assert out["delta_crossover_sample_average_mean"] == pytest.approx(
+        float(np.mean(sample_average))
+    )
+    assert out["delta_crossover_sample_n_children"] == 2
+    assert out["delta_crossover_items_available"] is False
+    assert "delta_crossover_items_median" not in out
+    assert "child-specific catch-up" in out["delta_crossover_items_omission_reason"]
+    assert "not integrated" in out["arm_wave_marginal_effect_source"]
+
+
+def test_did_summary_arm_wave_requires_aligned_three_wave_codes():
+    trace = _did_arm_wave_trace(
+        np.zeros((1, 2, 3)),
+        np.zeros((1, 2)),
+        np.ones((1, 2)),
+        np.zeros((1, 2)),
+    )
+    kwargs = dict(ci_prob=0.9, n_trials=20)
+
+    with pytest.raises(ValueError, match="wave is required"):
+        did_summary(trace, **kwargs)
+    with pytest.raises(ValueError, match="must contain integer"):
+        did_summary(trace, wave=np.array([0.0, 1.0, 2.0]), **kwargs)
+    with pytest.raises(ValueError, match="wave has 2 rows"):
+        did_summary(trace, wave=np.array([0, 1]), **kwargs)
+    with pytest.raises(ValueError, match="no t3 rows"):
+        did_summary(trace, wave=np.array([0, 1, 1]), **kwargs)
+
+
+def test_did_summary_dose_separates_presence_from_intensive_margin():
+    draws = np.array([[0.1, 0.2, 0.3]])
+    trace = _posterior(
+        beta_period=draws,
+        beta_group=draws + 0.1,
+        theta_treated=draws + 0.2,
+        gamma_t1=draws + 0.3,
+        beta_dose=draws + 0.4,
+    )
+
+    out = did_summary(trace, ci_prob=0.9, n_trials=20, dose=True)
+
+    assert out["theta_treated_median"] == pytest.approx(0.4)
+    assert out["beta_dose_median"] == pytest.approx(0.6)
+    assert "observational intensive-margin" in out["dose_interpretation"]
+    assert "delta_items_median" not in out
+
+
+def test_did_cell_ppc_stratifies_every_wave_arm_cell():
+    phase = np.repeat(np.arange(3), 2)
+    group = np.tile([0, 1], 3)
+    observed = np.array([0, 2, 1, 3, 2, 4])
+    replicated = np.array(
+        [
+            [
+                [0, 1, 1, 2, 2, 3],
+                [0, 2, 1, 3, 2, 4],
+                [1, 2, 0, 4, 3, 4],
+                [0, 3, 2, 3, 1, 5],
+            ]
+        ]
+    )
+    trace = SimpleNamespace(
+        posterior_predictive=xr.Dataset(
+            {"y_post": (("chain", "draw", "obs_id"), replicated)}
+        ),
+        observed_data=xr.Dataset({"y_post": (("obs_id",), observed)}),
+    )
+
+    out = did_cell_ppc(trace, phase=phase, G=group)
+
+    assert out["cell"].tolist() == [
+        "t1_waitlist",
+        "t1_immediate",
+        "t2_waitlist",
+        "t2_immediate",
+        "t3_waitlist",
+        "t3_immediate",
+    ]
+    assert out["n"].tolist() == [1] * 6
+    assert out.loc[out["cell"] == "t2_immediate", "observed_mean"].item() == 3
+    assert set(out["mean_tail_flag"].unique()).issubset({True, False})
+    assert set(out["zero_tail_flag"].unique()).issubset({True, False})
+
+
+def test_did_cell_ppc_validates_row_alignment_and_dose_labels():
+    trace = SimpleNamespace(
+        posterior_predictive=xr.Dataset(
+            {"y_post": (("chain", "draw", "obs_id"), np.ones((1, 2, 4)))}
+        ),
+        observed_data=xr.Dataset({"y_post": (("obs_id",), np.ones(4))}),
+    )
+    out = did_cell_ppc(
+        trace,
+        phase=np.array([0, 0, 1, 1]),
+        G=np.array([0, 1, 0, 1]),
+        dose=True,
+    )
+    assert out["cell"].tolist() == [
+        "P1_waitlist",
+        "P1_immediate",
+        "P2_waitlist",
+        "P2_immediate",
+    ]
+    with pytest.raises(ValueError, match="misaligned"):
+        did_cell_ppc(
+            trace,
+            phase=np.array([0, 0, 1]),
+            G=np.array([0, 1, 0]),
+        )
+
+
+def test_did_summary_constant_effect_is_fitted_row_standardized():
+    eta_base = np.array([[[0.0, 1.0, -0.5], [0.2, -1.0, 0.3]]])
+    beta_period = np.array([[0.1, 0.2]])
+    delta = np.array([[0.4, 0.6]])
+    n_trials = 20
+
+    out = did_summary(
+        _did_trace(eta_base, beta_period, delta),
+        ci_prob=0.9,
+        n_trials=n_trials,
+    )
+
+    eta = eta_base.reshape(-1, eta_base.shape[2]).T  # (n_obs, S)
+    d = delta.reshape(-1)[None, :]  # (1, S)
+    expected = (expit(eta + d) - expit(eta)).mean(axis=0) * n_trials
+    assert out["delta_items_median"] == pytest.approx(float(np.median(expected)))
+    assert out["delta_items_mean"] == pytest.approx(float(np.mean(expected)))
+    assert out["delta_marginal_effect_source"] == "population_mean_delta"
+    assert out["delta_marginal_estimand"].startswith("fitted-row sample-average")
+    assert out["delta_standardization_n_rows"] == 3
+    assert out["delta_standardization_cells"] == ""
+
+
+def test_did_summary_varying_effect_uses_each_fitted_child_slope():
+    # Child 0 has a small effect and child 1 a large effect. The row-specific
+    # delta_i mapping must drive both the all-row and named-cell standardisations;
+    # using the population mean delta would produce a different answer.
+    eta_base = np.array(
+        [[[0.0, 1.0, -0.5, 0.3], [0.2, -1.0, 0.3, -0.4], [0.4, 0.1, -0.2, 0.6]]]
+    )
+    beta_period = np.array([[0.1, 0.2, 0.15]])
+    delta = np.array([[0.55, 0.65, 0.6]])
+    delta_i = np.array([[[0.1, 1.0], [0.2, 1.1], [0.0, 1.2]]])
+    child_idx = np.array([0, 0, 1, 1])
+    p1 = np.array([True, False, True, False])
+    p2 = ~p1
+    n_trials = 30
+
+    out = did_summary(
+        _did_trace(eta_base, beta_period, delta, delta_i=delta_i),
+        ci_prob=0.9,
+        n_trials=n_trials,
+        child_idx=child_idx,
+        standardization_cells={"p1": p1, "p2": p2},
+    )
+
+    eta = eta_base.reshape(-1, eta_base.shape[2]).T  # (n_obs, S)
+    by_child = delta_i.reshape(-1, delta_i.shape[2]).T  # (n_child, S)
+    row_delta = by_child[child_idx]
+    row_effect = expit(eta + row_delta) - expit(eta)
+    expected_all = row_effect.mean(axis=0) * n_trials
+    expected_p1 = row_effect[p1].mean(axis=0) * n_trials
+    expected_p2 = row_effect[p2].mean(axis=0) * n_trials
+    assert out["delta_items_median"] == pytest.approx(float(np.median(expected_all)))
+    assert out["delta_items_p1_median"] == pytest.approx(float(np.median(expected_p1)))
+    assert out["delta_items_p2_mean"] == pytest.approx(float(np.mean(expected_p2)))
+    assert out["delta_marginal_effect_source"] == "child_specific_delta_i"
+    assert out["delta_standardization_cells"] == "p1,p2"
+    assert out["delta_items_p1_n_rows"] == 2
+    assert out["delta_items_p2_n_rows"] == 2
+
+    wrong = (
+        expit(eta + delta.reshape(-1)[None, :]) - expit(eta)
+    ).mean(axis=0) * n_trials
+    assert out["delta_items_median"] != pytest.approx(float(np.median(wrong)))
+
+
+def test_did_summary_varying_effect_requires_valid_child_mapping():
+    eta_base = np.zeros((1, 2, 3))
+    beta_period = np.zeros((1, 2))
+    delta = np.full((1, 2), 0.5)
+    delta_i = np.array([[[0.2, 0.8], [0.3, 0.9]]])
+    trace = _did_trace(eta_base, beta_period, delta, delta_i=delta_i)
+    kwargs = dict(ci_prob=0.9, n_trials=20)
+
+    with pytest.raises(ValueError, match="child_idx is required"):
+        did_summary(trace, **kwargs)
+    with pytest.raises(ValueError, match="must contain integer"):
+        did_summary(trace, child_idx=np.array([0.0, 0.0, 1.0]), **kwargs)
+    with pytest.raises(ValueError, match="has 2 rows"):
+        did_summary(trace, child_idx=np.array([0, 1]), **kwargs)
+    with pytest.raises(ValueError, match="outside"):
+        did_summary(trace, child_idx=np.array([0, 1, 2]), **kwargs)
+
+
+def test_did_summary_rejects_malformed_standardization_cells():
+    eta_base = np.zeros((1, 2, 3))
+    trace = _did_trace(eta_base, np.zeros((1, 2)), np.full((1, 2), 0.5))
+    kwargs = dict(ci_prob=0.9, n_trials=20)
+
+    with pytest.raises(ValueError, match="ASCII identifiers"):
+        did_summary(
+            trace,
+            standardization_cells={"waitlist p1": np.ones(3, dtype=bool)},
+            **kwargs,
+        )
+    with pytest.raises(ValueError, match="must be a boolean mask"):
+        did_summary(trace, standardization_cells={"p1": np.array([1, 0, 1])}, **kwargs)
+    with pytest.raises(ValueError, match="has 2 rows"):
+        did_summary(
+            trace,
+            standardization_cells={"p1": np.ones(2, dtype=bool)},
+            **kwargs,
+        )
+    with pytest.raises(ValueError, match="selects no observations"):
+        did_summary(
+            trace,
+            standardization_cells={"p1": np.zeros(3, dtype=bool)},
+            **kwargs,
+        )
 
 
 def test_tau_summary_offfloor_delegates_to_tau_summary_itt():

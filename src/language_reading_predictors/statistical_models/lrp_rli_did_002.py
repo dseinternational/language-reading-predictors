@@ -1,22 +1,12 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPDID02 - waitlist-crossover / difference-in-differences ITT effect on letter-sound knowledge (YARC-LSK) (L).
+"""LRPDID02 - arm-by-wave contrasts for letter-sound knowledge (L).
 
-A within-person replication of the randomised ITT effect (LRPITT07). Stacks the two
-early periods (P1 = t1->t2, P2 = t2->t3) for both arms, with each child as their
-own control (a child random intercept) and the immediate arm - treated in both
-periods - anchoring the time/maturation trend. The waitlist arm is the only
-untreated cell (P1) and crosses to the intervention in P2, so the treatment
-coefficient is a difference-in-differences estimate of the ITT effect, identified
-jointly by the period-1 between-arm contrast and the waitlist's own P1->P2 jump.
-
-Beta-Binomial on the logit scale (the suite convention), so the ceiling is
-respected - an immediate-arm child near the top of a bounded test makes a small
-P2 gain *expected*, not a spurious negative trend (the failure mode of a raw-gain
-DiD). Compare delta against the single-outcome RCT tau (LRPITT07).
-
-Sign convention: positive => intervention helps.
+The t1--t3 outcome levels are modelled with a saturated arm-by-wave structure.
+``tau_t2`` is the clean randomised t2 contrast and is compared with LRPITT07.
+``arm_gap_t3`` and the derived waitlist catch-up contrast are post-crossover
+associations. The design does not condition on the treatment-affected t2 score.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -25,11 +15,15 @@ from language_reading_predictors.statistical_models.pipeline import fit_did
 SPEC = ModelSpec(
     model_id="lrp-rli-did-002",
     kind="did",
-    title="Waitlist-crossover (DiD) ITT effect of the intervention on letter-sound knowledge (YARC-LSK) (L)",
+    title="Waitlist-crossover arm-by-wave contrasts for letter-sound knowledge (YARC-LSK) (L)",
     outcome_symbol="L",
+    family="did",
+    design="waitlist-crossover arm-by-wave levels",
+    estimand_type="mixed",
+    causal_status="t2 randomised; post-crossover contrasts associational",
     extra={
         "outcomes": ("L",),
-        "periods": (0, 1),
+        "waves": (0, 1, 2),
         "use_child_re": True,
         "use_age": True,
         "dose": False,

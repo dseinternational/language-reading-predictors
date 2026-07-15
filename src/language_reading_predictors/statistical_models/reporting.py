@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 import arviz as az
@@ -786,32 +786,67 @@ def did_summary(
     n_trials: int,
     dose: bool = False,
     off_floor: bool = False,
+    child_idx: np.ndarray | None = None,
+    standardization_cells: Mapping[str, np.ndarray] | None = None,
+    wave: np.ndarray | None = None,
 ) -> dict[str, float | bool | str]:
-    """Summarise the waitlist-crossover / difference-in-differences effect (kind="did").
+    """Summarise a waitlist-crossover arm-by-wave model (kind="did").
 
-    For the binary model ``delta`` is the treatment effect on the logit scale, and
-    ``delta_items_*`` is the average marginal effect of toggling ``Treated`` 0 -> 1
-    across the fitted rows (per draw), times ``n_trials`` — directly comparable to
-    the ITT ``tau_summary_itt`` items figures. ``beta_period`` is the period
-    (time / maturation) anchor estimated from the immediate arm. Equal-tailed
-    central intervals at coverage ``ci_prob``. With ``dose=True`` the key
-    coefficient is ``beta_dose`` (effect per 1 SD of intervention sessions) and no
-    items translation is produced.
+    The current binary model exposes three immediate-minus-waitlist logit contrasts:
+    ``arm_gap_t1`` (pre-randomisation balance), ``tau_t2`` (the clean randomised t2
+    arm contrast) and ``arm_gap_t3`` (a post-crossover association). Its derived
+    ``delta_crossover = tau_t2 - arm_gap_t3`` is the reduction in the arm gap after
+    crossover: positive means that the waitlist arm caught up. It is descriptive,
+    not a second randomised treatment effect.
+
+    ``wave`` must contain the fitted row's zero-based t1/t2/t3 code (0/1/2). For
+    each wave, the function standardises both arms over that wave's fitted rows
+    using ``eta_base``, which excludes the arm term. It reports the two standardised
+    arm means and their immediate-minus-waitlist difference on the outcome scale.
+    ``delta_crossover_items_*`` is the t2 standardised arm gap minus the t3
+    standardised arm gap, not ``expit(delta_crossover)``. Because the logit link is
+    nonlinear, this outcome-scale change-in-gap depends on the wave-specific
+    operating points. These are fitted-sample standardisations and the t2 quantity
+    is not numerically interchangeable with an ITT summary standardised over a
+    different fitted sample or covariate distribution.
+
+    For the exploratory varying-crossover model, ``delta_crossover_i`` is averaged
+    over the fitted waitlist children per posterior draw and reported separately as
+    ``delta_crossover_sample_average_*``. The outcome-scale change-in-gap is omitted
+    for that model because a scalar arm-gap toggle would fail to integrate the
+    fitted child-specific catch-up terms.
+
+    The legacy ``beta_period``/``delta`` branch remains readable so existing traces
+    fail gracefully during the refit transition. Its ``delta_items_*`` quantity is
+    a fitted-row model-implied treated-versus-untreated toggle, not a four-cell DiD
+    cross-difference and not automatically comparable with the randomised ITT.
+
+    When the posterior contains child-specific ``delta_i`` draws, ``child_idx`` is
+    required and must map each fitted row to the corresponding ``child`` position.
+    The marginal effect then uses the fitted child's posterior slope rather than the
+    population-mean ``delta``. This is conditional standardisation over the fitted
+    children; it does not integrate a new child's random slope from the population
+    distribution. For a constant-effect fit, ``child_idx`` is ignored.
+
+    ``standardization_cells`` optionally maps short, identifier-like names (for
+    example ``{"p1": phase == 0, "waitlist_p1": ...}``) to boolean masks aligned
+    with the fitted rows. Each cell receives a companion
+    ``delta_items_{name}_*`` summary. These remain model-implied treatment toggles
+    at that cell's covariate distribution, rather than observed arm contrasts.
 
     With ``off_floor=True`` (the off-floor prevalence DiD for heavily-floored P / N,
     fitted as a Bernoulli on the off-floor indicator) the caller passes
-    ``n_trials=1`` so ``delta_items_*`` is a model-implied off-floor RISK DIFFERENCE
-    — the difference in the probability of *being* off the floor at period end
-    obtained by toggling ``Treated``, not an item count and not a probability-scale
-    DiD cross-difference. The returned ``off_floor`` flag lets the report partial
-    label the scale accordingly.
+    ``n_trials=1``. Every ``*_items_*`` field is then on the probability scale:
+    arm-gap fields are off-floor risk differences and cell fields are probabilities
+    of *being* off the floor at that wave, not item counts or transitions from the
+    floor. The returned ``off_floor`` flag lets the report label the scale.
     """
     posterior = trace.posterior
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
 
-    def _summ(name: str) -> dict[str, float | str]:
-        d = posterior[name].stack(sample=("chain", "draw")).values
+    def _summ_draws(name: str, draws: np.ndarray) -> dict[str, float | str]:
+        d = np.asarray(draws).ravel()
         prob_pos = float(np.mean(d > 0))
         lo90, hi90 = band90(d)
         return {
@@ -829,29 +864,328 @@ def did_summary(
             f"{name}_favoured_label": evidence_label(max(prob_pos, 1.0 - prob_pos)),
         }
 
-    out: dict[str, float | bool] = {}
+    def _summ(name: str) -> dict[str, float | str]:
+        return _summ_draws(
+            name, posterior[name].stack(sample=("chain", "draw")).values
+        )
+
+    out: dict[str, float | bool | str] = {}
+
+    def _effect_summary(draws: np.ndarray, *, prefix: str) -> None:
+        scaled = draws * n_trials
+        out[f"{prefix}_median"] = float(np.median(scaled))
+        out[f"{prefix}_mean"] = float(np.mean(scaled))
+        out[f"{prefix}_lo"] = float(np.quantile(scaled, lo_q))
+        out[f"{prefix}_hi"] = float(np.quantile(scaled, hi_q))
+        out[f"{prefix}_lo90"], out[f"{prefix}_hi90"] = band90(scaled)
+
+    if "tau_t2" in posterior:
+        required = {"arm_gap_t1", "arm_gap_t3", "delta_crossover", "eta_base"}
+        missing = sorted(required.difference(posterior.data_vars))
+        if missing:
+            raise KeyError(
+                "arm-by-wave DiD trace is missing required posterior nodes: "
+                + ", ".join(missing)
+            )
+        for name in ("arm_gap_t1", "tau_t2", "arm_gap_t3", "delta_crossover"):
+            out.update(_summ(name))
+        if "delta_crossover_i" in posterior:
+            child_draws = (
+                posterior["delta_crossover_i"]
+                .stack(sample=("chain", "draw"))
+                .transpose("waitlist_child", "sample")
+                .values
+            )
+            out.update(
+                _summ_draws(
+                    "delta_crossover_sample_average", child_draws.mean(axis=0)
+                )
+            )
+            out["delta_crossover_sample_n_children"] = int(child_draws.shape[0])
+        if dose and "beta_dose" in posterior:
+            out.update(_summ("beta_dose"))
+
+        if wave is None:
+            raise ValueError(
+                "wave is required for arm-by-wave outcome-scale standardisation; "
+                "pass the fitted prepared.phase array."
+            )
+        wave_arr = np.asarray(wave)
+        if wave_arr.ndim != 1:
+            raise ValueError(f"wave must be 1-D, got a {wave_arr.ndim}-D array.")
+        if not np.issubdtype(wave_arr.dtype, np.integer):
+            raise ValueError(f"wave must contain integer phase codes, got {wave_arr.dtype}.")
+        eta_base = (
+            posterior["eta_base"]
+            .stack(sample=("chain", "draw"))
+            .transpose("obs_id", "sample")
+            .values
+        )  # (n_obs, S)
+        if wave_arr.shape[0] != eta_base.shape[0]:
+            raise ValueError(
+                f"wave has {wave_arr.shape[0]} rows but eta_base has "
+                f"{eta_base.shape[0]} observations; pass the fitted-subset phases."
+            )
+
+        wave_effects: dict[str, np.ndarray] = {}
+        wave_terms = (
+            (0, "t1", "arm_gap_t1"),
+            (1, "t2", "tau_t2"),
+            (2, "t3", "arm_gap_t3"),
+        )
+        for wave_code, wave_name, term_name in wave_terms:
+            rows = wave_arr == wave_code
+            if not np.any(rows):
+                raise ValueError(
+                    f"wave contains no {wave_name} rows (expected phase code {wave_code})."
+                )
+            gap = (
+                posterior[term_name]
+                .stack(sample=("chain", "draw"))
+                .values.ravel()
+            )
+            waitlist = expit(eta_base[rows]).mean(axis=0)
+            immediate = expit(eta_base[rows] + gap[None, :]).mean(axis=0)
+            arm_gap = immediate - waitlist
+            _effect_summary(waitlist, prefix=f"{wave_name}_waitlist_items")
+            _effect_summary(immediate, prefix=f"{wave_name}_immediate_items")
+            _effect_summary(arm_gap, prefix=f"{term_name}_items")
+            out[f"{term_name}_items_n_rows"] = int(rows.sum())
+            wave_effects[term_name] = arm_gap
+
+        if "delta_crossover_i" not in posterior:
+            _effect_summary(
+                wave_effects["tau_t2"] - wave_effects["arm_gap_t3"],
+                prefix="delta_crossover_items",
+            )
+            out["delta_crossover_items_available"] = True
+        else:
+            out["delta_crossover_items_available"] = False
+            out["delta_crossover_items_omission_reason"] = (
+                "child-specific catch-up requires an explicitly integrated "
+                "waitlist-child counterfactual"
+            )
+        out["arm_wave_marginal_estimand"] = (
+            "wave-specific fitted-row standardized immediate-minus-waitlist arm gap"
+        )
+        out["arm_wave_marginal_effect_source"] = (
+            "population-mean arm gaps; child-specific catch-up is not integrated"
+            if "delta_crossover_i" in posterior
+            else "fixed arm gaps"
+        )
+        out["delta_crossover_interpretation"] = (
+            "t2 arm gap minus t3 arm gap; post-crossover association"
+        )
+        out["off_floor"] = bool(off_floor)
+        return out
+
     out.update(_summ("beta_period"))
     if dose:
-        out.update(_summ("beta_dose"))
+        # The redesigned dose model separates treatment presence from intensive
+        # session variation. Report the arm and treatment-presence coefficients
+        # whenever the trace carries them so the observational beta_dose is not
+        # presented as though it were the randomized on/off contrast.
+        for name in ("beta_group", "theta_treated", "gamma_t1", "beta_dose"):
+            if name in posterior:
+                out.update(_summ(name))
+        out["dose_interpretation"] = (
+            "beta_dose is an observational intensive-margin association; "
+            "theta_treated is the model's treatment-presence term"
+        )
         return out
 
     out.update(_summ("delta"))
-    # Items-scale average marginal effect: toggle Treated 0 -> 1 per fitted row.
-    delta = posterior["delta"].stack(sample=("chain", "draw")).values  # (S,)
+    # Model-implied treated-vs-untreated contrast, standardised over the fitted
+    # rows. For the varying-slope fit, map each child's posterior delta_i to every
+    # row belonging to that child; using the scalar population mean here would not
+    # report the model that was actually fitted.
+    delta = posterior["delta"].stack(sample=("chain", "draw")).values.ravel()  # (S,)
     eta_base = (
         posterior["eta_base"]
         .stack(sample=("chain", "draw"))
         .transpose("obs_id", "sample")
         .values
     )  # (n_obs, S)
-    eff = (expit(eta_base + delta[None, :]) - expit(eta_base)).mean(axis=0) * n_trials
-    out["delta_items_median"] = float(np.median(eff))
-    out["delta_items_mean"] = float(np.mean(eff))
-    out["delta_items_lo"] = float(np.quantile(eff, lo_q))
-    out["delta_items_hi"] = float(np.quantile(eff, hi_q))
-    out["delta_items_lo90"], out["delta_items_hi90"] = band90(eff)
+    if "delta_i" in posterior:
+        if child_idx is None:
+            raise ValueError(
+                "child_idx is required when the DiD posterior contains child-specific "
+                "delta_i draws."
+            )
+        idx = np.asarray(child_idx)
+        if idx.ndim != 1:
+            raise ValueError(f"child_idx must be 1-D, got a {idx.ndim}-D array.")
+        if not np.issubdtype(idx.dtype, np.integer):
+            raise ValueError(f"child_idx must contain integer positions, got {idx.dtype}.")
+        if idx.shape[0] != eta_base.shape[0]:
+            raise ValueError(
+                f"child_idx has {idx.shape[0]} rows but eta_base has "
+                f"{eta_base.shape[0]} observations; pass the fitted-subset mapping."
+            )
+        child_delta = (
+            posterior["delta_i"]
+            .stack(sample=("chain", "draw"))
+            .transpose("child", "sample")
+            .values
+        )  # (n_child, S)
+        if idx.size and (int(idx.min()) < 0 or int(idx.max()) >= child_delta.shape[0]):
+            raise ValueError(
+                f"child_idx contains positions outside [0, {child_delta.shape[0]})."
+            )
+        row_delta = child_delta[idx]  # (n_obs, S)
+        effect_source = "child_specific_delta_i"
+    else:
+        row_delta = delta[None, :]  # (1, S), broadcast over observations
+        effect_source = "population_mean_delta"
+
+    row_effect = expit(eta_base + row_delta) - expit(eta_base)  # (n_obs, S)
+
+    _effect_summary(row_effect.mean(axis=0), prefix="delta_items")
+    out["delta_standardization_n_rows"] = int(eta_base.shape[0])
+    cell_names: list[str] = []
+    for name, raw_mask in (standardization_cells or {}).items():
+        if not name.isascii() or not name.isidentifier():
+            raise ValueError(
+                "standardization cell names must be non-empty ASCII identifiers; "
+                f"got {name!r}."
+            )
+        mask = np.asarray(raw_mask)
+        if mask.ndim != 1:
+            raise ValueError(
+                f"standardization cell {name!r} must be 1-D, got {mask.ndim}-D."
+            )
+        if mask.dtype != bool:
+            raise ValueError(
+                f"standardization cell {name!r} must be a boolean mask, got "
+                f"{mask.dtype}."
+            )
+        if mask.shape[0] != eta_base.shape[0]:
+            raise ValueError(
+                f"standardization cell {name!r} has {mask.shape[0]} rows but "
+                f"eta_base has {eta_base.shape[0]} observations."
+            )
+        if not np.any(mask):
+            raise ValueError(f"standardization cell {name!r} selects no observations.")
+        _effect_summary(row_effect[mask].mean(axis=0), prefix=f"delta_items_{name}")
+        out[f"delta_items_{name}_n_rows"] = int(mask.sum())
+        cell_names.append(name)
+
+    out["delta_marginal_estimand"] = (
+        "fitted-row sample-average model-implied treated-versus-untreated contrast"
+    )
+    out["delta_marginal_effect_source"] = effect_source
+    out["delta_standardization_cells"] = ",".join(cell_names)
     out["off_floor"] = bool(off_floor)
     return out
+
+
+def did_cell_ppc(
+    trace: xr.DataTree,
+    *,
+    phase: np.ndarray,
+    G: np.ndarray,
+    dose: bool = False,
+    node: str = "y_post",
+    ci_prob: float = 0.95,
+) -> pd.DataFrame:
+    """Posterior-predictive checks for every fitted DiD arm-by-time cell.
+
+    A pooled posterior-predictive plot can hide a cell-specific failure by letting
+    well-fitted cells compensate for a badly fitted one. This helper therefore
+    compares the observed cell mean and zero rate with their replicated posterior-
+    predictive distributions for every wave/arm (binary model) or period/arm (dose
+    model). The upper-tail probabilities are diagnostics, not hypothesis-test
+    p-values. Values near zero or one flag an observed statistic in a predictive
+    tail and should be investigated before interpreting contrasts.
+    """
+    phase_arr = np.asarray(phase)
+    group_arr = np.asarray(G)
+    if phase_arr.ndim != 1 or group_arr.ndim != 1:
+        raise ValueError("phase and G must both be one-dimensional")
+    if phase_arr.shape != group_arr.shape:
+        raise ValueError(
+            f"phase and G must align; got {phase_arr.shape} and {group_arr.shape}"
+        )
+    if not np.issubdtype(phase_arr.dtype, np.integer):
+        raise ValueError(f"phase must contain integer codes, got {phase_arr.dtype}")
+    if not set(np.unique(group_arr)).issubset({0, 1}):
+        raise ValueError("G must use 0=waitlist and 1=immediate coding")
+    if not 0 < ci_prob < 1:
+        raise ValueError(f"ci_prob must lie in (0, 1), got {ci_prob}")
+
+    try:
+        pp_da = trace.posterior_predictive[node]
+        observed = np.asarray(trace.observed_data[node].values).reshape(-1)
+    except (AttributeError, KeyError) as exc:
+        raise KeyError(
+            f"trace must contain posterior_predictive and observed_data for {node!r}"
+        ) from exc
+
+    sample_dims = {"chain", "draw"}
+    obs_dims = [d for d in pp_da.dims if d not in sample_dims]
+    if len(obs_dims) != 1:
+        raise ValueError(
+            f"{node!r} must have one observation dimension, got {pp_da.dims}"
+        )
+    replicated = (
+        pp_da.stack(sample=("chain", "draw"))
+        .transpose(obs_dims[0], "sample")
+        .values
+    )
+    n_obs = phase_arr.shape[0]
+    if replicated.shape[0] != n_obs or observed.shape[0] != n_obs:
+        raise ValueError(
+            f"fitted arrays are misaligned: phase={n_obs}, replicated="
+            f"{replicated.shape[0]}, observed={observed.shape[0]}"
+        )
+
+    lo_q = (1 - ci_prob) / 2
+    hi_q = 1 - lo_q
+    rows: list[dict[str, float | int | str | bool]] = []
+    prefix = "P" if dose else "t"
+    for phase_code in sorted(np.unique(phase_arr)):
+        for arm_code, arm_name in ((0, "waitlist"), (1, "immediate")):
+            mask = (phase_arr == phase_code) & (group_arr == arm_code)
+            if not np.any(mask):
+                raise ValueError(
+                    f"no rows for {prefix}{int(phase_code) + 1}/{arm_name}"
+                )
+            observed_cell = observed[mask]
+            replicated_cell = replicated[mask]
+            observed_mean = float(np.mean(observed_cell))
+            observed_zero = float(np.mean(observed_cell == 0))
+            replicated_mean = replicated_cell.mean(axis=0)
+            replicated_zero = (replicated_cell == 0).mean(axis=0)
+            p_mean = float(np.mean(replicated_mean >= observed_mean))
+            p_zero = float(np.mean(replicated_zero >= observed_zero))
+            rows.append(
+                {
+                    "cell": f"{prefix}{int(phase_code) + 1}_{arm_name}",
+                    "time": f"{prefix}{int(phase_code) + 1}",
+                    "phase_code": int(phase_code),
+                    "arm": arm_name,
+                    "n": int(mask.sum()),
+                    "observed_mean": observed_mean,
+                    "replicated_mean_median": float(np.median(replicated_mean)),
+                    "replicated_mean_lo": float(np.quantile(replicated_mean, lo_q)),
+                    "replicated_mean_hi": float(np.quantile(replicated_mean, hi_q)),
+                    "p_rep_mean_ge_observed": p_mean,
+                    "mean_tail_flag": bool(p_mean <= 0.025 or p_mean >= 0.975),
+                    "observed_zero_rate": observed_zero,
+                    "replicated_zero_rate_median": float(
+                        np.median(replicated_zero)
+                    ),
+                    "replicated_zero_rate_lo": float(
+                        np.quantile(replicated_zero, lo_q)
+                    ),
+                    "replicated_zero_rate_hi": float(
+                        np.quantile(replicated_zero, hi_q)
+                    ),
+                    "p_rep_zero_ge_observed": p_zero,
+                    "zero_tail_flag": bool(p_zero <= 0.025 or p_zero >= 0.975),
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def block_exposure_summary(
