@@ -111,6 +111,48 @@ Session dose is observational. A positive dose slope means higher treated-centre
 
 :::
 
+### What the model predicts on the test scale
+
+```{python}
+# | echo: false
+# | output: asis
+_pred = _csv("predicted_scores.csv")
+if _pred is not None:
+    _pop = str(_pred.iloc[0].population)
+    _status = str(_pred.iloc[0].contrast_status)
+    print(_img("predicted_scores.png", "Predicted t2 test scores under each arm, and the effect scale with ROPE"))
+    print(
+        f"\n_How to read it:_ the left panel shows the t2 score the model predicts on {outcome_label} "
+        f"for a **{_pop}** — one distribution per randomised arm, medians marked and the difference "
+        "annotated. This model is a within-child longitudinal (waitlist-crossover) model, and only the "
+        f"t2 arm contrast shown here is randomised: {_status}. The `arm_gap_t3` and `delta_crossover` "
+        "quantities are post-crossover associations and are deliberately not drawn on this panel. The "
+        "child random intercept is integrated over its population distribution, so this is a *new-child* "
+        "marginal prediction, not a same-children conditional display. The right panel is the posterior "
+        "of the effect on the outcome scale with the ROPE band (where an agreed δ exists) and the three "
+        "probabilities (meaningful benefit / negligible / meaningful harm) printed. "
+        "The plotted quantities are in `predicted_scores.csv`."
+    )
+```
+
+```{python}
+# | echo: false
+_pred if _pred is not None else None
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("icon_array.png"):
+    print(_img("icon_array.png", "Icon array: 100 plausible worlds coloured by the ROPE verdict"))
+    print(
+        "\n_How to read the icon array:_ each dot is one equally plausible 'world' given the model and "
+        "data. Green dots are worlds where the t2 benefit reaches the agreed meaningful difference δ, "
+        "red dots are worlds with meaningful harm, and grey dots are worlds where the effect is smaller "
+        "than δ in either direction."
+    )
+```
+
 ## Arm-by-time posterior-predictive checks
 
 The pooled posterior-predictive plot can hide a poorly fitted arm-by-time cell. The table and figure below therefore compare each observed cell mean and zero rate with the corresponding posterior-predictive distribution. An upper-tail probability near 0 or 1, or a `True` tail flag, identifies a cell that needs investigation before interpreting contrasts; these are predictive diagnostics, not frequentist hypothesis tests.

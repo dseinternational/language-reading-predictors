@@ -120,6 +120,44 @@ if _sens is not None:
     print(rope_sensitivity_markdown(_sens, is_risk_difference=True))
 ```
 
+### What the model predicts on the off-floor scale
+
+```{python}
+# | echo: false
+# | output: asis
+_pred = _csv("predicted_scores.csv")
+if _pred is not None:
+    _pop = str(_pred.iloc[0].population)
+    _status = str(_pred.iloc[0].contrast_status)
+    print(_img("predicted_scores.png", "Off-floor probability by arm, and the risk difference with ROPE"))
+    print(
+        f"\n_How to read it:_ this outcome is heavily floored, so instead of score distributions the "
+        f"left panel shows the model's probability that a **{_pop}** moves off the floor, one bar per "
+        "randomised arm with 95% credible intervals. The right panel is the posterior of the "
+        "risk difference (intervention minus control) with the ROPE band shaded and the three "
+        "probabilities (meaningful benefit / negligible / meaningful harm) printed. "
+        f"The contrast is a {_status}. The plotted quantities are in `predicted_scores.csv`."
+    )
+```
+
+```{python}
+# | echo: false
+_pred if _pred is not None else None
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("icon_array.png"):
+    print(_img("icon_array.png", "Icon array: 100 plausible worlds coloured by the ROPE verdict"))
+    print(
+        "\n_How to read the icon array:_ each dot is one equally plausible 'world' given the model and "
+        "data. Green dots are worlds where the intervention raises the off-floor chance by at least the "
+        "agreed δ (10 percentage points), red dots are worlds with at least that much harm, and grey "
+        "dots are worlds where the difference is smaller either way."
+    )
+```
+
 ### Off-floor movers by arm
 
 _How to read the table:_ this is the raw tally behind the estimate — for each arm,
