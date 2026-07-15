@@ -405,7 +405,7 @@ def _draw_group_trajectory(
     if crossover_wave is not None and crossover_wave in list(waves):
         ax.axvline(
             crossover_wave, color="#555555", lw=1.0, ls="--",
-            label="wait-list crossover (t2)",
+            label=f"wait-list crossover ({_wave_label(crossover_wave)})",
         )
     ax.set_xticks(x, xticklabels)
     ax.set_xlabel("assessment wave")
@@ -592,9 +592,18 @@ def _draw_small_multiples(
     ylabel = "P(off the floor)" if off_floor else f"score (out of {n_trials})"
     fig.supylabel(ylabel, fontsize=9)
     fig.supxlabel(x_label, fontsize=9)
+    # The graded path plots posterior-predictive score draws (with observation
+    # noise); the floored path plots the posterior credible interval for P(off the
+    # floor) from expit(eta) — the per-row Bernoulli predictive is degenerate, so
+    # the band label must not claim "posterior-predictive" there.
+    band_desc = (
+        f"posterior {pct}% band for P(off the floor)"
+        if off_floor
+        else f"posterior-predictive {pct}% band"
+    )
     fig.suptitle(
         f"Per-child fit ({outcome_symbol}, {item_label}) — observed dots, "
-        f"posterior-predictive {pct}% band; same-children",
+        f"{band_desc}; same-children",
         fontsize=10,
     )
     fig.tight_layout()

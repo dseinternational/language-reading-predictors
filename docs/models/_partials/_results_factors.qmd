@@ -174,17 +174,27 @@ if _has("group_trajectory.png"):
 # | echo: false
 # | output: asis
 if _has("child_fit_panels.png"):
+    _cf = _csv("child_fit_panels.csv")
+    _off = _cf is not None and "scale" in _cf.columns and (_cf["scale"] == "off_floor_probability").any()
+    _obs = (
+        f"child's observed off-the-floor status on {outcome_label} (0 or 1) across waves"
+        if _off
+        else f"child's observed {outcome_label} scores across waves"
+    )
+    _band = (
+        "the model's posterior 95% credible interval for **that same child's** probability of being off the floor"
+        if _off
+        else "the model's posterior-predictive 95% interval for **that same child's** score"
+    )
     print("### Per-child fit\n")
-    print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples (observed dots, posterior-predictive band)"))
+    print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples (observed dots, model band)"))
     print(
-        "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
-        f"child's observed {outcome_label} scores across waves; the green band is the model's "
-        "posterior-predictive 95% interval **for that same child**, conditional on their own fitted "
-        "random intercept — a *same-children* display, and a different quantity from the population "
-        "trajectory above. Panels flagged with a high Pareto-k are the worst-fitting children in the "
-        "sample, shown on purpose so the figure is honest about where the model captures a child's "
-        "scores and where it does not. The remaining panels are a seeded random draw (reproducible "
-        "across refits)."
+        f"\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
+        f"{_obs}; the green band is {_band}, conditional on their own fitted random intercept — a "
+        "*same-children* display, and a different quantity from the population trajectory above. Panels "
+        "flagged with a high Pareto-k are the worst-fitting children in the sample, shown on purpose so "
+        "the figure is honest about where the model captures a child and where it does not. The remaining "
+        "panels are a seeded random draw (reproducible across refits)."
     )
 ```
 
