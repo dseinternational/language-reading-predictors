@@ -834,10 +834,19 @@ def test_concurrent_specs_mirror_core_skill_set():
         lrp_rli_ca_002,
         lrp_rli_ca_003,
         lrp_rli_ca_004,
+        lrp_rli_ca_005,
+        lrp_rli_ca_006,
     )
 
     core = {"W", "L", "B", "TR", "TE", "R", "E"}
-    for mod in (lrp_rli_ca_001, lrp_rli_ca_002, lrp_rli_ca_003, lrp_rli_ca_004):
+    for mod in (
+        lrp_rli_ca_001,
+        lrp_rli_ca_002,
+        lrp_rli_ca_003,
+        lrp_rli_ca_004,
+        lrp_rli_ca_005,
+        lrp_rli_ca_006,
+    ):
         spec = mod.SPEC
         preds = set(spec.extra["predictor_symbols"])
         assert spec.outcome_symbol in core
@@ -987,10 +996,16 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
     expected_slope = 2.0 * 0.8 * 0.44 / (0.8**2 * 0.91 + 0.6**2)
     np.testing.assert_allclose(known_slope, expected_slope, rtol=1e-12, atol=1e-12)
 
-    # The directed #312 comparison is generated from its source tables rather than
-    # hand-transcribed. All 8 target/predictor directions x 4 waves are retained.
+    # The directed #312/#336 comparison is generated from its source tables rather
+    # than hand-transcribed. All 12 target/predictor directions x 4 waves are retained.
     ca_tables = {}
-    comparisons = {"L": ("R", "E", "TR", "TE"), "TR": ("L", "B"), "TE": ("L", "B")}
+    comparisons = {
+        "L": ("R", "E", "TR", "TE"),
+        "R": ("L", "B"),
+        "E": ("L", "B"),
+        "TR": ("L", "B"),
+        "TE": ("L", "B"),
+    }
     for target, predictors in comparisons.items():
         ca_tables[target] = pd.DataFrame(
             [
@@ -1016,7 +1031,7 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
     comparison = _lcf_concurrent_comparison(
         comparison_ctx, built, ca_tables=ca_tables
     )
-    assert len(comparison) == 32
+    assert len(comparison) == 48
     assert comparison["ca_available"].all()
     assert comparison["predictor_contrast"].eq("+1 same-wave SD").all()
     assert np.isfinite(comparison["lcf_items_median"]).all()
