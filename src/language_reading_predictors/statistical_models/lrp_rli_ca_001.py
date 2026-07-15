@@ -35,9 +35,10 @@ cross-sectional fits reported side by side (not one stacked model with a child r
 intercept, which would tilt the coefficients toward a within-child quantity); group
 included only as a non-interpretable nuisance term to absorb arm composition;
 predictors entered as standardised same-wave logits; floored measures (P, N) excluded
-as predictors. Word reading is the focal outcome for this first model; letter sounds
-and taught vocabulary are the sibling focal outcomes (``lrp_rli_ca_002``-``004``),
-each conditioning on the core skill set {W, L, B, TR, TE, R, E} minus itself.
+as predictors. Word reading is the focal outcome for this first model; letter sounds,
+taught vocabulary and standardised vocabulary are the sibling focal outcomes
+(``lrp_rli_ca_002``-``006``), each conditioning on the core skill set
+{W, L, B, TR, TE, R, E} minus itself.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

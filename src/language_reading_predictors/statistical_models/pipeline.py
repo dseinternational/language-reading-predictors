@@ -6823,11 +6823,15 @@ def _lcf_items_scale(ctx, built) -> pd.DataFrame:
 
 _LCF_CA_COMPARISONS = {
     "L": ("R", "E", "TR", "TE"),
+    "R": ("L", "B"),
+    "E": ("L", "B"),
     "TR": ("L", "B"),
     "TE": ("L", "B"),
 }
 _LCF_CA_MODEL_IDS = {
     "L": "lrp-rli-ca-002",
+    "R": "lrp-rli-ca-005",
+    "E": "lrp-rli-ca-006",
     "TR": "lrp-rli-ca-003",
     "TE": "lrp-rli-ca-004",
 }
@@ -6899,7 +6903,7 @@ def _lcf_concurrent_comparison(
 ) -> pd.DataFrame:
     """Reproducible directed comparison with matching #312 associations.
 
-    For each cross-domain target/predictor pair shared with CA002--004, translate
+    For each cross-domain target/predictor pair shared with CA002--006, translate
     the LCF's latent conditional slope to target items for a one same-wave-SD
     increase in the observed predictor. The translation conditions on the other
     latent domains and is evaluated at the target's observed wave-mean logit. Place
@@ -7294,7 +7298,7 @@ def fit_longitudinal_corr_factor(
         rprint(
             "[yellow]Directed #312 comparison is incomplete: "
             f"{n_ca_available}/{len(concurrent_df)} matching concurrent rows were "
-            "found under this output root/config. Fit CA002--004 at the same tier "
+            "found under this output root/config. Fit CA002--006 at the same tier "
             "to populate the missing side.[/yellow]"
         )
 
