@@ -123,8 +123,10 @@ print(
     "how likely a *worthwhile* gain is, not just any gain above zero."
 )
 if _rope is not None:
+    # The leading blank line separates the fence from the paragraph printed
+    # above; without it Pandoc reads ::: as paragraph text, not a fenced div.
     print(
-        '::: {.callout-note title="Reading the evidence labels"}\n\n'
+        '\n::: {.callout-note title="Reading the evidence labels"}\n\n'
         "The round-odds labels (*inconclusive / suggestive / moderate / strong / very "
         "strong*) qualify the **evidence**, never the effect *size*, and are run "
         "separately for the direction and meaningful-benefit claims. At this study's "

@@ -184,6 +184,7 @@ PLOS
 PPVT
 PYTHONPATH
 Pagnamenta
+Pandoc
 Papagno
 Paterra
 Pediatrics
