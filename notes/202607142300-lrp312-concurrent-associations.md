@@ -58,10 +58,18 @@ Commands: `python scripts/fit_statistical_model.py lrp-rli-ca-00N --config repor
 
 All 84 published extension fits therefore clear the pre-specified thresholds (R-hat ≤ 1.01, effective sample size ≥ 400, BFMI ≥ 0.3 and zero divergences). This is computational acceptance, not evidence that any association is causal or substantively important; interpretation still requires the direction, credible interval and posterior direction probability from the relevant row. Generated fit artefacts remain ignored and are not versioned with this note.
 
+## Extension: standardised-vocabulary focal outcomes (#336, added 2026-07-15)
+
+Issue #336 adds `lrp-rli-ca-005` (standardised receptive vocabulary, `R`) and `lrp-rli-ca-006` (standardised expressive vocabulary, `E`) on the unchanged concurrent factory and pipeline. Each conditions its focal outcome on the other six members of {W, L, B, TR, TE, R, E}, retains age and group as nuisance terms, and inherits the four separate wave fits, `Normal(0, 0.3)` slopes, mean-imputed predictors, adjusted-versus-bivariate outputs and predictor-specific `+k items` marginals. Both focal measures have 170-item denominators and do not carry `ca-003`'s late-wave ceiling-compression warning for the 24-item `TR` outcome.
+
+The `lrp-rli-lcf-001` directed comparison is extended from 32 to 48 rows: in addition to `L` as target versus all four vocabulary indicators and `TR`/`TE` as targets versus `L`/`B`, it now includes `R`/`E` as targets versus `L`/`B`. This preserves the distinction between the latent-domain mean-operating-point translation and the concurrent models' observed-test average marginals; the comparison remains triangulation, not a correction factor or causal test.
+
+The optional blending-focal full conditional is deferred. Its 10-item scale is the coarsest side of the seven-measure system, and it is not needed to answer #336's vocabulary-focused question. The two new reporting-tier fits and the resulting `lrp-rli-lcf-001` comparison refresh belong in the next refit sweep; no numerical result is claimed before those artefacts pass the convergence gate.
+
 ## Follow-on
 
 #313 (longitudinal latent factor model) is the complementary measurement-error-aware analysis; it avoids treating observed test scores as error-free predictors but rests on its own measurement-model assumptions.
 
 ## Known doc drift (pre-existing, not fixed here)
 
-`docs/models/README.md`'s at-a-glance family counts remain stale relative to `definitions.MODEL_REGISTRY` (now 142), and the `block_exposure` family is missing from the at-a-glance table entirely. The concurrent row and detailed section are present; re-auditing every other family remains a separate docs-sync pass, also flagged on #327.
+`docs/models/README.md`'s at-a-glance family counts remain stale relative to `definitions.MODEL_REGISTRY` (now 144), and the `block_exposure` family is missing from the at-a-glance table entirely. The concurrent row and detailed section are present; re-auditing every other family remains a separate docs-sync pass, also flagged on #327.

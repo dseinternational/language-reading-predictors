@@ -23,6 +23,12 @@ from language_reading_predictors.statistical_models.lrp_rli_ca_003 import (
 from language_reading_predictors.statistical_models.lrp_rli_ca_004 import (
     SPEC as CA004,
 )
+from language_reading_predictors.statistical_models.lrp_rli_ca_005 import (
+    SPEC as CA005,
+)
+from language_reading_predictors.statistical_models.lrp_rli_ca_006 import (
+    SPEC as CA006,
+)
 from language_reading_predictors.statistical_models.pipeline import (
     _ca_label,
     _ca_margin_fields,
@@ -39,7 +45,7 @@ def test_concurrent_core_symbols_have_reader_labels():
 
 
 def test_concurrent_specs_share_family_design_and_core_conditionals():
-    specs = (CA001, CA002, CA003, CA004)
+    specs = (CA001, CA002, CA003, CA004, CA005, CA006)
     core = {"W", "L", "B", "TR", "TE", "R", "E"}
     for spec in specs:
         assert spec.family == "concurrent"
@@ -229,7 +235,7 @@ def test_shared_concurrent_results_partial_is_focal_outcome_neutral():
 def test_concurrent_spec_docs_avoid_unqualified_attenuation_claims():
     repo = Path(__file__).resolve().parents[2]
     model_dir = repo / "src/language_reading_predictors/statistical_models"
-    for number in range(1, 5):
+    for number in range(1, 7):
         text = (model_dir / f"lrp_rli_ca_{number:03d}.py").read_text().lower()
         assert "associations attenuate toward zero" not in text
         assert "gap is itself informative" not in text

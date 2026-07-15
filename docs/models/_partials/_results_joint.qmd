@@ -1,10 +1,79 @@
+## Analysis set and estimand
+
+These are available-case **modified-ITT** randomised offer effects, not full-cohort ITT effects for all 57 randomised children. The table records the outcome-specific fitted counts by assigned arm; extending the causal interpretation to excluded or missing children requires ignorable missingness.
+
+```{python}
+# | echo: false
+_csv("analysis_set.csv")
+```
+
+```{python}
+# | echo: false
+_csv("attrition_bounds.csv")
+```
+
+```{python}
+# | echo: false
+# | output: asis
+_joint_shape = _csv("posterior_predictive_shape_calibration.csv")
+
+
+def _shape_metric_flag(row, metric):
+    outside_column = f"ppc_{metric}_outside_interval"
+    outside = (
+        outside_column in row.index
+        and str(row[outside_column]).strip().lower() == "true"
+    )
+    listed = {
+        name.strip()
+        for name in str(row.get("flagged_statistics", "")).split(";")
+        if name.strip()
+    }
+    return outside or metric in listed
+
+
+if _joint_shape is not None and "ppc_shape_flag" in _joint_shape.columns:
+    _joint_shape_flag = _joint_shape["ppc_shape_flag"].astype(str).str.lower().eq("true")
+    _joint_shape_flagged = _joint_shape.loc[_joint_shape_flag]
+    if not _joint_shape_flagged.empty:
+        _flagged_outcomes = ", ".join(_joint_shape_flagged["outcome"].astype(str))
+        print('\n::: {.callout-warning title="Posterior-predictive shape misfit limits cross-outcome ranking"}\n')
+        print(f"The outcome-level predictive check flags {_flagged_outcomes}: at least one observed distribution-shape statistic lies outside the fitted model's central posterior-predictive interval. These are descriptive diagnostics across several outcomes and shape summaries, not multiplicity-adjusted hypothesis tests; interpret isolated flags in context. Treatment-effect summaries remain estimates under the fitted working model, but comparisons involving a flagged outcome need this predictive-misfit qualification.")
+        _e_rows = _joint_shape_flagged.loc[_joint_shape_flagged["outcome"].astype(str).eq("E")]
+        if not _e_rows.empty:
+            _e = _e_rows.iloc[0]
+            if _shape_metric_flag(_e, "interquartile_range_count"):
+                print(f"\nFor E, the observed interquartile range is {_e.observed_interquartile_range_count:.1f} items, compared with a posterior-predictive {100 * _e.ci_prob:.0f}% interval of {_e.ppc_interquartile_range_count_lo:.1f} to {_e.ppc_interquartile_range_count_hi:.1f} (two-sided predictive tail area {_e.ppc_interquartile_range_count_two_sided_tail:.3f}); the fitted score distribution is more dispersed than observed.")
+        _p_rows = _joint_shape_flagged.loc[_joint_shape_flagged["outcome"].astype(str).eq("P")]
+        if not _p_rows.empty:
+            _p = _p_rows.iloc[0]
+            if _shape_metric_flag(_p, "upper_quartile_count"):
+                print(f"\nFor P, the observed graded-score upper quartile is {_p.observed_upper_quartile_count:.1f} items, compared with a posterior-predictive {100 * _p.ci_prob:.0f}% interval of {_p.ppc_upper_quartile_count_lo:.1f} to {_p.ppc_upper_quartile_count_hi:.1f} (two-sided predictive tail area {_p.ppc_upper_quartile_count_two_sided_tail:.3f}). P is the **graded secondary** outcome; the floor-rule headline is the binary off-floor estimand. Do not use P's graded joint-model AME unqualified in cross-outcome rankings: either omit it from the ranking or label the comparison exploratory and limited by this predictive misfit.")
+        print("\n:::\n")
+```
+
+```{python}
+# | echo: false
+if "_joint_shape_flagged" in globals() and not _joint_shape_flagged.empty:
+    _joint_shape_flagged[
+        [
+            "outcome",
+            "flagged_statistics",
+            "observed_upper_quartile_count",
+            "ppc_upper_quartile_count_lo",
+            "ppc_upper_quartile_count_hi",
+            "ppc_upper_quartile_count_two_sided_tail",
+            "observed_interquartile_range_count",
+            "ppc_interquartile_range_count_lo",
+            "ppc_interquartile_range_count_hi",
+            "ppc_interquartile_range_count_two_sided_tail",
+        ]
+    ]
+```
+
 ## Results — treatment effect by outcome
 
-Each outcome's ITT effect $\tau$ is estimated jointly (positive = the intervention
-raised that outcome). The forest is the single most communicative summary; the
-pairwise contrast heatmap shows $P(\tau_k > \tau_j)$ for every outcome pair.
-
-In plain terms: one model estimates the treatment effect for every outcome at once, so the outcomes can be lined up and compared on the same scale.
+The registered multi-outcome model is a **product of outcome-specific marginals** fitted in one PyMC graph: it does not estimate residual dependence between outcomes. Each outcome's headline effect is therefore its average marginal effect (AME), expressed as the intervention-minus-control difference in expected proportion correct. This probability scale is comparable across tests with different item denominators. The conditional logit coefficient $\tau_k$ is retained as a secondary model-parameter summary.
 
 ```{python}
 # | echo: false
@@ -12,22 +81,22 @@ tau_summary = _csv("tau_summary.csv")
 tau_summary
 ```
 
-_How to read the table:_ one row per outcome. `tau_median` is the best single estimate of the effect (positive = the intervention helped); `tau_lo`/`tau_hi` bracket the credible interval (the plausible range); `prob_pos` is the probability the effect is above zero, so values near 1 mean a benefit is very likely and values near 0.5 mean the direction is unclear. All effects are on the logit (log-odds) scale, not raw item counts.
+_How to read the table:_ one row per outcome. `ame_prob_median` is the median intervention effect on expected proportion correct; multiply it by 100 for percentage points. `ame_prob_lo`/`ame_prob_hi` give its credible interval and `prob_ame_pos` is the posterior probability that this probability-scale effect is positive. The `tau_logit_*` and legacy `tau_*` columns are secondary conditional logit-coefficient summaries.
 
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("tau_forest.png", "Treatment effect by outcome (forest, reference line at 0)"))
-print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
+print(_img("tau_forest.png", "Secondary conditional-logit treatment coefficient by outcome (forest, reference line at 0)"))
+print("\n_How to read the forest plot:_ this is the **secondary conditional-logit coefficient** $\\tau_k$, not the headline probability-scale AME. The marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
 ```
 
-### Pairwise contrasts — P(τ_k > τ_j)
+### Pairwise contrasts — P(AME_k > AME_j)
 
 ```{python}
 # | echo: false
 # | output: asis
 print(_img("contrast_heatmap.png", "Pairwise contrast heatmap"))
-print("\n_How to read the contrast heatmap:_ the outcomes label both axes; each cell is the probability that the row outcome's effect is larger than the column outcome's, $P(\\tau_{row} > \\tau_{col})$. Red (near 1) means the row almost certainly moved more; blue (near 0) means the column moved more; white (near 0.5) means the two are indistinguishable. The diagonal is blank because an outcome is not compared with itself, and the two triangles are mirror images (a cell and its transpose sum to 1).")
+print("\n_How to read the contrast heatmap:_ the outcomes label both axes; each cell is the probability that the row outcome's probability-scale AME is larger than the column outcome's. Red (near 1) favours the row; blue (near 0) favours the column; white (near 0.5) indicates unresolved ordering. The diagonal is blank and transposed cells sum to 1.")
 ```
 
 ```{python}
@@ -35,24 +104,69 @@ print("\n_How to read the contrast heatmap:_ the outcomes label both axes; each 
 _csv("tau_contrast_matrix.csv", index_col=0)
 ```
 
-_How to read the matrix:_ the same numbers as the heatmap in table form — each cell is $P(\text{row effect} > \text{column effect})$. Read across a row to see which other outcomes that outcome is likely to have beaten.
+_How to read the matrix:_ the same probability-scale comparisons as the heatmap. This ordering does not turn distinct instruments into interchangeable measures of learning: content, difficulty and measurement precision still differ.
+
+::: {.callout-warning title="Factorised contrast uncertainty"}
+
+The probability-scale difference is scientifically easier to compare than a raw logit-coefficient difference, but its posterior uncertainty still comes from factorised outcome marginals. It omits within-child outcome covariance and is therefore not a calibrated paired multivariate contrast; depending on the unknown covariance, uncertainty may be too wide or too narrow. Treat cross-outcome ordering as a factorised sensitivity result until a paired child-level randomisation-inference/permutation analysis, bootstrap or defensible dependence model confirms it. PSIS-LOO is aggregated by child, so its predictive unit is one child rather than one outcome cell.
+
+:::
+
+::: {.callout-note collapse="true" title="Additional outcome-specific predictive plots"}
+
+The shared diagnostic sections show the first outcome's prior-predictive, posterior-predictive and LOO-PIT plots. The remaining outcomes are shown here. Each LOO-PIT plot recomputes PSIS weights from that outcome's matching observed cells and pointwise likelihood; no plot pools raw counts across tests with different item ceilings.
 
 ```{python}
 # | echo: false
 # | output: asis
-# Taught-vs-not-taught generalisation contrast (LRPITT15/15b), when present.
+_joint_outcomes = config.get("spec_extra", {}).get("outcomes", [])
+for _symbol in _joint_outcomes[1:]:
+    _suffix = str(_symbol).lower()
+    print(f"#### {_symbol}\n")
+    print(_img(f"prior_predictive_check_{_suffix}.png", f"Prior-predictive check ({_symbol})"))
+    print(_img(f"posterior_predictive_check_{_suffix}.png", f"Posterior-predictive check ({_symbol})"))
+    print(_img(f"loo_pit_{_suffix}.png", f"LOO-PIT calibration ({_symbol})"))
+```
+
+:::
+
+The raw conditional logit-coefficient ordering is retained only as a secondary model diagnostic.
+
+```{python}
+# | echo: false
+_csv("tau_contrast_matrix_logit.csv", index_col=0)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Metadata-driven two-outcome contrast (generalisation or modality), when present.
 _diff = _csv("tau_difference.csv")
 if _diff is not None:
     _d = _diff.iloc[0]
-    print("### Generalisation contrast\n")
+    _label = _d.get("contrast_label", _d.contrast)
+    _kind = _d.get("contrast_kind", "outcome")
+    _interpretation = _d.get("positive_interpretation", "A positive value favours the first named outcome.")
+    _transfer_outcome = _d.get("transfer_outcome", "")
+    _transfer_read = _d.get("transfer_interpretation", "")
+    _dependence = _d.get("dependence_note", "")
+    print(f"### {_label}\n")
     print(
-        f"`{_d.contrast}`: median difference in logit-scale effect "
-        f"{_d.diff_logit_median:+.3f} (90% CrI {_d.diff_logit_lo90:+.3f} to "
-        f"{_d.diff_logit_hi90:+.3f}; 95% {_d.diff_logit_lo:+.3f} to "
-        f"{_d.diff_logit_hi:+.3f}); P(difference > 0) = {_d.prob_diff_pos:.3f}. "
-        "A positive difference means the directly-taught words moved more than the "
-        "not-taught comparison words (limited generalisation)."
+        f"Headline {_kind} contrast `{_d.contrast}`: median probability-scale difference "
+        f"{100 * _d.diff_prob_median:+.1f} percentage points (90% CrI "
+        f"{100 * _d.diff_prob_lo90:+.1f} to {100 * _d.diff_prob_hi90:+.1f}; 95% "
+        f"{100 * _d.diff_prob_lo:+.1f} to {100 * _d.diff_prob_hi:+.1f}); "
+        f"P(difference > 0) = {_d.prob_diff_pos:.3f}. {_interpretation}"
     )
+    print(
+        f"\nSecondary logit-coefficient difference: median {_d.diff_logit_median:+.3f} "
+        f"(95% CrI {_d.diff_logit_lo:+.3f} to {_d.diff_logit_hi:+.3f}); "
+        f"P(difference > 0) = {_d.prob_diff_logit_pos:.3f}."
+    )
+    if _transfer_read:
+        print(f"\n**Required transfer read ({_transfer_outcome}):** {_transfer_read}")
+    if _dependence:
+        print(f"\n**Dependence caveat:** {_dependence}")
 ```
 
 ::: {.callout-note title="ITT-vs-joint consistency"}
@@ -67,7 +181,7 @@ ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
 # | output: asis
 # Shown here if the comparison forest has been copied alongside this report.
 print(_img("itt_vs_joint_forest.png", "ITT vs joint τ consistency"))
-print("\n_How to read the ITT-vs-joint forest:_ each outcome has two markers with credible-interval bars — the joint model's estimate (circle) and the matching single-outcome ITT estimate (square, offset just below it). The dashed line at 0 is no-effect. The two markers for an outcome should land close together; that agreement is the consistency check. A large gap flags an outcome where the joint and single-outcome estimates disagree. A dagger (†) marks heavily-floored outcomes, whose graded effect shown here is not their primary estimand.")
+print("\n_How to read the ITT-vs-joint forest:_ each outcome has two markers with credible-interval bars — the joint model's estimate (circle) and the matching single-outcome ITT estimate (square, offset just below it). The dashed line at 0 is no-effect. The two markers for an outcome should land close together; that agreement is the consistency check. A large gap flags an outcome where the joint and single-outcome estimates disagree. A dagger (†) marks heavily-floored outcomes, whose graded effect shown here is not their post-hoc exploratory off-floor headline.")
 ```
 
 :::

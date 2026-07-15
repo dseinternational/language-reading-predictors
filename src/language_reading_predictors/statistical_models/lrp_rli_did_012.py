@@ -12,7 +12,9 @@ and the derived waitlist catch-up contrast are post-crossover associations.
 The model deliberately does not condition on a period-start score: the immediate
 arm's t2 score is treatment-affected before P2. Modelling the t1 prevalence directly
 retains baseline balance without post-treatment adjustment. LRPITT11 remains the
-primary randomised floor-exit analysis.
+primary randomised floor-exit analysis. That conditional transition estimand is a
+post-hoc, exploratory floor-rule analysis; this prevalence model complements it
+rather than estimating the same quantity.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

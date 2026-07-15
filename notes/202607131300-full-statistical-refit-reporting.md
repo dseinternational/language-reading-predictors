@@ -1,6 +1,9 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
+> Substantially corrected for ITT analysis-set and floor-estimand provenance by a LLM-based AI tool (Codex/GPT-5) on 2026-07-15. This remains a historical run record; its saved estimates pre-date the corrected pipeline and require refitting before publication.
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 
 # Full statistical-model refit (reporting config) — run record and results
@@ -18,7 +21,7 @@ python scripts/fit_statistical_model.py all --config reporting --render
 python scripts/compare_statistical_models.py --config reporting
 ```
 
-- **Data:** `data/rli_data_long.csv`, N = 53 children, 4 timepoints (waitlist-crossover RCT).
+- **Data:** `data/rli_data_long.csv`, 54 children available at t1 from 57 randomised, 4 timepoints (waitlist-crossover RCT); outcome-specific complete-case fits commonly used 53.
 - **Fit sweep started 11:34 BST.** The first `all` run was terminated externally at ~12:39 after completing 112 of 115 models (it died mid-sampling on the slow `corr_factor` latent-factor model). No fits were lost — the 112 completed dirs were intact, so the run was **resumed for only the 3 outstanding models** (`lrp-rli-mm-001`, `lrp-rli-mm-101`, `lrp-rlm-hg-001`) rather than re-fitting from scratch. All 3 completed cleanly (exit 0) by 12:58.
 - Every model wrote `trace.nc`, `diagnostics_summary.json`, `config.json`, `priors_table.csv`, the family result CSVs, diagnostic plots and a rendered `index.html`.
 
@@ -26,13 +29,13 @@ python scripts/compare_statistical_models.py --config reporting
 
 This section is for readers who don't work with Bayesian models every day. Skip it if the vocabulary is already familiar.
 
-- **The study design.** RLI (Reading and Language Intervention) is a small **randomised controlled trial** run as a **waitlist crossover**: 53 children were randomly assigned either to start the intervention immediately or to wait and start later, and everyone was assessed at four timepoints. Random assignment is what lets us make a fair, unbiased comparison — the two groups differ only by chance at the start, so a later difference is attributable to the intervention rather than to who happened to be in each group.
+- **The study design.** RLI (Reading and Language Intervention) is a small **randomised controlled trial** run as a **waitlist crossover**: 57 children were randomised either to start the intervention immediately or to wait and start later, but the archived t1 dataset contains 54 and outcome-specific observation requirements reduce some fits further. Random assignment supports the arm contrast among observed children; extending it to all 57 requires an explicit missingness assumption or sensitivity analysis.
 - **Causal vs. associational.** Only comparisons that ride on the random assignment support a _causal_ claim ("the intervention raised this skill"). In this collection that means the intervention-group effect **`τ`** (ITT models), the within-person **`δ`** (difference-in-differences), and the on-intervention marginal effect (gain-factor models). Every other quantity — how one skill tracks another, dose–response, mediation paths — is an **adjusted association**: a correlation that could equally be driven by a child's general ability. We never read those as "X drives Y".
-- **What we report, and why not p-values.** For each effect we give the posterior **median** (best single estimate), a **95 % credible interval** (the range the true value most plausibly occupies), and the **probability the effect is positive** — e.g. `P(τ > 0) = 0.99` means a 99 % posterior probability the intervention helped. This is a direct probability statement, which is why there are no p-values.
+- **What we report, and why not p-values.** For each effect we give the posterior **median** (best single estimate), a **95 % credible interval** (the range the true value most plausibly occupies), and the **probability the named effect is positive**. For the ITT headline, `P(AME > 0) = 0.99` means a 99 % posterior probability that the fitted-sample average marginal intervention effect is beneficial; `P(τ_logit > 0)` is the secondary coefficient read. This is a direct probability statement, which is why there are no p-values.
 - **The evidence ladder.** We turn that probability into a fixed, plain-language label: **suggestive** (≥ 0.75), **moderate** (≥ 0.91), **strong** (≥ 0.97), **very strong** (≥ 0.99); below 0.75 we call it **inconclusive**. The label describes _how sure we are of the direction_, not how big the effect is — a small effect can be "very strong" evidence and a large effect "inconclusive".
 - **"Inconclusive" is not "no effect".** A flat result with a tight interval hugging zero (e.g. standardised vocabulary) is reported as inconclusive-and-probably-negligible, quantified by how much of the posterior sits inside a **region of practical equivalence** (ROPE) around zero — never as "proven null".
 - **Two scales.** The models work on the **logit** (log-odds) scale, but we translate effects to the **items / probability** scale because it is far more intuitive: "≈ +3 of 32 letter sounds" is easier to picture than "+0.58 logits".
-- **Floor effects.** A few tests (phonetic spelling `P`, nonword reading `N`) had most children scoring zero at the start, so a graded score is uninformative. For these the pre-specified primary question is binary — _did the child come off zero at all?_ — reported as an off-floor risk difference; the graded effect is a flagged secondary.
+- **Floor effects.** A few tests (phonetic spelling `P`, nonword reading `N`) had most children scoring zero at the start, so a graded score is difficult to interpret. For these a post-hoc, data-adaptive exploratory question is binary — among children observed at zero before randomisation, _did the child score above zero at t2?_ — reported as an off-floor risk difference; the graded effect is a flagged secondary.
 
 ### Outcome symbols (same letters as the DAG)
 
@@ -42,7 +45,7 @@ This section is for readers who don't work with Bayesian models every day. Skip 
 | `L`         | Letter-sound knowledge (YARC-LSK)            | direct teaching target                  |
 | `B`         | Phoneme blending                             | direct teaching target                  |
 | `P`         | Phonetic spelling (SPPHON)                   | heavily floored                         |
-| `N`         | Nonword reading                              | floored, post-only                      |
+| `N`         | Nonword reading                              | floored; t1 used for eligibility        |
 | `R`         | Receptive vocabulary (ROWPVT)                | standardised (transfer) measure         |
 | `E`         | Expressive vocabulary (EOWPVT)               | standardised (transfer) measure         |
 | `F`         | Basic concept knowledge (CELF)               |                                         |
@@ -71,31 +74,31 @@ No headline causal estimand sits on a flagged model: the four divergence-only fi
 
 Everything below is read per the `METHODS.md` / #179 standard set out in the primer: posterior **median**, 95 % **credible interval**, tail probability, and the fixed evidence ladder. Only `τ`, the DiD `δ` and the gain-factor on-intervention marginal are **causal**; everything else is an adjusted association. Causal `τ`/`δ` figures are on the **probability (risk-difference) scale** at sample-mean baseline unless noted.
 
-### The headline causal question — ITT effect on each outcome (`lrp-rli-itt-001…011`, `025`, `026`)
+### The headline causal question — modified-ITT effects and flagged floor secondaries (`lrp-rli-itt-001…011`, `025`, `026`)
 
-The intention-to-treat (ITT) effect `τ` is the study's headline: the randomised effect of being assigned to the intervention on each outcome.
+The modified-ITT effect `τ` is the study's headline available-case randomised contrast for the graded outcomes. It is not a full-cohort ITT for all 57 randomised children. The P/N rows below are the **graded, detection-limited secondaries from this superseded run**, not their current post-hoc binary transition headlines.
 
 Both a 90 % and a 95 % equal-tailed credible interval are shown: the 90 % is the tighter everyday band, the 95 % the more conservative one; read them together, not either alone.
 
-| Outcome                          | `τ` (risk diff.) | 90 % CI          | 95 % CI          | P(τ>0)    | Evidence         |
-| -------------------------------- | ---------------- | ---------------- | ---------------- | --------- | ---------------- |
-| **Letter sounds (L)**            | **+0.110**       | [+0.051, +0.168] | [+0.040, +0.179] | **0.999** | **very strong**  |
-| **Phoneme blending (B)**         | **+0.099**       | [+0.020, +0.177] | [+0.005, +0.192] | **0.980** | **strong**       |
-| **Word reading (W)**             | **+0.030**       | [+0.008, +0.052] | [+0.004, +0.057] | **0.986** | **strong**       |
-| **Taught expressive vocab (TE)** | **+0.064**       | [+0.016, +0.113] | [+0.006, +0.122] | **0.985** | **strong**       |
-| Taught receptive vocab (TR)      | +0.057           | [+0.007, +0.107] | [−0.003, +0.117] | 0.968     | moderate         |
-| Untaught receptive vocab (UR)    | +0.050           | [−0.004, +0.105] | [−0.014, +0.116] | 0.937     | moderate         |
-| Basic concepts (F)               | +0.048           | [−0.016, +0.112] | [−0.029, +0.124] | 0.891     | suggestive       |
-| Nonword reading (N)              | +0.100           | [−0.042, +0.241] | [−0.071, +0.268] | 0.877     | suggestive       |
-| Untaught expressive vocab (UE)   | +0.026           | [−0.031, +0.082] | [−0.041, +0.093] | 0.773     | suggestive       |
-| Receptive grammar (T)            | +0.020           | [−0.027, +0.068] | [−0.037, +0.077] | 0.760     | suggestive       |
-| Phonetic spelling (P)            | +0.041           | [−0.075, +0.159] | [−0.098, +0.183] | 0.724     | inconclusive     |
-| **Receptive vocabulary (R)**     | +0.001           | [−0.023, +0.026] | [−0.027, +0.031] | 0.539     | **inconclusive** |
-| **Expressive vocabulary (E)**    | +0.001           | [−0.019, +0.021] | [−0.022, +0.025] | 0.534     | **inconclusive** |
+| Outcome                                 | `τ` (risk diff.) | 90 % CI          | 95 % CI          | P(τ>0)    | Evidence         |
+| --------------------------------------- | ---------------- | ---------------- | ---------------- | --------- | ---------------- |
+| **Letter sounds (L)**                   | **+0.110**       | [+0.051, +0.168] | [+0.040, +0.179] | **0.999** | **very strong**  |
+| **Phoneme blending (B)**                | **+0.099**       | [+0.020, +0.177] | [+0.005, +0.192] | **0.980** | **strong**       |
+| **Word reading (W)**                    | **+0.030**       | [+0.008, +0.052] | [+0.004, +0.057] | **0.986** | **strong**       |
+| **Taught expressive vocab (TE)**        | **+0.064**       | [+0.016, +0.113] | [+0.006, +0.122] | **0.985** | **strong**       |
+| Taught receptive vocab (TR)             | +0.057           | [+0.007, +0.107] | [−0.003, +0.117] | 0.968     | moderate         |
+| Untaught receptive vocab (UR)           | +0.050           | [−0.004, +0.105] | [−0.014, +0.116] | 0.937     | moderate         |
+| Basic concepts (F)                      | +0.048           | [−0.016, +0.112] | [−0.029, +0.124] | 0.891     | suggestive       |
+| Nonword reading (N; graded secondary)   | +0.100           | [−0.042, +0.241] | [−0.071, +0.268] | 0.877     | suggestive       |
+| Untaught expressive vocab (UE)          | +0.026           | [−0.031, +0.082] | [−0.041, +0.093] | 0.773     | suggestive       |
+| Receptive grammar (T)                   | +0.020           | [−0.027, +0.068] | [−0.037, +0.077] | 0.760     | suggestive       |
+| Phonetic spelling (P; graded secondary) | +0.041           | [−0.075, +0.159] | [−0.098, +0.183] | 0.724     | inconclusive     |
+| **Receptive vocabulary (R)**            | +0.001           | [−0.023, +0.026] | [−0.027, +0.031] | 0.539     | **inconclusive** |
+| **Expressive vocabulary (E)**           | +0.001           | [−0.019, +0.021] | [−0.022, +0.025] | 0.534     | **inconclusive** |
 
 Plainly: the strongest, clearest benefit is on **letter-sound knowledge** — about **+3 to +4 of the 32 letter sounds** (the most concrete framing) — followed by **phoneme blending, word reading and taught expressive vocabulary**. These are the skills the intervention teaches directly, so this is the pattern you would hope to see. **Standardised receptive and expressive vocabulary (R/E) is inconclusive and probably negligible** — near-zero medians with tight bands hugging zero (a ROPE reading, not "no effect"); broad standardised vocabulary is a distant transfer target that a phonics-and-language programme is not expected to shift in a short window. Basic concepts (F) and receptive grammar (T) sit in the suggestive/inconclusive middle.
 
-**The floored outcomes (P, N) read better on their primary estimand than the graded `τ` suggests.** The pre-specified primary question for these is "did the child come off the floor?": **29 % of intervention children came off the spelling floor vs 12 % of controls**, and **48 % vs 13 % for nonword reading** — a clear off-floor shift in the intervention's favour, even though the heavily-floored graded score (shown in the table) is noisy.
+**The floored outcomes (P, N) look more favourable on the post-hoc exploratory transition estimand than the graded `τ` suggests.** Among children observed at zero before randomisation, **29 % of intervention children scored above zero for spelling at t2 vs 12 % of controls**, and **48 % vs 13 % for nonword reading**. Those descriptive contrasts require the corrected eligibility and attrition sensitivities before interpretation; the heavily-floored graded score (shown in the table) is noisy.
 
 ### Robustness — the story survives adjustment
 

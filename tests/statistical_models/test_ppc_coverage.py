@@ -286,8 +286,56 @@ def test_coverage_markdown_flags_undercoverage():
     assert "too narrow" in md  # 0.60 is well below nominal 0.90
 
 
-def test_coverage_markdown_empty_on_none():
+def test_coverage_markdown_flags_overcoverage():
+    # Review fix: coverage well ABOVE nominal (100% inside a 90% interval) must not be
+    # labelled "close to the nominal level" — it means the ranges are wider than needed.
+    import pandas as pd
+
+    cov = pd.DataFrame(
+        {
+            "mode": ["count_interval"],
+            "node": ["y_post"],
+            "unit": ["observations"],
+            "quantity": ["observed score"],
+            "level": [0.9],
+            "level_pct": [90],
+            "n_total": [100],
+            "n_inside": [100],
+            "coverage": [1.0],
+        }
+    )
+    md = ppc_coverage_markdown(cov)
+    assert "above the nominal level" in md
+    assert "wider than the data need" in md
+    assert "close to the nominal level" not in md
+
+
+def test_coverage_markdown_empty_on_none_or_degenerate():
+    # Review fix: a zero-observation / NaN-coverage frame must not render "nan%".
     import pandas as pd
 
     assert ppc_coverage_markdown(None) == ""
     assert ppc_coverage_markdown(pd.DataFrame()) == ""
+    degenerate = pd.DataFrame(
+        {
+            "mode": ["count_interval"] * 2,
+            "node": ["y_post"] * 2,
+            "unit": ["observations"] * 2,
+            "quantity": ["observed score"] * 2,
+            "level": [0.5, 0.9],
+            "level_pct": [50, 90],
+            "n_total": [0, 0],
+            "n_inside": [0, 0],
+            "coverage": [float("nan"), float("nan")],
+        }
+    )
+    assert ppc_coverage_markdown(degenerate) == ""
+
+
+def test_interval_coverage_zero_observations_renders_empty():
+    # An all-NaN observed vector -> n_total 0, coverage NaN -> markdown renders nothing
+    # rather than a "nan%" sentence (end-to-end of the review guard).
+    rep = np.full((1, 10, 2), 5.0)
+    cov = ppc_interval_coverage(_count_trace(rep, [np.nan, np.nan]))
+    assert (cov["n_total"] == 0).all()
+    assert ppc_coverage_markdown(cov) == ""

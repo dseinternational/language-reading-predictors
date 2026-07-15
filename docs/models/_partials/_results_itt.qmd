@@ -1,10 +1,44 @@
+## Analysis set and estimand
+
+This report estimates the **randomised offer effect in this model's fitted analysis set**: children retain their assigned arm, but the repository contains 54 of the 57 randomised children and the model additionally requires its outcome, baseline and any named robustness covariates to be observed. It is therefore an available-case **modified-ITT** analysis, not an unqualified full-population ITT. Extending the causal interpretation beyond the observed analytic data assumes that exclusions and missingness are ignorable given the observed pre-treatment information—that is, they are not differentially related by arm to the unobserved potential outcomes. Any extra complete-case restriction is stated in the model overview.
+
+```{python}
+# | echo: false
+# | output: asis
+_analysis_set = _csv("analysis_set.csv")
+print(
+    "_The emitted analysis-set audit is shown below._"
+    if _analysis_set is not None
+    else "_No `analysis_set.csv` was emitted for this fit; do not infer that all 57 randomised children were analysed._"
+)
+```
+
+```{python}
+# | echo: false
+_analysis_set
+```
+
+```{python}
+# | echo: false
+# | output: asis
+_attrition_bounds = _csv("attrition_bounds.csv")
+if _attrition_bounds is not None:
+    print("**Attrition sensitivity bounds.** These bounds show how conclusions change under the emitted missing-outcome scenarios.")
+```
+
+```{python}
+# | echo: false
+_attrition_bounds
+```
+
 ## Results
 
 ```{python}
 # | echo: false
 # | output: asis
 print(
-    f"This section reports the estimated effect of the intervention on {outcome_label} "
+    f"This section reports the estimated randomised offer effect on {outcome_label} "
+    "within the fitted available-case modified-ITT analysis set "
     "and how much of it is large enough to matter in practice (the ROPE summary). Take "
     "the **direction** from `P(intervention helps)`, not from whether an interval clears "
     "zero."
@@ -24,6 +58,13 @@ from language_reading_predictors.statistical_models.reporting import odds_string
 
 if tau_summary is not None:
     _t = tau_summary.iloc[0]
+    # New artefacts name the headline direction by estimand and scale. Fall back
+    # only so previously fitted reports can still render.
+    _prob_ame_pos = float(
+        _t["prob_ame_pos"]
+        if "prob_ame_pos" in tau_summary.columns
+        else _t["prob_tau_pos"]
+    )
     _items = f" (≈ **{_t.tau_prob_median * n_trials:+.1f} items**)" if n_trials else ""
     _lab = (
         f", *{_t.direction_label} evidence*"
@@ -31,11 +72,11 @@ if tau_summary is not None:
         else ""
     )
     print(
-        f"On the probability scale the average marginal effect of the intervention on "
+        f"On the probability scale the average marginal randomised offer effect on "
         f"{outcome_label} is **{_t.tau_prob_median:+.3f}** (risk difference){_items} "
         f"(equal-tailed 90% credible interval {_t.tau_prob_lo90:+.3f} to {_t.tau_prob_hi90:+.3f}; "
         f"95% {_t.tau_prob_lo:+.3f} to {_t.tau_prob_hi:+.3f}). "
-        f"P(intervention helps) = {_t.prob_tau_pos:.3f} ({_odds(_t.prob_tau_pos)}{_lab})."
+        f"P(intervention helps) = {_prob_ame_pos:.3f} ({_odds(_prob_ame_pos)}{_lab})."
     )
     if str(_t.get("favoured_direction", "positive")) == "negative":
         print(
@@ -67,10 +108,12 @@ if tau_summary is not None:
 ```
 
 - `tau_logit_*`: posterior median and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the logit scale.
-- `tau_prob_*`: average marginal effect on the probability scale (risk difference), averaged over the fitted sample per posterior draw.
-- `tau_*_lo/hi`, `tau_*_lo50/hi50`, `tau_*_lo90/hi90`: the fixed posterior-band convention (#177) — the equal-tailed **95%** headline interval (`_lo/_hi`), the **central 50%** interval (a visual aid, not a threshold), and the equal-tailed **90%** sensitivity band. Direction is read from `prob_tau_pos`, never from whether a band excludes zero.
+- `tau_prob_*`: average marginal randomised offer effect on the probability scale (risk difference), averaged over the fitted available-case analysis set per posterior draw.
+- `tau_*_lo/hi`, `tau_*_lo50/hi50`, `tau_*_lo90/hi90`: the fixed posterior-band convention (#177) — the equal-tailed **95%** headline interval (`_lo/_hi`), the **central 50%** interval (a visual aid, not a threshold), and the equal-tailed **90%** sensitivity band. Direction is read from `prob_ame_pos`, never from whether a band excludes zero.
 - `tau_*_hpdi_lo/hi`: 95% highest posterior density interval (HPDI) at the same coverage — a per-scale sensitivity companion to the equal-tailed interval. The HPDI is not transformation-invariant, so it is reported separately on the logit and probability scales, not mapped between them.
-- `prob_tau_pos`: $P(\tau > 0) = P(\text{intervention helps})$; `direction_label` is the round-odds evidence label for that claim.
+- `prob_ame_pos`: posterior probability that the probability-scale average marginal effect is positive, $P(\operatorname{AME} > 0) = P(\text{intervention helps})$; this is the headline direction probability and `direction_label` is its round-odds evidence label.
+- `prob_tau_logit_pos`: posterior probability that the conditional logit-scale treatment coefficient is positive. It is secondary and can differ from `prob_ame_pos` when treatment is moderated across children.
+- `prob_tau_pos`: backward-compatible alias of `prob_ame_pos`. New code should use `prob_ame_pos`; the report falls back to this alias only for pre-schema artefacts.
 
 ```{python}
 # | echo: false
@@ -131,7 +174,7 @@ if _rope is not None:
         "strong*) qualify the **evidence**, never the effect *size*, and are run "
         "separately for the direction and meaningful-benefit claims. At this study's "
         "sample size the point estimate is, on average, magnitude-inflated (a Type-M / "
-        "winner's-curse effect), so lead with the interval, not the point.\n\n:::"
+        "winner's-curse effect), so lead with the interval, not the point.\n\n:::\n"
     )
 ```
 

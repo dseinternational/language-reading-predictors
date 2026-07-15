@@ -17,6 +17,8 @@ format:
 
 ::: {.callout-note}
 Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 {{< include _partials/_header.qmd >}}
@@ -51,9 +53,11 @@ The full mediation-assumption treatment (randomisation handles $G\to Y$/$G\to M$
 
 **Shared session dose.** Intervention sessions $IS$ (`attend`) are a treatment-induced common cause of the mediator and outcome ($IS \to L$ and $IS \to PA \to N$); following the family precedent they are **not** conditioned on (conditioning on a treatment-affected variable is inadmissible for natural effects), so **shared session dose is a plausible inflator of the NIE via $L$** and the decomposition should be read with that in mind.
 
+**Natural versus interventional estimand.** [MED-186](../lrp-rli-med-186/) is the parent+100 interventional companion: the same joint model and adjustment set, but IDE/IIE replace the cross-world NDE/NIE. In this implementation its IIE should match this model's NIE up to sampling and g-formula Monte Carlo error because both use the same fitted covariate-conditional mediator law. That agreement is an implementation check, not evidence that shared dose is harmless; latent general ability still prevents an identified causal mediation reading.
+
 ::: {.callout-note title="Adjustment set — signed off (2026-07-14), mediation criterion"}
 
-The set blocks common causes of the mediator $L$ and the outcome $N$ **including indirect routes** — arrows *into the mediator* matter, not just parents of the outcome. Adjusted: age $A$; speech production $SP$ (`deapp_c`); phonological memory $RW$ (`erbto`), a common cause via $L \leftarrow RW \to N$; hearing $HS$ (`hs`/`hs_missing`) — **included**, because $L \leftarrow HS \to PA \to N$ is an open route to nonword reading that $RW$ does not block (HS confounds $L \to N$ through blending even though it is not a nonword *parent*); baseline blending $B_{t1}$ (proximal reinforcement + precision); and the mediator baseline $L_{t1}$. **No outcome own-baseline** (off-floor). Provisional pending the time-indexed re-derivation (#250/#264); $E$/$R$ are legitimately absent (no arrows into $L$).
+The set blocks common causes of the mediator $L$ and the outcome $N$ **including indirect routes** — arrows *into the mediator* matter, not just parents of the outcome. Adjusted: age $A$; speech production $SP$ (`deapp_c`); phonological memory $RW$ (`erbto`), a common cause via $L \leftarrow RW \to N$; hearing $HS$ (`hs`/`hs_missing`) — **included**, because $L \leftarrow HS \to PA \to N$ is an open route to nonword reading that $RW$ does not block (HS confounds $L \to N$ through blending even though it is not a nonword *parent*); baseline blending $B_{t1}$ (proximal reinforcement + precision); and the mediator baseline $L_{t1}$. **No outcome own-baseline** (off-floor). The time-indexed re-derivation (#250/#264) confirms the set; $E$/$R$ are legitimately absent because they have no arrows into $L$.
 
 :::
 

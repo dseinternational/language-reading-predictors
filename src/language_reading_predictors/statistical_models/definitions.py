@@ -53,7 +53,7 @@ OUTCOMES: dict[str, str] = {
     "UR2": "not-taught receptive vocabulary, block 2",
 }
 
-#: Outcomes that take the pre-specified floor rule (a binary off-floor estimand).
+#: Outcomes that take the post-hoc reanalysis floor rule (a binary off-floor estimand).
 FLOORED: frozenset[str] = frozenset({"P", "N"})
 
 #: Valid model kinds (the statistical-model families).
@@ -139,7 +139,7 @@ _JOINT = [
     _d("lrpitt12", "joint", "Joint", Status.JOINT, None, "cross-outcome consistency + contrasts"),
     _d("lrpitt15", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (expressive)"),
     _d("lrpitt15b", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (receptive)"),
-    _d("lrpitt16", "joint", "Generalisation", Status.ROBUSTNESS, None, "modality contrast: taught expressive vs taught receptive"),
+    _d("lrpitt16", "joint", "Modality contrast", Status.ROBUSTNESS, None, "taught expressive vs taught receptive"),
 ]
 
 # --- SES adjustment + matched complete-case comparators ---------------------------
@@ -215,6 +215,11 @@ _MECH = [
     # (nonword N, off-floor) and the downstream chain link (blending B), both via L.
     _d("lrp86", "mediation", "Mediation", Status.ASSOCIATION, "N", "g-formula via letter sounds (nonword, off-floor risk difference)"),
     _d("lrp87", "mediation", "Mediation", Status.ASSOCIATION, "B", "g-formula via letter sounds (phoneme blending)"),
+    # Interventional-estimand companions (#323), using the suite's parent+100
+    # convention. Same fitted models/adjustment sets as MED-086/087; IDE/IIE
+    # replace the cross-world NDE/NIE interpretation.
+    _d("lrp186", "mediation", "Mediation", Status.COMPANION, "N", "interventional-effects analogue via letter sounds (nonword, off-floor risk difference)", base="lrp86"),
+    _d("lrp187", "mediation", "Mediation", Status.COMPANION, "B", "interventional-effects analogue via letter sounds (phoneme blending)", base="lrp87"),
     # Period-stacked companion (#229 recommendation 2): the LRP59 design on the
     # gain-factor scaffold, exposure = per-period on-intervention (ignorability).
     _d("lrp92", "mediation", "Mediation", Status.ASSOCIATION, "W", "period-stacked g-formula via letter sounds (gain-factor scaffold, per-period on-intervention exposure)", base="lrp59"),
@@ -349,6 +354,8 @@ _CA = [
     _d("lrpca02", "concurrent", "Concurrent associations", Status.ASSOCIATION, "L", "per-wave conditional associations of concurrent skills with letter sounds"),
     _d("lrpca03", "concurrent", "Concurrent associations", Status.ASSOCIATION, "TR", "per-wave conditional associations of concurrent skills with taught receptive vocabulary"),
     _d("lrpca04", "concurrent", "Concurrent associations", Status.ASSOCIATION, "TE", "per-wave conditional associations of concurrent skills with taught expressive vocabulary"),
+    _d("lrpca05", "concurrent", "Concurrent associations", Status.ASSOCIATION, "R", "per-wave conditional associations of concurrent skills with standardised receptive vocabulary (ROWPVT)"),
+    _d("lrpca06", "concurrent", "Concurrent associations", Status.ASSOCIATION, "E", "per-wave conditional associations of concurrent skills with standardised expressive vocabulary (EOWPVT)"),
 ]
 
 # --- Longitudinal correlated-domain-factor model (#313, descriptive-association #314)

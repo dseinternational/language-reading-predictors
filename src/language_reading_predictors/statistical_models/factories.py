@@ -9,7 +9,7 @@ most-used being:
 
 - :func:`build_itt_model` — the LRPITT ITT suite (one outcome, RCT phase) and its
   SES-adjusted companions; the floored outcomes use its ``bernoulli_offfloor``
-  likelihood mode for the off-floor primary estimand.
+  likelihood mode for the post-hoc off-floor exploratory estimand.
 - :func:`build_joint_model` — the joint model (LRPITT12) and the two-outcome
   generalisation contrasts (LRPITT15/15b), RCT phase, optional LKJ Σ.
 - :func:`build_mechanism_model` — LRP56, LRP57, LRP58 (adjustment-set
@@ -250,6 +250,8 @@ def build_itt_model(
     tau_moderator_interaction: bool = True,
     tau_sigma: float | None = None,
     alpha_sigma: float | None = None,
+    gamma_own_sigma: float | None = None,
+    kappa_sigma: float | None = None,
 ) -> BuiltModel:
     """
     Build the single-outcome ITT model used by the LRPITT suite (and its SES
@@ -318,7 +320,7 @@ def build_itt_model(
         a degenerate or missing baseline cannot enter or drop rows.
     likelihood
         ``"beta_binomial"`` (default) models the graded post count. The floor
-        rule (#119) uses ``"bernoulli_offfloor"`` for its PRIMARY estimand: a
+        rule (#119/#341) uses ``"bernoulli_offfloor"`` for its exploratory estimand: a
         Bernoulli/logistic ``tau`` on the binary off-floor indicator
         ``post > 0`` (no ``kappa``), which targets where the randomised signal
         verifiably lives for heavily-floored outcomes.
@@ -349,6 +351,16 @@ def build_itt_model(
         (the level is carried by ``gamma_own * logit(y_pre)``), so this tiers its
         SD rather than re-anchoring its mean. Pass an explicit value for a
         prior-sensitivity fit.
+    gamma_own_sigma
+        Override the own-baseline prior SD. ``None`` (default) uses 0.25;
+        pass 0.5 for the required weak-prior sensitivity. The prior remains
+        centred at one, so this varies uncertainty rather than changing the
+        baseline-coupling anchor.
+    kappa_sigma
+        Override the Beta-Binomial concentration prior scale. ``None`` preserves
+        the shared ``HalfNormal(50)`` default; larger values expose more of the
+        near-Binomial region for the required likelihood-prior sensitivity. This
+        argument is unused by the Bernoulli off-floor likelihood.
     """
     if prepared.phase_mode != "itt":
         raise ValueError(
@@ -464,7 +476,12 @@ def build_itt_model(
 
         if use_own_baseline:
             own_pre_d = pm.Data("own_pre_logit", y_pre_logit, dims="obs_id")
-            gamma_own = _scalar_prior("gamma_own", _priors.gamma_own_prior)
+            gamma_own_spec = (
+                _priors.gamma_own_prior()
+                if gamma_own_sigma is None
+                else _priors.gamma_own_prior(sigma=gamma_own_sigma)
+            )
+            gamma_own = gamma_own_spec.to_pymc("gamma_own")
             eta = eta + gamma_own * own_pre_d
 
         for s in cross:
@@ -510,7 +527,12 @@ def build_itt_model(
         eta = pm.Deterministic("eta", eta, dims="obs_id")
 
         if likelihood == "beta_binomial":
-            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            kappa_spec = (
+                _priors.kappa_prior()
+                if kappa_sigma is None
+                else _priors.kappa_prior(sigma=kappa_sigma)
+            )
+            kappa = kappa_spec.to_pymc("kappa")
             beta_binomial_from_logit(
                 "y_post",
                 eta,
@@ -519,7 +541,7 @@ def build_itt_model(
                 observed=post,
                 dims="obs_id",
             )
-        else:  # bernoulli_offfloor: PRIMARY estimand for the floor rule
+        else:  # bernoulli_offfloor: exploratory estimand for the floor rule
             off_floor = (post > 0).astype(np.int64)
             pm.Bernoulli("y_offfloor", logit_p=eta, observed=off_floor, dims="obs_id")
 
@@ -556,7 +578,7 @@ def build_joint_model(
     use_age_linear: bool = False,
 ) -> BuiltModel:
     """
-    Build the joint Beta-Binomial model (LRPITT12; the LRPITT15/15b contrasts).
+    Build the multi-outcome Beta-Binomial model (LRPITT12; LRPITT15/15b/16).
 
     For each child i and outcome k, the model is
 
@@ -587,6 +609,14 @@ def build_joint_model(
     2026-04-18 LRP55 follow-up fit showed the age-GP amplitudes were the
     residual source of ~8 % divergent transitions; LOO does not prefer a
     model with the GP included.
+
+    With ``use_residual_correlation=False`` the likelihood and priors factorise
+    by outcome: this is a product of outcome-specific marginal models fitted in
+    one PyMC graph, not a dependence-aware joint posterior. Per-outcome effects
+    remain valid, but paired cross-outcome contrasts require an explicit
+    dependence sensitivity. All registered ITT multi-outcome specifications use
+    this stable factorised form; none silently claims to estimate within-child
+    outcome covariance.
 
     ``use_residual_correlation`` (default False): when True, adds an
     ``u_i ~ MvNormal(0, Sigma)`` residual with ``Sigma = diag(sigma) Corr
@@ -620,11 +650,17 @@ def build_joint_model(
         axis=1,
     )  # (N_obs, K)
     n_trials_vec = np.array([prepared.n_trials[s] for s in outcomes], dtype=int)
+    # Explicit flattened cells make the observed likelihood robust to
+    # outcome-specific post-score missingness. Register the cell coordinate below
+    # so predictive and log-likelihood arrays never fall back to an anonymous
+    # ``y_post_dim_0`` axis.
+    idx_row, idx_col = np.nonzero(mask)
 
     coords = {
         "obs_id": np.arange(N_obs),
         "outcome": list(outcomes),
         "baseline": list(outcomes),
+        "cell": np.arange(idx_row.size),
         # Second outcome axis for outcome×outcome quantities (residual
         # correlation). Cannot reuse "outcome" because PyMC requires
         # distinct dim names per axis.
@@ -752,17 +788,17 @@ def build_joint_model(
         beta_bb = (1 - mu_clip) * kappa[None, :]
 
         # Flatten using explicit nonzero indices - robust across pytensor versions.
-        idx_row, idx_col = np.nonzero(mask)
         flat_alpha = alpha_bb[idx_row, idx_col]
         flat_beta = beta_bb[idx_row, idx_col]
         flat_n = n_trials_vec[idx_col]
         flat_obs = post_counts_int[idx_row, idx_col]
 
-        # Record each flattened cell's outcome index (0..K-1, matching the "outcome"
-        # coord order) as constant data, so the prior/posterior-predictive plotter
-        # can select one outcome's cells rather than pooling counts with
-        # denominators 6..170 into one histogram (issue #271 item 2).
-        pm.Data("y_post_cell_outcome", idx_col.astype("int64"))
+        # Record the flattened cell mapping as constant data. Diagnostics use both
+        # arrays to select one outcome for predictive checks (so incompatible
+        # denominators are never pooled) and to aggregate pointwise log likelihood
+        # by child for leave-one-child-out PSIS-LOO.
+        pm.Data("y_post_cell_row", idx_row.astype("int64"), dims="cell")
+        pm.Data("y_post_cell_outcome", idx_col.astype("int64"), dims="cell")
 
         pm.BetaBinomial(
             "y_post",
@@ -770,9 +806,24 @@ def build_joint_model(
             alpha=flat_alpha,
             beta=flat_beta,
             observed=flat_obs,
+            dims="cell",
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    dependence = (
+        "residual_correlated"
+        if use_residual_correlation
+        else "factorised_outcome_marginals"
+    )
+    return BuiltModel(
+        model=model,
+        variables=_variables_dict(model),
+        prepared=prepared,
+        extras={
+            "joint_dependence": dependence,
+            "loo_unit": "child",
+            "outcomes": outcomes,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1928,7 +1979,8 @@ def build_mediation_model(
     latent-general-ability confounding of the mediator->outcome path, dose ``IS``
     is a treatment-induced (exposure-induced) mediator-outcome confounder, so the
     decomposition is model-based under stated (cross-world) assumptions. An
-    interventional estimand (``decompose(..., interventional=True)``; LRP78) drops
+    interventional estimand (``decompose(..., interventional=True)``;
+    MED-078/186/187) drops
     the cross-world requirement and so escapes the ``IS`` obstacle, but it still
     assumes no unmeasured mediator-outcome confounding, which latent general
     ability violates here — a weaker-assumption target, not an identified one. See
@@ -3713,7 +3765,7 @@ def build_gain_factors_model(
                 "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
                 observed=post, dims="obs_id",
             )
-        else:  # bernoulli_offfloor: PRIMARY estimand for floored outcomes (e.g. P)
+        else:  # bernoulli_offfloor: exploratory estimand for floored outcomes (e.g. P)
             pm.Bernoulli(
                 "y_offfloor", logit_p=eta,
                 observed=(post > 0).astype(np.int64), dims="obs_id",
@@ -3899,7 +3951,7 @@ def build_level_factors_model(
                 "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
                 observed=post, dims="obs_id",
             )
-        else:  # bernoulli_offfloor: PRIMARY estimand for floored outcomes (e.g. P)
+        else:  # bernoulli_offfloor: exploratory estimand for floored outcomes (e.g. P)
             pm.Bernoulli(
                 "y_offfloor", logit_p=eta,
                 observed=(post > 0).astype(np.int64), dims="obs_id",
@@ -4158,7 +4210,7 @@ def build_aligned_model(
                 "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
                 observed=post, dims="obs_id",
             )
-        else:  # bernoulli_offfloor: PRIMARY estimand for floored outcomes (e.g. P)
+        else:  # bernoulli_offfloor: exploratory estimand for floored outcomes (e.g. P)
             pm.Bernoulli(
                 "y_offfloor", logit_p=eta,
                 observed=(post > 0).astype(np.int64), dims="obs_id",
