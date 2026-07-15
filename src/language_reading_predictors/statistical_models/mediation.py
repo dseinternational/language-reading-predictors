@@ -71,7 +71,11 @@ from language_reading_predictors.statistical_models.factories import (
     PeriodStackedMediationData,
     TwoMediatorData,
 )
-from language_reading_predictors.statistical_models.preprocessing import logit_safe
+from language_reading_predictors.statistical_models.preprocessing import (
+    PreparedData,
+    logit_safe,
+    standardise,
+)
 
 _TREAT = 1.0  # immediate-intervention arm (G = 1)
 _CTRL = 0.0  # wait-list control arm (G = 0)
@@ -575,6 +579,7 @@ def decompose_two_mediator(
     n_replicates: int = 50,
     seed: int = 47,
     order: tuple[str, str] = ("L", "E"),
+    b_m_shifts: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """Two-mediator g-formula decomposition for LRP64 (letter-sound L + vocab E -> W).
 
@@ -602,7 +607,9 @@ def decompose_two_mediator(
     Monte-Carlo noise. Sign convention as :func:`decompose` (intervention-helps;
     ``G=1`` intervention, ``G=0`` control, per ``G = 2 - group``). The two mediators are simulated as
     conditionally independent given the covariates (no residual L-E correlation is
-    modelled) — a simplifying assumption stated in the report.
+    modelled) — a simplifying assumption stated in the report. ``b_m_shifts`` is
+    the #335 sensitivity lever: a mapping from mediator symbol to the signed bias
+    subtracted from that mediator's outcome-leg main slope before decomposition.
     """
     post = trace.posterior
 
@@ -619,6 +626,18 @@ def decompose_two_mediator(
     b0, b_G, b_L, b_E, b_GL, b_GE, b_W, b_A = (
         d("b0"), d("b_G"), d("b_L"), d(f"b_{mE}"), d("b_GL"), d(f"b_G{mE}"), d("b_W"), d("b_A")
     )
+    b_m_shifts = b_m_shifts or {}
+    unknown_shifts = set(b_m_shifts) - {mL, mE}
+    if unknown_shifts:
+        raise ValueError(
+            f"b_m_shifts contains unknown mediators {sorted(unknown_shifts)!r}; "
+            f"expected a subset of {(mL, mE)!r}"
+        )
+    # Per-leg sensitivity lever (#335): subtract the portion of each fitted
+    # mediator->outcome slope attributed to unmeasured confounding. The treatment
+    # interactions stay fixed, matching the single-mediator ``b_m_shift`` lever.
+    b_L = b_L - float(b_m_shifts.get(mL, 0.0))
+    b_E = b_E - float(b_m_shifts.get(mE, 0.0))
     b_conf = {s: d(f"b_{s}") for s in confs}
     # Mediator legs.
     aL0, aL_G, aL_L, aL_A = d("aL0"), d("aL_G"), d("aL_L"), d("aL_A")
@@ -777,4 +796,351 @@ def decompose_two_mediator(
             "prob_pos": float(np.mean(total > 0)),  # P(Total > 0) for context
         }
     )
+    return pd.DataFrame(rows)
+
+
+def _tipping_summary(
+    sweep: pd.DataFrame,
+    *,
+    median_col: str,
+    lo_col: str,
+    hi_col: str,
+) -> dict[str, float | bool]:
+    """Summarise when one swept effect's credible interval first reaches zero."""
+    effect0 = sweep.iloc[0]
+    already_null = bool(effect0[lo_col] <= 0 <= effect0[hi_col])
+    positive = effect0[median_col] >= 0
+    crossed = sweep[sweep[lo_col] <= 0] if positive else sweep[sweep[hi_col] >= 0]
+    tip = float(crossed.iloc[0]["delta"]) if len(crossed) else float("nan")
+    return {
+        "already_null_at_zero": already_null,
+        "tipping_delta": float("nan") if already_null else tip,
+        "effect_median_at_zero": float(effect0[median_col]),
+        "robust_over_full_sweep": bool(not already_null and not np.isfinite(tip)),
+    }
+
+
+def sensitivity_sweep_two_mediator(
+    trace: xr.DataTree,
+    med: TwoMediatorData,
+    *,
+    ci_prob: float = 0.95,
+    n_deltas: int = 21,
+    delta_max: float | dict[str, float] | None = None,
+    **decompose_kw,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Per-leg unmeasured-confounding sweeps for a two-mediator decomposition.
+
+    Each one-dimensional sweep attenuates one mediator->outcome leg toward zero
+    while leaving the other leg unchanged. It records both the path-specific NIE
+    and ``NIE_joint`` so the robustness of the preferred block-level indirect
+    effect is visible under confounding of either leg. A two-dimensional surface is
+    deliberately not generated: it is substantially more expensive and, at this
+    sample size, would add a large grid without improving the leg-specific tipping
+    decisions (#335).
+    """
+    post = trace.posterior
+
+    def d(name: str) -> np.ndarray:
+        return post[name].stack(_s=("chain", "draw")).values
+
+    mL, mE = med.mediator_symbols
+    coefficient_names = {
+        mL: ("b_L", "b_GL"),
+        mE: (f"b_{mE}", f"b_G{mE}"),
+    }
+    rows: list[dict] = []
+    summaries: list[dict] = []
+    ref_eps = 1e-6
+
+    for mediator in (mL, mE):
+        main_name, interaction_name = coefficient_names[mediator]
+        ref = float(np.mean(d(main_name) + d(interaction_name)))
+        ref_mag = abs(ref)
+        shrink_sign = 1.0 if ref >= 0 else -1.0
+        if isinstance(delta_max, dict):
+            leg_delta_max = float(delta_max[mediator])
+        elif delta_max is None:
+            leg_delta_max = max(ref_mag * 1.5, 0.5)
+        else:
+            leg_delta_max = float(delta_max)
+
+        leg_rows = []
+        for dlt in np.linspace(0.0, leg_delta_max, n_deltas):
+            decomposition = decompose_two_mediator(
+                trace,
+                med,
+                hdi_prob=ci_prob,
+                b_m_shifts={mediator: float(shrink_sign * dlt)},
+                **decompose_kw,
+            ).set_index("quantity")
+            leg = decomposition.loc[f"NIE_{mediator}"]
+            joint = decomposition.loc["NIE_joint"]
+            row = {
+                "mediator": mediator,
+                "quantity": f"NIE_{mediator}",
+                "delta": float(dlt),
+                "delta_frac_of_effective_slope": (
+                    float(dlt / ref_mag) if ref_mag > ref_eps else float("nan")
+                ),
+                "nie_median": float(leg["prob_median"]),
+                "nie_lo": float(leg["prob_lo"]),
+                "nie_hi": float(leg["prob_hi"]),
+                "nie_prob_pos": float(leg["prob_pos"]),
+                "nie_joint_median": float(joint["prob_median"]),
+                "nie_joint_lo": float(joint["prob_lo"]),
+                "nie_joint_hi": float(joint["prob_hi"]),
+                "nie_joint_prob_pos": float(joint["prob_pos"]),
+            }
+            leg_rows.append(row)
+            rows.append(row)
+
+        leg_sweep = pd.DataFrame(leg_rows)
+        leg_tip = _tipping_summary(
+            leg_sweep,
+            median_col="nie_median",
+            lo_col="nie_lo",
+            hi_col="nie_hi",
+        )
+        joint_tip = _tipping_summary(
+            leg_sweep,
+            median_col="nie_joint_median",
+            lo_col="nie_joint_lo",
+            hi_col="nie_joint_hi",
+        )
+        summaries.append(
+            {
+                "mediator": mediator,
+                "quantity": f"NIE_{mediator}",
+                "effective_slope_mean": ref,
+                "already_null_at_zero": leg_tip["already_null_at_zero"],
+                "tipping_delta": leg_tip["tipping_delta"],
+                "tipping_frac_of_effective_slope": (
+                    float(leg_tip["tipping_delta"] / ref_mag)
+                    if (
+                        ref_mag > ref_eps
+                        and np.isfinite(float(leg_tip["tipping_delta"]))
+                    )
+                    else float("nan")
+                ),
+                "nie_median_at_zero": leg_tip["effect_median_at_zero"],
+                "robust_over_full_sweep": leg_tip["robust_over_full_sweep"],
+                "joint_already_null_at_zero": joint_tip["already_null_at_zero"],
+                "joint_tipping_delta": joint_tip["tipping_delta"],
+                "joint_tipping_frac_of_effective_slope": (
+                    float(joint_tip["tipping_delta"] / ref_mag)
+                    if (
+                        ref_mag > ref_eps
+                        and np.isfinite(float(joint_tip["tipping_delta"]))
+                    )
+                    else float("nan")
+                ),
+                "joint_nie_median_at_zero": joint_tip["effect_median_at_zero"],
+                "joint_robust_over_full_sweep": joint_tip["robust_over_full_sweep"],
+            }
+        )
+
+    return pd.DataFrame(rows), pd.DataFrame(summaries)
+
+
+def _ols_coefficients(y: np.ndarray, columns: list[np.ndarray]) -> np.ndarray:
+    """Least-squares coefficients after dropping non-informative adjustment columns."""
+    kept = [np.ones_like(y, dtype=float)]
+    for col in columns:
+        arr = np.asarray(col, dtype=float)
+        if np.isfinite(arr).all() and float(np.std(arr)) > 1e-10:
+            kept.append(arr)
+    return np.linalg.lstsq(np.column_stack(kept), np.asarray(y, dtype=float), rcond=None)[0]
+
+
+def calibrate_session_confounding(
+    prepared: PreparedData,
+    med: TwoMediatorData,
+    sensitivity_summary: pd.DataFrame,
+    *,
+    session_symbol: str = "attend",
+    n_bootstrap: int = 2000,
+    seed: int = 335,
+) -> pd.DataFrame:
+    """Benchmark each two-mediator sensitivity delta against observed sessions.
+
+    The calibration is a treated-arm, phase-0 omitted-variable-bias diagnostic on
+    the outcome model's working logit scale. For each mediator, it compares the
+    mediator->reading coefficient before and after adding standardised session
+    attendance to the same adjusted linear projection. The attenuation-aligned
+    part of that coefficient change is ``delta_IS``. A child bootstrap supplies a
+    deliberately wide uncertainty band at ``n ~= 25``.
+
+    This is descriptive calibration, not adjustment that identifies a natural
+    effect. Restricting to the treated arm avoids using the wait-list arm's
+    structural zero sessions as if they were low voluntary attendance. The direct
+    adjusted ``attend -> mediator`` association is also reported for each leg; for
+    expressive vocabulary this empirically represents the DAG's indirect
+    ``IS -> TE -> EV`` ancestry without inventing a product from an unfitted
+    taught-vocabulary dose model (#335).
+    """
+    if session_symbol not in prepared.covariates:
+        raise KeyError(
+            f"Session calibration requires {session_symbol!r} in prepared.covariates"
+        )
+    if n_bootstrap < 1:
+        raise ValueError("n_bootstrap must be positive")
+
+    treated = np.asarray(prepared.G) == 1
+    n_treated = int(treated.sum())
+    if n_treated < 8:
+        raise ValueError(
+            f"Session calibration needs at least 8 treated observations; got {n_treated}"
+        )
+
+    mL, mE = med.mediator_symbols
+    z_mediators = {
+        mL: (
+            logit_safe(prepared.post_counts[mL][treated], med.n_trials_L) - med.zL_mean
+        )
+        / med.zL_sd,
+        mE: (
+            logit_safe(prepared.post_counts[mE][treated], med.n_trials_E) - med.zE_mean
+        )
+        / med.zE_sd,
+    }
+    y = logit_safe(prepared.post_counts["W"][treated], med.n_trials_W)
+    raw_sessions = (
+        prepared.covariates[session_symbol]
+        * prepared.covariate_scalers[session_symbol].sd
+        + prepared.covariate_scalers[session_symbol].mean
+    )[treated]
+    sessions, _ = standardise(raw_sessions)
+    outcome_adjusters = [
+        med.W1_logit[treated],
+        med.A_std[treated],
+        *(med.conf1_logit[s][treated] for s in med.confounder_symbols),
+    ]
+    mediator_baselines = {
+        mL: med.L1_logit[treated],
+        mE: med.E1_logit[treated],
+    }
+
+    def estimates(
+        idx: np.ndarray,
+    ) -> dict[str, tuple[float, float, float, float, float]]:
+        zL = z_mediators[mL][idx]
+        zE = z_mediators[mE][idx]
+        sess = sessions[idx]
+        if min(float(np.std(zL)), float(np.std(zE)), float(np.std(sess))) <= 1e-10:
+            raise ValueError("Bootstrap resample has a constant mediator or session dose")
+        adjust = [a[idx] for a in outcome_adjusters]
+        base = [zL, zE, *adjust]
+        no_is = _ols_coefficients(y[idx], base)
+        with_is = _ols_coefficients(y[idx], [*base, sess])
+        # zL/zE are guaranteed non-constant in the fitted sample and therefore
+        # occupy coefficient positions 1 and 2 after the intercept.
+        out: dict[str, tuple[float, float, float, float, float]] = {}
+        for position, mediator in enumerate((mL, mE), start=1):
+            med_adjust = [
+                mediator_baselines[mediator][idx],
+                med.A_std[treated][idx],
+                *(med.conf1_logit[s][treated][idx] for s in med.confounder_symbols),
+                sess,
+            ]
+            med_fit = _ols_coefficients(z_mediators[mediator][idx], med_adjust)
+            out[mediator] = (
+                float(no_is[position]),
+                float(with_is[position]),
+                float(no_is[position] - with_is[position]),
+                float(med_fit[-1]),
+                float(with_is[-1]),
+            )
+        return out
+
+    full = estimates(np.arange(n_treated))
+    rng = np.random.default_rng(seed)
+    boot = {m: [] for m in (mL, mE)}
+    for _ in range(n_bootstrap):
+        idx = rng.integers(0, n_treated, size=n_treated)
+        try:
+            result = estimates(idx)
+        except (ValueError, np.linalg.LinAlgError):
+            continue
+        for mediator in (mL, mE):
+            if np.isfinite(result[mediator]).all():
+                boot[mediator].append(result[mediator])
+
+    sens = sensitivity_summary.set_index("mediator")
+    rows = []
+    for mediator in (mL, mE):
+        if mediator not in sens.index:
+            raise KeyError(f"Sensitivity summary has no row for mediator {mediator!r}")
+        ref = float(sens.loc[mediator, "effective_slope_mean"])
+        shrink_sign = 1.0 if ref >= 0 else -1.0
+        slope_without, slope_with, shift_signed, mediator_is, outcome_is = full[mediator]
+        delta_is = max(0.0, shrink_sign * shift_signed)
+        draws = np.asarray(boot[mediator], dtype=float)
+        if draws.shape[0] < max(20, n_bootstrap // 5):
+            raise RuntimeError(
+                f"Only {draws.shape[0]} valid session-calibration bootstrap draws "
+                f"for {mediator}; the design is too unstable"
+            )
+        delta_draws = np.maximum(0.0, shrink_sign * draws[:, 2])
+        delta_lo, delta_hi = np.quantile(delta_draws, [0.025, 0.975])
+        med_is_lo, med_is_hi = np.quantile(draws[:, 3], [0.025, 0.975])
+        outcome_is_lo, outcome_is_hi = np.quantile(draws[:, 4], [0.025, 0.975])
+        already_null = bool(sens.loc[mediator, "already_null_at_zero"])
+        robust = bool(sens.loc[mediator, "robust_over_full_sweep"])
+        tip = float(sens.loc[mediator, "tipping_delta"])
+        reaches = bool(np.isfinite(tip) and delta_hi >= tip)
+
+        if already_null:
+            conclusion = (
+                f"NIE_{mediator} is already inconclusive at delta=0, so there is "
+                "no non-zero indirect effect for IS-strength confounding to explain away."
+            )
+        elif robust:
+            conclusion = (
+                f"NIE_{mediator} remains non-zero across the full one-leg sweep; "
+                f"the phase-0 IS anchor is delta_IS={delta_is:.2f} "
+                f"(95% bootstrap interval {delta_lo:.2f} to {delta_hi:.2f})."
+            )
+        elif reaches:
+            conclusion = (
+                f"The phase-0 IS anchor for NIE_{mediator} is delta_IS={delta_is:.2f} "
+                f"(95% bootstrap interval {delta_lo:.2f} to {delta_hi:.2f}); its "
+                f"interval reaches the delta*={tip:.2f} tipping point, so IS-strength "
+                f"confounding could plausibly account for this path, with wide "
+                f"uncertainty at n={n_treated}."
+            )
+        else:
+            conclusion = (
+                f"The phase-0 IS anchor for NIE_{mediator} is delta_IS={delta_is:.2f} "
+                f"(95% bootstrap interval {delta_lo:.2f} to {delta_hi:.2f}); even "
+                f"its upper bound is below the delta*={tip:.2f} tipping point, so "
+                f"observed IS-strength confounding alone does not reach it, although "
+                f"the calibration remains uncertain at n={n_treated}."
+            )
+
+        rows.append(
+            {
+                "mediator": mediator,
+                "quantity": f"NIE_{mediator}",
+                "construction": "phase-0 treated-arm adjusted slope change",
+                "n_treated": n_treated,
+                "effective_slope_mean": ref,
+                "slope_without_is": slope_without,
+                "slope_with_is": slope_with,
+                "slope_shift_signed": shift_signed,
+                "delta_is": delta_is,
+                "delta_is_lo": float(delta_lo),
+                "delta_is_hi": float(delta_hi),
+                "mediator_is_slope": mediator_is,
+                "mediator_is_slope_lo": float(med_is_lo),
+                "mediator_is_slope_hi": float(med_is_hi),
+                "outcome_is_slope": outcome_is,
+                "outcome_is_slope_lo": float(outcome_is_lo),
+                "outcome_is_slope_hi": float(outcome_is_hi),
+                "tipping_delta": tip,
+                "is_point_reaches_tipping": bool(np.isfinite(tip) and delta_is >= tip),
+                "is_band_reaches_tipping": reaches,
+                "conclusion": conclusion,
+            }
+        )
     return pd.DataFrame(rows)
