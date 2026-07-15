@@ -3472,6 +3472,10 @@ def fit_mediation_period_stacked(
     row restriction to ``mediation_summary_p1.csv``. No t3 temporal-ordering
     sensitivity is fitted — the stacked design already spans every window, and
     its mediator/outcome remain contemporaneous within each period by design.
+    The named-IS calibration is deliberately left to #324's family-wide decision:
+    this model's exposure is an ignorability-based per-period treatment indicator,
+    not MED-064's randomised phase-0 group, so importing the treated-arm benchmark
+    here would silently change its interpretation (#335 placement decision).
     """
     _require_spec(spec, "mediation")
     from language_reading_predictors.statistical_models import mediation as _med
@@ -4628,7 +4632,20 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         if s not in ("G", "A", "W_pre", *_mediator_baselines)
     )
     _raw_cov = _raw_covariate_confounders(confounders)
-    prepared = load_and_prepare(phase_mode="itt", covariates=_raw_cov)
+    _calibration = spec.extra.get("named_confounder_calibration")
+    _calibration_symbol = (
+        str(_calibration.get("symbol", "attend")) if _calibration else None
+    )
+    # A named-confounder calibration needs the observed covariate but must not add
+    # it to the fitted natural-effects model: IS is treatment-affected, so
+    # conditioning on it would not identify the NDE/NIE. It is loaded only for the
+    # post-fit, treated-arm omitted-variable-bias benchmark (#335).
+    _loaded_cov = tuple(
+        dict.fromkeys(
+            [*_raw_cov, *([_calibration_symbol] if _calibration_symbol else [])]
+        )
+    )
+    prepared = load_and_prepare(phase_mode="itt", covariates=_loaded_cov)
     # Drop any missing-indicator constant on the ITT-phase rows (see fit_mediation).
     confounders = tuple(
         c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
@@ -4696,6 +4713,70 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         )
     )
 
+    section_header("Per-leg NIE sensitivity (unmeasured confounding)")
+    sens_sweep, sens_summary = _med.sensitivity_sweep_two_mediator(
+        ctx.trace,
+        med_data,
+        ci_prob=ctx.reporting.ci_prob,
+        order=tuple(spec.extra.get("order", ("L", "E"))),
+    )
+    sens_sweep.to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity.csv"), index=False
+    )
+    sens_summary.to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity_summary.csv"), index=False
+    )
+    ctx.tables["mediation_sensitivity"] = sens_sweep
+    ctx.tables["mediation_sensitivity_summary"] = sens_summary
+    for row in sens_summary.to_dict("records"):
+        mediator = row["mediator"]
+        if row["already_null_at_zero"]:
+            rprint(
+                f"  NIE_{mediator} is not credibly nonzero at delta=0 — no "
+                "non-zero path-specific effect to explain away."
+            )
+        elif row["robust_over_full_sweep"]:
+            max_delta = sens_sweep.loc[
+                sens_sweep["mediator"] == mediator, "delta"
+            ].max()
+            rprint(
+                f"  NIE_{mediator} remains nonzero across its full sweep "
+                f"(delta <= {max_delta:.2f} logit)."
+            )
+        else:
+            rprint(
+                f"  NIE_{mediator} tipping point delta*={row['tipping_delta']:.3f} "
+                f"({row['tipping_frac_of_effective_slope']:.0%} of the fitted "
+                "treatment-arm mediator->outcome slope)."
+            )
+        if not row["joint_already_null_at_zero"]:
+            if row["joint_robust_over_full_sweep"]:
+                rprint(
+                    f"  NIE_joint remains nonzero across the {mediator}-leg sweep."
+                )
+            else:
+                rprint(
+                    f"  NIE_joint reaches zero at delta="
+                    f"{row['joint_tipping_delta']:.3f} when attenuating the "
+                    f"{mediator} leg."
+                )
+
+    calibration_df = None
+    if _calibration_symbol:
+        section_header("Named-confounder calibration (intervention sessions)")
+        calibration_df = _med.calibrate_session_confounding(
+            built.prepared,
+            med_data,
+            sens_summary,
+            session_symbol=_calibration_symbol,
+        )
+        calibration_df.to_csv(
+            os.path.join(ctx.output_dir, "mediation_is_calibration.csv"), index=False
+        )
+        ctx.tables["mediation_is_calibration"] = calibration_df
+        for conclusion in calibration_df["conclusion"]:
+            rprint(f"  {conclusion}")
+
     _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
     # Requested vs actually-fitted confounders, recorded separately (#246 review, P2).
     _requested_raw = _raw_covariate_confounders(
@@ -4709,10 +4790,14 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             "adjustment": spec.adjustment,
             "effective_confounders": list(confounders),
             "dropped_confounders": [c for c in _requested_raw if c not in confounders],
-            "n_obs": ctx.prepared.n_obs,
+            "n_obs": built.prepared.n_obs,
             "mediators": list(mediators),
             "n_trials_W": med_data.n_trials_W,
             "mediation": _summary,
+            "mediation_sensitivity": sens_summary.to_dict("records"),
+            "named_confounder_calibration": (
+                calibration_df.to_dict("records") if calibration_df is not None else None
+            ),
         },
     )
 
