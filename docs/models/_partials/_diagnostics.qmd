@@ -91,11 +91,56 @@ print(_img("pair_plot.png", "Pairs"))
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("posterior_predictive_check.png", "Posterior-predictive vs observed"))
-print(
-    "\n_How to read it:_ the black line is the observed outcome distribution and the "
-    "blue band is many datasets simulated from the fitted model. A good fit keeps the "
-    "black line inside the blue band across its whole range; a systematic departure "
-    "shows where the model reproduces the data poorly."
+# Computed coverage statement (issue #318): the share of observations (or, for
+# floor-rule outcomes, group cells) whose observed value falls inside the model's
+# 50%/90% prediction ranges. The sentence + verdict are rendered from ppc_summary.csv
+# by reporting.ppc_coverage_markdown so the prose cannot drift from the number (#271).
+from language_reading_predictors.statistical_models.reporting import (
+    ppc_coverage_markdown as _ppc_md,
 )
+
+_ppc_cov = _csv("ppc_summary.csv")
+if _ppc_cov is not None:
+    print(_ppc_md(_ppc_cov) + "\n")
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Relabelled distribution overlay (single-measure count families) or the off-floor
+# rate figure (floor-rule families). Absent for multi-outcome-flattened families,
+# where the shared count axis would pool measures with different denominators.
+_ppc_is_offfloor = _ppc_cov is not None and str(_ppc_cov["mode"].iloc[0]) == "offfloor_rate"
+print(_img("posterior_predictive_check.png", "Posterior-predictive check"))
+if _has("posterior_predictive_check.png"):
+    if _ppc_is_offfloor:
+        print(
+            "\n_How to read it:_ each point is one arm × wave cell; the red cross is the "
+            "observed off-floor rate and the blue marker with whiskers is the model's "
+            "predicted rate and 90% range. A good fit keeps each red cross inside its "
+            "blue whisker."
+        )
+    else:
+        print(
+            "\n_How to read it:_ the black line is the observed score distribution and "
+            "the blue band is many datasets simulated from the fitted model. A good fit "
+            "keeps the black line inside the blue band across its whole range; a "
+            "systematic departure shows where the model reproduces the data poorly."
+        )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Per-observation calibration panel (count families): deviations from the diagonal
+# are directly readable.
+print(_img("ppc_calibration.png", "Per-observation calibration"))
+if _has("ppc_calibration.png"):
+    print(
+        "\n_How to read it:_ each point is one observation — its observed score (x) "
+        "against the model's predicted median (y), with whiskers for the 90% "
+        "prediction range. Points on the dashed **y = x** line are perfectly predicted; "
+        "points far off it (marked in red when the observed score falls outside the 90% "
+        "range) are where the model fits that observation least well."
+    )
 ```

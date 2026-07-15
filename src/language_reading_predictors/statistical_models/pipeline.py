@@ -71,6 +71,7 @@ from language_reading_predictors.statistical_models.context import (
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
+    MEASURES,
     is_distal,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -649,10 +650,247 @@ def _graphviz(model):
     return g
 
 
-def _save_ppc(context: StatisticalFitContext) -> None:
+# Posterior-predictive check suite (issue #318) --------------------------------
+# The stock ArviZ overlay pooled every likelihood node onto one unlabelled axis and
+# offered no verdict. The redesign emits, from the existing posterior_predictive
+# group (no new sampling): a computed coverage statement (ppc_summary.csv), a
+# per-observation calibration panel, and — for single-measure count families — a
+# relabelled distribution overlay. Floor-rule / binary nodes report off-floor RATE
+# coverage by group cell instead (per-observation 0/1 interval coverage is
+# degenerate). See notes/202607151942-ppc-coverage-redesign.md.
+
+# Families whose single likelihood node flattens several measures with different
+# denominators (6..170), so a shared count axis for the overlay would pool them —
+# the meaninglessness #271 item 2 flagged. They still get coverage + calibration.
+_PPC_MULTI_OUTCOME_KINDS = {"joint", "lcsm", "growth"}
+# Binary / event nodes: off-floor rate coverage rather than count intervals.
+_PPC_BINARY_NODES = {"y_offfloor", "y_event"}
+# Bounded-count outcome nodes that take the count-interval treatment.
+_PPC_COUNT_NODES = {"y_post", "y_obs", "score"}
+
+
+def _save_ppc(context: StatisticalFitContext, *, primary_node: str = "y_post") -> None:
+    """Write the posterior-predictive coverage CSV + figures for the primary node.
+
+    ``primary_node`` is the outcome leg (the last node in every multi-node family's
+    ``var_names``). Routes by node kind; every sub-step is independently guarded so a
+    plotting hiccup never aborts the fit or loses the coverage CSV.
+    """
+    node = primary_node
+    symbol = context.spec.outcome_symbol
+    if node in _PPC_BINARY_NODES:
+        _save_offfloor_ppc(context, node, symbol)
+    elif node in _PPC_COUNT_NODES:
+        _save_count_ppc(context, node, symbol, context.spec.kind)
+    else:
+        # Measurement / latent nodes (corr-factor indicators, longitudinal z-patterns,
+        # a standalone mediator leg): no single count outcome, so keep the legacy
+        # overlay and emit no coverage statistic.
+        _save_legacy_ppc_overlay(context)
+
+
+def _save_count_ppc(
+    context: StatisticalFitContext, node: str, symbol: str | None, kind: str
+) -> None:
+    """Count-interval coverage CSV + calibration panel (+ overlay for single-measure)."""
+    try:
+        cov = _report.ppc_interval_coverage(context.trace, node=node)
+        cov.to_csv(os.path.join(context.output_dir, "ppc_summary.csv"), index=False)
+        context.tables["ppc_summary"] = cov
+    except Exception as exc:  # pragma: no cover - guarded
+        rprint(f"[yellow]ppc_summary.csv skipped: {exc}[/yellow]")
+    try:
+        cal = _report.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
+        _ppc_calibration_figure(context, symbol, cal)
+    except Exception as exc:  # pragma: no cover - guarded
+        rprint(f"[yellow]PPC calibration figure skipped: {exc}[/yellow]")
+    if kind in _PPC_MULTI_OUTCOME_KINDS:
+        rprint(
+            f"[dim]PPC distribution overlay skipped for multi-outcome family "
+            f"'{kind}' (its likelihood node pools measures with different "
+            "denominators); coverage + calibration still emitted.[/dim]"
+        )
+    else:
+        _ppc_overlay_figure(context, node, symbol)
+
+
+def _save_offfloor_ppc(
+    context: StatisticalFitContext, node: str, symbol: str | None
+) -> None:
+    """Off-floor RATE coverage CSV + per-cell observed-vs-predicted rate figure."""
+    group = _offfloor_group_labels(context)
+    try:
+        cov = _report.ppc_offfloor_rate_coverage(context.trace, node=node, group=group)
+        cov.to_csv(os.path.join(context.output_dir, "ppc_summary.csv"), index=False)
+        context.tables["ppc_summary"] = cov
+    except Exception as exc:  # pragma: no cover - guarded
+        rprint(f"[yellow]ppc_summary.csv skipped: {exc}[/yellow]")
+    try:
+        cells = _report.ppc_offfloor_cell_table(
+            context.trace, node=node, group=group, ci_prob=0.9
+        )
+        _ppc_offfloor_figure(context, symbol, cells)
+    except Exception as exc:  # pragma: no cover - guarded
+        rprint(f"[yellow]PPC off-floor figure skipped: {exc}[/yellow]")
+
+
+def _offfloor_group_labels(context: StatisticalFitContext) -> np.ndarray | None:
+    """Arm (× wave, when present) cell labels for off-floor coverage, or None.
+
+    Reads ``prepared.G`` (0=waitlist, 1=immediate) and, when aligned, ``prepared.phase``
+    so the off-floor rate is checked by group × wave cell. Returns None when no group
+    is available (the coverage helper then uses one overall cell).
+    """
+    prep = context.prepared
+    G = getattr(prep, "G", None)
+    if G is None:
+        return None
+    G = np.asarray(G)
+    arm = np.where(G == 1, "immediate", "waitlist")
+    phase = getattr(prep, "phase", None)
+    if phase is not None and np.asarray(phase).shape[0] == G.shape[0]:
+        phase = np.asarray(phase)
+        return np.array([f"t{int(p) + 1}·{a}" for p, a in zip(phase, arm, strict=True)])
+    return arm
+
+
+def _ppc_measure_label(symbol: str | None) -> tuple[str, int | None]:
+    """Human label + denominator for the PPC axes (falls back gracefully)."""
+    measure = MEASURES.get(symbol) if symbol else None
+    if measure is not None:
+        return measure.label, int(measure.n_trials)
+    return (symbol or "outcome"), None
+
+
+def _ppc_overlay_figure(
+    context: StatisticalFitContext, node: str, symbol: str | None
+) -> None:
+    """Relabelled observed-vs-simulated distribution overlay on a labelled items axis.
+
+    The observed count density (black) against the posterior-predictive band (blue:
+    pointwise 5-95% of replicate-dataset densities, plus the median). Each replicate
+    dataset is one posterior-predictive draw over all observations. Writes
+    ``posterior_predictive_check.png`` (+ a density-band data CSV).
+    """
+    try:
+        y_rep, y_obs = _report._ppc_node_arrays(context.trace, node)
+        finite = np.isfinite(y_obs)
+        y_rep, y_obs = y_rep[finite], y_obs[finite]
+        label, n_trials = _ppc_measure_label(symbol)
+        hi = int(n_trials) if n_trials else int(max(y_obs.max(), y_rep.max()))
+        bins = np.arange(0, hi + 2) - 0.5  # integer-centred bins
+        centers = 0.5 * (bins[:-1] + bins[1:])
+        obs_dens, _ = np.histogram(y_obs, bins=bins, density=True)
+        n_samples = y_rep.shape[1]
+        idx = np.unique(np.linspace(0, n_samples - 1, min(n_samples, 200)).astype(int))
+        rep_dens = np.stack(
+            [np.histogram(y_rep[:, s], bins=bins, density=True)[0] for s in idx]
+        )
+        lo_band = np.quantile(rep_dens, 0.05, axis=0)
+        hi_band = np.quantile(rep_dens, 0.95, axis=0)
+        med_band = np.median(rep_dens, axis=0)
+        plt.figure(figsize=(6.5, 4))
+        plt.fill_between(
+            centers, lo_band, hi_band, color="#1f77b4", alpha=0.3,
+            label="posterior-predictive 90% band",
+        )
+        plt.plot(centers, med_band, color="#1f77b4", lw=1.2, alpha=0.85,
+                 label="posterior-predictive median")
+        plt.plot(centers, obs_dens, color="black", lw=2, label="observed")
+        axis_lbl = f"{label} — score (0–{hi} items)" if n_trials else f"{label} — score"
+        plt.xlabel(axis_lbl)
+        plt.ylabel("density")
+        plt.title(f"Posterior-predictive check: {label}")
+        plt.legend(fontsize=8)
+        data = pd.DataFrame(
+            {
+                "score": centers,
+                "observed_density": obs_dens,
+                "pp_density_median": med_band,
+                "pp_density_lo": lo_band,
+                "pp_density_hi": hi_band,
+            }
+        )
+        save_styled_figure(context.output_dir, "posterior_predictive_check", data=data)
+    except Exception as exc:  # pragma: no cover - guarded
+        rprint(f"[yellow]PPC overlay figure failed: {exc}[/yellow]")
+
+
+def _ppc_calibration_figure(
+    context: StatisticalFitContext, symbol: str | None, cal: pd.DataFrame
+) -> None:
+    """Per-observation calibration panel: observed vs posterior-predictive median.
+
+    Observed score (x) against the predictive median with a 90% interval (y) and a
+    ``y = x`` diagonal; points off the diagonal are directly-readable mis-fits, and
+    observations whose observed score falls outside the 90% range are flagged.
+    Writes ``ppc_calibration.png`` (+ the per-observation data CSV).
+    """
+    try:
+        label, n_trials = _ppc_measure_label(symbol)
+        obs = cal["observed"].to_numpy(float)
+        med = cal["pp_median"].to_numpy(float)
+        lo = cal["pp_lo"].to_numpy(float)
+        hi = cal["pp_hi"].to_numpy(float)
+        inside = cal["inside"].to_numpy(bool)
+        lim_hi = float(n_trials) if n_trials else float(max(obs.max(), hi.max()))
+        plt.figure(figsize=(5.5, 5.5))
+        plt.plot([0, lim_hi], [0, lim_hi], color="#888", ls="--", lw=1,
+                 label="perfect calibration (y = x)")
+        plt.errorbar(
+            obs, med, yerr=np.vstack((med - lo, hi - med)), fmt="none",
+            ecolor="#1f77b4", alpha=0.35, capsize=0, zorder=1,
+        )
+        plt.scatter(obs[inside], med[inside], s=18, color="#1f77b4",
+                    label="observed inside 90% range", zorder=2)
+        plt.scatter(obs[~inside], med[~inside], s=26, color="#d62728", marker="x",
+                    lw=1.6, label="observed outside 90% range", zorder=3)
+        plt.xlabel(f"observed {label} score")
+        plt.ylabel("posterior-predictive median (90% range)")
+        plt.title(f"Per-observation calibration: {label}")
+        plt.legend(fontsize=8)
+        save_styled_figure(context.output_dir, "ppc_calibration", data=cal)
+    except Exception as exc:  # pragma: no cover - guarded
+        rprint(f"[yellow]PPC calibration figure failed: {exc}[/yellow]")
+
+
+def _ppc_offfloor_figure(
+    context: StatisticalFitContext, symbol: str | None, cells: pd.DataFrame
+) -> None:
+    """Floor-rule PPC figure: observed off-floor rate vs its predictive rate by cell.
+
+    Writes ``posterior_predictive_check.png`` (the floor-rule analogue of the count
+    overlay: the observed rate should sit inside the model's predictive range for
+    each cell) plus the per-cell data CSV.
+    """
+    try:
+        label, _ = _ppc_measure_label(symbol)
+        x = np.arange(len(cells))
+        med = cells["pp_rate_median"].to_numpy(float)
+        lo = cells["pp_rate_lo"].to_numpy(float)
+        hi = cells["pp_rate_hi"].to_numpy(float)
+        obs = cells["observed_rate"].to_numpy(float)
+        plt.figure(figsize=(max(5.0, 1.6 * len(cells) + 2.0), 4))
+        plt.errorbar(
+            x, med, yerr=np.vstack((med - lo, hi - med)), fmt="o", color="#1f77b4",
+            capsize=4, label="posterior-predictive median and 90% range",
+        )
+        plt.scatter(x, obs, marker="x", s=60, lw=2, color="#d62728",
+                    label="observed", zorder=3)
+        plt.xticks(x, cells["cell"].tolist())
+        plt.ylabel("off-floor rate")
+        plt.ylim(-0.02, 1.02)
+        plt.title(f"Off-floor rate posterior-predictive check: {label}")
+        plt.legend(fontsize=8)
+        save_styled_figure(context.output_dir, "posterior_predictive_check", data=cells)
+    except Exception as exc:  # pragma: no cover - guarded
+        rprint(f"[yellow]PPC off-floor figure failed: {exc}[/yellow]")
+
+
+def _save_legacy_ppc_overlay(context: StatisticalFitContext) -> None:
     # arviz 1.x removed az.plot_ppc; the equivalent is arviz_plots.plot_ppc_dist
-    # (returns a PlotCollection with .savefig). Guarded — a PPC plot failure must
-    # not abort the fit.
+    # (returns a PlotCollection with .savefig). Used for measurement / latent nodes
+    # that have no single count outcome. Guarded — a PPC plot failure must not abort.
     try:
         import arviz_plots as azp
 
@@ -1086,10 +1324,16 @@ def _run_sampling_and_loo(
 
 
 def _run_ppc(ctx: StatisticalFitContext, *, var_names: list[str] | None = None) -> None:
-    """Posterior-predictive draw (defaults to ``y_post``) followed by the PPC plot."""
+    """Posterior-predictive draw followed by the PPC coverage + figure suite (#318).
+
+    The outcome leg is the *last* node in every multi-node family's ``var_names``
+    (mediation ``[mediator_post, y_post]``, corr-factor ``[Z_obs, y_post]``, ...), so
+    that node drives the coverage statistic and figures.
+    """
     section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=var_names or ["y_post"])
-    _save_ppc(ctx)
+    names = list(var_names) if var_names else ["y_post"]
+    _diag.sample_posterior_predictive(ctx, var_names=names)
+    _save_ppc(ctx, primary_node=names[-1])
 
 
 def _finalize_report(ctx: StatisticalFitContext) -> StatisticalFitContext:
