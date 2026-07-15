@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 import arviz as az
@@ -38,7 +39,13 @@ from language_reading_predictors.statistical_models.sensitivity import (
     sha256_file,
     tau_psense_status,
 )
-from scripts import tau_prior_sensitivity as sensitivity_script
+
+_SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "tau_prior_sensitivity.py"
+_SCRIPT_SPEC = spec_from_file_location("_lrp_floor_tau_prior_sensitivity", _SCRIPT_PATH)
+if _SCRIPT_SPEC is None or _SCRIPT_SPEC.loader is None:
+    raise ImportError(f"cannot load sensitivity runner from {_SCRIPT_PATH}")
+sensitivity_script = module_from_spec(_SCRIPT_SPEC)
+_SCRIPT_SPEC.loader.exec_module(sensitivity_script)
 
 
 FIXTURE_CONFIG = "dev"
