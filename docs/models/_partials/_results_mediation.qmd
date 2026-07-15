@@ -6,12 +6,42 @@ The mediation quantities are computed by counterfactual simulation from the post
 
 The interventional companions — `lrp-rli-med-078` for word reading, `lrp-rli-med-186` for nonword off-floor risk and `lrp-rli-med-187` for blending — address the **second** obstacle by replacing the cross-world natural effects with IDE/IIE. They do **not** remove the first: identifying stochastic interventional effects still requires no unmeasured mediator–outcome confounding (Hejazi, Rudolph, van der Laan & Díaz 2022, assumption A5, DOI [10.1093/biostatistics/kxac002](https://doi.org/10.1093/biostatistics/kxac002)), which latent general ability violates here; positivity and temporal-ordering concerns also remain. IDE/IIE are therefore **weaker-assumption targets, not identified effects in this study**. In the current fully parametric implementation, natural and interventional models use the same fitted covariate-conditional mediator law, so a companion's IIE and its parent's NIE should agree up to sampling and g-formula Monte Carlo error. That agreement is an implementation check, not a dose-distortion diagnostic.
 
-_How to read the mediation table:_ each row is one decomposition quantity. `NDE` or `IDE` is the direct component, `NIE` or `IIE` is the component through the mediator, and `total` is their sum. For graded outcomes, the `words_*` columns contain the posterior median and intervals in outcome items despite the historical column name. For an off-floor outcome, the report below converts the probability-scale values to percentage-point risk differences. `prob_pos` is the posterior probability that the effect exceeds zero. `proportion_mediated` is the indirect share of the total and is unstable whenever the total can cross zero.
+_How to read the mediation table:_ each row is one decomposition quantity. `NDE` or `IDE` is the direct component, `NIE` or `IIE` is the component through the mediator, and `total` is their sum. For graded outcomes, the `words_*` columns contain the posterior median and intervals in outcome items despite the historical column name. For an off-floor outcome, the effect rows use `pp_*` columns: risk differences converted from probabilities to percentage points. The duplicated `words_*` columns and the unstable `proportion_mediated` row are omitted from that table; the latter is summarised separately below. `prob_pos` is the posterior probability that the effect exceeds zero. `proportion_mediated` is the indirect share of the total and is unstable whenever the total can cross zero.
 
 ```{python}
 # | echo: false
 mediation_summary = _csv("mediation_summary.csv")
-mediation_summary if mediation_summary is not None else "No mediation summary."
+
+
+def _mediation_display(summary):
+    """Present off-floor effects as percentage-point risk differences."""
+    if (
+        summary is None
+        or summary.empty
+        or "off_floor" not in summary.columns
+        or not bool(summary["off_floor"].iloc[0])
+    ):
+        return summary
+    probability_columns = [
+        "prob_median",
+        "prob_mean",
+        "prob_lo",
+        "prob_hi",
+        "prob_lo90",
+        "prob_hi90",
+    ]
+    effect_rows = summary["quantity"] != "proportion_mediated"
+    display = summary.loc[
+        effect_rows, ["quantity", *probability_columns, "prob_pos"]
+    ].copy()
+    display[probability_columns] *= 100.0
+    return display.rename(
+        columns={name: name.replace("prob_", "pp_") for name in probability_columns}
+    )
+
+
+mediation_display = _mediation_display(mediation_summary)
+mediation_display if mediation_display is not None else "No mediation summary."
 ```
 
 ```{python}
@@ -89,7 +119,8 @@ _How to read this table:_ where available, it re-runs the same direct / indirect
 ```{python}
 # | echo: false
 mediation_summary_t3 = _csv("mediation_summary_t3.csv")
-mediation_summary_t3 if mediation_summary_t3 is not None else "No t3 sensitivity table."
+mediation_display_t3 = _mediation_display(mediation_summary_t3)
+mediation_display_t3 if mediation_display_t3 is not None else "No t3 sensitivity table."
 ```
 
 The t3 sensitivity puts the mediator before the outcome in time, but the later
