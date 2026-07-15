@@ -301,13 +301,16 @@ def save_mechanism_items_figure(
     """Items-scale curve with credible ribbon and the worked-example annotation."""
     fig, ax = plt.subplots(figsize=(6.4, 4.4))
     x = curve_df["exposure"].to_numpy()
+    # The ribbon is the ``outcome_lo``/``outcome_hi`` band, computed at the fit's
+    # ``ci_prob`` — so the legend coverage must track it rather than hard-code 95%.
+    _cov = int(round(100 * float(worked.get("ci_prob", 0.95))))
     ax.fill_between(
         x,
         curve_df["outcome_lo"],
         curve_df["outcome_hi"],
         color=_CURVE_COLOR,
         alpha=0.2,
-        label="95% credible interval",
+        label=f"{_cov}% credible interval",
     )
     ax.plot(x, curve_df["outcome_mean"], color=_CURVE_COLOR, lw=2, label="posterior mean")
 

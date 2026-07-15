@@ -293,6 +293,44 @@ def test_write_artifacts_emits_csv_png_and_caption(tmp_path):
     assert "on Letter-sound knowledge" in worked["caption"]
 
 
+def test_ribbon_legend_coverage_tracks_ci_prob(tmp_path, monkeypatch):
+    """The credible-ribbon legend must reflect the fit's ci_prob, not a hard-coded 95%."""
+    rng = np.random.default_rng(8)
+    n_chain, n_draw = 2, 20
+    x = np.arange(0, 33, dtype=float)
+    n_obs = x.size
+    baseline = rng.normal(0.0, 0.3, size=(n_chain, n_draw, n_obs))
+    f = np.broadcast_to(0.12 * (x - 16.0), (n_chain, n_draw, n_obs)).copy()
+    eta = baseline + f
+    trace = _trace(
+        {
+            "eta": (("chain", "draw", "obs_id"), eta),
+            "f_mech": (("chain", "draw", "obs_id"), f),
+        }
+    )
+
+    captured: dict[str, list[str]] = {}
+
+    def _capture(output_dir, name, *, fig=None, data=None, **kw):
+        captured["labels"] = [t.get_text() for t in fig.axes[0].get_legend().get_texts()]
+
+    monkeypatch.setattr(mi, "save_styled_figure", _capture)
+    mi.write_mechanism_items_artifacts(
+        str(tmp_path),
+        trace,
+        x_exposure=x,
+        outcome_symbol="W",
+        outcome_label="Word reading (EWRSWR)",
+        n_trials_outcome=79,
+        exposure_label="Letter-sound knowledge (YARC-LSK)",
+        exposure_is_covariate=False,
+        exposure_n_trials=32,
+        ci_prob=0.90,
+    )
+    assert any("90% credible interval" == lab for lab in captured["labels"])
+    assert not any("95%" in lab for lab in captured["labels"])
+
+
 def test_write_artifacts_covariate_labels_raw_score(tmp_path):
     rng = np.random.default_rng(9)
     n_chain, n_draw = 2, 20
