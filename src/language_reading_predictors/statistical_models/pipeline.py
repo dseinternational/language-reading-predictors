@@ -2470,6 +2470,11 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Mechanism curve: f_mech vs mech_post_logit grid (logit-contribution scale only).
     section_header("Mechanism curve")
     _write_mechanism_curve(ctx)
+    # Items-scale companion (#319): the same curve as exposure items -> predicted
+    # outcome items, with a computed worked-example contrast. The worked dict is
+    # folded into config.json below so the report partial renders the caption from
+    # computed numbers.
+    _items_worked = _write_mechanism_items(ctx)
     _write_readiness_threshold(ctx)
 
     # Record the adjustment set that was actually FITTED — with each term's source
@@ -2489,6 +2494,10 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
         ),
     }
+    # Items-scale worked-example reference points (#319): recorded so the caption
+    # numbers are computed, not hand-written, and the quantiles are auditable.
+    if _items_worked:
+        meta_extra["mechanism_items"] = _items_worked
     if mechanism_is_covariate:
         # Record the exposure's raw-units anchor so a report can translate the
         # per-SD ``beta_mech`` into raw score points: the factory re-standardises
@@ -2621,6 +2630,73 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     plt.title(f"Mechanism curve ({kind}): {sym} -> {outcome}")
     # mechanism_curve.csv (the plotted band) is written just above.
     save_styled_figure(ctx.output_dir, "mechanism_curve")
+
+
+#: Friendly labels for covariate mechanism exposures (no ``Measure`` entry, so no
+#: label registry). Falls back to the symbol for anything not listed.
+_COVARIATE_EXPOSURE_LABELS = {
+    "erbto": "Phonological memory (word/nonword repetition)",
+    "deapp_c": "Speech production (DEAP)",
+}
+
+
+def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
+    """Items-scale mechanism dose-response curve + worked example (#319).
+
+    Companion to ``_write_mechanism_curve``: the logit-scale CSV/plot remain the
+    analyst's object; this renders the same fitted curve on the items scale
+    (exposure items -> predicted outcome items) with a credible ribbon and one
+    computed worked-example contrast between fixed quantiles of the observed
+    exposure. Returns the ``worked`` dict (quantile reference points + the
+    computed caption) so ``fit_mechanism`` can persist it to ``config.json`` for
+    the report partial. Never raises through the fit — a failure logs and returns
+    ``{}``.
+    """
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.mechanism_items import (
+        write_mechanism_items_artifacts,
+    )
+
+    try:
+        spec = ctx.spec
+        sym = spec.mechanism_symbol
+        outcome = spec.outcome_symbol or "W"
+        is_covariate = bool(spec.extra.get("mechanism_is_covariate", False))
+
+        if is_covariate:
+            z_loaded = np.asarray(ctx.prepared.covariates[sym], dtype=float)
+            scaler = ctx.prepared.covariate_scalers.get(sym)
+            x_exposure = scaler.inverse(z_loaded) if scaler is not None else z_loaded
+            exposure_label = _COVARIATE_EXPOSURE_LABELS.get(sym, sym)
+            exposure_n_trials = None
+        else:
+            x_exposure = np.asarray(ctx.prepared.post_counts[sym], dtype=float)
+            exposure_label = MEASURES[sym].label
+            exposure_n_trials = MEASURES[sym].n_trials
+
+        # The mechanism factory always fits a Beta-Binomial likelihood, so the
+        # y-axis is an item count. Floored (off-floor Bernoulli) mechanism
+        # outcomes are a future addition (#319 design note); wire the flag when
+        # such a model ships.
+        return write_mechanism_items_artifacts(
+            ctx.output_dir,
+            ctx.trace,
+            x_exposure=x_exposure,
+            outcome_symbol=outcome,
+            outcome_label=MEASURES[outcome].label,
+            n_trials_outcome=MEASURES[outcome].n_trials,
+            exposure_label=exposure_label,
+            exposure_is_covariate=is_covariate,
+            exposure_n_trials=exposure_n_trials,
+            ci_prob=ctx.reporting.ci_prob,
+            ref_quantiles=tuple(
+                spec.extra.get("items_ref_quantiles", (0.25, 0.75))
+            ),
+            outcome_off_floor=False,
+        )
+    except Exception as exc:  # pragma: no cover - defensive; logit curve stands alone
+        rprint(f"[yellow]Items-scale mechanism curve failed: {exc}[/yellow]")
+        return {}
 
 
 def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
