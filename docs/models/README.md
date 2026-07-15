@@ -44,7 +44,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Waitlist-crossover arm-by-wave (`lrp-rli-did`)                                        |    14 | Randomised t2 arm gap plus separate baseline/post-crossover gaps; observational dose and exploratory catch-up heterogeneity |
 | 2     | Aligned per-protocol (`lrp-rli-al`)                                                   |     9 | Onset-aligned single 40-week gain per child (associational)                                                                 |
 | 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)                |     9 | Adjusted dose-response of one skill on another                                                                              |
-| 2     | Mediation (`lrp-rli-med-059`–`092`; g-formula + interventional)                       |    12 | How much of a reading gain runs through a given skill                                                                       |
+| 2     | Mediation (`lrp-rli-med`; natural + interventional g-formula)                         |    16 | How much of an intervention-outcome contrast runs through a given skill                                                     |
 | 2     | Predictor / dynamics (`lrp-rli-adj-065`, `lcsm-067/081/082/091`, `dose-077` variants) |     9 | Baseline predictors, within-child change, lagged reverse couplings, change-on-change, and dose–response of word reading     |
 | 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                                |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                      |
 | 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)                          |     2 | Correlated domain-factor measurement model of the skills                                                                    |
@@ -53,7 +53,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Concurrent associations (`lrp-rli-ca`)                                                |     4 | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                          |
 | 2     | Longitudinal correlated-factor model (`lrp-rli-lcf-001`)                              |     1 | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                |
 
-Counts are of base models on `main` (142 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
+Counts are of base models on `main` (144 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
 
 ## Outcome symbols (Layer 2)
@@ -280,18 +280,28 @@ phases, with subject random intercepts and optional linear moderation. Every slo
 | `lrp-rli-mech-089`            | `TE → W` | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                             |
 | `lrp-rli-mech-090`            | `RW → W` | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor) |
 
-### Mediation — `lrp-rli-med-059`, `lrp-rli-med-062`, `lrp-rli-med-064`, `lrp-rli-med-092` (`kind="mediation"` / `"mediation_multi"`)
+### Mediation — `lrp-rli-med` (`kind="mediation"` / `"mediation_multi"`)
 
-**Purpose.** g-formula NDE/NIE decomposition: how much of the intervention's word-reading
-gain runs through a given skill. Not point-identified under the revised DAG (latent ability +
-same-wave mediator/outcome) — reported as triangulation, leading with the robust quantity.
+**Purpose.** g-formula decomposition of how much of an intervention-outcome contrast runs through a given skill. The natural-effect models report NDE/NIE; MED-078/186/187 report the interventional IDE/IIE analogues. Neither class is point-identified under the revised DAG because latent general ability confounds mediator→outcome paths; the interventional class additionally removes the recanting-witness cross-world obstacle, but does not turn the decomposition into a causal route.
 
 | Model             | Purpose                                                                                                                                                                                     |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lrp-rli-med-059` | Single-mediator: word-reading gain via letter-sound knowledge `L`                                                                                                                           |
 | `lrp-rli-med-062` | Reading-route decomposition: code-based-route (`L` + blending `B`) vs lexical share                                                                                                         |
 | `lrp-rli-med-064` | Two-mediator split: `L` vs expressive vocabulary `E` (joint indirect + path-specific `NIE_L`/`NIE_E`)                                                                                       |
+| `lrp-rli-med-066` | Two-mediator split: letter sounds `L` and phoneme blending `B` as parallel routes to word reading                                                                                           |
+| `lrp-rli-med-068` | Single-mediator: word-reading gain via taught expressive vocabulary `TE`                                                                                                                    |
+| `lrp-rli-med-074` | Single-mediator: word-reading gain via nonword decoding `N` (floor-limited mediator)                                                                                                        |
+| `lrp-rli-med-075` | Sequential code route: letter sounds `L` → blending `B` → word reading                                                                                                                      |
+| `lrp-rli-med-076` | Longitudinal-ordering companion: letter sounds at t2 → word reading at t4                                                                                                                   |
+| `lrp-rli-med-078` | Interventional companion to MED-059: IDE/IIE for word reading via letter sounds                                                                                                             |
+| `lrp-rli-med-079` | Negative-control mediator: receptive grammar calibrating residual confounding                                                                                                               |
+| `lrp-rli-med-080` | Single-mediator: word-reading gain via taught receptive vocabulary `TR`                                                                                                                     |
+| `lrp-rli-med-086` | Natural-effect decomposition: nonword off-floor risk via letter sounds                                                                                                                      |
+| `lrp-rli-med-087` | Natural-effect decomposition: phoneme blending via letter sounds                                                                                                                            |
 | `lrp-rli-med-092` | Period-stacked companion (#229): the `med-059` design on the gain-factor scaffold — exposure = per-period on-intervention (ignorability, not randomisation); all-period + period-1 readouts |
+| `lrp-rli-med-186` | Interventional companion to MED-086: IDE/IIE for nonword off-floor risk via letter sounds                                                                                                   |
+| `lrp-rli-med-187` | Interventional companion to MED-087: IDE/IIE for phoneme blending via letter sounds                                                                                                         |
 
 ### Predictor / within-child dynamics — `lrp-rli-adj-065`, `lrp-rli-lcsm-067/081/082/091`, `lrp-rli-dose-077` (+ variants)
 

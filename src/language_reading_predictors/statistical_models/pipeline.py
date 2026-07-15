@@ -3063,7 +3063,11 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     print_table(
         ranked_dataframe_table(
             med_df,
-            title=f"Mediation (intervention-helps; words out of {med_data.n_trials_W})",
+            title=(
+                "Mediation (intervention-helps; off-floor risk difference)"
+                if off_floor
+                else f"Mediation (intervention-helps; items out of {med_data.n_trials_W})"
+            ),
             columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
             rank_column=False,
             precision=3,
@@ -3147,6 +3151,9 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         "adjustment": spec.adjustment,
         "effective_confounders": list(confounders),
         "dropped_confounders": [c for c in _requested_raw if c not in confounders],
+        "estimand": "interventional" if _interventional else "natural",
+        "outcome_kind": outcome_kind,
+        "companion_of": spec.extra.get("companion_of"),
         "n_obs": prepared.n_obs,
         "mediation": _summary,
     }

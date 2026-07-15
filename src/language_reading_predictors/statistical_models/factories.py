@@ -1928,7 +1928,8 @@ def build_mediation_model(
     latent-general-ability confounding of the mediator->outcome path, dose ``IS``
     is a treatment-induced (exposure-induced) mediator-outcome confounder, so the
     decomposition is model-based under stated (cross-world) assumptions. An
-    interventional estimand (``decompose(..., interventional=True)``; LRP78) drops
+    interventional estimand (``decompose(..., interventional=True)``;
+    MED-078/186/187) drops
     the cross-world requirement and so escapes the ``IS`` obstacle, but it still
     assumes no unmeasured mediator-outcome confounding, which latent general
     ability violates here — a weaker-assumption target, not an identified one. See

@@ -1,38 +1,12 @@
 ## Results
 
-This section splits the treatment's effect into the part that flows through the mediator and the part that does not. The direct effect (NDE) is what treatment does on its own, the indirect effect (NIE) is what it does by moving the mediator, and the total effect is the two added together (NDE + NIE).
+This section splits the treatment's effect into the part that flows through the mediator and the part that does not. Natural-effect models label the direct and indirect rows NDE/NIE; interventional-effect companions label them IDE/IIE. In either case, the total is the sum of the two components.
 
-The mediation quantities are computed by counterfactual simulation from the
-posterior g-formula. They are **not** products of coefficients, and they are
-**not identified natural effects**. Two structural obstacles block a natural
-NDE/NIE interpretation, and neither is removed by more data. First, every
-mediator→outcome path is confounded by latent general ability (and, at a single
-wave, by shared timing), so the split rests on an unverifiable
-no-unmeasured-confounding assumption. Second — and independently — intervention
-dose (sessions attended, `IS` in the DAG) is a **treatment-induced
-(exposure-induced) mediator–outcome confounder**: it is a descendant of the
-randomised group and points into both the mediator and word reading, so natural
-direct/indirect effects are **not identified even by randomisation** and are
-**not repaired by measuring and adjusting dose**, because dose is itself a
-descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI
-[10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
-Read these outputs as **model-based g-formula decompositions under the stated
-(cross-world) assumptions, not identified natural effects**.
+The mediation quantities are computed by counterfactual simulation from the posterior g-formula. They are **not** products of coefficients. Two structural obstacles matter. First, every mediator→outcome path is confounded by latent general ability (and, at a single wave, by shared timing), so the split rests on an unverifiable no-unmeasured-confounding assumption. Second — and independently — intervention dose (sessions attended, `IS` in the DAG) is a **treatment-induced (exposure-induced) mediator–outcome confounder**: it is a descendant of the randomised group and points into both the mediator and outcome. That recanting-witness structure means natural direct and indirect effects are **not identified even by randomisation** and are **not repaired by simply adjusting for dose**, because dose is itself a descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI [10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)). Read NDE/NIE outputs as **model-based g-formula decompositions under stated cross-world assumptions, not identified natural effects**.
 
-An **interventional** (rather than natural) mediation estimand — fitted for the
-letter-sound route as `lrp-rli-med-078` — addresses the **second** obstacle only.
-It invokes no cross-world quantity, so it is not defeated by the exposure-induced
-confounder. It does **not** remove the first: identification of stochastic
-interventional (in)direct effects still requires no unmeasured mediator–outcome
-confounding (Hejazi, Rudolph, van der Laan & Díaz 2022, assumption A5, DOI
-[10.1093/biostatistics/kxac002](https://doi.org/10.1093/biostatistics/kxac002)),
-which latent general ability violates here, and their positivity requirement (A3)
-and the absence of temporal ordering between mediator and outcome both remain
-binding. The interventional estimand is therefore a **weaker-assumption target,
-not an identified one**. The model-specific assumptions section states the
-design-specific version.
+The interventional companions — `lrp-rli-med-078` for word reading, `lrp-rli-med-186` for nonword off-floor risk and `lrp-rli-med-187` for blending — address the **second** obstacle by replacing the cross-world natural effects with IDE/IIE. They do **not** remove the first: identifying stochastic interventional effects still requires no unmeasured mediator–outcome confounding (Hejazi, Rudolph, van der Laan & Díaz 2022, assumption A5, DOI [10.1093/biostatistics/kxac002](https://doi.org/10.1093/biostatistics/kxac002)), which latent general ability violates here; positivity and temporal-ordering concerns also remain. IDE/IIE are therefore **weaker-assumption targets, not identified effects in this study**. In the current fully parametric implementation, natural and interventional models use the same fitted covariate-conditional mediator law, so a companion's IIE and its parent's NIE should agree up to sampling and g-formula Monte Carlo error. That agreement is an implementation check, not a dose-distortion diagnostic.
 
-_How to read the mediation table:_ each row is one decomposition quantity. `NDE` is the direct effect (treatment acting on its own), `NIE` is the indirect effect (treatment acting through the mediator), and `total` is their sum. The `words_*` columns give the posterior median and 95% credible interval in words; `prob_pos` is the probability the effect exceeds zero. `proportion_mediated` is the share of the total that runs through the mediator, and is unstable whenever the total can cross zero.
+_How to read the mediation table:_ each row is one decomposition quantity. `NDE` or `IDE` is the direct component, `NIE` or `IIE` is the component through the mediator, and `total` is their sum. For graded outcomes, the `words_*` columns contain the posterior median and intervals in outcome items despite the historical column name. For an off-floor outcome, the report below converts the probability-scale values to percentage-point risk differences. `prob_pos` is the posterior probability that the effect exceeds zero. `proportion_mediated` is the indirect share of the total and is unstable whenever the total can cross zero.
 
 ```{python}
 # | echo: false
@@ -51,9 +25,13 @@ _off = (
     and bool(mediation_summary["off_floor"].iloc[0])
 )
 if _off:
+    _quantities = set(mediation_summary["quantity"])
+    _direct_label = "IDE" if "IDE" in _quantities else "NDE"
+    _indirect_label = "IIE" if "IIE" in _quantities else "NIE"
     print(
         '::: {.callout-important title="Off-floor outcome — effects are risk differences"}\n'
-        "The outcome here is the **off-floor indicator** (post > 0), so NDE / NIE / total "
+        f"The outcome here is the **off-floor indicator** (post > 0), so {_direct_label} / "
+        f"{_indirect_label} / total "
         "are **off-floor risk differences** — changes in the probability of coming off the "
         "floor attributable to the direct vs the through-mediator path — not item counts. "
         "The `words_*` columns therefore equal the probability-scale columns.\n:::\n"
@@ -69,17 +47,28 @@ if mediation_summary is not None:
     _indirect_name = next(
         (n for n in ("NIE_joint", "NIE", "IIE") if n in _m.index), None
     )
+    _direct_name = next((n for n in ("NDE", "IDE") if n in _m.index), "direct effect")
     if _total_name and _indirect_name:
         _tot = _m.loc[_total_name]
         _ind = _m.loc[_indirect_name]
+        if _off:
+            _scale = 100.0
+            _unit = "percentage points"
+            _fields = ("prob_median", "prob_lo90", "prob_hi90", "prob_lo", "prob_hi")
+        else:
+            _scale = 1.0
+            _unit = "items"
+            _fields = ("words_median", "words_lo90", "words_hi90", "words_lo", "words_hi")
+        _tm, _tl90, _th90, _tl, _th = (_tot[f] * _scale for f in _fields)
+        _im, _il90, _ih90, _il, _ih = (_ind[f] * _scale for f in _fields)
         print(
-            f"**Total effect:** {_tot.words_median:+.1f} words "
-            f"(90% CrI {_tot.words_lo90:+.1f} to {_tot.words_hi90:+.1f}; "
-            f"95% {_tot.words_lo:+.1f} to {_tot.words_hi:+.1f}); "
+            f"**Total effect:** {_tm:+.1f} {_unit} "
+            f"(90% CrI {_tl90:+.1f} to {_th90:+.1f}; "
+            f"95% {_tl:+.1f} to {_th:+.1f}); "
             f"P(> 0) = {_tot.prob_pos:.3f}.\n\n"
-            f"**Indirect path (`{_indirect_name}`):** {_ind.words_median:+.1f} words "
-            f"(90% CrI {_ind.words_lo90:+.1f} to {_ind.words_hi90:+.1f}; "
-            f"95% {_ind.words_lo:+.1f} to {_ind.words_hi:+.1f}); "
+            f"**Indirect path (`{_indirect_name}`):** {_im:+.1f} {_unit} "
+            f"(90% CrI {_il90:+.1f} to {_ih90:+.1f}; "
+            f"95% {_il:+.1f} to {_ih:+.1f}); "
             f"P(> 0) = {_ind.prob_pos:.3f}."
         )
     if "proportion_mediated" in _m.index:
@@ -89,13 +78,13 @@ if mediation_summary is not None:
             f"(90% CrI {_p.prob_lo90:.2f} to {_p.prob_hi90:.2f}; "
             f"95% {_p.prob_lo:.2f} to {_p.prob_hi:.2f}). This ratio is "
             "unstable when the total effect can cross zero; lead with Total, "
-            "NDE, and NIE intervals."
+            f"{_direct_name}, and {_indirect_name} intervals."
         )
 ```
 
 ### Temporal-Ordering Sensitivity
 
-_How to read this table:_ it re-runs the same NDE / NIE / total decomposition (same columns as above) but with the mediator measured before the outcome, so you can check whether the split points the same way when temporal order is enforced. Compare the direction and rough size against the main table rather than reading its numbers as the headline estimate.
+_How to read this table:_ where available, it re-runs the same direct / indirect / total decomposition (same columns as above) but with the mediator measured before the outcome, so you can check whether the split points the same way when temporal order is enforced. Compare the direction and rough size against the main table rather than reading its numbers as the headline estimate. Interventional companions omit this natural-effect sensitivity by design.
 
 ```{python}
 # | echo: false

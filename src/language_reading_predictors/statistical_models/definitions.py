@@ -215,6 +215,11 @@ _MECH = [
     # (nonword N, off-floor) and the downstream chain link (blending B), both via L.
     _d("lrp86", "mediation", "Mediation", Status.ASSOCIATION, "N", "g-formula via letter sounds (nonword, off-floor risk difference)"),
     _d("lrp87", "mediation", "Mediation", Status.ASSOCIATION, "B", "g-formula via letter sounds (phoneme blending)"),
+    # Interventional-estimand companions (#323), using the suite's parent+100
+    # convention. Same fitted models/adjustment sets as MED-086/087; IDE/IIE
+    # replace the cross-world NDE/NIE interpretation.
+    _d("lrp186", "mediation", "Mediation", Status.COMPANION, "N", "interventional-effects analogue via letter sounds (nonword, off-floor risk difference)", base="lrp86"),
+    _d("lrp187", "mediation", "Mediation", Status.COMPANION, "B", "interventional-effects analogue via letter sounds (phoneme blending)", base="lrp87"),
     # Period-stacked companion (#229 recommendation 2): the LRP59 design on the
     # gain-factor scaffold, exposure = per-period on-intervention (ignorability).
     _d("lrp92", "mediation", "Mediation", Status.ASSOCIATION, "W", "period-stacked g-formula via letter sounds (gain-factor scaffold, per-period on-intervention exposure)", base="lrp59"),

@@ -1,0 +1,62 @@
+---
+title: "MED-186: Interventional decomposition of nonword off-floor risk via letter-sounds"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+{{< include _partials/_header.qmd >}}
+
+{{< include _partials/_reading_guide.qmd >}}
+
+{{< include _partials/_setup.qmd >}}
+
+{{< include _partials/_convergence.qmd >}}
+
+{{< include _partials/_key_findings.qmd >}}
+
+## Overview
+
+MED-186 is the parent+100 **interventional-effects companion** to [MED-086](../lrp-rli-med-086/). Both fit the same Phase-0 joint model, use letter-sound knowledge at t2 as the mediator, use the same signed-off adjustment set, and model nonword reading as the binary off-floor outcome $\mathbf{1}[N_{t2}>0]$. MED-086 reports the natural direct and indirect effects (NDE/NIE); MED-186 reports their randomised-interventional analogues (IDE/IIE).
+
+::: {.callout-important title="Off-floor outcome — effects are risk differences"}
+IDE, IIE and Total are changes in the probability of reading at least one nonword, not changes in an item count. Positive values mean that the intervention increases the probability of coming off the floor.
+:::
+
+## Why the estimand changes
+
+Sessions attended ($IS$) are affected by randomised group and are a common cause of the mediator and outcome through $IS\to L$ and $IS\to PA\to N$. This recanting-witness structure makes the cross-world natural effects formally unidentified. The interventional analogue instead draws the mediator from its arm-specific covariate-conditional distribution, so it remains well-defined without asking for the same child's mediator under incompatible treatment worlds.
+
+That change does **not** make MED-186 a fully identified causal mediation analysis. Latent general ability still confounds the $L\to N$ relationship, mediator and outcome are measured in the same wave, and $IS$ is not represented in the fitted joint model. IDE/IIE are therefore weaker-assumption, model-based decompositions under the stated assumptions, not identified causal routes.
+
+## Comparison with MED-086
+
+The fitted probabilistic model and adjustment set are intentionally identical to MED-086. In the current fully parametric g-formula, both estimand classes draw $L$ from the same fitted covariate-conditional law; changing `estimand` changes the counterfactual interpretation and the row labels, not the numerical functional. MED-186's IIE should therefore agree with MED-086's NIE up to posterior-sampling and g-formula Monte Carlo error. Agreement is an implementation check; it is **not** evidence that shared dose causes no distortion. A material gap would first indicate non-comparable fits or Monte Carlo error, not a scientific dose-confounding result.
+
+## Adjustment set
+
+The set is inherited directly from MED-086: randomised group $G$, age $A$, baseline letter sounds $L_{t1}$, baseline blending $B_{t1}$, hearing $HS$, speech production $SP$ and phonological memory $RW$, with the raw-covariate missing indicators. As required by the floor rule, the binary outcome has no own-baseline term. The time-indexed derivation in `notes/202607142340-lrp264-mediation-adjustment-dsep.md` confirms that baseline expressive/receptive vocabulary is not required and that no treatment-non-descendant adjustment set can block the $L_2\leftarrow IS_1\to PA_2\to NW_2$ witness path.
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_diagnostics.qmd >}}
+
+{{< include _partials/_results_mediation.qmd >}}
+
+{{< include _partials/_footer.qmd >}}

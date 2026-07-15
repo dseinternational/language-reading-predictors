@@ -35,6 +35,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
 from .test_factories import _write_synthetic
 
 _QUANTITIES = {"total", "NDE", "NIE", "proportion_mediated"}
+_INTERVENTIONAL_QUANTITIES = {"total", "IDE", "IIE", "proportion_mediated"}
 # Outcome- and mediator-leg coefficients the decomposition reads, minus the
 # per-confounder ``b_<s>`` / ``a_<s>`` terms (added per test to match the
 # fitted confounder set).
@@ -123,6 +124,73 @@ def test_decompose_offfloor_outcome(tmp_path):
     assert np.allclose(eff["prob_mean"].to_numpy(), eff["words_mean"].to_numpy())
     # Every row carries the off_floor flag so the report labels the scale.
     assert bool(df["off_floor"].iloc[0]) is True
+
+
+def test_decompose_interventional_offfloor_outcome(tmp_path):
+    """#323 (MED-186): the interventional flag and Bernoulli off-floor outcome
+    compose cleanly. The rows use IDE/IIE labels, stay on the risk-difference
+    scale and do not require the graded outcome's absent ``b_W`` coefficient."""
+    prep = _prepare(tmp_path)
+    _, med = build_mediation_model(
+        prep, confounder_symbols=("E", "R"), outcome_kind="bernoulli_offfloor"
+    )
+    names = (
+        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_E", "b_R"]
+        + _BB_MEDIATOR_DRAWS
+        + ["a_E", "a_R", "kappa_M"]
+    )
+    trace = _fake_trace(names, positive=["kappa_M"])
+    natural = decompose(trace, med, n_replicates=4)
+    df = decompose(
+        trace,
+        med,
+        n_replicates=4,
+        interventional=True,
+    )
+    assert set(df["quantity"]) == _INTERVENTIONAL_QUANTITIES
+    eff = df[df["quantity"].isin(["total", "IDE", "IIE"])]
+    assert np.allclose(eff["prob_median"], eff["words_median"])
+    assert bool(df["off_floor"].iloc[0]) is True
+    # The current parametric implementation changes estimand labels/interpretation,
+    # not the numerical functional. With the same trace and random seed, the
+    # parent NIE/NDE and companion IIE/IDE must be exactly equal.
+    natural = natural.replace({"quantity": {"NDE": "IDE", "NIE": "IIE"}})
+    numeric = [c for c in df.columns if c not in ("quantity", "off_floor")]
+    assert np.allclose(
+        natural.set_index("quantity").loc[df["quantity"], numeric],
+        df.set_index("quantity").loc[df["quantity"], numeric],
+        equal_nan=True,
+    )
+
+
+def test_code_route_interventional_specs_mirror_their_parents():
+    """The #323 companions may change only the estimand interpretation and
+    identifying metadata; adjustment sets and model-building options must remain
+    exactly aligned with MED-086/087."""
+    from language_reading_predictors.statistical_models.lrp_rli_med_086 import (
+        SPEC as med086,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_med_087 import (
+        SPEC as med087,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_med_186 import (
+        SPEC as med186,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_med_187 import (
+        SPEC as med187,
+    )
+
+    for parent, companion in ((med086, med186), (med087, med187)):
+        assert companion.kind == parent.kind == "mediation"
+        assert companion.outcome_symbol == parent.outcome_symbol
+        assert companion.mechanism_symbol == parent.mechanism_symbol
+        assert companion.adjustment == parent.adjustment
+        assert companion.adjustment is not parent.adjustment
+        assert companion.extra == {
+            **parent.extra,
+            "estimand": "interventional",
+            "companion_of": parent.model_id,
+        }
 
 
 def test_decompose_gaussian_composite(tmp_path):
