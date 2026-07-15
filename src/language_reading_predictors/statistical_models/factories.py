@@ -2673,10 +2673,11 @@ def build_concurrent_model(
 
     with a Beta-Binomial likelihood on the outcome post-count. Missing predictor
     values are mean-imputed (0 on the standardised scale) — PyMC cannot take NaN
-    inputs and the associations are a descriptive read; a predictor's realised
-    variance shrinks with its missingness, biasing that coefficient toward zero (the
-    report flags this, as in the horseshoe level model). Rows missing the focal
-    OUTCOME are dropped by the caller (an outcome cannot be imputed).
+    inputs and the associations are a descriptive read. Mean imputation changes the
+    predictor distribution and can bias a conditional coefficient; the direction is
+    not guaranteed when missingness relates to the predictor, outcome, or other
+    skills. Rows missing the focal OUTCOME are dropped by the caller (an outcome
+    cannot be imputed).
 
     Regularising ``Normal(0, predictor_slope_sigma)`` slopes are essential: with
     n ≈ 53 and a strongly inter-correlated predictor cluster, the mutually-adjusted

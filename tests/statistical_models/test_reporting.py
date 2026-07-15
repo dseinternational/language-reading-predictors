@@ -12,6 +12,7 @@ import pytest
 import xarray as xr
 from scipy.special import expit
 
+from language_reading_predictors.statistical_models.preprocessing import logit_safe
 from language_reading_predictors.statistical_models.reporting import (
     AssociationTerm,
     ConcurrentTerm,
@@ -973,7 +974,9 @@ def test_concurrent_marginals_sign_and_scale_consistency():
     eta = rng.normal(0.0, 1.0, (1, 400, n_obs))
     beta = rng.normal(0.5, 0.2, (1, 400))
     trace = _trace_named_vec(eta, scalars={"beta_L": beta})
-    term = ConcurrentTerm("L", "beta_L", sd_logit=1.3, n_items=32, mean_prop=0.4, k_items=3)
+    term = ConcurrentTerm(
+        "L", "beta_L", sd_logit=1.3, n_items=32, mean_items=12.8, k_items=3
+    )
 
     df = concurrent_marginals(trace, terms=[term], n_trials=n_trials, ci_prob=0.9)
     sd_row = df[df.scale == "+1 SD"].iloc[0]
@@ -986,27 +989,33 @@ def test_concurrent_marginals_sign_and_scale_consistency():
     assert sd_row["role"] == "association"
 
 
-def test_concurrent_marginals_k_items_row_uses_sd_logit():
+def test_concurrent_marginals_k_items_row_uses_fitted_haldane_logit():
     # A bounded-count predictor gets a "+k items" row whose Δz divides the mean-point
     # logit shift by sd_logit (the standardisation the factory applied) — matching the
     # explicit-loop reference. This is the raw-logit/standardised bridge the pushforward
     # depends on; a wrong sd_logit here would silently mis-scale every items AME.
-    from scipy.special import logit as _logit
-
     rng = np.random.default_rng(29)
-    n_obs, n_trials, n_items, k, sd_logit, p = 8, 79, 32, 3, 1.4, 0.35
+    n_obs, n_trials, n_items, k, sd_logit, mean_items = 8, 79, 32, 3, 1.4, 11.2
     eta = rng.normal(0.0, 1.0, (1, 300, n_obs))
     beta = rng.normal(0.6, 0.2, (1, 300))
     trace = _trace_named_vec(eta, scalars={"beta_L": beta})
     term = ConcurrentTerm(
-        "L", "beta_L", sd_logit=sd_logit, n_items=n_items, mean_prop=p, k_items=k
+        "L",
+        "beta_L",
+        sd_logit=sd_logit,
+        n_items=n_items,
+        mean_items=mean_items,
+        k_items=k,
     )
 
     df = concurrent_marginals(trace, terms=[term], n_trials=n_trials, ci_prob=0.9)
     assert set(df.scale) == {"+1 SD", f"+{k} items"}
     k_row = df[df.scale == f"+{k} items"].iloc[0]
 
-    dz = (_logit(p + k / n_items) - _logit(p)) / sd_logit
+    dz = (
+        logit_safe(np.asarray([mean_items + k]), n_items)[0]
+        - logit_safe(np.asarray([mean_items]), n_items)[0]
+    ) / sd_logit
     ref = _concurrent_ame_ref(eta, beta, dz=dz)
     assert k_row["prob_median"] == pytest.approx(float(np.median(ref)))
     assert k_row["items_median"] == pytest.approx(n_trials * k_row["prob_median"])
@@ -1023,6 +1032,18 @@ def test_concurrent_marginals_no_k_row_without_items_metadata():
     assert list(df.scale) == ["+1 SD"]
 
 
+def test_concurrent_marginals_skips_k_row_for_nonfinite_mean_items():
+    rng = np.random.default_rng(35)
+    eta = rng.normal(0.0, 1.0, (1, 200, 6))
+    beta = rng.normal(0.2, 0.2, (1, 200))
+    trace = _trace_named_vec(eta, scalars={"beta_L": beta})
+    term = ConcurrentTerm(
+        "L", "beta_L", sd_logit=1.0, n_items=32, mean_items=np.nan, k_items=3
+    )
+    df = concurrent_marginals(trace, terms=[term], n_trials=79)
+    assert list(df.scale) == ["+1 SD"]
+
+
 def test_concurrent_marginals_k_row_caps_at_ceiling():
     # Near the ceiling a fixed +k that would push p past 1 is CAPPED to the largest
     # whole increment that still fits below the ceiling, and the row is relabelled to
@@ -1032,7 +1053,9 @@ def test_concurrent_marginals_k_row_caps_at_ceiling():
     beta = rng.normal(0.4, 0.2, (1, 200))
     trace = _trace_named_vec(eta, scalars={"beta_B": beta})
     # mean 0.88 on a 10-item scale: +5 → 1.38 (over ceiling); only +1 (→0.98) fits.
-    term = ConcurrentTerm("B", "beta_B", sd_logit=1.2, n_items=10, mean_prop=0.88, k_items=5)
+    term = ConcurrentTerm(
+        "B", "beta_B", sd_logit=1.2, n_items=10, mean_items=8.8, k_items=5
+    )
     df = concurrent_marginals(trace, terms=[term], n_trials=79)
     assert set(df.scale) == {"+1 SD", "+1 items"}  # capped from +5 to +1
 
@@ -1044,7 +1067,9 @@ def test_concurrent_marginals_k_row_skipped_at_full_ceiling():
     eta = rng.normal(0.0, 1.0, (1, 150, 6))
     beta = rng.normal(0.3, 0.2, (1, 150))
     trace = _trace_named_vec(eta, scalars={"beta_B": beta})
-    term = ConcurrentTerm("B", "beta_B", sd_logit=1.0, n_items=10, mean_prop=0.97, k_items=2)
+    term = ConcurrentTerm(
+        "B", "beta_B", sd_logit=1.0, n_items=10, mean_items=9.7, k_items=2
+    )
     df = concurrent_marginals(trace, terms=[term], n_trials=79)
     assert list(df.scale) == ["+1 SD"]
 

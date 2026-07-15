@@ -16,7 +16,7 @@ format:
 ---
 
 ::: {.callout-note}
-Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+Drafted by a LLM-based AI tool (Claude Code/Fable 5); substantially edited by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 {{< include _partials/_header.qmd >}}
@@ -45,29 +45,18 @@ describe the conditional joint distribution of the skill measures within a treat
 system.
 
 ::: {.callout-note title="Estimand: descriptive association (no causal warrant)"}
-Every coefficient is an **adjusted association**. Conditioning on contemporaneous
-(post-treatment) skill levels is intentional and licensed *because nothing here is read
-causally*. Read the results with the Table-2-fallacy, regression-dilution and
-collinearity-shrinkage caveats set out in the Results section.
+Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
 :::
 
 ## Design
 
-- **Four separate cross-sectional fits** (one row per child per wave), reported side
-  by side — not one stacked model with a child random intercept, which would tilt the
-  coefficients toward a within-child quantity and change the estimand (issue #312
-  decision). The best-powered wave carries the standard convergence gate / posterior
-  diagnostics below; the other waves and all bivariate fits are sub-fits with their own
-  convergence flags in the tables.
+- **Four separate cross-sectional fits** (one row per child per wave), reported side by side — not one stacked model with a child random intercept, which would tilt the coefficients toward a within-child quantity and change the estimand (issue #312 decision). The wave with the largest complete-outcome sample (ties → latest) is the operational diagnostic anchor for the standard trace and plots; this does not make it substantively primary or establish that it is best-powered. Every adjusted and bivariate fit has complete convergence metrics in the tables.
 - **Predictors** enter as standardised same-wave logits with regularising
   `Normal(0, 0.3)` slopes (essential at n ≈ 53 with a collinear predictor cluster).
   Floored measures (`P`, `N`) are excluded as predictors.
 - **Group** is included only as a non-interpretable nuisance term (absorbs arm
   composition at each wave); it is not reported as an association.
-- **Missing predictor values** are mean-imputed (0 on the standardised scale); a
-  predictor's realised variance shrinks with its missingness, biasing that coefficient
-  toward zero — flagged, as in the horseshoe level model. Rows missing the focal
-  *outcome* are dropped.
+- **Missing predictor values** are mean-imputed (0 on the standardised scale). This can bias a conditional coefficient, with no guaranteed direction when missingness relates to the predictor, outcome or other skills; observed and imputed counts are reported. Rows missing the focal *outcome* are dropped.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

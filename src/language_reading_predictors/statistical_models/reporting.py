@@ -1505,13 +1505,15 @@ class ConcurrentTerm:
     sd_logit
         SD of the predictor's raw same-wave logit on the fitted rows — the data-scale
         size of ``+1 SD``. A ``+k items`` increment at the mean operating point is
-        ``Δz = (logit(p̄ + k/N) − logit(p̄)) / sd_logit`` standardised units.
+        ``Δz = (logit_safe(ȳ + k, N) − logit_safe(ȳ, N)) / sd_logit``
+        standardised units, using the fitted Haldane-corrected transformation.
     n_items
         Denominator of the predictor when it is a bounded-count measure; enables the
         ``+k items`` row. ``None`` for age / continuous predictors.
-    mean_prop
-        Mean baseline proportion of a bounded-count predictor on the fitted rows — the
-        operating point at which the ``+k items`` perturbation is evaluated.
+    mean_items
+        Mean bounded-count predictor score on the fitted rows — the operating point at
+        which the ``+k items`` perturbation is evaluated with the same
+        Haldane-corrected logit used to fit the model.
     k_items
         The per-predictor items increment for the ``+k items`` row (the pipeline sets
         it per measure, e.g. ``max(1, round(n_items / 10))``, so a fixed ``+5`` does
@@ -1522,7 +1524,7 @@ class ConcurrentTerm:
     coef: str
     sd_logit: float
     n_items: int | None = None
-    mean_prop: float | None = None
+    mean_items: float | None = None
     k_items: int | None = None
 
 
@@ -1548,8 +1550,10 @@ def concurrent_marginals(
 
     Because the concurrent model has **no interaction terms**, the shift is a scalar
     per draw: ``Δη_s = β_s · Δz`` where ``Δz = 1`` for ``+1 SD`` and
-    ``Δz = (logit(p̄ + k/N) − logit(p̄)) / sd_logit`` for ``+k items``. This is the
-    mutually-adjusted association's marginal — every row carries
+    ``Δz = (logit_safe(ȳ + k, N) − logit_safe(ȳ, N)) / sd_logit`` for ``+k
+    items``, where ``logit_safe`` is the Haldane-corrected transformation used in the
+    factory. This helper applies equally to adjusted and bivariate traces; callers
+    label that fit distinction in the output. Every row carries
     ``role = "association"``; no term here is causal (post-treatment conditioning is
     intentional, per the family's documented estimand).
     """
@@ -1563,7 +1567,6 @@ def concurrent_marginals(
 
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
-    eps = 1e-6
     rows: list[dict[str, float | str]] = []
 
     for term in terms:
@@ -1572,22 +1575,26 @@ def concurrent_marginals(
         perturbations: list[tuple[str, float]] = [("+1 SD", 1.0)]
         if (
             term.n_items
-            and term.mean_prop is not None
+            and term.mean_items is not None
+            and np.isfinite(term.mean_items)
             and term.k_items
             and term.sd_logit > 0
+            and np.isfinite(term.sd_logit)
         ):
-            p = float(np.clip(term.mean_prop, eps, 1 - eps))
-            # Cap the increment to what actually fits below the ceiling at the mean
-            # operating point: a fixed +k with ``p + k/N > 1`` would be silently
-            # clamped, reporting a smaller-than-labelled (or near-zero) shift. Use the
-            # largest whole-item ``k_eff <= k`` with ``p + k_eff/N <= 1 - eps`` and
-            # label that; if even +1 item exceeds the ceiling, no positive increment is
-            # representable, so skip the row.
-            max_k = int(np.floor((1.0 - eps - p) * term.n_items))
+            from language_reading_predictors.statistical_models.preprocessing import (
+                logit_safe,
+            )
+
+            y = float(np.clip(term.mean_items, 0.0, term.n_items))
+            # Cap the increment to the largest whole-item shift that reaches no farther
+            # than the instrument ceiling. The Haldane correction is finite at both
+            # boundaries, so a shift that lands exactly on the ceiling is valid.
+            max_k = int(np.floor(term.n_items - y))
             k_eff = min(int(term.k_items), max_k)
             if k_eff >= 1:
-                p_k = p + k_eff / term.n_items
-                dz = (logit(p_k) - logit(p)) / term.sd_logit
+                raw = logit_safe(np.asarray([y]), term.n_items)[0]
+                raw_k = logit_safe(np.asarray([y + k_eff]), term.n_items)[0]
+                dz = (raw_k - raw) / term.sd_logit
                 perturbations.append((f"+{k_eff} items", dz))
 
         for scale_label, dz in perturbations:

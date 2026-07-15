@@ -435,14 +435,17 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
     family's bivariate + prior-sweep + SES refits) publish CSVs from their own
     standalone traces with no gate — a silently non-converged sub-fit would be
     reported without any flag. This computes the same signals as the main gate
-    (unrounded max R-hat, min bulk/tail ESS, total divergences) and returns a small
-    dict with a ``converged`` boolean, warning loudly when it fails. It is a *flag*,
-    not a hard stop: sensitivity sub-fits should still be reported, but marked.
+    (unrounded max R-hat, min bulk/tail ESS, total divergences and minimum per-chain
+    BFMI) and returns a small dict whose ``converged`` value is ``True`` when the gate
+    passes, ``False`` when it fails, and ``None`` when the diagnostic calculation
+    itself cannot be completed. It is a *flag*, not a hard stop: sensitivity sub-fits
+    should still be reported, but failed or unchecked fits must be marked.
     """
     result = {
-        "converged": True,
+        "converged": None,
         "max_rhat": None,
         "min_ess": None,
+        "min_bfmi": None,
         "n_divergences": None,
     }
     try:
@@ -456,11 +459,24 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
         max_rhat = float(summ["r_hat"].max())
         min_ess = float(min(summ["ess_bulk"].min(), summ["ess_tail"].min()))
         n_div = int(np.asarray(trace.sample_stats["diverging"].values).sum())
+        bfmi = _bfmi_per_chain(trace)
+        min_bfmi = (
+            float(np.min(bfmi))
+            if bfmi is not None and np.all(np.isfinite(bfmi))
+            else None
+        )
         result.update(
-            max_rhat=max_rhat, min_ess=min_ess, n_divergences=n_div
+            max_rhat=max_rhat,
+            min_ess=min_ess,
+            min_bfmi=min_bfmi,
+            n_divergences=n_div,
         )
         result["converged"] = bool(
-            max_rhat <= RHAT_MAX and min_ess >= ESS_THRESHOLD and n_div == 0
+            max_rhat <= RHAT_MAX
+            and min_ess >= ESS_THRESHOLD
+            and min_bfmi is not None
+            and min_bfmi >= BFMI_THRESHOLD
+            and n_div == 0
         )
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]sub-fit convergence check failed for {label}: {exc}[/yellow]")
@@ -470,6 +486,7 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
         rprint(
             f"[red]Sub-fit '{label}' did not meet the convergence gate "
             f"(max R-hat={result['max_rhat']:.4f}, min ESS={result['min_ess']:.0f}, "
+            f"min BFMI={result['min_bfmi'] if result['min_bfmi'] is not None else 'missing'}, "
             f"divergences={result['n_divergences']}); its published estimates are "
             "flagged not-converged.[/red]"
         )

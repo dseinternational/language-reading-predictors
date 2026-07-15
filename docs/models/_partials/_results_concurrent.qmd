@@ -1,38 +1,24 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5); substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 ## Results
 
-_In plain terms:_ at each timepoint this model asks how a child's skills go together
-with their word reading *at that same moment* — for two children the same age and
-alike on the other skills, how much more word reading tends to come with a bit more
-of each skill. It is a description of how the skills co-occur wave by wave, **not** a
-statement that one skill causes another.
+_In plain terms:_ at each timepoint this model asks how a child's skills go together with the focal outcome *at that same moment* — for two children the same age and alike on the other skills, how much the focal outcome tends to differ with a bit more of each predictor skill. It describes how the skills co-occur wave by wave, **not** whether one skill causes another.
 
 ::: {.callout-important title="These are associations — read them as such"}
-Every number here is an **adjusted association**, never a causal effect. Three things
-shape how to read them:
+Every number here is an **association**, never a causal effect. Three things shape how to read the adjusted and bivariate estimates:
 
-- **Table-2 fallacy.** Each adjusted coefficient answers a *different* conditional
-  question ("holding the others fixed"), so the column should not be read as a set of
-  competing causal effects — the biggest number is not "the strongest cause".
-- **Regression dilution.** The predictors are observed test scores measured with
-  error, so the associations are pulled **toward zero** relative to the underlying
-  skills. The longitudinal factor model (issue #313) is the follow-on instrument that
-  corrects for this.
-- **Collinearity shrinkage.** With ~53 children and a tightly inter-correlated skill
-  cluster, the regularising priors pull the mutually-adjusted coefficients toward
-  zero, which is why the adjusted column is smaller than the bivariate one. Both are
-  reported; the *gap* between them is itself informative (it shows how much of a raw
-  link is shared with the other skills).
+- **Table-2 fallacy.** Each adjusted coefficient answers a *different* conditional question ("holding the others fixed"), so the column should not be read as a set of competing causal effects — the biggest number is not "the strongest cause".
+- **Measurement error.** Under classical measurement-error assumptions, using observed test scores commonly attenuates associations relative to associations among the underlying skills. In this multivariable nonlinear model, however, the size and even direction of that distortion are not guaranteed; the longitudinal factor model (issue #313) provides a complementary measurement-error-aware analysis.
+- **Collinearity and regularisation.** With about 53 children and a tightly inter-correlated skill cluster, the regularising priors stabilise otherwise noisy mutually-adjusted coefficients by shrinking them toward zero. An adjusted estimate may be smaller, larger, or have a different sign from its bivariate counterpart because it answers a different conditional question; the difference is informative about sensitivity to adjustment, but it is **not** a decomposition of shared variance.
 
-Group enters only as a non-interpretable nuisance term (it absorbs arm composition at
-each wave); its coefficient is not reported as an association.
+Group enters only as a non-interpretable nuisance term that absorbs arm composition at each wave; its coefficient is not reported as an association.
 :::
 
 ### Adjusted vs bivariate associations, by wave
 
-_In plain terms:_ each predictor gets two numbers per wave — a *bivariate* association
-(its raw same-wave link to word reading on its own) and an *adjusted* association (the
-same link once the other skills and age are held fixed). All are per **+1 SD** of the
-predictor, on the logit scale.
+_In plain terms:_ each predictor gets two numbers per wave — a *bivariate* association (its same-wave link to the focal outcome on its own) and an *adjusted* association (the link after holding the other skills, age, and the group nuisance term fixed). All are per **+1 SD** of the predictor, on the logit scale.
 
 ```{python}
 # | echo: false
@@ -40,42 +26,55 @@ concurrent = _csv("concurrent_associations.csv")
 concurrent if concurrent is not None else "No concurrent-associations table."
 ```
 
-_How to read the table:_ one row per (timepoint, predictor). `adj_*` columns are the
-mutually-adjusted coefficient (per-SD, logit), `biv_*` its standalone bivariate
-counterpart; each carries a 95% credible interval (`*_lo`/`*_hi`) and `*_prob_pos`,
-the posterior probability the association is positive (near 1 = confidently positive,
-near 0 = confidently negative, near 0.5 = undecided). `timepoint` is the wave (t1–t4).
-Where the adjusted estimate sits closer to zero than the bivariate, the other skills
-have absorbed part of that raw link.
+_How to read the table:_ one row represents one timepoint–predictor pair. The `adj_*` columns summarise the mutually-adjusted coefficient (per SD, logit scale), while `biv_*` summarise its standalone bivariate counterpart; each has a 95% credible interval (`*_lo`/`*_hi`) and `*_prob_pos`, the posterior probability that the association is positive (near 1 = confidently positive, near 0 = confidently negative, near 0.5 = direction unresolved). `timepoint` identifies the wave (t1–t4). The `adj_converged` and `biv_converged` fields must both be true before comparing the estimates; a failed flag means that sub-fit is not reliable enough to interpret. Differences between the columns show sensitivity to the conditioning set, not how much variance the other skills "explain".
 
 ```{python}
 # | echo: false
 # | output: asis
 if concurrent is not None and len(concurrent):
-    _prim = (config.get("extra") or {}).get("primary_timepoint")
+    _extra = config.get("extra") or {}
+    _prim = _extra.get("diagnostic_anchor_timepoint", _extra.get("primary_timepoint"))
     print(
-        f"\n_The forest plot below shows the primary wave (t{_prim}) — the "
-        "best-powered fit, which also carries the convergence gate and posterior "
-        "diagnostics above. The other waves are reported in the tables._"
+        f"\n_The forest plot below shows the diagnostic-anchor wave (t{_prim}). "
+        "The pipeline selects the wave with the largest complete-outcome sample, "
+        "breaking a tie in favour of the latest wave; this operational choice determines "
+        "which adjusted fit carries the standard convergence gate and posterior "
+        "diagnostics, but it does **not** make that wave substantively primary or prove "
+        "that it has the most statistical power. Every published adjusted and bivariate "
+        "fit has its own convergence metrics and verdict in the tables._"
     )
-    print("\n\n" + _img("concurrent_associations_forest.png", "Adjusted vs bivariate (primary wave)"))
+    print(
+        "\n\n"
+        + _img(
+            "concurrent_associations_forest.png",
+            "Adjusted vs bivariate associations (diagnostic-anchor wave)",
+        )
+    )
     print(
         "\n_How to read the plot:_ one row per predictor. The blue circle is the "
         "*adjusted* (mutually-adjusted) coefficient, the grey square the *bivariate* "
         "one; bars are 95% credible intervals. The dotted line at 0 is no association "
-        "— markers to its right go with more word reading, to its left with less, and "
-        "a bar crossing 0 means the sign is undecided. As above: adjusted associations, "
-        "not causal effects."
+        "— markers to its right indicate a positive association with the focal outcome, "
+        "markers to its left a negative one, and a bar crossing 0 means the sign remains "
+        "uncertain. These are associations, not causal effects."
     )
 ```
 
-### Items-scale marginals (a reader-friendly size)
+### Fit-level convergence checks
 
-_In plain terms:_ this restates the adjusted association on the everyday scale — for a
-realistic change in each predictor (a `+1 SD` shift, and a `+k`-items shift in that
-predictor's own units), how many more words read tend to go with it. The `+k` is set
-per predictor (roughly a tenth of its scale), so a fixed "+5" does not mean 3% of one
-test and 50% of another.
+_In plain terms:_ the report publishes estimates from four adjusted wave fits and one bivariate fit for each wave–predictor pair. The standard diagnostics above apply to the diagnostic-anchor fit; this table records the matching gate quantities for every published fit, including the anchor, so none is interpreted from a Boolean flag alone.
+
+```{python}
+# | echo: false
+concurrent_fit_diagnostics = _csv("concurrent_fit_diagnostics.csv")
+concurrent_fit_diagnostics if concurrent_fit_diagnostics is not None else "No concurrent fit-diagnostics table."
+```
+
+_How to read the table:_ `max_rhat` must be at most 1.01, `min_ess` at least 400, `min_bfmi` at least 0.3, and `n_divergences` zero. `converged` is true only when all four conditions pass. `fit_kind="adjusted"` is the mutually-adjusted wave model (`predictor="all"`); each `fit_kind="bivariate"` row is the corresponding predictor-only refit. Any failed or unchecked row is a stop sign for interpreting estimates from that fit.
+
+### Probability- and items-scale marginals
+
+_In plain terms:_ this translates both the adjusted and bivariate associations onto more familiar scales. For a realistic change in each predictor — a `+1 SD` shift and, where possible, a `+k items` shift in that predictor's own units — the table reports the associated difference in the focal outcome as both a probability and a number of outcome items. The value of `k` is set separately for each predictor at roughly one tenth of its scale, so a fixed increment does not represent 3% of one test but 50% of another.
 
 ```{python}
 # | echo: false
@@ -83,9 +82,4 @@ concurrent_marginals = _csv("concurrent_marginals.csv")
 concurrent_marginals if concurrent_marginals is not None else "No concurrent-marginals table."
 ```
 
-_How to read the table:_ one row per (timepoint, predictor, scale). `items_median`
-(with its `items_lo`/`items_hi` 95% interval) is the associated difference in **words
-read** for that perturbation of the predictor, holding the other skills fixed;
-`prob_pos` is the posterior probability it is positive. The `+k items` rows are
-evaluated at that wave's mean skill level. Read every value as "how much word reading
-tends to differ by", an adjusted association on a plain scale — not a caused gain.
+_How to read the table:_ one row represents one timepoint–predictor–adjustment–perturbation combination. `adjustment` distinguishes the mutually-adjusted and bivariate fits; `scale` identifies either `+1 SD` or the predictor-specific `+k items` perturbation. `prob_median` and `items_median`, with their corresponding `*_lo`/`*_hi` 95% credible intervals, are the associated differences on the probability and outcome-items scales; `prob_pos` is the posterior probability that the association is positive. The `+k items` rows are evaluated at that wave's mean predictor level. Interpret an adjusted or bivariate row only when its `converged` flag is true, and read every value as "how much the focal outcome tends to differ by", not as a caused gain.

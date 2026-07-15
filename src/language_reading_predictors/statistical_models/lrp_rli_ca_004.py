@@ -40,6 +40,8 @@ SPEC = ModelSpec(
         "vocabulary (per wave)"
     ),
     outcome_symbol="TE",
+    family="concurrent",
+    design="per-wave cross-sectional conditional associations",
     estimand_type="association",
     causal_status="none",
     extra={

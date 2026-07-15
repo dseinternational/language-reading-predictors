@@ -118,6 +118,18 @@ def test_priors_table_applies_context_overrides():
     assert by_param.loc["sigma_dose", "panel"] == "sigma_dose"
 
 
+def test_concurrent_group_term_is_documented_as_nuisance():
+    model = SimpleNamespace(
+        free_RVs=[_rv("beta_L"), _rv("beta_group_nuisance")],
+        deterministics=[],
+    )
+    by_param = priors.priors_table(model).set_index("parameter")
+    assert by_param.loc["beta_L", "role"] == "association"
+    assert by_param.loc["beta_group_nuisance", "role"] == "nuisance"
+    assert by_param.loc["beta_group_nuisance", "distribution"] == "Normal(0, 1)"
+    assert by_param.loc["beta_group_nuisance", "panel"] == ""
+
+
 def test_level_factor_prior_role_is_conservative_for_group_time_vector():
     from language_reading_predictors.statistical_models.pipeline import (
         _prior_table_overrides,

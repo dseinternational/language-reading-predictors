@@ -38,8 +38,9 @@ class ModelSpec:
     cross-check / reproduction families ``"adjusted"``, ``"corr_factor"``,
     ``"dose_response"``, ``"lcsm"``, ``"mediation_multi"``, ``"horseshoe"``,
     ``"growth"`` and ``"historical_growth"``. ``title`` is the long
-    human-readable title shown on the report. ``extra`` is a free-form dict of
-    model-specific settings that the pipeline passes to the factory.
+    human-readable title shown on the report. The descriptive ``"concurrent"``
+    family fits per-wave conditional associations. ``extra`` is a free-form dict
+    of model-specific settings that the pipeline passes to the factory.
     """
 
     model_id: str
