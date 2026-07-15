@@ -9,23 +9,24 @@ asks whether the intervention moved the directly-taught words more in the
 **expressive** modality than in the **receptive** modality. LRPITT16 supplies that
 missing contrast: the two Block 1 *taught* outcomes — expressive taught target words
 (``TE`` = b1extau) and receptive taught target words (``TR`` = b1rectau) — are
-modelled jointly over the randomised window, and the headline quantity is the
-difference in intervention benefit between them.
+fitted as factorised outcome marginals over the randomised window. The headline
+quantity compares their probability-scale intervention benefits.
 
 Sign convention: ``tau`` is the coefficient on the intervention indicator
 (positive => the intervention raised that outcome). The reported contrast is
-``tau[TE] - tau[TR]`` (benefit on taught-expressive minus taught-receptive): a
-positive value means the programme moved the taught words more in production than in
-comprehension.
+``AME[TE] - AME[TR]`` (proportion-correct risk difference for taught expressive
+minus taught receptive): a positive value supports a larger effect in production
+than comprehension. The conditional logit-coefficient difference is secondary.
 
-Both are causal (randomised-window ITT effects), so the contrast is a clean
-comparison of two randomised effects — but the two outcomes are on different item
-denominators, so it is read on the logit scale.
+Both component effects use the randomised window. Because residual correlation is
+disabled, however, the product model does not identify their within-child posterior
+covariance; the paired difference needs an explicit dependence sensitivity.
 
-LKJ residual correlation is OFF, mirroring the documented convergence-safe fallback
-of the LRPITT15 companions: with ``n ~ 53`` and two outcomes, the residual
-correlation is weakly identified and the conservative choice widens the difference
-slightly rather than risk poor mixing.
+LKJ residual correlation is OFF, mirroring the convergence-stable factorised fit
+used by the LRPITT15 companions. This avoids the poor mixing seen in an earlier
+dependence sensitivity, but it does not estimate within-child covariance and is not
+automatically conservative: omitted covariance can widen or narrow the contrast
+interval.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -42,7 +43,30 @@ SPEC = ModelSpec(
         "use_cross_baselines": False,
         "use_age_linear": True,
         "use_residual_correlation": False,
+        "joint_structure": "factorised_outcome_marginals",
+        "loo_unit": "child",
         "difference": ("TE", "TR"),
+        "difference_metadata": {
+            "contrast_kind": "modality",
+            "contrast_label": "Taught expressive versus taught receptive vocabulary",
+            "positive_interpretation": (
+                "A positive contrast means the intervention increased the "
+                "proportion correct more for taught expressive words than for "
+                "taught receptive words."
+            ),
+            "negative_interpretation": (
+                "A negative contrast means the intervention increased the "
+                "proportion correct more for taught receptive words than for "
+                "taught expressive words."
+            ),
+            "dependence_note": (
+                "The fitted model factorises by outcome and does not estimate "
+                "within-child residual covariance, so the current interval omits "
+                "that covariance. Confirmation requires a paired child-level "
+                "randomisation-inference/permutation analysis, bootstrap, sandwich, "
+                "or dependence-model sensitivity."
+            ),
+        },
     },
 )
 

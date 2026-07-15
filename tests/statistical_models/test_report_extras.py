@@ -6,6 +6,7 @@ and the evidence-label rollout into the plain summary cards."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -18,6 +19,9 @@ from language_reading_predictors.statistical_models.reporting import (
     prior_pushforward,
     rope_markdown,
     tau_summary_itt,
+)
+from language_reading_predictors.statistical_models.pipeline import (
+    _save_contrast_heatmap,
 )
 
 
@@ -103,3 +107,37 @@ def test_rope_markdown_items_and_risk_difference():
     assert "percentage points" in md2
     assert "provisional" in md2
     assert "+12.0" in md2
+
+
+def test_probability_contrast_heatmap_saves_with_colorbar(tmp_path):
+    contrast = pd.DataFrame(
+        [[np.nan, 0.8], [0.2, np.nan]],
+        index=["TE", "TR"],
+        columns=["TE", "TR"],
+    )
+
+    _save_contrast_heatmap(SimpleNamespace(output_dir=str(tmp_path)), contrast)
+
+    assert (tmp_path / "contrast_heatmap.png").exists()
+    assert (tmp_path / "contrast_heatmap.svg").exists()
+
+
+def test_floor_report_renders_same_estimand_bounds_and_gates_secondaries():
+    repo = Path(__file__).resolve().parents[2]
+    floor_results = (
+        repo / "docs/models/_partials/_results_floored.qmd"
+    ).read_text(encoding="utf-8")
+    diagnostics = (repo / "docs/models/_partials/_diagnostics.qmd").read_text(
+        encoding="utf-8"
+    )
+
+    assert "floor_transition_missingness_bounds.csv" in floor_results
+    assert "full_randomised_population" not in floor_results  # driven by the CSV
+    assert "_two_sided" in floor_results
+    assert "typically cannot reproduce" not in floor_results
+    assert "tau_summary_hurdle.csv" in floor_results
+    assert "_hurdle_ok" in floor_results
+    assert "Post-outcome selection" in floor_results
+    assert "_is_floor_binary" in diagnostics
+    assert 'config.get("kind") == "joint"' in diagnostics
+    assert "off-floor event rates" in diagnostics

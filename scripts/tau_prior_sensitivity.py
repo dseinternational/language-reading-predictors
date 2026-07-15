@@ -1,21 +1,27 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Treatment-effect (tau) prior-sensitivity sweep for the ITT suite (issue #141).
+"""Prior-sensitivity and unadjusted benchmarks for the ITT suite (#141, #341).
 
 Refits representative single-outcome ITT models across a grid of tau prior SDs and
 reports whether the headline conclusion is stable — posterior direction
-(``pd = P(tau > 0)``), the logit and items-scale effect, and the interval width —
+(``pd = P(AME > 0)``), the logit and items-scale effect, and the interval width —
 rather than a binary significant/not read.
 
 The two-tier proposal keeps the wider ``Normal(0, 0.5)`` for proximal outcomes and
 tightens the broad standardised-transfer (distal) outcomes to ``Normal(0, 0.3)``.
-This sweep is the evidence for that choice: the distal outcomes should be stable
+This sweep audits that post-data regularisation choice: the distal outcomes should be stable
 across defensible SDs and proximal L/W should keep their direction. The default
 now covers **every distal member** — the clearly-null R/E and the *borderline*
 UR/UE/T/F — so the certifying sweep is not limited to the null outcomes (issue
 #267): the printed table lets a reviewer check whether any evidence-ladder
-boundary moves between SD 0.3 and 0.5 for the borderline members.
+boundary moves between SD 0.3 and 0.5 for the borderline members. It separately
+compares the own-baseline precision prior ``Normal(1, 0.25)`` with
+``Normal(1, 0.5)`` for the headline L/W outcomes and fits an unadjusted
+randomised-arm benchmark (no baseline or age precision terms). It also varies
+the Beta-Binomial concentration prior across ``HalfNormal(25)``, ``HalfNormal(50)``,
+``HalfNormal(100)`` and ``HalfNormal(200)`` for L/W, spanning stronger
+overdispersion through a much more permissive near-Binomial region.
 
 Usage::
 
@@ -50,6 +56,10 @@ PROXIMAL_SIGMAS = (0.25, 0.5, 0.75)
 # proximal anchors — so the certifying sweep is not limited to the null outcomes
 # (issue #267).
 DEFAULT_OUTCOMES = ("R", "E", "UR", "UE", "T", "F", "L", "W")
+BASELINE_SENSITIVITY_OUTCOMES = ("L", "W")
+BASELINE_SIGMAS = (0.25, 0.5)
+CONCENTRATION_SENSITIVITY_OUTCOMES = ("L", "W")
+KAPPA_SIGMAS = (25.0, 50.0, 100.0, 200.0)
 
 
 def _sigmas_for(symbol: str) -> tuple[float, ...]:
@@ -58,15 +68,36 @@ def _sigmas_for(symbol: str) -> tuple[float, ...]:
     return DISTAL_SIGMAS if is_distal(symbol) else PROXIMAL_SIGMAS
 
 
-def _fit_one(prepared, symbol: str, sigma: float, sampling, config: str) -> dict:
+def _adopted_tau_sigma(symbol: str) -> float:
+    from language_reading_predictors.statistical_models.measures import is_distal
+
+    return 0.3 if is_distal(symbol) else 0.5
+
+
+def _fit_one(
+    prepared,
+    symbol: str,
+    tau_sigma: float,
+    sampling,
+    config: str,
+    *,
+    gamma_own_sigma: float | None = 0.25,
+    kappa_sigma: float | None = 50.0,
+    use_precision_terms: bool = True,
+    sensitivity_axis: str = "tau_sigma",
+) -> dict:
+    from language_reading_predictors.statistical_models import diagnostics as _diag
     from language_reading_predictors.statistical_models.reporting import tau_summary_itt
 
     built = build_itt_model(
         prepared,
         outcome_symbol=symbol,
         cross_symbols=(),
-        use_age_linear=True,
-        tau_sigma=sigma,
+        use_age_linear=use_precision_terms,
+        use_own_baseline=use_precision_terms,
+        tau_sigma=tau_sigma,
+        gamma_own_sigma=gamma_own_sigma,
+        kappa_sigma=kappa_sigma,
     )
     with built.model:
         trace = pm.sample(
@@ -83,12 +114,26 @@ def _fit_one(prepared, symbol: str, sigma: float, sampling, config: str) -> dict
     s = tau_summary_itt(trace, ci_prob=0.95, G=built.prepared.G)
     n_trials = MEASURES[symbol].n_trials
     tau_draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values
-    r_hat = float(pm.stats.rhat(trace, var_names=["tau"])["tau"].values)
+    kappa_draws = (
+        trace.posterior["kappa"].stack(sample=("chain", "draw")).values
+        if "kappa" in trace.posterior
+        else np.array([np.nan])
+    )
+    free_names = [rv.name for rv in built.model.free_RVs]
+    convergence = _diag.subfit_convergence(
+        trace,
+        label=f"{symbol} {sensitivity_axis}",
+        var_names=free_names,
+    )
     return {
         "config": config,
         "outcome": symbol,
         "n_trials": n_trials,
-        "tau_sigma": sigma,
+        "sensitivity_axis": sensitivity_axis,
+        "tau_sigma": tau_sigma,
+        "gamma_own_sigma": gamma_own_sigma,
+        "kappa_sigma": kappa_sigma,
+        "use_precision_terms": use_precision_terms,
         "n": int(built.prepared.n_obs),
         "pd": s["prob_tau_pos"],
         "tau_logit_mean": s["tau_logit_mean"],
@@ -96,10 +141,15 @@ def _fit_one(prepared, symbol: str, sigma: float, sampling, config: str) -> dict
         "tau_logit_hi": s["tau_logit_hi"],
         "ci_width_logit": s["tau_logit_hi"] - s["tau_logit_lo"],
         "tau_sd_logit": float(np.std(tau_draws)),
+        "kappa_median": float(np.nanmedian(kappa_draws)),
         "items_mean": s["tau_prob_mean"] * n_trials,
         "items_lo": s["tau_prob_lo"] * n_trials,
         "items_hi": s["tau_prob_hi"] * n_trials,
-        "r_hat": r_hat,
+        "converged": convergence["converged"],
+        "max_rhat": convergence["max_rhat"],
+        "min_ess": convergence["min_ess"],
+        "min_bfmi": convergence["min_bfmi"],
+        "n_divergences": convergence["n_divergences"],
     }
 
 
@@ -138,9 +188,19 @@ def main() -> None:
     )
 
     sampling = _sampling.get_sampling_configuration(args.config, random_seed=20260701)
-    prepared = load_and_prepare(phase_mode="itt")
+    # Prepare each outcome separately, matching its registered single-outcome
+    # model. A shared eight-outcome frame would both omit taught outcomes (UR/UE)
+    # and impose an unintended cross-outcome complete-case restriction.
+    prepared_by_symbol = {
+        symbol: load_and_prepare(phase_mode="itt", outcomes=(symbol,))
+        for symbol in args.outcomes
+    }
+    loaded_counts = ", ".join(
+        f"{symbol}={prepared.n_obs}"
+        for symbol, prepared in prepared_by_symbol.items()
+    )
     print(
-        f"Loaded {prepared.n_obs} rows / {prepared.n_children} children; "
+        f"Loaded separate outcome frames ({loaded_counts}); "
         f"config={args.config} (draws={sampling.draws}, tune={sampling.tune}, "
         f"chains={sampling.chains})"
     )
@@ -149,7 +209,80 @@ def main() -> None:
     for symbol in args.outcomes:
         for sigma in _sigmas_for(symbol):
             print(f"  fitting {symbol}  tau ~ Normal(0, {sigma}) ...", flush=True)
-            rows.append(_fit_one(prepared, symbol, sigma, sampling, args.config))
+            rows.append(
+                _fit_one(
+                    prepared_by_symbol[symbol],
+                    symbol,
+                    sigma,
+                    sampling,
+                    args.config,
+                    sensitivity_axis="tau_sigma",
+                )
+            )
+
+    # Own-baseline sensitivity is a separate axis rather than a Cartesian product
+    # with every tau value: it answers the prior-audit question without multiplying
+    # the already large sweep. Restrict it to the two headline reading anchors.
+    for symbol in BASELINE_SENSITIVITY_OUTCOMES:
+        if symbol not in args.outcomes:
+            continue
+        tau_sigma = _adopted_tau_sigma(symbol)
+        for baseline_sigma in BASELINE_SIGMAS:
+            print(
+                f"  fitting {symbol}  gamma_own ~ Normal(1, {baseline_sigma}) ...",
+                flush=True,
+            )
+            rows.append(
+                _fit_one(
+                    prepared_by_symbol[symbol],
+                    symbol,
+                    tau_sigma,
+                    sampling,
+                    args.config,
+                    gamma_own_sigma=baseline_sigma,
+                    sensitivity_axis="gamma_own_sigma",
+                )
+            )
+
+        print(f"  fitting {symbol}  unadjusted randomised-arm benchmark ...", flush=True)
+        rows.append(
+            _fit_one(
+                prepared_by_symbol[symbol],
+                symbol,
+                tau_sigma,
+                sampling,
+                args.config,
+                gamma_own_sigma=None,
+                use_precision_terms=False,
+                sensitivity_axis="unadjusted_benchmark",
+            )
+        )
+
+    # Dispersion-prior sensitivity is kept as its own axis. The larger scales are
+    # important for the 79- and 32-item headline tests because the adopted
+    # HalfNormal(50) puts little mass in the near-Binomial region for high
+    # denominators; a stable treatment contrast should not depend materially on
+    # that restriction.
+    for symbol in CONCENTRATION_SENSITIVITY_OUTCOMES:
+        if symbol not in args.outcomes:
+            continue
+        tau_sigma = _adopted_tau_sigma(symbol)
+        for kappa_sigma in KAPPA_SIGMAS:
+            print(
+                f"  fitting {symbol}  kappa ~ HalfNormal({kappa_sigma:g}) ...",
+                flush=True,
+            )
+            rows.append(
+                _fit_one(
+                    prepared_by_symbol[symbol],
+                    symbol,
+                    tau_sigma,
+                    sampling,
+                    args.config,
+                    kappa_sigma=kappa_sigma,
+                    sensitivity_axis="kappa_sigma",
+                )
+            )
 
     df = pd.DataFrame(rows)
     os.makedirs(args.out_dir, exist_ok=True)
@@ -157,9 +290,21 @@ def main() -> None:
     df.to_csv(out_csv, index=False)
 
     show = df.copy()
-    for c in ("pd", "tau_logit_mean", "tau_logit_lo", "tau_logit_hi",
-              "ci_width_logit", "tau_sd_logit", "items_mean", "items_lo",
-              "items_hi", "r_hat"):
+    for c in (
+        "pd",
+        "tau_logit_mean",
+        "tau_logit_lo",
+        "tau_logit_hi",
+        "ci_width_logit",
+        "tau_sd_logit",
+        "kappa_median",
+        "items_mean",
+        "items_lo",
+        "items_hi",
+        "max_rhat",
+        "min_ess",
+        "min_bfmi",
+    ):
         show[c] = show[c].round(3)
     print("\n=== tau prior sensitivity ===")
     print(show.to_string(index=False))

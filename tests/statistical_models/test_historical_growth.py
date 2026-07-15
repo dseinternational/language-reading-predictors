@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import numpy as np
 import pymc as pm
 import pytest
 
@@ -137,12 +138,37 @@ def test_phase_a_specs_well_formed(model_id, measure):
     assert measure in measures
 
 
-def test_existing_spec_defaults_are_rli(tmp_path):
-    """An intervention-style spec (no dataset metadata) defaults to study rli."""
-    spec = ModelSpec(model_id="lrp-rli-itt-010", kind="itt", title="t", outcome_symbol="W")
+def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
+    """ITT metadata records requested/effective settings and source provenance."""
+    spec = ModelSpec(
+        model_id="lrp-rli-itt-010",
+        kind="itt",
+        title="t",
+        outcome_symbol="W",
+        extra={
+            "outcomes": ("W",),
+            "cross_symbols": (),
+            "use_age_linear": True,
+            "numpy_setting": np.int64(3),
+        },
+    )
     ctx = SimpleNamespace(
         spec=spec,
-        prepared=SimpleNamespace(n_obs=10, n_children=5, n_phases=1, dropped_rows=0),
+        prepared=SimpleNamespace(
+            n_obs=4,
+            n_children=4,
+            n_phases=1,
+            dropped_rows=0,
+            G=np.array([1, 1, 0, 0]),
+            post_counts={"W": np.array([1.0, 2.0, 3.0, np.nan])},
+            n_trials={"W": 79},
+            covariates={"age": np.arange(4.0)},
+            covariate_time={"age": "pre"},
+            dropped_covariates=("constant",),
+            phase_mode="itt",
+            data_path="/study/rli_data_long.csv",
+            data_sha256="abc123",
+        ),
         reporting=SimpleNamespace(output_dir=str(tmp_path), ci_prob=0.95),
         sampling=SimpleNamespace(
             draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
@@ -152,4 +178,16 @@ def test_existing_spec_defaults_are_rli(tmp_path):
     write_run_metadata(ctx)
     cfg = json.loads((tmp_path / "config.json").read_text())
     assert cfg["study_id"] == "rli"
-    assert cfg["family"] is None and cfg["causal_status"] is None
+    assert cfg["family"] == "itt"
+    assert cfg["estimand_type"] == "causal_available_case_randomised_effect"
+    assert cfg["spec_extra"]["outcomes"] == ["W"]
+    assert cfg["spec_extra"]["numpy_setting"] == 3
+    assert cfg["effective_model_settings"]["likelihood"] == "beta_binomial"
+    assert cfg["effective_model_settings"]["effective_adjustment"] == ["age"]
+    assert cfg["data_path"] == "/study/rli_data_long.csv"
+    assert cfg["data_sha256"] == "abc123"
+    counts = {row["arm"]: row for row in cfg["analysis_set_by_arm"]}
+    assert counts["intervention"]["randomised_n"] == 29
+    assert counts["intervention"]["fitted_n"] == 2
+    assert counts["control"]["randomised_n"] == 28
+    assert counts["control"]["fitted_n"] == 1

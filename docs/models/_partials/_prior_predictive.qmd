@@ -35,7 +35,8 @@ if not _has("prior_predictive_check.png"):
 ```{python}
 # | echo: false
 # | output: asis
-# Floored outcomes (P / N): can the prior even produce the observed ~64–78% floor?
-# The shown justification for the binary off-floor primary estimand.
+# Floored outcomes (P / N): can the prior reproduce the observed ~64% t2 floor?
+# Baseline zero rates are about 78% for P and 72% for N. This plot diagnoses the
+# post-hoc binary off-floor branch; it does not establish prior specification.
 print(_img("prior_proportion_at_zero.png", "Prior proportion-at-zero check"))
 ```

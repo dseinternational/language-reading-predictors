@@ -1,5 +1,8 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
+> [!NOTE]
+> Substantially corrected for floor-estimand provenance by a LLM-based AI tool (Codex/GPT-5) on 2026-07-15.
+
 # Floored ITT outcomes (nonword reading, phonetic spelling): keep with a floor‑rule branch, not exclude
 
 > [!WARNING]
@@ -31,12 +34,7 @@ levels/trajectory analysis over all four timepoints?**
 
 ## The decision
 
-**Keep both `N` and `P` in the suite.** Do not exclude them. Handle them with a
-**arm-blind, pre-model-fitting floor-rule branch**: drop the degenerate `gamma_own`, and report a
-**binary off-floor-transition** effect — among children at the floor at baseline — as the _primary_ estimand,
-keeping the graded Beta‑Binomial τ only as a flagged, floor‑limited secondary. Add
-the four‑wave levels/trajectory model the question proposed, but as a separate,
-explicitly **descriptive (non‑ITT)** complement.
+**Keep both `N` and `P` in the suite.** Do not exclude them. Handle them with a **post-hoc, arm-blind floor-rule branch**: drop the degenerate `gamma_own`, and report a **binary off-floor-transition** effect — among children observed at the floor at baseline — as an _exploratory headline_, keeping the graded Beta‑Binomial τ only as a flagged, floor‑limited secondary. The rule is post-hoc because it was adopted after inspecting the t2 distribution and earlier results; arm-blind application does not change that provenance. Add the four-wave levels/trajectory model as a separate, explicitly **descriptive (non-ITT)** complement.
 
 ## Rationale
 
@@ -59,12 +57,12 @@ were being conflated:
    "link‑saturation" hazard on a floored count. The honest response is to **reframe
    the estimand**, not delete the outcome — excluding `N`/`P` would silently bias
    the suite toward the outcomes that happen to be less floored (a selective‑
-   reporting risk), and a floor‑limited null is itself a legitimate pre‑specified
-   ITT result.
+   reporting risk), and a floor-limited result is still worth reporting transparently as a post-hoc exploratory analysis.
 
-**Where the randomised signal actually lives.** The t1→t2 contrast is real and
-correctly signed once you look at _coming off the floor_ rather than graded scores
-(computed from the trial data; immediate = group 1, the arm treated in period 1):
+**The descriptive separation that motivated the exploratory estimand.** After the
+outcomes and earlier results had been inspected, the t1→t2 mover counts showed the
+following arm difference (computed from the trial data; immediate = group 1, the arm
+treated in period 1):
 
 | Outcome               | immediate arm off‑floor by t2 | wait‑list control |
 | --------------------- | ----------------------------- | ----------------- |
@@ -74,7 +72,7 @@ correctly signed once you look at _coming off the floor_ rather than graded scor
 The at‑risk denominators differ by arm, so this is modelled as a **risk contrast**
 (a Bernoulli/logistic τ on `Pr(score > 0 at t2 | score = 0 at t1)`, fit on the baseline-floored at-risk set), with the repo's `G = 2 - group` coding (positive = benefit; PR #117), so that `G = 1` is the immediate-intervention arm and a **positive** τ still means the intervention helps.
 
-## Wait-list crossover replication (triangulation)
+## Wait-list crossover temporal triangulation
 
 A follow-up asked what happened to the wait-list group when it **first received the
 intervention in period 2** (t2 -> t3) -- a within-design mirror of the immediate
@@ -89,22 +87,23 @@ period-1 figures above exactly, as a correctness check):
 | **Wait -- period 2 (first treated, crossover)** | **6/18 (33 %)** | **2/16 (12 %)**       |
 | Immediate -- period 2 (maintenance)             | 7/15 (47 %)     | 4/18 (22 %)           |
 
-**`N` replicates cleanly.** The wait group barely moved off the floor while
-untreated (13 %) but jumped to 33 % off-floor movement _when it crossed over to
-intervention_ -- ~2.5x, timed to treatment onset and mirroring the immediate group's
-own first-treated period (48 %). The effect **follows the treatment across the
-crossover** -- the signature of a genuine intervention effect -- and corroborates the
-randomised period-1 contrast for nonword beyond the single window.
+**`N` is descriptively compatible with temporal replication.** The wait group barely
+moved off the floor while untreated (13 %) but reached 33 % off-floor movement when
+it crossed over to intervention, timed to treatment onset and in the same direction
+as the immediate group's first-treated period (48 %). Because treatment onset is
+confounded with another six months of maturation, this is supportive temporal
+triangulation only; it is not a clean replication or independent causal estimate.
 
-**`P` does not replicate.** The wait group moved off the floor at 12 % whether
+**`P` does not show the same temporal pattern.** The wait group moved off the floor at 12 % whether
 untreated _or_ treated -- no crossover bump. The period-1 immediate-vs-wait gap
 (29 % vs 12 %) fails to reproduce at crossover, so `P`'s off-floor signal is fragile
 and may be partly noise.
 
 **Caveats.** The within-group pre/post (wait P1 -> P2) is **not randomised** --
 crossing over coincides with ~6 more months of maturation, so treatment onset and
-ageing are confounded here; the clean randomised estimate remains the period-1
-contrast, and the crossover is **triangulation**, not a second randomised estimate.
+ageing are confounded here; the randomised evidence remains the available-case
+period-1 contrast in the observed baseline-floor subgroup, and the crossover is
+**triangulation**, not a second randomised estimate.
 Nor is it a pure on/off switch: the immediate group keeps clearing the floor in
 maintenance/post periods, partly because each period's at-risk set is just the
 still-floored children (denominator depletion) and partly continued consolidation.
@@ -116,25 +115,33 @@ P2) -- rather than a fixed-calendar four-wave trajectory, which is the cleaner w
 let the post-t2 data speak while respecting the crossover. This dovetails with the
 period-resolved / intervention-aligned analysis already proposed in issue #104.
 
-## The agreed specification (arm-blind floor-rule branch)
+## The implemented reanalysis specification (arm-blind floor-rule branch)
 
-A rule fixed **arm-blind and before any treatment model is fitted** (data-driven on the floor rate, not pre-registered) — see the estimand-shopping guard below: any outcome with **≥ 40 % of post‑scores at zero at
-t2** (currently only `P` and `N`):
+The ≥40 % t2-zero rule is applied mechanically without arm labels before each new
+floor-model fit, but the rule itself was selected only after this trial's outcome
+distribution, an earlier graded posterior and the mover counts had been inspected.
+That operational ordering prevents further treatment-label-driven drift; it cannot
+make the estimand prospective. For the two qualifying outcomes, `P` and `N`, the
+pipeline:
 
 1. **drops `gamma_own`** and uses an **age‑only** precision predictor
    `alpha + tau·G + gamma_A·age`;
-2. reports a **binary off-floor-transition τ as PRIMARY**, among children at the floor at baseline (`Pr(score > 0 at t2 | score = 0 at t1)`, on the baseline-floored at-risk set) — a conditional/subgroup ITT effect;
+2. reports a **binary off-floor-transition τ as an exploratory headline**, among children observed at the floor at baseline (`Pr(score > 0 at t2 | observed score = 0 at t1)`, on the baseline-floored at-risk set) — a conditional/subgroup randomised contrast subject to observed-eligibility and outcome-missingness assumptions;
 3. retains the graded Beta‑Binomial τ as a **flagged, floor‑limited SECONDARY**,
    read only beside the per‑arm mover table, under a "detection‑limited outcome"
    banner;
 4. carries a **proportion‑at‑zero posterior‑predictive check** and the per‑arm
-   off‑floor mover counts as diagnostics.
+   off‑floor mover counts as diagnostics; and
+5. reports sharp archive-only and full-57 bounds that jointly vary missing t1 floor
+   eligibility and missing t2 off-floor status, alongside a separate graded-score
+   attrition benchmark.
 
-`N` lands on the age‑only predictor for two compounding reasons: the 72 % baseline
-floor, _and_ the repo's existing convention that `nonword` is "post‑only; not used
-as a baseline" (`measures.py`). Note the convention is a modelling choice, not a
-data absence — `nonword` _is_ populated at t1 (50 non‑missing, 14 non‑zero) — so the
-age‑only spec is justified by **degeneracy + convention**, not by impossibility.
+`N` lands on the age‑only regression predictor because its baseline is heavily
+floored and was historically treated as "post-only" for regression (`measures.py`).
+That convention is not data absence: `nonword` is populated at t1 for 50 children
+(14 non-zero), and the current transition estimand uses that baseline to define
+eligibility. The age-only regression is therefore a modelling choice, not an
+impossibility.
 
 ## The four‑wave levels analysis: complement, not substitute
 
@@ -145,8 +152,8 @@ t2→t4 window is **not randomised**. Such a model answers "does this skill grow
 treatment‑plus‑maturation," confounded by crossover and by whatever predicts late
 emergence — **not** "does the intervention move this skill." It is therefore added
 to issue #119 as a clearly‑labelled **descriptive** deliverable, complementing the
-randomised off‑floor ITT and never sold as one. It does not rescue the randomised
-question; it answers a different one.
+available-case randomised subgroup contrast and never sold as one. It does not
+rescue the randomised question; it answers a different one.
 
 **Preferred form -- intervention-aligned.** Frame the descriptive complement as an
 **intervention-aligned (treatment-on) period** model -- pooling each group's _first
@@ -156,16 +163,14 @@ The wait-list crossover above shows why this is the more honest descriptive wind
 
 ## The one genuine objection, and the guard
 
-The strongest cross‑lens objection is **estimand‑shopping**: the mover counts above
-already hint at the result, so "switch to a binary estimand because of the floor" is
-only credible if the floor rule is **written into issue #119 and applied arm‑blind
-before any model is fitted**. That is now a hard **arm-blind, pre-model-fitting** gate in the issue — data-driven on the floor rate, not a protocol pre-registration.
-
-**Fallback.** If that discipline cannot be guaranteed, the safer default is the
-_uniformity‑purist_ option: keep all 11 models identically specified, drop
-`gamma_own`, and honestly report `N`/`P`'s wide graded τ under a floor banner.
-Bespoke per‑outcome specifications are themselves a researcher degree of freedom, so
-the floor‑rule branch earns its keep only if it is fixed in advance.
+The strongest cross‑lens objection is **estimand‑shopping**: the graded posterior and
+mover counts were already visible when the binary transition was chosen. Writing the
+rule into issue #119 and applying it arm-blind to subsequent fits is useful process
+discipline, but it cannot erase that history. The safeguard is therefore reporting,
+not retrospective pre-specification: call the transition result post-hoc and
+exploratory, retain the uniformly specified graded result as a secondary, place the
+outcome below the reanalysis's single headline outcome in the hierarchy, and show how
+missing eligibility and outcomes can change the raw contrast.
 
 ## Per‑measure note
 

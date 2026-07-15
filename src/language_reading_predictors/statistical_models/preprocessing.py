@@ -21,6 +21,7 @@ Conventions
 
 from __future__ import annotations
 
+import hashlib
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
@@ -94,8 +95,9 @@ class PreparedData:
     the immediate arm) maps to ``1`` and group 2 (*Wait for intervention*, the
     waitlist control) maps to ``0`` (see :func:`load_and_prepare`). So a model's
     group coefficient is on the **intervention** indicator: e.g. an ITT ``tau > 0``
-    means the immediate-intervention arm scores higher, and ``P(tau > 0)`` is
-    ``P(treatment helps)``."""
+    means the immediate-intervention arm scores higher. ITT reports use
+    ``P(AME > 0)`` for the fitted-sample intervention-help claim and retain
+    ``P(tau_logit > 0)`` as a secondary coefficient probability."""
     A_months: np.ndarray
     """Age in months at the pre-timepoint of each phase. shape (n_obs,)."""
     A_std: np.ndarray
@@ -138,6 +140,10 @@ class PreparedData:
     zero) or wholly missing (all one). Such a covariate gets **no coefficient**, so
     it must not appear in the reported adjustment set.
     """
+    data_path: str = ""
+    """Absolute path of the CSV used to construct this prepared dataset."""
+    data_sha256: str = ""
+    """SHA-256 digest of the CSV used to construct this prepared dataset."""
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +155,16 @@ def _default_data_path() -> Path:
     from language_reading_predictors.statistical_models import environment as env
 
     return Path(env.DATA_DIR) / "rli_data_long.csv"
+
+
+def _data_provenance(path: Path) -> tuple[str, str]:
+    """Return the resolved source path and a streaming SHA-256 digest."""
+    resolved = path.resolve()
+    digest = hashlib.sha256()
+    with resolved.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return str(resolved), digest.hexdigest()
 
 
 #: Missing-indicator hearing-status covariates derived by :func:`add_hearing_status`
@@ -399,6 +415,7 @@ def load_and_prepare(
         )
 
     csv_path = Path(path) if path is not None else _default_data_path()
+    data_path, data_sha256 = _data_provenance(csv_path)
     df = pd.read_csv(csv_path)
     # Derive the missing-indicator hearing-status covariates (HS; #244) up front so
     # ``hs`` / ``hs_missing`` are available as complete adjusters (no row dropping).
@@ -577,16 +594,23 @@ def load_and_prepare(
     subject_ids = merged[V.SUBJECT_ID].to_numpy()
     _, child_idx = np.unique(subject_ids, return_inverse=True)
 
-    # Group: dataset uses 1 = immediate-intervention, 2 = wait-list control.
+    # Group: dataset uses exactly 1 = immediate-intervention and 2 = wait-list
+    # control. Validate the raw values *before* integer conversion: casting first
+    # would silently turn a corrupt value such as 1.5 into a valid-looking 1.
+    raw_group = merged[V.GROUP].to_numpy(dtype=float)
+    valid_group = np.isfinite(raw_group) & np.isin(raw_group, (1.0, 2.0))
+    if not valid_group.all():
+        invalid = np.unique(raw_group[~valid_group])
+        raise ValueError(
+            "Group codes must be exactly 1 (immediate intervention) or 2 "
+            f"(wait-list control); found invalid raw value(s) {invalid.tolist()}"
+        )
+
     # Recode so G = 1 is the intervention arm and G = 0 the control arm. This
     # gives the "positive = intervention benefit" sign convention for every
     # coefficient on G (tau, tau_i/tau_k, beta_G, b_G, b_GM, a_G). See the
     # "Sign convention" section of METHODS.md.
-    G = (2 - merged[V.GROUP].to_numpy(dtype=int)).astype(np.int64)
-    if not set(np.unique(G)).issubset({0, 1}):
-        raise ValueError(
-            f"Group codes outside {{1, 2}} after prep: found {np.unique(merged[V.GROUP])}"
-        )
+    G = (2 - raw_group.astype(np.int64)).astype(np.int64)
 
     A_months = merged[V.AGE].to_numpy(dtype=float)
     A_std, age_scaler = standardise(A_months)
@@ -608,6 +632,18 @@ def load_and_prepare(
             checks.append(("pre", merged[f"{m.column}_pre"].to_numpy(dtype=float)))
         for which, arr in checks:
             finite = arr[np.isfinite(arr)]
+            if finite.size and np.any(finite != np.rint(finite)):
+                invalid = np.unique(finite[finite != np.rint(finite)])
+                raise ValueError(
+                    f"Measure {s!r} ({m.column}_{which}) must contain integer "
+                    f"counts; found fractional value(s) {invalid.tolist()}"
+                )
+            if finite.size and finite.min() < 0:
+                raise ValueError(
+                    f"Measure {s!r} ({m.column}_{which}) has value "
+                    f"{finite.min():g} below the valid lower bound 0; check the "
+                    "source data."
+                )
             if finite.size and finite.max() > m.n_trials:
                 if s in drop_ceiling_violations:
                     # Corrupt cell(s): treat as missing (NaN) so the factory keep-mask
@@ -695,6 +731,8 @@ def load_and_prepare(
         dropped_rows=dropped,
         phase_mode=phase_mode,
         column_map=column_map,
+        data_path=data_path,
+        data_sha256=data_sha256,
     )
 
 
@@ -752,6 +790,17 @@ def load_and_prepare_lagged_outcome(
     # log-likelihood. Fail loudly (issue #273).
     m = MEASURES[outcome_symbol]
     finite = new_post[np.isfinite(new_post)]
+    if finite.size and np.any(finite != np.rint(finite)):
+        invalid = np.unique(finite[finite != np.rint(finite)])
+        raise ValueError(
+            f"Measure {outcome_symbol!r} ({col} at t{outcome_time}) must contain "
+            f"integer counts; found fractional value(s) {invalid.tolist()}"
+        )
+    if finite.size and finite.min() < 0:
+        raise ValueError(
+            f"Measure {outcome_symbol!r} ({col} at t{outcome_time}) has value "
+            f"{finite.min():g} below the valid lower bound 0; check the source data."
+        )
     if finite.size and finite.max() > m.n_trials:
         raise ValueError(
             f"Measure {outcome_symbol!r} ({col} at t{outcome_time}) has value "
@@ -796,15 +845,16 @@ def _subset_prepared(prepared: PreparedData, mask: np.ndarray) -> PreparedData:
 
 
 def restrict_to_baseline_floored(prepared: PreparedData, symbol: str) -> PreparedData:
-    """Restrict to rows where ``symbol`` is at the floor (score 0) at the pre-wave.
+    """Restrict to rows with an observed pre-wave ``symbol`` score of zero.
 
-    The heavily-floored floor-rule outcomes (P, N) pre-specify their PRIMARY ITT
-    estimand (issue #119) as the off-floor **transition among baseline-floored
-    children**: ``Pr(post > 0 | pre == 0)`` — *not* ``Pr(post > 0)`` over everyone
-    (which mixes already-off-floor children into a mover analysis and dilutes the
-    contrast). Baseline floor status is measured **pre-randomisation**, so
-    conditioning on it keeps the randomised arm contrast valid (a legitimate
-    subgroup ITT). Returns a new :class:`PreparedData` over the at-risk rows.
+    The post-hoc floor-rule branch for P and N reports the off-floor transition
+    among children whose baseline floor status is both observed and zero:
+    ``Pr(post > 0 | observed pre == 0)``. Missing pre-scores are deliberately
+    excluded rather than treated as zeros. Baseline floor status is measured
+    **pre-randomisation**, so conditioning on an observed value keeps the arm
+    contrast causally valid for that subgroup, subject to the usual assumptions
+    about outcome and eligibility missingness. Returns a new
+    :class:`PreparedData` over the eligible rows.
     """
     if symbol not in prepared.pre_logit:
         raise ValueError(
@@ -860,6 +910,7 @@ def load_and_prepare_aligned(
     """
     outcomes = tuple(outcomes)
     csv_path = Path(path) if path is not None else _default_data_path()
+    data_path, data_sha256 = _data_provenance(csv_path)
     df = pd.read_csv(csv_path)
 
     windows = {1: (1, 3), 2: (2, 4)}  # group -> (onset pre_t, aligned post_t)
@@ -917,7 +968,15 @@ def load_and_prepare_aligned(
 
     subject_ids = merged[V.SUBJECT_ID].to_numpy()
     _, child_idx = np.unique(subject_ids, return_inverse=True)
-    G = (2 - merged[V.GROUP].to_numpy(dtype=int)).astype(np.int64)
+    raw_group = merged[V.GROUP].to_numpy(dtype=float)
+    valid_group = np.isfinite(raw_group) & np.isin(raw_group, (1.0, 2.0))
+    if not valid_group.all():
+        invalid = np.unique(raw_group[~valid_group])
+        raise ValueError(
+            "Group codes must be exactly 1 (immediate intervention) or 2 "
+            f"(wait-list control); found invalid raw value(s) {invalid.tolist()}"
+        )
+    G = (2 - raw_group.astype(np.int64)).astype(np.int64)
     A_months = merged[V.AGE].to_numpy(dtype=float)
     A_std, age_scaler = standardise(A_months)
 
@@ -931,6 +990,18 @@ def load_and_prepare_aligned(
         pre_arr = merged[f"{m.column}_pre"].to_numpy(dtype=float)
         for which, arr in (("post", post_counts[s].astype(float)), ("pre", pre_arr)):
             finite = arr[np.isfinite(arr)]
+            if finite.size and np.any(finite != np.rint(finite)):
+                invalid = np.unique(finite[finite != np.rint(finite)])
+                raise ValueError(
+                    f"Measure {s!r} ({m.column}_{which}) must contain integer "
+                    f"counts; found fractional value(s) {invalid.tolist()}"
+                )
+            if finite.size and finite.min() < 0:
+                raise ValueError(
+                    f"Measure {s!r} ({m.column}_{which}) has value "
+                    f"{finite.min():g} below the valid lower bound 0; check the "
+                    "source data."
+                )
             if finite.size and finite.max() > m.n_trials:
                 raise ValueError(
                     f"Measure {s!r} ({m.column}_{which}) has value {finite.max():g} "
@@ -971,6 +1042,8 @@ def load_and_prepare_aligned(
         dropped_rows=dropped,
         phase_mode="aligned",
         column_map=column_map,
+        data_path=data_path,
+        data_sha256=data_sha256,
     )
 
 

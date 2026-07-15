@@ -3,7 +3,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 >
-> Substantially edited in the waitlist-crossover guidance by a LLM-based AI tool (Codex/GPT-5).
+> Substantially edited in the waitlist-crossover guidance and ITT direction-field guidance by a LLM-based AI tool (Codex/GPT-5).
 
 # Runbook — full statistical-model refit, render, publish and record
 
@@ -240,7 +240,7 @@ Every full refit gets a dated `notes/` note. Follow `METHODS.md` "Interpret / Re
 
 | Family                 | File                                                        | Read                                                                                                                                                                                                |
 | ---------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `itt`                  | `tau_summary.csv` / `rope_summary.csv`                      | `tau_prob_median`, CI, `prob_tau_pos`, `favoured_direction_label`; floored P/N → `offfloor_movers.csv`                                                                                              |
+| `itt`                  | `tau_summary.csv` / `rope_summary.csv`                      | `tau_prob_median`, CI, `prob_ame_pos`, `favoured_direction_label` (`prob_tau_pos` is a compatibility alias); floored P/N → `offfloor_movers.csv`                                                   |
 | `joint`                | `tau_contrast_matrix.csv`                                   | pairwise P(effect_i > effect_j); generalisation contrasts                                                                                                                                           |
 | `did`                  | `did_summary.csv`                                           | `tau_t2` is the randomised causal contrast; `arm_gap_t1` checks balance; `arm_gap_t3` and `delta_crossover = tau_t2 - arm_gap_t3` are post-crossover associations; every dose term is observational |
 | `gain_factors`         | `treatment_marginal.csv`                                    | `trt_prob_*` (the only causal coefficient)                                                                                                                                                          |

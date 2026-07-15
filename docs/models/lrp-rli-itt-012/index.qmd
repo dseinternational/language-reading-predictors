@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -23,21 +27,11 @@ format:
 
 ## Overview
 
-LRPITT12 estimates the joint posterior over the treatment effects of the LRPITT
-suite, using the RCT phase only. It delivers cross-outcome contrasts (e.g.
-"is $\tau_L$ more positive than $\tau_W$?") and acts as a consistency check on the
-single-outcome LRPITT models. The proximal $\tau_k$ should track their
-single-outcome counterparts closely; the distal outcomes (R, E, UR, UE) carry the
-tiered $\mathrm{Normal}(0, 0.3)$ prior in the single-outcome suite but the untiered
-$\mathrm{Normal}(0, 0.5)$ prior here, so they may differ by a **prior-driven** amount
-that is not Monte Carlo noise (and the joint is fit on $n = 53$ vs the
-single-outcome $n = 54$).
+LRPITT12 fits all baseline-bearing LRPITT outcomes in one PyMC graph using the randomised phase only. Because residual correlation is disabled and the priors are independent by outcome, the posterior factorises into a product of outcome-specific marginals. This is a computationally convenient consistency analysis, not a dependence-aware joint posterior. Cross-outcome comparisons therefore use standardised probability-scale average marginal effects and retain an explicit paired-dependence caveat.
 
-The model is a **linear Beta-Binomial across ten outcomes** with shared predictor
-structure mirroring the single-outcome suite: outcome-specific intercepts,
-treatment effects, own-baseline + linear-age **precision** terms (no
-cross-baselines — the ITT effect is identified by the empty adjustment set), and
-outcome-specific dispersion; no age GP and no LKJ residual correlation.
+The proximal conditional logit coefficients should track their single-outcome counterparts closely. The distal outcomes (R, E, UR, UE) carry the tiered $\mathrm{Normal}(0, 0.3)$ prior in the single-outcome suite but the untiered $\mathrm{Normal}(0, 0.5)$ prior here, so they may differ by a **prior-driven** amount that is not Monte Carlo noise (and the multi-outcome model is fit on $n = 53$ versus single-outcome $n = 54$).
+
+The model is a product of ten linear Beta-Binomial marginals with common predictor structure: outcome-specific intercepts, treatment effects, own-baseline and linear-age **precision** terms, and outcome-specific dispersion. It has no cross-baselines, age Gaussian process or LKJ residual correlation.
 
 ::: {.callout-note title="Outcome set: ten of the eleven suite measures"}
 
@@ -48,7 +42,7 @@ $(\tau_{TR}, \tau_{TE}, \tau_{UR}, \tau_{UE}, \tau_R, \tau_E, \tau_L, \tau_B, \t
   enter the joint's dense pre-score matrix. Its treatment effect is read from the
   single-outcome **off-floor** model LRPITT11.
 - **Phonetic spelling (P) is included as a graded outcome** (its floored baseline
-  simply shrinks $\gamma^{\text{own}}_P$); the binary off-floor primary for P is in
+  simply shrinks $\gamma^{\text{own}}_P$); the binary off-floor exploratory analysis for P is in
   LRPITT09. The joint $\tau_P$ here is the graded effect — read it alongside the
   off-floor result, not on its own.
 
@@ -69,9 +63,7 @@ outcome-specific dispersion $\kappa_k$. Observations with a missing post-score a
 masked per-outcome. **Sign convention:** $G = 1$ is the intervention arm, so a
 **positive** $\tau_k$ means the intervention raised outcome $k$.
 
-The LKJ residual-correlation and age-GP flags are off by default (both
-prior-dominated / divergence-inducing at this scale; re-enable via
-`ModelSpec.extra` for a sensitivity fit).
+The LKJ residual-correlation and age-GP flags are off by default because previous fits found them weakly identified or divergence-inducing. Cross-outcome uncertainty must not be described as propagating estimated within-child covariance. PSIS-LOO is aggregated over observed outcome cells within child, so its predictive unit is a held-out child rather than a held-out child-outcome cell.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

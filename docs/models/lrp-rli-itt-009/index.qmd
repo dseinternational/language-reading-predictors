@@ -1,5 +1,5 @@
 ---
-title: "LRPITT09: ITT analysis of phonetic spelling (SPPHON) (P)"
+title: "LRPITT09: modified-ITT analysis of phonetic spelling (SPPHON) (P)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially revised by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -23,37 +27,23 @@ format:
 
 ## Overview
 
-**In plain terms.** Did the children offered the intervention spell more words phonetically than those who were not — and how large, and how certain, is that difference? Because group assignment was randomised, this is a genuine causal (intention-to-treat) effect of *being offered* the programme, not just an association.
+**In plain terms.** Among children whose phonetic-spelling score was observed to be zero before randomisation, did those offered the intervention become more likely to score above zero at t2? Random assignment supports a causal arm contrast for this pre-treatment subgroup, but this particular subgroup estimand was selected post-hoc and the repository does not contain all randomised children.
 
-LRPITT09 is the intention-to-treat (ITT) analysis for phonetic spelling
-(`spphon`). The estimand is the total effect of randomised group assignment $G$ on
-the outcome, using the RCT phase only (time 1 $\rightarrow$ time 2). Phonetic
-spelling is heavily floored at t2 (~78% of post-scores at zero), so it takes the
-pre-specified **floor-rule branch** (issue #119).
+LRPITT09 is an available-case, modified-ITT reanalysis of phonetic spelling (`spphon`) over the randomised t1 $\rightarrow$ t2 phase. At baseline, 42/54 children (about 78%) scored zero; at t2, 34/53 observed scores (about 64%) were zero. One baseline-floor child lacks a t2 score, leaving 41 children eligible for the transition analysis (24 intervention, 17 control).
 
-::: {.callout-important title="Floored outcome — the binary off-floor estimand is PRIMARY"}
+::: {.callout-important title="Post-hoc floored-outcome estimand — exploratory headline"}
 
-An outcome with $\geq 40\%$ of its post-scores at zero at t2 (computed **arm-blind**
-and fixed **before** fitting) is leveraged, on the graded scale, by a handful of
-dispersed tail values rather than by the arm contrast. Under the floor rule this
-model therefore:
+The floor rule and its 40% threshold were adopted after inspecting these outcome distributions and earlier model results. It is therefore **post-hoc and data-adaptive**, not pre-registered or prospectively specified. Applying the mechanical gate without arm labels reduces treatment-effect-driven selection, but does not change that evidential status. Under this rule the model:
 
 - drops the degenerate own baseline and uses an **age-only** predictor;
-- reports the **off-floor transition** effect,
-  $\Pr(\text{post} > 0 \mid \text{at floor at } t_1)$, restricted to the
-  **baseline-floored at-risk** children, as the **PRIMARY** estimand — the
-  pre-specified quantity (#119) where the randomised signal verifiably lives, and
-  *not* $\Pr(\text{post} > 0)$ over everyone (which mixes already-off-floor
-  children into the mover analysis and dilutes the contrast). Conditioning on
-  baseline floor status is pre-randomisation, so this stays a valid subgroup ITT; and
-- retains two flagged, **detection-limited SECONDARIES**, read only alongside the
-  per-arm mover counts and never on their own: the graded Beta-Binomial $\tau$
-  over all children, and the **graded contrast among the off-floor children**
-  ($\text{post} > 0$) — an *untruncated* proxy for the conditional-above-floor mean
-  $\mathrm{E}[\text{post} \mid \text{post} > 0]$ (a zero-truncated Beta-Binomial is
-  not cleanly available, so the plain fit slightly overstates it), whose contrast
-  also conditions on a post-randomisation event and is therefore not a clean
-  randomised effect.
+- reports $\Pr(\text{post} > 0 \mid \text{observed pre} = 0)$ among the **observed baseline-floor subgroup** as the exploratory headline. Baseline floor status is pre-randomisation, so conditioning on its observed value preserves the causal arm contrast for that subgroup, subject to the assumptions that absence from the dataset, the missing t2 score, and observed eligibility are not informative for the treatment effect; and
+- retains two flagged, **detection-limited secondaries**, read only alongside the per-arm mover counts: the graded Beta-Binomial $\tau$ over all outcome-available children, and the **graded contrast among off-floor children** ($\text{post} > 0$). The latter is an untruncated proxy for $\mathrm{E}[\text{post} \mid \text{post} > 0]$ and conditions on a post-randomisation event, so it is not a randomised causal effect.
+
+:::
+
+::: {.callout-warning title="Analysis population and eligibility"}
+
+The published trial randomised 57 children (29 intervention, 28 wait-list), whereas the archived repository dataset contains 54 (28 intervention, 26 wait-list); phonetic spelling is observed at t2 for 53. This is therefore not a full-randomised-cohort ITT analysis. Each fit writes `baseline_floor_eligibility.csv` and records the same arm-specific counts in `config.json`; the causal reading requires an explicit missingness assumption or a sensitivity analysis for unavailable randomised participants.
 
 :::
 
@@ -69,7 +59,7 @@ the floor.
 
 ## Model
 
-PRIMARY (binary off-floor), with $\eta_i = \alpha + \tau\,G_i + \gamma_A\,A_{\text{std},i}$:
+Exploratory headline (binary off-floor transition among children with observed $P_{\text{pre}}=0$), with $\eta_i = \alpha + \tau\,G_i + \gamma_A\,A_{\text{std},i}$:
 
 $$
 [\,P_{\text{post},i} > 0\,] \sim \text{Bernoulli}\big(\sigma(\eta_i)\big).
@@ -78,7 +68,7 @@ $$
 SECONDARY (graded, detection-limited): the *same* age-only $\eta_i$ with a
 Beta-Binomial likelihood on the count, $P_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $N = 92$.
 
-![Model diagram (primary)](model_graph.png){#fig-model .lightbox fig-align="left"}
+![Model diagram (exploratory off-floor analysis)](model_graph.png){#fig-model .lightbox fig-align="left"}
 
 {{< include _partials/_priors.qmd >}}
 

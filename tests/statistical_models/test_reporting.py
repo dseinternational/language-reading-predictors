@@ -33,7 +33,10 @@ from language_reading_predictors.statistical_models.reporting import (
     rope_sensitivity,
     rope_sensitivity_markdown,
     rope_summary,
+    tau_contrast_matrix,
+    tau_difference_summary,
     tau_moderation_summary,
+    tau_summary_joint,
     tau_summary_itt,
     tau_summary_offfloor,
     treatment_marginal_effect,
@@ -276,6 +279,123 @@ def test_tau_summary_itt_constant_tau_average_marginal_effect():
     assert out["tau_prob_median"] == pytest.approx(_ame_median_by_loop(eta, tau, G))
     assert out["tau_logit_median"] == pytest.approx(float(np.median(tau)))
     assert out["prob_tau_pos"] == pytest.approx(1.0)  # both tau draws > 0
+    assert out["prob_tau_logit_pos"] == pytest.approx(1.0)
+
+
+def test_tau_summary_itt_direction_uses_moderated_average_effect():
+    """A positive centred tau must not label a negative moderated AME beneficial."""
+    n_draw, n_obs = 40, 3
+    G = np.array([1.0, 0.0, 1.0])
+    tau = np.full((1, n_draw), 0.2)
+    interaction = np.full((1, n_draw), -1.0)
+    moderator = np.ones(n_obs)
+    delta = 0.2 - 1.0 * moderator
+    eta = np.broadcast_to((delta * G)[None, None, :], (1, n_draw, n_obs)).copy()
+    posterior = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), eta),
+            "tau": (("chain", "draw"), tau),
+            "gamma_tau_int": (("chain", "draw"), interaction),
+        }
+    )
+    out = tau_summary_itt(
+        SimpleNamespace(posterior=posterior),
+        ci_prob=0.95,
+        G=G,
+        moderators=(("gamma_tau_int", moderator),),
+    )
+    assert out["prob_tau_logit_pos"] == pytest.approx(1.0)
+    assert out["prob_tau_pos"] == pytest.approx(0.0)
+    assert out["favoured_direction"] == "negative"
+
+
+def _joint_trace(tau: np.ndarray, eta0: np.ndarray, G: np.ndarray):
+    """Synthetic factorised multi-outcome trace with eta built at observed G."""
+    n_chain, n_draw, n_outcome = tau.shape
+    n_obs = eta0.shape[0]
+    eta = np.empty((n_chain, n_draw, n_obs, n_outcome))
+    for k in range(n_outcome):
+        eta[..., k] = eta0[:, k][None, None, :] + tau[..., k, None] * G
+    posterior = xr.Dataset(
+        {
+            "tau": (("chain", "draw", "outcome"), tau),
+            "eta": (("chain", "draw", "obs_id", "outcome"), eta),
+        },
+        coords={"outcome": ["A", "B"], "obs_id": np.arange(n_obs)},
+    )
+    constant = xr.Dataset(
+        {
+            "G": ("obs_id", G),
+            "y_post_cell_row": ("cell", np.repeat(np.arange(n_obs), n_outcome)),
+            "y_post_cell_outcome": ("cell", np.tile(np.arange(n_outcome), n_obs)),
+        }
+    )
+    return SimpleNamespace(posterior=posterior, constant_data=constant)
+
+
+def test_joint_summaries_use_common_probability_scale():
+    rng = np.random.default_rng(22)
+    tau = np.stack(
+        [rng.normal(0.6, 0.02, 200), rng.normal(0.3, 0.02, 200)], axis=-1
+    )[None, ...]
+    G = np.array([1.0, 0.0, 1.0, 0.0])
+    # A is near the floor, while B is at the high-information midpoint. Thus
+    # tau_A > tau_B on the logit scale but AME_A < AME_B on the probability scale.
+    eta0 = np.array([[-4.0, 0.0]] * G.size)
+    trace = _joint_trace(tau, eta0, G)
+    summary = tau_summary_joint(trace, ["A", "B"], 0.95)
+    assert summary.loc[0, "tau_logit_median"] > summary.loc[1, "tau_logit_median"]
+    assert summary.loc[0, "ame_prob_median"] < summary.loc[1, "ame_prob_median"]
+    primary = tau_contrast_matrix(trace, ["A", "B"])
+    secondary = tau_contrast_matrix(trace, ["A", "B"], scale="logit")
+    assert primary.loc["A", "B"] < 0.05
+    assert secondary.loc["A", "B"] > 0.95
+
+
+def test_joint_difference_uses_metadata_and_retains_logit_secondary():
+    rng = np.random.default_rng(23)
+    tau = np.stack(
+        [rng.normal(0.5, 0.05, 300), rng.normal(0.1, 0.05, 300)], axis=-1
+    )[None, ...]
+    G = np.array([1.0, 0.0])
+    trace = _joint_trace(tau, np.zeros((2, 2)), G)
+    metadata = {
+        "contrast_kind": "modality",
+        "contrast_label": "Expressive versus receptive",
+        "positive_interpretation": "Positive favours expressive.",
+        "transfer_outcome": "B",
+        "transfer_interpretation": "Read the marginal B effect.",
+    }
+    out = tau_difference_summary(
+        trace, ["A", "B"], ("A", "B"), ci_prob=0.95, metadata=metadata
+    )
+    assert out["headline_scale"] == "proportion_correct_risk_difference"
+    assert out["diff_prob_median"] > 0
+    assert out["diff_logit_median"] > 0
+    assert out["contrast_kind"] == "modality"
+    assert out["positive_interpretation"] == "Positive favours expressive."
+    assert out["transfer_outcome"] == "B"
+    assert out["transfer_interpretation"] == "Read the marginal B effect."
+
+
+def test_taught_contrast_metadata_requires_the_untaught_marginal_for_transfer_claims():
+    from language_reading_predictors.statistical_models.lrp_rli_itt_015 import (
+        SPEC as EXPRESSIVE_SPEC,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_itt_115 import (
+        SPEC as RECEPTIVE_SPEC,
+    )
+
+    for spec in (EXPRESSIVE_SPEC, RECEPTIVE_SPEC):
+        metadata = spec.extra["difference_metadata"]
+        interpretation = metadata["positive_interpretation"]
+        assert "does not by itself show that generalisation was limited" in interpretation
+        assert "marginal not-taught effect" in interpretation
+        assert "negligible-effect threshold" in interpretation
+        assert metadata["transfer_outcome"] in {"UE", "UR"}
+        assert "marginal" in metadata["transfer_interpretation"]
+        assert "negligible-effect threshold" in metadata["transfer_interpretation"]
+        assert "randomisation-inference/permutation analysis" in metadata["dependence_note"]
 
 
 def test_tau_summary_itt_operating_point_comes_from_full_eta():

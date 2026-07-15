@@ -92,10 +92,47 @@ print(_img("pair_plot.png", "Pairs"))
 # | echo: false
 # | output: asis
 print(_img("posterior_predictive_check.png", "Posterior-predictive vs observed"))
-print(
-    "\n_How to read it:_ the black line is the observed outcome distribution and the "
-    "blue band is many datasets simulated from the fitted model. A good fit keeps the "
-    "black line inside the blue band across its whole range; a systematic departure "
-    "shows where the model reproduces the data poorly."
+_is_floor_binary = bool(
+    config.get("spec_extra", {}).get("floor_rule")
+    or config.get("effective_model_settings", {}).get("floor_rule")
 )
+if config.get("kind") == "joint":
+    print(
+        "\n_How to read it:_ for the named outcome, the blue histogram contains "
+        "posterior-predictive count draws and the red histogram contains the observed "
+        "counts. They should overlap without a systematic location, spread, floor or "
+        "ceiling discrepancy. Outcomes are selected with the saved cell map and are "
+        "never pooled across incompatible test denominators."
+    )
+elif _is_floor_binary:
+    print(
+        "\n_How to read it:_ this exploratory headline model predicts the binary event of moving "
+        "above zero, not a graded item count. The observed and simulated event "
+        "distributions should agree; the quantitative arm-specific table below is "
+        "more informative than a smooth density display for a binary outcome."
+    )
+else:
+    print(
+        "\n_How to read it:_ the black line is the observed outcome distribution and "
+        "the blue band is many datasets simulated from the fitted model. A good fit "
+        "keeps the black line inside the blue band across its whole range; a systematic "
+        "departure shows where the model reproduces the data poorly."
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+_ppc_calibration = _csv("posterior_predictive_calibration.csv")
+if _ppc_calibration is not None:
+    print("### Quantitative calibration by arm and baseline band\n")
+    if _is_floor_binary:
+        print("The table compares observed and replicated off-floor event rates within each randomised arm. Because the outcome is Bernoulli, `mean_proportion` and `ceiling_rate` both mean the off-floor rate, while `floor_rate` is its complement. An `outside_interval` flag means the observed rate lies outside the model's central posterior-predictive interval; the two-sided tail area shows how extreme it is.")
+    else:
+        print("The table compares observed and replicated mean proportion of the maximum score, floor rate and ceiling rate within each randomised arm and baseline-score band. An `outside_interval` flag means the observed statistic lies outside the model's central posterior-predictive interval; the two-sided tail area shows how extreme it is. These checks treat the Beta-Binomial as a bounded-score working likelihood, not a literal exchangeable-item response model.")
+```
+
+```{python}
+# | echo: false
+_ppc_calibration
 ```
