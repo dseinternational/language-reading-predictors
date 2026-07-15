@@ -792,6 +792,42 @@ def test_concurrent_factory_bivariate_single_predictor(tmp_path):
     assert betas == {"beta_L"}
 
 
+def test_concurrent_factory_accepts_non_w_focal(tmp_path):
+    """#312 extension: any core-set measure can be the focal outcome, with word
+    reading entering as a predictor (the ca-002/003/004 configuration)."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _subset_prepared,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "L", "B"))
+    wave = _subset_prepared(prep, prep.phase == 1)
+    built = build_concurrent_model(
+        wave, outcome_symbol="L", predictor_symbols=["W", "B"]
+    )
+    betas = {v.name for v in built.model.free_RVs if v.name.startswith("beta_")}
+    assert {"beta_W", "beta_B"}.issubset(betas)
+    assert "beta_L" not in betas  # the focal never predicts itself
+
+
+def test_concurrent_specs_mirror_core_skill_set():
+    """#312 extension invariant: each ca spec conditions its focal outcome on the
+    family core set {W, L, B, TR, TE, R, E} minus itself (floored P/N excluded)."""
+    from language_reading_predictors.statistical_models import (
+        lrp_rli_ca_001,
+        lrp_rli_ca_002,
+        lrp_rli_ca_003,
+        lrp_rli_ca_004,
+    )
+
+    core = {"W", "L", "B", "TR", "TE", "R", "E"}
+    for mod in (lrp_rli_ca_001, lrp_rli_ca_002, lrp_rli_ca_003, lrp_rli_ca_004):
+        spec = mod.SPEC
+        preds = set(spec.extra["predictor_symbols"])
+        assert spec.outcome_symbol in core
+        assert preds == core - {spec.outcome_symbol}, spec.model_id
+
+
 # --- Longitudinal correlated-domain-factor model (LRP-RLI-LCF-001, #313) ----------
 
 _LCF_TEST_DOMAINS = {

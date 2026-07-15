@@ -35,7 +35,8 @@ intercept, which would tilt the coefficients toward a within-child quantity); gr
 included only as a non-interpretable nuisance term to absorb arm composition;
 predictors entered as standardised same-wave logits; floored measures (P, N) excluded
 as predictors. Word reading is the focal outcome for this first model; letter sounds
-and taught vocabulary follow once the pattern settles (the family's extension).
+and taught vocabulary are the sibling focal outcomes (``lrp_rli_ca_002``-``004``),
+each conditioning on the core skill set {W, L, B, TR, TE, R, E} minus itself.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

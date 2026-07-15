@@ -1,5 +1,5 @@
 ---
-title: "LRP-CA-001: Concurrent conditional associations — skills → word reading (per wave)"
+title: "LRP-CA-004: Concurrent conditional associations — skills → taught expressive vocabulary (per wave)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -27,22 +27,24 @@ Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 
 ## Overview
 
-LRP-CA-001 is the first model of the **concurrent conditional-associations** family
-(#312, descriptive-association workstream #314). At each timepoint (t1–t4) it fits a
-between-child Beta-Binomial regression of **word reading's level** on the standardised
-same-wave logits of a core skill set — letter sounds (`L`), blending (`B`), taught
-receptive (`TR`) and expressive (`TE`) vocabulary, and receptive (`R`) and expressive
+LRP-CA-004 extends the **concurrent conditional-associations** family (#312,
+descriptive-association workstream #314) to **taught expressive vocabulary** (block 1,
+`TE`) as the focal outcome. At each timepoint (t1–t4) it fits a between-child
+Beta-Binomial regression of taught expressive vocabulary's level on the standardised
+same-wave logits of the other core skills — word reading (`W`), letter sounds (`L`),
+blending (`B`), taught receptive vocabulary (`TR`), and receptive (`R`) and expressive
 (`E`) vocabulary — plus age and a group nuisance term. The four waves are fitted
 separately and reported side by side.
 
-The estimand is the mutually-adjusted association at each wave: *"at wave t, among
-children alike on age and the other skills, +n of a predictor skill is associated with
-+m more words read"*. No model in the rest of the suite estimates this — the
-level-factors family deliberately omits cross-skill terms to protect the causal reading
-of its group×time contrast, but that objection does not apply to a family that makes
-**no causal claim at all**. All children are on the intervention from t2, so these
-describe the conditional joint distribution of the skill measures within a treated
-system.
+The family's core skill set is {`W`, `L`, `B`, `TR`, `TE`, `R`, `E`}: each model
+conditions its focal outcome on the remaining six, so alongside `lrp-rli-ca-001`
+(word reading) and `lrp-rli-ca-002` (letter sounds) the models describe the
+conditional joint distribution of the same measure set from different sides. The
+taught receptive companion `TR` stays in the predictor set — the two taught tests are
+strongly correlated, but the regularising priors handle the collinearity and the
+adjusted-vs-bivariate gap is itself informative. All children are on the intervention
+from t2, so these describe the conditional joint distribution of the skill measures
+within a treated system.
 
 ::: {.callout-note title="Estimand: descriptive association (no causal warrant)"}
 Every coefficient is an **adjusted association**. Conditioning on contemporaneous
