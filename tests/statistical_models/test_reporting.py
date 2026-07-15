@@ -24,6 +24,7 @@ from language_reading_predictors.statistical_models.reporting import (
     eti_bands,
     evidence_label,
     favoured_direction,
+    joint_treatment_marginals,
     level_t2_marginal_effect,
     longitudinal_conditional_slopes,
     longitudinal_factor_correlations,
@@ -993,6 +994,40 @@ def _trace_named(eta, **scalars):
         },
     )
     return SimpleNamespace(posterior=ds)
+
+
+def test_joint_treatment_marginals_push_each_outcome_to_its_item_scale():
+    outcomes = ["W", "L"]
+    groups = np.array([0.0, 1.0])
+    tau = np.array([[[0.2, 0.4], [0.4, 0.6], [0.6, 0.8]]])
+    eta = np.zeros((1, 3, 2, 2))
+    eta[:, :, 1, :] = tau
+    posterior = xr.Dataset(
+        {
+            "tau": (("chain", "draw", "outcome"), tau),
+            "eta": (("chain", "draw", "obs_id", "outcome"), eta),
+        },
+        coords={
+            "chain": [0],
+            "draw": np.arange(3),
+            "obs_id": np.arange(2),
+            "outcome": outcomes,
+        },
+    )
+    out = joint_treatment_marginals(
+        SimpleNamespace(posterior=posterior),
+        outcomes=outcomes,
+        G=groups,
+        n_trials={"W": 100, "L": 30},
+        deltas={"W": 1.0},
+        ci_prob=0.95,
+    ).set_index("outcome")
+
+    for index, outcome in enumerate(outcomes):
+        draws = (expit(tau[0, :, index]) - 0.5) * {"W": 100, "L": 30}[outcome]
+        assert out.loc[outcome, "items_median"] == pytest.approx(np.median(draws))
+    assert out.loc["W", "prob_benefit_ge_delta"] == pytest.approx(1.0)
+    assert np.isnan(out.loc["L", "delta_items"])
 
 
 def test_treatment_marginal_effect_folds_onto_core_and_reports_median():

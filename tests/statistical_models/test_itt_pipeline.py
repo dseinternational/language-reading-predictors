@@ -752,6 +752,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
     )
     load_calls = []
     build_calls = []
+    marginal_calls = []
     contrast_scales = []
     difference_calls = []
     monkeypatch.setattr(
@@ -787,6 +788,24 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
         ),
     )
 
+    def marginals(*args, **kwargs):
+        marginal_calls.append(kwargs)
+        return pd.DataFrame(
+            {
+                "outcome": ["TE", "UE"],
+                "items_median": [1.4, 0.5],
+                "items_lo": [0.1, -0.4],
+                "items_hi": [2.7, 1.3],
+                "prob_pos": [0.98, 0.84],
+            }
+        )
+
+    monkeypatch.setattr(
+        pipeline._report,
+        "joint_treatment_marginals",
+        marginals,
+    )
+
     def contrast(*args, **kwargs):
         contrast_scales.append(kwargs["scale"])
         return pd.DataFrame(
@@ -817,6 +836,9 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
     assert build_calls[0]["outcomes"] == ("TE", "UE")
     assert build_calls[0]["use_cross_baselines"] is False
     assert build_calls[0]["use_residual_correlation"] is False
+    assert marginal_calls[0]["outcomes"] == ["TE", "UE"]
+    assert marginal_calls[0]["G"] is prepared.G
+    assert marginal_calls[0]["n_trials"] is prepared.n_trials
     assert contrast_scales == ["probability", "logit"]
     assert difference_calls[0]["G"] is prepared.G
     assert difference_calls[0]["metadata"] == SPEC.extra["difference_metadata"]
@@ -824,6 +846,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
     for filename in (
         "trace.nc",
         "tau_summary.csv",
+        "joint_treatment_marginal.csv",
         "tau_contrast_matrix.csv",
         "tau_contrast_matrix_logit.csv",
         "tau_difference.csv",
