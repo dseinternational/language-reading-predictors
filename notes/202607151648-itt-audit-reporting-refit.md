@@ -23,17 +23,17 @@ The implementation reviewed here is commit `0cd8e54221b54b135e11c5c82229f19401ba
 
 The primary-fit output root was reused during the audit and predates the new fresh-run manifest requirement. Its primary traces, configurations, counts, data digest, convergence summaries, and downstream sensitivity bindings were revalidated against the implementation above, and the checksums below identify the exact local snapshot inspected. They do not substitute for the fresh versioned output root and completed run manifest required by `docs/runbooks/full-statistical-model-refit.md` before any future external publication or upload.
 
-| Audited artefact | SHA-256 |
-| ---------------- | ------- |
-| Standard 44-cell sensitivity manifest, `tau_prior_sensitivity/tau_prior_sensitivity.csv` | `256ef2029194073f20438016d1dd0dac397b40accabe66892fee1bf05b9d8cc8` |
+| Audited artefact                                                                                    | SHA-256                                                            |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Standard 44-cell sensitivity manifest, `tau_prior_sensitivity/tau_prior_sensitivity.csv`            | `256ef2029194073f20438016d1dd0dac397b40accabe66892fee1bf05b9d8cc8` |
 | Central 12-cell floor sensitivity manifest, `floor_tau_prior_sensitivity/tau_prior_sensitivity.csv` | `a017ee69fdf82b8076844b5b3b5cea70a1ad91892dcbf1bf3096a06de90afcdd` |
-| P report-local floor sensitivity manifest | `7081150987d76d0ab2a53ee5fa755c3a734fb70ad653d471c88c91e7e8be6db8` |
-| N report-local floor sensitivity manifest | `cc1185e33445c5143a29e765af283cd00d3ad02cb90d72c36327faba2d578427` |
-| ITT012 influence manifest | `4d5e13e3c77c956feb6366f2460faa1982e114bdf097c9c00d1136f55e534e3` |
-| ITT013 influence manifest | `3245ecf78312bc1faf1d15c99d3918a699f585b9b99da7cf997b74b35f2f56bf` |
-| ITT023 influence manifest | `dee8397172748226db1623924a6d84f5d63e401cb72cff2f0861155576c0e133` |
-| ITT012 posterior-predictive shape calibration | `07ab157278012a6bf808064a0a491888762c3da5da4ef7967c516ce5ea89037a` |
-| ITT012 prior-versus-posterior diagnostic PNG | `a6fd4e891a6514d45687fce2ea4f4dbfe6f633bb585ebc37301dfad33cfbb447` |
+| P report-local floor sensitivity manifest                                                           | `7081150987d76d0ab2a53ee5fa755c3a734fb70ad653d471c88c91e7e8be6db8` |
+| N report-local floor sensitivity manifest                                                           | `cc1185e33445c5143a29e765af283cd00d3ad02cb90d72c36327faba2d578427` |
+| ITT012 influence manifest                                                                           | `4d5e13e3c77c956feb6366f2460faa1982e114bdf097c9c00d1136f55e534e3`  |
+| ITT013 influence manifest                                                                           | `3245ecf78312bc1faf1d15c99d3918a699f585b9b99da7cf997b74b35f2f56bf` |
+| ITT023 influence manifest                                                                           | `dee8397172748226db1623924a6d84f5d63e401cb72cff2f0861155576c0e133` |
+| ITT012 posterior-predictive shape calibration                                                       | `07ab157278012a6bf808064a0a491888762c3da5da4ef7967c516ce5ea89037a` |
+| ITT012 prior-versus-posterior diagnostic PNG                                                        | `a6fd4e891a6514d45687fce2ea4f4dbfe6f633bb585ebc37301dfad33cfbb447` |
 
 ## Sampling and convergence
 
