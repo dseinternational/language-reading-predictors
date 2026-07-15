@@ -113,16 +113,29 @@ def _proportion_row(nie: np.ndarray, total: np.ndarray, lo_q: float, hi_q: float
     with np.errstate(divide="ignore", invalid="ignore"):
         prop = nie / total
     prop = prop[np.isfinite(prop)]
+    # Guard the degenerate all-non-finite case (e.g. Total == 0 on every draw):
+    # np.quantile / np.median on an empty array raise, so report NaN intervals
+    # instead. The decomposition itself (NDE/NIE/Total) is the robust reading;
+    # the proportion is a fragile ratio at the best of times.
+    if prop.size == 0:
+        prop_stats = dict.fromkeys(
+            ("prob_median", "prob_mean", "prob_lo", "prob_hi", "prob_lo90", "prob_hi90"),
+            float("nan"),
+        )
+    else:
+        prop_stats = {
+            # A ratio: report its median (the mean is unstable when Total crosses
+            # zero); no longer overloaded onto prob_mean (#268).
+            "prob_median": float(np.median(prop)),
+            "prob_mean": float(np.mean(prop)),
+            "prob_lo": float(np.quantile(prop, lo_q)),
+            "prob_hi": float(np.quantile(prop, hi_q)),
+            "prob_lo90": float(np.quantile(prop, 0.05)),
+            "prob_hi90": float(np.quantile(prop, 0.95)),
+        }
     return {
         "quantity": "proportion_mediated",
-        # A ratio: report its median (the mean is unstable when Total crosses
-        # zero); no longer overloaded onto prob_mean (#268).
-        "prob_median": float(np.median(prop)),
-        "prob_mean": float(np.mean(prop)),
-        "prob_lo": float(np.quantile(prop, lo_q)),
-        "prob_hi": float(np.quantile(prop, hi_q)),
-        "prob_lo90": float(np.quantile(prop, 0.05)),
-        "prob_hi90": float(np.quantile(prop, 0.95)),
+        **prop_stats,
         "words_median": np.nan,
         "words_mean": np.nan,
         "words_lo": np.nan,

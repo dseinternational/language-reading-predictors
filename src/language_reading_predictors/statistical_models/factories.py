@@ -2376,6 +2376,17 @@ def build_period_stacked_mediation_model(
 
     N_med = prepared.n_trials[mediator_symbol]
     N_out = prepared.n_trials[outcome_symbol]
+    # Graded Beta-Binomial legs only (no off-floor branch): this factory has no
+    # off-floor likelihood, and the g-formula labels every effect off_floor=False
+    # and reports words = prob * N_out. A unit denominator would silently make
+    # that "items" scale a risk difference while the flag still said graded — the
+    # inconsistency the reviewer flagged — so fail fast instead of building it.
+    for sym, n in ((mediator_symbol, N_med), (outcome_symbol, N_out)):
+        if n <= 1:
+            raise ValueError(
+                f"period-stacked mediation is graded-only, but {sym!r} has "
+                f"n_trials={n}; a floored/off-floor outcome is out of scope here"
+            )
     L2_count = prepared.post_counts[mediator_symbol].astype(np.int64)
     W2_count = prepared.post_counts[outcome_symbol].astype(np.int64)
     trt = ((prepared.G == 1) | (prepared.phase >= 1)).astype(float)

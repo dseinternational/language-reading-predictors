@@ -23,6 +23,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_period_stacked_mediation_model,
 )
 from language_reading_predictors.statistical_models.mediation import (
+    _proportion_row,
     decompose,
     decompose_period_stacked,
     sensitivity_sweep,
@@ -69,6 +70,20 @@ def _fake_trace(
                 arr = np.abs(arr) + 5.0  # kappa / sigma must be positive
         data[name] = (("chain", "draw"), arr)
     return SimpleNamespace(posterior=xr.Dataset(data))
+
+
+def test_proportion_row_handles_all_nonfinite_ratios():
+    """Degenerate Total == 0 on every draw: the NIE/Total ratio is non-finite for
+    all draws, so the proportion interval must be NaN, not a np.quantile crash
+    (reviewer #333)."""
+    total = np.zeros(50)
+    nie = np.full(50, 0.1)
+    row = _proportion_row(nie, total, 0.025, 0.975)
+    assert row["quantity"] == "proportion_mediated"
+    for col in ("prob_median", "prob_lo", "prob_hi", "prob_lo90", "prob_hi90"):
+        assert np.isnan(row[col])
+    # P(Total > 0) is still well-defined on the full array (0 here).
+    assert row["prob_pos"] == 0.0
 
 
 def test_decompose_beta_binomial(tmp_path):
@@ -275,6 +290,22 @@ def test_period_stacked_factory_requires_all_phase_mode(tmp_path):
 
     with pytest.raises(ValueError, match="phase_mode='all'"):
         build_period_stacked_mediation_model(prep_itt)
+
+
+def test_period_stacked_factory_rejects_ungraded_denominator(tmp_path):
+    """Graded-only contract: an outcome with a unit denominator would make the
+    g-formula's "words" scale a risk difference while off_floor stays False, so
+    the factory must fail fast (reviewer #333)."""
+    import dataclasses
+
+    import pytest
+
+    prep = _prepare_stacked(tmp_path)
+    # Nonword N has n_trials = 6; force it to 1 to trip the guard without needing
+    # a floored measure with a real unit denominator.
+    prep_bad = dataclasses.replace(prep, n_trials={**prep.n_trials, "W": 1})
+    with pytest.raises(ValueError, match="graded-only"):
+        build_period_stacked_mediation_model(prep_bad, confounder_symbols=("E", "R"))
 
 
 def test_decompose_period_stacked_all_rows_and_p1_mask(tmp_path):
