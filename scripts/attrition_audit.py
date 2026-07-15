@@ -1,13 +1,13 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Attrition / outcome-missingness audit for the RLI waves (#230 §3).
+"""Analysis-set and outcome-missingness audit for the RLI trial (#230/#341).
 
-Issue #230 §3 asks whether the statistical suite needs an MNAR / informative-attrition
-sensitivity analysis, on the grounds that the complete-case comparators only handle
-*covariate* missingness, not *outcome* dropout. This audit is the evidence for that
-decision: it counts, per outcome and per wave, how many children have a non-missing
-score, and how many are lost across the windows the headline estimands actually use —
+The published trial randomised 57 children, but the archived modelling dataset
+contains 54. The first table therefore distinguishes absence from the dataset
+from within-dataset outcome missingness. The second counts, per outcome and wave,
+how many archived children have a non-missing score and how many are lost across
+the windows the headline estimands use —
 
 - the randomised **ITT window** t1 -> t2 (a child with a t1 baseline but no t2 post),
 - the **DiD crossover window** t1 -> t2 -> t3 (a t2 score but no t3), and
@@ -18,7 +18,8 @@ It fits no model and makes no causal claim; it only tabulates observed missingne
 
 Standalone by design: reads ``data/rli_data_long.csv`` directly and resolves its output
 path through ``language_reading_predictors.paths``. Writes
-``attrition_audit.csv`` to ``output/audit/`` (gitignored) and prints the table.
+``analysis_set_audit.csv`` and ``attrition_audit.csv`` to ``output/audit/``
+(gitignored) and prints both tables.
 
 Run::
 
@@ -33,6 +34,11 @@ import pandas as pd
 
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
+from language_reading_predictors.statistical_models.itt_audit import (
+    CONTROL_G,
+    INTERVENTION_G,
+    RLI_RANDOMISED_BY_G,
+)
 from language_reading_predictors.statistical_models.measures import MEASURES
 
 # Outcomes audited: the eight standardised ITT outcomes plus nonword reading, in a
@@ -42,6 +48,13 @@ WAVES: tuple[int, ...] = (1, 2, 3, 4)
 
 _DATA_PATH = _paths.DATA_DIR / "rli_data_long.csv"
 
+# Raw trial group codes are 1/2; the model layer recodes them to 1/0. Keep the
+# published allocation counts in itt_audit.py as the single source of truth.
+RANDOMISED_BY_GROUP: dict[int, tuple[str, int]] = {
+    1: ("intervention", RLI_RANDOMISED_BY_G[INTERVENTION_G]),
+    2: ("control", RLI_RANDOMISED_BY_G[CONTROL_G]),
+}
+
 
 def _wide(df: pd.DataFrame, column: str) -> pd.DataFrame:
     # pivot (not pivot_table): for an audit the counts must be trustworthy, so a
@@ -49,6 +62,54 @@ def _wide(df: pd.DataFrame, column: str) -> pd.DataFrame:
     # by the default aggfunc='mean' (#298 review). The panel is balanced today (216 =
     # 54x4), so this is a guard, not a behaviour change.
     return df.pivot(index=V.SUBJECT_ID, columns=V.TIME, values=column)
+
+
+def analysis_set_audit(df: pd.DataFrame) -> pd.DataFrame:
+    """Compare published randomised allocation with children in the CSV."""
+    subject_groups = df[[V.SUBJECT_ID, V.GROUP]].drop_duplicates()
+    per_subject = subject_groups.groupby(V.SUBJECT_ID, dropna=False)[V.GROUP].nunique(
+        dropna=False
+    )
+    if not bool((per_subject == 1).all()):
+        bad = per_subject[per_subject != 1].index.tolist()
+        raise ValueError(f"group assignment is not unique for subject(s): {bad}")
+
+    observed_group = subject_groups.set_index(V.SUBJECT_ID)[V.GROUP]
+    invalid = sorted(set(observed_group.dropna().unique()) - set(RANDOMISED_BY_GROUP))
+    if observed_group.isna().any() or invalid:
+        raise ValueError(
+            "analysis-set audit requires complete group codes 1/2; "
+            f"invalid values: {invalid}"
+        )
+
+    rows: list[dict[str, str | int]] = []
+    for code, (arm, randomised_n) in RANDOMISED_BY_GROUP.items():
+        dataset_n = int((observed_group == code).sum())
+        if dataset_n > randomised_n:
+            raise ValueError(
+                f"archived {arm} count {dataset_n} exceeds published randomised "
+                f"count {randomised_n}"
+            )
+        rows.append(
+            {
+                "arm": arm,
+                "randomised_n": randomised_n,
+                "dataset_n": dataset_n,
+                "absent_from_dataset_n": randomised_n - dataset_n,
+            }
+        )
+    rows.append(
+        {
+            "arm": "total",
+            "randomised_n": sum(v[1] for v in RANDOMISED_BY_GROUP.values()),
+            "dataset_n": int(observed_group.size),
+            "absent_from_dataset_n": (
+                sum(v[1] for v in RANDOMISED_BY_GROUP.values())
+                - int(observed_group.size)
+            ),
+        }
+    )
+    return pd.DataFrame(rows)
 
 
 def audit(df: pd.DataFrame) -> pd.DataFrame:
@@ -98,15 +159,24 @@ def main() -> None:
 
     df = pd.read_csv(_DATA_PATH)
     n_subjects = int(df[V.SUBJECT_ID].nunique())
+    analysis_set = analysis_set_audit(df)
     table = audit(df)
 
     out_dir = _paths.output_root() / "audit"
     out_dir.mkdir(parents=True, exist_ok=True)
+    analysis_set_path = out_dir / "analysis_set_audit.csv"
+    analysis_set.to_csv(analysis_set_path, index=False)
     out_path = out_dir / "attrition_audit.csv"
     table.to_csv(out_path, index=False)
 
-    print(f"\nTotal subjects: {n_subjects}")
-    print("\n=== outcome missingness by wave + window attrition ===")
+    print("\n=== published randomised allocation -> archived dataset ===")
+    print(analysis_set.to_string(index=False))
+    print(
+        "\nThe outcome table below is conditional on the "
+        f"{n_subjects}-child archived dataset; it cannot audit outcomes for the "
+        "three randomised children who are absent from that file."
+    )
+    print("\n=== within-dataset outcome missingness by wave + window attrition ===")
     print(table.to_string(index=False))
     itt = int(table["itt_window_attrition"].sum())
     t2t3 = int(table["t2_to_t3_attrition"].sum())
@@ -116,6 +186,7 @@ def main() -> None:
         f"max t4 attrition on any outcome: {int(table['t4_attrition'].max())}. "
         "(The DiD chain t1->t2->t3 is complete for an outcome iff both are 0.)"
     )
+    print(f"wrote {analysis_set_path}")
     print(f"wrote {out_path}")
 
 

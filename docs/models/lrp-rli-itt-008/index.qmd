@@ -1,5 +1,5 @@
 ---
-title: "LRPITT08: ITT analysis of phoneme blending (B)"
+title: "LRPITT08: Modified-ITT analysis of phoneme blending (B)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -23,17 +23,14 @@ format:
 
 ## Overview
 
-**In plain terms.** Did the children offered the intervention blend more spoken sounds together into words than those who were not — and how large, and how certain, is that difference? Because group assignment was randomised, this is a genuine causal (intention-to-treat) effect of *being offered* the programme, not just an association.
+**In plain terms.** Did the children offered the intervention blend more spoken sounds together into words than those who were not — and how large, and how certain, is that difference? Randomisation identifies the effect of *being offered* the programme within the fitted observed-data analysis set. Because the repository omits three randomised children and the model requires its analytic variables to be observed, this is an available-case modified-ITT contrast whose wider causal reading assumes ignorable missingness, not a full ITT of all 57 children.
 
-LRPITT08 is the intention-to-treat (ITT) analysis for phoneme blending (`blending`). The
-estimand is the total effect of randomised group assignment $G$ on the post-score
-$B_{\text{post}}$, using the RCT phase only (time 1 $\rightarrow$ time 2).
+LRPITT08 is the available-case modified-ITT analysis for phoneme blending (`blending`). The estimand is the randomised offer effect of group assignment $G$ on the post-score $B_{\text{post}}$ in the model-specific fitted sample, using the RCT phase only (time 1 $\rightarrow$ time 2).
 
 
 ::: {.callout-note title="Identification and sign convention"}
 
-Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
-identified by the **empty adjustment set**. The own baseline $\gamma_{\text{own}}$
+Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ within the fitted analysis set without adjustment. Generalising it to all 57 randomised children additionally requires ignorable selection and missingness. The own baseline $\gamma_{\text{own}}$
 and linear age $\gamma_A$ are **precision terms only** — they sharpen $\tau$ but are
 not what licenses the causal interpretation, and no cross-baseline conditioning is
 used. Attendance / sessions are never conditioned on (a DAG collider).

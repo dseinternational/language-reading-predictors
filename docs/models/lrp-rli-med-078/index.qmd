@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -23,34 +27,17 @@ format:
 
 ## Overview
 
-Every other mediation model reports **natural** direct/indirect effects (NDE/NIE). But the
-DAG's identification analysis (ID-2) states that dose is a **treatment-induced
-mediator–outcome confounder** of the letter-sound → reading path — and under a
-treatment-induced confounder the natural effects are formally **not identified**. The
-randomised **interventional** analogue effects (Vansteelandt & VanderWeele; VanderWeele,
-Vansteelandt & Tchetgen Tchetgen 2014) remain well-defined in exactly that setting, because
-the mediator is set to a random draw from its *population* arm-$g$ distribution rather than
-the unit's own natural counterfactual — severing the unit-level link to the treatment-induced
-confounder.
+Every other mediation model reports **natural** direct and indirect effects (NDE/NIE). The DAG's identification analysis states that dose is a **treatment-induced mediator–outcome confounder** of the letter-sound → reading path, so the cross-world natural effects are formally unidentified. The randomised **interventional** analogues remain well-defined in that structure because the mediator is drawn from its arm-specific distribution rather than set to the same child's incompatible natural counterfactual.
 
-LRP78 is the estimand-class repair of [LRP59](../lrp-rli-med-059): the same joint mediator +
-outcome model ($L \to W$, adjustment $\{G, A, E, R, W_\text{pre}, L_{t1}\}$), but the
-g-formula returns the **interventional direct/indirect effects** ($\text{IDE}$ / $\text{IIE}$)
-instead of NDE/NIE. Compare its $\text{IIE}$ against LRP59's NIE: agreement means the natural
-decomposition was not badly distorted by the dose confounder; divergence flags that it was.
+LRP78 is the interventional companion to [LRP59](../lrp-rli-med-059): the same joint mediator + outcome model ($L \to W$) and the same adjustment set, but the g-formula labels the decomposition as **interventional direct and indirect effects** (IDE/IIE). It removes the recanting-witness obstacle from the target estimand; it does not remove latent general-ability confounding.
 
 ## Design
 
-Same as LRP59 (phase 0, $n \approx 53$). The decomposition permutes the simulated mediator
-across units per replicate (a fresh population draw for each counterfactual cell). The t3
-temporal-ordering sensitivity is skipped (it is a natural-effect construction).
+Same as LRP59 (phase 0, $n \approx 53$). The mediator is drawn from the fitted **covariate-conditional** law $P(M\mid C,g)$ within each covariate profile; it is not permuted across children. In this fully parametric model the natural and interventional branches therefore use the same numerical functional. LRP78's IIE and LRP59's NIE should agree up to posterior-sampling and g-formula Monte Carlo error. Agreement is an implementation check, not evidence that dose causes no distortion; a material gap would first indicate non-comparable fits or Monte Carlo error. The t3 temporal-ordering sensitivity is skipped because it is a natural-effect construction.
 
 ## Assumptions
 
-The interventional effects fix the *treatment-induced*-confounder problem, but the
-mediator–outcome relationship is **still $GA$-confounded** (ID-2's other leg), so IDE/IIE
-remain **adjusted associations** under stated assumptions — a *better* estimand class, not a
-causal route. $n \approx 53 \Rightarrow$ wide intervals.
+The interventional effects avoid the *cross-world* problem created by the treatment-induced confounder, but the mediator–outcome relationship is **still $GA$-confounded**. Moreover, dose is not represented in the fitted model, so this calculation cannot estimate or diagnose dose distortion. IDE/IIE remain **model-based adjusted decompositions** under stated assumptions — a weaker-assumption estimand class, not an identified causal route. $n \approx 53 \Rightarrow$ wide intervals.
 
 {{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}

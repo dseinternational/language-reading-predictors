@@ -35,6 +35,13 @@ Framing (the headline is robust; the split is exploratory):
   **exploratory** split under a stated mediator ordering (L before E) and a
   conditional-independence assumption between the mediators. They sum to the joint
   effect but the attribution is ordering-dependent.
+- **Per-leg unmeasured-confounding sweeps** attenuate the L and E outcome legs one
+  at a time, reporting both the path-specific and joint-NIE tipping points. The
+  named intervention-session calibration uses the phase-0 treated-arm change in
+  each mediator->reading slope after adding ``attend``. This keeps the anchor on
+  the sweep's working scale; the E anchor is the direct adjusted ``attend -> E``
+  association, representing the graph's indirect ``IS -> TE -> EV`` ancestry
+  without multiplying two separately estimated associations (#335).
 
 Honesty front-and-centre: this is a **decomposition under assumptions, not proof of
 a causal route.** Mediators and outcome are measured at the same wave (no temporal
@@ -83,6 +90,9 @@ SPEC = ModelSpec(
         "mediators": ("L", "E"),
         # Path-specific split ordering for the exploratory NIE_L / NIE_E (L first).
         "order": ("L", "E"),
+        # Post-fit calibration only: attend is loaded but deliberately NOT added to
+        # the natural-effects model because it is treatment-affected (#335).
+        "named_confounder_calibration": {"symbol": "attend", "label": "IS"},
     },
 )
 

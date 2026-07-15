@@ -3,10 +3,10 @@
 
 """Unit tests for the key-findings generator (issue #320).
 
-Golden-sentence tests per core archetype from synthetic CSV rows, the
-convergence-gate interlock, missing-CSV degradation, the no-``nan`` guard and
-the five-sentence cap. The partial content guards at the bottom follow the
-``test_concurrent_pipeline`` read-the-qmd idiom.
+Golden-sentence tests cover every registered family from synthetic CSV rows,
+along with the convergence-gate interlock, missing-CSV degradation, the
+no-``nan`` guard and the five-sentence cap. The partial content guards at the
+bottom follow the ``test_concurrent_pipeline`` read-the-qmd idiom.
 """
 
 from __future__ import annotations
@@ -17,9 +17,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from language_reading_predictors.statistical_models.definitions import KINDS
 from language_reading_predictors.statistical_models.reporting import (
     KEY_FINDINGS_FILENAME,
     KEY_FINDINGS_MAX_SENTENCES,
+    _KF_BUILDERS,
     convergence_gate_badge_markdown,
     generate_key_findings,
 )
@@ -34,6 +36,10 @@ def _write_json(d: Path, name: str, payload: dict) -> None:
 
 def _write_csv(d: Path, name: str, row: dict) -> None:
     pd.DataFrame([row]).to_csv(d / name, index=False)
+
+
+def _write_rows(d: Path, name: str, rows: list[dict]) -> None:
+    pd.DataFrame(rows).to_csv(d / name, index=False)
 
 
 def _passing_gate() -> dict:
@@ -461,18 +467,313 @@ def test_did_dose_companion_degrades_honestly(tmp_path):
     assert all(s["kind"] != "headline" for s in payload["sentences"])
 
 
-# --- fallback and global properties ---------------------------------------------
+# --- remaining family archetypes ------------------------------------------------
 
 
-@pytest.mark.parametrize("kind", ["joint", "mechanism", "mediation", "aligned"])
-def test_fallback_families_get_honest_placeholder(tmp_path, kind):
+def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
+    """Synthetic fit artefacts plus one family-specific expected phrase."""
     d = _setup_dir(tmp_path, kind)
+    if kind == "joint":
+        _write_rows(
+            d,
+            "joint_treatment_marginal.csv",
+            [
+                {
+                    "outcome": "W",
+                    "items_median": 2.4,
+                    "items_lo": -0.3,
+                    "items_hi": 5.9,
+                    "prob_pos": 0.94,
+                    "delta_items": 1.0,
+                    "prob_benefit_ge_delta": 0.81,
+                    "prob_in_rope": 0.17,
+                },
+                {
+                    "outcome": "L",
+                    "items_median": 1.2,
+                    "items_lo": -1.0,
+                    "items_hi": 3.4,
+                    "prob_pos": 0.79,
+                    "delta_items": 1.0,
+                    "prob_benefit_ge_delta": 0.55,
+                    "prob_in_rope": 0.31,
+                },
+            ],
+        )
+        return d, "Across the 2 outcomes"
+    if kind == "mechanism":
+        _write_csv(
+            d,
+            "mechanism_summary.csv",
+            {
+                "exposure_low": 0,
+                "exposure_high": 30,
+                "exposure_unit": "L items",
+                "items_median": 3.2,
+                "items_lo": 0.4,
+                "items_hi": 6.8,
+                "prob_pos": 0.98,
+            },
+        )
+        return d, "fitted exposure range"
+    if kind in {"mediation", "mediation_multi"}:
+        _write_rows(
+            d,
+            "mediation_summary.csv",
+            [
+                {
+                    "quantity": "total",
+                    "words_median": 2.5,
+                    "words_lo": -0.2,
+                    "words_hi": 5.4,
+                    "prob_pos": 0.95,
+                    "off_floor": False,
+                },
+                {
+                    "quantity": "NIE_joint" if kind == "mediation_multi" else "NIE",
+                    "words_median": 0.8,
+                    "words_lo": -0.4,
+                    "words_hi": 2.1,
+                    "prob_pos": 0.87,
+                    "off_floor": False,
+                },
+            ],
+        )
+        return d, "g-formula decomposition"
+    if kind == "aligned":
+        _write_csv(
+            d,
+            "cohort_marginal.csv",
+            {
+                "trt_items_median": 1.8,
+                "trt_items_lo": -0.7,
+                "trt_items_hi": 4.5,
+                "prob_trt_pos": 0.91,
+            },
+        )
+        return d, "per-protocol cohort association"
+    if kind == "adjusted":
+        _write_csv(
+            d,
+            "predicted_gain_words.csv",
+            {
+                "predictor": "L",
+                "label": "Letter sounds",
+                "delta_words_mean": 1.9,
+                "delta_words_lo": 0.1,
+                "delta_words_hi": 3.8,
+                "prob_pos": 0.97,
+            },
+        )
+        return d, "clearest adjusted predictor"
+    if kind == "corr_factor":
+        _write_csv(
+            d,
+            "factor_correlation_summary.csv",
+            {
+                "domain_i": "vocabulary",
+                "domain_j": "code",
+                "mean": 0.62,
+                "lo": 0.18,
+                "hi": 0.88,
+                "prob_pos": 0.99,
+            },
+        )
+        return d, "latent-domain correlation"
+    if kind == "dose_response":
+        _write_csv(
+            d,
+            "dose_marginal_summary.csv",
+            {
+                "items_median": 0.9,
+                "items_lo": -0.3,
+                "items_hi": 2.2,
+                "prob_pos": 0.89,
+            },
+        )
+        return d, "1-SD increase in sessions"
+    if kind == "lcsm":
+        _write_csv(
+            d,
+            "coupling_summary.csv",
+            {
+                "coefficient": "g_L (prior L -> W change)",
+                "mean": 0.31,
+                "lo": 0.02,
+                "hi": 0.61,
+                "prob_pos": 0.98,
+            },
+        )
+        return d, "longitudinal coupling"
+    if kind == "horseshoe":
+        _write_csv(
+            d,
+            "predictor_ranking.csv",
+            {
+                "rank": 1,
+                "predictor": "letter_sounds",
+                "p_abs_gt_delta": 0.93,
+                "beta_mean": 0.42,
+                "beta_hdi_3": 0.04,
+                "beta_hdi_97": 0.80,
+            },
+        )
+        return d, "top-ranked predictor"
+    if kind == "growth":
+        _write_csv(
+            d,
+            "growth_association_summary.csv",
+            {
+                "coefficient": "gamma",
+                "outcome": "W",
+                "median": 0.18,
+                "lo95": -0.03,
+                "hi95": 0.40,
+                "prob_positive": 0.94,
+            },
+        )
+        return d, "baseline non-verbal ability"
+    if kind == "historical_growth":
+        _write_rows(
+            d,
+            "posterior_growth_summary.csv",
+            [
+                {
+                    "quantity": "growth_1_3_items",
+                    "label": "Wave 1 to wave 3",
+                    "readgrp_label": "readers",
+                    "mean": 7.2,
+                    "q2_5": 4.0,
+                    "q97_5": 10.5,
+                    "p_gt_0": 0.999,
+                }
+            ],
+        )
+        return d, "descriptive natural-history growth"
+    if kind == "survival":
+        _write_rows(
+            d,
+            "survival_summary.csv",
+            [
+                {
+                    "term": "tau (log hazard shift, treated)",
+                    "median": 0.41,
+                    "ci_low": -0.08,
+                    "ci_high": 0.91,
+                    "hazard_ratio": 1.51,
+                    "P(>0)": 0.95,
+                },
+                {
+                    "term": "baseline off-floor prob [t1-t2]",
+                    "median": 0.20,
+                    "ci_low": 0.08,
+                    "ci_high": 0.36,
+                    "hazard_ratio": float("nan"),
+                    "P(>0)": float("nan"),
+                },
+            ],
+        )
+        return d, "hazard ratio"
+    if kind == "block_exposure":
+        _write_csv(
+            d,
+            "block_exposure_summary.csv",
+            {
+                "delta_items_median": 2.1,
+                "delta_items_lo": -0.4,
+                "delta_items_hi": 4.8,
+                "prob_delta_pos": 0.94,
+            },
+        )
+        return d, "parallel-trends association"
+    if kind == "concurrent":
+        _write_csv(
+            d,
+            "concurrent_marginals.csv",
+            {
+                "timepoint": 3,
+                "adjustment": "adjusted",
+                "term": "L",
+                "label": "Letter sounds",
+                "role": "association",
+                "scale": "+1 SD",
+                "items_median": 2.3,
+                "items_lo": 0.2,
+                "items_hi": 4.5,
+                "prob_pos": 0.98,
+                "converged": True,
+            },
+        )
+        return d, "same-wave predictor"
+    if kind == "long_corr_factor":
+        _write_csv(
+            d,
+            "latent_items_slopes.csv",
+            {
+                "wave": 2,
+                "predictor_indicator": "R",
+                "target_indicator": "L",
+                "items_per_item_mean": 0.24,
+                "items_per_item_lo": 0.05,
+                "items_per_item_hi": 0.44,
+                "prob_pos": 0.99,
+            },
+        )
+        return d, "translated latent coupling"
+    raise AssertionError(f"No synthetic case for {kind}")
+
+
+@pytest.mark.parametrize(
+    "kind",
+    sorted(
+        KINDS
+        - {
+            "itt",
+            "did",
+            "gain_factors",
+            "level_factors",
+        }
+    ),
+)
+def test_every_remaining_family_has_bespoke_findings(tmp_path, kind):
+    d, expected = _remaining_family_case(tmp_path, kind)
     payload = generate_key_findings(d)
     assert payload["status"] == "ok"
-    texts = _texts(payload)
-    assert "has not yet been written" in texts
-    assert kind in texts
-    assert "adjusted associations or descriptive quantities" in texts
+    assert expected in _texts(payload)
+    assert "has not yet been written" not in _texts(payload)
+    assert 3 <= len(payload["sentences"]) <= KEY_FINDINGS_MAX_SENTENCES
+
+
+def test_builder_registry_covers_every_declared_family():
+    assert KINDS <= _KF_BUILDERS.keys()
+
+
+def test_corr_factor_structural_only_keeps_three_sentence_contract(tmp_path):
+    d = _setup_dir(tmp_path, "corr_factor")
+    _write_csv(
+        d,
+        "structural_summary.csv",
+        {
+            "coefficient": "beta_code_to_reading",
+            "mean": 0.37,
+            "lo": -0.05,
+            "hi": 0.79,
+            "prob_pos": 0.95,
+        },
+    )
+
+    payload = generate_key_findings(d)
+
+    assert payload["status"] == "ok"
+    assert len(payload["sentences"]) == 3
+    assert "clearest structural slope" in _texts(payload)
+
+
+def test_unknown_future_family_keeps_honest_fallback(tmp_path):
+    d = _setup_dir(tmp_path, "future_family")
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert "has not yet been written" in _texts(payload)
 
 
 def test_sentence_cap_and_no_nan_everywhere(tmp_path):

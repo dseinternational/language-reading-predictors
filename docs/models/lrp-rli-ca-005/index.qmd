@@ -1,0 +1,51 @@
+---
+title: "LRP-CA-005: Concurrent conditional associations — skills → receptive vocabulary (per wave)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP-CA-005 extends the **concurrent conditional-associations** family (#336, descriptive-association workstream #314) to **standardised receptive vocabulary** (ROWPVT, `R`) as the focal outcome. At each timepoint (t1–t4) it fits a between-child Beta-Binomial regression of receptive vocabulary's level on the standardised same-wave logits of the other core skills — word reading (`W`), letter sounds (`L`), blending (`B`), taught receptive (`TR`) and expressive (`TE`) vocabulary, and standardised expressive vocabulary (`E`) — plus age and a group nuisance term. The four waves are fitted separately and reported side by side.
+
+The family's core skill set is {`W`, `L`, `B`, `TR`, `TE`, `R`, `E`}: each model conditions its focal outcome on the remaining six, so the models describe complementary full conditionals of the same measure set. The estimand is the mutually-adjusted association at each wave: *"at wave t, among children alike on age and the other skills, +n of a predictor skill is associated with +m more receptive-vocabulary items"*. `R` is a 170-item standardised transfer measure and does not have the late-wave ceiling compression flagged for the 24-item `TR` focal. All children are on the intervention from t2, so these associations describe the skill measures within a treated system.
+
+::: {.callout-note title="Estimand: descriptive association (no causal warrant)"}
+Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
+:::
+
+## Design
+
+- **Four separate cross-sectional fits** (one row per child per wave), reported side by side — not one stacked model with a child random intercept, which would tilt the coefficients toward a within-child quantity and change the estimand (issue #312 decision). The wave with the largest complete-outcome sample (ties → latest) is the operational diagnostic anchor for the standard trace and plots; this does not make it substantively primary or establish that it is best-powered. Every adjusted and bivariate fit has complete convergence metrics in the tables.
+- **Predictors** enter as standardised same-wave logits with regularising `Normal(0, 0.3)` slopes (essential at n ≈ 53 with a collinear predictor cluster). Floored measures (`P`, `N`) are excluded as predictors.
+- **Group** is included only as a non-interpretable nuisance term (absorbs arm composition at each wave); it is not reported as an association.
+- **Missing predictor values** are mean-imputed (0 on the standardised scale). This can bias a conditional coefficient, with no guaranteed direction when missingness relates to the predictor, outcome or other skills; observed and imputed counts are reported. Rows missing the focal *outcome* are dropped.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_concurrent.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -23,22 +27,12 @@ format:
 
 ## Overview
 
-LRPITT15 is the within-data test of the trial's "**gains are largest in
-directly-taught skills, with little generalisation**" finding, on the *expressive*
-modality. Two Block 1 expressive vocabulary outcomes are modelled jointly over the
-randomised window (t1 $\rightarrow$ t2):
+LRPITT15 tests whether the randomised intervention effect is larger for directly-taught than not-taught expressive vocabulary, one component of the trial's broader generalisation claim. Two Block 1 expressive vocabulary outcomes are fitted together as factorised marginals over the randomised window (t1 $\rightarrow$ t2):
 
 - `TE` — directly-taught target words (`b1extau`, $N = 24$);
 - `UE` — not-taught comparison words (`b1exnt`, $N = 12$).
 
-The headline quantity is the **difference in intervention benefit**,
-$\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$. **Sign convention:** $\tau$ is the
-coefficient on the intervention indicator ($G = 1$ = intervention), so a positive
-$\tau$ is a benefit and $\tau_{\mathrm{TE}} - \tau_{\mathrm{UE}}$ is *benefit on
-taught minus benefit on not-taught*. A clearly positive difference means the
-programme raised the words it *taught* more than untaught words — limited
-transfer/generalisation, consistent with Burgoyne et al. (2012). The receptive
-companion is LRPITT15b; the per-outcome models are LRPITT02 (TE) and LRPITT04 (UE).
+The headline quantity is the difference between the two standardised probability-scale average marginal effects, $\mathrm{AME}_{\mathrm{TE}} - \mathrm{AME}_{\mathrm{UE}}$. A positive value means the intervention increased expected proportion correct more for taught expressive words than for not-taught expressive words. It does **not** by itself show that generalisation was limited: that conclusion also requires the marginal UE effect to be small against a substantively defined negligible-effect threshold. The conditional logit-coefficient difference is secondary. The receptive companion is LRPITT15b; the per-outcome models are LRPITT02 (TE) and LRPITT04 (UE).
 
 ## Structure
 
@@ -50,25 +44,17 @@ $$
            + \gamma^{A}_k\, A_{\text{std},i},
 $$
 
-with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. A 2×2 LKJ
-residual correlation (for the within-child taught/not-taught dependence) is
-**off**: once the baselines are conditioned on, the residual SD sits at ~0 (the
-boundary), so the block only destabilised the variance component (R-hat ≈ 1.01)
-for no gain. Dropping it is the conservative choice — a near-zero correlation that
-would otherwise tighten the difference is ignored — and it converges cleanly.
+with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. The 2×2 LKJ residual-correlation block is **off**, so the likelihood and priors factorise by outcome. This avoids the poor mixing seen in an earlier sensitivity fit but does not estimate within-child posterior covariance. Ignoring that covariance is not guaranteed to be conservative: the direction depends on the unknown sign and magnitude. The current contrast is therefore an exploratory factorised sensitivity result, not calibrated paired inference; confirmation requires a paired child-level randomisation-inference/permutation analysis, bootstrap, sandwich, or defensible dependence-model analysis.
 
 ::: {.callout-note title="Denominators and caveats"}
 
 - Taught ($\mathrm{TE}$): $N = 24$ — documented (Burgoyne et al., 2012, Table 3).
-- Not-taught ($\mathrm{UE}$): $N = 12$ — confirmed (#214; `n_trials_confirmed=True`
-  in `measures.py`). The logit-scale *difference* and the probability-scale
-  interpretation of $\mathrm{UE}$ both stand on the confirmed denominator.
-- $n \approx 54$; the causal claim is limited to the randomised window. The two
-  outcomes are on different scales, so the difference is a *differential
-  logit-scale effect*, not a difference in raw words.
-- The difference is conservative with respect to the (near-zero) within-child
-  residual correlation; `use_residual_correlation=True` remains available as a
-  sensitivity fit but mixes poorly here.
+- Not-taught ($\mathrm{UE}$): $N = 12$ — confirmed (#214; `n_trials_confirmed=True` in `measures.py`).
+- The headline contrast is a difference in expected proportion correct, so it is not distorted merely because one test has 24 items and the other 12. Instrument content, difficulty and measurement precision remain different.
+- A positive taught-minus-not-taught difference establishes only that the taught effect is larger. Assess whether transfer is small from the marginal UE AME against a substantively defined negligible-effect threshold.
+- $n \approx 54$; the causal claim is limited to the randomised window.
+- The factorised fit does not estimate within-child residual covariance. `use_residual_correlation=True` remains available as a model sensitivity but mixed poorly in the earlier fit; until a separate calibrated dependence analysis is completed, the report must not make a definitive paired generalisation claim.
+- PSIS-LOO leaves out a child by summing that child's observed outcome-cell log likelihoods.
 
 :::
 

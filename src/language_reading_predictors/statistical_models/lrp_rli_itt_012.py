@@ -1,18 +1,20 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT12 - Joint ITT model over the suite outcomes (migrates LRP55).
+"""LRPITT12 - Factorised multi-outcome ITT model (migrates LRP55).
 
-One posterior over the single-outcome treatment effects, enabling cross-outcome
-contrasts ("is tau_L more positive than tau_W?") and acting as a consistency check
-on the single-outcome LRPITT models.
+One PyMC graph over the single-outcome treatment effects, acting as a consistency
+check on the single-outcome LRPITT models. With residual correlation disabled,
+the likelihood and priors factorise by outcome: it is a product of marginal
+models, not a dependence-aware joint posterior. Cross-outcome comparisons are
+therefore reported on a common probability scale with a paired-dependence caveat.
 
 Outcomes are the ten **baseline-bearing** LRPITT measures. Nonword (N) is excluded:
 it is post-only and its degenerate baseline cannot enter the joint's dense
 pre-score matrix without injecting NaNs or polluting the cross-baseline block — its
 effect is read from the single-outcome off-floor model LRPITT11. Phonetic spelling
 (P) **is** included, as a graded outcome (its floored baseline simply shrinks
-gamma_own[P]); its binary off-floor primary is in LRPITT09. LKJ residual
+gamma_own[P]); its binary off-floor exploratory analysis is in LRPITT09. LKJ residual
 correlation is off by default (prior-dominated at 8 outcomes, worse at 10; keep the
 flag for a sensitivity fit). Sign convention: positive tau => intervention helps.
 """
@@ -44,6 +46,8 @@ SPEC = ModelSpec(
         "use_age_linear": True,
         "use_age_gp": False,
         "use_residual_correlation": False,
+        "joint_structure": "factorised_outcome_marginals",
+        "loo_unit": "child",
     },
 )
 

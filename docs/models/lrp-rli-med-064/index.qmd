@@ -36,8 +36,9 @@ through **expressive vocabulary $E$**, and how much is direct/residual?
 We extend the same g-formula machinery to a $\{L, E\}$ mediator block and report:
 
 - the **joint indirect effect** through the block (the robust headline);
-- a clearly-flagged **exploratory** path-specific split into $\text{NIE}_L$ and
-  $\text{NIE}_E$.
+- a clearly-flagged **exploratory** path-specific split into $\text{NIE}_L$ and $\text{NIE}_E$;
+- separate unmeasured-confounding sweeps for the $L$ and $E$ outcome legs, with the joint NIE tracked under each; and
+- a named-confounder benchmark against observed intervention sessions ($IS$).
 
 ## Phase 0 only — the design
 
@@ -58,9 +59,7 @@ $G = 0$ the wait-list control (per `#117`); all effects are in the
   revised-DAG common causes hearing $HS$, phonological memory $RW$ and speech
   production $SP$ (entered by the missing-indicator method, #246), all taken at
   **baseline (t1)** so none is treatment-affected (the cross-world assumption).
-  Expressive vocab is a *mediator* here, not a confounder. Whether $R$ remains a
-  confounder once the revised DAG's edges are settled is a time-indexed
-  d-separation question tracked in #264; it is **retained** here pending that.
+  Expressive vocab is a *mediator* here, not a confounder. Baseline $R$ is retained following #264's settled time-indexed d-separation: it is not a descendant of the t1→t2 intervention and is the admissible baseline proxy for the treatment-affected contemporaneous receptive-vocabulary state.
 - The natural (in)direct effects are computed by **counterfactual simulation from the
   posterior** (the g-formula), not from coefficients.
 
@@ -106,6 +105,7 @@ This is a **decomposition under assumptions, not proof of a causal route.**
   not remove this.
 - **Sight-reading.** Children can read words without decoding, so $W$ does not reveal
   *how* a child read — only that the score moved.
+- **Sensitivity and named-confounder calibration do not repair identification.** Each one-dimensional sweep subtracts an assumed bias from one mediator→reading slope and re-runs the g-formula while holding the other leg fixed. The $IS$ benchmark is the treated-arm, phase-0 change in that slope after adding observed session attendance to an adjusted working-scale projection. This construction is used for both legs because it is commensurate with the sweep's $\delta$ scale. For $E$, the reported direct adjusted `attend → E` association represents the DAG's indirect $IS \to TE \to EV$ ancestry; it is not evidence for a direct $IS \to EV$ edge. The benchmark is descriptive and uncertain, not an admissible adjustment for a treatment-affected confounder.
 - The two mediators are simulated as **conditionally independent given covariates** (no
   residual $L$–$E$ correlation is modelled), and the path-specific split is
   **ordering-dependent** (see below).

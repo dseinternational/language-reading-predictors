@@ -281,6 +281,8 @@ MED_WITNESSES = {
     "lrp_rli_med_080": ["TR_2", "<-", "IS_1", "->", "WR_2"],
     "lrp_rli_med_086": ["LS_2", "<-", "IS_1", "->", "PA_2", "->", "NW_2"],
     "lrp_rli_med_087": ["LS_2", "<-", "IS_1", "->", "PA_2"],
+    "lrp_rli_med_186": ["LS_2", "<-", "IS_1", "->", "PA_2", "->", "NW_2"],
+    "lrp_rli_med_187": ["LS_2", "<-", "IS_1", "->", "PA_2"],
 }
 
 # Expected role of baseline E / R per model ("member": in the valid parent set
@@ -300,6 +302,8 @@ MED_ER_ROLES = {
     "lrp_rli_med_080": ("precision", "precision"),
     "lrp_rli_med_086": ("precision", "precision"),
     "lrp_rli_med_087": ("precision", "precision"),
+    "lrp_rli_med_186": ("precision", "precision"),
+    "lrp_rli_med_187": ("precision", "precision"),
 }
 
 
