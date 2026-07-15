@@ -558,6 +558,10 @@ def test_all_statistical_reports_use_the_findings_first_order():
         if "_partials/_setup.qmd" not in text:
             continue
         statistical_reports.append(path)
+        missing = [name for name in expected if name not in text]
+        assert not missing, (
+            f"{path.parent.name}: missing expected partials: {', '.join(missing)}"
+        )
         positions = [text.index(name) for name in expected]
         assert positions == sorted(positions), path.parent.name
         assert "_partials/_convergence.qmd" not in text, path.parent.name

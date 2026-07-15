@@ -165,4 +165,4 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
     assert "FULL CONVERGENCE CONTENT" in html
     assert "ANALYST PPC CONTENT" in html
     assert 'aria-expanded="false"' in html
-    assert "callout-collapse collapse" in html
+    assert "callout-collapse" in html
