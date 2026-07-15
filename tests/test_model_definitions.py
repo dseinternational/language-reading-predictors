@@ -62,6 +62,11 @@ def test_kinds_and_outcomes_are_valid() -> None:
             )
 
 
+def test_modality_contrast_is_not_catalogued_as_generalisation() -> None:
+    definition = MODEL_REGISTRY["lrp-rli-itt-016"]
+    assert definition.family == "Modality contrast"
+
+
 def test_base_references_resolve() -> None:
     for definition in MODEL_REGISTRY.values():
         if definition.base is not None:

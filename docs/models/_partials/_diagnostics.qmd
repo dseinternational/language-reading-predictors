@@ -30,6 +30,14 @@ _RE_KINDS = {
     "growth",
 }
 _is_re = config.get("kind") in _RE_KINDS
+_supports_child_influence = config.get("kind") in {"itt", "joint"}
+_model_id = str(config.get("model_id", ""))
+_report_dir_name = _here.resolve().name
+_report_config = (
+    _report_dir_name[len(_model_id) + 1 :]
+    if _model_id and _report_dir_name.startswith(f"{_model_id}-")
+    else "reporting"
+)
 _pareto_unit = "one observation (a child × phase/period row)" if _is_re else "one child"
 _loo_caveat = (
     " Because this family carries a per-child random intercept, PSIS-LOO here is "
@@ -39,6 +47,93 @@ _loo_caveat = (
     if _is_re
     else ""
 )
+_pareto = _csv("pareto_k.csv")
+_pareto_required = {"subject_id", "pareto_k", "good_k_threshold"}
+if _pareto is not None and _pareto_required.issubset(_pareto.columns):
+    _pareto_k = pd.to_numeric(_pareto["pareto_k"], errors="coerce")
+    _pareto_thresholds = pd.to_numeric(
+        _pareto["good_k_threshold"], errors="coerce"
+    )
+    _flagged = _pareto.loc[_pareto_k > _pareto_thresholds]
+    if not _flagged.empty:
+        _max_k = float(_flagged["pareto_k"].max())
+        _threshold = float(_flagged["good_k_threshold"].iloc[0])
+        _ids = ", ".join(str(x) for x in _flagged["subject_id"].head(3))
+        _influence = _csv("influence_sensitivity.csv") if _supports_child_influence else None
+        _influence_status = {"ready": False, "reason": "not applicable"}
+        if _supports_child_influence:
+            from language_reading_predictors.statistical_models.influence import (
+                evaluate_influence_bundle,
+            )
+
+            _influence_status = evaluate_influence_bundle(
+                _influence,
+                _here,
+                config,
+                _report_config,
+            )
+        _influence_ok = bool(_influence_status["ready"])
+        if _is_re:
+            print(
+                '\n::: {.callout-warning title="PSIS-LOO requires observation-level sensitivity"}\n\n'
+                f"{len(_flagged)} point(s) exceed the Pareto-k reliability "
+                f"threshold {_threshold:.2f} (maximum k = {_max_k:.3f}; leading "
+                f"subject ID(s): {_ids}). For this random-intercept family, each "
+                "high-k point is a child × phase/period row under conditional "
+                "row-level LOO, not a whole child. The reported LOO expected log "
+                "predictive density is therefore unreliable for this target. "
+                "Resolve it with exact or moment-matched LOO for the flagged "
+                "observations, or direct observation-level refits, while retaining "
+                "the same conditional row-level predictive target; "
+                "leaving out a whole child changes the target and does not resolve "
+                "this diagnostic."
+                "\n\n:::\n"
+            )
+        elif _influence_ok:
+            _max_refit_shift = float(_influence_status["max_refit_ame_shift"]) * 100
+            _max_composition_shift = (
+                float(_influence_status["max_composition_ame_shift"]) * 100
+            )
+            _max_total_shift = float(_influence_status["max_total_ame_shift"]) * 100
+            print(
+                '\n::: {.callout-warning title="PSIS-LOO unreliable; effect sensitivity completed"}\n\n'
+                f"{len(_flagged)} point(s) exceed the Pareto-k reliability "
+                f"threshold {_threshold:.2f} (maximum k = {_max_k:.3f}; leading "
+                f"subject ID(s): {_ids}), so the reported LOO expected log "
+                "predictive density remains unreliable for model comparison. A "
+                "requested-config direct leave-out refit excluding all flagged child(ren) "
+                "passed the trace-recomputed "
+                "convergence gate. Re-averaging both posteriors over the same retained "
+                "children, the largest median AME refit shift was "
+                f"{_max_refit_shift:.1f} percentage points. The largest change from "
+                "removing the flagged covariate profile from the averaging population "
+                f"was {_max_composition_shift:.1f} points; the largest total full-sample "
+                f"to leave-out shift was {_max_total_shift:.1f} points. Thus the headline "
+                "influence quantity isolates refitting from population composition. It "
+                "does not repair the unreliable LOO score.\n\n:::\n"
+            )
+        elif _supports_child_influence:
+            print(
+                '\n::: {.callout-warning title="PSIS-LOO requires influence sensitivity"}\n\n'
+                f"{len(_flagged)} point(s) exceed the Pareto-k reliability "
+                f"threshold {_threshold:.2f} (maximum k = {_max_k:.3f}; leading "
+                f"subject ID(s): {_ids}). The reported LOO expected log predictive "
+                "density is therefore not reliable for model comparison. This does "
+                "not indicate sampler non-convergence or automatically invalidate the "
+                "posterior effect, but a direct refit excluding all flagged children is "
+                "required before claiming that the estimate is robust to influential "
+                "children. Run `python scripts/influence_sensitivity.py "
+                f"{_model_id} --config {_report_config}`. The current bundle was rejected "
+                f"or is absent: {_influence_status['reason']}.\n\n:::\n"
+            )
+        else:
+            print(
+                '\n::: {.callout-warning title="PSIS-LOO is unreliable"}\n\n'
+                f"{len(_flagged)} point(s) exceed the Pareto-k reliability threshold "
+                f"{_threshold:.2f} (maximum k = {_max_k:.3f}). Do not use this LOO score "
+                "for model comparison until an estimand- and likelihood-unit-specific "
+                "exact or K-fold sensitivity has been completed.\n\n:::\n"
+            )
 print(_img("pareto_k.png", "Pareto-k (LOO influence; flag k > 0.7)"))
 print(_img("rank_plot.png", "Rank plot of the effect (mixing)"))
 print(_img("ess_evolution.png", "ESS evolution (target 400)"))
@@ -52,6 +147,27 @@ print(
     "sampling proceeds. **LOO-PIT** — the line should hug zero; large excursions mean "
     "the model is mis-calibrated over part of the outcome range."
 )
+```
+
+```{python}
+# | echo: false
+_influence_view = None
+if "_influence_ok" in globals() and _influence_ok:
+    _influence_view = _influence[
+        [
+            "outcome",
+            "ame_prob_median_full",
+            "ame_prob_median_full_retained",
+            "ame_prob_median_without_flagged",
+            "refit_shift_ame_prob_median",
+            "composition_shift_ame_prob_median",
+            "total_shift_ame_prob_median",
+            "prob_ame_pos_full",
+            "prob_ame_pos_full_retained",
+            "prob_ame_pos_without_flagged",
+        ]
+    ]
+_influence_view
 ```
 
 ```{python}
@@ -92,10 +208,61 @@ print(_img("pair_plot.png", "Pairs"))
 # | echo: false
 # | output: asis
 print(_img("posterior_predictive_check.png", "Posterior-predictive vs observed"))
-print(
-    "\n_How to read it:_ the black line is the observed outcome distribution and the "
-    "blue band is many datasets simulated from the fitted model. A good fit keeps the "
-    "black line inside the blue band across its whole range; a systematic departure "
-    "shows where the model reproduces the data poorly."
+_is_floor_binary = bool(
+    config.get("spec_extra", {}).get("floor_rule")
+    or config.get("effective_model_settings", {}).get("floor_rule")
 )
+if config.get("kind") == "joint":
+    print(
+        "\n_How to read it:_ for the named outcome, the blue histogram contains "
+        "posterior-predictive count draws and the red histogram contains the observed "
+        "counts. They should overlap without a systematic location, spread, floor or "
+        "ceiling discrepancy. Outcomes are selected with the saved cell map and are "
+        "never pooled across incompatible test denominators."
+    )
+elif _is_floor_binary:
+    print(
+        "\n_How to read it:_ this exploratory headline model predicts the binary event of moving "
+        "above zero, not a graded item count. The observed and simulated event "
+        "distributions should agree; the quantitative arm-specific table below is "
+        "more informative than a smooth density display for a binary outcome."
+    )
+else:
+    print(
+        "\n_How to read it:_ the black line is the observed outcome distribution and "
+        "the blue band is many datasets simulated from the fitted model. A good fit "
+        "keeps the black line inside the blue band across its whole range; a systematic "
+        "departure shows where the model reproduces the data poorly."
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+_ppc_calibration = _csv("posterior_predictive_calibration.csv")
+if _ppc_calibration is not None:
+    print("### Quantitative calibration by arm and baseline band\n")
+    if _is_floor_binary:
+        print("The table compares observed and replicated off-floor event rates within each randomised arm. Because the outcome is Bernoulli, `mean_proportion` and `ceiling_rate` both mean the off-floor rate, while `floor_rate` is its complement. An `outside_interval` flag means the observed rate lies outside the model's central posterior-predictive interval; the two-sided tail area shows how extreme it is.")
+    else:
+        print("The table compares observed and replicated mean proportion of the maximum score, floor rate, ceiling rate and upper quartile within each randomised arm and baseline-score band. An `outside_interval` flag means the observed statistic lies outside the model's central posterior-predictive interval; the two-sided tail area shows how extreme it is. These checks treat the Beta-Binomial as a bounded-score working likelihood, not a literal exchangeable-item response model.")
+```
+
+```{python}
+# | echo: false
+_ppc_calibration
+```
+
+```{python}
+# | echo: false
+# | output: asis
+_ppc_shape = _csv("posterior_predictive_shape_calibration.csv")
+if _ppc_shape is not None:
+    print("### Outcome-level distribution-shape calibration\n")
+    print("This companion table compares the fitted sample's median, upper quartile and interquartile range with those statistics calculated separately in every replicated dataset. It is outcome-specific: raw counts from instruments with different maxima are never pooled. `ppc_shape_flag` is `True` when at least one observed shape statistic lies outside its central posterior-predictive interval.")
+```
+
+```{python}
+# | echo: false
+_ppc_shape
 ```

@@ -53,7 +53,7 @@ OUTCOMES: dict[str, str] = {
     "UR2": "not-taught receptive vocabulary, block 2",
 }
 
-#: Outcomes that take the pre-specified floor rule (a binary off-floor estimand).
+#: Outcomes that take the post-hoc reanalysis floor rule (a binary off-floor estimand).
 FLOORED: frozenset[str] = frozenset({"P", "N"})
 
 #: Valid model kinds (the statistical-model families).
@@ -139,7 +139,7 @@ _JOINT = [
     _d("lrpitt12", "joint", "Joint", Status.JOINT, None, "cross-outcome consistency + contrasts"),
     _d("lrpitt15", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (expressive)"),
     _d("lrpitt15b", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (receptive)"),
-    _d("lrpitt16", "joint", "Generalisation", Status.ROBUSTNESS, None, "modality contrast: taught expressive vs taught receptive"),
+    _d("lrpitt16", "joint", "Modality contrast", Status.ROBUSTNESS, None, "taught expressive vs taught receptive"),
 ]
 
 # --- SES adjustment + matched complete-case comparators ---------------------------

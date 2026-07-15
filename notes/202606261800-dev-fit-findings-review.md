@@ -1,3 +1,6 @@
+> [!NOTE]
+> Substantially corrected for floor-estimand provenance and eligibility by a LLM-based AI tool (Codex/GPT-5) on 2026-07-15. The P/N posterior summaries below came from superseded all-child binary fits and are not estimates of the current transition estimand.
+
 # Findings review of the current model outputs (dev-config fits, 2026-06-26)
 
 > [!NOTE]
@@ -58,21 +61,21 @@ The cleanest, most interpretable fits: a single randomised τ per outcome, ESS 4
 - τ (logit) median **+0.236**, 95% CrI **[−0.067, 0.513]**; pd **0.955**.
 - **Read:** the taught-receptive effect is **robust to adjusting for general ability** — τ barely moves from LRPITT01 (0.247 → 0.236), pd 0.969 → 0.955, interval only slightly wider (the adjustment costs a little precision). The effect is not an artefact of ability imbalance.
 
-### LRPITT09 — phonetic spelling (P, off-floor PRIMARY), n = 53 — credible null
+### LRPITT09 — phonetic spelling (P), superseded all-child binary fit
 
-- Off-floor risk difference median **≈ 0** (logit median −0.009, pd **0.488**); **77%** of the posterior mass inside the ±0.10 ROPE.
-- Mover counts: intervention **10/28 (36%)** vs control **9/25 (36%)** off the floor — essentially identical by arm. Graded secondary also null (pd 0.37).
-- **Read:** no evidence the intervention moved phonetic spelling off the floor; the arms are indistinguishable. With most of the mass inside the ROPE this is "credibly small", not merely "non-significant" — a clean demonstration of the floor-rule + ROPE machinery returning an honest null. (δ = 0.10 is provisional.)
+- The old fit modelled `Pr(post > 0)` across 53 outcome-available children and produced a near-zero posterior. It did **not** model the current post-hoc transition estimand `Pr(post > 0 | observed pre = 0)`.
+- For the current estimand, the raw observed mover counts are intervention **7/24 (29%)** versus control **2/17 (12%)**, with 41 observed baseline-floor children. One additional archived child was observed at zero at t1 but lacks t2, and three randomised participants are absent from the archive.
+- **Read:** the historical posterior and its “credible null” conclusion are not portable to the corrected estimand. Refit the 41-child transition model and read it with the archive-only and full-57 binary missingness bounds.
 
-### LRPITT11 — nonword reading (N, off-floor PRIMARY), n = 53 — weak hint
+### LRPITT11 — nonword reading (N), superseded all-child binary fit
 
-- Off-floor risk difference median **+5.6 pp** (logit median +0.251, 95% CrI [−0.50, 0.98]); pd **0.758** (_suggestive_ only); P(RD ≥ 0.10) = 0.31; 66% in the ROPE.
-- Mover counts: intervention **12/28 (43%)** vs control **7/25 (28%)** — a ~15 pp _raw_ gap that the model shrinks to +5.6 pp with an interval spanning −11 to +22 pp.
-- **Read:** a directional hint that the intervention raised the chance of reading _any_ nonword, resting on 12 vs 7 children coming off the floor. Far too uncertain to claim on its own at n = 53; flag for the reporting-config refit. (δ provisional.)
+- The old fit modelled `Pr(post > 0)` across 53 outcome-available children and produced a weak positive posterior. It did **not** enforce observed baseline-floor eligibility.
+- For the current estimand, the raw observed mover counts are intervention **10/21 (48%)** versus control **2/15 (13%)**, with 36 eligible children. Three children with observed t2 have missing t1 eligibility, one archived control child lacks both scores, and three randomised participants are absent from the archive.
+- **Read:** the historical posterior and its n = 53 interpretation are superseded. Refit the 36-child transition model and read it with the eligibility and full missingness bounds.
 
 ### ITT singles — cross-model take
 
-Direction is positive for the taught-vocabulary and reading outcomes (W clearest), null for phonetic spelling, and an uncertain hint for nonword reading. Only **W** has an interval excluding zero. The ability-adjustment robustness check (LRPITT17) is reassuring. Nothing here is "significant-looking but fragile" except possibly N, which is explicitly flagged.
+Direction is positive for the taught-vocabulary and graded reading outcomes (W clearest). The old P/N binary conclusions are superseded by the observed-baseline-floor transition estimands and cannot be included in this cross-model ranking until refitted. Only **W** has an interval excluding zero among the still-comparable fits. The ability-adjustment robustness check (LRPITT17) is reassuring.
 
 ---
 

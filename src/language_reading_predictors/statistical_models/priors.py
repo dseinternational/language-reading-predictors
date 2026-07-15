@@ -97,22 +97,24 @@ def tau_prior_distal() -> Continuous:
     return tau_prior(sigma=TAU_SIGMA_DISTAL)
 
 
-def gamma_own_prior() -> Continuous:
-    """Own-baseline coupling gamma_own ~ Normal(1, 0.25).
+def gamma_own_prior(sigma: float = 0.25) -> Continuous:
+    """Own-baseline coupling defaults to gamma_own ~ Normal(1, 0.25).
 
     Centred at 1 (post-logit tracks pre-logit 1:1 — no regression to the mean
-    asserted a priori) with the SD tightened from 0.5 to 0.25 (prior-critical-
-    review 2026-07-07, Finding 2; #141 open decision 3). This is the one shared
-    coefficient prior informative in its *mean*, and the tighter SD is anchored on
-    published test-retest reliabilities for these measures (r ~ 0.8-0.95 at these
-    ages, from the test manuals) — an admissible *external* source, not this
-    trial's data: a retest r ~ 0.9 implies a tracking slope near 1 with little
-    spread, so ``Normal(1, 0.25)`` (95% ~ 0.5-1.5) is well-calibrated where the
-    old ``0.5`` (95% ~ 0-2, from no tracking to double) was not. A *precision*
-    term, so it cannot bias ``tau``; the tighter SD also reduces the item-scale
-    prior spread on the long tests (Finding 1).
+    asserted a priori) with default SD 0.25 (prior-critical review 2026-07-07,
+    Finding 2; #141). This is the one shared coefficient prior informative in its
+    mean. Published test-retest reliability supports a strong positive coupling,
+    but a correlation does **not** identify the regression slope: the slope also
+    depends on the pre/post standard deviations, measurement error and the logit
+    transformation. ``sigma`` is therefore exposed for the required 0.25-vs-0.5
+    sensitivity rather than treating the tighter value as known.
+
+    Baseline is a pre-randomisation precision covariate and does not create a causal
+    backdoor. In a finite realised randomisation, however, its outcome-model prior
+    can still move ``tau`` when baseline is imbalanced or the model is misspecified;
+    the randomised estimand is not immune to prior influence.
     """
-    return pz.Normal(mu=1.0, sigma=0.25)
+    return pz.Normal(mu=1.0, sigma=sigma)
 
 
 def gamma_cross_prior() -> Continuous:

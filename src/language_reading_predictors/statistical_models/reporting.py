@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 
 import arviz as az
 import numpy as np
@@ -176,6 +176,7 @@ def tau_summary_itt(
     ci_prob: float,
     G: np.ndarray,
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
+    row_mask: np.ndarray | None = None,
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
 
@@ -204,6 +205,9 @@ def tau_summary_itt(
 
     ``G`` is the per-observation treatment indicator from the *fitted* prepared
     data (``built.prepared.G``), aligned with ``eta``'s ``obs_id`` axis.
+    ``row_mask`` optionally restricts only the population over which the AME is
+    averaged; the posterior and all linear predictors still come from the same
+    fitted trace. This supports common-population case-deletion comparisons.
 
     ``ci_prob`` names the *coverage* probability of the headline interval. The
     ``*_lo`` / ``*_hi`` values are the equal-tailed headline credible interval
@@ -213,9 +217,20 @@ def tau_summary_itt(
     ``*_hpdi_hi`` values are the highest-density interval (HPDI) at ``ci_prob`` — a
     per-scale sensitivity companion (see :func:`hdi_1d`), not a replacement,
     since the HPDI is not transformation-invariant across the logit and
-    probability scales.
+    probability scales. Direction is similarly scale-explicit:
+    ``prob_ame_pos`` is the headline posterior probability that the
+    probability-scale average marginal effect is positive, while
+    ``prob_tau_logit_pos`` is the secondary posterior probability that the
+    conditional logit coefficient is positive. ``prob_tau_pos`` is retained only
+    as a backward-compatible alias of ``prob_ame_pos`` for existing artefacts and
+    downstream readers.
     """
-    tau_draws, marginal = _itt_ame_draws(trace, G=G, moderators=moderators)
+    tau_draws, marginal = _itt_ame_draws(
+        trace,
+        G=G,
+        moderators=moderators,
+        row_mask=row_mask,
+    )
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_median = float(np.median(tau_draws))
@@ -226,7 +241,13 @@ def tau_summary_itt(
     marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
     marg_hpdi_lo, marg_hpdi_hi = hdi_1d(marginal, ci_prob)
     marg_b = eti_bands(marginal, probs=(0.5, 0.9))
-    prob_pos = float(np.mean(tau_draws > 0))
+    # Direction is a statement about the reported sample-average estimand, not
+    # necessarily the centred logit coefficient. They have the same sign for a
+    # constant treatment effect because expit is monotone, but can disagree when
+    # treatment varies by child or is moderated. Keep the coefficient probability
+    # as a secondary diagnostic and use the per-draw AME for the headline claim.
+    prob_logit_pos = float(np.mean(tau_draws > 0))
+    prob_ame_pos = float(np.mean(marginal > 0))
     # Posterior mean retained as a *secondary* field on each scale (issue #144):
     # the median leads (transformation-invariant, and it discounts the
     # winner's-curse right tail), but the mean is kept available for reference.
@@ -256,9 +277,13 @@ def tau_summary_itt(
         "tau_prob_hi": float(marg_hi),
         "tau_prob_hpdi_lo": marg_hpdi_lo,
         "tau_prob_hpdi_hi": marg_hpdi_hi,
-        "prob_tau_pos": prob_pos,
-        "direction_label": evidence_label(prob_pos),
-        **favoured_direction(prob_pos),
+        "prob_ame_pos": prob_ame_pos,
+        # Backward-compatible alias. New report code and callers should use the
+        # scale-explicit ``prob_ame_pos`` field for the headline direction.
+        "prob_tau_pos": prob_ame_pos,
+        "prob_tau_logit_pos": prob_logit_pos,
+        "direction_label": evidence_label(prob_ame_pos),
+        **favoured_direction(prob_ame_pos),
     }
 
 
@@ -268,7 +293,7 @@ def tau_summary_offfloor(
     ci_prob: float,
     G: np.ndarray,
 ) -> dict[str, float]:
-    """Summarise the binary off-floor treatment effect (floor-rule PRIMARY, #119).
+    """Summarise the post-hoc binary off-floor exploratory effect (#119/#341).
 
     For the ``bernoulli_offfloor`` model, ``expit(eta)`` is ``Pr(post > 0 at t2)``
     (the probability of coming off the floor), so the marginal-effect machinery of
@@ -399,8 +424,13 @@ def rope_summary(
     (sign-vs-size, the median convention, the δ choice).
     """
     effect_draws, ame_prob = _itt_ame_draws(
-        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name,
-        moderators=moderators, row_mask=row_mask,
+        trace,
+        G=G,
+        term=term,
+        varying_term=varying_term,
+        eta_name=eta_name,
+        moderators=moderators,
+        row_mask=row_mask,
     )
     items = ame_prob * float(n_trials)
     return rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
@@ -434,8 +464,13 @@ def rope_sensitivity(
     ``n_trials=1`` and ``varying_term=""`` so ``items`` is the risk difference).
     """
     _effect_draws, ame_prob = _itt_ame_draws(
-        trace, G=G, term=term, varying_term=varying_term, eta_name=eta_name,
-        moderators=moderators, row_mask=row_mask,
+        trace,
+        G=G,
+        term=term,
+        varying_term=varying_term,
+        eta_name=eta_name,
+        moderators=moderators,
+        row_mask=row_mask,
     )
     items = ame_prob * float(n_trials)
     rows: list[dict[str, float | str]] = []
@@ -602,25 +637,33 @@ def proportion_at_zero_ppc(
     """Posterior-predictive check on the proportion-at-zero (floor-rule diagnostic).
 
     Compares the observed fraction of zero post-scores to the posterior-predictive
-    distribution of that fraction under the graded Beta-Binomial model — the check
-    that reveals whether the graded model reproduces the floor (it typically does
-    not for ``P``/``N``, which is the motivation for the binary primary estimand).
-    Returns the observed proportion, the predictive mean, and the
-    posterior-predictive p-value ``P(rep >= observed)``; the per-draw replicated
-    proportions are returned under ``"rep"`` for plotting.
+    distribution of that fraction under the graded Beta-Binomial model. Returns
+    the observed proportion, the predictive mean, both inclusive predictive tails
+    and their capped two-sided tail area. The inclusive definitions matter because
+    this is a discrete statistic with frequent ties. ``ppc_p_value`` is retained as
+    a compatibility alias for the upper tail. The per-draw replicated proportions
+    are returned under ``"rep"`` for plotting.
     """
     post = np.asarray(prepared.post_counts[symbol], dtype=float)
     finite = post[np.isfinite(post)]
     obs_p0 = float(np.mean(finite == 0.0)) if finite.size else float("nan")
     pp = trace.posterior_predictive[node]
     yrep = (
-        pp.stack(sample=("chain", "draw")).transpose("sample", "obs_id").values
+        pp.stack(sample=("chain", "draw"))
+        .transpose("sample", "obs_id")
+        .values
     )  # (S, n_obs)
     rep_p0 = np.mean(yrep == 0.0, axis=1)  # (S,)
+    upper_tail = float(np.mean(rep_p0 >= obs_p0))
+    lower_tail = float(np.mean(rep_p0 <= obs_p0))
+    two_sided_tail = min(1.0, 2.0 * min(upper_tail, lower_tail))
     return {
         "obs_prop_at_zero": obs_p0,
         "ppc_mean_prop_at_zero": float(np.mean(rep_p0)),
-        "ppc_p_value": float(np.mean(rep_p0 >= obs_p0)),
+        "ppc_upper_tail": upper_tail,
+        "ppc_lower_tail": lower_tail,
+        "ppc_two_sided_tail": two_sided_tail,
+        "ppc_p_value": upper_tail,
         "rep": rep_p0,
     }
 
@@ -1240,26 +1283,171 @@ def block_exposure_summary(
     return out
 
 
+def _joint_observed_row_masks(
+    trace: xr.DataTree,
+    *,
+    n_outcomes: int,
+    n_obs: int,
+) -> np.ndarray:
+    """Return the observed-row mask for each flattened joint outcome.
+
+    New traces carry both flattened-cell mappings in ``constant_data``. Older
+    traces do not; for those, standardise over every fitted row rather than fail.
+    The fallback never mixes outcome counts. It only changes the covariate
+    distribution over which an outcome's AME is averaged when that outcome has
+    missing post-scores.
+    """
+    masks = np.ones((n_outcomes, n_obs), dtype=bool)
+    constant = getattr(trace, "constant_data", None)
+    if constant is None:
+        return masks
+    if not {"y_post_cell_row", "y_post_cell_outcome"}.issubset(constant):
+        return masks
+    rows = np.asarray(constant["y_post_cell_row"].values, dtype=int).ravel()
+    cols = np.asarray(constant["y_post_cell_outcome"].values, dtype=int).ravel()
+    if rows.size != cols.size:
+        raise ValueError("joint flattened-cell row and outcome maps differ in length")
+    if rows.size and (
+        rows.min() < 0
+        or rows.max() >= n_obs
+        or cols.min() < 0
+        or cols.max() >= n_outcomes
+    ):
+        raise ValueError("joint flattened-cell map contains an out-of-range index")
+    masks[:] = False
+    masks[cols, rows] = True
+    if np.any(masks.sum(axis=1) == 0):
+        raise ValueError("joint flattened-cell map leaves an outcome with no observations")
+    return masks
+
+
+def _joint_ame_draws(
+    trace: xr.DataTree,
+    outcomes: Sequence[str],
+    *,
+    G: np.ndarray | None = None,
+    group: str = "posterior",
+    row_mask: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return logit coefficients and probability-scale AMEs by outcome and draw.
+
+    Both returned arrays have shape ``(outcome, sample)``. For outcome ``k`` and
+    draw ``s`` the average marginal effect is the mean, over rows observed for
+    that outcome, of ``expit(eta0 + tau_k) - expit(eta0)``. It is therefore a
+    common proportion-correct risk-difference scale even when tests have different
+    item denominators. This is the multi-outcome analogue of
+    :func:`_itt_ame_draws`. ``row_mask`` optionally restricts the averaging
+    population and is intersected with each outcome's observed-row mask.
+    """
+    posterior = getattr(trace, group)
+    outcome_names = [str(o) for o in outcomes]
+    tau_da = posterior["tau"]
+    eta_da = posterior["eta"]
+    if "outcome" not in tau_da.dims or "outcome" not in eta_da.dims:
+        raise ValueError("joint tau and eta must carry a labelled outcome dimension")
+    available = [str(o) for o in tau_da.coords["outcome"].values]
+    missing = [o for o in outcome_names if o not in available]
+    if missing:
+        raise KeyError(f"joint outcomes absent from posterior: {missing}")
+    outcome_indices = [available.index(outcome) for outcome in outcome_names]
+    tau = (
+        tau_da.sel(outcome=outcome_names)
+        .stack(sample=("chain", "draw"))
+        .transpose("outcome", "sample")
+        .values
+    )
+    eta = (
+        eta_da.sel(outcome=outcome_names)
+        .stack(sample=("chain", "draw"))
+        .transpose("outcome", "obs_id", "sample")
+        .values
+    )
+    if G is None:
+        constant = getattr(trace, "constant_data", None)
+        if constant is None or "G" not in constant:
+            raise ValueError("G is required when the trace has no constant_data['G']")
+        G = np.asarray(constant["G"].values, dtype=float)
+    else:
+        G = np.asarray(G, dtype=float)
+    if G.ndim != 1 or G.size != eta.shape[1]:
+        raise ValueError(f"G must have one entry per fitted row ({eta.shape[1]}), got {G.shape}")
+    all_masks = _joint_observed_row_masks(trace, n_outcomes=len(available), n_obs=eta.shape[1])
+    masks = all_masks[outcome_indices]
+    if row_mask is not None:
+        selected = np.asarray(row_mask)
+        if selected.ndim != 1:
+            raise ValueError(f"row_mask must be 1-D, got a {selected.ndim}-D array.")
+        if selected.dtype == bool:
+            if selected.shape[0] != eta.shape[1]:
+                raise ValueError(
+                    f"boolean row_mask has {selected.shape[0]} entries but eta has "
+                    f"{eta.shape[1]} observations; pass the fitted-subset mask."
+                )
+        elif np.issubdtype(selected.dtype, np.integer):
+            if selected.size and (
+                int(selected.min()) < 0 or int(selected.max()) >= eta.shape[1]
+            ):
+                raise ValueError(
+                    f"integer row_mask has indices outside [0, {eta.shape[1]})."
+                )
+            selector = np.zeros(eta.shape[1], dtype=bool)
+            selector[selected] = True
+            selected = selector
+        else:
+            raise ValueError(
+                "row_mask must be a boolean mask or integer index array, "
+                f"got dtype {selected.dtype}."
+            )
+        masks = masks & selected[None, :]
+        if np.any(masks.sum(axis=1) == 0):
+            raise ValueError("row_mask leaves a joint outcome with no observations")
+    ame = np.empty_like(tau, dtype=float)
+    for k in range(len(outcome_names)):
+        eta0 = eta[k] - tau[k][None, :] * G[:, None]
+        contribution = expit(eta0 + tau[k][None, :]) - expit(eta0)
+        ame[k] = contribution[masks[k]].mean(axis=0)
+    return tau, ame
+
+
 def tau_summary_joint(
     trace: xr.DataTree,
     outcomes: list[str],
     ci_prob: float,
+    *,
+    G: np.ndarray | None = None,
+    row_mask: np.ndarray | None = None,
 ) -> pd.DataFrame:
-    """Return a DataFrame summarising tau_k for each outcome (logit scale).
+    """Summarise each outcome on probability and logit scales.
 
-    ``tau_median`` is the posterior median (the house convention — see
-    :func:`tau_summary_itt`); ``tau_lo`` / ``tau_hi`` are equal-tailed central
-    quantiles at coverage ``ci_prob``.
+    The headline ``ame_prob_*`` columns are average treatment risk differences
+    in proportion correct, a common scale across outcome denominators. The
+    ``tau_logit_*`` columns retain the conditional model coefficients as secondary
+    summaries. Legacy ``tau_*`` aliases remain for existing comparison scripts
+    and explicitly refer to the logit coefficient. ``row_mask`` optionally
+    restricts every outcome to a common subset of fitted children, after
+    intersection with that outcome's observed-score rows.
     """
-    draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
+    draws, ame = _joint_ame_draws(trace, outcomes, G=G, row_mask=row_mask)
     out = []
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
     for k, s in enumerate(outcomes):
         d = draws[k]
+        a = ame[k]
+        a90 = band90(a)
         out.append(
             {
                 "outcome": s,
+                "ame_prob_median": float(np.median(a)),
+                "ame_prob_mean": float(np.mean(a)),
+                "ame_prob_lo": float(np.quantile(a, lo_q)),
+                "ame_prob_hi": float(np.quantile(a, hi_q)),
+                "ame_prob_lo90": a90[0],
+                "ame_prob_hi90": a90[1],
+                "prob_ame_pos": float(np.mean(a > 0)),
+                "tau_logit_median": float(np.median(d)),
+                "tau_logit_lo": float(np.quantile(d, lo_q)),
+                "tau_logit_hi": float(np.quantile(d, hi_q)),
                 "tau_median": float(np.median(d)),
                 "tau_lo": float(np.quantile(d, lo_q)),
                 "tau_hi": float(np.quantile(d, hi_q)),
@@ -1304,9 +1492,23 @@ def gamma_interaction_summary(
 def tau_contrast_matrix(
     trace: xr.DataTree,
     outcomes: list[str],
+    *,
+    G: np.ndarray | None = None,
+    scale: str = "probability",
 ) -> pd.DataFrame:
-    """Compute P(tau_k > tau_j) for every outcome pair."""
-    draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
+    """Compute pairwise effect probabilities on the requested scale.
+
+    ``scale='probability'`` (default) compares proportion-correct average
+    marginal effects and is the reportable cross-outcome contrast. ``'logit'``
+    retains the conditional-coefficient comparison as a secondary diagnostic.
+    """
+    logit_draws, probability_draws = _joint_ame_draws(trace, outcomes, G=G)
+    if scale == "probability":
+        draws = probability_draws
+    elif scale == "logit":
+        draws = logit_draws
+    else:
+        raise ValueError("scale must be 'probability' or 'logit'")
     K = draws.shape[0]
     M = np.zeros((K, K))
     for i in range(K):
@@ -1324,46 +1526,217 @@ def tau_difference_summary(
     pair: tuple[str, str],
     *,
     ci_prob: float,
+    G: np.ndarray | None = None,
+    metadata: dict[str, str] | None = None,
 ) -> dict[str, float | str]:
-    """Summarise the difference ``tau[a] - tau[b]`` between two joint outcomes.
+    """Summarise an outcome-effect difference on probability and logit scales.
 
-    The difference is computed per posterior draw and then summarised, so the
-    reported interval propagates the full joint posterior (including any residual
-    correlation between the two outcomes) rather than combining two marginal
-    summaries. ``pair = (a, b)`` names the contrast ``tau[a] - tau[b]``.
+    The headline contrast subtracts per-draw proportion-correct average marginal
+    effects, giving a common risk-difference scale despite different test
+    denominators. The logit-coefficient difference is retained as secondary.
+    Both are computed per draw. For registered factorised models those draws do
+    not estimate within-child residual covariance, so a paired contrast requires
+    the documented dependence sensitivity.
 
-    Sign convention: ``tau`` is the coefficient on ``G = 2 - group``, and group 1
-    receives the intervention from t1, so a *positive* ``tau`` means the
-    intervention raised that outcome (see the "Sign convention" section of
-    METHODS.md). For the LRPITT15/15b generalisation contrast the pair is therefore
-    ``("TE", "UE")``: ``tau_TE - tau_UE`` equals the intervention benefit on
-    taught words minus the benefit on not-taught words, so a *positive* difference
-    means the directly-taught words moved *more* than the not-taught comparison
-    words - i.e. limited generalisation.
-
-    ``_lo`` / ``_hi`` are equal-tailed central quantiles at coverage ``ci_prob``
-    (same convention as :func:`tau_summary_itt`).
+    Human-readable semantics come from ``metadata`` rather than being inferred
+    from symbols. This keeps LRPITT16's expressive-versus-receptive contrast
+    distinct from LRPITT15/115's taught-versus-untaught contrasts.
     """
     a, b = pair
-    draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values  # (K, n_sample)
+    draws, ame = _joint_ame_draws(trace, outcomes, G=G)
     ia, ib = outcomes.index(a), outcomes.index(b)
     diff = draws[ia] - draws[ib]
+    diff_prob = ame[ia] - ame[ib]
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
-    return {
+    result: dict[str, float | str] = {
         "contrast": f"{a}_minus_{b}",
+        "headline_scale": "proportion_correct_risk_difference",
+        "diff_prob_median": float(np.median(diff_prob)),
+        "diff_prob_mean": float(np.mean(diff_prob)),
+        "diff_prob_lo": float(np.quantile(diff_prob, lo_q)),
+        "diff_prob_hi": float(np.quantile(diff_prob, hi_q)),
+        "diff_prob_lo90": band90(diff_prob)[0],
+        "diff_prob_hi90": band90(diff_prob)[1],
+        "prob_diff_pos": float(np.mean(diff_prob > 0)),
         "diff_logit_median": float(np.median(diff)),  # median-first (#271)
         "diff_logit_mean": float(np.mean(diff)),
         "diff_logit_lo": float(np.quantile(diff, lo_q)),
         "diff_logit_hi": float(np.quantile(diff, hi_q)),
         "diff_logit_lo90": band90(diff)[0],
         "diff_logit_hi90": band90(diff)[1],
-        "prob_diff_pos": float(np.mean(diff > 0)),
+        "prob_diff_logit_pos": float(np.mean(diff > 0)),
     }
+    for key in (
+        "contrast_kind",
+        "contrast_label",
+        "positive_interpretation",
+        "negative_interpretation",
+        "transfer_outcome",
+        "transfer_interpretation",
+        "dependence_note",
+    ):
+        if metadata and key in metadata:
+            result[key] = str(metadata[key])
+    return result
+
+
+def _json_safe(value):
+    """Return a reconstructable JSON representation of model settings.
+
+    ``ModelSpec.extra`` is intentionally free-form. Most registered settings are
+    primitives, tuples or mappings, but a few families use NumPy scalars,
+    dataclasses or callables. Serialising those with ``default=str`` alone loses
+    structure and can make an old fit impossible to reconstruct.
+    """
+
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if np.isfinite(value) else str(value)
+    if isinstance(value, np.generic):
+        return _json_safe(value.item())
+    if isinstance(value, np.ndarray):
+        return _json_safe(value.tolist())
+    if is_dataclass(value) and not isinstance(value, type):
+        return _json_safe(asdict(value))
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_json_safe(item) for item in sorted(value, key=repr)]
+    if callable(value):
+        module = getattr(value, "__module__", "")
+        name = getattr(value, "__qualname__", getattr(value, "__name__", repr(value)))
+        return f"{module}.{name}" if module else name
+    return str(value)
+
+
+def _effective_model_settings(context: StatisticalFitContext) -> dict:
+    """Resolve the spec and prepared-data choices that actually reached a fit."""
+
+    spec = context.spec
+    prepared = context.prepared
+    spec_extra = _json_safe(spec.extra)
+    settings = dict(spec_extra)
+
+    if spec.kind == "itt":
+        floor_rule = bool(spec_extra.get("floor_rule", False))
+        use_age_gp = bool(spec_extra.get("use_age_gp", False))
+        use_age_linear = bool(spec_extra.get("use_age_linear", False))
+        use_own_baseline_gp = bool(spec_extra.get("use_own_baseline_gp", False))
+        use_own_baseline = bool(spec_extra.get("use_own_baseline", True))
+        if "cross_symbols" in spec_extra:
+            cross_symbols = list(spec_extra.get("cross_symbols") or ())
+        else:
+            cross_symbols = [
+                symbol
+                for symbol in getattr(prepared, "pre_logit", {})
+                if symbol != spec.outcome_symbol
+            ]
+        if floor_rule:
+            likelihood = "bernoulli_offfloor_exploratory_with_beta_binomial_secondaries"
+        else:
+            likelihood = spec_extra.get("likelihood", "beta_binomial")
+        settings.update(
+            {
+                "likelihood": likelihood,
+                "floor_rule": floor_rule,
+                "outcomes": list(spec_extra.get("outcomes") or (spec.outcome_symbol,)),
+                "baseline_terms": {
+                    "use_own_baseline": use_own_baseline,
+                    "use_own_baseline_gp": use_own_baseline_gp,
+                    "cross_symbols": cross_symbols,
+                    "pre_required": _json_safe(spec_extra.get("pre_required")),
+                },
+                "age_effect": (
+                    "gp" if use_age_gp else "linear" if use_age_linear else "none"
+                ),
+                "use_age_gp": use_age_gp,
+                "use_age_linear": use_age_linear,
+                "use_residual_correlation": False,
+            }
+        )
+    elif spec.kind == "joint":
+        outcomes = list(spec_extra.get("outcomes") or getattr(prepared, "pre_logit", {}))
+        use_cross_baselines = bool(spec_extra.get("use_cross_baselines", True))
+        use_age_gp = bool(spec_extra.get("use_age_gp", False))
+        use_age_linear = bool(spec_extra.get("use_age_linear", False))
+        settings.update(
+            {
+                "likelihood": "beta_binomial",
+                "floor_rule": False,
+                "outcomes": outcomes,
+                "baseline_terms": {
+                    "use_own_baseline": True,
+                    "use_cross_baselines": use_cross_baselines,
+                    "cross_symbols": outcomes if use_cross_baselines else [],
+                },
+                "age_effect": (
+                    "gp" if use_age_gp else "linear" if use_age_linear else "none"
+                ),
+                "use_age_gp": use_age_gp,
+                "partial_pool_age_gp": bool(spec_extra.get("partial_pool_age_gp", True)),
+                "use_age_linear": use_age_linear,
+                "use_residual_correlation": bool(spec_extra.get("use_residual_correlation", False)),
+            }
+        )
+
+    post_counts = getattr(prepared, "post_counts", {}) if prepared is not None else {}
+    covariates = getattr(prepared, "covariates", {}) if prepared is not None else {}
+    settings.update(
+        {
+            "prepared_outcomes": list(post_counts),
+            "effective_adjustment": list(covariates),
+            "covariate_time": _json_safe(
+                getattr(prepared, "covariate_time", {})
+                if prepared is not None
+                else {}
+            ),
+            "dropped_covariates": list(
+                getattr(prepared, "dropped_covariates", ())
+                if prepared is not None
+                else ()
+            ),
+            "phase_mode": getattr(prepared, "phase_mode", None),
+        }
+    )
+    return settings
+
+
+def _itt_analysis_set_metadata(context: StatisticalFitContext) -> dict:
+    """Return arm-specific analysis-set counts for an ITT-family fit."""
+
+    if context.spec.kind not in {"itt", "joint"}:
+        return {}
+    prepared = context.prepared
+    if prepared is None or not hasattr(prepared, "G") or not hasattr(prepared, "post_counts"):
+        return {}
+
+    from language_reading_predictors.statistical_models.itt_audit import (
+        analysis_set_table,
+    )
+
+    if context.spec.kind == "itt":
+        symbol = context.spec.outcome_symbol
+        return {
+            "analysis_set_by_arm": _json_safe(
+                analysis_set_table(prepared, outcome_symbol=symbol).to_dict(orient="records")
+            )
+        }
+
+    records = []
+    outcomes = tuple(context.spec.extra.get("outcomes") or prepared.post_counts)
+    for symbol in outcomes:
+        table = analysis_set_table(prepared, outcome_symbol=symbol)
+        table.insert(0, "outcome", symbol)
+        records.extend(table.to_dict(orient="records"))
+    return {"analysis_set_by_outcome_and_arm": _json_safe(records)}
 
 
 def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None) -> None:
-    """Persist a ``config.json`` and basic metrics for the report."""
+    """Persist a reconstructable ``config.json`` and basic report metrics."""
     out = context.output_dir
     os.makedirs(out, exist_ok=True)
     spec = context.spec
@@ -1390,6 +1763,11 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "causal_status": spec.causal_status,
         "dataset_ref": spec.dataset_ref,
         "audit_baseline": spec.audit_baseline,
+        # Preserve both what the module requested and what preprocessing/factory
+        # resolution actually used. This is deliberately separate from ``extra``
+        # below, which contains post-fit summaries supplied by the pipeline.
+        "spec_extra": _json_safe(spec.extra),
+        "effective_model_settings": _effective_model_settings(context),
         "n_obs": context.prepared.n_obs if context.prepared else None,
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,
@@ -1404,10 +1782,13 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
             "random_seed": context.sampling.random_seed,
         },
         "output_root": str(_paths.output_root()),
-        "extra": extra or {},
+        "data_path": getattr(context.prepared, "data_path", None),
+        "data_sha256": getattr(context.prepared, "data_sha256", None),
+        "extra": _json_safe(extra or {}),
+        **_itt_analysis_set_metadata(context),
     }
     with open(os.path.join(out, "config.json"), "w") as f:
-        json.dump(cfg, f, indent=2, default=str)
+        json.dump(cfg, f, indent=2)
 
 
 def write_loo_summary(context: StatisticalFitContext) -> None:
@@ -1589,8 +1970,13 @@ def treatment_marginal_effect(
     ``prob_trt_pos`` is unaffected — it summarises the ``term`` draws directly.
     """
     b, ame_prob = _itt_ame_draws(
-        trace, G=trt, term=term, varying_term="", eta_name=eta_name,
-        moderators=moderators, row_mask=row_mask,
+        trace,
+        G=trt,
+        term=term,
+        varying_term="",
+        eta_name=eta_name,
+        moderators=moderators,
+        row_mask=row_mask,
     )
     ame_items = float(n_trials) * ame_prob
     lo_q = (1 - ci_prob) / 2
@@ -1784,8 +2170,10 @@ def association_marginals(
                     )
                 delta_eta = delta_eta + np.outer(zp, gi) * dz  # (n_obs, S)
 
-            de_sel = delta_eta if delta_eta.shape[0] == 1 else (
-                delta_eta if mask is None else delta_eta[mask]
+            de_sel = (
+                delta_eta
+                if delta_eta.shape[0] == 1
+                else (delta_eta if mask is None else delta_eta[mask])
             )
             ame_prob = (expit(eta_sel + de_sel) - expit(eta_sel)).mean(axis=0)  # (S,)
             ame_items = float(n_trials) * ame_prob
@@ -1809,7 +2197,9 @@ def association_marginals(
                     "prob_pos": float(np.mean(ame_items > 0)),
                     "off_floor": bool(off_floor),
                     "sd_items": (
-                        float(term.sd_items) if term.sd_items is not None else float("nan")
+                        float(term.sd_items)
+                        if term.sd_items is not None
+                        else float("nan")
                     ),
                 }
             )
@@ -1934,9 +2324,7 @@ def concurrent_marginals(
 
         for scale_label, dz in perturbations:
             delta_eta = beta * dz  # (S,), scalar shift per draw (no interactions)
-            ame_prob = (
-                expit(eta + delta_eta[None, :]) - expit(eta)
-            ).mean(axis=0)  # (S,)
+            ame_prob = (expit(eta + delta_eta[None, :]) - expit(eta)).mean(axis=0)  # (S,)
             ame_items = float(n_trials) * ame_prob
             prob_lo90, prob_hi90 = band90(ame_prob)
             items_lo90, items_hi90 = band90(ame_items)
@@ -2021,9 +2409,7 @@ def level_t2_marginal_effect(
     extra = [d for d in bgt.dims if d not in ("chain", "draw")]
     if not extra:
         raise ValueError(f"{contrast_term!r} is not a per-timepoint vector; t2 contrast undefined")
-    contrast_draws = (
-        bgt.isel({extra[0]: t2_phase}).stack(sample=("chain", "draw")).values
-    )  # (S,)
+    contrast_draws = bgt.isel({extra[0]: t2_phase}).stack(sample=("chain", "draw")).values  # (S,)
 
     # δ_i per t2 row and draw: the constant t2 contrast, plus the group×ability slope
     # times each row's ability if the interaction is in the model.
@@ -2080,14 +2466,12 @@ def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame
         }
         if lam is not None:
             row["lambda_mean"] = float(
-                lam.isel(predictor=i).stack(sample=("chain", "draw")).values.mean()
+                lam.isel(predictor=i)
+                .stack(sample=("chain", "draw"))
+                .values.mean()
             )
         rows.append(row)
-    df = (
-        pd.DataFrame(rows)
-        .sort_values("p_abs_gt_delta", ascending=False)
-        .reset_index(drop=True)
-    )
+    df = pd.DataFrame(rows).sort_values("p_abs_gt_delta", ascending=False).reset_index(drop=True)
     df.insert(0, "rank", np.arange(1, len(df) + 1))
     return df
 
@@ -2195,9 +2579,7 @@ def longitudinal_conditional_slopes(
     return pd.DataFrame(rows)
 
 
-def disattenuation_crosscheck(
-    latent_df: pd.DataFrame, observed_df: pd.DataFrame
-) -> pd.DataFrame:
+def disattenuation_crosscheck(latent_df: pd.DataFrame, observed_df: pd.DataFrame) -> pd.DataFrame:
     """Merge latent factor correlations with observed indicator correlations.
 
     ``latent_df`` is :func:`longitudinal_factor_correlations` output; ``observed_df``
@@ -2210,9 +2592,7 @@ def disattenuation_crosscheck(
     the loading structure, residual structure and sampling uncertainty can all break a
     simple attenuation ordering even when measurement error is present.
     """
-    merged = latent_df.merge(
-        observed_df, on=["wave", "domain_i", "domain_j"], how="left"
-    )
+    merged = latent_df.merge(observed_df, on=["wave", "domain_i", "domain_j"], how="left")
     lat = merged["mean"].abs()
     obs = merged["observed_corr"].abs()
     merged["gap"] = lat - obs

@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import warnings
 
 import numpy as np
@@ -144,6 +145,8 @@ def test_load_and_prepare_itt(tmp_path):
         assert prep.post_counts[s].shape == (20,)
     assert np.issubdtype(prep.G.dtype, np.integer)
     assert set(np.unique(prep.G)).issubset({0, 1})
+    assert prep.data_path == str(p.resolve())
+    assert prep.data_sha256 == hashlib.sha256(p.read_bytes()).hexdigest()
 
 
 def test_group_recode_intervention_is_positive(tmp_path):
@@ -166,6 +169,17 @@ def test_group_recode_intervention_is_positive(tmp_path):
             f"group=={group_code} must recode to G=={expected_g} "
             "(positive = intervention benefit)"
         )
+
+
+def test_group_code_is_validated_before_integer_cast(tmp_path):
+    """A fractional raw code must not be truncated into a valid arm."""
+    df = _make_synthetic_long(n_children=8, seed=12)
+    df[V.GROUP] = df[V.GROUP].astype(float)
+    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 1), V.GROUP] = 1.5
+    p = tmp_path / "rli_fractional_group.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match=r"exactly 1.*or 2.*1\.5"):
+        load_and_prepare(path=p, phase_mode="itt")
 
 
 def test_load_and_prepare_all_phases(tmp_path):
@@ -303,6 +317,24 @@ def test_lagged_outcome_missing_later_wave_is_nan(tmp_path):
     assert np.isnan(lagged.post_counts["W"]).sum() == 1
 
 
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        (-1.0, r"t3.*lower bound 0"),
+        (4.5, r"t3.*integer counts"),
+    ],
+)
+def test_lagged_outcome_rejects_invalid_replacement_count(tmp_path, value, match):
+    """A later-wave replacement receives the same validation as t2 counts."""
+    df = _make_synthetic_long(n_children=10, seed=14)
+    df[V.EWRSWR] = df[V.EWRSWR].astype(float)
+    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 3), V.EWRSWR] = value
+    p = tmp_path / f"rli_invalid_lagged_{value}.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match=match):
+        load_and_prepare_lagged_outcome("W", outcome_time=3, path=p)
+
+
 def test_measure_ceilings_documented():
     """#80: ITT-outcome ceilings are documented (W=79, P=92). Since #214 the block-1
     not-taught measures (UE/UR) are confirmed at 12 (the half-size 3x4 control set).
@@ -322,6 +354,28 @@ def test_load_and_prepare_rejects_count_above_ceiling(tmp_path):
     p = tmp_path / "rli.csv"
     df.to_csv(p, index=False)
     with pytest.raises(ValueError, match=r"ewrswr.*ceiling"):
+        load_and_prepare(path=p, phase_mode="itt")
+
+
+@pytest.mark.parametrize(
+    ("time", "value", "match"),
+    [
+        (1, -1.0, r"ewrswr_pre.*lower bound 0"),
+        (2, -1.0, r"ewrswr_post.*lower bound 0"),
+        (1, 1.5, r"ewrswr_pre.*integer counts"),
+        (2, 2.25, r"ewrswr_post.*integer counts"),
+    ],
+)
+def test_load_and_prepare_rejects_negative_or_fractional_counts(
+    tmp_path, time, value, match
+):
+    """Invalid counts must fail before a factory can silently cast them to int."""
+    df = _make_synthetic_long(n_children=10, seed=13)
+    df[V.EWRSWR] = df[V.EWRSWR].astype(float)
+    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == time), V.EWRSWR] = value
+    p = tmp_path / f"rli_invalid_count_t{time}_{value}.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match=match):
         load_and_prepare(path=p, phase_mode="itt")
 
 
