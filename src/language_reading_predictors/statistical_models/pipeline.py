@@ -821,6 +821,65 @@ def _save_rope_plot(
         rprint(f"[yellow]ROPE plot failed: {exc}[/yellow]")
 
 
+def _write_predicted_scores(
+    ctx: StatisticalFitContext,
+    *,
+    outcome_symbol: str,
+    G: np.ndarray,
+    n_trials: int,
+    term: str,
+    varying_term: str = "tau_i",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
+    row_mask: np.ndarray | None = None,
+    likelihood: str = "beta_binomial",
+    child_re: bool = False,
+    child_idx: np.ndarray | None = None,
+    delta: float | None = None,
+    population: str,
+    contrast_status: str,
+    event_label: str = "off the floor at follow-up",
+) -> None:
+    """Predicted-scores contrast panel, ROPE-triple density and icon array (#316).
+
+    Guarded like the other optional figure emitters: a plotting failure warns
+    rather than killing an expensive fit. The plotted AME draws reuse the exact
+    ``_itt_ame_draws`` arithmetic (guard-tested), so ``predicted_scores.csv``'s
+    ``average_marginal_effect`` row matches ``treatment_marginal.csv`` /
+    ``rope_summary.csv``.
+    """
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.predicted_scores import (
+        write_predicted_scores_artifacts,
+    )
+
+    try:
+        summary = write_predicted_scores_artifacts(
+            ctx.output_dir,
+            ctx.trace,
+            outcome_symbol=outcome_symbol,
+            item_label=MEASURES[outcome_symbol].label,
+            G=np.asarray(G, dtype=float),
+            n_trials=int(n_trials),
+            term=term,
+            varying_term=varying_term,
+            moderators=moderators,
+            row_mask=row_mask,
+            likelihood=likelihood,
+            child_effect_name="u_child" if child_re else None,
+            child_sd_name="sigma_child" if child_re else None,
+            child_idx=child_idx,
+            delta=delta,
+            ci_prob=ctx.reporting.ci_prob,
+            population=population,
+            contrast_status=contrast_status,
+            event_label=event_label,
+            random_seed=ctx.sampling.random_seed,
+        )
+        ctx.tables["predicted_scores"] = summary
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Predicted-scores figures failed: {exc}[/yellow]")
+
+
 def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
     """Heatmap of the joint pairwise contrast matrix P(tau_k > tau_j) (#125 Area 4)."""
     try:
@@ -1375,6 +1434,24 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
         ctx.tables["rope_sensitivity"] = sens_df
 
+    # Predicted-scores contrast panel + icon array (#316): what the model says
+    # about actual test scores for a new child, treated vs untreated. No child
+    # random intercept in the single-outcome ITT, so the prediction population
+    # is the fitted sample's covariate profiles.
+    _write_predicted_scores(
+        ctx,
+        outcome_symbol=spec.outcome_symbol,
+        G=built.prepared.G,
+        n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
+        term="tau",
+        moderators=tau_moderators,
+        delta=delta_items,
+        population=(
+            "new child; covariate profiles drawn from the fitted ITT analysis rows"
+        ),
+        contrast_status="randomised contrast (ITT)",
+    )
+
     # Tau-moderator (Part B / HTE) summary: the effect-modification coefficient
     # gamma_tau_int and the moderator main effect gamma_tau_mod, when a linear
     # tau moderator was fit. Returns {} (nothing written) for the standard
@@ -1573,6 +1650,26 @@ def _fit_itt_floor_rule(
             os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
         )
         ctx.tables["rope_sensitivity"] = sens_df
+
+    # Paired off-floor probability display + risk-difference density + icon
+    # array (#316): the floor rule's binary estimand drawn as two bars with
+    # credible intervals rather than a score distribution.
+    _write_predicted_scores(
+        ctx,
+        outcome_symbol=own,
+        G=built.prepared.G,
+        n_trials=1,
+        term="tau",
+        varying_term="",
+        likelihood="bernoulli",
+        delta=delta_prob,
+        population=(
+            "new child; covariate profiles drawn from the baseline-floored "
+            "at-risk analysis rows"
+        ),
+        contrast_status="randomised contrast (floor-rule subgroup ITT)",
+        event_label="off the floor at t2",
+    )
 
     s = ctx.sampling
 
@@ -2126,6 +2223,38 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             columns=["metric", "value"],
         )
     )
+
+    if not dose:
+        # Predicted-scores contrast panel + icon array (#316) for the one clean
+        # randomised quantity, tau_t2, at the t2 rows' covariate distribution.
+        # The dose companions carry no randomised on/off contrast and are skipped.
+        from language_reading_predictors.statistical_models.measures import (
+            ROPE_DELTA,
+            ROPE_DELTA_PROB,
+        )
+
+        _write_predicted_scores(
+            ctx,
+            outcome_symbol=sym,
+            G=built.prepared.G,
+            n_trials=1 if off_floor else int(MEASURES[sym].n_trials),
+            term="tau_t2",
+            varying_term="",
+            row_mask=built.prepared.phase == 1,
+            likelihood="bernoulli" if off_floor else "beta_binomial",
+            child_re=bool(spec.extra.get("use_child_re", True)),
+            child_idx=built.prepared.child_idx,
+            delta=ROPE_DELTA_PROB.get(sym) if off_floor else ROPE_DELTA.get(sym),
+            population=(
+                "new typical child at t2; child random intercept integrated over "
+                "its population distribution, covariates from the fitted t2 rows"
+            ),
+            contrast_status=(
+                "randomised t2 arm contrast within a within-child longitudinal "
+                "(waitlist-crossover) model"
+            ),
+            event_label="off the floor at t2 (prevalence)",
+        )
 
     if period_varying:
         # Period-resolved dose readout (#135): partial-pooled per-period dose
@@ -3595,6 +3724,32 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
             )
             ctx.tables["rope_sensitivity"] = sens_df
+
+        # Predicted-scores contrast panel + icon array (#316), averaged over the
+        # same period-1 reference rows as treatment_marginal.csv and integrating
+        # the child random intercept for a *new* typical child (the fitted
+        # children's intercepts are swapped for fresh population draws).
+        _write_predicted_scores(
+            ctx,
+            outcome_symbol=spec.outcome_symbol,
+            G=trt,
+            n_trials=n_marg,
+            term="beta_trt",
+            varying_term="",
+            moderators=trt_moderators,
+            row_mask=p1_mask,
+            likelihood="bernoulli" if off_floor else "beta_binomial",
+            child_re=True,
+            child_idx=built.prepared.child_idx,
+            delta=delta_prob if off_floor else delta_items,
+            population=(
+                "new typical child; child random intercept integrated over its "
+                "population distribution, covariates from the period-1 "
+                "randomised-transition rows"
+            ),
+            contrast_status="randomised on-intervention contrast (period-1 anchor)",
+            event_label="off the floor at the period end",
+        )
 
     # --- Per-covariate items-scale association marginals (#310) ---
     # The adjusted-association analogue of the treatment marginal: for each covariate

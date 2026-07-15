@@ -106,6 +106,48 @@ print(_img("rope_summary.png", "ROPE-anchored posterior and P(benefit ≥ δ)"))
 print("\n_How to read the ROPE summary:_ the left panel is the posterior effect on the items scale; the shaded band is the region of practical equivalence (ROPE), i.e. effects small enough to count as no practical difference. The right panel traces the probability of a benefit as the meaningful threshold delta rises, so you can see how likely a worthwhile gain is, not just any gain above zero.")
 ```
 
+### What the model predicts on the test scale
+
+```{python}
+# | echo: false
+# | output: asis
+_pred = _csv("predicted_scores.csv")
+if _pred is not None:
+    _pop = str(_pred.iloc[0].population)
+    _status = str(_pred.iloc[0].contrast_status)
+    print(_img("predicted_scores.png", "Predicted period-end scores with and without the intervention, and the items-scale effect with ROPE"))
+    print(
+        f"\n_How to read it:_ the left panel shows the period-end score the model predicts on {outcome_label} "
+        f"for a **{_pop}** — one distribution with the intervention switched on and one with it off, medians "
+        "marked and the items-scale difference annotated. The child random intercept is integrated over its "
+        "population distribution, so this is a *new-child* marginal prediction, not a same-children "
+        "conditional display; the width of each distribution is genuine single-child predictive uncertainty. "
+        "The right panel is the posterior of the items-scale average effect over the period-1 randomised "
+        "transition (the same reference rows as `treatment_marginal.csv`), with the ROPE band shaded and the "
+        "three probabilities (meaningful benefit / negligible / meaningful harm) printed. "
+        f"The contrast is a {_status}; every other coefficient in this family remains an adjusted "
+        "association. The plotted quantities are in `predicted_scores.csv`."
+    )
+```
+
+```{python}
+# | echo: false
+_pred
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("icon_array.png"):
+    print(_img("icon_array.png", "Icon array: 100 plausible worlds coloured by the ROPE verdict"))
+    print(
+        "\n_How to read the icon array:_ each dot is one equally plausible 'world' given the model and data. "
+        "Green dots are worlds where the benefit reaches the agreed meaningful difference δ, red dots are "
+        "worlds with meaningful harm, and grey dots are worlds where the effect is smaller than δ in either "
+        "direction."
+    )
+```
+
 ```{python}
 # | echo: false
 # | output: asis

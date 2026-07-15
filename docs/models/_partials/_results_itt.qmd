@@ -132,3 +132,44 @@ if _rope is not None:
         "winner's-curse effect), so lead with the interval, not the point.\n\n:::"
     )
 ```
+
+### What the model predicts on the test scale
+
+```{python}
+# | echo: false
+# | output: asis
+_pred = _csv("predicted_scores.csv")
+if _pred is not None:
+    _pop = str(_pred.iloc[0].population)
+    _status = str(_pred.iloc[0].contrast_status)
+    print(_img("predicted_scores.png", "Predicted test scores under each arm, and the items-scale effect with ROPE"))
+    print(
+        f"\n_How to read it:_ the left panel shows the score the model predicts on {outcome_label} "
+        f"(out of {n_trials}) for a **{_pop}** — one distribution per randomised arm, with each "
+        "arm's median marked and the items-scale difference annotated. The width of each "
+        "distribution is real predictive uncertainty for one child: parameter uncertainty plus "
+        "child-to-child spread, so heavily overlapping distributions are expected even when the "
+        "average effect is well supported. The right panel is the posterior of the items-scale "
+        "average treatment effect with the ROPE band shaded and the three probabilities "
+        "(meaningful benefit / negligible / meaningful harm) printed. "
+        f"The contrast is a {_status}; the plotted quantities are in `predicted_scores.csv`."
+    )
+```
+
+```{python}
+# | echo: false
+_pred
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("icon_array.png"):
+    print(_img("icon_array.png", "Icon array: 100 plausible worlds coloured by the ROPE verdict"))
+    print(
+        "\n_How to read the icon array:_ each dot is one equally plausible 'world' given the model "
+        "and data. Green dots are worlds where the benefit reaches the agreed meaningful "
+        "difference δ, red dots are worlds with meaningful harm, and grey dots are worlds where "
+        "the effect is smaller than δ in either direction."
+    )
+```
