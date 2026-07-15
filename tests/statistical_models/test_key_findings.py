@@ -136,6 +136,64 @@ def test_missing_config_degrades(tmp_path):
     assert "config.json" in payload["reason"]
 
 
+def test_malformed_config_degrades(tmp_path):
+    d = tmp_path / "bad-config"
+    d.mkdir()
+    (d / "config.json").write_text("{not json")
+    _write_json(d, "diagnostics_summary.json", _passing_gate())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "not_available"
+    assert "could not be parsed" in payload["reason"]
+
+
+def test_malformed_diagnostics_summary_degrades(tmp_path):
+    d = tmp_path / "bad-diag"
+    d.mkdir()
+    _write_json(d, "config.json", _config("itt"))
+    (d / "diagnostics_summary.json").write_text("{not json")
+    payload = generate_key_findings(d)
+    assert payload["status"] == "not_available"
+    assert "could not be parsed" in payload["reason"]
+
+
+def test_gate_outranks_malformed_config(tmp_path):
+    d = tmp_path / "bad-config-failed-gate"
+    d.mkdir()
+    (d / "config.json").write_text("{not json")
+    _write_json(
+        d,
+        "diagnostics_summary.json",
+        {"passed": False, "checks": {"rhat": False, "ess": True, "divergences": True, "bfmi": True}},
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "gate_failed"
+
+
+def test_negative_effect_reads_as_evidence_of_harm(tmp_path):
+    d = _setup_dir(tmp_path, "itt")
+    _write_csv(
+        d,
+        "rope_summary.csv",
+        _rope_row(
+            items_median=-2.4,
+            items_lo=-5.9,
+            items_hi=0.3,
+            pd=0.03,
+            favoured_direction="negative",
+            favoured_direction_prob=0.97,
+            favoured_direction_label="strong",
+        ),
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    confidence = payload["sentences"][1]["text"]
+    # Harm-aware (#179): the number and the label qualify the SAME claim.
+    assert confidence == (
+        "There is a 97% probability that the true effect is negative — strong "
+        "evidence that the intervention is harmful."
+    )
+
+
 def test_nan_in_headline_degrades_not_emits(tmp_path):
     d = _setup_dir(tmp_path, "itt")
     _write_csv(d, "rope_summary.csv", _rope_row(items_median=float("nan")))

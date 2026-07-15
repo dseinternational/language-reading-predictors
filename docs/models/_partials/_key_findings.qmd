@@ -1,3 +1,7 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
 ```{python}
 # | echo: false
 # | output: asis

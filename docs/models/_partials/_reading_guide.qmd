@@ -1,3 +1,7 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
 ::: {.callout-note collapse="true" title="How to read this report"}
 
 A short primer on the statistical vocabulary these reports assume, written for a reader who knows frequentist statistics but is newer to Bayesian methods. The project glossary in `METHODS.md` covers each idea in more depth.

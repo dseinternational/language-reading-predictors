@@ -2319,20 +2319,26 @@ def _kf_direction_words(prob_pos, *, is_rd: bool) -> str:
     fav = favoured_direction(p)
     label = fav["favoured_direction_label"]
     if fav["favoured_direction"] == "positive":
+        sign_word = "positive"
         claim = (
             "the intervention raises the chance of coming off the floor"
             if is_rd
             else "the intervention helps"
         )
     else:
+        sign_word = "negative"
         claim = (
             "the intervention lowers the chance of coming off the floor"
             if is_rd
             else "the intervention is harmful"
         )
+    # State the probability for the FAVOURED direction so the number and the
+    # evidence label qualify the same claim (harm-aware, #179): a clearly
+    # negative effect reads "97% probability ... negative — strong evidence of
+    # harm", not "3% probability ... positive — strong evidence of harm".
     return (
-        f"There is a {_kf_pct(p)}% probability that the true effect is positive "
-        f"— {label} evidence that {claim}."
+        f"There is a {_kf_pct(fav['favoured_direction_prob'])}% probability "
+        f"that the true effect is {sign_word} — {label} evidence that {claim}."
     )
 
 
@@ -2717,13 +2723,18 @@ def generate_key_findings(output_dir) -> dict:
     config = {}
     config_path = os.path.join(out, "config.json")
     if os.path.exists(config_path):
-        with open(config_path) as f:
-            config = json.load(f)
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            # A malformed config.json must degrade to not_available (after the
+            # gate check, which outranks it), not abort a fit's finalisation.
+            config = None
 
     payload: dict = {
         "schema_version": KEY_FINDINGS_SCHEMA_VERSION,
-        "model_id": config.get("model_id"),
-        "kind": config.get("kind"),
+        "model_id": (config or {}).get("model_id"),
+        "kind": (config or {}).get("kind"),
         "sentences": [],
     }
 
@@ -2735,8 +2746,16 @@ def generate_key_findings(output_dir) -> dict:
             "be checked"
         )
         return _write_key_findings(out, payload)
-    with open(diag_path) as f:
-        diag = json.load(f)
+    try:
+        with open(diag_path) as f:
+            diag = json.load(f)
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        payload["status"] = "not_available"
+        payload["reason"] = (
+            "diagnostics_summary.json could not be parsed, so the convergence "
+            "gate cannot be checked"
+        )
+        return _write_key_findings(out, payload)
     if not diag.get("passed", False):
         checks = diag.get("checks") or {}
         failing = [
@@ -2750,7 +2769,11 @@ def generate_key_findings(output_dir) -> dict:
 
     if not config:
         payload["status"] = "not_available"
-        payload["reason"] = "config.json is missing"
+        payload["reason"] = (
+            "config.json could not be parsed"
+            if config is None
+            else "config.json is missing"
+        )
         return _write_key_findings(out, payload)
 
     builder = _KF_BUILDERS.get(config.get("kind"), _kf_build_fallback)
