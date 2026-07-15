@@ -2734,6 +2734,183 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     return _finalize_report(ctx)
 
 
+def fit_mediation_period_stacked(
+    spec: ModelSpec, config: str = "dev"
+) -> StatisticalFitContext:
+    """Period-stacked g-formula mediation on the gain-factor scaffold (MED-092, #229).
+
+    The LRP59 mediator + outcome design refit over **all stacked period
+    transitions** (``phase_mode="all"``), with the per-period on-intervention
+    indicator as the exposure and the gain-factor machinery (phase intercepts,
+    per-leg child random intercepts). Writes the all-period decomposition to
+    ``mediation_summary.csv`` and the period-1 (ITT-anchored, LRP59-comparable)
+    row restriction to ``mediation_summary_p1.csv``. No t3 temporal-ordering
+    sensitivity is fitted — the stacked design already spans every window, and
+    its mediator/outcome remain contemporaneous within each period by design.
+    """
+    _require_spec(spec, "mediation")
+    from language_reading_predictors.statistical_models import mediation as _med
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    mediator_symbol = spec.mechanism_symbol or "L"
+    outcome_symbol = spec.outcome_symbol or "W"
+    # Structural markers aside, the adjustment list is the confounder set; the
+    # raw covariates take the gain-factor timing split (hearing contemporaneous,
+    # speech/phonological memory at the t1 baseline — the A1 timing decision).
+    confounders = tuple(
+        s
+        for s in spec.adjustment
+        if s not in ("T", "A", "W_pre", f"{mediator_symbol}_pre")
+    )
+    raw_cov = _raw_covariate_confounders(confounders)
+    pre_adj, post_adj = split_covariates_by_wave(raw_cov)
+    baseline_adj, post_adj = split_confounders_by_timing(post_adj)
+    measure_confounders = tuple(c for c in confounders if c not in raw_cov)
+    prepared = load_and_prepare(
+        phase_mode="all",
+        outcomes=(outcome_symbol, mediator_symbol, *measure_confounders),
+        covariates=pre_adj,
+        post_covariates=post_adj,
+        baseline_covariates=baseline_adj,
+    )
+    ctx.prepared = prepared
+    # Keep only confounders actually present (a constant ``_missing`` indicator
+    # is dropped by the loader and gets no coefficient).
+    confounders = tuple(
+        c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
+    )
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    built, med_data = _factories.build_period_stacked_mediation_model(
+        prepared,
+        mediator_symbol=mediator_symbol,
+        outcome_symbol=outcome_symbol,
+        confounder_symbols=confounders,
+    )
+    _attach_built(ctx, built)
+
+    mediator_node = f"{mediator_symbol}_post"
+    # Scalar coefficients from the model itself, plus the per-phase intercept
+    # vectors (the convergence gate scans every free RV regardless).
+    coef_vars = sorted(rv.name for rv in built.model.free_RVs if rv.ndim == 0)
+    diag_vars = [*coef_vars, "a_phase", "b_phase"]
+
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, outcome_symbol, node="y_post")
+
+    _run_sampling_and_loo(ctx, compute_loo=False)
+
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx, var_names=[mediator_node, "y_post"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(ctx)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    section_header("Mediation decomposition (period-stacked g-formula)")
+    med_df = _med.decompose_period_stacked(
+        ctx.trace, med_data, ci_prob=ctx.reporting.ci_prob
+    )
+    med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
+    ctx.tables["mediation_summary"] = med_df
+    print_table(
+        ranked_dataframe_table(
+            med_df,
+            title=(
+                "Per-period mediation, all stacked periods "
+                f"(on-intervention; words out of {med_data.n_trials_W})"
+            ),
+            columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # Period-1 restriction: the same posterior averaged over the randomised,
+    # all-untreated-baseline transition only — the LRP59-comparable readout
+    # (mirrors the gain-factor family's period-1 treatment marginal, #247 P2).
+    med_df_p1 = _med.decompose_period_stacked(
+        ctx.trace,
+        med_data,
+        ci_prob=ctx.reporting.ci_prob,
+        row_mask=med_data.phase_idx == 0,
+    )
+    med_df_p1.to_csv(
+        os.path.join(ctx.output_dir, "mediation_summary_p1.csv"), index=False
+    )
+    ctx.tables["mediation_summary_p1"] = med_df_p1
+    print_table(
+        ranked_dataframe_table(
+            med_df_p1,
+            title="Period-1 restriction (randomised window; LRP59-comparable)",
+            columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    section_header("Mediation NIE sensitivity (unmeasured confounding)")
+    sens_sweep, sens_summary = _med.sensitivity_sweep(
+        ctx.trace,
+        med_data,
+        ci_prob=ctx.reporting.ci_prob,
+        decompose_fn=_med.decompose_period_stacked,
+        interaction_name="b_trtM",
+    )
+    sens_sweep.to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity.csv"), index=False
+    )
+    pd.DataFrame([sens_summary]).to_csv(
+        os.path.join(ctx.output_dir, "mediation_sensitivity_summary.csv"), index=False
+    )
+    ctx.tables["mediation_sensitivity"] = sens_sweep
+    if sens_summary["already_null_at_zero"]:
+        rprint(
+            "  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A "
+            "(no indirect effect to explain away)."
+        )
+    elif sens_summary["robust_over_full_sweep"]:
+        rprint(
+            f"  NIE robust across the full sweep (CI excludes 0 up to "
+            f"delta={sens_sweep['delta'].max():.2f} logit)."
+        )
+    else:
+        rprint(
+            f"  NIE tipping point delta*={sens_summary['tipping_delta']:.3f} logit "
+            f"({sens_summary['tipping_frac_of_bM']:.0%} of the fitted b_M+b_trtM) — an "
+            "unmeasured mediator-outcome confounder that strong would null the NIE."
+        )
+
+    _requested_raw = _raw_covariate_confounders(
+        s for s in spec.adjustment if s not in ("T", "A", "W_pre", f"{mediator_symbol}_pre")
+    )
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "adjustment": spec.adjustment,
+            "effective_confounders": list(confounders),
+            "dropped_confounders": [c for c in _requested_raw if c not in confounders],
+            "n_obs": prepared.n_obs,
+            "exposure": "on_intervention (per-period; gain-factor ignorability)",
+            "mediation": {r["quantity"]: r for r in med_df.to_dict("records")},
+            "mediation_p1": {r["quantity"]: r for r in med_df_p1.to_dict("records")},
+        },
+    )
+
+    return _finalize_report(ctx)
+
+
 # ---------------------------------------------------------------------------
 # Gain-factors / level-factors pipelines (LRPGF / LRPLF, #127)
 # ---------------------------------------------------------------------------
@@ -4758,6 +4935,8 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     written to ``itt_window1_contrast.csv``) and a shared adjuster
     ``covariate_block``. ``dominance_pair`` adds the SD-standardised
     reciprocal-dominance contrast (``dominance_summary.csv``).
+    ``lagged_change_couplings`` (LCSM-091, #229 spec 2) adds prior-transition
+    latent-change terms (``h_{src}``) to the named targets' change equations.
     """
     _require_spec(spec, "lcsm")
 
@@ -4771,6 +4950,10 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         {tgt: tuple(srcs) for tgt, srcs in couplings_in.items()}
         if couplings_in
         else {reading_symbol: tuple(s for s in outcomes if s != reading_symbol)}
+    )
+    lagged_in = spec.extra.get("lagged_change_couplings")
+    lagged_change_couplings: dict[str, tuple[str, ...]] = (
+        {tgt: tuple(srcs) for tgt, srcs in lagged_in.items()} if lagged_in else {}
     )
     arm_window = bool(spec.extra.get("arm_window_intercepts", False))
     covariate_block = tuple(spec.extra.get("covariate_block", ()))
@@ -4800,6 +4983,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         panel,
         reading_symbol=reading_symbol,
         couplings=couplings,
+        lagged_change_couplings=lagged_change_couplings or None,
         arm_window_intercepts=arm_window,
         covariate_block=covariate_block,
         covariate_targets=covariate_targets,
@@ -4822,7 +5006,15 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         for tgt, srcs in couplings.items()
         for src in srcs
     }
+    # Lagged change-on-change names mirror the factory's rule on the lag map.
+    single_lag_target = len(lagged_change_couplings) == 1
+    lagged_names = {
+        (src, tgt): (f"h_{src}" if single_lag_target else f"h_{src}_{tgt}")
+        for tgt, srcs in lagged_change_couplings.items()
+        for src in srcs
+    }
     diag_vars = list(coupling_names.values())
+    diag_vars += list(lagged_names.values())
     diag_vars += [f"b_{name}" for name in covariate_block]
     diag_vars += ["a_change", "b_self", "d_age", "sigma1", "kappa"]
     if spec.extra.get("use_process_noise", True):
@@ -4858,6 +5050,14 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ctx.reporting.ci_prob,
         )
         for (src, tgt), pname in coupling_names.items()
+    ]
+    rows += [
+        _coef_row(
+            f"{pname} (prior {src} change -> {tgt} change)",
+            post[pname].values,
+            ctx.reporting.ci_prob,
+        )
+        for (src, tgt), pname in lagged_names.items()
     ]
     for name in covariate_block:
         rows.append(
@@ -4996,6 +5196,9 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "outcomes": list(outcomes),
             "reading_symbol": reading_symbol,
             "couplings": {tgt: list(srcs) for tgt, srcs in couplings.items()},
+            "lagged_change_couplings": {
+                tgt: list(srcs) for tgt, srcs in lagged_change_couplings.items()
+            },
             "arm_window_intercepts": arm_window,
             "covariate_block": list(covariate_block),
             "covariate_targets": list(covariate_targets),

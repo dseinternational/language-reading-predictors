@@ -40,9 +40,11 @@ inflator of the NIE via L.
 The binding unverifiable assumption is no unmeasured L -> B confounding (latent
 general ability violates it), as for LRP59 — a model-based g-formula decomposition
 under stated (cross-world) assumptions, wide at n ~ 53, not an identified natural
-effect. **Provisional pending the time-indexed re-derivation (#250/#264):** a
-contemporaneous-graph derivation like the rest of the family (med-087 is on #264's
-affected-models table).
+effect. **Confirmed by the time-indexed re-derivation (#264;**
+``notes/202607142340-lrp264-mediation-adjustment-dsep.md``): on the wave-unrolled
+graph EV/RV do not enter the mediator's parent set (the E/R absence stands), and
+the recanting witness appears explicitly as ``LS_2 <- IS_1 -> PA_2``, blockable
+only at treatment descendants — #323/#324 remain the right response.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

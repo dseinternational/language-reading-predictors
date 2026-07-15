@@ -1,15 +1,18 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""CI guard for the time-lagged DAG adjustment-set derivations (#250).
+"""CI guard for the time-lagged DAG adjustment-set derivations (#250, #264).
 
 The lagged coupling models (LCSM-081/181/082) were designed against verified
 d-separation derivations on ``dag/dag-language-reading-lagged.dagitty`` and a
 crossover-aware three-slice unroll of the same structure
-(``notes/202607141030-time-lagged-model-designs.md``). These tests re-run the
-load-bearing checks so the claims cannot silently go stale when the DAG is
-next revised: if an edit to the ``.dagitty`` breaks a test here, the
-corresponding model's adjustment set (and the design note) needs re-deriving.
+(``notes/202607141030-time-lagged-model-designs.md``), and the mediation
+family's adjustment sets were settled against the same unroll
+(``notes/202607142340-lrp264-mediation-adjustment-dsep.md``). These tests
+re-run the load-bearing checks so the claims cannot silently go stale when the
+DAG is next revised: if an edit to the ``.dagitty`` (or to a MED model's
+``SPEC.adjustment``) breaks a test here, the corresponding adjustment set (and
+the derivation note) needs re-deriving.
 
 Every check removes latent general ability ``GA`` first — no measured set can
 block it, so the assertions state the honest claim ("``GA`` aside, this set
@@ -75,10 +78,18 @@ def parse_dagitty(path: Path) -> nx.DiGraph:
     return g
 
 
-def three_slice_unroll() -> nx.DiGraph:
-    """Crossover-aware unroll: window 1 immediate-arm only, window 2 both arms."""
+def unroll(n_waves: int) -> nx.DiGraph:
+    """Crossover-aware unroll over ``n_waves`` waves.
+
+    Sessions run in every inter-wave window the unroll covers (immediate arm
+    from window 1, waitlist from window 2, both arms continuing in window 3 —
+    the delivery recorded in the #250 design note), so each window ``w`` gets
+    ``IG -> IS_w`` and ``IS_w`` / ``IG`` into the ITT targets at wave w+1.
+    ``unroll(3)`` is the design note's three-slice graph (window 1
+    immediate-arm only, window 2 both arms).
+    """
     g = nx.DiGraph()
-    waves = [1, 2, 3]
+    waves = list(range(1, n_waves + 1))
     for w in waves:
         for a, targets in WITHIN:
             for b in targets:
@@ -94,7 +105,6 @@ def three_slice_unroll() -> nx.DiGraph:
         g.add_edge(f"A_{w}", f"A_{w + 1}")
         for r in REVERSE:
             g.add_edge(f"WR_{w}", f"{r}_{w + 1}")
-    for w in (1, 2):
         g.add_edge("IG", f"IS_{w}")
         g.add_edge("GA", f"IS_{w}")
         g.add_edge(f"A_{w}", f"IS_{w}")
@@ -104,13 +114,23 @@ def three_slice_unroll() -> nx.DiGraph:
     return g
 
 
-def blocks_backdoors(g: nx.DiGraph, x: str, y: str, z: set[str]) -> bool:
-    """Backdoor validity of ``z`` for x -> y with latent GA removed (see module doc)."""
+def three_slice_unroll() -> nx.DiGraph:
+    return unroll(3)
+
+
+def blocks_backdoors(g: nx.DiGraph, x: str | set[str], y: str, z: set[str]) -> bool:
+    """Backdoor validity of ``z`` for x -> y with latent GA removed (see module doc).
+
+    ``x`` may be a set (a joint mediator block): the out-edges of every member
+    are removed and the whole block must be d-separated from ``y``.
+    """
+    xs = {x} if isinstance(x, str) else set(x)
     h = g.copy()
-    h.remove_edges_from(list(h.out_edges(x)))
+    for xi in xs:
+        h.remove_edges_from(list(h.out_edges(xi)))
     if "GA" in h:
         h.remove_node("GA")
-    return nx.is_d_separator(h, {x}, {y}, set(z) - {"GA"})
+    return nx.is_d_separator(h, xs, {y}, set(z) - {"GA"})
 
 
 @pytest.fixture(scope="module")
@@ -226,3 +246,196 @@ def test_mediation_te_worked_example(unrolled):
     assert blocks_backdoors(
         unrolled, "TE_2", "WR_2", contemporaneous | {"EV_1", "RV_1"}
     )
+
+
+# --- the #264 mediation-family settlement ------------------------------------
+#
+# Per-model derivations from notes/202607142340-lrp264-mediation-adjustment-dsep.md
+# (script: notes/assets/202607142340-med-adjustment-dsep.py). The adjustment
+# sets are read from the live ``SPEC`` objects so an edit to any MED model's
+# set re-triggers the derivation here.
+
+# ModelSpec symbol -> DAG node (the node key in the .dagitty header).
+SYMBOL_TO_NODE = {
+    "W": "WR", "L": "LS", "B": "PA", "N": "NW", "E": "EV", "R": "RV",
+    "T": "RG", "TE": "TE", "TR": "TR",
+}
+# Raw adjuster covariates -> DAG node (entered at baseline in the fitted models).
+COVARIATE_TO_NODE = {"hs": "HS", "deapp_c": "SP", "erbto": "RW"}
+
+# A collider-free mediator->outcome backdoor path per model, every one of whose
+# interior nodes is an IG-descendant — the proof that NO treatment-non-descendant
+# set can block the mediator-outcome confounding (natural effects stay
+# unidentified whatever happens to E/R).
+MED_WITNESSES = {
+    "lrp_rli_med_059": ["LS_2", "<-", "IS_1", "->", "WR_2"],
+    "lrp_rli_med_062": ["LS_2", "<-", "IS_1", "->", "WR_2"],
+    "lrp_rli_med_064": ["LS_2", "<-", "IS_1", "->", "WR_2"],
+    "lrp_rli_med_066": ["LS_2", "<-", "IS_1", "->", "WR_2"],
+    "lrp_rli_med_068": ["TE_2", "<-", "IS_1", "->", "WR_2"],
+    "lrp_rli_med_074": ["NW_2", "<-", "LS_2", "<-", "IS_1", "->", "WR_2"],
+    "lrp_rli_med_075": ["LS_2", "<-", "IS_1", "->", "WR_2"],
+    "lrp_rli_med_076": ["LS_2", "<-", "IS_1", "->", "WR_2", "->", "WR_3", "->", "WR_4"],
+    "lrp_rli_med_078": ["LS_2", "<-", "IS_1", "->", "WR_2"],
+    "lrp_rli_med_079": ["RG_2", "<-", "TR_2", "->", "WR_2"],
+    "lrp_rli_med_080": ["TR_2", "<-", "IS_1", "->", "WR_2"],
+    "lrp_rli_med_086": ["LS_2", "<-", "IS_1", "->", "PA_2", "->", "NW_2"],
+    "lrp_rli_med_087": ["LS_2", "<-", "IS_1", "->", "PA_2"],
+}
+
+# Expected role of baseline E / R per model ("member": in the valid parent set
+# pa(M); "proxy": the contemporaneous EV_2/RV_2 is in pa(M) and the baseline is
+# its admissible pre-treatment proxy; "precision": on no minimal backdoor route).
+MED_ER_ROLES = {
+    "lrp_rli_med_059": ("precision", "precision"),
+    "lrp_rli_med_062": ("proxy", "precision"),
+    "lrp_rli_med_064": ("member", "proxy"),
+    "lrp_rli_med_066": ("proxy", "precision"),
+    "lrp_rli_med_068": ("precision", "precision"),
+    "lrp_rli_med_074": ("precision", "precision"),
+    "lrp_rli_med_075": ("proxy", "precision"),
+    "lrp_rli_med_076": ("precision", "precision"),
+    "lrp_rli_med_078": ("precision", "precision"),
+    "lrp_rli_med_079": ("precision", "proxy"),
+    "lrp_rli_med_080": ("precision", "precision"),
+    "lrp_rli_med_086": ("precision", "precision"),
+    "lrp_rli_med_087": ("precision", "precision"),
+}
+
+
+@pytest.fixture(scope="module")
+def unrolled4() -> nx.DiGraph:
+    return unroll(4)
+
+
+@pytest.fixture(scope="module")
+def med_specs():
+    import importlib
+
+    return {
+        name: importlib.import_module(
+            f"language_reading_predictors.statistical_models.{name}"
+        ).SPEC
+        for name in MED_WITNESSES
+    }
+
+
+def _map_adjustment(entries, outcome_symbol: str) -> set[str]:
+    """Map a ``ModelSpec.adjustment`` list to unrolled-graph nodes.
+
+    Baselines land at wave 1; ``W_pre`` is the outcome-own-baseline marker
+    (MED-087 uses it for B's pre-score); ``A`` is granted {A_1, A_2} because
+    age at later waves is deterministic given wave spacing; ``*_missing``
+    indicators are not graph nodes.
+    """
+    nodes: set[str] = set()
+    for e in entries:
+        if e.endswith("_missing"):
+            continue
+        if e == "G":
+            nodes.add("IG")
+        elif e == "A":
+            nodes.update({"A_1", "A_2"})
+        elif e == "W_pre":
+            nodes.add(f"{SYMBOL_TO_NODE[outcome_symbol]}_1")
+        elif e.endswith("_t1"):
+            nodes.add(f"{SYMBOL_TO_NODE[e[:-3]]}_1")
+        elif e in COVARIATE_TO_NODE:
+            n = COVARIATE_TO_NODE[e]
+            nodes.add("HS" if n == "HS" else f"{n}_1")
+        elif e in SYMBOL_TO_NODE:
+            nodes.add(f"{SYMBOL_TO_NODE[e]}_1")
+        else:
+            raise ValueError(f"unmapped adjustment entry: {e!r}")
+    return nodes
+
+
+def _med_case(spec, unrolled, unrolled4):
+    """(graph, mediator nodes, outcome node, mapped fitted set) for a MED spec."""
+    if spec.mechanism_symbol is not None:
+        mediator_symbols = (spec.mechanism_symbol,)
+    else:
+        mediator_symbols = spec.extra.get("mediators") or spec.extra["route_symbols"]
+    outcome_wave = spec.extra.get("outcome_time", 2)
+    g = unrolled4 if outcome_wave == 4 else unrolled
+    ms = {f"{SYMBOL_TO_NODE[s]}_2" for s in mediator_symbols}
+    y = f"{SYMBOL_TO_NODE[spec.outcome_symbol]}_{outcome_wave}"
+    c = _map_adjustment(spec.adjustment, spec.outcome_symbol)
+    return g, ms, y, c
+
+
+def _parent_set(g: nx.DiGraph, mediators: set[str]) -> set[str]:
+    ps: set[str] = set()
+    for m in mediators:
+        ps |= set(g.predecessors(m))
+    return (ps - {"GA"}) - mediators
+
+
+def test_baseline_vocabulary_precedes_treatment(unrolled, unrolled4):
+    """The #259 descendant argument fails with measurement occasions explicit:
+    baseline E/R (EV_1/RV_1) are not descendants of the randomised IG."""
+    for g in (unrolled, unrolled4):
+        ig_desc = nx.descendants(g, "IG")
+        assert "EV_1" not in ig_desc
+        assert "RV_1" not in ig_desc
+
+
+@pytest.mark.parametrize("name", sorted(MED_WITNESSES))
+def test_med_fitted_set_is_admissible_and_e_r_settle_nothing(
+    name, med_specs, unrolled, unrolled4
+):
+    """The fitted all-baseline set contains no IG-descendant (cross-world
+    admissible), does not strictly block the mediator-outcome backdoors, and
+    its status is unchanged by dropping E/R — retention is a precision call,
+    not an identification one."""
+    g, ms, y, c = _med_case(med_specs[name], unrolled, unrolled4)
+    ig_desc = nx.descendants(g, "IG")
+    assert not (c & ig_desc), f"{name}: fitted set contains IG-descendants"
+    assert not blocks_backdoors(g, ms, y, c)
+    assert not blocks_backdoors(g, ms, y, c - {"EV_1", "RV_1"})
+
+
+@pytest.mark.parametrize("name", sorted(MED_WITNESSES))
+def test_med_witness_backdoor_defeats_every_admissible_set(
+    name, med_specs, unrolled, unrolled4
+):
+    """Each model has a collider-free mediator-outcome backdoor whose interior
+    nodes are all IG-descendants, so no treatment-non-descendant adjustment
+    set can block it: natural effects stay unidentified regardless of E/R."""
+    g, ms, y, _ = _med_case(med_specs[name], unrolled, unrolled4)
+    path = MED_WITNESSES[name]
+    nodes, arrows = path[0::2], path[1::2]
+    assert nodes[0] in ms and nodes[-1] == y
+    ig_desc = nx.descendants(g, "IG")
+    for i, arr in enumerate(arrows):
+        u, v = nodes[i], nodes[i + 1]
+        assert g.has_edge(u, v) if arr == "->" else g.has_edge(v, u), (u, arr, v)
+    for i in range(1, len(nodes) - 1):
+        assert not (arrows[i - 1] == "->" and arrows[i] == "<-"), (
+            f"witness has a collider at {nodes[i]}"
+        )
+        assert nodes[i] in ig_desc, f"{nodes[i]} is not an IG-descendant"
+
+
+@pytest.mark.parametrize("name", sorted(MED_WITNESSES))
+def test_med_parent_set_is_valid_and_e_r_are_harmless(
+    name, med_specs, unrolled, unrolled4
+):
+    """pa(M) (descendants allowed, GA aside) strictly blocks the backdoors and
+    stays valid with baseline E/R added — E/R are admissible and harmless; the
+    E/R roles the note records are re-derived from the graph."""
+    g, ms, y, _ = _med_case(med_specs[name], unrolled, unrolled4)
+    pa = _parent_set(g, ms)
+    assert blocks_backdoors(g, ms, y, pa)
+    assert blocks_backdoors(g, ms, y, pa | {"EV_1", "RV_1"})
+    for base, contemp, expected in (
+        ("EV_1", "EV_2", MED_ER_ROLES[name][0]),
+        ("RV_1", "RV_2", MED_ER_ROLES[name][1]),
+    ):
+        if base in pa:
+            role = "member"
+        elif contemp in pa:
+            role = "proxy"
+        else:
+            role = "precision"
+        assert role == expected, f"{name}: {base} role {role} != {expected}"

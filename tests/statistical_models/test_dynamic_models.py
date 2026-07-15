@@ -199,6 +199,48 @@ def test_lcsm_factory_multi_target_couplings_and_arm_window(tmp_path):
     assert pp.prior_predictive["y_obs"].shape[-1] == _n_observed(panel)
 
 
+# --- #229 spec-2 lagged change-on-change couplings (LCSM-091) ----------------
+
+
+def test_lcsm_factory_lagged_change_couplings(tmp_path):
+    p = _write_panel_csv(tmp_path, n_children=20)
+    panel = load_wave_panel(path=p)
+    built = build_lcsm_model(
+        panel,
+        couplings={"W": ("L", "E")},
+        lagged_change_couplings={"W": ("L", "E")},
+        arm_window_intercepts=True,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    # Level couplings keep the LRP67 names; the new lagged-change couplings sit
+    # alongside them with the h_ prefix (single lag target -> no target suffix).
+    assert {"g_L", "g_E", "h_L", "h_E"}.issubset(names)
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=3, random_seed=1)
+    assert pp.prior_predictive["y_obs"].shape[-1] == _n_observed(panel)
+
+
+def test_lcsm_factory_lagged_change_guards(tmp_path):
+    p = _write_panel_csv(tmp_path, n_children=10)
+    panel = load_wave_panel(path=p)
+    # The h terms live only on post-crossover transitions, so the crossover-aware
+    # arm x window intercepts are mandatory, not optional.
+    with pytest.raises(ValueError, match="arm_window_intercepts"):
+        build_lcsm_model(panel, lagged_change_couplings={"W": ("L",)})
+    with pytest.raises(ValueError, match="lag-couple to its own change"):
+        build_lcsm_model(
+            panel,
+            lagged_change_couplings={"W": ("W",)},
+            arm_window_intercepts=True,
+        )
+    with pytest.raises(KeyError, match="not in panel.outcomes"):
+        build_lcsm_model(
+            panel,
+            lagged_change_couplings={"W": ("TE",)},
+            arm_window_intercepts=True,
+        )
+
+
 def test_lcsm_factory_validation_guards(tmp_path):
     p = _write_panel_csv(tmp_path, n_children=10)
     panel = load_wave_panel(path=p)
