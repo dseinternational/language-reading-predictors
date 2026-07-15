@@ -320,6 +320,7 @@ def _print_header(ctx: StatisticalFitContext) -> None:
             n_obs=prepared.n_obs if prepared else None,
             n_children=prepared.n_children if prepared else None,
             n_phases=prepared.n_phases if prepared else None,
+            n_waves=getattr(prepared, "n_waves", None) if prepared else None,
         )
     )
 
@@ -6034,6 +6035,197 @@ _LCF_DEFAULT_DOMAINS = {
 }
 
 
+def _lcf_child_log_likelihood(trace, built, *, chunk_size: int = 256):
+    """Evaluate the LCF's exact per-child MvNormal log likelihood.
+
+    PyMC 6.1 cannot reconstruct this model's log likelihood from its posterior:
+    removing the ``LKJCorr`` transforms gives the compiled value variables an extra
+    ``_cholesky`` suffix, while the posterior keeps the random-variable names. The
+    generic helper therefore rejects the inputs before evaluating the density.
+
+    The fitted trace already contains the exact marginal mean ``mean_z`` and
+    covariance ``Sigma_z`` used by every observed-pattern ``MvNormal``. Evaluate
+    that density directly, in bounded draw chunks, and return one contribution per
+    child. This avoids PyMC's transformed-value plumbing. It can also recover LOO
+    from a persisted trace when the exact matching model and data are rebuilt; the
+    coordinate and observed-data checks below reject positional drift.
+    """
+    import xarray as xr
+
+    if chunk_size < 1:
+        raise ValueError(f"chunk_size must be positive (got {chunk_size})")
+
+    posterior = trace.posterior
+    mean_z = posterior["mean_z"].transpose("chain", "draw", "cell")
+    sigma_z = posterior["Sigma_z"].transpose(
+        "chain", "draw", "cell", "cell_b"
+    )
+    expected_cells = np.asarray(built.extras["cell_names"], dtype=str)
+    for variable, dimension in ((mean_z, "cell"), (sigma_z, "cell"), (sigma_z, "cell_b")):
+        actual_cells = np.asarray(variable.coords[dimension].values, dtype=str)
+        if not np.array_equal(actual_cells, expected_cells):
+            raise ValueError(
+                f"LCF posterior {dimension!r} coordinates do not match the rebuilt "
+                "model; refusing positional likelihood recovery"
+            )
+    n_chains = mean_z.sizes["chain"]
+    n_draws = mean_z.sizes["draw"]
+
+    groups = []
+    all_children: list[int] = []
+    for node in built.extras["z_nodes"]:
+        children = np.asarray(built.extras["child_of_node"][node], dtype=int)
+        cell_indices = np.asarray(
+            built.extras["cell_indices_of_node"][node], dtype=int
+        )
+        observed = np.asarray(built.extras["observed_z_of_node"][node], dtype=float)
+        expected_shape = (len(children), len(cell_indices))
+        if observed.shape != expected_shape:
+            raise ValueError(
+                f"{node} observed data have shape {observed.shape}; expected "
+                f"{expected_shape} from the child/cell indices"
+            )
+        if "observed_data" in trace.children:
+            if node not in trace.observed_data:
+                raise ValueError(f"LCF persisted observed_data is missing {node!r}")
+            persisted = np.asarray(trace.observed_data[node].values, dtype=float)
+            if persisted.shape != observed.shape or not np.allclose(
+                persisted, observed, rtol=0.0, atol=0.0
+            ):
+                raise ValueError(
+                    f"LCF persisted observations for {node!r} do not match the "
+                    "rebuilt model data"
+                )
+        groups.append((children, cell_indices, observed))
+        all_children.extend(children.tolist())
+
+    used_children = np.asarray(sorted(all_children), dtype=int)
+    if len(np.unique(used_children)) != len(used_children):
+        raise ValueError("LCF observed-pattern groups assign a child more than once")
+    expected_children = int(built.extras["n_used_children"])
+    if len(used_children) != expected_children:
+        raise ValueError(
+            f"LCF observed-pattern groups cover {len(used_children)} children; "
+            f"expected {expected_children}"
+        )
+    child_column = {child: i for i, child in enumerate(used_children)}
+
+    log_likelihood = np.full(
+        (n_chains, n_draws, expected_children), np.nan, dtype=float
+    )
+    log_2pi = np.log(2.0 * np.pi)
+    for chain in range(n_chains):
+        for draw_start in range(0, n_draws, chunk_size):
+            draw_stop = min(draw_start + chunk_size, n_draws)
+            means = np.asarray(
+                mean_z.isel(chain=chain, draw=slice(draw_start, draw_stop))
+            )
+            covariances = np.asarray(
+                sigma_z.isel(chain=chain, draw=slice(draw_start, draw_stop))
+            )
+            for children, cell_indices, observed in groups:
+                covariance = covariances[:, cell_indices[:, None], cell_indices]
+                mean = means[:, cell_indices]
+                chol = np.linalg.cholesky(covariance)
+                residual = observed[None, :, :] - mean[:, None, :]
+                whitened = np.linalg.solve(chol, np.swapaxes(residual, 1, 2))
+                quadratic = np.sum(whitened**2, axis=1)
+                log_determinant = 2.0 * np.sum(
+                    np.log(np.diagonal(chol, axis1=1, axis2=2)), axis=1
+                )
+                values = -0.5 * (
+                    len(cell_indices) * log_2pi
+                    + log_determinant[:, None]
+                    + quadratic
+                )
+                columns = np.asarray(
+                    [child_column[int(child)] for child in children], dtype=int
+                )
+                # Advanced indexing places the child dimension first on the target.
+                log_likelihood[chain, draw_start:draw_stop, columns] = values.T
+
+    if not np.isfinite(log_likelihood).all():
+        raise ValueError("LCF per-child log likelihood contains non-finite values")
+
+    return xr.DataArray(
+        log_likelihood,
+        dims=("chain", "draw", "child_lcf"),
+        coords={
+            "chain": mean_z.coords["chain"],
+            "draw": mean_z.coords["draw"],
+            "child_lcf": used_children,
+        },
+        name="lcf_child",
+    )
+
+
+def _lcf_log_prior(trace, model):
+    """Compute exact constrained-scale LCF log-prior terms.
+
+    PyMC 6.1's generic ``compute_log_prior`` removes transforms but then supplies
+    the posterior's random-variable names to the resulting value variables. For
+    ``LKJCorr`` those names differ (for example ``trait_corr_chol`` versus
+    ``trait_corr_chol_cholesky``), so the generic helper fails before evaluation.
+
+    Isolate the version-sensitive workaround here: build the same transform-free
+    model PyMC uses, rename constrained posterior inputs to its value-variable names,
+    and apply the compiled elementwise prior density over chain and draw. Keeping
+    the component terms (rather than only their sum) preserves the standard
+    ``log_prior`` contract used by power-scaling sensitivity diagnostics.
+    """
+    from pymc.backends.arviz import (
+        apply_function_over_dataset,
+        coords_and_dims_for_inferencedata,
+    )
+    from pymc.model.transform.conditioning import remove_value_transforms
+
+    posterior_node = trace.posterior
+    posterior = (
+        posterior_node.to_dataset()
+        if hasattr(posterior_node, "to_dataset")
+        else posterior_node
+    )
+    original_names = [rv.name for rv in model.free_RVs]
+    missing = sorted(set(original_names) - set(posterior.data_vars))
+    if missing:
+        raise ValueError(f"LCF posterior is missing free variables: {missing}")
+
+    untransformed_model = remove_value_transforms(model)
+    prior_rvs = list(untransformed_model.free_RVs)
+    inputs = posterior[original_names]
+    rename = {
+        rv.name: untransformed_model.rvs_to_values[rv].name
+        for rv in prior_rvs
+        if rv.name != untransformed_model.rvs_to_values[rv].name
+    }
+    inputs = inputs.rename(rename)
+    inputs = inputs.astype(
+        {
+            value.name: value.type.dtype
+            for value in untransformed_model.value_vars
+        },
+        copy=False,
+    )
+    logp_fn = untransformed_model.compile_fn(
+        inputs=untransformed_model.value_vars,
+        outs=untransformed_model.logp(vars=prior_rvs, sum=False),
+        on_unused_input="ignore",
+    )
+    coords, dims = coords_and_dims_for_inferencedata(untransformed_model)
+    result = apply_function_over_dataset(
+        logp_fn,
+        inputs,
+        output_var_names=[rv.name for rv in prior_rvs],
+        sample_dims=("chain", "draw"),
+        coords=coords,
+        dims=dims,
+        progressbar=False,
+    )
+    if any(not np.isfinite(variable).all() for variable in result.data_vars.values()):
+        raise ValueError("LCF log-prior contains non-finite values")
+    return result
+
+
 def _lcf_stitch_loo(ctx: StatisticalFitContext, built) -> None:
     """Pointwise PSIS-LOO for the longitudinal CFA (custom, per-child stitch).
 
@@ -6041,51 +6233,32 @@ def _lcf_stitch_loo(ctx: StatisticalFitContext, built) -> None:
     there is no single observed node ``az.loo`` can key on. Compute each pattern
     node's per-child log-likelihood, stitch them into one ``(chain, draw, child)``
     array over all children, and run pointwise LOO on that — the honest per-child
-    predictive score the invariance comparison (#313) will use. Guarded: a LOO
-    hiccup must not abort the fit (the correlation deliverables do not depend on it).
+    predictive score an invariance comparison (#313) would use. Attach the exact
+    constrained-scale prior terms through the companion workaround above. As in the
+    other LOO-enabled families, a failure is fatal: a reporting run must not silently
+    complete without the likelihood, prior and predictive diagnostics its output
+    contract requires.
     """
     import arviz as az
-    import pymc as pm
     import xarray as xr
 
-    z_nodes = built.extras["z_nodes"]
-    child_of_node = built.extras["child_of_node"]
-    try:
-        with ctx.model:
-            ctx.trace = pm.compute_log_likelihood(
-                ctx.trace, var_names=z_nodes, extend_inferencedata=True
-            )
-            try:
-                from pymc.stats import compute_log_prior
-
-                ctx.trace = compute_log_prior(ctx.trace)
-            except Exception as exc:  # pragma: no cover - psense is secondary
-                rprint(f"[yellow]log_prior group skipped: {exc}[/yellow]")
-        ll = ctx.trace.log_likelihood
-        arrs = []
-        for node in z_nodes:
-            da = ll[node]
-            rowdim = next(d for d in da.dims if d not in ("chain", "draw"))
-            arrs.append(
-                da.rename({rowdim: "child_lcf"}).assign_coords(
-                    child_lcf=np.asarray(child_of_node[node], dtype=int)
-                )
-            )
-        stitched = xr.concat(arrs, dim="child_lcf").sortby("child_lcf")
-        ctx.trace.log_likelihood["lcf_child"] = stitched
-        ctx.loo = az.loo(ctx.trace, var_name="lcf_child", pointwise=True)
-        _report.write_loo_summary(ctx)
-        _print_loo_row(ctx)
-    except Exception as exc:  # pragma: no cover - LOO is secondary to the correlations
-        rprint(f"[yellow]LCF pointwise LOO skipped: {exc}[/yellow]")
+    stitched = _lcf_child_log_likelihood(ctx.trace, built)
+    if "log_likelihood" not in ctx.trace.children:
+        ctx.trace["log_likelihood"] = xr.Dataset()
+    ctx.trace.log_likelihood["lcf_child"] = stitched
+    ctx.trace["log_prior"] = _lcf_log_prior(ctx.trace, ctx.model)
+    ctx.loo = az.loo(ctx.trace, var_name="lcf_child", pointwise=True)
+    _report.write_loo_summary(ctx)
+    _print_loo_row(ctx)
 
 
 def _lcf_observed_domain_corr(built) -> pd.DataFrame:
-    """Observed same-wave cross-domain indicator correlations (the disattenuation
-    benchmark). For each wave and each unique domain pair, the mean pairwise
+    """Observed same-wave cross-domain indicator correlations for triangulation.
+
+    For each wave and each unique domain pair, compute the mean pairwise
     (pairwise-complete) Pearson correlation between the two domains' standardised
-    logit indicators — the attenuated observed number the latent correlation should
-    exceed in magnitude.
+    logit indicators. This is a descriptive comparator, not an attenuation-bound:
+    it is not the same estimand as the model's latent factor correlation.
     """
     panel = built.prepared
     domains = built.extras["domains"]
@@ -6171,8 +6344,10 @@ def _lcf_items_scale(ctx, built) -> pd.DataFrame:
             N_m = ctx.prepared.n_trials[m_sym]
             p_k = float(expit(mean_k))
             p_m = float(expit(mean_m))
-            info_k = N_k * p_k * (1 - p_k)
-            info_m = N_m * p_m * (1 - p_m)
+            # ``logit_safe`` uses (y + 0.5)/(N + 1), so the inverse-count
+            # derivative is (N + 1) p(1-p), not the binomial N p(1-p).
+            info_k = (N_k + 1) * p_k * (1 - p_k)
+            info_m = (N_m + 1) * p_m * (1 - p_m)
             for w_i, w in enumerate(waves):
                 rho = corr[:, w_i, dom_idx[di], dom_idx[dj]]
                 slope_z = lam_m * lam_k * rho / (lam_k**2 + sig_k**2)
@@ -6194,6 +6369,255 @@ def _lcf_items_scale(ctx, built) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+_LCF_CA_COMPARISONS = {
+    "L": ("R", "E", "TR", "TE"),
+    "TR": ("L", "B"),
+    "TE": ("L", "B"),
+}
+_LCF_CA_MODEL_IDS = {
+    "L": "lrp-rli-ca-002",
+    "TR": "lrp-rli-ca-003",
+    "TE": "lrp-rli-ca-004",
+}
+
+
+def _lcf_observed_conditional_slope(
+    corr: np.ndarray,
+    loadings: np.ndarray,
+    residual_sds: np.ndarray,
+    *,
+    target_domain_idx: int,
+    predictor_domain_idx: int,
+    target_indicator_idx: int,
+    predictor_indicator_idx: int,
+) -> np.ndarray:
+    """Observed-indicator slope implied by an LCF conditional domain coupling.
+
+    Conditions on every latent domain other than the target and predictor. If
+    ``C`` denotes those domains, the relevant factor covariance and predictor
+    variance are ``Cov(f_a, f_b | f_C)`` and ``Var(f_b | f_C)``. Mapping through
+    the target loading and the noisy predictor indicator gives
+
+    ``lambda_a lambda_b Cov_ab.C / (lambda_b^2 Var_b.C + sigma_b^2)``.
+
+    Using the marginal reliability ``lambda_b / (lambda_b^2 + sigma_b^2)`` here
+    would mix a C-conditional factor coefficient with a marginal measurement
+    update and overstate or understate the resulting observed-score slope.
+    """
+    corr = np.asarray(corr, dtype=float)
+    n_domains = corr.shape[-1]
+    conditioned = [
+        idx
+        for idx in range(n_domains)
+        if idx not in {target_domain_idx, predictor_domain_idx}
+    ]
+    if conditioned:
+        corr_cc = corr[:, :, conditioned, :][:, :, :, conditioned]
+        corr_cb = corr[:, :, conditioned, predictor_domain_idx]
+        solve_cb = np.linalg.solve(corr_cc, corr_cb[..., None])[..., 0]
+        predictor_variance = 1.0 - np.sum(
+            corr[:, :, predictor_domain_idx, conditioned] * solve_cb, axis=-1
+        )
+        conditional_covariance = corr[
+            :, :, target_domain_idx, predictor_domain_idx
+        ] - np.sum(
+            corr[:, :, target_domain_idx, conditioned] * solve_cb, axis=-1
+        )
+    else:
+        predictor_variance = np.ones(corr.shape[:2], dtype=float)
+        conditional_covariance = corr[:, :, target_domain_idx, predictor_domain_idx]
+
+    lambda_target = loadings[:, target_indicator_idx, None]
+    lambda_predictor = loadings[:, predictor_indicator_idx, None]
+    sigma_predictor = residual_sds[:, predictor_indicator_idx, None]
+    return (
+        lambda_target * lambda_predictor * conditional_covariance
+        / (
+            lambda_predictor**2 * predictor_variance
+            + sigma_predictor**2
+        )
+    )
+
+
+def _lcf_concurrent_comparison(
+    ctx,
+    built,
+    *,
+    ca_tables: dict[str, pd.DataFrame] | None = None,
+) -> pd.DataFrame:
+    """Reproducible directed comparison with matching #312 associations.
+
+    For each cross-domain target/predictor pair shared with CA002--004, translate
+    the LCF's latent conditional slope to target items for a one same-wave-SD
+    increase in the observed predictor. The translation conditions on the other
+    latent domains and is evaluated at the target's observed wave-mean logit. Place
+    it beside #312's adjusted average marginal effect for the same direction and
+    raw predictor contrast.
+
+    The columns deliberately keep the two estimates separate: #312 conditions on
+    five observed tests plus age/group terms and averages a nonlinear marginal over
+    children, whereas the LCF conditions on the remaining latent domains and uses a
+    mean-operating-point translation. This is a directional triangulation table,
+    not a claim that the numbers estimate the same parameter.
+    """
+    from scipy.special import expit
+
+    post = ctx.trace.posterior
+    ci_prob = ctx.reporting.ci_prob
+    lo_q = (1.0 - ci_prob) / 2.0
+    domains = [str(value) for value in post.coords["domain"].values]
+    domain_index = {domain: i for i, domain in enumerate(domains)}
+    indicator_names = [str(value) for value in post.coords["indicator"].values]
+    indicator_index = {symbol: i for i, symbol in enumerate(indicator_names)}
+    domain_of = built.extras["domain_of"]
+
+    corr = (
+        post["factor_corr"]
+        .stack(sample=("chain", "draw"))
+        .transpose("sample", "wave", "domain", "domain_b")
+        .values
+    )
+    loadings = (
+        post["lambda_load"]
+        .stack(sample=("chain", "draw"))
+        .transpose("sample", "indicator")
+        .values
+    )
+    residual_sds = (
+        post["sigma_indicator"]
+        .stack(sample=("chain", "draw"))
+        .transpose("sample", "indicator")
+        .values
+    )
+
+    if ca_tables is None:
+        ca_tables = {}
+        models_dir = os.path.dirname(ctx.output_dir)
+        config_name = ctx.reporting.config_name
+        for target, model_id in _LCF_CA_MODEL_IDS.items():
+            path = os.path.join(
+                models_dir,
+                f"{model_id}-{config_name}",
+                "concurrent_marginals.csv",
+            )
+            if os.path.exists(path):
+                ca_tables[target] = pd.read_csv(path)
+
+    rows: list[dict] = []
+    panel = built.prepared
+    for target, predictors in _LCF_CA_COMPARISONS.items():
+        if target not in indicator_index or target not in domain_of:
+            continue
+        target_domain = domain_of[target]
+        target_domain_idx = domain_index[target_domain]
+        target_indicator_idx = indicator_index[target]
+        target_sd = float(built.extras["standardisers"][target][1])
+        target_trials = int(panel.n_trials[target])
+        ca_table = ca_tables.get(target)
+
+        for predictor in predictors:
+            if predictor not in indicator_index or predictor not in domain_of:
+                continue
+            predictor_domain = domain_of[predictor]
+            if predictor_domain == target_domain:
+                continue
+            predictor_domain_idx = domain_index[predictor_domain]
+            predictor_indicator_idx = indicator_index[predictor]
+            predictor_pooled_sd = float(
+                built.extras["standardisers"][predictor][1]
+            )
+
+            observed_slope = _lcf_observed_conditional_slope(
+                corr,
+                loadings,
+                residual_sds,
+                target_domain_idx=target_domain_idx,
+                predictor_domain_idx=predictor_domain_idx,
+                target_indicator_idx=target_indicator_idx,
+                predictor_indicator_idx=predictor_indicator_idx,
+            )
+
+            for wave_idx, wave in enumerate(built.extras["waves"]):
+                predictor_wave = np.asarray(panel.logit[predictor][:, wave_idx])
+                target_wave = np.asarray(panel.logit[target][:, wave_idx])
+                fitted_rows = np.isfinite(target_wave)
+                predictor_wave_sd = float(
+                    np.nanstd(predictor_wave[fitted_rows], ddof=1)
+                )
+                target_wave_mean = float(np.nanmean(target_wave[fitted_rows]))
+                if not (
+                    np.isfinite(predictor_wave_sd)
+                    and predictor_wave_sd > 0
+                    and np.isfinite(target_wave_mean)
+                ):
+                    continue
+                predictor_delta_z = predictor_wave_sd / predictor_pooled_sd
+                target_delta_logit = (
+                    observed_slope[:, wave_idx] * predictor_delta_z * target_sd
+                )
+                # ``logit_safe`` uses the Haldane proportion (y + 0.5)/(N + 1),
+                # whose inverse count difference is (N + 1) times the probability
+                # difference (the -0.5 constants cancel).
+                lcf_items = (target_trials + 1) * (
+                    expit(target_wave_mean + target_delta_logit)
+                    - expit(target_wave_mean)
+                )
+
+                ca_row = None
+                if ca_table is not None:
+                    matched = ca_table[
+                        (ca_table["timepoint"] == int(wave))
+                        & (ca_table["adjustment"] == "adjusted")
+                        & (ca_table["term"] == predictor)
+                        & (ca_table["scale"] == "+1 SD")
+                    ]
+                    if len(matched) > 1:
+                        raise ValueError(
+                            f"Expected at most one #312 row for {target} <- "
+                            f"{predictor} at wave {wave}; found {len(matched)}"
+                        )
+                    if len(matched) == 1:
+                        ca_row = matched.iloc[0]
+
+                rows.append(
+                    {
+                        "wave": int(wave),
+                        "target_indicator": target,
+                        "predictor_indicator": predictor,
+                        "target_domain": target_domain,
+                        "predictor_domain": predictor_domain,
+                        "predictor_contrast": "+1 same-wave SD",
+                        "lcf_items_median": float(np.median(lcf_items)),
+                        "lcf_items_lo": float(np.quantile(lcf_items, lo_q)),
+                        "lcf_items_hi": float(np.quantile(lcf_items, 1.0 - lo_q)),
+                        "lcf_prob_pos": float(np.mean(lcf_items > 0)),
+                        "ca_items_median": (
+                            float(ca_row["items_median"])
+                            if ca_row is not None
+                            else float("nan")
+                        ),
+                        "ca_items_lo": (
+                            float(ca_row["items_lo"])
+                            if ca_row is not None
+                            else float("nan")
+                        ),
+                        "ca_items_hi": (
+                            float(ca_row["items_hi"])
+                            if ca_row is not None
+                            else float("nan")
+                        ),
+                        "ca_prob_pos": (
+                            float(ca_row["prob_pos"])
+                            if ca_row is not None
+                            else float("nan")
+                        ),
+                        "ca_available": ca_row is not None,
+                        "ca_model_id": _LCF_CA_MODEL_IDS[target],
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
 def fit_longitudinal_corr_factor(
     spec: ModelSpec, config: str = "dev"
 ) -> StatisticalFitContext:
@@ -6203,9 +6627,10 @@ def fit_longitudinal_corr_factor(
     panel: correlated vocabulary / code / grammar factors at every timepoint, with a
     trait/state across-wave structure and the factor scores marginalised out. Reports
     the per-wave latent skill correlation matrices, the conditional (partial) latent
-    slopes, the loadings / communalities, and a disattenuation cross-check against the
-    observed same-wave correlations (the #312 anchor). A measurement / triangulation
-    model — every quantity is a descriptive association, never causal.
+    slopes, the loadings / communalities, and a descriptive comparison against the
+    observed same-wave correlations (the #312 anchor). The quantities differ in their
+    aggregation and conditioning, so no magnitude ordering is required. A measurement
+    / triangulation model — every quantity is a descriptive association, never causal.
     """
     _require_spec(spec, "long_corr_factor")
 
@@ -6240,6 +6665,24 @@ def fit_longitudinal_corr_factor(
             "lkj_eta",
             _default_of(_factories.build_longitudinal_corr_factor_model, "lkj_eta"),
         ),
+        factor_mean_sigma=spec.extra.get(
+            "factor_mean_sigma",
+            _default_of(
+                _factories.build_longitudinal_corr_factor_model, "factor_mean_sigma"
+            ),
+        ),
+        trait_share_a=spec.extra.get(
+            "trait_share_a",
+            _default_of(
+                _factories.build_longitudinal_corr_factor_model, "trait_share_a"
+            ),
+        ),
+        trait_share_b=spec.extra.get(
+            "trait_share_b",
+            _default_of(
+                _factories.build_longitudinal_corr_factor_model, "trait_share_b"
+            ),
+        ),
     )
     _attach_built(ctx, built)
     _render_model_graph(ctx)
@@ -6256,7 +6699,9 @@ def fit_longitudinal_corr_factor(
     ]
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=z_nodes)
+    prior_vars = [rv.name for rv in built.model.free_RVs]
+    prior_vars += ["communality", "factor_corr_pairs", *z_nodes]
+    _diag.run_prior_predictive(ctx, draws=1000, var_names=prior_vars)
 
     # Automatic single-target LOO is ambiguous with per-pattern observed nodes, so
     # sampling runs without it and the per-child stitch below computes LOO instead.
@@ -6273,6 +6718,7 @@ def fit_longitudinal_corr_factor(
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
     _diag.run_extended_diagnostics(ctx, causal_term=None)
+    _diag.run_psense(ctx, var_names=["factor_corr_pairs", "trait_share"])
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=summary_vars)
 
@@ -6359,26 +6805,22 @@ def fit_longitudinal_corr_factor(
     ts_df.to_csv(os.path.join(ctx.output_dir, "trait_state_summary.csv"), index=False)
     ctx.tables["trait_state_summary"] = ts_df
 
-    # --- Disattenuation cross-check vs observed correlations (#312 anchor) ---
-    section_header("Disattenuation cross-check")
+    # --- Latent-versus-observed comparison (#312 triangulation anchor) --------
+    section_header("Latent-versus-observed correlation comparison")
     obs_df = _lcf_observed_domain_corr(built)
     xcheck_df = _report.disattenuation_crosscheck(corr_df, obs_df)
     xcheck_df.to_csv(
         os.path.join(ctx.output_dir, "disattenuation_crosscheck.csv"), index=False
     )
     ctx.tables["disattenuation_crosscheck"] = xcheck_df
-    n_reversals = int((~xcheck_df["latent_ge_observed"]).sum())
-    if n_reversals:
-        rprint(
-            f"[yellow]Disattenuation cross-check: {n_reversals} wave/pair(s) where the "
-            "latent correlation is below the observed one (a red flag for the latent "
-            "model at those cells).[/yellow]"
-        )
-    else:
-        rprint(
-            "[green]Disattenuation cross-check: every latent correlation is >= its "
-            "observed counterpart (expected under measurement-error correction).[/green]"
-        )
+    n_latent_below = int((~xcheck_df["latent_ge_observed"]).sum())
+    n_latent_at_or_above = len(xcheck_df) - n_latent_below
+    rprint(
+        "[cyan]Latent-versus-observed comparison: "
+        f"{n_latent_below} wave/pair(s) are below and {n_latent_at_or_above} are at "
+        "or above the mean observed indicator-pair magnitude. This is a descriptive "
+        "gap direction between different estimands, not a pass/fail ordering.[/cyan]"
+    )
 
     # --- Items-scale translation for the headline pairs ---
     section_header("Items-scale translation (selected pairs)")
@@ -6387,6 +6829,22 @@ def fit_longitudinal_corr_factor(
         os.path.join(ctx.output_dir, "latent_items_slopes.csv"), index=False
     )
     ctx.tables["latent_items_slopes"] = items_df
+
+    # --- Directed comparison with matching concurrent associations (#312) ---
+    section_header("Directed LCF-versus-concurrent comparison")
+    concurrent_df = _lcf_concurrent_comparison(ctx, built)
+    concurrent_df.to_csv(
+        os.path.join(ctx.output_dir, "lcf_concurrent_comparison.csv"), index=False
+    )
+    ctx.tables["lcf_concurrent_comparison"] = concurrent_df
+    n_ca_available = int(concurrent_df["ca_available"].sum())
+    if n_ca_available < len(concurrent_df):
+        rprint(
+            "[yellow]Directed #312 comparison is incomplete: "
+            f"{n_ca_available}/{len(concurrent_df)} matching concurrent rows were "
+            "found under this output root/config. Fit CA002--004 at the same tier "
+            "to populate the missing side.[/yellow]"
+        )
 
     _report.write_run_metadata(
         ctx,
@@ -6398,7 +6856,12 @@ def fit_longitudinal_corr_factor(
             "loadings_summary": load_df.to_dict("records"),
             "factor_correlation_by_wave": corr_df.to_dict("records"),
             "trait_state_summary": ts_df.to_dict("records"),
-            "disattenuation_reversals": n_reversals,
+            # Keep the legacy key for output compatibility; neither count is a gate.
+            "disattenuation_reversals": n_latent_below,
+            "latent_below_observed_count": n_latent_below,
+            "latent_observed_comparison": "descriptive; no required ordering",
+            "lcf_concurrent_comparison_rows": int(len(concurrent_df)),
+            "lcf_concurrent_comparison_available": n_ca_available,
         },
     )
 

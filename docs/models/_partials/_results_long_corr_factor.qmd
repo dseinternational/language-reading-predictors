@@ -2,32 +2,39 @@
 
 _In plain terms:_ at each of the four timepoints this model estimates how the
 underlying skill areas — vocabulary, code (letter-sounds and blending), and grammar —
-move together, with the noise of the individual tests taken out. The headline is a
-correlation per pair of skill areas per wave: does the vocabulary–code coupling
-tighten once every child is on the intervention? It is a description of how the skills
-co-occur, **not** a statement that one skill causes another.
+move together, with indicator-specific residual variation represented separately. The headline is a
+correlation per pair of skill areas per wave: how does the vocabulary–code coupling
+differ across t1–t4? It is a description of how the skills co-occur across waves,
+**not** a treatment contrast or a statement that one skill causes another.
 
 ::: {.callout-important title="A measurement instrument — associations, not causes"}
 Every number here is a **descriptive association**. The latent correlations and the
 slopes derived from them describe how the skill areas go together once measurement
-noise is modelled out; they do **not** identify a causal skill-to-skill effect. The
+variation is modelled; they do **not** identify a causal skill-to-skill effect. The
 suite's causal content lives in the randomised ITT/DiD contrasts and the mediation
 models, untouched by this instrument.
 :::
 
 ::: {.callout-note title="Fragility at n ~ 54"}
 A four-wave latent model at n ~ 54 is fragile and prior-dependent — the more so than
-the cross-sectional `mm-001`, since it carries a within-wave correlation per wave plus
-an across-wave trait/state structure. Read the **wide intervals as the honest result**.
-The reporting-tier re-fit gives the final magnitudes; a prior-sensitivity companion and
-the invariance relaxation (by LOO) are follow-ups.
+the cross-sectional `mm-001`, since it carries a trait correlation matrix and a state
+correlation matrix per wave. The reporting-tier fit supplies nominal, exploratory
+estimates, not final scientific magnitudes; prior sensitivity is required before
+substantive interpretation. Wave-varying loadings or an AR across-wave structure should
+be fitted only if checks indicate that the wave-invariant measurement specification or
+compound symmetry misfits, then compared using per-child PSIS-LOO.
 :::
 
 ### Per-wave latent skill correlations (the headline)
 
 _In plain terms:_ one correlation per pair of skill areas at each wave. A value near
 +1 means the two areas rise and fall together across children; near 0 means they are
-largely unrelated once test noise is removed.
+largely unrelated under the fitted latent measurement structure.
+
+These reported correlations do not have independent per-wave LKJ priors. Each is the
+sum of a stable trait-correlation component and that wave's state-correlation component,
+weighted by the two domains' trait shares; the trait and state correlation matrices,
+rather than the induced reported matrices, receive LKJ priors.
 
 ```{python}
 # | echo: false
@@ -38,14 +45,15 @@ factor_corr if factor_corr is not None else "No per-wave factor-correlation tabl
 _How to read the table:_ one row per (wave, skill-area pair). `mean` is the posterior
 mean latent correlation, `lo`/`hi` its 95% credible interval, and `prob_pos` the
 posterior probability it is positive (near 1 = confidently positive, near 0.5 =
-undecided). Compare a pair's `mean` across waves to see whether the coupling tightens
-or loosens over the intervention — reading the intervals, not the point movements.
+undecided). Compare a pair's `mean` across waves to describe whether the coupling
+tightens or loosens — reading the intervals, not the point movements.
 
 ### Conditional (partial) latent slopes
 
 _In plain terms:_ the slope of one skill area on another **after holding the third
-fixed** — the disattenuated analogue of the concurrent regression family's
-mutually-adjusted coefficients (issue #312), with test noise removed.
+fixed** — a latent-factor companion to the concurrent regression family's
+mutually-adjusted observed-score coefficients (issue #312). They are different
+estimands, so this is not a guaranteed correction or magnitude ordering.
 
 ```{python}
 # | echo: false
@@ -55,9 +63,9 @@ slopes if slopes is not None else "No conditional-slope table."
 
 _How to read the table:_ one row per (wave, target, predictor). `mean` is the partial
 regression coefficient of the target skill area on the predictor, controlling for the
-remaining area; it is an **adjusted association**, symmetric in spirit but reported by
-target/predictor. With only one other area to control for it is a genuine partial
-slope.
+remaining area. It is a directional **adjusted association** and is generally
+asymmetric: reversing target and predictor changes the conditional regression
+denominator even though the underlying correlation matrix is symmetric.
 
 ### Loadings and communalities
 
@@ -88,14 +96,12 @@ _How to read the table:_ `trait_share_mean` (0–1, with its interval) is the fr
 the factor variance that is the stable across-wave trait; the remainder is the
 wave-specific state. It also equals the model's same-area correlation between any two
 waves (compound symmetry) — the starting assumption; genuine decay over time is a
-planned relaxation.
+reason to fit an AR(1) alternative only if diagnostics show that equal-lag dependence
+misfits.
 
-### Disattenuation cross-check (vs the observed correlations)
+### Latent-versus-observed correlation comparison
 
-_In plain terms:_ a sanity check. Correcting for measurement error can only **strengthen**
-a correlation, so each latent correlation should be at least as large (in size) as the
-raw observed correlation between the same skill areas. A latent value that comes out
-*smaller* than the observed one is a red flag for the latent model at that cell.
+_In plain terms:_ this places each latent factor correlation beside the mean same-wave correlation between the two domains' observed indicators. Classical measurement error often weakens a simple observed correlation, but these are not identical estimands: the latent value also depends on factor aggregation, loadings, residual assumptions and the small sample. The latent estimate has a credible interval; the observed comparator is a point estimate without a corresponding interval, so the output does not quantify uncertainty in their gap. Its size and sign are descriptive triangulation, not a pass/fail rule.
 
 ```{python}
 # | echo: false
@@ -112,13 +118,16 @@ if xcheck is not None and len(xcheck):
         print(
             "Every latent correlation is at least as large as its observed counterpart "
             "(`observed_corr`, the mean same-wave correlation between the two areas' "
-            "indicators) — the expected direction under measurement-error correction."
+            "indicators). This direction is compatible with attenuation, but is not "
+            "required by this factor-versus-indicator comparison."
         )
     else:
         print(
-            f"**{_rev} wave/pair(s) reverse the expected direction** (latent below "
-            "observed) — treat those cells cautiously; at n ~ 54 they may be sampling "
-            "noise, but a systematic reversal would question the latent model."
+            f"In **{_rev} wave/pair(s)** the latent-correlation magnitude is below the "
+            "mean observed indicator-pair magnitude. Inspect the latent interval and "
+            "measurement assumptions, remembering that the observed comparator has no "
+            "reported interval; the difference alone is not evidence that the latent "
+            "model failed."
         )
 ```
 
@@ -139,3 +148,23 @@ indicator's item count per **+1 item** of the predictor indicator, per wave, at 
 pooled-mean operating point (with its 95% interval). It is a linearised, **approximate**
 translation for comparison with the #312 concurrent items-scale marginals — a
 descriptive association, not a caused gain.
+
+### Reproducible comparison with #312 concurrent associations
+
+The 32-row comparison below aligns target, predictor and wave for letter sounds `L`
+against `R`/`E`/`TR`/`TE`, and taught vocabulary `TR`/`TE` against `L`/`B`. For each
+row, it places the LCF target-item translation for a **+1 same-wave SD change in the
+predictor**, evaluated at the mean operating point, beside #312's adjusted average
+marginal effect for the same predictor change.
+
+```{python}
+# | echo: false
+lcf_concurrent = _csv("lcf_concurrent_comparison.csv")
+lcf_concurrent if lcf_concurrent is not None else "No LCF/concurrent-comparison table."
+```
+
+Both quantities are directional, but they remain different estimands. The LCF
+translation conditions on the third latent domain and is evaluated at one operating
+point; the concurrent model conditions on the other observed tests plus age and group,
+then averages its nonlinear marginal effect over the analysed rows. Agreement is not a
+pass criterion, and differences do not identify a causal pathway.

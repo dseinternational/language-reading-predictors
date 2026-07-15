@@ -5,7 +5,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 >
-> Substantially edited in the concurrent-family section by a LLM-based AI tool (Codex/GPT-5).
+> Substantially edited in the concurrent and longitudinal-factor sections by a LLM-based AI tool (Codex/GPT-5).
 
 A catalogue of every model in this study — what it is, what outcome it targets, and
 what question it answers. It is a map, not a results document: read the per-model
@@ -50,7 +50,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                                |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                            |
 | 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                                     |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                            |
 | 2     | Concurrent associations (`lrp-rli-ca`)                                                |     4 | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                           |
-| 2     | Longitudinal correlated-factor model (`lrp-rli-lcf-001`)                              |     1 | Per-wave latent skill correlations (disattenuated counterpart to the concurrent regression family)                           |
+| 2     | Longitudinal correlated-factor model (`lrp-rli-lcf-001`)                              |     1 | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                 |
 
 Counts are of base models on `main` (142 statistical models in total, from `definitions.MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
@@ -373,29 +373,17 @@ concurrent letter sounds are excluded as a treatment-affected mediator. Descript
 | `lrp-rli-ca-003` | `concurrent` | `TR`    | per-wave conditional associations of concurrent skills with taught receptive vocabulary  |
 | `lrp-rli-ca-004` | `concurrent` | `TE`    | per-wave conditional associations of concurrent skills with taught expressive vocabulary |
 
-**Association only — three caveats.** Every coefficient is an adjusted association; conditioning on contemporaneous (post-treatment) skill levels is intentional because nothing is read causally (contrast the level-factors family, which omits cross-skill terms to protect a causal contrast). Read with the **Table-2 fallacy** (each coefficient answers a different conditional question), **measurement error** (classical error often attenuates a simple association, but the size and direction of distortion are not guaranteed in a multivariable nonlinear model; longitudinal factor model #313 is a complementary measurement-error-aware analysis), and **collinearity plus regularisation** (n ≈ 53 with a correlated predictor cluster, so adjusted and bivariate coefficients answer materially different questions). Their difference shows sensitivity to the conditioning set; it is not a decomposition of shared variance. Group is a non-interpretable nuisance. Floored measures (`P`, `N`) are excluded as predictors and as focal outcomes; `TR` approaches its 24-item ceiling at later waves, which the Beta-Binomial respects but which compresses the resolution of `ca-003`'s later-wave associations.
+**Association only — three caveats.** Every coefficient is an adjusted association; conditioning on contemporaneous (post-treatment) skill levels is intentional because nothing is read causally (contrast the level-factors family, which omits cross-skill terms to protect a causal contrast). Read with the **Table-2 fallacy** (each coefficient answers a different conditional question), **measurement error** (classical error often attenuates a simple association, but the size and direction of distortion are not guaranteed in a multivariable nonlinear model; longitudinal factor model #313 is a complementary latent-measurement analysis), and **collinearity plus regularisation** (n ≈ 53 with a correlated predictor cluster, so adjusted and bivariate coefficients answer materially different questions). Their difference shows sensitivity to the conditioning set; it is not a decomposition of shared variance. Group is a non-interpretable nuisance. Floored measures (`P`, `N`) are excluded as predictors and as focal outcomes; `TR` approaches its 24-item ceiling at later waves, which the Beta-Binomial respects but which compresses the resolution of `ca-003`'s later-wave associations.
 
 ### Longitudinal correlated-domain-factor model — `lrp-rli-lcf-001` (`kind="long_corr_factor"`)
 
-**Purpose.** The symmetric, disattenuated counterpart to the concurrent regression family (#313,
-descriptive-association workstream #314) and the four-wave extension of the cross-sectional
-`corr_factor` CFA (`lrp-rli-mm-001`). It estimates correlated **vocabulary {R,E,TR,TE} / code {L,B}
-/ grammar {F,T}** domain factors at every timepoint over the child×wave panel and reports the
-**per-wave latent skill correlation matrices** plus the conditional latent slopes derived from them
-— the skill coupling with the binomial counting noise on both sides modelled out. Scalar-invariant
-loadings, per-wave within-factor LKJ correlations, a trait/state across-wave decomposition, and the
-factor scores marginalised out (the `mm-001` funnel fix); missing cells are masked, not dropped.
+**Purpose.** A latent-measurement companion to the concurrent regression family (#313, descriptive-association workstream #314) and the four-wave extension of the cross-sectional `corr_factor` CFA (`lrp-rli-mm-001`). It estimates correlated **vocabulary {R,E,TR,TE} / code {L,B} / grammar {F,T}** domain factors at every timepoint over the child×wave panel and reports the **per-wave latent skill correlation matrices** plus directional, generally asymmetric conditional latent slopes derived from them; only the correlation matrices are symmetric. Indicator loadings and residual scales are wave-invariant, factor means have an exact zero-sum-over-waves constraint, and factor scores are marginalised out (the `mm-001` funnel fix); missing cells are masked, not dropped. A trait correlation matrix and one state correlation matrix per wave receive LKJ priors. Each reported within-wave correlation is their trait-share-weighted sum, so the reported matrices are induced and share a trait component rather than receiving independent per-wave LKJ priors.
 
 | Model             | Kind               | Outcome | Purpose                                                      |
 | ----------------- | ------------------ | ------- | ------------------------------------------------------------ |
-| `lrp-rli-lcf-001` | `long_corr_factor` | `W`     | per-wave latent skill correlations (vocabulary/code/grammar) |
+| `lrp-rli-lcf-001` | `long_corr_factor` | —       | per-wave latent skill correlations (vocabulary/code/grammar) |
 
-**Measurement / triangulation only.** Every latent correlation and slope is a descriptive
-association (ID-2), never causal. Fragile and prior-dependent at n ≈ 54 — read the wide intervals
-as the honest result. A self-contained **disattenuation cross-check** (latent correlation ≥ observed,
-since measurement-error correction can only inflate) anchors it against the #312 regression AMEs.
-Follow-ups: a prior-sensitivity companion and the invariance relaxation (configural / AR-across-wave,
-chosen by LOO). See `notes/202607142330-lrp313-longitudinal-corr-factor.md`.
+**Measurement / triangulation only.** Every latent correlation and slope is a descriptive association (ID-2), never causal. The current reporting estimates are nominal and exploratory at n ≈ 54, not final scientific magnitudes. A self-contained **latent-versus-observed comparison** places the factor correlations beside mean indicator-pair correlations as a triangulation diagnostic; no ordering is required because they are different estimands, and the observed comparator is a point estimate without its own uncertainty interval. The reproducible 32-row `lcf_concurrent_comparison.csv` then aligns LCF target-item translations with #312 adjusted average marginal effects for `L` versus `R`/`E`/`TR`/`TE` and `TR`/`TE` versus `L`/`B`, at each wave and for a `+1 same-wave SD` predictor change. Both sides are directional, but the LCF translation conditions on latent domains at a mean operating point while #312 conditions on observed tests and averages a nonlinear marginal over rows, so no pass/fail ordering applies. Prior sensitivity is required before substantive interpretation. Wave-varying loadings or an AR across-wave structure should be fitted only if checks indicate that the wave-invariant measurement specification or compound symmetry misfits, with any fitted alternative compared using per-child PSIS-LOO. See `notes/202607142330-lrp313-longitudinal-corr-factor.md`.
 
 ---
 

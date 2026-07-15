@@ -20,8 +20,9 @@ predictor list and word reading swapped in). Floored measures (P, N) stay exclud
 **Estimand and its limits.** Every coefficient is an *adjusted association*, never a
 causal effect; conditioning on contemporaneous (post-treatment) skill levels is
 intentional and licensed because nothing here is read causally. Read with the
-family's three standing caveats (Table-2 fallacy, regression dilution, collinearity
-shrinkage) - see ``lrp_rli_ca_001`` and the report for the full statements.
+family's three standing caveats (Table-2 fallacy, qualified measurement-error
+distortion, and collinearity plus regularisation) - see ``lrp_rli_ca_001`` and the
+report for the full statements.
 
 Design decisions follow ca-001 (issue #312): four separate cross-sectional fits
 reported side by side; group as a non-interpretable nuisance; standardised same-wave

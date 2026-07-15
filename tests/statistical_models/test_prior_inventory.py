@@ -29,6 +29,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_joint_model,
     build_lcsm_model,
     build_level_factors_model,
+    build_longitudinal_corr_factor_model,
     build_mechanism_model,
     build_mediation_model,
     build_two_mediator_model,
@@ -158,6 +159,18 @@ def _representative_models(tmp_path) -> dict[str, object]:
 
     panel = load_wave_panel(path=p, outcomes=("W", "L", "E"))
     models["lcsm"] = build_lcsm_model(panel).model
+
+    lcf_panel = load_wave_panel(
+        path=p, outcomes=("R", "E", "TR", "TE", "L", "B", "F", "T")
+    )
+    models["long_corr_factor"] = build_longitudinal_corr_factor_model(
+        lcf_panel,
+        domains={
+            "vocabulary": ("R", "E", "TR", "TE"),
+            "code": ("L", "B"),
+            "grammar": ("F", "T"),
+        },
+    ).model
     return models
 
 
@@ -246,6 +259,23 @@ def test_joint_lkj_residual_documented(built_models):
     assert "u_chol" in by_param
     assert by_param["u_chol"]["distribution"] not in ("", "(model prior)")
     assert by_param["u_chol"]["role"] != "other"
+
+
+def test_long_corr_factor_priors_have_roles_and_rationales(built_models):
+    """The bespoke LCF measurement/dependence priors must be fully inventoried."""
+    table = priors.priors_table(built_models["long_corr_factor"])
+    assert set(table["role"]) <= {"association", "nuisance"}
+    assert table["rationale"].str.strip().ne("").all()
+    assert {
+        "lambda_load",
+        "sigma_indicator",
+        "trait_share",
+        "trait_corr_chol",
+        "factor_mean",
+    } <= set(table["parameter"])
+    state = table[table["parameter"].str.startswith("state_corr_chol_w")]
+    assert len(state) == 4
+    assert state["role"].eq("association").all()
 
 
 def test_dist_from_rv_normalisation():

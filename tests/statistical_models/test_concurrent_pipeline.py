@@ -224,3 +224,12 @@ def test_shared_concurrent_results_partial_is_focal_outcome_neutral():
     assert "words read" not in text.lower()
     assert "`adjustment`" in text
     assert "concurrent_fit_diagnostics.csv" in text
+
+
+def test_concurrent_spec_docs_avoid_unqualified_attenuation_claims():
+    repo = Path(__file__).resolve().parents[2]
+    model_dir = repo / "src/language_reading_predictors/statistical_models"
+    for number in range(1, 5):
+        text = (model_dir / f"lrp_rli_ca_{number:03d}.py").read_text().lower()
+        assert "associations attenuate toward zero" not in text
+        assert "gap is itself informative" not in text

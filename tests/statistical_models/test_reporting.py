@@ -1133,16 +1133,16 @@ def test_longitudinal_conditional_slope_equals_correlation_with_one_predictor():
     assert s1 == pytest.approx(c1, abs=1e-6)
 
 
-def test_disattenuation_crosscheck_flags_reversals():
+def test_disattenuation_crosscheck_records_gap_direction_without_gating():
     dt = _lcf_trace()
     corr = longitudinal_factor_correlations(dt, ci_prob=0.95)
     obs = corr[["wave", "domain_i", "domain_j"]].copy()
-    # Observed correlation just under each latent |mean| for all but one row (a
-    # forced reversal) where it is well above.
+    # Observed correlation just under each latent |mean| for all but one row where
+    # it is well above. The Boolean records comparison direction; it is not a gate.
     obs["observed_corr"] = (corr["mean"].abs() - 0.05).clip(lower=0.0).values
     obs.iloc[0, obs.columns.get_loc("observed_corr")] = 0.999
     xc = disattenuation_crosscheck(corr, obs)
     assert "gap" in xc.columns and "latent_ge_observed" in xc.columns
-    # Exactly the forced row reverses (latent below observed).
+    # Exactly the forced row has latent magnitude below observed magnitude.
     assert int((~xc["latent_ge_observed"]).sum()) == 1
     assert not bool(xc.iloc[0]["latent_ge_observed"])
