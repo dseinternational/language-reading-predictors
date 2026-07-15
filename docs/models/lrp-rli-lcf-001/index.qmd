@@ -17,6 +17,8 @@ format:
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 {{< include _partials/_header.qmd >}}
@@ -30,12 +32,16 @@ Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 LRP-RLI-LCF-001 is the four-wave extension of the cross-sectional
 [`corr_factor`](../lrp-rli-mm-001/) CFA. It estimates **correlated domain factors** —
 vocabulary, code, and grammar — at each of the four timepoints and reports the
-**per-wave latent skill correlation matrices** together with the disattenuated slopes
-derived from them. It is the symmetric, measurement-error-corrected counterpart to the
+**per-wave latent skill correlation matrices** together with the conditional latent slopes
+derived from them. It is a latent-measurement companion to the
 concurrent regression family ([`lrp-rli-ca-001`](../lrp-rli-ca-001/), issue #312): the
-regression family gives directed, covariate-conditional observed slopes; this gives the
-underlying latent correlation web with the binomial counting noise on both sides
-modelled out.
+regression family gives directed, covariate-conditional observed-score slopes; this
+summarises a latent-domain correlation web while modelling indicator-specific residual
+variation. Only the latent correlation matrix is symmetric; its conditional slopes are
+directional and generally asymmetric. The two analyses have different estimands, so
+neither must be larger. A reproducible 32-row report artefact aligns selected LCF
+target-item translations with the matching #312 adjusted average marginal effects by
+target, predictor and wave.
 
 ::: {.callout-important title="Measurement / triangulation, NOT causal"}
 This is a **measurement** model. Every latent correlation and every slope derived from
@@ -46,19 +52,20 @@ in the ITT/DiD suites and the mediation models, not here.
 
 ::: {.callout-note title="Fragility at n ~ 54"}
 A longitudinal latent model at n ~ 54 is fragile and prior-dependent — more so than the
-single-wave `mm-001`, since it carries a within-wave correlation per wave plus an
-across-wave trait/state structure. Read the **wide intervals as the honest result**; the
-reporting-tier re-fit gives the final magnitudes. A prior-sensitivity companion and the
-invariance relaxation (configural / AR-across-wave, chosen by LOO) are follow-ups.
+single-wave `mm-001`, since it carries a trait correlation matrix and one state
+correlation matrix per wave. The reporting-tier fit gives nominal, exploratory
+estimates, not final scientific magnitudes. Prior sensitivity is required before
+substantive interpretation. Wave-varying loadings or an AR across-wave structure should
+be fitted only if checks indicate that the wave-invariant measurement specification or
+compound symmetry misfits, then compared using per-child PSIS-LOO.
 :::
 
 ## Model
 
 **Factors.** Vocabulary {R, E, TR, TE}, code {L, B}, grammar {F, T} — taught vocabulary
-folds into the vocabulary domain (all four indicators observed at every wave). Heavily
-floored P/N are excluded.
+folds into the vocabulary domain because all four indicators are administered and modelled at every wave; occasional missing cells are masked rather than dropping a child. Heavily floored P/N are excluded.
 
-**Measurement (scalar-invariant, factor scores marginalised out).** For indicator $j$
+**Measurement (wave-invariant parameters, factor scores marginalised out).** For indicator $j$
 of domain $d$ at wave $t$, on the pooled-standardised logit scale, with wave-invariant
 loadings $\lambda_j$ and residual SDs $\sigma_j$:
 
@@ -67,16 +74,27 @@ z_{ijt} = \lambda_j\, f_{i,d(j),t} + \varepsilon_{ijt}, \qquad
 \varepsilon_{ijt} \sim \mathcal{N}(0, \sigma_j^2),
 $$
 
-with per-wave factor means carried by a zero-sum-over-waves $\mu_{d,t}$. Each factor is
-unit-variance at every wave; the **within-wave factor correlation** $\Omega_t \sim
-\text{LKJ}(\eta)$ (per wave) is the headline.
+with per-wave factor means carried by an exact zero-sum-over-waves $\mu_{d,t}$. Each
+factor is unit-variance at every wave. The reported within-wave correlation is induced
+by the trait/state structure below, not drawn directly from a separate LKJ prior.
 
 **Across-wave (trait / state).** $f_{i,d,t} = \sqrt{\pi_d}\,\tau_{i,d} +
 \sqrt{1-\pi_d}\,s_{i,d,t}$: a stable per-child trait $\tau_i \sim \mathcal{N}(0,
 \Omega_\tau)$ (shared across waves) plus a wave-specific state $s_{i,t} \sim
-\mathcal{N}(0, \Omega_{s,t})$ (independent across waves). PSD by construction, unit
-factor variance preserved, each wave's within-correlation free, and the across-wave
-autocorrelation equals the trait share $\pi_d$.
+\mathcal{N}(0, \Omega_{s,t})$ (independent across waves). The trait matrix
+$\Omega_\tau$ and each state matrix $\Omega_{s,t}$ receive LKJ priors. For domains
+$d$ and $e$, the reported within-wave correlation is
+
+$$
+\operatorname{Corr}(f_{d,t}, f_{e,t}) =
+\sqrt{\pi_d\pi_e}\,\Omega_{\tau,de} +
+\sqrt{(1-\pi_d)(1-\pi_e)}\,\Omega_{s,t,de}.
+$$
+
+This is PSD by construction and preserves unit factor variance. The stable trait term
+couples the reported matrices across waves; for the same domain, the correlation
+between any two waves equals its trait share $\pi_d$ under the compound-symmetry
+starting assumption.
 
 The Gaussian factor scores are **marginalised out** (the `mm-001` funnel fix): each
 child's observed indicator cells are an $\mathcal{MVN}$ with covariance $\Sigma_z =

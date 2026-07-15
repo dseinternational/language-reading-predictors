@@ -196,6 +196,7 @@ def stat_model_header_panel(
     n_obs: int | None = None,
     n_children: int | None = None,
     n_phases: int | None = None,
+    n_waves: int | None = None,
 ) -> Panel:
     """Build the banner panel printed at the start of a statistical-model fit."""
     lines = [
@@ -212,7 +213,9 @@ def stat_model_header_panel(
         lines.append(f"[dim]Adjustment:[/dim] {', '.join(adjustment)}")
     if n_obs is not None:
         detail = f"{n_obs:,}"
-        if n_children is not None and n_phases is not None:
+        if n_children is not None and n_waves is not None:
+            detail += f"  ([dim]{n_children} children × {n_waves} waves[/dim])"
+        elif n_children is not None and n_phases is not None:
             detail += f"  ([dim]{n_children} children × {n_phases} phases[/dim])"
         lines.append(f"[dim]Observations:[/dim] {detail}")
     return Panel("\n".join(lines), border_style="green", padding=(1, 2))

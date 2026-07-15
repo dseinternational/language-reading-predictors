@@ -848,7 +848,7 @@ def _lcf_panel(tmp_path, n_children=40):
 
 
 def test_longitudinal_corr_factor_builds(tmp_path):
-    """#313: four-wave CFA — invariant loadings/residuals, per-wave within-factor
+    """#313: four-wave CFA — invariant loadings/residuals, per-wave cross-factor
     correlations, trait/state across-wave structure, factor scores marginalised out
     (per-pattern MvNormal nodes; no per-child latent RV)."""
     panel = _lcf_panel(tmp_path)
@@ -872,6 +872,138 @@ def test_longitudinal_corr_factor_builds(tmp_path):
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, var_names=built.extras["z_nodes"], random_seed=3)
     assert pp.prior_predictive[built.extras["z_nodes"][0]].sizes["chain"] == 1
+
+
+def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
+    """The exact marginal log likelihood must match SciPy and preserve child order."""
+    from types import SimpleNamespace
+
+    import xarray as xr
+    from scipy.stats import multivariate_normal
+
+    from language_reading_predictors.statistical_models.pipeline import (
+        _lcf_child_log_likelihood,
+        _lcf_concurrent_comparison,
+        _lcf_observed_conditional_slope,
+        _lcf_stitch_loo,
+    )
+
+    panel = _lcf_panel(tmp_path, n_children=12)
+    # Exercise two observed-cell patterns: child 0 is missing every t4 indicator.
+    for symbols in _LCF_TEST_DOMAINS.values():
+        for symbol in symbols:
+            panel.logit[symbol][0, -1] = np.nan
+    built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS)
+    assert len(built.extras["z_nodes"]) == 2
+
+    with built.model:
+        prior = pm.sample_prior_predictive(draws=50, random_seed=13)
+    trace = xr.DataTree.from_dict({"posterior": prior.prior.to_dataset()})
+    actual = _lcf_child_log_likelihood(trace, built, chunk_size=2)
+
+    expected_children = np.sort(
+        np.concatenate(
+            [
+                np.asarray(built.extras["child_of_node"][node], dtype=int)
+                for node in built.extras["z_nodes"]
+            ]
+        )
+    )
+    assert actual.dims == ("chain", "draw", "child_lcf")
+    assert actual.shape == (1, 50, panel.n_children)
+    assert np.array_equal(actual.coords["child_lcf"], expected_children)
+    assert np.isfinite(actual).all()
+
+    # Compare every pattern row and draw with an independent implementation of
+    # the multivariate-normal density. ``mean_z`` / ``Sigma_z`` are the same
+    # marginal moments passed to the factory's observed nodes.
+    posterior = trace.posterior
+    for node in built.extras["z_nodes"]:
+        children = built.extras["child_of_node"][node]
+        cell_indices = built.extras["cell_indices_of_node"][node]
+        observed = built.extras["observed_z_of_node"][node]
+        for draw in range(3):
+            mean = posterior["mean_z"].isel(chain=0, draw=draw).values[cell_indices]
+            covariance = posterior["Sigma_z"].isel(chain=0, draw=draw).values[
+                np.ix_(cell_indices, cell_indices)
+            ]
+            expected = multivariate_normal.logpdf(
+                observed, mean=mean, cov=covariance
+            )
+            np.testing.assert_allclose(
+                actual.sel(child_lcf=children).isel(chain=0, draw=draw),
+                np.atleast_1d(expected),
+                rtol=1e-10,
+                atol=1e-10,
+            )
+
+    # Exercise the production wrapper too: the predictive diagnostic is required,
+    # so it must attach the per-child group and write LOO rather than swallowing a
+    # transformed-variable failure.
+    ctx = SimpleNamespace(
+        trace=trace, loo=None, output_dir=str(tmp_path), model=built.model
+    )
+    _lcf_stitch_loo(ctx, built)
+    assert ctx.loo is not None
+    assert "lcf_child" in ctx.trace.log_likelihood
+    assert set(ctx.trace.log_prior.data_vars) == {
+        rv.name for rv in built.model.free_RVs
+    }
+    assert all(np.isfinite(v).all() for v in ctx.trace.log_prior.data_vars.values())
+    assert (tmp_path / "loo.txt").exists()
+
+    # Hand-check the conditional measurement translation. With C the third
+    # domain: Cov(a,b|C)=0.5-0.2*0.3=0.44 and Var(b|C)=1-0.3^2=0.91.
+    known_corr = np.array(
+        [[[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3], [0.2, 0.3, 1.0]]]]
+    )
+    known_loadings = np.array([[2.0, 0.8]])
+    known_residuals = np.array([[0.4, 0.6]])
+    known_slope = _lcf_observed_conditional_slope(
+        known_corr,
+        known_loadings,
+        known_residuals,
+        target_domain_idx=0,
+        predictor_domain_idx=1,
+        target_indicator_idx=0,
+        predictor_indicator_idx=1,
+    )
+    expected_slope = 2.0 * 0.8 * 0.44 / (0.8**2 * 0.91 + 0.6**2)
+    np.testing.assert_allclose(known_slope, expected_slope, rtol=1e-12, atol=1e-12)
+
+    # The directed #312 comparison is generated from its source tables rather than
+    # hand-transcribed. All 8 target/predictor directions x 4 waves are retained.
+    ca_tables = {}
+    comparisons = {"L": ("R", "E", "TR", "TE"), "TR": ("L", "B"), "TE": ("L", "B")}
+    for target, predictors in comparisons.items():
+        ca_tables[target] = pd.DataFrame(
+            [
+                {
+                    "timepoint": wave,
+                    "adjustment": "adjusted",
+                    "term": predictor,
+                    "scale": "+1 SD",
+                    "items_median": 0.2,
+                    "items_lo": -0.1,
+                    "items_hi": 0.5,
+                    "prob_pos": 0.8,
+                }
+                for wave in built.extras["waves"]
+                for predictor in predictors
+            ]
+        )
+    comparison_ctx = SimpleNamespace(
+        trace=trace,
+        reporting=SimpleNamespace(ci_prob=0.95, config_name="test"),
+        output_dir=str(tmp_path / "models" / "lrp-rli-lcf-001-test"),
+    )
+    comparison = _lcf_concurrent_comparison(
+        comparison_ctx, built, ca_tables=ca_tables
+    )
+    assert len(comparison) == 32
+    assert comparison["ca_available"].all()
+    assert comparison["predictor_contrast"].eq("+1 same-wave SD").all()
+    assert np.isfinite(comparison["lcf_items_median"]).all()
 
 
 def test_longitudinal_corr_factor_rejects_singleton_domain(tmp_path):

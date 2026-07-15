@@ -21,13 +21,14 @@ so these are associations *within a treated system*.
 
 Read with three standing caveats (in the report): (1) the Table-2 fallacy - each
 mutually-adjusted coefficient answers a *different* conditional question, and the set
-should not be read as competing causal effects; (2) regression dilution - the
-predictors are observed scores measured with error, so the associations attenuate
-toward zero relative to the latent-skill truth (the longitudinal factor model, #313,
-is the follow-on instrument that addresses this); (3) collinearity shrinkage - with
-n ~ 53 and a strongly inter-correlated predictor cluster, the regularising priors
-pull mutually-adjusted coefficients toward zero, so the adjusted-vs-bivariate gap is
-itself informative and both columns are reported.
+should not be read as competing causal effects; (2) measurement error - classical
+error often attenuates a simple association, but the size and direction of distortion
+are not guaranteed in this multivariable nonlinear model (the longitudinal factor
+model, #313, is a complementary measurement-error-aware analysis); (3) collinearity
+and regularisation - with n ~ 53 and a strongly inter-correlated predictor cluster,
+the priors stabilise the adjusted coefficients. Adjusted and bivariate estimates may
+differ in size or sign because they answer different questions; their difference is a
+sensitivity-to-conditioning comparison, not a decomposition of shared variance.
 
 Design decisions (issue #312, recommendations adopted): four separate
 cross-sectional fits reported side by side (not one stacked model with a child random

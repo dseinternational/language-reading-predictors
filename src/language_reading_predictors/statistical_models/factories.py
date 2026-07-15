@@ -4601,26 +4601,31 @@ def build_longitudinal_corr_factor_model(
     The four-wave extension of the cross-sectional ``corr_factor`` CFA (``mm-001``):
     correlated **vocabulary / code / grammar** domain factors measured at every
     timepoint, delivering the **per-wave latent skill correlation matrices** and the
-    disattenuated latent slopes derived from them. It is the symmetric, measurement-
-    error-corrected counterpart to the concurrent regression family (``ca-001``,
-    #312): every quantity is a **descriptive association**, never causal.
+    conditional latent slopes derived from them. Its correlation matrix is a
+    symmetric, measurement-error-aware companion to the concurrent regression
+    family (``ca-001``, #312), while the derived conditional slopes are directional:
+    every quantity is a **descriptive association**, never causal, and the two
+    families estimate different quantities with no required magnitude ordering.
 
-    **Structure (scalar-invariant longitudinal CFA, fully marginalised).** For
+    **Structure (wave-invariant longitudinal CFA, fully marginalised).** For
     indicator ``j`` of domain ``d`` at wave ``t`` the standardised logit indicator is
     ``z[i,j,t] = lambda[j] * f[i,d,t] + eps[i,j,t]`` with loadings ``lambda[j]`` and
     residual SDs ``sigma[j]`` held **invariant across waves** (the factors mean the
     same thing at every t), positive loadings, and per-wave factor means carried by a
     zero-sum-over-waves ``factor_mean[d,t]`` (indicators are pooled-standardised, so
     the grand mean is removed and only the wave deviations remain). Each factor is
-    unit-variance at every wave; the **within-wave factor correlation** ``factor_corr[t]``
-    (per wave, LKJ) is the headline. Across-wave dependence uses a **trait/state
+    unit-variance at every wave; the **within-wave factor correlation**
+    ``factor_corr[t]`` is the headline. Across-wave dependence uses a **trait/state
     decomposition** ``f = sqrt(pi_d) * trait + sqrt(1 - pi_d) * state`` — a stable
     per-child trait (cross-factor correlated, shared across waves) plus a wave-specific
     state (cross-factor correlated, independent across waves) — which is PSD by
-    construction, keeps unit factor variance, lets the within-wave correlation move
-    freely per wave, and induces across-wave autocorrelation equal to the trait share
-    ``pi_d``. This gives compound symmetry across waves; genuine AR(1) decay is the
-    first relaxation if the equal-lag assumption misfits.
+    construction, keeps unit factor variance, and induces across-wave autocorrelation
+    equal to the trait share ``pi_d``. LKJ priors are placed on the shared trait
+    correlation and each wave's state correlation; their trait-share-weighted sum
+    induces the reported within-wave matrix. The matrices can vary through their
+    state components but share the trait component, so they are neither independent
+    nor themselves LKJ-distributed. This gives compound symmetry across waves;
+    genuine AR(1) decay is the first relaxation if the equal-lag assumption misfits.
 
     **Small-n geometry.** The measurement model is Gaussian in the factors, so the
     per-child factor scores are **marginalised out** (as in ``mm-001``): each child's
@@ -4728,6 +4733,8 @@ def build_longitudinal_corr_factor_model(
 
     z_nodes: list[str] = []
     child_of_node: dict[str, list[int]] = {}
+    cell_indices_of_node: dict[str, list[int]] = {}
+    observed_z_of_node: dict[str, np.ndarray] = {}
 
     with pm.Model(coords=coords) as model:
         # --- Measurement parameters (wave-invariant loadings + residuals) ---
@@ -4839,10 +4846,18 @@ def build_longitudinal_corr_factor_model(
             )
             z_nodes.append(node)
             child_of_node[node] = list(children)
+            cell_indices_of_node[node] = obs_idx.tolist()
+            observed_z_of_node[node] = data
 
     extras = {
         "z_nodes": z_nodes,
         "child_of_node": child_of_node,
+        # Preserve the exact pattern-specific inputs used by the MvNormal nodes.
+        # The LOO post-processor evaluates the same density from posterior
+        # ``mean_z`` / ``Sigma_z`` without asking PyMC to reconstruct it through
+        # transformed LKJCorr value variables.
+        "cell_indices_of_node": cell_indices_of_node,
+        "observed_z_of_node": observed_z_of_node,
         "domains": {k: list(v) for k, v in domains.items()},
         "domain_of": {ind_names[j]: domain_names[domain_of_idx[j]] for j in range(J)},
         "indicators": list(ind_names),
@@ -4851,7 +4866,7 @@ def build_longitudinal_corr_factor_model(
         "waves": list(waves),
         "n_children": N,
         "n_used_children": sum(len(c) for _, c in sorted_patterns),
-        "invariance": "scalar",
+        "invariance": "wave-invariant loadings and residual scales",
     }
     return BuiltModel(
         model=model, variables=_variables_dict(model), prepared=panel, extras=extras

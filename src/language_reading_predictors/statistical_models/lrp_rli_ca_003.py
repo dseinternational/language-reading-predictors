@@ -14,17 +14,18 @@ expressive E vocabulary), plus age and a group nuisance term.
 The family's core skill set is {W, L, B, TR, TE, R, E}: each model conditions its
 focal outcome on the remaining six (see ``lrp_rli_ca_002``). The taught expressive
 companion TE stays in TR's predictor set - the two taught tests are strongly
-correlated, but the regularising priors handle the collinearity and the
-adjusted-vs-bivariate gap is itself informative. Floored measures (P, N) stay
-excluded. Note TR approaches its 24-item ceiling at later waves; the Beta-Binomial
-respects the bound, but per-wave predictor variance (and hence the associations'
-resolution) shrinks as scores compress.
+correlated, so the regularising priors stabilise the adjusted model; differences from
+the bivariate fit show sensitivity to the conditioning set, not a decomposition of
+shared variance. Floored measures (P, N) stay excluded. Note TR approaches its 24-item
+ceiling at later waves; the Beta-Binomial respects the bound, but per-wave outcome
+variance (and hence the associations' resolution) shrinks as scores compress.
 
 **Estimand and its limits.** Every coefficient is an *adjusted association*, never a
 causal effect; conditioning on contemporaneous (post-treatment) skill levels is
 intentional and licensed because nothing here is read causally. Read with the
-family's three standing caveats (Table-2 fallacy, regression dilution, collinearity
-shrinkage) - see ``lrp_rli_ca_001`` and the report for the full statements.
+family's three standing caveats (Table-2 fallacy, qualified measurement-error
+distortion, and collinearity plus regularisation) - see ``lrp_rli_ca_001`` and the
+report for the full statements.
 
 Design decisions follow ca-001 (issue #312): four separate cross-sectional fits
 reported side by side; group as a non-interpretable nuisance; standardised same-wave

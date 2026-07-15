@@ -46,6 +46,18 @@ The reporting fit preserves the dev run's direction without turning it into a ca
 
 The extension flagged in issue #312 — letter sounds and taught vocabulary as further focal outcomes — is delivered as `lrp-rli-ca-002` (L), `lrp-rli-ca-003` (TR) and `lrp-rli-ca-004` (TE), each a spec module reusing the unchanged factory/pipeline. The one design decision the extension had to settle is the **predictor set for a non-W focal**: we fixed the family's core skill set as **{W, L, B, TR, TE, R, E}** and each model conditions its focal on the remaining six — i.e. the focal is swapped out of the ca-001 predictor list and word reading swapped in. The alternative (keeping the ca-001 predictor list minus the focal, never admitting W as a predictor) would have made each model's conditional refer to a different joint measure set, losing the family's read as complementary full conditionals of one joint distribution. Two focal-specific notes: the taught pair (TR/TE) stay in each other's predictor sets — strongly correlated, but the regularising priors stabilise the model and the adjusted-versus-bivariate contrast shows sensitivity to the conditioning set rather than decomposing shared variance; and TR approaches its 24-item ceiling at later waves, which the Beta-Binomial respects but which compresses the resolution of `ca-003`'s later-wave associations (noted in its report). Floored P/N stay excluded both as predictors and as focal outcomes. Per-measure `+k items` increments now also cover W as a predictor (`k = max(1, round(79/10)) = 8`).
 
+### Extension reporting sweep (2026-07-15)
+
+Commands: `python scripts/fit_statistical_model.py lrp-rli-ca-00N --config reporting` for N = 2, 3 and 4, followed by direct Quarto renders of the copied reports. The reporting preset used 6 chains with 6,000 tuning and 6,000 posterior draws per chain, `target_accept = 0.95`, and random seed 47. Every model produced the contractually required 24-row `concurrent_associations.csv`, 96-row `concurrent_marginals.csv` and 28-row `concurrent_fit_diagnostics.csv`; every HTML report rendered successfully.
+
+| Model            | Focal outcome                     | Wave n (t1/t2/t3/t4) | Diagnostic anchor | Published fits passing | Worst R-hat | Minimum ESS | Minimum BFMI | Divergences | Anchor gate |
+| ---------------- | --------------------------------- | -------------------- | ----------------- | ---------------------: | ----------: | ----------: | -----------: | ----------: | ----------- |
+| `lrp-rli-ca-002` | letter sounds (L)                 | 54/54/54/52          | t3                |                  28/28 |    1.000512 |      22,983 |        0.950 |           0 | pass        |
+| `lrp-rli-ca-003` | taught receptive vocabulary (TR)  | 54/54/54/53          | t3                |                  28/28 |    1.000848 |      20,052 |        0.917 |           0 | pass        |
+| `lrp-rli-ca-004` | taught expressive vocabulary (TE) | 54/54/54/53          | t3                |                  28/28 |    1.000767 |      19,896 |        0.938 |           0 | pass        |
+
+All 84 published extension fits therefore clear the pre-specified thresholds (R-hat ≤ 1.01, effective sample size ≥ 400, BFMI ≥ 0.3 and zero divergences). This is computational acceptance, not evidence that any association is causal or substantively important; interpretation still requires the direction, credible interval and posterior direction probability from the relevant row. Generated fit artefacts remain ignored and are not versioned with this note.
+
 ## Follow-on
 
 #313 (longitudinal latent factor model) is the complementary measurement-error-aware analysis; it avoids treating observed test scores as error-free predictors but rests on its own measurement-model assumptions.

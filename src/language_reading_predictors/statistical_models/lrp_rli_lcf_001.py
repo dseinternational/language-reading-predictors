@@ -6,23 +6,26 @@
 The four-wave extension of the cross-sectional ``corr_factor`` CFA (``lrp-rli-mm-001``):
 correlated **vocabulary / code / grammar** domain factors measured at every timepoint
 over the child x wave panel, delivering the **per-wave latent skill correlation
-matrices** and the disattenuated latent slopes derived from them. It is the symmetric,
-measurement-error-corrected counterpart to the concurrent regression family
-(``lrp-rli-ca-001``, #312): the regression family gives directed, covariate-conditional
-observed slopes; this gives the underlying latent correlation web with binomial counting
-noise on both sides modelled out.
+matrices** and conditional latent slopes derived from them. Its symmetric correlation
+matrix is a measurement-error-aware companion to the concurrent regression family;
+the derived conditional slopes are directional. The regression family
+(``lrp-rli-ca-001``, #312) gives directed, covariate-conditional observed-score slopes;
+this model summarises a latent-domain correlation web while modelling
+indicator-specific residual variation.
 
 **Factors.** Vocabulary {R, E, TR, TE}, code {L, B}, grammar {F, T} — taught vocabulary
 (TR/TE) folds into the vocabulary domain (Frank sign-off 2026-07-14; TR/TE are observed
 at all four waves). Heavily-floored P/N are excluded, as in ``mm-001``.
 
-**Structure.** Scalar-invariant loadings/residuals (the factors mean the same thing at
-every t), per-wave within-factor LKJ correlations (the headline), a **trait/state**
-across-wave decomposition (PSD by construction, unit factor variance, per-wave-free
-within-correlation, compound-symmetry autocorrelation via the shared trait), and the
-factor scores **marginalised out** of the Gaussian measurement likelihood (the mm-001
-funnel fix — no per-child latent RV). Missing cells are masked, not dropped: one
-``MvNormal`` per observed-cell pattern.
+**Structure.** Wave-invariant loadings/residuals (the factors mean the same thing at
+every t) and a **trait/state** across-wave decomposition. LKJ priors on the shared trait
+correlation and each wave's state correlation jointly induce the reported within-wave
+matrix after trait-share weighting; the wave matrices vary through their state
+components but share the trait component. The construction is PSD, preserves unit
+factor variance and gives compound-symmetry autocorrelation via the shared trait. The
+factor scores are **marginalised out** of the Gaussian measurement likelihood (the
+mm-001 funnel fix — no per-child latent RV). Missing cells are masked, not dropped:
+one ``MvNormal`` per observed-cell pattern.
 
 **Stance.** A measurement / triangulation model, **not** causal: every latent
 correlation and slope is a descriptive association (#115 ID-2). At n ~ 54 a longitudinal
@@ -45,7 +48,7 @@ SPEC = ModelSpec(
         "Longitudinal correlated-domain-factor model "
         "(per-wave latent skill correlations)"
     ),
-    outcome_symbol="W",
+    outcome_symbol=None,
     extra={
         "domains": {
             "vocabulary": ("R", "E", "TR", "TE"),

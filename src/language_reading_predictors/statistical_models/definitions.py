@@ -356,10 +356,11 @@ _CA = [
 
 # --- Longitudinal correlated-domain-factor model (#313, descriptive-association #314)
 # Per-wave latent skill correlations (vocabulary {R,E,TR,TE} / code {L,B} / grammar
-# {F,T}) over the four-wave panel: the symmetric, disattenuated counterpart to the
-# concurrent regression family (_CA). Every quantity is a descriptive association.
+# {F,T}) over the four-wave panel: a measurement-error-aware companion to the
+# concurrent regression family (_CA), with symmetric correlations and directional
+# conditional slopes. Every quantity is a descriptive association.
 _LCF = [
-    _d("lrplcf01", "long_corr_factor", "Measurement model", Status.ASSOCIATION, "W", "longitudinal correlated-domain-factor model (per-wave latent skill correlations)"),
+    _d("lrplcf01", "long_corr_factor", "Measurement model", Status.ASSOCIATION, None, "longitudinal correlated-domain-factor model (per-wave latent skill correlations)"),
 ]
 
 

@@ -1059,6 +1059,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "n_obs": context.prepared.n_obs if context.prepared else None,
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,
+        "n_waves": getattr(context.prepared, "n_waves", None) if context.prepared else None,
         "dropped_rows": context.prepared.dropped_rows if context.prepared else None,
         "ci_prob": context.reporting.ci_prob,
         "sampling": {
@@ -1784,9 +1785,9 @@ def longitudinal_factor_correlations(
 
     One row per (wave, unique off-diagonal domain pair): the posterior mean and
     equal-tailed ``ci_prob`` interval (plus a 90 % band) of the within-wave latent
-    correlation, and ``prob_pos`` = ``P(rho > 0)``. These are **disattenuated
-    descriptive associations** — the latent skill coupling with binomial counting
-    noise modelled out — never causal.
+    correlation, and ``prob_pos`` = ``P(rho > 0)``. These are model-based latent-domain
+    descriptive associations, with indicator-specific residual variation represented
+    separately; they are never causal.
     """
     corr, waves, domains = _factor_corr_draws(trace, group)
     D = len(domains)
@@ -1823,11 +1824,11 @@ def longitudinal_conditional_slopes(
     regression coefficient of the (unit-variance) target factor on the predictor
     factor **controlling for every other factor**, derived per draw from the
     within-wave latent correlation matrix (the multiple-regression coefficient
-    ``beta = R[pred, pred]^-1 R[pred, target]``). This is the disattenuated
-    analogue of the concurrent family's mutually-adjusted regression slopes (#312):
-    an **adjusted association**, not a causal effect. With two predictors the
-    coefficient is a partial slope; with one it coincides with the pairwise
-    correlation.
+    ``beta = R[pred, pred]^-1 R[pred, target]``). This is a latent-factor companion
+    to the concurrent family's mutually-adjusted observed-score slopes (#312), not the
+    same estimand or a guaranteed correction of it: an **adjusted association**, not a
+    causal effect. With two predictors the coefficient is a partial slope; with one it
+    coincides with the pairwise correlation.
     """
     corr, waves, domains = _factor_corr_draws(trace, group)
     S, T, D, _ = corr.shape
@@ -1868,11 +1869,12 @@ def disattenuation_crosscheck(
     ``latent_df`` is :func:`longitudinal_factor_correlations` output; ``observed_df``
     carries the raw same-wave observed correlation (``observed_corr``) for each
     ``(wave, domain_i, domain_j)`` — the mean pairwise correlation between the two
-    domains' standardised indicators. The disattenuation check: measurement-error
-    correction can only **inflate** a correlation, so the latent ``|mean|`` should be
-    ``>=`` the observed ``|observed_corr|``; ``latent_ge_observed = False`` (a
-    reversal) is a red flag for the latent model at this wave/pair. ``gap`` is
-    ``|latent| - |observed|``.
+    domains' standardised indicators. ``gap`` is ``|latent| - |observed|`` and
+    ``latent_ge_observed`` records its direction (with a small numerical tolerance).
+    This is a descriptive model check, not an acceptance gate: the latent factor and
+    the mean indicator-pair correlation are different estimands, so factor aggregation,
+    the loading structure, residual structure and sampling uncertainty can all break a
+    simple attenuation ordering even when measurement error is present.
     """
     merged = latent_df.merge(
         observed_df, on=["wave", "domain_i", "domain_j"], how="left"
@@ -1880,7 +1882,6 @@ def disattenuation_crosscheck(
     lat = merged["mean"].abs()
     obs = merged["observed_corr"].abs()
     merged["gap"] = lat - obs
-    # A small tolerance absorbs Monte-Carlo noise so a trivially-negative gap does
-    # not read as a genuine reversal.
+    # A small tolerance absorbs Monte-Carlo noise around a zero gap.
     merged["latent_ge_observed"] = (lat + 1e-3) >= obs
     return merged

@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 
 # Gain-factor per-covariate items-scale association marginals (#310)
 
@@ -40,6 +42,12 @@ Every row carries `role = "association"` — none of these terms is causal, per 
 - `gf-101` (W, treated-only `…b`): `association_marginals.csv` written with no `beta_trt`; own `+1 SD` → +14.0 words (n_trials 79); the trt interactions are absent (dropped in treated-only), so no leakage.
 
 Signs are consistent with the logit coefficients across all three; `items = n_trials × prob` holds; the guard test (`tests/statistical_models/test_reporting.py`) locks sign/scale consistency, the per-k-items mapping, the interaction pushforward against a hand-loop reference, and the off-floor path.
+
+## Reporting-tier sweep (2026-07-15)
+
+All 19 gain-factor models (`gf-001`–`gf-011` and treated-only companions `gf-101`–`gf-108`) were re-fitted with the `reporting` configuration (6 chains × 6000 retained draws, seed 47). Every model passes the pre-specified convergence gate: 0 divergences throughout, worst max R-hat 1.00465, smallest bulk ESS 1389.7, and smallest chain BFMI 0.397. The sweep emitted 185 association-marginal rows in total, with at least one row for every model.
+
+The convergence result does not make every predictive diagnostic clean. PSIS-LOO flags influential observations in four fits: `gf-002` has 1 observation with 0.7 < Pareto k ≤ 1, `gf-004` has 4, `gf-102` has 2, and `gf-104` has 1; no fit has k > 1. These warnings limit pointwise out-of-sample reliability for the receptive-vocabulary and letter-sound fits, especially `gf-004`, but they do not invalidate the posterior association-marginal calculation. The rendered reports retain the warnings so later model comparisons do not silently treat those LOO estimates as equally stable.
 
 ## Files
 

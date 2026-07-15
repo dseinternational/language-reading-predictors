@@ -628,6 +628,15 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     # Correlation / covariance priors (joint LKJ residual, factor covariance).
     if base.startswith(("u_chol", "u_corr", "factor_cov", "chol")):
         return ("nuisance", "")
+    # LCF trait/state correlation components jointly induce the headline
+    # within-wave factor correlations, so they are association parameters rather
+    # than unreported covariance plumbing.
+    if base == "trait_corr_chol" or base.startswith("state_corr_chol_w"):
+        return ("association", "")
+    # The stable-trait variance share and exact-zero-sum factor means organise the
+    # longitudinal measurement structure but are not themselves skill couplings.
+    if base in {"trait_share", "factor_mean"}:
+        return ("nuisance", "")
     # Scales / dispersions / random-effect SDs.
     if base.startswith(("sigma", "kappa", "tau_")) or base == "sigma1":
         return ("nuisance", "")
@@ -654,6 +663,44 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     if base.startswith(("g_", "b_", "a_", "aL", "aE", "d_")) or base.endswith("_self"):
         return ("association", "")
     return ("other", "")
+
+
+def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
+    """Rationale for bespoke inline priors classified from their fitted RV."""
+    base = rv_name.split("[")[0]
+    fitted = distribution or "the fitted prior"
+    if base.startswith(("lambda", "load")):
+        return (
+            f"Positive indicator loading ({fitted}); maps each standardised test "
+            "to its unit-variance domain factor."
+        )
+    if base == "sigma_indicator":
+        return (
+            f"Indicator-specific residual scale ({fitted}); separates test-specific "
+            "variation from the domain factor."
+        )
+    if base == "trait_share":
+        return (
+            f"Domain-specific stable-trait variance share ({fitted}); governs "
+            "same-domain persistence across waves."
+        )
+    if base == "trait_corr_chol":
+        return (
+            f"LKJ prior on the shared trait-component correlation ({fitted}); "
+            "trait-share weighting carries it into every within-wave matrix."
+        )
+    if base.startswith("state_corr_chol_w"):
+        return (
+            f"LKJ prior on one wave's state-component correlation ({fitted}); "
+            "together with the shared trait component it induces that wave's "
+            "reported factor correlation."
+        )
+    if base == "factor_mean":
+        return (
+            f"Exact-zero-sum domain-by-wave mean deviations ({fitted}); represents "
+            "wave shifts after pooled indicator standardisation."
+        )
+    return ""
 
 
 def prior_info_for_rv(
@@ -691,7 +738,7 @@ def prior_info_for_rv(
             "parameter": rv_name,
             "distribution": distribution,
             "role": (role_overrides or {}).get(base, role),
-            "rationale": rationale or "",
+            "rationale": rationale or _fallback_rationale(rv_name, distribution),
             "panel": panel,
         }
     ctor = ALL_PRIORS[key]
