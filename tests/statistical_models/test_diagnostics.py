@@ -187,6 +187,40 @@ def test_joint_predictive_selection_never_pools_outcome_denominators():
     np.testing.assert_array_equal(selected, np.array([[[101.0, 102.0]]]))
 
 
+def test_joint_predictive_selection_uses_one_coordinate_fallback():
+    values = np.array([[[1.0, 101.0, 2.0, 102.0]]])
+    prior = xr.Dataset(
+        {"tau": (("chain", "draw", "outcome"), np.zeros((1, 1, 2)))},
+        coords={"outcome": ["A", "B"]},
+    )
+    samples = SimpleNamespace(
+        prior=prior,
+        prior_predictive=xr.Dataset(
+            {"y_post": (("chain", "draw", "cell"), values)}
+        ),
+        constant_data=xr.Dataset(
+            {"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}
+        ),
+    )
+    context = SimpleNamespace(
+        prior_samples=samples,
+        trace=None,
+        spec=SimpleNamespace(extra={}),
+        model=None,
+    )
+
+    selected, symbol = diag._predictive_values_for_outcome(
+        context,
+        samples,
+        group="prior_predictive",
+        node="y_post",
+        outcome_symbol="B",
+    )
+
+    assert symbol == "B"
+    np.testing.assert_array_equal(selected, np.array([[[101.0, 102.0]]]))
+
+
 def test_joint_predictive_selection_fails_closed_on_bad_map():
     samples = SimpleNamespace(
         prior=xr.Dataset(
@@ -276,7 +310,7 @@ def test_joint_loo_pit_tree_selects_matching_outcome_cells():
     context = SimpleNamespace(
         trace=trace,
         prior_samples=None,
-        spec=SimpleNamespace(extra={"outcomes": ("A", "B")}),
+        spec=SimpleNamespace(extra={}),
         model=None,
     )
 

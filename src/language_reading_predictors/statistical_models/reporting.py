@@ -98,7 +98,12 @@ def _itt_ame_draws(
     """
     posterior = getattr(trace, group)
     term_draws = posterior[term].stack(sample=("chain", "draw")).values  # (S,)
-    eta = posterior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
+    eta = (
+        posterior[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
     G = np.asarray(G, dtype=float)
     if G.shape[0] != eta.shape[0]:
         raise ValueError(
@@ -109,7 +114,10 @@ def _itt_ame_draws(
     # model has it, otherwise the constant ``term`` broadcast over observations.
     if varying_term and varying_term in posterior:
         delta = (
-            posterior[varying_term].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
+            posterior[varying_term]
+            .stack(sample=("chain", "draw"))
+            .transpose("obs_id", "sample")
+            .values
         )  # (n_obs, S)
     else:
         delta = term_draws[None, :]  # (1, S)
@@ -147,9 +155,14 @@ def _itt_ame_draws(
                 )
         elif np.issubdtype(m.dtype, np.integer):
             if m.size and (int(m.min()) < 0 or int(m.max()) >= eta.shape[0]):
-                raise ValueError(f"integer row_mask has indices outside [0, {eta.shape[0]}).")
+                raise ValueError(
+                    f"integer row_mask has indices outside [0, {eta.shape[0]})."
+                )
         else:
-            raise ValueError(f"row_mask must be a boolean mask or integer index array, got dtype {m.dtype}.")
+            raise ValueError(
+                "row_mask must be a boolean mask or integer index array, got dtype "
+                f"{m.dtype}."
+            )
         contrib = contrib[m]
         if contrib.shape[0] == 0:
             raise ValueError("row_mask selects no observations for the marginal effect.")
@@ -340,7 +353,11 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
             else "the intervention lowers the off-floor probability"
         )
     else:
-        _fav_claim = "the intervention helps" if _fav == "positive" else "the intervention is harmful"
+        _fav_claim = (
+            "the intervention helps"
+            if _fav == "positive"
+            else "the intervention is harmful"
+        )
     direction_clause = (
         f"**Direction** — P(intervention helps) = {r['pd']:.3f} "
         f"({odds_string(r['pd'])}); favoured direction: {_fav_claim} — "
@@ -472,7 +489,9 @@ def rope_sensitivity(
     return pd.DataFrame(rows)
 
 
-def rope_sensitivity_markdown(sens: pd.DataFrame, *, is_risk_difference: bool = False) -> str:
+def rope_sensitivity_markdown(
+    sens: pd.DataFrame, *, is_risk_difference: bool = False
+) -> str:
     """Render the δ-sensitivity sweep (:func:`rope_sensitivity`) as a markdown table.
 
     Shared by the ITT and floored result partials so the δ-robustness view cannot
@@ -629,7 +648,11 @@ def proportion_at_zero_ppc(
     finite = post[np.isfinite(post)]
     obs_p0 = float(np.mean(finite == 0.0)) if finite.size else float("nan")
     pp = trace.posterior_predictive[node]
-    yrep = pp.stack(sample=("chain", "draw")).transpose("sample", "obs_id").values  # (S, n_obs)
+    yrep = (
+        pp.stack(sample=("chain", "draw"))
+        .transpose("sample", "obs_id")
+        .values
+    )  # (S, n_obs)
     rep_p0 = np.mean(yrep == 0.0, axis=1)  # (S,)
     upper_tail = float(np.mean(rep_p0 >= obs_p0))
     lower_tail = float(np.mean(rep_p0 <= obs_p0))
@@ -1245,7 +1268,12 @@ def block_exposure_summary(
         "delta_favoured_label": evidence_label(max(prob_pos, 1.0 - prob_pos)),
     }
     # Items-scale average marginal effect: toggle exposed 0 -> 1 per fitted row.
-    eta_base = posterior["eta_base"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
+    eta_base = (
+        posterior["eta_base"]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
     eff = (expit(eta_base + d[None, :]) - expit(eta_base)).mean(axis=0) * n_trials
     out["delta_items_median"] = float(np.median(eff))
     out["delta_items_mean"] = float(np.mean(eff))
@@ -1279,7 +1307,12 @@ def _joint_observed_row_masks(
     cols = np.asarray(constant["y_post_cell_outcome"].values, dtype=int).ravel()
     if rows.size != cols.size:
         raise ValueError("joint flattened-cell row and outcome maps differ in length")
-    if rows.size and (rows.min() < 0 or rows.max() >= n_obs or cols.min() < 0 or cols.max() >= n_outcomes):
+    if rows.size and (
+        rows.min() < 0
+        or rows.max() >= n_obs
+        or cols.min() < 0
+        or cols.max() >= n_outcomes
+    ):
         raise ValueError("joint flattened-cell map contains an out-of-range index")
     masks[:] = False
     masks[cols, rows] = True
@@ -1317,7 +1350,12 @@ def _joint_ame_draws(
     if missing:
         raise KeyError(f"joint outcomes absent from posterior: {missing}")
     outcome_indices = [available.index(outcome) for outcome in outcome_names]
-    tau = tau_da.sel(outcome=outcome_names).stack(sample=("chain", "draw")).transpose("outcome", "sample").values
+    tau = (
+        tau_da.sel(outcome=outcome_names)
+        .stack(sample=("chain", "draw"))
+        .transpose("outcome", "sample")
+        .values
+    )
     eta = (
         eta_da.sel(outcome=outcome_names)
         .stack(sample=("chain", "draw"))
@@ -1558,6 +1596,8 @@ def _json_safe(value):
         return value if np.isfinite(value) else str(value)
     if isinstance(value, np.generic):
         return _json_safe(value.item())
+    if isinstance(value, np.ndarray):
+        return _json_safe(value.tolist())
     if is_dataclass(value) and not isinstance(value, type):
         return _json_safe(asdict(value))
     if isinstance(value, dict):
@@ -1590,7 +1630,11 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
         if "cross_symbols" in spec_extra:
             cross_symbols = list(spec_extra.get("cross_symbols") or ())
         else:
-            cross_symbols = [symbol for symbol in getattr(prepared, "pre_logit", {}) if symbol != spec.outcome_symbol]
+            cross_symbols = [
+                symbol
+                for symbol in getattr(prepared, "pre_logit", {})
+                if symbol != spec.outcome_symbol
+            ]
         if floor_rule:
             likelihood = "bernoulli_offfloor_exploratory_with_beta_binomial_secondaries"
         else:
@@ -1606,7 +1650,9 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
                     "cross_symbols": cross_symbols,
                     "pre_required": _json_safe(spec_extra.get("pre_required")),
                 },
-                "age_effect": ("gp" if use_age_gp else "linear" if use_age_linear else "none"),
+                "age_effect": (
+                    "gp" if use_age_gp else "linear" if use_age_linear else "none"
+                ),
                 "use_age_gp": use_age_gp,
                 "use_age_linear": use_age_linear,
                 "use_residual_correlation": False,
@@ -1627,7 +1673,9 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
                     "use_cross_baselines": use_cross_baselines,
                     "cross_symbols": outcomes if use_cross_baselines else [],
                 },
-                "age_effect": ("gp" if use_age_gp else "linear" if use_age_linear else "none"),
+                "age_effect": (
+                    "gp" if use_age_gp else "linear" if use_age_linear else "none"
+                ),
                 "use_age_gp": use_age_gp,
                 "partial_pool_age_gp": bool(spec_extra.get("partial_pool_age_gp", True)),
                 "use_age_linear": use_age_linear,
@@ -1641,8 +1689,16 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
         {
             "prepared_outcomes": list(post_counts),
             "effective_adjustment": list(covariates),
-            "covariate_time": _json_safe(getattr(prepared, "covariate_time", {}) if prepared is not None else {}),
-            "dropped_covariates": list(getattr(prepared, "dropped_covariates", ()) if prepared is not None else ()),
+            "covariate_time": _json_safe(
+                getattr(prepared, "covariate_time", {})
+                if prepared is not None
+                else {}
+            ),
+            "dropped_covariates": list(
+                getattr(prepared, "dropped_covariates", ())
+                if prepared is not None
+                else ()
+            ),
             "phase_mode": getattr(prepared, "phase_mode", None),
         }
     )
@@ -2050,7 +2106,12 @@ def association_marginals(
     gain family's documented estimand structure.
     """
     posterior = getattr(trace, group)
-    eta = posterior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
+    eta = (
+        posterior[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
     n_obs = eta.shape[0]
 
     mask: np.ndarray | None = None
@@ -2060,12 +2121,18 @@ def association_marginals(
             raise ValueError(f"row_mask must be 1-D, got a {m.ndim}-D array.")
         if m.dtype == bool:
             if m.shape[0] != n_obs:
-                raise ValueError(f"boolean row_mask has {m.shape[0]} entries but eta has {n_obs} observations.")
+                raise ValueError(
+                    f"boolean row_mask has {m.shape[0]} entries but eta has "
+                    f"{n_obs} observations."
+                )
         elif np.issubdtype(m.dtype, np.integer):
             if m.size and (int(m.min()) < 0 or int(m.max()) >= n_obs):
                 raise ValueError(f"integer row_mask has indices outside [0, {n_obs}).")
         else:
-            raise ValueError(f"row_mask must be a boolean mask or integer index array, got dtype {m.dtype}.")
+            raise ValueError(
+                "row_mask must be a boolean mask or integer index array, got dtype "
+                f"{m.dtype}."
+            )
         mask = m
 
     eta_sel = eta if mask is None else eta[mask]
@@ -2103,7 +2170,11 @@ def association_marginals(
                     )
                 delta_eta = delta_eta + np.outer(zp, gi) * dz  # (n_obs, S)
 
-            de_sel = delta_eta if delta_eta.shape[0] == 1 else (delta_eta if mask is None else delta_eta[mask])
+            de_sel = (
+                delta_eta
+                if delta_eta.shape[0] == 1
+                else (delta_eta if mask is None else delta_eta[mask])
+            )
             ame_prob = (expit(eta_sel + de_sel) - expit(eta_sel)).mean(axis=0)  # (S,)
             ame_items = float(n_trials) * ame_prob
             prob_lo90, prob_hi90 = band90(ame_prob)
@@ -2125,7 +2196,11 @@ def association_marginals(
                     "items_hi90": items_hi90,
                     "prob_pos": float(np.mean(ame_items > 0)),
                     "off_floor": bool(off_floor),
-                    "sd_items": (float(term.sd_items) if term.sd_items is not None else float("nan")),
+                    "sd_items": (
+                        float(term.sd_items)
+                        if term.sd_items is not None
+                        else float("nan")
+                    ),
                 }
             )
     return pd.DataFrame(rows)
@@ -2208,7 +2283,12 @@ def concurrent_marginals(
     intentional, per the family's documented estimand).
     """
     posterior = getattr(trace, group)
-    eta = posterior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
+    eta = (
+        posterior[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
 
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
@@ -2313,7 +2393,12 @@ def level_t2_marginal_effect(
     if not mask.any():
         raise ValueError(f"No rows at t2_phase={t2_phase}; phases present: {np.unique(phase)}")
 
-    eta = posterior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
+    eta = (
+        posterior[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
     if eta.shape[0] != phase.shape[0]:
         raise ValueError(
             f"phase has {phase.shape[0]} rows but eta has {eta.shape[0]} observations; "
@@ -2380,7 +2465,11 @@ def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame
             "sign": "+" if mean > 0 else ("-" if mean < 0 else "0"),
         }
         if lam is not None:
-            row["lambda_mean"] = float(lam.isel(predictor=i).stack(sample=("chain", "draw")).values.mean())
+            row["lambda_mean"] = float(
+                lam.isel(predictor=i)
+                .stack(sample=("chain", "draw"))
+                .values.mean()
+            )
         rows.append(row)
     df = pd.DataFrame(rows).sort_values("p_abs_gt_delta", ascending=False).reset_index(drop=True)
     df.insert(0, "rank", np.arange(1, len(df) + 1))

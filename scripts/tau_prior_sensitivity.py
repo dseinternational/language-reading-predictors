@@ -757,7 +757,7 @@ def _fit_one(
         "n": n,
         "n_intervention": n_intervention,
         "n_control": n_control,
-        "pd": s["prob_tau_pos"],
+        "pd": s["prob_ame_pos"],
         "tau_logit_mean": s["tau_logit_mean"],
         "tau_logit_lo": s["tau_logit_lo"],
         "tau_logit_hi": s["tau_logit_hi"],

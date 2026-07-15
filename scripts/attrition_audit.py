@@ -34,6 +34,11 @@ import pandas as pd
 
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
+from language_reading_predictors.statistical_models.itt_audit import (
+    CONTROL_G,
+    INTERVENTION_G,
+    RLI_RANDOMISED_BY_G,
+)
 from language_reading_predictors.statistical_models.measures import MEASURES
 
 # Outcomes audited: the eight standardised ITT outcomes plus nonword reading, in a
@@ -43,12 +48,11 @@ WAVES: tuple[int, ...] = (1, 2, 3, 4)
 
 _DATA_PATH = _paths.DATA_DIR / "rli_data_long.csv"
 
-# Burgoyne et al. (2012), CONSORT allocation: 29 immediate intervention and 28
-# wait-list control children were randomised. The archived CSV contains 28 and
-# 26 respectively. DOI: 10.1111/j.1469-7610.2012.02557.x.
+# Raw trial group codes are 1/2; the model layer recodes them to 1/0. Keep the
+# published allocation counts in itt_audit.py as the single source of truth.
 RANDOMISED_BY_GROUP: dict[int, tuple[str, int]] = {
-    1: ("intervention", 29),
-    2: ("control", 28),
+    1: ("intervention", RLI_RANDOMISED_BY_G[INTERVENTION_G]),
+    2: ("control", RLI_RANDOMISED_BY_G[CONTROL_G]),
 }
 
 

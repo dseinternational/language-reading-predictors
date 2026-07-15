@@ -98,7 +98,7 @@ def tau_prior_distal() -> Continuous:
 
 
 def gamma_own_prior(sigma: float = 0.25) -> Continuous:
-    """Own-baseline coupling gamma_own ~ Normal(1, 0.25).
+    """Own-baseline coupling defaults to gamma_own ~ Normal(1, 0.25).
 
     Centred at 1 (post-logit tracks pre-logit 1:1 — no regression to the mean
     asserted a priori) with default SD 0.25 (prior-critical review 2026-07-07,

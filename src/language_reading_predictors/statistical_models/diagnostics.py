@@ -805,19 +805,20 @@ def save_trace(context: StatisticalFitContext, filename: str = "trace.nc") -> st
 
 def _joint_cell_outcome_index(
     context: StatisticalFitContext, outcome_symbol: str
-) -> tuple[np.ndarray | None, str]:
-    """Per-cell outcome index for the joint model's flattened ``y_post``, or None.
+) -> tuple[np.ndarray | None, int | None]:
+    """Return the joint cell map and requested outcome position, or two ``None``s.
 
-    Returns ``(index, outcome_symbol)``. ``index`` is the constant-data
+    ``index`` is the constant-data
     ``y_post_cell_outcome`` array (each flattened cell's outcome position in the
-    outcome order); ``None`` marks a non-joint family. If a joint map is present,
-    failure to resolve the requested outcome raises rather than silently pooling
-    counts with incompatible denominators.
+    outcome order); ``target`` is the requested outcome's position in that same
+    resolved order. Two ``None`` values mark a non-joint family. If a joint map is
+    present, failure to resolve the requested outcome raises rather than silently
+    pooling counts with incompatible denominators.
     """
     samples = context.prior_samples if context.prior_samples is not None else context.trace
     cd = getattr(samples, "constant_data", None)
     if cd is None or "y_post_cell_outcome" not in cd:
-        return None, outcome_symbol
+        return None, None
     idx = np.asarray(cd["y_post_cell_outcome"].values).ravel().astype(int)
     outcomes: list[str] = []
     extra = getattr(getattr(context, "spec", None), "extra", {}) or {}
@@ -842,7 +843,7 @@ def _joint_cell_outcome_index(
         )
     if idx.size and (idx.min() < 0 or idx.max() >= len(outcomes)):
         raise ValueError("joint predictive cell map contains an invalid outcome index")
-    return idx, outcome_symbol
+    return idx, outcomes.index(outcome_symbol)
 
 
 def _predictive_values_for_outcome(
@@ -864,25 +865,12 @@ def _predictive_values_for_outcome(
         predictive = predictive.sel(outcome=outcome_symbol)
         return np.asarray(predictive.values, dtype=float), outcome_symbol
     values = np.asarray(predictive.values, dtype=float)
-    cell_idx, outcome_symbol = _joint_cell_outcome_index(context, outcome_symbol)
+    cell_idx, target = _joint_cell_outcome_index(context, outcome_symbol)
     if cell_idx is None:
         return values, outcome_symbol
+    assert target is not None
     if cell_idx.size != values.shape[-1]:
         raise ValueError("joint predictive cell map does not align with predictive draws")
-    extra = getattr(context.spec, "extra", {}) or {}
-    labels = [str(o) for o in extra.get("outcomes", ())]
-    if not labels:
-        for source, source_group in (
-            (context.prior_samples, "prior"),
-            (context.trace, "posterior"),
-        ):
-            dataset = (
-                getattr(source, source_group, None) if source is not None else None
-            )
-            if dataset is not None and "outcome" in dataset.coords:
-                labels = [str(o) for o in dataset.coords["outcome"].values]
-                break
-    target = labels.index(outcome_symbol)
     return values[..., cell_idx == target], outcome_symbol
 
 
@@ -1070,13 +1058,11 @@ def _joint_outcome_predictive_tree(
     samples = context.trace if samples is None else samples
     if samples is None:
         raise ValueError("joint LOO-PIT requires a posterior trace")
-    cell_idx, outcome_symbol = _joint_cell_outcome_index(context, outcome_symbol)
+    cell_idx, target = _joint_cell_outcome_index(context, outcome_symbol)
     if cell_idx is None:
         raise ValueError("joint LOO-PIT requires y_post_cell_outcome constant data")
-    outcomes = [str(o) for o in (context.spec.extra.get("outcomes", ()) or ())]
-    if outcome_symbol not in outcomes:
-        raise KeyError(f"outcome {outcome_symbol!r} is not in {outcomes}")
-    keep = cell_idx == outcomes.index(outcome_symbol)
+    assert target is not None
+    keep = cell_idx == target
     if not np.any(keep):
         raise ValueError(f"joint outcome {outcome_symbol!r} has no predictive cells")
 

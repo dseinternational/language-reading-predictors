@@ -150,6 +150,7 @@ def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
             "cross_symbols": (),
             "use_age_linear": True,
             "numpy_setting": np.int64(3),
+            "numpy_array_setting": np.array([1, 2, 3]),
         },
     )
     ctx = SimpleNamespace(
@@ -182,6 +183,7 @@ def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
     assert cfg["estimand_type"] == "causal_available_case_randomised_effect"
     assert cfg["spec_extra"]["outcomes"] == ["W"]
     assert cfg["spec_extra"]["numpy_setting"] == 3
+    assert cfg["spec_extra"]["numpy_array_setting"] == [1, 2, 3]
     assert cfg["effective_model_settings"]["likelihood"] == "beta_binomial"
     assert cfg["effective_model_settings"]["effective_adjustment"] == ["age"]
     assert cfg["data_path"] == "/study/rli_data_long.csv"

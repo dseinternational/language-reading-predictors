@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from language_reading_predictors.statistical_models.ppc_audit import (
+    _baseline_bands,
     score_ppc_by_arm_and_baseline,
     score_ppc_distribution_shape,
 )
@@ -73,6 +74,12 @@ def test_score_ppc_supports_flattened_joint_row_mapping():
 
     assert table.n.sum() == row_indices.size
     assert set(table.arm) == {"intervention", "control"}
+
+
+def test_baseline_bands_labels_collapsed_quantiles_as_one_population():
+    bands = _baseline_bands(np.array([0.0, 0.0, 0.0, 0.0, 1.0]))
+
+    assert bands.tolist() == ["baseline_all"] * 5
 
 
 def test_score_ppc_rejects_invalid_mapping_and_scores():

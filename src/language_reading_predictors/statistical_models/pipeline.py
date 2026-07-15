@@ -1616,6 +1616,8 @@ def _fit_itt_floor_rule(
     # missingness assumptions stated in the report.
     at_risk = restrict_to_baseline_floored(prepared, own)
     n_eligible = int(eligibility["n_exploratory_eligible"].sum())
+    # This equality relies on the single-outcome loader requiring this outcome's
+    # post-score; revisit it before applying the floor rule to a joint outcome load.
     if at_risk.n_obs != n_eligible:
         raise RuntimeError(
             f"floor-rule eligibility count drift for {own!r}: restriction kept "

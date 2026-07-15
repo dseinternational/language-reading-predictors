@@ -27,11 +27,12 @@ def _baseline_bands(values: np.ndarray) -> np.ndarray:
     codes = pd.qcut(observed, q=3, labels=False, duplicates="drop")
     codes = np.asarray(codes, dtype=int)
     n_bands = int(codes.max()) + 1
-    names = (
-        ["baseline_low", "baseline_high"]
-        if n_bands == 2
-        else ["baseline_low", "baseline_middle", "baseline_high"]
-    )
+    if n_bands == 1:
+        names = ["baseline_all"]
+    elif n_bands == 2:
+        names = ["baseline_low", "baseline_high"]
+    else:
+        names = ["baseline_low", "baseline_middle", "baseline_high"]
     labels[finite] = np.asarray(names, dtype=object)[codes]
     return labels
 
