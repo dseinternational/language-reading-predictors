@@ -32,10 +32,10 @@ identification-clean (recorded here so the #264 re-derivation sees the decision)
 of LS and PA but is treatment-affected (IG -> IS): `LS <- IS -> PA` is a recanting
 witness, and no adjustment set rescues natural effects from that structure — while
 adjusting IS would change the estimand and open the collider `IG -> IS <- GA -> B`
-(GA latent), strictly worse. The constructive/quantitative answers are filed as
-follow-ups: #323 (interventional-effects companions, med-078 pattern) and #324 (IS on
-the #289 sensitivity surface). The report names shared session dose as a plausible
-inflator of the NIE via L.
+(GA latent), strictly worse. The constructive/quantitative answers are MED-187
+(the interventional-effects companion, #323) and #324 (IS on the #289 sensitivity
+surface). The report names shared session dose as a plausible inflator of the NIE
+via L.
 
 The binding unverifiable assumption is no unmeasured L -> B confounding (latent
 general ability violates it), as for LRP59 — a model-based g-formula decomposition
@@ -44,7 +44,7 @@ effect. **Confirmed by the time-indexed re-derivation (#264;**
 ``notes/202607142340-lrp264-mediation-adjustment-dsep.md``): on the wave-unrolled
 graph EV/RV do not enter the mediator's parent set (the E/R absence stands), and
 the recanting witness appears explicitly as ``LS_2 <- IS_1 -> PA_2``, blockable
-only at treatment descendants — #323/#324 remain the right response.
+only at treatment descendants — MED-187 plus #324 remain the right response.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -63,7 +63,7 @@ SPEC = ModelSpec(
         # L->PA confounders under the mediation criterion (signed off 2026-07-14): HS
         # (hs), SP (deapp_c) via missing indicators. RW considered and excluded
         # (not an LS parent -> precision-only; LS<-HS->RW->PA blocked at HS). IS/attend
-        # confirmed NOT adjusted (treatment-affected recanting witness; see #323/#324).
+        # confirmed NOT adjusted (treatment-affected recanting witness; MED-187/#324).
         # "W_pre" is the outcome-own-baseline marker (stripped by fit_mediation; the
         # factory uses B's pre-score).
         "G", "A", "W_pre", "L_t1",

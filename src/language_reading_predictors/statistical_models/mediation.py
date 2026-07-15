@@ -43,9 +43,10 @@ The outputs are therefore model-based g-formula decompositions under the stated
 (cross-world) assumptions, not identified natural effects.
 
 An *interventional* (rather than natural) mediation estimand -- available here via
-``decompose(..., interventional=True)`` and fitted as LRP78 -- addresses the
-*second* obstacle only: it invokes no cross-world quantity, so the exposure-induced
-confounder does not defeat it. It does **not** address the first. Identification of
+``decompose(..., interventional=True)`` and fitted in MED-078/186/187 -- addresses
+the *second* obstacle only: it invokes no cross-world quantity, so the
+exposure-induced confounder does not defeat it. It does **not** address the first.
+Identification of
 stochastic interventional (in)direct effects still requires no unmeasured
 mediator-outcome confounding (Hejazi, Rudolph, van der Laan & Diaz 2022,
 Biostatistics 24(3):686-707, assumption A5, doi:10.1093/biostatistics/kxac002),
@@ -170,8 +171,9 @@ def decompose(
     control Monte-Carlo noise from the mediator draw; the posterior itself
     supplies the inferential uncertainty.
 
-    ``interventional=True`` (LRP78) labels the decomposition as the **randomised
-    interventional analogue** (IDE / IIE) rather than the natural NDE / NIE. The
+    ``interventional=True`` (MED-078/186/187) labels the decomposition as the
+    **randomised interventional analogue** (IDE / IIE) rather than the natural
+    NDE / NIE. The
     mediator is drawn from its fitted **covariate-conditional** law ``P(M | C, g)``
     within strata (VanderWeele, Vansteelandt & Robins 2014) — which is exactly the
     distribution the g-formula already simulates. In this fully parametric model

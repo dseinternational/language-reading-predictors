@@ -3,7 +3,7 @@
 
 """LRP78 - interventional-effects decomposition of word reading via letter sounds.
 
-Every other mediation model reports **natural** direct/indirect effects (NDE/NIE).
+The natural-effect mediation models report direct/indirect effects as NDE/NIE.
 The natural effects rely on a *cross-world* quantity, and under this DAG they are
 **not identified** — latent general ability confounds the mediator->outcome path,
 and the intervention dose ``IS`` is a treatment-induced mediator-outcome confounder
