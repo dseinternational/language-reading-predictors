@@ -2796,6 +2796,7 @@ def _summarise_draws(
     """
     lo_q = (1.0 - ci_prob) / 2.0
     out = {
+        "median": float(np.median(values)),
         "mean": float(np.mean(values)),
         "lo": float(np.quantile(values, lo_q)),
         "hi": float(np.quantile(values, 1.0 - lo_q)),
@@ -2836,6 +2837,14 @@ def _write_dose_slope_summary(
         rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), ci_prob)})
 
     df = pd.DataFrame(rows)
+    dose_covariate = ctx.spec.extra.get("dose_covariate", "attend")
+    dose_scaler = ctx.prepared.covariate_scalers[dose_covariate]
+    # Persist the original standardisation so downstream named-confounder
+    # calibration can put slopes from separately fitted outcomes onto one common
+    # per-session scale.  Older artefacts are reconstructible from the data, but
+    # new fits should be self-describing (#324).
+    df["dose_mean_sessions"] = float(dose_scaler.mean)
+    df["dose_sd_sessions"] = float(dose_scaler.sd)
     df.to_csv(os.path.join(ctx.output_dir, "dose_slope_summary.csv"), index=False)
     ctx.tables["dose_slope_summary"] = df
     print_table(
@@ -2929,14 +2938,13 @@ def _fit_t3_sensitivity(
     return df_t3
 
 
-def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
+def prepare_mediation_data(spec: ModelSpec):
+    """Load the exact rows and fitted confounder set for a mediation spec.
+
+    Kept separate from sampling so reporting-only regenerators can reconstruct the
+    mediation sample and its mediator standardiser without refitting the posterior.
+    """
     _require_spec(spec, "mediation")
-    from language_reading_predictors.statistical_models import mediation as _med
-
-    ctx = make_context(spec, config)
-
-    section_header("Prepare data")
     # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
     mediator_symbol = spec.mechanism_symbol or "L"
     # Drop the structural markers and the mediator's own baseline ({mediator}_t1,
@@ -2984,13 +2992,27 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         )
     else:
         prepared = load_and_prepare(phase_mode="itt", covariates=_raw_cov)
-    ctx.prepared = prepared
     # A missing-indicator can be constant on the ITT-phase rows (SP/RW are near-
     # complete at t1) and be dropped by the loader; keep only confounders actually
     # present, so no vacuous coefficient is fitted for a dropped covariate.
     confounders = tuple(
         c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
     )
+    return prepared, confounders
+
+
+def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
+    _require_spec(spec, "mediation")
+    from language_reading_predictors.statistical_models import mediation as _med
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    mediator_symbol = spec.mechanism_symbol or "L"
+    _outcome_time = spec.extra.get("outcome_time")
+    prepared, confounders = prepare_mediation_data(spec)
+    ctx.prepared = prepared
 
     _print_header(ctx)
 
@@ -3105,6 +3127,34 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             "unmeasured mediator-outcome confounder that strong would null the NIE."
         )
 
+    # Named-confounder anchor (#324): place the fitted/observed intervention-session
+    # associations on the abstract delta surface.  Only the signed-off L-mediator
+    # code-route targets produce this artefact; missing source fits degrade to an
+    # explicit not-available row and never abort the mediation fit.
+    from language_reading_predictors.statistical_models import (
+        mediation_calibration as _med_cal,
+    )
+
+    is_calibration = _med_cal.generate_is_calibration(
+        spec,
+        config=config,
+        output_dir=ctx.output_dir,
+        prepared=ctx.prepared,
+        med=med_data,
+        sweep=sens_sweep,
+        sensitivity_summary=sens_summary,
+    )
+    if is_calibration is not None:
+        is_calibration.to_csv(
+            os.path.join(ctx.output_dir, "mediation_is_calibration.csv"), index=False
+        )
+        ctx.tables["mediation_is_calibration"] = is_calibration
+        cal = is_calibration.iloc[0]
+        if cal["status"] == "ok":
+            rprint(f"  IS calibration: {cal['verdict']} (delta={cal['delta_is_point']:.3f})")
+        else:
+            rprint(f"  IS calibration: not available ({cal.get('reason', 'unknown reason')})")
+
     # --- Temporal-ordering sensitivity: outcome at t3, mediator still at t2 ---
     # Triangulation for the contemporaneous-measurement caveat (issue #84): the
     # mediator now precedes the outcome in time. NB the t2 -> t3 increment is not
@@ -3156,6 +3206,8 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         }
     if _outcome_time is not None:
         _extra_meta["outcome_time"] = int(_outcome_time)
+    if is_calibration is not None:
+        _extra_meta["is_calibration"] = is_calibration.iloc[0].to_dict()
     _report.write_run_metadata(ctx, extra=_extra_meta)
 
     return _finalize_report(ctx)

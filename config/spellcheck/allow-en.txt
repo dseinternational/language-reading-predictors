@@ -376,6 +376,7 @@ incl
 invlogit
 isfinite
 isinstance
+isna
 iterdir
 iterrows
 jecp
@@ -521,6 +522,7 @@ trog
 unadjustable
 unblockable
 unconfounded
+unconverged
 unfittable
 univariates
 unmodelled

@@ -61,7 +61,9 @@ plausible inflator of the NIE via L.
 graph EV/RV do not enter the mediator's parent set, so the absence of E/R stands;
 the shared-dose structure appears explicitly as the witness backdoor
 ``LS_2 <- IS_1 -> PA_2 -> NW_2``, blockable only at treatment descendants — the
-caveat-plus-companions handling (#323/#324) is the right response, not adjustment.
+caveat-plus-companions handling is the right response, not adjustment: #323 supplies
+the interventional companion and #324 now calibrates observed/fitted IS strength on
+the NIE sensitivity surface.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

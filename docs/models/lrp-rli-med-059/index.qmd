@@ -123,7 +123,7 @@ proportion mediated is *not* assumption-free.
   itself a descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI
   [10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
   The NDE/NIE below are therefore **model-based g-formula decompositions under the
-  stated (cross-world) assumptions, not identified natural effects**. An
+  stated (cross-world) assumptions, not identified natural effects**. An observed/fitted IS-strength scenario is now located on the NIE sensitivity surface below; it quantifies how this named confounder compares with the tipping point but does not repair the structural non-identification. The
   **interventional** (rather than natural) mediation estimand — fitted for this
   route as `lrp-rli-med-078` — escapes *this* obstacle, since it invokes no
   cross-world quantity. It is **not thereby identified**: it still assumes no
