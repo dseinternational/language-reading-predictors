@@ -237,6 +237,43 @@ def test_new_child_swaps_fitted_intercepts():
     assert contrast.score_control.mean() == pytest.approx(50.0, abs=0.6)
 
 
+def test_new_child_intercepts_vary_per_simulated_child():
+    """Simulations reusing a posterior draw must get independent intercepts.
+
+    One posterior draw with sigma_child = 1.5 and a huge kappa: if every
+    simulated child shared that draw's single intercept, the predictive spread
+    would be Binomial-only (SD ~ a few items on 200 trials); independent
+    per-child intercepts push expit(u) across most of the score range.
+    """
+    n_chain, n_draw, n_obs = 1, 1, 4
+    u_child = np.zeros((n_chain, n_draw, n_obs))
+    eta = np.zeros((n_chain, n_draw, n_obs))
+    tau = np.zeros((n_chain, n_draw))
+    kappa = np.full((n_chain, n_draw), 5e4)
+    trace = _trace(
+        eta,
+        tau,
+        kappa=kappa,
+        extra={
+            "u_child": (("chain", "draw", "child"), u_child),
+            "sigma_child": (("chain", "draw"), np.full((n_chain, n_draw), 1.5)),
+        },
+    )
+    contrast = counterfactual_predictive_contrast(
+        trace,
+        G=np.zeros(n_obs),
+        n_trials=200,
+        term="tau",
+        varying_term="",
+        child_effect_name="u_child",
+        child_sd_name="sigma_child",
+        child_idx=np.arange(n_obs),
+        rng=np.random.default_rng(17),
+    )
+    # Binomial-only spread would be ~7 items; N(0, 1.5) intercepts give ~55.
+    assert contrast.score_control.std() > 30.0
+
+
 def test_child_re_requires_sd_and_index():
     eta, tau, _, kappa = _rng_trace(seed=31)
     trace = _trace(eta, tau, kappa=kappa)
@@ -285,6 +322,18 @@ def test_icon_array_counts_fold_remainder_into_middle():
 def test_icon_array_counts_reject_bad_probabilities():
     with pytest.raises(ValueError):
         icon_array_counts(1.2, 0.0, 0.0)
+
+
+def test_icon_array_counts_reject_sum_above_one():
+    with pytest.raises(ValueError, match="sum"):
+        icon_array_counts(0.7, 0.4, 0.1)
+
+
+def test_icon_array_counts_tolerate_boundary_tie_overshoot():
+    # rope_card's inclusive comparisons can double-count a draw exactly at
+    # delta, pushing the sum a hair over 1; counts must still total 100.
+    counts = icon_array_counts(0.6, 0.4 + 5e-8, 0.0)
+    assert sum(counts) == 100
 
 
 # ---------------------------------------------------------------------------

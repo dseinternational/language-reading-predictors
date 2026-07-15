@@ -183,16 +183,16 @@ def _new_child_adjustment(
     child_sd_name: str | None,
     child_idx: np.ndarray | None,
     row_mask: np.ndarray | None,
-    rng: np.random.Generator,
     group: str = "posterior",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Swap fitted child intercepts for a fresh population draw.
+    """Swap fitted child intercepts for the population intercept distribution.
 
-    Returns ``(eta0_new_child, u_fresh)`` where ``eta0_new_child`` has the
-    fitted ``u_child[child_idx]`` contribution removed and ``u_fresh`` is one
-    ``Normal(0, sigma_child)`` draw per posterior sample (shape ``(S,)``),
-    to be *added* by the simulation so every simulated child is a new draw from
-    the population intercept distribution rather than a fitted child.
+    Returns ``(eta0_new_child, sigma_child)`` where ``eta0_new_child`` has the
+    fitted ``u_child[child_idx]`` contribution removed and ``sigma_child`` is
+    the per-posterior-sample intercept SD (shape ``(S,)``). The simulation
+    draws a fresh ``Normal(0, sigma_child[s_j])`` intercept **per simulated
+    child** from it, so children simulated from the same posterior draw still
+    receive independent intercepts.
     """
     if child_effect_name is None:
         return eta0, np.zeros(eta0.shape[1])
@@ -213,8 +213,7 @@ def _new_child_adjustment(
             f"child_idx selects {idx.shape[0]} rows but eta0 has {eta0.shape[0]}."
         )
     sigma = posterior[child_sd_name].stack(sample=("chain", "draw")).values.ravel()  # (S,)
-    u_fresh = rng.normal(0.0, 1.0, size=sigma.shape[0]) * sigma
-    return eta0 - u_child[idx], u_fresh
+    return eta0 - u_child[idx], sigma
 
 
 def counterfactual_predictive_contrast(
@@ -285,14 +284,13 @@ def counterfactual_predictive_contrast(
         raise KeyError(f"{kappa_name!r} not in the posterior; needed for score simulation")
     kappa = posterior[kappa_name].stack(sample=("chain", "draw")).values.ravel()  # (S,)
 
-    eta0_new, u_fresh = _new_child_adjustment(
+    eta0_new, sigma_child = _new_child_adjustment(
         trace,
         eta0,
         child_effect_name=child_effect_name,
         child_sd_name=child_sd_name,
         child_idx=child_idx,
         row_mask=row_mask,
-        rng=rng,
     )
 
     n_rows, n_samples = eta0_new.shape
@@ -304,7 +302,11 @@ def counterfactual_predictive_contrast(
     )
     row_j = rng.integers(0, n_rows, size=n_sims)
 
-    eta_c = eta0_new[row_j, sample_j] + u_fresh[sample_j]
+    # Fresh population intercept per *simulated child*: simulations that reuse
+    # a posterior draw (n_sims > n_samples) must still get independent
+    # intercepts, or child-to-child spread is understated.
+    u_j = rng.normal(0.0, 1.0, size=n_sims) * sigma_child[sample_j]
+    eta_c = eta0_new[row_j, sample_j] + u_j
     eta_t = eta_c + delta[row_j, sample_j]
     kappa_j = kappa[sample_j]
 
@@ -393,8 +395,14 @@ def _effect_density_axis(
     *,
     delta: float | None,
     unit_label: str,
+    delta_unit: str = "",
 ) -> None:
-    """Items/risk-difference effect density with ROPE band and the triple printed."""
+    """Items/risk-difference effect density with ROPE band and the triple printed.
+
+    ``effect`` and ``delta`` must share one display scale (items, or percentage
+    points for the floor rule — the caller rescales); ``delta_unit`` is the
+    short unit suffix printed after δ (e.g. ``" items"``, ``" pp"``).
+    """
     effect = np.asarray(effect, dtype=float)
     grid = np.linspace(np.quantile(effect, 0.001), np.quantile(effect, 0.999), 512)
     try:
@@ -406,15 +414,18 @@ def _effect_density_axis(
         ax.fill_between(grid, density, color=_INTERVENTION_COLOR, alpha=0.35)
         ax.plot(grid, density, color=_INTERVENTION_COLOR, lw=1.0)
     if delta is not None:
-        ax.axvspan(-delta, delta, color=_ROPE_COLOR, alpha=0.45, label=f"ROPE (±{delta:g})")
+        ax.axvspan(
+            -delta, delta, color=_ROPE_COLOR, alpha=0.45,
+            label=f"ROPE (±{delta:g}{delta_unit})",
+        )
         p_benefit, p_rope, p_harm = _rope_triple(effect, delta)
         ax.text(
             0.02,
             0.98,
             (
-                f"P(benefit ≥ {delta:g}) = {p_benefit:.2f}\n"
-                f"P(negligible, within ±{delta:g}) = {p_rope:.2f}\n"
-                f"P(harm ≥ {delta:g}) = {p_harm:.2f}"
+                f"P(benefit ≥ {delta:g}{delta_unit}) = {p_benefit:.2f}\n"
+                f"P(negligible, within ±{delta:g}{delta_unit}) = {p_rope:.2f}\n"
+                f"P(harm ≥ {delta:g}{delta_unit}) = {p_harm:.2f}"
             ),
             transform=ax.transAxes,
             va="top",
@@ -498,6 +509,7 @@ def save_predicted_scores_panel(
             contrast.ame_items,
             delta=delta,
             unit_label="treatment effect (items)",
+            delta_unit=" items",
         )
         ax2.set_title("Items-scale effect with ROPE", fontsize=10)
     else:
@@ -516,11 +528,14 @@ def save_predicted_scores_panel(
         ax1.set_title(
             f"Probability {event_label} by arm ({outcome_symbol})", fontsize=10
         )
+        # Display the risk difference in percentage points so the ROPE band and
+        # printed triple read "±10 pp", matching the report prose for δ = 0.10.
         _effect_density_axis(
             ax2,
-            contrast.ame_prob,
-            delta=delta,
-            unit_label="risk difference (percentage points / 100)",
+            contrast.ame_prob * 100.0,
+            delta=None if delta is None else float(delta) * 100.0,
+            unit_label="risk difference (percentage points)",
+            delta_unit=" pp",
         )
         ax2.set_title("Risk difference with ROPE", fontsize=10)
 
@@ -535,13 +550,22 @@ def icon_array_counts(
 
     Largest-remainder (Hamilton) rounding over the *four*-way split (benefit /
     negligible / harm / the small-effect remainder between them). The three ROPE
-    probabilities need not sum to 1 — effects between delta and the ROPE edge in
-    either direction fall outside all three — so the remainder is folded into
-    the negligible band for display, which the caption states.
+    probabilities may sum to less than 1 — effects between delta and the ROPE
+    edge in either direction fall outside all three — so the remainder is folded
+    into the negligible band for display, which the caption states. A sum
+    materially above 1 has no coherent icon-array reading and is rejected;
+    boundary ties from ``rope_card``'s inclusive comparisons (a draw exactly at
+    delta counts as both benefit and negligible) may push the sum a hair over 1
+    and are tolerated.
     """
     probs = np.asarray([p_benefit, p_rope, p_harm], dtype=float)
     if np.any(probs < 0) or np.any(probs > 1):
         raise ValueError("ROPE probabilities must lie in [0, 1]")
+    if float(probs.sum()) > 1.0 + 1e-6:
+        raise ValueError(
+            f"ROPE probabilities sum to {float(probs.sum()):.6f} > 1; the three "
+            "bands must be (near-)disjoint for an icon array"
+        )
     remainder = max(0.0, 1.0 - float(probs.sum()))
     quotas = np.append(probs, remainder) * total
     counts = np.floor(quotas).astype(int)
@@ -549,6 +573,8 @@ def icon_array_counts(
     if short > 0:
         order = np.argsort(-(quotas - counts))
         counts[order[:short]] += 1
+    elif short < 0:  # tolerated boundary-tie overshoot: trim the largest band
+        counts[int(np.argmax(counts))] += short
     benefit, rope, harm, leftover = (int(c) for c in counts)
     return benefit, rope + leftover, harm
 

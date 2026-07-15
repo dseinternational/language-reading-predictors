@@ -137,7 +137,7 @@ if _pred is not None:
 
 ```{python}
 # | echo: false
-_pred
+_pred if _pred is not None else None
 ```
 
 ```{python}
