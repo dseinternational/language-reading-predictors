@@ -1,10 +1,11 @@
 ```{python}
 # | echo: false
 # | output: asis
-# Convergence gate, rendered FIRST (METHODS.md: check convergence before reading any
-# estimate). Renders diagnostics_summary.json (loaded as diag_summary in _setup.qmd)
-# through the shared banner in dse_research_utils, so every DSE report shows an
-# identical PASS/REVIEW gate and the rendering logic lives in one place.
+# Full convergence-gate detail, rendered inside the collapsed Technical checks
+# section after the compact badge has given the verdict before any finding.
+# Renders diagnostics_summary.json (loaded as diag_summary in _setup.qmd) through
+# the shared banner in dse_research_utils, so every DSE report uses the same
+# PASS/REVIEW detail and the rendering logic lives in one place.
 from dse_research_utils.statistics.diagnostics import convergence_banner_markdown
 
 print(convergence_banner_markdown(diag_summary))

@@ -16,10 +16,10 @@ format:
 ---
 
 {{< include _partials/_header.qmd >}}
-
 {{< include _partials/_setup.qmd >}}
-
-{{< include _partials/_convergence.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
 
 ## Overview
 
@@ -53,12 +53,8 @@ Mirrors LRP59, swapping the mediator $L \to T$: phase 0 only, mediator $T_{t2}$
 (Beta-Binomial on $T_{t1}$), outcome $W_{t2}$, adjustment $\{G, A, E, R, W_\text{pre}, T_{t1}\}$.
 All ID-2 caveats apply; nothing here is a causal route.
 
-{{< include _partials/_priors.qmd >}}
-
-{{< include _partials/_prior_predictive.qmd >}}
-
-{{< include _partials/_diagnostics.qmd >}}
-
 {{< include _partials/_results_mediation.qmd >}}
-
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

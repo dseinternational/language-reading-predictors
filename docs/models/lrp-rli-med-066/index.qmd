@@ -16,10 +16,10 @@ format:
 ---
 
 {{< include _partials/_header.qmd >}}
-
 {{< include _partials/_setup.qmd >}}
-
-{{< include _partials/_convergence.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
 
 ## Overview
 
@@ -52,12 +52,8 @@ association**, not point-identified. $L$ and $B$ are strongly correlated phonics
 read the per-path split with particular caution. Contemporaneous measurement; sight-reading;
 $n \approx 53 \Rightarrow$ wide intervals.
 
-{{< include _partials/_priors.qmd >}}
-
-{{< include _partials/_prior_predictive.qmd >}}
-
-{{< include _partials/_diagnostics.qmd >}}
-
 {{< include _partials/_results_mediation.qmd >}}
-
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

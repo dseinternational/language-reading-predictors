@@ -9,7 +9,7 @@ Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 # pipeline (or scripts/regenerate_key_findings.py) generates from the fit's own
 # CSVs. All sentence logic lives in reporting.generate_key_findings so the prose
 # cannot drift from the computation (#271). Deliberately self-contained (no
-# _setup.qmd dependency) so the include order can move in the #321 restructure.
+# _setup.qmd dependency) so it remains robust in the #321 findings-first order.
 import json as _kf_json
 from pathlib import Path as _KFPath
 
@@ -33,8 +33,8 @@ else:
             'checks failed"}\n\n'
             f"This fit did not pass the convergence gate (failing: {_kf_checks}), "
             "so no findings are summarised — estimates from an unconverged fit "
-            "cannot be trusted. See the convergence section for the failing "
-            "diagnostics.\n\n:::"
+            "cannot be trusted. See Technical checks for the failing diagnostics."
+            "\n\n:::"
         )
     elif _kf_status == "ok" and _kf.get("sentences"):
         _kf_lines = "\n".join(f"- {s['text']}" for s in _kf["sentences"])
