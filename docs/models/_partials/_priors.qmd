@@ -1,21 +1,17 @@
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 ## Priors
 
-The priors below are documented in `priors.py` (the single source of truth, so
-they cannot drift between models). The **role** column separates the *causal*
-prior (the randomised effect) from *precision* terms (which sharpen it but do not
-license the causal claim), *association* couplings (adjusted, never "drives"),
-*nuisance* terms (intercept / dispersion / random-intercept scale), and any *GP*
-amplitudes / lengthscales.
+The priors below are documented in `priors.py` (the single source of truth, so they cannot drift between models). The **role** column distinguishes *causal* terms where a design identifies them, *precision* terms, descriptive or adjusted *association* terms, *nuisance* terms (such as intercepts, dispersion and random-intercept scales), and any *GP* amplitudes or lengthscales. A role describes how a parameter may be interpreted in this model; it does not turn an association into an effect.
 
 ```{python}
 # | echo: false
 priors_table if priors_table is not None else "No priors table available."
 ```
 
-_How to read the panels below:_ each is the prior probability density for one
-parameter — the range of values treated as plausible **before** seeing the data.
-Wider curves are more permissive; the causal effect prior is deliberately centred
-on zero so the data, not the prior, drive any conclusion of benefit.
+_How to read the panels below:_ each is the prior probability density for one parameter — the range of values treated as plausible **before** seeing the data. Wider curves are more permissive. Effect and association priors are generally centred on zero, so the data must support either direction; model-specific rationales and the role column state the intended interpretation.
 
 ```{python}
 # | echo: false

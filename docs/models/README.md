@@ -4,6 +4,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Substantially edited in the concurrent-family section by a LLM-based AI tool (Codex/GPT-5).
 
 A catalogue of every model in this study — what it is, what outcome it targets, and
 what question it answers. It is a map, not a results document: read the per-model
@@ -362,16 +364,7 @@ concurrent letter sounds are excluded as a treatment-affected mediator. Descript
 
 ### Concurrent conditional associations — `lrp-rli-ca` (`kind="concurrent"`)
 
-**Purpose.** The one family that describes how contemporaneous skill levels co-occur with the
-focal outcome at each wave (#312, descriptive-association workstream #314). At every timepoint it
-fits a between-child Beta-Binomial regression of the focal outcome's _level_ on the standardised
-same-wave logits of the other core skills, plus age and a group nuisance term — "at wave t, among
-children alike on age and the other skills, +n of a predictor is associated with +m of the
-outcome". The family's core skill set is {`W`, `L`, `B`, `TR`, `TE`, `R`, `E`}; each model
-conditions its focal outcome on the remaining six, so together the models describe the
-conditional joint distribution of the same measure set from different sides. The four waves are
-fitted separately (one row per child per wave) and reported side by side; the best-powered wave
-carries the convergence gate and posterior diagnostics, the others are sub-fits.
+**Purpose.** The one family that describes how contemporaneous skill levels co-occur with the focal outcome at each wave (#312, descriptive-association workstream #314). At every timepoint it fits a between-child Beta-Binomial regression of the focal outcome's _level_ on the standardised same-wave logits of the other core skills, plus age and a group nuisance term — "at wave t, among children alike on age and the other skills, +n of a predictor is associated with +m of the outcome". The family's core skill set is {`W`, `L`, `B`, `TR`, `TE`, `R`, `E`}; each model conditions its focal outcome on the remaining six, so together the models describe the conditional joint distribution of the same measure set from different sides. The four waves are fitted separately (one row per child per wave) and reported side by side. The wave with the largest complete-outcome sample (ties → latest) is an operational diagnostic anchor for the standard trace and plots, not a claim that it is best-powered; every adjusted and bivariate fit has its own complete convergence metrics.
 
 | Model            | Kind         | Outcome | Purpose                                                                                  |
 | ---------------- | ------------ | ------- | ---------------------------------------------------------------------------------------- |
@@ -380,16 +373,7 @@ carries the convergence gate and posterior diagnostics, the others are sub-fits.
 | `lrp-rli-ca-003` | `concurrent` | `TR`    | per-wave conditional associations of concurrent skills with taught receptive vocabulary  |
 | `lrp-rli-ca-004` | `concurrent` | `TE`    | per-wave conditional associations of concurrent skills with taught expressive vocabulary |
 
-**Association only — three caveats.** Every coefficient is an adjusted association; conditioning
-on contemporaneous (post-treatment) skill levels is intentional because nothing is read causally
-(contrast the level-factors family, which omits cross-skill terms to protect a causal contrast).
-Read with the **Table-2 fallacy** (each coefficient answers a different conditional question),
-**regression dilution** (observed-score predictors attenuate the associations — the longitudinal
-factor model #313 is the follow-on instrument), and **collinearity shrinkage** (n ≈ 53 with a
-correlated predictor cluster, so the adjusted-vs-bivariate gap is itself informative; both are
-reported). Group is a non-interpretable nuisance. Floored measures (`P`, `N`) are excluded as
-predictors and as focal outcomes; `TR` approaches its 24-item ceiling at later waves, which the
-Beta-Binomial respects but which compresses the resolution of `ca-003`'s later-wave associations.
+**Association only — three caveats.** Every coefficient is an adjusted association; conditioning on contemporaneous (post-treatment) skill levels is intentional because nothing is read causally (contrast the level-factors family, which omits cross-skill terms to protect a causal contrast). Read with the **Table-2 fallacy** (each coefficient answers a different conditional question), **measurement error** (classical error often attenuates a simple association, but the size and direction of distortion are not guaranteed in a multivariable nonlinear model; longitudinal factor model #313 is a complementary measurement-error-aware analysis), and **collinearity plus regularisation** (n ≈ 53 with a correlated predictor cluster, so adjusted and bivariate coefficients answer materially different questions). Their difference shows sensitivity to the conditioning set; it is not a decomposition of shared variance. Group is a non-interpretable nuisance. Floored measures (`P`, `N`) are excluded as predictors and as focal outcomes; `TR` approaches its 24-item ceiling at later waves, which the Beta-Binomial respects but which compresses the resolution of `ca-003`'s later-wave associations.
 
 ### Longitudinal correlated-domain-factor model — `lrp-rli-lcf-001` (`kind="long_corr_factor"`)
 

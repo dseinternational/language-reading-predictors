@@ -82,8 +82,12 @@ def _synthetic_trace(shift, *, n=800, chains=4, seed=1, n_div=0):
     div = np.zeros((chains, n), dtype=bool)
     if n_div:
         div.reshape(-1)[:n_div] = True
+    energy = rng.normal(size=(chains, n))
     ss = xr.Dataset(
-        {"diverging": (("chain", "draw"), div)},
+        {
+            "diverging": (("chain", "draw"), div),
+            "energy": (("chain", "draw"), energy),
+        },
         coords={"chain": range(chains), "draw": range(n)},
     )
     return xr.DataTree.from_dict({"posterior": post, "sample_stats": ss})
@@ -117,11 +121,21 @@ def test_subfit_convergence_gates_on_unrounded_rhat():
 def test_subfit_convergence_passes_clean_and_flags_divergences():
     clean = diag.subfit_convergence(_synthetic_trace(0.0), label="clean", var_names=["tau"])
     assert clean["converged"] is True
+    assert clean["min_bfmi"] >= diag.BFMI_THRESHOLD
     assert clean["n_divergences"] == 0
 
     div = diag.subfit_convergence(_synthetic_trace(0.0, n_div=3), label="div", var_names=["tau"])
     assert div["n_divergences"] == 3
     assert div["converged"] is False  # zero-divergence gate is strict
+
+
+def test_subfit_convergence_flags_low_bfmi(monkeypatch):
+    monkeypatch.setattr(diag, "_bfmi_per_chain", lambda _trace: np.asarray([0.2, 0.8]))
+    result = diag.subfit_convergence(
+        _synthetic_trace(0.0), label="low-bfmi", var_names=["tau"]
+    )
+    assert result["min_bfmi"] == pytest.approx(0.2)
+    assert result["converged"] is False
 
 
 def test_gate_var_names_unions_free_rvs_with_curated_and_filters_present():

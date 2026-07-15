@@ -280,16 +280,15 @@ def eta_partial_pool_prior() -> Continuous:
 
 
 def predictor_slope_prior(sigma: float = 0.3) -> Continuous:
-    """LRP65 standardised-predictor slope ~ Normal(0, 0.3) by default.
+    """Standardised predictor slope ~ Normal(0, 0.3) by default.
 
     (Parametrised by ``sigma``; the prior table reports this default scale — the
     docstring's numeric value is what ``_dist_from_doc`` extracts, so the table
     shows ``Normal(0, 0.3)`` rather than the literal token ``sigma``.)
 
-    Per-SD coefficient on a standardised baseline predictor in the between-child
-    adjusted model (letter sounds, language composite, blending, age, and the
-    tested covariates). Fixed weakly-informative and regularising, given the
-    collinear general-ability cluster and n ~ 51.
+    Per-SD coefficient on a standardised predictor in a between-child adjusted or
+    concurrent-association model. Fixed weakly-informative and regularising, given
+    the collinear skill/general-ability cluster and n ~ 51-53.
 
     The default was reconciled from 0.5 to 0.3 (prior-critical-review 2026-07-07,
     recommendation 3): it is an *association* scale and now matches the shared
@@ -495,6 +494,14 @@ _INLINE_PRIORS: dict[str, dict[str, str]] = {
         "distribution": "Normal(0, 1)",
         "rationale": (
             "Standard-normal non-centred period-dose offset; scaled by sigma_dose."
+        ),
+    },
+    "beta_group_nuisance": {
+        "role": "nuisance",
+        "distribution": "Normal(0, 1)",
+        "rationale": (
+            "Concurrent-family group-composition nuisance term; not a reported "
+            "association."
         ),
     },
     "hs_z": {
