@@ -218,6 +218,9 @@ _MECH = [
     # (nonword N, off-floor) and the downstream chain link (blending B), both via L.
     _d("lrp86", "mediation", "Mediation", Status.ASSOCIATION, "N", "g-formula via letter sounds (nonword, off-floor risk difference)"),
     _d("lrp87", "mediation", "Mediation", Status.ASSOCIATION, "B", "g-formula via letter sounds (phoneme blending)"),
+    # Period-stacked companion (#229 recommendation 2): the LRP59 design on the
+    # gain-factor scaffold, exposure = per-period on-intervention (ignorability).
+    _d("lrp92", "mediation", "Mediation", Status.ASSOCIATION, "W", "period-stacked g-formula via letter sounds (gain-factor scaffold, per-period on-intervention exposure)", base="lrp59"),
 ]
 
 # --- DAG-focused associations, dose-response, latent structure and cross-checks ----
@@ -229,6 +232,8 @@ _STRUCT = [
     _d("lrp81", "lcsm", "Latent change score", Status.ASSOCIATION, "TE", "lagged reverse coupling: prior word reading predicting taught-vocabulary change (W->TE, W->TR)"),
     _d("lrp181", "lcsm", "Latent change score", Status.COMPANION, "TE", "no-reverse-coupling LOO comparator", base="lrp81"),
     _d("lrp82", "lcsm", "Latent change score", Status.ASSOCIATION, "W", "reciprocal dominance: blending <-> word reading lagged cross-couplings (exploratory)"),
+    # Change-on-change extension (#229 spec 2, notes/202607131530-lrp229-lcsm-change-change-spec.md).
+    _d("lrp91", "lcsm", "Latent change score", Status.ASSOCIATION, "W", "lagged change-on-change: prior letter-sound / vocabulary change predicting reading change (exploratory)", base="lrp67"),
     _d("lrp69", "growth", "Growth curve", Status.ASSOCIATION, None, "joint multivariate growth curves: baseline non-verbal ability predicting trajectory shape (independent-core)"),
     _d("lrp70", "growth", "Growth curve", Status.ASSOCIATION, None, "joint multivariate growth curves with a shared growth-tempo factor", base="lrp69"),
     _d("lrp85", "growth", "Growth curve", Status.ASSOCIATION, None, "age x ability interaction on growth rate (older-and-more-able progress more)", base="lrp69"),
