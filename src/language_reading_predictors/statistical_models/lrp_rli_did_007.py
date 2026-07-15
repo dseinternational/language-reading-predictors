@@ -3,12 +3,11 @@
 
 """LRPDID07 - period-resolved session-dose response on letter-sound knowledge (YARC-LSK) (L).
 
-The letter-sound analogue of LRPDID06's word-reading dose-response, but with the
-session-dose slope **resolved by period** (#135). It reuses LRPDID02's
-identification - the phase-stacked waitlist-crossover frame with each child as
-their own control and the immediate arm anchoring the time/maturation trend - and
-replaces the binary treated indicator with the standardised per-period
-intervention-session count, entered with **partial-pooled per-period slopes**
+The letter-sound analogue of LRPDID06's word-reading dose association, but with the
+session-dose slope **resolved by period** (#135). The transition model separates
+randomised arm/history, current treatment presence and session intensity, and
+adjusts both periods for the shared pre-randomisation t1 outcome and t1 age.
+Treated-row-standardised sessions enter with partial-pooled per-period slopes
 ``beta_dose_phase[p] = mu_dose + sigma_dose * z_p``.
 
 The live question is whether the dose-gain slope varies by period; it is answered
@@ -18,15 +17,10 @@ LRPDID07base, in ``compare_statistical_models.py``. The word-reading analogue
 model), so the most likely outcome here is "no period variation at this n" - a
 useful, publishable negative result.
 
-DAG note (#115). The per-period session count is the **exposure** ``IS``, not a
-conditioning variable: this is the ID-3 observational dose-response, **confounded
-by GA -> IS** and reported as an *adjusted association*, never "more sessions cause
-more gain". Crucially the DiD machinery adjusts only ``{IG, A}`` and never
-conditions on cumulative sessions (``attend_cumul``, the ``IS`` collider), so it
-sidesteps the conditioning that closed PR #108. Only the randomised contrast (the
-ITT ``lrp-rli-itt-007`` / the DiD arm term ``lrp-rli-did-002``) is causal.
-
-Sign convention: positive => intervention helps.
+The session slopes are observational intensive-margin associations, potentially
+confounded by general ability and attendance selection. Cumulative sessions are
+not conditioned on. The causal intervention contrast is reported by the ITT and
+binary arm-by-wave models, not by these dose coefficients.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -36,10 +30,14 @@ SPEC = ModelSpec(
     model_id="lrp-rli-did-007",
     kind="did",
     title=(
-        "Waitlist-crossover (DiD) period-resolved session-dose response on "
+        "Waitlist-crossover period-resolved session-dose association on "
         "letter-sound knowledge (YARC-LSK) (L)"
     ),
     outcome_symbol="L",
+    family="did",
+    design="waitlist-crossover transition dose intensive margin",
+    estimand_type="association",
+    causal_status="none for session-dose coefficients",
     extra={
         "outcomes": ("L",),
         "periods": (0, 1),

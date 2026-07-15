@@ -162,30 +162,27 @@ _ABIL = [
     _d("lrpitt24", "itt", "General-ability adjustment", Status.ROBUSTNESS, "W", "block-design adjustment", base="lrpitt10"),
 ]
 
-# --- Waitlist-crossover / difference-in-differences -------------------------------
+# --- Waitlist-crossover arm-by-wave models ----------------------------------------
 _DID = [
-    _d("lrpdid01", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "waitlist-crossover replication", base="lrpitt10"),
-    _d("lrpdid02", "did", "Within-person DiD", Status.ROBUSTNESS, "L", "waitlist-crossover replication", base="lrpitt07"),
-    _d("lrpdid03", "did", "Within-person DiD", Status.ROBUSTNESS, "B", "waitlist-crossover replication", base="lrpitt08"),
-    _d("lrpdid04", "did", "Within-person DiD", Status.ROBUSTNESS, "TE", "waitlist-crossover replication", base="lrpitt02"),
-    _d("lrpdid05", "did", "Within-person DiD", Status.ROBUSTNESS, "R", "waitlist-crossover replication", base="lrpitt05"),
-    _d("lrpdid06", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "dose-response sensitivity (sessions)", base="lrpdid01"),
-    _d("lrpdid07", "did", "Within-person DiD", Status.ROBUSTNESS, "L", "session-dose response (period-resolved)", base="lrpdid02"),
-    _d("lrpdid07base", "did", "Within-person DiD", Status.COMPANION, "L", "pooled-dose comparator", base="lrpdid07"),
-    # Waitlist-crossover extensions (#226). TR/E replicate their ITT siblings;
-    # F (basic concepts) has no ITT sibling (outside the eight standardised
-    # outcomes). The floored P/N DiDs (011/012) take the off-floor floor rule -
-    # a Bernoulli on the off-floor indicator, so delta is the within-person effect
-    # on the log-odds of coming off the floor - mirroring siblings LRPITT09/11.
-    _d("lrpdid08", "did", "Within-person DiD", Status.ROBUSTNESS, "TR", "waitlist-crossover replication", base="lrpitt01"),
-    _d("lrpdid09", "did", "Within-person DiD", Status.ROBUSTNESS, "E", "waitlist-crossover replication", base="lrpitt06"),
-    _d("lrpdid10", "did", "Within-person DiD", Status.ROBUSTNESS, "F", "waitlist-crossover replication", base="lrpitt25"),
-    _d("lrpdid11", "did", "Within-person DiD", Status.ROBUSTNESS, "P", "waitlist-crossover replication (off-floor)", base="lrpitt09"),
-    _d("lrpdid12", "did", "Within-person DiD", Status.ROBUSTNESS, "N", "waitlist-crossover replication (off-floor)", base="lrpitt11"),
-    # Treatment-effect heterogeneity variance component (#230 §2/§4a): a per-child random
-    # on-intervention slope whose SD (sigma_delta) is the estimand — the honest first rung
-    # of the non-responder question. delta stays the population-mean crossover effect.
-    _d("lrpdid13", "did", "Within-person DiD", Status.ROBUSTNESS, "W", "treatment-effect heterogeneity (random on-intervention slope)", base="lrpdid01"),
+    _d("lrpdid01", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "W", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt10"),
+    _d("lrpdid02", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "L", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt07"),
+    _d("lrpdid03", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "B", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt08"),
+    _d("lrpdid04", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "TE", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt02"),
+    _d("lrpdid05", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "R", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt05"),
+    _d("lrpdid06", "did", "Crossover dose association", Status.ASSOCIATION, "W", "pooled treated-centred session association", base="lrpdid01"),
+    _d("lrpdid07", "did", "Crossover dose association", Status.ASSOCIATION, "L", "period-resolved treated-centred session association", base="lrpdid02"),
+    _d("lrpdid07base", "did", "Crossover dose association", Status.COMPANION, "L", "pooled treated-centred session comparator", base="lrpdid07"),
+    # Waitlist-crossover extensions (#226). The floored P/N models fit off-floor
+    # prevalence at t1/t2/t3; their clean t2 arm gaps complement, but do not duplicate,
+    # the ITT siblings' baseline-floor-risk transition estimands.
+    _d("lrpdid08", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "TR", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt01"),
+    _d("lrpdid09", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "E", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt06"),
+    _d("lrpdid10", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "F", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt25"),
+    _d("lrpdid11", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "P", "off-floor prevalence by arm and wave", base="lrpitt09"),
+    _d("lrpdid12", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "N", "off-floor prevalence by arm and wave", base="lrpitt11"),
+    # Exploratory unexplained variation in the waitlist arm's t3 catch-up. This is
+    # not a random treatment-effect slope and cannot classify causal responders.
+    _d("lrpdid13", "did", "Arm-by-wave crossover", Status.ASSOCIATION, "W", "exploratory waitlist t3 catch-up heterogeneity", base="lrpdid01"),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------

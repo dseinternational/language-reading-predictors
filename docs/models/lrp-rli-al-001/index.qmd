@@ -39,9 +39,10 @@ cohort term (`beta_cohort`, immediate vs wait-list at the aligned endpoints) is
 reaches its window ~3–4 months older) and by cohort/timing. Under this design
 **no** coefficient is a clean treatment effect — every term, the cohort contrast
 included, is reported as an **association**. The randomised effect of record
-remains the LRPITT suite (and its within-person replication, LRPDID). Sessions /
-dose are a collider and enter only the separate dose sensitivity variant, never
-this primary adjustment set.
+remains the LRPITT suite. LRPDID supplies a longitudinal arm-by-wave sensitivity
+on the same randomised t2 comparison, not an independent within-person
+replication. Sessions / dose are a collider and enter only the separate dose
+sensitivity variant, never this primary adjustment set.
 
 :::
 

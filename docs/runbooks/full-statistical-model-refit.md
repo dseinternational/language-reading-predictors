@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Substantially edited in the waitlist-crossover guidance by a LLM-based AI tool (Codex/GPT-5).
 
 # Runbook — full statistical-model refit, render, publish and record
 
@@ -166,7 +168,7 @@ done
 python scripts/compare_statistical_models.py --config reporting
 ```
 
-Writes to `output/statistical_models/comparison/`: `itt_vs_joint_tau.csv` (single-outcome τ vs joint τ_k consistency), `tau_forest.png`, `mediation_family.csv` + `mediation_family_forest.png`, and nested PSIS-LOO tables (mechanism / phonics-route / age-moderation / dose / did-dose). The script excludes gate-flagged models from its interpretable LOO tables. Note any artefact it skips and why (e.g. a reconstructed-size mismatch dropping one model from a forest plot).
+Writes to `output/statistical_models/comparison/`: `itt_vs_joint_tau.csv` (single-outcome τ vs joint τ_k consistency), `tau_forest.png`, `mediation_family.csv` + `mediation_family_forest.png`, and nested PSIS-LOO tables (mechanism / phonics-route / age-moderation / dose / did-dose). The script must exclude gate-flagged models from interpretable LOO tables and verify identical observation identities and order before comparing models. Note every artefact it skips and why; equal row counts alone are not sufficient evidence that pointwise LOO values are aligned.
 
 ---
 
@@ -236,25 +238,25 @@ Every full refit gets a dated `notes/` note. Follow `METHODS.md` "Interpret / Re
 
 **Pull the headline numbers programmatically** rather than by eye — one script that reads each family's result CSV (per the file→column map in the `lrp-fit-statistical` skill) keeps the note accurate. A reusable extractor lives in the worked-example session; the essentials per family:
 
-| Family                 | File                                                        | Read                                                                                                                           |
-| ---------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `itt`                  | `tau_summary.csv` / `rope_summary.csv`                      | `tau_prob_median`, CI, `prob_tau_pos`, `favoured_direction_label`; floored P/N → `offfloor_movers.csv`                         |
-| `joint`                | `tau_contrast_matrix.csv`                                   | pairwise P(effect_i > effect_j); generalisation contrasts                                                                      |
-| `did`                  | `did_summary.csv`                                           | **`delta_*`** is the causal contrast; `beta_period_*` is the maturation trend (and the causal term only for the dose variants) |
-| `gain_factors`         | `treatment_marginal.csv`                                    | `trt_prob_*` (the only causal coefficient)                                                                                     |
-| `level_factors`        | `factor_summary.csv`                                        | only `b_grp_time[1]` (t2) is randomised                                                                                        |
-| `mechanism`            | `mechanism_curve.csv` / `interaction_summary.csv`           | slope direction — association, never causal                                                                                    |
-| `mediation` / `_multi` | `mediation_summary.csv`                                     | `total` / `NDE`(IDE) / `NIE`(IIE) / `proportion_mediated`                                                                      |
-| `aligned`              | `cohort_marginal.csv`                                       | association only (cohort contrast not randomised)                                                                              |
-| `dose_response`        | `dose_slope_summary.csv`                                    | dose slope (collider → sensitivity)                                                                                            |
-| `adjusted`             | `predictor_associations.csv`                                | adjusted vs bivariate between-child associations                                                                               |
-| `lcsm`                 | `coupling_summary.csv`                                      | cross-lagged couplings (associations)                                                                                          |
-| `growth`               | `growth_association_summary.csv`                            | `gamma` = ability→growth-rate (association)                                                                                    |
-| `horseshoe`            | `predictor_ranking.csv`                                     | `p_abs_gt_delta` selection                                                                                                     |
-| `corr_factor`          | `factor_correlation_summary.csv` / `structural_summary.csv` | correlations robust; structural leg cautious                                                                                   |
-| `historical_growth`    | `posterior_growth_summary.csv`                              | per-group growth (separate historical study)                                                                                   |
+| Family                 | File                                                        | Read                                                                                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `itt`                  | `tau_summary.csv` / `rope_summary.csv`                      | `tau_prob_median`, CI, `prob_tau_pos`, `favoured_direction_label`; floored P/N → `offfloor_movers.csv`                                                                                              |
+| `joint`                | `tau_contrast_matrix.csv`                                   | pairwise P(effect_i > effect_j); generalisation contrasts                                                                                                                                           |
+| `did`                  | `did_summary.csv`                                           | `tau_t2` is the randomised causal contrast; `arm_gap_t1` checks balance; `arm_gap_t3` and `delta_crossover = tau_t2 - arm_gap_t3` are post-crossover associations; every dose term is observational |
+| `gain_factors`         | `treatment_marginal.csv`                                    | `trt_prob_*` (the only causal coefficient)                                                                                                                                                          |
+| `level_factors`        | `factor_summary.csv`                                        | only `b_grp_time[1]` (t2) is randomised                                                                                                                                                             |
+| `mechanism`            | `mechanism_curve.csv` / `interaction_summary.csv`           | slope direction — association, never causal                                                                                                                                                         |
+| `mediation` / `_multi` | `mediation_summary.csv`                                     | `total` / `NDE`(IDE) / `NIE`(IIE) / `proportion_mediated`                                                                                                                                           |
+| `aligned`              | `cohort_marginal.csv`                                       | association only (cohort contrast not randomised)                                                                                                                                                   |
+| `dose_response`        | `dose_slope_summary.csv`                                    | dose slope (collider → sensitivity)                                                                                                                                                                 |
+| `adjusted`             | `predictor_associations.csv`                                | adjusted vs bivariate between-child associations                                                                                                                                                    |
+| `lcsm`                 | `coupling_summary.csv`                                      | cross-lagged couplings (associations)                                                                                                                                                               |
+| `growth`               | `growth_association_summary.csv`                            | `gamma` = ability→growth-rate (association)                                                                                                                                                         |
+| `horseshoe`            | `predictor_ranking.csv`                                     | `p_abs_gt_delta` selection                                                                                                                                                                          |
+| `corr_factor`          | `factor_correlation_summary.csv` / `structural_summary.csv` | correlations robust; structural leg cautious                                                                                                                                                        |
+| `historical_growth`    | `posterior_growth_summary.csv`                              | per-group growth (separate historical study)                                                                                                                                                        |
 
-Record: config, N fitted / failed, gate pass count + divergence caveats, the key causal τ/δ, the comparison artefacts, and the publish `run_id` + report root. Use the **canonical DAG single-letter outcome codes** (`OUTCOME_LABELS` in `statistical_models/definitions.py`) consistently — do not invent labels.
+Record: config, N fitted / failed, gate pass count + divergence caveats, the key randomised ITT τ and `tau_t2` contrasts, `arm_gap_t1` and the post-crossover `arm_gap_t3`/`delta_crossover` quantities separately, the comparison artefacts, and the publish `run_id` + report root. Never collapse the waitlist-crossover quantities into one “DiD treatment effect”. Use the **canonical DAG single-letter outcome codes** (`OUTCOME_LABELS` in `statistical_models/definitions.py`) consistently — do not invent labels.
 
 ---
 

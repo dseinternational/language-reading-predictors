@@ -1,20 +1,12 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPDID10 - waitlist-crossover / difference-in-differences effect on basic concept knowledge (CELF) (F).
+"""LRPDID10 - arm-by-wave contrasts for basic concept knowledge (F).
 
-A within-person crossover (difference-in-differences) read on basic concept
-knowledge. Stacks the two early periods (P1 = t1->t2, P2 = t2->t3) for both arms,
-with each child as their own control (a child random intercept) and the immediate
-arm anchoring the time/maturation trend.
-
-Basic concepts (CELF) is one of the eight standardised ITT outcomes; its standalone
-randomised ITT is LRPITT25 (added under #228). Read this DiD as the within-person
-triangulation of that randomised estimate under the parallel-trends assumption, not
-an independent replication. Same waitlist-crossover structure and Beta-Binomial-on-logit
-convention as the rest of the family.
-
-Sign convention: positive => intervention helps.
+The t1--t3 outcome levels are modelled with a saturated arm-by-wave structure.
+``tau_t2`` is the clean randomised t2 contrast and is compared with LRPITT25.
+``arm_gap_t3`` and the derived waitlist catch-up contrast are post-crossover
+associations. The design does not condition on the treatment-affected t2 score.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -23,11 +15,15 @@ from language_reading_predictors.statistical_models.pipeline import fit_did
 SPEC = ModelSpec(
     model_id="lrp-rli-did-010",
     kind="did",
-    title="Waitlist-crossover (DiD) effect of the intervention on basic concept knowledge (CELF) (F)",
+    title="Waitlist-crossover arm-by-wave contrasts for basic concept knowledge (CELF) (F)",
     outcome_symbol="F",
+    family="did",
+    design="waitlist-crossover arm-by-wave levels",
+    estimand_type="mixed",
+    causal_status="t2 randomised; post-crossover contrasts associational",
     extra={
         "outcomes": ("F",),
-        "periods": (0, 1),
+        "waves": (0, 1, 2),
         "use_child_re": True,
         "use_age": True,
         "dose": False,

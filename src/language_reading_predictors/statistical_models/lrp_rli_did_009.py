@@ -1,20 +1,12 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPDID09 - waitlist-crossover / difference-in-differences ITT effect on standardised expressive vocabulary (EOWPVT) (E).
+"""LRPDID09 - arm-by-wave contrasts for expressive vocabulary (E).
 
-A within-person replication of the randomised ITT effect (LRPITT06). Stacks the two
-early periods (P1 = t1->t2, P2 = t2->t3) for both arms, with each child as their
-own control (a child random intercept) and the immediate arm - treated in both
-periods - anchoring the time/maturation trend. The treatment coefficient is a
-difference-in-differences estimate of the ITT effect.
-
-Standardised expressive vocabulary is a distal broad-transfer measure, so - as with
-the standardised-receptive DiD (LRPDID05) - a near-null within-person effect would
-triangulate the ITT vocabulary result rather than contradict it. Beta-Binomial on
-the logit scale (the suite convention), so the ceiling is respected.
-
-Sign convention: positive => intervention helps.
+The t1--t3 outcome levels are modelled with a saturated arm-by-wave structure.
+``tau_t2`` is the clean randomised t2 contrast and is compared with LRPITT06.
+``arm_gap_t3`` and the derived waitlist catch-up contrast are post-crossover
+associations. The design does not condition on the treatment-affected t2 score.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -23,11 +15,15 @@ from language_reading_predictors.statistical_models.pipeline import fit_did
 SPEC = ModelSpec(
     model_id="lrp-rli-did-009",
     kind="did",
-    title="Waitlist-crossover (DiD) ITT effect of the intervention on standardised expressive vocabulary (EOWPVT) (E)",
+    title="Waitlist-crossover arm-by-wave contrasts for standardised expressive vocabulary (EOWPVT) (E)",
     outcome_symbol="E",
+    family="did",
+    design="waitlist-crossover arm-by-wave levels",
+    estimand_type="mixed",
+    causal_status="t2 randomised; post-crossover contrasts associational",
     extra={
         "outcomes": ("E",),
-        "periods": (0, 1),
+        "waves": (0, 1, 2),
         "use_child_re": True,
         "use_age": True,
         "dose": False,

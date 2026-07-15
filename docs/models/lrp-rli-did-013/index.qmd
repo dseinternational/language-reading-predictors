@@ -1,5 +1,5 @@
 ---
-title: "LRPDID13: treatment-effect heterogeneity — word reading (W)"
+title: "LRPDID13: exploratory waitlist-catch-up heterogeneity — word reading (W)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially revised by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -23,44 +27,25 @@ format:
 
 ## Overview
 
-**In plain terms.** Do children differ in how much the programme helped their word reading,
-or is the effect much the same for everyone? This model estimates the between-child spread of
-the crossover treatment effect directly, rather than sorting children into "responders" and
-"non-responders" (which invents groups out of noise).
-
-LRPDID13 is the word-reading waitlist-crossover DiD (as LRPDID01), extended with a **per-child
-random slope on the on-intervention indicator**: the crossover effect for child $i$ is
-$\delta_i = \delta + \sigma_\delta\,z_i$ (non-centred). `delta` is the population-mean effect,
-read exactly as in the other DiD models; **`sigma_delta` — the between-child SD of the effect
-on the logit scale — is the estimand of record here**.
+**In plain terms.** LRPDID13 asks whether waitlist children's t2→t3 catch-up varies more than the observation model already allows. It extends LRPDID01 with a waitlist-only random deviation at t3. This is an exploratory variance component, not a clean estimate of treatment-response heterogeneity and not a basis for classifying responders.
 
 ::: {.callout-note title="The honest non-responder ladder (#230 §4a)"}
 
-This is rung 1 of the non-responder question: _does child-level response variance exist at
-all?_ If `sigma_delta` concentrates near zero, apparent non-response is noise plus the
-covariates already modelled, and we do **not** gate-keep on early response. Only if real
-variance exists is rung 2 — a one-stage moderation with shrinkage on a **pre-randomisation**
-moderator — warranted; never a two-stage classify-then-compare, which manufactures a subgroup
-from noise (Senn 2016, doi:10.1002/sim.7059). The `P(sigma_delta < 0.1)` figure below, read
-against the prior mass below the same threshold, says whether the data moved the estimate. See
-`METHODS.md`.
+Do not classify children into responders and non-responders from observed changes; that manufactures groups partly from measurement noise (Senn 2016, doi:10.1002/sim.7059). `sigma_delta` can show whether the posterior moved away from its prior, but it cannot by itself establish variation in a causal treatment effect: each waitlist child supplies one post-crossover observation, so heterogeneous maturation, period shocks, nonlinear individual trajectories and measurement noise can all contribute. Any later moderation must be one-stage, strongly regularised, restricted to pre-randomisation variables and labelled exploratory. See `METHODS.md`.
 
 :::
 
 ## Model
 
 $$
-\eta_{i,p} = \alpha + \beta_{\text{period}}\,[p = \text{P2}]
-           + \delta_i\,\text{Treated}_{i,p}
-           + \gamma_A\,A_{\text{std},i,p} + u_{\text{child},i},
-\qquad
-\delta_i = \delta + \sigma_\delta\,z_i,\; z_i \sim \mathcal{N}(0, 1),
+\eta_{i,t} = \alpha + \beta_{\text{period},t}
+           + \text{arm\_gap}_{t}\,G_i
+           + \gamma_A\,A_{t1,\text{std},i} + u_{\text{child},i}
+           + \sigma_\delta z_i(1-G_i)[t=\text{t3}],
+\qquad z_i \sim \mathcal{N}(0,1),
 $$
 
-with a Beta-Binomial likelihood on the period post-count ($N = 79$) and no own-baseline term
-(the immediate arm's period-start score is treatment-affected). `Treated` is 1 when the child
-is receiving the intervention that period (immediate: both; waitlist: P2 only). A correlated
-intercept–slope (LKJ) form is deferred as a prior-dominated sensitivity at $n \approx 54$.
+with a Beta-Binomial likelihood on t1/t2/t3 word-reading counts ($N=79$), $G_i=1$ for the immediate arm, $\beta_{\text{period},t1}=0$, and $\text{arm\_gap}_{t}=(\text{arm\_gap}_{t1},\tau_{t2},\text{arm\_gap}_{t3})$. The child-specific catch-up quantity is $\delta_{\text{crossover},i}=\tau_{t2}-\text{arm\_gap}_{t3}+\sigma_\delta z_i$. No period-start outcome enters because t2 is treatment-affected for the immediate arm when used as the P2 baseline.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
@@ -72,19 +57,10 @@ intercept–slope (LKJ) form is deferred as a prior-dominated sensitivity at $n 
 
 {{< include _partials/_results_did.qmd >}}
 
-## Treatment-effect heterogeneity
+## Exploratory catch-up heterogeneity
 
 ::: {.callout-warning title="What `sigma_delta` separates — and what it conflates"}
-`sigma_delta` is identified almost entirely from the **waitlist crossers**, each contributing
-a single within-child P1→P2 difference. The immediate arm is `Treated = 1` in _both_ periods,
-so for those children the random intercept $u_i$ and the random slope $v_i$ enter only as their
-sum and cannot be separated within-child; with independent `HalfNormal(0.5)` priors on
-`sigma_child` and `sigma_delta`, the immediate arm's level heterogeneity is partitioned between
-the two SDs by the prior rather than the data. Read `sigma_delta` as between-child variation in
-the **waitlist-crossover** effect that, for the immediate arm, is not cleanly separable from
-intercept heterogeneity — the `P(sigma_delta < 0.1)`-vs-prior comparison below is the honesty
-check, and the correlated intercept–slope (LKJ) form is the deferred sensitivity that would
-address the conflation directly.
+`sigma_delta` is identified only from waitlist children's t3 deviations. Each child contributes one such observation, so the component is not separately protected from heterogeneous t3 shocks, curvature in development or residual measurement variation. The immediate arm informs the common arm-by-wave trajectory but has no corresponding random catch-up slope. Read `sigma_delta` as unexplained variation in modelled waitlist catch-up, not as the standard deviation of individual causal effects.
 :::
 
 ```{python}
@@ -100,13 +76,10 @@ else:
     print("| " + " | ".join("---" for _ in _cols) + " |")
     print("| " + " | ".join(f"{_r[c]:.3f}" if isinstance(_r[c], float) else str(_r[c]) for c in _cols) + " |")
     print(
-        "\n\n`sigma_delta` is the between-child SD of the on-intervention effect on the "
-        "logit scale. Compare `P(sigma_delta < 0.1)` against `prior_P(sigma_delta < 0.1)`: "
-        "if the posterior mass below the threshold is much larger than the prior's, the data "
-        "point toward a homogeneous effect (little reliable between-child variation); if it is "
-        "similar to the prior, the data are uninformative about heterogeneity at this sample "
-        "size. Either way, this is the honest basis for the non-responder discussion — not a "
-        "responder/non-responder split.\n"
+        "\n\n`sigma_delta` is the SD of unexplained waitlist catch-up variation on the "
+        "logit scale, not a causal treatment-effect SD. Compare `P(sigma_delta < 0.1)` "
+        "against `prior_P(sigma_delta < 0.1)` only to assess how much the data updated this "
+        "exploratory component. It does not justify a responder/non-responder split.\n"
     )
 ```
 

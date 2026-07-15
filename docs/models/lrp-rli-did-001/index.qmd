@@ -1,5 +1,5 @@
 ---
-title: "LRPDID01: Waitlist-crossover (DiD) ITT effect on word reading (EWRSWR) (W)"
+title: "LRPDID01: Waitlist-crossover arm-by-wave sensitivity for word reading (EWRSWR) (W)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially revised by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -23,50 +27,31 @@ format:
 
 ## Overview
 
-**In plain terms.** Using each child as their own control — comparing their word-reading progress while still on the waiting list against their progress once in the programme — did word reading improve more during the intervention? This waitlist-crossover (difference-in-differences) design is a within-person check on the randomised word-reading effect (LRPITT10).
-
-LRPDID01 is the **waitlist-crossover / difference-in-differences** analysis for
-word reading (EWRSWR) (`ewrswr`) - a within-person replication of the randomised ITT effect
-estimated by LRPITT10. It stacks the two early periods (P1 = t1->t2, P2 = t2->t3)
-for both arms; each child is their **own control** (a child random intercept), and
-the immediate arm - treated in both periods - anchors the time/maturation trend.
+**In plain terms.** LRPDID01 asks how the immediate and waitlist arms differ in word reading at t1, t2 and t3 without forcing the randomised t2 contrast to equal post-crossover catch-up. It is a longitudinal sensitivity analysis alongside LRPITT10, not an independent replication.
 
 ::: {.callout-note title="What this estimand is, and is not"}
 
-The waitlist arm is the **only untreated cell** (P1) and crosses to the
-intervention in P2. The treatment coefficient is a **difference-in-differences**:
-the waitlist's P1->P2 gain jump *over and above* the immediate arm's P1->P2 change.
-It is identified jointly by the period-1 between-arm contrast and the waitlist's own
-crossover, with stable child traits differenced out by the random intercept.
+`arm_gap_t1` checks pre-treatment balance. `tau_t2`, the immediate-minus-waitlist contrast at t2, is randomised and may be interpreted causally under the trial assumptions. At t3 both arms have received intervention, but the immediate arm has a longer and different exposure history; `arm_gap_t3` and `delta_crossover = tau_t2 - arm_gap_t3` are therefore post-crossover associations. Interpreting either as a treatment effect would additionally require no carryover, cumulative-dose, block-content or diminishing-return differences.
 
-It is **not** a second randomised experiment: the P2 contrast is not randomised, so
-identification leans on the parallel-trends assumption and the immediate arm as an
-(imperfect, also-treated) time anchor. Read it as **triangulation** of the RCT, not
-an independent replication; the two share the waitlist-P1 untreated cell.
+No period-start outcome enters the model: t2 is already treatment-affected for the immediate arm when it becomes the P2 baseline. The child random intercept partially pools stable differences; it does not make every child a fixed-effect control.
 
 :::
 
 ::: {.callout-note title="Sign convention and the ceiling"}
 
-Positive => the intervention helps. The Beta-Binomial **logit** link absorbs
-ceiling effects: an immediate-arm child near the top of a bounded test makes a
-small P2 gain *expected*, not a spurious negative time trend - which is exactly the
-failure mode of a raw-gain DiD on the count scale.
+For the randomised t2 arm contrast, positive means that the immediate arm scored higher than the waitlist arm. The Beta-Binomial logit respects the bounded 0–79 score and accommodates overdispersion; it does not itself license a causal interpretation of the post-crossover contrasts.
 
 :::
 
 ## Model
 
 $$
-\eta_{i,p} = \alpha + \beta_{\text{period}}\,[p = \text{P2}]
-           + \delta\,\text{Treated}_{i,p}
-           + \gamma_{\text{own}}\,\text{logit}_*(W_{\mathrm{pre},i,p}, N)
-           + \gamma_A\,A_{\text{std},i,p} + u_{\text{child},i},
+\eta_{i,t} = \alpha + \beta_{\text{period},t}
+           + \text{arm\_gap}_{t}\,G_i
+           + \gamma_A\,A_{t1,\text{std},i} + u_{\text{child},i},
 $$
 
-with Beta-Binomial likelihood on the period post-count, $N = 79$. ``Treated`` is
-1 when the child is receiving the intervention that period (immediate: both;
-waitlist: P2 only). Priors follow the shared template in `priors.py`.
+with a Beta-Binomial likelihood on the t1/t2/t3 count, $N = 79$, $G_i=1$ for the immediate arm, $\beta_{\text{period},t1}=0$, and $\text{arm\_gap}_{t}=(\text{arm\_gap}_{t1},\tau_{t2},\text{arm\_gap}_{t3})$. The intercept is expressed as a learned offset around the observed-t1 logit anchor. Priors follow the shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

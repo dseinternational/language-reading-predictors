@@ -192,17 +192,15 @@ def sigma_dose_phase_prior() -> Continuous:
 
 
 def sigma_delta_prior() -> Continuous:
-    """Between-child SD of the on-intervention effect sigma_delta ~ HalfNormal(0.5).
+    """Between-waitlist-child catch-up SD sigma_delta ~ HalfNormal(0.5).
 
-    Used by ``build_did_model(use_varying_delta=True)`` for the treatment-effect
-    heterogeneity variance component (#230 §2/§4a): the per-child on-intervention
-    slope is ``delta_i = delta + sigma_delta * z_i`` (non-centred), so ``sigma_delta``
-    is the between-child SD of the crossover treatment effect on the logit scale — the
-    reported estimand for "is the treatment effect homogeneous?". The 0.5 scale matches
-    the population effect prior (``tau``/``delta`` ~ Normal(0, 0.5)) and the child
-    random-intercept SD (``sigma_child`` ~ HalfNormal(0.5)), so it is weakly-informative
-    and lets the data pull the SD toward zero — the whole point of the estimand (a
-    near-zero posterior is the clean "no reliable between-child variation" result).
+    Used only by exploratory ``build_did_model(use_varying_delta=True)``. The random
+    deviation enters the waitlist arm's t3 row, so ``sigma_delta`` is unexplained
+    variation in post-crossover catch-up on the logit scale, not a treatment-effect
+    SD. It can also absorb heterogeneous maturation, history, period shocks and
+    measurement variation. The 0.5 scale matches the child random-intercept SD and
+    weakly regularises a component informed by one t3 catch-up observation per
+    waitlist child.
     """
     return pz.HalfNormal(sigma=0.5)
 
@@ -424,10 +422,16 @@ _ROLE_BY_CTOR: dict[str, str] = {
 # is by constructor, not RV name. Names not listed fall back by prefix.
 _RV_TO_CTOR: dict[str, str] = {
     "alpha": "alpha",
+    "alpha_offset": "alpha",
     "tau": "tau",
     "beta_G": "tau",
     "beta_period": "tau",
     "delta": "tau",
+    "tau_t2": "tau",
+    "arm_gap_t1": "gamma_cross",
+    "arm_gap_t3": "tau",
+    "theta_treated": "tau",
+    "beta_group": "gamma_cross",
     # ``beta_dose`` is built from ``beta_mech_prior`` (Normal(0, 1)) in both the
     # dose-response and DiD-dose factories — it is a dose slope (association), not a
     # tau-scaled randomised effect. Map it to ``beta_mech`` so the prior table is
@@ -440,6 +444,7 @@ _RV_TO_CTOR: dict[str, str] = {
     "a_G": "tau",
     "b_G": "tau",
     "gamma_own": "gamma_own",
+    "gamma_t1": "gamma_own",
     "a_L": "gamma_own",
     "a_comp": "gamma_own",
     "b_W": "gamma_own",

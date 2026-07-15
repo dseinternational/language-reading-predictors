@@ -296,6 +296,7 @@ def load_and_prepare(
     baseline_covariates: tuple[str, ...] = (),
     require_observed: tuple[str, ...] = (),
     drop_missing_pre: bool = True,
+    require_any_post: bool = True,
     restrict_complete: tuple[str, ...] = (),
     post_time: int = 4,
     pre_required: tuple[str, ...] | None = None,
@@ -339,6 +340,12 @@ def load_and_prepare(
         If True (default), rows with any missing pre-score (for the symbols in
         ``pre_required``) or missing group are dropped and a warning is printed
         with the dropped-row count.
+    require_any_post
+        If True (default), also drop a constructed row when every requested
+        outcome is missing. Set False only when a factory needs that row to recover
+        a pre-randomisation baseline (for example t1 age/outcome) before applying
+        its own explicit target-outcome mask. Missing outcomes remain ``NaN`` and
+        must never reach a likelihood.
     pre_required
         Symbols whose pre-score must be non-missing for a row to be kept. ``None``
         (default) requires every symbol in ``outcomes`` (the historical
@@ -517,8 +524,15 @@ def load_and_prepare(
             + list(baseline_covariates)
         )
         mask_complete = merged[required].notna().all(axis=1)
-        # Also require at least one post outcome to be present.
-        mask_any_post = merged[required_post].notna().any(axis=1)
+        # Most callers require at least one observed outcome on each constructed
+        # row. A longitudinal factory can opt out when it needs a missing-outcome
+        # phase-zero row solely to recover a pre-randomisation baseline, then applies
+        # its own explicit likelihood-row mask.
+        mask_any_post = (
+            merged[required_post].notna().any(axis=1)
+            if require_any_post
+            else np.ones(len(merged), dtype=bool)
+        )
         merged = merged[mask_complete & mask_any_post].reset_index(drop=True)
     else:
         # drop_missing_pre=False bypasses the complete-case + any-post masking above,

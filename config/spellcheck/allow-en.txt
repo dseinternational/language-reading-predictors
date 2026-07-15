@@ -333,6 +333,7 @@ earinf
 econlet
 ecresq
 elementwise
+elif
 eowpvt
 equating
 erbnw

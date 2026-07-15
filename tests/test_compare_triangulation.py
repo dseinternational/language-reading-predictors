@@ -62,6 +62,25 @@ def _write_did(cmp_mod, model_id, *, median, lo, hi, prob, passed=True):
     _write_gate(d, passed)
 
 
+def _write_did_arm_wave(cmp_mod, model_id, *, median, lo, hi, prob, passed=True):
+    d = _run_dir(cmp_mod, model_id)
+    d.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [
+            {
+                "tau_t2_median": median,
+                "tau_t2_lo": lo,
+                "tau_t2_hi": hi,
+                "prob_tau_t2_pos": prob,
+                # A deliberately different post-crossover quantity: triangulation
+                # must select the clean randomised t2 contrast, not catch-up.
+                "delta_crossover_median": -9.0,
+            }
+        ]
+    ).to_csv(d / "did_summary.csv", index=False)
+    _write_gate(d, passed)
+
+
 def _write_gf(cmp_mod, model_id, *, median, lo, hi, prob, passed=True):
     d = _run_dir(cmp_mod, model_id)
     d.mkdir(parents=True, exist_ok=True)
@@ -147,3 +166,39 @@ def test_all_negative_overlapping_is_consistent(cmp_mod, out_root):
     assert bool(lrow["direction_agree"]) is True
     assert bool(lrow["intervals_overlap"]) is True  # max(lo)=-0.50 <= min(hi)=-0.10
     assert bool(lrow["consistent"]) is True
+
+
+def test_registry_catalogue_includes_every_complete_graded_suite(cmp_mod):
+    """TR, TE and F must not silently fall out when all three models exist."""
+    by_outcome = {
+        outcome: (itt_id, did_id, gf_id)
+        for outcome, itt_id, did_id, gf_id in cmp_mod.TRIANGULATION_OUTCOMES
+    }
+    assert by_outcome == {
+        "W": ("lrp-rli-itt-010", "lrp-rli-did-001", "lrp-rli-gf-001"),
+        "R": ("lrp-rli-itt-005", "lrp-rli-did-005", "lrp-rli-gf-002"),
+        "E": ("lrp-rli-itt-006", "lrp-rli-did-009", "lrp-rli-gf-003"),
+        "L": ("lrp-rli-itt-007", "lrp-rli-did-002", "lrp-rli-gf-004"),
+        "B": ("lrp-rli-itt-008", "lrp-rli-did-003", "lrp-rli-gf-006"),
+        "TR": ("lrp-rli-itt-001", "lrp-rli-did-008", "lrp-rli-gf-009"),
+        "TE": ("lrp-rli-itt-002", "lrp-rli-did-004", "lrp-rli-gf-010"),
+        "F": ("lrp-rli-itt-025", "lrp-rli-did-010", "lrp-rli-gf-007"),
+    }
+
+
+def test_triangulation_uses_randomised_t2_contrast_from_redesigned_did(
+    cmp_mod, out_root
+):
+    _write_itt(cmp_mod, "lrp-rli-itt-010", median=0.30, lo=0.05, hi=0.55, prob=0.98)
+    _write_did_arm_wave(
+        cmp_mod,
+        "lrp-rli-did-001",
+        median=0.25,
+        lo=0.02,
+        hi=0.50,
+        prob=0.96,
+    )
+    df = cmp_mod.build_triangulation("dev")
+    w = {row["outcome"]: row for _, row in df.iterrows()}["W"]
+    assert w["did_term"] == "tau_t2"
+    assert w["did_median"] == pytest.approx(0.25)

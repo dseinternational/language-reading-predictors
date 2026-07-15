@@ -1263,53 +1263,197 @@ def test_two_mediator_factory_builds(tmp_path):
 
 
 def test_did_factory_builds(tmp_path):
-    """Default DiD build: child RE + period anchor + binary treated indicator."""
+    """Binary DiD build: t1--t3 levels with a separate arm gap at each wave."""
     p = _write_synthetic(tmp_path, n_children=20)
-    prep = load_and_prepare(path=p, phase_mode="all")
+    prep = load_and_prepare(path=p, phase_mode="levels")
     built = build_did_model(prep, outcome_symbol="W")
     names = {v.name for v in built.model.free_RVs}
-    assert {"alpha", "beta_period", "delta", "gamma_A", "kappa",
-            "sigma_child"}.issubset(names)
-    # No own-baseline term in either likelihood branch (A2, 2026-07-13): the immediate
-    # arm's P2 period-start score is post-treatment, so a gamma_own term would bias the
-    # differenced delta; delta is identified by the period × treated DiD structure plus
-    # the child random intercept instead.
-    assert "gamma_own" not in names
-    assert "eta_base" in {v.name for v in built.model.deterministics}
-    # Only P1/P2 are kept; phase 2 (t3->t4) is dropped.
-    assert set(np.unique(built.prepared.phase)).issubset({0, 1})
+    assert {
+        "alpha_offset",
+        "beta_period",
+        "arm_gap_t1",
+        "tau_t2",
+        "arm_gap_t3",
+        "gamma_A",
+        "kappa",
+        "sigma_child",
+    }.issubset(names)
+    assert not {"delta", "gamma_own", "gamma_t1"} & names
+    dets = {v.name for v in built.model.deterministics}
+    assert {"alpha", "arm_gap_wave", "delta_crossover", "eta_base", "eta"}.issubset(
+        dets
+    )
+    assert set(np.unique(built.prepared.phase)) == {0, 1, 2}
+    assert built.prepared.n_phases == 3
+    assert built.prepared.dropped_rows >= prep.dropped_rows
+    t1 = built.prepared.post_counts["W"][built.prepared.phase == 0]
+    successes = float(t1.sum())
+    failures = float(t1.size * built.prepared.n_trials["W"] - successes)
+    assert built.extras["alpha_anchor"] == pytest.approx(
+        np.log((successes + 0.5) / (failures + 0.5))
+    )
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=31)
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
 
+    # Exact arm-by-wave algebra: the stored derived contrast and per-row eta must
+    # agree with the three unconstrained arm gaps for every prior draw.
+    np.testing.assert_allclose(
+        pp.prior["delta_crossover"],
+        pp.prior["tau_t2"] - pp.prior["arm_gap_t3"],
+    )
+    arm_gap_wave = pp.prior["arm_gap_wave"].values
+    np.testing.assert_allclose(arm_gap_wave[..., 0], pp.prior["arm_gap_t1"])
+    np.testing.assert_allclose(arm_gap_wave[..., 1], pp.prior["tau_t2"])
+    np.testing.assert_allclose(arm_gap_wave[..., 2], pp.prior["arm_gap_t3"])
+    eta_base = pp.prior["eta_base"].values
+    expected_eta = eta_base + (
+        arm_gap_wave[..., built.prepared.phase] * built.prepared.G[None, None, :]
+    )
+    np.testing.assert_allclose(pp.prior["eta"].values, expected_eta)
+
+
+def test_did_analysis_contract_persists_exact_rows_and_attrition(tmp_path):
+    """The audit manifest identifies fitted rows and separates design exclusions."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.pipeline import (
+        _did_analysis_contract,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    loaded = load_and_prepare(path=p, phase_mode="levels")
+    built = build_did_model(loaded, outcome_symbol="W")
+    ctx = SimpleNamespace(
+        output_dir=str(tmp_path),
+        spec=SimpleNamespace(
+            extra={
+                "use_age": True,
+                "use_child_re": True,
+                "use_varying_delta": False,
+            }
+        ),
+    )
+
+    contract = _did_analysis_contract(
+        ctx,
+        built,
+        dose=False,
+        loaded_prepared=loaded,
+    )
+    manifest = pd.read_csv(tmp_path / "analysis_rows.csv")
+
+    assert contract["analysis_row_count"] == built.prepared.n_obs == len(manifest)
+    assert contract["fitted_n_phases"] == 3
+    assert contract["design_excluded_rows"] == int((loaded.phase == 3).sum())
+    assert contract["factory_missing_excluded_rows"] >= 0
+    assert manifest["row_id"].is_unique
+    assert set(manifest["wave"]) == {"t1", "t2", "t3"}
+    assert set(manifest["arm"]) == {"immediate", "waitlist"}
+    assert len(contract["analysis_row_sha256"]) == 64
+
+
+def test_did_factory_varying_crossover_is_waitlist_t3_only(tmp_path):
+    """DID-013 varies catch-up only across waitlist children at t3."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="levels")
+    built = build_did_model(prep, outcome_symbol="W", use_varying_delta=True)
+    free = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+    assert {"sigma_delta", "v_delta_raw"}.issubset(free)
+    assert {"v_delta", "delta_crossover_i"}.issubset(dets)
+    assert len(built.model.coords["waitlist_child"]) == len(
+        np.unique(
+            built.prepared.subject_ids[
+                (built.prepared.G == 0) & (built.prepared.phase == 2)
+            ]
+        )
+    )
+
+    waitlist_t3 = np.asarray(built.model["waitlist_t3"].get_value())
+    np.testing.assert_array_equal(
+        waitlist_t3,
+        ((built.prepared.G == 0) & (built.prepared.phase == 2)).astype(float),
+    )
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=4, random_seed=32)
+    np.testing.assert_allclose(
+        pp.prior["delta_crossover_i"],
+        pp.prior["delta_crossover"] + pp.prior["v_delta"],
+    )
+    safe_idx = np.asarray(
+        built.model["waitlist_crossover_idx"].get_value(), dtype=int
+    )
+    expected_eta = (
+        pp.prior["eta_base"].values
+        + pp.prior["arm_gap_wave"].values[..., built.prepared.phase]
+        * built.prepared.G[None, None, :]
+        + pp.prior["v_delta"].values[..., safe_idx]
+        * waitlist_t3[None, None, :]
+    )
+    np.testing.assert_allclose(pp.prior["eta"].values, expected_eta)
+
+    with pytest.raises(ValueError, match="requires use_child_re=True"):
+        build_did_model(
+            prep,
+            outcome_symbol="W",
+            use_varying_delta=True,
+            use_child_re=False,
+        )
+
 
 def test_did_factory_toggles_and_dose(tmp_path):
-    """Toggling off child RE and age drops their RVs; dose swaps delta -> beta_dose."""
+    """Binary toggles and dose presence/intensive-margin terms stay distinct."""
     p = _write_synthetic(tmp_path, n_children=20)
-    prep = load_and_prepare(path=p, phase_mode="all")
-    base = build_did_model(prep, outcome_symbol="W", use_child_re=False, use_age=False)
+    levels = load_and_prepare(path=p, phase_mode="levels")
+    base = build_did_model(
+        levels, outcome_symbol="W", use_child_re=False, use_age=False
+    )
     bnames = {v.name for v in base.model.free_RVs}
-    assert "delta" in bnames
+    assert {"arm_gap_t1", "tau_t2", "arm_gap_t3"}.issubset(bnames)
     assert "sigma_child" not in bnames and "gamma_A" not in bnames
 
-    # Dose variant needs an 'attend' covariate; inject a synthetic standardised one.
-    prep.covariates["attend"] = np.linspace(-1.0, 1.0, prep.n_obs)
-    dosed = build_did_model(prep, outcome_symbol="W", dose=True)
+    # Load attendance through the production path so both the standardised values
+    # and their raw-unit scaler are available to the treated-centred dose model.
+    transitions = load_and_prepare(
+        path=p, phase_mode="all", covariates=("attend",)
+    )
+    dosed = build_did_model(transitions, outcome_symbol="W", dose=True)
     dnames = {v.name for v in dosed.model.free_RVs}
-    assert "beta_dose" in dnames and "delta" not in dnames
+    assert {
+        "beta_period",
+        "beta_group",
+        "theta_treated",
+        "gamma_t1",
+        "beta_dose",
+    }.issubset(dnames)
+    assert not {"delta", "tau_t2", "arm_gap_t3"} & dnames
+    treated = dosed.extras["treated"] == 1
+    dose_z = dosed.extras["dose_treated_std"]
+    assert np.all(dose_z[~treated] == 0.0)
+    assert np.mean(dose_z[treated]) == pytest.approx(0.0, abs=1e-12)
+    assert np.std(dose_z[treated], ddof=1) == pytest.approx(1.0)
+    assert dosed.prepared.n_phases == 2
+    with pytest.raises(ValueError, match="unavailable for dose models"):
+        build_did_model(
+            transitions,
+            outcome_symbol="W",
+            dose=True,
+            use_varying_delta=True,
+        )
 
 
 def test_did_factory_period_varying_dose(tmp_path):
     """period_varying_dose swaps the pooled beta_dose for partial-pooled per-period slopes (#135)."""
     p = _write_synthetic(tmp_path, n_children=20)
-    prep = load_and_prepare(path=p, phase_mode="all")
-    prep.covariates["attend"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    prep = load_and_prepare(path=p, phase_mode="all", covariates=("attend",))
     pv = build_did_model(
         prep, outcome_symbol="W", dose=True, period_varying_dose=True
     )
     free = {v.name for v in pv.model.free_RVs}
     dets = {v.name for v in pv.model.deterministics}
     assert {"mu_dose", "sigma_dose", "beta_dose_phase_raw"}.issubset(free)
+    assert {"beta_group", "theta_treated", "gamma_t1"}.issubset(free)
     assert "beta_dose_phase" in dets and "beta_dose" not in free
     # One partial-pooled slope per kept period (P1, P2).
     assert pv.model["beta_dose_phase"].eval().shape == (2,)
@@ -1321,25 +1465,34 @@ def test_did_factory_period_varying_dose(tmp_path):
         build_did_model(prep, outcome_symbol="W", period_varying_dose=True)
 
 
-def test_did_factory_requires_all_phase_mode(tmp_path):
+def test_did_factory_requires_design_specific_frames_and_windows(tmp_path):
     p = _write_synthetic(tmp_path, n_children=15)
-    prep = load_and_prepare(path=p, phase_mode="itt")
-    with pytest.raises(ValueError):
-        build_did_model(prep, outcome_symbol="W")
+    itt = load_and_prepare(path=p, phase_mode="itt")
+    levels = load_and_prepare(path=p, phase_mode="levels", covariates=("attend",))
+    transitions = load_and_prepare(path=p, phase_mode="all", covariates=("attend",))
+    with pytest.raises(ValueError, match="phase_mode='levels'"):
+        build_did_model(itt, outcome_symbol="W")
+    with pytest.raises(ValueError, match=r"waves=\(0, 1, 2\)"):
+        build_did_model(levels, outcome_symbol="W", waves=(0, 1))
+    with pytest.raises(ValueError, match="phase_mode='all'"):
+        build_did_model(levels, outcome_symbol="W", dose=True)
+    with pytest.raises(ValueError, match=r"periods=\(0, 1\)"):
+        build_did_model(
+            transitions, outcome_symbol="W", dose=True, periods=(0,)
+        )
 
 
 def test_did_factory_bernoulli_offfloor(tmp_path):
-    """Off-floor prevalence DiD (#226/#257): a Bernoulli on the off-floor indicator,
-    no kappa, a y_offfloor node taking only 0/1; the DiD terms (delta, beta_period)
-    are kept. gamma_own is DROPPED — the prevalence estimand does not condition on
-    the treatment-affected period-start score (#257 review)."""
-    prep = _prep_all(tmp_path, n_children=20)
+    """Off-floor prevalence uses the same t1--t3 arm-by-wave parameterisation."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="levels")
     built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
     names = {v.name for v in built.model.free_RVs}
     assert "kappa" not in names
-    assert {"alpha", "beta_period", "delta"}.issubset(names)
-    assert "gamma_own" not in names  # no own-baseline conditioning in the prevalence DiD
-    # and the own-baseline data node is not even built (its pre-score may be missing)
+    assert {"alpha_offset", "beta_period", "arm_gap_t1", "tau_t2", "arm_gap_t3"}.issubset(
+        names
+    )
+    assert "gamma_own" not in names
     assert "own_pre_logit" not in {v.name for v in built.model.named_vars.values()}
     assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
     assert "eta_base" in {v.name for v in built.model.deterministics}
@@ -1351,17 +1504,18 @@ def test_did_factory_bernoulli_offfloor(tmp_path):
 
 def test_did_offfloor_observed_vector_is_prevalence_over_all_rows(tmp_path):
     """The off-floor observed vector is Pr(post > 0) over EVERY kept row in the
-    fitted periods — prevalence, not the floored-risk-set transition (#257 review).
+    fitted waves — prevalence, not the floored-risk-set transition (#257 review).
 
     Asserts the actual fitted risk set (all rows, not just pre == 0) and that the
     observed 0/1 vector equals ``post > 0``, so the estimand cannot silently drift
     back to a transition or to a graded count."""
-    prep = _prep_all(tmp_path, n_children=24)
+    p = _write_synthetic(tmp_path, n_children=24)
+    prep = load_and_prepare(path=p, phase_mode="levels")
     built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
     fitted = built.prepared
     post = fitted.post_counts["P"].astype(float)
-    # Risk set = every kept row in periods (0, 1); NOT restricted to pre == 0.
-    assert np.all(np.isin(fitted.phase, (0, 1)))
+    # Risk set = every kept row at t1/t2/t3; NOT restricted to a baseline floor.
+    assert set(np.unique(fitted.phase)) == {0, 1, 2}
     assert np.all(np.isfinite(post))  # rows with missing post are the only ones dropped
     # The observed 0/1 vector fed to the Bernoulli equals ``post > 0`` over ALL rows.
     obs_rv = built.model["y_offfloor"]
@@ -1375,13 +1529,19 @@ def test_did_offfloor_observed_vector_is_prevalence_over_all_rows(tmp_path):
 
 def test_did_factory_rejects_bad_likelihood_and_offfloor_dose(tmp_path):
     """Unknown likelihood raises; off-floor is the binary estimand and rejects dose."""
-    prep = _prep_all(tmp_path, n_children=15)
+    p = _write_synthetic(tmp_path, n_children=15)
+    levels = load_and_prepare(path=p, phase_mode="levels")
     with pytest.raises(ValueError):
-        build_did_model(prep, outcome_symbol="W", likelihood="poisson")
-    prep.covariates["attend"] = np.linspace(-1.0, 1.0, prep.n_obs)
+        build_did_model(levels, outcome_symbol="W", likelihood="poisson")
+    transitions = load_and_prepare(
+        path=p, phase_mode="all", covariates=("attend",)
+    )
     with pytest.raises(ValueError):
         build_did_model(
-            prep, outcome_symbol="P", dose=True, likelihood="bernoulli_offfloor"
+            transitions,
+            outcome_symbol="P",
+            dose=True,
+            likelihood="bernoulli_offfloor",
         )
 
 
@@ -1392,14 +1552,16 @@ def test_did_diag_vars_match_offfloor_build(tmp_path):
 
     from language_reading_predictors.statistical_models.pipeline import _did_diag_vars
 
-    prep = _prep_all(tmp_path, n_children=15)
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="levels")
     built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
     names = {v.name for v in built.model.free_RVs} | {
         v.name for v in built.model.deterministics
     }
     diag = _did_diag_vars(SimpleNamespace(extra={"likelihood": "bernoulli_offfloor"}))
     assert "kappa" not in diag
-    assert "gamma_own" not in diag  # prevalence DiD drops own-baseline conditioning
+    assert len(diag) == len(set(diag))
+    assert "gamma_own" not in diag
     assert "gamma_own" not in names
     assert not (set(diag) - names)
 
@@ -1801,14 +1963,16 @@ def test_itt_tau_sigma_override(tmp_path):
 
 
 def test_did_and_gain_and_level_treatment_terms_tiered(tmp_path):
-    """The DiD ``delta``, gain-factors ``beta_trt`` and level-factors group
+    """The DiD ``tau_t2``, gain-factors ``beta_trt`` and level-factors group
     contrast all follow the outcome tier."""
     p = _write_synthetic(tmp_path)
     allp = load_and_prepare(path=p, phase_mode="all")
     levels = load_and_prepare(path=p, phase_mode="levels")
     levels.covariates["blocks"] = np.linspace(-1.0, 1.0, levels.n_obs)
     # distal E
-    assert _tau_dist(build_did_model(allp, outcome_symbol="E").model, "delta") == "Normal(0, 0.3)"
+    assert _tau_dist(
+        build_did_model(levels, outcome_symbol="E").model, "tau_t2"
+    ) == "Normal(0, 0.3)"
     assert _tau_dist(
         build_gain_factors_model(allp, outcome_symbol="E").model, "beta_trt"
     ) == "Normal(0, 0.3)"
@@ -1817,7 +1981,9 @@ def test_did_and_gain_and_level_treatment_terms_tiered(tmp_path):
         "b_grp_time",
     ) == "Normal(0, 0.3)"
     # proximal L
-    assert _tau_dist(build_did_model(allp, outcome_symbol="L").model, "delta") == "Normal(0, 0.5)"
+    assert _tau_dist(
+        build_did_model(levels, outcome_symbol="L").model, "tau_t2"
+    ) == "Normal(0, 0.5)"
     assert _tau_dist(
         build_gain_factors_model(allp, outcome_symbol="L").model, "beta_trt"
     ) == "Normal(0, 0.5)"

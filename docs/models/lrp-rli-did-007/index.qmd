@@ -1,5 +1,5 @@
 ---
-title: "LRPDID07: Waitlist-crossover (DiD) period-resolved session-dose response on letter-sound knowledge (L)"
+title: "LRPDID07: Waitlist-crossover observational period-resolved session-dose model for letter-sound knowledge (L)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -15,6 +15,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially revised by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 
 {{< include _partials/_setup.qmd >}}
@@ -23,43 +27,23 @@ format:
 
 ## Overview
 
-LRPDID07 is the **period-resolved session-dose response** on letter-sound
-knowledge (YARC-LSK, `yarclet`) - the letter-sound analogue of LRPDID06's
-word-reading dose model, with the dose slope **resolved by period**. It reuses
-LRPDID02's identification (the phase-stacked waitlist-crossover frame, each child
-their own control, the immediate arm anchoring the time/maturation trend) and
-enters the standardised per-period intervention-session count with
-**partial-pooled per-period slopes** `beta_dose_phase[p] = mu_dose + sigma_dose *
-z_p`.
+LRPDID07 is the period-resolved observational session-dose model for letter-sound knowledge (YARC-LSK, `yarclet`). It retains the P1/P2 transition frame, randomised arm, current treatment, the pre-randomisation t1 letter-sound score and t1 age, then adds partially pooled period-specific slopes for treated-centred session attendance.
 
 ::: {.callout-note title="The question this answers"}
 
-Does the dose-gain slope vary by period? The answer is **not** read off this
-single fit - it is the **nested PSIS-LOO** of LRPDID07 (period-varying) against
-LRPDID07base (pooled dose) in `did_dose_loo_compare.csv`. The word-reading
-analogue (LRP77) found the slope **constant across periods** (LOO preferred the
-pooled model), so the most likely outcome here is "no period variation at this n"
-- itself a useful negative result.
+Does the residual dose association vary by period? The answer is not read off this fit alone: use the nested PSIS-LOO comparison with LRPDID07base in `did_dose_loo_compare.csv`, but interpret a ranking only when `comparison_valid` is true. If row identities differ or either fit fails its convergence gate, the file records why no ranking is valid.
 
 :::
 
 ::: {.callout-note title="What this estimand is, and is not"}
 
-The per-period session count is the **exposure** (`IS`): this is the **ID-3
-observational dose-response**, **confounded by GA -> IS**, and must be read as an
-*adjusted association* - never "more sessions cause more gain". The DiD machinery
-adjusts only `{IG, A}` and **never conditions on cumulative sessions**
-(`attend_cumul`, the `IS` collider) - the conditioning that closed PR #108. Only
-the randomised contrast (the ITT LRPITT07, or the DiD arm term LRPDID02) is causal.
+The per-period session count is the exposure (`IS`) and remains confounded by latent general ability and other determinants of attendance and learning. Arm, current treatment, t1 outcome and t1 age adjustment separates the randomised schedule and structural untreated zero from residual attendance variation; it cannot identify the causal effect of another session. Never write “more sessions cause more gain”. The causal letter-sound result remains the randomised t2 contrast in LRPITT07/LRPDID02.
 
 :::
 
 ::: {.callout-note title="Sign convention and the ceiling"}
 
-Positive => the intervention helps. The Beta-Binomial **logit** link absorbs
-ceiling effects: an immediate-arm child near the top of a bounded test makes a
-small P2 gain *expected*, not a spurious negative time trend - which is exactly the
-failure mode of a raw-gain DiD on the count scale.
+Positive dose slopes mean higher-than-average attendance among treated rows is associated with a higher expected period-end letter-sound score. The Beta-Binomial logit respects the bounded 0–32 score; it does not make the association causal.
 
 :::
 
@@ -67,15 +51,13 @@ failure mode of a raw-gain DiD on the count scale.
 
 $$
 \eta_{i,p} = \alpha + \beta_{\text{period}}\,[p = \text{P2}]
-           + \beta_{\text{dose},p}\,z(\text{sessions}_{i,p})
-           + \gamma_{\text{own}}\,\text{logit}_*(L_{\mathrm{pre},i,p}, N)
-           + \gamma_A\,A_{\text{std},i,p} + u_{\text{child},i},
+           + \beta_{\text{group}}G_i + \theta_{\text{treated}}\,\text{Treated}_{i,p}
+           + \beta_{\text{dose},p}\,\text{dose\_treated\_std}_{i,p}
+           + \gamma_{t1}\,\text{logit}_*(L_{t1,i}, N)
+           + \gamma_A\,A_{t1,\text{std},i} + u_{\text{child},i},
 $$
 
-with $\beta_{\text{dose},p} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$
-(non-centred, partial-pooled across periods) and a Beta-Binomial likelihood on the
-period post-count, $N = 32$. `sessions` is the standardised per-period
-intervention-session count. Priors follow the shared template in `priors.py`.
+with $\beta_{\text{dose},p} = \mu_{\text{dose}} + \sigma_{\text{dose}}z_p$ (non-centred and partially pooled across periods), a Beta-Binomial likelihood on the period post-count, $N=32$, and $G_i=1$ for the immediate arm. `dose_treated_std` is centred and scaled among treated rows and set to zero for the untreated structural-zero cell; the t1 outcome is broadcast to both transition rows. Priors follow the shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

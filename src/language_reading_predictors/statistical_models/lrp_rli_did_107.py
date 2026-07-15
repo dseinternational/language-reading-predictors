@@ -3,8 +3,8 @@
 
 """LRPDID07base - pooled session-dose response on letter-sound knowledge (L) - LRPDID07 comparator.
 
-The no-period-variation comparator to LRPDID07: identical waitlist-crossover /
-difference-in-differences dose-response on letter sounds (L), but with a **single
+The no-period-variation comparator to LRPDID07: the same waitlist-crossover
+transition dose model on letter sounds (L), but with a **single
 pooled** dose slope ``beta_dose`` instead of partial-pooled per-period slopes.
 This is the letter-sound analogue of LRPDID06 (the pooled word-reading dose model).
 
@@ -13,12 +13,11 @@ outcome and rows, so the PSIS-LOO comparison between them in
 ``compare_statistical_models.py`` is a clean test of whether the letter-sound
 dose-gain slope varies by period (#135).
 
-DAG note (#115): the per-period session count is the **exposure** ``IS`` - an
-ID-3 observational dose-response, confounded by GA -> IS, reported as an *adjusted
-association*; ``attend_cumul`` (the ``IS`` collider) is never conditioned on. Only
-the randomised contrast (``lrp-rli-itt-007`` / ``lrp-rli-did-002``) is causal.
-
-Sign convention: positive => intervention helps.
+The model separates randomised arm/history, treatment presence and session
+intensity; both periods adjust for the shared pre-randomisation t1 outcome and age.
+The session slope is an observational intensive-margin association, potentially
+confounded by general ability and attendance selection. Cumulative sessions are
+not conditioned on.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -28,10 +27,14 @@ SPEC = ModelSpec(
     model_id="lrp-rli-did-107",
     kind="did",
     title=(
-        "Waitlist-crossover (DiD) dose-response (pooled dose slope) on "
+        "Waitlist-crossover session-dose association (pooled slope) on "
         "letter-sound knowledge (L) - no-period-variation comparator to LRPDID07"
     ),
     outcome_symbol="L",
+    family="did",
+    design="waitlist-crossover transition dose intensive margin",
+    estimand_type="association",
+    causal_status="none for session-dose coefficient",
     extra={
         "outcomes": ("L",),
         "periods": (0, 1),
