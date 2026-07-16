@@ -1,14 +1,24 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""RLMHG03 - historical WORD reading-comprehension growth, waves 1-3 (Byrne et al., #164).
+"""RLMHG03 - historical WORD reading-comprehension growth, waves 1-4 + DS wave 5 (Byrne et al., #164/#338).
 
 A descriptive group-by-wave growth model for WORD reading comprehension (``woco``)
-over the first three waves of the Byrne, MacDonald & Buckley
+over waves 1-4 (plus the Down-syndrome-only wave-5 tail) of the Byrne, MacDonald & Buckley
 reading-language-memory study (``study_id="rlm"``), the per-measure sibling of
 ``lrp-rlm-hg-001`` (word reading). It runs through the shared historical-growth
 pipeline (:func:`pipeline.fit_historical_growth`), so it uses the same sampler,
 convergence gate, output layout and report conventions.
+
+**Extended follow-up window (#338).** The complete-case core stays the paper's
+waves 1-3 (the Table 2 audit subset); waves 4 and 5 enter as **extension
+waves**: kept children contribute wherever the measure was observed, so the
+later cells are an attrition-selected follow-up tail with their own per-cell
+``n``. Wave 4 carries all three groups (the between-group window is waves
+1-4); wave 5 exists only for the Down syndrome group. Interval growth is
+summarised on the children observed at both endpoint waves, and the
+random-effect scales (``sigma_subject``, ``kappa``) are indexed by group
+(follow-up-plan decision 7).
 
 **Descriptive natural-history evidence, not an intervention effect:** ``readgrp``
 (Down syndrome / average / reading-matched) is a cohort factor with no causal
@@ -20,7 +30,8 @@ this measure (computed straight from the complete-case panel).
 *observed maximum* in the prepared extract, not a manual-confirmed instrument
 ceiling (``n_trials_confirmed=False`` in ``datasets.RLM_MEASURES``); confirming it
 is a data-owner decision (``notes/202607021052-issue-164-byrne-followup-plan.md``,
-decision 3). Per-measure prior calibration is left to the prior-critical-review
+decision 3). The WORD Reading Comprehension item count is unverified (the parent WIAT subtest is commonly described as 38 items); the 1993 WORD manual is needed.
+Per-measure prior calibration is left to the prior-critical-review
 follow-up; the shared defaults are used here and the prior-predictive check will
 flag any miscalibration.
 """
@@ -31,7 +42,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_historic
 SPEC = ModelSpec(
     model_id="lrp-rlm-hg-003",
     kind="historical_growth",
-    title="Historical WORD reading-comprehension growth, waves 1-3 (Byrne et al.)",
+    title="Historical WORD reading-comprehension growth, waves 1-4 + DS wave 5 (Byrne et al.)",
     outcome_symbol="woco",
     study_id="rlm",
     family="historical_growth",
@@ -44,6 +55,7 @@ SPEC = ModelSpec(
         "study_id": "rlm",
         "measure": "woco",
         "waves": (1, 2, 3),
+        "extension_waves": (4, 5),
         "eta_prior_sigma": 1.5,
         "sigma_subject_prior_sigma": 0.5,
         "kappa_prior_sigma": 50.0,

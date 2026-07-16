@@ -4067,6 +4067,46 @@ def _kf_build_historical_growth(output_dir, config: Mapping) -> list[dict[str, s
     return sentences
 
 
+def _kf_build_historical_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Byrne joint correlated growth: cross-measure coupling headline (#338)."""
+    df = _kf_csv(output_dir, "measure_correlation_summary.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("measure_correlation_summary.csv is not present")
+    row = _kf_most_resolved_row(df, prob_col="prob_pos")
+    pair = (
+        f"{_kf_plain_label(row.get('label_i', row['measure_i']))} and "
+        f"{_kf_plain_label(row.get('label_j', row['measure_j']))}"
+    )
+    return [
+        _kf_sentence(
+            f"The clearest between-child coupling was between {pair}: a stable-"
+            f"level correlation of **{_kf_float(row['mean']):+.2f}** (95% credible "
+            f"range {_kf_float(row['lo']):+.2f} to {_kf_float(row['hi']):+.2f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                row["prob_pos"],
+                positive_claim=(
+                    "children who sit higher on one measure tend to sit higher "
+                    "on the other"
+                ),
+                negative_claim=(
+                    "children who sit higher on one measure tend to sit lower "
+                    "on the other"
+                ),
+            ),
+            "confidence",
+        ),
+        _kf_sentence(
+            "This is a descriptive between-child correlation of stable levels in "
+            "a historical cohort - it is not causal and does not say that "
+            "changing one skill changes another.",
+            "causal",
+        ),
+    ]
+
+
 def _kf_build_survival(output_dir, config: Mapping) -> list[dict[str, str]]:
     """Discrete-time off-floor hazard model."""
     df = _kf_csv(output_dir, "survival_summary.csv")
@@ -4267,6 +4307,7 @@ _KF_BUILDERS = {
     "horseshoe": _kf_build_horseshoe,
     "growth": _kf_build_growth,
     "historical_growth": _kf_build_historical_growth,
+    "historical_joint": _kf_build_historical_joint,
     "survival": _kf_build_survival,
     "block_exposure": _kf_build_block_exposure,
     "concurrent": _kf_build_concurrent,

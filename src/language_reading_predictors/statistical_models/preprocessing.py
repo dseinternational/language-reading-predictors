@@ -1366,7 +1366,8 @@ class LongitudinalPanel:
     measures: tuple[str, ...]
     """Study-local measure symbols included, in the requested order."""
     long: pd.DataFrame
-    """Tidy complete-case frame, sorted by (group, subject, wave). Columns: the
+    """Tidy frame, sorted by (group, subject, wave): the complete-case core-wave
+    rows plus any observed extension-wave rows for kept subjects. Columns: the
     dataset subject / wave / group columns, ``<group_col>_label``, and one column
     per measure symbol."""
     subject_ids: list
@@ -1374,14 +1375,32 @@ class LongitudinalPanel:
     group_labels: list[str]
     """Group labels aligned to ``group_codes``."""
     waves: tuple[int, ...]
+    """The complete-case **core** window (every kept subject observed at each)."""
     counts: dict[str, np.ndarray]
-    """Symbol -> (n_subjects, n_waves) observed counts, NaN where missing."""
+    """Symbol -> (n_subjects, n_waves) observed counts over the core window,
+    NaN where missing."""
     obs_mask: dict[str, np.ndarray]
     n_trials: dict[str, int]
     n_subjects: int
     n_waves: int
     dropped_subjects: int
     group_label_col: str
+    extension_waves: tuple[int, ...] = ()
+    """Waves appended outside the complete-case rule: kept subjects contribute
+    where observed (an attrition-selected tail, e.g. the Byrne w4/w5 extension)."""
+
+    @property
+    def all_waves(self) -> tuple[int, ...]:
+        """Core + extension waves, in ascending order."""
+        return tuple(sorted({*self.waves, *self.extension_waves}))
+
+    def cells(self, measure: str) -> list[tuple[int, int]]:
+        """Supported ``(group_code, wave)`` cells for ``measure``, in
+        (group, wave) order — the cells with at least one observed row."""
+        df = self.long.dropna(subset=[measure])
+        grp, wave_c = self.dataset.group_col, self.dataset.wave_col
+        pairs = {(int(g), int(w)) for g, w in zip(df[grp], df[wave_c], strict=True)}
+        return sorted(pairs)
 
     @property
     def n_obs(self) -> int:
@@ -1410,6 +1429,7 @@ def load_longitudinal_panel(
     *,
     waves: tuple[int, ...],
     complete_case: bool = True,
+    extension_waves: tuple[int, ...] = (),
     path: str | Path | None = None,
 ) -> LongitudinalPanel:
     """Load a study's long-format CSV into a :class:`LongitudinalPanel`.
@@ -1418,7 +1438,17 @@ def load_longitudinal_panel(
     every ``measures`` value observed at every wave - the per-measure complete-case
     subset the Byrne Table 2 reproduction uses. Validates that no observed count
     exceeds its measure ceiling and that each kept subject has exactly
-    ``len(waves)`` rows.
+    ``len(waves)`` rows on the core window.
+
+    ``extension_waves`` appends later waves **outside** the complete-case rule:
+    kept subjects contribute an extension-wave row wherever the measure is
+    observed (issue #338 Phase A window extension). The complete-case core is
+    deliberately unchanged by the extension - it stays the audit-anchored
+    subset (Table 2 for the Byrne waves 1-3) - so extension cells are an
+    attrition-selected follow-up tail and reports must carry their own per-cell
+    ``n``. Extension waves may be unsupported in some groups (the Byrne wave 5
+    exists only for the Down syndrome group); :meth:`LongitudinalPanel.cells`
+    exposes the supported (group, wave) set.
     """
     if not measures:
         raise ValueError(
@@ -1448,6 +1478,13 @@ def load_longitudinal_panel(
     df[label_col] = df[grp].map(dataset.group_labels)
 
     waves = tuple(int(w) for w in waves)
+    extension_waves = tuple(int(w) for w in extension_waves)
+    overlap = sorted(set(waves) & set(extension_waves))
+    if overlap:
+        raise ValueError(
+            f"extension_waves {overlap} overlap the complete-case core window "
+            f"{list(waves)}; extension waves must be additional waves."
+        )
     in_waves = df[df[wave_c].isin(waves)].copy()
     n_subjects_before = int(in_waves[subj].nunique())
 
@@ -1462,6 +1499,28 @@ def load_longitudinal_panel(
         panel_df = in_waves[in_waves[subj].isin(keep)].copy()
     else:
         panel_df = in_waves
+
+    if extension_waves:
+        # Kept subjects contribute an extension-wave row wherever every requested
+        # measure is observed there (available-case at the extension waves only).
+        ext = df[
+            df[wave_c].isin(extension_waves)
+            & df[subj].isin(panel_df[subj].unique())
+        ].copy()
+        ext = ext.dropna(subset=[m.column for m in measures])
+        # Duplicate guard (the extension tail has no complete-case row-count
+        # check to catch this): a duplicated (subject, wave) row would silently
+        # enter the likelihood twice and reweight that cell.
+        dup = ext.duplicated(subset=[subj, wave_c])
+        if dup.any():
+            pairs = sorted(
+                (str(s), int(w))
+                for s, w in ext.loc[dup, [subj, wave_c]].itertuples(index=False)
+            )
+            raise ValueError(
+                f"Duplicate extension-wave rows for (subject, wave): {pairs}"
+            )
+        panel_df = pd.concat([panel_df, ext], ignore_index=True)
 
     # Expose each measure under its study-local symbol (symbol == column for the
     # Byrne measures, but keep the mapping explicit for future studies).
@@ -1486,12 +1545,13 @@ def load_longitudinal_panel(
                 f"(max {float(observed.max()):g})."
             )
     if complete_case and measure_syms:
-        per_subject = panel_df.groupby(subj)[measure_syms[0]].size()
+        core_rows = panel_df[panel_df[wave_c].isin(waves)]
+        per_subject = core_rows.groupby(subj)[measure_syms[0]].size()
         bad = per_subject[per_subject != len(waves)]
         if not bad.empty:
             raise ValueError(
                 f"Complete-case panel has subjects without all {len(waves)} "
-                f"waves: {bad.to_dict()}"
+                f"core waves: {bad.to_dict()}"
             )
 
     subject_ids = panel_df[subj].drop_duplicates().tolist()
@@ -1525,4 +1585,234 @@ def load_longitudinal_panel(
         n_waves=len(waves),
         dropped_subjects=n_subjects_before - len(subject_ids),
         group_label_col=label_col,
+        extension_waves=extension_waves,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Byrne (RLM) cross-sectional frames: span (gain) and wave battery (#338 B/D)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RlmSpanFrame:
+    """One-row-per-child Byrne frame: wave-``pre_wave`` predictors, a single
+    later-wave outcome count (#338 Phase D).
+
+    The Byrne analogue of the RLI ``phase_mode="span"`` prepared frame, kept
+    deliberately minimal: complete-case on the outcome (both waves) and every
+    predictor, standardised Haldane logits for bounded-count predictors and
+    standardised months for age. ``group_code`` carries the observational
+    ``readgrp`` factor for **nuisance** terms only - there is no treatment and
+    nothing causal in this cohort.
+    """
+
+    dataset: DatasetSpec
+    outcome: str
+    pre_wave: int
+    post_wave: int
+    subject_ids: np.ndarray
+    group_code: np.ndarray
+    """Raw ``readgrp`` code per child (1 = Down syndrome, ...)."""
+    group_labels: dict[int, str]
+    pre_logit: dict[str, np.ndarray]
+    """Outcome symbol -> Haldane-corrected logit of the pre-wave score."""
+    post_counts: dict[str, np.ndarray]
+    n_trials: dict[str, int]
+    predictors: dict[str, np.ndarray]
+    """Standardised predictor columns (bounded counts as z-scored Haldane
+    logits; ``age`` as z-scored months), keyed by study-local symbol."""
+    predictor_scalers: dict[str, Standardiser]
+    predictor_labels: dict[str, str]
+    n_obs: int
+    n_children: int
+    dropped_rows: int
+    n_phases: int = 1
+
+
+@dataclass
+class RlmWaveBattery:
+    """One-row-per-child Byrne cross-section of a measure battery at one wave.
+
+    Complete-case standardised Haldane-logit indicators for the #338 Phase B
+    measurement model (``lrp-rlm-mm-001``).
+    """
+
+    dataset: DatasetSpec
+    wave: int
+    subject_ids: np.ndarray
+    group_code: np.ndarray
+    group_labels: dict[int, str]
+    indicators: dict[str, np.ndarray]
+    """Measure symbol -> standardised Haldane logit at ``wave``."""
+    indicator_labels: dict[str, str]
+    n_trials: dict[str, int]
+    n_obs: int
+    n_children: int
+    dropped_rows: int
+    n_phases: int = 1
+
+
+def _rlm_wave_wide(
+    df: pd.DataFrame, dataset: DatasetSpec, wave: int, columns: list[str]
+) -> pd.DataFrame:
+    """One row per subject with ``columns`` read at ``wave`` (plus the group).
+
+    Rejects duplicated subjects at the wave: with a duplicate index the later
+    frame ``join`` would silently multiply rows and reweight those children.
+    """
+    subj, wave_c, grp = dataset.subject_col, dataset.wave_col, dataset.group_col
+    rows = df[df[wave_c] == int(wave)]
+    dup = rows.duplicated(subset=[subj])
+    if dup.any():
+        dupes = sorted(str(s) for s in rows.loc[dup, subj].unique())
+        raise ValueError(
+            f"Duplicate rows for subjects {dupes} at wave {int(wave)}."
+        )
+    out = rows.set_index(subj)[[grp, *columns]].copy()
+    out[grp] = out[grp].astype(int)
+    return out
+
+
+def load_rlm_span_frame(
+    *,
+    outcome: str = "basread",
+    predictor_measures: Sequence[str] = (
+        "bpvs",
+        "trog",
+        "basdig",
+        "bassim",
+        "basnum",
+    ),
+    include_age: bool = True,
+    pre_wave: int = 1,
+    post_wave: int = 3,
+    path: str | Path | None = None,
+) -> RlmSpanFrame:
+    """Load the Byrne one-row-per-child span frame (#338 Phase D).
+
+    Complete-case on the outcome at both waves and on every predictor at
+    ``pre_wave`` - the mutually-adjusted regression frame, with no imputation.
+    """
+    from language_reading_predictors.statistical_models.datasets import (
+        resolve_dataset,
+    )
+
+    dataset, measures = resolve_dataset("rlm")
+    csv_path = Path(path) if path is not None else Path(dataset.path)
+    df = pd.read_csv(csv_path)
+
+    for sym in (outcome, *predictor_measures):
+        if sym not in measures:
+            raise KeyError(f"measure {sym!r} not registered for study 'rlm'")
+
+    age_col = "age"
+    pre_cols = [outcome, *predictor_measures] + ([age_col] if include_age else [])
+    pre = _rlm_wave_wide(df, dataset, pre_wave, pre_cols)
+    post = _rlm_wave_wide(df, dataset, post_wave, [outcome]).rename(
+        columns={outcome: "_post"}
+    )
+    wide = pre.join(post[["_post"]], how="inner")
+    n_before = int(df[dataset.subject_col].nunique())
+    wide = wide.dropna()
+
+    n_out = measures[outcome].n_trials
+    if len(wide) and float(wide[[outcome, "_post"]].to_numpy().max()) > n_out:
+        raise ValueError(f"Observed {outcome!r} exceeds measure ceiling {n_out}.")
+
+    predictors: dict[str, np.ndarray] = {}
+    scalers: dict[str, Standardiser] = {}
+    labels: dict[str, str] = {}
+    for sym in predictor_measures:
+        m = measures[sym]
+        z, sc = standardise(logit_safe(wide[sym].to_numpy(), m.n_trials))
+        predictors[sym] = z
+        scalers[sym] = sc
+        labels[sym] = m.label
+    if include_age:
+        z, sc = standardise(wide[age_col].to_numpy())
+        predictors["age"] = z
+        scalers["age"] = sc
+        labels["age"] = "Age (months)"
+
+    return RlmSpanFrame(
+        dataset=dataset,
+        outcome=outcome,
+        pre_wave=int(pre_wave),
+        post_wave=int(post_wave),
+        subject_ids=wide.index.to_numpy(),
+        group_code=wide[dataset.group_col].to_numpy(dtype=int),
+        group_labels=dict(dataset.group_labels),
+        pre_logit={outcome: logit_safe(wide[outcome].to_numpy(), n_out)},
+        post_counts={outcome: wide["_post"].to_numpy(dtype=np.int64)},
+        n_trials={outcome: n_out},
+        predictors=predictors,
+        predictor_scalers=scalers,
+        predictor_labels=labels,
+        n_obs=len(wide),
+        n_children=len(wide),
+        dropped_rows=n_before - len(wide),
+    )
+
+
+def load_rlm_wave_battery(
+    *,
+    wave: int = 3,
+    measure_symbols: Sequence[str] = (
+        "basread",
+        "basspel",
+        "woco",
+        "bpvs",
+        "trog",
+        "basdig",
+        "bassim",
+        "basmat",
+        "basnum",
+    ),
+    path: str | Path | None = None,
+) -> RlmWaveBattery:
+    """Load the Byrne one-wave measure battery, complete-case (#338 Phase B)."""
+    from language_reading_predictors.statistical_models.datasets import (
+        resolve_dataset,
+    )
+
+    dataset, measures = resolve_dataset("rlm")
+    csv_path = Path(path) if path is not None else Path(dataset.path)
+    df = pd.read_csv(csv_path)
+
+    for sym in measure_symbols:
+        if sym not in measures:
+            raise KeyError(f"measure {sym!r} not registered for study 'rlm'")
+
+    wide = _rlm_wave_wide(df, dataset, wave, list(measure_symbols))
+    n_before = int(df[dataset.subject_col].nunique())
+    wide = wide.dropna()
+
+    indicators: dict[str, np.ndarray] = {}
+    labels: dict[str, str] = {}
+    n_trials: dict[str, int] = {}
+    for sym in measure_symbols:
+        m = measures[sym]
+        observed = wide[sym].to_numpy()
+        if len(observed) and float(observed.max()) > m.n_trials:
+            raise ValueError(
+                f"Observed {sym!r} exceeds measure ceiling {m.n_trials}."
+            )
+        z, _ = standardise(logit_safe(observed, m.n_trials))
+        indicators[sym] = z
+        labels[sym] = m.label
+        n_trials[sym] = m.n_trials
+
+    return RlmWaveBattery(
+        dataset=dataset,
+        wave=int(wave),
+        subject_ids=wide.index.to_numpy(),
+        group_code=wide[dataset.group_col].to_numpy(dtype=int),
+        group_labels=dict(dataset.group_labels),
+        indicators=indicators,
+        indicator_labels=labels,
+        n_trials=n_trials,
+        n_obs=len(wide),
+        n_children=len(wide),
+        dropped_rows=n_before - len(wide),
     )

@@ -1,0 +1,89 @@
+---
+title: "RLMADJ01: Byrne wave-1 predictors of word-reading gain, waves 1-3 (between-child)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMADJ01 is the Byrne analogue of `lrp-rli-adj-065` (#338 Phase D): a
+between-child regression asking **which wave-1 skills go with more subsequent
+word-reading gain**, mutually adjusted. BAS word reading at wave 3 is
+conditioned on its own wave-1 baseline (the gain framing) and the standardised
+wave-1 levels of receptive vocabulary (`bpvs`), receptive grammar (`trog`),
+verbal memory (`basdig`), verbal reasoning (`bassim`) and number skills
+(`basnum`), plus age — pooled across the three reading groups (n = 69) with
+non-interpretable group-nuisance dummies, per the 2026-07-16 data-owner
+decisions (pooled + nuisance; horizon w1→w3, the audited core window).
+
+::: {.callout-important title="Adjusted associations only — nothing causal exists in this cohort"}
+
+The Byrne cohort has **no intervention**: `readgrp` is an observational cohort
+factor and every coefficient here is a between-child **adjusted association**
+(`causal_status="none"`). Read with the Table-2 fallacy in mind — each
+coefficient answers a different conditional question — and none of them says
+what would happen if a skill were changed. The group-nuisance dummies absorb
+cohort composition and must not be read as group effects.
+
+:::
+
+::: {.callout-note title="Frame and exclusions"}
+
+One row per child, complete-case on the outcome at both waves and every
+predictor at wave 1 (n = 69: 21 Down syndrome / 29 average readers / 19
+reading-matched). `basmat` is excluded (wave-3+ only — no wave-1 value);
+`basspel` and `woco` are excluded as reading-route measures too close to the
+outcome. A Down-syndrome-only companion is deferred: at n = 21 with seven
+slopes the mutually adjusted posteriors would sit at the prior. Predictors are
+standardised Haldane logits (age: standardised months), so slopes are per-SD
+on the logit scale; the items-scale translation is reported alongside.
+
+:::
+
+## Model
+
+For child $i$ with wave-1 word-reading logit $b_i$ and standardised wave-1
+predictors $z_{k,i}$:
+
+$$
+y_i \sim \mathrm{BetaBinomial}(90,\ p_i,\ \kappa),
+\qquad
+\operatorname{logit}(p_i) = \alpha + \gamma_{\text{own}} b_i +
+\textstyle\sum_k \beta_k z_{k,i} + \boldsymbol{\beta}_{\text{grp}}^{\top}
+\mathbf{d}_i ,
+$$
+
+where $y_i$ is the wave-3 word-reading count (ceiling 90, confirmed),
+$\beta_k \sim \mathrm{Normal}(0, 0.3)$ are the mutually-adjusted per-SD
+slopes, and $\mathbf{d}_i$ are the group-nuisance dummies (reference: average
+readers). The bivariate comparison refits each predictor alone (baseline-only
+adjusted), and a prior-sensitivity sweep varies the slope sigma.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_adjusted.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

@@ -197,7 +197,11 @@ Psychonomic
 Puhani
 Puranik
 Purser
+RLMADJ
 RLMHG
+RLMHS
+RLMJC
+RLMMM
 RLOG
 RMSE
 RMSEA
@@ -237,6 +241,7 @@ Vansteelandt
 Vehtari
 Verhoeven
 WAMBS
+WIAT
 WPPSI
 Wagenmakers
 Walley
@@ -251,6 +256,7 @@ YARC
 YYYYMMDDHHMM
 Yarkoni
 Yoder
+Yuill
 Zaalen
 Zigler
 Zotero
@@ -497,7 +503,11 @@ rglob
 rhat
 ridd
 rlm
+rlmadj
 rlmhg
+rlmhs
+rlmjc
+rlmmm
 rmse
 rmtree
 rowpvt

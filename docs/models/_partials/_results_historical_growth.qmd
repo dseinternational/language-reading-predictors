@@ -13,15 +13,19 @@ contrasts describe how the groups differ, not what caused the difference.
 
 ### Group-by-wave fitted vs observed
 
-Posterior population expected item score per group and wave, alongside the
-observed complete-case mean it is calibrated against (the Table 2 audit).
+Posterior population expected item score per supported group-by-wave cell,
+alongside the observed mean it is calibrated against (on the complete-case core
+window, the Table 2 audit).
 
 _How to read the table:_ each row is one reading group at one assessment wave.
 `posterior_population_mean` is the model's expected item score for that cell and
 `q2_5`/`q97_5` bracket it with a 95% credible interval; `observed_complete_case_mean`
 is the real data mean it should match, and `posterior_mean_minus_observed_mean` is
 the gap between them — near zero means the reproduction lands on the published
-Table 2.
+Table 2. `window` marks whether the cell sits on the complete-case **core**
+window (the audit cells) or the attrition-selected **extension** tail (#338),
+and `n_obs` is the cell's own observation count — extension cells shrink with
+follow-up attrition, so read them alongside their `n`.
 
 ```{python}
 # | echo: false
@@ -36,14 +40,20 @@ cells if cells is not None else "No cell summary (run the fit first)."
 
 ### Growth (items)
 
-Within-group growth across the annual intervals, and pairwise total-growth
-(wave 1 to wave 3) contrasts between groups.
+Within-group growth across the annual intervals of each group's supported
+window, and pairwise total-growth contrasts between groups over the **common
+window** (the first-to-last wave every group supports), so the contrasts
+compare like horizons.
 
 _How to read the table:_ each row is either how much a group gained over an
 interval, or the difference in total gain between two groups. `mean` is the
 posterior growth in items (`q2_5`/`q97_5` its 95% interval) and `p_gt_0` is the
 posterior probability that growth (or the between-group difference) is positive —
 values near 1 mean confidently positive, near 0.5 mean the sign is uncertain.
+Every interval is computed on the children observed at **both** endpoint waves
+(`n_subjects`), so attrition at an extension wave cannot masquerade as growth;
+rows tagged `extension` in `window` involve the attrition-selected follow-up
+tail and should be read as within-cohort follow-up, not as the audited core.
 
 ```{python}
 # | echo: false
@@ -56,10 +66,13 @@ growth if growth is not None else "No growth summary."
 
 ### Observed complete-case baseline (Table 2 audit)
 
-_How to read the table:_ this is the raw published reference the model is audited
-against — the observed complete-case means (and cell counts) per group and wave,
-with no modelling applied. Compare it against the fitted cells above to confirm
-the reproduction matches the historical source.
+_How to read the table:_ this is the raw observed reference the model is audited
+against — the observed means, SDs and per-wave counts per group, with no
+modelling applied. On the complete-case core window these are the published
+audit figures (Table 2 for the waves-1-3 suite); extension-wave columns report
+the attrition-selected follow-up cells with their own `time_{w}_n`, and cells a
+group was never assessed in are empty. Compare it against the fitted cells
+above to confirm the reproduction matches the historical source.
 
 ```{python}
 # | echo: false

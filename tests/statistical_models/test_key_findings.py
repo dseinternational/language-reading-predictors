@@ -633,6 +633,24 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             },
         )
         return d, "baseline non-verbal ability"
+    if kind == "historical_joint":
+        _write_rows(
+            d,
+            "measure_correlation_summary.csv",
+            [
+                {
+                    "measure_i": "basread",
+                    "measure_j": "bpvs",
+                    "label_i": "BAS word reading",
+                    "label_j": "BPVS receptive vocabulary",
+                    "mean": 0.62,
+                    "lo": 0.31,
+                    "hi": 0.83,
+                    "prob_pos": 0.999,
+                }
+            ],
+        )
+        return d, "clearest between-child coupling"
     if kind == "historical_growth":
         _write_rows(
             d,

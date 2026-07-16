@@ -75,6 +75,7 @@ KINDS: frozenset[str] = frozenset(
         "horseshoe",
         "growth",
         "historical_growth",
+        "historical_joint",
         "survival",
         "block_exposure",
         "concurrent",

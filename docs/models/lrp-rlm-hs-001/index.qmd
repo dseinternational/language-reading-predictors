@@ -1,0 +1,72 @@
+---
+title: "RLMHS01: Byrne horseshoe ranking of wave-1 predictors of word-reading gain"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMHS01 is the Byrne analogue of `lrp-rli-hs-001` (#338 Phase D): one
+regularised-horseshoe regression of wave-3 BAS word reading on its own wave-1
+baseline plus the standardised wave-1 predictor set (`bpvs`, `trog`, `basdig`,
+`bassim`, `basnum`, age) under a shared shrinkage prior, ranked by posterior
+$P(|\beta| > 0.1)$. It is the ranking cross-check partner of `lrp-rlm-adj-001`
+over the **identical frame** (pooled three-group, n = 69, group-nuisance
+dummies outside the horseshoe): where the adjusted model reports every slope
+at face value, the horseshoe asks which predictors escape aggressive shrinkage.
+
+::: {.callout-important title="A ranking, not effects — and nothing causal"}
+
+The Byrne cohort has no intervention (`causal_status="none"`): this is a
+which-predictors-carry-signal read, not an effect estimate. Shrunk
+coefficients are not evidence of no association — at n = 69 with a correlated
+predictor cluster, the horseshoe deliberately zeroes what it cannot
+distinguish from noise.
+
+:::
+
+::: {.callout-note title="No gradient-boosting comparison"}
+
+The RLI horseshoe models cross-check a gradient-boosting ranking; no GB layer
+exists for the Byrne cohort, so no `horseshoe_vs_gb` table is produced. The
+comparison partner here is the mutually-adjusted model `lrp-rlm-adj-001`.
+
+:::
+
+## Model
+
+As `lrp-rlm-adj-001`'s frame, with the per-predictor slopes drawn from a
+regularised ("Finnish") horseshoe (global scale $\tau_0 = 0.1$, slab scale 2,
+slab df 4; Piironen & Vehtari 2017) instead of independent
+$\mathrm{Normal}(0, 0.3)$ priors. The group-nuisance dummies stay unshrunk
+($\mathrm{Normal}(0,1)$): the cohort factor is a nuisance, not a ranked
+construct. Sampling uses a raised `target_accept` for the global-local funnel.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_horseshoe.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
