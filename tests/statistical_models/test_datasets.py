@@ -171,6 +171,23 @@ def test_extension_waves_append_kept_subjects_only(tmp_path):
     assert {(g, w) for g in (1, 2, 3) for w in (1, 2, 3, 4)}.issubset(set(cells))
 
 
+def test_duplicate_extension_row_raises(tmp_path):
+    # #358 review: the extension tail has no complete-case row-count check, so a
+    # duplicated (subject, wave) row would silently reweight that cell - it must
+    # be rejected at load.
+    path = _write_synthetic(tmp_path, extension=True)
+    df = pd.read_csv(path)
+    dup = df[(df.subject_id == "S11") & (df.time == 4)]
+    pd.concat([df, dup], ignore_index=True).to_csv(path, index=False)
+    with pytest.raises(ValueError, match="Duplicate extension-wave rows"):
+        load_longitudinal_panel(
+            _dataset(path),
+            [RLM_MEASURES["basread"]],
+            waves=(1, 2, 3),
+            extension_waves=(4, 5),
+        )
+
+
 def test_extension_wave_overlapping_core_raises(tmp_path):
     path = _write_synthetic(tmp_path, extension=True)
     with pytest.raises(ValueError, match="overlap the complete-case core"):

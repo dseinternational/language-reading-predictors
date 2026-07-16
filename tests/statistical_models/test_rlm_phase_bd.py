@@ -70,6 +70,19 @@ def test_span_frame_complete_case(tmp_path):
     assert frame.post_counts["basread"].dtype.kind == "i"
 
 
+def test_duplicate_subject_wave_row_raises(tmp_path):
+    # #358 review: a duplicated (subject, wave) row would silently multiply rows
+    # through the wide-frame join - it must be rejected at load.
+    path = _write_battery_csv(tmp_path)
+    df = pd.read_csv(path)
+    dup = df[(df.subject_id == "S20") & (df.time == 1)]
+    pd.concat([df, dup], ignore_index=True).to_csv(path, index=False)
+    with pytest.raises(ValueError, match="Duplicate rows for subjects"):
+        load_rlm_span_frame(path=path)
+    with pytest.raises(ValueError, match="Duplicate rows for subjects"):
+        load_rlm_wave_battery(wave=1, path=path)
+
+
 def test_wave_battery_complete_case(tmp_path):
     path = _write_battery_csv(tmp_path)
     battery = load_rlm_wave_battery(wave=3, path=path)

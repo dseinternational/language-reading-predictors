@@ -1508,6 +1508,18 @@ def load_longitudinal_panel(
             & df[subj].isin(panel_df[subj].unique())
         ].copy()
         ext = ext.dropna(subset=[m.column for m in measures])
+        # Duplicate guard (the extension tail has no complete-case row-count
+        # check to catch this): a duplicated (subject, wave) row would silently
+        # enter the likelihood twice and reweight that cell.
+        dup = ext.duplicated(subset=[subj, wave_c])
+        if dup.any():
+            pairs = sorted(
+                (str(s), int(w))
+                for s, w in ext.loc[dup, [subj, wave_c]].itertuples(index=False)
+            )
+            raise ValueError(
+                f"Duplicate extension-wave rows for (subject, wave): {pairs}"
+            )
         panel_df = pd.concat([panel_df, ext], ignore_index=True)
 
     # Expose each measure under its study-local symbol (symbol == column for the
@@ -1644,9 +1656,19 @@ class RlmWaveBattery:
 def _rlm_wave_wide(
     df: pd.DataFrame, dataset: DatasetSpec, wave: int, columns: list[str]
 ) -> pd.DataFrame:
-    """One row per subject with ``columns`` read at ``wave`` (plus the group)."""
+    """One row per subject with ``columns`` read at ``wave`` (plus the group).
+
+    Rejects duplicated subjects at the wave: with a duplicate index the later
+    frame ``join`` would silently multiply rows and reweight those children.
+    """
     subj, wave_c, grp = dataset.subject_col, dataset.wave_col, dataset.group_col
     rows = df[df[wave_c] == int(wave)]
+    dup = rows.duplicated(subset=[subj])
+    if dup.any():
+        dupes = sorted(str(s) for s in rows.loc[dup, subj].unique())
+        raise ValueError(
+            f"Duplicate rows for subjects {dupes} at wave {int(wave)}."
+        )
     out = rows.set_index(subj)[[grp, *columns]].copy()
     out[grp] = out[grp].astype(int)
     return out
