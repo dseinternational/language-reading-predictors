@@ -202,15 +202,37 @@ _csv("mediation_sensitivity.csv")
 # | output: asis
 _is_cal = _csv("mediation_is_calibration.csv")
 if _is_cal is not None:
-    print(
-        "### Named-confounder calibration: intervention sessions (IS)\n\n"
-        "The abstract δ sweep is benchmarked against observed phase-0 session attendance. Within the treated arm, each row compares the adjusted mediator→reading slope before and after adding standardised `attend`; the attenuation-aligned change is `delta_is`, with a child-bootstrap interval. Restricting to treated children avoids treating the wait-list arm's structural zero sessions as low voluntary attendance. This same-sample slope-change construction is used for both legs: for E it is a direct adjusted `attend → E` association, empirically representing the DAG's indirect `IS → TE → EV` ancestry without multiplying two separately estimated associations. The stacked DID-007 dose slope is not substituted because its period-stacked estimand and scale are not commensurate with the phase-0 δ. This is a plausibility benchmark, not adjustment that identifies a natural effect.\n\n"
-    )
-    for _sentence in _is_cal["conclusion"]:
-        print(f"- {_sentence}\n")
+    if "status" in _is_cal.columns:
+        _c = _is_cal.iloc[0]
+        print("### Intervention-session named-confounder calibration\n")
+        if str(_c.get("status", "")) != "ok":
+            print(f"The IS calibration is not available for this fit: {_c.get('reason', 'required source artefacts are missing')}.\n")
+        else:
+            print(f"**Computed readout.** {_c.sentence}\n")
+            _tip = "not finite" if pd.isna(_c.tipping_delta) else f"{_c.tipping_delta:.2f}"
+            print(
+                "| Quantity | Calibration value |\n"
+                "|---|---:|\n"
+                f"| Fitted `IS → L` slope (standardised calibration scale) | {_c.fitted_mediator_dose_slope:+.2f} |\n"
+                f"| Fitted/observed `IS → outcome` slope (outcome logit) | {_c.fitted_outcome_dose_slope:+.2f} |\n"
+                f"| IS point on the δ surface | {_c.delta_is_point:.2f} |\n"
+                f"| 90% endpoint scenario band | {_c.delta_is_scenario_lo90:.2f} to {_c.delta_is_scenario_hi90:.2f} |\n"
+                f"| NIE tipping δ* | {_tip} |\n"
+                f"| NIE at the IS point ({_c.response_scale}) | {_c.nie_response_at_is:+.2f} ({_c.nie_response_lo_at_is:+.2f} to {_c.nie_response_hi_at_is:+.2f}) |\n"
+            )
+            print("This is a **scenario calibration, not an adjustment for sessions and not an identified causal effect**. It uses the single-omitted-variable approximation $\\delta_{IS} \\approx |\\beta_{IS\\to L}\\,\\beta_{IS\\to Y}|$ after putting both dose associations on the mediation sample's one-standard-deviation session scale. The band is the envelope of separate 90% marginal slope endpoints plus the observed-data cross-check; it is not a joint credible interval, and treating the whole `IS → outcome` association as confounding may overstate bias because that association can include a genuine `IS → L → outcome` path.\n")
+            if str(_c.get("off_floor", "")).strip().lower() in {"true", "1"}:
+                print("For the off-floor outcome, δ is necessarily calibrated as a shift in the Bernoulli outcome's **log-odds coefficient**; there is no constant conversion from log odds to a risk difference. The sensitivity sweep instead re-runs the Bernoulli g-formula at that δ and the table reports the resulting NIE on the **off-floor risk-difference** scale.\n")
+    elif "conclusion" in _is_cal.columns:
+        print(
+            "### Named-confounder calibration: intervention sessions (IS)\n\n"
+            "The abstract δ sweep is benchmarked against observed phase-0 session attendance. Within the treated arm, each row compares the adjusted mediator→reading slope before and after adding standardised `attend`; the attenuation-aligned change is `delta_is`, with a child-bootstrap interval. Restricting to treated children avoids treating the wait-list arm's structural zero sessions as low voluntary attendance. This same-sample slope-change construction is used for both legs: for E it is a direct adjusted `attend → E` association, empirically representing the DAG's indirect `IS → TE → EV` ancestry without multiplying two separately estimated associations. The stacked DID-007 dose slope is not substituted because its period-stacked estimand and scale are not commensurate with the phase-0 δ. This is a plausibility benchmark, not adjustment that identifies a natural effect.\n\n"
+        )
+        for _sentence in _is_cal["conclusion"]:
+            print(f"- {_sentence}\n")
 ```
 
 ```{python}
 # | echo: false
-_is_cal if _is_cal is not None else ""
+_is_cal if _is_cal is not None and "conclusion" in _is_cal.columns else ""
 ```

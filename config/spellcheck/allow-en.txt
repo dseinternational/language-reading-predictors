@@ -531,6 +531,7 @@ trog
 unadjustable
 unblockable
 unconfounded
+unconverged
 unfittable
 univariates
 unmodelled

@@ -13,9 +13,11 @@ than a hardcoded ``{E, R}``.
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from language_reading_predictors.statistical_models.factories import (
@@ -23,6 +25,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_period_stacked_mediation_model,
     build_two_mediator_model,
 )
+from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.mediation import (
     _proportion_row,
     calibrate_session_confounding,
@@ -31,6 +34,11 @@ from language_reading_predictors.statistical_models.mediation import (
     decompose_two_mediator,
     sensitivity_sweep,
     sensitivity_sweep_two_mediator,
+)
+from language_reading_predictors.statistical_models.mediation_calibration import (
+    SlopeEstimate,
+    calibrate_is_scenario,
+    generate_is_calibration,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
@@ -268,6 +276,153 @@ def test_sensitivity_sweep_attenuates_toward_null_for_both_signs(tmp_path):
         # Fraction of the fitted slope is a positive magnitude whatever the slope's sign.
         assert summary["tipping_frac_of_bM"] > 0.0
         assert np.sign(summary["b_M_effective_mean"]) == np.sign(b_m)
+
+
+def test_is_calibration_maps_offfloor_delta_back_to_risk_difference():
+    """#324: dose slopes locate IS on the coefficient-shift surface, while the
+    Bernoulli sweep — not a constant conversion — supplies the risk difference.
+
+    The point scenario is below the tipping point, but the deliberately wide 90%
+    endpoint envelope reaches it, so the computed sentence must give the cautious
+    could-plausibly-account verdict rather than claim survival.
+    """
+    sweep = pd.DataFrame(
+        {
+            "delta": [0.0, 0.5, 1.0],
+            "nie_median": [0.10, 0.05, 0.00],
+            "nie_lo": [0.02, -0.01, -0.05],
+            "nie_hi": [0.18, 0.11, 0.05],
+        }
+    )
+    summary = {
+        "already_null_at_zero": False,
+        "robust_over_full_sweep": False,
+        "tipping_delta": 0.5,
+    }
+    row = calibrate_is_scenario(
+        sweep,
+        summary,
+        fitted_mediator_slope=SlopeEstimate(0.5, 0.3, 0.7, "dose L"),
+        fitted_outcome_slope=SlopeEstimate(0.4, -0.1, 1.0, "observed N"),
+        observed_mediator_slope=SlopeEstimate(0.3, -0.2, 0.8, "observed L"),
+        observed_outcome_slope=SlopeEstimate(0.2, -0.4, 0.9, "observed N"),
+        n_obs=50,
+        off_floor=True,
+        n_trials_outcome=1,
+    )
+    assert row["delta_is_point"] == 0.2
+    assert row["nie_response_at_is"] == 0.08
+    assert row["response_scale"] == "off-floor risk difference"
+    assert row["verdict"] == "could_account_band"
+    assert "could plausibly account" in row["sentence"]
+    assert "off-floor risk difference" in row["sentence"]
+
+
+def test_is_calibration_reports_already_null_without_explain_away_claim():
+    """A wide NIE at delta=0 has no non-null effect for IS to explain away."""
+    sweep = pd.DataFrame(
+        {
+            "delta": [0.0, 0.5],
+            "nie_median": [0.03, 0.00],
+            "nie_lo": [-0.04, -0.06],
+            "nie_hi": [0.10, 0.06],
+        }
+    )
+    row = calibrate_is_scenario(
+        sweep,
+        {
+            # CSV regeneration may supply strings; ``bool("False")`` is True.
+            "already_null_at_zero": "True",
+            "robust_over_full_sweep": "False",
+            "tipping_delta": float("nan"),
+        },
+        fitted_mediator_slope=SlopeEstimate(0.2, -0.1, 0.5, "dose L"),
+        fitted_outcome_slope=SlopeEstimate(0.3, -0.2, 0.8, "dose B"),
+        observed_mediator_slope=SlopeEstimate(0.1, -0.3, 0.5, "observed L"),
+        observed_outcome_slope=SlopeEstimate(0.2, -0.4, 0.8, "observed B"),
+        n_obs=53,
+        off_floor=False,
+        n_trials_outcome=10,
+    )
+    assert row["verdict"] == "already_null"
+    assert "already includes zero" in row["sentence"]
+    assert "explain away" in row["sentence"]
+
+
+def test_generate_is_calibration_uses_gate_passed_dose_sources(tmp_path):
+    """The fit/regenerate integration reads both source slopes, aligns raw
+    attendance to the mediation sample and returns a computed MED-087 row."""
+    data_path = _write_synthetic(tmp_path, n_children=30)
+    prepared = load_and_prepare(
+        path=data_path,
+        phase_mode="itt",
+        outcomes=("B", "L"),
+    )
+    built, med = build_mediation_model(
+        prepared,
+        mediator_symbol="L",
+        outcome_symbol="B",
+        confounder_symbols=(),
+    )
+    models_dir = tmp_path / "models"
+    output_dir = models_dir / "lrp-rli-med-087-dev"
+    for model_id, mean in (
+        ("lrp-rli-dose-083", 0.4),
+        ("lrp-rli-dose-084", 0.3),
+    ):
+        source = models_dir / f"{model_id}-dev"
+        source.mkdir(parents=True)
+        with (source / "diagnostics_summary.json").open("w") as f:
+            json.dump({"passed": True}, f)
+        pd.DataFrame(
+            [
+                {
+                    "term": "dose_period1",
+                    "median": mean,
+                    "mean": mean,
+                    "lo90": mean - 0.2,
+                    "hi90": mean + 0.2,
+                    "dose_sd_sessions": 25.0,
+                }
+            ]
+        ).to_csv(source / "dose_slope_summary.csv", index=False)
+    sweep = pd.DataFrame(
+        {
+            "delta": [0.0, 0.5, 1.0],
+            "nie_median": [0.10, 0.05, 0.00],
+            "nie_lo": [0.02, -0.01, -0.05],
+            "nie_hi": [0.18, 0.11, 0.05],
+        }
+    )
+    spec = ModelSpec(
+        model_id="lrp-rli-med-087",
+        kind="mediation",
+        title="synthetic MED-087 calibration",
+        outcome_symbol="B",
+        mechanism_symbol="L",
+        adjustment=["G", "A", "W_pre", "L_t1"],
+    )
+    result = generate_is_calibration(
+        spec,
+        config="dev",
+        output_dir=output_dir,
+        prepared=built.prepared,
+        med=med,
+        sweep=sweep,
+        sensitivity_summary={
+            "already_null_at_zero": False,
+            "robust_over_full_sweep": False,
+            "tipping_delta": 0.5,
+        },
+        data_path=data_path,
+    )
+    assert result is not None
+    row = result.iloc[0]
+    assert row["status"] == "ok"
+    assert "lrp-rli-dose-083-dev" in row["mediator_source"]
+    assert "lrp-rli-dose-084-dev" in row["outcome_source"]
+    assert np.isfinite(row["delta_is_point"])
+    assert row["n_calibration"] == built.prepared.n_obs
 
 
 def test_decompose_follows_fitted_confounder_set(tmp_path):

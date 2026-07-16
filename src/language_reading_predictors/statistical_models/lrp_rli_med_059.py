@@ -46,7 +46,9 @@ g-formula decomposition under stated (cross-world) assumptions. An interventiona
 obstacle (no cross-world quantity is invoked) but is not thereby identified: it
 still assumes no unmeasured mediator-outcome confounding (Hejazi, Rudolph, van der
 Laan & Diaz 2022, A5, doi:10.1093/biostatistics/kxac002), which latent GA violates
-here. A weaker-assumption target, not a defensible one.
+here. A weaker-assumption target, not a defensible one. The #324 reporting
+calibration locates observed/fitted IS strength on the NIE sensitivity surface; it
+quantifies this caveat without repairing identification.
 
 Expect **wide** posteriors (n ~ 53). The headline is the proportion mediated with
 its full uncertainty; a wide interval pointing at "mostly via letter-sounds" is a

@@ -33,9 +33,9 @@ of LS and PA but is treatment-affected (IG -> IS): `LS <- IS -> PA` is a recanti
 witness, and no adjustment set rescues natural effects from that structure — while
 adjusting IS would change the estimand and open the collider `IG -> IS <- GA -> B`
 (GA latent), strictly worse. The constructive/quantitative answers are MED-187
-(the interventional-effects companion, #323) and #324 (IS on the #289 sensitivity
-surface). The report names shared session dose as a plausible inflator of the NIE
-via L.
+(the interventional-effects companion, #323) and #324, which locates an
+observed/fitted IS scenario on the #289 sensitivity surface. The report names shared
+session dose as a plausible inflator of the NIE via L.
 
 The binding unverifiable assumption is no unmeasured L -> B confounding (latent
 general ability violates it), as for LRP59 — a model-based g-formula decomposition

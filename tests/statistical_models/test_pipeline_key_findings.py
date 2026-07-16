@@ -87,8 +87,12 @@ def test_dose_summary_writes_items_scale_marginal(tmp_path, monkeypatch):
     )
     ctx = SimpleNamespace(
         trace=SimpleNamespace(posterior=posterior),
-        spec=SimpleNamespace(outcome_symbol="W"),
-        prepared=SimpleNamespace(phase=np.array([0, 1]), n_trials={"W": 100}),
+        spec=SimpleNamespace(outcome_symbol="W", extra={}),
+        prepared=SimpleNamespace(
+            phase=np.array([0, 1]),
+            n_trials={"W": 100},
+            covariate_scalers={"attend": SimpleNamespace(mean=12.0, sd=4.0)},
+        ),
         reporting=SimpleNamespace(ci_prob=0.95),
         output_dir=str(tmp_path),
         tables={},
@@ -102,3 +106,6 @@ def test_dose_summary_writes_items_scale_marginal(tmp_path, monkeypatch):
     assert summary.items_median == pytest.approx(float(np.median(expected)))
     assert summary.prob_pos == pytest.approx(1.0)
     assert "dose_marginal_summary" in ctx.tables
+    slope = pd.read_csv(tmp_path / "dose_slope_summary.csv").iloc[0]
+    assert slope.dose_mean_sessions == pytest.approx(12.0)
+    assert slope.dose_sd_sessions == pytest.approx(4.0)
