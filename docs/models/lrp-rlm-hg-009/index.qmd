@@ -1,0 +1,113 @@
+---
+title: "RLMHG09: Historical BAS matrices growth, waves 3-4 + DS wave 5 (Byrne et al.)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMHG09 is the BAS-matrices sibling of `lrp-rlm-hg-001` (word reading): a
+descriptive group-by-wave growth model for BAS matrices / non-verbal reasoning
+in the Byrne, MacDonald & Buckley reading-language-memory cohort
+(`study_id="rlm"`), for the three reading groups (Down syndrome, average
+readers, reading-matched). Unlike its siblings, `basmat` was introduced at
+**wave 3** — there is no wave-1/2 baseline — so the model runs on its own
+later-wave window: a waves-3-4 complete-case core, extended by wave 5 where
+children in that core were observed.
+
+::: {.callout-important title="Descriptive natural-history, NOT an intervention effect"}
+
+`readgrp` is a **cohort factor**, not a randomised or assigned condition, and this
+model carries no treatment, baseline-as-precision, or adjustment-set structure.
+Every quantity here is a **descriptive** group-by-wave expected score or growth
+rate — natural-history evidence, not a causal effect. The intervention-effect
+estimands live in the RLI (`lrp-rli-...`) suite.
+
+:::
+
+::: {.callout-note title="Confirmed Beta-Binomial ceiling (#338)"}
+
+The Beta-Binomial denominator ($N = 28$) is the instrument's confirmed
+maximum (`n_trials_confirmed=True`): BAS Matrices (first edition) has 28 items (CLOSER
+cognitive-measures guide; Parsons, 2014). Laws et al. (1995) used Raven's CPM
+(36 items) as this cohort's matrices measure, so the sign-off records the
+caveat that this column is BAS Matrices. Researched and signed off by
+the data owner (2026-07-16). The shared prior scales are reused from
+`lrp-rlm-hg-001`; the prior-predictive check below flags any miscalibration.
+
+:::
+
+::: {.callout-note title="Audit baseline"}
+
+The model is fit on the per-measure complete-case subset (subjects with BAS
+matrices observed at waves 3 and 4). Because the window starts at wave 3, the
+observed baseline here is **not** a paper Table 2 reproduction (Table 2 covers
+the first three waves); it is the same complete-case observed-cell audit
+computed from the prepared extract and written beside the posterior summaries.
+
+:::
+
+::: {.callout-note title="Extended follow-up window (#338)"}
+
+Wave 5 is an **extension wave** outside the complete-case rule: children in the
+core subset contribute wherever this measure was observed. The wave-5 cell is
+therefore an attrition-selected follow-up tail with its own per-cell `n`
+(reported in the tables), and it exists only for the Down syndrome group.
+Between-group quantities are taken over the common waves-3-4 window; wave 5
+extends the Down-syndrome trajectory only.
+
+:::
+
+## Model
+
+For child $i$ in reading group $g[i]$ at wave $t$, the bounded BAS-matrices
+count (denominator $N = 28$) is Beta-Binomial with an age-free, group-by-wave
+population mean and a stable per-child offset:
+
+$$
+\text{score}_{it} \sim \mathrm{BetaBinomial}(N,\ p_{it},\ \kappa_{g[i]}),
+\qquad
+\operatorname{logit}(p_{it}) = \eta_{g[i],\,t} + u_i .
+$$
+
+$\eta_{g,t}$ is the population expected score for each **supported**
+group-by-wave cell (waves 3-4 in all three groups, wave 5 for the Down syndrome group only —
+no prior-only cells); $u_i$ is a non-centred, **group-centred** per-child
+random intercept ($u_i = (z_i - \bar z_{g[i]})\,\sigma_{\text{subject},\,g[i]}$)
+so the group-by-wave level $\eta$ carries the group mean. Both the
+between-child SD $\sigma_{\text{subject},\,g}$ and the measurement
+overdispersion $\kappa_g$ are **indexed by group** (#338, follow-up-plan
+decision 7). Deterministic quantities report the expected item score per
+cell and within-group growth over the common waves-3-4 window; the
+Down-syndrome extension interval and the pairwise total-growth (wave 3 to
+wave 4) contrasts are summarised from the fitted cells on the children
+observed at both endpoint waves.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_historical_growth.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

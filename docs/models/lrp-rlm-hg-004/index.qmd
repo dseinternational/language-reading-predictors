@@ -1,5 +1,5 @@
 ---
-title: "RLMHG04: Historical BPVS receptive-vocabulary growth, waves 1-3 (Byrne et al.)"
+title: "RLMHG04: Historical BPVS receptive-vocabulary growth, waves 1-4 + DS wave 5 (Byrne et al.)"
 
 date: last-modified
 date-format: "YYYY-MM-DD HH:mm:ss Z"
@@ -28,10 +28,13 @@ Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 ## Overview
 
 RLMHG04 is a per-measure sibling of `lrp-rlm-hg-001` (word reading): a descriptive
-group-by-wave growth model for BPVS receptive vocabulary over the first three annual waves
+group-by-wave growth model for BPVS receptive vocabulary over waves 1-4 (plus a
+Down-syndrome-only wave-5 tail)
 of the Byrne, MacDonald & Buckley reading-language-memory cohort
 (`study_id="rlm"`), for the three reading groups (Down syndrome, average readers,
-reading-matched), on the complete-case subset that reproduces the paper's Table 2.
+reading-matched), on a waves-1-3 complete-case core that
+reproduces the paper's Table 2, extended by the later waves where children in
+that core were observed.
 
 ::: {.callout-important title="Descriptive natural-history, NOT an intervention effect"}
 
@@ -43,14 +46,13 @@ estimands live in the RLI (`lrp-rli-...`) suite.
 
 :::
 
-::: {.callout-warning title="Provisional Beta-Binomial ceiling"}
+::: {.callout-note title="Confirmed Beta-Binomial ceiling (#338)"}
 
-The Beta-Binomial denominator ($N = 29$) is the **observed maximum** in the
-prepared extract, not a manual-confirmed instrument ceiling
-(`n_trials_confirmed=False`). Confirming the true maximum against the instrument
-manual is a data-owner decision
-(`notes/202607021052-issue-164-byrne-followup-plan.md`, decision 3); until then,
-read the fitted cells as provisional. The shared prior scales are reused from
+The Beta-Binomial denominator ($N = 32$) is the instrument's confirmed
+maximum (`n_trials_confirmed=True`): the BPVS Short Form has 32 items (Ripley & Yuill, 2005); the
+observed maximum of 29 in this cohort is only consistent with the short form,
+not the long form. Researched and signed off by
+the data owner (2026-07-16). The shared prior scales are reused from
 `lrp-rlm-hg-001`; the prior-predictive check below flags any miscalibration.
 
 :::
@@ -58,31 +60,48 @@ read the fitted cells as provisional. The shared prior scales are reused from
 ::: {.callout-note title="Audit baseline"}
 
 The model is fit on the per-measure complete-case subset (subjects with this
-measure observed at all three waves). The observed group-by-wave means reproduce
+measure observed at
+all three core waves). The observed group-by-wave means reproduce
 the paper's Table 2 complete-case figures for this measure and are written beside
 the posterior summaries as the audit baseline.
+
+:::
+
+::: {.callout-note title="Extended follow-up window (#338)"}
+
+Waves 4 and 5 are **extension waves** outside the complete-case rule:
+children in the core subset contribute wherever this measure was observed.
+The later cells are therefore an attrition-selected follow-up tail with
+their own per-cell `n` (reported in the tables), and wave 5 exists only for
+the Down syndrome group. Between-group quantities are taken over the common
+waves-1-4 window; wave 5 extends the Down-syndrome trajectory only.
 
 :::
 
 ## Model
 
 For child $i$ in reading group $g[i]$ at wave $t$, the bounded BPVS receptive vocabulary
-count (denominator $N = 29$) is Beta-Binomial with an age-free, group-by-wave
+count (denominator $N = 32$) is Beta-Binomial with an age-free, group-by-wave
 population mean and a stable per-child offset:
 
 $$
-\text{score}_{it} \sim \mathrm{BetaBinomial}(N,\ p_{it},\ \kappa),
+\text{score}_{it} \sim \mathrm{BetaBinomial}(N,\ p_{it},\ \kappa_{g[i]}),
 \qquad
 \operatorname{logit}(p_{it}) = \eta_{g[i],\,t} + u_i .
 $$
 
-$\eta_{g,t}$ is the population group-by-wave expected score (a $3 \times 3$
-grid); $u_i$ is a non-centred, **group-centred** per-child random intercept
-($u_i = (z_i - \bar z_{g[i]})\,\sigma_{\text{subject}}$) so the
-group-by-wave level $\eta$ carries the group mean; $\kappa$ is measurement
-overdispersion. Deterministic quantities report the expected item score per group
-and wave, within-group growth across the two annual intervals, and pairwise
-total-growth (wave 1 to wave 3) contrasts between groups.
+$\eta_{g,t}$ is the population expected score for each **supported**
+group-by-wave cell (waves 1-4 in all three groups, wave 5 for the Down syndrome group only —
+no prior-only cells); $u_i$ is a non-centred, **group-centred** per-child
+random intercept ($u_i = (z_i - \bar z_{g[i]})\,\sigma_{\text{subject},\,g[i]}$)
+so the group-by-wave level $\eta$ carries the group mean. Both the
+between-child SD $\sigma_{\text{subject},\,g}$ and the measurement
+overdispersion $\kappa_g$ are **indexed by group** (#338, follow-up-plan
+decision 7). Deterministic quantities report the expected item score per
+cell and within-group growth over the common waves-1-4 window; the
+extension intervals and the pairwise total-growth (wave 1 to wave 4)
+contrasts are summarised from the fitted cells on the children observed at
+both endpoint waves.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

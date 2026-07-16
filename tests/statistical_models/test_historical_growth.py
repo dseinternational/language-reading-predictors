@@ -29,10 +29,13 @@ from language_reading_predictors.statistical_models.reporting import write_run_m
 from .test_datasets import _dataset, _write_synthetic
 
 
-def _panel(tmp_path):
-    path = _write_synthetic(tmp_path)
+def _panel(tmp_path, *, extension=False, extension_waves=()):
+    path = _write_synthetic(tmp_path, extension=extension)
     return load_longitudinal_panel(
-        _dataset(path), [RLM_MEASURES["basread"]], waves=(1, 2, 3)
+        _dataset(path),
+        [RLM_MEASURES["basread"]],
+        waves=(1, 2, 3),
+        extension_waves=extension_waves,
     )
 
 
@@ -41,7 +44,7 @@ def test_build_historical_growth_model(tmp_path):
     built = build_historical_growth_model(panel, measure="basread")
 
     names = {v.name for v in built.model.free_RVs}
-    assert {"eta_group_wave", "sigma_subject", "z_subject", "kappa"}.issubset(names)
+    assert {"eta_cell", "sigma_subject", "z_subject", "kappa"}.issubset(names)
     dets = {v.name for v in built.model.deterministics}
     assert {
         "subject_offset",
@@ -52,6 +55,35 @@ def test_build_historical_growth_model(tmp_path):
     }.issubset(dets)
     assert "score" in {v.name for v in built.model.observed_RVs}
     assert built.prepared is panel  # panel carried through for the summaries
+    # #338: the random-effect scales are indexed by group.
+    assert built.model.named_vars["sigma_subject"].eval().shape == (3,)
+    assert built.model.named_vars["kappa"].eval().shape == (3,)
+    # Rectangular panel -> one eta per (group, wave) cell.
+    assert built.model.named_vars["eta_cell"].eval().shape == (9,)
+
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=1)
+    assert pp.prior_predictive["score"].shape[-1] == panel.n_obs
+
+
+def test_build_historical_growth_model_ragged_extension(tmp_path):
+    # #338: extension waves add only *supported* cells - the group-1-only wave 5
+    # contributes one eta cell, not a prior-only row for every group.
+    panel = _panel(tmp_path, extension=True, extension_waves=(4, 5))
+    built = build_historical_growth_model(panel, measure="basread")
+
+    cells = panel.cells("basread")
+    assert built.model.named_vars["eta_cell"].eval().shape == (len(cells),)
+    assert (1, 5) in cells and (2, 5) not in cells
+    # Growth deterministics span the common (all-group) window: waves 1-4.
+    coords = built.model.coords
+    assert len(coords["cell"]) == len(cells)
+    dets = {v.name for v in built.model.deterministics}
+    assert {
+        "growth_first_next_items",
+        "growth_next_last_items",
+        "growth_first_last_items",
+    }.issubset(dets)
 
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=1)
@@ -103,20 +135,27 @@ def test_dataset_metadata_reaches_config_json(tmp_path):
     assert cfg["audit_baseline"] == "table2_complete_case_summary"
 
 
-# --- #164 Phase A: the per-measure historical-growth models (lrp-rlm-hg-002..008) ---
+# --- #164 Phase A models (lrp-rlm-hg-001..009), with their #338 wave windows:
+# (measure, complete-case core waves, extension waves).
 _PHASE_A_MODELS = {
-    "lrp-rlm-hg-002": "basspel",
-    "lrp-rlm-hg-003": "woco",
-    "lrp-rlm-hg-004": "bpvs",
-    "lrp-rlm-hg-005": "trog",
-    "lrp-rlm-hg-006": "basdig",
-    "lrp-rlm-hg-007": "bassim",
-    "lrp-rlm-hg-008": "basnum",
+    "lrp-rlm-hg-001": ("basread", (1, 2, 3), (4, 5)),
+    "lrp-rlm-hg-002": ("basspel", (1, 2, 3), (4, 5)),
+    "lrp-rlm-hg-003": ("woco", (1, 2, 3), (4, 5)),
+    "lrp-rlm-hg-004": ("bpvs", (1, 2, 3), (4, 5)),
+    "lrp-rlm-hg-005": ("trog", (1, 2, 3), (4, 5)),
+    "lrp-rlm-hg-006": ("basdig", (1, 2, 3), (4, 5)),
+    "lrp-rlm-hg-007": ("bassim", (1, 2, 3), (4, 5)),
+    # basnum was not assessed at wave 5; basmat is wave-3+ only (own core).
+    "lrp-rlm-hg-008": ("basnum", (1, 2, 3), (4,)),
+    "lrp-rlm-hg-009": ("basmat", (3, 4), (5,)),
 }
 
 
-@pytest.mark.parametrize("model_id, measure", sorted(_PHASE_A_MODELS.items()))
-def test_phase_a_specs_well_formed(model_id, measure):
+@pytest.mark.parametrize(
+    "model_id, measure, waves, extension_waves",
+    [(mid, *cfg) for mid, cfg in sorted(_PHASE_A_MODELS.items())],
+)
+def test_phase_a_specs_well_formed(model_id, measure, waves, extension_waves):
     """Each Phase-A hg model is discoverable and carries the right descriptive metadata."""
     from language_reading_predictors.statistical_models.datasets import resolve_dataset
     from language_reading_predictors.statistical_models.registry import discover_models
@@ -131,7 +170,8 @@ def test_phase_a_specs_well_formed(model_id, measure):
     # Descriptive, non-causal: readgrp is a cohort factor, never a treatment.
     assert spec.estimand_type == "descriptive"
     assert spec.causal_status == "none"
-    assert tuple(spec.extra["waves"]) == (1, 2, 3)
+    assert tuple(spec.extra["waves"]) == waves
+    assert tuple(spec.extra["extension_waves"]) == extension_waves
     assert spec.extra["measure"] == measure
     # The measure the spec names must be registered for the study.
     _dataset_spec, measures = resolve_dataset("rlm")

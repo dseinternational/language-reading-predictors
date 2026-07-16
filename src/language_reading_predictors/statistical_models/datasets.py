@@ -84,27 +84,52 @@ RLM_GROUP_LABELS: dict[int, str] = {
     3: "Reading-matched",
 }
 
-# ``basread`` uses its confirmed BAS word-reading ceiling (87, matching the
-# observed maximum in the prepared extract). The other seven Byrne Table 2
-# measures are registered for the per-measure historical-growth sweep (#164
-# Phase A) with a **provisional** ceiling equal to the observed maximum in the
-# extract and ``n_trials_confirmed=False``: the Beta-Binomial denominator is a
-# placeholder until each instrument's true maximum is confirmed against its
-# manual (the data-owner decision in
-# ``notes/202607021052-issue-164-byrne-followup-plan.md``, decision 3). This
-# mirrors how ``basread`` itself began (observed-max placeholder) and is why the
-# per-measure reports flag their ceiling as unconfirmed. ``basmat`` stays
-# unregistered here: it is wave-3+ only (no wave-1 baseline), so it needs its own
-# wave range and is handled separately.
+# Instrument ceilings researched against published sources and signed off by the
+# data owner on 2026-07-16 (#338; see the dated decisions note). The battery and
+# editions are confirmed by the cohort's companion paper (Byrne, Buckley,
+# MacDonald & Bird, 1995, DSRP 3(2)): BAS first edition (Elliott, 1983), TROG
+# (Bishop, 1983/1989), BPVS (Dunn, Dunn, Whetton & Pintilie, 1982), WORD (Rust,
+# Golombok & Trickey, 1993). Confirmed ceilings (``n_trials_confirmed=True``):
+#
+# - ``basread``  90 - BAS Word Reading has 90 words (Beech 2004, Reading
+#   Psychology; the previous 87 was the observed extract maximum mislabelled as
+#   confirmed).
+# - ``trog``     20 - 80 items in 20 blocks of 4, scored as blocks passed
+#   (Bishop's original TROG manual, OSF). The extract reaches this ceiling.
+# - ``basdig``   34 - BAS Recall of Digits, 34 items (CLOSER cognitive-measures
+#   guide; Parsons 2014). The extract reaches this ceiling.
+# - ``bassim``   21 - BAS Similarities, 21 items (CLOSER guide; Parsons 2014).
+# - ``basmat``   28 - BAS Matrices, 28 items (CLOSER guide; Parsons 2014).
+#   Caveat recorded in the decisions note: Laws et al. (1995) used Raven's CPM
+#   (36 items) as this cohort's matrices measure, so the instrument identity
+#   rests on the ``basmat`` column being BAS Matrices.
+# - ``bpvs``     32 - BPVS Short Form, 32 items (Ripley & Yuill 2005): the
+#   observed maximum of 29 across ages to 11+ is only consistent with the
+#   short form, not the long form.
+#
+# Still **provisional** (observed extract maximum; ``n_trials_confirmed=False``),
+# pending the instrument manuals (follow-up-plan decision 3):
+#
+# - ``basspel``  18 - the 1983 BAS has no spelling scale; the instrument is
+#   almost certainly the stand-alone BAS Spelling Scale (Elliott, 1992), whose
+#   first-edition item count is unverified (the BAS-II revision has 75 words),
+#   so the true denominator likely exceeds 18.
+# - ``basnum``   60 - 1983 Basic Number Skills item count unverified; the
+#   observed 60 rules out the 46-item BAS-II scale, so the ceiling is >= 60.
+# - ``woco``     31 - WORD Reading Comprehension item count unverified (the
+#   parent WIAT subtest is commonly described as 38 items).
+#
+# ``basmat`` is wave-3+ only (no wave-1 baseline): registered for the #338
+# Phase A window extension and fitted on its own later-wave window
+# (``lrp-rlm-hg-009``).
 RLM_MEASURES: dict[str, StudyMeasure] = {
     "basread": StudyMeasure(
         symbol="basread",
         column="basread",
-        n_trials=87,
+        n_trials=90,
         label="BAS word reading",
         n_trials_confirmed=True,
     ),
-    # --- #164 Phase A: provisional observed-max ceilings (n_trials_confirmed=False) ---
     "basspel": StudyMeasure(
         symbol="basspel",
         column="basspel",
@@ -122,30 +147,30 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
     "bpvs": StudyMeasure(
         symbol="bpvs",
         column="bpvs",
-        n_trials=29,
+        n_trials=32,
         label="BPVS receptive vocabulary",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
     "trog": StudyMeasure(
         symbol="trog",
         column="trog",
         n_trials=20,
         label="TROG receptive grammar",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
     "basdig": StudyMeasure(
         symbol="basdig",
         column="basdig",
         n_trials=34,
         label="BAS recall of digits",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
     "bassim": StudyMeasure(
         symbol="bassim",
         column="bassim",
-        n_trials=18,
+        n_trials=21,
         label="BAS similarities/verbal reasoning",
-        n_trials_confirmed=False,
+        n_trials_confirmed=True,
     ),
     "basnum": StudyMeasure(
         symbol="basnum",
@@ -153,6 +178,13 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=60,
         label="BAS number skills",
         n_trials_confirmed=False,
+    ),
+    "basmat": StudyMeasure(
+        symbol="basmat",
+        column="basmat",
+        n_trials=28,
+        label="BAS matrices/non-verbal reasoning",
+        n_trials_confirmed=True,
     ),
 }
 

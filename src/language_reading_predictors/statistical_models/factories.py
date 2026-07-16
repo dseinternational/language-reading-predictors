@@ -5106,18 +5106,26 @@ def build_historical_growth_model(
 ) -> BuiltModel:
     """Descriptive group-by-wave growth model for a historical cohort.
 
-    Beta-Binomial on a bounded count with a population ``eta[group, wave]`` grid
-    and a non-centred, group-centred per-subject random intercept::
+    Beta-Binomial on a bounded count with a population level per **supported
+    (group, wave) cell** and a non-centred, group-centred per-subject random
+    intercept, with the random-effect scales indexed by group (#338)::
 
-        score_it ~ BetaBinomial(n, p_it, kappa)
-        logit(p_it) = eta[group_i, wave_t] + subject_offset_i
+        score_it ~ BetaBinomial(n, p_it, kappa[group_i])
+        logit(p_it) = eta_cell[cell(group_i, wave_t)] + subject_offset_i
+        subject_offset_i = (z_i - mean(z, group_i)) * sigma_subject[group_i]
 
-    This is **descriptive natural-history** evidence, not an intervention-effect
-    model: ``group`` carries no treatment semantics, there is no baseline-as-
-    precision term and no adjustment set. Deterministics expose the group-by-wave
-    expected item score, within-group interval growth, and pairwise total-growth
-    contrasts. Ported from the standalone ``lrp-rlm-hg-001`` script (#163) onto the
-    shared pipeline (#165).
+    ``eta_cell`` ranges over the cells that actually carry data, so a ragged
+    follow-up window (the Byrne wave-5 Down-syndrome-only extension, #338) adds
+    no prior-only parameters. Group-indexed ``sigma_subject`` / ``kappa`` let
+    between-child heterogeneity and overdispersion differ by cohort group
+    (follow-up-plan decision 7). This is **descriptive natural-history**
+    evidence, not an intervention-effect model: ``group`` carries no treatment
+    semantics, there is no baseline-as-precision term and no adjustment set.
+    Deterministics expose the per-cell expected item score and within-group
+    interval growth over the **common window** (the waves every group supports);
+    the ragged extension intervals are summarised downstream
+    (:mod:`historical`) on common-subject cells. Ported from the standalone
+    ``lrp-rlm-hg-001`` script (#163) onto the shared pipeline (#165).
     """
     df = panel.long
     dataset = panel.dataset
@@ -5128,14 +5136,32 @@ def build_historical_growth_model(
 
     group_codes = panel.group_codes
     group_labels = panel.group_labels
-    wave_codes = list(panel.waves)
     subject_ids = panel.subject_ids
     group_index = {code: i for i, code in enumerate(group_codes)}
-    wave_index = {w: i for i, w in enumerate(wave_codes)}
     subject_index = {s: i for i, s in enumerate(subject_ids)}
 
+    cells = panel.cells(measure)
+    cell_index = {cell: i for i, cell in enumerate(cells)}
+    cell_labels = [
+        f"{group_labels[group_index[g]]} | wave {w}" for g, w in cells
+    ]
+    # Waves supported in *every* group - the window where between-group
+    # quantities are defined (the Byrne common window is w1-w4; wave 5 is a
+    # Down-syndrome-only extension).
+    common_waves = [
+        w
+        for w in sorted({w for _g, w in cells})
+        if all((g, w) in cell_index for g in group_codes)
+    ]
+
     group_idx = df[grp].map(group_index).to_numpy(dtype=int)
-    wave_idx = df[wave_c].map(wave_index).to_numpy(dtype=int)
+    obs_cell_idx = np.array(
+        [
+            cell_index[(int(g), int(w))]
+            for g, w in zip(df[grp], df[wave_c], strict=True)
+        ],
+        dtype=int,
+    )
     subject_idx = df[subj].map(subject_index).to_numpy(dtype=int)
     observed = df[measure].to_numpy(dtype=int)
     subject_group = (
@@ -5148,36 +5174,44 @@ def build_historical_growth_model(
 
     coords = {
         "group": group_labels,
-        "wave": wave_codes,
+        "cell": cell_labels,
         "subject": [str(s) for s in subject_ids],
         "obs": np.arange(len(df)),
     }
 
+    def _cell_pos(wave: int) -> list[int]:
+        """Positions of ``(group, wave)`` in the cell vector, in group order."""
+        return [cell_index[(g, wave)] for g in group_codes]
+
     with pm.Model(coords=coords) as model:
-        eta_group_wave = pm.Normal(
-            "eta_group_wave", mu=0.0, sigma=eta_prior_sigma, dims=("group", "wave")
+        eta_cell = pm.Normal(
+            "eta_cell", mu=0.0, sigma=eta_prior_sigma, dims="cell"
         )
-        sigma_subject = pm.HalfNormal("sigma_subject", sigma=sigma_subject_prior_sigma)
+        sigma_subject = pm.HalfNormal(
+            "sigma_subject", sigma=sigma_subject_prior_sigma, dims="group"
+        )
         z_subject = pm.Normal("z_subject", mu=0.0, sigma=1.0, dims="subject")
         # Group-centre the subject offsets for identifiability against
-        # ``eta_group_wave`` (the group-by-wave level absorbs the group mean).
+        # ``eta_cell`` (the group-by-wave level absorbs the group mean).
         z_group_mean = pm.math.stack(
             [z_subject[subject_group == g].mean() for g in range(len(group_codes))]
         )
         subject_offset = pm.Deterministic(
             "subject_offset",
-            (z_subject - z_group_mean[subject_group]) * sigma_subject,
+            (z_subject - z_group_mean[subject_group])
+            * sigma_subject[subject_group],
             dims="subject",
         )
-        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma)
+        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="group")
 
-        eta_obs = eta_group_wave[group_idx, wave_idx] + subject_offset[subject_idx]
+        eta_obs = eta_cell[obs_cell_idx] + subject_offset[subject_idx]
         p_obs = pm.math.sigmoid(eta_obs)
+        kappa_obs = kappa[group_idx]
         pm.BetaBinomial(
             "score",
             n=n_trials,
-            alpha=p_obs * kappa,
-            beta=(1.0 - p_obs) * kappa,
+            alpha=p_obs * kappa_obs,
+            beta=(1.0 - p_obs) * kappa_obs,
             observed=observed,
             dims="obs",
         )
@@ -5185,27 +5219,30 @@ def build_historical_growth_model(
 
         mean_items = pm.Deterministic(
             "mean_items",
-            n_trials * pm.math.sigmoid(eta_group_wave),
-            dims=("group", "wave"),
+            n_trials * pm.math.sigmoid(eta_cell),
+            dims="cell",
         )
-        # Within-group interval growth (items), first->second and second->third
-        # wave, plus first->last, when at least three waves are modelled.
-        if len(wave_codes) >= 2:
+        # Within-group interval growth (items) over the common window:
+        # first->second and second->last common wave, plus first->last.
+        if len(common_waves) >= 2:
             pm.Deterministic(
                 "growth_first_next_items",
-                mean_items[:, 1] - mean_items[:, 0],
+                mean_items[_cell_pos(common_waves[1])]
+                - mean_items[_cell_pos(common_waves[0])],
                 dims="group",
             )
-        if len(wave_codes) >= 3:
+        if len(common_waves) >= 3:
             pm.Deterministic(
                 "growth_next_last_items",
-                mean_items[:, 2] - mean_items[:, 1],
+                mean_items[_cell_pos(common_waves[-1])]
+                - mean_items[_cell_pos(common_waves[1])],
                 dims="group",
             )
-        if len(wave_codes) >= 2:
+        if len(common_waves) >= 2:
             pm.Deterministic(
                 "growth_first_last_items",
-                mean_items[:, -1] - mean_items[:, 0],
+                mean_items[_cell_pos(common_waves[-1])]
+                - mean_items[_cell_pos(common_waves[0])],
                 dims="group",
             )
 

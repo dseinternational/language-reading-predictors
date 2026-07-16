@@ -7203,11 +7203,16 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     study_id = spec.extra.get("study_id", spec.study_id)
     measure = spec.extra.get("measure", spec.outcome_symbol or "basread")
     waves = tuple(spec.extra.get("waves", (1, 2, 3)))
+    extension_waves = tuple(spec.extra.get("extension_waves", ()))
     dataset, measures = _datasets.resolve_dataset(study_id)
     if measure not in measures:
         raise KeyError(f"measure {measure!r} not registered for study {study_id!r}")
     panel = load_longitudinal_panel(
-        dataset, [measures[measure]], waves=waves, complete_case=True
+        dataset,
+        [measures[measure]],
+        waves=waves,
+        complete_case=True,
+        extension_waves=extension_waves,
     )
     ctx.prepared = panel
 
@@ -7236,7 +7241,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     _render_model_graph(ctx)
 
-    diag_vars = ["eta_group_wave", "sigma_subject", "kappa"]
+    diag_vars = ["eta_cell", "sigma_subject", "kappa"]
     diag_vars += [
         v
         for v in (
@@ -7306,6 +7311,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
             "measure_label": measure_label,
             "n_trials": panel.n_trials[measure],
             "waves": list(waves),
+            "extension_waves": list(extension_waves),
             "groups": dict(
                 zip(panel.group_codes, panel.group_labels, strict=True)
             ),

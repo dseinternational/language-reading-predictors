@@ -1366,7 +1366,8 @@ class LongitudinalPanel:
     measures: tuple[str, ...]
     """Study-local measure symbols included, in the requested order."""
     long: pd.DataFrame
-    """Tidy complete-case frame, sorted by (group, subject, wave). Columns: the
+    """Tidy frame, sorted by (group, subject, wave): the complete-case core-wave
+    rows plus any observed extension-wave rows for kept subjects. Columns: the
     dataset subject / wave / group columns, ``<group_col>_label``, and one column
     per measure symbol."""
     subject_ids: list
@@ -1374,14 +1375,32 @@ class LongitudinalPanel:
     group_labels: list[str]
     """Group labels aligned to ``group_codes``."""
     waves: tuple[int, ...]
+    """The complete-case **core** window (every kept subject observed at each)."""
     counts: dict[str, np.ndarray]
-    """Symbol -> (n_subjects, n_waves) observed counts, NaN where missing."""
+    """Symbol -> (n_subjects, n_waves) observed counts over the core window,
+    NaN where missing."""
     obs_mask: dict[str, np.ndarray]
     n_trials: dict[str, int]
     n_subjects: int
     n_waves: int
     dropped_subjects: int
     group_label_col: str
+    extension_waves: tuple[int, ...] = ()
+    """Waves appended outside the complete-case rule: kept subjects contribute
+    where observed (an attrition-selected tail, e.g. the Byrne w4/w5 extension)."""
+
+    @property
+    def all_waves(self) -> tuple[int, ...]:
+        """Core + extension waves, in ascending order."""
+        return tuple(sorted({*self.waves, *self.extension_waves}))
+
+    def cells(self, measure: str) -> list[tuple[int, int]]:
+        """Supported ``(group_code, wave)`` cells for ``measure``, in
+        (group, wave) order — the cells with at least one observed row."""
+        df = self.long.dropna(subset=[measure])
+        grp, wave_c = self.dataset.group_col, self.dataset.wave_col
+        pairs = {(int(g), int(w)) for g, w in zip(df[grp], df[wave_c], strict=True)}
+        return sorted(pairs)
 
     @property
     def n_obs(self) -> int:
@@ -1410,6 +1429,7 @@ def load_longitudinal_panel(
     *,
     waves: tuple[int, ...],
     complete_case: bool = True,
+    extension_waves: tuple[int, ...] = (),
     path: str | Path | None = None,
 ) -> LongitudinalPanel:
     """Load a study's long-format CSV into a :class:`LongitudinalPanel`.
@@ -1418,7 +1438,17 @@ def load_longitudinal_panel(
     every ``measures`` value observed at every wave - the per-measure complete-case
     subset the Byrne Table 2 reproduction uses. Validates that no observed count
     exceeds its measure ceiling and that each kept subject has exactly
-    ``len(waves)`` rows.
+    ``len(waves)`` rows on the core window.
+
+    ``extension_waves`` appends later waves **outside** the complete-case rule:
+    kept subjects contribute an extension-wave row wherever the measure is
+    observed (issue #338 Phase A window extension). The complete-case core is
+    deliberately unchanged by the extension - it stays the audit-anchored
+    subset (Table 2 for the Byrne waves 1-3) - so extension cells are an
+    attrition-selected follow-up tail and reports must carry their own per-cell
+    ``n``. Extension waves may be unsupported in some groups (the Byrne wave 5
+    exists only for the Down syndrome group); :meth:`LongitudinalPanel.cells`
+    exposes the supported (group, wave) set.
     """
     if not measures:
         raise ValueError(
@@ -1448,6 +1478,13 @@ def load_longitudinal_panel(
     df[label_col] = df[grp].map(dataset.group_labels)
 
     waves = tuple(int(w) for w in waves)
+    extension_waves = tuple(int(w) for w in extension_waves)
+    overlap = sorted(set(waves) & set(extension_waves))
+    if overlap:
+        raise ValueError(
+            f"extension_waves {overlap} overlap the complete-case core window "
+            f"{list(waves)}; extension waves must be additional waves."
+        )
     in_waves = df[df[wave_c].isin(waves)].copy()
     n_subjects_before = int(in_waves[subj].nunique())
 
@@ -1462,6 +1499,16 @@ def load_longitudinal_panel(
         panel_df = in_waves[in_waves[subj].isin(keep)].copy()
     else:
         panel_df = in_waves
+
+    if extension_waves:
+        # Kept subjects contribute an extension-wave row wherever every requested
+        # measure is observed there (available-case at the extension waves only).
+        ext = df[
+            df[wave_c].isin(extension_waves)
+            & df[subj].isin(panel_df[subj].unique())
+        ].copy()
+        ext = ext.dropna(subset=[m.column for m in measures])
+        panel_df = pd.concat([panel_df, ext], ignore_index=True)
 
     # Expose each measure under its study-local symbol (symbol == column for the
     # Byrne measures, but keep the mapping explicit for future studies).
@@ -1486,12 +1533,13 @@ def load_longitudinal_panel(
                 f"(max {float(observed.max()):g})."
             )
     if complete_case and measure_syms:
-        per_subject = panel_df.groupby(subj)[measure_syms[0]].size()
+        core_rows = panel_df[panel_df[wave_c].isin(waves)]
+        per_subject = core_rows.groupby(subj)[measure_syms[0]].size()
         bad = per_subject[per_subject != len(waves)]
         if not bad.empty:
             raise ValueError(
                 f"Complete-case panel has subjects without all {len(waves)} "
-                f"waves: {bad.to_dict()}"
+                f"core waves: {bad.to_dict()}"
             )
 
     subject_ids = panel_df[subj].drop_duplicates().tolist()
@@ -1525,4 +1573,5 @@ def load_longitudinal_panel(
         n_waves=len(waves),
         dropped_subjects=n_subjects_before - len(subject_ids),
         group_label_col=label_col,
+        extension_waves=extension_waves,
     )

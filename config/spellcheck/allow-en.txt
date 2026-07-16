@@ -237,6 +237,7 @@ Vansteelandt
 Vehtari
 Verhoeven
 WAMBS
+WIAT
 WPPSI
 Wagenmakers
 Walley
@@ -251,6 +252,7 @@ YARC
 YYYYMMDDHHMM
 Yarkoni
 Yoder
+Yuill
 Zaalen
 Zigler
 Zotero
