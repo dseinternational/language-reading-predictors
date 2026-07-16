@@ -103,6 +103,7 @@ def _cell_values(
     label: str,
     wave: int,
     subjects: set | None = None,
+    fitted_var: str = "fitted_mean_items_obs",
 ) -> np.ndarray:
     """Posterior draws of the fitted mean count for one (group, wave) cell.
 
@@ -111,7 +112,7 @@ def _cell_values(
     per-child offsets cancel exactly and attrition at an extension wave (#338)
     cannot masquerade as growth.
     """
-    fitted = posterior["fitted_mean_items_obs"].stack(sample=("chain", "draw"))
+    fitted = posterior[fitted_var].stack(sample=("chain", "draw"))
     obs_idx = _cell_obs_index(panel, label, wave, subjects)
     if len(obs_idx) == 0:
         raise ValueError(f"No observations for group={label!r}, wave={wave!r}.")
@@ -151,6 +152,8 @@ def cell_summary(
     measure: str,
     measure_label: str,
     baseline: pd.DataFrame,
+    mean_var: str = "mean_items",
+    fitted_var: str = "fitted_mean_items_obs",
 ) -> pd.DataFrame:
     """Posterior fitted group-by-wave means vs the observed baseline.
 
@@ -159,7 +162,7 @@ def cell_summary(
     attrition-selected extension tail (#338); ``n_obs`` is the cell's own count.
     """
     posterior = trace.posterior
-    population = posterior["mean_items"].stack(sample=("chain", "draw"))
+    population = posterior[mean_var].stack(sample=("chain", "draw"))
     cells = panel.cells(measure)
     cell_pos = {cell: i for i, cell in enumerate(cells)}
     code_to_label = dict(zip(panel.group_codes, panel.group_labels, strict=True))
@@ -170,7 +173,9 @@ def cell_summary(
         if len(audit_row) != 1:
             raise ValueError(f"Expected one baseline row for group {label!r}.")
         audit_row = audit_row.iloc[0]
-        fitted = _summarize(_cell_values(posterior, panel, label, wave))
+        fitted = _summarize(
+            _cell_values(posterior, panel, label, wave, fitted_var=fitted_var)
+        )
         pop = _summarize(population.isel(cell=cell_pos[(code, wave)]).values)
         observed_mean = float(audit_row[f"time_{wave}_mean"])
         rows.append(
@@ -194,7 +199,12 @@ def cell_summary(
     return pd.DataFrame(rows)
 
 
-def growth_summary(trace, panel: LongitudinalPanel, measure: str) -> pd.DataFrame:
+def growth_summary(
+    trace,
+    panel: LongitudinalPanel,
+    measure: str,
+    fitted_var: str = "fitted_mean_items_obs",
+) -> pd.DataFrame:
     """Within-group interval growth + pairwise total-growth contrasts (in items).
 
     Every interval is computed on the children observed at **both** endpoint
@@ -214,8 +224,12 @@ def growth_summary(trace, panel: LongitudinalPanel, measure: str) -> pd.DataFram
         subjects = _cell_subjects(panel, label, start) & _cell_subjects(
             panel, label, end
         )
-        start_vals = _cell_values(posterior, panel, label, start, subjects)
-        end_vals = _cell_values(posterior, panel, label, end, subjects)
+        start_vals = _cell_values(
+            posterior, panel, label, start, subjects, fitted_var=fitted_var
+        )
+        end_vals = _cell_values(
+            posterior, panel, label, end, subjects, fitted_var=fitted_var
+        )
         window = (
             "core"
             if (start in panel.waves and end in panel.waves)
@@ -252,8 +266,10 @@ def growth_summary(trace, panel: LongitudinalPanel, measure: str) -> pd.DataFram
                 panel, label, end
             )
             total[label] = _cell_values(
-                posterior, panel, label, end, subjects
-            ) - _cell_values(posterior, panel, label, start, subjects)
+                posterior, panel, label, end, subjects, fitted_var=fitted_var
+            ) - _cell_values(
+                posterior, panel, label, start, subjects, fitted_var=fitted_var
+            )
         labels = panel.group_labels
         for i in range(len(labels)):
             for j in range(i + 1, len(labels)):

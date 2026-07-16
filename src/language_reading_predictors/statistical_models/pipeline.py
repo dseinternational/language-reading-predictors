@@ -7323,6 +7323,682 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
 
 # ---------------------------------------------------------------------------
+# Byrne (RLM) Phase B/D fits (#338): adjusted, horseshoe, corr_factor, joint
+# ---------------------------------------------------------------------------
+
+
+def _rlm_nuisance_names(frame) -> list[str]:
+    """The group-nuisance coefficient names the RLM factories create."""
+    codes = sorted(frame.group_labels)
+    counts = {c: int((frame.group_code == c).sum()) for c in codes}
+    reference = max(counts, key=lambda c: (counts[c], -c))
+    return [
+        "beta_group_nuisance_"
+        + frame.group_labels[c].lower().replace(" ", "_").replace("-", "_")
+        for c in codes
+        if c != reference
+    ]
+
+
+def _rlm_natural_scale_contrasts(
+    ctx: StatisticalFitContext, frame, headline: list, hdi: float
+) -> pd.DataFrame:
+    """Predicted +1 SD contrast per predictor on the items scale (RLM span frame).
+
+    The Byrne analogue of :func:`_natural_scale_contrasts`: for two children with
+    the same pre-wave outcome score (held at the sample mean) who differ by one
+    SD on a single predictor, the model-implied difference in outcome items at
+    the later wave, per posterior draw.
+    """
+    from scipy.special import expit
+
+    post = ctx.trace.posterior
+    outcome = frame.outcome
+    N = frame.n_trials[outcome]
+    mean_pre_logit = float(np.mean(frame.pre_logit[outcome]))
+
+    def draws(name: str) -> np.ndarray:
+        return post[name].stack(sample=("chain", "draw")).values
+
+    base_eta = draws("alpha") + draws("gamma_own") * mean_pre_logit
+    base_items = N * expit(base_eta)
+    lo_q, hi_q = (1 - hdi) / 2, 1 - (1 - hdi) / 2
+    rows = []
+    for k in headline:
+        delta = N * expit(base_eta + draws(f"beta_{k}")) - base_items
+        rows.append(
+            {
+                "predictor": k,
+                "label": frame.predictor_labels.get(k, k),
+                "delta_words_mean": float(np.mean(delta)),
+                "delta_words_lo": float(np.quantile(delta, lo_q)),
+                "delta_words_hi": float(np.quantile(delta, hi_q)),
+                "delta_words_lo90": float(np.quantile(delta, 0.05)),
+                "delta_words_hi90": float(np.quantile(delta, 0.95)),
+                "prob_pos": float(np.mean(delta > 0)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Byrne between-child adjusted fit (#338 Phase D, ``lrp-rlm-adj-001``).
+
+    The RLI ``fit_adjusted`` shape on the Byrne span frame: the mutually-adjusted
+    wave-1-predictors -> later-wave outcome regression (pooled three-group with
+    non-interpretable group-nuisance dummies, per the 2026-07-16 sign-off), the
+    per-predictor bivariate comparison fits, a slope-prior sensitivity sweep and
+    the items-scale +1 SD contrasts. Writes ``predictor_associations.csv``,
+    ``predicted_gain_words.csv`` and ``prior_sensitivity.csv`` so the shared
+    ``adjusted`` report partial and key-findings builder apply unchanged. Every
+    coefficient is an adjusted association - nothing in this cohort is causal.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_rlm_span_frame,
+    )
+
+    _require_spec(spec, "adjusted")
+    e = spec.extra
+    outcome = spec.outcome_symbol or "basread"
+    predictor_measures = tuple(
+        e.get("predictor_measures", ("bpvs", "trog", "basdig", "bassim", "basnum"))
+    )
+    include_age = bool(e.get("use_age_predictor", True))
+    pre_wave = int(e.get("pre_wave", 1))
+    post_wave = int(e.get("post_wave", 3))
+    sigma0 = float(
+        e.get(
+            "predictor_slope_sigma",
+            _default_of(_factories.build_rlm_adjusted_model, "predictor_slope_sigma"),
+        )
+    )
+    prior_sens = list(e.get("prior_sensitivity_sigmas", [0.5, 0.7]))
+
+    # 94% intervals, matching the RLI adjusted-family convention.
+    ctx = make_context(spec, config, ci_prob=0.94)
+    hdi = ctx.reporting.ci_prob
+
+    section_header("Prepare data")
+    frame = load_rlm_span_frame(
+        outcome=outcome,
+        predictor_measures=predictor_measures,
+        include_age=include_age,
+        pre_wave=pre_wave,
+        post_wave=post_wave,
+    )
+    ctx.prepared = frame
+    headline = list(frame.predictors)
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_rlm_adjusted_model(
+        frame, predictors=headline, predictor_slope_sigma=sigma0
+    )
+    _attach_built(ctx, built)
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+
+    _run_sampling_and_loo(ctx)
+
+    beta_names = [f"beta_{k}" for k in headline]
+    nuisance = _rlm_nuisance_names(frame)
+    diag_vars = ["alpha", "gamma_own", "kappa", *beta_names, *nuisance]
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx)
+
+    section_header("Extended diagnostics")
+    _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _primary_converged = bool(_primary_gate.get("passed")) if _primary_gate else None
+    _diag.run_extended_diagnostics(ctx)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    # --- Adjusted vs bivariate associations --------------------------------
+    section_header("Predictor associations (adjusted vs bivariate)")
+    adjusted = {k: _beta_summary(ctx.trace, f"beta_{k}", hdi) for k in headline}
+    bivariate: dict[str, dict] = {}
+    biv_converged: dict[str, object] = {}
+    for k in headline:
+        b = _factories.build_rlm_adjusted_model(
+            frame, predictors=[k], predictor_slope_sigma=sigma0
+        )
+        t, conv = _sample_model(
+            b.model, ctx.sampling, label=f"{spec.model_id} bivariate {k}"
+        )
+        bivariate[k] = _beta_summary(t, f"beta_{k}", hdi)
+        biv_converged[k] = conv["converged"]
+    rows = []
+    for k in headline:
+        a, bv = adjusted[k], bivariate[k]
+        rows.append(
+            {
+                "predictor": k,
+                "label": frame.predictor_labels.get(k, k),
+                "adj_mean": a["mean"],
+                "adj_lo": a["lo"],
+                "adj_hi": a["hi"],
+                "adj_lo90": a["lo90"],
+                "adj_hi90": a["hi90"],
+                "adj_prob_pos": a["prob_pos"],
+                "biv_mean": bv["mean"],
+                "biv_lo": bv["lo"],
+                "biv_hi": bv["hi"],
+                "biv_lo90": bv["lo90"],
+                "biv_hi90": bv["hi90"],
+                "biv_prob_pos": bv["prob_pos"],
+                "adjusted_converged": _primary_converged,
+                "bivariate_converged": biv_converged[k],
+            }
+        )
+    assoc = pd.DataFrame(rows)
+    assoc.to_csv(
+        os.path.join(ctx.output_dir, "predictor_associations.csv"), index=False
+    )
+    ctx.tables["predictor_associations"] = assoc
+    print_table(
+        ranked_dataframe_table(
+            assoc,
+            title=f"Wave-{pre_wave} predictors of {outcome} at wave {post_wave} "
+            f"(adjusted vs bivariate) - {int(hdi * 100)}% CI",
+            columns=[
+                "label", "adj_mean", "adj_lo", "adj_hi", "adj_prob_pos",
+                "biv_mean", "biv_prob_pos",
+            ],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # --- Items-scale contrasts (the key-findings headline) ------------------
+    section_header("Items-scale +1 SD contrasts")
+    gain_words = _rlm_natural_scale_contrasts(ctx, frame, headline, hdi)
+    gain_words.to_csv(
+        os.path.join(ctx.output_dir, "predicted_gain_words.csv"), index=False
+    )
+    ctx.tables["predicted_gain_words"] = gain_words
+
+    # --- Prior-sensitivity sweep over the slope sigma ------------------------
+    section_header("Prior sensitivity (slope sigma)")
+    sens_rows = []
+    for sig in [sigma0, *prior_sens]:
+        if sig == sigma0:
+            t, conv = ctx.trace, {"converged": _primary_converged}
+        else:
+            b = _factories.build_rlm_adjusted_model(
+                frame, predictors=headline, predictor_slope_sigma=float(sig)
+            )
+            t, conv = _sample_model(
+                b.model, ctx.sampling, label=f"{spec.model_id} sigma={sig}"
+            )
+        for k in headline:
+            s = _beta_summary(t, f"beta_{k}", hdi)
+            sens_rows.append(
+                {
+                    "predictor_slope_sigma": float(sig),
+                    "predictor": k,
+                    "mean": s["mean"],
+                    "lo": s["lo"],
+                    "hi": s["hi"],
+                    "prob_pos": s["prob_pos"],
+                    "subfit_converged": conv["converged"],
+                }
+            )
+    sens = pd.DataFrame(sens_rows)
+    sens.to_csv(os.path.join(ctx.output_dir, "prior_sensitivity.csv"), index=False)
+    ctx.tables["prior_sensitivity"] = sens
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "study_id": "rlm",
+            "outcome": outcome,
+            "pre_wave": pre_wave,
+            "post_wave": post_wave,
+            "predictors": headline,
+            "group_nuisance_terms": nuisance,
+            "n_children": frame.n_children,
+            "predictor_slope_sigma": sigma0,
+        },
+    )
+    return _finalize_report(ctx)
+
+
+def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Byrne horseshoe predictor-ranking fit (#338 Phase D, ``lrp-rlm-hs-001``).
+
+    The RLI gain-framing ``fit_horseshoe`` on the Byrne span frame: one
+    regularised-horseshoe regression over the wave-1 predictor set (age
+    included), ranked by posterior ``P(|beta| > delta)``. Writes
+    ``predictor_ranking.csv`` so the shared ``horseshoe`` partial and
+    key-findings builder apply unchanged. There is no gradient-boosting layer
+    for the Byrne cohort, so no ``horseshoe_vs_gb.csv`` comparison is written -
+    the cross-check partner here is ``lrp-rlm-adj-001``.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_rlm_span_frame,
+    )
+
+    _require_spec(spec, "horseshoe")
+    e = spec.extra
+    outcome = spec.outcome_symbol or "basread"
+    predictor_measures = tuple(
+        e.get("predictor_measures", ("bpvs", "trog", "basdig", "bassim", "basnum"))
+    )
+    include_age = bool(e.get("use_age_predictor", True))
+    pre_wave = int(e.get("pre_wave", 1))
+    post_wave = int(e.get("post_wave", 3))
+    delta = float(e.get("delta", 0.1))
+    tau0 = float(e.get("tau0", 0.1))
+    slab_scale = float(e.get("slab_scale", 2.0))
+    slab_df = float(e.get("slab_df", 4.0))
+
+    ctx = make_context(spec, config, ci_prob=0.94)
+    _apply_spec_target_accept(ctx, spec)
+
+    section_header("Prepare data")
+    frame = load_rlm_span_frame(
+        outcome=outcome,
+        predictor_measures=predictor_measures,
+        include_age=include_age,
+        pre_wave=pre_wave,
+        post_wave=post_wave,
+    )
+    ctx.prepared = frame
+    predictors = list(frame.predictors)
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_rlm_horseshoe_model(
+        frame,
+        predictors=predictors,
+        tau0=tau0,
+        slab_scale=slab_scale,
+        slab_df=slab_df,
+    )
+    _attach_built(ctx, built)
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+
+    _run_sampling_and_loo(ctx)
+
+    nuisance = _rlm_nuisance_names(frame)
+    diag_vars = ["alpha", "gamma_own", "kappa", "hs_tau", "hs_c2", "beta", *nuisance]
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx)
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(ctx)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    section_header("Predictor ranking")
+    ranking = _report.horseshoe_ranking(ctx.trace, delta=delta)
+    ranking.to_csv(os.path.join(ctx.output_dir, "predictor_ranking.csv"), index=False)
+    ctx.tables["predictor_ranking"] = ranking
+    print_table(
+        ranked_dataframe_table(ranking, title="Horseshoe predictor ranking")
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "study_id": "rlm",
+            "framing": "gain",
+            "outcome": outcome,
+            "pre_wave": pre_wave,
+            "post_wave": post_wave,
+            "predictors": predictors,
+            "group_nuisance_terms": nuisance,
+            "delta": delta,
+            "tau0": tau0,
+            "slab_scale": slab_scale,
+            "slab_df": slab_df,
+            "ranking_top": ranking.head(3)[["predictor", "p_abs_gt_delta"]].to_dict(
+                "records"
+            ),
+        },
+    )
+    return _finalize_report(ctx)
+
+
+def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Byrne correlated-domain-factor measurement fit (#338 Phase B, mm-001).
+
+    Measurement-only (per the 2026-07-16 sign-off): loadings/communalities and
+    the domain-factor correlation matrix over the wave-3 nine-measure battery,
+    no structural leg. Writes ``loadings_summary.csv``,
+    ``factor_correlation.csv`` and ``factor_correlation_summary.csv`` in the
+    RLI ``corr_factor`` schema so the shared partial and key-findings builder
+    apply unchanged. LOO is not computed, matching the RLI corr-factor family.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_rlm_wave_battery,
+    )
+
+    _require_spec(spec, "corr_factor")
+    e = spec.extra
+    wave = int(e.get("wave", 3))
+    domains = {k: tuple(v) for k, v in e["domains"].items()}
+    reliability = float(e.get("single_indicator_reliability", 0.8))
+    lkj_eta = float(e.get("lkj_eta", 2.0))
+
+    ctx = make_context(spec, config)
+    _apply_spec_target_accept(ctx, spec)
+    hdi = ctx.reporting.ci_prob
+    lo_q = (1.0 - hdi) / 2.0
+
+    section_header("Prepare data")
+    symbols = tuple(dict.fromkeys(s for syms in domains.values() for s in syms))
+    battery = load_rlm_wave_battery(wave=wave, measure_symbols=symbols)
+    ctx.prepared = battery
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_rlm_corr_factor_model(
+        battery,
+        domains=domains,
+        single_indicator_reliability=reliability,
+        lkj_eta=lkj_eta,
+    )
+    _attach_built(ctx, built)
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+
+    _run_sampling_and_loo(ctx, compute_loo=False)
+
+    diag_vars = ["lambda_free", "sigma_free", "factor_corr_pairs"]
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx, var_names=["Z_obs"])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(ctx)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    post = ctx.trace.posterior
+
+    # --- Loadings + communalities (the measurement headline) ----------------
+    section_header("Loadings + communalities")
+    dom_of = {s: d for d, syms in domains.items() for s in syms}
+    load_rows = []
+    for j, name in enumerate(str(s) for s in post["indicator"].values):
+        lam_d = post["loading"].isel(indicator=j).values.reshape(-1)
+        com_d = post["communality"].isel(indicator=j).values.reshape(-1)
+        corr_d = np.sqrt(com_d)
+        load_rows.append(
+            {
+                "indicator": name,
+                "domain": dom_of.get(name, "?"),
+                "loading_mean": float(np.mean(lam_d)),
+                "loading_lo": float(np.quantile(lam_d, lo_q)),
+                "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
+                "loading_lo90": float(np.quantile(lam_d, 0.05)),
+                "loading_hi90": float(np.quantile(lam_d, 0.95)),
+                "correlation_mean": float(np.mean(corr_d)),
+                "correlation_lo": float(np.quantile(corr_d, lo_q)),
+                "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
+                "correlation_lo90": float(np.quantile(corr_d, 0.05)),
+                "correlation_hi90": float(np.quantile(corr_d, 0.95)),
+                "communality_mean": float(np.mean(com_d)),
+                "communality_lo": float(np.quantile(com_d, lo_q)),
+                "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
+                "communality_lo90": float(np.quantile(com_d, 0.05)),
+                "communality_hi90": float(np.quantile(com_d, 0.95)),
+            }
+        )
+    load_df = pd.DataFrame(load_rows)
+    load_df.to_csv(os.path.join(ctx.output_dir, "loadings_summary.csv"), index=False)
+    ctx.tables["loadings_summary"] = load_df
+    print_table(
+        ranked_dataframe_table(
+            load_df,
+            title=f"Loadings, correlations + communalities - {int(hdi * 100)}% CI",
+            columns=[
+                "indicator", "domain", "loading_mean", "correlation_mean",
+                "communality_mean", "communality_lo", "communality_hi",
+            ],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # --- Factor correlation matrix + per-pair summary ------------------------
+    section_header("Factor correlation")
+    corr_draws = post["factor_corr"]
+    dnames = [str(d) for d in post["domain"].values]
+    corr_df = pd.DataFrame(
+        corr_draws.mean(dim=("chain", "draw")).values, index=dnames, columns=dnames
+    )
+    corr_df.to_csv(os.path.join(ctx.output_dir, "factor_correlation.csv"))
+    ctx.tables["factor_correlation"] = corr_df
+    corr_stacked = corr_draws.stack(sample=("chain", "draw"))
+    corr_rows = []
+    for i, di in enumerate(dnames):
+        for j, dj in enumerate(dnames):
+            if j <= i:
+                continue
+            pair = np.asarray(
+                corr_stacked.isel(domain=i, domain_b=j).values
+            ).reshape(-1)
+            corr_rows.append(
+                {
+                    "domain_i": di,
+                    "domain_j": dj,
+                    "mean": float(np.mean(pair)),
+                    "lo": float(np.quantile(pair, lo_q)),
+                    "hi": float(np.quantile(pair, 1 - lo_q)),
+                    "lo90": float(np.quantile(pair, 0.05)),
+                    "hi90": float(np.quantile(pair, 0.95)),
+                    "prob_pos": float(np.mean(pair > 0)),
+                }
+            )
+    corr_summary_df = pd.DataFrame(corr_rows)
+    corr_summary_df.to_csv(
+        os.path.join(ctx.output_dir, "factor_correlation_summary.csv"), index=False
+    )
+    ctx.tables["factor_correlation_summary"] = corr_summary_df
+    print_table(
+        ranked_dataframe_table(
+            corr_summary_df,
+            title=f"Domain-factor correlations - {int(hdi * 100)}% CI",
+            columns=["domain_i", "domain_j", "mean", "lo", "hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "study_id": "rlm",
+            "wave": wave,
+            "domains": {k: list(v) for k, v in domains.items()},
+            "single_indicator_reliability": reliability,
+            "n_children": battery.n_children,
+            "structural_leg": False,
+        },
+    )
+    return _finalize_report(ctx)
+
+
+def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Byrne joint correlated growth fit (#338 Phase B, ``lrp-rlm-jc-001``).
+
+    Fits :func:`factories.build_rlm_joint_growth_model` over a small measure set
+    and reports the between-child cross-measure correlation matrix of the
+    stable child levels (the headline), plus per-measure fitted cells and
+    common-window growth via the shared historical summaries. LOO is not
+    computed: the model has one likelihood node per measure, so a single
+    pointwise PSIS-LOO is not defined for it (documented in the report).
+    """
+    _require_spec(spec, "historical_joint")
+    e = spec.extra
+    study_id = e.get("study_id", spec.study_id)
+    measure_syms = tuple(e.get("measures", ("basread", "bpvs", "basdig")))
+    waves = tuple(e.get("waves", (1, 2, 3)))
+    extension_waves = tuple(e.get("extension_waves", ()))
+
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    dataset, measures = _datasets.resolve_dataset(study_id)
+    for m in measure_syms:
+        if m not in measures:
+            raise KeyError(f"measure {m!r} not registered for study {study_id!r}")
+    panel = load_longitudinal_panel(
+        dataset,
+        [measures[m] for m in measure_syms],
+        waves=waves,
+        complete_case=True,
+        extension_waves=extension_waves,
+    )
+    ctx.prepared = panel
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_rlm_joint_growth_model(
+        panel,
+        measures=measure_syms,
+        eta_prior_sigma=e.get("eta_prior_sigma", 1.5),
+        sigma_subject_prior_sigma=e.get("sigma_subject_prior_sigma", 0.5),
+        kappa_prior_sigma=e.get("kappa_prior_sigma", 50.0),
+        lkj_eta=e.get("lkj_eta", 2.0),
+    )
+    _attach_built(ctx, built)
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+
+    _run_sampling_and_loo(ctx, compute_loo=False)
+
+    diag_vars = ["eta_cell", "sigma_subject", "kappa", "measure_corr_pairs"]
+    section_header("Summary diagnostics")
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
+
+    _run_ppc(ctx, var_names=[f"score_{m}" for m in measure_syms])
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(ctx)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    hdi = ctx.reporting.ci_prob
+    lo_q = (1.0 - hdi) / 2.0
+    post = ctx.trace.posterior
+
+    # --- Cross-measure correlation of stable child levels (the headline) ----
+    section_header("Cross-measure correlation")
+    corr_draws = post["measure_corr"]
+    mnames = [str(m) for m in post["measure"].values]
+    corr_df = pd.DataFrame(
+        corr_draws.mean(dim=("chain", "draw")).values, index=mnames, columns=mnames
+    )
+    corr_df.to_csv(os.path.join(ctx.output_dir, "measure_correlation.csv"))
+    ctx.tables["measure_correlation"] = corr_df
+    corr_stacked = corr_draws.stack(sample=("chain", "draw"))
+    labels = {
+        m: str(measures[m].label) if m in measures else m for m in mnames
+    }
+    corr_rows = []
+    for i, mi in enumerate(mnames):
+        for j, mj in enumerate(mnames):
+            if j <= i:
+                continue
+            pair = np.asarray(
+                corr_stacked.isel(measure=i, measure_b=j).values
+            ).reshape(-1)
+            corr_rows.append(
+                {
+                    "measure_i": mi,
+                    "measure_j": mj,
+                    "label_i": labels[mi],
+                    "label_j": labels[mj],
+                    "mean": float(np.mean(pair)),
+                    "lo": float(np.quantile(pair, lo_q)),
+                    "hi": float(np.quantile(pair, 1 - lo_q)),
+                    "lo90": float(np.quantile(pair, 0.05)),
+                    "hi90": float(np.quantile(pair, 0.95)),
+                    "prob_pos": float(np.mean(pair > 0)),
+                }
+            )
+    corr_summary_df = pd.DataFrame(corr_rows)
+    corr_summary_df.to_csv(
+        os.path.join(ctx.output_dir, "measure_correlation_summary.csv"), index=False
+    )
+    ctx.tables["measure_correlation_summary"] = corr_summary_df
+    print_table(
+        ranked_dataframe_table(
+            corr_summary_df,
+            title=f"Between-child cross-measure correlations - {int(hdi * 100)}% CI",
+            columns=["label_i", "label_j", "mean", "lo", "hi", "prob_pos"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+    # --- Per-measure fitted cells + growth (shared historical summaries) ----
+    section_header("Per-measure growth summaries")
+    for m in measure_syms:
+        label = measures[m].label
+        baseline = _historical.observed_baseline(panel, m, label)
+        baseline.to_csv(
+            os.path.join(ctx.output_dir, f"observed_complete_case_baseline_{m}.csv"),
+            index=False,
+        )
+        cells = _historical.cell_summary(
+            ctx.trace,
+            panel,
+            m,
+            label,
+            baseline,
+            mean_var=f"mean_items_{m}",
+            fitted_var=f"fitted_mean_items_obs_{m}",
+        )
+        cells.to_csv(
+            os.path.join(ctx.output_dir, f"posterior_cell_summary_{m}.csv"),
+            index=False,
+        )
+        growth = _historical.growth_summary(
+            ctx.trace, panel, m, fitted_var=f"fitted_mean_items_obs_{m}"
+        )
+        growth.to_csv(
+            os.path.join(ctx.output_dir, f"posterior_growth_summary_{m}.csv"),
+            index=False,
+        )
+        ctx.tables[f"posterior_growth_summary_{m}"] = growth
+
+    _report.write_run_metadata(
+        ctx,
+        extra={
+            "study_id": study_id,
+            "measures": list(measure_syms),
+            "measure_labels": {m: measures[m].label for m in measure_syms},
+            "waves": list(waves),
+            "extension_waves": list(extension_waves),
+            "n_subjects": panel.n_subjects,
+            "loo_elpd": None,
+        },
+    )
+    return _finalize_report(ctx)
+
+
+# ---------------------------------------------------------------------------
 # Correlated-domain-factor measurement model (LRPMM01, #134)
 # ---------------------------------------------------------------------------
 

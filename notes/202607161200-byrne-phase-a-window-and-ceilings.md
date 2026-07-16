@@ -50,6 +50,17 @@ The battery and editions are confirmed by the cohort's open-access companion pap
 
 The three provisional measures keep their unconfirmed-ceiling report callouts (now carrying the instrument-identity findings above), and the remaining manuals check is scoped precisely: the 1992 BAS Spelling Scale, the 1983 BAS Basic Number Skills scale, and the 1993 WORD Reading Comprehension subtest.
 
+## Addendum (same day) — Phase B/D decisions and models
+
+The ceilings sign-off above unblocked Phases B and D, which were designed and fitted the same day with four further data-owner decisions:
+
+1. **Phase D scope: pooled + nuisance.** `lrp-rlm-adj-001` and `lrp-rlm-hs-001` fit all three groups (n = 69) with two non-interpretable group-nuisance dummies (`Normal(0, 1)`, reference = average readers) rather than Down-syndrome-only (n = 21, where seven mutually-adjusted slopes would sit at the prior). A DS-only companion is deferred, not rejected.
+2. **Phase D horizon: w1 → w3.** The outcome is wave-3 word reading given its wave-1 baseline — the audited core window (w1→w4 loses 14 children to attrition and ends on the extension tail). Predictors: standardised wave-1 Haldane logits of `bpvs`/`trog`/`basdig`/`bassim`/`basnum` plus age; `basmat` excluded (wave-3+ only), `basspel`/`woco` excluded as reading-route measures too close to the outcome.
+3. **mm-001: wave 3, measurement-only.** The only wave carrying the full ability triad (n = 75). No structural leg — the factor→gain question is Phase D's. The **single-indicator memory domain** (`basdig`; the paper's visual-recall measures are not in the extract) takes a fixed reliability of 0.8 (`lambda = sqrt(0.8)`), stated in the report; loadings are pooled across groups (invariance assumed, not tested).
+4. **jc-001 design.** Measures `basread` + `bpvs` + `basdig` (the reading-language-memory trio), the suite's waves-1–3 complete-case core jointly across the three measures (n = 71) plus the #338 extension waves; per-measure supported-cell grids with group-indexed scales; the per-child stable offsets correlated through one LKJ(2) matrix **shared across groups** (a stated parsimony assumption). Registered as the new `historical_joint` kind (family code `jc`). No PSIS-LOO — the model has one likelihood node per measure, so a single pointwise LOO is not defined; the per-measure `hg` fits carry LOO.
+
+One id-scheme consequence: the `rlm` study's legacy ids now always embed their family code (`rlmadj01`, `rlmjc01`, ...) — the RLI bare aliases (`lrp65`) are historical and preserved unchanged.
+
 ## What this unblocks
 
 The ceilings gate was the blocker on Phases B and D of the #338 plan (`lrp-rlm-jc-001`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001`, `lrp-rlm-hs-001` and the concurrent ports `lrp-rlm-ca-001/002`). Six of nine measures are now confirmed; models over the confirmed set can proceed, and any model touching `basspel`/`basnum`/`woco` inherits the provisional flag. The remaining #338 gates are the Phase C lagged-DAG green-light (untouched here) and the manuals check for the provisional trio.

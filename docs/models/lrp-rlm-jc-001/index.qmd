@@ -1,0 +1,89 @@
+---
+title: "RLMJC01: Byrne joint correlated growth — word reading, receptive vocabulary, digit recall"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMJC01 is the joint multivariate extension of the per-measure
+historical-growth suite (#338 Phase B): BAS word reading, BPVS receptive
+vocabulary and BAS recall of digits fitted **together** over the Byrne cohort,
+each with its own supported-cell group-by-wave grid and group-indexed
+random-effect scales, and the per-child stable offsets **correlated across
+measures**. The headline is the 3×3 between-child correlation matrix of stable
+levels — the reading-language-memory coupling question in its most
+parsimonious between-child form, and the trajectory-level companion of the
+wave-3 measurement model (`lrp-rlm-mm-001`).
+
+::: {.callout-important title="Descriptive natural-history, NOT an intervention effect"}
+
+`readgrp` is a **cohort factor**, not a randomised condition, and every
+quantity here is descriptive (`causal_status="none"`). A between-child
+correlation of stable levels says nothing about within-child coupling or
+direction — the reciprocal reading↔language↔memory question is Phase C's
+lagged model, gated on the lagged Byrne DAG.
+
+:::
+
+::: {.callout-note title="Window, frame and assumptions"}
+
+The complete-case core is the suite's waves 1-3, jointly across all three
+measures (n = 71 children); waves 4-5 enter as extension waves where a kept
+child has **all three** measures observed (wave 5 exists only for the Down
+syndrome group). The cross-measure correlation matrix is **shared across the
+three reading groups** — a stated parsimony assumption at this n — while the
+subject-intercept SDs and overdispersion are group-indexed per the 2026-07-16
+heterogeneity decision.
+
+:::
+
+## Model
+
+For child $i$ in group $g[i]$, measure $m$ and wave $t$ (supported cells only):
+
+$$
+\text{score}_{imt} \sim \mathrm{BetaBinomial}(N_m,\ p_{imt},\ \kappa_{m,g[i]}),
+\qquad
+\operatorname{logit}(p_{imt}) = \eta_{m,\,\text{cell}(g[i],t)} + u_{im},
+$$
+
+$$
+(u_{i1}, u_{i2}, u_{i3}) \sim \mathrm{MVN}\!\left(0,\
+\operatorname{diag}(\sigma_{m,g[i]})\, R\,
+\operatorname{diag}(\sigma_{m,g[i]})\right),
+$$
+
+with $R$ the 3×3 stable-level correlation matrix under an LKJ(2) prior
+(non-centred, group-centred per measure for identifiability against the cell
+grids). Ceilings: `basread` 90 and `basdig` 34 (confirmed), `bpvs` 32 (Short
+Form, confirmed).
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_historical_joint.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

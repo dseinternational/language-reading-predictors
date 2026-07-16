@@ -1,0 +1,88 @@
+---
+title: "RLMMM01: Byrne correlated domain-factor measurement model, wave 3"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMMM01 is the Byrne analogue of `lrp-rli-mm-001` (#338 Phase B),
+**measurement-only** per the 2026-07-16 sign-off: correlated unit-variance
+domain factors over the wave-3 nine-measure battery — **reading**
+{`basread`, `basspel`, `woco`}, **language** {`bpvs`, `trog`}, **memory**
+{`basdig`}, **ability** {`bassim`, `basmat`, `basnum`} — fitted on the
+complete-case cross-section (n = 75). The deliverables are the
+loadings/communalities table and the domain-factor correlation matrix: the
+modern, measurement-error-aware analogue of the paper's correlation tables,
+and the construct-structure summary that precedes any coupling model (Phase
+C). Wave 3 is used because it is the only wave carrying the full ability triad
+(`basmat` is wave-3+ only).
+
+::: {.callout-important title="Measurement / triangulation only — nothing causal"}
+
+Every factor correlation is a **descriptive association** in an observational
+cohort (`causal_status="none"`). There is deliberately **no structural leg**:
+the factors → gain question belongs to Phase D (`lrp-rlm-adj-001` /
+`lrp-rlm-hs-001`), so this model never regresses an outcome on the factors.
+
+:::
+
+::: {.callout-warning title="Single-indicator memory factor (stated assumption)"}
+
+Memory has one indicator (`basdig`; the paper's visual-recall measures are not
+in the prepared extract), so its loading and residual cannot be estimated:
+they are **fixed by an assumed reliability of 0.8**
+($\lambda = \sqrt{0.8}$, $\sigma = \sqrt{0.2}$). Correlations involving the
+memory factor scale with that assumption — read them as conditional on it.
+Loadings are pooled across the three reading groups: measurement invariance is
+**assumed, not tested**, at this n.
+
+:::
+
+## Model
+
+For child $i$, the standardised Haldane-logit indicator vector
+$Z_i \in \mathbb{R}^9$ is Gaussian with the factor scores marginalised out
+(the mm-001 funnel fix, measure-preserving):
+
+$$
+Z_i \sim \mathrm{MVN}\!\left(0,\ \Lambda\,R\,\Lambda^{\top} +
+\operatorname{diag}(\sigma^2)\right),
+$$
+
+where $\Lambda$ is the sparse 9×4 loading matrix (each indicator loads only on
+its domain; positive $\mathrm{HalfNormal}(1)$ loadings, $\mathrm{HalfNormal}(1)$
+residuals, memory fixed as above) and $R$ is the 4×4 factor correlation matrix
+under an LKJ(2) prior. The indicator-factor correlation is
+$\lambda / \sqrt{\lambda^2 + \sigma^2}$ and the communality
+$\lambda^2 / (\lambda^2 + \sigma^2)$, exactly as in the RLI family. No LOO is
+computed, matching the RLI corr-factor convention.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_corr_factor.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

@@ -64,6 +64,7 @@ FAMILY_BY_KIND: dict[str, str] = {
     "dose_response": "dose",
     "growth": "gc",
     "historical_growth": "hg",
+    "historical_joint": "jc",
     "survival": "surv",
     "block_exposure": "bx",
     "concurrent": "ca",
@@ -73,7 +74,7 @@ FAMILY_BY_KIND: dict[str, str] = {
 #: Family codes that are embedded in the legacy id itself (so no ``kind`` is needed
 #: to parse them), in the order the legacy id spells them.
 _EMBEDDED_FAMILIES: tuple[str, ...] = (
-    "itt", "gf", "lf", "al", "did", "hs", "mm", "gbg", "gbl", "hg", "surv", "bx", "ca", "lcf",
+    "itt", "gf", "lf", "al", "did", "hs", "mm", "gbg", "gbl", "hg", "jc", "surv", "bx", "ca", "lcf",
 )
 
 #: Legacy prefix -> (project, study). ``rlm`` is a *study* under the ``lrp`` project.
@@ -141,9 +142,13 @@ def _alt(options) -> str:
 # group: under parent+100 every canonical id is ``project-study-family-nnn``.
 _LETTER_SUFFIX_CLASS = "".join(sorted(_LETTER_SUFFIXES))
 
+# The fam group accepts every family code so the ``rlm`` study can embed the
+# bare-in-RLI families (adj/mm/jc/...) in its legacy ids; ``parse_legacy``
+# still rejects a non-embedded family after the ``lrp`` prefix (no such legacy
+# id was ever issued, e.g. ``lrpadj65`` — the RLI legacy form is ``lrp65``).
 _LEGACY_RE = re.compile(
     r"^(?P<prefix>lrp|rlm)"
-    rf"(?P<fam>{_alt(_EMBEDDED_FAMILIES)})?"
+    rf"(?P<fam>{_alt(_ALL_FAMILY_CODES)})?"
     r"(?P<num>\d+)"
     rf"(?P<suffix>{_alt(_WORD_SUFFIXES)}|[{_LETTER_SUFFIX_CLASS}])?$"
 )
@@ -206,10 +211,13 @@ class ModelId:
             # number alone is lossy, so a table lookup is the reverse of truth).
             return _VARIANT_LEGACY_ID[(self.family, self.number)]
         n = f"{self.number:02d}"
-        if self.family in _EMBEDDED_FAMILIES:
+        # The ``rlm`` study has no historical bare aliases to preserve, so its
+        # legacy ids ALWAYS embed the family code (``rlmadj01``, ``rlmjc01``);
+        # only the RLI study keeps the historical bare families (mech/med/adj/
+        # lcsm/dose/gc), where the family is not spelled in the legacy id
+        # (e.g. ``lrp65``).
+        if self.family in _EMBEDDED_FAMILIES or self.study != "rli":
             return f"{_PREFIX_BY_STUDY[self.study]}{self.family}{n}"
-        # Bare families (mech/med/adj/lcsm/dose/gc): the family is not spelled in the
-        # legacy id, only the number is (e.g. lrp65).
         return f"{_PREFIX_BY_STUDY[self.study]}{n}"
 
 
@@ -227,6 +235,15 @@ def parse_legacy(legacy_id: str, *, kind: str | None = None, study: str | None =
     embedded = m.group("fam")
     suffix = m.group("suffix")
     study_code = study or _STUDY_BY_PREFIX[m.group("prefix")]
+    if (
+        embedded is not None
+        and m.group("prefix") == "lrp"
+        and embedded not in _EMBEDDED_FAMILIES
+    ):
+        # The RLI legacy scheme never embedded the bare families (adj/mech/...):
+        # ``lrpadj65`` was never issued and must not silently parse (only the
+        # ``rlm`` study embeds every family code in its legacy ids).
+        raise ModelIdError(f"Unrecognised legacy model id: {legacy_id!r}")
     if embedded is not None:
         family = embedded
     elif kind is not None:

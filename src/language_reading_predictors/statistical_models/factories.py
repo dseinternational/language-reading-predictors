@@ -5249,3 +5249,448 @@ def build_historical_growth_model(
     return BuiltModel(
         model=model, variables=_variables_dict(model), prepared=panel
     )
+
+
+# ---------------------------------------------------------------------------
+# Byrne (RLM) Phase B/D factories (#338)
+# ---------------------------------------------------------------------------
+
+
+def _rlm_group_nuisance(frame, eta):
+    """Add non-interpretable group-nuisance dummies for the Byrne cohort factor.
+
+    ``readgrp`` is observational: with three groups, two ``Normal(0, 1)`` dummy
+    slopes (reference = the largest group, average readers) absorb cohort
+    composition exactly as ``beta_group_nuisance`` does in the RLI concurrent
+    family - flagged non-interpretable, never a group effect estimate.
+    """
+    codes = sorted(frame.group_labels)
+    counts = {c: int((frame.group_code == c).sum()) for c in codes}
+    reference = max(counts, key=lambda c: (counts[c], -c))
+    for code in codes:
+        if code == reference:
+            continue
+        slug = frame.group_labels[code].lower().replace(" ", "_").replace("-", "_")
+        d = pm.Data(
+            f"grp_{slug}",
+            (frame.group_code == code).astype(float),
+            dims="obs_id",
+        )
+        beta_g = pm.Normal(f"beta_group_nuisance_{slug}", mu=0.0, sigma=1.0)
+        eta = eta + beta_g * d
+    return eta
+
+
+def build_rlm_adjusted_model(
+    frame,
+    *,
+    predictors: Iterable[str] | None = None,
+    predictor_slope_sigma: float = 0.3,
+) -> BuiltModel:
+    """Byrne between-child adjusted model (#338 Phase D, ``lrp-rlm-adj-001``).
+
+    The RLI ``build_adjusted_model`` ported to the Byrne
+    :class:`preprocessing.RlmSpanFrame`: one row per child, the outcome's later
+    -wave count conditioned on its own pre-wave Haldane logit (``gamma_own`` -
+    the gain framing), each standardised wave-1 predictor as a single
+    ``Normal(0, predictor_slope_sigma)`` slope, plus non-interpretable group-
+    nuisance dummies (``readgrp`` is an observational cohort factor - nothing
+    here is causal, and there is no treatment term to protect). No child random
+    intercept: one row per child keeps the coefficients genuinely between-child.
+    Passing a single-element ``predictors`` gives the bivariate comparison fit.
+    """
+    keys = list(predictors) if predictors is not None else list(frame.predictors)
+    missing = [k for k in keys if k not in frame.predictors]
+    if missing:
+        raise KeyError(f"Predictors {missing} not in frame (have {list(frame.predictors)}).")
+
+    outcome = frame.outcome
+    post = frame.post_counts[outcome].astype(np.int64)
+    N = frame.n_trials[outcome]
+
+    coords = {"obs_id": np.arange(frame.n_obs)}
+    with pm.Model(coords=coords) as model:
+        own_pre_d = pm.Data("own_pre_logit", frame.pre_logit[outcome], dims="obs_id")
+        alpha = _priors.alpha_prior(sigma=1.5).to_pymc("alpha")
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        eta = alpha + gamma_own * own_pre_d
+
+        for k in keys:
+            x_d = pm.Data(f"x_{k}", frame.predictors[k], dims="obs_id")
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                f"beta_{k}"
+            )
+            eta = eta + beta * x_d
+
+        eta = _rlm_group_nuisance(frame, eta)
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=frame)
+
+
+def build_rlm_horseshoe_model(
+    frame,
+    *,
+    predictors: Iterable[str] | None = None,
+    tau0: float = 0.1,
+    slab_scale: float = 2.0,
+    slab_df: float = 4.0,
+) -> BuiltModel:
+    """Byrne regularised-horseshoe ranking model (#338 Phase D, ``lrp-rlm-hs-001``).
+
+    The RLI gain-framing ``build_horseshoe_model`` on the Byrne span frame: the
+    outcome's later-wave count conditioned on its own pre-wave logit
+    (``gamma_own``), with every standardised wave-1 predictor (age included)
+    sharing a regularised-horseshoe prior so noise predictors collapse toward
+    zero. Group-nuisance dummies stay **outside** the horseshoe (unshrunk
+    ``Normal(0, 1)``): the cohort factor is a nuisance, not a ranked construct,
+    and shrinking it would leak group composition into the skill ranking.
+    Ranking = posterior ``P(|beta_k| > delta)``, as in the RLI family.
+    """
+    keys = list(predictors) if predictors is not None else list(frame.predictors)
+    missing = [k for k in keys if k not in frame.predictors]
+    if missing:
+        raise KeyError(f"Predictors {missing} not in frame (have {list(frame.predictors)}).")
+
+    outcome = frame.outcome
+    post = frame.post_counts[outcome].astype(np.int64)
+    N = frame.n_trials[outcome]
+    X = np.column_stack([frame.predictors[k] for k in keys])
+
+    coords = {"obs_id": np.arange(frame.n_obs), "predictor": keys}
+    with pm.Model(coords=coords) as model:
+        X_d = pm.Data("X", X, dims=("obs_id", "predictor"))
+        own_pre_d = pm.Data("own_pre_logit", frame.pre_logit[outcome], dims="obs_id")
+        alpha = _scalar_prior("alpha", _priors.alpha_prior)
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        eta = alpha + gamma_own * own_pre_d
+        eta = _rlm_group_nuisance(frame, eta)
+
+        beta = _build_horseshoe_betas(tau0=tau0, slab_scale=slab_scale, slab_df=slab_df)
+        eta = eta + pt.dot(X_d, beta)
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=frame)
+
+
+def build_rlm_corr_factor_model(
+    battery,
+    *,
+    domains: dict[str, tuple[str, ...]],
+    single_indicator_reliability: float = 0.8,
+    loading_mu: float = 0.0,
+    loading_sigma: float = 1.0,
+    residual_sigma: float = 1.0,
+    lkj_eta: float = 2.0,
+) -> BuiltModel:
+    """Byrne correlated-domain-factor measurement model (#338 Phase B).
+
+    The **measurement core** of the RLI ``build_correlated_factor_model`` on the
+    Byrne one-wave battery (:class:`preprocessing.RlmWaveBattery`): correlated
+    unit-variance domain factors over standardised Haldane-logit indicators,
+    with the per-child factor scores **marginalised out** of the Gaussian
+    likelihood (``Z_i ~ MVN(0, Lambda Corr Lambda' + diag(sigma^2))`` - the
+    mm-001 funnel fix, measure-preserving). There is **no structural leg**: the
+    deliverable is the loadings/communalities table and the factor correlation
+    matrix - the modern analogue of the paper's correlation tables. Nothing is
+    causal; every correlation is a descriptive association.
+
+    **Single-indicator domains.** The Byrne memory domain has one indicator
+    (``basdig``), which cannot identify a free loading and residual. Its
+    loading and residual are **fixed** by an assumed reliability:
+    ``lambda = sqrt(r)``, ``sigma = sqrt(1 - r)`` with
+    ``r = single_indicator_reliability`` (default 0.8, a conventional
+    test-retest figure for short-term memory span scales; the report states the
+    assumption and the correlation involving that domain scales with it).
+    Multi-indicator domains keep the RLI priors: positive
+    ``TruncatedNormal(loading_mu, loading_sigma)`` loadings (= HalfNormal at
+    the defaults) and ``HalfNormal(residual_sigma)`` residuals.
+    """
+    domain_names = list(domains)
+    D = len(domain_names)
+    ind_names: list[str] = []
+    domain_of: list[int] = []
+    fixed_mask: list[bool] = []
+    cols: list[np.ndarray] = []
+    for di, d in enumerate(domain_names):
+        syms = tuple(domains[d])
+        if not syms:
+            raise ValueError(f"Domain {d!r} has no indicators.")
+        single = len(syms) == 1
+        for s in syms:
+            if s not in battery.indicators:
+                raise KeyError(
+                    f"Indicator {s!r} (domain {d!r}) missing from battery "
+                    f"(have {list(battery.indicators)})."
+                )
+            cols.append(battery.indicators[s])
+            ind_names.append(s)
+            domain_of.append(di)
+            fixed_mask.append(single)
+    Z = np.stack(cols, axis=1)
+    J = len(ind_names)
+    domain_idx = np.asarray(domain_of, dtype=np.int64)
+    fixed = np.asarray(fixed_mask)
+    free_names = [n for n, f in zip(ind_names, fixed, strict=True) if not f]
+    r = float(single_indicator_reliability)
+    if not (0.0 < r < 1.0):
+        raise ValueError(f"single_indicator_reliability must be in (0, 1); got {r}.")
+
+    coords = {
+        "obs_id": np.arange(battery.n_obs),
+        "indicator": ind_names,
+        "free_indicator": free_names,
+        "domain": domain_names,
+        "domain_b": domain_names,
+    }
+    with pm.Model(coords=coords) as model:
+        # Factor correlation matrix, mirroring the RLI mm-001 build: the unique
+        # off-diagonals are exposed as their own vector so the strict gate
+        # evaluates exactly the numbers the report releases.
+        _, corr, _ = pm.LKJCholeskyCov(
+            "factor_cov",
+            n=D,
+            eta=lkj_eta,
+            sd_dist=pm.Exponential.dist(1.0, size=D),
+            compute_corr=True,
+        )
+        pm.Deterministic("factor_corr", corr, dims=("domain", "domain_b"))
+        iu, ju = np.triu_indices(D, k=1)
+        if len(iu):
+            pm.Deterministic(
+                "factor_corr_pairs",
+                pt.stack([corr[i, j] for i, j in zip(iu, ju, strict=True)]),
+            )
+
+        lam_free = pm.TruncatedNormal(
+            "lambda_free",
+            mu=loading_mu,
+            sigma=loading_sigma,
+            lower=0.0,
+            dims="free_indicator",
+        )
+        sigma_free = pm.HalfNormal(
+            "sigma_free", sigma=residual_sigma, dims="free_indicator"
+        )
+        lam_full = pt.zeros(J)
+        sig_full = pt.zeros(J)
+        free_pos = np.flatnonzero(~fixed)
+        fixed_pos = np.flatnonzero(fixed)
+        lam_full = pt.set_subtensor(lam_full[free_pos], lam_free)
+        sig_full = pt.set_subtensor(sig_full[free_pos], sigma_free)
+        if len(fixed_pos):
+            lam_full = pt.set_subtensor(lam_full[fixed_pos], np.sqrt(r))
+            sig_full = pt.set_subtensor(sig_full[fixed_pos], np.sqrt(1.0 - r))
+        lam = pm.Deterministic("loading", lam_full, dims="indicator")
+        sig = pm.Deterministic("sigma_indicator", sig_full, dims="indicator")
+
+        # Sparse J x D loading matrix: indicator j loads only on its domain.
+        Lmat = pt.zeros((J, D))
+        Lmat = pt.set_subtensor(Lmat[np.arange(J), domain_idx], lam)
+        Sigma = Lmat @ corr @ Lmat.T + pt.diag(sig**2)
+
+        pm.Deterministic(
+            "indicator_factor_corr",
+            lam / pt.sqrt(lam**2 + sig**2),
+            dims="indicator",
+        )
+        pm.Deterministic(
+            "communality", lam**2 / (lam**2 + sig**2), dims="indicator"
+        )
+
+        Z_d = pm.Data("Z", Z, dims=("obs_id", "indicator"))
+        pm.MvNormal(
+            "Z_obs",
+            mu=pt.zeros(J),
+            cov=Sigma,
+            observed=Z_d,
+            dims=("obs_id", "indicator"),
+        )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=battery)
+
+
+def build_rlm_joint_growth_model(
+    panel: LongitudinalPanel,
+    *,
+    measures: tuple[str, ...] = ("basread", "bpvs", "basdig"),
+    eta_prior_sigma: float = 1.5,
+    sigma_subject_prior_sigma: float = 0.5,
+    kappa_prior_sigma: float = 50.0,
+    lkj_eta: float = 2.0,
+) -> BuiltModel:
+    """Byrne joint correlated group-by-wave growth model (#338 Phase B, jc-001).
+
+    The multivariate extension of :func:`build_historical_growth_model`: each
+    measure keeps its own supported-cell population grid, group-indexed
+    subject-intercept SD and group-indexed overdispersion, and the per-child
+    stable offsets are **correlated across measures** through an LKJ prior::
+
+        score_imt ~ BetaBinomial(n_m, p_imt, kappa[m, group_i])
+        logit(p_imt) = eta_cell[m, cell(group_i, wave_t)] + u_im
+        (u_i1..u_iM) ~ MVN(0, diag(sigma[m, group_i]) R diag(sigma[m, group_i]))
+
+    The headline deterministic is ``measure_corr`` (R) - how the children's
+    stable levels on the measures move together within group, the Byrne
+    "reading-language-memory coupling" question in its most parsimonious
+    between-child form. The correlation matrix is shared across groups (an
+    explicit assumption, stated in the report); the scales are group-indexed
+    per the #338 heterogeneity decision. Descriptive natural-history only -
+    ``readgrp`` is a cohort factor and nothing here is causal.
+
+    The panel must be loaded with all ``measures`` (complete-case core plus
+    extension rows require every measure observed on a row), so all measures
+    share one supported-cell set.
+    """
+    df = panel.long
+    dataset = panel.dataset
+    subj, wave_c, grp = dataset.subject_col, dataset.wave_col, dataset.group_col
+    for m in measures:
+        if m not in panel.n_trials:
+            raise KeyError(f"measure {m!r} not in panel (have {panel.measures}).")
+    M = len(measures)
+
+    group_codes = panel.group_codes
+    group_labels = panel.group_labels
+    subject_ids = panel.subject_ids
+    group_index = {code: i for i, code in enumerate(group_codes)}
+    subject_index = {s: i for i, s in enumerate(subject_ids)}
+
+    cells = panel.cells(measures[0])
+    for m in measures[1:]:
+        if panel.cells(m) != cells:
+            raise ValueError(
+                f"measure {m!r} has a different supported-cell set than "
+                f"{measures[0]!r}; the joint model needs one shared cell set."
+            )
+    cell_index = {cell: i for i, cell in enumerate(cells)}
+    cell_labels = [
+        f"{group_labels[group_index[g]]} | wave {w}" for g, w in cells
+    ]
+    common_waves = [
+        w
+        for w in sorted({w for _g, w in cells})
+        if all((g, w) in cell_index for g in group_codes)
+    ]
+
+    group_idx = df[grp].map(group_index).to_numpy(dtype=int)
+    obs_cell_idx = np.array(
+        [
+            cell_index[(int(g), int(w))]
+            for g, w in zip(df[grp], df[wave_c], strict=True)
+        ],
+        dtype=int,
+    )
+    subject_idx = df[subj].map(subject_index).to_numpy(dtype=int)
+    subject_group = (
+        df.drop_duplicates(subj)
+        .set_index(subj)
+        .loc[subject_ids, grp]
+        .map(group_index)
+        .to_numpy(dtype=int)
+    )
+
+    coords = {
+        "measure": list(measures),
+        "measure_b": list(measures),
+        "group": group_labels,
+        "cell": cell_labels,
+        "subject": [str(s) for s in subject_ids],
+        "obs": np.arange(len(df)),
+    }
+
+    def _cell_pos(wave: int) -> list[int]:
+        return [cell_index[(g, wave)] for g in group_codes]
+
+    with pm.Model(coords=coords) as model:
+        eta_cell = pm.Normal(
+            "eta_cell", mu=0.0, sigma=eta_prior_sigma, dims=("measure", "cell")
+        )
+        sigma_subject = pm.HalfNormal(
+            "sigma_subject",
+            sigma=sigma_subject_prior_sigma,
+            dims=("measure", "group"),
+        )
+        kappa = pm.HalfNormal(
+            "kappa", sigma=kappa_prior_sigma, dims=("measure", "group")
+        )
+
+        # Correlated per-child stable offsets across measures. The environment's
+        # LKJCorr returns the CHOLESKY FACTOR L, not the correlation matrix R,
+        # so R = L @ L.T (see the PyMC-version note in the repo memory /
+        # LKJCholeskyCov discussion in mm-001: LKJCorr avoids the unused sd
+        # scales of LKJCholeskyCov in a correlation-only role).
+        chol = pm.LKJCorr("measure_corr_chol", n=M, eta=lkj_eta)
+        measure_corr = pm.Deterministic(
+            "measure_corr", chol @ chol.T, dims=("measure", "measure_b")
+        )
+        iu, ju = np.triu_indices(M, k=1)
+        if len(iu):
+            pm.Deterministic(
+                "measure_corr_pairs",
+                pt.stack(
+                    [measure_corr[i, j] for i, j in zip(iu, ju, strict=True)]
+                ),
+            )
+
+        z_subject = pm.Normal(
+            "z_subject", mu=0.0, sigma=1.0, dims=("subject", "measure")
+        )
+        corr_z = z_subject @ chol.T  # rows ~ MVN(0, R)
+        # Group-centre per (group, measure) for identifiability against the
+        # per-measure group-by-wave grids (same device as the hg factory).
+        z_group_mean = pt.stack(
+            [
+                corr_z[subject_group == g].mean(axis=0)
+                for g in range(len(group_codes))
+            ]
+        )
+        centred = corr_z - z_group_mean[subject_group]
+        subject_offset = pm.Deterministic(
+            "subject_offset",
+            centred * sigma_subject.T[subject_group],
+            dims=("subject", "measure"),
+        )
+
+        for mi, m in enumerate(measures):
+            n_trials = int(panel.n_trials[m])
+            observed = df[m].to_numpy(dtype=int)
+            eta_obs = (
+                eta_cell[mi, obs_cell_idx] + subject_offset[subject_idx, mi]
+            )
+            p_obs = pm.math.sigmoid(eta_obs)
+            kappa_obs = kappa[mi, group_idx]
+            pm.BetaBinomial(
+                f"score_{m}",
+                n=n_trials,
+                alpha=p_obs * kappa_obs,
+                beta=(1.0 - p_obs) * kappa_obs,
+                observed=observed,
+                dims="obs",
+            )
+            pm.Deterministic(
+                f"fitted_mean_items_obs_{m}", n_trials * p_obs, dims="obs"
+            )
+            pm.Deterministic(
+                f"mean_items_{m}",
+                n_trials * pm.math.sigmoid(eta_cell[mi]),
+                dims="cell",
+            )
+            if len(common_waves) >= 2:
+                mean_items_m = n_trials * pm.math.sigmoid(eta_cell[mi])
+                pm.Deterministic(
+                    f"growth_first_last_items_{m}",
+                    mean_items_m[_cell_pos(common_waves[-1])]
+                    - mean_items_m[_cell_pos(common_waves[0])],
+                    dims="group",
+                )
+
+    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)

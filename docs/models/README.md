@@ -56,8 +56,9 @@ intervention benefit (`G = 2 − group`).
 | 2     | Concurrent associations (`lrp-rli-ca`)                                                |     6 | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                          |
 | 2     | Longitudinal correlated-factor model (`lrp-rli-lcf-001`)                              |     1 | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                |
 | 2     | Historical growth, Byrne cohort (`lrp-rlm-hg`)                                        |     9 | Descriptive group-by-wave natural-history growth per measure in the Byrne reading-language-memory study (`study_id="rlm"`)  |
+| 2     | Byrne Phase B/D (`lrp-rlm-jc/mm/adj/hs`)                                              |     4 | Joint correlated trajectories, wave-3 domain measurement model, and the wave-1 predictor views (adjusted + horseshoe)       |
 
-Counts are of base models on `main` (144 statistical models in total, from `definitions.MODEL_REGISTRY`; the Byrne `lrp-rlm-hg` models are registered by
+Counts are of base models on `main` (144 statistical models in total, from `definitions.MODEL_REGISTRY`; the Byrne `lrp-rlm-*` models are registered by
 module auto-discovery, not `MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
 are included in the family counts and listed in the per-family tables below.
 
@@ -428,9 +429,33 @@ counterpart. Six Beta-Binomial ceilings are researched and confirmed (`basread` 
 `basnum` and `woco` keep **provisional observed-max ceilings** (`n_trials_confirmed=False`)
 pending their instrument manuals. The reading-matched group is _selected
 on_ `basread` level, so between-group contrasts touching that group carry the selection
-caveat. Roadmap: the phased Byrne suite (joint trajectories, domain measurement model,
-lagged coupling, predictor views) is tracked in #338 and mapped in
+caveat. Roadmap: the phased Byrne suite is tracked in #338 and mapped in
 `notes/202607131600-byrne-comparable-models-plan.md`.
+
+### Byrne Phase B/D — `lrp-rlm-jc-001`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001`, `lrp-rlm-hs-001` (`study_id="rlm"`)
+
+**Purpose.** The Byrne suite's joint/measurement structure (Phase B) and predictor views
+(Phase D), ported from the RLI observational families per the plan and the 2026-07-16
+decisions (pooled three-group frames with non-interpretable group-nuisance terms; Phase D
+horizon w1→w3, the audited core window; mm-001 on the wave-3 full battery,
+measurement-only). All four are associations or descriptive quantities in an observational
+cohort — nothing causal exists here.
+
+| Model             | Kind               | Purpose                                                                                                                                                                                                                                         |
+| ----------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rlm-jc-001`  | `historical_joint` | Joint correlated growth over `basread`/`bpvs`/`basdig`: per-measure supported-cell grids + LKJ-correlated per-child stable offsets; headline = the 3×3 between-child stable-level correlation matrix (n = 71, waves 1–3 core + extension waves) |
+| `lrp-rlm-mm-001`  | `corr_factor`      | Wave-3 correlated domain-factor measurement model: reading {`basread`,`basspel`,`woco`}, language {`bpvs`,`trog`}, memory {`basdig`, single indicator, fixed reliability 0.8}, ability {`bassim`,`basmat`,`basnum`}; measurement-only (n = 75)  |
+| `lrp-rlm-adj-001` | `adjusted`         | Wave-1 predictors of w1→w3 word-reading gain, mutually adjusted + bivariate comparison + prior-sensitivity sweep (pooled, n = 69)                                                                                                               |
+| `lrp-rlm-hs-001`  | `horseshoe`        | Regularised-horseshoe ranking cross-check over the identical frame; no GB comparison exists for this cohort — the partner is `lrp-rlm-adj-001`                                                                                                  |
+
+**Notes.** `lrp-rlm-jc-001` computes no PSIS-LOO (one likelihood node per measure); the
+correlation matrix is shared across groups (stated assumption) while the random-effect
+scales stay group-indexed. `lrp-rlm-mm-001` states its single-indicator memory reliability
+assumption and pooled-loadings (invariance) assumption up front. Phase D excludes `basmat`
+(no wave-1 value) and the reading-route `basspel`/`woco`; a Down-syndrome-only companion is
+deferred (n = 21 with seven slopes sits at the prior). Remaining phases: C (lagged coupling,
+gated on the lagged Byrne DAG) and E (mechanism/mediation, gated on the #289/#324
+sensitivity prerequisite).
 
 ---
 
