@@ -668,6 +668,307 @@ def proportion_at_zero_ppc(
     }
 
 
+# --- Posterior-predictive coverage (issue #318) ------------------------------
+# The stock ArviZ overlay asked readers to judge band overlap by eye. These helpers
+# turn "does the model fit?" into a decidable coverage number: the share of
+# observations whose observed score falls inside the model's central prediction
+# intervals. Everything reads the persisted ``posterior_predictive`` + ``observed_data``
+# groups (no new sampling) and all sentence logic lives here (not in the .qmd) so the
+# reported prose cannot drift from the computed quantity (#271 / #320).
+#
+# Convention (fixed across families, notes/202607151942-ppc-coverage-redesign.md):
+# the interval for observation ``i`` at level ``p`` is the CLOSED interval between the
+# ``(1-p)/2`` and ``(1+p)/2`` empirical quantiles of that observation's predictive
+# draws; the observed count is inside iff ``q_lo <= y_obs <= q_hi``. These are
+# same-children (conditional), in-sample ranges — how well the fitted model
+# re-predicts the children it was fit on, not new-child prediction.
+
+
+def _ppc_node_arrays(
+    trace: xr.DataTree, node: str
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return ``(y_rep, y_obs)`` for a likelihood ``node`` from the trace.
+
+    ``y_rep`` is ``(n_obs, n_samples)`` (observation dims flattened, chain/draw
+    stacked last) and ``y_obs`` is ``(n_obs,)``, taken from ``posterior_predictive``
+    and ``observed_data`` respectively. The observed array is transposed into the
+    predictive's observation-dim order before flattening so the two stay row-aligned
+    for a multi-dim likelihood (e.g. the panel ``y_obs``). Non-finite observed rows
+    are *kept* here — callers mask them — so both arrays share one row indexing.
+    """
+    try:
+        pp = trace.posterior_predictive[node]
+        obs_da = trace.observed_data[node]
+    except (AttributeError, KeyError) as exc:
+        raise KeyError(
+            f"trace must contain posterior_predictive and observed_data for {node!r}"
+        ) from exc
+    sample_dims = [d for d in pp.dims if d in ("chain", "draw")]
+    obs_dims = [d for d in pp.dims if d not in ("chain", "draw")]
+    if not sample_dims or not obs_dims:
+        raise ValueError(f"{node!r} predictive has unexpected dims {pp.dims}")
+    y_rep = (
+        pp.stack(__sample__=sample_dims)
+        .transpose(*obs_dims, "__sample__")
+        .values.reshape(-1, int(np.prod([pp.sizes[d] for d in sample_dims])))
+    )
+    y_obs = obs_da.transpose(*obs_dims).values.reshape(-1).astype(float)
+    if y_obs.shape[0] != y_rep.shape[0]:
+        raise ValueError(
+            f"{node!r} observed ({y_obs.shape[0]}) and replicated "
+            f"({y_rep.shape[0]}) rows are misaligned"
+        )
+    return y_rep, y_obs
+
+
+def ppc_interval_coverage(
+    trace: xr.DataTree,
+    *,
+    node: str = "y_post",
+    ci_levels: Sequence[float] = (0.5, 0.9),
+) -> pd.DataFrame:
+    """Per-observation central prediction-interval coverage for a count outcome.
+
+    For each level ``p`` in ``ci_levels``, computes the share of observations whose
+    observed count falls inside the closed central ``p``-interval of that
+    observation's posterior-predictive draws (see the module convention above).
+    Returns a long-format frame — one row per level — with the uniform coverage
+    schema (``mode``/``node``/``unit``/``quantity``/``level``/``level_pct``/
+    ``n_total``/``n_inside``/``coverage``) consumed by :func:`ppc_coverage_markdown`.
+    """
+    y_rep, y_obs = _ppc_node_arrays(trace, node)
+    finite = np.isfinite(y_obs)
+    y_rep, y_obs = y_rep[finite], y_obs[finite]
+    n = int(y_obs.shape[0])
+    rows: list[dict[str, object]] = []
+    for p in ci_levels:
+        lo = np.quantile(y_rep, (1.0 - p) / 2.0, axis=1)
+        hi = np.quantile(y_rep, (1.0 + p) / 2.0, axis=1)
+        inside = (y_obs >= lo) & (y_obs <= hi)  # closed interval convention
+        n_in = int(np.count_nonzero(inside))
+        rows.append(
+            {
+                "mode": "count_interval",
+                "node": node,
+                "unit": "observations",
+                "quantity": "observed score",
+                "level": float(p),
+                "level_pct": int(round(p * 100)),
+                "n_total": n,
+                "n_inside": n_in,
+                "coverage": float(n_in / n) if n else float("nan"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def ppc_calibration_table(
+    trace: xr.DataTree,
+    *,
+    node: str = "y_post",
+    ci_prob: float = 0.9,
+) -> pd.DataFrame:
+    """Per-observation observed-vs-predicted table for the calibration panel.
+
+    One row per observation: the observed count, the posterior-predictive median,
+    and the closed central ``ci_prob``-interval endpoints (``pp_lo``/``pp_hi``), plus
+    an ``inside`` flag. Feeds the ``ppc_calibration.png`` figure and its data CSV.
+    """
+    y_rep, y_obs = _ppc_node_arrays(trace, node)
+    finite = np.isfinite(y_obs)
+    y_rep, y_obs = y_rep[finite], y_obs[finite]
+    lo_q, hi_q = (1.0 - ci_prob) / 2.0, (1.0 + ci_prob) / 2.0
+    lo = np.quantile(y_rep, lo_q, axis=1)
+    hi = np.quantile(y_rep, hi_q, axis=1)
+    return pd.DataFrame(
+        {
+            "observed": y_obs,
+            "pp_median": np.median(y_rep, axis=1),
+            "pp_lo": lo,
+            "pp_hi": hi,
+            "inside": (y_obs >= lo) & (y_obs <= hi),
+        }
+    )
+
+
+def _offfloor_cell_rates(
+    trace: xr.DataTree, node: str, group: np.ndarray | None
+) -> tuple[list[object], np.ndarray, np.ndarray, np.ndarray]:
+    """Observed off-floor rate and per-draw replicated rate for each group cell.
+
+    Returns ``(cell_labels, obs_rate, rep_rate, cell_n)`` where ``obs_rate`` is
+    ``(n_cells,)``, ``rep_rate`` is ``(n_cells, n_samples)`` and ``cell_n`` is the
+    per-cell observation count. Both the observed and replicated indicators are
+    reduced to the 0/1 off-floor event so a raw-count node (defensively) and the
+    ``y_offfloor`` Bernoulli node behave identically. A single ``"all"`` cell is used
+    when ``group`` is absent or misaligned.
+    """
+    y_rep, y_obs = _ppc_node_arrays(trace, node)
+    finite = np.isfinite(y_obs)
+    y_rep, y_obs = y_rep[finite], y_obs[finite]
+    y_obs = (y_obs > 0).astype(float)
+    y_rep = (y_rep > 0).astype(float)
+    n = int(y_obs.shape[0])
+    g = None if group is None else np.asarray(group)
+    if g is not None and g.shape[0] == finite.shape[0]:
+        g = g[finite]  # align group to the finite-observed rows
+    if g is None or g.shape[0] != n:
+        labels: list[object] = ["all"]
+        masks = [np.ones(n, dtype=bool)]
+    else:
+        labels = list(dict.fromkeys(g.tolist()))  # stable order
+        masks = [g == u for u in labels]
+    obs_rate = np.array([float(y_obs[m].mean()) for m in masks])
+    rep_rate = np.stack([y_rep[m].mean(axis=0) for m in masks])  # (n_cells, S)
+    cell_n = np.array([int(np.count_nonzero(m)) for m in masks])
+    return labels, obs_rate, rep_rate, cell_n
+
+
+def ppc_offfloor_cell_table(
+    trace: xr.DataTree,
+    *,
+    node: str = "y_offfloor",
+    group: np.ndarray | None = None,
+    ci_prob: float = 0.9,
+) -> pd.DataFrame:
+    """Per-cell observed off-floor rate vs its posterior-predictive rate distribution.
+
+    One row per group cell: the observed rate, the replicated-rate median and closed
+    central ``ci_prob``-interval, an ``inside`` flag, and cell ``n``. Feeds the
+    floor-rule PPC figure and its data CSV.
+    """
+    labels, obs_rate, rep_rate, cell_n = _offfloor_cell_rates(trace, node, group)
+    lo_q, hi_q = (1.0 - ci_prob) / 2.0, (1.0 + ci_prob) / 2.0
+    lo = np.quantile(rep_rate, lo_q, axis=1)
+    hi = np.quantile(rep_rate, hi_q, axis=1)
+    return pd.DataFrame(
+        {
+            "cell": [str(lbl) for lbl in labels],
+            "n": cell_n,
+            "observed_rate": obs_rate,
+            "pp_rate_median": np.median(rep_rate, axis=1),
+            "pp_rate_lo": lo,
+            "pp_rate_hi": hi,
+            "inside": (obs_rate >= lo) & (obs_rate <= hi),
+        }
+    )
+
+
+def ppc_offfloor_rate_coverage(
+    trace: xr.DataTree,
+    *,
+    node: str = "y_offfloor",
+    group: np.ndarray | None = None,
+    ci_levels: Sequence[float] = (0.5, 0.9),
+) -> pd.DataFrame:
+    """Group-cell off-floor RATE coverage for a floor-rule / binary outcome.
+
+    Per-observation interval coverage of a 0/1 indicator is degenerate, so the
+    floor-rule check asks instead whether the model reproduces the observed off-floor
+    *rate*: for each group cell (arm × wave where available, else one overall cell)
+    and each level ``p``, the cell is covered iff its observed rate falls in the
+    closed central ``p``-interval of the replicated-rate distribution. Returns the
+    same long-format schema as :func:`ppc_interval_coverage` (``unit`` = "group
+    cells", ``quantity`` = "observed off-floor rate", ``mode`` = "offfloor_rate").
+    """
+    labels, obs_rate, rep_rate, _cell_n = _offfloor_cell_rates(trace, node, group)
+    n_cells = len(labels)
+    rows: list[dict[str, object]] = []
+    for p in ci_levels:
+        lo = np.quantile(rep_rate, (1.0 - p) / 2.0, axis=1)
+        hi = np.quantile(rep_rate, (1.0 + p) / 2.0, axis=1)
+        inside = (obs_rate >= lo) & (obs_rate <= hi)  # closed interval convention
+        n_in = int(np.count_nonzero(inside))
+        rows.append(
+            {
+                "mode": "offfloor_rate",
+                "node": node,
+                "unit": "group cells" if n_cells > 1 else "off-floor rate",
+                "quantity": "observed off-floor rate",
+                "level": float(p),
+                "level_pct": int(round(p * 100)),
+                "n_total": n_cells,
+                "n_inside": n_in,
+                "coverage": float(n_in / n_cells) if n_cells else float("nan"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
+    """Render the posterior-predictive coverage sentence + verdict as report markdown.
+
+    Consumes the uniform long-format frame produced by :func:`ppc_interval_coverage`
+    or :func:`ppc_offfloor_rate_coverage` (``ppc_summary.csv``). All numbers and the
+    plain-language verdict are derived from the frame — nothing is hand-stated in the
+    report (#271). Returns an empty string for an empty/None frame, or one carrying no
+    usable level (``n_total == 0`` or non-finite coverage — a degenerate fit whose
+    coverage would render as ``nan%``), so the partial can ``print`` it unconditionally.
+    """
+    if cov is None or len(cov) == 0:
+        return ""
+    # Drop degenerate rows (no observations / non-finite coverage) so a NaN never
+    # propagates into the rendered sentence (review: coverage is NaN when n_total==0).
+    usable = cov[
+        (cov["n_total"].astype(float) > 0) & np.isfinite(cov["coverage"].astype(float))
+    ]
+    if usable.empty:
+        return ""
+    d = usable.drop_duplicates("level_pct").set_index("level_pct")
+    unit = str(usable["unit"].iloc[0])
+    quantity = str(usable["quantity"].iloc[0])
+    clauses: list[str] = []
+    if 90 in d.index:
+        r90 = d.loc[90]
+        clauses.append(
+            f"the model's 90% prediction ranges contained the {quantity} for "
+            f"**{int(r90['n_inside'])} of {int(r90['n_total'])}** {unit} "
+            f"({r90['coverage'] * 100:.0f}%, expected ≈ 90%)"
+        )
+    if 50 in d.index:
+        r50 = d.loc[50]
+        clauses.append(
+            f"the 50% ranges contained **{int(r50['n_inside'])} of "
+            f"{int(r50['n_total'])}** ({r50['coverage'] * 100:.0f}%, expected ≈ 50%)"
+        )
+    if not clauses:
+        return ""
+    # Verdict, derived from the 90% coverage (or the 50% if only that is present).
+    # Two-sided: coverage can miss nominal by being too LOW (ranges too narrow, the
+    # model over-confident) or too HIGH (ranges wider than the data need, the model
+    # under-confident / the check under-powered at this n) — flag both (review).
+    cov90 = float(d.loc[90, "coverage"]) if 90 in d.index else None
+    ref = cov90 if cov90 is not None else float(d.loc[50, "coverage"])
+    target = 0.90 if cov90 is not None else 0.50
+    if abs(ref - target) <= 0.05:
+        verdict = (
+            "This is close to the nominal level: the fitted model reproduces the "
+            "spread of these children's scores."
+        )
+    elif ref > target + 0.05:
+        verdict = (
+            "This is above the nominal level, so the model's prediction ranges are "
+            "wider than the data need (mildly under-confident, or the check is "
+            "under-powered at this sample size) rather than too narrow."
+        )
+    elif ref >= target - 0.15:
+        verdict = (
+            "This is a little below the nominal level, so the model is mildly "
+            "over-confident (its prediction ranges are slightly too narrow) for some "
+            "observations."
+        )
+    else:
+        verdict = (
+            "This is well below the nominal level, so the model's prediction ranges "
+            "are too narrow — treat the fit with caution."
+        )
+    return (
+        "**Coverage.** " + "; ".join(clauses) + ". " + verdict
+        + " (These are same-children, in-sample ranges — how well the fitted model "
+        "re-predicts the children it was fit on, not new-child prediction.)"
+    )
+
+
 def _readiness_knee(
     f: np.ndarray,
     ell: np.ndarray,

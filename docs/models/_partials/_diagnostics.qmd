@@ -207,38 +207,87 @@ print(_img("pair_plot.png", "Pairs"))
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("posterior_predictive_check.png", "Posterior-predictive vs observed"))
-_is_floor_binary = bool(
-    config.get("spec_extra", {}).get("floor_rule")
-    or config.get("effective_model_settings", {}).get("floor_rule")
+# Computed coverage statement (issue #318): the share of observations (or, for
+# floor-rule outcomes, group cells) whose observed value falls inside the model's
+# 50%/90% prediction ranges. The sentence + verdict are rendered from ppc_summary.csv
+# by reporting.ppc_coverage_markdown so the prose cannot drift from the number (#271).
+from language_reading_predictors.statistical_models.reporting import (
+    ppc_coverage_markdown as _ppc_md,
 )
-if config.get("kind") == "joint":
+
+_ppc_cov = _csv("ppc_summary.csv")
+if _ppc_cov is not None and len(_ppc_cov):
+    print(_ppc_md(_ppc_cov) + "\n")
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Distribution overlay: a relabelled black-line/blue-band density for single-measure
+# count families (#318); the off-floor rate-by-cell figure for floor-rule families;
+# and, for the joint model, one per-outcome histogram selected via the saved cell map
+# (so tests with different denominators are never pooled — #271 item 2). Absent for
+# the other multi-outcome-flattened families (growth/lcsm), where the quantitative
+# calibration tables below are the appropriate view.
+_ppc_is_offfloor = (
+    _ppc_cov is not None
+    and len(_ppc_cov)
+    and str(_ppc_cov["mode"].iloc[0]) == "offfloor_rate"
+)
+_ppc_is_joint = config.get("kind") == "joint"
+print(_img("posterior_predictive_check.png", "Posterior-predictive check"))
+if _has("posterior_predictive_check.png"):
+    if _ppc_is_offfloor:
+        print(
+            "\n_How to read it:_ each point is one arm × wave cell; the red cross is the "
+            "observed off-floor rate and the blue marker with whiskers is the model's "
+            "predicted rate and 90% range. A good fit keeps each red cross inside its "
+            "blue whisker."
+        )
+    elif _ppc_is_joint:
+        print(
+            "\n_How to read it:_ for the named outcome, the blue histogram contains "
+            "posterior-predictive count draws and the red histogram contains the observed "
+            "counts. They should overlap without a systematic location, spread, floor or "
+            "ceiling discrepancy. Outcomes are selected with the saved cell map and are "
+            "never pooled across incompatible test denominators."
+        )
+    else:
+        print(
+            "\n_How to read it:_ the black line is the observed score distribution and "
+            "the blue band is many datasets simulated from the fitted model. A good fit "
+            "keeps the black line inside the blue band across its whole range; a "
+            "systematic departure shows where the model reproduces the data poorly."
+        )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Per-observation calibration panel (count families): deviations from the diagonal
+# are directly readable.
+print(_img("ppc_calibration.png", "Per-observation calibration"))
+if _has("ppc_calibration.png"):
     print(
-        "\n_How to read it:_ for the named outcome, the blue histogram contains "
-        "posterior-predictive count draws and the red histogram contains the observed "
-        "counts. They should overlap without a systematic location, spread, floor or "
-        "ceiling discrepancy. Outcomes are selected with the saved cell map and are "
-        "never pooled across incompatible test denominators."
-    )
-elif _is_floor_binary:
-    print(
-        "\n_How to read it:_ this exploratory headline model predicts the binary event of moving "
-        "above zero, not a graded item count. The observed and simulated event "
-        "distributions should agree; the quantitative arm-specific table below is "
-        "more informative than a smooth density display for a binary outcome."
-    )
-else:
-    print(
-        "\n_How to read it:_ the black line is the observed outcome distribution and "
-        "the blue band is many datasets simulated from the fitted model. A good fit "
-        "keeps the black line inside the blue band across its whole range; a systematic "
-        "departure shows where the model reproduces the data poorly."
+        "\n_How to read it:_ each point is one observation — its observed score (x) "
+        "against the model's predicted median (y), with whiskers for the 90% "
+        "prediction range. Points on the dashed **y = x** line are perfectly predicted; "
+        "points far off it (marked in red when the observed score falls outside the 90% "
+        "range) are where the model fits that observation least well."
     )
 ```
 
 ```{python}
 # | echo: false
 # | output: asis
+# Quantitative arm × baseline-band calibration table (statistical audit, #344):
+# a complementary numeric check to the coverage statistic and figures above. For the
+# multi-outcome-flattened families (joint) this is the outcome-specific check the
+# pooled overlay cannot provide.
+_is_floor_binary = bool(
+    config.get("spec_extra", {}).get("floor_rule")
+    or config.get("effective_model_settings", {}).get("floor_rule")
+)
 _ppc_calibration = _csv("posterior_predictive_calibration.csv")
 if _ppc_calibration is not None:
     print("### Quantitative calibration by arm and baseline band\n")
