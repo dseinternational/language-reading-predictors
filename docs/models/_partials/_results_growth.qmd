@@ -107,6 +107,21 @@ uncertainty around that typical slope.
 _coef_table("beta")
 ```
 
+```{python}
+# | echo: false
+# | output: asis
+if _has("group_trajectory.png"):
+    print(_img("group_trajectory.png", "Per-measure cohort score trajectory across waves (model mean with credible ribbon, observed means)"))
+    print(
+        "\n_How to read it:_ one panel per measure. The line is the model's posterior **mean** score "
+        "across the cohort at each wave (with its 95% credible ribbon); the dots are the observed "
+        "per-wave means. This is a **population-level** curve, marginal over children (averaged over the "
+        "cohort's fitted trajectories) — **there is no arm split**: this growth model characterises "
+        "trajectory shape and treats intervention exposure as a latent developmental tempo, not an "
+        "observed randomised arm, so no line here is a randomised contrast."
+    )
+```
+
 ### Shared growth-tempo factor (`loading`; LRP70 only)
 
 _How to read this section:_ the loading table (LRP70 only) has the same columns as
@@ -166,3 +181,20 @@ limits"). At n≈54, four waves, treat a wide interval or a fragile sampler as a
 honest finding.
 
 :::
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("child_fit_panels.png"):
+    print("### Per-child fit\n")
+    print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples for a focal measure (observed dots, posterior-predictive band)"))
+    print(
+        "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
+        "child's observed scores on a focal measure (named in the figure title) across the four waves; "
+        "the green band is the model's posterior-predictive 95% interval **for that same child**, built "
+        "from the child's fitted growth trajectory (a *same-children* display, distinct from the cohort "
+        "trajectory above). To keep one figure, only the focal measure is drawn; the others behave "
+        "analogously. Panels flagged with a high Pareto-k are the worst-fitting children (aggregated "
+        "across all measures), shown on purpose; the rest are a seeded random draw."
+    )
+```

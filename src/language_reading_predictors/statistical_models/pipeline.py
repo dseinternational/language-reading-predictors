@@ -1120,6 +1120,131 @@ def _write_predicted_scores(
         rprint(f"[yellow]Predicted-scores figures failed: {exc}[/yellow]")
 
 
+def _ctx_pareto_k(ctx: StatisticalFitContext) -> np.ndarray | None:
+    """Per-observation Pareto-k vector from ``ctx.loo`` (``None`` when unavailable)."""
+    loo = getattr(ctx, "loo", None)
+    pk = getattr(loo, "pareto_k", None) if loo is not None else None
+    if pk is None:
+        return None
+    return np.asarray(getattr(pk, "values", pk), dtype=float)
+
+
+def _write_group_trajectory(
+    ctx: StatisticalFitContext,
+    *,
+    outcome_symbol: str,
+    arm: np.ndarray,
+    wave: np.ndarray,
+    child_idx: np.ndarray,
+    off_floor: bool,
+    obs_node: str = "y_post",
+    crossover_wave: int = 1,
+) -> None:
+    """Population per-arm score-trajectory figure (#317 fig 1). Guarded like the PPC."""
+    from language_reading_predictors.statistical_models import trajectory_plots as _tp
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    try:
+        m = MEASURES[outcome_symbol]
+        summary = _tp.write_group_arm_trajectory(
+            ctx.output_dir,
+            ctx.trace,
+            arm=np.asarray(arm, dtype=int),
+            wave=np.asarray(wave, dtype=int),
+            child_idx=np.asarray(child_idx, dtype=int),
+            n_trials=int(m.n_trials),
+            outcome_symbol=outcome_symbol,
+            item_label=m.label,
+            off_floor=off_floor,
+            ci_prob=ctx.reporting.ci_prob,
+            crossover_wave=crossover_wave,
+            obs_node=obs_node,
+        )
+        ctx.tables["group_trajectory"] = summary
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Group-trajectory figure failed: {exc}[/yellow]")
+
+
+def _write_child_fit(
+    ctx: StatisticalFitContext,
+    *,
+    outcome_symbol: str,
+    wave: np.ndarray,
+    child_idx: np.ndarray,
+    off_floor: bool,
+    obs_node: str = "y_post",
+    x_label: str = "assessment wave",
+) -> None:
+    """Per-child fitted-vs-observed small multiples for an obs_id family (#317 fig 2)."""
+    from language_reading_predictors.statistical_models import trajectory_plots as _tp
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    try:
+        m = MEASURES[outcome_symbol]
+        summary = _tp.write_child_fit_obsid(
+            ctx.output_dir,
+            ctx.trace,
+            wave=np.asarray(wave, dtype=int),
+            child_idx=np.asarray(child_idx, dtype=int),
+            n_trials=int(m.n_trials),
+            outcome_symbol=outcome_symbol,
+            item_label=m.label,
+            off_floor=off_floor,
+            obs_node=obs_node,
+            pareto_k=_ctx_pareto_k(ctx),
+            seed=ctx.sampling.random_seed,
+            ci_prob=ctx.reporting.ci_prob,
+            x_label=x_label,
+        )
+        ctx.tables["child_fit_panels"] = summary
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Per-child fit figure failed: {exc}[/yellow]")
+
+
+def _write_panel_trajectory(ctx: StatisticalFitContext, *, latent_name: str) -> None:
+    """Per-measure cohort growth-trajectory figure for a masked panel family (#317)."""
+    from language_reading_predictors.statistical_models import trajectory_plots as _tp
+
+    try:
+        summary = _tp.write_outcome_trajectory(
+            ctx.output_dir,
+            ctx.trace,
+            ctx.prepared,
+            latent_name=latent_name,
+            ci_prob=ctx.reporting.ci_prob,
+        )
+        ctx.tables["group_trajectory"] = summary
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Cohort-trajectory figure failed: {exc}[/yellow]")
+
+
+def _write_panel_child_fit(
+    ctx: StatisticalFitContext,
+    *,
+    latent_name: str,
+    focal_symbol: str,
+    kappa_name: str = "kappa",
+) -> None:
+    """Per-child small multiples (one focal outcome) for a masked panel family (#317)."""
+    from language_reading_predictors.statistical_models import trajectory_plots as _tp
+
+    try:
+        summary = _tp.write_child_fit_panel(
+            ctx.output_dir,
+            ctx.trace,
+            ctx.prepared,
+            latent_name=latent_name,
+            focal_symbol=focal_symbol,
+            kappa_name=kappa_name,
+            pareto_k=_ctx_pareto_k(ctx),
+            seed=ctx.sampling.random_seed,
+            ci_prob=ctx.reporting.ci_prob,
+        )
+        ctx.tables["child_fit_panels"] = summary
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Per-child fit figure failed: {exc}[/yellow]")
+
+
 def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
     """Heatmap of joint pairwise probability-scale AME ordering (#125 Area 4)."""
     try:
@@ -2836,6 +2961,28 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             event_label="off the floor at t2 (prevalence)",
         )
 
+        # Data-space figures (#317): the crossover trajectory (headline picture) and
+        # per-child fitted-vs-observed panels. Only the binary t1--t3 levels model
+        # carries a per-wave level; the dose companions are transition-frame and skip.
+        _obs_node = "y_offfloor" if off_floor else "y_post"
+        _write_group_trajectory(
+            ctx,
+            outcome_symbol=sym,
+            arm=built.prepared.G,
+            wave=built.prepared.phase,
+            child_idx=built.prepared.child_idx,
+            off_floor=off_floor,
+            obs_node=_obs_node,
+        )
+        _write_child_fit(
+            ctx,
+            outcome_symbol=sym,
+            wave=built.prepared.phase,
+            child_idx=built.prepared.child_idx,
+            off_floor=off_floor,
+            obs_node=_obs_node,
+        )
+
     if period_varying:
         # Period-resolved dose readout (#135): partial-pooled per-period dose
         # slopes + a between-period SD, written by the shared dose-slope summary.
@@ -3115,6 +3262,18 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_mech_vars)
+
+    # Per-child fitted-vs-observed panels (#317 fig 2), one per period transition.
+    _write_child_fit(
+        ctx,
+        outcome_symbol=spec.outcome_symbol,
+        wave=ctx.prepared.phase,
+        child_idx=ctx.prepared.child_idx,
+        off_floor=False,
+        obs_node="y_post",
+        x_label="period transition",
+    )
+
     _report.write_run_metadata(ctx, extra=meta_extra)
 
     return _finalize_report(ctx)
@@ -4616,6 +4775,17 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             )
         )
 
+    # Per-child fitted-vs-observed panels (#317 fig 2), one per period transition.
+    _write_child_fit(
+        ctx,
+        outcome_symbol=spec.outcome_symbol,
+        wave=built.prepared.phase,
+        child_idx=built.prepared.child_idx,
+        off_floor=off_floor,
+        obs_node="y_offfloor" if off_floor else "y_post",
+        x_label="period transition",
+    )
+
     _report.write_run_metadata(ctx, extra=meta_extra)
     return _finalize_report(ctx)
 
@@ -4842,6 +5012,26 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                 os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
             )
             ctx.tables["rope_sensitivity"] = sens_df
+
+    # Data-space figures (#317): population per-arm score trajectory (the crossover
+    # picture — only the t2 gap is randomised) and per-child fitted-vs-observed panels.
+    _write_group_trajectory(
+        ctx,
+        outcome_symbol=spec.outcome_symbol,
+        arm=built.prepared.G,
+        wave=built.prepared.phase,
+        child_idx=built.prepared.child_idx,
+        off_floor=off_floor,
+        obs_node=obs_node,
+    )
+    _write_child_fit(
+        ctx,
+        outcome_symbol=spec.outcome_symbol,
+        wave=built.prepared.phase,
+        child_idx=built.prepared.child_idx,
+        off_floor=off_floor,
+        obs_node=obs_node,
+    )
 
     _report.write_run_metadata(ctx, extra=meta_extra)
     return _finalize_report(ctx)
@@ -6817,6 +7007,9 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         )
 
+    # Per-child fitted-vs-observed panels (#317 fig 2) for the focal reading target.
+    _write_panel_child_fit(ctx, latent_name="x_latent", focal_symbol=reading_symbol)
+
     _report.write_run_metadata(
         ctx,
         extra={
@@ -6965,6 +7158,12 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             f"[{tempo_corr['lo']:+.3f}, {tempo_corr['hi']:+.3f}] "
             f"P(>0)={tempo_corr['prob_pos']:.3f}"
         )
+
+    # Data-space figures (#317): per-measure cohort trajectory (no arm — growth's
+    # "arm" is a latent tempo, not an observed randomised arm) and per-child
+    # fitted-vs-observed panels for a focal outcome.
+    _write_panel_trajectory(ctx, latent_name="theta")
+    _write_panel_child_fit(ctx, latent_name="theta", focal_symbol=outcomes[0])
 
     _report.write_run_metadata(
         ctx,
