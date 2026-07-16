@@ -18,25 +18,25 @@ The estimand re-specification, dose redesign, DID-013 re-scoping, report/catalog
 - **Config:** `reporting` (6 chains × 6000 draws × 6000 tune, `target_accept = 0.95`) for all 14 models; `lrp-rli-did-007` re-fit at `target_accept = 0.99` (see below).
 - **Scope:** the full waitlist-crossover family — `lrp-rli-did-001`–`013` and `107`.
 - **Fitted:** 14 / 14. **Convergence gate: 14 / 14 PASS** (R-hat ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.30, 0 divergences).
-- On the first pass `lrp-rli-did-007` (period-resolved letter-sound session dose) failed the gate on divergences only — 25 of 36 000 draws (0.07 %, within the METHODS ≤ 1 % guidance), with R-hat, ESS and BFMI all passing. This is the same geometry the issue flagged from the 13 July snapshot (28 divergences). Re-fitting at `target_accept = 0.99` removed all divergences and the gate passes cleanly; no interpretation rests on the divergent first pass.
+- On the first pass `lrp-rli-did-007` (period-resolved letter-sound session dose) **failed** the convergence gate. The gate requires **zero** divergences to PASS, and this fit produced 25 (of 36 000 draws), with R-hat, ESS and BFMI all passing — the same geometry the issue flagged from the 13 July snapshot (28 divergences). Because criterion 8 interprets only gate-passing fits, this divergent fit is discarded, not interpreted or reported as within-policy. Re-fitting at `target_accept = 0.99` removed every divergence, so the fit now clears the 0-divergence gate; that refit is the one summarised below.
 
 ## Headline causal contrasts (`tau_t2`, the clean randomised t2 arm gap)
 
 `tau_t2` is the only causal quantity in each arm-by-wave model — the immediate-minus-waitlist contrast at t2, before the waitlist arm crosses over. Positive favours the intervention. Item-scale figures are standardised over the documented fitted rows; direction labels follow the issue #179 evidence ladder.
 
-| Model      | Outcome                         | `tau_t2` (logit, 95% CrI) | P(τ>0) | Item scale        | Evidence (direction)    |
-| ---------- | ------------------------------- | ------------------------- | ------ | ----------------- | ----------------------- |
-| did-002    | L letter-sound knowledge        | +0.60 (+0.11, +1.07)      | 0.991  | +3.5 of 32 items  | very strong             |
-| did-003    | B phoneme blending              | +0.42 (−0.06, +0.89)      | 0.956  | +0.9 items        | moderate                |
-| did-004    | TE taught expressive vocabulary | +0.32 (−0.07, +0.71)      | 0.949  | +1.5 items        | moderate                |
-| did-001    | W word reading                  | +0.34 (−0.13, +0.81)      | 0.920  | +2.2 items        | moderate                |
-| did-013    | W word reading (het catch-up)   | +0.34 (−0.14, +0.80)      | 0.918  | +2.2 items        | moderate                |
-| did-008    | TR taught receptive vocabulary  | +0.23 (−0.12, +0.57)      | 0.902  | +1.2 items        | suggestive              |
-| did-010    | F basic concept knowledge       | +0.16 (−0.21, +0.54)      | 0.809  | +0.6 items        | suggestive              |
-| did-012    | N nonword reading (off-floor)   | +0.30 (−0.45, +1.03)      | 0.788  | +0.058 risk diff. | suggestive              |
-| did-011    | P phonetic spelling (off-floor) | +0.16 (−0.64, +0.96)      | 0.652  | +0.023 risk diff. | inconclusive            |
-| did-009    | E standardised expressive vocab | +0.03 (−0.20, +0.25)      | 0.608  | +0.8 items        | inconclusive            |
-| did-005    | R receptive vocabulary          | −0.00 (−0.21, +0.21)      | 0.492  | −0.1 items        | inconclusive            |
+| Model   | Outcome                         | `tau_t2` (logit, 95% CrI) | P(τ>0) | Item scale        | Evidence (direction) |
+| ------- | ------------------------------- | ------------------------- | ------ | ----------------- | -------------------- |
+| did-002 | L letter-sound knowledge        | +0.60 (+0.11, +1.07)      | 0.991  | +3.5 of 32 items  | very strong          |
+| did-003 | B phoneme blending              | +0.42 (−0.06, +0.89)      | 0.956  | +0.9 items        | moderate             |
+| did-004 | TE taught expressive vocabulary | +0.32 (−0.07, +0.71)      | 0.949  | +1.5 items        | moderate             |
+| did-001 | W word reading                  | +0.34 (−0.13, +0.81)      | 0.920  | +2.2 items        | moderate             |
+| did-013 | W word reading (het catch-up)   | +0.34 (−0.14, +0.80)      | 0.918  | +2.2 items        | moderate             |
+| did-008 | TR taught receptive vocabulary  | +0.23 (−0.12, +0.57)      | 0.902  | +1.2 items        | suggestive           |
+| did-010 | F basic concept knowledge       | +0.16 (−0.21, +0.54)      | 0.809  | +0.6 items        | suggestive           |
+| did-012 | N nonword reading (off-floor)   | +0.30 (−0.45, +1.03)      | 0.788  | +0.058 risk diff. | suggestive           |
+| did-011 | P phonetic spelling (off-floor) | +0.16 (−0.64, +0.96)      | 0.652  | +0.023 risk diff. | inconclusive         |
+| did-009 | E standardised expressive vocab | +0.03 (−0.20, +0.25)      | 0.608  | +0.8 items        | inconclusive         |
+| did-005 | R receptive vocabulary          | −0.00 (−0.21, +0.21)      | 0.492  | −0.1 items        | inconclusive         |
 
 The pattern is coherent with the randomised ITT and the gain-factor ANCOVA: strong-to-very-strong signal on the phonics-proximal outcomes (L, B, W) and taught expressive vocabulary (TE), fading to inconclusive on broad standardised vocabulary (R, E). `did-013`'s `tau_t2` reproduces `did-001` as expected — the heterogeneity variant adds only a waitlist-only catch-up deviation and shares the arm-by-wave core. Agreement of `tau_t2` with the ITT is a shared-data parameterisation check, not independent replication, exactly as the reports now state. The floored P/N models report off-floor **prevalence** risk differences, not floor-exit transitions.
 
