@@ -47,7 +47,44 @@ if interaction_summary is not None and len(interaction_summary):
     )
 ```
 
-### Mechanism Curve
+### Mechanism curve (items scale)
+
+_The reader-facing view._ The same fitted dose–response as the analyst's logit
+curve below, but on the **items scale**: the earlier skill in its own test units
+along the horizontal axis, the predicted outcome in test units up the vertical
+axis, with the shaded 95% credible ribbon. The other covariates are held at their
+fitted-sample means and the curve is population-level over the child intercepts
+(a typical child, not any fitted one). Because the logit link is nonlinear, the
+items-scale "exchange rate" varies along the curve — the same step in the earlier
+skill buys more predicted items in the steep middle than in the flat tails — which
+is exactly what the logit view hides.
+
+```{python}
+# | echo: false
+# | output: asis
+_mech_items = (config.get("extra") or {}).get("mechanism_items") or {}
+print(_img("mechanism_curve_items.png", "Items-scale mechanism curve with worked example"))
+if _mech_items.get("caption"):
+    print(f"\n**Worked example.** {_mech_items['caption']}")
+print(
+    "\n\n_How to read it:_ read the shape and the ribbon width, not a single point "
+    "— the ribbon widens where the data thin out. The red points mark the "
+    "worked-example contrast (a fixed pair of percentiles of the observed exposure), "
+    "and the difference between their predicted outcomes is the sentence above, "
+    "computed from the posterior. As with every quantity in this family it is an "
+    "**adjusted association under the DAG, not a causal effect** — the intervention "
+    "is not being moved here, so this is not what would happen if a child were taught "
+    "more of the earlier skill."
+)
+```
+
+```{python}
+# | echo: false
+mechanism_curve_items = _csv("mechanism_curve_items.csv")
+mechanism_curve_items.head(15) if mechanism_curve_items is not None else "No items-scale mechanism curve table."
+```
+
+### Mechanism curve (analyst's logit scale)
 
 ```{python}
 # | echo: false
