@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess
+import sys
 import uuid
 from multiprocessing import freeze_support
 
@@ -216,7 +217,12 @@ def main() -> None:
                 continue
             rprint(f"[bold green]quarto render {qmd}[/bold green]")
             try:
-                subprocess.run(["quarto", "render", qmd], check=True)
+                # Pin Quarto's Jupyter kernel to the interpreter that ran the
+                # fit (it has arviz/pymc/etc.). Otherwise Quarto resolves its
+                # own ``python3`` from PATH, which fails when the conda env is
+                # not the first interpreter on PATH.
+                render_env = {**os.environ, "QUARTO_PYTHON": sys.executable}
+                subprocess.run(["quarto", "render", qmd], check=True, env=render_env)
             except subprocess.CalledProcessError as exc:
                 # Don't abort the loop on one bad render — build the rest and
                 # surface a non-zero exit at the end (mirrors fit_model.py).

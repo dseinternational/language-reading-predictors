@@ -6,7 +6,9 @@ Fits the specified model to the latest data. Saves plots and data to the output 
 """
 
 import argparse
+import os
 import subprocess
+import sys
 import uuid
 from pathlib import Path
 from multiprocessing import freeze_support
@@ -189,7 +191,14 @@ def main():
                 continue
             print(f"\n[bold green]Rendering Quarto output: {qmd_path}[/bold green]")
             try:
-                subprocess.run(["quarto", "render", str(qmd_path)], check=True)
+                # Pin Quarto's Jupyter kernel to the interpreter that ran the
+                # fit (it has the scientific stack). Otherwise Quarto resolves
+                # its own ``python3`` from PATH, which fails when the conda env
+                # is not the first interpreter on PATH.
+                render_env = {**os.environ, "QUARTO_PYTHON": sys.executable}
+                subprocess.run(
+                    ["quarto", "render", str(qmd_path)], check=True, env=render_env
+                )
             except subprocess.CalledProcessError as exc:
                 # Don't abort the loop on one bad render — the user will
                 # want the other reports built, and we'll surface a
