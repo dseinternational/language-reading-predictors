@@ -3730,12 +3730,13 @@ def _write_dose_slope_summary(
         .values
     )
     if period_varying:
-        phase_slopes = (
-            post["beta_dose_phase"]
-            .stack(sample=("chain", "draw"))
-            .transpose("phase", "sample")
-            .values
-        )
+        # The period dimension is named "phase" in the dose_response family but
+        # "dose_phase" in the DiD dose companions; derive it rather than hardcode
+        # one spelling (a hardcoded "phase" crashed did-007 with a missing-dim
+        # ValueError before it could write its report).
+        stacked_bdp = post["beta_dose_phase"].stack(sample=("chain", "draw"))
+        phase_dim = next(d for d in stacked_bdp.dims if d != "sample")
+        phase_slopes = stacked_bdp.transpose(phase_dim, "sample").values
         delta_eta = phase_slopes[np.asarray(ctx.prepared.phase, dtype=int)]
     else:
         slope = post["beta_dose"].stack(sample=("chain", "draw")).values
