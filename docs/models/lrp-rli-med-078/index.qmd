@@ -20,10 +20,10 @@ Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 {{< include _partials/_header.qmd >}}
-
 {{< include _partials/_setup.qmd >}}
-
-{{< include _partials/_convergence.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
 
 ## Overview
 
@@ -39,12 +39,8 @@ Same as LRP59 (phase 0, $n \approx 53$). The mediator is drawn from the fitted *
 
 The interventional effects avoid the *cross-world* problem created by the treatment-induced confounder, but the mediator–outcome relationship is **still $GA$-confounded**. Moreover, dose is not represented in the fitted model, so this calculation cannot estimate or diagnose dose distortion. IDE/IIE remain **model-based adjusted decompositions** under stated assumptions — a weaker-assumption estimand class, not an identified causal route. $n \approx 53 \Rightarrow$ wide intervals.
 
-{{< include _partials/_priors.qmd >}}
-
-{{< include _partials/_prior_predictive.qmd >}}
-
-{{< include _partials/_diagnostics.qmd >}}
-
 {{< include _partials/_results_mediation.qmd >}}
-
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

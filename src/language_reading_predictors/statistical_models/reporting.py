@@ -3981,6 +3981,51 @@ _KF_CHECK_LABELS = {
 }
 
 
+def _convergence_gate_failures(diag_summary: Mapping | None) -> list[str]:
+    """Return readable failed checks from a diagnostics-gate payload.
+
+    ``passed`` is the authoritative verdict written by
+    ``dse_research_utils``.  The per-check mapping supplies the explanation; an
+    absent or internally inconsistent payload fails closed as an incomplete
+    convergence summary.  The same helper drives both the prominent report
+    badge and the key-findings interlock so their failure labels cannot drift.
+    """
+    if not isinstance(diag_summary, Mapping) or diag_summary.get("passed") is not True:
+        checks = diag_summary.get("checks") if isinstance(diag_summary, Mapping) else None
+        if isinstance(checks, Mapping):
+            failing = [
+                _KF_CHECK_LABELS.get(str(name), str(name))
+                for name, ok in checks.items()
+                if ok is not True
+            ]
+            if failing:
+                return failing
+        return ["convergence summary incomplete"]
+    return []
+
+
+def convergence_gate_badge_markdown(diag_summary: Mapping | None) -> str:
+    """Render the compact pass/fail badge shown before report findings (#321).
+
+    A failed or unavailable gate is deliberately rendered as a red ``important``
+    callout and explicitly withholds interpretation.  The full numerical banner
+    remains available in the collapsed Technical checks section.
+    """
+    failing = _convergence_gate_failures(diag_summary)
+    if not failing:
+        return (
+            '::: {.callout-tip title="Sampling-quality gate: passed"}\n\n'
+            "**PASS** — All sampling-quality checks passed; details are under "
+            "Technical checks.\n\n:::"
+        )
+    failed_text = ", ".join(failing)
+    return (
+        '::: {.callout-important title="Sampling-quality gate: failed"}\n\n'
+        f"**FAIL** — Sampling-quality checks failed: {failed_text}. Findings are "
+        "withheld; review Technical checks before interpreting any estimate.\n\n:::"
+    )
+
+
 def generate_key_findings(output_dir) -> dict:
     """Build and write ``key_findings.json`` for a fit output directory (#320).
 
@@ -4031,13 +4076,8 @@ def generate_key_findings(output_dir) -> dict:
             "gate cannot be checked"
         )
         return _write_key_findings(out, payload)
-    if not diag.get("passed", False):
-        checks = diag.get("checks") or {}
-        failing = [
-            _KF_CHECK_LABELS.get(name, name)
-            for name, ok in checks.items()
-            if not ok
-        ] or ["convergence summary incomplete"]
+    failing = _convergence_gate_failures(diag)
+    if failing:
         payload["status"] = "gate_failed"
         payload["failing_checks"] = failing
         return _write_key_findings(out, payload)

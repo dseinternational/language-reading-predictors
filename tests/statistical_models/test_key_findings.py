@@ -22,6 +22,7 @@ from language_reading_predictors.statistical_models.reporting import (
     KEY_FINDINGS_FILENAME,
     KEY_FINDINGS_MAX_SENTENCES,
     _KF_BUILDERS,
+    convergence_gate_badge_markdown,
     generate_key_findings,
 )
 
@@ -160,6 +161,53 @@ def test_malformed_diagnostics_summary_degrades(tmp_path):
     payload = generate_key_findings(d)
     assert payload["status"] == "not_available"
     assert "could not be parsed" in payload["reason"]
+
+
+def test_convergence_gate_badge_passes_compactly():
+    markdown = convergence_gate_badge_markdown(_passing_gate())
+    assert "callout-tip" in markdown
+    assert "Sampling-quality gate: passed" in markdown
+    assert "All sampling-quality checks passed" in markdown
+    assert "Technical checks" in markdown
+
+
+def test_convergence_gate_badge_fails_closed_and_names_checks():
+    markdown = convergence_gate_badge_markdown(
+        {
+            "passed": False,
+            "checks": {
+                "rhat": False,
+                "ess": True,
+                "divergences": False,
+                "bfmi": True,
+            },
+        }
+    )
+    assert "callout-important" in markdown
+    assert "Sampling-quality gate: failed" in markdown
+    assert "R-hat" in markdown
+    assert "divergent transitions" in markdown
+    assert "Findings are withheld" in markdown
+
+    unavailable = convergence_gate_badge_markdown(None)
+    assert "callout-important" in unavailable
+    assert "convergence summary incomplete" in unavailable
+
+
+def test_non_boolean_gate_verdict_fails_closed_everywhere(tmp_path):
+    d = _setup_dir(tmp_path, "itt")
+    inconsistent = {
+        "passed": "yes",
+        "checks": {"rhat": True, "ess": True, "divergences": True, "bfmi": True},
+    }
+    _write_json(d, "diagnostics_summary.json", inconsistent)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+
+    payload = generate_key_findings(d)
+    assert payload["status"] == "gate_failed"
+    assert payload["sentences"] == []
+    assert payload["failing_checks"] == ["convergence summary incomplete"]
+    assert "callout-important" in convergence_gate_badge_markdown(inconsistent)
 
 
 def test_gate_outranks_malformed_config(tmp_path):
@@ -792,14 +840,39 @@ def test_reading_guide_is_a_collapsed_callout():
     assert "METHODS.md" in text
 
 
-def test_pilot_reports_include_the_new_partials():
-    pilots = ("lrp-rli-itt-010", "lrp-rli-gf-001", "lrp-rli-lf-001", "lrp-rli-did-001")
-    for model_id in pilots:
-        text = (REPO / f"docs/models/{model_id}/index.qmd").read_text()
-        assert "_partials/_key_findings.qmd" in text, model_id
-        # Gate first: the box must render after the convergence banner.
-        assert text.index("_partials/_convergence.qmd") < text.index(
-            "_partials/_key_findings.qmd"
-        ), model_id
-    itt = (REPO / "docs/models/lrp-rli-itt-010/index.qmd").read_text()
-    assert "_partials/_reading_guide.qmd" in itt
+def test_all_statistical_reports_use_the_findings_first_order():
+    expected = (
+        "_partials/_header.qmd",
+        "_partials/_setup.qmd",
+        "_partials/_gate_badge.qmd",
+        "_partials/_key_findings.qmd",
+        "_partials/_reading_guide.qmd",
+        "_partials/_results_",
+        "_partials/_priors.qmd",
+        "_partials/_prior_predictive.qmd",
+        "_partials/_technical.qmd",
+        "_partials/_footer.qmd",
+    )
+    statistical_reports = []
+    for path in sorted((REPO / "docs/models").glob("*/index.qmd")):
+        text = path.read_text()
+        if "_partials/_setup.qmd" not in text:
+            continue
+        statistical_reports.append(path)
+        missing = [name for name in expected if name not in text]
+        assert not missing, (
+            f"{path.parent.name}: missing expected partials: {', '.join(missing)}"
+        )
+        positions = [text.index(name) for name in expected]
+        assert positions == sorted(positions), path.parent.name
+        assert "_partials/_convergence.qmd" not in text, path.parent.name
+        assert "_partials/_diagnostics.qmd" not in text, path.parent.name
+    assert statistical_reports
+
+
+def test_technical_partial_keeps_full_checks_inside_the_fold():
+    text = (REPO / "docs/models/_partials/_technical.qmd").read_text()
+    assert 'collapse="true"' in text
+    assert 'title="Technical checks"' in text
+    assert text.count("_partials/_convergence.qmd") == 1
+    assert text.count("_partials/_diagnostics.qmd") == 1

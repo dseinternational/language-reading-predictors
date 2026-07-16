@@ -20,10 +20,10 @@ Substantially revised by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 {{< include _partials/_header.qmd >}}
-
 {{< include _partials/_setup.qmd >}}
-
-{{< include _partials/_convergence.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
 
 ## Overview
 
@@ -48,12 +48,6 @@ $$
 with a Beta-Binomial likelihood on t1/t2/t3 word-reading counts ($N=79$), $G_i=1$ for the immediate arm, $\beta_{\text{period},t1}=0$, and $\text{arm\_gap}_{t}=(\text{arm\_gap}_{t1},\tau_{t2},\text{arm\_gap}_{t3})$. The child-specific catch-up quantity is $\delta_{\text{crossover},i}=\tau_{t2}-\text{arm\_gap}_{t3}+\sigma_\delta z_i$. No period-start outcome enters because t2 is treatment-affected for the immediate arm when used as the P2 baseline.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
-
-{{< include _partials/_priors.qmd >}}
-
-{{< include _partials/_prior_predictive.qmd >}}
-
-{{< include _partials/_diagnostics.qmd >}}
 
 {{< include _partials/_results_did.qmd >}}
 
@@ -82,5 +76,11 @@ else:
         "exploratory component. It does not justify a responder/non-responder split.\n"
     )
 ```
+
+{{< include _partials/_priors.qmd >}}
+
+{{< include _partials/_prior_predictive.qmd >}}
+
+{{< include _partials/_technical.qmd >}}
 
 {{< include _partials/_footer.qmd >}}

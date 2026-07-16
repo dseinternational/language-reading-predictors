@@ -20,14 +20,10 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 {{< include _partials/_header.qmd >}}
-
-{{< include _partials/_reading_guide.qmd >}}
-
 {{< include _partials/_setup.qmd >}}
-
-{{< include _partials/_convergence.qmd >}}
-
+{{< include _partials/_gate_badge.qmd >}}
 {{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
 
 ## Overview
 
@@ -47,12 +43,8 @@ The fitted probabilistic model and adjustment set are intentionally identical to
 
 The set is inherited directly from MED-087: randomised group $G$, age $A$, baseline letter sounds $L_{t1}$, the outcome's own baseline $B_{t1}$, hearing $HS$ and speech production $SP$, with the raw-covariate missing indicators. Phonological memory is not a common cause of letter sounds and blending and is excluded. The time-indexed derivation in `notes/202607142340-lrp264-mediation-adjustment-dsep.md` confirms that baseline expressive/receptive vocabulary is not required and that no treatment-non-descendant adjustment set can block the $L_2\leftarrow IS_1\to PA_2$ witness path.
 
-{{< include _partials/_priors.qmd >}}
-
-{{< include _partials/_prior_predictive.qmd >}}
-
-{{< include _partials/_diagnostics.qmd >}}
-
 {{< include _partials/_results_mediation.qmd >}}
-
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

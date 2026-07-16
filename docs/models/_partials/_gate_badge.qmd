@@ -1,0 +1,26 @@
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+```{python}
+# | echo: false
+# | output: asis
+# Compact, findings-first convergence gate (#321). This partial deliberately
+# reads the fit artefact itself so the badge is independently testable and fails
+# closed when diagnostics_summary.json is absent or malformed.
+import json as _gate_json
+from pathlib import Path as _GatePath
+
+from language_reading_predictors.statistical_models.reporting import (
+    convergence_gate_badge_markdown,
+)
+
+_gate_path = _GatePath(".") / "diagnostics_summary.json"
+try:
+    with open(_gate_path) as _gate_fh:
+        _gate_summary = _gate_json.load(_gate_fh)
+except (FileNotFoundError, OSError, UnicodeDecodeError, _gate_json.JSONDecodeError):
+    _gate_summary = None
+
+print(convergence_gate_badge_markdown(_gate_summary))
+```

@@ -33,8 +33,11 @@ def _csv(name: str, **kw):
 def _json(name: str):
     if not _has(name):
         return None
-    with open(_here / name) as _fh:
-        return json.load(_fh)
+    try:
+        with open(_here / name) as _fh:
+            return json.load(_fh)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
 
 
 def _img(path: str, alt: str = "", attrs: str = "{.lightbox}") -> str:

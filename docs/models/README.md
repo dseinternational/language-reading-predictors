@@ -4,6 +4,8 @@
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 >
 > Substantially edited in the ITT, concurrent, longitudinal-factor and waitlist-crossover sections by a LLM-based AI tool (Codex/GPT-5).
+>
+> Substantially edited in the report-order documentation by a LLM-based AI tool (Codex/GPT-5).
 
 # Model inventory
 
@@ -395,7 +397,7 @@ concurrent letter sounds are excluded as a treatment-affected mediator. Descript
 ## Conventions and pointers
 
 - **Fit a model:** `python scripts/fit_statistical_model.py {model_id|all} --config dev|test|reporting [--render]` (Layer 2); `python scripts/fit_model.py {model_id|all} --config dev [--render]` (Layer 1).
-- **Reports:** one per model at `docs/models/{model_id}/index.qmd`; thin templates that include shared partials from `docs/models/_partials/`. Selection variants fall back to their parent's template.
+- **Reports:** one per model at `docs/models/{model_id}/index.qmd`; thin templates that include shared partials from `docs/models/_partials/`. Statistical reports use the findings-first order `_header` → `_setup` → `_gate_badge` → `_key_findings` → collapsed `_reading_guide` → model prose → family results → `_priors` → `_prior_predictive` → collapsed `_technical` (the full convergence banner, sampling diagnostics and posterior-predictive checks) → `_footer`. A failed gate is a prominent red badge, and the key-findings interlock withholds result sentences. Selection variants fall back to their parent's template.
 - **Cross-model comparisons:** `scripts/compare_statistical_models.py` (ITT-vs-joint `τ` consistency, `τ` and mechanism-slope forests, nested PSIS-LOO).
-- **Interpreting results:** check convergence (R-hat ≈ 1.00, ESS, ≤ 1 % divergences) before interpreting; report the posterior (median + equal-tailed 95 % credible interval + tail probability, with an HPDI sensitivity interval alongside); positive `τ` = intervention helps; only `τ` is causal. Full guidance in `METHODS.md`.
+- **Interpreting results:** read the visible sampling-quality badge before interpreting; expand Technical checks for R-hat, ESS, divergences, BFMI and the full predictive diagnostics. Report the posterior (median + equal-tailed 95 % credible interval + tail probability, with an HPDI sensitivity interval alongside); positive `τ` = intervention helps; only `τ` is causal. Full guidance in `METHODS.md`.
 - **Source of truth:** Layer-1 ids/outcomes live in each module + `models/registry.py`; Layer-2 in each module's `SPEC` (`statistical_models/`). Keep this inventory in step with those when models are added, renamed, or retired.

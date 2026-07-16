@@ -20,10 +20,10 @@ Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 :::
 
 {{< include _partials/_header.qmd >}}
-
 {{< include _partials/_setup.qmd >}}
-
-{{< include _partials/_convergence.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
 
 ## Overview
 
@@ -86,12 +86,8 @@ total-growth (wave 1 to wave 3) contrasts between groups.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_priors.qmd >}}
-
-{{< include _partials/_prior_predictive.qmd >}}
-
-{{< include _partials/_diagnostics.qmd >}}
-
 {{< include _partials/_results_historical_growth.qmd >}}
-
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

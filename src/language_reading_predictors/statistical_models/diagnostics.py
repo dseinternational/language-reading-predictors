@@ -12,7 +12,8 @@ Each LRP model runs the same diagnostic suite:
 3. Summary diagnostics (R-hat, ESS over the scalar parameters; a separate
    summary for deterministics / HSGP basis weights), trace / energy / posterior
    plots, and a ``diagnostics_summary.json`` pass/fail convergence verdict
-   (divergences, BFMI, R-hat, ESS) that the report renders *first*.
+   (divergences, BFMI, R-hat, ESS) that drives the findings-first badge and the
+   full banner inside the collapsed Technical checks section.
 4. LOO-PSIS via ArviZ (pointwise, so Pareto-k bands are available) and a
    ``log_prior`` group for power-scaling prior sensitivity.
 5. Posterior predictive draws, plus the extended diagnostics (Pareto-k, rank,
