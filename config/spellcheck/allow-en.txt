@@ -54,6 +54,7 @@ Donolato
 ELPD
 Engevik
 Ennett
+Epidemiol
 Erlbaum
 Espelage
 FIML
@@ -247,6 +248,7 @@ Wagenmakers
 Walley
 Wechsler
 Westfall
+Westreich
 Wiig
 Wilcoxon
 Woynaroski
