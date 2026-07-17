@@ -162,6 +162,7 @@ Morey
 Mosse
 Mrachko
 Mundlak
+Murayama
 Muthen
 Muthén
 NHST
@@ -235,6 +236,7 @@ Tchetgen
 Toffalini
 Tsvg
 Tunmer
+Usami
 Valido
 Vallar
 VanderWeele
@@ -507,6 +509,7 @@ retau
 reto
 rglob
 rhat
+riclpm
 ridd
 rlm
 rlmadj
@@ -544,6 +547,7 @@ timepoints
 tolist
 toplevel
 trainability
+trivariate
 trog
 unadjustable
 unblockable
