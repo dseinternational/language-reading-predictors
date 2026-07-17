@@ -3513,29 +3513,45 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     sym = ctx.spec.mechanism_symbol
-    N = MEASURES[sym].n_trials
+    outcome = ctx.spec.outcome_symbol or "W"
+    is_covariate = bool(ctx.spec.extra.get("mechanism_is_covariate", False))
+    f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
 
-    try:
-        summary = _report.readiness_threshold(ctx.trace, n_trials=N)
-    except ValueError as exc:
-        rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
-        return
+    if is_covariate:
+        # Continuous-covariate exposure (e.g. LRP92 sessions): locate the knee in the
+        # exposure's own raw units (scaler-inverted, as in _write_mechanism_curve),
+        # not a bounded count. The per-obs exposure aligns with f_mech's row order.
+        z_loaded = np.asarray(ctx.prepared.covariates[sym], dtype=float)
+        scaler = ctx.prepared.covariate_scalers.get(sym)
+        x_obs = scaler.inverse(z_loaded) if scaler is not None else z_loaded
+        try:
+            summary = _report.readiness_threshold(ctx.trace, exposure_values=x_obs)
+        except ValueError as exc:
+            rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
+            return
+        x_label = f"{sym} (raw score)"
+    else:
+        N = MEASURES[sym].n_trials
+        try:
+            summary = _report.readiness_threshold(ctx.trace, n_trials=N)
+        except ValueError as exc:
+            rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
+            return
+        # Mean curve on the raw count scale (inverse Haldane-corrected logit, as in
+        # reporting._readiness_knee) with the knee posterior overlaid.
+        ell = np.asarray(ctx.trace.constant_data["mech_post_logit"].values).reshape(-1)
+        x_obs = np.clip((N + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(N))
+        x_label = f"{sym} (raw count, out of {N})"
+
     pd.DataFrame([summary]).to_csv(
         os.path.join(ctx.output_dir, "readiness_threshold.csv"), index=False
     )
 
-    # Mean curve on the raw count scale (inverse Haldane-corrected logit, as in
-    # reporting._readiness_knee) with the knee posterior overlaid.
-    ell = np.asarray(ctx.trace.constant_data["mech_post_logit"].values).reshape(-1)
-    f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
-    order = np.argsort(ell)
-    x_count = np.clip(
-        (N + 1.0) / (1.0 + np.exp(-ell[order])) - 0.5, 0.0, float(N)
-    )
+    order = np.argsort(x_obs)
+    x = x_obs[order]
     mean = f[order].mean(axis=1)
-    outcome = ctx.spec.outcome_symbol or "W"
     plt.figure(figsize=(6, 4))
-    plt.plot(x_count, mean, color="#1f77b4", lw=2)
+    plt.plot(x, mean, color="#1f77b4", lw=2)
     plt.axvspan(
         summary["knee_count_ci_low"],
         summary["knee_count_ci_high"],
@@ -3546,7 +3562,7 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     plt.axvline(
         summary["knee_count_median"], color="#d62728", lw=1.5, label="knee median"
     )
-    plt.xlabel(f"{sym} (raw count, out of {N})")
+    plt.xlabel(x_label)
     plt.ylabel(f"{outcome} logit contribution")
     plt.title(f"Readiness threshold (steepest rise): {sym} -> {outcome}")
     plt.legend(fontsize=8)

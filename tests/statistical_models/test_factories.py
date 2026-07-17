@@ -676,19 +676,29 @@ def test_mechanism_factory_covariate_exposure_builds(tmp_path):
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
 
 
-def test_mechanism_factory_covariate_exposure_requires_linear(tmp_path):
-    """A covariate exposure with the HSGP curve is refused: the curve, its priors
-    and the readiness-threshold post-processing assume a bounded-count logit."""
+def test_mechanism_factory_covariate_exposure_gp_builds(tmp_path):
+    """A covariate exposure with the HSGP curve on (linear_mechanism=False) builds an
+    ``f_mech`` curve on the standardised covariate (LRP92 sessions -> word reading);
+    its readiness knee is then reported in the exposure's own raw units. This used to
+    be refused; it is now supported."""
     p = _write_synthetic(tmp_path, n_children=10)
     prep = load_and_prepare(path=p, phase_mode="all")
     prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)
-    with pytest.raises(ValueError, match="linear_mechanism"):
-        build_mechanism_model(
-            prep,
-            mechanism_symbol="erbto",
-            outcome_symbol="W",
-            mechanism_is_covariate=True,
-        )
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="erbto",
+        outcome_symbol="W",
+        confounder_symbols=("G", "A"),
+        mechanism_is_covariate=True,  # linear_mechanism defaults False -> HSGP curve
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "beta_mech" not in names  # GP, not a single slope
+    assert "f_mech" in built.model.named_vars
+    assert "mech_covariate" in built.model.named_vars
+    assert "mech_post_logit" not in built.model.named_vars
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=13)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
 
 
 def test_mechanism_factory_covariate_exposure_missing_raises(tmp_path):

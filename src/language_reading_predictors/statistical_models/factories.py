@@ -924,9 +924,12 @@ def build_mechanism_model(
     repo, so registering it as a ``Measure`` would fabricate a denominator). The
     exposure is re-standardised on the kept rows and enters as
     ``beta_mech * z(exposure)``; a ``mech_covariate`` Data node replaces
-    ``mech_post_logit``. Requires ``linear_mechanism=True`` — the HSGP curve, its
-    priors and the readiness-threshold post-processing all assume a bounded-count
-    logit exposure. The caller is responsible for restricting to genuinely
+    ``mech_post_logit``. Works with ``linear_mechanism`` either way: True gives the
+    single-slope estimand (e.g. LRP90 phonological memory); False fits the HSGP
+    ``f_mech`` curve on the standardised covariate (LRP92 sessions -> word reading),
+    whose readiness-threshold knee is then reported in the exposure's own raw units
+    rather than back-transformed to a bounded count. The caller is responsible for
+    restricting to genuinely
     observed exposure rows (``require_observed`` in the loader): mean-imputation
     plus a missingness indicator is an *adjuster* policy and is not acceptable for
     the exposure itself.
@@ -941,12 +944,12 @@ def build_mechanism_model(
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
     if mechanism_is_covariate:
-        if not linear_mechanism:
-            raise ValueError(
-                "mechanism_is_covariate=True requires linear_mechanism=True: the "
-                "HSGP curve, its priors and the readiness-threshold post-processing "
-                "assume a bounded-count logit exposure."
-            )
+        # A covariate exposure may enter EITHER linearly (a single ``beta_mech``
+        # slope) OR as a nonparametric HSGP curve (``linear_mechanism=False``). The
+        # GP path (LRP92: intervention sessions -> word reading) builds ``f_mech`` on
+        # the standardised covariate exactly as for a bounded-count measure; the only
+        # difference downstream is that the readiness-threshold knee is reported in
+        # the exposure's own (raw) units rather than back-transformed to a count.
         if mechanism_symbol not in prepared.covariates:
             raise KeyError(
                 f"Covariate mechanism {mechanism_symbol!r} not in "

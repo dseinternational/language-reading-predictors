@@ -201,6 +201,19 @@ _MECH = [
     _d("lrp88", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading"),
     _d("lrp89", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading"),
     _d("lrp90", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phonological memory (word/nonword repetition) -> word reading"),
+    # GP knee-test variants (do the vocabulary / blending / dose curves have a knee,
+    # as letter sounds do?). Re-attempt the HSGP curve the linear models could not fit.
+    _d("lrp156", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "receptive vocabulary -> word reading (GP knee-test)", base="lrp56"),
+    _d("lrp157", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "expressive vocabulary -> word reading (GP knee-test)", base="lrp57"),
+    _d("lrp188", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading (GP knee-test)", base="lrp88"),
+    _d("lrp189", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading (GP knee-test)", base="lrp89"),
+    _d("lrp91", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phoneme blending -> word reading (GP knee-test)"),
+    _d("lrp92", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "intervention sessions -> word reading (GP dose knee-test)"),
+    # Joint-readiness: letter sounds x vocabulary interaction (do both need to be high?).
+    # Companions to LRP71 (L x E); one per vocabulary measure.
+    _d("lrp93", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x receptive-vocabulary interaction"),
+    _d("lrp94", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-receptive-vocabulary interaction"),
+    _d("lrp95", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-expressive-vocabulary interaction"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),

@@ -971,9 +971,10 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
 
 def _readiness_knee(
     f: np.ndarray,
-    ell: np.ndarray,
+    ell: np.ndarray | None,
     *,
-    n_trials: int,
+    n_trials: int | None = None,
+    count_values: np.ndarray | None = None,
     ci_prob: float = 0.95,
     n_bins: int = 6,
 ) -> dict[str, float]:
@@ -993,10 +994,19 @@ def _readiness_knee(
     are undefined, and a low ``increasing_frac`` flags an ill-defined knee
     (#297 review).
     """
-    # Inverse Haldane-corrected logit -> approximate predictor count, clipped to range.
-    # ell = log((y+0.5)/(n-y+0.5)) => expit(ell) = (y+0.5)/(n+1), so y = (n+1)*expit(ell) - 0.5
-    # (the denominator is n+1, not n; #293 review).
-    L = np.clip((n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
+    if count_values is not None:
+        # Continuous-covariate exposure (e.g. intervention sessions, LRP92): the knee
+        # is located in the exposure's own raw units directly — there is no bounded
+        # count and no logit -> count back-transform. ``knee_count_*`` /
+        # ``half_rise_count_*`` / ``obs_count_*`` then read in those raw units.
+        L = np.asarray(count_values, dtype=float).reshape(-1)
+    else:
+        # Inverse Haldane-corrected logit -> approximate predictor count, clipped to range.
+        # ell = log((y+0.5)/(n-y+0.5)) => expit(ell) = (y+0.5)/(n+1), so y = (n+1)*expit(ell) - 0.5
+        # (the denominator is n+1, not n; #293 review).
+        if ell is None or n_trials is None:
+            raise ValueError("_readiness_knee needs ell + n_trials unless count_values is given.")
+        L = np.clip((n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
 
     edges = np.unique(np.quantile(L, np.linspace(0.0, 1.0, n_bins + 1)))
     nb = len(edges) - 1
@@ -1084,7 +1094,8 @@ def _readiness_knee(
 def readiness_threshold(
     trace: xr.DataTree,
     *,
-    n_trials: int,
+    n_trials: int | None = None,
+    exposure_values: np.ndarray | None = None,
     ci_prob: float = 0.95,
     n_bins: int = 6,
 ) -> dict[str, float]:
@@ -1106,6 +1117,12 @@ def readiness_threshold(
     ``mech_post_logit`` constant-data node of a standard HSGP mechanism fit (e.g.
     ``lrp-rli-mech-058``). ``n_trials`` is the mechanism predictor's item ceiling (letter
     sounds = 32) used to back-transform the logit input to an approximate count.
+
+    For a continuous-covariate exposure (``mechanism_is_covariate`` with the HSGP curve
+    on, e.g. ``lrp-rli-mech-092`` sessions -> word reading), pass ``exposure_values``
+    (the per-observation raw exposure, in the same order as ``f_mech``'s rows) instead
+    of ``n_trials``; the knee/half-rise/``obs_count_*`` fields are then in the
+    exposure's own raw units (e.g. sessions) rather than a bounded count.
     """
     post = trace.posterior
     if "f_mech" not in post:
@@ -1119,6 +1136,14 @@ def readiness_threshold(
     f_stacked = post["f_mech"].stack(sample=("chain", "draw"))
     obs_dim = next(d for d in f_stacked.dims if d != "sample")
     f = f_stacked.transpose(obs_dim, "sample").values  # (n_obs, S)
+    if exposure_values is not None:
+        # Continuous-covariate exposure: the knee lives in the exposure's own units.
+        # ``exposure_values`` must be in the same observation order as ``f_mech``'s rows.
+        return _readiness_knee(
+            f, None,
+            count_values=np.asarray(exposure_values, dtype=float).reshape(-1),
+            ci_prob=ci_prob, n_bins=n_bins,
+        )
     ell = np.asarray(trace.constant_data["mech_post_logit"].values).reshape(-1)  # (n_obs,)
     return _readiness_knee(f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins)
 
