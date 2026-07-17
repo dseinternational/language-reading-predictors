@@ -22,11 +22,17 @@ Design (see `factories.build_mediation_model` + `mediation.decompose`):
 - **Mediator** M = TE_t2 (Beta-Binomial, conditioned on TE_t1); **outcome**
   Y = W_t2 (conditioned on W_t1), with a G x M interaction. NDE/NIE by
   counterfactual simulation.
-- **Adjustment {G, A, L, R, W_pre, TE_t1}**: letter-sound knowledge L (the
-  competing code route to reading) and receptive vocabulary R are the measured
-  mediator-outcome confounders, at baseline (cross-world assumption). Standardised
-  expressive vocabulary E is a *descendant* of TE (transfer edge ``TE -> EV``), so
-  it is deliberately **not** adjusted for (that would be over-control).
+- **Adjustment {G, A, L, R, W_pre, TE_t1, HS, SP, RW}**: the revised-DAG exogenous
+  common causes of the mediator TE and word reading — hearing status HS (``hs``),
+  speech production SP (``deapp_c``) and phonological memory RW (``erbto``) — are the
+  measured mediator-outcome confounders, entered at baseline (cross-world
+  assumption). They were added 2026-07-17 for parity with the flagship route models
+  (MED-059/062/064), which have carried them since the #259 revision; see
+  ``notes/202607172000-adjustment-set-review-full-suite.md``. Baseline letter-sound
+  knowledge L and receptive vocabulary R stay in as admissible pre-treatment
+  precision terms (#264), not as the exogenous confounders. Standardised expressive
+  vocabulary E is a *descendant* of TE (transfer edge ``TE -> EV``), so it is
+  deliberately **not** adjusted for (that would be over-control).
 
 Honesty: an `IG -> TE -> WR` decomposition is ID-2 (§11) — **not point-identified**,
 because `TE -> WR` is `GA`-confounded and dose is a treatment-induced
@@ -47,7 +53,10 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="W",
     mechanism_symbol="TE",  # the mediator
-    adjustment=["G", "A", "L", "R", "W_pre", "TE_t1"],
+    adjustment=[
+        "G", "A", "L", "R", "W_pre", "TE_t1",
+        "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+    ],
     # TE is outside ITT_OUTCOMES, so name the symbols the model loads (outcome +
     # mediator + confounders); restricts the complete-case mask to them.
     extra={"outcomes": ("W", "TE", "L", "R")},

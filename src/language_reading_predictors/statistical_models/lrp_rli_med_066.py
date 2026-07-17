@@ -20,11 +20,16 @@ Design (see `factories.build_two_mediator_model` + `mediation.decompose_two_medi
   baseline; the **outcome** leg adds both standardised post-mediators and their
   treatment interactions. NDE/NIE are computed by counterfactual simulation (the
   g-formula), not from coefficients.
-- **Adjustment {G, A, E, R, W_pre, L_t1, B_t1}**: the two vocabulary measures E and
-  R are the measured mediator-outcome confounders of the code-route -> reading path
-  (the same set LRP62 adjusts for), taken at baseline (cross-world assumption).
-  Both mediators are phonics skills, so vocabulary is a common cause off the code
-  path, not a mediator here.
+- **Adjustment {G, A, E, R, W_pre, L_t1, B_t1, HS, SP, RW}**: the revised-DAG
+  exogenous common causes of the ``{L, B}`` code-route mediators and reading —
+  hearing HS (``hs``), speech SP (``deapp_c``) and phonological memory RW
+  (``erbto``) — are the measured mediator-outcome confounders, now genuinely the same
+  set LRP62 adjusts for, taken at baseline (cross-world assumption). (``hs`` /
+  ``deapp_c`` / ``erbto`` added 2026-07-17 for parity with LRP62; see
+  ``notes/202607172000-adjustment-set-review-full-suite.md``.) The two vocabulary
+  measures E and R stay in as admissible pre-treatment terms: both mediators are
+  phonics skills, so baseline vocabulary is a common cause off the code path (a
+  proxy / precision term), not a mediator here.
 
 Framing (the headline is robust; the split is exploratory) — identical to LRP64:
 
@@ -55,7 +60,10 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="W",
     mechanism_symbol=None,  # two mediators; named in extra["mediators"]
-    adjustment=["G", "A", "E", "R", "W_pre", "L_t1", "B_t1"],
+    adjustment=[
+        "G", "A", "E", "R", "W_pre", "L_t1", "B_t1",
+        "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+    ],
     extra={
         "mediators": ("L", "B"),
         # Path-specific split ordering for the exploratory NIE_L / NIE_B (L first).

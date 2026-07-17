@@ -16,11 +16,17 @@ Design (see `factories.build_mediation_model` + `mediation.decompose`):
 
 - **Phase 0 only** (`phase_mode="itt"`, t1 -> t2), ``n ~ 53``, one row per child.
 - **Mediator** M = N_t2 (Beta-Binomial, conditioned on N_t1); **outcome** Y = W_t2.
-- **Adjustment {G, A, E, R, W_pre, N_t1}**: the vocabulary / lexical measures E and
-  R are the measured mediator-outcome confounders (the whole-word route to reading
-  that bypasses decoding), at baseline. Letter sounds L and blending B are *upstream*
-  of N (they cause decoding), so they are on the ``IG -> ... -> N`` path and are
-  **not** adjusted for (that would block part of the indirect effect).
+- **Adjustment {G, A, E, R, W_pre, N_t1, SP, RW}**: the revised-DAG exogenous common
+  causes of the mediator N and word reading — speech production SP (``deapp_c``) and
+  phonological memory RW (``erbto``) — are the measured mediator-outcome confounders,
+  entered at baseline. (Hearing HS is not a DAG parent of NW, so ``hs`` is correctly
+  omitted.) Added 2026-07-17 for parity with the flagship route models; see
+  ``notes/202607172000-adjustment-set-review-full-suite.md``. The vocabulary / lexical
+  measures E and R stay in as admissible baseline precision terms (a parallel
+  whole-word route to reading), not as the exogenous confounders. Letter sounds L and
+  blending B are *upstream* of N (they cause decoding), so they are on the
+  ``IG -> ... -> N`` path and are **not** adjusted for (that would block part of the
+  indirect effect).
 
 STRONG CAVEATS specific to this model:
 
@@ -47,7 +53,10 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="W",
     mechanism_symbol="N",  # the mediator
-    adjustment=["G", "A", "E", "R", "W_pre", "N_t1"],
+    adjustment=[
+        "G", "A", "E", "R", "W_pre", "N_t1",
+        "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+    ],
     # N is outside ITT_OUTCOMES, so name the symbols the model loads (outcome +
     # mediator + confounders); restricts the complete-case mask to them.
     extra={"outcomes": ("W", "N", "E", "R")},
