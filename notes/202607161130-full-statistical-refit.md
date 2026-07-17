@@ -80,7 +80,7 @@ Only divergence-only flags, all far under the ≤ 1 % METHODS guidance, healthy 
 - **159 / 159 models fitted and rendered** at `reporting` (all have `diagnostics_summary.json` + `index.html`).
 - **Gate: 149 pass, 10 flagged.** Flags split into two groups:
   - **Divergence-only, usable with a caveat** (≤ 0.05 % of draws, healthy R̂/ESS/BFMI): `did-007`, `dose-077`, `dose-083`, `dose-084`, `dose-177`, `hs-001`.
-  - **Latent-factor funnels — correlations robust, structural legs held** pending reparameterisation: `mm-001`, `mm-002` (R̂ 1.048, ESS 64 — worst), `mm-101`, `rlm-mm-001`.
+  - **Latent-factor funnels** pending reparameterisation: `mm-001`, `mm-002` (R̂ 1.048, ESS 64 — worst), `mm-101`, `rlm-mm-001`. (The 2026-07-17 review refined the earlier "correlations robust, structural legs held" shorthand — see the [measurement-models findings note](202607161800-findings-measurement-models.md): the parameters that actually fail R̂/ESS are the latent covariances/correlations themselves, while the structural β legs converge cleanly but are still held under the whole-model flag; the gate-clean longitudinal `lcf-001` anchors the correlation conclusion.)
 - **Cross-model comparison** written to `output/statistical_models/comparison/`. The #340 discipline worked: gate-flagged fits (`did-007`, `dose-077`) were **excluded** from their LOO comparisons, so those nested comparisons were skipped by design.
 - **Public upload:** all 160 dirs (159 models + comparison) published to the `dseresearch` **public** container via the `AzureCliCredential` wrapper (`AZURE_CLIENT_ID` unset). **run_id `019f6be6-5b26-7399-b95c-81690837e08b`**, traces excluded, 160/160 OK, 0 failures. Verified `200 text/html` (reports) and `200 image/png` (figures). Base URL: `…/public/projects/language-reading-predictors/output/019f6be6-5b26-7399-b95c-81690837e08b/<model>-reporting/index.html`.
 
@@ -104,6 +104,11 @@ Only divergence-only flags, all far under the ≤ 1 % METHODS guidance, healthy 
 - [Byrne/RLM growth](202607161800-findings-byrne-rlm-growth.md) — historical_growth + historical_joint, #338 (10)
 - [exploratory](202607161800-findings-exploratory-block-survival.md) — block_exposure + survival (6)
 
+### Cross-family synthesis notes (added 2026-07-17)
+
+- [word-reading growth synthesis](202607171200-findings-word-reading-growth-synthesis.md) — what the data show about factors influencing growth in word reading (W) across all time points, drawing on every family that touches word reading (triangulated causal effect, the letter-sound mediation route, the per-wave concurrent structure, temporal ordering, dose, baseline predictors, trajectory shape).
+- [skill thresholds / nonlinearity](202607171215-findings-skill-thresholds.md) — whether any skills show a threshold beyond which they make a more marked difference to progress. The one replicated nonlinearity is the accelerating letter-sound → word-reading curve near mastery (mechanism readiness knees); dose front-loading, blending "gating", and age moderation are weak/absent.
+
 ## Code change shipped in this sweep
 
 `src/language_reading_predictors/statistical_models/pipeline.py` — `_write_dose_slope_summary` now derives the period dimension name instead of hardcoding `"phase"`, fixing the `did-007` crash (the DiD dose models name it `dose_phase`). Lint-clean. This is the correctness fix that unblocked #340's final acceptance box.
@@ -115,3 +120,4 @@ Only divergence-only flags, all far under the ≤ 1 % METHODS guidance, healthy 
 - 2026-07-16 ~12:18 — `did-007` crash diagnosed and fixed; re-fit cleanly post-sweep (exit 0, rendered).
 - 2026-07-16 18:06 — cross-model comparison written; public upload of all 160 dirs completed (run_id `019f6be6…`).
 - 2026-07-16 — 17 per-family findings notes written.
+- 2026-07-17 — accuracy review + extension pass over all 17 findings notes (verified every headline against the source CSVs; ~30 discrepancies fixed, 2 major: the joint family does **not** model residual correlation, and the measurement-model gate attribution was inverted). Each note extended from headline-only to full per-model coverage, with association/mediation detail and undergraduate-accessible Bayesian glosses. Added the two cross-family synthesis notes above. Format + spellcheck clean.

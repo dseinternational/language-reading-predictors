@@ -286,9 +286,11 @@ beeswarms
 behav
 bidirected
 bifactor
+bivariately
 blockable
 brms
 bytree
+caveated
 celf
 coef
 coeffs
@@ -351,6 +353,7 @@ estimability
 estimand
 estimands
 ewrswr
+exceedance
 exnt
 exogeneity
 expit
@@ -395,6 +398,7 @@ kwargs
 kxac
 lengthscale
 lengthscales
+lettersound
 lexicalise
 lgbm
 lightbox
