@@ -1,0 +1,50 @@
+---
+title: "LRP100: Negative-control outcome — letter sounds (L) -> basic concepts (F)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+Tier-1 decoding-specificity mini-suite, design 1B (see
+`notes/202607172330-tier1-decoding-specificity-spec.md`). A **negative-control outcome**
+for the letter-sound slope (Lipsitch, Tchetgen Tchetgen & Cohen 2010,
+[doi:10.1097/EDE.0b013e3181d61eeb]).
+
+Under the revised DAG (`dag/dag-language-reading.dagitty`) letter-sound knowledge $LS$ has
+descendants only $\{NW, PA, PS, WR\}$, so basic-concept knowledge $LF$ (CELF Preschool-2
+basic concepts) is **not** a causal descendant of $LS$ (no $LS \to \cdots \to LF$ path).
+Any adjusted $L \to F$ association is purely backdoor through the shared parents $\{A, GA,
+HS, IG, IS, SP\}$ — the same source of confounding as the reading outcomes.
+
+**Read.** The $L$ slope should be $\approx 0$ here. $F$ is the smallest / most-limited of
+the oral-language controls (18 items), so treat it as the weakest of the four negative
+controls — a supporting, not load-bearing, panel row.
+
+## Adjustment set
+
+$\{G, A, HS, IS, SP\}$ plus baseline $F_\text{pre}$ — identical to the rest of the Tier-1
+panel. GA unblockable; adjusted association only.
+
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

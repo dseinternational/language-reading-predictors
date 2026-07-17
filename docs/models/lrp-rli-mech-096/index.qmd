@@ -1,0 +1,67 @@
+---
+title: "LRP96: Decoding channel — letter-sound knowledge (L) -> nonword reading (N)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+Tier-1 decoding-specificity mini-suite, design 1A (see the spec note
+`notes/202607172330-tier1-decoding-specificity-spec.md`). LRP96 is the clean
+**total-association** letter-sound → nonword-decoding slope — [LRP72](../lrp-rli-mech-072)
+*without* the phoneme-blending moderator. Nonword reading isolates alphabetic decoding
+(a string that cannot be sight-read), so a strong $L \to N$ slope is the signature that
+letter-sound knowledge is being *used for decoding* rather than merely travelling
+alongside reading through other routes.
+
+Paired with the matched linear $L \to W$ slope ([LRP101](../lrp-rli-mech-101)) it forms
+the **convergent–discriminant contrast** $\Delta = \beta(L\to N) - \beta(L\to W)$: letter
+sounds should feed the pure-decoding channel (N) at least as strongly as the mixed word
+channel (W, which can be sight-read). A pure general-ability-confounding account gives no
+reason for $L$ to predict $N$ *more* than $W$, so $\Delta \ge 0$ is the decoding-use
+signature (Campbell & Fiske 1959 convergent/discriminant logic — not an identification
+claim). The cross-model contrast lives in the model comparison outputs.
+
+## Adjustment set
+
+Matched to LRP58/LRP101 — the revised-DAG parents of $L$ (#245) — so the cross-outcome
+contrast is like-for-like: $\{G, A, HS, IS, SP\}$ plus baseline nonword $N_\text{pre}$.
+Word reading $W$ is **excluded** (a sibling/descendant of decoding: over-control /
+collider risk).
+
+::: {.callout-note title="Linear mechanism + graded floored outcome"}
+Decoding is a heavily-floored 0–6 count, so the mechanism enters as a single linear slope
+$\beta_\text{mech}\,z(\text{logit }L)$ (an HSGP curve is not identifiable here), comparable
+per SD of the exposure to the other Tier-1 slopes. The outcome is the **graded**
+Beta-Binomial count, not the off-floor indicator: the suite floor rule protects
+*treatment marginals*, but an *exposure-association slope* uses the graded leg (the LRP72
+precedent). The floor still costs power — read a small/uncertain slope as *floor-limited*,
+not as "letters do not feed decoding".
+:::
+
+GA (latent general ability) is unblockable and the child random intercept does not stand
+in for it, so $\beta_\text{mech}$ is an **adjusted association**, never a causal decoding
+effect. The randomised warrant lives in the ITT suite.
+
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

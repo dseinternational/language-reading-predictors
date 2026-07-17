@@ -75,6 +75,20 @@ ITT_IDS: list[tuple[str, str]] = [
     ("lrp-rli-itt-008", "B"),
 ]
 MECH_IDS: list[tuple[str, str]] = [("lrp-rli-mech-056", "R"), ("lrp-rli-mech-057", "E"), ("lrp-rli-mech-058", "L")]
+
+# Tier-1 decoding-specificity mini-suite (notes/202607172330-tier1-decoding-specificity-spec.md):
+# matched *linear* letter-sound (L) slopes on a common logit-per-SD scale. 1A is the
+# convergent-discriminant contrast beta(L->N) - beta(L->W); 1B is the negative-control
+# forest — L should move the written-code outcomes (N, W) but not the oral-language
+# controls (R, E, T, F) if it is decoding-specific. (model_id, outcome_symbol, role).
+TIER1_MECH: list[tuple[str, str, str]] = [
+    ("lrp-rli-mech-101", "W", "positive"),
+    ("lrp-rli-mech-096", "N", "positive"),
+    ("lrp-rli-mech-097", "R", "neg-control"),
+    ("lrp-rli-mech-098", "E", "neg-control"),
+    ("lrp-rli-mech-099", "T", "neg-control"),
+    ("lrp-rli-mech-100", "F", "neg-control"),
+]
 JOINT_ID = "lrp-rli-itt-012"
 
 # Mechanism models compared by PSIS-LOO: the LRP58 baseline (L -> W) against the
@@ -662,6 +676,118 @@ def mechanism_forest(config: str, out_path: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Tier-1 decoding-specificity: L->N vs L->W contrast (1A) + negative-control
+# forest (1B). Reads the linear ``beta_mech`` (logit per SD of letter sounds)
+# from each model's trace — commensurate across outcomes regardless of item
+# count, unlike the items-scale ``mechanism_summary.csv``.
+# ---------------------------------------------------------------------------
+
+
+def _beta_mech_draws(model_id: str, config: str) -> np.ndarray | None:
+    """Flattened posterior draws of the linear ``beta_mech`` slope, or None."""
+    nc = os.path.join(_run_dir(model_id, config), "trace.nc")
+    if not os.path.exists(nc):
+        return None
+    trace = az.from_netcdf(nc)
+    if "beta_mech" not in trace.posterior:
+        return None
+    return trace.posterior["beta_mech"].stack(sample=("chain", "draw")).values.ravel()
+
+
+def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
+    """Write the 1A contrast CSV and the 1B negative-control forest (PNG + CSV).
+
+    1A: Delta = beta(L->N) - beta(L->W). The two posteriors are independent
+    (separate fits), so the difference is sampled by pairing draws index-wise
+    (both are i.i.d. within a fit, so the pairing is arbitrary-but-valid Monte
+    Carlo over the convolution). 1B: a forest of ``beta_mech`` per outcome,
+    grouped positive-control (written code: W, N) vs negative-control (oral
+    language: R, E, T, F). A non-converged run is *marked*, never silently
+    dropped (METHODS.md).
+    """
+    rows: list[dict] = []
+    draws: dict[str, np.ndarray] = {}
+    for model_id, sym, role in TIER1_MECH:
+        b = _beta_mech_draws(model_id, config)
+        if b is None:
+            continue
+        draws[sym] = b
+        rows.append(
+            {
+                "config": config,
+                "model": model_id,
+                "outcome": sym,
+                "role": role,
+                "gate_ok": _gate_ok(model_id, config),
+                "beta_mech_mean": float(np.mean(b)),
+                "beta_mech_lo": float(np.quantile(b, 0.025)),
+                "beta_mech_hi": float(np.quantile(b, 0.975)),
+                "prob_pos": float(np.mean(b > 0)),
+            }
+        )
+    if not rows:
+        return False
+
+    df = pd.DataFrame(rows)
+    forest_csv = os.path.join(out_dir, "tier1_negative_control_forest.csv")
+    df.to_csv(forest_csv, index=False)
+
+    # 1A contrast (needs both positive anchors).
+    if "N" in draws and "W" in draws:
+        s = min(draws["N"].shape[0], draws["W"].shape[0])
+        delta = draws["N"][:s] - draws["W"][:s]
+        pd.DataFrame(
+            [
+                {
+                    "config": config,
+                    "estimand": "beta(L->N) - beta(L->W); logit per SD of letter sounds",
+                    "delta_mean": float(np.mean(delta)),
+                    "delta_lo": float(np.quantile(delta, 0.025)),
+                    "delta_hi": float(np.quantile(delta, 0.975)),
+                    "prob_delta_gt_0": float(np.mean(delta > 0)),
+                    "beta_N_mean": float(np.mean(draws["N"])),
+                    "beta_W_mean": float(np.mean(draws["W"])),
+                    "gate_ok_N": _gate_ok("lrp-rli-mech-096", config),
+                    "gate_ok_W": _gate_ok("lrp-rli-mech-101", config),
+                }
+            ]
+        ).to_csv(os.path.join(out_dir, "tier1_1a_contrast.csv"), index=False)
+
+    # 1B forest.
+    labels, means, los, his, colors = [], [], [], [], []
+    for r in rows:
+        mark = "" if r["gate_ok"] else "  [GATE-FAIL]"
+        labels.append(f"{r['model'].replace('lrp-rli-mech-', 'mech-')} (L->{r['outcome']}){mark}")
+        means.append(r["beta_mech_mean"])
+        los.append(r["beta_mech_lo"])
+        his.append(r["beta_mech_hi"])
+        colors.append("#1f77b4" if r["role"] == "positive" else "#d62728")
+
+    y = np.arange(len(labels))
+    plt.figure(figsize=(7, 3.6))
+    plt.errorbar(
+        means,
+        y,
+        xerr=[np.array(means) - np.array(los), np.array(his) - np.array(means)],
+        fmt="o",
+        ecolor="gray",
+        capsize=3,
+        linestyle="none",
+    )
+    plt.scatter(means, y, c=colors, zorder=3)
+    plt.yticks(y, labels)
+    plt.gca().invert_yaxis()
+    plt.axvline(0.0, color="k", lw=0.75, ls="--")
+    plt.xlabel(r"$\beta_{\mathrm{mech}}$ (logit per SD of letter sounds)")
+    plt.title("Tier-1 letter-sound slope: written code (blue) vs oral-language controls (red)")
+    plt.tight_layout()
+    out_png = os.path.join(out_dir, "tier1_negative_control_forest.png")
+    plt.savefig(out_png, dpi=300, bbox_inches="tight")
+    plt.close()
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Mechanism LOO comparison (LRP58 baseline vs interaction models)
 # ---------------------------------------------------------------------------
 
@@ -1099,6 +1225,11 @@ def main() -> None:
         print(f"Wrote {mech_forest_path}")
     else:
         print("Skipping mechanism forest: one or more mechanism runs missing.")
+
+    if tier1_decoding_specificity(args.config, args.out):
+        print(f"Wrote Tier-1 decoding-specificity contrast + forest to {args.out}")
+    else:
+        print("Skipping Tier-1 decoding-specificity: no mechanism runs found.")
 
     loo_compare_path = os.path.join(args.out, "mechanism_loo_compare.csv")
     if mechanism_loo_compare(args.config, loo_compare_path):

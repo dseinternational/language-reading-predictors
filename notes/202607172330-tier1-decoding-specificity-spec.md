@@ -23,7 +23,7 @@ Every strong design below therefore hinges on **nonword reading as the criterion
 
 - **`GA` is unblockable.** It is latent and a parent of every skill; the child random intercept does **not** stand in for it (a zero-mean, predictor-independent effect cannot block `LS ← GA → Y`). Every association here is an **adjusted association**, never a causal skill→skill effect. The only randomised warrant in the suite is the ITT arm.
 - **The mediation family stays ID-2.** The `IG → IS → {LS, PA, NW, WR}` dose witness is untouched by anything below, so 1C is a g-formula _decomposition under stated (cross-world) assumptions_, not an identified natural effect.
-- **`N` is heavily floored** — 6 items, ~57–72% at the floor — so `N`-as-outcome is low-powered and `N`-as-early-exposure is near-degenerate. `B` (blending) has a 3-choice guessing floor.
+- **`N` is heavily floored** — 6 items, ≈ 57–72% at the floor — so `N`-as-outcome is low-powered and `N`-as-early-exposure is near-degenerate. `B` (blending) has a 3-choice guessing floor.
 - **No item-level data.** `nonword` is a single 0–6 total and `yarclet` a single 0–32 total; there is **no** per-item nonword scoring or per-grapheme letter-knowledge. The gold-standard proof — do children decode nonwords built from the specific letters _they individually know_ better than nonwords with unknown letters (a within-child, within-item contrast that structurally beats `GA` confounding)? — is **not available** with this dataset. Flag it as the design that _would_ settle the question if item data were ever recovered/collected.
 - **The deliverable is triangulation, not one model** (§7). No single fit proves "used for decoding". A _coherent pattern_ across 1A + 1B + 1C + the existing `mech-072/086/087` does; the mirror pattern is honest evidence _against_ the decoding account.
 
@@ -60,42 +60,47 @@ Each: `mechanism_symbol="L"`, `outcome_symbol` = the control, `adjustment=["G","
 
 **Panel output:** a forest of the standardised `LS` slope across `{N, W, P?}` vs `{R, E, T, F}`, in `compare_statistical_models.py` and the findings note. The specificity is the picture, not any single fit.
 
-## 6. Design 1C — decoding-carrier sequential mediation: arm → `LS` → `N` → `WR`
+## 6. Design 1C — decoding-carrier cascade: arm → `LS` → `N` → `WR`
 
-The mediation family's exposure is **always the randomised arm** (`IG`), which is what makes this the well-identified version of "does the letter-sound gain get used for decoding". `med-075` already fits the sequential arm→`LS`→`B`→`WR` (blending as the middle skill). 1C mirrors it with the actual **decoding behaviour** `N` as the carrier — and `N` is the DAG's own designated _"code route (mediator)"_ node (`LS`/`PA` → `NW` → `WR`).
+The mediation family's exposure is **always the randomised arm** (`IG`), which is what makes this the well-identified version of "does the letter-sound gain get used for decoding". `N` is the DAG's own designated _"code route (mediator)"_ node (`LS`/`PA` → `NW` → `WR`).
 
-**Build.** `lrp-rli-med-081` (**new**), `kind="mediation_multi"`, mirroring `med-075` with the second mediator swapped `B → N` (and its baseline `B_t1 → N_t1`):
+> [!NOTE]
+> **Build finding (2026-07-17): the single chained model is not buildable; 1C is delivered by triangulation instead.** A chained two-mediator model (`kind="mediation_multi"`, mediators `(L, N)`, `chain=True`, mirroring `med-075`'s `L→B→W`) was written as `lrp-rli-med-081` and then **withdrawn**: `build_two_mediator_model` hard-requires each mediator's autoregressive baseline (`prepared.pre_logit[N]`), but `N` is **post-only** — its t1 baseline is ≈ 72% floored and deliberately not co-loaded (`measures.py`; `preprocessing` line 370-ish), so the fit raises `KeyError: Symbol 'N' missing from prepared data`. Forcing it would need either a degenerate near-constant baseline or a change to a shared factory (also used by `med-064/066/075`) — not worth the regression risk for a decomposition the `N`-floor would make low-power anyway. This is the spec's own governing floor caveat surfacing at the infrastructure level.
 
-```python
-outcome_symbol="W", mechanism_symbol=None,
-adjustment=["G","A","E","R","W_pre","L_t1","N_t1",
-            "hs","hs_missing","deapp_c","deapp_c_missing","erbto","erbto_missing"],
-extra={"mediators": ("L","N"), "order": ("L","N"), "chain": True,
-       "outcomes": ("W","N","L","E","R")}
-```
+**What delivers 1C instead — triangulation of the existing arm-anchored g-formula pieces** (no new fit needed; all randomised-exposure, all already in the suite):
 
-`N` enters as a graded Beta-Binomial mediator leg (the `med-074` precedent — off-floor is for terminal `N` outcomes, e.g. `med-086`). **Read-outs:** the joint indirect through the ordered `{LS, N}` block (`NIE_joint` — the total code-route mediation); the `LS → N` coupling `aN_L` (a clearly-positive value is the direct evidence that decoding is downstream of letters _and_ carries the reading effect); per-path splits are exploratory/convention-dependent (as in `med-075`).
+- **`med-086`** — arm → `LS` → `N`: does the intervention raise **nonword decoding** _via letter sounds_? (letters feed decoding)
+- **`med-074`** — arm → `N` → `WR`: does the intervention raise **word reading** _via nonword decoding_? (decoding feeds reading)
+- **`med-059`** — arm → `LS` → `WR`: the total letter-sound route to reading (the cascade's endpoints).
 
-**Caveats specific to 1C:** `N` middle mediator is floor-limited (a near-immobile `N` → `NIE ≈ 0` with wide CI is _floor-limited_, not "no route"); direction `NW → WR` is DS-contested (Roch & Jarrold 2012); ID-2 throughout.
+Read together, a positive `LS→N` NIE (`med-086`) **and** a positive `N→WR` NIE (`med-074`) are the two links of the `LS → N → WR` cascade; `med-059` bounds the whole letter-sound route. The only thing the withdrawn chained model would have added is a single within-model joint `{LS,N}` NIE + the `LS→N` coupling coefficient — both floor-limited. If that joint decomposition is wanted specifically, the enabling step is a floor-tolerant second-mediator leg in `build_two_mediator_model` (off-floor `N` leg, no autoregressive baseline) — a scoped factory change, deferred.
+
+**Caveats:** `N` is floor-limited throughout (a near-immobile `N` → NIE ≈ 0 with wide CI is _floor-limited_, not "no route"); direction `NW → WR` is DS-contested (Roch & Jarrold 2012); ID-2 throughout.
 
 ## 7. New models + the triangulation truth-table
 
-| ID                 | kind            | exposure → (mediator) → outcome | role                           | status  |
-| ------------------ | --------------- | ------------------------------- | ------------------------------ | ------- |
-| `lrp-rli-mech-096` | mechanism       | `LS → N`                        | 1A positive / decoding channel | **new** |
-| `lrp-rli-mech-097` | mechanism       | `LS → R`                        | 1B negative control            | **new** |
-| `lrp-rli-mech-098` | mechanism       | `LS → E`                        | 1B negative control            | **new** |
-| `lrp-rli-mech-099` | mechanism       | `LS → T`                        | 1B negative control            | **new** |
-| `lrp-rli-mech-100` | mechanism       | `LS → F`                        | 1B negative control (optional) | **new** |
-| `lrp-rli-med-081`  | mediation_multi | arm → `LS → N` → `WR`           | 1C decoding carrier            | **new** |
-| `lrp-rli-mech-058` | mechanism       | `LS → W`                        | 1A/1B positive anchor          | exists  |
+| ID                    | kind            | exposure → (mediator) → outcome | role                                                       | status    |
+| --------------------- | --------------- | ------------------------------- | ---------------------------------------------------------- | --------- |
+| `lrp-rli-mech-096`    | mechanism       | `LS → N`                        | 1A decoding channel / contrast                             | **built** |
+| `lrp-rli-mech-101`    | mechanism       | `LS → W` (linear)               | 1A/1B linear anchor                                        | **built** |
+| `lrp-rli-mech-097`    | mechanism       | `LS → R`                        | 1B negative control                                        | **built** |
+| `lrp-rli-mech-098`    | mechanism       | `LS → E`                        | 1B negative control                                        | **built** |
+| `lrp-rli-mech-099`    | mechanism       | `LS → T`                        | 1B negative control                                        | **built** |
+| `lrp-rli-mech-100`    | mechanism       | `LS → F`                        | 1B negative control (weakest)                              | **built** |
+| `lrp-rli-mech-058`    | mechanism       | `LS → W` (HSGP curve)           | 1A/1B shape reference                                      | exists    |
+| `lrp-rli-med-086`     | mediation       | arm → `LS` → `N`                | 1C cascade link 1 (letters→dec)                            | exists    |
+| `lrp-rli-med-074`     | mediation       | arm → `N` → `WR`                | 1C cascade link 2 (dec→reading)                            | exists    |
+| `lrp-rli-med-059`     | mediation       | arm → `LS` → `WR`               | 1C total letter-sound route                                | exists    |
+| ~~`lrp-rli-med-081`~~ | mediation_multi | arm → `LS → N` → `WR`           | 1C chained joint — **withdrawn** (N-floor infra block, §6) | withdrawn |
 
-(Confirm the free numbers against `definitions.MODEL_REGISTRY` at build time — `mech` 96–100 and `mediation` 81 are free as of this note.)
+**Build refinement (2026-07-17):** `mech-058` is an HSGP _curve_ (no single slope), so the 1A contrast and 1B forest need a matched **linear** `LS→W` — `mech-101`, added as the shared anchor. All six built mechanism models use `linear_mechanism=True` for a commensurate logit-per-SD slope. Free numbers confirmed against `definitions.MODEL_REGISTRY`.
 
 **What the pattern means (the deliverable):**
 
-- **Decoding-use supported** if: β(`LS→N`) ≥ β(`LS→W`) [1A]; `LS` ≈ 0 on `{R,E,T,F}` but > 0 on `{N,W}` [1B]; `aN_L` > 0 and `NIE_joint` carries the arm's `WR` gain [1C]; consistent with existing `mech-072` (`L×B` synergy on `N`) and `med-086` (`LS→N`).
-- **Decoding-use _not_ supported** if: `LS→W` ≫ `LS→N`; `LS` predicts oral-language controls too; `aN_L`/`NIE_joint` floor-limited to ≈ 0. That is honest evidence the letter–reading link travels by sight-word / vocabulary / `GA` routes.
+- **Decoding-use supported** if: β(`LS→N`) ≥ β(`LS→W`) [1A]; `LS` ≈ 0 on `{R,E,T,F}` but > 0 on `{N,W}` [1B]; positive `LS→N` NIE (`med-086`) **and** positive `N→WR` NIE (`med-074`) [1C cascade]; consistent with existing `mech-072` (`L×B` synergy on `N`).
+- **Decoding-use _not_ supported** if: `LS→W` ≫ `LS→N`; `LS` predicts oral-language controls too; the cascade links floor-limited to ≈ 0. That is honest evidence the letter–reading link travels by sight-word / vocabulary / `GA` routes.
+
+**Preliminary read (dev-config smoke fits, rough — rep-lite pending):** on the commensurate logit scale, `LS→N` ≈ **+1.02** ≫ `LS→W` ≈ **+0.25**, with the oral-language controls small (`LS→R` +0.11, `LS→E` +0.10, `LS→T` +0.12); `LS→F` +0.30 is a mild anomaly (F is the weakest, 18-item control). This is a **decoding-specificity-supported** pattern, and it exposes that the items-scale "`LS` predicts vocabulary strongly" impression is a scale artefact of the 170-item vocabulary tests — on the logit scale those slopes are ≈ 9× smaller than `LS→N`. **Confirmed at `rep-lite`** (all six gate-pass) — full results in `notes/202607172358-findings-decoding-specificity.md`.
 
 ## 8. Adjustment-set derivations (against `dag/dag-language-reading.dagitty`, revised 2026-07-10)
 

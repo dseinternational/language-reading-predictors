@@ -214,6 +214,16 @@ _MECH = [
     _d("lrp93", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x receptive-vocabulary interaction"),
     _d("lrp94", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-receptive-vocabulary interaction"),
     _d("lrp95", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-expressive-vocabulary interaction"),
+    # Tier-1 decoding-specificity mini-suite (notes/202607172330-tier1-decoding-specificity-spec.md):
+    # matched *linear* letter-sound slopes for the L->N vs L->W convergent-discriminant
+    # contrast (1A) and the negative-control-outcome panel (1B). All linear_mechanism so
+    # the cross-outcome forest/contrast is like-for-like.
+    _d("lrp96", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "decoding channel: letter sounds -> nonword decoding (1A contrast vs lrp101)"),
+    _d("lrp101", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "linear letter sounds -> word reading (Tier-1 contrast/panel anchor; linear counterpart of the HSGP lrp58)"),
+    _d("lrp97", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "negative-control outcome: letter sounds -> receptive vocabulary"),
+    _d("lrp98", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "negative-control outcome: letter sounds -> expressive vocabulary"),
+    _d("lrp99", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "negative-control outcome: letter sounds -> receptive grammar"),
+    _d("lrp100", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "negative-control outcome: letter sounds -> basic concepts"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),
