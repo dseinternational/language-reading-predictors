@@ -525,6 +525,7 @@ savefig
 scikit
 scipy
 scrartcl
+scratchpad
 sens
 shutil
 sigmas

@@ -3,7 +3,7 @@
 # Plan (proposal): a random-intercept cross-lagged model for the LS ↔ WR direction
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). **Status: plan for review — nothing built yet.** This is the "carefully plan before we build" document; the design decisions in §7 need sign-off, and the build is explicitly **gated on a simulation feasibility check** (§5) that may return "do not fit on real data at this n".
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). **Status: feasibility gate RUN 2026-07-17 → NO-GO.** The design was signed off, the model built, and the pre-fit simulation study (§5) run: the RI-CLPM is well-behaved (clean sampling, variances recovered) but has **~zero power** to resolve the L↔W direction contrast at n ≈ 54 × 4 waves (§12). The real-data fit was therefore **not** performed, per the plan's own go/no-go. The direction question rests on the randomisation-anchored mediation reads (`med-076`/`med-176`/`med-276`), with the honest caveat that a within-person cross-lagged estimate is not informative at this sample size. Full result in §12.
 
 ## 1. Purpose
 
@@ -84,12 +84,32 @@ On a passing feasibility gate and a gate-passing real fit, report: `δ`, `β`, *
 
 ## 10. Build sequence (only after §7 sign-off)
 
-1. [ ] Implement the model as a standalone builder + a `riclpm` pipeline entry (reuse `LongitudinalPanel`/`load_wave_panel`, `beta_binomial_from_logit`, the shared priors, the gate, the CSV/plot writers).
-2. [ ] **Feasibility study (§5)** — simulate, fit, assess recovery + SBC. Write the results to a dated note. **Stop here if no-go.**
-3. [ ] On go: register `lrp-rli-riclpm-001` (L↔W), fit `dev` → `reporting`; gate.
-4. [ ] Report per §8; contrast with `med-076/176`; update the two synthesis notes.
-5. [ ] `ruff` / `format:check` / `spellcheck` / CI green; report template under `docs/models/`.
+1. [x] Implement the model as a standalone builder + numpy simulator (scratchpad, feasibility phase; harness preserved at `assets/202607172230-riclpm-feasibility.py`).
+2. [x] **Feasibility study (§5)** — simulated, fit 60×, assessed recovery/coverage/power. **Result: no-go (§12). Stopped here.**
+3. [ ] ~~On go: register `lrp-rli-riclpm-001`, fit~~ — **not done (no-go)**.
+4. [ ] ~~Report per §8; contrast~~ — replaced by the §12 negative result + a pointer in the mediation findings note.
+5. [ ] ~~`ruff`/CI green; report template~~ — **not applicable (no family added)**.
 
 ## 11. Rough effort / risk
 
-Larger than the `med-176` build: a new likelihood-bearing family plus a simulation study. Main risk is that the feasibility gate returns no-go — in which case the _value_ is the documented negative result and the clean contrast against the mediation reads, not a new headline estimate. That is an acceptable and honest outcome and should be treated as success of the _plan_, not failure.
+Larger than the `med-176` build: a new likelihood-bearing family plus a simulation study. Main risk is that the feasibility gate returns no-go — in which case the _value_ is the documented negative result and the clean contrast against the mediation reads, not a new headline estimate. That is an acceptable and honest outcome and should be treated as success of the _plan_, not failure. **This is what happened — see §12.**
+
+## 12. Feasibility result (2026-07-17) — NO-GO
+
+The model (bivariate RI-CLPM, logit–Beta-Binomial, manual 2×2 Cholesky for the correlated intercepts, arm×wave means, time-invariant paths) was implemented and a recovery study run at the **true design** (N = 54, T = 4 waves, real `n_trials` = [32, 79], real missingness, arms 28/26) with plausible true parameters (strong correlated random intercepts `sd_RI = 0.8`, `r_RI = 0.6`; `sd_ζ = 0.4`; within-person AR 0.2; **true `δ` = 0.15, `β` = 0.05, so `δ − β` = +0.10, forward-dominant**; `κ = 30`; realistic arm×wave means). 60 simulated datasets, each fit with `nutpie` (4 chains × 500 draws). Harness: [`assets/202607172230-riclpm-feasibility.py`](assets/202607172230-riclpm-feasibility.py).
+
+| quantity                                    | result                                      | read                                                                                   |
+| ------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------- |
+| fits OK / divergences                       | 60/60, mean 0.2 div                         | clean sampling                                                                         |
+| `sd_RI` recovered                           | [0.79, 0.78] (true 0.8)                     | **no RI/within collapse** — the model is well-identified on the variance decomposition |
+| `sd_ζ` recovered                            | [0.38, 0.40] (true 0.4)                     | separately identified                                                                  |
+| `δ − β` estimate                            | mean median +0.073 (true +0.10), bias −0.03 | roughly unbiased (mild prior shrinkage)                                                |
+| **90% CI coverage of `δ − β`**              | **1.00** (nominal 0.90)                     | honest, if anything conservative                                                       |
+| **power (90% CI excludes 0, correct sign)** | **0.00**                                    | **not one of 60 sims resolved the direction**                                          |
+| P(`P(δ>β) > 0.9`)                           | 0.03                                        | only ~3% reach even a "suggestive" direction call                                      |
+
+**Conclusion: NO-GO on a real-data RI-CLPM direction fit.** This is an _information/power_ limit, not a mis-specification: the model samples cleanly, recovers the between-person and within-person variances, and its intervals are calibrated (over-conservative) — but n ≈ 54 × 4 waves simply does not contain enough information about _within-person_ cross-lags to distinguish `δ` from `β` at any plausible effect size. Even with a genuinely forward-dominant truth, the 90% interval for `δ − β` never clears zero. Fitting real data would only reproduce a very wide, uninformative interval, which would invite over-reading. So we stop here.
+
+**What would change it:** more waves (the within-person AR/cross-lag information scales with T, and RI-CLPM identification improves markedly beyond four waves), a substantially larger cohort, or a genuinely large cross-lag — none available in this study. The lagged-DAG workstream (#250) and any future data collection are where this becomes tractable.
+
+**Consequence for the direction question:** it rests on the randomisation-anchored mediation reads (`med-076` forward, `med-176`/`med-276` reverse) — "primarily LS → WR, with at most a small and unproven WR → LS feedback" — now with the _added_ and honestly-documented finding that the cleaner within-person estimator is under-powered here, so we are not withholding a better number, there isn't one to be had at this n. The `riclpm` family is **not** added to the suite; if the panel grows or gains waves, the harness above is ready to re-run the gate.
