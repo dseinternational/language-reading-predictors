@@ -224,6 +224,7 @@ _MECH = [
     _d("lrp75", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "sequential code route (letter sounds -> blending -> reading)"),
     _d("lrp76", "mediation", "Mediation", Status.ASSOCIATION, "W", "longitudinal-ordering (letter sounds t2 -> reading t4)"),
     _d("lrp176", "mediation", "Mediation", Status.ASSOCIATION, "L", "reverse longitudinal-ordering (word reading t2 -> letter sounds t4); WR->LS direction contrast to lrp76", base="lrp76"),
+    _d("lrp276", "mediation", "Mediation", Status.ASSOCIATION, "L", "reverse WR->LS with t3 outcome (less-ceilinged sensitivity to lrp176)", base="lrp176"),
     _d("lrp78", "mediation", "Mediation", Status.ASSOCIATION, "W", "interventional-effects decomposition via letter sounds"),
     _d("lrp79", "mediation", "Mediation", Status.ASSOCIATION, "W", "negative-control mediator (grammar; calibrates GA confounding)"),
     # Code route beyond word reading (#228 item 12): the purest decoding outcome

@@ -279,6 +279,8 @@ MED_WITNESSES = {
     # Reverse mirror of med-076 (WR_2 -> LS_4): dose is again the unblockable
     # treatment-induced mediator-outcome confounder, now WR_2 <- IS_1 -> LS_2 ...-> LS_4.
     "lrp_rli_med_176": ["WR_2", "<-", "IS_1", "->", "LS_2", "->", "LS_3", "->", "LS_4"],
+    # t3-outcome ceiling-sensitivity of med-176 (same witness, one wave shorter).
+    "lrp_rli_med_276": ["WR_2", "<-", "IS_1", "->", "LS_2", "->", "LS_3"],
     "lrp_rli_med_078": ["LS_2", "<-", "IS_1", "->", "WR_2"],
     "lrp_rli_med_079": ["RG_2", "<-", "TR_2", "->", "WR_2"],
     "lrp_rli_med_080": ["TR_2", "<-", "IS_1", "->", "WR_2"],
@@ -301,6 +303,7 @@ MED_ER_ROLES = {
     "lrp_rli_med_075": ("proxy", "precision"),
     "lrp_rli_med_076": ("precision", "precision"),
     "lrp_rli_med_176": ("proxy", "proxy"),
+    "lrp_rli_med_276": ("proxy", "proxy"),
     "lrp_rli_med_078": ("precision", "precision"),
     "lrp_rli_med_079": ("precision", "proxy"),
     "lrp_rli_med_080": ("precision", "precision"),
