@@ -2062,8 +2062,12 @@ def build_mediation_model(
         # the original LRP59 build.
         L1_d = pm.Data(f"{mediator_symbol}_pre_logit", L1, dims="obs_id")
         # Outcome own-baseline data node only for the graded path; the off-floor
-        # outcome leg drops the b_W term, so no W_pre_logit node is created.
-        W1_d = None if off_floor else pm.Data("W_pre_logit", W1, dims="obs_id")
+        # outcome leg drops the b_W term, so no baseline node is created. The node
+        # is named by ``outcome_symbol`` (was hardcoded "W_pre_logit"): byte-identical
+        # for every W-outcome model, and distinct from the mediator node when the
+        # mediator is itself word reading (LRP176 reverse WR->LS direction test),
+        # which the hardcoded name collided with.
+        W1_d = None if off_floor else pm.Data(f"{outcome_symbol}_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         conf_d = {
             s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
@@ -2207,7 +2211,7 @@ def _build_route_composite_model(
         G_d = pm.Data("G", G_f, dims="obs_id")
         Mpre_d = pm.Data("M_pre_std", c_pre_std, dims="obs_id")
         Mpost_d = pm.Data("M_post_std", c_post_std, dims="obs_id")
-        W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
+        W1_d = pm.Data(f"{outcome_symbol}_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         conf_d = {
             s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
@@ -2380,7 +2384,7 @@ def build_two_mediator_model(
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         L1_d = pm.Data("L_pre_logit", L1, dims="obs_id")
         E1_d = pm.Data(f"{mE}_pre_logit", E1, dims="obs_id")
-        W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
+        W1_d = pm.Data(f"{outcome_symbol}_pre_logit", W1, dims="obs_id")
         conf_d = {
             s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
             for s in confounder_symbols
@@ -2630,7 +2634,7 @@ def build_period_stacked_mediation_model(
         child_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
         trt_d = pm.Data("on_intervention", trt, dims="obs_id")
         L1_d = pm.Data(f"{mediator_symbol}_pre_logit", L1, dims="obs_id")
-        W1_d = pm.Data("W_pre_logit", W1, dims="obs_id")
+        W1_d = pm.Data(f"{outcome_symbol}_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         conf_d = {
             s: pm.Data(f"{s}_conf", conf_values[s], dims="obs_id")

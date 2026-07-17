@@ -45,11 +45,16 @@
 //     within-wave TE_t1 -> EV_t1 / TR_t1 -> RV_t1 paths, so the founding RLI
 //     reading -> language hypothesis is routed through the taught words),
 //     WR_t -> PA_t1 (reciprocal with the within-wave PA -> WR — the
-//     cross-lagged test of which direction dominates), and WR_t -> RW_t1
-//     (reading -> phonological memory). Each edge still needs its one-line
-//     justification for the record (see the notes). An earlier draft pointed
-//     the vocabulary feedback at the standardised measures (WR -> EV/RV);
-//     superseded by this set.
+//     cross-lagged test of which direction dominates), WR_t -> RW_t1
+//     (reading -> phonological memory), and WR_t -> LS_t1 (reading feeding
+//     back into letter-sound knowledge — the reverse-causation cross-lagged
+//     test contrasting WR -> LS with the within-wave LS -> WR; added
+//     2026-07-17 to enable the LRP-RLI-MED-176 direction contrast, motivated
+//     by the DS-specific WR -> NW finding of Roch & Jarrold 2012; see
+//     notes/202607172100-reverse-mediation-wr-ls-direction-spec.md). Each edge
+//     still needs its one-line justification for the record (see the notes).
+//     An earlier draft pointed the vocabulary feedback at the standardised
+//     measures (WR -> EV/RV); superseded by this set.
 //   * HS is kept a STABLE EXOGENOUS ROOT. A -> HS (age-related conductive
 //     hearing change) is biologically defensible but omitted: hearing_c is
 //     recorded time-invariantly in this cohort (same 44/54 at every wave), so a
@@ -118,7 +123,7 @@ WR_t -> WR_t1
 A_t  -> A_t1   // age is deterministic given wave spacing; a placeholder for maturation, not a stochastic cause
 
 // --- reverse / reciprocal (lagged; must cross the wave to stay acyclic) ---
-WR_t -> { TE_t1 TR_t1 PA_t1 RW_t1 }
+WR_t -> { TE_t1 TR_t1 PA_t1 RW_t1 LS_t1 }
 
 // --- age (maturation): exogenous, within-wave each slice ---
 A_t  -> { IS_t TR_t TE_t PA_t LS_t WR_t PS_t RV_t EV_t LF_t RG_t RW_t EI_t EG_t SP_t NW_t }
