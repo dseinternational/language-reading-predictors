@@ -44,7 +44,7 @@ factor_correlation if factor_correlation is not None else "No factor-correlation
 
 _How to read the structural-slopes table:_ each row is a factor's adjusted association
 with the outcome. `mean` is the posterior average slope; `lo`/`hi` are the ends of the
-95% credible interval (the plausible range); `prob_pos` is the posterior probability
+89% credible interval (the plausible range); `prob_pos` is the posterior probability
 the slope is above zero. A slope whose interval stays clear of 0, with `prob_pos` near
 1, is a reliably positive association — but read it as association, not effect.
 
@@ -61,8 +61,8 @@ if structural is not None and len(structural):
     _top = structural.iloc[0]
     print(
         f"First structural row `{_top.coefficient}`: mean {_top['mean']:+.3f} "
-        f"(90% CrI {_top.lo90:+.3f} to {_top.hi90:+.3f}; "
-        f"95% {_top.lo:+.3f} to {_top.hi:+.3f}); "
+        f"(50% CrI {_top.lo50:+.3f} to {_top.hi50:+.3f}; "
+        f"89% {_top.lo:+.3f} to {_top.hi:+.3f}); "
         f"P(> 0) = {_top.prob_pos:.3f}. Compare the full table rather than "
         "ranking factors by point estimate alone."
     )

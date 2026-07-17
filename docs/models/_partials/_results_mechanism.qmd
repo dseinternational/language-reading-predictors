@@ -22,8 +22,8 @@ if interaction_summary is not None and len(interaction_summary):
     if "gamma_int_median" in interaction_summary.columns:
         print(
             f"**Moderator interaction (`gamma_int`):** median "
-            f"{_i.gamma_int_median:+.3f} (90% CrI {_i.gamma_int_lo90:+.3f} "
-            f"to {_i.gamma_int_hi90:+.3f}; 95% {_i.gamma_int_lo:+.3f} "
+            f"{_i.gamma_int_median:+.3f} (50% CrI {_i.gamma_int_lo50:+.3f} "
+            f"to {_i.gamma_int_hi50:+.3f}; 89% {_i.gamma_int_lo:+.3f} "
             f"to {_i.gamma_int_hi:+.3f}); P(> 0) = {_i.prob_gamma_int_pos:.3f}. "
             "Positive means the mechanism association is stronger at higher "
             "moderator values."
@@ -31,14 +31,14 @@ if interaction_summary is not None and len(interaction_summary):
     if "gamma_mod_median" in interaction_summary.columns:
         print(
             f"\n\n**Moderator main effect (`gamma_mod`):** median "
-            f"{_i.gamma_mod_median:+.3f} (90% CrI {_i.gamma_mod_lo90:+.3f} "
-            f"to {_i.gamma_mod_hi90:+.3f}; 95% {_i.gamma_mod_lo:+.3f} "
+            f"{_i.gamma_mod_median:+.3f} (50% CrI {_i.gamma_mod_lo50:+.3f} "
+            f"to {_i.gamma_mod_hi50:+.3f}; 89% {_i.gamma_mod_lo:+.3f} "
             f"to {_i.gamma_mod_hi:+.3f}); P(> 0) = {_i.prob_gamma_mod_pos:.3f}."
         )
     print(
         "\n\n_How to read the interaction table:_ each `*_median` column is the "
         "posterior median of a coefficient (the `*_mean` its posterior mean), the "
-        "`*_lo`/`*_hi` pair its 95% credible "
+        "`*_lo`/`*_hi` pair its 89% credible "
         "interval, and each `prob_*_pos` the posterior probability the coefficient is "
         "above zero (near 1 = confident it is positive, near 0 = confident negative, "
         "near 0.5 = the sign is undecided). `gamma_int` is the interaction (does the "
@@ -52,7 +52,7 @@ if interaction_summary is not None and len(interaction_summary):
 _The reader-facing view._ The same fitted dose–response as the analyst's logit
 curve below, but on the **items scale**: the earlier skill in its own test units
 along the horizontal axis, the predicted outcome in test units up the vertical
-axis, with the shaded 95% credible ribbon. The other covariates are held at their
+axis, with the shaded 89% credible ribbon. The other covariates are held at their
 fitted-sample means and the curve is population-level over the child intercepts
 (a typical child, not any fitted one). Because the logit link is nonlinear, the
 items-scale "exchange rate" varies along the curve — the same step in the earlier
@@ -171,7 +171,7 @@ if readiness is not None and len(readiness):
         )
         print(
             f"**Knee (steepest rise):** about **{_k.knee_count_median:.0f}** in raw units "
-            f"(95% CrI {_k.knee_count_ci_low:.0f} to {_k.knee_count_ci_high:.0f}) — the "
+            f"(89% CrI {_k.knee_count_ci_low:.0f} to {_k.knee_count_ci_high:.0f}) — the "
             f"count at which the outcome rises fastest with the predictor. The curve "
             f"rises overall in {_k.increasing_frac:.0%} of posterior draws" + _defined
         )
@@ -184,7 +184,7 @@ if readiness is not None and len(readiness):
         )
         print(
             f"\n\n**Half-rise (robustness check):** about {_k.half_rise_count_median:.0f} "
-            f"(95% CrI {_k.half_rise_count_ci_low:.0f} to {_k.half_rise_count_ci_high:.0f}) "
+            f"(89% CrI {_k.half_rise_count_ci_low:.0f} to {_k.half_rise_count_ci_high:.0f}) "
             "— the count where the curve first reaches the midpoint of its rise. For an "
             "S-shaped curve this lands near the knee; a large gap between the two flags "
             "an asymmetric rise."
@@ -215,7 +215,7 @@ if _has("child_fit_panels.png"):
     print(
         "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
         f"child's observed {outcome_label} scores across the period transitions; the green band is the "
-        "model's posterior-predictive 95% interval **for that same child**, conditional on their own "
+        "model's posterior-predictive 89% interval **for that same child**, conditional on their own "
         "fitted random intercept (a *same-children* display). Panels flagged with a high Pareto-k are "
         "the worst-fitting children, shown on purpose so the fit is honest about where the subject "
         "random intercept does and does not capture a child; the rest are a seeded random draw."

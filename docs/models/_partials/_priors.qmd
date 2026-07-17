@@ -40,7 +40,7 @@ if _pf is not None:
         f"Before seeing data, the prior on the treatment effect implies an "
         f"items-scale average marginal effect with median "
         f"**{_r.prior_items_median:+.1f}**, a 50% range "
-        f"{_r.prior_items_lo50:+.1f} to {_r.prior_items_hi50:+.1f}, and a 95% range "
+        f"{_r.prior_items_lo50:+.1f} to {_r.prior_items_hi50:+.1f}, and an 89% range "
         f"{_r.prior_items_lo:+.1f} to {_r.prior_items_hi:+.1f} "
         f"(denominator {int(_r.n_trials)}). A well-calibrated prior is wide but not "
         f"absurd — it should not concentrate mass on implausibly large effects."

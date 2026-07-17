@@ -14,7 +14,7 @@ who sit persistently higher on one measure also sit persistently higher on the
 others, net of their group's wave-by-wave trajectory?
 
 _How to read the table:_ each row is one measure pair. `mean` is the posterior
-correlation of the stable child levels (`lo`/`hi` its 95% credible interval)
+correlation of the stable child levels (`lo`/`hi` its 89% credible interval)
 and `prob_pos` the posterior probability the correlation is positive. The
 matrix is shared across the three reading groups (a stated assumption).
 
@@ -57,10 +57,10 @@ for _m in _jc_measures:
     display(_growth if _growth is not None else Markdown("No growth summary."))
 ```
 
-- `posterior_population_mean` (+ `q2_5` / `q97_5`): expected item score for the
+- `posterior_population_mean` (+ `q_lo` / `q_hi`): expected item score for the
   group-by-wave cell on the population mean; `observed_complete_case_mean` is
   the observed mean it is calibrated against.
-- Growth rows: `mean` (+ `q2_5` / `q97_5`) is posterior growth in items over
+- Growth rows: `mean` (+ `q_lo` / `q_hi`) is posterior growth in items over
   the interval, computed on the `n_subjects` children observed at both
   endpoint waves; `p_gt_0` is the posterior probability it is positive.
 

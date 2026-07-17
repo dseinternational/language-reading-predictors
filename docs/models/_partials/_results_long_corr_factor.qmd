@@ -43,7 +43,7 @@ factor_corr if factor_corr is not None else "No per-wave factor-correlation tabl
 ```
 
 _How to read the table:_ one row per (wave, skill-area pair). `mean` is the posterior
-mean latent correlation, `lo`/`hi` its 95% credible interval, and `prob_pos` the
+mean latent correlation, `lo`/`hi` its 89% credible interval, and `prob_pos` the
 posterior probability it is positive (near 1 = confidently positive, near 0.5 =
 undecided). Compare a pair's `mean` across waves to describe whether the coupling
 tightens or loosens — reading the intervals, not the point movements.
@@ -145,7 +145,7 @@ items if items is not None else "No items-scale table."
 
 _How to read the table:_ `items_per_item_mean` is the approximate change in the target
 indicator's item count per **+1 item** of the predictor indicator, per wave, at the
-pooled-mean operating point (with its 95% interval). It is a linearised, **approximate**
+pooled-mean operating point (with its 89% interval). It is a linearised, **approximate**
 translation for comparison with the #312 concurrent items-scale marginals — a
 descriptive association, not a caused gain.
 

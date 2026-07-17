@@ -40,7 +40,7 @@ if factor_summary is not None and "role" in factor_summary.columns:
 print(_img("association_forest.png", "Adjusted-association coefficients"))
 print(
     "\n_How to read the forest plot:_ the marker is the posterior median and the "
-    "lines its credible intervals (thick = inner 50%, thin = 95%). The dashed "
+    "lines its credible intervals (thick = inner 50%, thin = 89%). The dashed "
     "line at 0 is no-effect; posterior mass to its right favours benefit, to its "
     "left harm; a wider line means more uncertainty. Every term here is an "
     "adjusted association, not a randomised effect."
@@ -67,8 +67,8 @@ if cohort_marginal is not None:
     print(
         f"Aligned immediate-vs-wait-list marginal: median "
         f"{_c.trt_items_median:+.1f} items "
-        f"(90% CrI {_c.trt_items_lo90:+.1f} to {_c.trt_items_hi90:+.1f}; "
-        f"95% {_c.trt_items_lo:+.1f} to {_c.trt_items_hi:+.1f}); "
+        f"(50% CrI {_c.trt_items_lo50:+.1f} to {_c.trt_items_hi50:+.1f}; "
+        f"89% {_c.trt_items_lo:+.1f} to {_c.trt_items_hi:+.1f}); "
         f"P(> 0) = {_c.prob_trt_pos:.3f}. This is per-protocol and not randomised."
     )
 ```

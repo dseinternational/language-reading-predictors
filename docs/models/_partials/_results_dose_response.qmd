@@ -16,7 +16,7 @@ dose_slope_summary if dose_slope_summary is not None else "No dose-slope summary
 
 _How to read the dose-slope table:_ each row is one estimated quantity. `mean`
 is the posterior mean slope in logit units per 1 SD of sessions (bigger positive
-= more gain per extra dose); `lo` and `hi` are the ends of the 95% credible
+= more gain per extra dose); `lo` and `hi` are the ends of the 89% credible
 interval (the plausible range); `p_pos` is the probability the slope is above
 zero (near 1 favours benefit, near 0.5 is no clear direction). The
 `sigma_dose_between_period` row, when present, is how much the slope varies from
@@ -30,8 +30,8 @@ if dose_slope_summary is not None and len(dose_slope_summary):
     print(
         f"**Headline dose association (`{_main.term}`):** posterior mean "
         f"{_main['mean']:+.3f} logit units per 1 SD sessions "
-        f"(90% CrI {_main.lo90:+.3f} to {_main.hi90:+.3f}; "
-        f"95% {_main.lo:+.3f} to {_main.hi:+.3f}); "
+        f"(50% CrI {_main.lo50:+.3f} to {_main.hi50:+.3f}; "
+        f"89% {_main.lo:+.3f} to {_main.hi:+.3f}); "
         f"P(> 0) = {_main.p_pos:.3f}."
     )
     if "sigma_dose_between_period" in set(dose_slope_summary.term):
@@ -40,8 +40,8 @@ if dose_slope_summary is not None and len(dose_slope_summary):
         ].iloc[0]
         print(
             f"\n\nBetween-period slope SD: mean {_s['mean']:.3f} "
-            f"(90% CrI {_s.lo90:.3f} to {_s.hi90:.3f}; "
-            f"95% {_s.lo:.3f} to {_s.hi:.3f}). Small values mean the "
+            f"(50% CrI {_s.lo50:.3f} to {_s.hi50:.3f}; "
+            f"89% {_s.lo:.3f} to {_s.hi:.3f}). Small values mean the "
             "period slopes shrink toward a common dose association."
         )
 ```

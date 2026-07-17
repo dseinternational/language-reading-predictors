@@ -349,8 +349,8 @@ def predicted_scores_table(
             "median": float(np.median(d)),
             "lo": float(np.quantile(d, lo_q)),
             "hi": float(np.quantile(d, hi_q)),
-            "lo90": float(np.quantile(d, 0.05)),
-            "hi90": float(np.quantile(d, 0.95)),
+            "lo50": float(np.quantile(d, 0.25)),
+            "hi50": float(np.quantile(d, 0.75)),
             "n_trials": contrast.n_trials,
             "population": population,
             "contrast_status": contrast_status,
@@ -518,7 +518,7 @@ def save_predicted_scores_panel(
         colors = (_CONTROL_COLOR, _INTERVENTION_COLOR)
         for x, (label, d, color) in enumerate(zip(arms, draws, colors, strict=True)):
             med = float(np.median(d))
-            lo, hi = float(np.quantile(d, 0.025)), float(np.quantile(d, 0.975))
+            lo, hi = float(np.quantile(d, 0.055)), float(np.quantile(d, 0.945))
             ax1.bar(x, med, color=color, alpha=0.75, width=0.6, label=label)
             ax1.errorbar(x, med, yerr=[[med - lo], [hi - med]], fmt="none", ecolor="k", capsize=4)
         ax1.set_xticks([0, 1])

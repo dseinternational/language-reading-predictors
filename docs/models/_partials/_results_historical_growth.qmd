@@ -19,7 +19,7 @@ window, the Table 2 audit).
 
 _How to read the table:_ each row is one reading group at one assessment wave.
 `posterior_population_mean` is the model's expected item score for that cell and
-`q2_5`/`q97_5` bracket it with a 95% credible interval; `observed_complete_case_mean`
+`q_lo`/`q_hi` bracket it with a 89% credible interval; `observed_complete_case_mean`
 is the real data mean it should match, and `posterior_mean_minus_observed_mean` is
 the gap between them — near zero means the reproduction lands on the published
 Table 2. `window` marks whether the cell sits on the complete-case **core**
@@ -33,7 +33,7 @@ cells = _csv("posterior_cell_summary.csv")
 cells if cells is not None else "No cell summary (run the fit first)."
 ```
 
-- `posterior_population_mean` (+ `q2_5` / `q97_5`): expected item score for the
+- `posterior_population_mean` (+ `q_lo` / `q_hi`): expected item score for the
   group-by-wave cell on the population mean.
 - `observed_complete_case_mean`: the observed complete-case mean for the same
   cell; `posterior_mean_minus_observed_mean` is the calibration gap.
@@ -47,7 +47,7 @@ compare like horizons.
 
 _How to read the table:_ each row is either how much a group gained over an
 interval, or the difference in total gain between two groups. `mean` is the
-posterior growth in items (`q2_5`/`q97_5` its 95% interval) and `p_gt_0` is the
+posterior growth in items (`q_lo`/`q_hi` its 89% interval) and `p_gt_0` is the
 posterior probability that growth (or the between-group difference) is positive —
 values near 1 mean confidently positive, near 0.5 mean the sign is uncertain.
 Every interval is computed on the children observed at **both** endpoint waves
@@ -61,7 +61,7 @@ growth = _csv("posterior_growth_summary.csv")
 growth if growth is not None else "No growth summary."
 ```
 
-- `mean` (+ `q2_5` / `q97_5`): posterior growth in items; `p_gt_0` is the
+- `mean` (+ `q_lo` / `q_hi`): posterior growth in items; `p_gt_0` is the
   posterior probability the growth (or contrast) is positive.
 
 ### Observed complete-case baseline (Table 2 audit)

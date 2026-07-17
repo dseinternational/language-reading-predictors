@@ -97,14 +97,14 @@ def _effect_row(
         "prob_mean": float(np.mean(draws)),
         "prob_lo": float(np.quantile(draws, lo_q)),
         "prob_hi": float(np.quantile(draws, hi_q)),
-        "prob_lo90": float(np.quantile(draws, 0.05)),
-        "prob_hi90": float(np.quantile(draws, 0.95)),
+        "prob_lo50": float(np.quantile(draws, 0.25)),
+        "prob_hi50": float(np.quantile(draws, 0.75)),
         "words_median": float(np.median(draws) * n_words),
         "words_mean": float(np.mean(draws) * n_words),
         "words_lo": float(np.quantile(draws, lo_q) * n_words),
         "words_hi": float(np.quantile(draws, hi_q) * n_words),
-        "words_lo90": float(np.quantile(draws, 0.05) * n_words),
-        "words_hi90": float(np.quantile(draws, 0.95) * n_words),
+        "words_lo50": float(np.quantile(draws, 0.25) * n_words),
+        "words_hi50": float(np.quantile(draws, 0.75) * n_words),
         "prob_pos": float(np.mean(draws > 0)),
         # For an off-floor outcome n_trials_W = 1, so the words_* columns equal
         # prob_* and both are the off-floor RISK DIFFERENCE; the flag lets the
@@ -124,7 +124,7 @@ def _proportion_row(nie: np.ndarray, total: np.ndarray, lo_q: float, hi_q: float
     # the proportion is a fragile ratio at the best of times.
     if prop.size == 0:
         prop_stats = dict.fromkeys(
-            ("prob_median", "prob_mean", "prob_lo", "prob_hi", "prob_lo90", "prob_hi90"),
+            ("prob_median", "prob_mean", "prob_lo", "prob_hi", "prob_lo50", "prob_hi50"),
             float("nan"),
         )
     else:
@@ -135,8 +135,8 @@ def _proportion_row(nie: np.ndarray, total: np.ndarray, lo_q: float, hi_q: float
             "prob_mean": float(np.mean(prop)),
             "prob_lo": float(np.quantile(prop, lo_q)),
             "prob_hi": float(np.quantile(prop, hi_q)),
-            "prob_lo90": float(np.quantile(prop, 0.05)),
-            "prob_hi90": float(np.quantile(prop, 0.95)),
+            "prob_lo50": float(np.quantile(prop, 0.25)),
+            "prob_hi50": float(np.quantile(prop, 0.75)),
         }
     return {
         "quantity": "proportion_mediated",
@@ -145,8 +145,8 @@ def _proportion_row(nie: np.ndarray, total: np.ndarray, lo_q: float, hi_q: float
         "words_mean": np.nan,
         "words_lo": np.nan,
         "words_hi": np.nan,
-        "words_lo90": np.nan,
-        "words_hi90": np.nan,
+        "words_lo50": np.nan,
+        "words_hi50": np.nan,
         "prob_pos": float(np.mean(total > 0)),  # P(Total > 0) for context
     }
 
@@ -756,14 +756,14 @@ def decompose_two_mediator(
             "prob_mean": float(np.mean(draws)),
             "prob_lo": float(np.quantile(draws, lo_q)),
             "prob_hi": float(np.quantile(draws, hi_q)),
-            "prob_lo90": float(np.quantile(draws, 0.05)),
-            "prob_hi90": float(np.quantile(draws, 0.95)),
+            "prob_lo50": float(np.quantile(draws, 0.25)),
+            "prob_hi50": float(np.quantile(draws, 0.75)),
             "words_median": float(np.median(draws) * N_W),
             "words_mean": float(np.mean(draws) * N_W),
             "words_lo": float(np.quantile(draws, lo_q) * N_W),
             "words_hi": float(np.quantile(draws, hi_q) * N_W),
-            "words_lo90": float(np.quantile(draws, 0.05) * N_W),
-            "words_hi90": float(np.quantile(draws, 0.95) * N_W),
+            "words_lo50": float(np.quantile(draws, 0.25) * N_W),
+            "words_hi50": float(np.quantile(draws, 0.75) * N_W),
             "prob_pos": float(np.mean(draws > 0)),
         }
 
@@ -787,14 +787,14 @@ def decompose_two_mediator(
             "prob_mean": float(np.mean(prop)),
             "prob_lo": float(np.quantile(prop, lo_q)),
             "prob_hi": float(np.quantile(prop, hi_q)),
-            "prob_lo90": float(np.quantile(prop, 0.05)),
-            "prob_hi90": float(np.quantile(prop, 0.95)),
+            "prob_lo50": float(np.quantile(prop, 0.25)),
+            "prob_hi50": float(np.quantile(prop, 0.75)),
             "words_median": np.nan,
             "words_mean": np.nan,
             "words_lo": np.nan,
             "words_hi": np.nan,
-            "words_lo90": np.nan,
-            "words_hi90": np.nan,
+            "words_lo50": np.nan,
+            "words_hi50": np.nan,
             "prob_pos": float(np.mean(total > 0)),  # P(Total > 0) for context
         }
     )
@@ -1084,9 +1084,9 @@ def calibrate_session_confounding(
                 f"for {mediator}; the design is too unstable"
             )
         delta_draws = np.maximum(0.0, shrink_sign * draws[:, 2])
-        delta_lo, delta_hi = np.quantile(delta_draws, [0.025, 0.975])
-        med_is_lo, med_is_hi = np.quantile(draws[:, 3], [0.025, 0.975])
-        outcome_is_lo, outcome_is_hi = np.quantile(draws[:, 4], [0.025, 0.975])
+        delta_lo, delta_hi = np.quantile(delta_draws, [0.055, 0.945])
+        med_is_lo, med_is_hi = np.quantile(draws[:, 3], [0.055, 0.945])
+        outcome_is_lo, outcome_is_hi = np.quantile(draws[:, 4], [0.055, 0.945])
         already_null = bool(sens.loc[mediator, "already_null_at_zero"])
         robust = bool(sens.loc[mediator, "robust_over_full_sweep"])
         tip = float(sens.loc[mediator, "tipping_delta"])
@@ -1101,12 +1101,12 @@ def calibrate_session_confounding(
             conclusion = (
                 f"NIE_{mediator} remains non-zero across the full one-leg sweep; "
                 f"the phase-0 IS anchor is delta_IS={delta_is:.2f} "
-                f"(95% bootstrap interval {delta_lo:.2f} to {delta_hi:.2f})."
+                f"(89% bootstrap interval {delta_lo:.2f} to {delta_hi:.2f})."
             )
         elif reaches:
             conclusion = (
                 f"The phase-0 IS anchor for NIE_{mediator} is delta_IS={delta_is:.2f} "
-                f"(95% bootstrap interval {delta_lo:.2f} to {delta_hi:.2f}); its "
+                f"(89% bootstrap interval {delta_lo:.2f} to {delta_hi:.2f}); its "
                 f"interval reaches the delta*={tip:.2f} tipping point, so IS-strength "
                 f"confounding could plausibly account for this path, with wide "
                 f"uncertainty at n={n_treated}."
@@ -1114,7 +1114,7 @@ def calibrate_session_confounding(
         else:
             conclusion = (
                 f"The phase-0 IS anchor for NIE_{mediator} is delta_IS={delta_is:.2f} "
-                f"(95% bootstrap interval {delta_lo:.2f} to {delta_hi:.2f}); even "
+                f"(89% bootstrap interval {delta_lo:.2f} to {delta_hi:.2f}); even "
                 f"its upper bound is below the delta*={tip:.2f} tipping point, so "
                 f"observed IS-strength confounding alone does not reach it, although "
                 f"the calibration remains uncertain at n={n_treated}."

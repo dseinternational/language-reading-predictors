@@ -635,8 +635,9 @@ def mechanism_forest(config: str, out_path: str) -> bool:
 
         slopes = _mechanism_slope_distribution(trace, mech_logit)
         means.append(float(np.mean(slopes)))
-        los.append(float(np.quantile(slopes, 0.025)))
-        his.append(float(np.quantile(slopes, 0.975)))
+        # 89% equal-tailed band (house standard).
+        los.append(float(np.quantile(slopes, 0.055)))
+        his.append(float(np.quantile(slopes, 0.945)))
         labels.append(f"{model_id} ({sym}->W)")
 
     if not labels:
@@ -719,9 +720,13 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
                 "outcome": sym,
                 "role": role,
                 "gate_ok": _gate_ok(model_id, config),
+                "beta_mech_median": float(np.median(b)),
                 "beta_mech_mean": float(np.mean(b)),
-                "beta_mech_lo": float(np.quantile(b, 0.025)),
-                "beta_mech_hi": float(np.quantile(b, 0.975)),
+                # 89% equal-tailed (house standard); inner 50% alongside.
+                "beta_mech_lo": float(np.quantile(b, 0.055)),
+                "beta_mech_hi": float(np.quantile(b, 0.945)),
+                "beta_mech_lo50": float(np.quantile(b, 0.25)),
+                "beta_mech_hi50": float(np.quantile(b, 0.75)),
                 "prob_pos": float(np.mean(b > 0)),
             }
         )
@@ -741,9 +746,13 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
                 {
                     "config": config,
                     "estimand": "beta(L->N) - beta(L->W); logit per SD of letter sounds",
+                    "delta_median": float(np.median(delta)),
                     "delta_mean": float(np.mean(delta)),
-                    "delta_lo": float(np.quantile(delta, 0.025)),
-                    "delta_hi": float(np.quantile(delta, 0.975)),
+                    # 89% equal-tailed (house standard); inner 50% alongside.
+                    "delta_lo": float(np.quantile(delta, 0.055)),
+                    "delta_hi": float(np.quantile(delta, 0.945)),
+                    "delta_lo50": float(np.quantile(delta, 0.25)),
+                    "delta_hi50": float(np.quantile(delta, 0.75)),
                     "prob_delta_gt_0": float(np.mean(delta > 0)),
                     "beta_N_mean": float(np.mean(draws["N"])),
                     "beta_W_mean": float(np.mean(draws["W"])),

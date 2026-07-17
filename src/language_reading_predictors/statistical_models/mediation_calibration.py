@@ -63,8 +63,8 @@ class SlopeEstimate:
     """One dose slope and its 90% marginal interval on a documented scale."""
 
     point: float
-    lo90: float
-    hi90: float
+    lo: float
+    hi: float
     source: str
     dose_sd_sessions: float | None = None
 
@@ -271,7 +271,7 @@ def _read_dose_slope(
         )
     r = row.iloc[0]
     point_key = "median" if "median" in slopes.columns else "mean"
-    values = [r[point_key], r["lo90"], r["hi90"]]
+    values = [r[point_key], r["lo"], r["hi"]]
     if not np.isfinite(np.asarray(values, dtype=float)).all():
         raise _CalibrationUnavailable(
             f"{model_id}-{config} dose_period1 slope is non-finite"
@@ -284,27 +284,27 @@ def _read_dose_slope(
     )
     return SlopeEstimate(
         point=float(r[point_key]),
-        lo90=float(r["lo90"]),
-        hi90=float(r["hi90"]),
+        lo=float(r["lo"]),
+        hi=float(r["hi"]),
         source=f"{model_id}-{config} dose_period1",
         dose_sd_sessions=dose_sd,
     )
 
 
 def _rescale(est: SlopeEstimate, factor: float, *, source_suffix: str) -> SlopeEstimate:
-    values = np.asarray([est.point, est.lo90, est.hi90], dtype=float) * factor
+    values = np.asarray([est.point, est.lo, est.hi], dtype=float) * factor
     lo, hi = sorted(values[1:])
     return SlopeEstimate(
         point=float(values[0]),
-        lo90=float(lo),
-        hi90=float(hi),
+        lo=float(lo),
+        hi=float(hi),
         source=f"{est.source}; {source_suffix}",
     )
 
 
 def _abs_product_envelope(a: SlopeEstimate, b: SlopeEstimate) -> tuple[float, float]:
     products = np.asarray(
-        [a.lo90 * b.lo90, a.lo90 * b.hi90, a.hi90 * b.lo90, a.hi90 * b.hi90]
+        [a.lo * b.lo, a.lo * b.hi, a.hi * b.lo, a.hi * b.hi]
     )
     raw_lo, raw_hi = float(products.min()), float(products.max())
     low = 0.0 if raw_lo <= 0.0 <= raw_hi else min(abs(raw_lo), abs(raw_hi))
@@ -453,8 +453,8 @@ def calibrate_is_scenario(
         "response_scale": response_scale,
         "delta_is_point": float(delta_point),
         "delta_is_observed_point": float(delta_observed),
-        "delta_is_scenario_lo90": float(scenario_lo),
-        "delta_is_scenario_hi90": float(scenario_hi),
+        "delta_is_scenario_lo": float(scenario_lo),
+        "delta_is_scenario_hi": float(scenario_hi),
         "sweep_max_delta": sweep_max,
         "tipping_delta": tipping,
         "already_null_at_zero": already_null,
@@ -464,11 +464,11 @@ def calibrate_is_scenario(
         "nie_response_lo_at_is": float(nie_response_lo),
         "nie_response_hi_at_is": float(nie_response_hi),
         "fitted_mediator_dose_slope": fitted_mediator_slope.point,
-        "fitted_mediator_dose_lo90": fitted_mediator_slope.lo90,
-        "fitted_mediator_dose_hi90": fitted_mediator_slope.hi90,
+        "fitted_mediator_dose_lo": fitted_mediator_slope.lo,
+        "fitted_mediator_dose_hi": fitted_mediator_slope.hi,
         "fitted_outcome_dose_slope": fitted_outcome_slope.point,
-        "fitted_outcome_dose_lo90": fitted_outcome_slope.lo90,
-        "fitted_outcome_dose_hi90": fitted_outcome_slope.hi90,
+        "fitted_outcome_dose_lo": fitted_outcome_slope.lo,
+        "fitted_outcome_dose_hi": fitted_outcome_slope.hi,
         "observed_mediator_dose_slope": observed_mediator_slope.point,
         "observed_outcome_dose_slope": observed_outcome_slope.point,
         "mediator_source": fitted_mediator_slope.source,

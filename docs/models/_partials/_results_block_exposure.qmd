@@ -16,7 +16,7 @@ block_exposure_summary = _csv("block_exposure_summary.csv")
 block_exposure_summary
 ```
 
-_How to read the effect summary:_ `delta` is the block-active exposure effect on the logit (log-odds) scale; `delta_median` is the posterior median (the house convention; `delta_mean` is kept alongside), the `_lo`/`_hi` columns bracket the 95% credible interval, and `prob_delta_pos` is the posterior probability the effect is positive. The `delta_items_*` columns restate the effect on the raw items scale — the average marginal change in the expected block-2 taught-word count from toggling exposure on across the fitted rows.
+_How to read the effect summary:_ `delta` is the block-active exposure effect on the logit (log-odds) scale; `delta_median` is the posterior median (the house convention; `delta_mean` is kept alongside), the `_lo`/`_hi` columns bracket the 89% credible interval, and `prob_delta_pos` is the posterior probability the effect is positive. The `delta_items_*` columns restate the effect on the raw items scale — the average marginal change in the expected block-2 taught-word count from toggling exposure on across the fitted rows.
 
 ```{python}
 # | echo: false
@@ -27,14 +27,14 @@ if block_exposure_summary is not None:
     _d = block_exposure_summary.iloc[0]
     _items = (
         f", about **{_d.delta_items_median:+.1f} items** "
-        f"(90% CrI {_d.delta_items_lo90:+.1f} to {_d.delta_items_hi90:+.1f}; "
-        f"95% {_d.delta_items_lo:+.1f} to {_d.delta_items_hi:+.1f})"
+        f"(50% CrI {_d.delta_items_lo50:+.1f} to {_d.delta_items_hi50:+.1f}; "
+        f"89% {_d.delta_items_lo:+.1f} to {_d.delta_items_hi:+.1f})"
     )
     print(
         f"**Block-active exposure effect (`delta`, association):** median "
         f"{_d.delta_median:+.3f} on the logit scale "
-        f"(90% CrI {_d.delta_lo90:+.3f} to {_d.delta_hi90:+.3f}; "
-        f"95% {_d.delta_lo:+.3f} to {_d.delta_hi:+.3f}); "
+        f"(50% CrI {_d.delta_lo50:+.3f} to {_d.delta_hi50:+.3f}; "
+        f"89% {_d.delta_lo:+.3f} to {_d.delta_hi:+.3f}); "
         f"P(delta > 0) = {_d.prob_delta_pos:.3f} "
         f"({_odds(_d.prob_delta_pos)}, *{_d.delta_direction_label}* evidence for the "
         f"direction).{_items}"
@@ -45,7 +45,7 @@ if block_exposure_summary is not None:
 # | echo: false
 # | output: asis
 print(_img("delta_forest.png", "Posterior of the block-active exposure effect (forest, reference line at 0)"))
-print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect; posterior mass to its right favours more taught-word learning under block-2 exposure. This is an adjusted association, not a causal effect.")
+print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line at 0 is no-effect; posterior mass to its right favours more taught-word learning under block-2 exposure. This is an adjusted association, not a causal effect.")
 ```
 
 ### Coefficient summary (all associations)
@@ -67,5 +67,5 @@ _assoc_forest = _img(
 )
 print(_assoc_forest)
 if _assoc_forest:
-    print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect. Every coefficient here is an adjusted association, not a causal effect.")
+    print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line at 0 is no-effect. Every coefficient here is an adjusted association, not a causal effect.")
 ```

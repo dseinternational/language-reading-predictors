@@ -16,7 +16,7 @@ coupling_summary if coupling_summary is not None else "No coupling summary."
 
 _How to read the coupling table:_ each row is one directed coupling, written
 `from -> to` (the level of `from` predicting the later change in `to`). `mean` is
-the posterior average of that coupling; `lo` and `hi` are the ends of the 95%
+the posterior average of that coupling; `lo` and `hi` are the ends of the 89%
 credible interval, so a range that stays on one side of 0 is a coupling the data
 support in that direction. `prob_pos` is the posterior probability the coupling is
 positive (near 1 = confidently positive, near 0 = confidently negative, near 0.5 =
@@ -33,8 +33,8 @@ if coupling_summary is not None:
         _r = _g.iloc[0]
         print(
             f"Headline coupling `{_r.coefficient}`: mean {_r['mean']:+.3f} "
-            f"(90% CrI {_r.lo90:+.3f} to {_r.hi90:+.3f}; "
-            f"95% {_r.lo:+.3f} to {_r.hi:+.3f}); "
+            f"(50% CrI {_r.lo50:+.3f} to {_r.hi50:+.3f}; "
+            f"89% {_r.lo:+.3f} to {_r.hi:+.3f}); "
             f"P(> 0) = {_r.prob_pos:.3f}. Read agreement with LRP65 and the "
             "mechanism models rather than treating this one coefficient as decisive."
         )
@@ -103,7 +103,7 @@ if _has("child_fit_panels.png"):
     print(
         "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
         "child's observed scores on the focal reading measure (named in the figure title) across the "
-        "four waves; the green band is the model's posterior-predictive 95% interval **for that same "
+        "four waves; the green band is the model's posterior-predictive 89% interval **for that same "
         "child**, built from the child's fitted latent trajectory (a *same-children* display). To keep "
         "one figure, only the focal outcome is drawn; the other measures behave analogously. Panels "
         "flagged with a high Pareto-k are the worst-fitting children (aggregated across all measures), "

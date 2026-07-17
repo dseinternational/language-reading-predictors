@@ -26,7 +26,7 @@ concurrent = _csv("concurrent_associations.csv")
 concurrent if concurrent is not None else "No concurrent-associations table."
 ```
 
-_How to read the table:_ one row represents one timepoint–predictor pair. The `adj_*` columns summarise the mutually-adjusted coefficient (per SD, logit scale), while `biv_*` summarise its standalone bivariate counterpart; each has a 95% credible interval (`*_lo`/`*_hi`) and `*_prob_pos`, the posterior probability that the association is positive (near 1 = confidently positive, near 0 = confidently negative, near 0.5 = direction unresolved). `timepoint` identifies the wave (t1–t4). The `adj_converged` and `biv_converged` fields must both be true before comparing the estimates; a failed flag means that sub-fit is not reliable enough to interpret. Differences between the columns show sensitivity to the conditioning set, not how much variance the other skills "explain".
+_How to read the table:_ one row represents one timepoint–predictor pair. The `adj_*` columns summarise the mutually-adjusted coefficient (per SD, logit scale), while `biv_*` summarise its standalone bivariate counterpart; each has an 89% credible interval (`*_lo`/`*_hi`) and `*_prob_pos`, the posterior probability that the association is positive (near 1 = confidently positive, near 0 = confidently negative, near 0.5 = direction unresolved). `timepoint` identifies the wave (t1–t4). The `adj_converged` and `biv_converged` fields must both be true before comparing the estimates; a failed flag means that sub-fit is not reliable enough to interpret. Differences between the columns show sensitivity to the conditioning set, not how much variance the other skills "explain".
 
 ```{python}
 # | echo: false
@@ -53,7 +53,7 @@ if concurrent is not None and len(concurrent):
     print(
         "\n_How to read the plot:_ one row per predictor. The blue circle is the "
         "*adjusted* (mutually-adjusted) coefficient, the grey square the *bivariate* "
-        "one; bars are 95% credible intervals. The dotted line at 0 is no association "
+        "one; bars are 89% credible intervals. The dotted line at 0 is no association "
         "— markers to its right indicate a positive association with the focal outcome, "
         "markers to its left a negative one, and a bar crossing 0 means the sign remains "
         "uncertain. These are associations, not causal effects."
@@ -82,4 +82,4 @@ concurrent_marginals = _csv("concurrent_marginals.csv")
 concurrent_marginals if concurrent_marginals is not None else "No concurrent-marginals table."
 ```
 
-_How to read the table:_ one row represents one timepoint–predictor–adjustment–perturbation combination. `adjustment` distinguishes the mutually-adjusted and bivariate fits; `scale` identifies either `+1 SD` or the predictor-specific `+k items` perturbation. `prob_median` and `items_median`, with their corresponding `*_lo`/`*_hi` 95% credible intervals, are the associated differences on the probability and outcome-items scales; `prob_pos` is the posterior probability that the association is positive. The `+k items` rows are evaluated at that wave's mean predictor level. Interpret an adjusted or bivariate row only when its `converged` flag is true, and read every value as "how much the focal outcome tends to differ by", not as a caused gain.
+_How to read the table:_ one row represents one timepoint–predictor–adjustment–perturbation combination. `adjustment` distinguishes the mutually-adjusted and bivariate fits; `scale` identifies either `+1 SD` or the predictor-specific `+k items` perturbation. `prob_median` and `items_median`, with their corresponding `*_lo`/`*_hi` 89% credible intervals, are the associated differences on the probability and outcome-items scales; `prob_pos` is the posterior probability that the association is positive. The `+k items` rows are evaluated at that wave's mean predictor level. Interpret an adjusted or bivariate row only when its `converged` flag is true, and read every value as "how much the focal outcome tends to differ by", not as a caused gain.

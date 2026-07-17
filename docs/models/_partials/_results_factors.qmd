@@ -23,7 +23,7 @@ factor_summary
 ```
 
 _How to read the summary table:_ each row is one coefficient on the logit
-(log-odds) scale; `median` is the best single estimate, `lo`/`hi` its 95% credible
+(log-odds) scale; `median` is the best single estimate, `lo`/`hi` its 89% credible
 interval (the range the value plausibly falls in), and `prob_positive` the
 posterior probability the coefficient is above zero. The `role` column flags the
 single `causal` (randomised) term; every other row is an adjusted association.
@@ -45,8 +45,8 @@ if factor_summary is not None and "role" in factor_summary.columns:
         print(
             f"**Causal (randomised) term — `{_r.term}`:** posterior median "
             f"{_r['median']:+.3f} on the logit scale "
-            f"(90% CrI {_r['lo90']:+.3f} to {_r['hi90']:+.3f}; "
-            f"95% {_r['lo']:+.3f} to {_r['hi']:+.3f}); "
+            f"(50% CrI {_r['lo50']:+.3f} to {_r['hi50']:+.3f}; "
+            f"89% {_r['lo']:+.3f} to {_r['hi']:+.3f}); "
             f"P(> 0) = {_r.prob_positive:.3f} ({_odds(_r.prob_positive)}{_lab}). "
             f"This is the only coefficient identified by randomisation."
         )
@@ -75,13 +75,13 @@ if treatment_marginal is not None:
         f"**period-1 (randomised) transition only**, the genuinely all-untreated-baseline "
         f"contrast that anchors the ITT effect — is a median of "
         f"**{_t.trt_items_median:+.1f} items** "
-        f"(90% CrI {_t.trt_items_lo90:+.1f} to {_t.trt_items_hi90:+.1f}; "
-        f"95% {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
+        f"(50% CrI {_t.trt_items_lo50:+.1f} to {_t.trt_items_hi50:+.1f}; "
+        f"89% {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
         f"P(> 0) = {_t.prob_trt_pos:.3f}. The logit-scale `beta_trt` coefficient itself is "
         f"the on-intervention log-odds contrast, not the marginal ITT effect.\n"
     )
 print(_img("tau_forest.png", "Posterior of the causal term (forest, reference line at 0)"))
-print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
+print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
 ```
 
 ```{python}
@@ -159,7 +159,7 @@ if _has("group_trajectory.png"):
     print(_img("group_trajectory.png", "Per-arm score trajectory across waves, with credible ribbons and observed arm means"))
     print(
         f"\n_How to read it:_ each line is the model's posterior **mean** score on {outcome_label} "
-        "for one randomised arm across the assessment waves (t1–t4), with its 95% credible ribbon; "
+        "for one randomised arm across the assessment waves (t1–t4), with its 89% credible ribbon; "
         "the filled dots are the observed per-arm means. This is a **population-level** curve — the "
         "child random intercept is integrated over its population distribution and the result is "
         "averaged over the children observed in each arm at each wave (g-computation). It is therefore "
@@ -182,9 +182,9 @@ if _has("child_fit_panels.png"):
         else f"child's observed {outcome_label} scores across waves"
     )
     _band = (
-        "the model's posterior 95% credible interval for **that same child's** probability of being off the floor"
+        "the model's posterior 89% credible interval for **that same child's** probability of being off the floor"
         if _off
-        else "the model's posterior-predictive 95% interval for **that same child's** score"
+        else "the model's posterior-predictive 89% interval for **that same child's** score"
     )
     print("### Per-child fit\n")
     print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples (observed dots, model band)"))
@@ -255,7 +255,7 @@ if association_marginals is not None and len(association_marginals):
     print(_am[_assoc_cols].round(3).to_markdown(index=False))
     print(
         f"\n_How to read it:_ `items_median` is the {_unit} change (best single estimate), "
-        f"`items_lo`/`items_hi` its 95% credible interval, `prob_pos` the posterior "
+        f"`items_lo`/`items_hi` its 89% credible interval, `prob_pos` the posterior "
         f"probability the association is positive, and `sd_items` (bounded-count "
         f"covariates only) how many items a +1 SD move is at the mean baseline — so "
         f"\"+1 SD\" can be read back in items."
@@ -275,5 +275,5 @@ _assoc_forest = _img(
 )
 print(_assoc_forest)
 if _assoc_forest:
-    print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty. Every coefficient here is an adjusted association, not a causal effect.")
+    print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty. Every coefficient here is an adjusted association, not a causal effect.")
 ```

@@ -54,6 +54,7 @@ Depaoli
 Disabil
 Donolato
 ELPD
+Elreath
 Engevik
 Ennett
 Epidemiol
@@ -88,6 +89,7 @@ HSGP
 Haldane
 Hamaker
 Hancock
+Hanea
 Hayiou
 Hejazi
 Hewes
@@ -151,6 +153,8 @@ MNLFA
 MacDonald
 Majerus
 Makowski
+Margossian
+Mascaro
 McArdle
 McGinley
 McShane
@@ -161,6 +165,7 @@ Metsala
 Millsap
 Missingness
 Modeling
+Modrák
 Monaspace
 Morey
 Mosse
@@ -497,6 +502,7 @@ pipefail
 pred
 preliz
 prob
+probs
 proc
 psense
 pushforward
@@ -505,6 +511,7 @@ pymc
 pyproject
 pytest
 readgrp
+recomputation
 reframing
 reparameterisation
 reparameterise

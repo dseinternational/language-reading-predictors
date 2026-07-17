@@ -513,8 +513,6 @@ def _fit_floor_one(
         "risk_difference_mean": summary["tau_prob_mean"],
         "risk_difference_lo50": summary["tau_prob_lo50"],
         "risk_difference_hi50": summary["tau_prob_hi50"],
-        "risk_difference_lo90": summary["tau_prob_lo90"],
-        "risk_difference_hi90": summary["tau_prob_hi90"],
         "risk_difference_lo": summary["tau_prob_lo"],
         "risk_difference_hi": summary["tau_prob_hi"],
         "risk_difference_hpdi_lo": summary["tau_prob_hpdi_lo"],
