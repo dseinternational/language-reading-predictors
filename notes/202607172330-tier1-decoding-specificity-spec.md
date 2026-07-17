@@ -120,7 +120,7 @@ Read together, a positive `LS→N` NIE (`med-086`) **and** a positive `N→WR` N
 
 ## 10. Repo citation-error flag (separate fix, not part of this build)
 
-While verifying references I found a **wrong DOI in committed content**: `notes/202607172100-reverse-mediation-wr-ls-direction-spec.md` cites Roch & Jarrold (2012) as `doi:10.1002/dys.1433`, but that DOI is Nalavany & Carawan (2011), an unrelated adult-dyslexia/self-esteem paper in _Dyslexia_. The intended source is Roch & Jarrold (2012), _Journal of Communication Disorders_ 45(2):121–128, **doi:10.1016/j.jcomdis.2011.11.001** (PMID 22176835). The `lrp-rli-med-074` docstring cites the same paper by name (no DOI) and is fine. Recommend correcting the reverse-mediation note's DOI in a small separate `docs(notes)` fix.
+While verifying references I found a **wrong DOI in committed content**: `notes/202607172100-reverse-mediation-wr-ls-direction-spec.md` cites Roch & Jarrold (2012) as `doi:10.1002/dys.1433`, but that DOI is Nalavany & Carawan (2011), an unrelated adult-dyslexia/self-esteem paper in _Dyslexia_. The intended source is Roch & Jarrold (2012), _Journal of Communication Disorders_ 45(2):121–128, **doi:10.1016/j.jcomdis.2011.11.001** (PMID 22176835). The `lrp-rli-med-074` docstring cites the same paper by name (no DOI) and is fine. **Fixed 2026-07-17:** the reverse-mediation note's DOI now reads `10.1016/j.jcomdis.2011.11.001`.
 
 ## 11. References (verified 2026-07-17)
 
