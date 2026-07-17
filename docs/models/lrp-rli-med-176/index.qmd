@@ -1,0 +1,65 @@
+---
+title: "LRP176: Reverse longitudinal-ordering mediation — word reading (t2) → letter sounds (t4)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+Every other model in the suite *assumes* the direction letter sounds → word reading
+($LS \rightarrow WR$): the contemporaneous DAG hard-codes it, and the lagged DAG carried the
+reverse edges $WR_t \rightarrow \{TE, TR, PA, RW\}_{t+1}$ but pointedly **not**
+$WR_t \rightarrow LS_{t+1}$, ruling the reverse out a priori. LRP176 is the deliberate mirror
+of the forward [LRP76](../lrp-rli-med-076) ($LS_{t2} \rightarrow WR_{t4}$): it exercises a
+$WR_t \rightarrow LS_{t+1}$ edge added to the lagged DAG for the purpose, swapping the roles so
+the **mediator is word reading at t2 and the outcome is letter-sound knowledge at t4**. Read
+beside LRP76, the pair is the direction contrast $LS \rightarrow WR$ vs $WR \rightarrow LS$
+(the "does reading feed back into the code?" hypothesis, motivated by the DS-specific
+$WR \rightarrow NW$ finding of Roch & Jarrold 2012). Full rationale and caveats:
+`notes/202607172100-reverse-mediation-wr-ls-direction-spec.md`.
+
+## Design
+
+Mediator $W_{t2}$ (Beta-Binomial on $W_{t1}$); outcome $L_{t4}$ (conditioned on $L_{t1}$,
+loaded via the lagged-outcome preparation). Adjustment
+$\{G, A, W_\text{pre}, W_{t1}, HS, SP\}$ — the exogenous common causes of the mediator $WR$ and
+the outcome $LS$ (hearing `hs`, speech `deapp_c`) at baseline. Phonological memory $RW$ and
+baseline vocabulary $E/R$ are **not** $WR \leftrightarrow LS$ confounders (they cause $WR$ but
+not $LS$), so they are omitted — the asymmetry vs LRP76. The t3-outcome ceiling-sensitivity
+companion is [LRP276](../lrp-rli-med-276).
+
+## Assumptions — read this first {#sec-assumptions}
+
+The **t2 → t4 increment is NOT randomised** (both arms are treated by t4), so this is a
+**triangulation design** read under stated assumptions, not a clean causal estimate. ID-2
+applies throughout (`GA`-confounded + the treatment-induced dose confounder
+$IG \rightarrow IS \rightarrow \{WR, LS\}$), so the NIE is an adjusted association under a
+stated *reverse* direction, never proof that reading drives the code. Two further asymmetries
+temper the reverse read: the design randomises an early letter-sound shock but **no** early
+word-reading shock (reading moves later), so this direction is intrinsically **under-powered**;
+and the outcome $LS$ is mildly ceilinged at t4 (~12% of children at the maximum), which if
+anything attenuates the reverse NIE (checked by LRP276). $n \approx 53 \Rightarrow$ wide
+intervals.
+
+{{< include _partials/_results_mediation.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
