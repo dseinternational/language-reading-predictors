@@ -3,7 +3,7 @@
 # Findings: is letter-sound knowledge _used for decoding_? (Tier-1 decoding-specificity mini-suite)
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Results from the Tier-1 mini-suite specced in `notes/202607172330-tier1-decoding-specificity-spec.md`. Numbers are the **`rep-lite`** fits (all six mechanism models clear the convergence gate: max R-hat ≤ 1.006, min ESS ≥ 854, 0 divergences, BFMI ≥ 0.86). Everything here is an **adjusted association** under the revised DAG, never a causal skill→skill effect — general ability (`GA`) is latent and unblockable, and the child random intercept does not stand in for it. The only randomised warrant in the suite is the ITT arm.
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Results from the Tier-1 mini-suite specced in `notes/202607172330-tier1-decoding-specificity-spec.md`. Numbers are the **`reporting`** fits (6×6000; all six mechanism models clear the convergence gate) and are reported to the house standard — the posterior **median** with an **89% equal-tailed** credible interval (`notes/202607172359-credible-interval-standard.md`). Everything here is an **adjusted association** under the revised DAG, never a causal skill→skill effect — general ability (`GA`) is latent and unblockable, and the child random intercept does not stand in for it. The only randomised warrant in the suite is the ITT arm.
 
 ## The question and the design in one paragraph
 
@@ -11,24 +11,24 @@ Do gains in letter-sound knowledge (`LS`) actually get _used to decode_, or do t
 
 ## 1A — convergent–discriminant contrast: letter sounds feed decoding far more than word reading
 
-| slope (logit per SD of `LS`)          | mean      | 95% CI                          |
+| slope (logit per SD of `LS`)          | median    | 89% CI                          |
 | ------------------------------------- | --------- | ------------------------------- |
-| `LS → N` (nonword decoding, mech-096) | **+1.03** | [0.67, 1.41]                    |
-| `LS → W` (word reading, mech-101)     | **+0.25** | [0.13, 0.37]                    |
-| **Δ = `LS→N` − `LS→W`**               | **+0.78** | **[0.40, 1.18]**, P(Δ>0) ≈ 1.00 |
+| `LS → N` (nonword decoding, mech-096) | **+1.03** | [0.74, 1.34]                    |
+| `LS → W` (word reading, mech-101)     | **+0.25** | [0.15, 0.35]                    |
+| **Δ = `LS→N` − `LS→W`**               | **+0.78** | **[0.47, 1.10]**, P(Δ>0) ≈ 1.00 |
 
 Letter sounds predict **pure decoding about four times as strongly as they predict word reading**, and the contrast Δ excludes zero decisively. This is the decoding-use signature: a pure-`GA`-confounding account gives no reason for letter sounds to predict `N` _more_ than `W` (if anything `GA` should predict the broader word-reading skill at least as much), so the natural explanation for `LS→N` ≫ `LS→W` is that letter-sound knowledge is being converted into decoding. **Decoding-use supported.**
 
 ## 1B — negative-control outcomes: written code moves, oral language barely does
 
-| letter-sound slope on…               | mean      | 95% CI       | role                       |
+| letter-sound slope on…               | median    | 89% CI       | role                       |
 | ------------------------------------ | --------- | ------------ | -------------------------- |
-| nonword decoding `N` (mech-096)      | **+1.03** | [0.67, 1.41] | positive (written code)    |
-| word reading `W` (mech-101)          | **+0.25** | [0.13, 0.37] | positive (written code)    |
-| receptive vocabulary `R` (mech-097)  | +0.11     | [0.05, 0.17] | negative control           |
-| expressive vocabulary `E` (mech-098) | +0.10     | [0.05, 0.16] | negative control           |
-| receptive grammar `T` (mech-099)     | +0.12     | [0.03, 0.22] | negative control           |
-| basic concepts `F` (mech-100)        | +0.29     | [0.13, 0.45] | negative control (weakest) |
+| nonword decoding `N` (mech-096)      | **+1.03** | [0.74, 1.34] | positive (written code)    |
+| word reading `W` (mech-101)          | **+0.25** | [0.15, 0.35] | positive (written code)    |
+| receptive vocabulary `R` (mech-097)  | +0.11     | [0.06, 0.16] | negative control           |
+| expressive vocabulary `E` (mech-098) | +0.10     | [0.06, 0.15] | negative control           |
+| receptive grammar `T` (mech-099)     | +0.12     | [0.04, 0.20] | negative control           |
+| basic concepts `F` (mech-100)        | +0.29     | [0.16, 0.42] | negative control (weakest) |
 
 The vocabulary and grammar controls (`R`, `E`, `T`) sit at **+0.10 to +0.12** — roughly a **ninth** of the `LS→N` slope and about **half** of `LS→W`. Letter sounds act overwhelmingly on the written code, exactly as the decoding account predicts. **Two honest qualifications:**
 
@@ -59,7 +59,7 @@ Read together these are the two links of `LS → N → WR`; numbers and their fl
 - **`N` floor.** Nonword reading is ≈ 57–72% floored; its slopes and the 1C cascade are power-limited (a small/uncertain value is floor-limited, not "no effect").
 - **Matched conditioning.** All six models share the adjustment set `{G, A, HS, IS, SP}` + own baseline (revised-DAG parents of `LS`, #245), so the panel is like-for-like; only the outcome changes.
 - **No item-level data**, so the gold-standard within-child "decode nonwords built from letters you personally know" test remains impossible (see `notes/202607172345-design-lessons-for-future-studies.md`).
-- These are **`rep-lite`** fits (portable preset); the published run should re-fit at `reporting`.
+- These are **`reporting`** fits (6×6000), re-fit under the 89%/50% credible-interval standard and re-published with the full suite.
 
 ## Cross-references
 
