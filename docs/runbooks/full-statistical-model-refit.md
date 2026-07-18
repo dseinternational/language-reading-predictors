@@ -11,7 +11,7 @@ A start-to-finish checklist for refitting **every registered Bayesian statistica
 
 This runbook is the operational companion to the [`lrp-fit-statistical`](../../.claude/skills/lrp-fit-statistical/SKILL.md) skill (which covers the _science_ — estimands, the convergence gate, how to read each family) and to `METHODS.md`. It captures the **workflow and the gotchas** — the things that are not obvious from the scripts and that cost time the first time round. A worked example of its output is `notes/202607131300-full-statistical-refit-reporting.md`.
 
-**Time budget:** the current full `reporting` sweep auto-discovers 150 models, including eight historical-cohort models, and should be treated as a several-hour background job on 16 cores. Most fits are fast (a typical ITT fit is ~40 s under `nutpie`); the slow tail is the growth / mediation / HSGP / LCSM / factor models. Recompute the registry count before each sweep rather than relying on this snapshot.
+**Time budget:** the full `reporting` sweep auto-discovers every registered RLI and historical-cohort model and should be treated as a several-hour background job on 16 cores. Most fits are fast (a typical ITT fit is ~40 s under `nutpie`); the slow tail is the growth / mediation / HSGP / LCSM / factor models. Recompute the registry count before each sweep rather than relying on a prose snapshot.
 
 ---
 
@@ -217,7 +217,7 @@ python scripts/fit_statistical_model.py lrp-rli-mm-001 --config reporting --rend
 
 ## Step 2 — Verify the fits and triage the convergence gate
 
-**Confirm all models fitted.** Compare the auto-discovered registry count with the number of completed reporting directories; they must match. At 2026-07-15 the expected count is 150 (142 RLI models plus eight historical RLM models):
+**Confirm all models fitted.** Compare the auto-discovered registry count with the number of completed reporting directories; they must match. The following check derives the expected set from the same discovery function as the fit CLI, so no handwritten total is authoritative:
 
 ```bash
 python - <<'PY'

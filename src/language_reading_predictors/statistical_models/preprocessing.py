@@ -284,11 +284,13 @@ def add_missing_indicator_covariates(df: pd.DataFrame) -> pd.DataFrame:
     hearing status (:func:`add_hearing_status`): the value is filled to its
     (arm-blind) whole-column mean and a ``{col}_missing`` indicator carries the
     unknown group as its own adjustment level. Both derived columns are NaN-free, so
-    adjusting for them never drops rows. (The fill uses the whole-column mean, while a
+    adjusting for them never drops rows. The fill uses the whole-column mean, while a
     model standardises on its fitted-wave rows, so an imputed cell is not exactly 0 on
-    that scale — the ``{col}_missing`` indicator absorbs the residual offset as a free
-    intercept shift, so estimates stay unbiased under randomisation.) A no-op for any
-    column absent from the frame (e.g. other datasets).
+    that scale; the ``{col}_missing`` indicator represents that residual offset as a
+    separate intercept shift. This is a pragmatic no-row-drop encoding, not a general
+    guarantee of unbiased covariate effects or adequate confounding control, so the
+    complete-case companions remain an important sensitivity analysis. A no-op for
+    any column absent from the frame (e.g. other datasets).
     """
     out = df.copy()
     for col in MISSING_INDICATOR_COVARIATES:

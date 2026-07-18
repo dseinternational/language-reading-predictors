@@ -277,10 +277,11 @@ def test_itt_golden_sentences(tmp_path):
         "evidence that the intervention helps."
     )
     assert texts[2] == (
-        "A change of at least 1 item was pre-specified as the smallest "
-        "difference that would matter in practice: the probability the benefit "
-        "reaches that size is 81%, and the probability the effect is too small "
-        "to matter either way is 17%."
+        "The project agreed after its initial results review that a change of at "
+        "least 1 item would be the smallest difference that matters in practice. "
+        "The probability the benefit reaches that size is 81%, and the probability "
+        "the effect is too small to matter either way is 17%; because the threshold "
+        "is post-hoc, read this beside the threshold-sensitivity analysis."
     )
     assert "randomly assigned" in texts[3]
     assert "cause-and-effect" in texts[3]
@@ -765,6 +766,23 @@ def test_every_remaining_family_has_bespoke_findings(tmp_path, kind):
     assert expected in _texts(payload)
     assert "has not yet been written" not in _texts(payload)
     assert 3 <= len(payload["sentences"]) <= KEY_FINDINGS_MAX_SENTENCES
+
+
+def test_joint_findings_identify_smallest_difference_as_post_hoc(tmp_path):
+    d, _ = _remaining_family_case(tmp_path, "joint")
+
+    payload = generate_key_findings(d)
+
+    assert "post-hoc, project-agreed smallest-important difference" in _texts(payload)
+
+
+def test_horseshoe_findings_do_not_claim_threshold_was_pre_specified(tmp_path):
+    d, _ = _remaining_family_case(tmp_path, "horseshoe")
+
+    payload = generate_key_findings(d)
+
+    assert "model's worth-noticing coefficient threshold" in _texts(payload)
+    assert "pre-specified" not in _texts(payload)
 
 
 def test_builder_registry_covers_every_declared_family():
