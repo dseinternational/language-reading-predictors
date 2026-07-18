@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError, dataclass
+from dataclasses import FrozenInstanceError, dataclass, replace
 
 import pytest
 
@@ -74,6 +74,8 @@ def test_floor_plan_makes_the_exploratory_estimand_explicit():
     assert plan.use_own_baseline is False
     assert plan.headline_likelihood == "bernoulli_offfloor"
     recipe = plan.recipe_markdown(title="Phoneme awareness")
+    assert recipe.startswith("Note: Generated from the validated ITT run plan")
+    assert "[!NOTE]" not in recipe
     assert "observed at the floor at t1" in recipe
     assert "Graded Beta-Binomial fits are secondary checks" in recipe
 
@@ -144,6 +146,30 @@ def test_non_itt_typed_settings_reject_an_unserializable_boundary():
         declared_settings_dict(spec)
 
 
+def test_typed_settings_cannot_overwrite_the_reserved_source_marker():
+    @dataclass(frozen=True, slots=True)
+    class AmbiguousSettings:
+        source: str
+
+    spec = ModelSpec(
+        model_id="lrp-rli-example-003",
+        kind="example",
+        title="Ambiguous future typed family",
+        model_settings=AmbiguousSettings(source="user supplied"),
+    )
+
+    with pytest.raises(ValueError, match="field 'source' is reserved"):
+        declared_settings_dict(spec)
+
+
+def test_legacy_outcomes_without_cross_symbols_keep_the_loaded_outcome_default():
+    plan = resolve_itt_run_plan(_spec(extra={"outcomes": ("W",)}))
+
+    assert plan.settings_source == "legacy_extra"
+    assert plan.outcomes == ("W",)
+    assert plan.cross_symbols == ()
+
+
 @pytest.mark.parametrize(
     ("settings", "outcome", "message"),
     [
@@ -172,6 +198,20 @@ def test_non_itt_typed_settings_reject_an_unserializable_boundary():
             ),
             "W",
             "floor_rule is only registered",
+        ),
+        (
+            replace(IttModelSettings.for_floor_outcome(), use_varying_tau=True),
+            "P",
+            "floor_rule cannot use a varying treatment effect",
+        ),
+        (
+            replace(
+                IttModelSettings.for_floor_outcome(),
+                tau_moderator_symbol="blocks",
+                tau_moderator_is_covariate=True,
+            ),
+            "P",
+            "floor_rule cannot use treatment-effect moderation",
         ),
     ],
 )

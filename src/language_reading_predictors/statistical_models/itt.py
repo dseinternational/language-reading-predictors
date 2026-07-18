@@ -273,18 +273,12 @@ class IttRunPlan:
         """Return the JSON-ready run-plan contract."""
         return asdict(self)
 
-    def prepare_kwargs(
-        self,
-        *,
-        effective_adjustment: tuple[str, ...] | None = None,
-    ) -> dict[str, Any]:
+    def prepare_kwargs(self) -> dict[str, Any]:
         """Arguments for ``load_and_prepare`` from the resolved plan."""
         return {
             "phase_mode": "itt",
             "outcomes": self.outcomes,
-            "covariates": self.covariates_to_load
-            if effective_adjustment is None
-            else effective_adjustment,
+            "covariates": self.covariates_to_load,
             "restrict_complete": self.restrict_complete,
             "drop_missing_pre": self.drop_missing_pre,
             "pre_required": self.pre_required,
@@ -366,9 +360,8 @@ class IttRunPlan:
             else "none"
         )
         return (
-            "> [!NOTE]\n"
-            "> Drafted by a LLM-based AI tool (Codex/GPT-5). This file is generated "
-            "from the validated ITT run plan.\n\n"
+            "Note: Generated from the validated ITT run plan; template drafted by "
+            "a LLM-based AI tool (Codex/GPT-5).\n\n"
             f"# Model recipe: {title}\n\n"
             f"Model ID: `{self.model_id}`.\n\n"
             f"## Question\n\n{question}\n\n"
@@ -418,11 +411,26 @@ def declared_itt_settings(spec: ModelSpec) -> tuple[IttModelSettings, str]:
     ), "legacy_extra"
 
 
+def _tag_settings_source(
+    spec: ModelSpec,
+    serialized: dict[str, Any],
+    *,
+    source: str,
+) -> dict[str, Any]:
+    """Add declaration provenance without allowing a settings field to replace it."""
+    if "source" in serialized:
+        raise ValueError(
+            f"{spec.model_id}: model_settings field 'source' is reserved for "
+            "declaration provenance"
+        )
+    return {"source": source, **serialized}
+
+
 def declared_settings_dict(spec: ModelSpec) -> dict[str, Any]:
     """Serialize the declared family settings without resolving data-dependent terms."""
     if spec.kind == "itt":
         settings, source = declared_itt_settings(spec)
-        return {"source": source, **asdict(settings)}
+        return _tag_settings_source(spec, asdict(settings), source=source)
     if spec.model_settings is not None:
         settings = spec.model_settings
         if not is_dataclass(settings) or isinstance(settings, type):
@@ -430,7 +438,7 @@ def declared_settings_dict(spec: ModelSpec) -> dict[str, Any]:
                 f"{spec.model_id}: typed model_settings must be a dataclass instance, "
                 f"got {type(settings).__name__}"
             )
-        return {"source": "typed", **asdict(settings)}
+        return _tag_settings_source(spec, asdict(settings), source="typed")
     return dict(spec.extra)
 
 
@@ -453,7 +461,10 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         outcomes = (own,) if source == "typed" else ITT_OUTCOMES
     cross_symbols = settings.cross_symbols
     if cross_symbols is None:
-        cross_symbols = tuple(symbol for symbol in ITT_OUTCOMES if symbol != own)
+        # The legacy factory inferred cross-baselines from the outcomes actually
+        # loaded. Preserve that behaviour for saved or ad-hoc legacy declarations
+        # that specify ``outcomes`` but omit ``cross_symbols``.
+        cross_symbols = tuple(symbol for symbol in outcomes if symbol != own)
 
     for name, values in (
         ("outcomes", outcomes),
@@ -490,6 +501,14 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
     if settings.use_age_gp and settings.use_age_linear:
         raise ValueError(
             f"{spec.model_id}: use_age_gp and use_age_linear are mutually exclusive"
+        )
+    if settings.floor_rule and settings.use_varying_tau:
+        raise ValueError(
+            f"{spec.model_id}: floor_rule cannot use a varying treatment effect"
+        )
+    if settings.floor_rule and settings.tau_moderator_symbol is not None:
+        raise ValueError(
+            f"{spec.model_id}: floor_rule cannot use treatment-effect moderation"
         )
     if (
         settings.tau_moderator_symbol is None
