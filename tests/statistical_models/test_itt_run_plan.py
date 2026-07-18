@@ -5,13 +5,14 @@
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, dataclass
 
 import pytest
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.itt import (
     IttModelSettings,
+    declared_settings_dict,
     resolve_itt_run_plan,
 )
 
@@ -105,6 +106,42 @@ def test_typed_and_legacy_settings_cannot_be_mixed():
 
     with pytest.raises(ValueError, match="cannot be split"):
         resolve_itt_run_plan(spec)
+
+
+def test_non_itt_typed_settings_are_serialized_from_the_typed_boundary():
+    @dataclass(frozen=True, slots=True)
+    class ExampleSettings:
+        adjust_for: tuple[str, ...]
+        use_nonlinear_age: bool
+
+    spec = ModelSpec(
+        model_id="lrp-rli-example-001",
+        kind="example",
+        title="Future typed family",
+        model_settings=ExampleSettings(
+            adjust_for=("age",),
+            use_nonlinear_age=True,
+        ),
+        extra={"adjust_for": ("wrong_source",)},
+    )
+
+    assert declared_settings_dict(spec) == {
+        "source": "typed",
+        "adjust_for": ("age",),
+        "use_nonlinear_age": True,
+    }
+
+
+def test_non_itt_typed_settings_reject_an_unserializable_boundary():
+    spec = ModelSpec(
+        model_id="lrp-rli-example-002",
+        kind="example",
+        title="Invalid future typed family",
+        model_settings=object(),
+    )
+
+    with pytest.raises(TypeError, match="model_settings must be a dataclass instance"):
+        declared_settings_dict(spec)
 
 
 @pytest.mark.parametrize(

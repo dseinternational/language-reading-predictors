@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from typing import TYPE_CHECKING, Any
 
 from language_reading_predictors.statistical_models.definitions import FLOORED
@@ -423,6 +423,14 @@ def declared_settings_dict(spec: ModelSpec) -> dict[str, Any]:
     if spec.kind == "itt":
         settings, source = declared_itt_settings(spec)
         return {"source": source, **asdict(settings)}
+    if spec.model_settings is not None:
+        settings = spec.model_settings
+        if not is_dataclass(settings) or isinstance(settings, type):
+            raise TypeError(
+                f"{spec.model_id}: typed model_settings must be a dataclass instance, "
+                f"got {type(settings).__name__}"
+            )
+        return {"source": "typed", **asdict(settings)}
     return dict(spec.extra)
 
 

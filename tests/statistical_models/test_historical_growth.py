@@ -10,6 +10,7 @@ plus a check that the new ModelSpec dataset/estimand metadata reaches config.jso
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from types import SimpleNamespace
 
 import numpy as np
@@ -134,6 +135,43 @@ def test_dataset_metadata_reaches_config_json(tmp_path):
     assert cfg["causal_status"] == "none"
     assert cfg["dataset_ref"] == "rlm:reading_language_memory_data_long"
     assert cfg["audit_baseline"] == "table2_complete_case_summary"
+
+
+def test_non_itt_typed_settings_reach_config_json(tmp_path):
+    """A future typed family records its settings object, not legacy ``extra``."""
+
+    @dataclass(frozen=True, slots=True)
+    class HistoricalSettings:
+        measure: str
+        waves: tuple[int, ...]
+
+    spec = ModelSpec(
+        model_id="lrp-rlm-hg-999",
+        kind="historical_growth",
+        title="typed metadata test",
+        outcome_symbol="basread",
+        model_settings=HistoricalSettings(measure="basread", waves=(1, 2, 3)),
+        extra={"legacy_marker": "not typed settings"},
+    )
+    ctx = SimpleNamespace(
+        spec=spec,
+        prepared=SimpleNamespace(n_obs=27, n_children=9, n_phases=2, dropped_rows=0),
+        reporting=SimpleNamespace(output_dir=str(tmp_path), ci_prob=0.89),
+        sampling=SimpleNamespace(
+            draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
+        ),
+        output_dir=str(tmp_path),
+    )
+
+    write_run_metadata(ctx)
+
+    cfg = json.loads((tmp_path / "config.json").read_text())
+    assert cfg["model_settings"] == {
+        "source": "typed",
+        "measure": "basread",
+        "waves": [1, 2, 3],
+    }
+    assert cfg["spec_extra"] == {"legacy_marker": "not typed settings"}
 
 
 # --- #164 Phase A models (lrp-rlm-hg-001..009), with their #338 wave windows:
