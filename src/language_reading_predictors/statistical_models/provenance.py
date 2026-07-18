@@ -9,8 +9,10 @@ import json
 import platform
 import subprocess
 import sys
+import uuid
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from functools import lru_cache
 from importlib import metadata
 from pathlib import Path
 from typing import Any
@@ -27,7 +29,7 @@ CORE_DISTRIBUTIONS: dict[str, str] = {
     "scipy": "scipy",
     "xarray": "xarray",
 }
-"""Import name to installed-distribution name for the numerical core."""
+# Import name to installed-distribution name for the numerical core.
 
 
 def _utc_now() -> datetime:
@@ -35,17 +37,26 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+@lru_cache(maxsize=16)
+def _cached_package_versions(
+    distributions: tuple[tuple[str, str], ...],
+) -> tuple[tuple[str, str | None], ...]:
+    """Resolve one distribution set once for the lifetime of the process."""
+    versions: list[tuple[str, str | None]] = []
+    for name, distribution in distributions:
+        try:
+            version = metadata.version(distribution)
+        except (metadata.PackageNotFoundError, OSError, ValueError):
+            version = None
+        versions.append((name, version))
+    return tuple(versions)
+
+
 def package_versions(
     distributions: Mapping[str, str] = CORE_DISTRIBUTIONS,
 ) -> dict[str, str | None]:
     """Return installed versions, retaining ``None`` when metadata is unavailable."""
-    versions: dict[str, str | None] = {}
-    for name, distribution in distributions.items():
-        try:
-            versions[name] = metadata.version(distribution)
-        except (metadata.PackageNotFoundError, OSError, ValueError):
-            versions[name] = None
-    return versions
+    return dict(_cached_package_versions(tuple(distributions.items())))
 
 
 def _git_output(arguments: list[str], *, cwd: Path) -> str | None:
@@ -65,8 +76,8 @@ def _git_output(arguments: list[str], *, cwd: Path) -> str | None:
 
 
 def source_provenance(cwd: str | Path | None = None) -> dict[str, Any]:
-    """Describe the source checkout without making Git a runtime requirement."""
-    working_directory = Path.cwd() if cwd is None else Path(cwd)
+    """Describe the package checkout without making Git a runtime requirement."""
+    working_directory = Path(__file__).resolve().parent if cwd is None else Path(cwd)
     root_text = _git_output(["rev-parse", "--show-toplevel"], cwd=working_directory)
     if root_text is None:
         return {
@@ -128,7 +139,8 @@ def write_failure_record(
     failure_dir = Path(output_root) / "run_metadata" / "failures"
     failure_dir.mkdir(parents=True, exist_ok=True)
     path = failure_dir / (
-        f"{_safe_model_id(model_id)}-{timestamp.strftime('%Y%m%dT%H%M%SZ')}.json"
+        f"{_safe_model_id(model_id)}-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
+        f"-{uuid.uuid4().hex[:12]}.json"
     )
     record = {
         "recorded_at_utc": timestamp.isoformat(),

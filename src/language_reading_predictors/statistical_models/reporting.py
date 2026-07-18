@@ -3319,7 +3319,7 @@ def _kf_rope_sentence(rope: Mapping, *, is_rd: bool) -> str:
         f"practice. The probability the benefit reaches that size is {p_benefit}%, "
         f"and the probability the effect is too small to matter either way is "
         f"{p_rope}%; because the threshold is post-hoc, read this beside the "
-        f"threshold-sensitivity table."
+        f"threshold-sensitivity analysis."
     )
 
 
@@ -3656,8 +3656,9 @@ def _kf_build_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
             more_likely_than_not = sum(p >= 0.5 for p in probabilities)
             sentences.append(
                 _kf_sentence(
-                    f"Among the {len(deltas)} outcomes with a project-agreed "
-                    f"smallest-important difference, {more_likely_than_not} were "
+                    f"Among the {len(deltas)} outcomes with a post-hoc, "
+                    f"project-agreed smallest-important difference, "
+                    f"{more_likely_than_not} were "
                     f"more likely than not to reach it; the outcome-specific "
                     f"probabilities ranged from {_kf_pct(min(probabilities))}% to "
                     f"{_kf_pct(max(probabilities))}%.",
@@ -4085,7 +4086,7 @@ def _kf_build_horseshoe(output_dir, config: Mapping) -> list[dict[str, str]]:
             "headline",
         ),
         _kf_sentence(
-            f"Its probability of exceeding the pre-specified worth-noticing "
+            f"Its probability of exceeding the model's worth-noticing "
             f"coefficient threshold was {_kf_pct(row['p_abs_gt_delta'])}%.",
             "confidence",
         ),
