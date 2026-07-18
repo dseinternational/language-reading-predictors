@@ -28,17 +28,69 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
 
+# House reporting coverage: median + inner 50% + outer 89% equal-tailed
+# (notes/202607172359-credible-interval-standard.md). The single source of truth for
+# the *outer* coverage — standalone producers (the prior-sensitivity sweeps) import
+# this rather than hard-coding a number, so a report label can never drift from the
+# coverage its numbers were computed at (PR #359 review). ``ReportingConfiguration``
+# / ``make_context`` default to the same 0.89 for the pipeline path.
+REPORTING_CI_PROB = 0.89
 
-def band90(draws: np.ndarray) -> tuple[float, float]:
-    """Equal-tailed 90 % band ``(lo05, hi95)`` reported alongside the 95 % headline.
 
-    A single sensitivity band so the summary builders that report only a headline
-    ``ci_prob`` (95 %) interval can also carry the narrower 90 % equal-tailed
-    interval without re-deriving quantiles at each call site. The wider ITT / growth
-    summaries use the shared ``eti_bands`` helper (50 / 90 / 95); this covers the
-    families that emit a single headline interval.
+def band50(draws: np.ndarray) -> tuple[float, float]:
+    """Inner 50 % equal-tailed band ``(lo25, hi75)`` reported alongside the headline.
+
+    A single inner band so the summary builders that report only a headline
+    ``ci_prob`` interval can also carry the inner 50 % equal-tailed interval
+    without re-deriving quantiles at each call site. The wider ITT / growth
+    summaries use the shared ``eti_bands`` helper; this covers the families that
+    emit a single headline interval.
     """
-    return float(np.quantile(draws, 0.05)), float(np.quantile(draws, 0.95))
+    return float(np.quantile(draws, 0.25)), float(np.quantile(draws, 0.75))
+
+
+def derived_mc_diagnostics(
+    draws: np.ndarray,
+    *,
+    n_chains: int,
+    n_draws: int,
+    prefix: str = "",
+) -> dict[str, float]:
+    """Monte-Carlo precision (Bulk-/Tail-ESS + MCSE) of a *derived* estimand.
+
+    Many report headlines are derived quantities computed from posterior draws in
+    post-processing rather than as PyMC deterministics — the probability-scale
+    average marginal effect / off-floor risk difference (:func:`_itt_ame_draws`),
+    the g-formula NDE / NIE (:mod:`...mediation`), and the readiness knee
+    (:func:`_readiness_knee`). ``az.summary`` and the convergence gate therefore
+    never see them, yet a derived quantity can have materially worse tail effective
+    sample size than its parent parameters — the g-formula effects also carry
+    mediator re-simulation noise and the knee is a non-smooth argmax — so its MC
+    precision must be reported in its own right (Kruschke 2021 BARG step 2.C;
+    Vehtari et al. 2021, doi:10.1214/20-BA1221).
+
+    ``draws`` is the sample-stacked ``(chain*draw,)`` array produced by
+    ``DataArray.stack(sample=("chain","draw"))`` (chain-major, ``draw`` varying
+    fastest), so it is reshaped back to ``(chain, draw)`` for ``az.ess`` / ``az.mcse``
+    to recover the between-chain information both need. **Bulk-ESS** governs the
+    median / mean; **Tail-ESS** governs the 89 % equal-tailed interval limits — and
+    because Tail-ESS is calibrated to the 5 %/95 % quantiles it is the near-exact
+    diagnostic for our reported 5.5 %/94.5 % ETI limits. ``mcse_median`` is the
+    Monte-Carlo standard error of the reported point estimate. When the layout
+    cannot be recovered (e.g. a masked or partly-undefined estimand) the finite
+    draws fall back to a single-chain lower bound.
+    """
+    arr = np.asarray(draws, dtype=float).ravel()
+    if arr.size == n_chains * n_draws and np.all(np.isfinite(arr)):
+        da = xr.DataArray(arr.reshape(n_chains, n_draws), dims=("chain", "draw"))
+    else:
+        finite = arr[np.isfinite(arr)]
+        da = xr.DataArray(finite[None, :], dims=("chain", "draw"))
+    return {
+        f"{prefix}ess_bulk": float(az.ess(da, method="bulk")),
+        f"{prefix}ess_tail": float(az.ess(da, method="tail")),
+        f"{prefix}mcse_median": float(az.mcse(da, method="median")),
+    }
 
 
 def _itt_ame_draws(
@@ -211,9 +263,8 @@ def tau_summary_itt(
 
     ``ci_prob`` names the *coverage* probability of the headline interval. The
     ``*_lo`` / ``*_hi`` values are the equal-tailed headline credible interval
-    (95% by default); ``*_lo50`` / ``*_hi50`` (the central 50% interval, a visual
-    aid) and ``*_lo90`` / ``*_hi90`` (the equal-tailed 90% sensitivity band) follow
-    the fixed band convention (#177, see :func:`eti_bands`). The ``*_hpdi_lo`` /
+    (89% by default); ``*_lo50`` / ``*_hi50`` (the inner 50% interval, a visual
+    aid) follow the fixed band convention (#177, see :func:`eti_bands`). The ``*_hpdi_lo`` /
     ``*_hpdi_hi`` values are the highest-density interval (HPDI) at ``ci_prob`` — a
     per-scale sensitivity companion (see :func:`hdi_1d`), not a replacement,
     since the HPDI is not transformation-invariant across the logit and
@@ -231,16 +282,26 @@ def tau_summary_itt(
         moderators=moderators,
         row_mask=row_mask,
     )
+    # Monte-Carlo precision of the probability-scale AME — a *derived* estimand
+    # (post-processed from draws, so the convergence gate never sees it). Reported
+    # alongside the estimate per Kruschke 2021 BARG step 2.C.
+    _post = trace.posterior
+    _mc = derived_mc_diagnostics(
+        marginal,
+        n_chains=int(_post.sizes["chain"]),
+        n_draws=int(_post.sizes["draw"]),
+        prefix="tau_prob_",
+    )
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_median = float(np.median(tau_draws))
     lower, upper = np.quantile(tau_draws, [lo_q, hi_q])
     tau_hpdi_lo, tau_hpdi_hi = hdi_1d(tau_draws, ci_prob)
-    tau_b = eti_bands(tau_draws, probs=(0.5, 0.9))
+    tau_b = eti_bands(tau_draws, probs=(0.5,))
     marg_median = float(np.median(marginal))
     marg_lo, marg_hi = np.quantile(marginal, [lo_q, hi_q])
     marg_hpdi_lo, marg_hpdi_hi = hdi_1d(marginal, ci_prob)
-    marg_b = eti_bands(marginal, probs=(0.5, 0.9))
+    marg_b = eti_bands(marginal, probs=(0.5,))
     # Direction is a statement about the reported sample-average estimand, not
     # necessarily the centred logit coefficient. They have the same sign for a
     # constant treatment effect because expit is monotone, but can disagree when
@@ -254,15 +315,13 @@ def tau_summary_itt(
     tau_mean = float(np.mean(tau_draws))
     marg_mean = float(np.mean(marginal))
 
-    # Fixed band convention (#177): central 50% (visual aid) + equal-tailed 90%
-    # (sensitivity) alongside the equal-tailed 95% headline (``*_lo`` / ``*_hi``).
+    # Fixed band convention (#177): inner 50% (visual aid) alongside the
+    # equal-tailed headline interval at ``ci_prob`` (``*_lo`` / ``*_hi``).
     return {
         "tau_logit_median": tau_median,
         "tau_logit_mean": tau_mean,
         "tau_logit_lo50": tau_b["lo50"],
         "tau_logit_hi50": tau_b["hi50"],
-        "tau_logit_lo90": tau_b["lo90"],
-        "tau_logit_hi90": tau_b["hi90"],
         "tau_logit_lo": float(lower),
         "tau_logit_hi": float(upper),
         "tau_logit_hpdi_lo": tau_hpdi_lo,
@@ -271,8 +330,6 @@ def tau_summary_itt(
         "tau_prob_mean": marg_mean,
         "tau_prob_lo50": marg_b["lo50"],
         "tau_prob_hi50": marg_b["hi50"],
-        "tau_prob_lo90": marg_b["lo90"],
-        "tau_prob_hi90": marg_b["hi90"],
         "tau_prob_lo": float(marg_lo),
         "tau_prob_hi": float(marg_hi),
         "tau_prob_hpdi_lo": marg_hpdi_lo,
@@ -284,6 +341,7 @@ def tau_summary_itt(
         "prob_tau_logit_pos": prob_logit_pos,
         "direction_label": evidence_label(prob_ame_pos),
         **favoured_direction(prob_ame_pos),
+        **_mc,
     }
 
 
@@ -368,7 +426,7 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
         f"**{r['items_median'] * scale:+.1f} {unit}**{prov} "
         f"(central 50% interval {r['items_lo50'] * scale:+.1f} to "
         f"{r['items_hi50'] * scale:+.1f}; "
-        f"equal-tailed 95% credible interval {r['items_lo'] * scale:+.1f} to "
+        f"equal-tailed 89% credible interval {r['items_lo'] * scale:+.1f} to "
         f"{r['items_hi'] * scale:+.1f}). "
         f"{direction_clause} "
         f"**Magnitude** — evidence the benefit is at least δ = {r['delta_items'] * scale:g} "
@@ -378,7 +436,7 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
     )
     if "items_hpdi_lo" in cols:
         parts.append(
-            f"_Sensitivity — the 95% highest posterior density interval (HPDI) on the "
+            f"_Sensitivity — the 89% highest posterior density interval (HPDI) on the "
             f"{unit} scale is {r['items_hpdi_lo'] * scale:+.1f} to "
             f"{r['items_hpdi_hi'] * scale:+.1f}. HPDI is not transformation-invariant, "
             f"so it is a scale-specific check, not a replacement for the equal-tailed "
@@ -405,7 +463,7 @@ def rope_summary(
     Built on :func:`_itt_ame_draws`, so it shares the average-marginal-effect core
     with :func:`tau_summary_itt`. Reports the effect on the logit scale (``term``)
     and the items scale (the average marginal effect × ``n_trials``) as a **median**
-    with a 50 % and a ``ci_prob`` (default 95 %) equal-tailed interval, plus:
+    with a 50 % and a ``ci_prob`` (default 89 %) equal-tailed interval, plus:
 
     - ``pd`` — ``P(effect > 0)``, the probability of direction;
     - ``prob_benefit_ge_delta`` — ``P(items effect > δ)``, the probability of a
@@ -433,7 +491,17 @@ def rope_summary(
         row_mask=row_mask,
     )
     items = ame_prob * float(n_trials)
-    return rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
+    card = rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
+    # The external rope_card still emits a 90% band (`*_lo90`/`*_hi90`); the suite
+    # retired it (2026-07-17 credible-interval standard). Drop it here so the raw
+    # rope table matches the median + 50% + 89% convention everywhere it surfaces.
+    # rope_card returns a plain dict of scalars.
+    def _is90(key: str) -> bool:
+        return key.endswith("_lo90") or key.endswith("_hi90")
+
+    if isinstance(card, dict):
+        return {k: v for k, v in card.items() if not _is90(k)}
+    return card.drop(columns=[c for c in card.columns if _is90(c)])
 
 
 def rope_sensitivity(
@@ -622,7 +690,7 @@ def tau_moderation_summary(
         out[f"{name}_mean"] = float(np.mean(d))
         out[f"{name}_lo"] = float(np.quantile(d, lo_q))
         out[f"{name}_hi"] = float(np.quantile(d, hi_q))
-        out[f"{name}_lo90"], out[f"{name}_hi90"] = band90(d)
+        out[f"{name}_lo50"], out[f"{name}_hi50"] = band50(d)
         out[f"prob_{name}_pos"] = float(np.mean(d > 0))
     return out
 
@@ -971,11 +1039,14 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
 
 def _readiness_knee(
     f: np.ndarray,
-    ell: np.ndarray,
+    ell: np.ndarray | None,
     *,
-    n_trials: int,
-    ci_prob: float = 0.95,
+    n_trials: int | None = None,
+    count_values: np.ndarray | None = None,
+    ci_prob: float = 0.89,
     n_bins: int = 6,
+    n_chains: int | None = None,
+    n_draws: int | None = None,
 ) -> dict[str, float]:
     """Locate the readiness knee from a per-observation ``f_mech`` posterior + logit input.
 
@@ -993,10 +1064,19 @@ def _readiness_knee(
     are undefined, and a low ``increasing_frac`` flags an ill-defined knee
     (#297 review).
     """
-    # Inverse Haldane-corrected logit -> approximate predictor count, clipped to range.
-    # ell = log((y+0.5)/(n-y+0.5)) => expit(ell) = (y+0.5)/(n+1), so y = (n+1)*expit(ell) - 0.5
-    # (the denominator is n+1, not n; #293 review).
-    L = np.clip((n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
+    if count_values is not None:
+        # Continuous-covariate exposure (e.g. intervention sessions, LRP92): the knee
+        # is located in the exposure's own raw units directly — there is no bounded
+        # count and no logit -> count back-transform. ``knee_count_*`` /
+        # ``half_rise_count_*`` / ``obs_count_*`` then read in those raw units.
+        L = np.asarray(count_values, dtype=float).reshape(-1)
+    else:
+        # Inverse Haldane-corrected logit -> approximate predictor count, clipped to range.
+        # ell = log((y+0.5)/(n-y+0.5)) => expit(ell) = (y+0.5)/(n+1), so y = (n+1)*expit(ell) - 0.5
+        # (the denominator is n+1, not n; #293 review).
+        if ell is None or n_trials is None:
+            raise ValueError("_readiness_knee needs ell + n_trials unless count_values is given.")
+        L = np.clip((n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
 
     edges = np.unique(np.quantile(L, np.linspace(0.0, 1.0, n_bins + 1)))
     nb = len(edges) - 1
@@ -1062,7 +1142,7 @@ def _readiness_knee(
         a = a[np.isfinite(a) & increasing]
         return float(np.median(a)) if a.size else float("nan")
 
-    return {
+    result = {
         "knee_count_median": kmed,
         "knee_count_ci_low": k_lo,
         "knee_count_ci_high": k_hi,
@@ -1079,13 +1159,25 @@ def _readiness_knee(
         "n_obs": int(f.shape[0]),
         "n_bins": int(nb),
     }
+    # Monte-Carlo precision of the derived knee location (a non-smooth argmax over
+    # binned draws, so it can mix worse than its parent GP weights). ESS is computed
+    # over all draws to keep the chain layout; the reported median/CI pool the
+    # ``increasing`` subset (share ``increasing_frac``).
+    if n_chains is not None and n_draws is not None:
+        result.update(
+            derived_mc_diagnostics(
+                knee_L, n_chains=n_chains, n_draws=n_draws, prefix="knee_"
+            )
+        )
+    return result
 
 
 def readiness_threshold(
     trace: xr.DataTree,
     *,
-    n_trials: int,
-    ci_prob: float = 0.95,
+    n_trials: int | None = None,
+    exposure_values: np.ndarray | None = None,
+    ci_prob: float = 0.89,
     n_bins: int = 6,
 ) -> dict[str, float]:
     """Readiness-threshold estimand: the steepest rise of a mechanism curve (#230 §2/§5).
@@ -1106,6 +1198,12 @@ def readiness_threshold(
     ``mech_post_logit`` constant-data node of a standard HSGP mechanism fit (e.g.
     ``lrp-rli-mech-058``). ``n_trials`` is the mechanism predictor's item ceiling (letter
     sounds = 32) used to back-transform the logit input to an approximate count.
+
+    For a continuous-covariate exposure (``mechanism_is_covariate`` with the HSGP curve
+    on, e.g. ``lrp-rli-mech-191`` sessions -> word reading), pass ``exposure_values``
+    (the per-observation raw exposure, in the same order as ``f_mech``'s rows) instead
+    of ``n_trials``; the knee/half-rise/``obs_count_*`` fields are then in the
+    exposure's own raw units (e.g. sessions) rather than a bounded count.
     """
     post = trace.posterior
     if "f_mech" not in post:
@@ -1119,8 +1217,20 @@ def readiness_threshold(
     f_stacked = post["f_mech"].stack(sample=("chain", "draw"))
     obs_dim = next(d for d in f_stacked.dims if d != "sample")
     f = f_stacked.transpose(obs_dim, "sample").values  # (n_obs, S)
+    n_chains, n_draws = int(post.sizes["chain"]), int(post.sizes["draw"])
+    if exposure_values is not None:
+        # Continuous-covariate exposure: the knee lives in the exposure's own units.
+        # ``exposure_values`` must be in the same observation order as ``f_mech``'s rows.
+        return _readiness_knee(
+            f, None,
+            count_values=np.asarray(exposure_values, dtype=float).reshape(-1),
+            ci_prob=ci_prob, n_bins=n_bins, n_chains=n_chains, n_draws=n_draws,
+        )
     ell = np.asarray(trace.constant_data["mech_post_logit"].values).reshape(-1)  # (n_obs,)
-    return _readiness_knee(f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins)
+    return _readiness_knee(
+        f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins,
+        n_chains=n_chains, n_draws=n_draws,
+    )
 
 
 def did_summary(
@@ -1192,7 +1302,7 @@ def did_summary(
     def _summ_draws(name: str, draws: np.ndarray) -> dict[str, float | str]:
         d = np.asarray(draws).ravel()
         prob_pos = float(np.mean(d > 0))
-        lo90, hi90 = band90(d)
+        lo50, hi50 = band50(d)
         return {
             # Median-first to match the ITT tau_summary_itt convention (#144 / #271);
             # the mean is kept as a secondary column.
@@ -1200,8 +1310,8 @@ def did_summary(
             f"{name}_mean": float(np.mean(d)),
             f"{name}_lo": float(np.quantile(d, lo_q)),
             f"{name}_hi": float(np.quantile(d, hi_q)),
-            f"{name}_lo90": lo90,
-            f"{name}_hi90": hi90,
+            f"{name}_lo50": lo50,
+            f"{name}_hi50": hi50,
             f"prob_{name}_pos": prob_pos,
             f"{name}_direction_label": evidence_label(prob_pos),
             f"{name}_favoured_direction": "positive" if prob_pos >= 0.5 else "negative",
@@ -1221,7 +1331,7 @@ def did_summary(
         out[f"{prefix}_mean"] = float(np.mean(scaled))
         out[f"{prefix}_lo"] = float(np.quantile(scaled, lo_q))
         out[f"{prefix}_hi"] = float(np.quantile(scaled, hi_q))
-        out[f"{prefix}_lo90"], out[f"{prefix}_hi90"] = band90(scaled)
+        out[f"{prefix}_lo50"], out[f"{prefix}_hi50"] = band50(scaled)
 
     if "tau_t2" in posterior:
         required = {"arm_gap_t1", "arm_gap_t3", "delta_crossover", "eta_base"}
@@ -1555,14 +1665,14 @@ def block_exposure_summary(
 
     d = posterior["delta"].stack(sample=("chain", "draw")).values  # (S,)
     prob_pos = float(np.mean(d > 0))
-    lo90, hi90 = band90(d)
+    lo50, hi50 = band50(d)
     out: dict[str, float | bool | str] = {
         "delta_median": float(np.median(d)),
         "delta_mean": float(np.mean(d)),
         "delta_lo": float(np.quantile(d, lo_q)),
         "delta_hi": float(np.quantile(d, hi_q)),
-        "delta_lo90": lo90,
-        "delta_hi90": hi90,
+        "delta_lo50": lo50,
+        "delta_hi50": hi50,
         "prob_delta_pos": prob_pos,
         "delta_direction_label": evidence_label(prob_pos),
         "delta_favoured_direction": "positive" if prob_pos >= 0.5 else "negative",
@@ -1580,7 +1690,7 @@ def block_exposure_summary(
     out["delta_items_mean"] = float(np.mean(eff))
     out["delta_items_lo"] = float(np.quantile(eff, lo_q))
     out["delta_items_hi"] = float(np.quantile(eff, hi_q))
-    out["delta_items_lo90"], out["delta_items_hi90"] = band90(eff)
+    out["delta_items_lo50"], out["delta_items_hi50"] = band50(eff)
     return out
 
 
@@ -1735,7 +1845,8 @@ def tau_summary_joint(
     for k, s in enumerate(outcomes):
         d = draws[k]
         a = ame[k]
-        a90 = band90(a)
+        a50 = band50(a)
+        d50 = band50(d)
         out.append(
             {
                 "outcome": s,
@@ -1743,8 +1854,8 @@ def tau_summary_joint(
                 "ame_prob_mean": float(np.mean(a)),
                 "ame_prob_lo": float(np.quantile(a, lo_q)),
                 "ame_prob_hi": float(np.quantile(a, hi_q)),
-                "ame_prob_lo90": a90[0],
-                "ame_prob_hi90": a90[1],
+                "ame_prob_lo50": a50[0],
+                "ame_prob_hi50": a50[1],
                 "prob_ame_pos": float(np.mean(a > 0)),
                 "tau_logit_median": float(np.median(d)),
                 "tau_logit_lo": float(np.quantile(d, lo_q)),
@@ -1752,8 +1863,8 @@ def tau_summary_joint(
                 "tau_median": float(np.median(d)),
                 "tau_lo": float(np.quantile(d, lo_q)),
                 "tau_hi": float(np.quantile(d, hi_q)),
-                "tau_lo90": band90(d)[0],
-                "tau_hi90": band90(d)[1],
+                "tau_lo50": d50[0],
+                "tau_hi50": d50[1],
                 "prob_pos": float(np.mean(d > 0)),
             }
         )
@@ -1817,8 +1928,8 @@ def joint_treatment_marginals(
             "items_median": float(np.median(item_draws)),
             "items_lo": float(np.quantile(item_draws, lo_q)),
             "items_hi": float(np.quantile(item_draws, 1 - lo_q)),
-            "items_lo90": float(np.quantile(item_draws, 0.05)),
-            "items_hi90": float(np.quantile(item_draws, 0.95)),
+            "items_lo50": float(np.quantile(item_draws, 0.25)),
+            "items_hi50": float(np.quantile(item_draws, 0.75)),
             "prob_pos": float(np.mean(effect > 0)),
         }
         if delta is not None:
@@ -1859,7 +1970,7 @@ def gamma_interaction_summary(
         out[f"{name}_mean"] = float(np.mean(d))
         out[f"{name}_lo"] = float(np.quantile(d, lo_q))
         out[f"{name}_hi"] = float(np.quantile(d, hi_q))
-        out[f"{name}_lo90"], out[f"{name}_hi90"] = band90(d)
+        out[f"{name}_lo50"], out[f"{name}_hi50"] = band50(d)
         out[f"prob_{name}_pos"] = float(np.mean(d > 0))
     return out
 
@@ -1931,15 +2042,15 @@ def tau_difference_summary(
         "diff_prob_mean": float(np.mean(diff_prob)),
         "diff_prob_lo": float(np.quantile(diff_prob, lo_q)),
         "diff_prob_hi": float(np.quantile(diff_prob, hi_q)),
-        "diff_prob_lo90": band90(diff_prob)[0],
-        "diff_prob_hi90": band90(diff_prob)[1],
+        "diff_prob_lo50": band50(diff_prob)[0],
+        "diff_prob_hi50": band50(diff_prob)[1],
         "prob_diff_pos": float(np.mean(diff_prob > 0)),
         "diff_logit_median": float(np.median(diff)),  # median-first (#271)
         "diff_logit_mean": float(np.mean(diff)),
         "diff_logit_lo": float(np.quantile(diff, lo_q)),
         "diff_logit_hi": float(np.quantile(diff, hi_q)),
-        "diff_logit_lo90": band90(diff)[0],
-        "diff_logit_hi90": band90(diff)[1],
+        "diff_logit_lo50": band50(diff)[0],
+        "diff_logit_hi50": band50(diff)[1],
         "prob_diff_logit_pos": float(np.mean(diff > 0)),
     }
     for key in (
@@ -2223,7 +2334,7 @@ def factor_summary(
     def _row(term: str, base: str, d: np.ndarray) -> dict[str, object]:
         causal = term in causal_terms or base in causal_terms
         prob_pos = float(np.mean(d > 0))
-        lo90, hi90 = band90(d)
+        lo50, hi50 = band50(d)
         return {
             "term": term,
             "role": "causal" if causal else "association",
@@ -2231,8 +2342,8 @@ def factor_summary(
             "mean": float(np.mean(d)),
             "lo": float(np.quantile(d, lo_q)),
             "hi": float(np.quantile(d, hi_q)),
-            "lo90": lo90,
-            "hi90": hi90,
+            "lo50": lo50,
+            "hi50": hi50,
             "prob_positive": prob_pos,
             "direction_label": evidence_label(prob_pos),
             **favoured_direction(prob_pos),
@@ -2268,7 +2379,7 @@ def growth_association_summary(
 
     One row per element of each vector coefficient in ``coefs`` (each carries the
     ``outcome`` dim): the posterior **median** (the house lead statistic, robust to
-    the Type-M inflation at this n), the fixed 50 / 90 / 95 equal-tailed bands
+    the Type-M inflation at this n), the fixed 50 / 89 equal-tailed bands
     (:func:`eti_bands`, #177), ``prob_positive`` = ``P(coef > 0)`` and the
     evidence-language fields (:func:`favoured_direction`, #179).
 
@@ -2279,7 +2390,7 @@ def growth_association_summary(
     row is an **adjusted association** (``role`` fixed to ``"association"``): under
     the locked DAG these non-randomised, latent-GA-confounded terms are never read
     as "drives". ``ci_prob`` is retained for signature parity with
-    :func:`factor_summary`; the reported bands are the fixed 50/90/95 set.
+    :func:`factor_summary`; the reported bands are the fixed 50/89 set.
     """
     posterior = trace.posterior
     rows: list[dict[str, object]] = []
@@ -2301,7 +2412,7 @@ def growth_association_summary(
                     "median": float(np.median(d)),
                     "prob_positive": prob_pos,
                     "direction_label": evidence_label(prob_pos),
-                    **eti_bands(d),
+                    **eti_bands(d, probs=(0.5, 0.89)),
                     **favoured_direction(prob_pos),
                 }
             )
@@ -2356,19 +2467,19 @@ def treatment_marginal_effect(
     ame_items = float(n_trials) * ame_prob
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
-    prob_lo90, prob_hi90 = band90(ame_prob)
-    items_lo90, items_hi90 = band90(ame_items)
+    prob_lo50, prob_hi50 = band50(ame_prob)
+    items_lo50, items_hi50 = band50(ame_items)
     return {
         "trt_prob_median": float(np.median(ame_prob)),
         "trt_prob_lo": float(np.quantile(ame_prob, lo_q)),
         "trt_prob_hi": float(np.quantile(ame_prob, hi_q)),
-        "trt_prob_lo90": prob_lo90,
-        "trt_prob_hi90": prob_hi90,
+        "trt_prob_lo50": prob_lo50,
+        "trt_prob_hi50": prob_hi50,
         "trt_items_median": float(np.median(ame_items)),
         "trt_items_lo": float(np.quantile(ame_items, lo_q)),
         "trt_items_hi": float(np.quantile(ame_items, hi_q)),
-        "trt_items_lo90": items_lo90,
-        "trt_items_hi90": items_hi90,
+        "trt_items_lo50": items_lo50,
+        "trt_items_hi50": items_hi50,
         "prob_trt_pos": float(np.mean(b > 0)),
     }
 
@@ -2448,7 +2559,7 @@ def association_marginals(
     ``+1 SD`` perturbation of that covariate, holding everything else at its observed
     value, and averages the probability-scale change ``expit(η + Δη) − expit(η)`` over
     observations. Reported on the probability and items scales (``n_trials`` ×
-    probability), with an equal-tailed ``ci_prob`` interval and a 90 % band.
+    probability), with an equal-tailed ``ci_prob`` interval and an inner 50 % band.
 
     Per draw ``s`` and observation ``i`` the perturbation's linear-predictor shift is
 
@@ -2552,8 +2663,8 @@ def association_marginals(
             )
             ame_prob = (expit(eta_sel + de_sel) - expit(eta_sel)).mean(axis=0)  # (S,)
             ame_items = float(n_trials) * ame_prob
-            prob_lo90, prob_hi90 = band90(ame_prob)
-            items_lo90, items_hi90 = band90(ame_items)
+            prob_lo50, prob_hi50 = band50(ame_prob)
+            items_lo50, items_hi50 = band50(ame_items)
             rows.append(
                 {
                     "term": term.label,
@@ -2562,13 +2673,13 @@ def association_marginals(
                     "prob_median": float(np.median(ame_prob)),
                     "prob_lo": float(np.quantile(ame_prob, lo_q)),
                     "prob_hi": float(np.quantile(ame_prob, hi_q)),
-                    "prob_lo90": prob_lo90,
-                    "prob_hi90": prob_hi90,
+                    "prob_lo50": prob_lo50,
+                    "prob_hi50": prob_hi50,
                     "items_median": float(np.median(ame_items)),
                     "items_lo": float(np.quantile(ame_items, lo_q)),
                     "items_hi": float(np.quantile(ame_items, hi_q)),
-                    "items_lo90": items_lo90,
-                    "items_hi90": items_hi90,
+                    "items_lo50": items_lo50,
+                    "items_hi50": items_hi50,
                     "prob_pos": float(np.mean(ame_items > 0)),
                     "off_floor": bool(off_floor),
                     "sd_items": (
@@ -2646,7 +2757,7 @@ def concurrent_marginals(
     probability-scale change ``expit(η + Δη) − expit(η)`` over the fitted rows.
     Reported on the probability and items scales (``n_trials`` = the *focal
     outcome's* denominator × probability), with an equal-tailed ``ci_prob`` interval
-    and a 90 % band.
+    and an inner 50 % band.
 
     Because the concurrent model has **no interaction terms**, the shift is a scalar
     per draw: ``Δη_s = β_s · Δz`` where ``Δz = 1`` for ``+1 SD`` and
@@ -2701,8 +2812,8 @@ def concurrent_marginals(
             delta_eta = beta * dz  # (S,), scalar shift per draw (no interactions)
             ame_prob = (expit(eta + delta_eta[None, :]) - expit(eta)).mean(axis=0)  # (S,)
             ame_items = float(n_trials) * ame_prob
-            prob_lo90, prob_hi90 = band90(ame_prob)
-            items_lo90, items_hi90 = band90(ame_items)
+            prob_lo50, prob_hi50 = band50(ame_prob)
+            items_lo50, items_hi50 = band50(ame_items)
             rows.append(
                 {
                     "term": term.label,
@@ -2711,13 +2822,13 @@ def concurrent_marginals(
                     "prob_median": float(np.median(ame_prob)),
                     "prob_lo": float(np.quantile(ame_prob, lo_q)),
                     "prob_hi": float(np.quantile(ame_prob, hi_q)),
-                    "prob_lo90": prob_lo90,
-                    "prob_hi90": prob_hi90,
+                    "prob_lo50": prob_lo50,
+                    "prob_hi50": prob_hi50,
                     "items_median": float(np.median(ame_items)),
                     "items_lo": float(np.quantile(ame_items, lo_q)),
                     "items_hi": float(np.quantile(ame_items, hi_q)),
-                    "items_lo90": items_lo90,
-                    "items_hi90": items_hi90,
+                    "items_lo50": items_lo50,
+                    "items_hi50": items_hi50,
                     "prob_pos": float(np.mean(ame_items > 0)),
                 }
             )
@@ -2813,8 +2924,8 @@ def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame
     """Per-predictor ranking from a horseshoe fit (LRPHS, #116 Phase E).
 
     One row per predictor: ``p_abs_gt_delta`` = posterior ``P(|beta_k| > delta)``
-    (the ranking key), the posterior mean/sd and 94% HDI (``beta_hdi_3`` /
-    ``beta_hdi_97``, an actual highest-density interval via :func:`arviz.hdi`, not
+    (the ranking key), the posterior median/mean/sd and 89% HDI (``beta_hdi_lo`` /
+    ``beta_hdi_hi``, an actual highest-density interval via :func:`arviz.hdi`, not
     equal-tailed percentiles) of the standardised coefficient, its ``sign``, and
     ``lambda_mean`` (mean local shrinkage — small ⇒ shrunk toward zero). ``delta``
     is on the logit / per-SD scale (the minimally-interesting coefficient). Ranked
@@ -2829,14 +2940,16 @@ def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame
     for i, name in enumerate(predictors):
         b = beta.isel(predictor=i).stack(sample=("chain", "draw")).values  # (S,)
         mean = float(np.mean(b))
-        hdi = np.asarray(az.hdi(b, prob=0.94))  # 94% highest-density interval
+        median = float(np.median(b))
+        hdi = np.asarray(az.hdi(b, prob=0.89))  # 89% highest-density interval
         row = {
             "predictor": name,
             "p_abs_gt_delta": float(np.mean(np.abs(b) > delta)),
+            "beta_median": median,
             "beta_mean": mean,
             "beta_sd": float(np.std(b)),
-            "beta_hdi_3": float(hdi[0]),
-            "beta_hdi_97": float(hdi[1]),
+            "beta_hdi_lo": float(hdi[0]),
+            "beta_hdi_hi": float(hdi[1]),
             "sign": "+" if mean > 0 else ("-" if mean < 0 else "0"),
         }
         if lam is not None:
@@ -2876,8 +2989,8 @@ def longitudinal_factor_correlations(
 ) -> pd.DataFrame:
     """Per-wave latent factor correlations (the #313 headline).
 
-    One row per (wave, unique off-diagonal domain pair): the posterior mean and
-    equal-tailed ``ci_prob`` interval (plus a 90 % band) of the within-wave latent
+    One row per (wave, unique off-diagonal domain pair): the posterior median/mean and
+    equal-tailed ``ci_prob`` interval (plus an inner 50 % band) of the within-wave latent
     correlation, and ``prob_pos`` = ``P(rho > 0)``. These are model-based latent-domain
     descriptive associations, with indicator-specific residual variation represented
     separately; they are never causal.
@@ -2890,18 +3003,19 @@ def longitudinal_factor_correlations(
         for i in range(D):
             for j in range(i + 1, D):
                 d = corr[:, w_i, i, j]
-                lo90, hi90 = band90(d)
+                lo50, hi50 = band50(d)
                 rows.append(
                     {
                         "wave": w,
                         "domain_i": domains[i],
                         "domain_j": domains[j],
+                        "median": float(np.median(d)),
                         "mean": float(np.mean(d)),
                         "sd": float(np.std(d)),
                         "lo": float(np.quantile(d, lo_q)),
                         "hi": float(np.quantile(d, 1 - lo_q)),
-                        "lo90": lo90,
-                        "hi90": hi90,
+                        "lo50": lo50,
+                        "hi50": hi50,
                         "prob_pos": float(np.mean(d > 0)),
                     }
                 )
@@ -2936,18 +3050,19 @@ def longitudinal_conditional_slopes(
             beta = np.linalg.solve(R_pp, r_pa[..., None])[..., 0]  # (S, P)
             for bi, b in enumerate(preds):
                 d = beta[:, bi]
-                lo90, hi90 = band90(d)
+                lo50, hi50 = band50(d)
                 rows.append(
                     {
                         "wave": w,
                         "target": domains[a],
                         "predictor": domains[b],
+                        "median": float(np.median(d)),
                         "mean": float(np.mean(d)),
                         "sd": float(np.std(d)),
                         "lo": float(np.quantile(d, lo_q)),
                         "hi": float(np.quantile(d, 1 - lo_q)),
-                        "lo90": lo90,
-                        "hi90": hi90,
+                        "lo50": lo50,
+                        "hi50": hi50,
                         "prob_pos": float(np.mean(d > 0)),
                     }
                 )
@@ -3176,13 +3291,13 @@ def _kf_headline_from_rope(rope: Mapping, outcome_label: str, scope: str) -> tup
         text = (
             f"Best estimate: the intervention changed the chance of scoring above "
             f"zero on {outcome_label} by **{med:+.0f} percentage points** {scope} "
-            f"(95% credible range {lo:+.0f} to {hi:+.0f})."
+            f"(89% credible range {lo:+.0f} to {hi:+.0f})."
         )
     else:
         text = (
             f"Best estimate: the intervention changed {outcome_label} by "
             f"**{med:+.1f} items** {scope} "
-            f"(95% credible range {lo:+.1f} to {hi:+.1f})."
+            f"(89% credible range {lo:+.1f} to {hi:+.1f})."
         )
     return text, is_rd
 
@@ -3274,7 +3389,7 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
                 _kf_sentence(
                     f"Best estimate: the intervention changed {outcome_label} by "
                     f"**{med:+.1f} items** over the trial period "
-                    f"(95% credible range {lo:+.1f} to {hi:+.1f}).",
+                    f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
                     "headline",
                 )
             )
@@ -3341,7 +3456,7 @@ def _kf_build_gain_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
             _kf_sentence(
                 f"Best estimate: being on the intervention changed {outcome_label} "
                 f"by **{med:+.1f} items** {scope} "
-                f"(95% credible range {lo:+.1f} to {hi:+.1f}).",
+                f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
                 "headline",
             )
         )
@@ -3433,7 +3548,7 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
                 f"immediate-intervention group changed the chance of scoring above "
                 f"zero on {outcome_label} by **{med:+.0f} percentage points** "
                 f"compared with the waiting list "
-                f"(95% credible range {lo:+.0f} to {hi:+.0f}).",
+                f"(89% credible range {lo:+.0f} to {hi:+.0f}).",
                 "headline",
             )
         )
@@ -3447,7 +3562,7 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
                 f"Best estimate: at t2 — the randomised comparison — children in "
                 f"the immediate-intervention group scored **{abs(med):.1f} items "
                 f"{higher_lower}** on {outcome_label} than the waiting-list "
-                f"children (95% credible range {lo:+.1f} to {hi:+.1f}).",
+                f"children (89% credible range {lo:+.1f} to {hi:+.1f}).",
                 "headline",
             )
         )
@@ -3505,7 +3620,7 @@ def _kf_build_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
         _kf_sentence(
             f"Across the {len(df)} outcomes, the best estimates ranged from "
             f"**{min(medians):+.1f} to {max(medians):+.1f} items**; the individual "
-            f"95% credible ranges extended from {min(lows):+.1f} to "
+            f"89% credible ranges extended from {min(lows):+.1f} to "
             f"{max(highs):+.1f} items overall.",
             "headline",
         )
@@ -3571,7 +3686,7 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
             _kf_sentence(
                 f"Across the fitted exposure range ({low:g} to {high:g} {unit}), "
                 f"{outcome_label} differed by **{med:+.1f} items** on average "
-                f"(95% credible range {lo:+.1f} to {hi:+.1f}).",
+                f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
                 "headline",
             )
         )
@@ -3603,7 +3718,7 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
             _kf_sentence(
                 f"Across the fitted predictor range, its model contribution changed "
                 f"from {_kf_float(low['f_mean']):+.2f} logit units "
-                f"(95% range {_kf_float(low['f_lo']):+.2f} to "
+                f"(89% range {_kf_float(low['f_lo']):+.2f} to "
                 f"{_kf_float(low['f_hi']):+.2f}) to "
                 f"{_kf_float(high['f_mean']):+.2f} "
                 f"({_kf_float(high['f_lo']):+.2f} to "
@@ -3657,7 +3772,7 @@ def _kf_build_mediation(output_dir, config: Mapping) -> list[dict[str, str]]:
     sentences = [
         _kf_sentence(
             f"The model-based total intervention contrast was **{med:+.1f} "
-            f"{unit}** (95% credible range {lo:+.1f} to {hi:+.1f}).",
+            f"{unit}** (89% credible range {lo:+.1f} to {hi:+.1f}).",
             "headline",
         ),
         _kf_sentence(
@@ -3679,7 +3794,7 @@ def _kf_build_mediation(output_dir, config: Mapping) -> list[dict[str, str]]:
         sentences.append(
             _kf_sentence(
                 f"The estimated indirect component ({indirect_name}) was "
-                f"{i_med:+.1f} {unit} (95% credible range {i_lo:+.1f} to "
+                f"{i_med:+.1f} {unit} (89% credible range {i_lo:+.1f} to "
                 f"{i_hi:+.1f}).",
                 "highlight",
             )
@@ -3711,7 +3826,7 @@ def _kf_build_aligned(output_dir, config: Mapping) -> list[dict[str, str]]:
         _kf_sentence(
             f"After aligning children by intervention onset, the immediate cohort "
             f"differed from the waiting-list cohort on {outcome_label} by "
-            f"**{med:+.1f} {unit}** (95% credible range {lo:+.1f} to "
+            f"**{med:+.1f} {unit}** (89% credible range {lo:+.1f} to "
             f"{hi:+.1f}).",
             "headline",
         ),
@@ -3751,7 +3866,7 @@ def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
             f"The clearest adjusted predictor was {label}: a 1-SD increase was "
             f"associated with **{med:+.1f} items** of difference in "
             f"{outcome_label} "
-            f"(95% credible range {lo:+.1f} to {hi:+.1f}).",
+            f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
             "headline",
         ),
         _kf_sentence(
@@ -3789,7 +3904,7 @@ def _kf_build_corr_factor(output_dir, config: Mapping) -> list[dict[str, str]]:
             [
                 _kf_sentence(
                     f"The clearest latent-domain correlation was between {pair}: "
-                    f"**{_kf_float(row['mean']):+.2f}** (95% credible range "
+                    f"**{_kf_float(row['median']):+.2f}** (89% credible range "
                     f"{_kf_float(row['lo']):+.2f} to "
                     f"{_kf_float(row['hi']):+.2f}).",
                     "headline",
@@ -3810,7 +3925,7 @@ def _kf_build_corr_factor(output_dir, config: Mapping) -> list[dict[str, str]]:
             _kf_sentence(
                 f"The clearest structural slope was "
                 f"{_kf_plain_label(row['coefficient'])}: "
-                f"{_kf_float(row['mean']):+.2f} logit units (95% credible range "
+                f"{_kf_float(row['median']):+.2f} logit units (89% credible range "
                 f"{_kf_float(row['lo']):+.2f} to "
                 f"{_kf_float(row['hi']):+.2f}).",
                 "highlight",
@@ -3848,7 +3963,7 @@ def _kf_build_dose_response(output_dir, config: Mapping) -> list[dict[str, str]]
                 f"A 1-SD increase in sessions was associated with "
                 f"**{_kf_float(marginal['items_median']):+.1f} items** on "
                 f"{outcome_label} "
-                f"(95% credible range {_kf_float(marginal['items_lo']):+.1f} "
+                f"(89% credible range {_kf_float(marginal['items_lo']):+.1f} "
                 f"to {_kf_float(marginal['items_hi']):+.1f}).",
                 "headline",
             )
@@ -3873,8 +3988,8 @@ def _kf_build_dose_response(output_dir, config: Mapping) -> list[dict[str, str]]
         sentences.append(
             _kf_sentence(
                 f"The headline dose slope was "
-                f"**{_kf_float(row['mean']):+.2f} logit units per 1 SD of "
-                f"sessions** (95% credible range {_kf_float(row['lo']):+.2f} "
+                f"**{_kf_float(row['median']):+.2f} logit units per 1 SD of "
+                f"sessions** (89% credible range {_kf_float(row['lo']):+.2f} "
                 f"to {_kf_float(row['hi']):+.2f}).",
                 "headline",
             )
@@ -3914,7 +4029,7 @@ def _kf_build_lcsm(output_dir, config: Mapping) -> list[dict[str, str]]:
     sentences = [
         _kf_sentence(
             f"The clearest longitudinal coupling was {label}: "
-            f"**{_kf_float(row['mean']):+.2f} logit units** (95% credible range "
+            f"**{_kf_float(row['median']):+.2f} logit units** (89% credible range "
             f"{_kf_float(row['lo']):+.2f} to {_kf_float(row['hi']):+.2f}).",
             "headline",
         ),
@@ -3938,7 +4053,7 @@ def _kf_build_lcsm(output_dir, config: Mapping) -> list[dict[str, str]]:
         sentences.append(
             _kf_sentence(
                 f"The separate randomised window-1 consistency contrast was "
-                f"{_kf_float(check['mean']):+.2f} latent-logit units (95% credible "
+                f"{_kf_float(check['median']):+.2f} latent-logit units (89% credible "
                 f"range {_kf_float(check['lo']):+.2f} to "
                 f"{_kf_float(check['hi']):+.2f}); it is a check, not the coupling "
                 f"headline.",
@@ -3955,14 +4070,14 @@ def _kf_build_horseshoe(output_dir, config: Mapping) -> list[dict[str, str]]:
         raise _KeyFindingsUnavailable("predictor_ranking.csv is not present")
     row = df.sort_values("rank").iloc[0].to_dict()
     label = _kf_plain_label(row["predictor"])
-    direction = "positive" if _kf_float(row["beta_mean"]) >= 0 else "negative"
+    direction = "positive" if _kf_float(row["beta_median"]) >= 0 else "negative"
     return [
         _kf_sentence(
             f"The top-ranked predictor was {label}, with a standardised "
-            f"{direction} association of **{_kf_float(row['beta_mean']):+.2f} "
-            f"logit units** (94% highest-density interval "
-            f"{_kf_float(row['beta_hdi_3']):+.2f} to "
-            f"{_kf_float(row['beta_hdi_97']):+.2f}).",
+            f"{direction} association of **{_kf_float(row['beta_median']):+.2f} "
+            f"logit units** (89% highest-density interval "
+            f"{_kf_float(row['beta_hdi_lo']):+.2f} to "
+            f"{_kf_float(row['beta_hdi_hi']):+.2f}).",
             "headline",
         ),
         _kf_sentence(
@@ -3993,9 +4108,9 @@ def _kf_build_growth(output_dir, config: Mapping) -> list[dict[str, str]]:
         _kf_sentence(
             f"For {outcome}, the clearest result, a 1-SD higher baseline "
             f"non-verbal ability score was associated with a growth-rate change of "
-            f"**{_kf_float(row['median']):+.2f} logit units** (95% credible range "
-            f"{_kf_float(row['lo95']):+.2f} to "
-            f"{_kf_float(row['hi95']):+.2f}).",
+            f"**{_kf_float(row['median']):+.2f} logit units** (89% credible range "
+            f"{_kf_float(row['lo89']):+.2f} to "
+            f"{_kf_float(row['hi89']):+.2f}).",
             "headline",
         ),
         _kf_sentence(
@@ -4035,9 +4150,9 @@ def _kf_build_historical_growth(output_dir, config: Mapping) -> list[dict[str, s
     sentences = [
         _kf_sentence(
             f"For the {group} group, {_kf_plain_label(row['label'])} was "
-            f"**{_kf_float(row['mean']):+.1f} items** (95% credible range "
-            f"{_kf_float(row['q2_5']):+.1f} to "
-            f"{_kf_float(row['q97_5']):+.1f}).",
+            f"**{_kf_float(row['mean']):+.1f} items** (89% credible range "
+            f"{_kf_float(row['q_lo']):+.1f} to "
+            f"{_kf_float(row['q_hi']):+.1f}).",
             "headline",
         ),
         _kf_sentence(
@@ -4080,7 +4195,7 @@ def _kf_build_historical_joint(output_dir, config: Mapping) -> list[dict[str, st
     return [
         _kf_sentence(
             f"The clearest between-child coupling was between {pair}: a stable-"
-            f"level correlation of **{_kf_float(row['mean']):+.2f}** (95% credible "
+            f"level correlation of **{_kf_float(row['median']):+.2f}** (89% credible "
             f"range {_kf_float(row['lo']):+.2f} to {_kf_float(row['hi']):+.2f}).",
             "headline",
         ),
@@ -4126,7 +4241,7 @@ def _kf_build_survival(output_dir, config: Mapping) -> list[dict[str, str]]:
     sentences = [
         _kf_sentence(
             f"The {label} corresponded to a hazard ratio of **{ratio:.2f}** "
-            f"(95% credible range {ratio_lo:.2f} to {ratio_hi:.2f}) for coming "
+            f"(89% credible range {ratio_lo:.2f} to {ratio_hi:.2f}) for coming "
             f"off the floor in an interval.",
             "headline",
         ),
@@ -4171,7 +4286,7 @@ def _kf_build_block_exposure(output_dir, config: Mapping) -> list[dict[str, str]
         _kf_sentence(
             f"When block-2 teaching was active, {outcome_label} differed by "
             f"**{_kf_float(row['delta_items_median']) * scale:+.1f} {unit}** "
-            f"(95% credible range "
+            f"(89% credible range "
             f"{_kf_float(row['delta_items_lo']) * scale:+.1f} to "
             f"{_kf_float(row['delta_items_hi']) * scale:+.1f}).",
             "headline",
@@ -4213,7 +4328,7 @@ def _kf_build_concurrent(output_dir, config: Mapping) -> list[dict[str, str]]:
         _kf_sentence(
             f"At t{int(_kf_float(row['timepoint']))}, the clearest adjusted "
             f"same-wave predictor was {label}: +1 SD was associated with "
-            f"**{_kf_float(row['items_median']):+.1f} outcome items** (95% "
+            f"**{_kf_float(row['items_median']):+.1f} outcome items** (89% "
             f"credible range {_kf_float(row['items_lo']):+.1f} to "
             f"{_kf_float(row['items_hi']):+.1f}).",
             "headline",
@@ -4247,7 +4362,7 @@ def _kf_build_long_corr_factor(output_dir, config: Mapping) -> list[dict[str, st
             f"At wave {int(_kf_float(row['wave']))}, the clearest translated latent "
             f"coupling linked +1 {predictor} item with "
             f"**{_kf_float(row['items_per_item_mean']):+.2f} {target} items** "
-            f"(95% credible range {_kf_float(row['items_per_item_lo']):+.2f} "
+            f"(89% credible range {_kf_float(row['items_per_item_lo']):+.2f} "
             f"to {_kf_float(row['items_per_item_hi']):+.2f}).",
             "headline",
         ),

@@ -52,7 +52,7 @@ WITHIN = [
     ("PA", ["NW", "WR", "PS"]),
     ("RG", ["EG"]),
 ]
-REVERSE = ["TE", "TR", "PA", "RW"]  # WR_w -> {..}_{w+1}
+REVERSE = ["TE", "TR", "PA", "RW", "LS"]  # WR_w -> {..}_{w+1}
 HS_CHILDREN = ["TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"]
 ITT_TARGETS = ["TR", "TE", "PA", "LS", "WR", "PS", "EI", "EG"]
 
@@ -148,7 +148,7 @@ def test_template_parses_and_is_acyclic(template):
     # The header records 36 nodes / 195 edges; a drift here means the .dagitty
     # was revised and every derivation below needs re-checking.
     assert template.number_of_nodes() == 36
-    assert template.number_of_edges() == 195
+    assert template.number_of_edges() == 196
 
 
 def test_unroll_slices_mirror_the_dagitty_template(template):
@@ -276,6 +276,11 @@ MED_WITNESSES = {
     "lrp_rli_med_074": ["NW_2", "<-", "LS_2", "<-", "IS_1", "->", "WR_2"],
     "lrp_rli_med_075": ["LS_2", "<-", "IS_1", "->", "WR_2"],
     "lrp_rli_med_076": ["LS_2", "<-", "IS_1", "->", "WR_2", "->", "WR_3", "->", "WR_4"],
+    # Reverse mirror of med-076 (WR_2 -> LS_4): dose is again the unblockable
+    # treatment-induced mediator-outcome confounder, now WR_2 <- IS_1 -> LS_2 ...-> LS_4.
+    "lrp_rli_med_176": ["WR_2", "<-", "IS_1", "->", "LS_2", "->", "LS_3", "->", "LS_4"],
+    # t3-outcome ceiling-sensitivity of med-176 (same witness, one wave shorter).
+    "lrp_rli_med_276": ["WR_2", "<-", "IS_1", "->", "LS_2", "->", "LS_3"],
     "lrp_rli_med_078": ["LS_2", "<-", "IS_1", "->", "WR_2"],
     "lrp_rli_med_079": ["RG_2", "<-", "TR_2", "->", "WR_2"],
     "lrp_rli_med_080": ["TR_2", "<-", "IS_1", "->", "WR_2"],
@@ -297,6 +302,8 @@ MED_ER_ROLES = {
     "lrp_rli_med_074": ("precision", "precision"),
     "lrp_rli_med_075": ("proxy", "precision"),
     "lrp_rli_med_076": ("precision", "precision"),
+    "lrp_rli_med_176": ("proxy", "proxy"),
+    "lrp_rli_med_276": ("proxy", "proxy"),
     "lrp_rli_med_078": ("precision", "precision"),
     "lrp_rli_med_079": ("precision", "proxy"),
     "lrp_rli_med_080": ("precision", "precision"),

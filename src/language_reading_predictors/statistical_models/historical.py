@@ -37,9 +37,9 @@ def _summarize(values: np.ndarray) -> dict[str, float]:
     return {
         "mean": float(np.mean(values)),
         "sd": float(np.std(values, ddof=1)),
-        "q2_5": float(np.quantile(values, 0.025)),
+        "q_lo": float(np.quantile(values, 0.055)),
         "q50": float(np.quantile(values, 0.5)),
-        "q97_5": float(np.quantile(values, 0.975)),
+        "q_hi": float(np.quantile(values, 0.945)),
         "p_gt_0": float(np.mean(values > 0)),
     }
 
@@ -191,8 +191,8 @@ def cell_summary(
                 "observed_complete_case_sd": float(audit_row[f"time_{wave}_sd"]),
                 "posterior_mean_minus_observed_mean": fitted["mean"] - observed_mean,
                 "posterior_population_mean": pop["mean"],
-                "posterior_population_q2_5": pop["q2_5"],
-                "posterior_population_q97_5": pop["q97_5"],
+                "posterior_population_q_lo": pop["q_lo"],
+                "posterior_population_q_hi": pop["q_hi"],
                 **{f"posterior_{k}": v for k, v in fitted.items()},
             }
         )

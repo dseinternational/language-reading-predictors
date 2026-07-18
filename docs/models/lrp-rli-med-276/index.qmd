@@ -1,0 +1,53 @@
+---
+title: "LRP276: Reverse WR→LS mediation, t3 outcome (ceiling sensitivity to LRP176)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+The reverse-direction [LRP176](../lrp-rli-med-176) ($WR_{t2} \rightarrow LS_{t4}$) reads its
+indirect effect on the 0–32 letter-sound scale, which is ~12% ceilinged at t4 and could
+attenuate the NIE. LRP276 is the **ceiling-sensitivity companion**: the identical design with
+the outcome taken at **t3** (only ~6% of children at the $LS$ ceiling), so the reverse
+$WR \rightarrow LS$ indirect is read with more room in the outcome to move. Close agreement
+with LRP176 means the small reverse signal is not a ceiling artefact; a materially larger t3
+NIE would mean the t4 read was ceiling-attenuated.
+
+## Design
+
+Mediator $W_{t2}$ (Beta-Binomial on $W_{t1}$); outcome $L_{t3}$ (conditioned on $L_{t1}$,
+loaded via the lagged-outcome preparation). Adjustment
+$\{G, A, W_\text{pre}, W_{t1}, HS, SP\}$ — identical to [LRP176](../lrp-rli-med-176); only the
+outcome wave changes (t4 → t3).
+
+## Assumptions — read this first {#sec-assumptions}
+
+As LRP176 / LRP76: the **t2 → t3 increment is NOT randomised** (the wait-list crosses over
+after t2), and the whole decomposition is ID-2 (`GA`-confounded + treatment-induced dose
+confounder), so the NIE is an adjusted association under a stated *reverse* direction, never
+proof that reading drives the code. The design randomises no early word-reading shock, so the
+reverse direction is intrinsically under-powered. $n \approx 53 \Rightarrow$ wide intervals.
+
+{{< include _partials/_results_mediation.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

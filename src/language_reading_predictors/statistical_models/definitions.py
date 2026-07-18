@@ -201,6 +201,33 @@ _MECH = [
     _d("lrp88", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading"),
     _d("lrp89", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading"),
     _d("lrp90", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phonological memory (word/nonword repetition) -> word reading"),
+    # GP knee-test variants (do the vocabulary / blending / dose curves have a knee,
+    # as letter sounds do?). Re-attempt the HSGP curve the linear models could not fit.
+    _d("lrp156", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "receptive vocabulary -> word reading (GP knee-test)", base="lrp56"),
+    _d("lrp157", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "expressive vocabulary -> word reading (GP knee-test)", base="lrp57"),
+    _d("lrp188", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading (GP knee-test)", base="lrp88"),
+    _d("lrp189", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading (GP knee-test)", base="lrp89"),
+    # Legacy ids 190/191 (not 91/92): the bare mechanism legacy alias is family-less,
+    # so 91/92 would collide with the live lcsm-091 (lrp91) and med-092 (lrp92) aliases
+    # and the fit CLI would silently resolve the shorthand to the wrong family (PR #359
+    # review). live_legacy_alias_collisions() + its test now guard against a recurrence.
+    _d("lrp190", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phoneme blending -> word reading (GP knee-test)"),
+    _d("lrp191", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "intervention sessions -> word reading (GP dose knee-test)"),
+    # Joint-readiness: letter sounds x vocabulary interaction (do both need to be high?).
+    # Companions to LRP71 (L x E); one per vocabulary measure.
+    _d("lrp93", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x receptive-vocabulary interaction"),
+    _d("lrp94", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-receptive-vocabulary interaction"),
+    _d("lrp95", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-expressive-vocabulary interaction"),
+    # Tier-1 decoding-specificity mini-suite (notes/202607172330-tier1-decoding-specificity-spec.md):
+    # matched *linear* letter-sound slopes for the L->N vs L->W convergent-discriminant
+    # contrast (1A) and the negative-control-outcome panel (1B). All linear_mechanism so
+    # the cross-outcome forest/contrast is like-for-like.
+    _d("lrp96", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "decoding channel: letter sounds -> nonword decoding (1A contrast vs lrp101)"),
+    _d("lrp101", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "linear letter sounds -> word reading (Tier-1 contrast/panel anchor; linear counterpart of the HSGP lrp58)"),
+    _d("lrp97", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "negative-control outcome: letter sounds -> receptive vocabulary"),
+    _d("lrp98", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "negative-control outcome: letter sounds -> expressive vocabulary"),
+    _d("lrp99", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "negative-control outcome: letter sounds -> receptive grammar"),
+    _d("lrp100", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "negative-control outcome: letter sounds -> basic concepts"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),
@@ -210,6 +237,8 @@ _MECH = [
     _d("lrp66", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs phoneme blending)"),
     _d("lrp75", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "sequential code route (letter sounds -> blending -> reading)"),
     _d("lrp76", "mediation", "Mediation", Status.ASSOCIATION, "W", "longitudinal-ordering (letter sounds t2 -> reading t4)"),
+    _d("lrp176", "mediation", "Mediation", Status.ASSOCIATION, "L", "reverse longitudinal-ordering (word reading t2 -> letter sounds t4); WR->LS direction contrast to lrp76", base="lrp76"),
+    _d("lrp276", "mediation", "Mediation", Status.ASSOCIATION, "L", "reverse WR->LS with t3 outcome (less-ceilinged sensitivity to lrp176)", base="lrp176"),
     _d("lrp78", "mediation", "Mediation", Status.ASSOCIATION, "W", "interventional-effects decomposition via letter sounds"),
     _d("lrp79", "mediation", "Mediation", Status.ASSOCIATION, "W", "negative-control mediator (grammar; calibrates GA confounding)"),
     # Code route beyond word reading (#228 item 12): the purest decoding outcome
@@ -421,6 +450,28 @@ def provenance_alias_collisions() -> list[str]:
         for key in (*SUPERSEDED, *RESERVED)
         if bare.match(key.lower()) and key.lower() in live_aliases
     ]
+
+
+def live_legacy_alias_collisions() -> dict[str, list[str]]:
+    """Legacy aliases shared by more than one *live* canonical model (should be empty).
+
+    The legacy alias of a mechanism / mediation / lcsm / … model is the bare
+    ``lrpNN`` form (no family tag, unlike ITT's ``lrpitt07``), so two live models
+    with the same number in different families collapse to one alias. The fit CLI
+    builds ``{alias: canonical}`` and the last writer wins, so a bare shorthand such
+    as ``lrp92`` would silently resolve to whichever family sorts last — an
+    expensive fit could run the wrong model (PR #359 review). This returns
+    ``{alias: [canonical ids]}`` for every alias claimed by ≥ 2 live models; ``tests``
+    asserts it is empty so a future same-number cross-family addition fails loudly
+    rather than shadowing an existing model. Fix a hit by giving the newer model a
+    unique number (the canonical ids stay family-scoped and remain fittable in full).
+    """
+    from collections import defaultdict
+
+    by_alias: dict[str, list[str]] = defaultdict(list)
+    for mid in MODEL_REGISTRY:
+        by_alias[model_ids.to_legacy(mid).lower()].append(mid)
+    return {alias: sorted(ids) for alias, ids in by_alias.items() if len(ids) > 1}
 
 
 def models_by_status(status: Status) -> list[ModelDefinition]:

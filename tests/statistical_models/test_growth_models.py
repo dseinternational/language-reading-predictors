@@ -139,7 +139,7 @@ def test_growth_association_summary_direction_bands_and_role():
     means = np.array([0.30, 0.00, -0.20])
     gamma = rng.normal(means, 0.08, size=(2, 400, 3))
     delta = rng.normal(0.0, 0.05, size=(2, 400, 3))
-    df = growth_association_summary(_growth_trace(gamma, delta), ci_prob=0.95)
+    df = growth_association_summary(_growth_trace(gamma, delta), ci_prob=0.89)
 
     # gamma + delta only (beta / loading absent are skipped, not errored).
     assert set(df["coefficient"]) == {"gamma", "delta"}
@@ -152,10 +152,11 @@ def test_growth_association_summary_direction_bands_and_role():
     assert g.loc["R", "favoured_direction"] == "positive"
     assert g.loc["T", "prob_positive"] < 0.02
     assert g.loc["T", "favoured_direction"] == "negative"
-    # Fixed 50/90/95 bands are present and nested around the median.
+    # Fixed 50/89 bands are present and nested around the median (#177, revised
+    # 2026-07-17: the 90% sensitivity band was retired).
     r = g.loc["R"]
-    assert r["lo95"] <= r["lo90"] <= r["lo50"] <= r["median"]
-    assert r["median"] <= r["hi50"] <= r["hi90"] <= r["hi95"]
+    assert r["lo89"] <= r["lo50"] <= r["median"]
+    assert r["median"] <= r["hi50"] <= r["hi89"]
 
 
 def test_growth_association_summary_includes_loading_only_when_present():

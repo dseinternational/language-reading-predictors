@@ -1328,14 +1328,15 @@ def _save_forest_plot(
 
         tr = _diag.thin_for_plots(ctx.trace)
         # Equal-tailed nested bands (#177): inner central 50% + outer equal-tailed
-        # 95% headline, matching the reported interval convention rather than the
-        # arviz default (which can be an HDI, inconsistent with the prose).
+        # headline (89% house standard, from ctx.reporting.ci_prob), matching the
+        # reported interval convention rather than the arviz default (which can be
+        # an HDI, inconsistent with the prose).
         pc = azp.plot_forest(
             tr,
             var_names=var_names,
             combined=True,
             ci_kind=ctx.reporting.interval_kind,
-            ci_probs=(0.5, 0.95),
+            ci_probs=(0.5, ctx.reporting.ci_prob),
         )
         try:
             azp.add_lines(pc, values=0)
@@ -3347,13 +3348,13 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     x = x_vals[order]
     f_ord = f[order]
     mean = f_ord.mean(axis=1)
-    lo = np.quantile(f_ord, 0.025, axis=1)
-    hi = np.quantile(f_ord, 0.975, axis=1)
-    lo90 = np.quantile(f_ord, 0.05, axis=1)
-    hi90 = np.quantile(f_ord, 0.95, axis=1)
+    lo = np.quantile(f_ord, 0.055, axis=1)
+    hi = np.quantile(f_ord, 0.945, axis=1)
+    lo50 = np.quantile(f_ord, 0.25, axis=1)
+    hi50 = np.quantile(f_ord, 0.75, axis=1)
     pd.DataFrame(
         {x_col: x, "f_mean": mean, "f_lo": lo, "f_hi": hi,
-         "f_lo90": lo90, "f_hi90": hi90}
+         "f_lo50": lo50, "f_hi50": hi50}
     ).to_csv(os.path.join(ctx.output_dir, "mechanism_curve.csv"), index=False)
     outcome = ctx.spec.outcome_symbol or "W"
 
@@ -3408,8 +3409,8 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
                 "items_median": float(np.median(endpoint_items)),
                 "items_lo": float(np.quantile(endpoint_items, lo_q)),
                 "items_hi": float(np.quantile(endpoint_items, 1 - lo_q)),
-                "items_lo90": float(np.quantile(endpoint_items, 0.05)),
-                "items_hi90": float(np.quantile(endpoint_items, 0.95)),
+                "items_lo50": float(np.quantile(endpoint_items, 0.25)),
+                "items_hi50": float(np.quantile(endpoint_items, 0.75)),
                 "prob_pos": float(np.mean(endpoint_items > 0)),
             }
         ]
@@ -3513,40 +3514,60 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     sym = ctx.spec.mechanism_symbol
-    N = MEASURES[sym].n_trials
+    outcome = ctx.spec.outcome_symbol or "W"
+    is_covariate = bool(ctx.spec.extra.get("mechanism_is_covariate", False))
+    f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
 
-    try:
-        summary = _report.readiness_threshold(ctx.trace, n_trials=N)
-    except ValueError as exc:
-        rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
-        return
+    if is_covariate:
+        # Continuous-covariate exposure (e.g. LRP92 sessions): locate the knee in the
+        # exposure's own raw units (scaler-inverted, as in _write_mechanism_curve),
+        # not a bounded count. The per-obs exposure aligns with f_mech's row order.
+        z_loaded = np.asarray(ctx.prepared.covariates[sym], dtype=float)
+        scaler = ctx.prepared.covariate_scalers.get(sym)
+        x_obs = scaler.inverse(z_loaded) if scaler is not None else z_loaded
+        try:
+            summary = _report.readiness_threshold(
+                ctx.trace, exposure_values=x_obs, ci_prob=ctx.reporting.ci_prob
+            )
+        except ValueError as exc:
+            rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
+            return
+        x_label = f"{sym} (raw score)"
+    else:
+        N = MEASURES[sym].n_trials
+        try:
+            summary = _report.readiness_threshold(
+                ctx.trace, n_trials=N, ci_prob=ctx.reporting.ci_prob
+            )
+        except ValueError as exc:
+            rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
+            return
+        # Mean curve on the raw count scale (inverse Haldane-corrected logit, as in
+        # reporting._readiness_knee) with the knee posterior overlaid.
+        ell = np.asarray(ctx.trace.constant_data["mech_post_logit"].values).reshape(-1)
+        x_obs = np.clip((N + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(N))
+        x_label = f"{sym} (raw count, out of {N})"
+
     pd.DataFrame([summary]).to_csv(
         os.path.join(ctx.output_dir, "readiness_threshold.csv"), index=False
     )
 
-    # Mean curve on the raw count scale (inverse Haldane-corrected logit, as in
-    # reporting._readiness_knee) with the knee posterior overlaid.
-    ell = np.asarray(ctx.trace.constant_data["mech_post_logit"].values).reshape(-1)
-    f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
-    order = np.argsort(ell)
-    x_count = np.clip(
-        (N + 1.0) / (1.0 + np.exp(-ell[order])) - 0.5, 0.0, float(N)
-    )
+    order = np.argsort(x_obs)
+    x = x_obs[order]
     mean = f[order].mean(axis=1)
-    outcome = ctx.spec.outcome_symbol or "W"
     plt.figure(figsize=(6, 4))
-    plt.plot(x_count, mean, color="#1f77b4", lw=2)
+    plt.plot(x, mean, color="#1f77b4", lw=2)
     plt.axvspan(
         summary["knee_count_ci_low"],
         summary["knee_count_ci_high"],
         color="#d62728",
         alpha=0.15,
-        label="knee 95% CI",
+        label=f"knee {int(round(ctx.reporting.ci_prob * 100))}% CI",
     )
     plt.axvline(
         summary["knee_count_median"], color="#d62728", lw=1.5, label="knee median"
     )
-    plt.xlabel(f"{sym} (raw count, out of {N})")
+    plt.xlabel(x_label)
     plt.ylabel(f"{outcome} logit contribution")
     plt.title(f"Readiness threshold (steepest rise): {sym} -> {outcome}")
     plt.legend(fontsize=8)
@@ -3672,9 +3693,9 @@ def _summarise_draws(
         "mean": float(np.mean(values)),
         "lo": float(np.quantile(values, lo_q)),
         "hi": float(np.quantile(values, 1.0 - lo_q)),
-        # 90% equal-tailed sensitivity band alongside the headline ci_prob interval.
-        "lo90": float(np.quantile(values, 0.05)),
-        "hi90": float(np.quantile(values, 0.95)),
+        # Inner 50% equal-tailed band alongside the headline ci_prob interval.
+        "lo50": float(np.quantile(values, 0.25)),
+        "hi50": float(np.quantile(values, 0.75)),
     }
     if include_p_pos:
         out["p_pos"] = float(np.mean(values > 0.0))
@@ -3730,12 +3751,13 @@ def _write_dose_slope_summary(
         .values
     )
     if period_varying:
-        phase_slopes = (
-            post["beta_dose_phase"]
-            .stack(sample=("chain", "draw"))
-            .transpose("phase", "sample")
-            .values
-        )
+        # The period dimension is named "phase" in the dose_response family but
+        # "dose_phase" in the DiD dose companions; derive it rather than hardcode
+        # one spelling (a hardcoded "phase" crashed did-007 with a missing-dim
+        # ValueError before it could write its report).
+        stacked_bdp = post["beta_dose_phase"].stack(sample=("chain", "draw"))
+        phase_dim = next(d for d in stacked_bdp.dims if d != "sample")
+        phase_slopes = stacked_bdp.transpose(phase_dim, "sample").values
         delta_eta = phase_slopes[np.asarray(ctx.prepared.phase, dtype=int)]
     else:
         slope = post["beta_dose"].stack(sample=("chain", "draw")).values
@@ -3751,8 +3773,8 @@ def _write_dose_slope_summary(
                 "items_median": float(np.median(items)),
                 "items_lo": float(np.quantile(items, lo_q)),
                 "items_hi": float(np.quantile(items, 1 - lo_q)),
-                "items_lo90": float(np.quantile(items, 0.05)),
-                "items_hi90": float(np.quantile(items, 0.95)),
+                "items_lo50": float(np.quantile(items, 0.25)),
+                "items_hi50": float(np.quantile(items, 0.75)),
                 "prob_pos": float(np.mean(items > 0)),
             }
         ]
@@ -5584,11 +5606,12 @@ def _beta_summary(trace, name: str, ci_prob: float) -> dict:
     draws = trace.posterior[name].stack(sample=("chain", "draw")).values
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     return {
+        "median": float(np.median(draws)),
         "mean": float(np.mean(draws)),
         "lo": float(np.quantile(draws, lo_q)),
         "hi": float(np.quantile(draws, hi_q)),
-        "lo90": float(np.quantile(draws, 0.05)),
-        "hi90": float(np.quantile(draws, 0.95)),
+        "lo50": float(np.quantile(draws, 0.25)),
+        "hi50": float(np.quantile(draws, 0.75)),
         "prob_pos": float(np.mean(draws > 0)),
     }
 
@@ -5651,11 +5674,12 @@ def _natural_scale_contrasts(
             {
                 "predictor": k,
                 "label": _adj_label(k),
+                "delta_words_median": float(np.median(delta)),
                 "delta_words_mean": float(np.mean(delta)),
                 "delta_words_lo": float(np.quantile(delta, lo_q)),
                 "delta_words_hi": float(np.quantile(delta, hi_q)),
-                "delta_words_lo90": float(np.quantile(delta, 0.05)),
-                "delta_words_hi90": float(np.quantile(delta, 0.95)),
+                "delta_words_lo50": float(np.quantile(delta, 0.25)),
+                "delta_words_hi50": float(np.quantile(delta, 0.75)),
                 "prob_pos": float(np.mean(delta > 0)),
             }
         )
@@ -5736,7 +5760,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     phase_mode = e.get("phase_mode", "span" if gain else "levels")
 
     # 94% intervals, matching the LRP65 adjusted-model convention.
-    ctx = make_context(spec, config, ci_prob=0.94)
+    ctx = make_context(spec, config, ci_prob=0.89)
     # The horseshoe has a funnel geometry (global-local scales); lift target_accept
     # above the tier default so the sampler takes smaller steps near the neck.
     _apply_spec_target_accept(ctx, spec)
@@ -5857,7 +5881,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     use_age = bool(e.get("use_age_predictor", True))
 
     # 94% intervals (the brief's convention) rather than the project-wide 95%.
-    ctx = make_context(spec, config, ci_prob=0.94)
+    ctx = make_context(spec, config, ci_prob=0.89)
     hdi = ctx.reporting.ci_prob
 
     section_header("Prepare data")
@@ -5946,17 +5970,19 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             {
                 "predictor": k,
                 "label": _adj_label(k),
+                "adj_median": a["median"],
                 "adj_mean": a["mean"],
                 "adj_lo": a["lo"],
                 "adj_hi": a["hi"],
-                "adj_lo90": a["lo90"],
-                "adj_hi90": a["hi90"],
+                "adj_lo50": a["lo50"],
+                "adj_hi50": a["hi50"],
                 "adj_prob_pos": a["prob_pos"],
+                "biv_median": bv["median"],
                 "biv_mean": bv["mean"],
                 "biv_lo": bv["lo"],
                 "biv_hi": bv["hi"],
-                "biv_lo90": bv["lo90"],
-                "biv_hi90": bv["hi90"],
+                "biv_lo50": bv["lo50"],
+                "biv_hi50": bv["hi50"],
                 "biv_prob_pos": bv["prob_pos"],
                 # Convergence flags: the adjusted column is the primary (gated) fit;
                 # the bivariate column is a sub-fit that bypasses the primary gate (B1).
@@ -6151,11 +6177,12 @@ def _coef_row(label: str, draws, hdi_prob: float) -> dict:
     lo_q = (1 - hdi_prob) / 2
     return {
         "coefficient": label,
+        "median": float(np.median(d)),
         "mean": float(np.mean(d)),
         "lo": float(np.quantile(d, lo_q)),
         "hi": float(np.quantile(d, 1 - lo_q)),
-        "lo90": float(np.quantile(d, 0.05)),
-        "hi90": float(np.quantile(d, 0.95)),
+        "lo50": float(np.quantile(d, 0.25)),
+        "hi50": float(np.quantile(d, 0.75)),
         "prob_pos": float(np.mean(d > 0)),
     }
 
@@ -6240,7 +6267,7 @@ def _ca_margin_fields(prefix: str, row: pd.Series) -> dict[str, float]:
     return {
         f"{prefix}_ame_{scale}_{stat}": float(row[f"{scale}_{stat}"])
         for scale in ("prob", "items")
-        for stat in ("median", "lo", "hi", "lo90", "hi90")
+        for stat in ("median", "lo", "hi", "lo50", "hi50")
     }
 
 
@@ -6254,7 +6281,7 @@ def _ca_sd_margin(df: pd.DataFrame, predictor: str) -> pd.Series:
     return rows.iloc[0]
 
 
-_CA_MARGIN_STATS = ("median", "lo", "hi", "lo90", "hi90")
+_CA_MARGIN_STATS = ("median", "lo", "hi", "lo50", "hi50")
 _CA_ASSOCIATION_REQUIRED = {
     "timepoint",
     "predictor",
@@ -6263,17 +6290,19 @@ _CA_ASSOCIATION_REQUIRED = {
     "predictor_n",
     "predictor_imputed_n",
     "ame_contrast",
+    "adj_median",
     "adj_mean",
     "adj_lo",
     "adj_hi",
-    "adj_lo90",
-    "adj_hi90",
+    "adj_lo50",
+    "adj_hi50",
     "adj_prob_pos",
+    "biv_median",
     "biv_mean",
     "biv_lo",
     "biv_hi",
-    "biv_lo90",
-    "biv_hi90",
+    "biv_lo50",
+    "biv_hi50",
     "biv_prob_pos",
     "adj_converged",
     "biv_converged",
@@ -6292,13 +6321,13 @@ _CA_MARGINAL_REQUIRED = {
     "prob_median",
     "prob_lo",
     "prob_hi",
-    "prob_lo90",
-    "prob_hi90",
+    "prob_lo50",
+    "prob_hi50",
     "items_median",
     "items_lo",
     "items_hi",
-    "items_lo90",
-    "items_hi90",
+    "items_lo50",
+    "items_hi50",
     "prob_pos",
     "label",
     "converged",
@@ -6620,18 +6649,20 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
                     "predictor_n": predictor_n,
                     "predictor_imputed_n": sub.n_obs - predictor_n,
                     "ame_contrast": "+1 SD",
+                    "adj_median": adj["median"],
                     "adj_mean": adj["mean"],
                     "adj_lo": adj["lo"],
                     "adj_hi": adj["hi"],
-                    "adj_lo90": adj["lo90"],
-                    "adj_hi90": adj["hi90"],
+                    "adj_lo50": adj["lo50"],
+                    "adj_hi50": adj["hi50"],
                     "adj_prob_pos": adj["prob_pos"],
                     **_ca_margin_fields("adj", adj_sd),
+                    "biv_median": biv["median"],
                     "biv_mean": biv["mean"],
                     "biv_lo": biv["lo"],
                     "biv_hi": biv["hi"],
-                    "biv_lo90": biv["lo90"],
-                    "biv_hi90": biv["hi90"],
+                    "biv_lo50": biv["lo50"],
+                    "biv_hi50": biv["hi50"],
                     "biv_prob_pos": biv["prob_pos"],
                     **_ca_margin_fields("biv", biv_sd),
                     "adj_converged": adj_conv["converged"],
@@ -7110,7 +7141,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             gs[gs["coefficient"] == "gamma"],
             title="Baseline non-verbal ability -> growth rate (gamma, logit; 95% ETI)",
             columns=[
-                "outcome", "median", "lo95", "hi95", "prob_positive",
+                "outcome", "median", "lo89", "hi89", "prob_positive",
                 "favoured_direction_label",
             ],
             rank_column=False,
@@ -7145,8 +7176,8 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "median": float(np.median(corr)),
             "lo": float(np.quantile(corr, lo_q)),
             "hi": float(np.quantile(corr, 1 - lo_q)),
-            "lo90": float(np.quantile(corr, 0.05)),
-            "hi90": float(np.quantile(corr, 0.95)),
+            "lo50": float(np.quantile(corr, 0.25)),
+            "hi50": float(np.quantile(corr, 0.75)),
             "prob_pos": float(np.mean(corr > 0)),
         }
         pd.DataFrame([tempo_corr]).to_csv(
@@ -7296,7 +7327,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                 f"{measure_label} growth (items) - "
                 f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
             ),
-            columns=["label", "readgrp_label", "mean", "q2_5", "q97_5", "p_gt_0"],
+            columns=["label", "readgrp_label", "mean", "q_lo", "q_hi", "p_gt_0"],
             rank_column=False,
             precision=2,
         )
@@ -7370,11 +7401,12 @@ def _rlm_natural_scale_contrasts(
             {
                 "predictor": k,
                 "label": frame.predictor_labels.get(k, k),
+                "delta_words_median": float(np.median(delta)),
                 "delta_words_mean": float(np.mean(delta)),
                 "delta_words_lo": float(np.quantile(delta, lo_q)),
                 "delta_words_hi": float(np.quantile(delta, hi_q)),
-                "delta_words_lo90": float(np.quantile(delta, 0.05)),
-                "delta_words_hi90": float(np.quantile(delta, 0.95)),
+                "delta_words_lo50": float(np.quantile(delta, 0.25)),
+                "delta_words_hi50": float(np.quantile(delta, 0.75)),
                 "prob_pos": float(np.mean(delta > 0)),
             }
         )
@@ -7415,7 +7447,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     prior_sens = list(e.get("prior_sensitivity_sigmas", [0.5, 0.7]))
 
     # 94% intervals, matching the RLI adjusted-family convention.
-    ctx = make_context(spec, config, ci_prob=0.94)
+    ctx = make_context(spec, config, ci_prob=0.89)
     hdi = ctx.reporting.ci_prob
 
     section_header("Prepare data")
@@ -7478,17 +7510,19 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             {
                 "predictor": k,
                 "label": frame.predictor_labels.get(k, k),
+                "adj_median": a["median"],
                 "adj_mean": a["mean"],
                 "adj_lo": a["lo"],
                 "adj_hi": a["hi"],
-                "adj_lo90": a["lo90"],
-                "adj_hi90": a["hi90"],
+                "adj_lo50": a["lo50"],
+                "adj_hi50": a["hi50"],
                 "adj_prob_pos": a["prob_pos"],
+                "biv_median": bv["median"],
                 "biv_mean": bv["mean"],
                 "biv_lo": bv["lo"],
                 "biv_hi": bv["hi"],
-                "biv_lo90": bv["lo90"],
-                "biv_hi90": bv["hi90"],
+                "biv_lo50": bv["lo50"],
+                "biv_hi50": bv["hi50"],
                 "biv_prob_pos": bv["prob_pos"],
                 "adjusted_converged": _primary_converged,
                 "bivariate_converged": biv_converged[k],
@@ -7596,7 +7630,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     slab_scale = float(e.get("slab_scale", 2.0))
     slab_df = float(e.get("slab_df", 4.0))
 
-    ctx = make_context(spec, config, ci_prob=0.94)
+    ctx = make_context(spec, config, ci_prob=0.89)
     _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
@@ -7743,21 +7777,24 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             {
                 "indicator": name,
                 "domain": dom_of.get(name, "?"),
+                "loading_median": float(np.median(lam_d)),
                 "loading_mean": float(np.mean(lam_d)),
                 "loading_lo": float(np.quantile(lam_d, lo_q)),
                 "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
-                "loading_lo90": float(np.quantile(lam_d, 0.05)),
-                "loading_hi90": float(np.quantile(lam_d, 0.95)),
+                "loading_lo50": float(np.quantile(lam_d, 0.25)),
+                "loading_hi50": float(np.quantile(lam_d, 0.75)),
+                "correlation_median": float(np.median(corr_d)),
                 "correlation_mean": float(np.mean(corr_d)),
                 "correlation_lo": float(np.quantile(corr_d, lo_q)),
                 "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
-                "correlation_lo90": float(np.quantile(corr_d, 0.05)),
-                "correlation_hi90": float(np.quantile(corr_d, 0.95)),
+                "correlation_lo50": float(np.quantile(corr_d, 0.25)),
+                "correlation_hi50": float(np.quantile(corr_d, 0.75)),
+                "communality_median": float(np.median(com_d)),
                 "communality_mean": float(np.mean(com_d)),
                 "communality_lo": float(np.quantile(com_d, lo_q)),
                 "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
-                "communality_lo90": float(np.quantile(com_d, 0.05)),
-                "communality_hi90": float(np.quantile(com_d, 0.95)),
+                "communality_lo50": float(np.quantile(com_d, 0.25)),
+                "communality_hi50": float(np.quantile(com_d, 0.75)),
             }
         )
     load_df = pd.DataFrame(load_rows)
@@ -7798,11 +7835,12 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
                 {
                     "domain_i": di,
                     "domain_j": dj,
+                    "median": float(np.median(pair)),
                     "mean": float(np.mean(pair)),
                     "lo": float(np.quantile(pair, lo_q)),
                     "hi": float(np.quantile(pair, 1 - lo_q)),
-                    "lo90": float(np.quantile(pair, 0.05)),
-                    "hi90": float(np.quantile(pair, 0.95)),
+                    "lo50": float(np.quantile(pair, 0.25)),
+                    "hi50": float(np.quantile(pair, 0.75)),
                     "prob_pos": float(np.mean(pair > 0)),
                 }
             )
@@ -7929,11 +7967,12 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                     "measure_j": mj,
                     "label_i": labels[mi],
                     "label_j": labels[mj],
+                    "median": float(np.median(pair)),
                     "mean": float(np.mean(pair)),
                     "lo": float(np.quantile(pair, lo_q)),
                     "hi": float(np.quantile(pair, 1 - lo_q)),
-                    "lo90": float(np.quantile(pair, 0.05)),
-                    "hi90": float(np.quantile(pair, 0.95)),
+                    "lo50": float(np.quantile(pair, 0.25)),
+                    "hi50": float(np.quantile(pair, 0.75)),
                     "prob_pos": float(np.mean(pair > 0)),
                 }
             )
@@ -8166,21 +8205,24 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
             {
                 "indicator": name,
                 "domain": dom_of.get(name, "?"),
+                "loading_median": float(np.median(lam_d)),
                 "loading_mean": float(np.mean(lam_d)),
                 "loading_lo": float(np.quantile(lam_d, lo_q)),
                 "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
-                "loading_lo90": float(np.quantile(lam_d, 0.05)),
-                "loading_hi90": float(np.quantile(lam_d, 0.95)),
+                "loading_lo50": float(np.quantile(lam_d, 0.25)),
+                "loading_hi50": float(np.quantile(lam_d, 0.75)),
+                "correlation_median": float(np.median(corr_d)),
                 "correlation_mean": float(np.mean(corr_d)),
                 "correlation_lo": float(np.quantile(corr_d, lo_q)),
                 "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
-                "correlation_lo90": float(np.quantile(corr_d, 0.05)),
-                "correlation_hi90": float(np.quantile(corr_d, 0.95)),
+                "correlation_lo50": float(np.quantile(corr_d, 0.25)),
+                "correlation_hi50": float(np.quantile(corr_d, 0.75)),
+                "communality_median": float(np.median(com_d)),
                 "communality_mean": float(np.mean(com_d)),
                 "communality_lo": float(np.quantile(com_d, lo_q)),
                 "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
-                "communality_lo90": float(np.quantile(com_d, 0.05)),
-                "communality_hi90": float(np.quantile(com_d, 0.95)),
+                "communality_lo50": float(np.quantile(com_d, 0.25)),
+                "communality_hi50": float(np.quantile(com_d, 0.75)),
             }
         )
     load_df = pd.DataFrame(load_rows)
@@ -8222,11 +8264,12 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                 {
                     "domain_i": di,
                     "domain_j": dj,
+                    "median": float(np.median(pair)),
                     "mean": float(np.mean(pair)),
                     "lo": float(np.quantile(pair, lo_q)),
                     "hi": float(np.quantile(pair, 1 - lo_q)),
-                    "lo90": float(np.quantile(pair, 0.05)),
-                    "hi90": float(np.quantile(pair, 0.95)),
+                    "lo50": float(np.quantile(pair, 0.25)),
+                    "hi50": float(np.quantile(pair, 0.75)),
                     "prob_pos": float(np.mean(pair > 0)),
                 }
             )

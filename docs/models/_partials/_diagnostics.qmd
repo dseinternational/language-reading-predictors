@@ -3,8 +3,15 @@
 R-hat and effective sample size (ESS) over the scalar parameters; the
 equal-tailed interval matches the report cards below. _How to read it:_ sampling
 has converged when every parameter's **R-hat is ≈ 1.00** (values above 1.01 are
-flagged) and its **ESS is comfortably above 400** — a high R-hat or low ESS means
-the chains have not mixed well and the summaries below are not yet reliable.
+flagged). **ESS ≥ 400 is a reliability floor, not a target** — below it the ESS
+and R-hat estimates are themselves too noisy to trust; a well-sampled reporting
+fit sits far higher (typically several thousand). **Bulk-ESS** governs the
+median/mean and **Tail-ESS** the 89% interval limits, so the reported limits are
+stable once Tail-ESS reaches the low thousands (`ess_bulk`, `ess_tail` and the
+Monte-Carlo standard errors `mcse_mean`/`mcse_sd` are tabulated per parameter
+below). A high R-hat or a below-floor ESS means the chains have not mixed well and
+the summaries below are not yet reliable. See
+`notes/202607181200-ess-reporting-standard.md`.
 
 ```{python}
 # | echo: false
@@ -136,15 +143,16 @@ if _pareto is not None and _pareto_required.issubset(_pareto.columns):
             )
 print(_img("pareto_k.png", "Pareto-k (LOO influence; flag k > 0.7)"))
 print(_img("rank_plot.png", "Rank plot of the effect (mixing)"))
-print(_img("ess_evolution.png", "ESS evolution (target 400)"))
+print(_img("ess_evolution.png", "ESS evolution (reference line at the 400 floor)"))
 print(_img("loo_pit.png", "LOO-PIT calibration"))
 print(
     f"\n_How to read these:_ **Pareto-k** — each point is {_pareto_unit}'s influence on "
     "the leave-one-out fit; all should sit below 0.7 (points above are overly "
     "influential and make LOO unreliable)." + _loo_caveat + " **Rank plot** — the "
     "chains' ranks should look uniform and interleaved (a sloped or lumpy plot signals "
-    "poor mixing). **ESS-evolution** — should climb steadily above the 400 target as "
-    "sampling proceeds. **LOO-PIT** — the line should hug zero; large excursions mean "
+    "poor mixing). **ESS-evolution** — should climb steadily above the 400 reliability "
+    "floor as sampling proceeds (a well-sampled reporting fit lands far higher). "
+    "**LOO-PIT** — the line should hug zero; large excursions mean "
     "the model is mis-calibrated over part of the outcome range."
 )
 ```

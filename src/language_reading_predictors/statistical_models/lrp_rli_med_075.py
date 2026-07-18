@@ -18,8 +18,12 @@ Design (see `factories.build_two_mediator_model(chain=True)` +
 
 - **Phase 0 only** (`phase_mode="itt"`, t1 -> t2), ``n ~ 53``, one row per child.
 - Mediators L and B (Beta-Binomial legs); the B leg adds ``aB_L * z(L_t2)``.
-  Adjustment {G, A, E, R, W_pre, L_t1, B_t1} (vocabulary E, R as the code-route
-  mediator-outcome confounders, as in LRP66).
+  Adjustment {G, A, E, R, W_pre, L_t1, B_t1, HS, SP, RW} — as in LRP66, the exogenous
+  code-route mediator-outcome confounders are hearing HS (``hs``), speech SP
+  (``deapp_c``) and phonological memory RW (``erbto``); baseline vocabulary E, R stay
+  in as admissible pre-treatment proxy/precision terms. (``hs`` / ``deapp_c`` /
+  ``erbto`` added 2026-07-17 for parity with LRP62/66; see
+  ``notes/202607172000-adjustment-set-review-full-suite.md``.)
 
 What to read (and what not to):
 
@@ -54,7 +58,10 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="W",
     mechanism_symbol=None,  # two mediators; named in extra["mediators"]
-    adjustment=["G", "A", "E", "R", "W_pre", "L_t1", "B_t1"],
+    adjustment=[
+        "G", "A", "E", "R", "W_pre", "L_t1", "B_t1",
+        "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+    ],
     extra={
         "mediators": ("L", "B"),
         "order": ("L", "B"),

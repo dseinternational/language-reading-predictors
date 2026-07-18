@@ -87,7 +87,7 @@ _How to read the table:_ one row per outcome. `ame_prob_median` is the median in
 # | echo: false
 # | output: asis
 print(_img("tau_forest.png", "Secondary conditional-logit treatment coefficient by outcome (forest, reference line at 0)"))
-print("\n_How to read the forest plot:_ this is the **secondary conditional-logit coefficient** $\\tau_k$, not the headline probability-scale AME. The marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line at 0 is no effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
+print("\n_How to read the forest plot:_ this is the **secondary conditional-logit coefficient** $\\tau_k$, not the headline probability-scale AME. The marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line at 0 is no effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
 ```
 
 ### Pairwise contrasts — P(AME_k > AME_j)
@@ -153,14 +153,14 @@ if _diff is not None:
     print(f"### {_label}\n")
     print(
         f"Headline {_kind} contrast `{_d.contrast}`: median probability-scale difference "
-        f"{100 * _d.diff_prob_median:+.1f} percentage points (90% CrI "
-        f"{100 * _d.diff_prob_lo90:+.1f} to {100 * _d.diff_prob_hi90:+.1f}; 95% "
+        f"{100 * _d.diff_prob_median:+.1f} percentage points (50% CrI "
+        f"{100 * _d.diff_prob_lo50:+.1f} to {100 * _d.diff_prob_hi50:+.1f}; 89% "
         f"{100 * _d.diff_prob_lo:+.1f} to {100 * _d.diff_prob_hi:+.1f}); "
         f"P(difference > 0) = {_d.prob_diff_pos:.3f}. {_interpretation}"
     )
     print(
         f"\nSecondary logit-coefficient difference: median {_d.diff_logit_median:+.3f} "
-        f"(95% CrI {_d.diff_logit_lo:+.3f} to {_d.diff_logit_hi:+.3f}); "
+        f"(89% CrI {_d.diff_logit_lo:+.3f} to {_d.diff_logit_hi:+.3f}); "
         f"P(difference > 0) = {_d.prob_diff_logit_pos:.3f}."
     )
     if _transfer_read:

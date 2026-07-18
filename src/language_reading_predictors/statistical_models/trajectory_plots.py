@@ -249,15 +249,15 @@ def _thin_columns(n_samples: int, max_draws: int) -> np.ndarray:
 
 
 def _quantile_band(draws: np.ndarray, ci_prob: float) -> dict[str, float]:
-    """Median + 90 % + ``ci_prob`` equal-tailed summary of a 1-D draw vector."""
+    """Median + inner-50 % + ``ci_prob`` (89 %) equal-tailed summary of a draw vector."""
     lo_q = (1 - ci_prob) / 2
     d = np.asarray(draws, dtype=float)
     return {
         "median": float(np.median(d)),
         "lo": float(np.quantile(d, lo_q)),
         "hi": float(np.quantile(d, 1 - lo_q)),
-        "lo90": float(np.quantile(d, 0.05)),
-        "hi90": float(np.quantile(d, 0.95)),
+        "lo50": float(np.quantile(d, 0.25)),
+        "hi50": float(np.quantile(d, 0.75)),
     }
 
 
@@ -343,8 +343,8 @@ def write_group_arm_trajectory(
                     "predicted_median": band["median"],
                     "predicted_lo": band["lo"],
                     "predicted_hi": band["hi"],
-                    "predicted_lo90": band["lo90"],
-                    "predicted_hi90": band["hi90"],
+                    "predicted_lo50": band["lo50"],
+                    "predicted_hi50": band["hi50"],
                     "n_children_in_cell": cell_n.get(key, 0),
                     "n_trials": 1 if off_floor else int(n_trials),
                     "outcome": outcome_symbol,
@@ -679,8 +679,8 @@ def write_outcome_trajectory(
                     "predicted_median": band[t]["median"],
                     "predicted_lo": band[t]["lo"],
                     "predicted_hi": band[t]["hi"],
-                    "predicted_lo90": band[t]["lo90"],
-                    "predicted_hi90": band[t]["hi90"],
+                    "predicted_lo50": band[t]["lo50"],
+                    "predicted_hi50": band[t]["hi50"],
                     "n_trials": n_tr,
                 }
             )

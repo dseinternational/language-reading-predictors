@@ -19,7 +19,7 @@ predictor_associations if predictor_associations is not None else "No predictor 
 
 _How to read the table:_ one row per predictor. The bivariate columns are the
 predictor's standalone link to the outcome; the adjusted columns are the same link
-with the other predictors held fixed. Each estimate carries a 95% credible interval
+with the other predictors held fixed. Each estimate carries an 89% credible interval
 (the range the value plausibly falls in); an interval that stays on one side of zero
 points to a consistent direction.
 
@@ -27,7 +27,7 @@ points to a consistent direction.
 # | echo: false
 # | output: asis
 print(_img("predictor_associations.png", "Adjusted vs bivariate associations"))
-print("\n_How to read the plot:_ one row per baseline predictor. Each row shows two estimates of its standardised association with word-reading gain (per-SD, on the logit scale): the blue circle is the *adjusted* coefficient with the other predictors held constant, the grey square the *bivariate* coefficient on its own; the bars are 94% credible intervals. The dotted line at 0 is no association — markers to its right associate with more gain, to the left with less, and a bar crossing it means the sign is uncertain. When the blue circle sits closer to 0 than the grey square, adjustment has absorbed part of that raw link. Read every marker as an adjusted association, not a causal effect.")
+print("\n_How to read the plot:_ one row per baseline predictor. Each row shows two estimates of its standardised association with word-reading gain (per-SD, on the logit scale): the blue circle is the *adjusted* coefficient with the other predictors held constant, the grey square the *bivariate* coefficient on its own; the bars are 89% credible intervals. The dotted line at 0 is no association — markers to its right associate with more gain, to the left with less, and a bar crossing it means the sign is uncertain. When the blue circle sits closer to 0 than the grey square, adjustment has absorbed part of that raw link. Read every marker as an adjusted association, not a causal effect.")
 ```
 
 ### Natural-Scale Differences
@@ -43,7 +43,7 @@ predicted_gain if predicted_gain is not None else "No predicted-gain table."
 ```
 
 _How to read the table:_ each row translates a predictor's association into a
-difference in words (items), with its 95% credible interval. Read it as "how much
+difference in words (items), with its 89% credible interval. Read it as "how much
 the outcome differs by", an adjusted association on a plain scale — not a caused gain.
 
 ### Sensitivity Checks

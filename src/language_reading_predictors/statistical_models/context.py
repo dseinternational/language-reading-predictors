@@ -208,12 +208,24 @@ def make_context(
     spec: ModelSpec,
     config: str = "dev",
     *,
-    ci_prob: float = 0.95,
+    ci_prob: float = 0.89,
     random_seed: int = 47,
 ) -> StatisticalFitContext:
-    # This suite reports equal-tailed intervals at ``ci_prob`` coverage, with the HPDI
-    # kept as a separate per-scale sensitivity companion (dse_research_utils
-    # intervals.hdi_1d, #170); ``interval_kind="eti"`` records that convention on the
+    # Reported credible-interval standard (2026-07-17,
+    # ``notes/…-credible-interval-standard.md``): the posterior **median** plus an
+    # **inner 50 %** and **outer 89 %** equal-tailed interval, alongside the full
+    # posterior. ``ci_prob=0.89`` is the deliberately non-round outer coverage —
+    # 95 % is an arbitrary convention imported from frequentist NHST, and at this
+    # suite's ESS its 2.5/97.5 % limits are the noisiest quantiles to estimate per
+    # effective draw, whereas 89 % (5.5/94.5 %) is markedly more MCMC-stable (Kruschke
+    # 2021 BARG, doi:10.1038/s41562-021-01177-7: "For reasonably stable estimates of
+    # limits of highest-density intervals (HDIs), I recommend that ESS ≥ 10,000. For
+    # stable estimates of limits of equal-tailed intervals, ESS can be lower."). This
+    # is a per-effective-draw efficiency point, not low attained ESS — the headline
+    # terms reach a Tail-ESS in the low tens of thousands (see the ESS reporting
+    # standard, notes/202607181200-ess-reporting-standard.md). The HPDI is kept as a
+    # separate per-scale sensitivity companion (dse_research_utils intervals.hdi_1d,
+    # #170); ``interval_kind="eti"`` records the equal-tailed convention on the
     # shared ReportingConfiguration so the tables, plots, and diagnostics summary agree.
     # Apply the shared matplotlib house style for every fit path (CLI, notebook,
     # tests, replot) — the CLI also does this via setup.init_script(); idempotent.

@@ -16,7 +16,12 @@ Design (see `factories.build_mediation_model` + `mediation.decompose`, with the
 outcome lagged via `load_and_prepare_lagged_outcome`):
 
 - Mediator M = L_t2 (Beta-Binomial, conditioned on L_t1); outcome Y = W_t4
-  (conditioned on W_t1). Adjustment {G, A, E, R, W_pre, L_t1} — identical to LRP59.
+  (conditioned on W_t1). Adjustment {G, A, E, R, W_pre, L_t1, HS, SP} — now genuinely
+  identical to LRP59: both carry hearing HS (`hs`) and speech SP (`deapp_c`), the
+  exogenous letter-sound → reading confounders under the revised DAG. (`hs`/`deapp_c`
+  added 2026-07-17 — the pre-#259 set was carried forward here by mistake; see
+  `notes/202607172000-adjustment-set-review-full-suite.md`.) Baseline E/R stay in as
+  admissible pre-treatment precision terms (#264).
 - Because the outcome is lagged, the t3-sensitivity sub-fit is skipped (it would
   double-lag).
 
@@ -42,7 +47,10 @@ SPEC = ModelSpec(
     ),
     outcome_symbol="W",
     mechanism_symbol="L",  # the mediator
-    adjustment=["G", "A", "E", "R", "W_pre", "L_t1"],
+    adjustment=[
+        "G", "A", "E", "R", "W_pre", "L_t1",
+        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+    ],
     # Primary outcome taken at t4 (mediator stays at t2): mediator precedes outcome.
     extra={"outcome_time": 4},
 )

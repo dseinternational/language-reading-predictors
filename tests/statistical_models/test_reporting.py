@@ -927,8 +927,13 @@ def test_tau_summary_offfloor_delegates_to_tau_summary_itt():
     tau = np.array([[0.4, 0.6]])
     G = np.array([1.0, 0.0, 1.0])
     trace = _trace(eta, tau)
-    assert tau_summary_offfloor(trace, ci_prob=0.9, G=G) == tau_summary_itt(
-        trace, ci_prob=0.9, G=G
+    # NaN-aware equality: on this degenerate 1-chain / 2-draw synthetic trace the
+    # derived-estimand MC diagnostics (tau_prob_ess_bulk/tail, mcse) are NaN, and
+    # ``nan != nan`` would break a plain dict ``==`` even though delegation holds.
+    # ``np.testing.assert_equal`` recurses into the dict and treats NaN as equal.
+    np.testing.assert_equal(
+        tau_summary_offfloor(trace, ci_prob=0.9, G=G),
+        tau_summary_itt(trace, ci_prob=0.9, G=G),
     )
 
 
@@ -1309,20 +1314,59 @@ def test_eti_bands_nesting_and_quantiles():
     assert b["hi95"] == pytest.approx(float(hi))
 
 
-def test_tau_summary_itt_exposes_50_90_95_bands():
-    # 50% and 90% equal-tailed bands accompany the 95% headline (lo/hi) on both
-    # scales, correctly nested; floored models inherit them via delegation (#177).
+def test_tau_summary_itt_exposes_50_and_89_bands():
+    # The inner 50% equal-tailed band accompanies the 89% headline (lo/hi) on both
+    # scales, correctly nested; floored models inherit them via delegation (#177,
+    # revised 2026-07-17: the 90% sensitivity band was retired).
     rng = np.random.default_rng(5)
     eta = rng.normal(0.0, 1.0, (2, 800, 4))
     tau = rng.normal(0.3, 0.2, (2, 800))
     G = (rng.random(4) > 0.5).astype(float)
-    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.95, G=G)
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.89, G=G)
     for scale in ("tau_logit", "tau_prob"):
-        for k in ("lo50", "hi50", "lo90", "hi90"):
+        for k in ("lo50", "hi50", "lo", "hi"):
             assert f"{scale}_{k}" in out
-        assert out[f"{scale}_lo50"] > out[f"{scale}_lo90"] > out[f"{scale}_lo"]
-        assert out[f"{scale}_hi50"] < out[f"{scale}_hi90"] < out[f"{scale}_hi"]
-    assert "tau_prob_lo90" in tau_summary_offfloor(_trace(eta, tau), ci_prob=0.95, G=G)
+        assert out[f"{scale}_lo50"] > out[f"{scale}_lo"]
+        assert out[f"{scale}_hi50"] < out[f"{scale}_hi"]
+    assert "tau_prob_lo" in tau_summary_offfloor(_trace(eta, tau), ci_prob=0.89, G=G)
+
+
+def test_reporting_ci_prob_is_the_89pct_house_standard():
+    # PR #359: the standalone prior-sensitivity producers and the sensitivity gate
+    # must build their bands at the coverage the reports label (89%). They import one
+    # shared constant; asserting it here means a producer cannot silently drift back
+    # to 0.95 while the report prose says 89% (notes/…-credible-interval-standard.md).
+    from language_reading_predictors.statistical_models.reporting import (
+        REPORTING_CI_PROB,
+    )
+
+    assert REPORTING_CI_PROB == 0.89
+
+
+def test_producers_emit_only_the_median_50_89_band_schema():
+    # PR #359 contract: the band-bearing reporting producers expose the median +
+    # inner 50% + outer 89% (lo/hi) schema and NO retired 90%/95% bands, so a report
+    # consumer that labels a column "89%" can never read a differently-covered number
+    # (the 2026-07-17 migration dropped *_lo90/*_hi90 but left ~60 tests asserting them).
+    rng = np.random.default_rng(9)
+    eta = rng.normal(0.0, 1.0, (2, 400, 5))
+    tau = rng.normal(0.3, 0.2, (2, 400))
+    G = (rng.random(5) > 0.5).astype(float)
+    trace = _trace(eta, tau)
+
+    retired = ("_lo90", "_hi90", "_lo95", "_hi95", "lo90", "hi90", "lo95", "hi95")
+    itt = tau_summary_itt(trace, ci_prob=0.89, G=G)
+    offfloor = tau_summary_offfloor(trace, ci_prob=0.89, G=G)
+    rope = rope_summary(trace, G=G, n_trials=20, delta=1.0, ci_prob=0.89)
+    for producer in (itt, offfloor, rope):
+        assert not [k for k in producer if any(k.endswith(s) for s in retired)], (
+            "producer still emits a retired 90%/95% band column: "
+            f"{[k for k in producer if any(k.endswith(s) for s in retired)]}"
+        )
+    # The median + inner 50% + outer 89% headline columns are present on both scales.
+    for scale in ("tau_logit", "tau_prob"):
+        for suffix in ("median", "lo50", "hi50", "lo", "hi"):
+            assert f"{scale}_{suffix}" in itt
 
 
 def test_rope_markdown_labels_central_50_interval():
@@ -1334,10 +1378,10 @@ def test_rope_markdown_labels_central_50_interval():
     eta = rng.normal(0.0, 1.0, (2, 500, 6))
     tau = rng.normal(0.4, 0.2, (2, 500))
     G = (rng.random(6) > 0.5).astype(float)
-    rc = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.95)
+    rc = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.89)
     md = rope_markdown(pd.DataFrame([rc]), "word reading")
     assert "central 50% interval" in md
-    assert "equal-tailed 95% credible interval" in md
+    assert "equal-tailed 89% credible interval" in md
     assert "50% CrI" not in md
 
 

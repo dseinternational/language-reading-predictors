@@ -30,7 +30,7 @@ def _coef_table(coef: str):
         return None
     d["measure"] = d["outcome"].map(_label)
     cols = [
-        "measure", "median", "lo50", "hi50", "lo95", "hi95",
+        "measure", "median", "lo50", "hi50", "lo89", "hi89",
         "prob_positive", "favoured_direction_label",
     ]
     out = d[cols].rename(
@@ -47,12 +47,12 @@ def _coef_table(coef: str):
 
 Coefficient on +1 SD of block design applied to each measure's logit growth
 slope. Direction is read from `P(>0)` per the evidence-language policy (#179); at
-n≈54 the 95% intervals are wide, so these are directional statements, not decisive
+n≈54 the 89% intervals are wide, so these are directional statements, not decisive
 effects.
 
 _How to read the table:_ one row per measure. `median (logit)` is the central
 estimate of the association on the logit (log-odds) scale; `lo50`/`hi50` and
-`lo95`/`hi95` are the inner-50% and 95% credible ranges around it. `P(>0)` is the
+`lo89`/`hi89` are the inner-50% and 89% credible ranges around it. `P(>0)` is the
 posterior probability the association is positive (higher ability → faster growth),
 and `evidence` is the plain-language strength label for that direction.
 
@@ -65,10 +65,10 @@ _coef_table("gamma")
 # | echo: false
 # | output: asis
 print(_img("gamma_forest.png",
-           "Baseline non-verbal ability → growth rate, by measure (50% + 95% ETI)"))
+           "Baseline non-verbal ability → growth rate, by measure (50% + 89% ETI)"))
 print(
     "\n_How to read the forest plot:_ the marker is the posterior median and the "
-    "lines its credible intervals (thick = inner 50%, thin = 95%). The dashed line "
+    "lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line "
     "at 0 is no-effect; posterior mass to its right favours benefit, to its left "
     "harm; a wider line means more uncertainty. Here each row is one measure and the "
     "effect is the association of +1 SD of baseline non-verbal ability with that "
@@ -114,7 +114,7 @@ if _has("group_trajectory.png"):
     print(_img("group_trajectory.png", "Per-measure cohort score trajectory across waves (model mean with credible ribbon, observed means)"))
     print(
         "\n_How to read it:_ one panel per measure. The line is the model's posterior **mean** score "
-        "across the cohort at each wave (with its 95% credible ribbon); the dots are the observed "
+        "across the cohort at each wave (with its 89% credible ribbon); the dots are the observed "
         "per-wave means. This is a **population-level** curve, marginal over children (averaged over the "
         "cohort's fitted trajectories) — **there is no arm split**: this growth model characterises "
         "trajectory shape and treats intervention exposure as a latent developmental tempo, not an "
@@ -161,7 +161,7 @@ if _load is not None and _tempo is not None and len(_tempo):
         f"\n**Does baseline non-verbal ability predict the common tempo?** "
         f"Per-draw correlation between each child's latent growth tempo and their "
         f"standardised block-design score: median {_t['median']:+.3f} "
-        f"(95% interval {_t['lo']:+.3f} to {_t['hi']:+.3f}); "
+        f"(89% interval {_t['lo']:+.3f} to {_t['hi']:+.3f}); "
         f"P(>0) = {_t['prob_pos']:.3f}. The tempo factor is independent a priori "
         f"but the posterior can still correlate G and blocks through the likelihood; "
         f"this is a descriptive post-hoc read-out."
@@ -191,7 +191,7 @@ if _has("child_fit_panels.png"):
     print(
         "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
         "child's observed scores on a focal measure (named in the figure title) across the four waves; "
-        "the green band is the model's posterior-predictive 95% interval **for that same child**, built "
+        "the green band is the model's posterior-predictive 89% interval **for that same child**, built "
         "from the child's fitted growth trajectory (a *same-children* display, distinct from the cohort "
         "trajectory above). To keep one figure, only the focal measure is drawn; the others behave "
         "analogously. Panels flagged with a high Pareto-k are the worst-fitting children (aggregated "

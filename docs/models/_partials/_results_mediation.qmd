@@ -27,8 +27,8 @@ def _mediation_display(summary):
         "prob_mean",
         "prob_lo",
         "prob_hi",
-        "prob_lo90",
-        "prob_hi90",
+        "prob_lo50",
+        "prob_hi50",
     ]
     effect_rows = summary["quantity"] != "proportion_mediated"
     display = summary.loc[
@@ -84,29 +84,29 @@ if mediation_summary is not None:
         if _off:
             _scale = 100.0
             _unit = "percentage points"
-            _fields = ("prob_median", "prob_lo90", "prob_hi90", "prob_lo", "prob_hi")
+            _fields = ("prob_median", "prob_lo50", "prob_hi50", "prob_lo", "prob_hi")
         else:
             _scale = 1.0
             _unit = "items"
-            _fields = ("words_median", "words_lo90", "words_hi90", "words_lo", "words_hi")
-        _tm, _tl90, _th90, _tl, _th = (_tot[f] * _scale for f in _fields)
-        _im, _il90, _ih90, _il, _ih = (_ind[f] * _scale for f in _fields)
+            _fields = ("words_median", "words_lo50", "words_hi50", "words_lo", "words_hi")
+        _tm, _tl50, _th50, _tl, _th = (_tot[f] * _scale for f in _fields)
+        _im, _il50, _ih50, _il, _ih = (_ind[f] * _scale for f in _fields)
         print(
             f"**Total effect:** {_tm:+.1f} {_unit} "
-            f"(90% CrI {_tl90:+.1f} to {_th90:+.1f}; "
-            f"95% {_tl:+.1f} to {_th:+.1f}); "
+            f"(50% CrI {_tl50:+.1f} to {_th50:+.1f}; "
+            f"89% {_tl:+.1f} to {_th:+.1f}); "
             f"P(> 0) = {_tot.prob_pos:.3f}.\n\n"
             f"**Indirect path (`{_indirect_name}`):** {_im:+.1f} {_unit} "
-            f"(90% CrI {_il90:+.1f} to {_ih90:+.1f}; "
-            f"95% {_il:+.1f} to {_ih:+.1f}); "
+            f"(50% CrI {_il50:+.1f} to {_ih50:+.1f}; "
+            f"89% {_il:+.1f} to {_ih:+.1f}); "
             f"P(> 0) = {_ind.prob_pos:.3f}."
         )
     if "proportion_mediated" in _m.index:
         _p = _m.loc["proportion_mediated"]
         print(
             f"\n\n**Proportion mediated/share:** median {_p.prob_median:.2f} "
-            f"(90% CrI {_p.prob_lo90:.2f} to {_p.prob_hi90:.2f}; "
-            f"95% {_p.prob_lo:.2f} to {_p.prob_hi:.2f}). This ratio is "
+            f"(50% CrI {_p.prob_lo50:.2f} to {_p.prob_hi50:.2f}; "
+            f"89% {_p.prob_lo:.2f} to {_p.prob_hi:.2f}). This ratio is "
             "unstable when the total effect can cross zero; lead with Total, "
             f"{_direct_name}, and {_indirect_name} intervals."
         )
@@ -216,11 +216,11 @@ if _is_cal is not None:
                 f"| Fitted `IS → L` slope (standardised calibration scale) | {_c.fitted_mediator_dose_slope:+.2f} |\n"
                 f"| Fitted/observed `IS → outcome` slope (outcome logit) | {_c.fitted_outcome_dose_slope:+.2f} |\n"
                 f"| IS point on the δ surface | {_c.delta_is_point:.2f} |\n"
-                f"| 90% endpoint scenario band | {_c.delta_is_scenario_lo90:.2f} to {_c.delta_is_scenario_hi90:.2f} |\n"
+                f"| 89% endpoint scenario band | {_c.delta_is_scenario_lo:.2f} to {_c.delta_is_scenario_hi:.2f} |\n"
                 f"| NIE tipping δ* | {_tip} |\n"
                 f"| NIE at the IS point ({_c.response_scale}) | {_c.nie_response_at_is:+.2f} ({_c.nie_response_lo_at_is:+.2f} to {_c.nie_response_hi_at_is:+.2f}) |\n"
             )
-            print("This is a **scenario calibration, not an adjustment for sessions and not an identified causal effect**. It uses the single-omitted-variable approximation $\\delta_{IS} \\approx |\\beta_{IS\\to L}\\,\\beta_{IS\\to Y}|$ after putting both dose associations on the mediation sample's one-standard-deviation session scale. The band is the envelope of separate 90% marginal slope endpoints plus the observed-data cross-check; it is not a joint credible interval, and treating the whole `IS → outcome` association as confounding may overstate bias because that association can include a genuine `IS → L → outcome` path.\n")
+            print("This is a **scenario calibration, not an adjustment for sessions and not an identified causal effect**. It uses the single-omitted-variable approximation $\\delta_{IS} \\approx |\\beta_{IS\\to L}\\,\\beta_{IS\\to Y}|$ after putting both dose associations on the mediation sample's one-standard-deviation session scale. The band is the envelope of separate 89% marginal slope endpoints plus the observed-data cross-check; it is not a joint credible interval, and treating the whole `IS → outcome` association as confounding may overstate bias because that association can include a genuine `IS → L → outcome` path.\n")
             if str(_c.get("off_floor", "")).strip().lower() in {"true", "1"}:
                 print("For the off-floor outcome, δ is necessarily calibrated as a shift in the Bernoulli outcome's **log-odds coefficient**; there is no constant conversion from log odds to a risk difference. The sensitivity sweep instead re-runs the Bernoulli g-formula at that δ and the table reports the resulting NIE on the **off-floor risk-difference** scale.\n")
     elif "conclusion" in _is_cal.columns:

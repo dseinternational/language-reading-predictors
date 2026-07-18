@@ -18,6 +18,11 @@ proper priors part of any ELPD difference would then be attributable to the
 different effective prior on the B main effect, not the interaction (issue #270
 item 3). Keeping `moderator_symbol="B"` in both removes that leak. See
 `lrp-rli-mech-072.py`.
+
+As in LRP72, B = PA is a DAG-descendant of the exposure L (``LS -> PA``), so
+conditioning on B makes ``beta_mech`` a controlled-direct (not total) L -> N effect;
+this baseline shares that estimand, so the nested LOO comparison is like-for-like.
+See ``notes/202607172000-adjustment-set-review-full-suite.md``.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

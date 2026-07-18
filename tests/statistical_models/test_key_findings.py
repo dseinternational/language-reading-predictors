@@ -270,7 +270,7 @@ def test_itt_golden_sentences(tmp_path):
     assert texts[0] == (
         "Best estimate: the intervention changed Word reading (EWRSWR) by "
         "**+2.4 items** over the trial period "
-        "(95% credible range -0.3 to +5.9)."
+        "(89% credible range -0.3 to +5.9)."
     )
     assert texts[1] == (
         "There is a 94% probability that the true effect is positive — moderate "
@@ -573,6 +573,7 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             {
                 "domain_i": "vocabulary",
                 "domain_j": "code",
+                "median": 0.62,
                 "mean": 0.62,
                 "lo": 0.18,
                 "hi": 0.88,
@@ -598,6 +599,7 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             "coupling_summary.csv",
             {
                 "coefficient": "g_L (prior L -> W change)",
+                "median": 0.31,
                 "mean": 0.31,
                 "lo": 0.02,
                 "hi": 0.61,
@@ -613,9 +615,10 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
                 "rank": 1,
                 "predictor": "letter_sounds",
                 "p_abs_gt_delta": 0.93,
+                "beta_median": 0.42,
                 "beta_mean": 0.42,
-                "beta_hdi_3": 0.04,
-                "beta_hdi_97": 0.80,
+                "beta_hdi_lo": 0.04,
+                "beta_hdi_hi": 0.80,
             },
         )
         return d, "top-ranked predictor"
@@ -627,8 +630,8 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
                 "coefficient": "gamma",
                 "outcome": "W",
                 "median": 0.18,
-                "lo95": -0.03,
-                "hi95": 0.40,
+                "lo89": -0.03,
+                "hi89": 0.40,
                 "prob_positive": 0.94,
             },
         )
@@ -643,6 +646,7 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
                     "measure_j": "bpvs",
                     "label_i": "BAS word reading",
                     "label_j": "BPVS receptive vocabulary",
+                    "median": 0.62,
                     "mean": 0.62,
                     "lo": 0.31,
                     "hi": 0.83,
@@ -661,8 +665,9 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
                     "label": "Wave 1 to wave 3",
                     "readgrp_label": "readers",
                     "mean": 7.2,
-                    "q2_5": 4.0,
-                    "q97_5": 10.5,
+                    "q_lo": 4.0,
+                    "q50": 7.2,
+                    "q_hi": 10.5,
                     "p_gt_0": 0.999,
                 }
             ],
@@ -773,6 +778,7 @@ def test_corr_factor_structural_only_keeps_three_sentence_contract(tmp_path):
         "structural_summary.csv",
         {
             "coefficient": "beta_code_to_reading",
+            "median": 0.37,
             "mean": 0.37,
             "lo": -0.05,
             "hi": 0.79,

@@ -218,8 +218,8 @@ def mechanism_items_curve(
             "outcome_mean": y.mean(axis=1),
             "outcome_lo": np.quantile(y, lo_q, axis=1),
             "outcome_hi": np.quantile(y, hi_q, axis=1),
-            "outcome_lo90": np.quantile(y, 0.05, axis=1),
-            "outcome_hi90": np.quantile(y, 0.95, axis=1),
+            "outcome_lo50": np.quantile(y, 0.25, axis=1),
+            "outcome_hi50": np.quantile(y, 0.75, axis=1),
         }
     )
 
@@ -247,8 +247,8 @@ def mechanism_items_curve(
         "outcome_difference_median": float(np.median(diff)),
         "outcome_difference_lo": float(np.quantile(diff, lo_q)),
         "outcome_difference_hi": float(np.quantile(diff, hi_q)),
-        "outcome_difference_lo90": float(np.quantile(diff, 0.05)),
-        "outcome_difference_hi90": float(np.quantile(diff, 0.95)),
+        "outcome_difference_lo50": float(np.quantile(diff, 0.25)),
+        "outcome_difference_hi50": float(np.quantile(diff, 0.75)),
         "ci_prob": float(ci_prob),
     }
     return curve_df, worked

@@ -30,9 +30,17 @@ Design choices:
   of L (group via beta_G, age, hearing, sessions, speech; #245) plus baseline
   decoding (autoregressive). **Word reading `W` is deliberately excluded**: it is a
   sibling/descendant of decoding, so conditioning on it is over-control / a
-  collider risk (same error class as the celf/LRP70 issue). L and B are treated as
-  parallel prerequisites; the interaction estimand does not require resolving
-  whether L precedes B. Documented in the report.
+  collider risk (same error class as the celf/LRP70 issue).
+- **The moderator B is a DAG-descendant of the exposure L.** Under the committed DAG
+  ``LS -> PA``, so B = PA is a descendant of L and a mediator of the L -> N effect
+  (``LS -> PA -> NW``). Conditioning on B (the ``gamma_mod . z(B)`` main effect)
+  therefore makes ``beta_mech`` a **controlled-direct** effect of letter sounds at
+  fixed blending, not the total L -> N effect, and ``gamma_int`` is effect-modification
+  by a downstream skill — not a symmetric "you need both, and each is worth more with
+  the other" total-effect test. Read the estimand that way. The dual-route / parallel-
+  prerequisites language above is the substantive motivation, not a claim that L and B
+  are causally unordered — the DAG orders them ``LS -> PA``. Flagged in the full-suite
+  adjustment-set review (``notes/202607172000-adjustment-set-review-full-suite.md``).
 
 Data caveat: `nonword` is 57% floored (median 0) but informative and moving
 (28% -> 60% of children decode >=1 nonword across t1..t4); predictors (L, B) are

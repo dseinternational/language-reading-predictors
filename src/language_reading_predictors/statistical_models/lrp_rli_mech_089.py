@@ -20,14 +20,23 @@ parents of TE are {A, GA, HS, IG, IS, RW, SP, TR}, so:
   blocks TE <- SP -> {EV LS PA NW} -> W.
 - RW: phonological memory (erbto / erbto_missing) - covariate adjuster; blocks
   TE <- RW -> {TR RV EV PA NW} -> W.
+- IS: intervention sessions (attend) - covariate adjuster (see the note below);
+  blocks the TE <- IS -> WR backdoor.
 
-**Open backdoor, flagged and deliberately not adjusted: intervention sessions
-(IS).** ``IS -> TE`` and ``IS -> WR`` make session dose a common cause, but IS is
-treatment-affected (``IG -> IS``): conditioning on it would insert a post-treatment
-collider between the randomised arm and latent ability (``IG -> IS <- GA -> W``).
-Per the family precedent (#269) and the signed-off #309 handling, the primary model
-leaves IS unadjusted and the report names shared session dose as a plausible
-inflator of the slope; a dose-adjusted sensitivity companion is deferred.
+**Intervention sessions (IS) are now adjusted (revised 2026-07-17, reversing #309).**
+``IS -> TE`` and ``IS -> WR`` make session dose a genuine common cause, so omitting it
+leaves the ``TE <- IS -> WR`` backdoor open. IS is also treatment-affected (``IG ->
+IS``) and a collider (``IG -> IS <- GA``); an earlier handling (#309) left it unadjusted
+for fear of opening the ``IG -> IS <- GA -> W`` collider path. A formal d-separation
+check (``notes/202607171700-mech-intervention-sessions-adjustment-collider-review.md``)
+shows that concern does not bite here: the collider path runs through the randomised arm
+``IG`` as a *fork*, and the model always conditions on the arm (``beta_G``), which closes
+the path at ``IG``. So conditioning on IS removes real confounding and opens no new
+observable bias - with GA held hypothetically, {G, A, HS, IS, RW, SP, TR} d-separates TE
+from WR in the backdoor graph, whereas without IS it does not. This aligns LRP89 with
+LRP58 (L -> W), which already adjusts IS. The #269/#309 collider rule still governs the
+dose-response and ITT/DiD families, where the arm or dose is the *exposure* (not a
+conditioned covariate).
 
 EV, EG and EI are *descendants* of TE (``TE -> EV``, ``TE -> EG``, ``TE -> EI``);
 conditioning on them would block legitimate indirect paths (e.g.
@@ -58,8 +67,12 @@ SPEC = ModelSpec(
         # score (not baseline); the complete-case mask is W + TE + TR.
         "outcomes": ("W", "TE", "TR"),
         "adjust_baseline_symbol": "W",
+        # attend (IS) added 2026-07-17 (reversing #309): IS -> TE and IS -> WR make it
+        # a genuine confounder; the IG -> IS <- GA collider path it could open is
+        # closed at the always-conditioned arm G. See the review note in notes/.
         "adjust_for": (
-            "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
+            "hs", "hs_missing", "attend", "erbto", "erbto_missing",
+            "deapp_c", "deapp_c_missing",
         ),
         "use_age_gp": False,
         "phase_specific_mechanism": False,

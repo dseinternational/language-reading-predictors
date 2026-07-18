@@ -17,17 +17,25 @@ parents of TR are {A, GA, HS, IG, IS, RW}, so:
   TR <- HS -> {RV TE EV SP RW PA LS} -> W route at its root.
 - RW: phonological memory (erbto / erbto_missing) - covariate adjuster; blocks
   TR <- RW -> {TE RV EV PA NW} -> W.
+- IS: intervention sessions (attend) - covariate adjuster (see the note below);
+  blocks the TR <- IS -> WR backdoor.
 - TR has no measured skill parent under the revised DAG, so no concurrent measure
   confounder enters (unlike LRP57/LRP89, where TR itself is one).
 
-**Open backdoor, flagged and deliberately not adjusted: intervention sessions
-(IS).** ``IS -> TR`` and ``IS -> WR`` make session dose a genuine common cause of
-exposure and outcome, but IS is treatment-affected (``IG -> IS``): conditioning on
-it would insert a post-treatment collider between the randomised arm and latent
-ability (``IG -> IS <- GA -> W``). Per the family precedent (no mechanism model
-adjusts IS; #269) and the signed-off #309 handling of the same structure, the
-primary model leaves IS unadjusted and the report names shared session dose as a
-plausible inflator of the slope; a dose-adjusted sensitivity companion is deferred.
+**Intervention sessions (IS) are now adjusted (revised 2026-07-17, reversing #309).**
+``IS -> TR`` and ``IS -> WR`` make session dose a genuine common cause, so omitting it
+leaves the ``TR <- IS -> WR`` backdoor open. IS is also treatment-affected (``IG ->
+IS``) and a collider (``IG -> IS <- GA``); an earlier handling (#309) left it unadjusted
+for fear of opening the ``IG -> IS <- GA -> W`` collider path. A formal d-separation
+check (``notes/202607171700-mech-intervention-sessions-adjustment-collider-review.md``)
+shows that concern does not bite here: the collider path runs through the randomised arm
+``IG`` as a *fork*, and the model always conditions on the arm (``beta_G``), which closes
+the path at ``IG``. So conditioning on IS removes real confounding and opens no new
+observable bias - with GA held hypothetically, {G, A, HS, IS, RW} d-separates TR from WR
+in the backdoor graph, whereas without IS it does not. This aligns LRP88 with LRP58
+(L -> W), which already adjusts IS. The #269/#309 collider rule still governs the
+dose-response and ITT/DiD families, where the arm or dose is the *exposure* (not a
+conditioned covariate).
 
 TE and RV (and their descendants) are *descendants* of TR (``TR -> TE``,
 ``TR -> RV``) that also affect W: conditioning on them would block legitimate
@@ -63,7 +71,10 @@ SPEC = ModelSpec(
         # the complete-case mask is W + TR only.
         "outcomes": ("W", "TR"),
         "adjust_baseline_symbol": "W",
-        "adjust_for": ("hs", "hs_missing", "erbto", "erbto_missing"),
+        # attend (IS) added 2026-07-17 (reversing #309): IS -> TR and IS -> WR make it
+        # a genuine confounder; the IG -> IS <- GA collider path it could open is
+        # closed at the always-conditioned arm G. See the review note in notes/.
+        "adjust_for": ("hs", "hs_missing", "attend", "erbto", "erbto_missing"),
         "use_age_gp": False,
         "phase_specific_mechanism": False,
         "use_subject_random_intercept": True,

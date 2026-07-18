@@ -429,6 +429,7 @@ def _fit_floor_one(
     """Fit and persist one cell of the floored-outcome release grid."""
     from language_reading_predictors.statistical_models import diagnostics as _diag
     from language_reading_predictors.statistical_models.reporting import (
+        REPORTING_CI_PROB,
         rope_summary,
         tau_summary_offfloor,
     )
@@ -465,7 +466,7 @@ def _fit_floor_one(
     )
     summary = tau_summary_offfloor(
         trace,
-        ci_prob=0.95,
+        ci_prob=REPORTING_CI_PROB,
         G=built.prepared.G,
     )
     magnitude = rope_summary(
@@ -473,7 +474,7 @@ def _fit_floor_one(
         G=built.prepared.G,
         n_trials=1,
         delta=0.10,
-        ci_prob=0.95,
+        ci_prob=REPORTING_CI_PROB,
         varying_term="",
     )
 
@@ -513,8 +514,6 @@ def _fit_floor_one(
         "risk_difference_mean": summary["tau_prob_mean"],
         "risk_difference_lo50": summary["tau_prob_lo50"],
         "risk_difference_hi50": summary["tau_prob_hi50"],
-        "risk_difference_lo90": summary["tau_prob_lo90"],
-        "risk_difference_hi90": summary["tau_prob_hi90"],
         "risk_difference_lo": summary["tau_prob_lo"],
         "risk_difference_hi": summary["tau_prob_hi"],
         "risk_difference_hpdi_lo": summary["tau_prob_hpdi_lo"],
@@ -683,7 +682,10 @@ def _fit_one(
     sensitivity_axis: str = "tau_sigma",
 ) -> dict:
     from language_reading_predictors.statistical_models import diagnostics as _diag
-    from language_reading_predictors.statistical_models.reporting import tau_summary_itt
+    from language_reading_predictors.statistical_models.reporting import (
+        REPORTING_CI_PROB,
+        tau_summary_itt,
+    )
 
     _assert_primary_sampling_contract(
         sampling,
@@ -712,7 +714,7 @@ def _fit_one(
             random_seed=sampling.random_seed,
             progressbar=False,
         )
-    s = tau_summary_itt(trace, ci_prob=0.95, G=built.prepared.G)
+    s = tau_summary_itt(trace, ci_prob=REPORTING_CI_PROB, G=built.prepared.G)
     n_trials = MEASURES[symbol].n_trials
     tau_draws = trace.posterior["tau"].stack(sample=("chain", "draw")).values
     kappa_draws = (

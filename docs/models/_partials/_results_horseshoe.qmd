@@ -30,8 +30,8 @@ squashed toward zero (small = treated as noise, large = it escaped and stands ou
 
 - `p_abs_gt_delta`: posterior `P(|beta| > delta)` with `delta` on the logit /
   per-SD scale — the ranking key (the horseshoe analogue of permutation importance).
-- `beta_mean` / `beta_sd` / `beta_hdi_3` / `beta_hdi_97`: the standardised
-  coefficient's posterior mean, SD and 94% HDI.
+- `beta_mean` / `beta_sd` / `beta_hdi_lo` / `beta_hdi_hi`: the standardised
+  coefficient's posterior mean, SD and 89% HDI.
 - `lambda_mean`: mean local shrinkage — small means the predictor was shrunk
   toward zero (noise-like); large means it escaped the global pull.
 - `sign`: posterior-mean direction of the association.

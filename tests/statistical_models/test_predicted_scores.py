@@ -363,7 +363,7 @@ def test_table_schema_graded_and_binary():
         "average_marginal_effect",
     ]
     assert set(graded.columns) >= {
-        "outcome", "quantity", "scale", "median", "lo", "hi", "lo90", "hi90",
+        "outcome", "quantity", "scale", "median", "lo", "hi", "lo50", "hi50",
         "n_trials", "population", "contrast_status",
     }
 

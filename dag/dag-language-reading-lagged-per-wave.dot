@@ -152,7 +152,8 @@ digraph COPYPASTE {
   "WR_1" -> "TR_2" [color="#d6006e", style=dashed, penwidth=2.3, constraint=false];
   "WR_1" -> "PA_2" [color="#d6006e", style=dashed, penwidth=2.3, constraint=false];
   "WR_1" -> "RW_2" [color="#d6006e", style=dashed, penwidth=2.3, constraint=false];
+  "WR_1" -> "LS_2" [color="#d6006e", style=dashed, penwidth=2.3, constraint=false];  // added 2026-07-17: reading -> letter sounds (WR->LS direction test, LRP176/276)
   NOTE [shape=note, fillcolor="#f7f7f9", color="#6b7280", fontsize=10, style="filled,dashed",
-    label="Within each wave: the full base cascade (SP→LS→PA→NW→WR, RV→EV…).\nAcross waves: grey = carry-over (same skill next wave); dashed pink = reverse (WR → TE, TR, PA, RW).\nOmitted: intervention (IG/IS), hearing (HS), age (A), ability (GA) feed the skills each wave."];
+    label="Within each wave: the full base cascade (SP→LS→PA→NW→WR, RV→EV…).\nAcross waves: grey = carry-over (same skill next wave); dashed pink = reverse (WR → TE, TR, PA, RW, LS).\nOmitted: intervention (IG/IS), hearing (HS), age (A), ability (GA) feed the skills each wave."];
   {rank=source; "NOTE";}
 }

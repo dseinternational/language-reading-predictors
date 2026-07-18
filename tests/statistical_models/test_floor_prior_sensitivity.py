@@ -112,8 +112,6 @@ def _complete_grid(symbol: str = "P") -> pd.DataFrame:
                     "risk_difference_mean": 0.02 + tau_sigma / 100,
                     "risk_difference_lo50": -0.02,
                     "risk_difference_hi50": 0.08,
-                    "risk_difference_lo90": -0.08,
-                    "risk_difference_hi90": 0.16,
                     "risk_difference_lo": -0.10,
                     "risk_difference_hi": 0.20,
                     "risk_difference_hpdi_lo": -0.11,
@@ -323,13 +321,13 @@ def _materialise_grid(
             )
             assert convergence["converged"] is True
             G = np.asarray(trace.constant_data["G"].values, dtype=float)
-            summary = tau_summary_offfloor(trace, ci_prob=0.95, G=G)
+            summary = tau_summary_offfloor(trace, ci_prob=0.89, G=G)
             magnitude = rope_summary(
                 trace,
                 G=G,
                 n_trials=1,
                 delta=0.10,
-                ci_prob=0.95,
+                ci_prob=0.89,
                 varying_term="",
             )
         finally:
@@ -344,8 +342,6 @@ def _materialise_grid(
             "risk_difference_mean": summary["tau_prob_mean"],
             "risk_difference_lo50": summary["tau_prob_lo50"],
             "risk_difference_hi50": summary["tau_prob_hi50"],
-            "risk_difference_lo90": summary["tau_prob_lo90"],
-            "risk_difference_hi90": summary["tau_prob_hi90"],
             "risk_difference_lo": summary["tau_prob_lo"],
             "risk_difference_hi": summary["tau_prob_hi"],
             "risk_difference_hpdi_lo": summary["tau_prob_hpdi_lo"],
@@ -879,8 +875,6 @@ def test_floor_sensitivity_gate_rejects_outcome_model_mismatch(tmp_path: Path):
         ("risk_difference_mean", -1.01),
         ("risk_difference_lo50", -1.01),
         ("risk_difference_hi50", 1.01),
-        ("risk_difference_lo90", -1.01),
-        ("risk_difference_hi90", 1.01),
         ("risk_difference_lo", -1.01),
         ("risk_difference_hi", 1.01),
         ("risk_difference_hpdi_lo", -1.01),

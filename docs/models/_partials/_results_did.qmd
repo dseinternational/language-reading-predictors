@@ -14,7 +14,7 @@ The waitlist-crossover model is a longitudinal sensitivity analysis alongside th
 The binary-treatment models jointly use the t1, t2 and t3 levels and do not condition on each period's start outcome. The t2 score is already treatment-affected for the immediate arm when it becomes the P2 baseline, so including a common period-start `gamma_own` term would condition one arm on an intervention-induced intermediate. The child random intercept partially pools stable between-child differences; it does not perform exact fixed-effect differencing or make every child their own control. The dose variants use the pre-randomisation t1 outcome as one common precision covariate for both transition rows, never the treatment-affected t2 outcome.
 :::
 
-_How to read the contrast table:_ each row is one estimated quantity. The posterior `median` is the house point estimate; `lo`/`hi` bracket the 95% credible interval; and `prob_*_pos` is the posterior probability that the stated contrast is positive. Item-scale columns standardise each wave-specific contrast over the documented fitted rows. For a heavily floored outcome (`P`, `N`), the translated quantity is an off-floor risk difference: a difference in the probability of **being** off floor at that wave. It is off-floor prevalence, not the probability of coming off the floor.
+_How to read the contrast table:_ each row is one estimated quantity. The posterior `median` is the house point estimate; `lo`/`hi` bracket the 89% credible interval; and `prob_*_pos` is the posterior probability that the stated contrast is positive. Item-scale columns standardise each wave-specific contrast over the documented fitted rows. For a heavily floored outcome (`P`, `N`), the translated quantity is an off-floor risk difference: a difference in the probability of **being** off floor at that wave. It is off-floor prevalence, not the probability of coming off the floor.
 
 ```{python}
 # | echo: false
@@ -47,15 +47,15 @@ if did_summary is not None:
             _digits = 3 if _off else 1
             _items = (
                 f", standardized **{_d[f'{_term}_items_median']:+.{_digits}f} {_unit}** "
-                f"(95% CrI {_d[f'{_term}_items_lo']:+.{_digits}f} to "
+                f"(89% CrI {_d[f'{_term}_items_lo']:+.{_digits}f} to "
                 f"{_d[f'{_term}_items_hi']:+.{_digits}f})"
             )
         _p = _d[f"prob_{_term}_pos"]
         print(
             f"**{_labels[_term]}:** median {_d[f'{_term}_median']:+.3f} "
             f"on the {'off-floor log-odds' if _off else 'logit'} scale "
-            f"(90% CrI {_d[f'{_term}_lo90']:+.3f} to {_d[f'{_term}_hi90']:+.3f}; "
-            f"95% {_d[f'{_term}_lo']:+.3f} to {_d[f'{_term}_hi']:+.3f}); "
+            f"(50% CrI {_d[f'{_term}_lo50']:+.3f} to {_d[f'{_term}_hi50']:+.3f}; "
+            f"89% {_d[f'{_term}_lo']:+.3f} to {_d[f'{_term}_hi']:+.3f}); "
             f"P({_term} > 0) = {_p:.3f} ({_odds(_p)}){_items}."
         )
 
@@ -66,7 +66,7 @@ if did_summary is not None:
             print(
                 "**Exploratory heterogeneous catch-up:** the sample-average child-specific "
                 f"contrast is {_d.delta_crossover_sample_average_median:+.3f} logit units "
-                f"(95% CrI {_d.delta_crossover_sample_average_lo:+.3f} to "
+                f"(89% CrI {_d.delta_crossover_sample_average_lo:+.3f} to "
                 f"{_d.delta_crossover_sample_average_hi:+.3f}). This is not an individual "
                 "causal-effect average."
             )
@@ -84,7 +84,7 @@ if did_summary is not None:
             _p = _d[f"prob_{_term}_pos"]
             print(
                 f"**{_label}:** median {_d[f'{_term}_median']:+.3f} logit units "
-                f"(95% CrI {_d[f'{_term}_lo']:+.3f} to {_d[f'{_term}_hi']:+.3f}); "
+                f"(89% CrI {_d[f'{_term}_lo']:+.3f} to {_d[f'{_term}_hi']:+.3f}); "
                 f"P(> 0) = {_p:.3f}. This coefficient is not a randomised treatment effect."
             )
 
@@ -92,15 +92,15 @@ if did_summary is not None:
         print(
             f"**Session-dose association (`beta_dose`):** median "
             f"{_d.beta_dose_median:+.3f} logit units per 1 SD sessions "
-            f"(90% CrI {_d.beta_dose_lo90:+.3f} to {_d.beta_dose_hi90:+.3f}; "
-            f"95% {_d.beta_dose_lo:+.3f} to {_d.beta_dose_hi:+.3f}); "
+            f"(50% CrI {_d.beta_dose_lo50:+.3f} to {_d.beta_dose_hi50:+.3f}; "
+            f"89% {_d.beta_dose_lo:+.3f} to {_d.beta_dose_hi:+.3f}); "
             f"P(> 0) = {_d.prob_beta_dose_pos:.3f}."
         )
 if dose_slope_summary is not None:
     _main = dose_slope_summary.iloc[0]
     print(
         f"**Dose slope headline (`{_main.term}`):** mean {_main['mean']:+.3f} "
-        f"(95% CrI {_main.lo:+.3f} to {_main.hi:+.3f}); "
+        f"(89% CrI {_main.lo:+.3f} to {_main.hi:+.3f}); "
         f"P(> 0) = {_main.p_pos:.3f}."
     )
 ```
@@ -163,7 +163,7 @@ if _has("group_trajectory.png"):
     print(_img("group_trajectory.png", "Per-arm score trajectory across t1–t3, with credible ribbons and observed arm means"))
     print(
         f"\n_How to read it:_ each line is the model's posterior **mean** score on {outcome_label} for "
-        "one randomised arm across the waves, with its 95% credible ribbon; filled dots are the observed "
+        "one randomised arm across the waves, with its 89% credible ribbon; filled dots are the observed "
         "per-arm means. This is the headline crossover picture: the immediate arm pulls ahead at t2 and "
         "the wait-list arm catches up once it too receives the intervention. The curve is "
         "**population-level** — the child random intercept is integrated over its distribution and "
@@ -186,9 +186,9 @@ if _has("child_fit_panels.png"):
         else f"child's observed {outcome_label} scores across waves"
     )
     _band = (
-        "the model's posterior 95% credible interval for **that same child's** probability of being off the floor"
+        "the model's posterior 89% credible interval for **that same child's** probability of being off the floor"
         if _off
-        else "the model's posterior-predictive 95% interval for **that same child's** score"
+        else "the model's posterior-predictive 89% interval for **that same child's** score"
     )
     print("### Per-child fit\n")
     print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples (observed dots, model band)"))

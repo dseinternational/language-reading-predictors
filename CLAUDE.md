@@ -138,7 +138,7 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 Report direction and uncertainty — never a bare ranking or point estimate.
 
 - **Gradient boosting:** read the SHAP beeswarm (`output/models/{model_id}/shap_summary.png`) with the permutation-importance ranking; the two disagree, so state the direction.
-- **Bayesian:** check convergence against the gate (R-hat ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.3, 0 divergences) _before_ interpreting; report the posterior (mean + 95 % credible interval + tail probability, no p-values); positive τ = intervention helps; only τ is causal — observational couplings (`gamma_cross`, `f_mech`, mediator → outcome) are adjusted associations, never "X drives Y".
+- **Bayesian:** check convergence against the gate (R-hat ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.3, 0 divergences) _before_ interpreting; report the posterior — the **median** with an inner **50 %** and outer **89 %** equal-tailed credible interval, plus the tail probability; no p-values. **89 %** is the house standard, not 95 %: 95 % is an arbitrary NHST convention and its 2.5 / 97.5 % limits are the least MCMC-stable quantiles, so we report a deliberately non-round 89 % (Kruschke 2021 BARG; `notes/202607172359-credible-interval-standard.md`). Positive τ = intervention helps; only τ is causal — observational couplings (`gamma_cross`, `f_mech`, mediator → outcome) are adjusted associations, never "X drives Y".
 - **Notes, issues, PRs:** write for a frequentist-leaning science reader; expand shorthand and read credible intervals in plain words; record decisions a future reader might question as a dated `notes/` note; verify citations and always include DOIs.
 
 Full rationale, workflow, conventions, glossary, and references: **`METHODS.md`**.

@@ -142,8 +142,8 @@ def test_horseshoe_ranking_schema_and_order():
     df = horseshoe_ranking(idata, delta=0.1)
 
     expected_cols = {
-        "rank", "predictor", "p_abs_gt_delta", "beta_mean", "beta_sd",
-        "beta_hdi_3", "beta_hdi_97", "sign", "lambda_mean",
+        "rank", "predictor", "p_abs_gt_delta", "beta_median", "beta_mean", "beta_sd",
+        "beta_hdi_lo", "beta_hdi_hi", "sign", "lambda_mean",
     }
     assert expected_cols.issubset(df.columns)
     assert len(df) == 4
