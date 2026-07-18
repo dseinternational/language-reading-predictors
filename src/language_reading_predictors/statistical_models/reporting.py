@@ -41,6 +41,50 @@ def band50(draws: np.ndarray) -> tuple[float, float]:
     return float(np.quantile(draws, 0.25)), float(np.quantile(draws, 0.75))
 
 
+def derived_mc_diagnostics(
+    draws: np.ndarray,
+    *,
+    n_chains: int,
+    n_draws: int,
+    prefix: str = "",
+) -> dict[str, float]:
+    """Monte-Carlo precision (Bulk-/Tail-ESS + MCSE) of a *derived* estimand.
+
+    Many report headlines are derived quantities computed from posterior draws in
+    post-processing rather than as PyMC deterministics — the probability-scale
+    average marginal effect / off-floor risk difference (:func:`_itt_ame_draws`),
+    the g-formula NDE / NIE (:mod:`...mediation`), and the readiness knee
+    (:func:`_readiness_knee`). ``az.summary`` and the convergence gate therefore
+    never see them, yet a derived quantity can have materially worse tail effective
+    sample size than its parent parameters — the g-formula effects also carry
+    mediator re-simulation noise and the knee is a non-smooth argmax — so its MC
+    precision must be reported in its own right (Kruschke 2021 BARG step 2.C;
+    Vehtari et al. 2021, doi:10.1214/20-BA1221).
+
+    ``draws`` is the sample-stacked ``(chain*draw,)`` array produced by
+    ``DataArray.stack(sample=("chain","draw"))`` (chain-major, ``draw`` varying
+    fastest), so it is reshaped back to ``(chain, draw)`` for ``az.ess`` / ``az.mcse``
+    to recover the between-chain information both need. **Bulk-ESS** governs the
+    median / mean; **Tail-ESS** governs the 89 % equal-tailed interval limits — and
+    because Tail-ESS is calibrated to the 5 %/95 % quantiles it is the near-exact
+    diagnostic for our reported 5.5 %/94.5 % ETI limits. ``mcse_median`` is the
+    Monte-Carlo standard error of the reported point estimate. When the layout
+    cannot be recovered (e.g. a masked or partly-undefined estimand) the finite
+    draws fall back to a single-chain lower bound.
+    """
+    arr = np.asarray(draws, dtype=float).ravel()
+    if arr.size == n_chains * n_draws and np.all(np.isfinite(arr)):
+        da = xr.DataArray(arr.reshape(n_chains, n_draws), dims=("chain", "draw"))
+    else:
+        finite = arr[np.isfinite(arr)]
+        da = xr.DataArray(finite[None, :], dims=("chain", "draw"))
+    return {
+        f"{prefix}ess_bulk": float(az.ess(da, method="bulk")),
+        f"{prefix}ess_tail": float(az.ess(da, method="tail")),
+        f"{prefix}mcse_median": float(az.mcse(da, method="median")),
+    }
+
+
 def _itt_ame_draws(
     trace: xr.DataTree,
     *,
@@ -230,6 +274,16 @@ def tau_summary_itt(
         moderators=moderators,
         row_mask=row_mask,
     )
+    # Monte-Carlo precision of the probability-scale AME — a *derived* estimand
+    # (post-processed from draws, so the convergence gate never sees it). Reported
+    # alongside the estimate per Kruschke 2021 BARG step 2.C.
+    _post = trace.posterior
+    _mc = derived_mc_diagnostics(
+        marginal,
+        n_chains=int(_post.sizes["chain"]),
+        n_draws=int(_post.sizes["draw"]),
+        prefix="tau_prob_",
+    )
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     tau_median = float(np.median(tau_draws))
@@ -279,6 +333,7 @@ def tau_summary_itt(
         "prob_tau_logit_pos": prob_logit_pos,
         "direction_label": evidence_label(prob_ame_pos),
         **favoured_direction(prob_ame_pos),
+        **_mc,
     }
 
 
@@ -980,8 +1035,10 @@ def _readiness_knee(
     *,
     n_trials: int | None = None,
     count_values: np.ndarray | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = 0.89,
     n_bins: int = 6,
+    n_chains: int | None = None,
+    n_draws: int | None = None,
 ) -> dict[str, float]:
     """Locate the readiness knee from a per-observation ``f_mech`` posterior + logit input.
 
@@ -1077,7 +1134,7 @@ def _readiness_knee(
         a = a[np.isfinite(a) & increasing]
         return float(np.median(a)) if a.size else float("nan")
 
-    return {
+    result = {
         "knee_count_median": kmed,
         "knee_count_ci_low": k_lo,
         "knee_count_ci_high": k_hi,
@@ -1094,6 +1151,17 @@ def _readiness_knee(
         "n_obs": int(f.shape[0]),
         "n_bins": int(nb),
     }
+    # Monte-Carlo precision of the derived knee location (a non-smooth argmax over
+    # binned draws, so it can mix worse than its parent GP weights). ESS is computed
+    # over all draws to keep the chain layout; the reported median/CI pool the
+    # ``increasing`` subset (share ``increasing_frac``).
+    if n_chains is not None and n_draws is not None:
+        result.update(
+            derived_mc_diagnostics(
+                knee_L, n_chains=n_chains, n_draws=n_draws, prefix="knee_"
+            )
+        )
+    return result
 
 
 def readiness_threshold(
@@ -1141,16 +1209,20 @@ def readiness_threshold(
     f_stacked = post["f_mech"].stack(sample=("chain", "draw"))
     obs_dim = next(d for d in f_stacked.dims if d != "sample")
     f = f_stacked.transpose(obs_dim, "sample").values  # (n_obs, S)
+    n_chains, n_draws = int(post.sizes["chain"]), int(post.sizes["draw"])
     if exposure_values is not None:
         # Continuous-covariate exposure: the knee lives in the exposure's own units.
         # ``exposure_values`` must be in the same observation order as ``f_mech``'s rows.
         return _readiness_knee(
             f, None,
             count_values=np.asarray(exposure_values, dtype=float).reshape(-1),
-            ci_prob=ci_prob, n_bins=n_bins,
+            ci_prob=ci_prob, n_bins=n_bins, n_chains=n_chains, n_draws=n_draws,
         )
     ell = np.asarray(trace.constant_data["mech_post_logit"].values).reshape(-1)  # (n_obs,)
-    return _readiness_knee(f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins)
+    return _readiness_knee(
+        f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins,
+        n_chains=n_chains, n_draws=n_draws,
+    )
 
 
 def did_summary(

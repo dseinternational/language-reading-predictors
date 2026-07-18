@@ -927,8 +927,13 @@ def test_tau_summary_offfloor_delegates_to_tau_summary_itt():
     tau = np.array([[0.4, 0.6]])
     G = np.array([1.0, 0.0, 1.0])
     trace = _trace(eta, tau)
-    assert tau_summary_offfloor(trace, ci_prob=0.9, G=G) == tau_summary_itt(
-        trace, ci_prob=0.9, G=G
+    # NaN-aware equality: on this degenerate 1-chain / 2-draw synthetic trace the
+    # derived-estimand MC diagnostics (tau_prob_ess_bulk/tail, mcse) are NaN, and
+    # ``nan != nan`` would break a plain dict ``==`` even though delegation holds.
+    # ``np.testing.assert_equal`` recurses into the dict and treats NaN as equal.
+    np.testing.assert_equal(
+        tau_summary_offfloor(trace, ci_prob=0.9, G=G),
+        tau_summary_itt(trace, ci_prob=0.9, G=G),
     )
 
 

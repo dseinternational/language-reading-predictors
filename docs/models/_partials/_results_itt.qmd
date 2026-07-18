@@ -97,6 +97,23 @@ if tau_summary is not None:
             "\n\n_Items-scale figures for this outcome are approximate — the test "
             "ceiling (`n_trials`) is unconfirmed._"
         )
+    # Monte-Carlo precision of the DERIVED probability-scale AME. The convergence
+    # gate scans the model parameters; this reports the sampling precision of the
+    # post-processed estimand itself (guarded — appears once the fit carries the
+    # columns). Bulk-ESS governs the median; Tail-ESS the 89% interval limits.
+    if "tau_prob_ess_tail" in tau_summary.columns and np.isfinite(
+        _t.get("tau_prob_ess_tail", float("nan"))
+    ):
+        _mcse_items = (
+            f" (≈ {_t.tau_prob_mcse_median * n_trials:.2g} items)" if n_trials else ""
+        )
+        print(
+            f"\n\n_Monte-Carlo precision of this derived average marginal effect: "
+            f"Bulk-ESS {_t.tau_prob_ess_bulk:,.0f}, Tail-ESS {_t.tau_prob_ess_tail:,.0f} "
+            f"(the 89% equal-tailed limits are governed by Tail-ESS), median MCSE "
+            f"{_t.tau_prob_mcse_median:.4f}{_mcse_items} — the sampling precision of the "
+            f"post-processed estimand itself, distinct from the parameter-level gate._"
+        )
 ```
 
 - `tau_logit_*`: posterior median and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the logit scale.

@@ -87,10 +87,18 @@ def _sigmoid(x: np.ndarray) -> np.ndarray:
 
 
 def _effect_row(
-    name: str, draws: np.ndarray, n_words: int, lo_q: float, hi_q: float, off_floor: bool
+    name: str,
+    draws: np.ndarray,
+    n_words: int,
+    lo_q: float,
+    hi_q: float,
+    off_floor: bool,
+    *,
+    n_chains: int | None = None,
+    n_draws: int | None = None,
 ) -> dict:
     """One decomposition-quantity row (shared by the single-mediator g-formulas)."""
-    return {
+    row = {
         "quantity": name,
         # Median-first (house convention; #268). Mean kept as a secondary column.
         "prob_median": float(np.median(draws)),
@@ -111,6 +119,19 @@ def _effect_row(
         # report label the scale ("off-floor risk difference", not items).
         "off_floor": bool(off_floor),
     }
+    # Monte-Carlo precision of this derived g-formula effect. Because the NDE/NIE
+    # are simulated (mediator re-draw noise on top of posterior autocorrelation),
+    # their tail ESS can be worse than the parent coefficients the gate checks —
+    # so report it per row (Kruschke 2021 BARG step 2.C).
+    if n_chains is not None and n_draws is not None:
+        from language_reading_predictors.statistical_models.reporting import (
+            derived_mc_diagnostics,
+        )
+
+        row.update(
+            derived_mc_diagnostics(draws, n_chains=n_chains, n_draws=n_draws)
+        )
+    return row
 
 
 def _proportion_row(nie: np.ndarray, total: np.ndarray, lo_q: float, hi_q: float) -> dict:
@@ -324,8 +345,12 @@ def decompose(
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
 
+    _nc, _nd = int(post.sizes["chain"]), int(post.sizes["draw"])
+
     def row(name: str, draws: np.ndarray) -> dict:
-        return _effect_row(name, draws, N_W, lo_q, hi_q, off_floor)
+        return _effect_row(
+            name, draws, N_W, lo_q, hi_q, off_floor, n_chains=_nc, n_draws=_nd
+        )
 
     direct_label, indirect_label = ("IDE", "IIE") if interventional else ("NDE", "NIE")
     rows = [row("total", total), row(direct_label, nde), row(indirect_label, nie)]
@@ -564,10 +589,11 @@ def decompose_period_stacked(
     nie = y_treat_Mtreat - y_treat_Mctrl
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    _nc, _nd = int(post.sizes["chain"]), int(post.sizes["draw"])
     rows = [
-        _effect_row("total", total, N_W, lo_q, hi_q, False),
-        _effect_row("NDE", nde, N_W, lo_q, hi_q, False),
-        _effect_row("NIE", nie, N_W, lo_q, hi_q, False),
+        _effect_row("total", total, N_W, lo_q, hi_q, False, n_chains=_nc, n_draws=_nd),
+        _effect_row("NDE", nde, N_W, lo_q, hi_q, False, n_chains=_nc, n_draws=_nd),
+        _effect_row("NIE", nie, N_W, lo_q, hi_q, False, n_chains=_nc, n_draws=_nd),
         _proportion_row(nie, total, lo_q, hi_q),
     ]
     return pd.DataFrame(rows)
@@ -747,8 +773,13 @@ def decompose_two_mediator(
         nie_L = y_TT_TT - y_T_Lc_Et  # then move L (mE at treated)
 
     lo_q, hi_q = (1 - hdi_prob) / 2, 1 - (1 - hdi_prob) / 2
+    _nc, _nd = int(post.sizes["chain"]), int(post.sizes["draw"])
 
     def row(name: str, draws: np.ndarray) -> dict:
+        from language_reading_predictors.statistical_models.reporting import (
+            derived_mc_diagnostics,
+        )
+
         return {
             "quantity": name,
             # Median-first (house convention; #268). Mean kept as a secondary column.
@@ -765,6 +796,8 @@ def decompose_two_mediator(
             "words_lo50": float(np.quantile(draws, 0.25) * N_W),
             "words_hi50": float(np.quantile(draws, 0.75) * N_W),
             "prob_pos": float(np.mean(draws > 0)),
+            # Derived g-formula effect: report its own MC precision (see _effect_row).
+            **derived_mc_diagnostics(draws, n_chains=_nc, n_draws=_nd),
         }
 
     rows = [
