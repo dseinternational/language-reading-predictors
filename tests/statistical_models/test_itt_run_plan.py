@@ -6,13 +6,16 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError, dataclass, replace
+from types import SimpleNamespace
 
 import pytest
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.itt import (
     IttModelSettings,
+    build_itt_from_plan,
     declared_settings_dict,
+    prepare_itt_data,
     resolve_itt_run_plan,
 )
 
@@ -94,6 +97,48 @@ def test_covariate_moderator_is_loaded_once_and_gets_one_main_effect():
     assert plan.covariates_to_load == ("blocks",)
     assert plan.prepare_kwargs()["covariates"] == ("blocks",)
     assert plan.factory_kwargs()["adjust_for"] == ()
+
+
+def test_family_preparation_filters_constant_adjusters_from_the_build_contract():
+    plan = resolve_itt_run_plan(
+        _spec(IttModelSettings(adjust_for=("hs", "hs_missing")))
+    )
+    calls = []
+    prepared = SimpleNamespace(covariates={"hs": [0.0, 1.0]})
+
+    loaded, adjustment = prepare_itt_data(
+        plan,
+        loader=lambda **kwargs: calls.append(kwargs) or prepared,
+    )
+
+    assert loaded is prepared
+    assert calls == [plan.prepare_kwargs()]
+    assert adjustment == ("hs",)
+
+
+def test_family_builder_consumes_the_validated_plan_without_reinterpreting_it():
+    plan = resolve_itt_run_plan(_spec(IttModelSettings(adjust_for=("hs",))))
+    prepared = SimpleNamespace()
+    calls = []
+    built = object()
+
+    returned = build_itt_from_plan(
+        plan,
+        prepared,
+        effective_adjustment=("hs",),
+        builder=lambda data, **kwargs: calls.append((data, kwargs)) or built,
+    )
+
+    assert returned is built
+    assert calls == [
+        (
+            prepared,
+            {
+                "likelihood": "beta_binomial",
+                **plan.factory_kwargs(effective_adjustment=("hs",)),
+            },
+        )
+    ]
 
 
 def test_unknown_legacy_setting_is_rejected():

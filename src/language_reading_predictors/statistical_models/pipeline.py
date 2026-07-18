@@ -35,6 +35,7 @@ import inspect
 import os
 import shutil
 from collections.abc import Iterable, Sequence
+from dataclasses import replace
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -72,7 +73,12 @@ from language_reading_predictors.statistical_models.context import (
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
+    build_itt_from_plan,
+    itt_diagnostic_variables,
+    prepare_itt_data,
     resolve_itt_run_plan,
+    write_itt_analysis_audit,
+    write_itt_ppc_calibration,
 )
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
@@ -92,6 +98,10 @@ from language_reading_predictors.statistical_models.preprocessing import (
     split_confounders_by_timing,
     split_covariates_by_wave,
     standardise,
+)
+from language_reading_predictors.statistical_models.stages import (
+    SharedFitStages,
+    StageHooks,
 )
 
 
@@ -299,7 +309,7 @@ def _apply_spec_target_accept(ctx: StatisticalFitContext, spec: ModelSpec) -> No
             "spec.extra['target_accept'] must be in the open interval (0, 1); "
             f"got {target_accept!r}"
         )
-    if getattr(ctx.sampling, "target_accept_overridden", False):
+    if ctx.run_options.target_accept is not None:
         rprint(
             "[yellow]Keeping the CLI --target-accept "
             f"({ctx.sampling.target_accept}) over {spec.model_id}'s "
@@ -307,7 +317,7 @@ def _apply_spec_target_accept(ctx: StatisticalFitContext, spec: ModelSpec) -> No
         )
         return
     # No CLI override: the model-specific value takes precedence over the preset.
-    ctx.sampling.target_accept = target_accept
+    ctx.sampling = replace(ctx.sampling, target_accept=target_accept)
 
 
 def _print_header(ctx: StatisticalFitContext) -> None:
@@ -1392,27 +1402,9 @@ def _itt_diag_vars(
     *,
     likelihood: str = "beta_binomial",
 ) -> list[str]:
-    """Scalar coefficients to summarise for an ITT fit, conditional on the spec.
+    """Compatibility wrapper for the ITT family's diagnostic contract."""
 
-    The own-baseline (``gamma_own``) is only present when ``use_own_baseline``;
-    the linear age term (``gamma_A``) only when ``use_age_linear``; the
-    Beta-Binomial concentration (``kappa``) only for the graded likelihood (the
-    binary off-floor model has none); plus any adjuster / tau-moderator
-    coefficients. Listing a missing RV would crash ``summary_diagnostics``.
-    """
-    dvars = ["alpha", "tau"]
-    if plan.use_own_baseline:
-        dvars.append("gamma_own")
-    if plan.use_age_linear:
-        dvars.append("gamma_A")
-    if likelihood == "beta_binomial":
-        dvars.append("kappa")
-    dvars.extend(f"gamma_{c}" for c in adjust_for)
-    if plan.tau_moderator_symbol is not None:
-        dvars.append("gamma_tau_mod")
-        if plan.tau_moderator_interaction:
-            dvars.append("gamma_tau_int")
-    return dvars
+    return itt_diagnostic_variables(plan, adjust_for, likelihood=likelihood)
 
 
 # ---------------------------------------------------------------------------
@@ -1429,12 +1421,25 @@ def _itt_diag_vars(
 # ---------------------------------------------------------------------------
 
 
+def _shared_stages() -> SharedFitStages:
+    """Bind shared execution stages to the current artifact implementations."""
+
+    return SharedFitStages(
+        StageHooks(
+            emit_priors=_emit_priors,
+            save_ppc=_save_ppc,
+            write_loo_influence=_write_loo_influence,
+            print_loo_row=_print_loo_row,
+            copy_report_template=_copy_report_template,
+            print_footer=_print_footer,
+        )
+    )
+
+
 def _attach_built(ctx: StatisticalFitContext, built) -> None:
-    """Attach a freshly built model and emit its prior artifacts."""
-    ctx.model = built.model
-    ctx.model_vars = built.variables
-    ctx.prepared = built.prepared
-    _emit_priors(ctx)
+    """Compatibility wrapper for the shared attach stage."""
+
+    _shared_stages().attach_built(ctx, built)
 
 
 def _write_itt_analysis_audit(
@@ -1442,43 +1447,14 @@ def _write_itt_analysis_audit(
     prepared,
     outcomes: Sequence[str],
 ) -> None:
-    """Persist fitted-arm counts and full-randomised extreme-case bounds.
+    """Compatibility wrapper for the ITT family's analysis-set audit."""
 
-    The fitted frame may be outcome-, covariate- or subgroup-restricted. Bounds
-    are therefore calculated from a fresh outcome-only frame that retains every
-    archived child with a group code, without requiring its baseline. This keeps
-    the 57-person randomised denominator separate from model-specific
-    complete-case selection.
-    """
-
-    from language_reading_predictors.statistical_models.itt_audit import (
-        analysis_set_table,
-        randomised_postscore_bounds,
+    write_itt_analysis_audit(
+        ctx,
+        prepared,
+        outcomes,
+        loader=load_and_prepare,
     )
-
-    analysis_frames = []
-    bound_frames = []
-    multiple = len(outcomes) > 1
-    for symbol in outcomes:
-        analysis = analysis_set_table(prepared, outcome_symbol=symbol)
-        if multiple:
-            analysis.insert(0, "outcome", symbol)
-        analysis_frames.append(analysis)
-
-        attrition_source = load_and_prepare(
-            path=getattr(prepared, "data_path", None) or None,
-            phase_mode="itt",
-            outcomes=(symbol,),
-            pre_required=(),
-        )
-        bound_frames.append(randomised_postscore_bounds(attrition_source, symbol))
-
-    analysis_df = pd.concat(analysis_frames, ignore_index=True)
-    bounds_df = pd.concat(bound_frames, ignore_index=True)
-    analysis_df.to_csv(os.path.join(ctx.output_dir, "analysis_set.csv"), index=False)
-    bounds_df.to_csv(os.path.join(ctx.output_dir, "attrition_bounds.csv"), index=False)
-    ctx.tables["analysis_set"] = analysis_df
-    ctx.tables["attrition_bounds"] = bounds_df
 
 
 def _write_itt_ppc_calibration(
@@ -1489,124 +1465,45 @@ def _write_itt_ppc_calibration(
     node: str = "y_post",
     filename: str = "posterior_predictive_calibration.csv",
 ) -> pd.DataFrame:
-    """Save bounded-score PPC metrics by arm and baseline band.
+    """Compatibility wrapper for the ITT family's PPC calibration audit."""
 
-    Joint fits additionally persist one outcome-wide median/Q3/IQR calibration
-    row per outcome. That marginal shape check catches discrepancies that can be
-    hidden by means and boundary rates calculated in small strata.
-    """
-
-    from language_reading_predictors.statistical_models.ppc_audit import (
-        score_ppc_by_arm_and_baseline,
-        score_ppc_distribution_shape,
+    return write_itt_ppc_calibration(
+        ctx,
+        prepared,
+        outcomes,
+        node=node,
+        filename=filename,
     )
-
-    predictive = np.asarray(ctx.trace.posterior_predictive[node].values, dtype=float)
-    frames = []
-    shape_frames = []
-    if len(outcomes) == 1 and predictive.shape[-1] == prepared.n_obs:
-        symbol = outcomes[0]
-        observed = None
-        denominator = None
-        if node == "y_offfloor":
-            observed = (prepared.post_counts[symbol] > 0).astype(float)
-            denominator = 1
-        frames.append(
-            score_ppc_by_arm_and_baseline(
-                prepared,
-                symbol,
-                predictive,
-                observed_counts=observed,
-                n_trials=denominator,
-                ci_prob=ctx.reporting.ci_prob,
-            )
-        )
-    else:
-        constant = ctx.trace.constant_data
-        cell_rows = np.asarray(constant["y_post_cell_row"].values, dtype=int).ravel()
-        cell_outcomes = np.asarray(
-            constant["y_post_cell_outcome"].values, dtype=int
-        ).ravel()
-        if predictive.shape[-1] != cell_rows.size:
-            raise ValueError("joint posterior-predictive cells do not match cell map")
-        for outcome_index, symbol in enumerate(outcomes):
-            selected = cell_outcomes == outcome_index
-            outcome_rows = cell_rows[selected]
-            frames.append(
-                score_ppc_by_arm_and_baseline(
-                    prepared,
-                    symbol,
-                    predictive[..., selected],
-                    row_indices=outcome_rows,
-                    ci_prob=ctx.reporting.ci_prob,
-                )
-            )
-            shape_frames.append(
-                score_ppc_distribution_shape(
-                    symbol,
-                    predictive[..., selected],
-                    np.asarray(prepared.post_counts[symbol], dtype=float)[outcome_rows],
-                    n_trials=int(prepared.n_trials[symbol]),
-                    ci_prob=ctx.reporting.ci_prob,
-                )
-            )
-
-    calibration = pd.concat(frames, ignore_index=True)
-    calibration.to_csv(os.path.join(ctx.output_dir, filename), index=False)
-    ctx.tables[os.path.splitext(filename)[0]] = calibration
-    if shape_frames:
-        shape_calibration = pd.concat(shape_frames, ignore_index=True)
-        shape_filename = "posterior_predictive_shape_calibration.csv"
-        shape_calibration.to_csv(
-            os.path.join(ctx.output_dir, shape_filename), index=False
-        )
-        ctx.tables[os.path.splitext(shape_filename)[0]] = shape_calibration
-    return calibration
 
 
 def _run_sampling_and_loo(
     ctx: StatisticalFitContext, *, compute_loo: bool = True
 ) -> None:
-    """Posterior sampling, then (optionally) LOO-PSIS + its summary and console row.
+    """Compatibility wrapper for posterior sampling and optional PSIS-LOO."""
 
-    ``compute_loo=False`` skips the LOO phase for the pipelines that do not
-    report it (the mediation g-formula fits).
-    """
-    section_header("Sampling posterior (nutpie)")
-    _diag.sample_posterior(ctx)
-
-    if compute_loo:
-        section_header("LOO-PSIS")
-        _diag.compute_log_likelihood_and_loo(ctx)
-        _report.write_loo_summary(ctx)
-        _write_loo_influence(ctx)
-        _print_loo_row(ctx)
+    _shared_stages().sample_and_loo(ctx, compute_loo=compute_loo)
 
 
 def _run_ppc(ctx: StatisticalFitContext, *, var_names: list[str] | None = None) -> None:
-    """Posterior-predictive draw followed by the PPC coverage + figure suite (#318).
+    """Compatibility wrapper for the shared posterior-predictive stage."""
 
-    The outcome leg is the *last* node in every multi-node family's ``var_names``
-    (mediation ``[mediator_post, y_post]``, corr-factor ``[Z_obs, y_post]``, ...), so
-    that node drives the coverage statistic and figures.
-    """
-    section_header("Posterior predictive")
-    names = list(var_names) if var_names else ["y_post"]
-    _diag.sample_posterior_predictive(ctx, var_names=names)
-    _save_ppc(ctx, primary_node=names[-1])
+    _shared_stages().posterior_predictive(ctx, var_names=var_names)
+
+
+def _write_run_metadata(
+    ctx: StatisticalFitContext,
+    *,
+    extra: dict | None = None,
+) -> None:
+    """Compatibility wrapper for the shared metadata stage."""
+
+    _shared_stages().write_metadata(ctx, extra=extra)
 
 
 def _finalize_report(ctx: StatisticalFitContext) -> StatisticalFitContext:
-    """Copy the Quarto report template, print the footer, and return the context."""
-    section_header("Report")
-    # Key-findings distillation (#320): every family writes key_findings.json
-    # here, after its CSVs and diagnostics_summary.json, so the report's
-    # plain-language box is generated from the fit that produced the numbers.
-    kf = _report.generate_key_findings(ctx.output_dir)
-    rprint(f"  Key findings: {kf['status']} ({len(kf['sentences'])} sentences)")
-    _copy_report_template(ctx)
-    _print_footer(ctx)
-    return ctx
+    """Compatibility wrapper for the shared report-finalization stage."""
+
+    return _shared_stages().finalize_report(ctx)
 
 
 def _survival_summary(
@@ -1741,7 +1638,7 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     )
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
@@ -1766,15 +1663,8 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    adjust_for = plan.adjust_for
-    prepared = load_and_prepare(**plan.prepare_kwargs())
+    prepared, adjust_for = prepare_itt_data(plan, loader=load_and_prepare)
     ctx.prepared = prepared
-    # Re-filter the requested adjusters to those actually present after loading: a
-    # covariate (or a ``{col}_missing`` indicator) that goes constant on the fitted
-    # rows is dropped by the loader, and build_itt_model raises on an absent adjuster.
-    # Mirror the gain-/level-factor and mechanism pipelines, which drop-and-continue so
-    # a dropped-constant adjuster does not abort the whole ITT fit (Group-C cleanup).
-    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
 
     _print_header(ctx)
 
@@ -1786,9 +1676,11 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     if plan.floor_rule:
         return _fit_itt_floor_rule(ctx, spec, plan, prepared, adjust_for)
 
-    built = _factories.build_itt_model(
+    built = build_itt_from_plan(
+        plan,
         prepared,
-        **plan.factory_kwargs(effective_adjustment=adjust_for),
+        effective_adjustment=adjust_for,
+        builder=_factories.build_itt_model,
     )
     _attach_built(ctx, built)
     _write_itt_analysis_audit(ctx, built.prepared, (spec.outcome_symbol,))
@@ -1932,7 +1824,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
         ctx.tables["tau_moderation_summary"] = tau_mod_df
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -2059,15 +1951,17 @@ def _fit_itt_floor_rule(
         "children are flagged secondaries."
     )
 
-    common = plan.factory_kwargs(effective_adjustment=adjust_for)
-
     # ----- EXPLORATORY HEADLINE: binary transition among observed baseline zeros. -----
     section_header(
         "Build model (post-hoc headline: off-floor transition among observed "
         "baseline-floor children)"
     )
-    built = _factories.build_itt_model(
-        at_risk, likelihood="bernoulli_offfloor", **common
+    built = build_itt_from_plan(
+        plan,
+        at_risk,
+        effective_adjustment=adjust_for,
+        likelihood="bernoulli_offfloor",
+        builder=_factories.build_itt_model,
     )
     _attach_built(ctx, built)
     _render_model_graph(ctx)
@@ -2240,7 +2134,13 @@ def _fit_itt_floor_rule(
     # Not the exploratory headline — it mixes already-off-floor children into a mover analysis and
     # is detection-limited; read only beside the mover table, never alone (#119).
     section_header("Build model (SECONDARY cross-check: graded Beta-Binomial, all children)")
-    built_g = _factories.build_itt_model(prepared, likelihood="beta_binomial", **common)
+    built_g = build_itt_from_plan(
+        plan,
+        prepared,
+        effective_adjustment=adjust_for,
+        likelihood="beta_binomial",
+        builder=_factories.build_itt_model,
+    )
     trace_g, graded = _fit_secondary(
         built_g,
         label=f"{spec.model_id} graded cross-check",
@@ -2267,8 +2167,12 @@ def _fit_itt_floor_rule(
         section_header(
             "Build model (SECONDARY: graded contrast among off-floor children | post>0)"
         )
-        built_h = _factories.build_itt_model(
-            off_floor_data, likelihood="beta_binomial", **common
+        built_h = build_itt_from_plan(
+            plan,
+            off_floor_data,
+            effective_adjustment=adjust_for,
+            likelihood="beta_binomial",
+            builder=_factories.build_itt_model,
         )
         _trace_h, hurdle = _fit_secondary(
             built_h,
@@ -2295,7 +2199,7 @@ def _fit_itt_floor_rule(
         os.path.join(ctx.output_dir, "proportion_at_zero_ppc.csv"), index=False
     )
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -2533,7 +2437,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         meta_extra["tau_difference"] = diff_s
         meta_extra["difference_metadata"] = spec.extra.get("difference_metadata")
 
-    _report.write_run_metadata(ctx, extra=meta_extra)
+    _write_run_metadata(ctx, extra=meta_extra)
 
     return _finalize_report(ctx)
 
@@ -2958,7 +2862,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         )
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -3222,7 +3126,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         x_label="period transition",
     )
 
-    _report.write_run_metadata(ctx, extra=meta_extra)
+    _write_run_metadata(ctx, extra=meta_extra)
 
     return _finalize_report(ctx)
 
@@ -3611,7 +3515,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=dose_vars)
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -4098,7 +4002,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         _extra_meta["outcome_time"] = int(_outcome_time)
     if is_calibration is not None:
         _extra_meta["is_calibration"] = is_calibration.iloc[0].to_dict()
-    _report.write_run_metadata(ctx, extra=_extra_meta)
+    _write_run_metadata(ctx, extra=_extra_meta)
 
     return _finalize_report(ctx)
 
@@ -4269,7 +4173,7 @@ def fit_mediation_period_stacked(
     _requested_raw = _raw_covariate_confounders(
         s for s in spec.adjustment if s not in ("T", "A", "W_pre", f"{mediator_symbol}_pre")
     )
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "adjustment": spec.adjustment,
@@ -4755,7 +4659,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         x_label="period transition",
     )
 
-    _report.write_run_metadata(ctx, extra=meta_extra)
+    _write_run_metadata(ctx, extra=meta_extra)
     return _finalize_report(ctx)
 
 
@@ -5002,7 +4906,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         obs_node=obs_node,
     )
 
-    _report.write_run_metadata(ctx, extra=meta_extra)
+    _write_run_metadata(ctx, extra=meta_extra)
     return _finalize_report(ctx)
 
 
@@ -5147,7 +5051,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
         )
     )
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={"loo_elpd": float(ctx.loo.elpd), "block_exposure_summary": bx_s},
     )
@@ -5268,7 +5172,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         )
 
-    _report.write_run_metadata(ctx, extra=meta_extra)
+    _write_run_metadata(ctx, extra=meta_extra)
     return _finalize_report(ctx)
 
 
@@ -5460,7 +5364,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         for s in spec.adjustment
         if s not in ("G", "A", "W_pre", *(f"{m}_t1" for m in mediators))
     )
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "adjustment": spec.adjustment,
@@ -5790,7 +5694,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             "records"
         ),
     }
-    _report.write_run_metadata(ctx, extra=meta_extra)
+    _write_run_metadata(ctx, extra=meta_extra)
 
     return _finalize_report(ctx)
 
@@ -6084,7 +5988,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     else:
         rprint("[yellow]Pareto-k unavailable from LOO; influence check skipped[/yellow]")
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
@@ -6680,7 +6584,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             "contains both fit kinds for +1 SD and +k items"
         ),
     }
-    _report.write_run_metadata(ctx, extra=meta_extra)
+    _write_run_metadata(ctx, extra=meta_extra)
 
     return _finalize_report(ctx)
 
@@ -6988,7 +6892,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Per-child fitted-vs-observed panels (#317 fig 2) for the focal reading target.
     _write_panel_child_fit(ctx, latent_name="x_latent", focal_symbol=reading_symbol)
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -7143,7 +7047,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _write_panel_trajectory(ctx, latent_name="theta")
     _write_panel_child_fit(ctx, latent_name="theta", focal_symbol=outcomes[0])
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -7280,7 +7184,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         )
     )
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
@@ -7532,7 +7436,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     sens.to_csv(os.path.join(ctx.output_dir, "prior_sensitivity.csv"), index=False)
     ctx.tables["prior_sensitivity"] = sens
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "study_id": "rlm",
@@ -7629,7 +7533,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         ranked_dataframe_table(ranking, title="Horseshoe predictor ranking")
     )
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "study_id": "rlm",
@@ -7806,7 +7710,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         )
     )
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "study_id": "rlm",
@@ -7969,7 +7873,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         )
         ctx.tables[f"posterior_growth_summary_{m}"] = growth
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "study_id": study_id,
@@ -8258,7 +8162,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         )
     )
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "domains": {k: list(v) for k, v in domains.items()},
@@ -9098,7 +9002,7 @@ def fit_longitudinal_corr_factor(
             "to populate the missing side.[/yellow]"
         )
 
-    _report.write_run_metadata(
+    _write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,

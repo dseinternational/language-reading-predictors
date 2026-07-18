@@ -35,6 +35,9 @@ from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models.registry import (
     discover_models,
 )
+from language_reading_predictors.statistical_models.run_options import (
+    StatisticalRunOptions,
+)
 from language_reading_predictors.statistical_models.provenance import (
     write_failure_record,
 )
@@ -104,25 +107,10 @@ def main() -> None:
     paths.set_output_root(args.output_dir)
     rprint(f"[bold]Output root:[/bold] {paths.describe_output_root()}")
 
-    if args.target_accept is not None:
-        import dse_research_utils.statistics.models.sampling as _S
-
-        _orig = _S.get_sampling_configuration
-
-        def _override(cfg: str = "dev", random_seed: int = 47):
-            s = _orig(cfg, random_seed=random_seed)
-            s.target_accept = args.target_accept
-            # Mark the value as an explicit CLI override so a model-specific
-            # ``spec.extra["target_accept"]`` cannot silently outrank it. Precedence
-            # is CLI > model-specific default > config preset; without this flag a
-            # `--target-accept 0.95` was replaced by a spec's 0.999, which made
-            # diagnostic reproduction and ablation misleading.
-            s.target_accept_overridden = True
-            return s
-
-        _S.get_sampling_configuration = _override
+    run_options = StatisticalRunOptions(target_accept=args.target_accept)
+    if run_options.target_accept is not None:
         rprint(
-            f"[yellow]Overriding target_accept -> {args.target_accept}[/yellow]"
+            f"[yellow]Overriding target_accept -> {run_options.target_accept}[/yellow]"
         )
 
     # The registry is keyed on the canonical CLI id (``lrp-rli-itt-001``) since #168
@@ -170,7 +158,7 @@ def main() -> None:
     failed: list[tuple[str, Exception]] = []
     for model_id, module in to_fit:
         try:
-            contexts.append(module.fit(args.config))
+            contexts.append(module.fit(args.config, options=run_options))
         except Exception as exc:
             failed.append((model_id, exc))
             traceback_text = traceback.format_exc()

@@ -7,8 +7,18 @@ hand-maintained import block + MODELS dict in ``scripts/fit_statistical_model.py
 
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
+
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.registry import discover_models
+from language_reading_predictors.statistical_models.registry import (
+    LazyModel,
+    discover_models,
+)
+from language_reading_predictors.statistical_models.run_options import (
+    StatisticalRunOptions,
+    current_run_options,
+)
 
 
 def _expected_model_modules() -> set[str]:
@@ -53,6 +63,39 @@ def test_discovers_known_models_across_families():
     ):
         assert mid in models, f"{mid} not discovered"
         assert callable(models[mid].fit)
+
+
+def test_discovery_and_fit_access_do_not_import_model_modules(monkeypatch):
+    module_name = (
+        "language_reading_predictors.statistical_models.lrp_rli_itt_001"
+    )
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    entry = discover_models()["lrp-rli-itt-001"]
+
+    assert isinstance(entry, LazyModel)
+    assert callable(entry.fit)
+    assert module_name not in sys.modules
+    assert entry.SPEC.model_id == "lrp-rli-itt-001"
+    assert module_name in sys.modules
+
+
+def test_lazy_model_scopes_options_to_one_fit(monkeypatch):
+    observed = []
+    entry = LazyModel(model_id="example", module_name="example.module")
+    module = SimpleNamespace(
+        fit=lambda config: observed.append((config, current_run_options())) or "fit"
+    )
+    monkeypatch.setattr(LazyModel, "load", lambda _self: module)
+
+    result = entry.fit(
+        "test",
+        options=StatisticalRunOptions(target_accept=0.93),
+    )
+
+    assert result == "fit"
+    assert observed == [("test", StatisticalRunOptions(target_accept=0.93))]
+    assert current_run_options() == StatisticalRunOptions()
 
 
 def test_infrastructure_modules_are_not_registered():

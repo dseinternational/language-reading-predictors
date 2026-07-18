@@ -1,19 +1,37 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Typed specification and resolved run plan for single-outcome ITT models."""
+"""Family-owned specification, preparation, construction, and audit for ITT models.
+
+The family module is the shortest executable route through one statistical model:
+it validates a declared specification, resolves the data rows and factory
+arguments, names the parameters that diagnostics must inspect, and writes the
+family-specific analysis/PPC audits.  The general pipeline remains responsible
+for shared sampling and report stages.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import os
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import TYPE_CHECKING, Any
+
+import numpy as np
+import pandas as pd
 
 from language_reading_predictors.statistical_models.definitions import FLOORED
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 
 if TYPE_CHECKING:
-    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.context import (
+        ModelSpec,
+        StatisticalFitContext,
+    )
+    from language_reading_predictors.statistical_models.factories import BuiltModel
+    from language_reading_predictors.statistical_models.preprocessing import (
+        PreparedData,
+    )
 
 
 _LEGACY_KEYS = frozenset(
@@ -615,3 +633,207 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
             "bernoulli_offfloor" if settings.floor_rule else "beta_binomial"
         ),
     )
+
+
+def prepare_itt_data(
+    plan: IttRunPlan,
+    *,
+    loader: Callable[..., PreparedData] | None = None,
+) -> tuple[PreparedData, tuple[str, ...]]:
+    """Load the rows named by ``plan`` and return adjusters actually available.
+
+    The loader may drop a covariate or missingness indicator that is constant on
+    the fitted rows.  Returning the effective set here keeps preprocessing,
+    construction, diagnostics, and metadata on the same family-owned contract.
+    """
+
+    if loader is None:
+        from language_reading_predictors.statistical_models.preprocessing import (
+            load_and_prepare,
+        )
+
+        loader = load_and_prepare
+    prepared = loader(**plan.prepare_kwargs())
+    adjustment = tuple(
+        name for name in plan.adjust_for if name in prepared.covariates
+    )
+    return prepared, adjustment
+
+
+def build_itt_from_plan(
+    plan: IttRunPlan,
+    prepared: PreparedData,
+    *,
+    effective_adjustment: tuple[str, ...],
+    likelihood: str | None = None,
+    builder: Callable[..., BuiltModel] | None = None,
+) -> BuiltModel:
+    """Build exactly the model described by a validated ITT run plan."""
+
+    if builder is None:
+        from language_reading_predictors.statistical_models.factories import (
+            build_itt_model,
+        )
+
+        builder = build_itt_model
+    return builder(
+        prepared,
+        likelihood=likelihood or plan.headline_likelihood,
+        **plan.factory_kwargs(effective_adjustment=effective_adjustment),
+    )
+
+
+def itt_diagnostic_variables(
+    plan: IttRunPlan,
+    effective_adjustment: tuple[str, ...],
+    *,
+    likelihood: str | None = None,
+) -> list[str]:
+    """Name the scalar parameters present in this particular ITT model."""
+
+    effective_likelihood = likelihood or plan.headline_likelihood
+    variables = ["alpha", "tau"]
+    if plan.use_own_baseline:
+        variables.append("gamma_own")
+    if plan.use_age_linear:
+        variables.append("gamma_A")
+    if effective_likelihood == "beta_binomial":
+        variables.append("kappa")
+    variables.extend(f"gamma_{name}" for name in effective_adjustment)
+    if plan.tau_moderator_symbol is not None:
+        variables.append("gamma_tau_mod")
+        if plan.tau_moderator_interaction:
+            variables.append("gamma_tau_int")
+    return variables
+
+
+def write_itt_analysis_audit(
+    context: StatisticalFitContext,
+    prepared: PreparedData,
+    outcomes: Sequence[str],
+    *,
+    loader: Callable[..., PreparedData] | None = None,
+) -> None:
+    """Persist fitted-arm counts and full-randomised extreme-case bounds."""
+
+    from language_reading_predictors.statistical_models.itt_audit import (
+        analysis_set_table,
+        randomised_postscore_bounds,
+    )
+
+    if loader is None:
+        from language_reading_predictors.statistical_models.preprocessing import (
+            load_and_prepare,
+        )
+
+        loader = load_and_prepare
+
+    analysis_frames = []
+    bound_frames = []
+    multiple = len(outcomes) > 1
+    for symbol in outcomes:
+        analysis = analysis_set_table(prepared, outcome_symbol=symbol)
+        if multiple:
+            analysis.insert(0, "outcome", symbol)
+        analysis_frames.append(analysis)
+
+        attrition_source = loader(
+            path=getattr(prepared, "data_path", None) or None,
+            phase_mode="itt",
+            outcomes=(symbol,),
+            pre_required=(),
+        )
+        bound_frames.append(randomised_postscore_bounds(attrition_source, symbol))
+
+    analysis_df = pd.concat(analysis_frames, ignore_index=True)
+    bounds_df = pd.concat(bound_frames, ignore_index=True)
+    analysis_df.to_csv(
+        os.path.join(context.output_dir, "analysis_set.csv"), index=False
+    )
+    bounds_df.to_csv(
+        os.path.join(context.output_dir, "attrition_bounds.csv"), index=False
+    )
+    context.tables["analysis_set"] = analysis_df
+    context.tables["attrition_bounds"] = bounds_df
+
+
+def write_itt_ppc_calibration(
+    context: StatisticalFitContext,
+    prepared: PreparedData,
+    outcomes: Sequence[str],
+    *,
+    node: str = "y_post",
+    filename: str = "posterior_predictive_calibration.csv",
+) -> pd.DataFrame:
+    """Save bounded-score posterior-predictive metrics for ITT rows."""
+
+    from language_reading_predictors.statistical_models.ppc_audit import (
+        score_ppc_by_arm_and_baseline,
+        score_ppc_distribution_shape,
+    )
+
+    predictive = np.asarray(
+        context.trace.posterior_predictive[node].values, dtype=float
+    )
+    frames = []
+    shape_frames = []
+    if len(outcomes) == 1 and predictive.shape[-1] == prepared.n_obs:
+        symbol = outcomes[0]
+        observed = None
+        denominator = None
+        if node == "y_offfloor":
+            observed = (prepared.post_counts[symbol] > 0).astype(float)
+            denominator = 1
+        frames.append(
+            score_ppc_by_arm_and_baseline(
+                prepared,
+                symbol,
+                predictive,
+                observed_counts=observed,
+                n_trials=denominator,
+                ci_prob=context.reporting.ci_prob,
+            )
+        )
+    else:
+        constant = context.trace.constant_data
+        cell_rows = np.asarray(
+            constant["y_post_cell_row"].values, dtype=int
+        ).ravel()
+        cell_outcomes = np.asarray(
+            constant["y_post_cell_outcome"].values, dtype=int
+        ).ravel()
+        if predictive.shape[-1] != cell_rows.size:
+            raise ValueError("joint posterior-predictive cells do not match cell map")
+        for outcome_index, symbol in enumerate(outcomes):
+            selected = cell_outcomes == outcome_index
+            outcome_rows = cell_rows[selected]
+            frames.append(
+                score_ppc_by_arm_and_baseline(
+                    prepared,
+                    symbol,
+                    predictive[..., selected],
+                    row_indices=outcome_rows,
+                    ci_prob=context.reporting.ci_prob,
+                )
+            )
+            shape_frames.append(
+                score_ppc_distribution_shape(
+                    symbol,
+                    predictive[..., selected],
+                    np.asarray(prepared.post_counts[symbol], dtype=float)[outcome_rows],
+                    n_trials=int(prepared.n_trials[symbol]),
+                    ci_prob=context.reporting.ci_prob,
+                )
+            )
+
+    calibration = pd.concat(frames, ignore_index=True)
+    calibration.to_csv(os.path.join(context.output_dir, filename), index=False)
+    context.tables[os.path.splitext(filename)[0]] = calibration
+    if shape_frames:
+        shape_calibration = pd.concat(shape_frames, ignore_index=True)
+        shape_filename = "posterior_predictive_shape_calibration.csv"
+        shape_calibration.to_csv(
+            os.path.join(context.output_dir, shape_filename), index=False
+        )
+        context.tables[os.path.splitext(shape_filename)[0]] = shape_calibration
+    return calibration
