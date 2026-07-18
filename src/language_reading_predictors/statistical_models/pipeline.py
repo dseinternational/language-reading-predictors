@@ -2516,7 +2516,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # (#320).  The joint tau table is deliberately on the common logit scale;
     # this separate counterfactual pushforward preserves comparability there
     # while giving each outcome its own readable item-scale marginal and ROPE
-    # probabilities where a minimally-important difference is pre-specified.
+    # probabilities where a project-agreed minimally-important difference exists.
     from language_reading_predictors.statistical_models.measures import ROPE_DELTA
 
     joint_marginal = _report.joint_treatment_marginals(

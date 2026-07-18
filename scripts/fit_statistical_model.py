@@ -16,6 +16,7 @@ import argparse
 import os
 import subprocess
 import sys
+import traceback
 import uuid
 from multiprocessing import freeze_support
 
@@ -33,6 +34,9 @@ from language_reading_predictors import paths
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models.registry import (
     discover_models,
+)
+from language_reading_predictors.statistical_models.provenance import (
+    write_failure_record,
 )
 
 
@@ -169,7 +173,24 @@ def main() -> None:
             contexts.append(module.fit(args.config))
         except Exception as exc:
             failed.append((model_id, exc))
+            traceback_text = traceback.format_exc()
             rprint(f"[bold red]Error fitting {model_id}: {exc}[/bold red]")
+            print(traceback_text, file=sys.stderr, end="")
+            try:
+                failure_path = write_failure_record(
+                    paths.output_root(),
+                    model_id=model_id,
+                    config=args.config,
+                    error=exc,
+                    traceback_text=traceback_text,
+                )
+            except (OSError, TypeError, ValueError) as record_error:
+                rprint(
+                    "[bold yellow]Could not save the structured failure record: "
+                    f"{record_error}[/bold yellow]"
+                )
+            else:
+                rprint(f"[dim]Failure record: {failure_path}[/dim]")
 
     if len(to_fit) > 1 or failed:
         rows = []

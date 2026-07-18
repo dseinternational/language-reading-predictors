@@ -277,10 +277,11 @@ def test_itt_golden_sentences(tmp_path):
         "evidence that the intervention helps."
     )
     assert texts[2] == (
-        "A change of at least 1 item was pre-specified as the smallest "
-        "difference that would matter in practice: the probability the benefit "
-        "reaches that size is 81%, and the probability the effect is too small "
-        "to matter either way is 17%."
+        "The project agreed after its initial results review that a change of at "
+        "least 1 item would be the smallest difference that matters in practice. "
+        "The probability the benefit reaches that size is 81%, and the probability "
+        "the effect is too small to matter either way is 17%; because the threshold "
+        "is post-hoc, read this beside the threshold-sensitivity table."
     )
     assert "randomly assigned" in texts[3]
     assert "cause-and-effect" in texts[3]

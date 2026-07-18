@@ -228,6 +228,15 @@ def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
     assert cfg["effective_model_settings"]["effective_adjustment"] == ["age"]
     assert cfg["data_path"] == "/study/rli_data_long.csv"
     assert cfg["data_sha256"] == "abc123"
+    assert set(cfg["provenance"]) == {
+        "recorded_at_utc",
+        "invocation",
+        "source",
+        "runtime",
+        "packages",
+    }
+    assert cfg["provenance"]["runtime"]["python_version"]
+    assert "pymc" in cfg["provenance"]["packages"]
     counts = {row["arm"]: row for row in cfg["analysis_set_by_arm"]}
     assert counts["intervention"]["randomised_n"] == 29
     assert counts["intervention"]["fitted_n"] == 2

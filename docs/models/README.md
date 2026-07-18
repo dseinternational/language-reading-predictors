@@ -38,29 +38,28 @@ intervention benefit (`G = 2 − group`).
 
 ## At a glance
 
-| Layer | Family (id prefix)                                                                    | Count | Purpose                                                                                                                     |
-| ----- | ------------------------------------------------------------------------------------- | ----: | --------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)                           |    50 | Rank predictors of each outcome's gain and level                                                                            |
-| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)                                 |    31 | Available-case modified ITT arm effect (+ joint graph, SES, ability/site robustness, generalisation)                        |
-| 2     | Gain factors (`lrp-rli-gf`)                                                           |    19 | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                        |
-| 2     | Level factors (`lrp-rli-lf`)                                                          |    11 | Companion levels view: group×time and ability×time per timepoint                                                            |
-| 2     | Waitlist-crossover arm-by-wave (`lrp-rli-did`)                                        |    14 | Randomised t2 arm gap plus separate baseline/post-crossover gaps; observational dose and exploratory catch-up heterogeneity |
-| 2     | Aligned per-protocol (`lrp-rli-al`)                                                   |     9 | Onset-aligned single 40-week gain per child (associational)                                                                 |
-| 2     | Mechanism (`lrp-rli-mech-056–058`, `071–073`, `158` incl. `172`/`173`)                |     9 | Adjusted dose-response of one skill on another                                                                              |
-| 2     | Mediation (`lrp-rli-med`; natural + interventional g-formula)                         |    16 | How much of an intervention-outcome contrast runs through a given skill                                                     |
-| 2     | Predictor / dynamics (`lrp-rli-adj-065`, `lcsm-067/081/082/091`, `dose-077` variants) |     9 | Baseline predictors, within-child change, lagged reverse couplings, change-on-change, and dose–response of word reading     |
-| 2     | Horseshoe ranking cross-check (`lrp-rli-hs-001`/`002`)                                |     2 | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                      |
-| 2     | Correlated-factor measurement model (`lrp-rli-mm-001`/`101`)                          |     2 | Correlated domain-factor measurement model of the skills                                                                    |
-| 2     | Growth curves (`lrp-rli-gc-069`, `70`)                                                |     2 | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                           |
-| 2     | Floor-sitter survival (`lrp-rli-surv-009`, `011`)                                     |     2 | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                           |
-| 2     | Concurrent associations (`lrp-rli-ca`)                                                |     6 | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                          |
-| 2     | Longitudinal correlated-factor model (`lrp-rli-lcf-001`)                              |     1 | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                |
-| 2     | Historical growth, Byrne cohort (`lrp-rlm-hg`)                                        |     9 | Descriptive group-by-wave natural-history growth per measure in the Byrne reading-language-memory study (`study_id="rlm"`)  |
-| 2     | Byrne Phase B/D (`lrp-rlm-jc/mm/adj/hs`)                                              |     4 | Joint correlated trajectories, wave-3 domain measurement model, and the wave-1 predictor views (adjusted + horseshoe)       |
+| Layer | Family (id prefix)                                            | Purpose                                                                                                                     |
+| ----- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)   | Rank predictors of each outcome's gain and level                                                                            |
+| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)         | Available-case modified ITT arm effect (+ joint graph, SES, ability/site robustness, generalisation)                        |
+| 2     | Gain factors (`lrp-rli-gf`)                                   | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                        |
+| 2     | Level factors (`lrp-rli-lf`)                                  | Companion levels view: group×time and ability×time per timepoint                                                            |
+| 2     | Waitlist-crossover arm-by-wave (`lrp-rli-did`)                | Randomised t2 arm gap plus separate baseline/post-crossover gaps; observational dose and exploratory catch-up heterogeneity |
+| 2     | Aligned per-protocol (`lrp-rli-al`)                           | Onset-aligned single 40-week gain per child (associational)                                                                 |
+| 2     | Mechanism (`lrp-rli-mech`)                                    | Adjusted dose-response of one skill on another                                                                              |
+| 2     | Mediation (`lrp-rli-med`; natural + interventional g-formula) | How much of an intervention-outcome contrast runs through a given skill                                                     |
+| 2     | Predictor / dynamics (`lrp-rli-adj`, `lcsm`, `dose`)          | Baseline predictors, within-child change, lagged reverse couplings, change-on-change, and dose–response of word reading     |
+| 2     | Horseshoe ranking cross-check (`lrp-rli-hs`)                  | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                      |
+| 2     | Correlated-factor measurement model (`lrp-rli-mm`)            | Correlated domain-factor measurement model of the skills                                                                    |
+| 2     | Growth curves (`lrp-rli-gc`)                                  | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                           |
+| 2     | Block-2 exposure (`lrp-rli-bx`)                               | Staggered block-2 exposure contrasts, reported as associations requiring a parallel-trends assumption                       |
+| 2     | Floor-sitter survival (`lrp-rli-surv`)                        | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                           |
+| 2     | Concurrent associations (`lrp-rli-ca`)                        | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                          |
+| 2     | Longitudinal correlated-factor model (`lrp-rli-lcf`)          | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                |
+| 2     | Historical growth, Byrne cohort (`lrp-rlm-hg`)                | Descriptive group-by-wave natural-history growth per measure in the Byrne reading-language-memory study (`study_id="rlm"`)  |
+| 2     | Byrne Phase B/D (`lrp-rlm-jc/mm/adj/hs`)                      | Joint correlated trajectories, wave-3 domain measurement model, and the wave-1 predictor views (adjusted + horseshoe)       |
 
-Counts are of base models on `main` (144 statistical models in total, from `definitions.MODEL_REGISTRY`; the Byrne `lrp-rlm-*` models are registered by
-module auto-discovery, not `MODEL_REGISTRY`). Layer-2 selection variants (`…b` / `…base` / `…d`)
-are included in the family counts and listed in the per-family tables below.
+Layer-2 totals are deliberately not frozen in this document: `definitions.MODEL_REGISTRY` is the RLI catalogue, while module auto-discovery adds the Byrne `lrp-rlm-*` models. Run `python -c "from language_reading_predictors.statistical_models.registry import discover_models; print(len(discover_models()))"` for the current runnable total. Layer-2 selection variants (`…b` / `…base` / `…d`) are included in the per-family tables below.
 
 ## Outcome symbols (Layer 2)
 

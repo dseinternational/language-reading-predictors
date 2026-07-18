@@ -27,6 +27,7 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.provenance import run_provenance
 
 # House reporting coverage: median + inner 50% + outer 89% equal-tailed
 # (notes/202607172359-credible-interval-standard.md). The single source of truth for
@@ -1888,10 +1889,10 @@ def joint_treatment_marginals(
     on, averages the probability difference over fitted rows, and multiplies by
     that outcome's item denominator.  This is the joint analogue of
     :func:`treatment_marginal_effect`; keeping it as a fitted artefact lets the
-    key-findings builder report the pre-specified range-plus-count headline
+    key-findings builder report the project-agreed range-plus-count headline
     without approximating item effects from logit coefficients.
 
-    ``deltas`` contains the pre-specified minimally-important item difference
+    ``deltas`` contains the project-agreed minimally-important item difference
     where one exists.  Rows without an agreed delta retain the items-scale
     estimate but leave the ROPE fields missing.
     """
@@ -2270,6 +2271,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "output_root": str(_paths.output_root()),
         "data_path": getattr(context.prepared, "data_path", None),
         "data_sha256": getattr(context.prepared, "data_sha256", None),
+        "provenance": run_provenance(),
         "extra": _json_safe(extra or {}),
         **_itt_analysis_set_metadata(context),
     }
@@ -3312,10 +3314,12 @@ def _kf_rope_sentence(rope: Mapping, *, is_rd: bool) -> str:
     p_benefit = _kf_pct(rope["prob_benefit_ge_delta"])
     p_rope = _kf_pct(rope["prob_in_rope"])
     return (
-        f"A change of at least {delta:g} {unit} was pre-specified as the smallest "
-        f"difference that would matter in practice: the probability the benefit "
-        f"reaches that size is {p_benefit}%, and the probability the effect is too "
-        f"small to matter either way is {p_rope}%."
+        f"The project agreed after its initial results review that a change of at "
+        f"least {delta:g} {unit} would be the smallest difference that matters in "
+        f"practice. The probability the benefit reaches that size is {p_benefit}%, "
+        f"and the probability the effect is too small to matter either way is "
+        f"{p_rope}%; because the threshold is post-hoc, read this beside the "
+        f"threshold-sensitivity table."
     )
 
 
@@ -3652,7 +3656,7 @@ def _kf_build_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
             more_likely_than_not = sum(p >= 0.5 for p in probabilities)
             sentences.append(
                 _kf_sentence(
-                    f"Among the {len(deltas)} outcomes with a pre-specified "
+                    f"Among the {len(deltas)} outcomes with a project-agreed "
                     f"smallest-important difference, {more_likely_than_not} were "
                     f"more likely than not to reach it; the outcome-specific "
                     f"probabilities ranged from {_kf_pct(min(probabilities))}% to "
