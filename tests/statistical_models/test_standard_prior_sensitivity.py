@@ -304,7 +304,7 @@ def _materialise_ready_grid(trace_root: Path) -> pd.DataFrame:
                 )
                 assert convergence["converged"] is True
                 G = np.asarray(trace.constant_data["G"].values, dtype=float)
-                summary = tau_summary_itt(trace, ci_prob=0.95, G=G)
+                summary = tau_summary_itt(trace, ci_prob=0.89, G=G)
                 tau_draws = trace.posterior["tau"].values.reshape(-1)
                 kappa_draws = trace.posterior["kappa"].values.reshape(-1)
             finally:

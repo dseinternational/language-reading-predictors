@@ -1314,20 +1314,21 @@ def test_eti_bands_nesting_and_quantiles():
     assert b["hi95"] == pytest.approx(float(hi))
 
 
-def test_tau_summary_itt_exposes_50_90_95_bands():
-    # 50% and 90% equal-tailed bands accompany the 95% headline (lo/hi) on both
-    # scales, correctly nested; floored models inherit them via delegation (#177).
+def test_tau_summary_itt_exposes_50_and_89_bands():
+    # The inner 50% equal-tailed band accompanies the 89% headline (lo/hi) on both
+    # scales, correctly nested; floored models inherit them via delegation (#177,
+    # revised 2026-07-17: the 90% sensitivity band was retired).
     rng = np.random.default_rng(5)
     eta = rng.normal(0.0, 1.0, (2, 800, 4))
     tau = rng.normal(0.3, 0.2, (2, 800))
     G = (rng.random(4) > 0.5).astype(float)
-    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.95, G=G)
+    out = tau_summary_itt(_trace(eta, tau), ci_prob=0.89, G=G)
     for scale in ("tau_logit", "tau_prob"):
-        for k in ("lo50", "hi50", "lo90", "hi90"):
+        for k in ("lo50", "hi50", "lo", "hi"):
             assert f"{scale}_{k}" in out
-        assert out[f"{scale}_lo50"] > out[f"{scale}_lo90"] > out[f"{scale}_lo"]
-        assert out[f"{scale}_hi50"] < out[f"{scale}_hi90"] < out[f"{scale}_hi"]
-    assert "tau_prob_lo90" in tau_summary_offfloor(_trace(eta, tau), ci_prob=0.95, G=G)
+        assert out[f"{scale}_lo50"] > out[f"{scale}_lo"]
+        assert out[f"{scale}_hi50"] < out[f"{scale}_hi"]
+    assert "tau_prob_lo" in tau_summary_offfloor(_trace(eta, tau), ci_prob=0.89, G=G)
 
 
 def test_rope_markdown_labels_central_50_interval():
@@ -1339,10 +1340,10 @@ def test_rope_markdown_labels_central_50_interval():
     eta = rng.normal(0.0, 1.0, (2, 500, 6))
     tau = rng.normal(0.4, 0.2, (2, 500))
     G = (rng.random(6) > 0.5).astype(float)
-    rc = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.95)
+    rc = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.89)
     md = rope_markdown(pd.DataFrame([rc]), "word reading")
     assert "central 50% interval" in md
-    assert "equal-tailed 95% credible interval" in md
+    assert "equal-tailed 89% credible interval" in md
     assert "50% CrI" not in md
 
 

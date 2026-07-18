@@ -91,9 +91,9 @@ def test_proportion_row_handles_all_nonfinite_ratios():
     (reviewer #333)."""
     total = np.zeros(50)
     nie = np.full(50, 0.1)
-    row = _proportion_row(nie, total, 0.025, 0.975)
+    row = _proportion_row(nie, total, 0.055, 0.945)
     assert row["quantity"] == "proportion_mediated"
-    for col in ("prob_median", "prob_lo", "prob_hi", "prob_lo90", "prob_hi90"):
+    for col in ("prob_median", "prob_lo", "prob_hi", "prob_lo50", "prob_hi50"):
         assert np.isnan(row[col])
     # P(Total > 0) is still well-defined on the full array (0 here).
     assert row["prob_pos"] == 0.0
@@ -380,8 +380,8 @@ def test_generate_is_calibration_uses_gate_passed_dose_sources(tmp_path):
                     "term": "dose_period1",
                     "median": mean,
                     "mean": mean,
-                    "lo90": mean - 0.2,
-                    "hi90": mean + 0.2,
+                    "lo": mean - 0.2,
+                    "hi": mean + 0.2,
                     "dose_sd_sessions": 25.0,
                 }
             ]

@@ -61,13 +61,13 @@ def test_concurrent_wide_margin_fields_cover_probability_and_items():
             "prob_median": 0.1,
             "prob_lo": 0.01,
             "prob_hi": 0.2,
-            "prob_lo90": 0.02,
-            "prob_hi90": 0.18,
+            "prob_lo50": 0.02,
+            "prob_hi50": 0.18,
             "items_median": 7.9,
             "items_lo": 0.79,
             "items_hi": 15.8,
-            "items_lo90": 1.58,
-            "items_hi90": 14.22,
+            "items_lo50": 1.58,
+            "items_hi50": 14.22,
         }
     )
     fields = _ca_margin_fields("biv", row)
@@ -96,13 +96,13 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
             "prob_median": 0.1,
             "prob_lo": 0.01,
             "prob_hi": 0.2,
-            "prob_lo90": 0.02,
-            "prob_hi90": 0.18,
+            "prob_lo50": 0.02,
+            "prob_hi50": 0.18,
             "items_median": 7.9,
             "items_lo": 0.79,
             "items_hi": 15.8,
-            "items_lo90": 1.58,
-            "items_hi90": 14.22,
+            "items_lo50": 1.58,
+            "items_hi50": 14.22,
         }
     )
     association_rows = []
@@ -138,11 +138,12 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
             for prefix in ("adj", "biv"):
                 row.update(
                     {
+                        f"{prefix}_median": 0.1,
                         f"{prefix}_mean": 0.1,
                         f"{prefix}_lo": 0.01,
                         f"{prefix}_hi": 0.2,
-                        f"{prefix}_lo90": 0.02,
-                        f"{prefix}_hi90": 0.18,
+                        f"{prefix}_lo50": 0.02,
+                        f"{prefix}_hi50": 0.18,
                         f"{prefix}_prob_pos": 0.95,
                         **_ca_margin_fields(prefix, margin_summary),
                     }
@@ -160,13 +161,13 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
                             "prob_median": 0.1,
                             "prob_lo": 0.01,
                             "prob_hi": 0.2,
-                            "prob_lo90": 0.02,
-                            "prob_hi90": 0.18,
+                            "prob_lo50": 0.02,
+                            "prob_hi50": 0.18,
                             "items_median": 7.9,
                             "items_lo": 0.79,
                             "items_hi": 15.8,
-                            "items_lo90": 1.58,
-                            "items_hi90": 14.22,
+                            "items_lo50": 1.58,
+                            "items_hi50": 14.22,
                             "prob_pos": 0.95,
                             "label": _ca_label(predictor),
                             "converged": True,
@@ -195,7 +196,7 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
         diagnostic_rows=diagnostic_rows,
     )
 
-    assert association_df.shape == (24, 41)
+    assert association_df.shape == (24, 43)
     assert set(marginal_df["adjustment"]) == {"adjusted", "bivariate"}
     assert set(marginal_df["scale"]) == {"+1 SD", "+3 items"}
     assert marginal_df.shape == (96, 18)
@@ -214,11 +215,11 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
         written = pd.read_csv(tmp_path / f"{stem}.csv")
         assert len(written) == len(ctx.tables[stem])
 
-    with pytest.raises(ValueError, match="prob_lo90"):
+    with pytest.raises(ValueError, match="prob_lo50"):
         _write_concurrent_outputs(
             ctx,
             association_rows=association_rows,
-            marginal_frames=[pd.DataFrame(marginal_rows).drop(columns="prob_lo90")],
+            marginal_frames=[pd.DataFrame(marginal_rows).drop(columns="prob_lo50")],
             diagnostic_rows=diagnostic_rows,
         )
 
