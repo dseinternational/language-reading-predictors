@@ -48,7 +48,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_mechanism
 
 SPEC = ModelSpec(
-    model_id="lrp-rli-mech-092",
+    model_id="lrp-rli-mech-191",
     kind="mechanism",
     title="GP knee-test: intervention sessions (IS) -> word reading (W)",
     outcome_symbol="W",

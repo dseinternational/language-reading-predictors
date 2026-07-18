@@ -17,7 +17,10 @@ Do gains in letter-sound knowledge (`LS`) actually get _used to decode_, or do t
 | `LS → W` (word reading, mech-101)     | **+0.25** | [0.15, 0.35]                    |
 | **Δ = `LS→N` − `LS→W`**               | **+0.78** | **[0.47, 1.10]**, P(Δ>0) ≈ 1.00 |
 
-Letter sounds predict **pure decoding about four times as strongly as they predict word reading**, and the contrast Δ excludes zero decisively. This is the decoding-use signature: a pure-`GA`-confounding account gives no reason for letter sounds to predict `N` _more_ than `W` (if anything `GA` should predict the broader word-reading skill at least as much), so the natural explanation for `LS→N` ≫ `LS→W` is that letter-sound knowledge is being converted into decoding. **Decoding-use supported.**
+> [!NOTE]
+> The two slopes are fitted **separately**, so Δ (and its interval / `P(Δ>0)`) is a **product-of-marginals sensitivity** computed under a working independence assumption, **not** an identified posterior contrast (PR #359 review). `N` and `W` share children, so the true joint posterior has a non-zero cross-outcome covariance the paired-draws convolution ignores; with the positive covariance shared teaching/ability would induce, the true difference is if anything _more_ precise than the interval above, so the decisive direction is safe. What is _not_ certified by these fits is the exact Δ interval — identifying it needs a joint `{N, W}` fit (or a child-level resampling design). The two **marginal** slopes (`LS→N` and `LS→W`) are each properly identified; the specificity conclusion rests on their well-separated marginals, which the Δ only summarises.
+
+Letter sounds predict **pure decoding about four times as strongly as they predict word reading**, and the two marginal slopes are cleanly separated (the sensitivity Δ excludes zero decisively). This is the decoding-use signature: a pure-`GA`-confounding account gives no reason for letter sounds to predict `N` _more_ than `W` (if anything `GA` should predict the broader word-reading skill at least as much), so the natural explanation for `LS→N` ≫ `LS→W` is that letter-sound knowledge is being converted into decoding. **Decoding-use supported.**
 
 ## 1B — negative-control outcomes: written code moves, oral language barely does
 

@@ -698,13 +698,19 @@ def _beta_mech_draws(model_id: str, config: str) -> np.ndarray | None:
 def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
     """Write the 1A contrast CSV and the 1B negative-control forest (PNG + CSV).
 
-    1A: Delta = beta(L->N) - beta(L->W). The two posteriors are independent
-    (separate fits), so the difference is sampled by pairing draws index-wise
-    (both are i.i.d. within a fit, so the pairing is arbitrary-but-valid Monte
-    Carlo over the convolution). 1B: a forest of ``beta_mech`` per outcome,
-    grouped positive-control (written code: W, N) vs negative-control (oral
-    language: R, E, T, F). A non-converged run is *marked*, never silently
-    dropped (METHODS.md).
+    1A: Delta = beta(L->N) - beta(L->W). N and W are fitted **separately**, so their
+    *joint* posterior is not available. mech-096 (N) and mech-101 (W) share children
+    and related outcomes, so the true cross-outcome posterior covariance is non-zero
+    and unknown; pairing the two independent marginals index-wise convolves them under
+    a **working independence assumption**. The resulting Delta interval and
+    ``P(Delta > 0)`` are therefore a **product-of-marginals sensitivity** quantity, not
+    an identified posterior contrast (PR #359 review): with positive shared-child
+    covariance the true difference is *more* precise than reported. Identifying it
+    needs a joint fit of N and W (or a child-level resampling design that preserves the
+    dependence). The output row is labelled and flagged ``identified=False`` accordingly.
+    1B: a forest of ``beta_mech`` per outcome, grouped positive-control (written code:
+    W, N) vs negative-control (oral language: R, E, T, F). A non-converged run is
+    *marked*, never silently dropped (METHODS.md).
     """
     rows: list[dict] = []
     draws: dict[str, np.ndarray] = {}
@@ -737,7 +743,10 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
     forest_csv = os.path.join(out_dir, "tier1_negative_control_forest.csv")
     df.to_csv(forest_csv, index=False)
 
-    # 1A contrast (needs both positive anchors).
+    # 1A product-of-marginals sensitivity (needs both positive anchors). NOT an
+    # identified posterior contrast — see the docstring: pairing two independent
+    # marginals imposes zero cross-outcome covariance the shared-child joint posterior
+    # does not have. Flagged identified=False so no consumer reads it as a joint contrast.
     if "N" in draws and "W" in draws:
         s = min(draws["N"].shape[0], draws["W"].shape[0])
         delta = draws["N"][:s] - draws["W"][:s]
@@ -745,10 +754,17 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
             [
                 {
                     "config": config,
-                    "estimand": "beta(L->N) - beta(L->W); logit per SD of letter sounds",
+                    "estimand": (
+                        "beta(L->N) - beta(L->W); logit per SD of letter sounds "
+                        "(product-of-marginals under independence; NOT an identified "
+                        "posterior contrast)"
+                    ),
+                    "identified": False,
+                    "assumption": "independence_product_of_marginals",
                     "delta_median": float(np.median(delta)),
                     "delta_mean": float(np.mean(delta)),
-                    # 89% equal-tailed (house standard); inner 50% alongside.
+                    # 89% equal-tailed (house standard); inner 50% alongside. These
+                    # widths assume zero cross-outcome covariance (see estimand note).
                     "delta_lo": float(np.quantile(delta, 0.055)),
                     "delta_hi": float(np.quantile(delta, 0.945)),
                     "delta_lo50": float(np.quantile(delta, 0.25)),

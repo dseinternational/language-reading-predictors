@@ -28,6 +28,14 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
 
+# House reporting coverage: median + inner 50% + outer 89% equal-tailed
+# (notes/202607172359-credible-interval-standard.md). The single source of truth for
+# the *outer* coverage — standalone producers (the prior-sensitivity sweeps) import
+# this rather than hard-coding a number, so a report label can never drift from the
+# coverage its numbers were computed at (PR #359 review). ``ReportingConfiguration``
+# / ``make_context`` default to the same 0.89 for the pipeline path.
+REPORTING_CI_PROB = 0.89
+
 
 def band50(draws: np.ndarray) -> tuple[float, float]:
     """Inner 50 % equal-tailed band ``(lo25, hi75)`` reported alongside the headline.
@@ -1192,7 +1200,7 @@ def readiness_threshold(
     sounds = 32) used to back-transform the logit input to an approximate count.
 
     For a continuous-covariate exposure (``mechanism_is_covariate`` with the HSGP curve
-    on, e.g. ``lrp-rli-mech-092`` sessions -> word reading), pass ``exposure_values``
+    on, e.g. ``lrp-rli-mech-191`` sessions -> word reading), pass ``exposure_values``
     (the per-observation raw exposure, in the same order as ``f_mech``'s rows) instead
     of ``n_trials``; the knee/half-rise/``obs_count_*`` fields are then in the
     exposure's own raw units (e.g. sessions) rather than a bounded count.

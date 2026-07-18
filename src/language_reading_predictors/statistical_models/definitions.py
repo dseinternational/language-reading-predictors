@@ -207,8 +207,12 @@ _MECH = [
     _d("lrp157", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "expressive vocabulary -> word reading (GP knee-test)", base="lrp57"),
     _d("lrp188", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading (GP knee-test)", base="lrp88"),
     _d("lrp189", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading (GP knee-test)", base="lrp89"),
-    _d("lrp91", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phoneme blending -> word reading (GP knee-test)"),
-    _d("lrp92", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "intervention sessions -> word reading (GP dose knee-test)"),
+    # Legacy ids 190/191 (not 91/92): the bare mechanism legacy alias is family-less,
+    # so 91/92 would collide with the live lcsm-091 (lrp91) and med-092 (lrp92) aliases
+    # and the fit CLI would silently resolve the shorthand to the wrong family (PR #359
+    # review). live_legacy_alias_collisions() + its test now guard against a recurrence.
+    _d("lrp190", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phoneme blending -> word reading (GP knee-test)"),
+    _d("lrp191", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "intervention sessions -> word reading (GP dose knee-test)"),
     # Joint-readiness: letter sounds x vocabulary interaction (do both need to be high?).
     # Companions to LRP71 (L x E); one per vocabulary measure.
     _d("lrp93", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x receptive-vocabulary interaction"),
@@ -446,6 +450,28 @@ def provenance_alias_collisions() -> list[str]:
         for key in (*SUPERSEDED, *RESERVED)
         if bare.match(key.lower()) and key.lower() in live_aliases
     ]
+
+
+def live_legacy_alias_collisions() -> dict[str, list[str]]:
+    """Legacy aliases shared by more than one *live* canonical model (should be empty).
+
+    The legacy alias of a mechanism / mediation / lcsm / … model is the bare
+    ``lrpNN`` form (no family tag, unlike ITT's ``lrpitt07``), so two live models
+    with the same number in different families collapse to one alias. The fit CLI
+    builds ``{alias: canonical}`` and the last writer wins, so a bare shorthand such
+    as ``lrp92`` would silently resolve to whichever family sorts last — an
+    expensive fit could run the wrong model (PR #359 review). This returns
+    ``{alias: [canonical ids]}`` for every alias claimed by ≥ 2 live models; ``tests``
+    asserts it is empty so a future same-number cross-family addition fails loudly
+    rather than shadowing an existing model. Fix a hit by giving the newer model a
+    unique number (the canonical ids stay family-scoped and remain fittable in full).
+    """
+    from collections import defaultdict
+
+    by_alias: dict[str, list[str]] = defaultdict(list)
+    for mid in MODEL_REGISTRY:
+        by_alias[model_ids.to_legacy(mid).lower()].append(mid)
+    return {alias: sorted(ids) for alias, ids in by_alias.items() if len(ids) > 1}
 
 
 def models_by_status(status: Status) -> list[ModelDefinition]:

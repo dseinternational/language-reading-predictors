@@ -31,7 +31,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_mechanism
 
 SPEC = ModelSpec(
-    model_id="lrp-rli-mech-091",
+    model_id="lrp-rli-mech-190",
     kind="mechanism",
     title="GP knee-test: phoneme blending (B) -> word reading (W)",
     outcome_symbol="W",

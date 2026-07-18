@@ -146,3 +146,20 @@ def test_provenance_keys_do_not_alias_live_models() -> None:
         f"provenance keys collide with live legacy aliases: {collisions} — "
         "qualify them (e.g. 'LRP74 [pre-#168 ...]') so they don't read as a live id"
     )
+
+
+def test_no_two_live_models_share_a_legacy_alias() -> None:
+    # PR #359 review: the mechanism/mediation/lcsm legacy alias is the bare `lrpNN`
+    # form (no family tag), so two live models with the same number in different
+    # families collapse to one alias and the fit CLI silently resolves the shorthand
+    # to whichever sorts last — an expensive fit could run the wrong family. mech-190/
+    # mech-191 were renumbered off 91/92 (held by lcsm-091 / med-092) to clear this.
+    from language_reading_predictors.statistical_models.definitions import (
+        live_legacy_alias_collisions,
+    )
+
+    collisions = live_legacy_alias_collisions()
+    assert collisions == {}, (
+        f"legacy aliases shared by >1 live model: {collisions} — give the newer "
+        "model a unique number (canonical ids stay family-scoped and fittable)"
+    )

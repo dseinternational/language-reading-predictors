@@ -916,6 +916,7 @@ def _validate_floor_trace(path: Path, row: Mapping[str, Any]) -> None:
 
     from language_reading_predictors.statistical_models import diagnostics as _diag
     from language_reading_predictors.statistical_models.reporting import (
+        REPORTING_CI_PROB,
         rope_summary,
         tau_summary_offfloor,
     )
@@ -1012,13 +1013,13 @@ def _validate_floor_trace(path: Path, row: Mapping[str, Any]) -> None:
         ):
             raise ValueError("manifest n_divergences does not match trace")
 
-        summary = tau_summary_offfloor(trace, ci_prob=0.89, G=G)
+        summary = tau_summary_offfloor(trace, ci_prob=REPORTING_CI_PROB, G=G)
         magnitude = rope_summary(
             trace,
             G=G,
             n_trials=1,
             delta=0.10,
-            ci_prob=0.89,
+            ci_prob=REPORTING_CI_PROB,
             varying_term="",
         )
         for column, summary_key in _TRACE_SUMMARY_COLUMNS.items():
@@ -1042,7 +1043,10 @@ def _validate_standard_trace(path: Path, row: Mapping[str, Any]) -> None:
     import arviz as az
 
     from language_reading_predictors.statistical_models import diagnostics as _diag
-    from language_reading_predictors.statistical_models.reporting import tau_summary_itt
+    from language_reading_predictors.statistical_models.reporting import (
+        REPORTING_CI_PROB,
+        tau_summary_itt,
+    )
 
     expected_provenance = standard_trace_provenance(row)
     expected_sampling = expected_provenance["sampling"]
@@ -1124,7 +1128,7 @@ def _validate_standard_trace(path: Path, row: Mapping[str, Any]) -> None:
         ):
             raise ValueError("manifest n_divergences does not match trace")
 
-        summary = tau_summary_itt(trace, ci_prob=0.89, G=G)
+        summary = tau_summary_itt(trace, ci_prob=REPORTING_CI_PROB, G=G)
         for column, summary_key in _STANDARD_SUMMARY_COLUMNS.items():
             if not _values_close(row[column], summary[summary_key]):
                 raise ValueError(f"manifest {column} does not match trace")

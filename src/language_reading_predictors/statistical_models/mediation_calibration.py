@@ -17,7 +17,7 @@ uses the familiar single-omitted-variable approximation
 after converting the dose-response slopes to the mediation fit's one-standard-
 deviation session scale and standardised mediator scale.  Treating the whole fitted
 ``IS -> Y`` association as confounding is conservative in one specific sense: that
-association may itself include a genuine ``IS -> M -> Y`` path.  The 90% range is
+association may itself include a genuine ``IS -> M -> Y`` path.  The 89% range is
 an endpoint envelope from separate marginal slope intervals, not a joint posterior
 or credible interval.  The report says both things explicitly.
 
@@ -60,7 +60,7 @@ class _CalibrationSources:
 
 @dataclass(frozen=True)
 class SlopeEstimate:
-    """One dose slope and its 90% marginal interval on a documented scale."""
+    """One dose slope and its 89% marginal interval on a documented scale."""
 
     point: float
     lo: float
@@ -109,7 +109,7 @@ def _design(dose_std: np.ndarray, *controls: np.ndarray) -> np.ndarray:
 
 
 def _linear_slope(y: np.ndarray, X: np.ndarray, *, source: str) -> SlopeEstimate:
-    """Adjusted least-squares dose slope with a descriptive 90% t interval."""
+    """Adjusted least-squares dose slope with a descriptive 89% t interval."""
     y = np.asarray(y, dtype=float)
     beta = np.linalg.lstsq(X, y, rcond=None)[0]
     resid = y - X @ beta
@@ -119,13 +119,13 @@ def _linear_slope(y: np.ndarray, X: np.ndarray, *, source: str) -> SlopeEstimate
     sigma2 = float(resid @ resid / dof)
     cov = sigma2 * np.linalg.pinv(X.T @ X)
     se = float(np.sqrt(max(cov[1, 1], 0.0)))
-    crit = float(t.ppf(0.95, dof))
+    crit = float(t.ppf(0.945, dof))  # 89% two-sided (house standard)
     point = float(beta[1])
     return SlopeEstimate(point, point - crit * se, point + crit * se, source)
 
 
 def _logistic_slope(y: np.ndarray, X: np.ndarray, *, source: str) -> SlopeEstimate:
-    """Adjusted Bernoulli-logit dose slope with a descriptive 90% Wald interval.
+    """Adjusted Bernoulli-logit dose slope with a descriptive 89% Wald interval.
 
     This is an observed-data calibration association, not a new registered model
     and not a causal estimate.  Iteratively reweighted least squares keeps the
@@ -156,7 +156,7 @@ def _logistic_slope(y: np.ndarray, X: np.ndarray, *, source: str) -> SlopeEstima
     w = np.clip(p * (1.0 - p), 1e-8, None)
     cov = np.linalg.pinv(X.T @ (w[:, None] * X))
     se = float(np.sqrt(max(cov[1, 1], 0.0)))
-    crit = float(norm.ppf(0.95))
+    crit = float(norm.ppf(0.945))  # 89% two-sided (house standard)
     point = float(beta[1])
     return SlopeEstimate(point, point - crit * se, point + crit * se, source)
 
@@ -391,14 +391,14 @@ def calibrate_is_scenario(
             if off_floor
             else f"; the g-formula maps the point scenario to an NIE of {nie_response:+.2f} items"
         )
-        mapped += f" (95% {nie_response_lo:+.2f} to {nie_response_hi:+.2f})"
+        mapped += f" (89% {nie_response_lo:+.2f} to {nie_response_hi:+.2f})"
 
     if already_null:
         verdict = "already_null"
         sentence = (
             f"At n = {n_obs}, the IS point calibration is delta about "
-            f"{delta_point:.2f} (90% endpoint scenario {band}){mapped}, but the "
-            "95% NIE interval already includes zero before any shift, so there is "
+            f"{delta_point:.2f} (89% endpoint scenario {band}){mapped}, but the "
+            "89% NIE interval already includes zero before any shift, so there is "
             "no credibly non-zero indirect effect for IS to explain away."
         )
     elif np.isfinite(tipping):
@@ -407,7 +407,7 @@ def calibrate_is_scenario(
             sentence = (
                 f"At n = {n_obs}, the IS point calibration delta about "
                 f"{delta_point:.2f} reaches the NIE tipping point delta* about "
-                f"{tipping:.2f} (90% endpoint scenario {band}){mapped}, so "
+                f"{tipping:.2f} (89% endpoint scenario {band}){mapped}, so "
                 "IS-strength confounding could account for the estimated NIE."
             )
         elif scenario_hi >= tipping:
@@ -415,7 +415,7 @@ def calibrate_is_scenario(
             sentence = (
                 f"At n = {n_obs}, the IS point calibration delta about "
                 f"{delta_point:.2f} is below the NIE tipping point delta* about "
-                f"{tipping:.2f}, but its wide 90% endpoint scenario ({band}) reaches "
+                f"{tipping:.2f}, but its wide 89% endpoint scenario ({band}) reaches "
                 f"that point{mapped}, so IS-strength confounding could plausibly "
                 "account for the estimated NIE."
             )
@@ -423,7 +423,7 @@ def calibrate_is_scenario(
             verdict = "survives_band"
             sentence = (
                 f"At n = {n_obs}, the IS calibration delta about {delta_point:.2f} "
-                f"(90% endpoint scenario {band}) remains below the NIE tipping point "
+                f"(89% endpoint scenario {band}) remains below the NIE tipping point "
                 f"delta* about {tipping:.2f}{mapped}, so the NIE survives this named-"
                 "confounder scenario, although both the dose links and the mediation "
                 "estimate remain imprecise."
@@ -432,7 +432,7 @@ def calibrate_is_scenario(
         verdict = "survives_sweep"
         sentence = (
             f"At n = {n_obs}, the IS calibration delta about {delta_point:.2f} "
-            f"(90% endpoint scenario {band}) lies within the tested sweep, across "
+            f"(89% endpoint scenario {band}) lies within the tested sweep, across "
             f"which the NIE interval never reaches zero{mapped}, so the NIE survives "
             "this named-confounder scenario, although both source slopes remain "
             "imprecise."
@@ -441,7 +441,7 @@ def calibrate_is_scenario(
         verdict = "outside_sweep"
         sentence = (
             f"At n = {n_obs}, the IS calibration delta about {delta_point:.2f} "
-            f"(90% endpoint scenario {band}) extends beyond the tested sweep maximum "
+            f"(89% endpoint scenario {band}) extends beyond the tested sweep maximum "
             f"of {sweep_max:.2f}, so this named-confounder calibration is inconclusive "
             "until the sensitivity surface is extended."
         )
@@ -474,7 +474,7 @@ def calibrate_is_scenario(
         "mediator_source": fitted_mediator_slope.source,
         "outcome_source": fitted_outcome_slope.source,
         "scenario_band_method": (
-            "envelope of separate 90% marginal slope endpoints plus the "
+            "envelope of separate 89% marginal slope endpoints plus the "
             "observed-data cross-check; not a joint credible interval"
         ),
         "scale_conversion": (

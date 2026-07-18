@@ -1331,6 +1331,44 @@ def test_tau_summary_itt_exposes_50_and_89_bands():
     assert "tau_prob_lo" in tau_summary_offfloor(_trace(eta, tau), ci_prob=0.89, G=G)
 
 
+def test_reporting_ci_prob_is_the_89pct_house_standard():
+    # PR #359: the standalone prior-sensitivity producers and the sensitivity gate
+    # must build their bands at the coverage the reports label (89%). They import one
+    # shared constant; asserting it here means a producer cannot silently drift back
+    # to 0.95 while the report prose says 89% (notes/…-credible-interval-standard.md).
+    from language_reading_predictors.statistical_models.reporting import (
+        REPORTING_CI_PROB,
+    )
+
+    assert REPORTING_CI_PROB == 0.89
+
+
+def test_producers_emit_only_the_median_50_89_band_schema():
+    # PR #359 contract: the band-bearing reporting producers expose the median +
+    # inner 50% + outer 89% (lo/hi) schema and NO retired 90%/95% bands, so a report
+    # consumer that labels a column "89%" can never read a differently-covered number
+    # (the 2026-07-17 migration dropped *_lo90/*_hi90 but left ~60 tests asserting them).
+    rng = np.random.default_rng(9)
+    eta = rng.normal(0.0, 1.0, (2, 400, 5))
+    tau = rng.normal(0.3, 0.2, (2, 400))
+    G = (rng.random(5) > 0.5).astype(float)
+    trace = _trace(eta, tau)
+
+    retired = ("_lo90", "_hi90", "_lo95", "_hi95", "lo90", "hi90", "lo95", "hi95")
+    itt = tau_summary_itt(trace, ci_prob=0.89, G=G)
+    offfloor = tau_summary_offfloor(trace, ci_prob=0.89, G=G)
+    rope = rope_summary(trace, G=G, n_trials=20, delta=1.0, ci_prob=0.89)
+    for producer in (itt, offfloor, rope):
+        assert not [k for k in producer if any(k.endswith(s) for s in retired)], (
+            "producer still emits a retired 90%/95% band column: "
+            f"{[k for k in producer if any(k.endswith(s) for s in retired)]}"
+        )
+    # The median + inner 50% + outer 89% headline columns are present on both scales.
+    for scale in ("tau_logit", "tau_prob"):
+        for suffix in ("median", "lo50", "hi50", "lo", "hi"):
+            assert f"{scale}_{suffix}" in itt
+
+
 def test_rope_markdown_labels_central_50_interval():
     # rope_markdown names the 50% band explicitly and drops the ambiguous bare
     # "50% CrI" shorthand (#177).

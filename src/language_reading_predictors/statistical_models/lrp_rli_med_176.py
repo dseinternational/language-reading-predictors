@@ -10,7 +10,7 @@ reading (`LS -> WR`): the contemporaneous base DAG hard-codes it, and until
 reverse edges `WR_t -> {TE, TR, PA, RW}_{t+1}` but pointedly **not** `WR_t -> LS_t1`.
 This model exercises the newly-added `WR_t -> LS_t1` edge (the reading-feeds-back-
 into-the-code hypothesis, motivated by the DS-specific `WR -> NW` finding of Roch &
-Jarrold 2012, doi:10.1002/dys.1433): a single-mediator g-formula decomposition of the
+Jarrold 2012, doi:10.1016/j.jcomdis.2011.11.001): a single-mediator g-formula decomposition of the
 intervention's effect on **letter-sound knowledge at t4** through **word reading at
 t2**. Read side by side with LRP76, the pair is the direction contrast `LS -> WR` vs
 `WR -> LS`. Full design rationale:

@@ -232,4 +232,3 @@ if __name__ == "__main__":
             with open(a.out, "w") as f:
                 json.dump({"true_dm": true_dm, "rows": rows}, f, indent=2)
             print(f"  wrote {a.out}", flush=True)
-
