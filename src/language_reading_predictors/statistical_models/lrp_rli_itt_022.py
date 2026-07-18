@@ -25,6 +25,7 @@ Sign convention: positive tau => intervention helps.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_itt
 
 # Baseline nonverbal cognitive ability (block design), measured at t1 only.
@@ -36,15 +37,7 @@ SPEC = ModelSpec(
     title="Ability-adjusted ITT effect of group assignment on expressive vocabulary (EOWPVT) (E)",
     outcome_symbol="E",
     adjustment=list(ABILITY_ADJUSTER),
-    extra={
-        "outcomes": ("E",),
-        "cross_symbols": (),
-        "use_age_gp": False,
-        "use_own_baseline_gp": False,
-        "use_age_linear": True,
-        "use_own_baseline": True,
-        "adjust_for": ABILITY_ADJUSTER,
-    },
+    model_settings=IttModelSettings(adjust_for=ABILITY_ADJUSTER),
 )
 
 

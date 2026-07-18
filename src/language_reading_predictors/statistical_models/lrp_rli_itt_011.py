@@ -22,6 +22,7 @@ Sign convention: positive ``tau`` means the intervention raises the outcome
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_itt
 
 SPEC = ModelSpec(
@@ -38,18 +39,7 @@ SPEC = ModelSpec(
         "randomised_assignment_within_observed_baseline_floor_subgroup_"
         "conditional_on_eligibility_and_outcome_missingness"
     ),
-    extra={
-        "floor_rule": True,
-        "floor_rule_provenance": "post_hoc_data_adaptive_t2_zero_rate",
-        "floor_estimand_role": "exploratory_headline",
-        "outcomes": ("N",),
-        "pre_required": (),
-        "cross_symbols": (),
-        "use_age_gp": False,
-        "use_own_baseline_gp": False,
-        "use_age_linear": True,
-        "use_own_baseline": False,
-    },
+    model_settings=IttModelSettings.for_floor_outcome(),
 )
 
 

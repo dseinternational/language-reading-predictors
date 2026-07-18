@@ -24,6 +24,7 @@ import xarray as xr
 from language_reading_predictors.statistical_models import pipeline
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
     Standardiser,
@@ -135,11 +136,17 @@ def fast_pipeline(monkeypatch, tmp_path):
             trace=None,
             loo=None,
             tables={},
+            resolved_plan=None,
             output_dir=str(out),
         )
 
     def sample_and_loo(ctx, *, compute_loo=True):
-        ctx.trace = _FakeTrace(ctx.spec.extra.get("outcomes", ()))
+        outcomes = (
+            ctx.resolved_plan.outcomes
+            if ctx.resolved_plan is not None
+            else tuple(ctx.spec.extra.get("outcomes", ()))
+        )
+        ctx.trace = _FakeTrace(outcomes)
         ctx.loo = SimpleNamespace(elpd=-12.5)
 
     def write_analysis_audit(ctx, prepared, outcomes):
@@ -554,14 +561,13 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
         kind="itt",
         title="ordinary pipeline regression",
         outcome_symbol="W",
-        extra={
-            "adjust_for": ("kept_adjuster", "dropped_adjuster"),
-            "use_age_linear": True,
-            "tau_sigma": 0.35,
-            "alpha_sigma": 1.25,
-            "gamma_own_sigma": 0.45,
-            "kappa_sigma": 0.80,
-        },
+        model_settings=IttModelSettings(
+            adjust_for=("kept_adjuster", "dropped_adjuster"),
+            tau_sigma=0.35,
+            alpha_sigma=1.25,
+            gamma_own_sigma=0.45,
+            kappa_sigma=0.80,
+        ),
     )
 
     ctx = pipeline.fit_itt(spec, config="dev")
@@ -570,6 +576,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
     assert load_calls == [
         {
             "phase_mode": "itt",
+            "outcomes": ("W",),
             "covariates": ("kept_adjuster", "dropped_adjuster"),
             "restrict_complete": (),
             "drop_missing_pre": True,
@@ -590,6 +597,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
         "tau_summary.csv",
         "rope_summary.csv",
         "rope_sensitivity.csv",
+        "model_recipe.md",
         "config.json",
     ):
         assert (out / filename).is_file(), filename
@@ -604,8 +612,46 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
         "cross_symbols": [],
         "pre_required": None,
     }
+    assert cfg["spec_extra"] == {}
+    assert cfg["model_settings"]["source"] == "typed"
+    assert cfg["resolved_run_plan"]["adjust_for"] == [
+        "kept_adjuster",
+        "dropped_adjuster",
+    ]
+    assert cfg["model_recipe_file"] == "model_recipe.md"
+    recipe = (out / "model_recipe.md").read_text()
+    assert "supports the causal interpretation" in recipe
+    assert "missing-outcome assumption" in recipe
+    assert "does not make the other coefficients causal" in recipe
+    assert "machine-readable form" in recipe
     assert cfg["extra"]["adjust_for"] == ["kept_adjuster"]
     assert cfg["extra"]["tau_summary"]["tau_prob_median"] == pytest.approx(0.08)
+
+
+def test_fit_itt_rejects_an_invalid_plan_before_context_or_data(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        pipeline,
+        "make_context",
+        lambda *args, **kwargs: calls.append("context"),
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "load_and_prepare",
+        lambda *args, **kwargs: calls.append("data"),
+    )
+    spec = ModelSpec(
+        model_id="lrp-rli-itt-903",
+        kind="itt",
+        title="invalid settings regression",
+        outcome_symbol="W",
+        model_settings=IttModelSettings(use_age_gp=True),
+    )
+
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        pipeline.fit_itt(spec, config="dev")
+
+    assert calls == []
 
 
 def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fast_pipeline, monkeypatch):
@@ -663,15 +709,7 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
         kind="itt",
         title="floor pipeline regression",
         outcome_symbol="P",
-        extra={
-            "floor_rule": True,
-            "outcomes": ("P",),
-            "pre_required": (),
-            "drop_missing_pre": False,
-            "use_age_linear": True,
-            "use_own_baseline": False,
-            "cross_symbols": (),
-        },
+        model_settings=IttModelSettings.for_floor_outcome(),
     )
 
     ctx = pipeline.fit_itt(spec, config="dev")
@@ -683,7 +721,7 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
             "outcomes": ("P",),
             "covariates": (),
             "restrict_complete": (),
-            "drop_missing_pre": False,
+            "drop_missing_pre": True,
             "pre_required": (),
         }
     ]
@@ -704,6 +742,7 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
         "floor_transition_missingness_bounds.csv",
         "offfloor_movers.csv",
         "proportion_at_zero_ppc.csv",
+        "model_recipe.md",
         "config.json",
     ):
         assert (out / filename).is_file(), filename

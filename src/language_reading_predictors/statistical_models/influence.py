@@ -23,7 +23,7 @@ import json
 import os
 import shutil
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
@@ -40,6 +40,10 @@ from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models import factories as _factories
 from language_reading_predictors.statistical_models import reporting as _report
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import (
+    declared_settings_dict,
+    resolve_itt_run_plan,
+)
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
@@ -230,7 +234,24 @@ def load_influence_reference(
             f"saved=({metadata.get('model_id')!r}, {metadata.get('kind')!r}), "
             f"current=({spec.model_id!r}, {spec.kind!r})"
         )
-    if _json_normalise(metadata.get("spec_extra", {})) != _json_normalise(spec.extra):
+    if spec.kind == "itt":
+        current_plan = resolve_itt_run_plan(spec).as_dict()
+        current_plan.pop("settings_source", None)
+        if metadata.get("resolved_run_plan") is not None:
+            saved_settings = dict(metadata["resolved_run_plan"])
+            saved_settings.pop("settings_source", None)
+        else:
+            saved_spec = replace(
+                spec,
+                model_settings=None,
+                extra=dict(metadata.get("spec_extra", {})),
+            )
+            saved_settings = resolve_itt_run_plan(saved_spec).as_dict()
+            saved_settings.pop("settings_source", None)
+    else:
+        current_plan = spec.extra
+        saved_settings = metadata.get("spec_extra", {})
+    if _json_normalise(saved_settings) != _json_normalise(current_plan):
         raise ValueError(
             f"registered settings for {spec.model_id} have drifted since the completed fit; "
             "refit the full model before running influence sensitivity"
@@ -309,40 +330,13 @@ def load_influence_reference(
 
 def _prepare_itt(spec: ModelSpec):
     """Mirror the registered single-outcome ITT preparation contract."""
-    adjust_for = tuple(spec.extra.get("adjust_for", ()))
-    restrict_complete = tuple(spec.extra.get("restrict_complete", ()))
-    extra_outcomes = spec.extra.get("outcomes")
-    pre_required = spec.extra.get("pre_required")
-    if pre_required is not None:
-        pre_required = tuple(pre_required)
-    drop_missing_pre = bool(spec.extra.get("drop_missing_pre", True))
-    if extra_outcomes is None:
-        prepared = load_and_prepare(
-            phase_mode="itt",
-            outcomes=ITT_OUTCOMES,
-            covariates=adjust_for,
-            restrict_complete=restrict_complete,
-            drop_missing_pre=drop_missing_pre,
-            pre_required=pre_required,
-        )
-    else:
-        outcomes = tuple(extra_outcomes)
-        if spec.outcome_symbol not in outcomes:
-            raise ValueError(
-                f"outcome_symbol {spec.outcome_symbol!r} is absent from outcomes={outcomes!r}"
-            )
-        prepared = load_and_prepare(
-            phase_mode="itt",
-            outcomes=outcomes,
-            covariates=adjust_for,
-            restrict_complete=restrict_complete,
-            drop_missing_pre=drop_missing_pre,
-            pre_required=pre_required,
-        )
+    plan = resolve_itt_run_plan(spec)
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    adjust_for = plan.adjust_for
     adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
-    if spec.extra.get("floor_rule", False):
+    if plan.floor_rule:
         prepared = restrict_to_baseline_floored(prepared, spec.outcome_symbol)
-    return prepared, adjust_for
+    return prepared, adjust_for, plan
 
 
 def _prepare_joint(spec: ModelSpec):
@@ -383,47 +377,23 @@ def build_influence_model(
     """Rebuild ``spec`` after removing every child with unreliable Pareto-k."""
     excluded = tuple(reference.flagged["subject_id"].astype(str).tolist())
     if spec.kind == "itt":
-        prepared, adjust_for = _prepare_itt(spec)
+        prepared, adjust_for, plan = _prepare_itt(spec)
         _validate_reference_alignment(prepared, reference)
         full_ids = np.asarray(prepared.subject_ids).astype(str)
         keep = ~np.isin(full_ids, excluded)
         reduced = _subset_prepared(prepared, keep)
         if np.unique(reduced.G).size != 2:
             raise ValueError("excluding the flagged child leaves fewer than two trial arms")
-        if spec.extra.get("floor_rule", False):
+        if plan.floor_rule:
             built = _factories.build_itt_model(
                 reduced,
-                outcome_symbol=spec.outcome_symbol,
-                use_age_gp=spec.extra.get("use_age_gp", False),
-                use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", False),
-                use_age_linear=spec.extra.get("use_age_linear", True),
-                use_own_baseline=spec.extra.get("use_own_baseline", False),
-                cross_symbols=spec.extra.get("cross_symbols", ()),
-                adjust_for=adjust_for,
                 likelihood="bernoulli_offfloor",
+                **plan.factory_kwargs(effective_adjustment=adjust_for),
             )
         else:
             built = _factories.build_itt_model(
                 reduced,
-                outcome_symbol=spec.outcome_symbol,
-                use_age_gp=spec.extra.get("use_age_gp", False),
-                use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", False),
-                use_varying_tau=spec.extra.get("use_varying_tau", False),
-                adjust_for=adjust_for,
-                cross_symbols=spec.extra.get("cross_symbols"),
-                use_age_linear=spec.extra.get("use_age_linear", False),
-                use_own_baseline=spec.extra.get("use_own_baseline", True),
-                tau_moderator_symbol=spec.extra.get("tau_moderator_symbol"),
-                tau_moderator_is_covariate=spec.extra.get(
-                    "tau_moderator_is_covariate", False
-                ),
-                tau_moderator_interaction=spec.extra.get(
-                    "tau_moderator_interaction", True
-                ),
-                tau_sigma=spec.extra.get("tau_sigma"),
-                alpha_sigma=spec.extra.get("alpha_sigma"),
-                gamma_own_sigma=spec.extra.get("gamma_own_sigma"),
-                kappa_sigma=spec.extra.get("kappa_sigma"),
+                **plan.factory_kwargs(effective_adjustment=adjust_for),
             )
     else:
         prepared, outcomes = _prepare_joint(spec)
@@ -751,6 +721,17 @@ def summarise_influence_refit(
         "data_path": influence_build.data_path,
         "data_sha256": influence_build.data_sha256,
         "spec_extra_json": json.dumps(_json_normalise(spec.extra), sort_keys=True),
+        "model_settings_json": json.dumps(
+            _json_normalise(declared_settings_dict(spec)), sort_keys=True
+        ),
+        "resolved_run_plan_json": (
+            json.dumps(
+                _json_normalise(resolve_itt_run_plan(spec).as_dict()),
+                sort_keys=True,
+            )
+            if spec.kind == "itt"
+            else ""
+        ),
         "reference_config_file": "config.json",
         "reference_pareto_file": "pareto_k.csv",
         "reference_trace_file": "trace.nc",

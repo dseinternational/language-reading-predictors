@@ -13,6 +13,7 @@ unconfirmed in ``measures.py``; probability-scale summaries are approximate.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_itt
 
 SPEC = ModelSpec(
@@ -20,14 +21,7 @@ SPEC = ModelSpec(
     kind="itt",
     title="ITT effect of group assignment on not-taught expressive vocabulary, block 1 (UE)",
     outcome_symbol="UE",
-    extra={
-        "outcomes": ("UE",),
-        "cross_symbols": (),
-        "use_age_gp": False,
-        "use_own_baseline_gp": False,
-        "use_age_linear": True,
-        "use_own_baseline": True,
-    },
+    model_settings=IttModelSettings(),
 )
 
 

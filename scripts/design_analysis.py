@@ -44,6 +44,7 @@ from scipy import stats
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models import reporting as _report
 from language_reading_predictors.statistical_models.factories import build_itt_model
+from language_reading_predictors.statistical_models.itt import resolve_itt_run_plan
 from language_reading_predictors.statistical_models.measures import MEASURES, ROPE_DELTA
 from language_reading_predictors.statistical_models.preprocessing import load_and_prepare
 
@@ -74,28 +75,16 @@ LAM_MOD = stats.norm.ppf(0.90)  # 1.28 -> pd 0.90
 # Model fitting
 # --------------------------------------------------------------------------- #
 def _prepare_and_build(spec):
-    extra = spec.extra
-    kw = dict(
-        phase_mode="itt",
-        covariates=tuple(extra.get("adjust_for", ())),
-        restrict_complete=tuple(extra.get("restrict_complete", ())),
-        drop_missing_pre=bool(extra.get("drop_missing_pre", True)),
-        pre_required=(
-            tuple(extra["pre_required"]) if extra.get("pre_required") is not None else None
-        ),
+    plan = resolve_itt_run_plan(spec)
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    effective_adjustment = tuple(
+        covariate
+        for covariate in plan.adjust_for
+        if covariate in prepared.covariates
     )
-    if extra.get("outcomes") is not None:
-        kw["outcomes"] = tuple(extra["outcomes"])
-    prepared = load_and_prepare(**kw)
     return build_itt_model(
         prepared,
-        outcome_symbol=spec.outcome_symbol,
-        use_age_gp=extra.get("use_age_gp", False),
-        use_own_baseline_gp=extra.get("use_own_baseline_gp", False),
-        adjust_for=tuple(extra.get("adjust_for", ())),
-        cross_symbols=extra.get("cross_symbols"),
-        use_age_linear=extra.get("use_age_linear", False),
-        use_own_baseline=extra.get("use_own_baseline", True),
+        **plan.factory_kwargs(effective_adjustment=effective_adjustment),
     )
 
 

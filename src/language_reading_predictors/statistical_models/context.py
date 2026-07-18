@@ -39,8 +39,9 @@ class ModelSpec:
     ``"dose_response"``, ``"lcsm"``, ``"mediation_multi"``, ``"horseshoe"``,
     ``"growth"``, ``"historical_growth"``, ``"historical_joint"``, ``"survival"``,
     ``"block_exposure"``, ``"concurrent"`` and ``"long_corr_factor"``. ``title``
-    is the long human-readable title shown on the report. ``extra`` is a free-form
-    dict of model-specific settings that the pipeline passes to the factory.
+    is the long human-readable title shown on the report. ``model_settings`` is the
+    typed family boundary (currently implemented for ITT); ``extra`` remains the
+    migration boundary for other families.
     """
 
     model_id: str
@@ -52,6 +53,8 @@ class ModelSpec:
     """For mechanism models, the mechanism variable symbol."""
     adjustment: list[str] = field(default_factory=list)
     """For mechanism models, the list of adjustment-set symbols."""
+    model_settings: object | None = None
+    """Typed, immutable family settings; ITT uses ``IttModelSettings``."""
     extra: dict[str, Any] = field(default_factory=dict)
 
     # --- Dataset / estimand metadata (#165) -------------------------------
@@ -171,6 +174,8 @@ class StatisticalFitContext:
     trace: xr.DataTree | None = None
     loo: az.ELPDData | None = None
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)
+    resolved_plan: Any | None = None
+    """Validated family run plan resolved before data loading."""
 
     @property
     def output_dir(self) -> str:
