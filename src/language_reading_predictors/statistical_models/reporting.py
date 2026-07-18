@@ -1101,7 +1101,7 @@ def readiness_threshold(
     *,
     n_trials: int | None = None,
     exposure_values: np.ndarray | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = 0.89,
     n_bins: int = 6,
 ) -> dict[str, float]:
     """Readiness-threshold estimand: the steepest rise of a mechanism curve (#230 §2/§5).

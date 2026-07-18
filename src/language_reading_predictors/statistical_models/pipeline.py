@@ -1328,14 +1328,15 @@ def _save_forest_plot(
 
         tr = _diag.thin_for_plots(ctx.trace)
         # Equal-tailed nested bands (#177): inner central 50% + outer equal-tailed
-        # 95% headline, matching the reported interval convention rather than the
-        # arviz default (which can be an HDI, inconsistent with the prose).
+        # headline (89% house standard, from ctx.reporting.ci_prob), matching the
+        # reported interval convention rather than the arviz default (which can be
+        # an HDI, inconsistent with the prose).
         pc = azp.plot_forest(
             tr,
             var_names=var_names,
             combined=True,
             ci_kind=ctx.reporting.interval_kind,
-            ci_probs=(0.5, 0.95),
+            ci_probs=(0.5, ctx.reporting.ci_prob),
         )
         try:
             azp.add_lines(pc, values=0)
@@ -3525,7 +3526,9 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
         scaler = ctx.prepared.covariate_scalers.get(sym)
         x_obs = scaler.inverse(z_loaded) if scaler is not None else z_loaded
         try:
-            summary = _report.readiness_threshold(ctx.trace, exposure_values=x_obs)
+            summary = _report.readiness_threshold(
+                ctx.trace, exposure_values=x_obs, ci_prob=ctx.reporting.ci_prob
+            )
         except ValueError as exc:
             rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
             return
@@ -3533,7 +3536,9 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     else:
         N = MEASURES[sym].n_trials
         try:
-            summary = _report.readiness_threshold(ctx.trace, n_trials=N)
+            summary = _report.readiness_threshold(
+                ctx.trace, n_trials=N, ci_prob=ctx.reporting.ci_prob
+            )
         except ValueError as exc:
             rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
             return
@@ -3557,7 +3562,7 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
         summary["knee_count_ci_high"],
         color="#d62728",
         alpha=0.15,
-        label="knee 95% CI",
+        label=f"knee {int(round(ctx.reporting.ci_prob * 100))}% CI",
     )
     plt.axvline(
         summary["knee_count_median"], color="#d62728", lw=1.5, label="knee median"
