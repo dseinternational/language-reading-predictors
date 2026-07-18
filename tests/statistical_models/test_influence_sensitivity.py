@@ -101,7 +101,7 @@ def test_build_influence_model_reconstructs_registered_specs(
     if spec.kind == "joint":
         prepared, _outcomes = influence._prepare_joint(spec)
     else:
-        prepared, _adjust_for = influence._prepare_itt(spec)
+        prepared, _adjust_for, _plan = influence._prepare_itt(spec)
     assert prepared.n_obs == expected_full_n
     reference = _reference_for_prepared(spec, prepared, tmp_path)
 
@@ -112,7 +112,13 @@ def test_build_influence_model_reconstructs_registered_specs(
     assert {rv.name for rv in result.built.model.free_RVs} == expected_free
 
 
-def _write_reference_files(tmp_path, spec, *, duplicate_subject=False):
+def _write_reference_files(
+    tmp_path,
+    spec,
+    *,
+    duplicate_subject=False,
+    spec_extra=None,
+):
     model_dir = tmp_path / f"{spec.model_id}-reporting"
     model_dir.mkdir()
     (model_dir / "config.json").write_text(
@@ -120,7 +126,7 @@ def _write_reference_files(tmp_path, spec, *, duplicate_subject=False):
             {
                 "model_id": spec.model_id,
                 "kind": spec.kind,
-                "spec_extra": spec.extra,
+                "spec_extra": spec.extra if spec_extra is None else spec_extra,
                 "n_obs": 2,
                 "n_children": 2,
                 "data_sha256": "abc",
@@ -163,7 +169,7 @@ def test_load_reference_recomputes_flag_from_saved_threshold(tmp_path):
         kind="itt",
         title="test",
         outcome_symbol="W",
-        extra={"outcomes": ("W",)},
+        extra={"outcomes": ("W",), "cross_symbols": ()},
     )
     _write_reference_files(tmp_path, spec)
 
@@ -177,13 +183,36 @@ def test_load_reference_recomputes_flag_from_saved_threshold(tmp_path):
     )
 
 
+def test_load_reference_accepts_the_pre_typed_registered_itt_contract(tmp_path):
+    old_extra = {
+        "outcomes": ("W",),
+        "cross_symbols": (),
+        "use_age_gp": False,
+        "use_own_baseline_gp": False,
+        "use_age_linear": True,
+        "use_own_baseline": True,
+        "adjust_for": tuple(SES_SPEC.adjustment),
+    }
+    _write_reference_files(tmp_path, SES_SPEC, spec_extra=old_extra)
+
+    reference = influence.load_influence_reference(
+        SES_SPEC,
+        "reporting",
+        model_output_root=tmp_path,
+    )
+
+    assert reference.metadata["spec_extra"]["adjust_for"] == list(
+        SES_SPEC.adjustment
+    )
+
+
 def test_load_reference_rejects_non_child_level_pareto_rows(tmp_path):
     spec = ModelSpec(
         model_id="lrp-rli-itt-999",
         kind="itt",
         title="test",
         outcome_symbol="W",
-        extra={"outcomes": ("W",)},
+        extra={"outcomes": ("W",), "cross_symbols": ()},
     )
     _write_reference_files(tmp_path, spec, duplicate_subject=True)
 
@@ -199,7 +228,7 @@ def test_load_reference_rejects_corrupt_primary_trace(tmp_path):
         kind="itt",
         title="test",
         outcome_symbol="W",
-        extra={"outcomes": ("W",)},
+        extra={"outcomes": ("W",), "cross_symbols": ()},
     )
     model_dir = _write_reference_files(tmp_path, spec)
     (model_dir / "trace.nc").write_bytes(b"not a readable NetCDF trace")
@@ -257,7 +286,7 @@ def _candidate_bundle(tmp_path, *, divergent: bool = False):
         kind="itt",
         title="test",
         outcome_symbol="W",
-        extra={"outcomes": ("W",)},
+        extra={"outcomes": ("W",), "cross_symbols": ()},
     )
     model_dir = tmp_path / "models" / "lrp-rli-itt-999-reporting"
     model_dir.mkdir(parents=True)

@@ -16,6 +16,8 @@ import pymc as pm
 import pytest
 
 from language_reading_predictors.data_variables import Variables as V
+from language_reading_predictors.statistical_models import priors
+from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import (
     build_adjusted_model,
     build_aligned_model,
@@ -32,7 +34,10 @@ from language_reading_predictors.statistical_models.factories import (
     build_mediation_model,
     build_two_mediator_model,
 )
-from language_reading_predictors.statistical_models import priors
+from language_reading_predictors.statistical_models.itt import (
+    IttModelSettings,
+    resolve_itt_run_plan,
+)
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
@@ -426,15 +431,27 @@ def test_itt_factory_tau_moderator_baseline(tmp_path):
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
 
 
-def _assert_itt_diag_vars_subset(built, *, extra, adjust_for=(), likelihood="beta_binomial"):
+def _assert_itt_diag_vars_subset(
+    built,
+    *,
+    settings,
+    outcome="W",
+    adjust_for=(),
+    likelihood="beta_binomial",
+):
     """``_itt_diag_vars`` must only name RVs the factory actually builds, else
     ``summary_diagnostics`` (``az.summary``) raises ``KeyError`` at diagnostics time."""
-    from types import SimpleNamespace
-
     from language_reading_predictors.statistical_models.pipeline import _itt_diag_vars
 
-    spec = SimpleNamespace(extra=extra)
-    diag = _itt_diag_vars(spec, adjust_for, likelihood=likelihood)
+    spec = ModelSpec(
+        model_id="lrp-rli-itt-999",
+        kind="itt",
+        title="diagnostic contract fixture",
+        outcome_symbol=outcome,
+        model_settings=settings,
+    )
+    plan = resolve_itt_run_plan(spec)
+    diag = _itt_diag_vars(plan, adjust_for, likelihood=likelihood)
     built_names = {v.name for v in built.model.free_RVs} | {
         v.name for v in built.model.deterministics
     }
@@ -450,7 +467,10 @@ def test_itt_diag_vars_match_graded_build(tmp_path):
         prep, outcome_symbol="W", use_age_gp=False, use_own_baseline_gp=False,
         cross_symbols=(),
     )
-    diag = _assert_itt_diag_vars_subset(built, extra={})
+    diag = _assert_itt_diag_vars_subset(
+        built,
+        settings=IttModelSettings(use_age_linear=False),
+    )
     assert {"alpha", "tau", "gamma_own", "kappa"}.issubset(diag)
 
 
@@ -466,7 +486,8 @@ def test_itt_diag_vars_match_offfloor_age_only_build(tmp_path):
     )
     diag = _assert_itt_diag_vars_subset(
         built,
-        extra={"use_own_baseline": False, "use_age_linear": True},
+        settings=IttModelSettings.for_floor_outcome(),
+        outcome="N",
         likelihood="bernoulli_offfloor",
     )
     assert {"alpha", "tau", "gamma_A"}.issubset(diag)
@@ -478,11 +499,16 @@ def test_itt_diag_vars_match_tau_moderator_build(tmp_path):
     prep = load_and_prepare(path=p, phase_mode="itt")
     built = build_itt_model(
         prep, outcome_symbol="W", use_age_gp=False, use_own_baseline_gp=False,
-        cross_symbols=(), use_age_linear=True,
+        cross_symbols=(), use_age_linear=False,
         tau_moderator_symbol="A", tau_moderator_is_covariate=True,
     )
     diag = _assert_itt_diag_vars_subset(
-        built, extra={"use_age_linear": True, "tau_moderator_symbol": "A"}
+        built,
+        settings=IttModelSettings(
+            use_age_linear=False,
+            tau_moderator_symbol="A",
+            tau_moderator_is_covariate=True,
+        ),
     )
     assert {"gamma_tau_mod", "gamma_tau_int"}.issubset(diag)
 

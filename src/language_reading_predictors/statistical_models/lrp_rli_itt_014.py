@@ -19,6 +19,7 @@ helps.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.lrp_rli_itt_013 import SES_ADJUSTERS
 from language_reading_predictors.statistical_models.pipeline import fit_itt
 
@@ -28,16 +29,7 @@ SPEC = ModelSpec(
     title="Unadjusted ITT on the SES complete-case subset, word reading (matched comparator to LRPITT13)",
     outcome_symbol="W",
     adjustment=[],
-    extra={
-        "outcomes": ("W",),
-        "cross_symbols": (),
-        "use_age_gp": False,
-        "use_own_baseline_gp": False,
-        "use_age_linear": True,
-        "use_own_baseline": True,
-        "adjust_for": (),
-        "restrict_complete": SES_ADJUSTERS,
-    },
+    model_settings=IttModelSettings(restrict_complete=SES_ADJUSTERS),
 )
 
 

@@ -11,6 +11,7 @@ Letter sounds carried the strongest treatment effect in the earlier joint model.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_itt
 
 SPEC = ModelSpec(
@@ -18,14 +19,7 @@ SPEC = ModelSpec(
     kind="itt",
     title="ITT effect of group assignment on letter-sound knowledge (L)",
     outcome_symbol="L",
-    extra={
-        "outcomes": ("L",),
-        "cross_symbols": (),
-        "use_age_gp": False,
-        "use_own_baseline_gp": False,
-        "use_age_linear": True,
-        "use_own_baseline": True,
-    },
+    model_settings=IttModelSettings(),
 )
 
 

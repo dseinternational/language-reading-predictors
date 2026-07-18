@@ -10,6 +10,7 @@ Sign convention: positive ``tau`` means the intervention raises the outcome.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_itt
 
 SPEC = ModelSpec(
@@ -17,14 +18,7 @@ SPEC = ModelSpec(
     kind="itt",
     title="ITT effect of group assignment on phoneme blending (B)",
     outcome_symbol="B",
-    extra={
-        "outcomes": ("B",),
-        "cross_symbols": (),
-        "use_age_gp": False,
-        "use_own_baseline_gp": False,
-        "use_age_linear": True,
-        "use_own_baseline": True,
-    },
+    model_settings=IttModelSettings(),
 )
 
 

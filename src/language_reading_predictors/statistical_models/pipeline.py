@@ -70,6 +70,10 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
+from language_reading_predictors.statistical_models.itt import (
+    IttRunPlan,
+    resolve_itt_run_plan,
+)
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
@@ -1383,7 +1387,7 @@ def _save_association_forest(
 
 
 def _itt_diag_vars(
-    spec: ModelSpec,
+    plan: IttRunPlan,
     adjust_for: tuple[str, ...],
     *,
     likelihood: str = "beta_binomial",
@@ -1396,18 +1400,17 @@ def _itt_diag_vars(
     binary off-floor model has none); plus any adjuster / tau-moderator
     coefficients. Listing a missing RV would crash ``summary_diagnostics``.
     """
-    extra = spec.extra
     dvars = ["alpha", "tau"]
-    if extra.get("use_own_baseline", True):
+    if plan.use_own_baseline:
         dvars.append("gamma_own")
-    if extra.get("use_age_linear", False):
+    if plan.use_age_linear:
         dvars.append("gamma_A")
     if likelihood == "beta_binomial":
         dvars.append("kappa")
     dvars.extend(f"gamma_{c}" for c in adjust_for)
-    if extra.get("tau_moderator_symbol") is not None:
+    if plan.tau_moderator_symbol is not None:
         dvars.append("gamma_tau_mod")
-        if extra.get("tau_moderator_interaction", True):
+        if plan.tau_moderator_interaction:
             dvars.append("gamma_tau_int")
     return dvars
 
@@ -1754,52 +1757,17 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _require_spec(spec, "itt", outcome=True)
 
+    # Resolve and validate the family contract before the context resets an output
+    # directory or the loader reads any data. From this point onward preparation,
+    # factory arguments, diagnostics and the teaching recipe consume one plan.
+    plan = resolve_itt_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    adjust_for = tuple(spec.extra.get("adjust_for", ()))
-    # Optionally restrict to the complete-case subset of some columns *without*
-    # adjusting for them (matched comparator, e.g. LRPITT14 vs LRPITT13).
-    restrict_complete = tuple(spec.extra.get("restrict_complete", ()))
-    # An ITT model whose outcome is outside ``ITT_OUTCOMES`` (e.g. the taught-
-    # vocabulary block measures, the taught LRPITT models) overrides the prepared outcome set
-    # so only the outcome and its chosen cross-baselines are loaded - this keeps
-    # the complete-case mask from dropping rows for the eight standardised
-    # outcomes the model never uses. ``cross_symbols`` selects the cross-baseline
-    # set (default = every other ITT outcome).
-    extra_outcomes = spec.extra.get("outcomes")
-    cross_symbols = spec.extra.get("cross_symbols")
-    # Age-only outcomes (e.g. nonword N) can exempt baseline from the loader's
-    # complete-case mask via ``pre_required``. The floor branch then reports
-    # missing eligibility explicitly and restricts its transition estimand to
-    # observed baseline zeros; the all-child graded secondary does not use pre.
-    pre_required = spec.extra.get("pre_required")
-    if pre_required is not None:
-        pre_required = tuple(pre_required)
-    drop_missing_pre = bool(spec.extra.get("drop_missing_pre", True))
-    if extra_outcomes is not None:
-        extra_outcomes = tuple(extra_outcomes)
-        if spec.outcome_symbol not in extra_outcomes:
-            raise ValueError(
-                f"outcome_symbol {spec.outcome_symbol!r} must be included in "
-                f"outcomes={extra_outcomes!r}"
-            )
-        prepared = load_and_prepare(
-            phase_mode="itt",
-            outcomes=extra_outcomes,
-            covariates=adjust_for,
-            restrict_complete=restrict_complete,
-            drop_missing_pre=drop_missing_pre,
-            pre_required=pre_required,
-        )
-    else:
-        prepared = load_and_prepare(
-            phase_mode="itt",
-            covariates=adjust_for,
-            restrict_complete=restrict_complete,
-            drop_missing_pre=drop_missing_pre,
-            pre_required=pre_required,
-        )
+    adjust_for = plan.adjust_for
+    prepared = load_and_prepare(**plan.prepare_kwargs())
     ctx.prepared = prepared
     # Re-filter the requested adjusters to those actually present after loading: a
     # covariate (or a ``{col}_missing`` indicator) that goes constant on the fitted
@@ -1815,26 +1783,12 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Heavily-floored outcomes (P, N) take the post-hoc, data-adaptive
     # floor-rule branch in this reanalysis: a binary transition estimand as the
     # exploratory headline plus graded secondary checks (#119/#341).
-    if spec.extra.get("floor_rule", False):
-        return _fit_itt_floor_rule(ctx, spec, prepared, adjust_for)
+    if plan.floor_rule:
+        return _fit_itt_floor_rule(ctx, spec, plan, prepared, adjust_for)
 
     built = _factories.build_itt_model(
         prepared,
-        outcome_symbol=spec.outcome_symbol,
-        use_age_gp=spec.extra.get("use_age_gp", False),
-        use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", False),
-        use_varying_tau=spec.extra.get("use_varying_tau", False),
-        adjust_for=adjust_for,
-        cross_symbols=cross_symbols,
-        use_age_linear=spec.extra.get("use_age_linear", False),
-        use_own_baseline=spec.extra.get("use_own_baseline", True),
-        tau_moderator_symbol=spec.extra.get("tau_moderator_symbol"),
-        tau_moderator_is_covariate=spec.extra.get("tau_moderator_is_covariate", False),
-        tau_moderator_interaction=spec.extra.get("tau_moderator_interaction", True),
-        tau_sigma=spec.extra.get("tau_sigma"),
-        alpha_sigma=spec.extra.get("alpha_sigma"),
-        gamma_own_sigma=spec.extra.get("gamma_own_sigma"),
-        kappa_sigma=spec.extra.get("kappa_sigma"),
+        **plan.factory_kwargs(effective_adjustment=adjust_for),
     )
     _attach_built(ctx, built)
     _write_itt_analysis_audit(ctx, built.prepared, (spec.outcome_symbol,))
@@ -1847,13 +1801,13 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_itt_diag_vars(spec, adjust_for))
+    _diag.summary_diagnostics(ctx, var_names=_itt_diag_vars(plan, adjust_for))
 
     _run_ppc(ctx)
     _write_itt_ppc_calibration(ctx, built.prepared, (spec.outcome_symbol,))
 
     section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=_itt_diag_vars(spec, adjust_for))
+    _diag.write_diagnostics_summary(ctx, var_names=_itt_diag_vars(plan, adjust_for))
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol)
     _diag.run_extended_diagnostics(ctx, causal_term="tau")
 
@@ -1871,7 +1825,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     n_trials_own = int(built.prepared.n_trials[spec.outcome_symbol])
     _emit_itt_extras(
         ctx, built, n_trials=n_trials_own,
-        overlay_vars=_itt_diag_vars(spec, adjust_for),
+        overlay_vars=_itt_diag_vars(plan, adjust_for),
         moderators=tau_moderators,
     )
 
@@ -1993,6 +1947,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 def _fit_itt_floor_rule(
     ctx: StatisticalFitContext,
     spec: ModelSpec,
+    plan: IttRunPlan,
     prepared,
     adjust_for: tuple[str, ...],
 ) -> StatisticalFitContext:
@@ -2010,7 +1965,7 @@ def _fit_itt_floor_rule(
 
     from language_reading_predictors.statistical_models import floor as _floor
 
-    own = spec.outcome_symbol
+    own = plan.outcome_symbol
 
     # Data-adaptive gate: the outcome must actually qualify (>= 40% at zero at
     # t2). Applying it arm-blind avoids using treatment labels in this mechanical
@@ -2104,15 +2059,7 @@ def _fit_itt_floor_rule(
         "children are flagged secondaries."
     )
 
-    common = dict(
-        outcome_symbol=own,
-        use_age_gp=spec.extra.get("use_age_gp", False),
-        use_own_baseline_gp=spec.extra.get("use_own_baseline_gp", False),
-        use_age_linear=spec.extra.get("use_age_linear", True),
-        use_own_baseline=spec.extra.get("use_own_baseline", False),
-        cross_symbols=spec.extra.get("cross_symbols", ()),
-        adjust_for=adjust_for,
-    )
+    common = plan.factory_kwargs(effective_adjustment=adjust_for)
 
     # ----- EXPLORATORY HEADLINE: binary transition among observed baseline zeros. -----
     section_header(
@@ -2133,7 +2080,7 @@ def _fit_itt_floor_rule(
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(
         ctx,
-        var_names=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
+        var_names=_itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
     )
 
     _run_ppc(ctx, var_names=["y_offfloor"])
@@ -2147,7 +2094,7 @@ def _fit_itt_floor_rule(
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(
         ctx,
-        var_names=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
+        var_names=_itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
     )
     _diag.run_extended_diagnostics(ctx, causal_term="tau")
     _diag.save_trace(ctx)
@@ -2156,7 +2103,7 @@ def _fit_itt_floor_rule(
     # n_trials = 1; no age-varying term in the floor-rule model.
     _emit_itt_extras(
         ctx, built, n_trials=1, varying_term="",
-        overlay_vars=_itt_diag_vars(spec, adjust_for, likelihood="bernoulli_offfloor"),
+        overlay_vars=_itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
     )
 
     section_header("Off-floor treatment-effect summary (post-hoc exploratory headline)")

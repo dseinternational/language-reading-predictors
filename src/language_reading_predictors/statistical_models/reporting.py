@@ -27,6 +27,11 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.itt import (
+    IttRunPlan,
+    declared_settings_dict,
+    resolve_itt_run_plan,
+)
 from language_reading_predictors.statistical_models.provenance import run_provenance
 
 # House reporting coverage: median + inner 50% + outer 89% equal-tailed
@@ -2109,39 +2114,26 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
     settings = dict(spec_extra)
 
     if spec.kind == "itt":
-        floor_rule = bool(spec_extra.get("floor_rule", False))
-        use_age_gp = bool(spec_extra.get("use_age_gp", False))
-        use_age_linear = bool(spec_extra.get("use_age_linear", False))
-        use_own_baseline_gp = bool(spec_extra.get("use_own_baseline_gp", False))
-        use_own_baseline = bool(spec_extra.get("use_own_baseline", True))
-        if "cross_symbols" in spec_extra:
-            cross_symbols = list(spec_extra.get("cross_symbols") or ())
-        else:
-            cross_symbols = [
-                symbol
-                for symbol in getattr(prepared, "pre_logit", {})
-                if symbol != spec.outcome_symbol
-            ]
-        if floor_rule:
+        plan = _itt_run_plan(context)
+        settings = plan.as_dict()
+        if plan.floor_rule:
             likelihood = "bernoulli_offfloor_exploratory_with_beta_binomial_secondaries"
         else:
-            likelihood = spec_extra.get("likelihood", "beta_binomial")
+            likelihood = plan.headline_likelihood
         settings.update(
             {
                 "likelihood": likelihood,
-                "floor_rule": floor_rule,
-                "outcomes": list(spec_extra.get("outcomes") or (spec.outcome_symbol,)),
+                "floor_rule": plan.floor_rule,
+                "outcomes": list(plan.outcomes),
                 "baseline_terms": {
-                    "use_own_baseline": use_own_baseline,
-                    "use_own_baseline_gp": use_own_baseline_gp,
-                    "cross_symbols": cross_symbols,
-                    "pre_required": _json_safe(spec_extra.get("pre_required")),
+                    "use_own_baseline": plan.use_own_baseline,
+                    "use_own_baseline_gp": plan.use_own_baseline_gp,
+                    "cross_symbols": list(plan.cross_symbols),
+                    "pre_required": _json_safe(plan.pre_required),
                 },
-                "age_effect": (
-                    "gp" if use_age_gp else "linear" if use_age_linear else "none"
-                ),
-                "use_age_gp": use_age_gp,
-                "use_age_linear": use_age_linear,
+                "age_effect": plan.age_effect,
+                "use_age_gp": plan.use_age_gp,
+                "use_age_linear": plan.use_age_linear,
                 "use_residual_correlation": False,
             }
         )
@@ -2172,10 +2164,16 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
 
     post_counts = getattr(prepared, "post_counts", {}) if prepared is not None else {}
     covariates = getattr(prepared, "covariates", {}) if prepared is not None else {}
+    effective_adjustment = list(covariates)
+    if spec.kind == "itt":
+        effective_adjustment = [
+            name for name in plan.adjust_for if name in covariates
+        ]
     settings.update(
         {
             "prepared_outcomes": list(post_counts),
-            "effective_adjustment": list(covariates),
+            "effective_adjustment": effective_adjustment,
+            "prepared_covariates": list(covariates),
             "covariate_time": _json_safe(
                 getattr(prepared, "covariate_time", {})
                 if prepared is not None
@@ -2222,11 +2220,35 @@ def _itt_analysis_set_metadata(context: StatisticalFitContext) -> dict:
     return {"analysis_set_by_outcome_and_arm": _json_safe(records)}
 
 
+def _itt_run_plan(context: StatisticalFitContext) -> IttRunPlan:
+    """Return the plan resolved before loading, or reconstruct it for old callers."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, IttRunPlan):
+        return resolved_plan
+    return resolve_itt_run_plan(context.spec)
+
+
+def write_model_recipe(context: StatisticalFitContext) -> str | None:
+    """Write the human-readable recipe generated from a typed ITT run plan."""
+    if context.spec.kind != "itt":
+        return None
+    plan = _itt_run_plan(context)
+    os.makedirs(context.output_dir, exist_ok=True)
+    path = os.path.join(context.output_dir, "model_recipe.md")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(plan.recipe_markdown(title=context.spec.title))
+    return path
+
+
 def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None) -> None:
     """Persist a reconstructable ``config.json`` and basic report metrics."""
     out = context.output_dir
     os.makedirs(out, exist_ok=True)
     spec = context.spec
+    recipe_path = write_model_recipe(context)
+    resolved_plan = (
+        _itt_run_plan(context).as_dict() if spec.kind == "itt" else None
+    )
     cfg = {
         "model_id": spec.model_id,
         # Canonical model-ID scheme (#168 Phase 1); legacy id stays primary.
@@ -2254,6 +2276,13 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         # resolution actually used. This is deliberately separate from ``extra``
         # below, which contains post-fit summaries supplied by the pipeline.
         "spec_extra": _json_safe(spec.extra),
+        "model_settings": (
+            _json_safe(declared_settings_dict(spec))
+            if spec.kind == "itt" or spec.model_settings is not None
+            else None
+        ),
+        "resolved_run_plan": _json_safe(resolved_plan),
+        "model_recipe_file": os.path.basename(recipe_path) if recipe_path else None,
         "effective_model_settings": _effective_model_settings(context),
         "n_obs": context.prepared.n_obs if context.prepared else None,
         "n_children": context.prepared.n_children if context.prepared else None,

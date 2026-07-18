@@ -21,6 +21,7 @@ from language_reading_predictors.statistical_models.datasets import RLM_MEASURES
 from language_reading_predictors.statistical_models.factories import (
     build_historical_growth_model,
 )
+from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
 )
@@ -185,13 +186,7 @@ def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
         kind="itt",
         title="t",
         outcome_symbol="W",
-        extra={
-            "outcomes": ("W",),
-            "cross_symbols": (),
-            "use_age_linear": True,
-            "numpy_setting": np.int64(3),
-            "numpy_array_setting": np.array([1, 2, 3]),
-        },
+        model_settings=IttModelSettings(adjust_for=("age",)),
     )
     ctx = SimpleNamespace(
         spec=spec,
@@ -221,9 +216,12 @@ def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
     assert cfg["study_id"] == "rli"
     assert cfg["family"] == "itt"
     assert cfg["estimand_type"] == "causal_available_case_randomised_effect"
-    assert cfg["spec_extra"]["outcomes"] == ["W"]
-    assert cfg["spec_extra"]["numpy_setting"] == 3
-    assert cfg["spec_extra"]["numpy_array_setting"] == [1, 2, 3]
+    assert cfg["spec_extra"] == {}
+    assert cfg["model_settings"]["source"] == "typed"
+    assert cfg["model_settings"]["adjust_for"] == ["age"]
+    assert cfg["resolved_run_plan"]["outcomes"] == ["W"]
+    assert cfg["model_recipe_file"] == "model_recipe.md"
+    assert (tmp_path / "model_recipe.md").is_file()
     assert cfg["effective_model_settings"]["likelihood"] == "beta_binomial"
     assert cfg["effective_model_settings"]["effective_adjustment"] == ["age"]
     assert cfg["data_path"] == "/study/rli_data_long.csv"

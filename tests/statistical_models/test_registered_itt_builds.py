@@ -18,6 +18,10 @@ from language_reading_predictors.statistical_models.factories import (
     build_itt_model,
     build_joint_model,
 )
+from language_reading_predictors.statistical_models.itt import (
+    IttModelSettings,
+    resolve_itt_run_plan,
+)
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
@@ -36,46 +40,18 @@ def _registered_specs() -> list[tuple[str, ModelSpec]]:
 
 
 def _prepare_itt(spec: ModelSpec):
-    extra = spec.extra
-    outcomes = extra.get("outcomes")
-    adjust_for = tuple(extra.get("adjust_for", ()))
-    kwargs = {
-        "phase_mode": "itt",
-        "covariates": adjust_for,
-        "restrict_complete": tuple(extra.get("restrict_complete", ())),
-        "drop_missing_pre": bool(extra.get("drop_missing_pre", True)),
-        "pre_required": extra.get("pre_required"),
-    }
-    if outcomes is not None:
-        kwargs["outcomes"] = tuple(outcomes)
-    return load_and_prepare(**kwargs)
+    plan = resolve_itt_run_plan(spec)
+    return load_and_prepare(**plan.prepare_kwargs())
 
 
 def _build_itt(spec: ModelSpec):
-    extra = spec.extra
+    plan = resolve_itt_run_plan(spec)
     prepared = _prepare_itt(spec)
     adjust_for = tuple(
-        name for name in extra.get("adjust_for", ()) if name in prepared.covariates
+        name for name in plan.adjust_for if name in prepared.covariates
     )
-    common = {
-        "outcome_symbol": spec.outcome_symbol,
-        "use_age_gp": extra.get("use_age_gp", False),
-        "use_own_baseline_gp": extra.get("use_own_baseline_gp", False),
-        "use_varying_tau": extra.get("use_varying_tau", False),
-        "adjust_for": adjust_for,
-        "cross_symbols": extra.get("cross_symbols"),
-        "use_age_linear": extra.get("use_age_linear", False),
-        "use_own_baseline": extra.get("use_own_baseline", True),
-        "tau_moderator_symbol": extra.get("tau_moderator_symbol"),
-        "tau_moderator_is_covariate": extra.get(
-            "tau_moderator_is_covariate", False
-        ),
-        "tau_moderator_interaction": extra.get("tau_moderator_interaction", True),
-        "tau_sigma": extra.get("tau_sigma"),
-        "alpha_sigma": extra.get("alpha_sigma"),
-        "gamma_own_sigma": extra.get("gamma_own_sigma"),
-    }
-    if extra.get("floor_rule", False):
+    common = plan.factory_kwargs(effective_adjustment=adjust_for)
+    if plan.floor_rule:
         at_risk = restrict_to_baseline_floored(prepared, spec.outcome_symbol)
         primary = build_itt_model(
             at_risk, likelihood="bernoulli_offfloor", **common
@@ -107,6 +83,8 @@ _REGISTERED_SPECS = _registered_specs()
 )
 def test_registered_itt_family_model_builds(model_id: str, spec: ModelSpec):
     if spec.kind == "itt":
+        assert isinstance(spec.model_settings, IttModelSettings), model_id
+        assert spec.extra == {}, model_id
         built_models = _build_itt(spec)
     else:
         built_models = (_build_joint(spec),)

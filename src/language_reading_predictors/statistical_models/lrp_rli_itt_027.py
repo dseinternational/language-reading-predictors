@@ -15,6 +15,7 @@ positive tau => intervention helps.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_itt
 
 SITE_ADJUSTERS = (V.AREA,)
@@ -25,15 +26,7 @@ SPEC = ModelSpec(
     title="Site-adjusted ITT effect of group assignment on word reading (W)",
     outcome_symbol="W",
     adjustment=list(SITE_ADJUSTERS),
-    extra={
-        "outcomes": ("W",),
-        "cross_symbols": (),
-        "use_age_gp": False,
-        "use_own_baseline_gp": False,
-        "use_age_linear": True,
-        "use_own_baseline": True,
-        "adjust_for": SITE_ADJUSTERS,
-    },
+    model_settings=IttModelSettings(adjust_for=SITE_ADJUSTERS),
 )
 
 
