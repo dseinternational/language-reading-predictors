@@ -1,7 +1,7 @@
 # Findings — corr_factor & long_corr_factor families (latent measurement models)
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Numbers from the `reporting`-config refit of 2026-07-16 (see [process note](202607161130-full-statistical-refit.md)); reviewed and extended on 2026-07-17 to cover all models in the family. Preliminary.
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Numbers are read from the `reporting`-config refit under the median + inner-50% + outer-89% equal-tailed credible-interval standard (2026-07-18; see [the credible-interval standard note](202607172359-credible-interval-standard.md) and [the refit process note](202607161130-full-statistical-refit.md)); the note was reviewed and extended on 2026-07-17 to cover all models in the family. Only the credible-interval brackets changed when we moved from 95% to 89% — medians, direction probabilities, evidence labels and the convergence caveats are unchanged. Preliminary.
 
 ## What these models ask
 
@@ -9,7 +9,7 @@ Individual tests are noisy measures of an underlying ("latent") ability: a child
 
 `corr_factor` (`mm-*`, `rlm-mm-*`) fits this cross-sectionally (one snapshot); `long_corr_factor` (`lcf-001`) fits it per wave across all four timepoints, which additionally lets it estimate how _stable_ each domain is over time and cross-check the measurement-error correction. Sibling notes: [ITT](202607161800-findings-itt.md) and the gain/level families carry the word-reading _growth_ estimands; these measurement models do not.
 
-A few Bayesian terms used below, in frequentist-friendly language. A **95% credible range** is the interval the parameter lies in with 95% probability _given the data and priors_ — a direct probability statement about the parameter itself, unlike a confidence interval. **P(effect>0)** ("direction probability") is the posterior probability the true value is positive. We grade that direction probability on the project **evidence ladder** (#179): `inconclusive` < 0.75 ≤ `suggestive` < 0.91 ≤ `moderate` < 0.97 ≤ `strong` < 0.99 ≤ `very strong`. These are strengths of _evidence for the sign_, not sizes of effect. Measurement models produce correlations and loadings directly, so there is no ROPE ("region of practical equivalence", a band around zero deemed too small to matter) verdict to report for them.
+A few Bayesian terms used below, in frequentist-friendly language. An **89% credible range** is the interval the parameter lies in with 89% probability _given the data and priors_ — a direct probability statement about the parameter itself, unlike a confidence interval. **P(effect>0)** ("direction probability") is the posterior probability the true value is positive. We grade that direction probability on the project **evidence ladder** (#179): `inconclusive` < 0.75 ≤ `suggestive` < 0.91 ≤ `moderate` < 0.97 ≤ `strong` < 0.99 ≤ `very strong`. These are strengths of _evidence for the sign_, not sizes of effect. Measurement models produce correlations and loadings directly, so there is no ROPE ("region of practical equivalence", a band around zero deemed too small to matter) verdict to report for them.
 
 ## Convergence gate — read this before the numbers
 
@@ -39,9 +39,9 @@ Vocabulary, code and grammar are **strongly and positively correlated** at the l
 
 | Model    | vocab~code                                  | vocab~grammar                           | code~grammar                                |
 | -------- | ------------------------------------------- | --------------------------------------- | ------------------------------------------- |
-| `mm-001` | 0.72 (95% 0.44–0.93), P>0 1.00, very strong | 0.79 (0.58–0.94), P>0 1.00, very strong | 0.65 (0.29–0.91), P>0 0.9998, very strong   |
-| `mm-002` | 0.74 (0.47–0.93), P>0 1.00, very strong     | 0.78 (0.55–0.93), P>0 1.00, very strong | 0.66 (0.31–0.90), P>0 0.9998, very strong † |
-| `mm-101` | 0.71 (0.43–0.92), P>0 0.99997, very strong  | 0.78 (0.57–0.94), P>0 1.00, very strong | 0.64 (0.28–0.90), P>0 0.9996, very strong   |
+| `mm-001` | 0.72 (89% 0.50–0.90), P>0 1.00, very strong | 0.79 (0.62–0.92), P>0 1.00, very strong | 0.65 (0.37–0.87), P>0 0.9998, very strong   |
+| `mm-002` | 0.74 (0.53–0.91), P>0 1.00, very strong     | 0.78 (0.60–0.91), P>0 1.00, very strong | 0.66 (0.39–0.87), P>0 0.9998, very strong † |
+| `mm-101` | 0.71 (0.49–0.89), P>0 0.99997, very strong  | 0.78 (0.62–0.92), P>0 1.00, very strong | 0.64 (0.36–0.86), P>0 0.9996, very strong   |
 
 † In `mm-002` the code~grammar correlation _is itself_ one of the parameters that failed the gate.
 
@@ -51,14 +51,14 @@ Vocabulary, code and grammar are **strongly and positively correlated** at the l
 
 A separate cohort, separate domains, wave 3 only, **no structural leg and no word-reading outcome**. The correlations are _even higher_ than the RLI models — the latent domains are near-collinear at this age:
 
-| Pair             | Correlation (95% range) | P>0  | Evidence    |
+| Pair             | Correlation (89% range) | P>0  | Evidence    |
 | ---------------- | ----------------------- | ---- | ----------- |
-| reading~language | 0.79 (0.67–0.87)        | 1.00 | very strong |
-| reading~memory   | 0.79 (0.66–0.89)        | 1.00 | very strong |
-| reading~ability  | 0.88 (0.80–0.93)        | 1.00 | very strong |
-| language~memory  | 0.85 (0.73–0.94)        | 1.00 | very strong |
-| language~ability | **0.92 (0.86–0.98)**    | 1.00 | very strong |
-| memory~ability   | 0.90 (0.80–0.97)        | 1.00 | very strong |
+| reading~language | 0.79 (0.70–0.86)        | 1.00 | very strong |
+| reading~memory   | 0.79 (0.69–0.88)        | 1.00 | very strong |
+| reading~ability  | 0.88 (0.82–0.93)        | 1.00 | very strong |
+| language~memory  | 0.85 (0.76–0.93)        | 1.00 | very strong |
+| language~ability | **0.92 (0.87–0.97)**    | 1.00 | very strong |
+| memory~ability   | 0.90 (0.83–0.96)        | 1.00 | very strong |
 
 Language~~ability (0.92) and memory~~ability (0.90) are so high that latent ability, language and memory are barely separable measurement constructs at wave 3. Loadings are high throughout (reading indicators 0.91–0.94; language bpvs 0.76 / trog 0.93; ability 0.85–0.91), with `basdig` entered as a single-indicator memory measure at a fixed reliability of 0.894.
 
@@ -68,9 +68,9 @@ These are the pieces most relevant to word reading. **Latent code is a positive 
 
 | Model    | `beta_code` (latent code→W)                   | Age term (`beta_age`)                          | Other notable adjusted associations                                                                                                                                 |
 | -------- | --------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mm-002` | **0.34 (95% 0.03–0.65), P>0 0.984, moderate** | −0.35 (−0.56 to −0.13), P<0 0.999, very strong | `beta_hs` 0.23 (0.01–0.44), P>0 0.979, moderate; `beta_G` 0.18, P>0 0.85, suggestive; `beta_deapp_c` 0.06, P>0 0.65, inconclusive; `beta_erbto` −0.02, inconclusive |
-| `mm-001` | 0.19 (−0.24 to 0.63), P>0 0.81, suggestive    | −0.32 (−0.53 to −0.10), P<0 0.998, very strong | `beta_grammar` 0.19, P>0 0.83, suggestive; `beta_vocabulary` 0.08, P>0 0.65, inconclusive; `beta_blocks` 0.03, P>0 0.61, inconclusive                               |
-| `mm-101` | 0.20 (−0.22 to 0.63), P>0 0.82, suggestive    | −0.32 (−0.53 to −0.10), P<0 0.998, very strong | `beta_grammar` 0.19, P>0 0.83, suggestive; `beta_vocabulary` 0.09, P>0 0.65, inconclusive; `beta_blocks` 0.03, P>0 0.61, inconclusive                               |
+| `mm-002` | **0.34 (89% 0.09–0.59), P>0 0.984, moderate** | −0.35 (−0.52 to −0.17), P<0 0.999, very strong | `beta_hs` 0.23 (0.05–0.40), P>0 0.979, moderate; `beta_G` 0.18, P>0 0.85, suggestive; `beta_deapp_c` 0.06, P>0 0.65, inconclusive; `beta_erbto` −0.02, inconclusive |
+| `mm-001` | 0.19 (−0.16 to 0.55), P>0 0.81, suggestive    | −0.32 (−0.49 to −0.14), P<0 0.998, very strong | `beta_grammar` 0.19, P>0 0.83, suggestive; `beta_vocabulary` 0.08, P>0 0.65, inconclusive; `beta_blocks` 0.03, P>0 0.61, inconclusive                               |
+| `mm-101` | 0.20 (−0.14 to 0.55), P>0 0.82, suggestive    | −0.32 (−0.49 to −0.14), P<0 0.998, very strong | `beta_grammar` 0.19, P>0 0.83, suggestive; `beta_vocabulary` 0.09, P>0 0.65, inconclusive; `beta_blocks` 0.03, P>0 0.61, inconclusive                               |
 
 The age association is the most certain structural finding in all three: older children in the cross-section sit **lower** on the residualised outcome scale (a robust negative adjusted association, P<0 ≈ 0.998). `mm-002`'s errors-in-variables `beta_code` of 0.34 (moderate) is larger and more certain than the `~0.19` (suggestive) of `mm-001`/`mm-101`, which is expected once the code factor is measured with explicit error rather than as a fixed composite — but again, all three are **held** pending clean convergence of the surrounding covariance block.
 
@@ -78,21 +78,21 @@ The age association is the most certain structural finding in all three: older c
 
 **Per-wave latent correlations are strong, positive and remarkably stable across all four waves** (values are the wave-1 figures; waves 2–4 differ only in the second decimal):
 
-| Pair          | Wave-1 correlation (95% range) | Across waves 1–4 | P>0  | Evidence    |
+| Pair          | Wave-1 correlation (89% range) | Across waves 1–4 | P>0  | Evidence    |
 | ------------- | ------------------------------ | ---------------- | ---- | ----------- |
-| vocab~grammar | 0.86 (0.76–0.93)               | 0.85–0.86        | 1.00 | very strong |
-| vocab~code    | 0.66 (0.49–0.79)               | 0.65–0.66        | 1.00 | very strong |
-| code~grammar  | 0.55 (0.36–0.72)               | 0.55–0.56        | 1.00 | very strong |
+| vocab~grammar | 0.86 (0.78–0.92)               | 0.85–0.86        | 1.00 | very strong |
+| vocab~code    | 0.66 (0.53–0.77)               | 0.65–0.66        | 1.00 | very strong |
+| code~grammar  | 0.55 (0.40–0.69)               | 0.55–0.56        | 1.00 | very strong |
 
 Vocabulary~grammar (~~0.86) is the tightest coupling and code~~grammar (~0.55) the loosest — a large, meaningful gap.
 
 **Partial (conditional) slopes tell a mediation story.** Holding the third domain constant, the vocabulary links stay strong — grammar→vocabulary 0.71 (P>0 1.00, very strong), vocabulary→grammar 0.88 (1.00, very strong), vocabulary→code 0.71 (P>0 0.997, very strong), code→vocabulary 0.26 (P>0 0.997, very strong) — **but the code↔grammar partial slopes collapse to essentially zero** once vocabulary is conditioned on: code→grammar −0.024 and grammar→code −0.055, both P>0 ≈ 0.42 (inconclusive). Read plainly: the raw code–grammar correlation of ~0.55 appears to run _through_ vocabulary — the grammar–code association is fully mediated by vocabulary. (Descriptive mediation, not an identified natural effect.)
 
-**Stability (trait/state decomposition).** Each domain is dominated by a stable trait rather than occasion-specific state: trait shares are vocabulary 0.95 (95% 0.91–0.99), grammar 0.95 (0.87–0.99), code 0.93 (0.82–0.99). Roughly 93–95% of each domain's latent variance is stable across the four waves — these are highly stable traits, which is _why_ the per-wave correlations barely move. This stability is **not** a word-reading growth trajectory (there is no W indicator here); it is a statement that the domains themselves are steady.
+**Stability (trait/state decomposition).** Each domain is dominated by a stable trait rather than occasion-specific state: trait shares are vocabulary 0.95 (89% 0.92–0.98), grammar 0.95 (0.89–0.99), code 0.93 (0.85–0.99). Roughly 93–95% of each domain's latent variance is stable across the four waves — these are highly stable traits, which is _why_ the per-wave correlations barely move. This stability is **not** a word-reading growth trajectory (there is no W indicator here); it is a statement that the domains themselves are steady.
 
 **Disattenuation cross-check — the tangible payoff of the measurement model.** In **all 12** wave × pair cells the latent correlation **exceeds** the raw observed correlation, by gaps of **0.10 to 0.26** (e.g. wave-1 vocab~grammar: latent 0.86 vs observed 0.59, a 0.26 gap). Correcting for measurement error uncovers substantially stronger coupling than the raw scores show — the reason to fit a latent model at all.
 
-**Concurrent-association cross-check.** Where the raw concurrent-association (CA) models produce noisy slopes that often straddle zero, the LCF latent slopes are consistently positive and certain. A concrete items-scale figure: a +1-item shift in latent letter-sound knowledge (L) lines up with **+0.54 items** of latent receptive vocabulary (R) at wave 1 (95% 0.38–0.71; P>0 = **1.00**, very strong), stable at ~0.53 across waves 1–4. Other items-scale slopes: grammar F→vocabulary R ~1.40 and grammar F→code L ~0.81 (both P>0 1.00). (An earlier draft called the L→R direction probability "99.9%" — the latent items-slope P>0 is 1.00 and the corresponding conditional-slope P>0 is 0.997; neither is 99.9%.)
+**Concurrent-association cross-check.** Where the raw concurrent-association (CA) models produce noisy slopes that often straddle zero, the LCF latent slopes are consistently positive and certain. A concrete items-scale figure: a +1-item shift in latent letter-sound knowledge (L) lines up with **+0.54 items** of latent receptive vocabulary (R) at wave 1 (89% 0.41–0.68; P>0 = **1.00**, very strong), stable at ~0.53 across waves 1–4. Other items-scale slopes: grammar F→vocabulary R ~1.40 and grammar F→code L ~0.81 (both P>0 1.00). (An earlier draft called the L→R direction probability "99.9%" — the latent items-slope P>0 is 1.00 and the corresponding conditional-slope P>0 is 0.997; neither is 99.9%.)
 
 ## The one-paragraph story
 

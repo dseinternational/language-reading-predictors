@@ -1,13 +1,13 @@
 # Findings — exploratory families: block_exposure & survival
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Numbers from the `reporting`-config refit of 2026-07-16 (see [process note](202607161130-full-statistical-refit.md)); reviewed and extended on 2026-07-17 to cover all models in the family. Preliminary. These are two small exploratory families grouped in one note.
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Numbers from the `reporting`-config refit under the median + inner-50% + outer-89% equal-tailed credible-interval standard (2026-07-18; see [the credible-interval standard note](202607172359-credible-interval-standard.md) and [process note](202607161130-full-statistical-refit.md)); reviewed and extended on 2026-07-17 to cover all models in the family. Only the credible-interval brackets changed when we moved from 95% to 89% — medians, direction probabilities and evidence labels are unchanged. Preliminary. These are two small exploratory families grouped in one note.
 
 ## What these models ask
 
 These are two small exploratory triangulation families that sit alongside the main [ITT](202607161800-findings-itt.md) analyses. Neither contains a randomisation-licensed contrast, so **nothing in either family is causal** — every quantity below is either an adjusted association or a descriptive prognostic quantity. They exist to cross-check the main story from a different angle, not to overturn it.
 
-A quick reading guide for the Bayesian summaries, aimed at a reader more used to frequentist output. A **95% credible interval/range** is the range within which the parameter lies with 95% probability given the data and priors — unlike a confidence interval, it is a direct probability statement about the parameter itself. **P(effect > 0)** (reported here as a direction probability) is the posterior probability that the true effect points in a given direction. We grade that probability on the project evidence ladder (#179): below 0.75 is _inconclusive_, 0.75–0.91 _suggestive_, 0.91–0.97 _moderate_, 0.97–0.99 _strong_, and 0.99+ _very strong_. The ladder grades our confidence in the _direction_ of an effect, not that the effect is large enough to matter.
+A quick reading guide for the Bayesian summaries, aimed at a reader more used to frequentist output. A **89% credible interval/range** is the range within which the parameter lies with 89% probability given the data and priors — unlike a confidence interval, it is a direct probability statement about the parameter itself. **P(effect > 0)** (reported here as a direction probability) is the posterior probability that the true effect points in a given direction. We grade that probability on the project evidence ladder (#179): below 0.75 is _inconclusive_, 0.75–0.91 _suggestive_, 0.91–0.97 _moderate_, 0.97–0.99 _strong_, and 0.99+ _very strong_. The ladder grades our confidence in the _direction_ of an effect, not that the effect is large enough to matter.
 
 **block_exposure (`bx-001…004`) — what it asks.** The vocabulary teaching was delivered in two consecutive **blocks**: a first set of target words (block 1) was taught for a period, then a second, different set of target words (block 2) was taught in a later period. Because the block-2 words are only actively taught during the second window, we can ask a **parallel-trends** question: is a child's score on the block-2 words higher in the window when block-2 teaching is _active_ than in the earlier window when only block-1 teaching was running? "Parallel-trends" here means we compare the same measure across two exposure windows and read the difference (`delta`) as an exposure association. Crucially, **which words fell in which block was not randomised**, so `delta` is an association, not an effect. The four models cover taught expressive vocabulary (TE2), taught receptive vocabulary (TR2), and the two not-taught generalisation measures (UE2, UR2).
 
@@ -25,14 +25,14 @@ The exploratory checks broadly agree with the main analyses and add no new causa
 
 `delta` is reported on two scales: the logit-scale coefficient (the model's linear-predictor units) and its translation into items on the block-2 word list. The direction probability and evidence label are identical on both scales.
 
-| Model  | Measure                                | Difference (items) | 95% credible range | Direction prob | Evidence              |
+| Model  | Measure                                | Difference (items) | 89% credible range | Direction prob | Evidence              |
 | ------ | -------------------------------------- | ------------------ | ------------------ | -------------- | --------------------- |
-| bx-001 | Taught expressive vocab, block 2 (TE2) | +0.72              | −0.71 to +2.18     | 0.834 positive | suggestive (positive) |
-| bx-002 | Taught receptive vocab, block 2 (TR2)  | −0.74              | −2.12 to +0.68     | 0.845 negative | suggestive (negative) |
-| bx-003 | Not-taught expressive, block 2 (UE2)   | −0.28              | −1.05 to +0.53     | 0.749 negative | inconclusive          |
-| bx-004 | Not-taught receptive, block 2 (UR2)    | +0.15              | −0.65 to +0.96     | 0.640 positive | inconclusive          |
+| bx-001 | Taught expressive vocab, block 2 (TE2) | +0.72              | −0.46 to +1.91     | 0.834 positive | suggestive (positive) |
+| bx-002 | Taught receptive vocab, block 2 (TR2)  | −0.74              | −1.87 to +0.43     | 0.845 negative | suggestive (negative) |
+| bx-003 | Not-taught expressive, block 2 (UE2)   | −0.28              | −0.91 to +0.38     | 0.749 negative | inconclusive          |
+| bx-004 | Not-taught receptive, block 2 (UR2)    | +0.15              | −0.51 to +0.82     | 0.640 positive | inconclusive          |
 
-Logit-scale medians for reference: bx-001 +0.144 (−0.144 to +0.435), bx-002 −0.158 (−0.462 to +0.145), bx-003 −0.114 (−0.443 to +0.216), bx-004 +0.061 (−0.271 to +0.395). Note the directly-taught receptive measure (bx-002) is the one that trends the "wrong" way (suggestive negative, favoured-negative probability 0.845), and bx-003 sits just below the suggestive threshold at 0.749. There is no ROPE band defined for these exploratory models, so we report the credible range and direction only; every credible range comfortably straddles zero, so none of these is "big enough to matter" on the evidence here.
+Logit-scale medians for reference: bx-001 +0.144 (−0.093 to +0.380), bx-002 −0.158 (−0.404 to +0.091), bx-003 −0.114 (−0.381 to +0.156), bx-004 +0.061 (−0.210 to +0.335). Note the directly-taught receptive measure (bx-002) is the one that trends the "wrong" way (suggestive negative, favoured-negative probability 0.845), and bx-003 sits just below the suggestive threshold at 0.749. There is no ROPE band defined for these exploratory models, so we report the credible range and direction only; every credible range comfortably straddles zero, so none of these is "big enough to matter" on the evidence here.
 
 ### Adjusted associations (`gamma_*`) — none causal
 
@@ -40,10 +40,10 @@ These are the covariates entered alongside `delta`. They are the more informativ
 
 | Term                                            | bx-001                                     | bx-002                                    | bx-003                                     | bx-004                                     |
 | ----------------------------------------------- | ------------------------------------------ | ----------------------------------------- | ------------------------------------------ | ------------------------------------------ |
-| `gamma_ability` (general cognitive ability)     | +0.311 (0.136–0.486), 0.9998 — very strong | +0.400 (0.230–0.570), 1.000 — very strong | +0.348 (0.142–0.554), 0.9994 — very strong | +0.316 (0.155–0.483), 0.9999 — very strong |
-| `gamma_erbto` (block-2 vocab exposure/teaching) | +0.375 (0.112–0.628), 0.997 — very strong  | +0.207 (0.033–0.379), 0.990 — very strong | +0.109 (−0.180–0.409), 0.773 — suggestive  | +0.276 (0.111–0.437), 0.9994 — very strong |
-| `gamma_deapp_c` (DEAP phonology composite)      | −0.030 (−0.286–0.231), inconclusive        | not in model                              | +0.213 (−0.081–0.496), 0.925 — moderate    | not in model                               |
-| `gamma_hs` (hearing status)                     | −0.043, inconclusive                       | −0.046, inconclusive                      | −0.057, inconclusive                       | +0.074 (−0.097–0.245), 0.804 — suggestive  |
+| `gamma_ability` (general cognitive ability)     | +0.311 (0.170–0.454), 0.9998 — very strong | +0.400 (0.261–0.537), 1.000 — very strong | +0.348 (0.181–0.516), 0.9994 — very strong | +0.316 (0.185–0.450), 0.9999 — very strong |
+| `gamma_erbto` (block-2 vocab exposure/teaching) | +0.375 (0.162–0.583), 0.997 — very strong  | +0.207 (0.066–0.345), 0.990 — very strong | +0.109 (−0.127–0.351), 0.773 — suggestive  | +0.276 (0.143–0.407), 0.9994 — very strong |
+| `gamma_deapp_c` (DEAP phonology composite)      | −0.030 (−0.238–0.182), inconclusive        | not in model                              | +0.213 (−0.025–0.446), 0.925 — moderate    | not in model                               |
+| `gamma_hs` (hearing status)                     | −0.043, inconclusive                       | −0.046, inconclusive                      | −0.057, inconclusive                       | +0.074 (−0.066–0.213), 0.804 — suggestive  |
 | `gamma_A` (linear age)                          | −0.022, inconclusive                       | −0.026, inconclusive                      | −0.044, inconclusive                       | −0.031, inconclusive                       |
 
 The pattern is clear and consistent: **general cognitive ability** is very strongly positively associated with the block-2 score in every model (medians +0.31 to +0.40, direction probability 0.9994–1.000), and the **block-2 vocabulary-exposure/teaching covariate** (`gamma_erbto`) is very strongly positive in three of four (bx-001/002/004) and suggestive in bx-003. The DEAP phonology composite is moderately positive for the not-taught expressive measure (bx-003, +0.213) but inconclusive elsewhere. Hearing status and linear age are inconclusive throughout (the one exception, bx-004 hearing status, is only suggestive). These covariates dominate the fit; the highlighted exposure `delta` is comparatively weak.
@@ -56,12 +56,12 @@ The pattern is clear and consistent: **general cognitive ability** is very stron
 
 `tau` is a log-hazard shift for the treated arm; exponentiated it is the hazard ratio for coming off the floor. Because both arms are treated by the final wave, it is a whole-trial prognostic association.
 
-| Model    | Measure               | Hazard ratio | 95% credible range | Direction (P(tau>0)) | Evidence                       |
+| Model    | Measure               | Hazard ratio | 89% credible range | Direction (P(tau>0)) | Evidence                       |
 | -------- | --------------------- | ------------ | ------------------ | -------------------- | ------------------------------ |
-| surv-009 | Phonetic spelling (P) | 0.84         | 0.40 to 1.79       | 0.329 (67% below 1)  | inconclusive (leans later)     |
-| surv-011 | Nonword reading (N)   | 1.35         | 0.66 to 2.79       | 0.798 (80% above 1)  | suggestive (earlier off-floor) |
+| surv-009 | Phonetic spelling (P) | 0.84         | 0.46 to 1.56       | 0.329 (67% below 1)  | inconclusive (leans later)     |
+| surv-011 | Nonword reading (N)   | 1.35         | 0.75 to 2.44       | 0.798 (80% above 1)  | suggestive (earlier off-floor) |
 
-Reading these: for phonetic spelling the treated arm has, if anything, a _lower_ per-interval chance of coming off the floor (HR 0.84, so slightly later), but the credible range spans HR 0.40–1.79 and only 67% of the posterior is below 1 — inconclusive, no confident call. For nonword reading the treated arm leans toward coming off the floor _earlier_ (HR 1.35, 80% of the posterior above 1), which is suggestive but well short of a confident effect — and in any case not randomised.
+Reading these: for phonetic spelling the treated arm has, if anything, a _lower_ per-interval chance of coming off the floor (HR 0.84, so slightly later), but the credible range spans HR 0.46–1.56 and only 67% of the posterior is below 1 — inconclusive, no confident call. For nonword reading the treated arm leans toward coming off the floor _earlier_ (HR 1.35, 80% of the posterior above 1), which is suggestive but well short of a confident effect — and in any case not randomised.
 
 ### Baseline-skill hazard slopes (`beta_*`) — none causal
 
@@ -69,21 +69,21 @@ These per-standard-deviation baseline covariates are the stronger and more consi
 
 | Term                                    | surv-009 (P)                                         | surv-011 (N)                                                                       |
 | --------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `beta_W0` (baseline word reading)       | HR 1.32 (log 0.275), P>0 0.918 — moderate            | HR 1.64 (0.90–2.51 span; log 0.498, 95% 0.095–0.922), P>0 0.9925 — **very strong** |
-| `beta_L0` (baseline letter-sound level) | HR 1.41 (0.96–2.09; log 0.342), P>0 0.960 — moderate | HR 1.39 (log 0.333), P>0 0.958 — moderate                                          |
+| `beta_W0` (baseline word reading)       | HR 1.32 (log 0.275), P>0 0.918 — moderate            | HR 1.64 (1.18–2.31 span; log 0.498, 89% 0.168–0.839), P>0 0.9925 — **very strong** |
+| `beta_L0` (baseline letter-sound level) | HR 1.41 (1.03–1.94; log 0.342), P>0 0.960 — moderate | HR 1.39 (log 0.333), P>0 0.958 — moderate                                          |
 | `beta_A0` (baseline age/ability)        | HR 1.17 (log 0.160), P>0 0.815 — suggestive          | HR 0.91 (log −0.093), P>0 0.295 — inconclusive                                     |
 
-The strongest single signal in either survival model is **baseline word reading** predicting earlier off-floor movement for nonword reading: HR 1.64, 95% hazard-ratio range roughly 1.10–2.51 (log-scale 0.498, 95% 0.095–0.922), direction probability 0.9925 — very strong. Baseline word reading is also moderately positive for phonetic spelling (HR 1.32, 0.918). **Baseline letter-sound level** (L0) is moderately positive in both (HR ≈ 1.40). Baseline age-and-ability is only suggestive for P and inconclusive for N. These are exactly the kind of prognostic baseline associations one would expect — children who already read words and letter-sounds better move off these floors sooner — and none of them is an effect of the intervention.
+The strongest single signal in either survival model is **baseline word reading** predicting earlier off-floor movement for nonword reading: HR 1.64, 89% hazard-ratio range roughly 1.18–2.31 (log-scale 0.498, 89% 0.168–0.839), direction probability 0.9925 — very strong. Baseline word reading is also moderately positive for phonetic spelling (HR 1.32, 0.918). **Baseline letter-sound level** (L0) is moderately positive in both (HR ≈ 1.40). Baseline age-and-ability is only suggestive for P and inconclusive for N. These are exactly the kind of prognostic baseline associations one would expect — children who already read words and letter-sounds better move off these floors sooner — and none of them is an effect of the intervention.
 
 ### Baseline off-floor probabilities (descriptive)
 
-For an untreated child at average covariates, the fitted per-interval chance of coming off the floor, with 95% credible ranges:
+For an untreated child at average covariates, the fitted per-interval chance of coming off the floor, with 89% credible ranges:
 
 | Interval | Phonetic spelling (P)  | Nonword reading (N)    |
 | -------- | ---------------------- | ---------------------- |
-| t1 → t2  | 22.0% (10.1% to 40.1%) | 27.2% (13.6% to 46.5%) |
-| t2 → t3  | 18.8% (6.5% to 44.1%)  | 29.4% (11.8% to 59.5%) |
-| t3 → t4  | 15.7% (4.6% to 41.3%)  | 22.4% (6.8% to 54.1%)  |
+| t1 → t2  | 22.0% (11.9% to 36.4%) | 27.2% (15.6% to 42.5%) |
+| t2 → t3  | 18.8% (8.0% to 38.4%)  | 29.4% (14.1% to 53.3%) |
+| t3 → t4  | 15.7% (5.9% to 35.2%)  | 22.4% (8.6% to 47.3%)  |
 
 These are descriptive baseline hazards, not effects; they set the scale against which the `tau` hazard ratios operate.
 
