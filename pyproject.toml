@@ -35,6 +35,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "jupyter>=1.1.1",
+  "mypy>=1.18.2",
   "pytest>=9.0.3"
 ]
 
@@ -62,3 +63,26 @@ src = ["src", "scripts", "tests"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "B905", "RUF012"]
+
+# Incremental static-typing gate (#361 Phase 5). Keep the first boundary small
+# and strict: typed ITT specifications/run plans, shared execution/report stages,
+# atomic publication, environment provenance, and registry documentation. Extend
+# this list family by family as the Phase-2/3 migration removes ``ModelSpec.extra``.
+[tool.mypy]
+python_version = "3.14"
+files = [
+  "src/language_reading_predictors/statistical_models/documentation.py",
+  "src/language_reading_predictors/statistical_models/itt.py",
+  "src/language_reading_predictors/statistical_models/output_transaction.py",
+  "src/language_reading_predictors/statistical_models/provenance.py",
+  "src/language_reading_predictors/statistical_models/stages.py"
+]
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+follow_imports = "skip"
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+warn_redundant_casts = true
+warn_unused_ignores = true

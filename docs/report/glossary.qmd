@@ -4,4 +4,68 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 # Glossary {#sec-glossary}
 
-The glossary is maintained in `METHODS.md` while the integrated report remains a draft scaffold.
+**Adjusted association.** A conditional relationship estimated after holding the model's listed covariates fixed. It may still be confounded and must not be paraphrased as “X causes” or “X drives” Y.
+
+**Analysis set.** The children or child-period rows that actually contribute to a fit after applying the model's observation and completeness rules. It can be smaller than the randomised population.
+
+**Average marginal effect (AME).** The average change in a predicted outcome when one exposure is toggled while retaining every fitted row's other observed characteristics. In the canonical ITT model, assignment is toggled for each child and the differences are averaged per posterior draw.
+
+**Bayesian fraction of missing information (BFMI).** A diagnostic of whether the sampler moves adequately through the posterior's energy distribution. The project gate requires a minimum per-chain BFMI of 0.3.
+
+**Beta-Binomial likelihood.** A probability model for a bounded count that permits more variation than a Binomial model. It respects the score limits but is a working model, not a literal assertion that all test items have equal difficulty.
+
+**Causal effect.** A contrast between outcomes under different interventions. In this project a quantity receives a causal label only when the design and DAG license it, principally through random assignment; an adjusted coefficient is not automatically causal.
+
+**Concentration ($\kappa$).** The Beta-Binomial parameter controlling dispersion around the expected proportion. Larger values approach Binomial-like variation; smaller values permit more extra-binomial spread.
+
+**Confidence interval.** A frequentist interval procedure calibrated over repeated hypothetical samples. It does not assign a probability to the fixed parameter lying inside one realised interval.
+
+**Credible interval.** A range containing a stated share of posterior probability, conditional on the data and model. The project reports an inner 50% and headline outer 89% equal-tailed interval.
+
+**DAG (directed acyclic graph).** A graph encoding assumed causal directions and the absence of cycles. It makes the adjustment and identification assumptions available to inspect; fitting a model does not empirically prove the DAG.
+
+**Divergence.** A numerical warning that Hamiltonian Monte Carlo could not follow part of the posterior geometry reliably. The convergence gate permits zero divergences.
+
+**Effective sample size (ESS).** The number of independent draws that would contain roughly the same information as the autocorrelated Markov chain. Bulk ESS concerns central summaries; tail ESS concerns interval limits and tail probabilities.
+
+**Estimand.** The precisely defined quantity the analysis aims to estimate, including its population, intervention or exposure contrast, outcome, and time window.
+
+**Evidence label.** A prose category derived from the posterior probability for a named claim. It describes strength of evidence, not magnitude of effect and not causal status.
+
+**Intention to treat (ITT).** A comparison by randomised assignment, regardless of adherence. The repository's single-outcome fits are available-case modified ITT analyses because not every randomised child and required variable is observed.
+
+**Likelihood.** The probability model for the observed data conditional on parameters. It is one modelling assumption and must be checked against replicated data.
+
+**Linear predictor ($\eta$).** The additive combination of intercept and predictor terms before the inverse-link transformation. In the canonical ITT model it is on the logit scale.
+
+**Logit.** The log-odds transform, $\log[p/(1-p)]$, which maps a proportion between 0 and 1 to the real line. The inverse-logit maps a linear predictor back to a proportion.
+
+**Minimally important difference ($\delta$).** A subject-matter threshold for an effect large enough to matter. This project's threshold was selected after inspecting results, so it is disclosed as post-hoc and accompanied by a sensitivity sweep.
+
+**Modified ITT.** An assignment-based analysis that excludes some randomised participants under stated rules. Its causal generalisation to the full randomised population requires an additional missingness or selection assumption.
+
+**Partial pooling.** Hierarchical estimation that shrinks noisy group- or child-specific estimates toward a shared population distribution. It accounts for stable residual heterogeneity; it does not automatically control an omitted common cause.
+
+**Posterior distribution.** The distribution of parameter or estimand values after combining the prior with the likelihood of the observed data.
+
+**Posterior-predictive check (PPC).** A comparison of observations with replicated datasets drawn from the fitted posterior model. It checks whether the model can reproduce relevant data features; passing it does not establish causality.
+
+**Prediction interval.** A range for a future or individual observation. It includes individual outcome variation and is generally wider than a credible interval for an average effect.
+
+**Precision term.** A pre-treatment predictor included to explain outcome variation and improve estimation precision. The term does not supply the causal identification and its own coefficient remains associational.
+
+**Prior distribution.** The distribution assigned to unknown values before conditioning on the model's observed outcome. Weakly informative priors still make substantive scale choices and require prior-predictive checks.
+
+**PSIS-LOO.** Pareto-smoothed importance-sampling approximation to leave-one-out predictive evaluation. Large Pareto-$k$ values flag an unreliable approximation or influential observation and trigger the documented sensitivity procedure.
+
+**Random intercept.** A group- or child-specific shift around a shared intercept, usually partially pooled. It represents stable residual differences across repeated observations, not a measured latent ability.
+
+**R-hat.** A comparison of within-chain and between-chain variation. Values materially above 1 indicate that chains have not mixed to the same posterior distribution; the project gate requires R-hat no greater than 1.01.
+
+**Region of practical equivalence (ROPE).** A band around zero whose values are treated as too small to matter for a stated decision. Its width comes from subject-matter judgement, not from the posterior alone.
+
+**Standardisation.** Subtracting a reference mean and dividing by a reference standard deviation. It changes the unit of a predictor but does not remove confounding or make a coefficient causal.
+
+**Tail probability.** The posterior share above or below a named threshold, such as $P(\mathrm{AME}>0)$. It directly answers a posterior probability question and is not a frequentist p-value.
+
+**Working model.** A useful approximation adopted for estimation and prediction without claiming that every generative detail is literally true. Its adequacy is judged through predictive checks and sensitivity analysis.

@@ -25,6 +25,7 @@ def _stage_runner(events):
             write_loo_influence=hook("influence"),
             print_loo_row=hook("loo_row"),
             copy_report_template=hook("copy_report"),
+            publish_output=hook("publish"),
             print_footer=hook("footer"),
         )
     )
@@ -96,6 +97,7 @@ def test_posterior_predictive_uses_the_last_requested_node(monkeypatch):
             write_loo_influence=lambda _ctx: None,
             print_loo_row=lambda _ctx: None,
             copy_report_template=lambda _ctx: None,
+            publish_output=lambda _ctx: None,
             print_footer=lambda _ctx: None,
         )
     )
@@ -128,4 +130,4 @@ def test_metadata_and_report_finalization_are_shared(monkeypatch):
 
     assert metadata == [(ctx, {"family": "example"})]
     assert returned is ctx
-    assert events == ["Report", "copy_report", "footer"]
+    assert events == ["Report", "copy_report", "publish", "footer"]

@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
 import pandas as pd
@@ -59,6 +59,24 @@ _LEGACY_KEYS = frozenset(
         "use_varying_tau",
     }
 )
+
+
+@overload
+def _tuple_of_strings(
+    value: Any,
+    *,
+    name: str,
+    optional: Literal[False] = False,
+) -> tuple[str, ...]: ...
+
+
+@overload
+def _tuple_of_strings(
+    value: Any,
+    *,
+    name: str,
+    optional: Literal[True],
+) -> tuple[str, ...] | None: ...
 
 
 def _tuple_of_strings(

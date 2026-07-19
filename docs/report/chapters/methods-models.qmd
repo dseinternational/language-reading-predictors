@@ -1,18 +1,208 @@
 ---
-title: "Statistical models"
-abstract: "Draft scaffold; model methods narrative pending."
+title: "From question to posterior: one complete ITT model"
+abstract: "An undergraduate route through the canonical taught-receptive-vocabulary ITT model, from estimand and data rows to likelihood, posterior checks, interpretation, and reproducibility."
 ---
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).
 :::
 
-This chapter is a placeholder for the study-level modelling narrative. The current operative methods are in `METHODS.md`: gradient-boosting models rank full default predictor sets using subject-grouped cross-validation, and Bayesian models report posterior medians, credible intervals, tail probabilities, and explicit causal-versus-association roles after convergence checks.
+This chapter follows one deliberately simple model from its research question to its saved report. The canonical example is `lrp-rli-itt-001`, the available-case intention-to-treat (ITT) analysis of taught receptive vocabulary in intervention block 1. It is a useful teaching model because it has one outcome, one randomised comparison, one row per child, and no floor-rule or cross-baseline branch. The more elaborate families reuse parts of this workflow but answer different questions; they must not inherit this model's causal label merely because their code looks similar.
 
-## The locked DAG {#sec-dag}
+## 1. Start with the question, not the software
 
-_[Scaffold]_ The causal directed acyclic graph that licenses each estimand's causal-vs-association status lives in `dag/dag-language-reading.dagitty` (rendered `dag/dag-language-reading.svg`). Randomisation makes the intervention group a root, so the intention-to-treat effect is the one quantity identified as causal; observational couplings are adjusted associations. This section carries the `@sec-dag` anchor that the standing caveat partials (`_caveats-causal.qmd`, `_caveats-association.qmd`) cross-reference; the full DAG exposition is pending.
+The question is: **among children with the variables observed for this analysis, what is the effect of being randomly assigned to the immediate-intervention arm on the time-2 taught receptive vocabulary score?** The score tests the 24 words taught in block 1. The comparison uses the randomised time-1 to time-2 window, before the wait-list arm receives the intervention.
 
-## Evidence labels: the effect-vs-evidence bridge {#sec-bridge}
+The estimand is an **available-case randomised offer effect**. “Offer” matters because assignment, rather than attendance or dose received, is compared. “Available-case” matters because the repository contains 54 of the 57 randomised children and the model also requires its analysis variables to be observed. Randomisation supports the causal comparison within that observed analysis set. Extending the result to every randomised child additionally assumes that selection into the analysis is ignorable after the modelled information. It is therefore more precise than calling the fit either “purely associational” or an unqualified “full ITT”.
 
-_[Scaffold]_ Evidence labels qualify the strength of the _evidence_ for an effect, never the effect _size_. This section carries the `@sec-bridge` anchor referenced by the evidence-at-a-glance table and the caveat partials; the label ladder is pending.
+::: {.callout-warning title="First interpretation check"}
+Do not condition the ITT effect on attendance or sessions completed. Those variables occur after assignment and are partly caused by it. Conditioning on them would change the question from the effect of assignment and can introduce selection bias.
+:::
+
+## 2. The causal diagram licenses one causal coefficient {#sec-dag}
+
+The locked directed acyclic graph (DAG) represents the assumed causal ordering. Randomised group assignment has no baseline causes in the graph. This makes assignment independent of baseline characteristics by design, although a finite random sample can still show chance imbalance. Consequently, no baseline adjustment is needed to identify the assignment effect.
+
+The model includes the child's own baseline score and age to improve precision. These terms can explain some outcome variation and may narrow the posterior for the treatment effect. They do **not** create the causal identification. Their own coefficients are not causal effects: the baseline score and age were not randomly assigned, and unmeasured common causes may remain.
+
+The distinction carries through the outputs:
+
+| Output or term | What it answers | Interpretation status |
+|---|---|---|
+| `tau` and the average marginal treatment effect in `tau_summary.csv` | What changes when assignment is toggled from wait-list to immediate intervention in the fitted analysis population? | Causal available-case randomised offer effect, subject to the missingness qualification |
+| `gamma_own` | How does the time-1 score predict the time-2 score within this outcome model? | Precision association, not a causal effect of baseline vocabulary |
+| `gamma_A` | How does age predict the time-2 score, holding the other model terms fixed? | Precision association, not a causal effect of age |
+| `kappa` | How much extra variation is needed beyond a Binomial model? | Likelihood nuisance parameter, not an educational effect |
+| PSIS-LOO and posterior-predictive outputs | Does the model predict held-out or replicated observations adequately for its stated target? | Predictive diagnostics, not causal estimates |
+| Mechanism, mediation, dose, and skill-to-skill coefficients in other families | How do observed skills or exposures co-vary after the stated adjustments? | Adjusted associations unless a separate design argument explicitly licenses a causal contrast |
+
+## 3. Map the symbols to rows, columns, and code
+
+`load_and_prepare()` joins each child's time-1 record to their time-2 record. The resulting analysis table has at most one row per child. The table below links the mathematical symbols to the source data and implementation.
+
+| Symbol | Meaning | Dataset source | Executable mapping |
+|---|---|---|---|
+| $i$ | One child in the fitted analysis set | `subject_id` | `PreparedData.subject_ids` and the `obs_id` model dimension |
+| $Y_{i0}$ | Time-1 taught receptive vocabulary count | `b1retau` where `time == 1` | `prepared.pre_logit["TR"]` after the corrected-logit transform |
+| $Y_{i1}$ | Time-2 taught receptive vocabulary count | `b1retau` where `time == 2` | `prepared.post_counts["TR"]`; observed node `y_post` |
+| $N$ | Maximum possible score | Instrument definition, 24 items | `MEASURES["TR"].n_trials` |
+| $G_i$ | Immediate-intervention indicator | `group`: 1 = immediate, 2 = wait-list | `G = 2 - group`, so immediate = 1 and wait-list = 0 |
+| $A_i$ | Age in months at time 1 | `age` | `prepared.A_months` |
+| $A_{i,\mathrm{std}}$ | Age centred and divided by its fitted-sample standard deviation | Derived from `age` | `prepared.A_std` via `standardise()` |
+
+The declaration is [`lrp_rli_itt_001.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/lrp_rli_itt_001.py). Its immutable `IttModelSettings()` is resolved and validated in [`itt.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/itt.py) before data loading. The same resolved plan supplies the loader arguments, factory arguments, diagnostic variables, `config.json`, and `model_recipe.md`. The equation is built in [`factories.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/factories.py), while [`stages.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/stages.py) owns the common sampling-to-publication order.
+
+## 4. Build the linear predictor one term at a time
+
+### 4.1 Put age on a one-standard-deviation scale
+
+$$
+A_{i,\mathrm{std}} = \frac{A_i - \bar A}{s_A}.
+$$
+
+In words: subtract the fitted sample's average age, then divide by its sample standard deviation. A value of 0 means average age in this analysis; +1 means one sample standard deviation older. This makes the coefficient prior interpretable on a consistent scale.
+
+**Synthetic example.** For invented ages 72, 84, and 96 months, the mean is 84 and the sample standard deviation is 12. Their standardised values are therefore −1, 0, and +1. Standardisation changes units, not rank or causal status.
+
+### 4.2 Transform the bounded baseline count
+
+$$
+L(Y_{i0};N) = \log\left(\frac{Y_{i0}+0.5}{N-Y_{i0}+0.5}\right).
+$$
+
+In words: convert the baseline count to corrected log-odds. Adding 0.5 to both sides keeps the transform finite when a child scores 0 or 24. This is the `logit_safe()` function. It does not turn the count into a percentage, and it does not imply that the baseline score was measured without error.
+
+### 4.3 Combine the predictors
+
+$$
+\eta_i = \alpha + \tau G_i + \gamma_{\mathrm{own}}L(Y_{i0};N) + \gamma_A A_{i,\mathrm{std}}.
+$$
+
+Each part has a distinct role:
+
+- $\alpha$ is the expected time-2 log-odds for a wait-list child when the other transformed predictors equal zero.
+- $\tau$ is the change in the outcome log-odds when assignment changes from wait-list ($G=0$) to immediate intervention ($G=1$), keeping the child's baseline profile fixed. This is the only causal coefficient in this equation.
+- $\gamma_{\mathrm{own}}$ is the adjusted association between the transformed time-1 and time-2 scores.
+- $\gamma_A$ is the adjusted association for a one-standard-deviation age difference.
+
+There is no child random intercept because this model has one analysis row per child. Adding one would be unidentifiable: one residual per child cannot separately identify a stable child effect and observation-level variation.
+
+### 4.4 Return to the probability scale
+
+$$
+\mu_i = \operatorname{logit}^{-1}(\eta_i)=\frac{1}{1+e^{-\eta_i}}.
+$$
+
+In words: the inverse-logit turns any real-valued linear predictor into a value between 0 and 1. Here $\mu_i$ is the modelled proportion of the 24-item score, not the probability that a particular named word is answered correctly.
+
+## 5. Use a Beta-Binomial working likelihood
+
+$$
+Y_{i1} \sim \operatorname{BetaBinomial}\left(N,\;\alpha_i=\mu_i\kappa,\;\beta_i=(1-\mu_i)\kappa\right).
+$$
+
+In words: the observed time-2 total must lie between 0 and 24. The expected proportion is $\mu_i$. The concentration $\kappa$ controls how tightly children's scores cluster around that mean; smaller values permit more variation than a Binomial model with the same mean.
+
+**Synthetic example.** Suppose $N=24$, $\mu=0.5$, and $\kappa=10$. Then the mean score is 12. A Binomial model would have variance 6. The Beta-Binomial variance is about 18.5, so it allows much more child-to-child spread while respecting the 0-to-24 bounds. This is useful for heterogeneous total scores, but it remains a working model: the 24 words differ in difficulty, so the likelihood is not a literal claim that all items are exchangeable trials.
+
+## 6. State the priors and what they regularise
+
+For this proximal directly taught outcome, the shared defaults are:
+
+$$
+\begin{aligned}
+\alpha &\sim \operatorname{Normal}(0,1.5),\\
+\tau &\sim \operatorname{Normal}(0,0.5),\\
+\gamma_{\mathrm{own}} &\sim \operatorname{Normal}(1,0.25),\\
+\gamma_A &\sim \operatorname{Normal}(0,0.3),\\
+\kappa &\sim \operatorname{HalfNormal}(50).
+\end{aligned}
+$$
+
+The priors are weakly informative, not information-free. They reduce support for implausibly large logit-scale changes. The baseline prior is centred at 1 because the post-score is expected to track its own baseline, but sensitivity to a wider prior is required. Prior-predictive simulation checks what score distributions these assumptions imply before the observed outcome is used.
+
+## 7. What partial pooling is—and why it is not in this model
+
+Repeated-measures families give one child several rows and may include a child-specific intercept:
+
+$$
+u_j \sim \operatorname{Normal}(0,\sigma_u), \qquad \eta_{ij}=\cdots+u_j.
+$$
+
+In words: each child $j$ receives a stable deviation $u_j$, while all deviations are learned as draws from one population distribution. Estimates for children with little information are pulled more strongly toward the population mean; estimates supported by more observations move further toward their child-specific data. This is **partial pooling**.
+
+**Synthetic example.** Imagine the population mean is 0.8 on a model scale. A child with only two noisy observations has a raw estimate of 1.4; a simple teaching shrinkage rule with one-third weight on that raw estimate gives $0.33(1.4)+0.67(0.8)=1.0$. A child with 20 observations would receive much more weight on their own estimate. The actual Bayesian model learns the weights through uncertainty rather than using this hand-set rule.
+
+A random intercept accounts for repeated observations and partially pools stable residual heterogeneity. It does **not** measure or “repair” omitted general ability. If latent ability causes both a predictor and the outcome, the corresponding observational slope may remain confounded after a random intercept is added.
+
+## 8. Sampling produces a posterior, not one fitted answer
+
+Bayes' rule can be written schematically as
+
+$$
+p(\theta\mid y) \propto p(y\mid\theta)p(\theta),
+$$
+
+where $\theta$ denotes all unknown model parameters. In words: the posterior distribution combines the likelihood of the observed scores under each candidate parameter value with the prior plausibility of that value. Markov chain Monte Carlo approximates this posterior with correlated draws.
+
+The report summarises an estimand by its posterior median, inner 50% equal-tailed interval, outer 89% equal-tailed credible interval, and a tail probability. The interval limits are the 25th and 75th percentiles for the inner band and the 5.5th and 94.5th percentiles for the outer band. The 89% interval means that, conditional on the data and model, 89% of posterior probability lies between its limits. It is not a guarantee about a new child's score; that requires a prediction interval.
+
+**Synthetic credible-interval example.** Suppose 1,000 invented posterior draws for an item-scale treatment effect have median +2.1, 5.5th percentile −0.4, and 94.5th percentile +4.8. The summary is +2.1 items (89% credible interval −0.4 to +4.8). Because the interval includes zero, the sign is not pinned down by this interval. It is still informative to report where the posterior mass lies rather than replacing the result with “not significant”.
+
+**Synthetic tail-probability example.** If 830 of those 1,000 draws are positive, then $P(\mathrm{effect}>0\mid y,\mathrm{model})=0.83$. This is a posterior probability of direction, not a p-value. A separate $P(\mathrm{benefit}\ge\delta)$ asks whether the effect exceeds a practically meaningful threshold. In this project $\delta$ was chosen after results had been examined, so every claim using it must be accompanied by the pre-defined sensitivity grid.
+
+## 9. Translate the treatment effect back to an average score difference
+
+The coefficient $\tau$ is conditional and lives on the logit scale. The report also toggles assignment for every fitted child while retaining that child's baseline and age:
+
+$$
+\operatorname{AME}^{(s)}=\frac{1}{n}\sum_{i=1}^n\left[\operatorname{logit}^{-1}(\eta_{0i}^{(s)}+\tau^{(s)})-\operatorname{logit}^{-1}(\eta_{0i}^{(s)})\right].
+$$
+
+For posterior draw $s$, $\eta_{0i}^{(s)}$ is child $i$'s untreated linear predictor. In words: predict each fitted child once as wait-list and once as immediate intervention, subtract, then average those differences. Multiplying by 24 expresses the result as additional taught-vocabulary items. Repeating the calculation for every posterior draw retains uncertainty. This is an average over the fitted covariate profiles, not an effect for a fictional “average child” and not an individual treatment-effect prediction.
+
+## 10. Check computation before interpretation
+
+The convergence gate requires zero divergences, R-hat no greater than 1.01, bulk and tail effective sample sizes of at least 400, and Bayesian fraction of missing information (BFMI) of at least 0.3. These checks ask whether the sampler explored the specified posterior adequately. Passing them does not establish that the likelihood, DAG, or missingness assumptions are correct.
+
+Posterior-predictive checking asks a different question. For each posterior draw, generate a replicated score $Y_i^{\mathrm{rep}}$ from the fitted model and compare the replicated distribution with the observations.
+
+**Synthetic posterior-predictive example.** Suppose four invented children have observed scores 8, 10, 12, and 18. Their modelled 90% predictive intervals are 5–12, 6–14, 7–15, and 8–16. Three of four observations lie inside, so the illustrative coverage is 75%; the last child is under-predicted. With only four children this percentage is unstable, but the discrepancy shows what to investigate: upper-tail shape, ceiling mass, arm-specific fit, or influential observations. Good coverage alone is not enough—a model can obtain wide intervals by being too uncertain.
+
+PSIS-LOO assesses predictive performance when one observation is left out approximately. A large Pareto-$k$ value means that approximation is unreliable and the observation may be influential. It does not prove the observation is erroneous and it does not invalidate a treatment effect automatically; it triggers the documented direct refit sensitivity.
+
+## 11. Read the generated report in a fixed order
+
+1. Confirm the model ID, outcome, analysis rows, assignment coding, and available-case qualification in `config.json`, `analysis_set.csv`, and `model_recipe.md`.
+2. Read the convergence gate. Stop if it fails.
+3. Read posterior-predictive coverage and distribution checks. Qualify or revise the working likelihood if discrepancies are material.
+4. Read the item-scale average marginal effect with its inner 50% and outer 89% intervals and $P(\mathrm{AME}>0)$.
+5. Read the post-hoc practical-threshold result only beside its $\delta$-sensitivity sweep.
+6. Inspect prior-to-posterior change, prior sensitivity, and influence diagnostics before making a robustness claim.
+7. Keep the label attached to the quantity: the assignment contrast is causal under the stated assumptions; baseline, age, mechanism, mediator, dose, and skill-to-skill slopes are associations.
+
+## 12. Common misinterpretation checks
+
+Before accepting an explanation of this or a related model, ask:
+
+- Does it say randomisation balances baseline characteristics **in expectation**, rather than guaranteeing exact balance in this sample?
+- Does it call the baseline and age terms precision associations, rather than saying they identify or cause the treatment effect?
+- Does it describe the result as available-case and state the missingness qualification?
+- Does it keep attendance and other post-assignment variables out of the ITT adjustment set?
+- Does it interpret an 89% credible interval as posterior uncertainty about the estimand, not as an individual prediction interval or a repeated-sampling confidence interval?
+- Does it report the tail probability as a posterior probability, not a p-value?
+- Does it separate probability of direction from probability of exceeding the post-hoc practical threshold?
+- Does it treat the Beta-Binomial as a bounded-score working likelihood, not a literal equal-difficulty item model?
+- Does it say a random intercept partially pools stable residual heterogeneity, not that it controls omitted latent ability?
+- Does it stop interpretation after a failed convergence gate and still inspect predictive fit after a passed gate?
+- Does every causal statement name the randomised contrast that licenses it? If not, the safer description is an adjusted association.
+
+## 13. Evidence labels bridge probability to prose {#sec-bridge}
+
+Evidence labels describe support for a named directional or practical claim; they do not describe effect size. “Moderate evidence that assignment improves the outcome” refers to posterior direction probability. It does not mean “a moderate-sized effect”. The numerical posterior probability and interval must appear before the label so a reader can inspect the bridge from computation to prose. The labels never turn an adjusted association into a causal effect.
+
+## 14. Reproduce the route
+
+Run `python scripts/fit_statistical_model.py lrp-rli-itt-001 --config dev` for a fast development fit and use `reporting` for the publication configuration. A successful output directory contains the declared and resolved specification, data hash, source commit and dirty state, invocation, runtime, exact `environment-lock.json`, trace, diagnostics, summaries, and copied report. The fit is assembled in a hidden staging directory and promoted only after every required artefact succeeds, so a failed refit leaves the previous complete publication intact. The fixed-seed synthetic sampler test in `tests/statistical_models/test_posterior_sampling_smoke.py` provides a small replication gate for the PyMC/nutpie posterior and posterior-predictive shape contract.
+
+This chapter is a route through the implementation, not evidence that every assumption is true. The DAG, missingness condition, prior scales, and Beta-Binomial adequacy remain substantive claims to challenge with sensitivity analyses and subject-matter knowledge [@gelman2020workflow; @depaoli2017wambs].
