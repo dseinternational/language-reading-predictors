@@ -12,11 +12,16 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 import tempfile
+import time
 import uuid
 import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
+
+
+_STALE_PRIVATE_PATH_AGE_SECONDS = 7 * 24 * 60 * 60
 
 
 def _remove_private_path(path: Path) -> None:
@@ -25,6 +30,43 @@ def _remove_private_path(path: Path) -> None:
         path.unlink(missing_ok=True)
     else:
         shutil.rmtree(path, ignore_errors=True)
+
+
+def _remove_stale_private_paths(final_dir: Path, *, now: float | None = None) -> None:
+    """Remove week-old staging data and redundant backups for one publication.
+
+    Recent paths may belong to a concurrent fit and are left untouched. Backups are
+    removed only when the final publication exists; if it is absent, a backup may
+    be the only recoverable successful fit and is therefore preserved.
+    """
+    current_time = time.time() if now is None else now
+    prefixes = [f".{final_dir.name}.staging-"]
+    if final_dir.exists():
+        prefixes.append(f".{final_dir.name}.backup-")
+    try:
+        siblings = tuple(final_dir.parent.iterdir())
+    except OSError:
+        return
+    for candidate in siblings:
+        if not any(candidate.name.startswith(prefix) for prefix in prefixes):
+            continue
+        try:
+            age_seconds = current_time - candidate.stat().st_mtime
+        except OSError:
+            continue
+        if age_seconds >= _STALE_PRIVATE_PATH_AGE_SECONDS:
+            _remove_private_path(candidate)
+
+
+def _apply_default_directory_mode(directory: Path) -> None:
+    """Replace ``mkdtemp``'s 0700 mode with the process's normal directory mode."""
+    probe = directory / ".mode-probe"
+    probe.mkdir()
+    try:
+        mode = stat.S_IMODE(probe.stat().st_mode)
+    finally:
+        probe.rmdir()
+    directory.chmod(mode)
 
 
 @dataclass(slots=True, weakref_slot=True)
@@ -56,12 +98,18 @@ class OutputTransaction:
         """Create a hidden same-filesystem staging directory for ``final_dir``."""
         final = Path(final_dir).resolve()
         final.parent.mkdir(parents=True, exist_ok=True)
+        _remove_stale_private_paths(final)
         staging = Path(
             tempfile.mkdtemp(
                 prefix=f".{final.name}.staging-",
                 dir=final.parent,
             )
         )
+        try:
+            _apply_default_directory_mode(staging)
+        except BaseException:
+            _remove_private_path(staging)
+            raise
         return cls(final_dir=final, staging_dir=staging)
 
     @property
