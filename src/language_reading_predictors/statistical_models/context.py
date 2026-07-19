@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import arviz as az
@@ -23,6 +23,10 @@ from language_reading_predictors.statistical_models.preprocessing import (
     LongitudinalPanel,
     PreparedData,
     WavePanel,
+)
+from language_reading_predictors.statistical_models.run_options import (
+    StatisticalRunOptions,
+    current_run_options,
 )
 
 
@@ -167,6 +171,7 @@ class StatisticalFitContext:
     spec: ModelSpec
     reporting: _reporting.ReportingConfiguration
     sampling: _sampling.SamplingConfiguration
+    run_options: StatisticalRunOptions = field(default_factory=StatisticalRunOptions)
     prepared: PreparedData | WavePanel | LongitudinalPanel | None = None
     model: pm.Model | None = None
     model_vars: dict[str, Any] | None = None
@@ -243,8 +248,16 @@ def make_context(
         ci_prob=ci_prob,
         interval_kind="eti",
     )
+    run_options = current_run_options()
     sampling = _sampling.get_sampling_configuration(config, random_seed=random_seed)
-    ctx = StatisticalFitContext(spec=spec, reporting=reporting, sampling=sampling)
+    if run_options.target_accept is not None:
+        sampling = replace(sampling, target_accept=run_options.target_accept)
+    ctx = StatisticalFitContext(
+        spec=spec,
+        reporting=reporting,
+        sampling=sampling,
+        run_options=run_options,
+    )
     # Clear any artefacts from a previous fit of this model×config so a re-fit that
     # stops emitting a file cannot leave a stale copy for the report to render.
     ctx.reset_output_dir()
