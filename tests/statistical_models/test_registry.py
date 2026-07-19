@@ -65,7 +65,7 @@ def test_discovers_known_models_across_families():
         assert callable(models[mid].fit)
 
 
-def test_discovery_and_fit_access_do_not_import_model_modules(monkeypatch):
+def test_discovery_does_not_import_model_modules_until_attribute_access(monkeypatch):
     module_name = (
         "language_reading_predictors.statistical_models.lrp_rli_itt_001"
     )
