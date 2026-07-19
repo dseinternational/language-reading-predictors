@@ -42,7 +42,7 @@ dependencies:
       # rich, psutil, pyyaml, …) — no need to list them here. Graph plotting
       # (graphviz/networkx) is served by the conda-forge core + add-ons, so the
       # `graphs` extra is intentionally omitted.
-      - dse-research-utils[viz,notebook,dependence,tuning,io] @ git+https://github.com/dseinternational/research.git@v0.7.0#subdirectory=src/python
+      - dse-research-utils[viz,notebook,dependence,tuning,io] @ git+https://github.com/dseinternational/research.git@v0.7.1#subdirectory=src/python
       - -e ./
       # Local-dev override — to develop against a sibling checkout of research,
       # comment the git line above and uncomment this instead:
