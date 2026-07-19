@@ -455,6 +455,7 @@ miscalibration
 monofont
 monofontoptions
 morphosyntax
+mypy
 multicollinear
 multicollinearity
 multimethod

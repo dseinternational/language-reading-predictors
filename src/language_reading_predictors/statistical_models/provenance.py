@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import platform
 import subprocess
@@ -16,6 +17,7 @@ from functools import lru_cache
 from importlib import metadata
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 
 CORE_DISTRIBUTIONS: dict[str, str] = {
@@ -119,6 +121,143 @@ def run_provenance() -> dict[str, Any]:
         },
         "packages": package_versions(),
     }
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _conda_lock_records(prefix: Path) -> list[dict[str, Any]]:
+    """Read exact conda package builds without requiring the conda executable."""
+    records: list[dict[str, Any]] = []
+    for path in sorted((prefix / "conda-meta").glob("*.json")):
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        record = {
+            key: raw.get(key)
+            for key in (
+                "name",
+                "version",
+                "build",
+                "build_number",
+                "channel",
+                "subdir",
+                "fn",
+                "sha256",
+                "md5",
+            )
+            if raw.get(key) is not None
+        }
+        if record.get("name") and record.get("version"):
+            records.append(record)
+    return sorted(
+        records,
+        key=lambda item: (
+            str(item.get("name", "")).casefold(),
+            str(item.get("version", "")),
+            str(item.get("build", "")),
+        ),
+    )
+
+
+def _sanitise_direct_url(raw_text: str | None) -> dict[str, Any] | None:
+    """Retain reproducible direct-install metadata without credentials or queries."""
+    if not raw_text:
+        return None
+    try:
+        raw = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return None
+    url = raw.get("url")
+    if not isinstance(url, str):
+        return None
+    parsed = urlsplit(url)
+    hostname = parsed.hostname or ""
+    netloc = hostname
+    if parsed.port is not None:
+        netloc = f"{netloc}:{parsed.port}"
+    clean: dict[str, Any] = {
+        "url": urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
+    }
+    for key in ("vcs_info", "dir_info", "archive_info"):
+        value = raw.get(key)
+        if isinstance(value, dict):
+            clean[key] = value
+    return clean
+
+
+def _python_distribution_lock_records() -> list[dict[str, Any]]:
+    """Return every installed Python distribution and any exact direct source."""
+    records: list[dict[str, Any]] = []
+    for distribution in metadata.distributions():
+        name = distribution.metadata.get("Name")
+        if not name:
+            continue
+        record: dict[str, Any] = {
+            "name": name,
+            "version": distribution.version,
+        }
+        try:
+            direct_url = _sanitise_direct_url(
+                distribution.read_text("direct_url.json")
+            )
+        except (OSError, UnicodeError, ValueError):
+            direct_url = None
+        if direct_url is not None:
+            record["direct_url"] = direct_url
+        records.append(record)
+    return sorted(
+        records,
+        key=lambda item: (
+            str(item["name"]).casefold(),
+            str(item["version"]),
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def environment_lock() -> dict[str, Any]:
+    """Snapshot the exact installed conda builds and Python distributions.
+
+    This complements ``environment.yml``: the YAML declares compatible ranges,
+    while this record identifies the concrete environment that produced a fit.
+    """
+    prefix = Path(sys.prefix).resolve()
+    repository_root = Path(__file__).resolve().parents[3]
+    spec_path = repository_root / "environment.yml"
+    project_spec = None
+    if spec_path.is_file():
+        project_spec = {
+            "path": "environment.yml",
+            "sha256": _file_sha256(spec_path),
+        }
+    return {
+        "schema_version": 1,
+        "python": {
+            "version": platform.python_version(),
+            "implementation": platform.python_implementation(),
+            "platform": platform.platform(),
+            "prefix": str(prefix),
+        },
+        "project_environment_spec": project_spec,
+        "conda_packages": _conda_lock_records(prefix),
+        "python_distributions": _python_distribution_lock_records(),
+    }
+
+
+def write_environment_lock(output_dir: str | Path) -> tuple[Path, str]:
+    """Write the environment snapshot beside a fit and return path plus SHA-256."""
+    path = Path(output_dir) / "environment-lock.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(environment_lock(), indent=2, sort_keys=True) + "\n"
+    path.write_text(payload, encoding="utf-8")
+    return path, hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _safe_model_id(model_id: str) -> str:

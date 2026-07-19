@@ -32,7 +32,10 @@ from language_reading_predictors.statistical_models.itt import (
     declared_settings_dict,
     resolve_itt_run_plan,
 )
-from language_reading_predictors.statistical_models.provenance import run_provenance
+from language_reading_predictors.statistical_models.provenance import (
+    run_provenance,
+    write_environment_lock,
+)
 
 # House reporting coverage: median + inner 50% + outer 89% equal-tailed
 # (notes/202607172359-credible-interval-standard.md). The single source of truth for
@@ -2244,6 +2247,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
     """Persist a reconstructable ``config.json`` and basic report metrics."""
     out = context.output_dir
     os.makedirs(out, exist_ok=True)
+    environment_path, environment_sha256 = write_environment_lock(out)
     spec = context.spec
     recipe_path = write_model_recipe(context)
     resolved_plan = (
@@ -2301,6 +2305,8 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "data_path": getattr(context.prepared, "data_path", None),
         "data_sha256": getattr(context.prepared, "data_sha256", None),
         "provenance": run_provenance(),
+        "environment_lock_file": os.path.basename(environment_path),
+        "environment_lock_sha256": environment_sha256,
         "extra": _json_safe(extra or {}),
         **_itt_analysis_set_metadata(context),
     }

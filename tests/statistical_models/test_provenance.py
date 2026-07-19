@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 from datetime import UTC, datetime
@@ -174,3 +175,68 @@ def test_failure_records_do_not_collide_within_one_second(monkeypatch, tmp_path)
 
     assert paths[0] != paths[1]
     assert all(path.exists() for path in paths)
+
+
+def test_conda_lock_records_exact_builds_and_skips_broken_metadata(tmp_path):
+    conda_meta = tmp_path / "conda-meta"
+    conda_meta.mkdir()
+    (conda_meta / "numpy.json").write_text(
+        json.dumps(
+            {
+                "name": "numpy",
+                "version": "2.4.6",
+                "build": "py314h123_0",
+                "build_number": 0,
+                "channel": "https://conda.anaconda.org/conda-forge",
+                "subdir": "osx-arm64",
+                "fn": "numpy-2.4.6-py314h123_0.conda",
+                "sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (conda_meta / "broken.json").write_text("not json", encoding="utf-8")
+
+    assert provenance._conda_lock_records(tmp_path) == [
+        {
+            "name": "numpy",
+            "version": "2.4.6",
+            "build": "py314h123_0",
+            "build_number": 0,
+            "channel": "https://conda.anaconda.org/conda-forge",
+            "subdir": "osx-arm64",
+            "fn": "numpy-2.4.6-py314h123_0.conda",
+            "sha256": "abc123",
+        }
+    ]
+
+
+def test_direct_url_sanitisation_removes_credentials_query_and_fragment():
+    raw = json.dumps(
+        {
+            "url": "https://user:secret@example.test/research.git?token=abc#frag",
+            "vcs_info": {"vcs": "git", "commit_id": "deadbeef"},
+        }
+    )
+
+    assert provenance._sanitise_direct_url(raw) == {
+        "url": "https://example.test/research.git",
+        "vcs_info": {"vcs": "git", "commit_id": "deadbeef"},
+    }
+
+
+def test_write_environment_lock_is_stable_and_returns_content_hash(
+    monkeypatch, tmp_path
+):
+    lock = {
+        "schema_version": 1,
+        "conda_packages": [{"name": "numpy", "version": "2.4.6"}],
+    }
+    monkeypatch.setattr(provenance, "environment_lock", lambda: lock)
+
+    path, digest = provenance.write_environment_lock(tmp_path)
+    payload = path.read_bytes()
+
+    assert path.name == "environment-lock.json"
+    assert json.loads(payload) == lock
+    assert digest == hashlib.sha256(payload).hexdigest()

@@ -72,5 +72,11 @@ jobs:
       - name: Verify environment core matches the canonical spec
         run: dse-check-env environment.yml
 
+      - name: Check registry-derived documentation
+        run: python scripts/check_statistical_documentation.py
+
+      - name: Type-check specification and reporting boundaries
+        run: python -m mypy
+
       - name: Run pytest
         run: pytest

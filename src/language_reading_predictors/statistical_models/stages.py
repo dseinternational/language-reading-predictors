@@ -40,6 +40,7 @@ class StageHooks:
     write_loo_influence: ContextHook
     print_loo_row: ContextHook
     copy_report_template: ContextHook
+    publish_output: ContextHook
     print_footer: ContextHook
 
 
@@ -108,5 +109,6 @@ class SharedFitStages:
             f"{findings['status']} ({len(findings['sentences'])} sentences)"
         )
         self.hooks.copy_report_template(ctx)
+        self.hooks.publish_output(ctx)
         self.hooks.print_footer(ctx)
         return ctx

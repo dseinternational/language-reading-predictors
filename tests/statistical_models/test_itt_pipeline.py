@@ -11,6 +11,7 @@ build tests.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -598,6 +599,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
         "rope_summary.csv",
         "rope_sensitivity.csv",
         "model_recipe.md",
+        "environment-lock.json",
         "config.json",
     ):
         assert (out / filename).is_file(), filename
@@ -619,6 +621,11 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
         "dropped_adjuster",
     ]
     assert cfg["model_recipe_file"] == "model_recipe.md"
+    lock_path = out / cfg["environment_lock_file"]
+    assert cfg["environment_lock_file"] == "environment-lock.json"
+    assert cfg["environment_lock_sha256"] == hashlib.sha256(
+        lock_path.read_bytes()
+    ).hexdigest()
     recipe = (out / "model_recipe.md").read_text()
     assert "supports the causal interpretation" in recipe
     assert "missing-outcome assumption" in recipe

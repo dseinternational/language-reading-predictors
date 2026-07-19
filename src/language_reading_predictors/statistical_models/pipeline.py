@@ -1431,6 +1431,7 @@ def _shared_stages() -> SharedFitStages:
             write_loo_influence=_write_loo_influence,
             print_loo_row=_print_loo_row,
             copy_report_template=_copy_report_template,
+            publish_output=lambda ctx: ctx.publish_output_dir(),
             print_footer=_print_footer,
         )
     )
