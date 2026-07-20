@@ -6309,6 +6309,10 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     e = spec.extra
     outcome = spec.outcome_symbol or "W"
     predictor_symbols = list(e.get("predictor_symbols", ["L", "B", "TR", "TE", "R", "E"]))
+    # Trait covariates (non-verbal ability, hearing, speech, phonological memory),
+    # aligned with the gains panel. They are t1-measured, so they enter as
+    # baseline covariates broadcast across the waves (there is no per-wave value).
+    covariates = list(e.get("covariates", []))
     include_age = bool(e.get("include_age", True))
     include_group = bool(e.get("include_group", True))
     sigma0 = float(
@@ -6326,7 +6330,11 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
 
     section_header("Prepare data")
     measure_outcomes = tuple(dict.fromkeys([outcome, *predictor_symbols]))
-    prepared_all = load_and_prepare(phase_mode="levels", outcomes=measure_outcomes)
+    prepared_all = load_and_prepare(
+        phase_mode="levels",
+        outcomes=measure_outcomes,
+        baseline_covariates=tuple(covariates),
+    )
 
     # Timepoints present; each wave's row count and its usable predictor set (a
     # predictor whose same-wave logit has positive variance on the wave's rows —
@@ -6369,6 +6377,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             sub,
             outcome_symbol=outcome,
             predictor_symbols=preds,
+            covariates=covariates,
             include_age=age,
             include_group=group,
             predictor_slope_sigma=sigma0,

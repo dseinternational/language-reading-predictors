@@ -2876,6 +2876,7 @@ def build_concurrent_model(
     *,
     outcome_symbol: str = "W",
     predictor_symbols: Iterable[str] = ("L", "B", "TR", "TE", "R", "E"),
+    covariates: Iterable[str] = (),
     include_age: bool = True,
     include_group: bool = True,
     predictor_slope_sigma: float = 0.3,
@@ -2974,6 +2975,23 @@ def build_concurrent_model(
             g_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
             beta_group = pm.Normal("beta_group_nuisance", mu=0.0, sigma=1.0)
             eta = eta + beta_group * g_d
+
+        # Trait covariates (e.g. non-verbal ability, hearing, speech, phonological
+        # memory), passed by the pipeline as t1 baselines broadcast across the waves
+        # (via ``baseline_covariates=``) so the levels panel conditions on the same
+        # variable set as the gains panel. Each enters as a standardised linear
+        # ``gamma_{c}`` with the regularising cross-coupling prior. A covariate absent
+        # from ``prepared.covariates`` (e.g. a constant missing-indicator the loader
+        # dropped) is skipped, matching the adjusted / gain-factor loaders.
+        for c in tuple(covariates):
+            if c not in prepared.covariates:
+                continue
+            cov_vec = np.nan_to_num(np.asarray(prepared.covariates[c], dtype=float))
+            cov_d = pm.Data(f"z_{c}", cov_vec, dims="obs_id")
+            gamma = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                f"gamma_{c}"
+            )
+            eta = eta + gamma * cov_d
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _priors.kappa_prior().to_pymc("kappa")
