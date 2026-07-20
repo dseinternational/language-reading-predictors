@@ -1,0 +1,88 @@
+---
+title: "LRP95: Mechanism model — letter-sound (L) -> word reading (W), moderated by taught-expressive vocabulary (TE)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+## Overview
+
+LRP95 **completes** the letter-sound × vocabulary interaction set —
+[LRP71](../lrp-rli-mech-071) ($E$), LRP93 ($R$), LRP94 ($TR$), LRP95 ($TE$) — so the
+joint-readiness question ("do letter sounds and vocabulary have to be high together for larger
+word-reading gains?") is answered for all four vocabulary measures. It extends the
+[LRP58](../lrp-rli-mech-058) letter-sound -> word-reading curve $f^L$ with a **linear moderation**
+by **taught-expressive** vocabulary $TE$.
+
+Letter sounds enter as the nonparametric **HSGP** curve $f^L$; taught-expressive vocabulary enters
+as a standardised linear main effect plus the interaction:
+
+$$
+\eta = \dots + f^{L}(\operatorname{logit} L_{\text{post}})
+       + \gamma_{\text{mod}}\, z(TE)
+       + \gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(TE)
+$$
+
+with the regularising $\mathrm{Normal}(0, 0.3)$ cross-coupling prior on both coefficients.
+
+::: {.callout-note title="Reading the interaction"}
+
+$\gamma_{\text{int}}$ is the change in the letter-sound -> word-reading slope per +1 SD of
+taught-expressive vocabulary (and, by symmetry, the change in the vocabulary slope per +1 SD of
+letter sounds).
+
+- $\gamma_{\text{int}} > 0$ = **synergy** (both high needed).
+- $\gamma_{\text{int}} \approx 0$ = **additive** (either helps, roughly independently).
+- $\gamma_{\text{int}} < 0$ = **substitutive** (diminishing returns to having both).
+
+Because $z(\operatorname{logit} L)$ is centred, $\gamma_{\text{mod}}$ is the $TE$ main effect at the
+mean of letter sounds and $f^L$ is the $L \to W$ effect at the mean of $TE$. $L$ and $TE$ are
+positively correlated in this cohort, so the discordant corners are sparse and the interaction is
+**weakly powered** — exploratory only.
+
+:::
+
+## Adjustment set
+
+The revised LRP58 $L \to W$ set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$. The
+moderator $TE$ enters **additionally**, via its main effect and interaction only (same construction
+as LRP71).
+
+::: {.callout-important title="TE enters as the tested moderator only"}
+Conditioning on the vocabulary moderator can open a collider path for the $L$ main association, so
+the $L$ main slope is read **only with** the moderation.
+:::
+
+::: {.callout-warning title="Adjusted association, not causal"}
+Latent general ability ($GA$) is not adjusted for, so $f^L$, $\gamma_{\text{mod}}$ and
+$\gamma_{\text{int}}$ are **latent-GA-confounded adjusted associations**, never causal effects. The
+randomised causal claim lives in the ITT suite.
+:::
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
