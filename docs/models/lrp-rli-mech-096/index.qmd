@@ -43,15 +43,13 @@ contrast is like-for-like: $\{G, A, HS, IS, SP\}$ plus baseline nonword $N_\text
 Word reading $W$ is **excluded** (a sibling/descendant of decoding: over-control /
 collider risk).
 
-::: {.callout-note title="Linear mechanism + graded floored outcome"}
-Decoding is a heavily-floored 0–6 count, so the mechanism enters as a single linear slope
+_Linear mechanism + graded floored outcome._ Decoding is a heavily-floored 0–6 count, so the mechanism enters as a single linear slope
 $\beta_\text{mech}\,z(\text{logit }L)$ (an HSGP curve is not identifiable here), comparable
 per SD of the exposure to the other Tier-1 slopes. The outcome is the **graded**
 Beta-Binomial count, not the off-floor indicator: the suite floor rule protects
 *treatment marginals*, but an *exposure-association slope* uses the graded leg (the LRP72
 precedent). The floor still costs power — read a small/uncertain slope as *floor-limited*,
 not as "letters do not feed decoding".
-:::
 
 GA (latent general ability) is unblockable and the child random intercept does not stand
 in for it, so $\beta_\text{mech}$ is an **adjusted association**, never a causal decoding

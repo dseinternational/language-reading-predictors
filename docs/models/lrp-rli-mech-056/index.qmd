@@ -24,8 +24,7 @@ LRP56 estimates the adjusted association between receptive vocabulary and word r
 using *all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with
 phase-specific intercepts.
 
-::: {.callout-note title="Linear mechanism (estimand note)"}
-The mechanism enters as a **linear slope** $\beta_{\text{mech}}$ on
+_Linear mechanism (estimand note)._ The mechanism enters as a **linear slope** $\beta_{\text{mech}}$ on
 $\text{logit}_*(R_{\text{post}}, N_R)$, not the 1-D HSGP curve used elsewhere in this
 family. At reporting tier the nonparametric $f^R$ curve does not converge here (~300
 divergences on an otherwise-healthy posterior, and raising `target_accept` does not
@@ -36,7 +35,6 @@ is therefore the **linear** $R \to W$ adjusted association — a single slope, n
 shape. Recovering the curve would need a reparameterised GP and is left as follow-up.
 The letter-sound mechanism (LRP58) keeps its HSGP curve; only the vocabulary-predictor
 mechanisms show this pathology.
-:::
 
 ## Adjustment set
 

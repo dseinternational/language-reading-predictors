@@ -26,9 +26,7 @@ modelled on the logit scale with a Beta-Binomial likelihood and a child random
 intercept. Unlike the gain model it is **not autoregressive** — there is no own
 baseline; per-timepoint intercepts absorb the maturation trend.
 
-::: {.callout-important title="Causal labelling + the level-model crossover caveat"}
-
-Under the revised study DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10)
+_Causal labelling + the level-model crossover caveat._ Under the revised study DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10)
 every non-randomised coefficient is an **adjusted association** confounded by latent
 general ability (the child random intercept is
 only a partial, shrunken stand-in for between-child heterogeneity, not a control for
@@ -40,8 +38,6 @@ contrast.** The clean randomised contrast lives **only at t2** (`b_grp_time[1]`,
 labelled *causal* in the table below); the t3/t4 group coefficients are
 post-crossover and are cohort/timing associations, not treatment effects. SES is
 excluded (non-DAG / redundant).
-
-:::
 
 **DAG factor set:** group $\times$ time · age (per timepoint) · cognitive ability
 (block design) $\times$ time · group $\times$ ability · child random intercept.

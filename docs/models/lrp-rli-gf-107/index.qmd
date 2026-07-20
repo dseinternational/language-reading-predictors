@@ -22,11 +22,7 @@ format:
 
 LRPGF07b is a treated-only **gain-factors** model for CELF basic concepts (`celf`): what is associated with how much children gain across the three period transitions (ANCOVA - the period post-count given its pre-count - Beta-Binomial logit, child random intercept). It conditions on the own baseline, age, cognitive ability (block design), the upstream DAG skills receptive vocabulary (R) and taught receptive vocabulary (TR), with focal interactions group$\times$ability, group$\times$own-baseline, age$\times$ability.
 
-::: {.callout-important title="Causal labelling (DAG guardrails)"}
-
-Once restricted to on-intervention rows the treatment indicator is constant, so it and its interactions are dropped: every coefficient here is an **adjusted association** among the treated (confounded by latent GA), never a treatment effect. Intervention sessions/dose are never conditioned on (a DAG collider). SES is excluded (not a DAG node; statistically redundant).
-
-:::
+_Causal labelling (DAG guardrails)._ Once restricted to on-intervention rows the treatment indicator is constant, so it and its interactions are dropped: every coefficient here is an **adjusted association** among the treated (confounded by latent GA), never a treatment effect. Intervention sessions/dose are never conditioned on (a DAG collider). SES is excluded (not a DAG node; statistically redundant).
 
 ## Model
 

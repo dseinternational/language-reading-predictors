@@ -2,15 +2,13 @@
 
 _In plain terms:_ at each timepoint this model asks how a child's skills go together with the focal outcome *at that same moment* — for two children the same age and alike on the other skills, how much the focal outcome tends to differ with a bit more of each predictor skill. It describes how the skills co-occur wave by wave, **not** whether one skill causes another.
 
-::: {.callout-important title="These are associations — read them as such"}
-Every number here is an **association**, never a causal effect. Three things shape how to read the adjusted and bivariate estimates:
+_These are associations — read them as such._ Every number here is an **association**, never a causal effect. Three things shape how to read the adjusted and bivariate estimates:
 
 - **Table-2 fallacy.** Each adjusted coefficient answers a *different* conditional question ("holding the others fixed"), so the column should not be read as a set of competing causal effects — the biggest number is not "the strongest cause".
 - **Measurement error.** Under classical measurement-error assumptions, using observed test scores commonly attenuates associations relative to associations among the underlying skills. In this multivariable nonlinear model, however, the size and even direction of that distortion are not guaranteed; the longitudinal factor model (issue #313) provides a complementary measurement-error-aware analysis.
 - **Collinearity and regularisation.** With about 53 children and a tightly inter-correlated skill cluster, the regularising priors stabilise otherwise noisy mutually-adjusted coefficients by shrinking them toward zero. An adjusted estimate may be smaller, larger, or have a different sign from its bivariate counterpart because it answers a different conditional question; the difference is informative about sensitivity to adjustment, but it is **not** a decomposition of shared variance.
 
 Group enters only as a non-interpretable nuisance term that absorbs arm composition at each wave; its coefficient is not reported as an association.
-:::
 
 ### Adjusted vs bivariate associations, by wave
 

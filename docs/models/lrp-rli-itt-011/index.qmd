@@ -24,32 +24,20 @@ format:
 
 LRPITT11 is an available-case, modified-ITT reanalysis of nonword reading (`nonword`) over the randomised t1 $\rightarrow$ t2 phase. At baseline, 36/50 observed scores (72%) were zero; at t2, 34/53 observed scores (about 64%) were zero. The transition estimand requires baseline floor status even though baseline is not a regression covariate.
 
-::: {.callout-important title="Post-hoc floored-outcome estimand — exploratory headline"}
-
-The floor rule and its 40% threshold were adopted after inspecting these outcome distributions and earlier model results. It is therefore **post-hoc and data-adaptive**, not pre-registered or prospectively specified. Applying the mechanical gate without arm labels reduces treatment-effect-driven selection, but does not change that evidential status. This model:
+_Post-hoc floored-outcome estimand — exploratory headline._ The floor rule and its 40% threshold were adopted after inspecting these outcome distributions and earlier model results. It is therefore **post-hoc and data-adaptive**, not pre-registered or prospectively specified. Applying the mechanical gate without arm labels reduces treatment-effect-driven selection, but does not change that evidential status. This model:
 
 - uses an **age-only** predictor (no baseline regression term);
 - reports $\Pr(\text{post} > 0 \mid \text{observed pre} = 0)$ among 36 eligible children (21 intervention, 15 control) as the exploratory headline. Baseline floor status is pre-randomisation, so conditioning on its observed value preserves the causal arm contrast for that subgroup, subject to missingness assumptions;
 - explicitly excludes three children with an observed t2 score but missing t1 score from this transition estimand (one intervention, two control), rather than treating missing baselines as zeros; and
 - retains the graded Beta-Binomial $\tau$ over all 53 observed t2 scores as a flagged, **detection-limited secondary**.
 
-:::
+_Analysis population and eligibility._ The published trial randomised 57 children (29 intervention, 28 wait-list), whereas the archived repository dataset contains 54 (28 intervention, 26 wait-list); one archived control child has neither a t1 nor t2 nonword score. This is therefore not a full-randomised-cohort ITT analysis. Each fit writes `baseline_floor_eligibility.csv` and records the same arm-specific counts in `config.json`; the causal reading requires an explicit missingness assumption or a sensitivity analysis for unavailable randomised participants and unknown eligibility.
 
-::: {.callout-warning title="Analysis population and eligibility"}
-
-The published trial randomised 57 children (29 intervention, 28 wait-list), whereas the archived repository dataset contains 54 (28 intervention, 26 wait-list); one archived control child has neither a t1 nor t2 nonword score. This is therefore not a full-randomised-cohort ITT analysis. Each fit writes `baseline_floor_eligibility.csv` and records the same arm-specific counts in `config.json`; the causal reading requires an explicit missingness assumption or a sensitivity analysis for unavailable randomised participants and unknown eligibility.
-
-:::
-
-::: {.callout-note title="Identification and sign convention"}
-
-Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
 identified by the **empty adjustment set**; linear age is a precision term only.
 **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
 the intervention raises the outcome — here, raises the probability of coming off
 the floor.
-
-:::
 
 ## Model
 

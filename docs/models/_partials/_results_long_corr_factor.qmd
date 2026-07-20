@@ -7,23 +7,19 @@ correlation per pair of skill areas per wave: how does the vocabulary–code cou
 differ across t1–t4? It is a description of how the skills co-occur across waves,
 **not** a treatment contrast or a statement that one skill causes another.
 
-::: {.callout-important title="A measurement instrument — associations, not causes"}
-Every number here is a **descriptive association**. The latent correlations and the
+_A measurement instrument — associations, not causes._ Every number here is a **descriptive association**. The latent correlations and the
 slopes derived from them describe how the skill areas go together once measurement
 variation is modelled; they do **not** identify a causal skill-to-skill effect. The
 suite's causal content lives in the randomised ITT/DiD contrasts and the mediation
 models, untouched by this instrument.
-:::
 
-::: {.callout-note title="Fragility at n ~ 54"}
-A four-wave latent model at n ~ 54 is fragile and prior-dependent — the more so than
+_Fragility at n ~ 54._ A four-wave latent model at n ~ 54 is fragile and prior-dependent — the more so than
 the cross-sectional `mm-001`, since it carries a trait correlation matrix and a state
 correlation matrix per wave. The reporting-tier fit supplies nominal, exploratory
 estimates, not final scientific magnitudes; prior sensitivity is required before
 substantive interpretation. Wave-varying loadings or an AR across-wave structure should
 be fitted only if checks indicate that the wave-invariant measurement specification or
 compound symmetry misfits, then compared using per-child PSIS-LOO.
-:::
 
 ### Per-wave latent skill correlations (the headline)
 

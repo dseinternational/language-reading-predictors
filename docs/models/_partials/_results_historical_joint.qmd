@@ -64,11 +64,7 @@ for _m in _jc_measures:
   the interval, computed on the `n_subjects` children observed at both
   endpoint waves; `p_gt_0` is the posterior probability it is positive.
 
-::: {.callout-note title="No PSIS-LOO for this model"}
-
-The model has one likelihood node per measure, so a single pointwise PSIS-LOO
+_No PSIS-LOO for this model._ The model has one likelihood node per measure, so a single pointwise PSIS-LOO
 is not defined for it; the posterior-predictive checks below are the fit
 diagnostics. The per-measure `lrp-rlm-hg-*` models carry LOO for their own
 single-measure fits.
-
-:::

@@ -22,9 +22,7 @@ format:
 
 MED-186 is the parent+100 **interventional-effects companion** to [MED-086](../lrp-rli-med-086/). Both fit the same Phase-0 joint model, use letter-sound knowledge at t2 as the mediator, use the same signed-off adjustment set, and model nonword reading as the binary off-floor outcome $\mathbf{1}[N_{t2}>0]$. MED-086 reports the natural direct and indirect effects (NDE/NIE); MED-186 reports their randomised-interventional analogues (IDE/IIE).
 
-::: {.callout-important title="Off-floor outcome — effects are risk differences"}
-IDE, IIE and Total are changes in the probability of reading at least one nonword, not changes in an item count. Positive values mean that the intervention increases the probability of coming off the floor.
-:::
+_Off-floor outcome — effects are risk differences._ IDE, IIE and Total are changes in the probability of reading at least one nonword, not changes in an item count. Positive values mean that the intervention increases the probability of coming off the floor.
 
 ## Why the estimand changes
 

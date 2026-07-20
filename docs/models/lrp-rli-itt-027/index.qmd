@@ -22,15 +22,11 @@ format:
 
 LRPITT27 is the **site-adjusted available-case modified-ITT** analysis for word reading (EWRSWR) (`ewrswr`)—the site-robustness companion to LRPITT10. It adds study site (`area`: 1 = North, 2 = South; 30 / 24 children in the repository). Unlike the SES covariates, `area` is fully observed, so it causes no additional exclusion beyond the word-reading analytic requirement; LRPITT27 and LRPITT10 use the same outcome-available rows. The estimand is the randomised offer effect on $W_{\text{post}}$ in that fitted sample, conditional on ignorable exclusion and missingness—not a full-population effect for all 57 randomised children.
 
-::: {.callout-note title="Identification and sign convention"}
-
-Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ within the outcome-available fitted sample without adjustment. Generalising beyond that sample requires ignorable exclusion and missingness. The own baseline, linear age, and the
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ within the outcome-available fitted sample without adjustment. Generalising beyond that sample requires ignorable exclusion and missingness. The own baseline, linear age, and the
 site term are **precision / robustness terms only** — they sharpen $\tau$ and probe
 its stability, but are not what licenses the causal interpretation.
 **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
 the intervention raises the outcome.
-
-:::
 
 ## Model
 

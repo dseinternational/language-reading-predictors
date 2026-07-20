@@ -32,26 +32,18 @@ and the construct-structure summary that precedes any coupling model (Phase
 C). Wave 3 is used because it is the only wave carrying the full ability triad
 (`basmat` is wave-3+ only).
 
-::: {.callout-important title="Measurement / triangulation only — nothing causal"}
-
-Every factor correlation is a **descriptive association** in an observational
+_Measurement / triangulation only — nothing causal._ Every factor correlation is a **descriptive association** in an observational
 cohort (`causal_status="none"`). There is deliberately **no structural leg**:
 the factors → gain question belongs to Phase D (`lrp-rlm-adj-001` /
 `lrp-rlm-hs-001`), so this model never regresses an outcome on the factors.
 
-:::
-
-::: {.callout-warning title="Single-indicator memory factor (stated assumption)"}
-
-Memory has one indicator (`basdig`; the paper's visual-recall measures are not
+_Single-indicator memory factor (stated assumption)._ Memory has one indicator (`basdig`; the paper's visual-recall measures are not
 in the prepared extract), so its loading and residual cannot be estimated:
 they are **fixed by an assumed reliability of 0.8**
 ($\lambda = \sqrt{0.8}$, $\sigma = \sqrt{0.2}$). Correlations involving the
 memory factor scale with that assumption — read them as conditional on it.
 Loadings are pooled across the three reading groups: measurement invariance is
 **assumed, not tested**, at this n.
-
-:::
 
 ## Model
 

@@ -38,9 +38,7 @@ $$
 
 with the regularising $\mathrm{Normal}(0, 0.3)$ cross-coupling prior on both coefficients.
 
-::: {.callout-note title="Reading the interaction"}
-
-$\gamma_{\text{int}}$ is the change in the letter-sound -> word-reading slope per +1 SD of
+_Reading the interaction._ $\gamma_{\text{int}}$ is the change in the letter-sound -> word-reading slope per +1 SD of
 taught-expressive vocabulary (and, by symmetry, the change in the vocabulary slope per +1 SD of
 letter sounds).
 
@@ -53,24 +51,18 @@ mean of letter sounds and $f^L$ is the $L \to W$ effect at the mean of $TE$. $L$
 positively correlated in this cohort, so the discordant corners are sparse and the interaction is
 **weakly powered** — exploratory only.
 
-:::
-
 ## Adjustment set
 
 The revised LRP58 $L \to W$ set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$. The
 moderator $TE$ enters **additionally**, via its main effect and interaction only (same construction
 as LRP71).
 
-::: {.callout-important title="TE enters as the tested moderator only"}
-Conditioning on the vocabulary moderator can open a collider path for the $L$ main association, so
+_TE enters as the tested moderator only._ Conditioning on the vocabulary moderator can open a collider path for the $L$ main association, so
 the $L$ main slope is read **only with** the moderation.
-:::
 
-::: {.callout-warning title="Adjusted association, not causal"}
-Latent general ability ($GA$) is not adjusted for, so $f^L$, $\gamma_{\text{mod}}$ and
+_Adjusted association, not causal._ Latent general ability ($GA$) is not adjusted for, so $f^L$, $\gamma_{\text{mod}}$ and
 $\gamma_{\text{int}}$ are **latent-GA-confounded adjusted associations**, never causal effects. The
 randomised causal claim lives in the ITT suite.
-:::
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

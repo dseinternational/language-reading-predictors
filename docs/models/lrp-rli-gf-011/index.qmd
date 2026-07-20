@@ -22,17 +22,9 @@ format:
 
 LRPGF11 is the **gain-factors** model for nonword reading (`nonword`).
 
-::: {.callout-important title="Floored outcome - off-floor likelihood"}
+_Floored outcome - off-floor likelihood._ Nonword reading (6 items) is **heavily floored** (most period post-scores are zero; the at-floor rate runs 72% → 40% across t1–t4), so a graded Beta-Binomial gain would be driven by a few dispersed tail values rather than the factor contrasts. Following the suite's floor rule, the likelihood is a **Bernoulli on the binary off-floor indicator** (period post $> 0$): the linear predictor models the **log-odds of being off the floor at post** — pooling zero→positive movement, staying off the floor, and return-to-floor together — **not** the log-odds of "coming off the floor". `beta_trt` is the off-floor log-odds of being on intervention, and its items-scale marginal collapses to the **off-floor risk difference** (reported against the 10 pp δ adopted for floored outcomes).
 
-Nonword reading (6 items) is **heavily floored** (most period post-scores are zero; the at-floor rate runs 72% → 40% across t1–t4), so a graded Beta-Binomial gain would be driven by a few dispersed tail values rather than the factor contrasts. Following the suite's floor rule, the likelihood is a **Bernoulli on the binary off-floor indicator** (period post $> 0$): the linear predictor models the **log-odds of being off the floor at post** — pooling zero→positive movement, staying off the floor, and return-to-floor together — **not** the log-odds of "coming off the floor". `beta_trt` is the off-floor log-odds of being on intervention, and its items-scale marginal collapses to the **off-floor risk difference** (reported against the 10 pp δ adopted for floored outcomes).
-
-:::
-
-::: {.callout-important title="Causal labelling (DAG guardrails)"}
-
-Only the randomised on-intervention term is causal. Under the revised DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10) the **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is the ITT-anchor estimand; `beta_trt` itself is only the on-intervention log-odds contrast, not the ITT effect. Own baseline, age, ability (blocks), the upstream code skills letter sounds (L) and blending (B), and the speech and phonological-memory confounders (SP = `deapp_c`, RW = `erbto`, each with a missing-indicator; hearing HS is not a parent of nonword reading) are **adjusted associations**: the child random intercept is a partial, shrunken stand-in for between-child heterogeneity and does **not** control latent general ability, so these internal slopes stay descriptive - "associated with", never "drives". This is the causal-term counterpart of the mech-072/172 L/B→N association. Sessions/dose are never conditioned on (collider); SES is excluded (non-DAG / redundant).
-
-:::
+_Causal labelling (DAG guardrails)._ Only the randomised on-intervention term is causal. Under the revised DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10) the **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is the ITT-anchor estimand; `beta_trt` itself is only the on-intervention log-odds contrast, not the ITT effect. Own baseline, age, ability (blocks), the upstream code skills letter sounds (L) and blending (B), and the speech and phonological-memory confounders (SP = `deapp_c`, RW = `erbto`, each with a missing-indicator; hearing HS is not a parent of nonword reading) are **adjusted associations**: the child random intercept is a partial, shrunken stand-in for between-child heterogeneity and does **not** control latent general ability, so these internal slopes stay descriptive - "associated with", never "drives". This is the causal-term counterpart of the mech-072/172 L/B→N association. Sessions/dose are never conditioned on (collider); SES is excluded (non-DAG / redundant).
 
 ## Model
 

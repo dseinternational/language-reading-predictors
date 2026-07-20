@@ -33,8 +33,7 @@ indirect effect (NIE)** transmitted through the phonics route, and the **natural
 direct effect (NDE)** — everything else — and report the **phonics-route share**
 $= \text{NIE} / \text{Total}$.
 
-::: {.callout-warning title="Mediator and outcome are measured at the same wave (read before the headline)"}
-The randomised contrast lives in the t1 → t2 window, so the route composite and
+_Mediator and outcome are measured at the same wave (read before the headline)._ The randomised contrast lives in the t1 → t2 window, so the route composite and
 the outcome ($W_{t2}$) are measured **contemporaneously** — temporal precedence of
 the route over word reading is **assumed, not observed**, and reverse/simultaneous
 influence within the wave cannot be ruled out. The phonics-route share is reported
@@ -42,7 +41,6 @@ with this caveat stated alongside it (see the assumptions section). As a
 triangulation point, a **non-randomised sensitivity fit with the outcome at t3**
 (mediator still at t2) is reported in the temporal-ordering sensitivity section
 below.
-:::
 
 ## The phonics-route composite {#sec-composite}
 
@@ -138,8 +136,7 @@ phonics-route share is *not* assumption-free.
   the window. The decomposition conditions on baselines, but this remains a
   structural limitation shared with LRP59.
 
-::: {.callout-important title="Triangulation, not a precise causal split"}
-Read the output below as triangulation. With $n \approx 53$, contemporaneous
+_Triangulation, not a precise causal split._ Read the output below as triangulation. With $n \approx 53$, contemporaneous
 mediator/outcome measurement, and the no-unmeasured-confounding assumption, expect
 **wide intervals**. These are model-based g-formula decompositions under the stated
 assumptions, **not identified natural effects** (see the exposure-induced-confounder
@@ -149,7 +146,6 @@ point percentage. The temporal-ordering sensitivity section below refits with th
 **outcome at t3** (mediator at t2) as a further triangulation point for the
 same-wave caveat. LRP62 supersedes the single-mediator LRP59 as the way to talk
 about "how much is phonics".
-:::
 
 {{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}

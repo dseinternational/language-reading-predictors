@@ -106,11 +106,7 @@ _csv("tau_contrast_matrix.csv", index_col=0)
 
 _How to read the matrix:_ the same probability-scale comparisons as the heatmap. This ordering does not turn distinct instruments into interchangeable measures of learning: content, difficulty and measurement precision still differ.
 
-::: {.callout-warning title="Factorised contrast uncertainty"}
-
-The probability-scale difference is scientifically easier to compare than a raw logit-coefficient difference, but its posterior uncertainty still comes from factorised outcome marginals. It omits within-child outcome covariance and is therefore not a calibrated paired multivariate contrast; depending on the unknown covariance, uncertainty may be too wide or too narrow. Treat cross-outcome ordering as a factorised sensitivity result until a paired child-level randomisation-inference/permutation analysis, bootstrap or defensible dependence model confirms it. PSIS-LOO is aggregated by child, so its predictive unit is one child rather than one outcome cell.
-
-:::
+_Factorised contrast uncertainty._ The probability-scale difference is scientifically easier to compare than a raw logit-coefficient difference, but its posterior uncertainty still comes from factorised outcome marginals. It omits within-child outcome covariance and is therefore not a calibrated paired multivariate contrast; depending on the unknown covariance, uncertainty may be too wide or too narrow. Treat cross-outcome ordering as a factorised sensitivity result until a paired child-level randomisation-inference/permutation analysis, bootstrap or defensible dependence model confirms it. PSIS-LOO is aggregated by child, so its predictive unit is one child rather than one outcome cell.
 
 ::: {.callout-note collapse="true" title="Additional outcome-specific predictive plots"}
 
@@ -169,9 +165,7 @@ if _diff is not None:
         print(f"\n**Dependence caveat:** {_dependence}")
 ```
 
-::: {.callout-note title="ITT-vs-joint consistency"}
-
-The single-outcome LRPITT models and this joint model estimate the *same* ITT
+_ITT-vs-joint consistency._ The single-outcome LRPITT models and this joint model estimate the *same* ITT
 effects; the joint τ per outcome should track the singles. The cross-model
 ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
 (`output/statistical_models/comparison/`).
@@ -183,5 +177,3 @@ ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
 print(_img("itt_vs_joint_forest.png", "ITT vs joint τ consistency"))
 print("\n_How to read the ITT-vs-joint forest:_ each outcome has two markers with credible-interval bars — the joint model's estimate (circle) and the matching single-outcome ITT estimate (square, offset just below it). The dashed line at 0 is no-effect. The two markers for an outcome should land close together; that agreement is the consistency check. A large gap flags an outcome where the joint and single-outcome estimates disagree. A dagger (†) marks heavily-floored outcomes, whose graded effect shown here is not their post-hoc exploratory off-floor headline.")
 ```
-
-:::

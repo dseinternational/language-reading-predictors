@@ -28,22 +28,14 @@ constructs (plus age), with a subject random intercept for the repeated
 timepoints; predictors are ranked by posterior `P(|beta| > delta)` and compared to
 the GB *cluster* ranking at construct level.
 
-::: {.callout-important title="Ranking cross-check, NOT causal"}
-
-Agreement with the gradient-boosting order is reassurance the ranking is not a
+_Ranking cross-check, NOT causal._ Agreement with the gradient-boosting order is reassurance the ranking is not a
 tree-method artefact — not a causal claim. Every coefficient is an adjusted
 association; the randomised causal effect lives in the ITT suite.
 
-:::
-
-::: {.callout-note title="Concurrent level, n ~ 215 over 54 children"}
-
-One row per child × timepoint (`phase_mode="levels"`) with a subject random
+_Concurrent level, n ~ 215 over 54 children._ One row per child × timepoint (`phase_mode="levels"`) with a subject random
 intercept. A high naive association is partly same-wave same-construct
 correlation, so read the *ordering* as exploratory. Hyperparameters are
 weakly-informative priors, not tuned.
-
-:::
 
 ## Model
 

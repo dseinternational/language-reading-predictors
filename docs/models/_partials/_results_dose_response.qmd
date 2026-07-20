@@ -46,13 +46,9 @@ if dose_slope_summary is not None and len(dose_slope_summary):
         )
 ```
 
-::: {.callout-important title="Observational dose-response"}
-
-Dose is not randomised and may be confounded by latent general ability and
+_Observational dose-response._ Dose is not randomised and may be confounded by latent general ability and
 availability. Compare the primary fit with its ability-adjusted or pooled-dose
 companion before treating the slope as robust.
-
-:::
 
 ```{python}
 # | echo: false

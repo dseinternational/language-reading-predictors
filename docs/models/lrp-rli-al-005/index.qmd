@@ -26,9 +26,7 @@ periods (~the 40-week RLI program): the immediate arm onsets at t1 (aligned wind
 **t1 → t3**) and the wait-list arm at t2, post-crossover (aligned window
 **t2 → t4**). One row per child, so there is no child random intercept.
 
-::: {.callout-important title="Off-floor likelihood + per-protocol (NOT randomised)"}
-
-Phonetic spelling is **heavily floored**, so this uses the suite floor rule:
+_Off-floor likelihood + per-protocol (NOT randomised)._ Phonetic spelling is **heavily floored**, so this uses the suite floor rule:
 `likelihood="bernoulli_offfloor"` — a **Bernoulli on the off-floor indicator**
 (aligned post $> 0$), with no `kappa`; the linear predictor is the log-odds of
 coming off the floor and the cohort marginal collapses to an **off-floor risk
@@ -37,8 +35,6 @@ difference**.
 The design is also **per-protocol, not randomised**: the cohort term
 (`beta_cohort`) is confounded by age-at-onset and cohort/timing, so **no**
 coefficient is a clean treatment effect — every term is an association.
-
-:::
 
 ## Model
 

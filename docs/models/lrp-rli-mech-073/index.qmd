@@ -38,9 +38,7 @@ $\gamma_{\text{int}} > 0$ would mean phonics converts to reading *more* strongly
 older ages. $W$ is not floored, so the nonparametric $f^{L}$ HSGP is retained
 (unlike LRP72's linear mechanism).
 
-::: {.callout-important title="Sharp prior expectation: age is the most confound-prone moderator"}
-
-The two earlier interaction models found apparent interactions that were really
+_Sharp prior expectation: age is the most confound-prone moderator._ The two earlier interaction models found apparent interactions that were really
 **between-child ability confounds**, collapsing once subject random effects +
 adjustment were in (LRP71 phonics×vocab → null; LRP72 blending×letter-sound →
 largely independent). **Age is even more a between-child variable** — most age
@@ -49,17 +47,13 @@ expectation is that any age moderation may also be a between-child artefact. The
 within-child check below is the decisive diagnostic; this report is written to
 test that honestly, not to find a positive.
 
-:::
-
 ## Adjustment set
 
 The revised LRP58 set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$
 (the old $E$/$R$ adjusters are dropped — neither vocabulary is a parent of $L$ in
 the revised DAG). Age is this model's moderator.
 
-::: {.callout-note title="Both LRP58 and LRP73 condition on age linearly — but via different terms"}
-
-The mechanism factory now conditions on age **linearly by default**: whenever age
+_Both LRP58 and LRP73 condition on age linearly — but via different terms._ The mechanism factory now conditions on age **linearly by default**: whenever age
 is a declared confounder and the age GP is off (`use_age_gp=False`), a
 $\gamma_A\,z(\text{age})$ term is added, so LRP58 (and the rest of the mechanism
 family) *does* adjust for age as fit. LRP73 is the exception: because age is its
@@ -69,8 +63,6 @@ main effect $\gamma_{\text{mod}}\,z(\text{age})$. The moderator is therefore bot
 the age adjustment and the thing whose interaction with $L$ we test. The revised
 confounders ($HS$, $IS$, $SP$) enter linearly; $W_{\text{pre}}$ is the
 autoregressive baseline; $W$ (the outcome) is of course not conditioned on.
-
-:::
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

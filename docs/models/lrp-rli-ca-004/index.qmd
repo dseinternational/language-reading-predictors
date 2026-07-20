@@ -37,9 +37,7 @@ taught receptive companion `TR` stays in the predictor set — the two taught te
 from t2, so these describe the conditional joint distribution of the skill measures
 within a treated system.
 
-::: {.callout-note title="Estimand: descriptive association (no causal warrant)"}
-Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
-:::
+_Estimand: descriptive association (no causal warrant)._ Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
 
 ## Design
 

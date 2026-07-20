@@ -22,23 +22,11 @@ format:
 
 LRPDID07 is the period-resolved observational session-dose model for letter-sound knowledge (YARC-LSK, `yarclet`). It retains the P1/P2 transition frame, randomised arm, current treatment, the pre-randomisation t1 letter-sound score and t1 age, then adds partially pooled period-specific slopes for treated-centred session attendance.
 
-::: {.callout-note title="The question this answers"}
+_The question this answers._ Does the residual dose association vary by period? The answer is not read off this fit alone: use the nested PSIS-LOO comparison with LRPDID07base in `did_dose_loo_compare.csv`, but interpret a ranking only when `comparison_valid` is true. If row identities differ or either fit fails its convergence gate, the file records why no ranking is valid.
 
-Does the residual dose association vary by period? The answer is not read off this fit alone: use the nested PSIS-LOO comparison with LRPDID07base in `did_dose_loo_compare.csv`, but interpret a ranking only when `comparison_valid` is true. If row identities differ or either fit fails its convergence gate, the file records why no ranking is valid.
+_What this estimand is, and is not._ The per-period session count is the exposure (`IS`) and remains confounded by latent general ability and other determinants of attendance and learning. Arm, current treatment, t1 outcome and t1 age adjustment separates the randomised schedule and structural untreated zero from residual attendance variation; it cannot identify the causal effect of another session. Never write “more sessions cause more gain”. The causal letter-sound result remains the randomised t2 contrast in LRPITT07/LRPDID02.
 
-:::
-
-::: {.callout-note title="What this estimand is, and is not"}
-
-The per-period session count is the exposure (`IS`) and remains confounded by latent general ability and other determinants of attendance and learning. Arm, current treatment, t1 outcome and t1 age adjustment separates the randomised schedule and structural untreated zero from residual attendance variation; it cannot identify the causal effect of another session. Never write “more sessions cause more gain”. The causal letter-sound result remains the randomised t2 contrast in LRPITT07/LRPDID02.
-
-:::
-
-::: {.callout-note title="Sign convention and the ceiling"}
-
-Positive dose slopes mean higher-than-average attendance among treated rows is associated with a higher expected period-end letter-sound score. The Beta-Binomial logit respects the bounded 0–32 score; it does not make the association causal.
-
-:::
+_Sign convention and the ceiling._ Positive dose slopes mean higher-than-average attendance among treated rows is associated with a higher expected period-end letter-sound score. The Beta-Binomial logit respects the bounded 0–32 score; it does not make the association causal.
 
 ## Model
 

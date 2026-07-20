@@ -30,20 +30,14 @@ verbal memory (`basdig`), verbal reasoning (`bassim`) and number skills
 non-interpretable group-nuisance dummies, per the 2026-07-16 data-owner
 decisions (pooled + nuisance; horizon w1→w3, the audited core window).
 
-::: {.callout-important title="Adjusted associations only — nothing causal exists in this cohort"}
-
-The Byrne cohort has **no intervention**: `readgrp` is an observational cohort
+_Adjusted associations only — nothing causal exists in this cohort._ The Byrne cohort has **no intervention**: `readgrp` is an observational cohort
 factor and every coefficient here is a between-child **adjusted association**
 (`causal_status="none"`). Read with the Table-2 fallacy in mind — each
 coefficient answers a different conditional question — and none of them says
 what would happen if a skill were changed. The group-nuisance dummies absorb
 cohort composition and must not be read as group effects.
 
-:::
-
-::: {.callout-note title="Frame and exclusions"}
-
-One row per child, complete-case on the outcome at both waves and every
+_Frame and exclusions._ One row per child, complete-case on the outcome at both waves and every
 predictor at wave 1 (n = 69: 21 Down syndrome / 29 average readers / 19
 reading-matched). `basmat` is excluded (wave-3+ only — no wave-1 value);
 `basspel` and `woco` are excluded as reading-route measures too close to the
@@ -51,8 +45,6 @@ outcome. A Down-syndrome-only companion is deferred: at n = 21 with seven
 slopes the mutually adjusted posteriors would sit at the prior. Predictors are
 standardised Haldane logits (age: standardised months), so slopes are per-SD
 on the logit scale; the items-scale translation is reported alongside.
-
-:::
 
 ## Model
 

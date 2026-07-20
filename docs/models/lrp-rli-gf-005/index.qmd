@@ -22,9 +22,7 @@ format:
 
 LRPGF05 is the **gain-factors** model for phonetic spelling (`spphon`).
 
-::: {.callout-important title="Floored outcome - off-floor likelihood"}
-
-Phonetic spelling is **heavily floored** (most period post-scores are zero), so a
+_Floored outcome - off-floor likelihood._ Phonetic spelling is **heavily floored** (most period post-scores are zero), so a
 graded Beta-Binomial gain would be driven by a few dispersed tail values rather
 than the factor contrasts. Following the suite's floor rule, the likelihood is a
 **Bernoulli on the binary off-floor indicator** (period post $> 0$): the linear
@@ -35,11 +33,7 @@ log-odds of being on intervention, and its items-scale marginal collapses to the
 **off-floor risk difference** (reported with a provisional δ pending education-lead
 sign-off).
 
-:::
-
-::: {.callout-important title="Causal labelling (DAG guardrails)"}
-
-Only the randomised on-intervention term is causal. Under the revised DAG
+_Causal labelling (DAG guardrails)._ Only the randomised on-intervention term is causal. Under the revised DAG
 (`dag/dag-language-reading.dagitty`, revised 2026-07-10) the **period-1 average
 marginal effect** — the genuinely randomised, all-untreated-baseline transition —
 is the ITT-anchor estimand; `beta_trt` itself is only the on-intervention log-odds
@@ -50,8 +44,6 @@ random intercept is a partial, shrunken stand-in for between-child heterogeneity
 and does **not** control latent general ability, so these internal slopes stay
 descriptive - "associated with", never "drives". Sessions/dose are never
 conditioned on (collider); SES is excluded (non-DAG / redundant).
-
-:::
 
 ## Model
 

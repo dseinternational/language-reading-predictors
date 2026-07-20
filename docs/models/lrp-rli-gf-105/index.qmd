@@ -23,9 +23,7 @@ format:
 LRPGF05b is the **treated-only** companion to LRPGF05 (phonetic spelling, `spphon`),
 restricted to on-intervention rows.
 
-::: {.callout-important title="Off-floor likelihood; no treatment contrast"}
-
-Phonetic spelling is heavily floored, so the likelihood is a **Bernoulli on the
+_Off-floor likelihood; no treatment contrast._ Phonetic spelling is heavily floored, so the likelihood is a **Bernoulli on the
 off-floor indicator** (period post $> 0$). Restricted to on-intervention rows the
 treatment indicator is constant and is dropped: this reports the **adjusted
 associations** (own baseline, age, ability, skills L/B, age $\times$ ability) of
@@ -33,8 +31,6 @@ being off the phonetic-spelling floor at post (post $> 0$) *among the treated*. 
 coefficients are off-floor log-odds; under the revised DAG
 (`dag/dag-language-reading.dagitty`, revised 2026-07-10) they are associations
 (GA-confounded), never treatment effects. SES excluded (non-DAG / redundant).
-
-:::
 
 ## Model
 

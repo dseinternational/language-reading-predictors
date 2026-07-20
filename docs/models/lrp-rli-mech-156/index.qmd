@@ -31,11 +31,9 @@ no knee could be looked for. This variant switches the HSGP curve **back on** an
 `target_accept` to **0.999** (the setting that stabilises the letter-sound curve in LRP58) so the
 curve gets a genuine chance to converge.
 
-::: {.callout-important title="Non-convergence is itself the result"}
-If the curve still diverges at `target_accept` 0.999, that **non-convergence is the honest result**
+_Non-convergence is itself the result._ If the curve still diverges at `target_accept` 0.999, that **non-convergence is the honest result**
 and the knee stays untestable for this exposure. Check the gate badge above before reading any
 shape into the curve.
-:::
 
 ## Adjustment set
 
@@ -45,10 +43,8 @@ confounders that also reach word reading are $\{A, HS, TR, RW\}$; group $G\,(= I
 precision term and $W_{\text{pre}}$ the autoregressive baseline. This is **identical to LRP56** —
 only the mechanism's functional form (nonparametric curve vs single slope) changes.
 
-::: {.callout-warning title="Adjusted association, not causal"}
-Residual confounding by latent general ability ($GA$) remains, so $f^R$ is an **adjusted
+_Adjusted association, not causal._ Residual confounding by latent general ability ($GA$) remains, so $f^R$ is an **adjusted
 association**, not a causal effect. The randomised causal claim lives in the ITT suite.
-:::
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

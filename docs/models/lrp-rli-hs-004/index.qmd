@@ -22,17 +22,9 @@ format:
 
 LRPHS04 is the level companion to [`lrp-rli-hs-003`](../lrp-rli-hs-003/), and the letter-sound counterpart to [`lrp-rli-hs-002`](../lrp-rli-hs-002/) (word-reading level): an **independent Bayesian sensitivity check** on the gradient-boosting predictor ranking for letter-sound **level** (GB `lrp-rli-gbl-009`). A regularized (Finnish) horseshoe sparse regression regresses the concurrent letter-sound count on the standardised **same-wave** levels of the other constructs (plus age), with a subject random intercept for the repeated timepoints; all coefficients share a global-local shrinkage prior. Predictors are ranked by posterior `P(|beta| > delta)` and compared to the GB _cluster_ ranking.
 
-::: {.callout-important title="Ranking cross-check, NOT causal"}
+_Ranking cross-check, NOT causal._ A ranking cross-check, not a causal model. In the concurrent-level framing a high naive association is partly same-wave same-construct correlation, so read the ordering as exploratory. Every coefficient is a latent-ability-confounded adjusted association; the randomised causal effect lives in the ITT suite (`lrp-rli-itt-007`).
 
-A ranking cross-check, not a causal model. In the concurrent-level framing a high naive association is partly same-wave same-construct correlation, so read the ordering as exploratory. Every coefficient is a latent-ability-confounded adjusted association; the randomised causal effect lives in the ITT suite (`lrp-rli-itt-007`).
-
-:::
-
-::: {.callout-note title="Concurrent-level framing"}
-
-One row per child × timepoint (`phase_mode="levels"`, ~215 rows over 54 children), mirroring hs-002. Unlike the gain model this omits the RLI-blocks / behaviour covariates: they are wave-sparse (missing at baseline), and requiring them would collapse the levels frame to one row per child, destroying the repeated-measures structure the subject random intercept needs. Weakly-informative priors, not tuned.
-
-:::
+_Concurrent-level framing._ One row per child × timepoint (`phase_mode="levels"`, ~215 rows over 54 children), mirroring hs-002. Unlike the gain model this omits the RLI-blocks / behaviour covariates: they are wave-sparse (missing at baseline), and requiring them would collapse the levels frame to one row per child, destroying the repeated-measures structure the subject random intercept needs. Weakly-informative priors, not tuned.
 
 ## Model
 

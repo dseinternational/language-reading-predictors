@@ -104,8 +104,7 @@ This is a **decomposition under assumptions, not proof of a causal route.**
   **ordering-dependent** (see below).
 - Consistency and positivity are assumed.
 
-::: {.callout-important title="Joint effect less order-sensitive; path split exploratory"}
-With $n \approx 53$, expect **wide intervals**. The **joint indirect effect** (how much
+_Joint effect less order-sensitive; path split exploratory._ With $n \approx 53$, expect **wide intervals**. The **joint indirect effect** (how much
 flows through the $\{L, E\}$ block at all) is the **preferred descriptive
 decomposition**: it is *less sensitive to mediator ordering* than the path split. That
 is its only advantage — it is **not** a robust or identified quantity, because it
@@ -115,7 +114,6 @@ mediator ordering (default $L$ before $E$) and the conditional-independence abov
 is an attribution under those assumptions — not a unique partition. Both are
 model-based g-formula decompositions under the stated assumptions, **not identified
 natural effects** (see the exposure-induced-confounder bullet above).
-:::
 
 {{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}

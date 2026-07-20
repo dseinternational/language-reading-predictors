@@ -28,36 +28,24 @@ syndrome, average readers, reading-matched), on a waves-1-3 complete-case core
 that reproduces the paper's Table 2, extended by the later waves where children
 in that core were observed.
 
-::: {.callout-important title="Descriptive natural-history, NOT an intervention effect"}
-
-`readgrp` is a **cohort factor**, not a randomised or assigned condition, and this
+_Descriptive natural-history, NOT an intervention effect._ `readgrp` is a **cohort factor**, not a randomised or assigned condition, and this
 model carries no treatment, baseline-as-precision, or adjustment-set structure.
 Every quantity here is a **descriptive** group-by-wave expected score or growth
 rate — natural-history evidence, not a causal effect. The intervention-effect
 estimands live in the RLI (`lrp...`) suite.
 
-:::
-
-::: {.callout-note title="Audit baseline"}
-
-The model is fit on the per-measure complete-case subset (subjects with BAS word
+_Audit baseline._ The model is fit on the per-measure complete-case subset (subjects with BAS word
 reading observed at all three core waves). The observed group-by-wave means reproduce
 the paper's Table 2 complete-case figures and are written beside the posterior
 summaries as the audit baseline. The 96-vs-97-row provenance question flagged in
 the data README is unresolved and out of scope here.
 
-:::
-
-::: {.callout-note title="Extended follow-up window (#338)"}
-
-Waves 4 and 5 are **extension waves** outside the complete-case rule:
+_Extended follow-up window (#338)._ Waves 4 and 5 are **extension waves** outside the complete-case rule:
 children in the core subset contribute wherever this measure was observed.
 The later cells are therefore an attrition-selected follow-up tail with
 their own per-cell `n` (reported in the tables), and wave 5 exists only for
 the Down syndrome group. Between-group quantities are taken over the common
 waves-1-4 window; wave 5 extends the Down-syndrome trajectory only.
-
-:::
 
 ## Model
 

@@ -32,7 +32,7 @@ non-verbal ability (`blocks`) enters as a per-child predictor of both. This is t
 *change* drives reading change). LRP69 is the **independent-core** model (no
 cross-measure coupling); LRP70 adds a shared growth-tempo factor.
 
-::: {.callout-note title="Symbol mapping (read before the tables)"}
+_Symbol mapping (read before the tables)._
 
 | Construct | Symbol | Measure | Denominator |
 | --- | --- | --- | --- |
@@ -45,7 +45,6 @@ cross-measure coupling); LRP70 adds a shared growth-tempo factor.
 Non-verbal ability is **block design** (`blocks`, WPPSI-III Block Design),
 recorded at t1 only and complete for all 54 children — a time-invariant baseline
 predictor, not a trajectory outcome.
-:::
 
 ## Model structure
 

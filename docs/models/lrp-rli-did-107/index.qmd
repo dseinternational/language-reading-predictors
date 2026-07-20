@@ -24,17 +24,9 @@ LRPDID07base is the pooled-dose comparator to LRPDID07. It uses the same P1/P2 r
 
 The pair is intended to be nested on identical outcome rows. Interpret the PSIS-LOO ranking only when `comparison_valid` is true; the comparison workflow checks convergence gates and pointwise row identities before computing an elpd difference.
 
-::: {.callout-note title="What this estimand is, and is not"}
+_What this estimand is, and is not._ The per-period session count is observational and remains confounded by latent general ability and other determinants of attendance and learning. Arm, current treatment, t1 outcome and t1 age adjustment separates the randomised schedule and structural untreated zero from residual attendance variation; it cannot identify the causal effect of another session. The causal letter-sound result remains the randomised t2 contrast in LRPITT07/LRPDID02.
 
-The per-period session count is observational and remains confounded by latent general ability and other determinants of attendance and learning. Arm, current treatment, t1 outcome and t1 age adjustment separates the randomised schedule and structural untreated zero from residual attendance variation; it cannot identify the causal effect of another session. The causal letter-sound result remains the randomised t2 contrast in LRPITT07/LRPDID02.
-
-:::
-
-::: {.callout-note title="Sign convention and the ceiling"}
-
-Positive `beta_dose` means higher-than-average attendance among treated rows is associated with a higher expected period-end score. The Beta-Binomial logit respects the bounded 0–32 score; it does not make the association causal.
-
-:::
+_Sign convention and the ceiling._ Positive `beta_dose` means higher-than-average attendance among treated rows is associated with a higher expected period-end score. The Beta-Binomial logit respects the bounded 0–32 score; it does not make the association causal.
 
 ## Model
 

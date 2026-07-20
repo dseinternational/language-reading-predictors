@@ -22,19 +22,11 @@ format:
 
 **In plain terms.** LRPDID01 asks how the immediate and waitlist arms differ in word reading at t1, t2 and t3 without forcing the randomised t2 contrast to equal post-crossover catch-up. It is a longitudinal sensitivity analysis alongside LRPITT10, not an independent replication.
 
-::: {.callout-note title="What this estimand is, and is not"}
-
-`arm_gap_t1` checks pre-treatment balance. `tau_t2`, the immediate-minus-waitlist contrast at t2, is randomised and may be interpreted causally under the trial assumptions. At t3 both arms have received intervention, but the immediate arm has a longer and different exposure history; `arm_gap_t3` and `delta_crossover = tau_t2 - arm_gap_t3` are therefore post-crossover associations. Interpreting either as a treatment effect would additionally require no carryover, cumulative-dose, block-content or diminishing-return differences.
+_What this estimand is, and is not._ `arm_gap_t1` checks pre-treatment balance. `tau_t2`, the immediate-minus-waitlist contrast at t2, is randomised and may be interpreted causally under the trial assumptions. At t3 both arms have received intervention, but the immediate arm has a longer and different exposure history; `arm_gap_t3` and `delta_crossover = tau_t2 - arm_gap_t3` are therefore post-crossover associations. Interpreting either as a treatment effect would additionally require no carryover, cumulative-dose, block-content or diminishing-return differences.
 
 No period-start outcome enters the model: t2 is already treatment-affected for the immediate arm when it becomes the P2 baseline. The child random intercept partially pools stable differences; it does not make every child a fixed-effect control.
 
-:::
-
-::: {.callout-note title="Sign convention and the ceiling"}
-
-For the randomised t2 arm contrast, positive means that the immediate arm scored higher than the waitlist arm. The Beta-Binomial logit respects the bounded 0–79 score and accommodates overdispersion; it does not itself license a causal interpretation of the post-crossover contrasts.
-
-:::
+_Sign convention and the ceiling._ For the randomised t2 arm contrast, positive means that the immediate arm scored higher than the waitlist arm. The Beta-Binomial logit respects the bounded 0–79 score and accommodates overdispersion; it does not itself license a causal interpretation of the post-crossover contrasts.
 
 ## Model
 

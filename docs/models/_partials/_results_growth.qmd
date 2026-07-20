@@ -168,9 +168,7 @@ if _load is not None and _tempo is not None and len(_tempo):
     )
 ```
 
-::: {.callout-important title="An adjusted association, not a cause"}
-
-Per the revised DAG (`dag/dag-language-reading.dagitty`), block
+_An adjusted association, not a cause._ Per the revised DAG (`dag/dag-language-reading.dagitty`), block
 design is an **off-DAG, pre-randomisation child covariate** and latent general
 ability (`GA`) is the unobserved common cause of block design, vocabulary and the
 other skills. So `gamma` / `delta` are **adjusted associations — never "non-verbal
@@ -179,8 +177,6 @@ association is confounded by `GA` (not point-identified). The child random
 intercept only *partially* adjusts (`METHODS.md` § "Causal interpretation and its
 limits"). At n≈54, four waves, treat a wide interval or a fragile sampler as an
 honest finding.
-
-:::
 
 ```{python}
 # | echo: false

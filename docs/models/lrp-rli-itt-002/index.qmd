@@ -25,16 +25,12 @@ format:
 LRPITT02 is the available-case modified-ITT analysis for taught expressive vocabulary, block 1 (`b1extau`). The estimand is the randomised offer effect of group assignment $G$ on the post-score $TE_{\text{post}}$ in the model-specific fitted sample, using the RCT phase only (time 1 $\rightarrow$ time 2).
 This model supersedes the pre-#168 taught-expressive ITT model (legacy id LRP74, which conditioned on the standardised-vocabulary cross-baseline — unrelated to the current `lrp-rli-med-074`, which reuses the number 74).
 
-::: {.callout-note title="Identification and sign convention"}
-
-Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ within the fitted analysis set without adjustment. Generalising it to all 57 randomised children additionally requires ignorable selection and missingness. The own baseline $\gamma_{\text{own}}$
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ within the fitted analysis set without adjustment. Generalising it to all 57 randomised children additionally requires ignorable selection and missingness. The own baseline $\gamma_{\text{own}}$
 and linear age $\gamma_A$ are **precision terms only** — they sharpen $\tau$ but are
 not what licenses the causal interpretation, and no cross-baseline conditioning is
 used. Attendance / sessions are never conditioned on (a DAG collider).
 **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
 the intervention raises the outcome.
-
-:::
 
 ## Model
 

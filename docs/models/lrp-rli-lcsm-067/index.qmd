@@ -31,8 +31,7 @@ This is "Approach 4" (process-over-time) from the modelling meeting, and one
 longitudinal triangulation point beside the between-child LRP65 model. The
 RI-CLPM companion was dropped as not estimable at this sample size.
 
-::: {.callout-note title="Symbol mapping (read before the table)"}
-The codebase `MEASURES` symbols differ from the handoff's R / L / V:
+_Symbol mapping (read before the table)._ The codebase `MEASURES` symbols differ from the handoff's R / L / V:
 
 | Construct | Symbol here | Measure | Denominator |
 | --- | --- | --- | --- |
@@ -43,7 +42,6 @@ The codebase `MEASURES` symbols differ from the handoff's R / L / V:
 `R` is **not** reading here — it is receptive vocabulary (`rowpvt`). The handoff's
 headline path "L → R over time" is the coefficient `g_L` (prior letter-sounds →
 reading change) below.
-:::
 
 ## Model structure
 

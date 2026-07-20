@@ -2,13 +2,9 @@
 
 The waitlist-crossover model is a longitudinal sensitivity analysis alongside the randomised ITT, not an independent randomised experiment. The binary-treatment models estimate separate immediate-minus-waitlist gaps at t1, t2 and t3 without forcing the randomised t2 gap to equal the post-crossover change in that gap.
 
-::: {.callout-important title="Four contrasts with different interpretations"}
-`arm_gap_t1` is a pre-treatment balance quantity. `tau_t2`, the **t2 immediate-minus-waitlist contrast**, is the clean randomised contrast; positive values favour the intervention. `arm_gap_t3` compares two already-treated arms with different exposure histories and is associational. `delta_crossover = tau_t2 - arm_gap_t3` is the amount by which the immediate-arm advantage closes after the waitlist crosses over; positive values indicate catch-up, but this is not a second randomised treatment effect. Agreement between `tau_t2` and its ITT sibling is a parameterisation check on shared data, not independent replication.
-:::
+_Four contrasts with different interpretations._ `arm_gap_t1` is a pre-treatment balance quantity. `tau_t2`, the **t2 immediate-minus-waitlist contrast**, is the clean randomised contrast; positive values favour the intervention. `arm_gap_t3` compares two already-treated arms with different exposure histories and is associational. `delta_crossover = tau_t2 - arm_gap_t3` is the amount by which the immediate-arm advantage closes after the waitlist crosses over; positive values indicate catch-up, but this is not a second randomised treatment effect. Agreement between `tau_t2` and its ITT sibling is a parameterisation check on shared data, not independent replication.
 
-::: {.callout-note title="Why there is no period-start outcome"}
-The binary-treatment models jointly use the t1, t2 and t3 levels and do not condition on each period's start outcome. The t2 score is already treatment-affected for the immediate arm when it becomes the P2 baseline, so including a common period-start `gamma_own` term would condition one arm on an intervention-induced intermediate. The child random intercept partially pools stable between-child differences; it does not perform exact fixed-effect differencing or make every child their own control. The dose variants use the pre-randomisation t1 outcome as one common precision covariate for both transition rows, never the treatment-affected t2 outcome.
-:::
+_Why there is no period-start outcome:_ the binary-treatment models jointly use the t1, t2 and t3 levels and do not condition on each period's start outcome. The t2 score is already treatment-affected for the immediate arm when it becomes the P2 baseline, so including a common period-start `gamma_own` term would condition one arm on an intervention-induced intermediate. The child random intercept partially pools stable between-child differences; it does not perform exact fixed-effect differencing or make every child their own control. The dose variants use the pre-randomisation t1 outcome as one common precision covariate for both transition rows, never the treatment-affected t2 outcome.
 
 _How to read the contrast table:_ each row is one estimated quantity. The posterior `median` is the house point estimate; `lo`/`hi` bracket the 89% credible interval; and `prob_*_pos` is the posterior probability that the stated contrast is positive. Item-scale columns standardise each wave-specific contrast over the documented fitted rows. For a heavily floored outcome (`P`, `N`), the translated quantity is an off-floor risk difference: a difference in the probability of **being** off floor at that wave. It is off-floor prevalence, not the probability of coming off the floor.
 
@@ -101,11 +97,7 @@ if dose_slope_summary is not None:
     )
 ```
 
-::: {.callout-important title="Read dose terms as associations"}
-
-Session dose is observational. A positive dose slope means higher treated-centred session counts are associated with a higher period-end outcome after arm, period, current-treatment, t1 outcome and t1 age adjustment; it does **not** mean more sessions were randomised or proven causal. The cell terms account for treatment presence and schedule, leaving dose to describe residual session variation within the supported treated cells.
-
-:::
+_Read dose terms as associations._ Session dose is observational. A positive dose slope means higher treated-centred session counts are associated with a higher period-end outcome after arm, period, current-treatment, t1 outcome and t1 age adjustment; it does **not** mean more sessions were randomised or proven causal. The cell terms account for treatment presence and schedule, leaving dose to describe residual session variation within the supported treated cells.
 
 ### What the model predicts on the test scale
 

@@ -24,31 +24,19 @@ format:
 
 LRPITT09 is an available-case, modified-ITT reanalysis of phonetic spelling (`spphon`) over the randomised t1 $\rightarrow$ t2 phase. At baseline, 42/54 children (about 78%) scored zero; at t2, 34/53 observed scores (about 64%) were zero. One baseline-floor child lacks a t2 score, leaving 41 children eligible for the transition analysis (24 intervention, 17 control).
 
-::: {.callout-important title="Post-hoc floored-outcome estimand — exploratory headline"}
-
-The floor rule and its 40% threshold were adopted after inspecting these outcome distributions and earlier model results. It is therefore **post-hoc and data-adaptive**, not pre-registered or prospectively specified. Applying the mechanical gate without arm labels reduces treatment-effect-driven selection, but does not change that evidential status. Under this rule the model:
+_Post-hoc floored-outcome estimand — exploratory headline._ The floor rule and its 40% threshold were adopted after inspecting these outcome distributions and earlier model results. It is therefore **post-hoc and data-adaptive**, not pre-registered or prospectively specified. Applying the mechanical gate without arm labels reduces treatment-effect-driven selection, but does not change that evidential status. Under this rule the model:
 
 - drops the degenerate own baseline and uses an **age-only** predictor;
 - reports $\Pr(\text{post} > 0 \mid \text{observed pre} = 0)$ among the **observed baseline-floor subgroup** as the exploratory headline. Baseline floor status is pre-randomisation, so conditioning on its observed value preserves the causal arm contrast for that subgroup, subject to the assumptions that absence from the dataset, the missing t2 score, and observed eligibility are not informative for the treatment effect; and
 - retains two flagged, **detection-limited secondaries**, read only alongside the per-arm mover counts: the graded Beta-Binomial $\tau$ over all outcome-available children, and the **graded contrast among off-floor children** ($\text{post} > 0$). The latter is an untruncated proxy for $\mathrm{E}[\text{post} \mid \text{post} > 0]$ and conditions on a post-randomisation event, so it is not a randomised causal effect.
 
-:::
+_Analysis population and eligibility._ The published trial randomised 57 children (29 intervention, 28 wait-list), whereas the archived repository dataset contains 54 (28 intervention, 26 wait-list); phonetic spelling is observed at t2 for 53. This is therefore not a full-randomised-cohort ITT analysis. Each fit writes `baseline_floor_eligibility.csv` and records the same arm-specific counts in `config.json`; the causal reading requires an explicit missingness assumption or a sensitivity analysis for unavailable randomised participants.
 
-::: {.callout-warning title="Analysis population and eligibility"}
-
-The published trial randomised 57 children (29 intervention, 28 wait-list), whereas the archived repository dataset contains 54 (28 intervention, 26 wait-list); phonetic spelling is observed at t2 for 53. This is therefore not a full-randomised-cohort ITT analysis. Each fit writes `baseline_floor_eligibility.csv` and records the same arm-specific counts in `config.json`; the causal reading requires an explicit missingness assumption or a sensitivity analysis for unavailable randomised participants.
-
-:::
-
-::: {.callout-note title="Identification and sign convention"}
-
-Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
 identified by the **empty adjustment set**; linear age is a precision term only.
 **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
 the intervention raises the outcome — here, raises the probability of coming off
 the floor.
-
-:::
 
 ## Model
 

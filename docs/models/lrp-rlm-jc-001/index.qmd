@@ -30,27 +30,19 @@ levels — the reading-language-memory coupling question in its most
 parsimonious between-child form, and the trajectory-level companion of the
 wave-3 measurement model (`lrp-rlm-mm-001`).
 
-::: {.callout-important title="Descriptive natural-history, NOT an intervention effect"}
-
-`readgrp` is a **cohort factor**, not a randomised condition, and every
+_Descriptive natural-history, NOT an intervention effect._ `readgrp` is a **cohort factor**, not a randomised condition, and every
 quantity here is descriptive (`causal_status="none"`). A between-child
 correlation of stable levels says nothing about within-child coupling or
 direction — the reciprocal reading↔language↔memory question is Phase C's
 lagged model, gated on the lagged Byrne DAG.
 
-:::
-
-::: {.callout-note title="Window, frame and assumptions"}
-
-The complete-case core is the suite's waves 1-3, jointly across all three
+_Window, frame and assumptions._ The complete-case core is the suite's waves 1-3, jointly across all three
 measures (n = 71 children); waves 4-5 enter as extension waves where a kept
 child has **all three** measures observed (wave 5 exists only for the Down
 syndrome group). The cross-measure correlation matrix is **shared across the
 three reading groups** — a stated parsimony assumption at this n — while the
 subject-intercept SDs and overdispersion are group-indexed per the 2026-07-16
 heterogeneity decision.
-
-:::
 
 ## Model
 

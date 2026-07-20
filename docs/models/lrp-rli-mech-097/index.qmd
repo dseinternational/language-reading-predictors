@@ -33,13 +33,11 @@ SP\}$), and those backdoors run through the *same* parent set as the reading out
 exactly the negative-control-outcome condition ("known not to be an effect of the primary
 exposure", "subject to the same source of confounding").
 
-::: {.callout-important title="What a null vs a non-null means"}
-With the matched Tier-1 adjustment, the $L$ slope should be $\approx 0$ here while it is
+_What a null vs a non-null means._ With the matched Tier-1 adjustment, the $L$ slope should be $\approx 0$ here while it is
 clearly positive on the written-code outcomes ($W$ = [LRP101](../lrp-rli-mech-101), $N$ =
 [LRP96](../lrp-rli-mech-096)). If $L$ *also* predicts receptive vocabulary, letter sounds
 are behaving like a general-ability / teaching-dose marker and the letter → reading
 association is suspect. This is a **falsification test**, not a mechanism.
-:::
 
 ## Adjustment set
 

@@ -27,24 +27,16 @@ regresses word-reading gain on those latent factors. It recovers the one output 
 merged model produces: an explicit **factor-loadings / communality** table and a
 partial **measurement-error correction** of the skill slopes.
 
-::: {.callout-important title="Measurement / triangulation, NOT causal"}
-
-This is a **measurement** model. Per the locked DAG's **ID-2**, every factor ->
+_Measurement / triangulation, NOT causal._ This is a **measurement** model. Per the locked DAG's **ID-2**, every factor ->
 gain slope is a **latent-ability-confounded adjusted association** - the factor
 model improves the measurement match, it does **not** identify effects. The
 randomised causal claim lives in the ITT suite (`lrp-rli-itt-010` for word reading) and
 the `gain_factors` randomised term, not here.
 
-:::
-
-::: {.callout-note title="Fragility at n ~ 51"}
-
-A correlated-factor latent model at n ~ 51 is fragile and prior-dependent. Read it
+_Fragility at n ~ 51._ A correlated-factor latent model at n ~ 51 is fragile and prior-dependent. Read it
 as **triangulation** against the `gain_factors` family, with the **wide intervals
 stated as the honest result** (exactly as the closed LRP66 did). The
 reporting-tier re-fit gives the final magnitudes.
-
-:::
 
 ## Model
 

@@ -24,9 +24,7 @@ LRP-CA-005 extends the **concurrent conditional-associations** family (#336, des
 
 The family's core skill set is {`W`, `L`, `B`, `TR`, `TE`, `R`, `E`}: each model conditions its focal outcome on the remaining six, so the models describe complementary full conditionals of the same measure set. The estimand is the mutually-adjusted association at each wave: *"at wave t, among children alike on age and the other skills, +n of a predictor skill is associated with +m more receptive-vocabulary items"*. `R` is a 170-item standardised transfer measure and does not have the late-wave ceiling compression flagged for the 24-item `TR` focal. All children are on the intervention from t2, so these associations describe the skill measures within a treated system.
 
-::: {.callout-note title="Estimand: descriptive association (no causal warrant)"}
-Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
-:::
+_Estimand: descriptive association (no causal warrant)._ Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
 
 ## Design
 

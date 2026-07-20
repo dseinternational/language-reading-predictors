@@ -40,16 +40,14 @@ $\gamma_{\text{int}} > 0$ means letter-sound converts to reading *more* strongly
 for higher-vocabulary children. Both coefficients use the regularising
 $\mathrm{Normal}(0, 0.3)$ cross-coupling prior.
 
-::: {.callout-note title="Convergence"}
-This model retains the nonparametric **HSGP** $f^L$ curve (matching
+_Convergence._ This model retains the nonparametric **HSGP** $f^L$ curve (matching
 [LRP58](../lrp-rli-mech-058)). Two fixes brought it to a clean posterior: correcting the
 adjustment-set measurement wave (#258) took it from ~90 divergences (R-hat 1.2, min ESS ≈ 9 —
 genuinely unusable) to ~13, and the #265 HSGP reparameterisation (standardised GP input, a
 moderate-lengthscale prior, a smaller basis) cleared the remainder — it now passes the strict
 zero-divergence gate at `target_accept` = 0.999 with the curve intact.
-:::
 
-::: {.callout-note title="Reading the interaction"}
+_Reading the interaction._
 
 - The HSGP $f^L$ is **unchanged** — it is still a flexible function of the *raw*
   $\operatorname{logit} L_{\text{post}}$. The moderation is the *linear* product
@@ -63,8 +61,6 @@ zero-divergence gate at `target_accept` = 0.999 with the curve intact.
   not credible* — an honest, publishable result ("phonics converts to reading
   largely independently of vocabulary level, within this sample").
 
-:::
-
 ## Adjustment set
 
 The revised LRP58 set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$.
@@ -77,25 +73,17 @@ $L \to W$ — $E$ now enters this model **only** as the tested moderator.
   and speech; the revised parents of $L$. **New (#245).**
 - $W_{\text{pre}}$ — baseline word reading.
 
-::: {.callout-important title="E enters as the tested moderator only"}
-
-Under the revised DAG $E$ is **no longer a confounder** of $L \to W$ (the
+_E enters as the tested moderator only._ Under the revised DAG $E$ is **no longer a confounder** of $L \to W$ (the
 $EV \to LS$ edge is dropped). $E$ enters purely as the tested moderator —
 $\gamma_{\text{mod}}\, z(E)$ (main effect) and $\gamma_{\text{int}}\, z(L)\, z(E)$
 (interaction); the confounders of $L \to W$ are the revised set above.
 
-:::
-
-::: {.callout-note title="Why eowpvt and not celf"}
-
-The SHAP screen ranked `celf` (basic concepts, symbol $F$) as the strongest
+_Why eowpvt and not celf._ The SHAP screen ranked `celf` (basic concepts, symbol $F$) as the strongest
 candidate moderator, but LRP58's DAG treats $F$ as a **descendant of $L$**, so
 conditioning on it would risk collider bias and attenuate $f^L$. `eowpvt` ($E$)
 is the theory-canonical dual-route moderator **and** is already a clean DAG
 adjuster, so it is the first interaction model built. The `celf` model (LRP70)
 is reserved pending a DAG review.
-
-:::
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
