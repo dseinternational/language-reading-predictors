@@ -57,6 +57,10 @@ SPEC = ModelSpec(
         # Contemporaneous predictor skills (standardised same-wave logits). Floored
         # P/N are excluded as predictors (issue #312).
         "predictor_symbols": ["L", "B", "TR", "TE", "R", "E"],
+        # Trait covariates aligned with the gains panel (non-verbal ability, hearing,
+        # speech, phonological memory), entered as t1 baselines broadcast across the
+        # waves. Same variable set the gain-factor covariates condition on (#371).
+        "covariates": ["blocks", "hs", "deapp_c", "erbto"],
         "include_age": True,
         # Group as a flagged, non-interpretable nuisance (absorbs arm composition).
         "include_group": True,

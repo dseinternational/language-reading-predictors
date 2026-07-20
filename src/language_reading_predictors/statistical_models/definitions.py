@@ -386,6 +386,9 @@ _CA = [
     _d("lrpca04", "concurrent", "Concurrent associations", Status.ASSOCIATION, "TE", "per-wave conditional associations of concurrent skills with taught expressive vocabulary"),
     _d("lrpca05", "concurrent", "Concurrent associations", Status.ASSOCIATION, "R", "per-wave conditional associations of concurrent skills with standardised receptive vocabulary (ROWPVT)"),
     _d("lrpca06", "concurrent", "Concurrent associations", Status.ASSOCIATION, "E", "per-wave conditional associations of concurrent skills with standardised expressive vocabulary (EOWPVT)"),
+    _d("lrpca07", "concurrent", "Concurrent associations", Status.ASSOCIATION, "B", "per-wave conditional associations of concurrent skills with phoneme blending"),
+    _d("lrpca08", "concurrent", "Concurrent associations", Status.ASSOCIATION, "F", "per-wave conditional associations of concurrent skills with basic concepts (CELF)"),
+    _d("lrpca09", "concurrent", "Concurrent associations", Status.ASSOCIATION, "T", "per-wave conditional associations of concurrent skills with receptive grammar (TROG-2)"),
 ]
 
 # --- Longitudinal correlated-domain-factor model (#313, descriptive-association #314)
