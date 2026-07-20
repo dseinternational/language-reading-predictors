@@ -107,9 +107,12 @@ def test_rope_delta_registry():
 
     assert rope_delta("L") == 2.0
     assert rope_delta("W") == 1.0
+    # F/T adopted 2026-07-20 at δ = 1 item by the ½-natural-maturation rule (#144).
+    assert rope_delta("F") == 1.0
+    assert rope_delta("T") == 1.0
     assert set(ROPE_DELTA_PROB) == {"P", "N"}
-    # Floored / not-yet-agreed outcomes have no items delta.
-    for missing in ("P", "N", "F", "T"):
+    # Floored outcomes take a probability-scale delta, not an items delta.
+    for missing in ("P", "N"):
         assert missing not in ROPE_DELTA
         with pytest.raises(KeyError):
             rope_delta(missing)

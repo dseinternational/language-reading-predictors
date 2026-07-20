@@ -231,9 +231,11 @@ with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
 # period's natural maturation gain, floored at 1 item and rounded. Confirmed by the
 # education lead 2026-07-01 (issue #144): the rule and W = 1 stand. UR/UE scale
 # length is now confirmed at 12 (#214), so their items δ is no longer provisional.
-# Consumed by ``reporting.rope_summary`` to report
-# ``P(benefit >= delta)``. F/T (concepts/grammar) are outside the ITT suite and not
-# yet agreed, so they are deliberately absent (a look-up raises).
+# Consumed by ``reporting.rope_summary`` to report ``P(benefit >= delta)``.
+# F/T (basic concepts / receptive grammar) were initially deferred as outside the ITT
+# suite; adopted 2026-07-20 at δ = 1 item each by the same ½-natural-maturation rule
+# (their wait-list t1->t2 gains, ≈0 and ≈1 item, both floor to 1 item). Rule-derived
+# and pending education-lead ratification like the others (#144).
 ROPE_DELTA: dict[str, float] = {
     "L": 2.0,
     "W": 1.0,
@@ -244,6 +246,11 @@ ROPE_DELTA: dict[str, float] = {
     "UR": 1.0,
     "UE": 1.0,
     "B": 1.0,
+    # Basic concepts (F, CELF) and receptive grammar (T, TROG): both floor to δ = 1
+    # item under the ½-natural-maturation rule (adopted 2026-07-20, pending #144
+    # ratification); previously deferred as outside the ITT suite.
+    "F": 1.0,
+    "T": 1.0,
     # Block-2 taught-vocabulary family (block-exposure `bx`), same items-scale δ
     # as their block-1 counterparts.
     "TE2": 1.0,
@@ -269,13 +276,13 @@ ROPE_DELTA_PROB_GRID: tuple[float, ...] = (0.10, 0.15, 0.20)
 def rope_delta(symbol: str) -> float:
     """Items-scale ROPE half-width (minimally-important difference) for an outcome.
 
-    Raises ``KeyError`` for outcomes whose items delta is not agreed (F/T) or which
-    use a probability-scale delta instead (P/N, see :data:`ROPE_DELTA_PROB`).
+    Raises ``KeyError`` for outcomes that use a probability-scale delta instead
+    (floored P/N, see :data:`ROPE_DELTA_PROB`).
     """
     if symbol not in ROPE_DELTA:
         raise KeyError(
-            f"No items-scale ROPE delta set for {symbol!r}; floored outcomes use "
-            "ROPE_DELTA_PROB and F/T are not yet agreed."
+            f"No items-scale ROPE delta set for {symbol!r}; floored outcomes (P/N) "
+            "use ROPE_DELTA_PROB instead."
         )
     return ROPE_DELTA[symbol]
 
