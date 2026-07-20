@@ -52,8 +52,8 @@ _Symbol mapping._
 
 Non-verbal ability is **block design** (`blocks`, WPPSI-III Block Design, t1-only, complete for all 54 children); baseline age is the child's age at t1.
 
-{{< include _partials/_results_growth.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_growth.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

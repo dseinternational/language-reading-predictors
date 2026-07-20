@@ -75,8 +75,8 @@ deliberately omitted at n≈54, mirroring the joint ITT model's disabled LKJ res
 correlation. The intervention-dose covariate is omitted (the revised DAG's `IS`
 collider). Everything is non-centred.
 
-{{< include _partials/_results_growth.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_growth.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

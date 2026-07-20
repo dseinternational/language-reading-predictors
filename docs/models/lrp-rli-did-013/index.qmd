@@ -38,6 +38,8 @@ with a Beta-Binomial likelihood on t1/t2/t3 word-reading counts ($N=79$), $G_i=1
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
 {{< include _partials/_results_did.qmd >}}
 
 ## Exploratory catch-up heterogeneity
@@ -64,9 +66,7 @@ else:
     )
 ```
 
-{{< include _partials/_priors.qmd >}}
 
-{{< include _partials/_prior_predictive.qmd >}}
 
 {{< include _partials/_technical.qmd >}}
 

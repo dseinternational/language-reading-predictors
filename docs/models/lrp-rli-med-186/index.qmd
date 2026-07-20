@@ -38,8 +38,8 @@ The fitted probabilistic model and adjustment set are intentionally identical to
 
 The set is inherited directly from MED-086: randomised group $G$, age $A$, baseline letter sounds $L_{t1}$, baseline blending $B_{t1}$, hearing $HS$, speech production $SP$ and phonological memory $RW$, with the raw-covariate missing indicators. As required by the floor rule, the binary outcome has no own-baseline term. The time-indexed derivation in `notes/202607142340-lrp264-mediation-adjustment-dsep.md` confirms that baseline expressive/receptive vocabulary is not required and that no treatment-non-descendant adjustment set can block the $L_2\leftarrow IS_1\to PA_2\to NW_2$ witness path.
 
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

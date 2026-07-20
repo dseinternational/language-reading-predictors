@@ -41,8 +41,8 @@ $\{G, A, HS, IS, SP\}$ plus baseline $W_\text{pre}$ — identical to LRP58/LRP96
 parents of $L$, #245), so the whole Tier-1 panel shares one conditioning set. GA is
 unblockable; $\beta_\text{mech}$ is an **adjusted association**, not a causal effect.
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

@@ -40,8 +40,8 @@ The full mediation-assumption treatment (randomisation handles $G\to Y$/$G\to M$
 
 _Adjustment set — signed off (2026-07-14), mediation criterion._ The set blocks common causes of the mediator $L$ and the outcome $N$ **including indirect routes** — arrows *into the mediator* matter, not just parents of the outcome. Adjusted: age $A$; speech production $SP$ (`deapp_c`); phonological memory $RW$ (`erbto`), a common cause via $L \leftarrow RW \to N$; hearing $HS$ (`hs`/`hs_missing`) — **included**, because $L \leftarrow HS \to PA \to N$ is an open route to nonword reading that $RW$ does not block (HS confounds $L \to N$ through blending even though it is not a nonword *parent*); baseline blending $B_{t1}$ (proximal reinforcement + precision); and the mediator baseline $L_{t1}$. **No outcome own-baseline** (off-floor). The time-indexed re-derivation (#250/#264) confirms the set; $E$/$R$ are legitimately absent because they have no arrows into $L$.
 
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

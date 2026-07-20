@@ -40,8 +40,8 @@ controls — a supporting, not load-bearing, panel row.
 $\{G, A, HS, IS, SP\}$ plus baseline $F_\text{pre}$ — identical to the rest of the Tier-1
 panel. GA unblockable; adjusted association only.
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

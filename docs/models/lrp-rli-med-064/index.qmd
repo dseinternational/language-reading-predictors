@@ -115,8 +115,8 @@ is an attribution under those assumptions — not a unique partition. Both are
 model-based g-formula decompositions under the stated assumptions, **not identified
 natural effects** (see the exposure-induced-confounder bullet above).
 
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

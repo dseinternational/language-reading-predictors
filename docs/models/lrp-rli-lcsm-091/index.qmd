@@ -76,8 +76,8 @@ contemporaneous form ($\Delta W \sim \Delta L + \Delta E$, same window) is
 deliberately not fitted: direction-ambiguous, occasion-correlated and
 regression-to-the-mean-prone.
 
-{{< include _partials/_results_lcsm.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_lcsm.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

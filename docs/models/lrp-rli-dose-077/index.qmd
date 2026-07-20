@@ -102,8 +102,8 @@ predictor. Do not condition on anything downstream of dose.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_dose_response.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_dose_response.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

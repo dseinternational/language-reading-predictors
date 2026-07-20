@@ -35,8 +35,8 @@ the couplings' own direction and credible intervals. This model makes no
 substantive claim of its own — its coupling table (the `TR → TE` adjuster term
 and self-feedbacks) is reported for completeness only.
 
-{{< include _partials/_results_lcsm.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_lcsm.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

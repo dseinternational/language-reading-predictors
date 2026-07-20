@@ -51,8 +51,8 @@ Beta-Binomial likelihood on the count, $P_{\text{post},i} \sim \text{BetaBinomia
 
 ![Model diagram (exploratory off-floor analysis)](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_floored.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_floored.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

@@ -55,8 +55,8 @@ GA (latent general ability) is unblockable and the child random intercept does n
 in for it, so $\beta_\text{mech}$ is an **adjusted association**, never a causal decoding
 effect. The randomised warrant lives in the ITT suite.
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

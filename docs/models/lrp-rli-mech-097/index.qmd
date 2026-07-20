@@ -45,8 +45,8 @@ $\{G, A, HS, IS, SP\}$ plus baseline $R_\text{pre}$ — identical conditioning t
 the Tier-1 panel so the negative-control forest is like-for-like. GA is unblockable; the
 slope is an **adjusted association**.
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}
