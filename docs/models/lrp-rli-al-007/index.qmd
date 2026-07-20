@@ -26,9 +26,7 @@ LRPAL07 is the **aligned-40-week per-protocol** single-gain model for basic conc
 **t1 -> t3**) and the wait-list arm at t2, post-crossover (aligned window
 **t2 -> t4**). One row per child, so there is no child random intercept.
 
-::: {.callout-important title="Per-protocol: NOT a randomised contrast"}
-
-The cohort term (`beta_cohort`, immediate vs wait-list at the aligned endpoints)
+_Per-protocol: NOT a randomised contrast._ The cohort term (`beta_cohort`, immediate vs wait-list at the aligned endpoints)
 is **not** the ITT effect: it is confounded by **age-at-onset** (the wait-list arm
 reaches its window ~3-4 months older) and by cohort/timing. Under this design
 **no** coefficient is a clean treatment effect -- every term, the cohort contrast
@@ -36,8 +34,6 @@ included, is an **association**. The randomised effect of record remains the
 LRPITT suite. LRPDID supplies a longitudinal arm-by-wave sensitivity on the same
 randomised t2 comparison, not an independent within-person replication. Sessions /
 dose are a collider and enter only the separate dose sensitivity variant.
-
-:::
 
 ## Model
 
@@ -52,8 +48,8 @@ One row per child (no random intercept). Priors follow the shared template in `p
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_aligned.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_aligned.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

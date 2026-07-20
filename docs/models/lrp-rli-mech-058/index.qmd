@@ -40,9 +40,7 @@ $SP$ and $RW$ that both reach $W$, would in fact **open a collider path**.
 - $SP$ (`deapp_c`) — speech production, now a cause of letter-sound knowledge. **New (#245).**
 - $W_{\text{pre}}$ — baseline word reading.
 
-::: {.callout-important title="DAG decision: B is NOT in the adjustment set"}
-
-Phoneme blending $B$ is a descendant of $L$ in the literacy-development cascade
+_DAG decision: B is NOT in the adjustment set._ Phoneme blending $B$ is a descendant of $L$ in the literacy-development cascade
 ($L \to \cdots \to B$) and should **not** be conditioned on: doing so would
 change the estimand toward a direct-only component and can introduce collider
 bias. The same argument excludes $F$ (CELF) and $P$ (phonetic spelling) from the
@@ -53,8 +51,6 @@ set. If a reviewer believes $B$ is an independent cause of $W$ not mediated
 through $L$, they should fit the alternative (conditioning on $B$) and
 compare $f^L$ estimates.
 
-:::
-
 ### Interpretation caveats
 
 - NUCA for $(L_{\text{post}}, W_{\text{post}})$ — not testable.
@@ -62,8 +58,8 @@ compare $f^L$ estimates.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

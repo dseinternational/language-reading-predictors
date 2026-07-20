@@ -39,7 +39,7 @@ $$
 
 with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. As in LRPITT15, the 2×2 LKJ residual-correlation block is **off**, so this is a product of outcome marginals rather than a dependence-aware joint posterior. This avoids the poor mixing seen previously but does not make the contrast uncertainty automatically conservative. The current contrast is therefore an exploratory factorised sensitivity result, not calibrated paired inference; confirmation requires a paired child-level randomisation-inference/permutation analysis, bootstrap, sandwich, or defensible dependence-model analysis.
 
-::: {.callout-note title="Denominators and caveats"}
+_Denominators and caveats._
 
 - Taught ($\mathrm{TR}$): $N = 24$ — documented (Burgoyne et al., 2012, Table 3).
 - Not-taught ($\mathrm{UR}$): $N = 12$ — **observed maximum, not documented** and flagged unconfirmed; the probability-scale interpretation is conditional on that scoring maximum being correct.
@@ -48,12 +48,10 @@ with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. As in LRP
 - The factorised fit does not estimate within-child residual covariance. `use_residual_correlation=True` remains available as a model sensitivity but mixed poorly in the earlier fit; until a separate calibrated dependence analysis is completed, the report must not make a definitive paired generalisation claim.
 - PSIS-LOO leaves out a child by summing that child's observed outcome-cell log likelihoods.
 
-:::
-
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_joint.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_joint.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

@@ -25,9 +25,7 @@ reading (`ewrswr`): the same onset-aligned per-protocol ANCOVA, with the
 cumulative sessions delivered over the aligned window added as a covariate
 (`gamma_dose`).
 
-::: {.callout-important title="Dose is a collider — sensitivity only"}
-
-Cumulative sessions are a **collider** on the DAG (a descendant of both group —
+_Dose is a collider — sensitivity only._ Cumulative sessions are a **collider** on the DAG (a descendant of both group —
 the immediate arm accrues sessions earlier — and ability — more able / available
 children attend more), so conditioning on dose can open a back-door. This model
 is therefore a **sensitivity** read, **not** a primary adjustment set: interpret
@@ -35,8 +33,6 @@ is therefore a **sensitivity** read, **not** a primary adjustment set: interpret
 inconclusive once onset baseline, age-at-onset and ability are in the model, and
 never as a causal dose effect. As in LRPAL01 the cohort term is non-randomised, so
 **every** coefficient here is an association.
-
-:::
 
 ## Model
 
@@ -52,8 +48,8 @@ One row per child (no random intercept). Priors follow the shared template in `p
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_aligned.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_aligned.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

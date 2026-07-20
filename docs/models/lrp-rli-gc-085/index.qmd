@@ -24,11 +24,7 @@ LRP85 is the dedicated growth-curve vehicle for the gain-factor finding (#228 it
 
 The estimand, framing and caveats are otherwise identical to LRP69: a joint multivariate latent growth-curve model on the logit scale, GA-confounded and **descriptive, never causal**.
 
-::: {.callout-important title="Adjusted association, not causal"}
-
-Every coefficient is an **adjusted, latent-general-ability-confounded association**. Block design is an off-DAG ability proxy and baseline age is not randomised; the child random intercept only _partially_ adjusts (`dag/dag-language-reading.dagitty`, `METHODS.md`). Read $\gamma^{\text{int}}_m$ / $\gamma^{\text{age}}_m$ / $\gamma_m$ as adjusted associations, never "age or ability drives growth". Exploratory at n≈54 — intervals are wide; read the _direction_ of $\gamma^{\text{int}}_m$. Note the growth family models the five verbal/reading trajectories (R/E/T/W/L); concepts (F) and blending (B), where the gain factors' age × ability signal was strongest, are **not** growth-curve outcomes, so this tests the interaction only on those five and cannot directly check the F/B signals — expect a mostly-positive pattern echoing the gain factors' 6-of-8 direction.
-
-:::
+_Adjusted association, not causal._ Every coefficient is an **adjusted, latent-general-ability-confounded association**. Block design is an off-DAG ability proxy and baseline age is not randomised; the child random intercept only _partially_ adjusts (`dag/dag-language-reading.dagitty`, `METHODS.md`). Read $\gamma^{\text{int}}_m$ / $\gamma^{\text{age}}_m$ / $\gamma_m$ as adjusted associations, never "age or ability drives growth". Exploratory at n≈54 — intervals are wide; read the _direction_ of $\gamma^{\text{int}}_m$. Note the growth family models the five verbal/reading trajectories (R/E/T/W/L); concepts (F) and blending (B), where the gain factors' age × ability signal was strongest, are **not** growth-curve outcomes, so this tests the interaction only on those five and cannot directly check the F/B signals — expect a mostly-positive pattern echoing the gain factors' 6-of-8 direction.
 
 ## Model structure
 
@@ -44,7 +40,7 @@ $$
 
 where $\text{age0}_i$ is the child's **first-wave age standardised across children** — a between-child moderator, distinct from the within-child time axis $a[i,t]$ that the slope multiplies. $\gamma^{\text{int}}_m$ is the headline: positive = a child who is both older at baseline and more able grows faster on measure $m$ than the two main effects predict. $\gamma_m$ (ability → rate, the LRP69 estimand) and $\gamma^{\text{age}}_m$ (baseline age → rate) are the main effects that make the interaction interpretable. Observed counts enter a **masked** Beta-Binomial so a child missing one score still contributes its other waves; the random intercept and slope are independent per measure; the intervention-dose covariate is omitted (revised-DAG `IS` collider); everything is non-centred. Independent-core (no shared growth-tempo factor).
 
-::: {.callout-note title="Symbol mapping"}
+_Symbol mapping._
 
 | Construct | Symbol | Measure | Denominator |
 | --- | --- | --- | --- |
@@ -55,10 +51,9 @@ where $\text{age0}_i$ is the child's **first-wave age standardised across childr
 | Letter-sound knowledge | **L** | `yarclet` | 32 |
 
 Non-verbal ability is **block design** (`blocks`, WPPSI-III Block Design, t1-only, complete for all 54 children); baseline age is the child's age at t1.
-:::
 
-{{< include _partials/_results_growth.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_growth.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

@@ -28,10 +28,8 @@ LRP88 was forced to a **linear** mechanism on the vocabulary-exposure precedent 
 estimand is a single slope, not a shape. This variant switches the HSGP curve **back on** and lifts
 `target_accept` to **0.999** (per LRP58).
 
-::: {.callout-important title="Non-convergence is itself the result"}
-A persisting divergence at `target_accept` 0.999 is the honest result and leaves the knee
+_Non-convergence is itself the result._ A persisting divergence at `target_accept` 0.999 is the honest result and leaves the knee
 untestable for this exposure — check the gate badge above before reading any shape into the curve.
-:::
 
 ## Adjustment set
 
@@ -40,21 +38,17 @@ ability ($GA$) held: $TR$'s observed confounders that also reach word reading ar
 $\{A, HS, IG, IS, RW\}$; group $G\,(= IG)$ is the always-in precision term and $W_{\text{pre}}$ the
 autoregressive baseline.
 
-::: {.callout-note title="Sessions added relative to LRP88"}
-This set **adds intervention sessions** ($IS$ = `attend`) relative to LRP88, which omitted it:
+_Sessions added relative to LRP88._ This set **adds intervention sessions** ($IS$ = `attend`) relative to LRP88, which omitted it:
 $IS \to TR$ and $IS \to WR$ make sessions a genuine confounder of $TR \to W$ (the same adjuster
 LRP58 already carries for $L \to W$).
-:::
 
-::: {.callout-warning title="Adjusted association, not causal"}
-Residual confounding by latent general ability ($GA$) remains, so $f^{TR}$ is an **adjusted
+_Adjusted association, not causal._ Residual confounding by latent general ability ($GA$) remains, so $f^{TR}$ is an **adjusted
 association**, not a causal effect. The randomised causal claim lives in the ITT suite.
-:::
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

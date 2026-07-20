@@ -29,23 +29,15 @@ over the **identical frame** (pooled three-group, n = 69, group-nuisance
 dummies outside the horseshoe): where the adjusted model reports every slope
 at face value, the horseshoe asks which predictors escape aggressive shrinkage.
 
-::: {.callout-important title="A ranking, not effects — and nothing causal"}
-
-The Byrne cohort has no intervention (`causal_status="none"`): this is a
+_A ranking, not effects — and nothing causal._ The Byrne cohort has no intervention (`causal_status="none"`): this is a
 which-predictors-carry-signal read, not an effect estimate. Shrunk
 coefficients are not evidence of no association — at n = 69 with a correlated
 predictor cluster, the horseshoe deliberately zeroes what it cannot
 distinguish from noise.
 
-:::
-
-::: {.callout-note title="No gradient-boosting comparison"}
-
-The RLI horseshoe models cross-check a gradient-boosting ranking; no GB layer
+_No gradient-boosting comparison._ The RLI horseshoe models cross-check a gradient-boosting ranking; no GB layer
 exists for the Byrne cohort, so no `horseshoe_vs_gb` table is produced. The
 comparison partner here is the mutually-adjusted model `lrp-rlm-adj-001`.
-
-:::
 
 ## Model
 
@@ -58,8 +50,8 @@ construct. Sampling uses a raised `target_accept` for the global-local funnel.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_horseshoe.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_horseshoe.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

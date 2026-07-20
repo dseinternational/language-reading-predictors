@@ -44,8 +44,8 @@ wave-unrolled cross-lagged model (issue #250), which additionally handles time-v
 confounding. ID-2 applies throughout; the NIE is an adjusted association under a stated forward
 direction. $n \approx 53 \Rightarrow$ wide intervals.
 
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

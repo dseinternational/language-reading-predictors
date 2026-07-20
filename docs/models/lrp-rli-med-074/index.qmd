@@ -49,8 +49,8 @@ dose confounder):
   is only weakly corroborated in DS. This is an adjusted association under a **stated,
   DS-uncertain** forward direction.
 
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

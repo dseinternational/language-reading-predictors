@@ -26,9 +26,7 @@ The proximal conditional logit coefficients should track their single-outcome co
 
 The model is a product of ten linear Beta-Binomial marginals with common predictor structure: outcome-specific intercepts, treatment effects, own-baseline and linear-age **precision** terms, and outcome-specific dispersion. It has no cross-baselines, age Gaussian process or LKJ residual correlation.
 
-::: {.callout-note title="Outcome set: ten of the eleven suite measures"}
-
-The joint covers the **baseline-bearing** outcomes
+_Outcome set: ten of the eleven suite measures._ The joint covers the **baseline-bearing** outcomes
 $(\tau_{TR}, \tau_{TE}, \tau_{UR}, \tau_{UE}, \tau_R, \tau_E, \tau_L, \tau_B, \tau_P, \tau_W)$.
 
 - **Nonword (N) is excluded**: it is post-only and its degenerate baseline cannot
@@ -38,8 +36,6 @@ $(\tau_{TR}, \tau_{TE}, \tau_{UR}, \tau_{UE}, \tau_R, \tau_E, \tau_L, \tau_B, \t
   simply shrinks $\gamma^{\text{own}}_P$); the binary off-floor exploratory analysis for P is in
   LRPITT09. The joint $\tau_P$ here is the graded effect — read it alongside the
   off-floor result, not on its own.
-
-:::
 
 ## Structure
 
@@ -60,8 +56,8 @@ The LKJ residual-correlation and age-GP flags are off by default because previou
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_joint.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_joint.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

@@ -26,14 +26,12 @@ phase-specific intercepts — the "an additional $p$ taught spoken words is asso
 with $o$ additional words read" dose-response asked for by #311 (descriptive-association
 workstream #314).
 
-::: {.callout-note title="Linear mechanism (estimand note)"}
-The mechanism enters as a **linear slope** $\beta_{\text{mech}}$ on
+_Linear mechanism (estimand note)._ The mechanism enters as a **linear slope** $\beta_{\text{mech}}$ on
 $\text{logit}_*(TR_{\text{post}}, N_{TR})$, not the 1-D HSGP curve used elsewhere in
 this family, following the vocabulary-exposure precedent (LRP56/57): the nonparametric
 curve does not converge on vocabulary predictors at reporting tier, and DAG-required
 adjusters are not dropped to buy convergence. The estimand is therefore the **linear**
 $TR \to W$ adjusted association — a single slope, not a shape.
-:::
 
 ## Adjustment set
 
@@ -51,15 +49,13 @@ Parents of $TR$ under the revised DAG (2026-07-10): $\{A, GA, HS, IG, IS, RW\}$.
 - $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
 - $TR$ has no measured skill parent, so no concurrent measure confounder enters.
 
-::: {.callout-important title="Open backdoor: intervention sessions (IS) — flagged, not adjusted"}
-$IS \to TR$ and $IS \to WR$ make session dose a genuine common cause of exposure and
+_Open backdoor: intervention sessions (IS) — flagged, not adjusted._ $IS \to TR$ and $IS \to WR$ make session dose a genuine common cause of exposure and
 outcome, but $IS$ is treatment-affected ($IG \to IS$): conditioning on it would insert
 a post-treatment collider between the randomised arm and latent ability
 ($IG \to IS \leftarrow GA \to W$). Following the family precedent and the signed-off
 #309 handling of the same structure, the primary model leaves $IS$ unadjusted — so
 **shared session dose is a plausible inflator of this slope**, and the estimate should
 be read with that in mind. A dose-adjusted sensitivity companion is deferred.
-:::
 
 $TE$ and $RV$ are *descendants* of $TR$ that also affect $W$; conditioning on them
 would block legitimate indirect paths (e.g. $TR \to TE \to W$) and pull the slope
@@ -77,8 +73,8 @@ describes covariation within a treated system.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

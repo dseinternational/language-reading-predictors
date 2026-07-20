@@ -22,11 +22,7 @@ format:
 
 LRPBX04 is a **block-exposure** model for block-2 **not-taught** receptive vocabulary (`b2rent`, out of 12): the receptive specificity / placebo comparator to the taught receptive model (LRPBX02), with the same staggered block-active exposure structure. Like the taught receptive outcome it is near-ceiling, so the exposure effect is expected to be weak; read alongside the other three as the not-taught receptive corner of the taught/not-taught × expressive/receptive quartet.
 
-::: {.callout-warning title="One corrupt source cell dropped"}
-
-`b2rent` contains one impossible value (subject `ID_0D60E282E4368506` at t4: `b2rent = 31` against the 12-item ceiling, with `b2reto = 10 < b2retau = 21` — total below taught, so the whole receptive-not-taught triple for that row is unrecoverable). That single observation is set to missing and dropped from this fit (logged in the run output); the 12-item denominator is unchanged. The cell is flagged to the data owner for a source correction.
-
-:::
+_One corrupt source cell dropped._ `b2rent` contains one impossible value (subject `ID_0D60E282E4368506` at t4: `b2rent = 31` against the 12-item ceiling, with `b2reto = 10 < b2retau = 21` — total below taught, so the whole receptive-not-taught triple for that row is unrecoverable). That single observation is set to missing and dropped from this fit (logged in the run output); the 12-item denominator is unchanged. The cell is flagged to the data owner for a source correction.
 
 ## Model
 
@@ -35,8 +31,8 @@ $\operatorname{logit}\mu_{i,t} = \alpha + \alpha_{\text{time}[t]} + \delta\,\tex
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_block_exposure.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_block_exposure.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

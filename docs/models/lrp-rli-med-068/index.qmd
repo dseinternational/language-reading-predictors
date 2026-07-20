@@ -43,8 +43,8 @@ ID-2: the $TE \to WR$ leg is $GA$-confounded and dose is a treatment-induced
 mediator–outcome confounder, so the NDE/NIE are **adjusted associations, not
 point-identified**. Contemporaneous measurement; $n \approx 53 \Rightarrow$ wide intervals.
 
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

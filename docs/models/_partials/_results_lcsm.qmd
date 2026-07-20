@@ -40,13 +40,9 @@ if coupling_summary is not None:
         )
 ```
 
-::: {.callout-note title="Model-check emphasis"}
-
-Because this model has latent trajectories, process noise and only four waves,
+_Model-check emphasis._ Because this model has latent trajectories, process noise and only four waves,
 sampling diagnostics and posterior predictive checks are part of the result. A
 wide interval or fragile sampler is an honest finding, not just a nuisance.
-
-:::
 
 
 ```{python}

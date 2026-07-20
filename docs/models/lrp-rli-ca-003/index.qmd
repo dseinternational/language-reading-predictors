@@ -39,9 +39,7 @@ variance (and so the associations' resolution) compresses as scores stack near t
 top. All children are on the intervention from t2, so these describe the conditional
 joint distribution of the skill measures within a treated system.
 
-::: {.callout-note title="Estimand: descriptive association (no causal warrant)"}
-Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
-:::
+_Estimand: descriptive association (no causal warrant)._ Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
 
 ## Design
 
@@ -55,8 +53,8 @@ Every coefficient is an **adjusted association**. Conditioning on contemporaneou
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_concurrent.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_concurrent.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

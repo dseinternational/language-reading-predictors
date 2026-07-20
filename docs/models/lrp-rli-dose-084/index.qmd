@@ -39,16 +39,12 @@ with $\beta_{\text{dose}[p]} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$ (p
 
 The focal edge is $\text{dose} \to \text{outcome}$; the back-door set is $\{G, B_{\text{pre}}, A\}$ — $G$ (arm, coded $G = 2-\text{group}$, positive = benefit) is the sole confounder; $B_{\text{pre}}$ is the autoregression / RTM control; age is a maturation precision covariate (no $\text{age} \to \text{dose}$ edge). **Cumulative dose** (`attend_cumul`) is not conditioned on (`IS`-collider descendant, #269). The waitlist controls' period-1 `attend == 0` rows are kept as the zero-dose anchor.
 
-::: {.callout-important title="Adjusted association, not \"dose drives gains\""}
-
-Dose is **not** randomised, so this is an adjusted association; the load-bearing assumption is no $\text{ability} \to \text{dose}$ edge (Frank 2012: the least-able children attended least). Read the dose slope accordingly — the randomised causal effect for blending lives in the ITT suite (`lrp-rli-itt-008`).
-
-:::
+_Adjusted association, not \._ Dose is **not** randomised, so this is an adjusted association; the load-bearing assumption is no $\text{ability} \to \text{dose}$ edge (Frank 2012: the least-able children attended least). Read the dose slope accordingly — the randomised causal effect for blending lives in the ITT suite (`lrp-rli-itt-008`).
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_dose_response.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_dose_response.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

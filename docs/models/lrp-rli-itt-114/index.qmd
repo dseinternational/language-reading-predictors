@@ -22,14 +22,10 @@ format:
 
 LRPITT14B is the **unadjusted available-case modified-ITT** analysis for letter-sound knowledge (YARC-LSK) (`yarclet`) on the **SES complete-case subset**—the matched comparator to LRPITT13b. It adjusts for no SES covariates but deliberately restricts to the same rows (`restrict_complete`): LRPITT13b versus LRPITT14B isolates adjustment with the selected sample fixed, while comparison with LRPITT07 isolates the additional complete-case selection. The estimand is the randomised offer effect on $L_{\text{post}}$ in that SES-complete fitted sample, not a full-population effect for all 57 randomised children.
 
-::: {.callout-note title="Identification and sign convention"}
-
-Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ in the SES-complete fitted sample without adjustment. Extending it beyond that selected observed-data sample requires ignorable exclusion and missingness. The own baseline and linear age are
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ in the SES-complete fitted sample without adjustment. Extending it beyond that selected observed-data sample requires ignorable exclusion and missingness. The own baseline and linear age are
 **precision terms only** — they sharpen $\tau$ but are not what licenses the causal
 interpretation. **Sign convention:** $G = 1$ is the intervention arm, so a
 **positive** $\tau$ means the intervention raises the outcome.
-
-:::
 
 ## Model
 
@@ -45,8 +41,8 @@ No covariate adjustment; the fit is restricted to the SES complete-case rows. HS
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_itt.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_itt.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

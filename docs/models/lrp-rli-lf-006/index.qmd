@@ -22,11 +22,7 @@ format:
 
 LRPLF06 is a **level-factors** model for phoneme blending (blending) (`blending`): what is associated with the score *level* at each of the four timepoints (Beta-Binomial logit, child random intercept; no own baseline).
 
-::: {.callout-important title="Causal labelling + level-model crossover caveat"}
-
-Every non-randomised coefficient is an **adjusted association** under the DAG. The group effect is `group x time` (a per-timepoint coefficient `b_grp_time[t]`, trajectory divergence): after t2 the waitlist crosses over, so the **clean randomised contrast lives only at t2** (`b_grp_time[1]`, labelled *causal*); t3/t4 are post-crossover cohort/timing terms. SES excluded (non-DAG / redundant).
-
-:::
+_Causal labelling + level-model crossover caveat._ Every non-randomised coefficient is an **adjusted association** under the DAG. The group effect is `group x time` (a per-timepoint coefficient `b_grp_time[t]`, trajectory divergence): after t2 the waitlist crosses over, so the **clean randomised contrast lives only at t2** (`b_grp_time[1]`, labelled *causal*); t3/t4 are post-crossover cohort/timing terms. SES excluded (non-DAG / redundant).
 
 ## Model
 
@@ -35,8 +31,8 @@ $\operatorname{logit}\mu_{t} = \alpha + \alpha_{\text{time}[t]} + b_{\text{grp}[
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_factors.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_factors.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

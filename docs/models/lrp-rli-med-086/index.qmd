@@ -22,17 +22,9 @@ format:
 
 LRP86 is the nonword companion to [LRP59](../lrp-rli-med-059/) (word reading via letter-sounds), testing the code route on the **purest decoding outcome** (#228 item 12). Nonword reading isolates alphabetic decoding with no lexical/whole-word support, so if the intervention's decoding benefit is transmitted by letter-sound knowledge it should surface here. We decompose the intervention's effect on nonword reading into the **natural indirect effect (NIE)** — transmitted by raising letter-sounds $L$ — and the **natural direct effect (NDE)**.
 
-::: {.callout-important title="Off-floor outcome — effects are risk differences"}
+_Off-floor outcome — effects are risk differences._ Nonword reading is ~57% floored, so — as everywhere in the suite (LRPITT11, LRPDID12, LRPGF11) — the outcome is the **off-floor indicator** ($N_{t2} > 0$), fitted as a Bernoulli. NDE / NIE / total are therefore reported on the **off-floor risk-difference** scale: the change in $\Pr(\text{reads} \ge 1\ \text{nonword})$ attributable to the direct vs the through-letter-sounds path. Off-floor outcomes drop the own-baseline term (the $\mathrm{Normal}(1,\cdot)$ autoregressive prior does not transfer to a binary indicator; a floored baseline logit is degenerate), matching the off-floor ITT/DiD/gain-factor convention.
 
-Nonword reading is ~57% floored, so — as everywhere in the suite (LRPITT11, LRPDID12, LRPGF11) — the outcome is the **off-floor indicator** ($N_{t2} > 0$), fitted as a Bernoulli. NDE / NIE / total are therefore reported on the **off-floor risk-difference** scale: the change in $\Pr(\text{reads} \ge 1\ \text{nonword})$ attributable to the direct vs the through-letter-sounds path. Off-floor outcomes drop the own-baseline term (the $\mathrm{Normal}(1,\cdot)$ autoregressive prior does not transfer to a binary indicator; a floored baseline logit is degenerate), matching the off-floor ITT/DiD/gain-factor convention.
-
-:::
-
-::: {.callout-note title="Also a test of the DAG's own structure"}
-
-The revised DAG (`dag/dag-language-reading.dagitty`) has **no direct $IG \to NW$ edge** — the intervention is drawn to reach nonword reading *only* through the code skills. So a decomposition in which the indirect path carries the effect (NIE $> 0$, NDE $\approx 0$) also corroborates that exclusion restriction; a large direct effect would flag a missing edge.
-
-:::
+_Also a test of the DAG's own structure._ The revised DAG (`dag/dag-language-reading.dagitty`) has **no direct $IG \to NW$ edge** — the intervention is drawn to reach nonword reading *only* through the code skills. So a decomposition in which the indirect path carries the effect (NIE $> 0$, NDE $\approx 0$) also corroborates that exclusion restriction; a large direct effect would flag a missing edge.
 
 ## Causal structure and phase
 
@@ -46,14 +38,10 @@ The full mediation-assumption treatment (randomisation handles $G\to Y$/$G\to M$
 
 **Natural versus interventional estimand.** [MED-186](../lrp-rli-med-186/) is the parent+100 interventional companion: the same joint model and adjustment set, but IDE/IIE replace the cross-world NDE/NIE. In this implementation its IIE should match this model's NIE up to sampling and g-formula Monte Carlo error because both use the same fitted covariate-conditional mediator law. That agreement is an implementation check, not evidence that shared dose is harmless; latent general ability still prevents an identified causal mediation reading.
 
-::: {.callout-note title="Adjustment set — signed off (2026-07-14), mediation criterion"}
+_Adjustment set — signed off (2026-07-14), mediation criterion._ The set blocks common causes of the mediator $L$ and the outcome $N$ **including indirect routes** — arrows *into the mediator* matter, not just parents of the outcome. Adjusted: age $A$; speech production $SP$ (`deapp_c`); phonological memory $RW$ (`erbto`), a common cause via $L \leftarrow RW \to N$; hearing $HS$ (`hs`/`hs_missing`) — **included**, because $L \leftarrow HS \to PA \to N$ is an open route to nonword reading that $RW$ does not block (HS confounds $L \to N$ through blending even though it is not a nonword *parent*); baseline blending $B_{t1}$ (proximal reinforcement + precision); and the mediator baseline $L_{t1}$. **No outcome own-baseline** (off-floor). The time-indexed re-derivation (#250/#264) confirms the set; $E$/$R$ are legitimately absent because they have no arrows into $L$.
 
-The set blocks common causes of the mediator $L$ and the outcome $N$ **including indirect routes** — arrows *into the mediator* matter, not just parents of the outcome. Adjusted: age $A$; speech production $SP$ (`deapp_c`); phonological memory $RW$ (`erbto`), a common cause via $L \leftarrow RW \to N$; hearing $HS$ (`hs`/`hs_missing`) — **included**, because $L \leftarrow HS \to PA \to N$ is an open route to nonword reading that $RW$ does not block (HS confounds $L \to N$ through blending even though it is not a nonword *parent*); baseline blending $B_{t1}$ (proximal reinforcement + precision); and the mediator baseline $L_{t1}$. **No outcome own-baseline** (off-floor). The time-indexed re-derivation (#250/#264) confirms the set; $E$/$R$ are legitimately absent because they have no arrows into $L$.
-
-:::
-
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

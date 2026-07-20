@@ -29,19 +29,13 @@ readers, reading-matched). Unlike its siblings, `basmat` was introduced at
 later-wave window: a waves-3-4 complete-case core, extended by wave 5 where
 children in that core were observed.
 
-::: {.callout-important title="Descriptive natural-history, NOT an intervention effect"}
-
-`readgrp` is a **cohort factor**, not a randomised or assigned condition, and this
+_Descriptive natural-history, NOT an intervention effect._ `readgrp` is a **cohort factor**, not a randomised or assigned condition, and this
 model carries no treatment, baseline-as-precision, or adjustment-set structure.
 Every quantity here is a **descriptive** group-by-wave expected score or growth
 rate — natural-history evidence, not a causal effect. The intervention-effect
 estimands live in the RLI (`lrp-rli-...`) suite.
 
-:::
-
-::: {.callout-note title="Confirmed Beta-Binomial ceiling (#338)"}
-
-The Beta-Binomial denominator ($N = 28$) is the instrument's confirmed
+_Confirmed Beta-Binomial ceiling (#338)._ The Beta-Binomial denominator ($N = 28$) is the instrument's confirmed
 maximum (`n_trials_confirmed=True`): BAS Matrices (first edition) has 28 items (CLOSER
 cognitive-measures guide; Parsons, 2014). Laws et al. (1995) used Raven's CPM
 (36 items) as this cohort's matrices measure, so the sign-off records the
@@ -49,28 +43,18 @@ caveat that this column is BAS Matrices. Researched and signed off by
 the data owner (2026-07-16). The shared prior scales are reused from
 `lrp-rlm-hg-001`; the prior-predictive check below flags any miscalibration.
 
-:::
-
-::: {.callout-note title="Audit baseline"}
-
-The model is fit on the per-measure complete-case subset (subjects with BAS
+_Audit baseline._ The model is fit on the per-measure complete-case subset (subjects with BAS
 matrices observed at waves 3 and 4). Because the window starts at wave 3, the
 observed baseline here is **not** a paper Table 2 reproduction (Table 2 covers
 the first three waves); it is the same complete-case observed-cell audit
 computed from the prepared extract and written beside the posterior summaries.
 
-:::
-
-::: {.callout-note title="Extended follow-up window (#338)"}
-
-Wave 5 is an **extension wave** outside the complete-case rule: children in the
+_Extended follow-up window (#338)._ Wave 5 is an **extension wave** outside the complete-case rule: children in the
 core subset contribute wherever this measure was observed. The wave-5 cell is
 therefore an attrition-selected follow-up tail with its own per-cell `n`
 (reported in the tables), and it exists only for the Down syndrome group.
 Between-group quantities are taken over the common waves-3-4 window; wave 5
 extends the Down-syndrome trajectory only.
-
-:::
 
 ## Model
 
@@ -99,8 +83,8 @@ observed at both endpoint waves.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_historical_growth.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_historical_growth.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

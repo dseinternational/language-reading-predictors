@@ -24,9 +24,7 @@ LRPGF01b is the **treated-only** companion to LRPGF01 ("gains while on
 intervention"): the same gain-factors model for word reading (`ewrswr`) restricted
 to on-intervention period rows (it excludes the waitlist arm's untreated period 1).
 
-::: {.callout-important title="No treatment contrast — this is a factor-association model"}
-
-Once restricted to on-intervention rows, the on-intervention indicator is constant,
+_No treatment contrast — this is a factor-association model._ Once restricted to on-intervention rows, the on-intervention indicator is constant,
 so the treatment term and its interactions are **dropped**: there is no randomised
 contrast here. This model reports the **adjusted associations** of the remaining
 factors (own baseline, age, cognitive ability, skills TR/TE/R/E/L/N/B, age $\times$ ability)
@@ -37,8 +35,6 @@ between-child heterogeneity and does **not** control latent general ability, so 
 internal slopes remain descriptive associations — read as "associated with", never
 "drives". SES is excluded
 (non-DAG / redundant). Compare these associations with LRPGF01.
-
-:::
 
 ## Model
 
@@ -58,8 +54,8 @@ $N = 79$. Priors follow the shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_factors.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_factors.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

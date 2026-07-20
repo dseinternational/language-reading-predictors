@@ -26,9 +26,7 @@ with how much children *gain* across the three period transitions
 ANCOVA — the period post-count given its pre-count — on the logit scale with a
 Beta-Binomial likelihood and a child random intercept.
 
-::: {.callout-important title="Causal labelling (DAG guardrails)"}
-
-Under the revised study DAG (`dag/dag-language-reading.dagitty`, revised
+_Causal labelling (DAG guardrails)._ Under the revised study DAG (`dag/dag-language-reading.dagitty`, revised
 2026-07-10), **only the randomised on-intervention term is causal.** The
 **period-1 average marginal effect** — the genuinely randomised,
 all-untreated-baseline transition — is the ITT-anchor estimand; `beta_trt` itself
@@ -40,8 +38,6 @@ and does **not** control latent general ability (GA), so these internal slopes
 remain **descriptive associations**. Report these as "associated with", **never**
 "drives". Intervention sessions / dose are never conditioned on (a DAG collider).
 SES is excluded: it is not a DAG node and was found statistically redundant.
-
-:::
 
 **DAG factor set:** on-intervention (causal) · own baseline · age · cognitive
 ability (block design) · taught receptive vocabulary (TR) · taught expressive
@@ -71,8 +67,8 @@ $N = 79$, and $u_{\text{child}} \sim \operatorname{Normal}(0, \sigma_{\text{chil
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_factors.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_factors.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

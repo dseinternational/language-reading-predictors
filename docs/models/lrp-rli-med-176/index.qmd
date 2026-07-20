@@ -55,8 +55,8 @@ and the outcome $LS$ is mildly ceilinged at t4 (~12% of children at the maximum)
 anything attenuates the reverse NIE (checked by LRP276). $n \approx 53 \Rightarrow$ wide
 intervals.
 
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

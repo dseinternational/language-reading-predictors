@@ -22,14 +22,10 @@ format:
 
 LRPITT13 is the **SES-adjusted available-case modified-ITT** analysis for word reading (EWRSWR) (`ewrswr`)—the SES-robustness companion to LRPITT10. It uses the uniform specification plus linear adjustment for parental education (`MUMEDUPOST16`, `DADEDUPOST16`) and age first exposed to books (`AGEBOOKS`). Requesting these covariates imposes an additional SES complete-case restriction beyond the outcome-specific observed-data requirement; LRPITT14 is the matched unadjusted comparator on exactly those rows, so LRPITT13 versus LRPITT14 isolates adjustment with the selected sample held fixed. The estimand is the randomised offer effect on $W_{\text{post}}$ in that SES-complete fitted sample, not a full-population effect for all 57 randomised children.
 
-::: {.callout-note title="Identification and sign convention"}
-
-Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ in the SES-complete fitted sample without adjustment. Extending it beyond that selected observed-data sample requires ignorable exclusion and missingness. The own baseline, linear age, and the SES adjusters, are
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ in the SES-complete fitted sample without adjustment. Extending it beyond that selected observed-data sample requires ignorable exclusion and missingness. The own baseline, linear age, and the SES adjusters, are
 **precision terms only** — they sharpen $\tau$ but are not what licenses the causal
 interpretation. **Sign convention:** $G = 1$ is the intervention arm, so a
 **positive** $\tau$ means the intervention raises the outcome.
-
-:::
 
 ## Model
 
@@ -45,8 +41,8 @@ The SES adjusters enter as linear $\gamma_c$ terms (the same weak $\text{Normal}
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_itt.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_itt.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

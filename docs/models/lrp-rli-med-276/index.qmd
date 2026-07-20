@@ -43,8 +43,8 @@ confounder), so the NIE is an adjusted association under a stated *reverse* dire
 proof that reading drives the code. The design randomises no early word-reading shock, so the
 reverse direction is intrinsically under-powered. $n \approx 53 \Rightarrow$ wide intervals.
 
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

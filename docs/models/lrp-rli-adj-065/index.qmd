@@ -32,9 +32,7 @@ ambiguous. The DAG below fixes the estimand and the adjustment set **before** fi
 
 ## Estimand and design
 
-::: {.callout-important title="Between-child association — match the design to the estimand"}
-
-The estimand is the **mutually-adjusted between-child association** of each wave-1
+_Between-child association — match the design to the estimand._ The estimand is the **mutually-adjusted between-child association** of each wave-1
 baseline skill with subsequent word-reading gain, holding the other measured baselines
 and $W_{\text{pre}}$ constant, *across children*.
 
@@ -57,8 +55,6 @@ These are **associations, not causal effects** (n ≈ 51). The randomised word-r
 (now `lrp-rli-itt-010`, which supersedes LRP52; the randomised gain-side coefficient lives in
 `lrp-rli-gf-001`) carries the causal claim about the programme.
 
-:::
-
 ![Causal DAG. Latent general ability `g` (dashed, not fitted) drives the correlated T1 baselines; the dashed edges from non-verbal MA, behaviour and SES to gain are the associations the model is built to test.](dag.svg){#fig-dag .lightbox fig-align="left"}
 
 ## Adjustment set and predictors
@@ -75,8 +71,8 @@ Each predictor's **adjusted** (mutual) coefficient is reported alongside its **b
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_adjusted.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_adjusted.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

@@ -39,16 +39,12 @@ with $\beta_{\text{dose}[p]} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$ (p
 
 The focal edge is $\text{dose} \to \text{outcome}$; the back-door set is $\{G, L_{\text{pre}}, A\}$ — $G$ (arm, coded $G = 2-\text{group}$, positive = benefit) is the sole confounder blocking $\text{dose} \leftarrow \text{intervention} \to \text{outcome}$; $L_{\text{pre}}$ is the autoregression / RTM control (parameterisation, not back-door); age is a maturation precision covariate (no $\text{age} \to \text{dose}$ edge). **Cumulative dose** (`attend_cumul`) is a descendant of the `IS` collider and is **not** conditioned on (reopens the latent-ability back door, #269). The waitlist controls' period-1 `attend == 0` rows are kept as the zero-dose anchor.
 
-::: {.callout-important title="Adjusted association, not \"dose drives gains\""}
-
-Dose is **not** randomised (only `intervention` is), so this is an adjusted association. The load-bearing assumption is no $\text{ability} \to \text{dose}$ edge, but Frank's 2012 caveat (the least-able children attended least) is exactly that edge; the subject random intercept absorbs only _stable_ child differences. Read the dose slope with that in mind — the randomised causal effect for letter sounds lives in the ITT suite (`lrp-rli-itt-007`).
-
-:::
+_Adjusted association, not \._ Dose is **not** randomised (only `intervention` is), so this is an adjusted association. The load-bearing assumption is no $\text{ability} \to \text{dose}$ edge, but Frank's 2012 caveat (the least-able children attended least) is exactly that edge; the subject random intercept absorbs only _stable_ child differences. Read the dose slope with that in mind — the randomised causal effect for letter sounds lives in the ITT suite (`lrp-rli-itt-007`).
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_dose_response.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_dose_response.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

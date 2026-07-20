@@ -207,11 +207,7 @@ _csv("attrition_bounds.csv")
 
 ## Results — binary off-floor (post-hoc exploratory headline)
 
-::: {.callout-important title="Floored outcome — post-hoc binary transition headline"}
-
-The arm-blind 40% gate was chosen after inspecting this trial's post-treatment score distribution and earlier results. It is therefore **post-hoc and data-adaptive**, not a prospectively specified trial primary. The exploratory headline for this reanalysis is the average **risk difference in the off-floor transition**, `Pr(post > 0 | observed at floor at t1)`, fitted with a Bernoulli likelihood among baseline-floored children with observed eligibility. Conditioning on observed baseline floor status is pre-randomisation, so the arm contrast retains randomised causal logic for that subgroup under the stated missingness assumption. Two flagged, **detection-limited secondaries** are read only alongside the mover table: the graded Beta-Binomial over all outcome-available children and a graded contrast among children observed off-floor at t2. The latter is an untruncated proxy for `E(post | post > 0)` and conditions on a post-randomisation event, so it is not a clean randomised effect. Positive means the intervention raises the probability of moving off the floor.
-
-:::
+_Floored outcome — post-hoc binary transition headline._ The arm-blind 40% gate was chosen after inspecting this trial's post-treatment score distribution and earlier results. It is therefore **post-hoc and data-adaptive**, not a prospectively specified trial primary. The exploratory headline for this reanalysis is the average **risk difference in the off-floor transition**, `Pr(post > 0 | observed at floor at t1)`, fitted with a Bernoulli likelihood among baseline-floored children with observed eligibility. Conditioning on observed baseline floor status is pre-randomisation, so the arm contrast retains randomised causal logic for that subgroup under the stated missingness assumption. Two flagged, **detection-limited secondaries** are read only alongside the mover table: the graded Beta-Binomial over all outcome-available children and a graded contrast among children observed off-floor at t2. The latter is an untruncated proxy for `E(post | post > 0)` and conditions on a post-randomisation event, so it is not a clean randomised effect. Positive means the intervention raises the probability of moving off the floor.
 
 _In plain terms:_ this outcome sits at zero for most children, so the exploratory headline asks whether children observed at zero before randomisation moved above zero by t2. The number below is the estimated change in that chance, in percentage points, within the fitted subgroup.
 
@@ -415,11 +411,7 @@ if _graded_ok and _floor_ppc is not None:
 
 ### Graded Beta-Binomial effect (SECONDARY, detection-limited)
 
-::: {.callout-warning title="Detection-limited secondary"}
-
-The graded effect below is reported for completeness only; with most post-scores at the floor the graded scale is poorly identified. Lead with the explicitly post-hoc off-floor headline and its eligibility sensitivity.
-
-:::
+_Detection-limited secondary._ The graded effect below is reported for completeness only; with most post-scores at the floor the graded scale is poorly identified. Lead with the explicitly post-hoc off-floor headline and its eligibility sensitivity.
 
 ```{python}
 # | echo: false
@@ -440,11 +432,7 @@ _graded if _graded_ok else None
 
 ### Graded contrast among children observed off-floor at t2 (SECONDARY, post-selected)
 
-::: {.callout-warning title="Post-outcome selection — not a randomised causal effect"}
-
-This secondary conditions on `post > 0`, an event that occurs after randomisation and may itself be affected by treatment. It is an untruncated Beta-Binomial proxy for the graded score distribution among children observed above zero, not an ITT estimand and not evidence that treatment changes severity independently of moving children off the floor.
-
-:::
+_Post-outcome selection — not a randomised causal effect._ This secondary conditions on `post > 0`, an event that occurs after randomisation and may itself be affected by treatment. It is an untruncated Beta-Binomial proxy for the graded score distribution among children observed above zero, not an ITT estimand and not evidence that treatment changes severity independently of moving children off the floor.
 
 ```{python}
 # | echo: false

@@ -71,19 +71,15 @@ the indicators measure their domain — which is precisely the quantity the mode
 estimate. Buying nothing and costing that, the recalibration was **reverted** in LRPMM01 and
 is retained here as the sensitivity fit.
 
-::: {.callout-important title="Measurement / triangulation, NOT causal"}
-
-As with LRPMM01: per the locked DAG's **ID-2**, every factor → gain slope is a
+_Measurement / triangulation, NOT causal._ As with LRPMM01: per the locked DAG's **ID-2**, every factor → gain slope is a
 **latent-ability-confounded adjusted association**. The randomised causal claim lives in the
 ITT suite (`lrp-rli-itt-010` for word reading) and the `gain_factors` randomised term, not
 here.
 
-:::
-
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_corr_factor.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_corr_factor.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

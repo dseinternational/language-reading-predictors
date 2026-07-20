@@ -4,4 +4,63 @@
 
 {{< include _partials/_diagnostics.qmd >}}
 
+```{python}
+# | echo: false
+# | output: asis
+# Reproducibility statement (BARG item 6): surface seed, sampler, package
+# versions and the data fingerprint in the rendered report rather than leaving
+# them only in the config.json / environment-lock.json sidecars. Reads config.json
+# directly (not the _setup.qmd `config`) so this partial stays self-contained and
+# renders even when included without _setup. Each clause degrades gracefully when
+# a field is absent (e.g. the joint/multi-file loaders record a null data_sha256,
+# or config.json is missing entirely).
+import json as _repro_json
+from pathlib import Path as _ReproPath
+
+try:
+    with open(_ReproPath(".") / "config.json") as _repro_fh:
+        _cfg = _repro_json.load(_repro_fh)
+except (FileNotFoundError, OSError, UnicodeDecodeError, _repro_json.JSONDecodeError):
+    _cfg = {}
+_prov = _cfg.get("provenance", {}) or {}
+_pkgs = _prov.get("packages", {}) or {}
+_rt = _prov.get("runtime", {}) or {}
+_s = _cfg.get("sampling", {}) or {}
+_data_name = (_cfg.get("data_path") or "").rsplit("/", 1)[-1]
+_sha = _cfg.get("data_sha256") or ""
+_seed = _s.get("random_seed")
+_chains, _draws, _tune = _s.get("chains"), _s.get("draws"), _s.get("tune")
+
+
+def _ver(key):
+    return _pkgs.get(key)
+
+
+_stack = ", ".join(
+    f"{name} {_ver(key)}"
+    for name, key in (("PyMC", "pymc"), ("nutpie", "nutpie"), ("ArviZ", "arviz"), ("NumPy", "numpy"))
+    if _ver(key)
+)
+_py = _rt.get("python_version")
+_sampling = ""
+if _chains and _draws:
+    _sampling = f"; {_chains} chains × {_draws} draws"
+    _sampling += f" after {_tune} tuning steps" if _tune else ""
+_parts = ["**Reproducibility.** "]
+_parts.append(f"Fitted with {_stack}" if _stack else "Fit run")
+_parts.append(f" on Python {_py}" if _py else "")
+_parts.append(_sampling)
+_parts.append(f", random seed {_seed}" if _seed is not None else "")
+_parts.append(". ")
+if _data_name:
+    _parts.append(f"Data: `{_data_name}`")
+    _parts.append(f" (SHA-256 `{_sha[:12]}…`)" if _sha else " (fingerprint not recorded for this loader)")
+    _parts.append(". ")
+_parts.append(
+    "The full environment lock is in `environment-lock.json` and the complete run "
+    "metadata (invocation, git provenance, all package versions) in `config.json`."
+)
+print("".join(_parts))
+```
+
 :::

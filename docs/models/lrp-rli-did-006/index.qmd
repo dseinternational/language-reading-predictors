@@ -22,19 +22,11 @@ format:
 
 LRPDID06 asks whether session attendance is associated with the bounded word-reading period-end score after accounting for the P1/P2 cell structure. It retains randomised arm, current treatment, period, the pre-randomisation t1 word-reading score and t1 age, then adds treated-centred session dose. It is an observational dose model, not an ITT effect or causal dose response.
 
-::: {.callout-note title="What this estimand is, and is not"}
-
-The arm, period and current-treatment terms span the four arm × period cells. Sessions are centred among treated rows and multiplied by `Treated`, so the dose slope describes residual attendance variation where treatment is present instead of treating the structural zero-session waitlist-P1 cell as low voluntary attendance.
+_What this estimand is, and is not._ The arm, period and current-treatment terms span the four arm × period cells. Sessions are centred among treated rows and multiplied by `Treated`, so the dose slope describes residual attendance variation where treatment is present instead of treating the structural zero-session waitlist-P1 cell as low voluntary attendance.
 
 This separation does not make dose causal. General ability, engagement, health, family support and programme responsiveness may affect both attendance and the outcome. The t1 outcome and age are precision/adjustment variables; the child random intercept partially pools stable heterogeneity but does not remove unmeasured time-varying confounding.
 
-:::
-
-::: {.callout-note title="Sign convention and the ceiling"}
-
-Positive `beta_dose` means higher-than-average attendance among treated rows is associated with a higher expected period-end word-reading score. The Beta-Binomial logit respects the bounded 0–79 score; it does not turn the association into an intervention effect.
-
-:::
+_Sign convention and the ceiling._ Positive `beta_dose` means higher-than-average attendance among treated rows is associated with a higher expected period-end word-reading score. The Beta-Binomial logit respects the bounded 0–79 score; it does not turn the association into an intervention effect.
 
 ## Model
 
@@ -50,8 +42,8 @@ with a Beta-Binomial likelihood on the period post-count, $N = 79$, $G_i=1$ for 
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_did.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_did.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

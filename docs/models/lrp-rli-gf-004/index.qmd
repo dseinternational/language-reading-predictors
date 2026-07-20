@@ -22,11 +22,9 @@ format:
 
 LRPGF04 is a **gain-factors** model for letter sounds (`yarclet`): what is associated with how much children gain across the three period transitions (ANCOVA - the period post-count given its pre-count - Beta-Binomial logit, child random intercept). It conditions on the own baseline, age, cognitive ability (block design), no upstream measured-skill parent (letter sounds has none in the revised DAG), and the revised-DAG confounders hearing (HS = `hs`) and speech (SP = `deapp_c`) — each entered with a missing-indicator — with focal interactions group$\times$ability, group$\times$own-baseline, age$\times$ability.
 
-::: {.callout-important title="Causal labelling (DAG guardrails)"}
+_Causal labelling (DAG guardrails)._
 
 **Only the randomised on-intervention term is causal.** Under the revised DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10) the **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is the ITT-anchor estimand; `beta_trt` itself is only the on-intervention log-odds contrast, not the ITT effect. Every other coefficient is an **adjusted association**: the child random intercept is a partial, shrunken stand-in for between-child heterogeneity and does **not** control latent general ability, so these internal slopes stay **descriptive associations** - report as "associated with", never "drives". Intervention sessions/dose are never conditioned on (a DAG collider). SES is excluded (not a DAG node; statistically redundant).
-
-:::
 
 ## Model
 
@@ -35,8 +33,8 @@ $\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \beta_{\text{trt}}\
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_factors.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_factors.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

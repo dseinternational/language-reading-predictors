@@ -45,9 +45,7 @@ an assumption, not a property of the method, and it is doing real work here:
 
 ## How to read this model
 
-::: {.callout-important title="A comparator, not a competitor"}
-
-If the mechanism slope here **agrees** with LRP58's, the imputation is not driving the result, and
+_A comparator, not a competitor._ If the mechanism slope here **agrees** with LRP58's, the imputation is not driving the result, and
 LRP58 stands as the primary (higher-powered) fit.
 
 If they **diverge**, the imputation is load-bearing and *neither* fit should be reported without the
@@ -56,31 +54,21 @@ other.
 This model is smaller, so its intervals are **wider by construction**. That is the price of the
 restriction, not a finding — do not read the wider interval as weaker evidence.
 
-:::
-
-::: {.callout-note title="Convergence"}
-
-Like [LRP58](../lrp-rli-mech-058), this model keeps the nonparametric HSGP curve. After the #265
+_Convergence._ Like [LRP58](../lrp-rli-mech-058), this model keeps the nonparametric HSGP curve. After the #265
 reparameterisation (standardised GP input, a moderate-lengthscale prior, a smaller basis) it clears
 the strict zero-divergence gate at `target_accept` = 0.999 with the curve intact — the same fix that
 LRP58 carries, so the comparison of slopes between them stays like-for-like.
 
-:::
-
-::: {.callout-warning title="Still an adjusted association, not a mechanism"}
-
-Latent general ability ($GA$) is **not** adjusted for, and the child random intercept does **not**
+_Still an adjusted association, not a mechanism._ Latent general ability ($GA$) is **not** adjusted for, and the child random intercept does **not**
 stand in for it: a zero-mean, predictor-independent random effect absorbs stable residual
 heterogeneity but cannot block $L \leftarrow GA \rightarrow W$. **Residual confounding by $GA$
 remains**, so $f^L$ is an **adjusted association**, never a causal effect. The randomised causal
 claim lives in the ITT suite.
 
-:::
-
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

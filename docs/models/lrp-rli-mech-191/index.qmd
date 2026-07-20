@@ -30,14 +30,12 @@ nonparametric **HSGP** curve, so a knee can be looked for. It is the first conti
 mechanism in the suite: the readiness knee is reported in the exposure's own **raw units** (sessions
 attended in a period), not a bounded count. `target_accept` is **0.999** (per LRP58).
 
-::: {.callout-note title="Exposure — per-period sessions, not cumulative dose"}
-The exposure is per-period sessions attended (`attend`), the same exposure LRP77 uses — **not**
+_Exposure — per-period sessions, not cumulative dose._ The exposure is per-period sessions attended (`attend`), the same exposure LRP77 uses — **not**
 cumulative dose. Cumulative attendance is a running sum of the $IS$ collider and, if *conditioned
 on*, reopens the latent-$GA$ backdoor (see LRP77 / #269); here sessions is the exposure, not an
 adjuster. `attend` has 55 missing values (the pre-/no-intervention rows, where a per-period session
 count is undefined); these survive as NaN and are dropped by the factory's exposure keep-mask, so
 the fit uses exactly the on-intervention rows that actually carry a dose.
-:::
 
 ## Adjustment set
 
@@ -49,19 +47,17 @@ covariate, and $W_{\text{pre}}$ the autoregressive baseline. No measure or heari
 are needed (they are not parents of $IS$). This is **identical adjustment to dose-077** — only the
 functional form (HSGP curve vs period-varying slope) changes.
 
-::: {.callout-warning title="Strictly observational — never a treatment effect"}
-Session dose was **not** randomised (how much a child attended reflects ability, attendance and
+_Strictly observational — never a treatment effect._ Session dose was **not** randomised (how much a child attended reflects ability, attendance and
 availability) and $IS$ is a partial collider, so the curve is an **adjusted association /
 sensitivity view**, never a treatment effect. Residual confounding by latent general ability ($GA$)
 remains. Read it as "children who attended more scored higher, and here is whether that
 relationship bends" — **not** "more sessions cause faster progress". The randomised causal claim
 lives in the ITT suite.
-:::
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

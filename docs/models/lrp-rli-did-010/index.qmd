@@ -22,17 +22,9 @@ format:
 
 LRPDID10 jointly models bounded basic-concept outcomes at t1, t2 and t3 with a separate immediate-minus-waitlist gap at each wave. It is a longitudinal sensitivity analysis alongside LRPITT25, not an independent replication.
 
-::: {.callout-note title="What this estimand is, and is not"}
+_What this estimand is, and is not._ `arm_gap_t1` checks pre-treatment balance; `tau_t2` is the randomised immediate-minus-waitlist t2 contrast; `arm_gap_t3` and `delta_crossover = tau_t2 - arm_gap_t3` are post-crossover associations because both arms are treated by t3 with different histories. No period-start outcome enters because t2 is treatment-affected in the immediate arm when used as the P2 baseline. The child random intercept partially pools stable differences rather than exactly differencing them out. Basic concepts is a distal outcome, so read `tau_t2` alongside LRPITT25 rather than as independent evidence.
 
-`arm_gap_t1` checks pre-treatment balance; `tau_t2` is the randomised immediate-minus-waitlist t2 contrast; `arm_gap_t3` and `delta_crossover = tau_t2 - arm_gap_t3` are post-crossover associations because both arms are treated by t3 with different histories. No period-start outcome enters because t2 is treatment-affected in the immediate arm when used as the P2 baseline. The child random intercept partially pools stable differences rather than exactly differencing them out. Basic concepts is a distal outcome, so read `tau_t2` alongside LRPITT25 rather than as independent evidence.
-
-:::
-
-::: {.callout-note title="Sign convention and the ceiling"}
-
-For `tau_t2`, positive favours the intervention. The Beta-Binomial logit respects the bounded 0–18 score; it does not make the post-crossover contrasts causal.
-
-:::
+_Sign convention and the ceiling._ For `tau_t2`, positive favours the intervention. The Beta-Binomial logit respects the bounded 0–18 score; it does not make the post-crossover contrasts causal.
 
 ## Model
 
@@ -46,8 +38,8 @@ with a Beta-Binomial likelihood on the t1/t2/t3 count, $N = 18$, $G_i=1$ for the
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_did.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_did.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

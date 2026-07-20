@@ -39,7 +39,7 @@ $$
 
 with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. The 2×2 LKJ residual-correlation block is **off**, so the likelihood and priors factorise by outcome. This avoids the poor mixing seen in an earlier sensitivity fit but does not estimate within-child posterior covariance. Ignoring that covariance is not guaranteed to be conservative: the direction depends on the unknown sign and magnitude. The current contrast is therefore an exploratory factorised sensitivity result, not calibrated paired inference; confirmation requires a paired child-level randomisation-inference/permutation analysis, bootstrap, sandwich, or defensible dependence-model analysis.
 
-::: {.callout-note title="Denominators and caveats"}
+_Denominators and caveats._
 
 - Taught ($\mathrm{TE}$): $N = 24$ — documented (Burgoyne et al., 2012, Table 3).
 - Not-taught ($\mathrm{UE}$): $N = 12$ — confirmed (#214; `n_trials_confirmed=True` in `measures.py`).
@@ -49,12 +49,10 @@ with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. The 2×2 
 - The factorised fit does not estimate within-child residual covariance. `use_residual_correlation=True` remains available as a model sensitivity but mixed poorly in the earlier fit; until a separate calibrated dependence analysis is completed, the report must not make a definitive paired generalisation claim.
 - PSIS-LOO leaves out a child by summing that child's observed outcome-cell log likelihoods.
 
-:::
-
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_joint.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_joint.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

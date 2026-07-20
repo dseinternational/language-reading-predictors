@@ -22,9 +22,7 @@ format:
 
 MED-186 is the parent+100 **interventional-effects companion** to [MED-086](../lrp-rli-med-086/). Both fit the same Phase-0 joint model, use letter-sound knowledge at t2 as the mediator, use the same signed-off adjustment set, and model nonword reading as the binary off-floor outcome $\mathbf{1}[N_{t2}>0]$. MED-086 reports the natural direct and indirect effects (NDE/NIE); MED-186 reports their randomised-interventional analogues (IDE/IIE).
 
-::: {.callout-important title="Off-floor outcome — effects are risk differences"}
-IDE, IIE and Total are changes in the probability of reading at least one nonword, not changes in an item count. Positive values mean that the intervention increases the probability of coming off the floor.
-:::
+_Off-floor outcome — effects are risk differences._ IDE, IIE and Total are changes in the probability of reading at least one nonword, not changes in an item count. Positive values mean that the intervention increases the probability of coming off the floor.
 
 ## Why the estimand changes
 
@@ -40,8 +38,8 @@ The fitted probabilistic model and adjustment set are intentionally identical to
 
 The set is inherited directly from MED-086: randomised group $G$, age $A$, baseline letter sounds $L_{t1}$, baseline blending $B_{t1}$, hearing $HS$, speech production $SP$ and phonological memory $RW$, with the raw-covariate missing indicators. As required by the floor rule, the binary outcome has no own-baseline term. The time-indexed derivation in `notes/202607142340-lrp264-mediation-adjustment-dsep.md` confirms that baseline expressive/receptive vocabulary is not required and that no treatment-non-descendant adjustment set can block the $L_2\leftarrow IS_1\to PA_2\to NW_2$ witness path.
 
-{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

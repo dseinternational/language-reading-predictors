@@ -40,9 +40,7 @@ $\gamma_{\text{int}} > 0$ would mean letter-sound converts to decoding *more*
 strongly for higher-blending children (super-additive); $\gamma_{\text{int}} < 0$
 is sub-additive (diminishing returns / partial substitutability).
 
-::: {.callout-note title="Linear mechanism (GP off)"}
-
-Decoding is a low, 57%-floored 0–6 count, so a nonparametric HSGP dose-response on
+_Linear mechanism (GP off)._ Decoding is a low, 57%-floored 0–6 count, so a nonparametric HSGP dose-response on
 $\operatorname{logit} L$ is not identifiable. The mechanism enters as a single
 linear slope $\beta_{\text{mech}}\,z(\operatorname{logit} L)$
 (`linear_mechanism=True`), so there is no nonparametric `f_mech` curve; the estimands
@@ -50,17 +48,13 @@ are the three coefficients above. In its place the *Mechanism curve* section bel
 plots the **linear** main-effect band $\beta_{\text{mech}}\,z(\operatorname{logit} L)$
 — the letter-sound dose-response at average blending.
 
-:::
-
 ## Adjustment set — and why $W$ is excluded
 
 Minimal set (#245): $\{G, A, HS, IS(\text{attend}), SP, N_{\text{pre}}\}$ — the
 revised-DAG parents of $L$ (group via $\beta_G$, age, hearing, sessions, speech)
 plus baseline decoding (autoregressive).
 
-::: {.callout-important title="DAG decision: word reading W is NOT conditioned on"}
-
-Word reading $W$ is a sibling/descendant of decoding in the literacy cascade.
+_DAG decision: word reading W is NOT conditioned on._ Word reading $W$ is a sibling/descendant of decoding in the literacy cascade.
 Conditioning on it would be **over-control / a collider risk** — the same error
 class as the celf/LRP70 issue — and would bias the phonics → decoding estimand.
 It is therefore excluded. Vocabulary and concepts are not plausible confounders of
@@ -68,11 +62,7 @@ the phonics → decoding path and are likewise left out. $L$ and $B$ are treated
 **parallel prerequisites**; the interaction estimand does not require resolving
 whether $L$ precedes $B$.
 
-:::
-
-::: {.callout-note title="Data caveat: floored outcome"}
-
-`nonword` is 57% floored (median 0) but informative and developmentally moving
+_Data caveat: floored outcome._ `nonword` is 57% floored (median 0) but informative and developmentally moving
 (28% → 60% of children decode ≥1 nonword across t1–t4). The predictors are
 well-distributed (`yarclet`, `blending` each ~2% floored). The floor reduces
 power and — importantly — means a **negative logit-scale interaction between two
@@ -80,12 +70,10 @@ strong positive main effects can partly reflect link saturation** (approaching t
 count ceiling when both predictors are high), not necessarily substantive
 antagonism. Interpret $\gamma_{\text{int}}$'s sign with that in mind.
 
-:::
-
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

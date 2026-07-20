@@ -30,8 +30,7 @@ transitions** (the gain-factor scaffold), with the exposure being the
 per-period **on-intervention** indicator $T$ — the term the gain-factor models
 already treat as ignorable — rather than the Phase-0 randomised group.
 
-::: {.callout-warning title="The stated, reviewable trade (read before the headline)"}
-Every quantity here leans on the **gain-factor family's ignorability
+_The stated, reviewable trade (read before the headline)._ Every quantity here leans on the **gain-factor family's ignorability
 assumption** — being on-intervention is exchangeable given the period-start
 state, phase, age and the child intercept — instead of pure randomisation. The
 on-intervention indicator varies between arms **only in period 1** (after the
@@ -41,7 +40,6 @@ mediator → outcome leg ($b_M$, the coefficient carrying the indirect effect)
 and every covariate term are informed by **all** periods. Read this model as a
 **triangulation companion** to `med-059`/`med-064` — direction and rough-share
 agreement is the deliverable — never a replacement.
-:::
 
 ## Model structure
 
@@ -86,6 +84,8 @@ and the mediator and outcome are measured contemporaneously within each period
 — **plus** the ignorability trade above. These are model-based g-formula
 decompositions under stated assumptions, not identified natural effects.
 
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
 {{< include _partials/_results_mediation.qmd >}}
 
 ## Period-1 restriction (LRP59-comparable readout)
@@ -103,9 +103,7 @@ mediation_summary_p1 = _csv("mediation_summary_p1.csv")
 mediation_summary_p1 if mediation_summary_p1 is not None else "No period-1 summary."
 ```
 
-{{< include _partials/_priors.qmd >}}
 
-{{< include _partials/_prior_predictive.qmd >}}
 
 {{< include _partials/_technical.qmd >}}
 

@@ -34,22 +34,18 @@ neither must be larger. A reproducible 32-row report artefact aligns selected LC
 target-item translations with the matching #312 adjusted average marginal effects by
 target, predictor and wave.
 
-::: {.callout-important title="Measurement / triangulation, NOT causal"}
-This is a **measurement** model. Every latent correlation and every slope derived from
+_Measurement / triangulation, NOT causal._ This is a **measurement** model. Every latent correlation and every slope derived from
 it is a **descriptive association** (locked DAG, ID-2); the instrument improves the
 measurement match, it does **not** identify effects. The randomised causal claims live
 in the ITT/DiD suites and the mediation models, not here.
-:::
 
-::: {.callout-note title="Fragility at n ~ 54"}
-A longitudinal latent model at n ~ 54 is fragile and prior-dependent — more so than the
+_Fragility at n ~ 54._ A longitudinal latent model at n ~ 54 is fragile and prior-dependent — more so than the
 single-wave `mm-001`, since it carries a trait correlation matrix and one state
 correlation matrix per wave. The reporting-tier fit gives nominal, exploratory
 estimates, not final scientific magnitudes. Prior sensitivity is required before
 substantive interpretation. Wave-varying loadings or an AR across-wave structure should
 be fitted only if checks indicate that the wave-invariant measurement specification or
 compound symmetry misfits, then compared using per-child PSIS-LOO.
-:::
 
 ## Model
 
@@ -96,8 +92,8 @@ still contributes its other cells.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_long_corr_factor.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_long_corr_factor.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

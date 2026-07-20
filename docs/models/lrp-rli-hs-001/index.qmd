@@ -27,23 +27,15 @@ baseline plus the standardised T1 baselines of the other constructs, all sharing
 global-local shrinkage prior; predictors are ranked by posterior
 `P(|beta| > delta)` and compared to the GB *cluster* ranking at construct level.
 
-::: {.callout-important title="Ranking cross-check, NOT causal"}
-
-If the horseshoe order broadly agrees with the gradient-boosting order, that is
+_Ranking cross-check, NOT causal._ If the horseshoe order broadly agrees with the gradient-boosting order, that is
 reassurance the ranking is not an artefact of the tree method — it is not a causal
 claim. Every coefficient is a **latent-ability-confounded adjusted association**;
 the randomised causal effect lives in the ITT suite (`lrp-rli-itt-010` for word reading).
 
-:::
-
-::: {.callout-note title="Between-child framing, n ~ 54"}
-
-One row per child (T1 baselines → full-study word-reading gain, `W_last | W_T1`),
+_Between-child framing, n ~ 54._ One row per child (T1 baselines → full-study word-reading gain, `W_last | W_T1`),
 mirroring LRP65: the coefficients are between-child associations. At n ~ 54 with a
 shrinkage prior the intervals are wide by design; read the *ordering*, not the
 magnitudes. Hyperparameters are weakly-informative priors, not tuned.
-
-:::
 
 ## Model
 
@@ -66,8 +58,8 @@ block-1 taught/not-taught vocabulary (unconfirmed denominators) are omitted.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_horseshoe.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_horseshoe.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

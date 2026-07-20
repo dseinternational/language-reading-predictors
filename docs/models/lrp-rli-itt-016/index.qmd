@@ -34,8 +34,8 @@ A positive contrast means the intervention increased expected proportion correct
 
 Two outcome-specific Beta-Binomial marginals are fitted in one graph over the randomised phase-0 window ($G = 1$ intervention, $G = 0$ wait-list), with own baseline and linear age but no cross-baselines. The LKJ residual-correlation block is **off**, so the model does not estimate within-child posterior covariance and the contrast uncertainty is not guaranteed to be conservative. The report uses a common proportion-correct risk-difference scale but treats the result as an exploratory factorised sensitivity, not calibrated paired inference; confirmation requires a paired child-level randomisation-inference/permutation analysis, bootstrap, sandwich, or defensible dependence-model analysis. PSIS-LOO leaves out a child, not a child-outcome cell.
 
-{{< include _partials/_results_joint.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_joint.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}

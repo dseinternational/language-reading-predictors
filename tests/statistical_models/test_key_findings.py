@@ -889,9 +889,9 @@ def test_all_statistical_reports_use_the_findings_first_order():
         "_partials/_gate_badge.qmd",
         "_partials/_key_findings.qmd",
         "_partials/_reading_guide.qmd",
-        "_partials/_results_",
         "_partials/_priors.qmd",
         "_partials/_prior_predictive.qmd",
+        "_partials/_results_",
         "_partials/_technical.qmd",
         "_partials/_footer.qmd",
     )

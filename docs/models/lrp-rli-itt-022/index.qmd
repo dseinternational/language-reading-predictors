@@ -26,22 +26,14 @@ family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline
 nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The
 estimand is the randomised offer effect on $E_{\text{post}}$ in the outcome-available fitted sample over the RCT phase, conditional on ignorable exclusion and missingness—not a full-population effect for all 57 randomised children.
 
-::: {.callout-note title="Why adjust for ability, and what it does (and does not) buy"}
-
-Block design is a child trait measured **before** randomisation, so it cannot cause assignment. This adjustment is a **precision / chance-imbalance robustness check**, not confounding control. Randomisation balances it at assignment in expectation, although observed-data selection can alter balance in a fitted subset. The immediate-intervention arm started about **0.27 SD higher** in block design, and block design is prognostic of the outcomes, so adjustment asks whether the offer contrast survives that chance head-start.
+_Why adjust for ability, and what it does (and does not) buy._ Block design is a child trait measured **before** randomisation, so it cannot cause assignment. This adjustment is a **precision / chance-imbalance robustness check**, not confounding control. Randomisation balances it at assignment in expectation, although observed-data selection can alter balance in a fitted subset. The immediate-intervention arm started about **0.27 SD higher** in block design, and block design is prognostic of the outcomes, so adjustment asks whether the offer contrast survives that chance head-start.
 
 Age is held in (`use_age_linear`), so the block-design term reads as ability **for age**—the general latent ability construct. Block design is observed for all 54 children in the repository, so it causes no additional exclusion beyond the outcome-specific analytic requirement: LRPITT22 versus LRPITT06 is a same-outcome-available-sample adjusted-versus-unadjusted contrast. It does not restore the three randomised children absent from the repository or any missing outcome.
 
-:::
-
-::: {.callout-note title="Identification and sign convention"}
-
-Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ within the outcome-available fitted sample without adjustment. Generalising beyond that sample requires ignorable exclusion and missingness. The own baseline, linear age, and the
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ within the outcome-available fitted sample without adjustment. Generalising beyond that sample requires ignorable exclusion and missingness. The own baseline, linear age, and the
 block-design adjuster are **precision terms only** - they sharpen $\tau$ but are not
 what licenses the causal interpretation. **Sign convention:** $G = 1$ is the
 intervention arm, so a **positive** $\tau$ means the intervention raises the outcome.
-
-:::
 
 ## Model
 
@@ -60,8 +52,8 @@ default.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-{{< include _partials/_results_itt.qmd >}}
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_itt.qmd >}}
 {{< include _partials/_technical.qmd >}}
 {{< include _partials/_footer.qmd >}}
