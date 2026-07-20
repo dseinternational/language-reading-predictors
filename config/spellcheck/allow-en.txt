@@ -299,6 +299,7 @@ beeswarm
 beeswarms
 behav
 bidirected
+bidirectionality
 bifactor
 bivariately
 blockable
@@ -306,6 +307,7 @@ brms
 bytree
 caveated
 celf
+cloglog
 coef
 coeffs
 collinear
