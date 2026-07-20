@@ -1,0 +1,45 @@
+---
+title: "LRP-CA-007: Concurrent conditional associations — skills → phoneme blending (per wave)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP-CA-007 completes the **concurrent conditional-associations** family's core skill set (#312, descriptive-association workstream #314) by adding **phoneme blending** (`B`) as a focal outcome. Blending was already in the family's predictor core set {`W`, `L`, `B`, `TR`, `TE`, `R`, `E`} but had no focal model of its own; giving it one makes the family's conditional-joint-distribution picture symmetric — every core-set measure is now described both as a predictor of the others and as a focal outcome conditioned on the rest.
+
+At each timepoint (t1–t4) it fits a between-child Beta-Binomial regression of blending's level on the standardised same-wave logits of the other core skills — word reading (`W`), letter sounds (`L`), taught receptive (`TR`) and expressive (`TE`) vocabulary, and standardised receptive (`R`) and expressive (`E`) vocabulary — plus age, the #371 trait covariates (non-verbal ability, hearing, speech, phonological memory), and a group nuisance term. The four waves are fitted separately and reported side by side.
+
+The estimand is the mutually-adjusted association at each wave: *"at wave t, among children alike on age and the other skills, +n of a predictor skill is associated with +m more blending items"*. Blending is a small bounded count (10 items) but is not floored — it already serves as a predictor in the sibling models — so it enters the family on the same footing as the other core measures. All children are on the intervention from t2, so these associations describe the conditional joint distribution of the skill measures within a treated system.
+
+_Estimand: descriptive association (no causal warrant)._ Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
+
+## Design
+
+- **Four separate cross-sectional fits** (one row per child per wave), reported side by side — not one stacked model with a child random intercept, which would tilt the coefficients toward a within-child quantity and change the estimand (issue #312 decision). The wave with the largest complete-outcome sample (ties → latest) is the operational diagnostic anchor for the standard trace and plots; this does not make it substantively primary or establish that it is best-powered. Every adjusted and bivariate fit has complete convergence metrics in the tables.
+- **Predictors** enter as standardised same-wave logits with regularising `Normal(0, 0.3)` slopes (essential at n ≈ 53 with a collinear predictor cluster). The focal measure (`B`) is swapped out of the predictor set; the other six core skills remain. Floored measures (`P`, `N`) are excluded as predictors.
+- **Trait covariates** aligned with the gains panel — non-verbal ability, hearing, speech and phonological memory — enter as t1 baselines broadcast across the waves (#371).
+- **Group** is included only as a non-interpretable nuisance term (absorbs arm composition at each wave); it is not reported as an association.
+- **Missing predictor values** are mean-imputed (0 on the standardised scale). This can bias a conditional coefficient, with no guaranteed direction when missingness relates to the predictor, outcome or other skills; observed and imputed counts are reported. Rows missing the focal *outcome* are dropped.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_concurrent.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
