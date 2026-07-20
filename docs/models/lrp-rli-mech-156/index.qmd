@@ -1,0 +1,66 @@
+---
+title: "LRP156: GP knee-test — receptive vocabulary (R) -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+## Overview
+
+LRP156 is a **GP knee-test**: a nonparametric (**HSGP**) re-attempt of the LRP56 mechanism, built
+to test whether the receptive-vocabulary -> word-reading association has a **"knee"** — a level of
+receptive vocabulary beyond which it is associated with a more marked difference in word reading —
+the way [LRP58](../lrp-rli-mech-058) found for letter sounds.
+
+LRP56 itself was forced to a **linear** mechanism because the HSGP curve diverged (~300
+divergences, unmoved by `target_accept` 0.99), so its estimand is a single slope, not a shape, and
+no knee could be looked for. This variant switches the HSGP curve **back on** and lifts
+`target_accept` to **0.999** (the setting that stabilises the letter-sound curve in LRP58) so the
+curve gets a genuine chance to converge.
+
+::: {.callout-important title="Non-convergence is itself the result"}
+If the curve still diverges at `target_accept` 0.999, that **non-convergence is the honest result**
+and the knee stays untestable for this exposure. Check the gate badge above before reading any
+shape into the curve.
+:::
+
+## Adjustment set
+
+Revised DAG (2026-07-10), re-derived by a backdoor d-separation search with the latent general
+ability ($GA$) held — the criterion that reproduces LRP56/58 and dose-077 exactly. $R$'s observed
+confounders that also reach word reading are $\{A, HS, TR, RW\}$; group $G\,(= IG)$ is the always-in
+precision term and $W_{\text{pre}}$ the autoregressive baseline. This is **identical to LRP56** —
+only the mechanism's functional form (nonparametric curve vs single slope) changes.
+
+::: {.callout-warning title="Adjusted association, not causal"}
+Residual confounding by latent general ability ($GA$) remains, so $f^R$ is an **adjusted
+association**, not a causal effect. The randomised causal claim lives in the ITT suite.
+:::
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

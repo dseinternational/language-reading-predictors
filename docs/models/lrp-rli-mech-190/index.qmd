@@ -1,0 +1,72 @@
+---
+title: "LRP190: GP knee-test — phoneme blending (B) -> word reading (W)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+## Overview
+
+LRP190 is a **new** mechanism model (no prior phoneme-blending -> reading fit existed), built as a
+**GP knee-test**: does phoneme blending / phonological awareness show a **"knee"** — a level of
+blending skill beyond which it is associated with a more marked difference in word reading — the
+way [LRP58](../lrp-rli-mech-058) found for letter sounds?
+
+The mechanism enters as a nonparametric **HSGP** curve on the logit-safe transform of the blending
+post-score, at `target_accept` **0.999** (per LRP58).
+
+::: {.callout-important title="A demanding fit — non-convergence is itself the result"}
+Blending is a small bounded count ($n = 10$ items), so the nonparametric curve is demanding at this
+sample size. A divergence is itself an honest result and would leave the knee untestable — check
+the gate badge above before reading any shape into the curve.
+:::
+
+## Adjustment set
+
+Revised DAG (2026-07-10), derived by a backdoor d-separation search with the latent general
+ability ($GA$) held (the criterion that reproduces LRP56/58 and dose-077). In the DAG, phoneme
+blending ($PA$) has parents $\{A, GA, HS, IG, IS, TE, EV, SP, LS, RW\}$; the minimal observed set
+that blocks every backdoor to word reading is $\{A, HS, IG, IS, LS, TE, EV, SP, RW\}$, with
+$W_{\text{pre}}$ the autoregressive baseline.
+
+::: {.callout-important title="Read net of letter-sound knowledge"}
+Crucially the adjustment set includes **letter sounds** ($LS = L$): $LS \to PA$ and $LS \to WR$
+make it a $PA \leftarrow LS \to WR$ confounder, so a blending -> reading association must be read
+**net of** letter-sound knowledge. Measure confounders $L$, $TE$, $E$ enter on their logit scale;
+the continuous confounders $HS$, $IS$ (`attend`), $SP$ and $RW$ enter as covariates; group
+$G\,(= IG)$ is the always-in precision term. The causal paths $PA \to WR$ and $PA \to NW \to WR$
+are preserved ($NW$, $PS$ are descendants of $PA$ and are never adjusted).
+:::
+
+::: {.callout-warning title="Adjusted association, not causal"}
+Residual confounding by latent general ability ($GA$) remains, so $f^B$ is an **adjusted
+association**, not a causal effect. The randomised causal claim lives in the ITT suite.
+:::
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

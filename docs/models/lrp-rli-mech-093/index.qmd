@@ -1,0 +1,101 @@
+---
+title: "LRP93: Mechanism model — letter-sound (L) -> word reading (W), moderated by receptive vocabulary (R)"
+
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm:ss Z"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+:::
+
+## Overview
+
+LRP93 is a **joint-readiness** interaction model. It extends [LRP58](../lrp-rli-mech-058) —
+the mechanism estimate $f^L$ of letter-sound knowledge on word reading, fit over all three
+phase transitions — with a **linear moderation** by **receptive** vocabulary $R$ (`rowpvt`, ROWPVT). It is
+the direct companion of [LRP71](../lrp-rli-mech-071) (which moderates the same $L \to W$ curve by
+*expressive* vocabulary $E$) and of LRP94 (taught-receptive, $TR$) and LRP95 (taught-expressive,
+$TE$). Together the four models ask the same question for every vocabulary measure: *do
+letter-sound knowledge and vocabulary have to be high **together** for larger word-reading gains,
+or does either one help on its own?*
+
+Letter sounds enter as the nonparametric **HSGP** curve $f^L$ (as in LRP58); receptive vocabulary
+enters as a standardised linear main effect plus the interaction:
+
+$$
+\eta = \dots + f^{L}(\operatorname{logit} L_{\text{post}})
+       + \gamma_{\text{mod}}\, z(R)
+       + \gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(R)
+$$
+
+where $z(\cdot)$ standardises to mean 0, sd 1 over the fitted rows. Both cross-coupling
+coefficients use the regularising $\mathrm{Normal}(0, 0.3)$ prior.
+
+::: {.callout-note title="Reading the interaction"}
+
+$\gamma_{\text{int}}$ is the change in the letter-sound -> word-reading slope per +1 SD of
+receptive vocabulary (equivalently, by the symmetry of the product term, the change in the
+vocabulary slope per +1 SD of letter sounds).
+
+- $\gamma_{\text{int}} > 0$ = **synergy**: the two skills reinforce each other, so word reading
+  is highest when *both* are high (the "both above a threshold" pattern).
+- $\gamma_{\text{int}} \approx 0$ = the two contribute roughly **independently** (additive; either
+  being high helps).
+- $\gamma_{\text{int}} < 0$ = they partly **substitute** (diminishing returns to having both).
+
+Because $z(\operatorname{logit} L)$ is centred, $\gamma_{\text{mod}}$ is the vocabulary main effect
+*at the mean of letter sounds*, and $f^L$ is the $L \to W$ effect *at the mean of $R$*; with the
+interaction present, $f^L$ no longer captures the full $L$ effect across all vocabulary levels.
+
+$L$ and $R$ are positively correlated in this cohort ($r \approx 0.55$), so the discordant
+high-one/low-other children are relatively few and the interaction is correspondingly **weakly
+powered** — read $\gamma_{\text{int}}$ as an exploratory description, not a precise estimate.
+
+:::
+
+## Adjustment set
+
+The revised LRP58/LRP71 $L \to W$ set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$
+— group, linear age, hearing, intervention sessions, speech production, and baseline word reading.
+The moderator $R$ enters **additionally**, via its main effect and interaction only.
+
+::: {.callout-important title="R enters as the tested moderator only"}
+
+Conditioning on a vocabulary measure can open a collider path for the $L \to W$ main association
+(the reason the plain LRP58 curve omits vocabulary adjusters), so the $L$ main slope here is read
+**only jointly** with the moderation, exactly as in LRP71. $L$ and $R$ are treated as parallel
+prerequisites; the interaction estimand does not require resolving whether one precedes the other.
+
+:::
+
+::: {.callout-warning title="Adjusted association, not causal"}
+Latent general ability ($GA$) is not adjusted for and the child random intercept does not stand in
+for it, so everything here — $f^L$, $\gamma_{\text{mod}}$ and $\gamma_{\text{int}}$ — is a
+**latent-GA-confounded adjusted association**, never a causal effect. The randomised causal claim
+lives in the ITT suite.
+:::
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
