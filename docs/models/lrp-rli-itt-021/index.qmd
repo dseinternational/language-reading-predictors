@@ -1,9 +1,6 @@
 ---
 title: "LRPITT21: Ability-adjusted modified-ITT offer effect on receptive vocabulary (R)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

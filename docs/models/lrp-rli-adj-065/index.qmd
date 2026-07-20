@@ -1,9 +1,6 @@
 ---
 title: "LRP65: Adjusted model — independent baseline predictors of word-reading gain"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

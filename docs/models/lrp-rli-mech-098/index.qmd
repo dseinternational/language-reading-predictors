@@ -1,9 +1,6 @@
 ---
 title: "LRP98: Negative-control outcome — letter sounds (L) -> expressive vocabulary (E)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

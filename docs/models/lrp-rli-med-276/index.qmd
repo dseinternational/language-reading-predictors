@@ -1,9 +1,6 @@
 ---
 title: "LRP276: Reverse WR→LS mediation, t3 outcome (ceiling sensitivity to LRP176)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

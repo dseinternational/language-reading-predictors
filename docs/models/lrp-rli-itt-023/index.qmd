@@ -1,9 +1,6 @@
 ---
 title: "LRPITT23: Ability-adjusted modified-ITT offer effect on letter-sound knowledge (L)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

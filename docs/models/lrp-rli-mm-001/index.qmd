@@ -1,9 +1,6 @@
 ---
 title: "LRPMM01: Correlated-domain-factor measurement model (vocabulary / code / grammar)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

@@ -1,9 +1,6 @@
 ---
 title: "LRP97: Negative-control outcome — letter sounds (L) -> receptive vocabulary (R)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

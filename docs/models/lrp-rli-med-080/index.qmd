@@ -1,9 +1,6 @@
 ---
 title: "LRP80: Does word reading route through taught-receptive vocabulary? (mediation; TE companion)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

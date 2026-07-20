@@ -1,9 +1,6 @@
 ---
 title: "LRPITT19: Ability-adjusted modified-ITT offer effect on not-taught receptive vocabulary (UR)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

@@ -1,9 +1,6 @@
 ---
 title: "LRPGBG16: Predictors of DEAP fine-articulation gains"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

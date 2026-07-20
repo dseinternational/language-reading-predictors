@@ -1,9 +1,6 @@
 ---
 title: "LRPAL05: Aligned-40-week per-protocol gain for phonetic spelling (P), off-floor"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

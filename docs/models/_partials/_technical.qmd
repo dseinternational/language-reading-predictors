@@ -1,7 +1,3 @@
-::: {.callout-note}
-Drafted by a LLM-based AI tool (Codex/GPT-5).
-:::
-
 ::: {.callout-note collapse="true" title="Technical checks"}
 
 {{< include _partials/_convergence.qmd >}}

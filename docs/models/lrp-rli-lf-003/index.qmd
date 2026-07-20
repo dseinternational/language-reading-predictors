@@ -1,9 +1,6 @@
 ---
 title: "LRPLF03: Factors associated with the level of expressive vocabulary (E)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

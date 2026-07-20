@@ -1,9 +1,6 @@
 ---
 title: "LRPLF07: Factors associated with the level of CELF basic concepts (F)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

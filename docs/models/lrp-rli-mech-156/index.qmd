@@ -1,9 +1,6 @@
 ---
 title: "LRP156: GP knee-test — receptive vocabulary (R) -> word reading (W)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true
@@ -20,10 +17,6 @@ format:
 {{< include _partials/_gate_badge.qmd >}}
 {{< include _partials/_key_findings.qmd >}}
 {{< include _partials/_reading_guide.qmd >}}
-
-::: {.callout-note}
-Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
-:::
 
 ## Overview
 

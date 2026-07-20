@@ -1,9 +1,6 @@
 ---
 title: "LRPGBG07: Predictors of APT expressive-information gains"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

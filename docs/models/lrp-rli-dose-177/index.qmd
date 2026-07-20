@@ -1,9 +1,6 @@
 ---
 title: "LRP77a: Dose-response (ability-adjusted sensitivity) — tests no `g -> dose`"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

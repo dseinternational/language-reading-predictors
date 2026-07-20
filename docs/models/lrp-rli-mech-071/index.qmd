@@ -1,9 +1,6 @@
 ---
 title: "LRP71: Mechanism model — letter-sound (L) -> word reading (W), moderated by expressive vocabulary (E)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

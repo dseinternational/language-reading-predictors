@@ -1,9 +1,6 @@
 ---
 title: "LCSM-081: Does prior word reading predict taught-vocabulary change? (lagged reverse coupling)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

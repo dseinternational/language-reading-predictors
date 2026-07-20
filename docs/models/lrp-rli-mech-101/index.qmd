@@ -1,9 +1,6 @@
 ---
 title: "LRP101: Linear letter-sound (L) -> word reading (W) slope — Tier-1 contrast anchor"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

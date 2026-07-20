@@ -1,9 +1,6 @@
 ---
 title: "LRPITT03: Modified-ITT analysis of not-taught receptive vocabulary, block 1 (UR)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

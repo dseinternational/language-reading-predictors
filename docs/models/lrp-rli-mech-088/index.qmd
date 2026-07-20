@@ -1,9 +1,6 @@
 ---
 title: "LRP88: Mechanism model — taught receptive vocabulary (TR) -> word reading (W)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

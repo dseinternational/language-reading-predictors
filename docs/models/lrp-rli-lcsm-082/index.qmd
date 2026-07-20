@@ -1,9 +1,6 @@
 ---
 title: "LCSM-082: Blending ↔ word reading — which direction dominates? (exploratory reciprocal coupling)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

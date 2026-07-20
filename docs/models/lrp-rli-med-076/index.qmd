@@ -1,9 +1,6 @@
 ---
 title: "LRP76: Longitudinal-ordering mediation — letter sounds (t2) → word reading (t4)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

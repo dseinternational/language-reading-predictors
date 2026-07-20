@@ -1,9 +1,6 @@
 ---
 title: "LRP66: Do letter-sounds and blending act as independent phonics paths to word reading? (two-mediator decomposition)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

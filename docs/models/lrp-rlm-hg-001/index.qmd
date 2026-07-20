@@ -1,9 +1,6 @@
 ---
 title: "RLMHG01: Historical BAS word-reading growth, waves 1-4 + DS wave 5 (Byrne et al.)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

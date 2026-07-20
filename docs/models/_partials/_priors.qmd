@@ -1,7 +1,3 @@
-::: {.callout-note}
-Substantially edited by a LLM-based AI tool (Codex/GPT-5).
-:::
-
 ## Priors
 
 The priors below are documented in `priors.py` (the single source of truth, so they cannot drift between models). The **role** column distinguishes *causal* terms where a design identifies them, *precision* terms, descriptive or adjusted *association* terms, *nuisance* terms (such as intercepts, dispersion and random-intercept scales), and any *GP* amplitudes or lengthscales. A role describes how a parameter may be interpreted in this model; it does not turn an association into an effect.

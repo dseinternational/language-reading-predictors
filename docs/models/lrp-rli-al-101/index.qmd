@@ -1,9 +1,6 @@
 ---
 title: "LRPAL01d: Aligned-40-week dose sensitivity variant for word reading (W)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

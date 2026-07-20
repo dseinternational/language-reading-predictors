@@ -1,7 +1,3 @@
-::: {.callout-note}
-Drafted by a LLM-based AI tool (Codex/GPT-5).
-:::
-
 ## Results
 
 The aligned per-protocol design has no clean randomised treatment coefficient.

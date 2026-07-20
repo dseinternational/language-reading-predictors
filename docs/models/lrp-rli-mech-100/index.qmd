@@ -1,9 +1,6 @@
 ---
 title: "LRP100: Negative-control outcome — letter sounds (L) -> basic concepts (F)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true
