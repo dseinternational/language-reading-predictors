@@ -1,9 +1,6 @@
 ---
 title: "LRP75: Sequential code route — letter sounds → blending → word reading"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

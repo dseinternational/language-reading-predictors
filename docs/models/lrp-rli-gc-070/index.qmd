@@ -1,9 +1,6 @@
 ---
 title: "LRP70: Do verbal/reading trajectories grow together, and does baseline non-verbal ability predict the common tempo? (shared growth-tempo factor)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

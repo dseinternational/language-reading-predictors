@@ -1,9 +1,6 @@
 ---
 title: "LRPMM101: Prior sensitivity for the correlated-domain-factor measurement model"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

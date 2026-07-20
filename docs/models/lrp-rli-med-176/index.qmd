@@ -1,9 +1,6 @@
 ---
 title: "LRP176: Reverse longitudinal-ordering mediation — word reading (t2) → letter sounds (t4)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

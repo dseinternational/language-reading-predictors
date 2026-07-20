@@ -1,9 +1,6 @@
 ---
 title: "LRP72: Phonics route — letter-sound (L) × phoneme blending (B) -> decoding (nonword)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

@@ -1,9 +1,6 @@
 ---
 title: "LRPITT18: Ability-adjusted modified-ITT offer effect on taught expressive vocabulary (TE)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

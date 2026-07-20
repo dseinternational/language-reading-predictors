@@ -1,9 +1,6 @@
 ---
 title: "LRPAL02: Aligned-40-week per-protocol gain for receptive vocabulary (R)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

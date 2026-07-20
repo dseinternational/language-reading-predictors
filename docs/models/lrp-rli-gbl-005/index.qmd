@@ -1,9 +1,6 @@
 ---
 title: "LRPGBL05: Predictors of receptive vocabulary level"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

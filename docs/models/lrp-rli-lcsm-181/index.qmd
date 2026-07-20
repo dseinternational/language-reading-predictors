@@ -1,9 +1,6 @@
 ---
 title: "LCSM-181: No-reverse-coupling comparator (LOO baseline for LCSM-081)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

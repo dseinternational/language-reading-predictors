@@ -1,9 +1,6 @@
 ---
 title: "LRPITT05: Modified-ITT analysis of standardised receptive vocabulary (ROWPVT) (R)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

@@ -1,9 +1,6 @@
 ---
 title: "LRP68: Does word reading route through taught-expressive vocabulary? (mediation)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

@@ -1,9 +1,6 @@
 ---
 title: "LRPITT14b: Unadjusted modified-ITT offer effect on the SES complete-case subset, letter sounds"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

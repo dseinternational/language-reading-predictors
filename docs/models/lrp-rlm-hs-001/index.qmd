@@ -1,9 +1,6 @@
 ---
 title: "RLMHS01: Byrne horseshoe ranking of wave-1 predictors of word-reading gain"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true
@@ -14,10 +11,6 @@ format:
     code-links:
       - repo
 ---
-
-::: {.callout-note}
-Drafted by a LLM-based AI tool (Claude Code/Fable 5).
-:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

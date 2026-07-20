@@ -1,9 +1,6 @@
 ---
 title: "LRP96: Decoding channel — letter-sound knowledge (L) -> nonword reading (N)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

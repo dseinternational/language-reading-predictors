@@ -1,9 +1,6 @@
 ---
 title: "LRPGBL01: Predictors of taught-receptive-vocabulary level"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

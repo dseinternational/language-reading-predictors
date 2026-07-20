@@ -1,7 +1,3 @@
-::: {.callout-note}
-Drafted by a LLM-based AI tool (Codex/GPT-5); revised by Claude Code/Opus 4.8.
-:::
-
 ## Results
 
 The factor model reports **one** causal coefficient — the randomised

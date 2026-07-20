@@ -1,9 +1,6 @@
 ---
 title: "LRPHS02: Regularized-horseshoe ranking cross-check - word-reading level"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

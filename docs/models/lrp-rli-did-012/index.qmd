@@ -1,9 +1,6 @@
 ---
 title: "LRPDID12: Waitlist-crossover arm-by-wave sensitivity for nonword reading (NWR) (N), off-floor prevalence"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true
@@ -14,12 +11,6 @@ format:
     code-links:
       - repo
 ---
-
-::: {.callout-note}
-Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
-
-Substantially revised, including correction of the floor-estimand provenance, by a LLM-based AI tool (Codex/GPT-5).
-:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

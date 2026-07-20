@@ -1,9 +1,6 @@
 ---
 title: "LRP89: Mechanism model — taught expressive vocabulary (TE) -> word reading (W)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

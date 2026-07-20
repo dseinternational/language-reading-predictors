@@ -1,9 +1,6 @@
 ---
 title: "LRPLF02: Factors associated with the level of receptive vocabulary (R)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

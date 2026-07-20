@@ -1,9 +1,6 @@
 ---
 title: "LRPGBG18: Predictors of Early Repetition Battery word repetition gains"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

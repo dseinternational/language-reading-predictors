@@ -1,9 +1,6 @@
 ---
 title: "LRPITT13: SES-adjusted modified-ITT offer effect on word reading (W)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

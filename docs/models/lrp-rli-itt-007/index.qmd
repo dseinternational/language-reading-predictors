@@ -1,9 +1,6 @@
 ---
 title: "LRPITT07: Modified-ITT analysis of letter-sound knowledge (YARC-LSK) (L)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

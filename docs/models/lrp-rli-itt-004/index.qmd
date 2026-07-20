@@ -1,9 +1,6 @@
 ---
 title: "LRPITT04: Modified-ITT analysis of not-taught expressive vocabulary, block 1 (UE)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

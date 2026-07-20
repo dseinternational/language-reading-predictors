@@ -1,9 +1,6 @@
 ---
 title: "LRP69: Does baseline non-verbal ability predict verbal/reading trajectory shape? (joint growth curves, independent core)"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

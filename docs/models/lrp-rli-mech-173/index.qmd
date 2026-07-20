@@ -1,9 +1,6 @@
 ---
 title: "LRP73base: Letter-sound to word reading with age main effect, no interaction"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true

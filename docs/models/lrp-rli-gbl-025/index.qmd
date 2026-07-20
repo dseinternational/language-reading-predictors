@@ -1,9 +1,6 @@
 ---
 title: "LRPGBL25: Predictors of language sample maximum utterance length level"
 
-date: last-modified
-date-format: "YYYY-MM-DD HH:mm:ss Z"
-
 format:
   html:
     code-fold: true
