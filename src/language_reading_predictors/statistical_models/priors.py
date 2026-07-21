@@ -507,8 +507,10 @@ _INLINE_PRIORS: dict[str, dict[str, str]] = {
         "role": "nuisance",
         "distribution": "Normal(0, 1)",
         "rationale": (
-            "Concurrent-family group-composition nuisance term; not a reported "
-            "association."
+            "Non-interpretable group-composition nuisance dummy (Normal(0, 1)) held "
+            "outside the horseshoe / adjustment set to absorb cohort composition "
+            "(reference = largest group); never a ranked predictor slope or a "
+            "group-effect estimate."
         ),
     },
     "hs_z": {
@@ -636,10 +638,20 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     if base.startswith(("u_chol", "u_corr", "factor_cov", "chol")):
         return ("nuisance", "")
     # LCF trait/state correlation components jointly induce the headline
-    # within-wave factor correlations, so they are association parameters rather
-    # than unreported covariance plumbing.
-    if base == "trait_corr_chol" or base.startswith("state_corr_chol_w"):
+    # within-wave factor correlations, and the RLM joint-growth Cholesky induces
+    # the headline between-child cross-measure correlation — association parameters
+    # rather than unreported covariance plumbing.
+    if (
+        base in {"trait_corr_chol", "measure_corr_chol"}
+        or base.startswith("state_corr_chol_w")
+    ):
         return ("association", "")
+    # RLM historical-growth / joint-growth bespoke offsets and level grid: the
+    # per-subject non-centred offsets ``z_subject`` and the group-by-wave
+    # population level grid ``eta_cell`` are intercept-class nuisances (the reported
+    # cells/intervals are deterministics of ``eta_cell``), not skill couplings.
+    if base in {"z_subject", "eta_cell"}:
+        return ("nuisance", "")
     # The stable-trait variance share and exact-zero-sum factor means organise the
     # longitudinal measurement structure but are not themselves skill couplings.
     if base in {"trait_share", "factor_mean"}:
@@ -667,7 +679,9 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     # the gamma_cross panel when it shares that prior's scale.
     if distribution == "Normal(0, 0.3)":
         return ("association", "gamma_cross")
-    if base.startswith(("g_", "b_", "a_", "aL", "aE", "d_")) or base.endswith("_self"):
+    if base.startswith(("g_", "b_", "a_", "aL", "aE", "aB", "d_")) or base.endswith(
+        "_self"
+    ):
         return ("association", "")
     return ("other", "")
 
@@ -707,6 +721,36 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
             f"Exact-zero-sum domain-by-wave mean deviations ({fitted}); represents "
             "wave shifts after pooled indicator standardisation."
         )
+    if base.endswith("_self"):
+        return (
+            f"Within-measure self-feedback of the change-score recursion (level "
+            f"AR(1): phi = 1 + b_self; {fitted}); centred at -0.3 (phi ~ 0.7) so "
+            "trajectories mean-revert rather than random-walk — an own-dynamics term, "
+            "not a cross-skill association."
+        )
+    if base == "z_subject":
+        return (
+            f"Non-centred standard-normal per-subject offsets ({fitted}); "
+            "group-centred and scaled by sigma_subject to form the subject random "
+            "effects."
+        )
+    if base == "eta_cell":
+        return (
+            f"Group-by-wave population level per cell/measure on the logit scale "
+            f"({fitted}); the fitted cells (mean_items) and growth intervals are "
+            "deterministics of it — descriptive, not a treatment effect."
+        )
+    if base == "sigma_subject":
+        return (
+            f"Group-indexed between-subject random-intercept SD ({fitted}); "
+            "between-child heterogeneity that differs by cohort group."
+        )
+    if base == "measure_corr_chol":
+        return (
+            f"LKJ(eta=2) prior on the Cholesky factor of the between-child "
+            f"cross-measure correlation ({fitted}); R = chol @ chol.T is the headline "
+            "reading-language-memory coupling estimand."
+        )
     return ""
 
 
@@ -732,6 +776,16 @@ def prior_info_for_rv(
     base = rv_name.split("[")[0]
     rationale_overrides = rationale_overrides or {}
     rationale = rationale_overrides.get(rv_name, rationale_overrides.get(base))
+    # The RLM cohort group-nuisance dummies are slug-suffixed
+    # (``beta_group_nuisance_down_syndrome`` / ``_reading_matched``), so the exact
+    # ``_INLINE_PRIORS`` match below misses and the ``beta_`` prefix would route
+    # them to ``predictor_slope`` (association) — mislabelling a non-interpretable
+    # cohort dummy as a ranked predictor slope. Match the family by prefix here.
+    if base.startswith("beta_group_nuisance"):
+        info = _INLINE_PRIORS["beta_group_nuisance"]
+        if rationale is not None:
+            info = {**info, "rationale": rationale}
+        return {"parameter": rv_name, **info, "panel": ""}
     if base in _INLINE_PRIORS:
         info = _INLINE_PRIORS[base]
         if rationale is not None:
