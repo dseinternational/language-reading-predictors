@@ -11,7 +11,7 @@ A quick reading guide for the Bayesian summaries, aimed at a reader more used to
 
 **block_exposure (`bx-001…004`) — what it asks.** The vocabulary teaching was delivered in two consecutive **blocks**: a first set of target words (block 1) was taught for a period, then a second, different set of target words (block 2) was taught in a later period. Because the block-2 words are only actively taught during the second window, we can ask a **parallel-trends** question: is a child's score on the block-2 words higher in the window when block-2 teaching is _active_ than in the earlier window when only block-1 teaching was running? "Parallel-trends" here means we compare the same measure across two exposure windows and read the difference (`delta`) as an exposure association. Crucially, **which words fell in which block was not randomised**, so `delta` is an association, not an effect. The four models cover taught expressive vocabulary (TE2), taught receptive vocabulary (TR2), and the two not-taught generalisation measures (UE2, UR2).
 
-**survival (`surv-009`, `surv-011`) — what it asks.** Two outcomes sit almost entirely on their floor early in the trial: phonetic spelling (P) and nonword reading (N). Rather than model a score that is mostly zero, these discrete-time survival models ask a timing question: in each interval between waves, what is the **hazard** — the chance, among children still on the floor, of first "coming off the floor" (moving above zero) in that interval? A **hazard ratio (HR)** compares that per-interval chance between groups: HR > 1 means the group comes off the floor _earlier_ (higher chance each interval), HR < 1 means _later_. The headline `tau` term is a treated-vs-not hazard ratio, but because **both arms have been treated by the final wave**, it is a whole-trial prognostic association, not a randomised effect. Each model also carries baseline-skill covariates (baseline word reading W0, baseline letter-sound/L level L0, baseline age-and-ability A0), all entered per standard deviation.
+**survival (`surv-009`, `surv-011`) — what it asks.** Two outcomes sit almost entirely on their floor early in the trial: phonetic spelling (PS) and nonword reading (NW). Rather than model a score that is mostly zero, these discrete-time survival models ask a timing question: in each interval between waves, what is the **hazard** — the chance, among children still on the floor, of first "coming off the floor" (moving above zero) in that interval? A **hazard ratio (HR)** compares that per-interval chance between groups: HR > 1 means the group comes off the floor _earlier_ (higher chance each interval), HR < 1 means _later_. The headline `tau` term is a treated-vs-not hazard ratio, but because **both arms have been treated by the final wave**, it is a whole-trial prognostic association, not a randomised effect. Each model also carries baseline-skill covariates (baseline word reading W0, baseline letter-sound/L level L0, baseline age-and-ability A0), all entered per standard deviation.
 
 ## The one-paragraph story
 
@@ -56,10 +56,10 @@ The pattern is clear and consistent: **general cognitive ability** is very stron
 
 `tau` is a log-hazard shift for the treated arm; exponentiated it is the hazard ratio for coming off the floor. Because both arms are treated by the final wave, it is a whole-trial prognostic association.
 
-| Model    | Measure               | Hazard ratio | 89% credible range | Direction (P(tau>0)) | Evidence                       |
-| -------- | --------------------- | ------------ | ------------------ | -------------------- | ------------------------------ |
-| surv-009 | Phonetic spelling (P) | 0.84         | 0.46 to 1.56       | 0.329 (67% below 1)  | inconclusive (leans later)     |
-| surv-011 | Nonword reading (N)   | 1.35         | 0.75 to 2.44       | 0.798 (80% above 1)  | suggestive (earlier off-floor) |
+| Model    | Measure                | Hazard ratio | 89% credible range | Direction (P(tau>0)) | Evidence                       |
+| -------- | ---------------------- | ------------ | ------------------ | -------------------- | ------------------------------ |
+| surv-009 | Phonetic spelling (PS) | 0.84         | 0.46 to 1.56       | 0.329 (67% below 1)  | inconclusive (leans later)     |
+| surv-011 | Nonword reading (NW)   | 1.35         | 0.75 to 2.44       | 0.798 (80% above 1)  | suggestive (earlier off-floor) |
 
 Reading these: for phonetic spelling the treated arm has, if anything, a _lower_ per-interval chance of coming off the floor (HR 0.84, so slightly later), but the credible range spans HR 0.46–1.56 and only 67% of the posterior is below 1 — inconclusive, no confident call. For nonword reading the treated arm leans toward coming off the floor _earlier_ (HR 1.35, 80% of the posterior above 1), which is suggestive but well short of a confident effect — and in any case not randomised.
 
@@ -67,7 +67,7 @@ Reading these: for phonetic spelling the treated arm has, if anything, a _lower_
 
 These per-standard-deviation baseline covariates are the stronger and more consistent survival signals, and were absent from the earlier version of this note. All are prognostic (baseline-predictor) associations, latent-ability-confounded, never causal. HR > 1 means children higher on that baseline skill come off the floor earlier.
 
-| Term                                    | surv-009 (P)                                         | surv-011 (N)                                                                       |
+| Term                                    | surv-009 (PS)                                        | surv-011 (NW)                                                                      |
 | --------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `beta_W0` (baseline word reading)       | HR 1.32 (log 0.275), P>0 0.918 — moderate            | HR 1.64 (1.18–2.31 span; log 0.498, 89% 0.168–0.839), P>0 0.9925 — **very strong** |
 | `beta_L0` (baseline letter-sound level) | HR 1.41 (1.03–1.94; log 0.342), P>0 0.960 — moderate | HR 1.39 (log 0.333), P>0 0.958 — moderate                                          |
@@ -79,7 +79,7 @@ The strongest single signal in either survival model is **baseline word reading*
 
 For an untreated child at average covariates, the fitted per-interval chance of coming off the floor, with 89% credible ranges:
 
-| Interval | Phonetic spelling (P)  | Nonword reading (N)    |
+| Interval | Phonetic spelling (PS) | Nonword reading (NW)   |
 | -------- | ---------------------- | ---------------------- |
 | t1 → t2  | 22.0% (11.9% to 36.4%) | 27.2% (15.6% to 42.5%) |
 | t2 → t3  | 18.8% (8.0% to 38.4%)  | 29.4% (14.1% to 53.3%) |

@@ -61,13 +61,13 @@ The cleanest, most interpretable fits: a single randomised τ per outcome, ESS 4
 - τ (logit) median **+0.236**, 95% CrI **[−0.067, 0.513]**; pd **0.955**.
 - **Read:** the taught-receptive effect is **robust to adjusting for general ability** — τ barely moves from LRPITT01 (0.247 → 0.236), pd 0.969 → 0.955, interval only slightly wider (the adjustment costs a little precision). The effect is not an artefact of ability imbalance.
 
-### LRPITT09 — phonetic spelling (P), superseded all-child binary fit
+### LRPITT09 — phonetic spelling (PS), superseded all-child binary fit
 
 - The old fit modelled `Pr(post > 0)` across 53 outcome-available children and produced a near-zero posterior. It did **not** model the current post-hoc transition estimand `Pr(post > 0 | observed pre = 0)`.
 - For the current estimand, the raw observed mover counts are intervention **7/24 (29%)** versus control **2/17 (12%)**, with 41 observed baseline-floor children. One additional archived child was observed at zero at t1 but lacks t2, and three randomised participants are absent from the archive.
 - **Read:** the historical posterior and its “credible null” conclusion are not portable to the corrected estimand. Refit the 41-child transition model and read it with the archive-only and full-57 binary missingness bounds.
 
-### LRPITT11 — nonword reading (N), superseded all-child binary fit
+### LRPITT11 — nonword reading (NW), superseded all-child binary fit
 
 - The old fit modelled `Pr(post > 0)` across 53 outcome-available children and produced a weak positive posterior. It did **not** enforce observed baseline-floor eligibility.
 - For the current estimand, the raw observed mover counts are intervention **10/21 (48%)** versus control **2/15 (13%)**, with 36 eligible children. Three children with observed t2 have missing t1 eligibility, one archived control child lacks both scores, and three randomised participants are absent from the archive.
@@ -216,7 +216,7 @@ wired into ITT/joint/GF/LF only); convergence read off `diagnostics.csv`.
 
 ## Cross-cutting synthesis
 
-### 1. Word reading (W) is the robust, replicated effect
+### 1. Word reading (WR) is the robust, replicated effect
 
 Five of six modelling routes agree, three of them well-identified:
 
@@ -238,7 +238,7 @@ agreeing is the headline.**
 ### 2. A coherent outcome gradient
 
 From the joint (LRPITT12) and corroborated by the singles/GF/LF:
-**letter sounds (L) ≈ word reading (W) ≈ taught expressive (TE) > blending (B) ≈
+**letter sounds (LS) ≈ word reading (WR) ≈ taught expressive (TE) > blending (PA) ≈
 taught/not-taught receptive (TR/UR) > phonetic spelling/nonword (P/N, floored) >
 standardised vocabulary (R, E ≈ null).** The effect concentrates on **reading-decoding
 skills and directly-taught content**; **standardised vocabulary does not move** and

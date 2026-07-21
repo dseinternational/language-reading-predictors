@@ -7,7 +7,7 @@
 
 At a single wave, "among children alike on age and the other skills, does a child who is higher on skill X also tend to be higher on the focal skill Y?" This is the regression-style description of the **joint distribution of skills at each timepoint** — a modern version of the paper's own correlation tables. Each coefficient is reported two ways: **adjusted** (holding every other same-wave skill fixed) and **bivariate** (that predictor alone). Both are put on the items scale as an average marginal effect — the expected change in the focal skill's raw item count per **+1 SD** (one standard deviation, i.e. one typical between-child step) of the predictor — computed separately at each of the four timepoints (t1–t4).
 
-The family covers six focal skills, one model each: **ca-001** word reading (W), **ca-002** letter sounds (L), **ca-003** taught receptive vocabulary (TR), **ca-004** taught expressive vocabulary (TE), **ca-005** receptive vocabulary (R), **ca-006** expressive vocabulary (E). All use a Beta-Binomial likelihood on bounded post-score counts through a logit-linear predictor, with no interaction, spline, or nonlinearity term — so there is no knee or threshold estimand to report, only per-wave slopes.
+The family covers six focal skills, one model each: **ca-001** word reading (WR), **ca-002** letter sounds (LS), **ca-003** taught receptive vocabulary (TR), **ca-004** taught expressive vocabulary (TE), **ca-005** receptive vocabulary (RV), **ca-006** expressive vocabulary (EV). All use a Beta-Binomial likelihood on bounded post-score counts through a logit-linear predictor, with no interaction, spline, or nonlinearity term — so there is no knee or threshold estimand to report, only per-wave slopes.
 
 **This family makes no causal claim at all — by design.** All children are on the programme from t2, so every one of these coefficients conditions on post-treatment skills; that would wreck a causal reading, but it is perfectly fine for pure description. Every term is flagged `Status.ASSOCIATION`. The report carries the **Table-2-fallacy** caveat — each adjusted coefficient answers a _different_ conditional question (its own "holding-the-rest-fixed" world), so the column should not be read as a single ranking of "importance" — and a **regression-dilution** note: because the predictors are noisy observed scores rather than the latent skills themselves, the adjusted associations are attenuated (pulled toward zero) relative to the underlying truth, and the shared measurement error is part of why some adjusted terms flip sign once collinear partners are held fixed.
 
@@ -19,12 +19,12 @@ All 6 models **passed** cleanly. Zero divergences everywhere; maximum R-hat ≤ 
 
 | Model  | Focal skill                  | Max R-hat | Min ESS | Divergences | Gate |
 | ------ | ---------------------------- | --------- | ------- | ----------- | ---- |
-| ca-001 | Word reading (W)             | 1.0005    | 25,216  | 0           | pass |
-| ca-002 | Letter sounds (L)            | 1.0003    | 25,144  | 0           | pass |
+| ca-001 | Word reading (WR)            | 1.0005    | 25,216  | 0           | pass |
+| ca-002 | Letter sounds (LS)           | 1.0003    | 25,144  | 0           | pass |
 | ca-003 | Taught receptive vocab (TR)  | 1.0004    | 25,057  | 0           | pass |
 | ca-004 | Taught expressive vocab (TE) | 1.0004    | 26,195  | 0           | pass |
-| ca-005 | Receptive vocab (R)          | 1.0002    | 23,896  | 0           | pass |
-| ca-006 | Expressive vocab (E)         | 1.0005    | 26,033  | 0           | pass |
+| ca-005 | Receptive vocab (RV)         | 1.0002    | 23,896  | 0           | pass |
+| ca-006 | Expressive vocab (EV)        | 1.0005    | 26,033  | 0           | pass |
 
 ## Results — the single clearest same-wave adjusted link per focal skill
 
@@ -32,10 +32,10 @@ The table below picks, for each model, the adjusted partner with the **highest p
 
 | Model  | Focal skill                  | Clearest adjusted same-wave partner (highest P(>0)) | Association (per +1 SD)                   | P(>0)  | Evidence    |
 | ------ | ---------------------------- | --------------------------------------------------- | ----------------------------------------- | ------ | ----------- |
-| ca-001 | Word reading (W)             | Letter sounds, at t2                                | +8.1 outcome items (89% cr +5.5 to +10.7) | 1.0000 | very strong |
-| ca-002 | Letter sounds (L)            | Word reading, at t2                                 | +4.3 items (+3.2 to +5.2)                 | 1.0000 | very strong |
-| ca-006 | Expressive vocab (E)         | Taught expressive vocab, at t3                      | +6.4 items (+3.1 to +9.8)                 | 0.9993 | very strong |
-| ca-005 | Receptive vocab (R)          | Expressive vocab, at t4                             | +6.2 items (+2.1 to +10.5)                | 0.9919 | very strong |
+| ca-001 | Word reading (WR)            | Letter sounds, at t2                                | +8.1 outcome items (89% cr +5.5 to +10.7) | 1.0000 | very strong |
+| ca-002 | Letter sounds (LS)           | Word reading, at t2                                 | +4.3 items (+3.2 to +5.2)                 | 1.0000 | very strong |
+| ca-006 | Expressive vocab (EV)        | Taught expressive vocab, at t3                      | +6.4 items (+3.1 to +9.8)                 | 0.9993 | very strong |
+| ca-005 | Receptive vocab (RV)         | Expressive vocab, at t4                             | +6.2 items (+2.1 to +10.5)                | 0.9919 | very strong |
 | ca-004 | Taught expressive vocab (TE) | Expressive vocab, at t3                             | +2.5 items (+1.5 to +3.5)                 | 0.9999 | very strong |
 | ca-003 | Taught receptive vocab (TR)  | Receptive vocab, at t4                              | +1.1 items (+0.4 to +1.8)                 | 0.9908 | very strong |
 
@@ -45,11 +45,11 @@ _Footnote (TR, ca-003)._ The +1.1-item Receptive-vocab link at t4 is the **highe
 
 The concurrent story is best seen **across the four waves** and against the **bivariate** (single-predictor) numbers, because the gap between the two is the whole regression-dilution / collinearity point: the bivariate associations are large and near-certain-positive throughout (P(>0) ≈ 0.99–1.00), while the adjusted associations — after every other same-wave skill is held fixed — are smaller, and a handful flip sign. For each model the strongest partner is traced at all four waves; second-tier partners that still exclude zero, and any notably negative adjusted terms, follow.
 
-### ca-001 — word reading (W)
+### ca-001 — word reading (WR)
 
 **Letter sounds is the strongest adjusted partner at every wave, and each wave excludes zero** — this is the tightest coupling in the family. Per +1 SD of letter-sound knowledge, adjusted: **t1 +2.7 items (+0.8 to +5.1), P(>0)=0.992 → very strong; t2 +8.1 (+5.5 to +10.7), 1.0000 → very strong; t3 +4.2 (+1.4 to +7.3), 0.992 → very strong; t4 +5.7 (+3.1 to +8.3), 0.9996 → very strong.** The coupling is present at t1, peaks around t2, dips at t3 and firms up again at t4 — a non-monotonic temporal pattern (descriptive only; the family models no change). The bivariate W~L is much larger at every wave (t1 +4.8, **t2 +10.5**, t3 +9.9, t4 +11.6; all P(>0) ≈ 1.0000), so adjustment roughly halves the letter-sound coefficient — the regression-dilution / shared-ability story in one line. **Blending** is a positive adjusted partner only at t1 (+1.8, +0.4 to +3.4, 0.983 → strong) and collapses to ≈0 by t2 (+0.05, 0.52 → inconclusive), even though bivariate Blending stays large (≈ +5 to +9 items). Vocabulary partners are essentially 0 once L and Blending are held fixed.
 
-### ca-002 — letter sounds (L)
+### ca-002 — letter sounds (LS)
 
 Reciprocally, **word reading is the only adjusted partner that excludes zero at all four waves: t1 +2.9 (+1.3 to +4.4), 0.998 → very strong; t2 +4.3 (+3.2 to +5.2), 1.0000 → very strong; t3 +2.1 (+0.7 to +3.3), 0.991 → very strong; t4 +1.5 (+0.4 to +2.6), 0.985 → strong.** So W↔L is a mutually strong within-wave pair. **Blending** excludes zero at t3 (+1.6, +0.4 to +2.7, 0.982 → strong). Suggestive/moderate second-tier terms: Receptive vocab at t1 (+2.2, 0.959 → moderate) and Expressive vocab at t2 (+2.0, 0.967 → moderate). A few small negative adjusted terms — t1 Taught receptive vocab −0.7 (P(>0)=0.243) and t2 Taught expressive vocab −0.8 (0.193) — are directionally negative but their intervals span zero, so they are **inconclusive**. Bivariate L~W is +4.4/+5.2/+4.0/+3.5 across waves (all ≈ 1.0000), again larger than adjusted.
 
@@ -61,11 +61,11 @@ The weakest-associated focal skill; only two adjusted coefficients exclude zero.
 
 **Expressive vocab is the strongest adjusted partner and excludes zero at every wave: t1 +1.3 (+0.5 to +2.3), 0.994 → very strong; t2 +1.9 (+0.8 to +3.0), 0.998 → very strong; t3 +2.5 (+1.5 to +3.5), 0.9999 → very strong (headline); t4 +1.7 (+0.6 to +2.8), 0.993 → very strong.** Second-tier: **Taught receptive vocab** excludes zero at t3 (+1.4, +0.6 to +2.2, 0.997 → very strong) and t4 (+1.6, +0.6 to +2.6, 0.993 → very strong). **Notable negative:** at t3, **Blending −0.9 (−1.7 to −0.1), P(>0)=0.032 → probability negative 0.968 = moderate evidence of a negative adjusted association** — a suppression signal once vocabulary is held fixed, not an effect. Bivariate TE~Blending is positive (+1.4 to +2.5), so the sign flip is created by adjustment.
 
-### ca-005 — receptive vocab (R)
+### ca-005 — receptive vocab (RV)
 
 **Expressive vocab is the strongest adjusted partner, excluding zero at t2 +5.8 (+1.3 to +10.6), 0.982 → strong; t3 +6.0 (+1.4 to +10.9), 0.982 → strong; t4 +6.3 (+2.1 to +10.5), 0.9919 → very strong (headline).** **Taught receptive vocab** excludes zero at t4 (+5.1, +1.5 to +8.9, 0.987 → strong) and is suggestive/moderate earlier (t2 +3.9, 0.934; t3 +3.7, 0.966). **Notable negative:** at t1, **Word reading −1.8 (−4.4 to +1.0), P(>0)=0.146** — directionally negative, interval crosses zero, so **inconclusive** — despite a bivariate W~R of **+7.8** (≈1.0000). Intervals are wide throughout (small n, heavily collinear vocabulary measures), which is why even +6-item effects only reach "strong" rather than "very strong".
 
-### ca-006 — expressive vocab (E)
+### ca-006 — expressive vocab (EV)
 
 **Taught expressive vocab is the strongest adjusted partner: t1 +4.3 (+1.3 to +7.6), 0.988 → strong; t2 +4.8 (+1.6 to +8.2), 0.993 → very strong; t3 +6.4 (+3.1 to +9.8), 0.9993 → very strong (headline); t4 +3.7, 0.970 → strong (suggestive/moderate, interval near zero).** **Receptive vocab** excludes zero at t4 (+4.7, +1.3 to +8.3, 0.987 → strong). **Notable negative:** at t2, **Word reading −1.8 (−4.7 to +1.4), P(>0)=0.180** — directionally negative but interval crosses zero, so **inconclusive** — despite a bivariate W~E of **+8.0** (≈1.0000). As in ca-005, the vocabulary measures are mutually collinear, so adjusted intervals are wide.
 

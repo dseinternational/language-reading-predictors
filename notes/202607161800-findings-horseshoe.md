@@ -26,13 +26,13 @@ For each model the top predictors are shown with the standardised logit slope (p
 
 Concurrent reading-system partners top the list. Both leaders have credible ranges wholly above zero, so their direction is effectively certain; the ranking-by-exceedance ordering puts letter sounds first even though expressive vocabulary is the larger slope.
 
-| Rank | Predictor            | Standardised slope | 89% credible range | Sign | P(\|beta\|>0.1) — matters?                |
-| ---- | -------------------- | ------------------ | ------------------ | ---- | ----------------------------------------- |
-| 1    | Letter sounds (L)    | +0.33 logit        | +0.19 to +0.47     | +    | 0.995 — clears                            |
-| 2    | Expressive vocab (E) | +0.41 logit        | +0.21 to +0.60     | +    | 0.992 — clears (larger slope than rank 1) |
-| 3    | Grammar / TROG (T)   | +0.19 logit        | +0.07 to +0.30     | +    | 0.886 — likely                            |
-| 4    | Age                  | +0.19 logit        | −0.01 to +0.38     | +    | 0.745 — plausible                         |
-| 5    | Receptive vocab (R)  | +0.15 logit        | −0.01 to +0.31     | +    | 0.670 — plausible                         |
+| Rank | Predictor             | Standardised slope | 89% credible range | Sign | P(\|beta\|>0.1) — matters?                |
+| ---- | --------------------- | ------------------ | ------------------ | ---- | ----------------------------------------- |
+| 1    | Letter sounds (LS)    | +0.33 logit        | +0.19 to +0.47     | +    | 0.995 — clears                            |
+| 2    | Expressive vocab (EV) | +0.41 logit        | +0.21 to +0.60     | +    | 0.992 — clears (larger slope than rank 1) |
+| 3    | Grammar / TROG (RG)   | +0.19 logit        | +0.07 to +0.30     | +    | 0.886 — likely                            |
+| 4    | Age                   | +0.19 logit        | −0.01 to +0.38     | +    | 0.745 — plausible                         |
+| 5    | Receptive vocab (RV)  | +0.15 logit        | −0.01 to +0.31     | +    | 0.670 — plausible                         |
 
 Below rank 5: block-design ability B +0.12 (0.629), F +0.06 (0.261).
 
@@ -42,8 +42,8 @@ The mirror image of hs-002: word reading and expressive vocabulary dominate, bot
 
 | Rank | Predictor                | Standardised slope | 89% credible range | Sign | P(\|beta\|>0.1) — matters?       |
 | ---- | ------------------------ | ------------------ | ------------------ | ---- | -------------------------------- |
-| 1    | Word reading (W)         | +0.70 logit        | +0.52 to +0.87     | +    | 1.00 — clears (renders as 99.9%) |
-| 2    | Expressive vocab (E)     | +0.47 logit        | +0.29 to +0.66     | +    | 0.998 — clears                   |
+| 1    | Word reading (WR)        | +0.70 logit        | +0.52 to +0.87     | +    | 1.00 — clears (renders as 99.9%) |
+| 2    | Expressive vocab (EV)    | +0.47 logit        | +0.29 to +0.66     | +    | 0.998 — clears                   |
 | 3    | Block-design ability (B) | +0.06 logit        | −0.04 to +0.18     | +    | 0.285 — below threshold          |
 | 4    | F                        | +0.06 logit        | −0.04 to +0.18     | +    | 0.259 — below threshold          |
 | 5    | Age                      | +0.03 logit        | −0.08 to +0.15     | +    | 0.176 — below threshold          |
@@ -54,13 +54,13 @@ Below rank 5: R +0.01 (0.113), T −0.01 (0.071).
 
 Reported for completeness with the divergence caveat. **No predictor clears the 0.1-logit threshold**; every credible range spans zero, so no direction is established. Gain is essentially unpredictable from baseline features at this sample size.
 
-| Rank | Predictor           | Standardised slope | 89% credible range | Sign | P(\|beta\|>0.1) — matters? |
-| ---- | ------------------- | ------------------ | ------------------ | ---- | -------------------------- |
-| 1    | Age                 | −0.15 logit        | −0.34 to +0.02     | −    | 0.582 — below threshold    |
-| 2    | Letter sounds (L)   | +0.11 logit        | −0.04 to +0.33     | +    | 0.429 — below threshold    |
-| 3    | Behaviour (behav)   | −0.09 logit        | −0.27 to +0.04     | −    | 0.380 — below threshold    |
-| 4    | F                   | +0.08 logit        | −0.04 to +0.24     | +    | 0.331 — below threshold    |
-| 5    | Receptive vocab (R) | +0.04 logit        | −0.09 to +0.22     | +    | 0.224 — below threshold    |
+| Rank | Predictor            | Standardised slope | 89% credible range | Sign | P(\|beta\|>0.1) — matters? |
+| ---- | -------------------- | ------------------ | ------------------ | ---- | -------------------------- |
+| 1    | Age                  | −0.15 logit        | −0.34 to +0.02     | −    | 0.582 — below threshold    |
+| 2    | Letter sounds (LS)   | +0.11 logit        | −0.04 to +0.33     | +    | 0.429 — below threshold    |
+| 3    | Behaviour (behav)    | −0.09 logit        | −0.27 to +0.04     | −    | 0.380 — below threshold    |
+| 4    | F                    | +0.08 logit        | −0.04 to +0.24     | +    | 0.331 — below threshold    |
+| 5    | Receptive vocab (RV) | +0.04 logit        | −0.09 to +0.22     | +    | 0.224 — below threshold    |
 
 Below rank 5: T +0.04 (0.209), E +0.01 (0.160), block-design B +0.02 (0.132), B(item) +0.01 (0.103).
 
@@ -70,9 +70,9 @@ Like the word-reading gain model, near-flat: the top predictor sits below the th
 
 | Rank | Predictor                     | Standardised slope | 89% credible range | Sign | P(\|beta\|>0.1) — matters?                  |
 | ---- | ----------------------------- | ------------------ | ------------------ | ---- | ------------------------------------------- |
-| 1    | Grammar / TROG (T)            | +0.13 logit        | −0.04 to +0.37     | +    | 0.453 — below threshold (informally "weak") |
+| 1    | Grammar / TROG (RG)           | +0.13 logit        | −0.04 to +0.37     | +    | 0.453 — below threshold (informally "weak") |
 | 2    | F                             | +0.07 logit        | −0.06 to +0.27     | +    | 0.287 — below threshold                     |
-| 3    | Word reading (W)              | +0.07 logit        | −0.07 to +0.28     | +    | 0.280 — below threshold                     |
+| 3    | Word reading (WR)             | +0.07 logit        | −0.07 to +0.28     | +    | 0.280 — below threshold                     |
 | 4    | Block-design ability (blocks) | −0.06 logit        | −0.23 to +0.07     | −    | 0.238 — below threshold                     |
 | 5    | Behaviour (behav)             | −0.05 logit        | −0.20 to +0.05     | −    | 0.225 — below threshold                     |
 

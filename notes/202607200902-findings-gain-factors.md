@@ -51,23 +51,23 @@ All 19 models **pass** the convergence gate (R-hat ≤ 1.01, effective sample si
 
 ### The causal treatment marginals, outcome by outcome
 
-**Word reading — gf-001 (W).** The strongest single causal result in the family: an on-intervention gain of about **+2.6 words** on the EWRSWR test (proportion median +0.033; 89% CI +0.9 to +4.3 words; 50% CI +1.9 to +3.3), with P(effect > 0) = 0.993, **very strong** evidence of benefit. The size claim is also favourable: P(gain ≥ 1 word) = 0.93 (a moderate benefit label), with only 7% of the posterior inside the ROPE.
+**Word reading — gf-001 (WR).** The strongest single causal result in the family: an on-intervention gain of about **+2.6 words** on the EWRSWR test (proportion median +0.033; 89% CI +0.9 to +4.3 words; 50% CI +1.9 to +3.3), with P(effect > 0) = 0.993, **very strong** evidence of benefit. The size claim is also favourable: P(gain ≥ 1 word) = 0.93 (a moderate benefit label), with only 7% of the posterior inside the ROPE.
 
-**Letter-sound knowledge — gf-004 (L).** The other clear causal win: about **+3.3 letter sounds** (proportion +0.102; 89% CI +1.6 to +5.0; 50% CI +2.6 to +4.0 of 32), P(>0) = 0.991, **very strong**. P(gain ≥ 2 sounds) = 0.88 (suggestive), ROPE mass 0.12.
+**Letter-sound knowledge — gf-004 (LS).** The other clear causal win: about **+3.3 letter sounds** (proportion +0.102; 89% CI +1.6 to +5.0; 50% CI +2.6 to +4.0 of 32), P(>0) = 0.991, **very strong**. P(gain ≥ 2 sounds) = 0.88 (suggestive), ROPE mass 0.12.
 
-**Phoneme blending — gf-006 (B).** A positive effect of about **+0.8 of 10 blends** (proportion +0.083; 89% CI +0.08 to +1.57), P(>0) = 0.903, **suggestive**. Direction is fairly clear, but size is not: P(gain ≥ 1 blend) is only 0.36 and 64% of the posterior sits inside the ROPE, so the effect is probably real but small (below one whole blend).
+**Phoneme blending — gf-006 (PA).** A positive effect of about **+0.8 of 10 blends** (proportion +0.083; 89% CI +0.08 to +1.57), P(>0) = 0.903, **suggestive**. Direction is fairly clear, but size is not: P(gain ≥ 1 blend) is only 0.36 and 64% of the posterior sits inside the ROPE, so the effect is probably real but small (below one whole blend).
 
-**Basic concepts — gf-007 (F).** About **+1.1 of 18 concepts** (proportion +0.060; 89% CI +0.12 to +2.01), P(>0) = 0.865, **suggestive**. There is no pre-set MID/ROPE for F (it sits outside the ROPE-anchored ITT suite), so this is a direction-only read.
+**Basic concepts — gf-007 (LF).** About **+1.1 of 18 concepts** (proportion +0.060; 89% CI +0.12 to +2.01), P(>0) = 0.865, **suggestive**. There is no pre-set MID/ROPE for F (it sits outside the ROPE-anchored ITT suite), so this is a direction-only read.
 
 **Taught expressive vocabulary — gf-010 (TE).** About **+1.2 of 24 taught expressive words** (proportion +0.048; 89% CI +0.01 to +2.30), P(>0) = 0.818, **suggestive**. P(gain ≥ 1 word) = 0.59, ROPE 0.41 — leaning positive, size uncertain.
 
 **Taught receptive vocabulary — gf-009 (TR).** About **+1.1 of 24 taught receptive words** (proportion +0.044; 89% CI −0.11 to +2.20), P(>0) = 0.633, **inconclusive** (the interval spans zero; P(gain ≥ 1 word) = 0.53, ROPE 0.47).
 
-**Receptive grammar — gf-008 (T).** About **+0.8 of 32** (proportion +0.026; 89% CI −0.54 to +2.18), P(>0) = 0.662, **inconclusive**. No pre-set ROPE for T.
+**Receptive grammar — gf-008 (RG).** About **+0.8 of 32** (proportion +0.026; 89% CI −0.54 to +2.18), P(>0) = 0.662, **inconclusive**. No pre-set ROPE for T.
 
-**Receptive and expressive vocabulary — gf-002 (R), gf-003 (E).** Both **flat and probably negligible**, the broad standardised vocabulary story seen throughout the suite. For R the median is very slightly _negative_ (−1.4 words; 89% CI −5.3 to +2.4; P(>0) = 0.169, i.e. a suggestive lean toward a small decline), but over half the posterior (ROPE 0.52) is practically negligible and the harm-size probability is only 0.41, so this is best read as **no detectable effect**, not evidence of harm — the winner's-curse caution applies. For E the median is +1.1 words (89% CI −2.1 to +4.3; P(>0) = 0.577, inconclusive; ROPE 0.61).
+**Receptive and expressive vocabulary — gf-002 (RV), gf-003 (EV).** Both **flat and probably negligible**, the broad standardised vocabulary story seen throughout the suite. For R the median is very slightly _negative_ (−1.4 words; 89% CI −5.3 to +2.4; P(>0) = 0.169, i.e. a suggestive lean toward a small decline), but over half the posterior (ROPE 0.52) is practically negligible and the harm-size probability is only 0.41, so this is best read as **no detectable effect**, not evidence of harm — the winner's-curse caution applies. For E the median is +1.1 words (89% CI −2.1 to +4.3; P(>0) = 0.577, inconclusive; ROPE 0.61).
 
-**Floored outcomes — gf-005 (P spelling), gf-011 (N nonword).** Both use the off-floor rule and both are **inconclusive**. For phonetic spelling (P) the treatment marginal is a −3.4 percentage-point change in the probability of scoring off the floor (89% CI −12.8 to +5.5 pts; P(>0) = 0.381; ROPE mass 0.86 — overwhelmingly negligible). For nonword reading (N) it is +2.2 percentage points (89% CI −8.5 to +12.7; P(>0) = 0.621; ROPE 0.85). With so few children off the floor these are the least informative causal estimates in the family.
+**Floored outcomes — gf-005 (P spelling), gf-011 (N nonword).** Both use the off-floor rule and both are **inconclusive**. For phonetic spelling (PS) the treatment marginal is a −3.4 percentage-point change in the probability of scoring off the floor (89% CI −12.8 to +5.5 pts; P(>0) = 0.381; ROPE mass 0.86 — overwhelmingly negligible). For nonword reading (NW) it is +2.2 percentage points (89% CI −8.5 to +12.7; P(>0) = 0.621; ROPE 0.85). With so few children off the floor these are the least informative causal estimates in the family.
 
 ### The adjusted associations — who progresses (not causal)
 
@@ -116,7 +116,7 @@ The re-analysis **broadly replicates the randomised result**. The two headline b
 
 ## What the family concludes
 
-The gain-factor ANCOVA delivers a **second, independent causal estimate** that confirms the intervention's clearest effects: strong-to-very-strong benefit on **word reading** and **letter-sound knowledge**, weaker-but-positive signals on **blending, basic concepts and taught expressive vocabulary**, and **no detectable effect on broad standardised vocabulary (R, E)**. This is the same gradient the ITT suite and the difference-in-differences family report, so the headline is robust to how the model is built. The heavily-floored spelling (P) and nonword (N) outcomes remain inconclusive in every framing.
+The gain-factor ANCOVA delivers a **second, independent causal estimate** that confirms the intervention's clearest effects: strong-to-very-strong benefit on **word reading** and **letter-sound knowledge**, weaker-but-positive signals on **blending, basic concepts and taught expressive vocabulary**, and **no detectable effect on broad standardised vocabulary (R, E)**. This is the same gradient the ITT suite and the difference-in-differences family report, so the headline is robust to how the model is built. The heavily-floored spelling (PS) and nonword (NW) outcomes remain inconclusive in every framing.
 
 Its distinctive contribution is the **who-progresses** panel. Beyond the intervention, progress tracks the child's own baseline (universally), cognitive ability (especially for vocabulary and grammar), and — as an associational scaffolding consistent with the mediation family's letter-sound route — baseline **letter-sounds, blending and phonological memory** predict gains in the **code skills** (spelling, nonword and word reading), while the **vocabulary skills** predict each other and predict grammar and basic concepts. These are descriptions of developmental structure, not causal levers.
 

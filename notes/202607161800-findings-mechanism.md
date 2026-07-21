@@ -17,20 +17,20 @@ All 12 **passed**: zero divergences in every model, and the worst R-hat across t
 
 Each row is the average items-scale difference in the outcome from the bottom to the top of the exposure's own fitted range. **The exposure ranges differ enormously, so the raw items numbers are not directly comparable across rows** — a bigger swing over a wider range is not "more important". Ranges are given so the numbers can be read honestly; mech-090's exposure is on the phonological-memory raw-score (erbto) scale, **not** the items scale of the other rows.
 
-| Model        | Exposure → outcome                                     | Exposure range | Avg difference across range         | P(>0) | Evidence    |
-| ------------ | ------------------------------------------------------ | -------------- | ----------------------------------- | ----- | ----------- |
-| **mech-088** | Taught receptive vocab (TR) → W †                      | TR 6→23        | **+9.0 items** (+4.9 to +13.0)      | ~100% | very strong |
-| **mech-089** | Taught expressive vocab (TE) → W †                     | TE 0→19        | +8.6 items (+3.2 to +13.4)          | 99.3% | very strong |
-| **mech-073** | Letter sounds (L) → W, age-moderated                   | L 2→32         | +7.3 items (+3.2 to +11.7)          | 99.8% | very strong |
-| **mech-158** | L → W, complete-case comparator                        | L 2→32         | +6.9 items (+2.4 to +11.4)          | 99.6% | very strong |
-| **mech-058** | Letter sounds (L) → W                                  | L 2→32         | +6.7 items (+2.6 to +10.9)          | 99.6% | very strong |
-| mech-173     | L → W (+age, no-interaction baseline)                  | L 2→32         | +6.6 items (+2.5 to +10.9)          | 99.6% | very strong |
-| mech-057     | Expressive vocab (E) → W                               | E 10→77        | +5.3 items (−0.5 to +10.9)          | 92.7% | moderate    |
-| mech-071     | L → W, moderated by expressive vocab                   | L 2→32         | +5.2 items (+1.0 to +9.8)           | 98.3% | strong      |
-| **mech-072** | L (moderated by blending B) → **nonword decoding (N)** | L 2→32         | +4.0 items (+2.8 to +4.8)           | ~100% | very strong |
-| mech-172     | L + B main effects → N (no-interaction baseline)       | L 2→32         | +3.3 items (+2.2 to +4.2)           | ~100% | very strong |
-| mech-090     | Phonological memory (erbto) → W                        | 3→36 (erbto)   | +3.1 raw-score units (+0.1 to +6.0) | 95.2% | moderate    |
-| mech-056     | Receptive vocab, std (R) → W                           | R 12→82        | +2.9 items (−2.6 to +8.2)           | 80.4% | suggestive  |
+| Model        | Exposure → outcome                                      | Exposure range | Avg difference across range         | P(>0) | Evidence    |
+| ------------ | ------------------------------------------------------- | -------------- | ----------------------------------- | ----- | ----------- |
+| **mech-088** | Taught receptive vocab (TR) → W †                       | TR 6→23        | **+9.0 items** (+4.9 to +13.0)      | ~100% | very strong |
+| **mech-089** | Taught expressive vocab (TE) → W †                      | TE 0→19        | +8.6 items (+3.2 to +13.4)          | 99.3% | very strong |
+| **mech-073** | Letter sounds (LS) → W, age-moderated                   | L 2→32         | +7.3 items (+3.2 to +11.7)          | 99.8% | very strong |
+| **mech-158** | L → W, complete-case comparator                         | L 2→32         | +6.9 items (+2.4 to +11.4)          | 99.6% | very strong |
+| **mech-058** | Letter sounds (LS) → W                                  | L 2→32         | +6.7 items (+2.6 to +10.9)          | 99.6% | very strong |
+| mech-173     | L → W (+age, no-interaction baseline)                   | L 2→32         | +6.6 items (+2.5 to +10.9)          | 99.6% | very strong |
+| mech-057     | Expressive vocab (EV) → W                               | E 10→77        | +5.3 items (−0.5 to +10.9)          | 92.7% | moderate    |
+| mech-071     | L → W, moderated by expressive vocab                    | L 2→32         | +5.2 items (+1.0 to +9.8)           | 98.3% | strong      |
+| **mech-072** | L (moderated by blending B) → **nonword decoding (NW)** | L 2→32         | +4.0 items (+2.8 to +4.8)           | ~100% | very strong |
+| mech-172     | L + B main effects → N (no-interaction baseline)        | L 2→32         | +3.3 items (+2.2 to +4.2)           | ~100% | very strong |
+| mech-090     | Phonological memory (erbto) → W                         | 3→36 (erbto)   | +3.1 raw-score units (+0.1 to +6.0) | 95.2% | moderate    |
+| mech-056     | Receptive vocab, std (RV) → W                           | R 12→82        | +2.9 items (−2.6 to +8.2)           | 80.4% | suggestive  |
 
 The "~100%" cells for mech-072 and mech-172 are exactly 1.0 in the source CSVs; the earlier draft printed "99.9%" as a display cap, which slightly understated them and was inconsistent with the verbatim 99.6/99.8 elsewhere, so they are shown as ~100% here. (mech-088's P(>0) is 0.9996 after the IS correction below — still ~100%, no longer exactly 1.0.)
 
@@ -61,8 +61,8 @@ Sample sizes: 156 stacked observations for every model except the complete-case 
 
 Five models add a moderator on top of the letter-sound exposure, so the single headline marginal above hides the more interesting story — how the moderator shifts the slope. These secondary terms are on the **logit (log-odds) scale** of the Beta-Binomial linear predictor, not the items scale, and every one is an adjusted association.
 
-- **mech-071 — L → W moderated by expressive vocabulary (E).** The E-moderator **main term** is +0.191 logit (89% +0.078 to +0.303, P(>0) = 0.997, very strong): among otherwise-alike children, higher expressive vocabulary is associated with more word reading. The **L × E interaction** is −0.065 (89% −0.152 to +0.019, P(>0) = 0.110) — i.e. unresolved: the data neither confirm nor rule out that expressive vocabulary flattens or steepens the letter-sound slope.
-- **mech-072 — L → N moderated by blending (B), the code-route signature.** Blending **main term** +0.361 logit (89% +0.095 to +0.625, P(>0) = 0.985, strong). The **L × B interaction** is a clear **negative**: median −0.327 (89% −0.570 to −0.093, P(>0) = 0.013, i.e. P(<0) = 0.987, strong). Read plainly: higher blending skill **flattens** the letter-sound → nonword-decoding slope — the two code skills are partial substitutes rather than additive, so knowing more letter sounds buys less extra nonword decoding once a child already blends well.
+- **mech-071 — L → W moderated by expressive vocabulary (EV).** The E-moderator **main term** is +0.191 logit (89% +0.078 to +0.303, P(>0) = 0.997, very strong): among otherwise-alike children, higher expressive vocabulary is associated with more word reading. The **L × E interaction** is −0.065 (89% −0.152 to +0.019, P(>0) = 0.110) — i.e. unresolved: the data neither confirm nor rule out that expressive vocabulary flattens or steepens the letter-sound slope.
+- **mech-072 — L → N moderated by blending (PA), the code-route signature.** Blending **main term** +0.361 logit (89% +0.095 to +0.625, P(>0) = 0.985, strong). The **L × B interaction** is a clear **negative**: median −0.327 (89% −0.570 to −0.093, P(>0) = 0.013, i.e. P(<0) = 0.987, strong). Read plainly: higher blending skill **flattens** the letter-sound → nonword-decoding slope — the two code skills are partial substitutes rather than additive, so knowing more letter sounds buys less extra nonword decoding once a child already blends well.
 - **mech-073 — L → W moderated by age.** The **age × L interaction** is −0.057 (89% −0.119 to +0.006, P(>0) = 0.072) and the **age main term** is −0.069 logit (89% −0.152 to +0.013, P(>0) = 0.091) — both point mildly negative but are unresolved.
 - **mech-172 — L + B main effects → N (the no-interaction baseline for mech-072).** Blending **main term** +0.281 logit (89% +0.024 to +0.531, P(>0) = 0.958, moderate). With the interaction removed, blending still carries a positive additive association with nonword decoding.
 - **mech-173 — L → W with an age main term (the no-interaction baseline for mech-073).** The **age main term** is −0.100 logit (89% −0.177 to −0.024, P(>0) = 0.019, i.e. P(<0) = 0.981, strong negative): holding letter sounds fixed, older children in this stacked cross-phase view are associated with slightly _less_ word reading — a between-child confounding pattern, not a within-child decline, and certainly not causal.

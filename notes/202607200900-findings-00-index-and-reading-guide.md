@@ -20,14 +20,14 @@ Each skill is a test scored as a count of correct items out of a maximum. Effect
 
 | Symbol                | Skill (test)                                          | Max items         |
 | --------------------- | ----------------------------------------------------- | ----------------- |
-| W                     | Word reading (EWRSWR)                                 | 79                |
-| R                     | Receptive vocabulary (ROWPVT)                         | 170               |
-| E                     | Expressive vocabulary (EOWPVT)                        | 170               |
-| L                     | Letter-sound knowledge (YARC-LSK)                     | 32                |
-| P                     | Phonetic spelling (SPPHON)                            | 92                |
+| W                     | Word reading (WR)                                     | 79                |
+| R                     | Receptive vocabulary (RV)                             | 170               |
+| E                     | Expressive vocabulary (EV)                            | 170               |
+| L                     | Letter-sound knowledge (LS)                           | 32                |
+| P                     | Phonetic spelling (PS)                                | 92                |
 | B                     | Phoneme blending                                      | 10                |
 | F                     | Basic concepts (CELF)                                 | 18                |
-| T                     | Receptive grammar (TROG-2)                            | 32                |
+| T                     | Receptive grammar (RG)                                | 32                |
 | N                     | Nonword reading                                       | 6                 |
 | TR / TE               | Taught receptive / expressive vocabulary, block 1     | 24 each           |
 | UR / UE               | Not-taught receptive / expressive vocabulary, block 1 | 12 each           |
@@ -80,4 +80,4 @@ Before any interpretation, each fit is checked against a gate: R-hat ≤ 1.01 (c
 
 ## The coherent story to expect (spoiler)
 
-Reading the notes together: strong-to-very-strong evidence of an ITT benefit on the code-related and directly-taught skills — letter-sound knowledge (L), phoneme blending (B), word reading (W), taught expressive vocabulary (TE) — tapering to moderate/suggestive on transfer measures, and **inconclusive and probably negligible on broad standardised vocabulary (R, E)**. The word-reading gain is **mediated by letter-sound knowledge**, not by the vocabulary route. The randomised result is echoed by the difference-in-differences and gain-factor re-analyses, and the associational families describe the developmental scaffolding (which skills track which) without over-claiming cause.
+Reading the notes together: strong-to-very-strong evidence of an ITT benefit on the code-related and directly-taught skills — letter-sound knowledge (LS), phoneme blending (PA), word reading (WR), taught expressive vocabulary (TE) — tapering to moderate/suggestive on transfer measures, and **inconclusive and probably negligible on broad standardised vocabulary (R, E)**. The word-reading gain is **mediated by letter-sound knowledge**, not by the vocabulary route. The randomised result is echoed by the difference-in-differences and gain-factor re-analyses, and the associational families describe the developmental scaffolding (which skills track which) without over-claiming cause.
