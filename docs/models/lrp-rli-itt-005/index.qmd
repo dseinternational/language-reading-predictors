@@ -1,5 +1,5 @@
 ---
-title: "LRPITT05: Modified-ITT analysis of standardised receptive vocabulary (ROWPVT) (R)"
+title: "LRPITT05: Modified-ITT analysis of standardised receptive vocabulary (ROWPVT) (RV)"
 
 format:
   html:

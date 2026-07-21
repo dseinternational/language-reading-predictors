@@ -1,5 +1,5 @@
 ---
-title: "LRP158: Mechanism model — letter-sound (L) → word reading (W), complete-case comparator"
+title: "LRP158: Mechanism model — letter-sound (LS) → word reading (WR), complete-case comparator"
 
 format:
   html:

@@ -1,5 +1,5 @@
 ---
-title: "LRP100: Negative-control outcome — letter sounds (L) -> basic concepts (F)"
+title: "LRP100: Negative-control outcome — letter sounds (LS) -> basic concepts (LF)"
 
 format:
   html:

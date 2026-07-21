@@ -1,5 +1,5 @@
 ---
-title: "LRPAL02: Aligned-40-week per-protocol gain for receptive vocabulary (R)"
+title: "LRPAL02: Aligned-40-week per-protocol gain for receptive vocabulary (RV)"
 
 format:
   html:

@@ -1,5 +1,5 @@
 ---
-title: "LRP157: GP knee-test — expressive vocabulary (E) -> word reading (W)"
+title: "LRP157: GP knee-test — expressive vocabulary (EV) -> word reading (WR)"
 
 format:
   html:

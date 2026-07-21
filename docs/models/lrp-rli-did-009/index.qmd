@@ -1,5 +1,5 @@
 ---
-title: "LRPDID09: Waitlist-crossover arm-by-wave sensitivity for standardised expressive vocabulary (EOWPVT) (E)"
+title: "LRPDID09: Waitlist-crossover arm-by-wave sensitivity for standardised expressive vocabulary (EOWPVT) (EV)"
 
 format:
   html:

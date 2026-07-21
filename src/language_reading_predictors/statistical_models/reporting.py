@@ -3244,6 +3244,17 @@ def _kf_plain_label(value) -> str:
     return str(value).replace("_", " ").strip()
 
 
+def _kf_dag_unit(value) -> str:
+    """Readable exposure unit with a leading measure symbol mapped to its DAG
+    symbol (#374): e.g. ``'L items'`` -> ``'LS items'``. Leaves units that do not
+    begin with a mapped modelling symbol unchanged."""
+    from language_reading_predictors.statistical_models.measures import DAG_SYMBOL
+
+    text = _kf_plain_label(value)
+    head, sep, tail = text.partition(" ")
+    return f"{DAG_SYMBOL.get(head, head)}{sep}{tail}"
+
+
 def _kf_measure_label(symbol) -> str:
     """Display label for a registered measure symbol, else the symbol itself."""
     from language_reading_predictors.statistical_models.measures import MEASURES
@@ -3721,7 +3732,7 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
         hi = _kf_float(summary["items_hi"])
         low = _kf_float(summary["exposure_low"])
         high = _kf_float(summary["exposure_high"])
-        unit = _kf_plain_label(summary.get("exposure_unit", "predictor units"))
+        unit = _kf_dag_unit(summary.get("exposure_unit", "predictor units"))
         sentences.append(
             _kf_sentence(
                 f"Across the fitted exposure range ({low:g} to {high:g} {unit}), "

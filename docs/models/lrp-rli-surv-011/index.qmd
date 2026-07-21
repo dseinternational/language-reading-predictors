@@ -1,5 +1,5 @@
 ---
-title: "LRPSURV11: time-to-off-floor survival for nonword reading (N)"
+title: "LRPSURV11: time-to-off-floor survival for nonword reading (NW)"
 
 format:
   html:

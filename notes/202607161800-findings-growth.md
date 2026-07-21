@@ -29,11 +29,11 @@ All 3 models **passed** (thresholds R̂ ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.3, 0 d
 
 ## Results — all models
 
-### Headline: ability → growth rate for receptive grammar (T)
+### Headline: ability → growth rate for receptive grammar (RG)
 
 The clearest single ability→growth-rate association, and the one previously reported, is for receptive grammar. All three models agree on roughly the same size but differ in how confidently the interval clears zero:
 
-| Model  | Structure                                       | γ for receptive grammar (T)                                                            | Evidence    | Causal?     |
+| Model  | Structure                                       | γ for receptive grammar (RG)                                                           | Evidence    | Causal?     |
 | ------ | ----------------------------------------------- | -------------------------------------------------------------------------------------- | ----------- | ----------- |
 | gc-085 | age × ability interaction (ability main effect) | +0.155 logit growth-rate change per +1 SD ability, 89% [+0.057, +0.252], P(>0) = 0.993 | very strong | association |
 | gc-069 | independent-core growth curves                  | +0.114 logit, 89% [+0.023, +0.206], P(>0) = 0.977                                      | strong      | association |
@@ -53,7 +53,7 @@ This is where the single-outcome headline is misleading: a positive ability→gr
 | **W** word reading      | −0.047 [−0.228, +0.129], 0.667 for negative, inconclusive   | −0.074 [−0.269, +0.111], 0.739 for negative, inconclusive | +0.095 [−0.069, +0.256], 0.826 for positive, suggestive   |
 | **L** letter-sound      | −0.148 [−0.332, +0.042], 0.893 for **negative**, suggestive | −0.149 [−0.337, +0.040], 0.896 for negative, suggestive   | −0.066 [−0.264, +0.132], 0.701 for negative, inconclusive |
 
-Reading: the direction of the ability→growth-rate association is **outcome-specific**, not uniform. Grammar (T) is the one measure where abler children reliably grow faster. For letter-sound (L) and receptive vocabulary (R) the association is suggestively the other way. All five are adjusted associations, none causal.
+Reading: the direction of the ability→growth-rate association is **outcome-specific**, not uniform. Grammar (RG) is the one measure where abler children reliably grow faster. For letter-sound (LS) and receptive vocabulary (RV) the association is suggestively the other way. All five are adjusted associations, none causal.
 
 ### δ (ability → level at mid-study age) for all five outcomes — the strongest, most consistent signal
 
@@ -69,7 +69,7 @@ Where the growth-rate story is mixed, the _level_ story is not: on every outcome
 
 ### β (mean growth rate per SD of age) — trajectory shape
 
-`beta` is the average child's growth per SD of age, ignoring ability. It shows that the two reading measures grow far faster over age than the three language measures: word reading (W) and letter-sound (L) run at roughly +1.0 to +1.15 logit per SD of age, versus +0.22–0.30 for R/E/T. All are very strong positive (P(>0) = 1.00 or 0.9997). So over the study window the reading skills are climbing steeply while the vocabulary/grammar measures climb gently.
+`beta` is the average child's growth per SD of age, ignoring ability. It shows that the two reading measures grow far faster over age than the three language measures: word reading (WR) and letter-sound (LS) run at roughly +1.0 to +1.15 logit per SD of age, versus +0.22–0.30 for R/E/T. All are very strong positive (P(>0) = 1.00 or 0.9997). So over the study window the reading skills are climbing steeply while the vocabulary/grammar measures climb gently.
 
 | Outcome                 | gc-069 β | gc-070 β | gc-085 β |
 | ----------------------- | -------- | -------- | -------- |

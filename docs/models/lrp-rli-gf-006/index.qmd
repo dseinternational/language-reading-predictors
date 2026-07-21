@@ -1,5 +1,5 @@
 ---
-title: "LRPGF06: Factors associated with gains in phoneme blending (blending) (B)"
+title: "LRPGF06: Factors associated with gains in phoneme blending (blending) (PA)"
 
 format:
   html:

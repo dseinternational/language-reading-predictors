@@ -1,5 +1,5 @@
 ---
-title: "LRPLF07: Factors associated with the level of CELF basic concepts (F)"
+title: "LRPLF07: Factors associated with the level of CELF basic concepts (LF)"
 
 format:
   html:

@@ -1,5 +1,5 @@
 ---
-title: "LRP94: Mechanism model — letter-sound (L) -> word reading (W), moderated by taught-receptive vocabulary (TR)"
+title: "LRP94: Mechanism model — letter-sound (LS) -> word reading (WR), moderated by taught-receptive vocabulary (TR)"
 
 format:
   html:

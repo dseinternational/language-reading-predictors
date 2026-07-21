@@ -1,5 +1,5 @@
 ---
-title: "LRPGF07b: Factors associated with gains in CELF basic concepts (F), treated-only"
+title: "LRPGF07b: Factors associated with gains in CELF basic concepts (LF), treated-only"
 
 format:
   html:

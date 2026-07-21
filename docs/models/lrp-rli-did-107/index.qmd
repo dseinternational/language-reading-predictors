@@ -1,5 +1,5 @@
 ---
-title: "LRPDID07base: Waitlist-crossover observational pooled session-dose model for letter-sound knowledge (L)"
+title: "LRPDID07base: Waitlist-crossover observational pooled session-dose model for letter-sound knowledge (LS)"
 
 format:
   html:

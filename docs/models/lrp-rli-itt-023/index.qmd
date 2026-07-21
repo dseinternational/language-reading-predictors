@@ -1,5 +1,5 @@
 ---
-title: "LRPITT23: Ability-adjusted modified-ITT offer effect on letter-sound knowledge (L)"
+title: "LRPITT23: Ability-adjusted modified-ITT offer effect on letter-sound knowledge (LS)"
 
 format:
   html:

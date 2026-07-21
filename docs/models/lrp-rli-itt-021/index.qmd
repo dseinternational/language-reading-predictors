@@ -1,5 +1,5 @@
 ---
-title: "LRPITT21: Ability-adjusted modified-ITT offer effect on receptive vocabulary (R)"
+title: "LRPITT21: Ability-adjusted modified-ITT offer effect on receptive vocabulary (RV)"
 
 format:
   html:

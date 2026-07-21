@@ -133,12 +133,12 @@ Only letter sounds shows a credible t2 randomised effect; word reading and blend
 
 The two strongest effects are credibly positive under **four independent identification strategies**, which is the most compelling evidence in the suite:
 
-| design (estimand)                 | letter sounds (L) | word reading (W)                    |
-| --------------------------------- | ----------------- | ----------------------------------- |
-| ITT, between-arm (τ)              | +3.56, pd 0.998 ✶ | +2.38, pd 0.986 ✶                   |
-| DiD, within-person (delta)        | +3.39, pd 0.998 ✶ | +2.73, pd 0.988 ✶ (dose-response ✶) |
-| Gain-factor (beta_trt)            | +3.06, pd 0.995 ✶ | +3.48, pd 0.996 ✶                   |
-| Mediation total / Level-factor t2 | (LF t2 +2.88 ✶)   | +2.86 total, pd 0.99 ✶              |
+| design (estimand)                 | letter sounds (LS) | word reading (WR)                   |
+| --------------------------------- | ------------------ | ----------------------------------- |
+| ITT, between-arm (τ)              | +3.56, pd 0.998 ✶  | +2.38, pd 0.986 ✶                   |
+| DiD, within-person (delta)        | +3.39, pd 0.998 ✶  | +2.73, pd 0.988 ✶ (dose-response ✶) |
+| Gain-factor (beta_trt)            | +3.06, pd 0.995 ✶  | +3.48, pd 0.996 ✶                   |
+| Mediation total / Level-factor t2 | (LF t2 +2.88 ✶)    | +2.86 total, pd 0.99 ✶              |
 
 All on the items scale. Between-arm randomisation, within-person crossover, the gain-factor ANCOVA and the mediation total effect all land on **L ≈ +3 items and W ≈ +2.4–3.5 words** — different designs, same answer.
 

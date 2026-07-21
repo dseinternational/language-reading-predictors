@@ -1,5 +1,5 @@
 ---
-title: "LRPITT08: Modified-ITT analysis of phoneme blending (B)"
+title: "LRPITT08: Modified-ITT analysis of phoneme blending (PA)"
 
 format:
   html:

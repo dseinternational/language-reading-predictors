@@ -1,5 +1,5 @@
 ---
-title: "LRP58: Mechanism model — letter-sound knowledge (L) -> word reading (W)"
+title: "LRP58: Mechanism model — letter-sound knowledge (LS) -> word reading (WR)"
 
 format:
   html:

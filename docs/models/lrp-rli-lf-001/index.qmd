@@ -1,5 +1,5 @@
 ---
-title: "LRPLF01: Factors associated with the level of word reading (W)"
+title: "LRPLF01: Factors associated with the level of word reading (WR)"
 
 format:
   html:

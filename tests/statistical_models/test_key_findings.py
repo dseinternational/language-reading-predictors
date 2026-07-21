@@ -268,7 +268,7 @@ def test_itt_golden_sentences(tmp_path):
     assert kinds == ["headline", "confidence", "rope", "causal"]
     texts = [s["text"] for s in payload["sentences"]]
     assert texts[0] == (
-        "Best estimate: the intervention changed Word reading (EWRSWR) by "
+        "Best estimate: the intervention changed Word reading (WR) by "
         "**+2.4 items** over the trial period "
         "(89% credible range -0.3 to +5.9)."
     )

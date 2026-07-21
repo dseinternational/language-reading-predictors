@@ -1,5 +1,5 @@
 ---
-title: "LRP189: GP knee-test — taught-expressive vocabulary (TE) -> word reading (W)"
+title: "LRP189: GP knee-test — taught-expressive vocabulary (TE) -> word reading (WR)"
 
 format:
   html:

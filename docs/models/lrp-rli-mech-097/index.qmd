@@ -1,5 +1,5 @@
 ---
-title: "LRP97: Negative-control outcome — letter sounds (L) -> receptive vocabulary (R)"
+title: "LRP97: Negative-control outcome — letter sounds (LS) -> receptive vocabulary (RV)"
 
 format:
   html:

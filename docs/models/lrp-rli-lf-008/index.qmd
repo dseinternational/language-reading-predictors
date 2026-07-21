@@ -1,5 +1,5 @@
 ---
-title: "LRPLF08: Factors associated with the level of TROG receptive grammar (T)"
+title: "LRPLF08: Factors associated with the level of TROG receptive grammar (RG)"
 
 format:
   html:

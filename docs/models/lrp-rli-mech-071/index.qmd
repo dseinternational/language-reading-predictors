@@ -1,5 +1,5 @@
 ---
-title: "LRP71: Mechanism model — letter-sound (L) -> word reading (W), moderated by expressive vocabulary (E)"
+title: "LRP71: Mechanism model — letter-sound (LS) -> word reading (WR), moderated by expressive vocabulary (EV)"
 
 format:
   html:

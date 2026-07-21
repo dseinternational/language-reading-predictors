@@ -1,5 +1,5 @@
 ---
-title: "LRP83: Period-resolved dose-response — intervention dose -> letter sounds (L)"
+title: "LRP83: Period-resolved dose-response — intervention dose -> letter sounds (LS)"
 
 format:
   html:

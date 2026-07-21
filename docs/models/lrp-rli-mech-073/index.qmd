@@ -1,5 +1,5 @@
 ---
-title: "LRP73: Is the letter-sound (L) -> word-reading (W) effect age-dependent?"
+title: "LRP73: Is the letter-sound (LS) -> word-reading (WR) effect age-dependent?"
 
 format:
   html:

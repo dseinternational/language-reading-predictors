@@ -17,19 +17,19 @@ All 9 models (`al-001`–`008` + the dose-sensitivity variant `al-101`) **passed
 
 Positive = the immediate cohort finishes higher. Each row gives the difference on the natural items scale and, in parentheses, the same contrast expressed as a risk difference on the probability scale (the change in the expected proportion of items scored). Every row is an **association**, not a causal effect.
 
-| Model    | Outcome                        |   n | Difference (items) | 89% range      | Prob-scale (risk diff) | 89% range        | P(favoured dir) | Evidence     | Causal? |
-| -------- | ------------------------------ | --: | ------------------ | -------------- | ---------------------- | ---------------- | --------------- | ------------ | ------- |
-| `al-004` | **Letter sounds (L)**          |  53 | +2.23              | +0.21 to +4.23 | +0.070                 | +0.006 to +0.132 | P(>0)=0.961     | moderate     | assoc.  |
-| `al-002` | Receptive vocab, std (R)       |  54 | +2.73              | −1.80 to +7.16 | +0.016                 | −0.011 to +0.042 | P(>0)=0.832     | suggestive   | assoc.  |
-| `al-001` | Word reading (W)               |  52 | +2.14              | −0.47 to +4.76 | +0.027                 | −0.006 to +0.068 | P(>0)=0.906 †   | suggestive   | assoc.  |
-| `al-101` | Word reading (W), dose variant |  52 | +2.15              | −0.43 to +4.81 | +0.027                 | −0.005 to +0.061 | P(>0)=0.909 †   | suggestive   | assoc.  |
-| `al-006` | Phoneme blending (B)           |  54 | +0.30              | −0.58 to +1.20 | +0.030                 | −0.058 to +0.120 | P(>0)=0.706     | inconclusive | assoc.  |
-| `al-005` | Phonetic spelling (P)          |  53 | +0.03              | −0.07 to +0.13 | (scales coincide) ‡    | —                | P(>0)=0.698     | inconclusive | assoc.  |
-| `al-007` | Basic concepts (F)             |  53 | −0.61              | −1.68 to +0.45 | −0.034                 | −0.093 to +0.025 | P(<0)=0.820     | suggestive   | assoc.  |
-| `al-008` | Receptive grammar (T)          |  54 | −1.43              | −3.13 to +0.28 | −0.045                 | −0.098 to +0.009 | P(<0)=0.909 †   | suggestive   | assoc.  |
-| `al-003` | Expressive vocab, std (E)      |  54 | −3.06              | −6.89 to +0.73 | −0.018                 | −0.041 to +0.004 | P(<0)=0.900     | suggestive   | assoc.  |
+| Model    | Outcome                         |   n | Difference (items) | 89% range      | Prob-scale (risk diff) | 89% range        | P(favoured dir) | Evidence     | Causal? |
+| -------- | ------------------------------- | --: | ------------------ | -------------- | ---------------------- | ---------------- | --------------- | ------------ | ------- |
+| `al-004` | **Letter sounds (LS)**          |  53 | +2.23              | +0.21 to +4.23 | +0.070                 | +0.006 to +0.132 | P(>0)=0.961     | moderate     | assoc.  |
+| `al-002` | Receptive vocab, std (RV)       |  54 | +2.73              | −1.80 to +7.16 | +0.016                 | −0.011 to +0.042 | P(>0)=0.832     | suggestive   | assoc.  |
+| `al-001` | Word reading (WR)               |  52 | +2.14              | −0.47 to +4.76 | +0.027                 | −0.006 to +0.068 | P(>0)=0.906 †   | suggestive   | assoc.  |
+| `al-101` | Word reading (WR), dose variant |  52 | +2.15              | −0.43 to +4.81 | +0.027                 | −0.005 to +0.061 | P(>0)=0.909 †   | suggestive   | assoc.  |
+| `al-006` | Phoneme blending (PA)           |  54 | +0.30              | −0.58 to +1.20 | +0.030                 | −0.058 to +0.120 | P(>0)=0.706     | inconclusive | assoc.  |
+| `al-005` | Phonetic spelling (PS)          |  53 | +0.03              | −0.07 to +0.13 | (scales coincide) ‡    | —                | P(>0)=0.698     | inconclusive | assoc.  |
+| `al-007` | Basic concepts (LF)             |  53 | −0.61              | −1.68 to +0.45 | −0.034                 | −0.093 to +0.025 | P(<0)=0.820     | suggestive   | assoc.  |
+| `al-008` | Receptive grammar (RG)          |  54 | −1.43              | −3.13 to +0.28 | −0.045                 | −0.098 to +0.009 | P(<0)=0.909 †   | suggestive   | assoc.  |
+| `al-003` | Expressive vocab, std (EV)      |  54 | −3.06              | −6.89 to +0.73 | −0.018                 | −0.041 to +0.004 | P(<0)=0.900     | suggestive   | assoc.  |
 
-† These three read as "91%" when rounded, but are labelled **suggestive** not moderate: the raw probabilities are 0.906 (W), 0.909 (W-dose) and 0.9093 (T), all just below the 0.91 moderate threshold, and the ladder is applied to the unrounded value. ‡ Phonetic spelling is a compressed, near-floor measure, so its items and probability scales effectively coincide over this narrow range; a phonetic-spelling "item" is not a natural everyday unit — read it as "essentially no cohort difference".
+† These three read as "91%" when rounded, but are labelled **suggestive** not moderate: the raw probabilities are 0.906 (WR), 0.909 (W-dose) and 0.9093 (RG), all just below the 0.91 moderate threshold, and the ladder is applied to the unrounded value. ‡ Phonetic spelling is a compressed, near-floor measure, so its items and probability scales effectively coincide over this narrow range; a phonetic-spelling "item" is not a natural everyday unit — read it as "essentially no cohort difference".
 
 Letter sounds (`al-004`) is the strongest positive-leaning outcome (moderate), word reading (`al-001`/`al-101`) and receptive vocabulary (`al-002`) lean positive but only suggestively, phoneme blending and phonetic spelling are flat and inconclusive, and receptive grammar (`al-008`), expressive vocabulary (`al-003`) and basic concepts (`al-007`) lean _negative_ (suggestive). Every interval spans zero and the samples are tiny, which is exactly the behaviour expected of a non-randomised cohort contrast that timing and age can distort in either direction.
 

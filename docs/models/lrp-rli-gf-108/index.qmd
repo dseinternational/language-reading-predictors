@@ -1,5 +1,5 @@
 ---
-title: "LRPGF08b: Factors associated with gains in TROG receptive grammar (T), treated-only"
+title: "LRPGF08b: Factors associated with gains in TROG receptive grammar (RG), treated-only"
 
 format:
   html:

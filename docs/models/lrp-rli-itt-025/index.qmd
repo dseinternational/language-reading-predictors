@@ -1,5 +1,5 @@
 ---
-title: "LRPITT25: Modified-ITT analysis of basic concept knowledge (CELF) (F)"
+title: "LRPITT25: Modified-ITT analysis of basic concept knowledge (CELF) (LF)"
 
 format:
   html:

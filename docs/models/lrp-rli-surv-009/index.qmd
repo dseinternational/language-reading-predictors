@@ -1,5 +1,5 @@
 ---
-title: "LRPSURV09: time-to-off-floor survival for phonetic spelling (P)"
+title: "LRPSURV09: time-to-off-floor survival for phonetic spelling (PS)"
 
 format:
   html:

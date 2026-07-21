@@ -1,5 +1,5 @@
 ---
-title: "LRP101: Linear letter-sound (L) -> word reading (W) slope — Tier-1 contrast anchor"
+title: "LRP101: Linear letter-sound (LS) -> word reading (WR) slope — Tier-1 contrast anchor"
 
 format:
   html:

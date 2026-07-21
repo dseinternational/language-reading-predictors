@@ -1,5 +1,5 @@
 ---
-title: "LRPAL07: Aligned-40-week per-protocol gain for basic concept knowledge (F)"
+title: "LRPAL07: Aligned-40-week per-protocol gain for basic concept knowledge (LF)"
 
 format:
   html:

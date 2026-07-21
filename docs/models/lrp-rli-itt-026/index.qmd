@@ -1,5 +1,5 @@
 ---
-title: "LRPITT26: Modified-ITT analysis of receptive grammar (TROG-2) (T)"
+title: "LRPITT26: Modified-ITT analysis of receptive grammar (TROG-2) (RG)"
 
 format:
   html:

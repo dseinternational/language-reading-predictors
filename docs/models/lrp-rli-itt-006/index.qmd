@@ -1,5 +1,5 @@
 ---
-title: "LRPITT06: Modified-ITT analysis of standardised expressive vocabulary (EOWPVT) (E)"
+title: "LRPITT06: Modified-ITT analysis of standardised expressive vocabulary (EOWPVT) (EV)"
 
 format:
   html:

@@ -1,5 +1,5 @@
 ---
-title: "LRP98: Negative-control outcome — letter sounds (L) -> expressive vocabulary (E)"
+title: "LRP98: Negative-control outcome — letter sounds (LS) -> expressive vocabulary (EV)"
 
 format:
   html:
