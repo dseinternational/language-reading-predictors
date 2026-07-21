@@ -36,6 +36,8 @@ LRP70 will not sample cleanly, LRP69 is the primary deliverable and the factor i
 reported as not estimable at this sample size (as the RI-CLPM companion was for
 LRP67).
 
+_The shared-factor loadings are sign-constrained._ Each loading $\lambda_m$ is given a positive-only (`HalfNormal`) prior for identification, so a loading reported at posterior P(> 0) = 1.0 ("very strong") is a mechanical consequence of that constraint, not evidence that the measure loads strongly on the common tempo. Read the loading _magnitudes_ — and the tempo↔ability correlation, which is unconstrained — rather than the direction or its probability.
+
 _Symbol mapping (read before the tables)._
 
 | Construct | Symbol | Measure | Denominator |

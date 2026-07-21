@@ -59,6 +59,8 @@ items-scale "exchange rate" varies along the curve — the same step in the earl
 skill buys more predicted items in the steep middle than in the flat tails — which
 is exactly what the logit view hides.
 
+_Comparing the GP curve with its linear anchor._ Where a companion model fits the same skill→outcome relation with a plain linear slope, the HSGP curve here is the more heavily regularised of the two — a deliberately tight amplitude (`eta ~ HalfNormal(0.3)`) and a moderate-to-long lengthscale (`ell ~ InverseGamma(5, 5)`), neither of which constrains the linear anchor. A GP-vs-linear difference therefore reflects prior/regularisation strength as well as functional form, so read the knee and saturation features below as _suggestive_ of nonlinearity over the observed range rather than as a clean functional-form contrast, and read the sign and existence of the association (robust) separately from its magnitude (regularisation-dependent).
+
 ```{python}
 # | echo: false
 # | output: asis
