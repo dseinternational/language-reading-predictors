@@ -108,19 +108,23 @@ _pred = _csv("predicted_scores.csv")
 if _pred is not None:
     _pop = str(_pred.iloc[0].population)
     _status = str(_pred.iloc[0].contrast_status)
-    print(_img("predicted_scores.png", "Predicted t2 test scores under each arm, and the effect scale with ROPE"))
+    print(_img("predicted_scores.png", "Predicted t2 test scores under each arm"))
     print(
-        f"\n_How to read it:_ the left panel shows the t2 score the model predicts on {outcome_label} "
+        f"\n_How to read it:_ the t2 score the model predicts on {outcome_label} "
         f"for a **{_pop}** — one distribution per randomised arm, medians marked and the difference "
         "annotated. This model is a within-child longitudinal (waitlist-crossover) model, and only the "
         f"t2 arm contrast shown here is randomised: {_status}. The `arm_gap_t3` and `delta_crossover` "
-        "quantities are post-crossover associations and are deliberately not drawn on this panel. The "
+        "quantities are post-crossover associations and are deliberately not drawn. The "
         "child random intercept is integrated over its population distribution, so this is a *new-child* "
-        "marginal prediction, not a same-children conditional display. The right panel is the posterior "
-        "of the effect on the outcome scale with the ROPE band (where an agreed δ exists) and the three "
-        "probabilities (meaningful benefit / negligible / meaningful harm) printed. "
-        "The plotted quantities are in `predicted_scores.csv`."
+        "marginal prediction, not a same-children conditional display."
     )
+    if _has("predicted_effect.png"):
+        print(_img("predicted_effect.png", "Effect on the outcome scale with ROPE"))
+        print(
+            "\n_How to read it:_ the posterior of the effect on the outcome scale with the ROPE band "
+            "(where an agreed δ exists) and the three probabilities (meaningful benefit / negligible / "
+            "meaningful harm) printed. The plotted quantities are in `predicted_scores.csv`."
+        )
 ```
 
 ```{python}
@@ -203,7 +207,10 @@ if _did_cell_ppc is not None:
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("did_cell_ppc.png", "Observed and posterior-predictive summaries by arm and time"))
+if _has("did_cell_ppc_mean.png"):
+    print(_img("did_cell_ppc_mean.png", "Observed vs posterior-predictive cell mean by arm and time"))
+if _has("did_cell_ppc_zero_rate.png"):
+    print(_img("did_cell_ppc_zero_rate.png", "Observed vs posterior-predictive proportion at zero by arm and time"))
 ```
 
 ```{python}

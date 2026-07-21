@@ -114,7 +114,37 @@ def run_prior_predictive(
     context.prior_samples = prior
 
 
+def _reuse_existing_trace(context: StatisticalFitContext) -> bool:
+    """Load a saved posterior instead of sampling, when re-emitting artefacts.
+
+    Enabled by ``DSE_LRP_REUSE_TRACE``: ``"1"`` reuses the trace at the model's
+    own ``final_output_dir`` (the previous publication, untouched until this run
+    publishes); any other value is treated as a directory to read ``trace.nc``
+    from. The saved DataTree is loaded whole; the later stages recompute the
+    log-likelihood and posterior-predictive groups in place
+    (``extend_inferencedata=True`` overwrites them), so every downstream artefact
+    is regenerated from the saved draws without re-running NUTS. Returns True when
+    a trace was loaded.
+    """
+    reuse = os.environ.get("DSE_LRP_REUSE_TRACE")
+    if not reuse:
+        return False
+    source = context.final_output_dir if reuse == "1" else reuse
+    trace_path = os.path.join(source, "trace.nc")
+    if not os.path.exists(trace_path):
+        rprint(
+            f"[yellow]DSE_LRP_REUSE_TRACE set but no trace at {trace_path}; "
+            "sampling instead.[/yellow]"
+        )
+        return False
+    context.trace = az.from_netcdf(trace_path)
+    rprint(f"[cyan]Reusing saved posterior (no sampling): {trace_path}[/cyan]")
+    return True
+
+
 def sample_posterior(context: StatisticalFitContext) -> None:
+    if _reuse_existing_trace(context):
+        return
     s = context.sampling
     with context.model:
         trace = pm.sample(
