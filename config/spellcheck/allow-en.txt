@@ -599,3 +599,7 @@ zproc
 secondaries
 uncentred
 argmax
+cloglog
+disattenuated
+disattenuation
+surv
