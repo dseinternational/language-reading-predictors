@@ -44,6 +44,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
+from dse_research_utils.plot.styles import COLOUR_BLUE, COLOUR_RED
 from scipy.special import expit
 
 from language_reading_predictors.figure_io import save_styled_figure
@@ -54,10 +55,10 @@ __all__ = [
     "write_mechanism_items_artifacts",
 ]
 
-#: Curve / ribbon colour, matching ``_write_mechanism_curve``'s logit-scale plot.
-_CURVE_COLOR = "#1f77b4"
-#: Worked-example annotation colour (a warm contrast to the cool curve).
-_WORKED_COLOR = "#d62728"
+#: Curve / ribbon and worked-example accents from the shared project palette
+#: (``dse_research_utils.plot.styles``), matching ``_write_mechanism_curve``.
+_CURVE_COLOR = COLOUR_BLUE
+_WORKED_COLOR = COLOUR_RED
 
 
 def _stack_obs(da: xr.DataArray) -> np.ndarray:

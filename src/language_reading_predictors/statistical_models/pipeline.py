@@ -40,6 +40,11 @@ from dataclasses import replace
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from dse_research_utils.plot.styles import (
+    COLOUR_BLUE,
+    COLOUR_RED,
+    FIGSIZE_LG,
+)
 from rich import print as rprint
 from scipy.special import expit
 
@@ -804,12 +809,12 @@ def _ppc_overlay_figure(
         lo_band = np.quantile(rep_dens, 0.05, axis=0)
         hi_band = np.quantile(rep_dens, 0.95, axis=0)
         med_band = np.median(rep_dens, axis=0)
-        plt.figure(figsize=(6.5, 4))
+        plt.figure(figsize=FIGSIZE_LG)
         plt.fill_between(
-            centers, lo_band, hi_band, color="#1f77b4", alpha=0.3,
+            centers, lo_band, hi_band, color=COLOUR_BLUE, alpha=0.3,
             label="posterior-predictive 90% band",
         )
-        plt.plot(centers, med_band, color="#1f77b4", lw=1.2, alpha=0.85,
+        plt.plot(centers, med_band, color=COLOUR_BLUE, lw=1.2, alpha=0.85,
                  label="posterior-predictive median")
         plt.plot(centers, obs_dens, color="black", lw=2, label="observed")
         axis_lbl = f"{label} — score (0–{hi} items)" if n_trials else f"{label} — score"
@@ -854,11 +859,11 @@ def _ppc_calibration_figure(
                  label="perfect calibration (y = x)")
         plt.errorbar(
             obs, med, yerr=np.vstack((med - lo, hi - med)), fmt="none",
-            ecolor="#1f77b4", alpha=0.35, capsize=0, zorder=1,
+            ecolor=COLOUR_BLUE, alpha=0.35, capsize=0, zorder=1,
         )
-        plt.scatter(obs[inside], med[inside], s=18, color="#1f77b4",
+        plt.scatter(obs[inside], med[inside], s=18, color=COLOUR_BLUE,
                     label="observed inside 90% range", zorder=2)
-        plt.scatter(obs[~inside], med[~inside], s=26, color="#d62728", marker="x",
+        plt.scatter(obs[~inside], med[~inside], s=26, color=COLOUR_RED, marker="x",
                     lw=1.6, label="observed outside 90% range", zorder=3)
         plt.xlabel(f"observed {label} score")
         plt.ylabel("posterior-predictive median (90% range)")
@@ -887,10 +892,10 @@ def _ppc_offfloor_figure(
         obs = cells["observed_rate"].to_numpy(float)
         plt.figure(figsize=(max(5.0, 1.6 * len(cells) + 2.0), 4))
         plt.errorbar(
-            x, med, yerr=np.vstack((med - lo, hi - med)), fmt="o", color="#1f77b4",
+            x, med, yerr=np.vstack((med - lo, hi - med)), fmt="o", color=COLOUR_BLUE,
             capsize=4, label="posterior-predictive median and 90% range",
         )
-        plt.scatter(x, obs, marker="x", s=60, lw=2, color="#d62728",
+        plt.scatter(x, obs, marker="x", s=60, lw=2, color=COLOUR_RED,
                     label="observed", zorder=3)
         plt.xticks(x, cells["cell"].tolist())
         plt.ylabel("off-floor rate")
@@ -920,47 +925,46 @@ def _save_legacy_ppc_overlay(context: StatisticalFitContext) -> None:
         rprint(f"[yellow]PPC plot failed: {exc}[/yellow]")
 
 
-def _save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) -> None:
-    """Plot observed and replicated summaries for every fitted DiD design cell."""
-    try:
-        fig, axes = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
-        x = np.arange(len(cell_ppc))
-        labels = cell_ppc["cell"].str.replace("_", "\n").tolist()
+def _draw_did_cell_panel(
+    ax: "plt.Axes", cell_ppc: pd.DataFrame, *, stem: str, ylabel: str, title: str
+) -> None:
+    """One DiD cell-PPC panel: replicated median/interval vs observed, by cell."""
+    x = np.arange(len(cell_ppc))
+    labels = cell_ppc["cell"].str.replace("_", "\n").tolist()
+    centre = cell_ppc[f"replicated_{stem}_median"].to_numpy(float)
+    lo = cell_ppc[f"replicated_{stem}_lo"].to_numpy(float)
+    hi = cell_ppc[f"replicated_{stem}_hi"].to_numpy(float)
+    observed = cell_ppc[f"observed_{stem}"].to_numpy(float)
+    ax.errorbar(
+        x, centre, yerr=np.vstack((centre - lo, hi - centre)), fmt="o", capsize=4,
+        color=COLOUR_BLUE, label="posterior predictive median and 95% interval",
+    )
+    ax.scatter(x, observed, marker="x", s=55, linewidth=2, color=COLOUR_RED,
+               label="observed")
+    ax.set_ylabel(ylabel)
+    ax.grid(axis="y", alpha=0.2)
+    ax.set_xticks(x, labels)
+    ax.set_xlabel("fitted arm-by-time cell")
+    ax.set_title(title)
+    ax.legend(loc="best")
 
-        for ax, stem, ylabel in (
-            (axes[0], "mean", "cell mean"),
-            (axes[1], "zero_rate", "proportion at zero"),
+
+def _save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) -> None:
+    """Cell-stratified DiD posterior-predictive checks as two individual figures:
+    ``did_cell_ppc_mean`` (cell mean) and ``did_cell_ppc_zero_rate`` (proportion
+    at zero)."""
+    try:
+        for stem, ylabel, name in (
+            ("mean", "cell mean", "did_cell_ppc_mean"),
+            ("zero_rate", "proportion at zero", "did_cell_ppc_zero_rate"),
         ):
-            centre = cell_ppc[f"replicated_{stem}_median"].to_numpy(float)
-            lo = cell_ppc[f"replicated_{stem}_lo"].to_numpy(float)
-            hi = cell_ppc[f"replicated_{stem}_hi"].to_numpy(float)
-            observed = cell_ppc[f"observed_{stem}"].to_numpy(float)
-            ax.errorbar(
-                x,
-                centre,
-                yerr=np.vstack((centre - lo, hi - centre)),
-                fmt="o",
-                capsize=4,
-                color="#1f77b4",
-                label="posterior predictive median and 95% interval",
+            fig, ax = plt.subplots(figsize=FIGSIZE_LG)
+            _draw_did_cell_panel(
+                ax, cell_ppc, stem=stem, ylabel=ylabel,
+                title=f"Cell-stratified PPC: {ylabel}",
             )
-            ax.scatter(
-                x,
-                observed,
-                marker="x",
-                s=55,
-                linewidth=2,
-                color="#d62728",
-                label="observed",
-            )
-            ax.set_ylabel(ylabel)
-            ax.grid(axis="y", alpha=0.2)
-        axes[0].legend(loc="best")
-        axes[1].set_xticks(x, labels)
-        axes[1].set_xlabel("fitted arm-by-time cell")
-        fig.suptitle("Cell-stratified posterior-predictive checks")
-        fig.tight_layout()
-        save_styled_figure(ctx.output_dir, "did_cell_ppc", fig=fig)
+            fig.tight_layout()
+            save_styled_figure(ctx.output_dir, name, fig=fig)
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]DiD cell PPC plot failed: {exc}[/yellow]")
 
@@ -972,9 +976,9 @@ def _save_proportion_at_zero_plot(
     try:
         rep = ppc0["rep"]
         obs = ppc0["obs_prop_at_zero"]
-        plt.figure(figsize=(6, 4))
-        plt.hist(rep, bins=30, color="#1f77b4", alpha=0.6, density=True)
-        plt.axvline(obs, color="#d62728", lw=2, label=f"observed = {obs:.2f}")
+        plt.figure(figsize=FIGSIZE_LG)
+        plt.hist(rep, bins=30, color=COLOUR_BLUE, alpha=0.6, density=True)
+        plt.axvline(obs, color=COLOUR_RED, lw=2, label=f"observed = {obs:.2f}")
         plt.xlabel(f"proportion of {symbol} post-scores at zero")
         plt.ylabel("posterior-predictive density")
         plt.title(
@@ -2872,6 +2876,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 "(waitlist-crossover) model"
             ),
             event_label="off the floor at t2 (prevalence)",
+            split=True,
         )
 
         # Data-space figures (#317): the crossover trajectory (headline picture) and
@@ -3331,9 +3336,9 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
         os.path.join(ctx.output_dir, "mechanism_summary.csv"), index=False
     )
     ctx.tables["mechanism_summary"] = mechanism_summary
-    plt.figure(figsize=(6, 4))
-    plt.plot(x, mean, color="#1f77b4", lw=2)
-    plt.fill_between(x, lo, hi, color="#1f77b4", alpha=0.2)
+    plt.figure(figsize=FIGSIZE_LG)
+    plt.plot(x, mean, color=COLOUR_BLUE, lw=2)
+    plt.fill_between(x, lo, hi, color=COLOUR_BLUE, alpha=0.2)
     plt.xlabel(x_label)
     plt.ylabel("predictor logit contribution")
     plt.title(f"Mechanism curve ({kind}): {sym} -> {outcome}")
@@ -3467,17 +3472,17 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     order = np.argsort(x_obs)
     x = x_obs[order]
     mean = f[order].mean(axis=1)
-    plt.figure(figsize=(6, 4))
-    plt.plot(x, mean, color="#1f77b4", lw=2)
+    plt.figure(figsize=FIGSIZE_LG)
+    plt.plot(x, mean, color=COLOUR_BLUE, lw=2)
     plt.axvspan(
         summary["knee_count_ci_low"],
         summary["knee_count_ci_high"],
-        color="#d62728",
+        color=COLOUR_RED,
         alpha=0.15,
         label=f"knee {int(round(ctx.reporting.ci_prob * 100))}% CI",
     )
     plt.axvline(
-        summary["knee_count_median"], color="#d62728", lw=1.5, label="knee median"
+        summary["knee_count_median"], color=COLOUR_RED, lw=1.5, label="knee median"
     )
     plt.xlabel(x_label)
     plt.ylabel(f"{outcome} logit contribution")
@@ -4606,7 +4611,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             _save_rope_plot(
                 ctx, spec.outcome_symbol, trt, n_marg, delta_items,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
-                row_mask=p1_mask,
+                row_mask=p1_mask, split=True,
             )
         elif off_floor and delta_prob is not None:
             # Off-floor risk-difference ROPE, matching the floored ITT path
@@ -4628,7 +4633,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             _save_rope_plot(
                 ctx, spec.outcome_symbol, trt, 1, delta_prob,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
-                row_mask=p1_mask,
+                row_mask=p1_mask, split=True,
             )
             # δ-sensitivity sweep on the risk-difference scale (#144): 10/15/20 pp,
             # the grid the sign-off mandates (mirrors the floored ITT path).
@@ -4666,6 +4671,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             ),
             contrast_status="randomised on-intervention contrast (period-1 anchor)",
             event_label="off the floor at the period end",
+            split=True,
         )
 
     # --- Per-covariate items-scale association marginals (#310) ---
@@ -4923,7 +4929,9 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                 columns=["metric", "value"],
             )
         )
-        _save_rope_plot(ctx, spec.outcome_symbol, None, n_marg, delta, items=items)
+        _save_rope_plot(
+            ctx, spec.outcome_symbol, None, n_marg, delta, items=items, split=True
+        )
         if _offfloor_card:
             # δ-sensitivity sweep on the risk-difference grid (10/15/20 pp), mirroring
             # the gain-factor off-floor path (#144). Built from the same ``items``
@@ -5534,7 +5542,7 @@ def _plot_associations(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float)
     plt.errorbar(
         df["adj_mean"], y + 0.12,
         xerr=[df["adj_mean"] - df["adj_lo"], df["adj_hi"] - df["adj_mean"]],
-        fmt="o", color="#1f77b4", capsize=3, label="adjusted (mutual)",
+        fmt="o", color=COLOUR_BLUE, capsize=3, label="adjusted (mutual)",
     )
     plt.errorbar(
         df["biv_mean"], y - 0.12,
@@ -6673,7 +6681,7 @@ def _plot_concurrent(
     plt.errorbar(
         d["adj_mean"], y + 0.12,
         xerr=[d["adj_mean"] - d["adj_lo"], d["adj_hi"] - d["adj_mean"]],
-        fmt="o", color="#1f77b4", capsize=3, label="adjusted (mutual)",
+        fmt="o", color=COLOUR_BLUE, capsize=3, label="adjusted (mutual)",
     )
     plt.errorbar(
         d["biv_mean"], y - 0.12,
