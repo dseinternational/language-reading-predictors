@@ -127,7 +127,13 @@ def _make_synthetic_long(n_children: int = 30, seed: int = 0) -> pd.DataFrame:
                 row[m.column] = int(rng.integers(0, m.n_trials + 1))
             row[V.NONWORD] = int(rng.integers(0, 7))
             rows.append(row)
-    return pd.DataFrame(rows)
+    frame = pd.DataFrame(rows)
+    # Randomised group is time-invariant per child (as in the real data); collapse
+    # the per-row draws to each child's first-wave value so the fixture satisfies the
+    # loader's source-key integrity check (#392). Done after the draws so the RNG
+    # stream — and every other synthetic value — is unchanged.
+    frame[V.GROUP] = frame.groupby(V.SUBJECT_ID)[V.GROUP].transform("first")
+    return frame
 
 
 def test_load_and_prepare_itt(tmp_path):
@@ -175,10 +181,38 @@ def test_group_code_is_validated_before_integer_cast(tmp_path):
     """A fractional raw code must not be truncated into a valid arm."""
     df = _make_synthetic_long(n_children=8, seed=12)
     df[V.GROUP] = df[V.GROUP].astype(float)
-    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 1), V.GROUP] = 1.5
+    # All of S000's waves (a constant fractional code) so this isolates the
+    # integer-cast validation, not the time-invariant-group check (#392).
+    df.loc[df[V.SUBJECT_ID] == "S000", V.GROUP] = 1.5
     p = tmp_path / "rli_fractional_group.csv"
     df.to_csv(p, index=False)
     with pytest.raises(ValueError, match=r"exactly 1.*or 2.*1\.5"):
+        load_and_prepare(path=p, phase_mode="itt")
+
+
+def test_load_and_prepare_rejects_duplicate_subject_time(tmp_path):
+    """#392: a duplicate (subject_id, time) row must fail loud, not be silently
+    double-counted through the autoregressive pre/post merge."""
+    df = _make_synthetic_long(n_children=8, seed=1)
+    dupe = df[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 1)]
+    df = pd.concat([df, dupe], ignore_index=True)
+    p = tmp_path / "rli_dup.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match=r"duplicate \(subject_id, time\)"):
+        load_and_prepare(path=p, phase_mode="itt")
+
+
+def test_load_and_prepare_rejects_within_subject_group_change(tmp_path):
+    """#392: a child whose randomised group changes across waves breaks the
+    time-invariant assignment and must fail loud."""
+    df = _make_synthetic_long(n_children=8, seed=2)
+    orig = int(df.loc[df[V.SUBJECT_ID] == "S000", V.GROUP].iloc[0])
+    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 2), V.GROUP] = (
+        2 if orig == 1 else 1
+    )
+    p = tmp_path / "rli_grpchange.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match="group is not constant"):
         load_and_prepare(path=p, phase_mode="itt")
 
 
