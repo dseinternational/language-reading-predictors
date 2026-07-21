@@ -1,5 +1,5 @@
 ---
-title: "LRP77: Period-resolved dose-response — intervention dose -> word reading (W)"
+title: "LRP77: Period-resolved dose-response — intervention dose -> word reading (WR)"
 
 format:
   html:

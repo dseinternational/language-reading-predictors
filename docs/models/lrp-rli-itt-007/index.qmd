@@ -1,5 +1,5 @@
 ---
-title: "LRPITT07: Modified-ITT analysis of letter-sound knowledge (YARC-LSK) (L)"
+title: "LRPITT07: Modified-ITT analysis of letter-sound knowledge (YARC-LSK) (LS)"
 
 format:
   html:

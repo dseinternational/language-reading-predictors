@@ -1,5 +1,5 @@
 ---
-title: "LRPDID11: Waitlist-crossover arm-by-wave sensitivity for phonetic spelling (SPPHON) (P), off-floor prevalence"
+title: "LRPDID11: Waitlist-crossover arm-by-wave sensitivity for phonetic spelling (SPPHON) (PS), off-floor prevalence"
 
 format:
   html:

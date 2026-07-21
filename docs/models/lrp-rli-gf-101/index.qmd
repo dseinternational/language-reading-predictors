@@ -1,5 +1,5 @@
 ---
-title: "LRPGF01b: Factors associated with gains in word reading (W) — treated-only companion"
+title: "LRPGF01b: Factors associated with gains in word reading (WR) — treated-only companion"
 
 format:
   html:

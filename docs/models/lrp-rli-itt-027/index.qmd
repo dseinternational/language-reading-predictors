@@ -1,5 +1,5 @@
 ---
-title: "LRPITT27: Site-adjusted modified-ITT offer effect on word reading (W)"
+title: "LRPITT27: Site-adjusted modified-ITT offer effect on word reading (WR)"
 
 format:
   html:

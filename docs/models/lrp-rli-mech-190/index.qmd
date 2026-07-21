@@ -1,5 +1,5 @@
 ---
-title: "LRP190: GP knee-test — phoneme blending (B) -> word reading (W)"
+title: "LRP190: GP knee-test — phoneme blending (PA) -> word reading (WR)"
 
 format:
   html:

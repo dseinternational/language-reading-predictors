@@ -1,5 +1,5 @@
 ---
-title: "LRP93: Mechanism model — letter-sound (L) -> word reading (W), moderated by receptive vocabulary (R)"
+title: "LRP93: Mechanism model — letter-sound (LS) -> word reading (WR), moderated by receptive vocabulary (RV)"
 
 format:
   html:

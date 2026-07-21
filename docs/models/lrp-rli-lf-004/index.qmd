@@ -1,5 +1,5 @@
 ---
-title: "LRPLF04: Factors associated with the level of letter sounds (L)"
+title: "LRPLF04: Factors associated with the level of letter sounds (LS)"
 
 format:
   html:

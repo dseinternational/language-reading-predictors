@@ -1,5 +1,5 @@
 ---
-title: "LRPITT13b: SES-adjusted modified-ITT offer effect on letter-sound knowledge (L)"
+title: "LRPITT13b: SES-adjusted modified-ITT offer effect on letter-sound knowledge (LS)"
 
 format:
   html:

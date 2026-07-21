@@ -1,5 +1,5 @@
 ---
-title: "LRPAL01d: Aligned-40-week dose sensitivity variant for word reading (W)"
+title: "LRPAL01d: Aligned-40-week dose sensitivity variant for word reading (WR)"
 
 format:
   html:

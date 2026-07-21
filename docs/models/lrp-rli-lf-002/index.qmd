@@ -1,5 +1,5 @@
 ---
-title: "LRPLF02: Factors associated with the level of receptive vocabulary (R)"
+title: "LRPLF02: Factors associated with the level of receptive vocabulary (RV)"
 
 format:
   html:

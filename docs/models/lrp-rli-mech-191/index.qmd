@@ -1,5 +1,5 @@
 ---
-title: "LRP191: GP knee-test — intervention sessions (IS) -> word reading (W)"
+title: "LRP191: GP knee-test — intervention sessions (IS) -> word reading (WR)"
 
 format:
   html:

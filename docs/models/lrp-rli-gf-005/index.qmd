@@ -1,5 +1,5 @@
 ---
-title: "LRPGF05: Factors associated with gains in phonetic spelling (P) — off-floor"
+title: "LRPGF05: Factors associated with gains in phonetic spelling (PS) — off-floor"
 
 format:
   html:

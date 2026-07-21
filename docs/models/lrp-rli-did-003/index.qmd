@@ -1,5 +1,5 @@
 ---
-title: "LRPDID03: Waitlist-crossover arm-by-wave sensitivity for phoneme blending (B)"
+title: "LRPDID03: Waitlist-crossover arm-by-wave sensitivity for phoneme blending (PA)"
 
 format:
   html:

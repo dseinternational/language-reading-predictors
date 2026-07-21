@@ -1,5 +1,5 @@
 ---
-title: "LRPITT22: Ability-adjusted modified-ITT offer effect on expressive vocabulary (E)"
+title: "LRPITT22: Ability-adjusted modified-ITT offer effect on expressive vocabulary (EV)"
 
 format:
   html:

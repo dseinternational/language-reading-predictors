@@ -1,5 +1,5 @@
 ---
-title: "LRPGF04b: Factors associated with gains in letter sounds (L), treated-only"
+title: "LRPGF04b: Factors associated with gains in letter sounds (LS), treated-only"
 
 format:
   html:

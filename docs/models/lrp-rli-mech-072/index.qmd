@@ -1,5 +1,5 @@
 ---
-title: "LRP72: Phonics route — letter-sound (L) × phoneme blending (B) -> decoding (nonword)"
+title: "LRP72: Phonics route — letter-sound (LS) × phoneme blending (PA) -> decoding (nonword)"
 
 format:
   html:

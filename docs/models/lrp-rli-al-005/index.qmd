@@ -1,5 +1,5 @@
 ---
-title: "LRPAL05: Aligned-40-week per-protocol gain for phonetic spelling (P), off-floor"
+title: "LRPAL05: Aligned-40-week per-protocol gain for phonetic spelling (PS), off-floor"
 
 format:
   html:

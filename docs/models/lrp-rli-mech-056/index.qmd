@@ -1,5 +1,5 @@
 ---
-title: "LRP56: Mechanism model — receptive vocabulary (R) -> word reading (W)"
+title: "LRP56: Mechanism model — receptive vocabulary (RV) -> word reading (WR)"
 
 format:
   html:

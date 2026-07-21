@@ -1,5 +1,5 @@
 ---
-title: "LRPDID13: exploratory waitlist-catch-up heterogeneity — word reading (W)"
+title: "LRPDID13: exploratory waitlist-catch-up heterogeneity — word reading (WR)"
 
 format:
   html:

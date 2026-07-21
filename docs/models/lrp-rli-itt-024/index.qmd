@@ -1,5 +1,5 @@
 ---
-title: "LRPITT24: Ability-adjusted modified-ITT offer effect on word reading (W)"
+title: "LRPITT24: Ability-adjusted modified-ITT offer effect on word reading (WR)"
 
 format:
   html:

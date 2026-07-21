@@ -1,5 +1,5 @@
 ---
-title: "LRPAL08: Aligned-40-week per-protocol gain for receptive grammar (T)"
+title: "LRPAL08: Aligned-40-week per-protocol gain for receptive grammar (RG)"
 
 format:
   html:

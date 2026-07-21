@@ -1,5 +1,5 @@
 ---
-title: "LRPAL04: Aligned-40-week per-protocol gain for letter-sound knowledge (L)"
+title: "LRPAL04: Aligned-40-week per-protocol gain for letter-sound knowledge (LS)"
 
 format:
   html:

@@ -1,5 +1,5 @@
 ---
-title: "LRPLF03: Factors associated with the level of expressive vocabulary (E)"
+title: "LRPLF03: Factors associated with the level of expressive vocabulary (EV)"
 
 format:
   html:

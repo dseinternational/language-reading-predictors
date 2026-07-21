@@ -1,5 +1,5 @@
 ---
-title: "LRPDID06: Waitlist-crossover observational session-dose model for word reading (EWRSWR) (W)"
+title: "LRPDID06: Waitlist-crossover observational session-dose model for word reading (EWRSWR) (WR)"
 
 format:
   html:

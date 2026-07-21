@@ -1,5 +1,5 @@
 ---
-title: "LRPDID12: Waitlist-crossover arm-by-wave sensitivity for nonword reading (NWR) (N), off-floor prevalence"
+title: "LRPDID12: Waitlist-crossover arm-by-wave sensitivity for nonword reading (NWR) (NW), off-floor prevalence"
 
 format:
   html:

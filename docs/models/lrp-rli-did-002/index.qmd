@@ -1,5 +1,5 @@
 ---
-title: "LRPDID02: Waitlist-crossover arm-by-wave sensitivity for letter-sound knowledge (YARC-LSK) (L)"
+title: "LRPDID02: Waitlist-crossover arm-by-wave sensitivity for letter-sound knowledge (YARC-LSK) (LS)"
 
 format:
   html:

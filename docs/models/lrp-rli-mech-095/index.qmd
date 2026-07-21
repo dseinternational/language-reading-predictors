@@ -1,5 +1,5 @@
 ---
-title: "LRP95: Mechanism model — letter-sound (L) -> word reading (W), moderated by taught-expressive vocabulary (TE)"
+title: "LRP95: Mechanism model — letter-sound (LS) -> word reading (WR), moderated by taught-expressive vocabulary (TE)"
 
 format:
   html:

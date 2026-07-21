@@ -1,5 +1,5 @@
 ---
-title: "LRPITT09: modified-ITT analysis of phonetic spelling (SPPHON) (P)"
+title: "LRPITT09: modified-ITT analysis of phonetic spelling (SPPHON) (PS)"
 
 format:
   html:

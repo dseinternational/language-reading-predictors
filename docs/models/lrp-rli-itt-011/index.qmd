@@ -1,5 +1,5 @@
 ---
-title: "LRPITT11: modified-ITT analysis of nonword reading (N) — floor-rule branch"
+title: "LRPITT11: modified-ITT analysis of nonword reading (NW) — floor-rule branch"
 
 format:
   html:

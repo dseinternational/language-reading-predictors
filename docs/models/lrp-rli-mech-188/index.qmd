@@ -1,5 +1,5 @@
 ---
-title: "LRP188: GP knee-test — taught-receptive vocabulary (TR) -> word reading (W)"
+title: "LRP188: GP knee-test — taught-receptive vocabulary (TR) -> word reading (WR)"
 
 format:
   html:

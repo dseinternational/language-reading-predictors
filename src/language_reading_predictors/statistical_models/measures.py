@@ -44,28 +44,28 @@ MEASURES: dict[str, Measure] = {
     # Word reading composite (YARC Early Word Recognition + Single Word
     # Reading). Test maximum 79 (Burgoyne et al. 2012, Table 3, "Single-word
     # reading (79)"); observed max 64.
-    "W": Measure("W", V.EWRSWR, 79, "Word reading (EWRSWR)", n_trials_confirmed=True),
+    "W": Measure("W", V.EWRSWR, 79, "Word reading (WR)", n_trials_confirmed=True),
     # ROWPVT (Brownell 2000): 170 items. Observed max 82.
-    "R": Measure("R", V.ROWPVT, 170, "Receptive vocabulary (ROWPVT)", n_trials_confirmed=True),
+    "R": Measure("R", V.ROWPVT, 170, "Receptive vocabulary (RV)", n_trials_confirmed=True),
     # EOWPVT-4: 170 items. Observed max 77.
-    "E": Measure("E", V.EOWPVT, 170, "Expressive vocabulary (EOWPVT)", n_trials_confirmed=True),
+    "E": Measure("E", V.EOWPVT, 170, "Expressive vocabulary (EV)", n_trials_confirmed=True),
     # YARC letter-sound knowledge: 32 items. Observed max 32.
-    "L": Measure("L", V.YARCLET, 32, "Letter-sound knowledge (YARC-LSK)", n_trials_confirmed=True),
+    "L": Measure("L", V.YARCLET, 32, "Letter-sound knowledge (LS)", n_trials_confirmed=True),
     # Phonetic spelling (phoneme-level count across 10 words with variable
     # item-stopping). Test maximum 92 (Burgoyne et al. 2012, Table 3,
     # "Phonetic spelling (92)"); observed max 92.
-    "P": Measure("P", V.SPPHON, 92, "Phonetic spelling (SPPHON)", n_trials_confirmed=True),
+    "P": Measure("P", V.SPPHON, 92, "Phonetic spelling (PS)", n_trials_confirmed=True),
     # Blending: 10 items. Observed max 10.
-    "B": Measure("B", V.BLENDING, 10, "Phoneme blending", n_trials_confirmed=True),
+    "B": Measure("B", V.BLENDING, 10, "Phoneme blending (PA)", n_trials_confirmed=True),
     # CELF Preschool-2 basic concepts: 18 items. Observed max 18.
-    "F": Measure("F", V.CELF, 18, "Basic concept knowledge (CELF)", n_trials_confirmed=True),
+    "F": Measure("F", V.CELF, 18, "Basic concept knowledge (LF)", n_trials_confirmed=True),
     # TROG-2: 8 blocks of 4 = 32 items. Observed max 27.
-    "T": Measure("T", V.TROG, 32, "Receptive grammar (TROG-2)", n_trials_confirmed=True),
+    "T": Measure("T", V.TROG, 32, "Receptive grammar (RG)", n_trials_confirmed=True),
     # Nonword reading: 6 items. It has t1 data, but ~72% of children are at the
     # floor at baseline (a near-degenerate pre), so it is not co-loaded as an
     # autoregressive baseline — doing so would drop rows to complete cases for
     # little signal.
-    "N": Measure("N", V.NONWORD, 6, "Nonword reading", n_trials_confirmed=True),
+    "N": Measure("N", V.NONWORD, 6, "Nonword reading (NW)", n_trials_confirmed=True),
     # --- Taught-vocabulary block tests (intervention-fidelity outcomes) -------
     # Bespoke tests of the words explicitly taught in the intervention (Block 1,
     # weeks 1-20), tested both ways and split into the directly-taught target
@@ -132,6 +132,26 @@ MEASURES: dict[str, Measure] = {
         n_trials_confirmed=True,
     ),
 }
+
+
+DAG_SYMBOL: dict[str, str] = {
+    "W": "WR",  # Word reading
+    "R": "RV",  # Receptive vocabulary
+    "E": "EV",  # Expressive vocabulary
+    "L": "LS",  # Letter-sound knowledge
+    "P": "PS",  # Phonetic spelling
+    "B": "PA",  # Phoneme blending / phonological awareness
+    "F": "LF",  # Language fundamentals (CELF basic concepts)
+    "T": "RG",  # Receptive grammar (TROG)
+    "N": "NW",  # Nonword reading
+}
+"""Canonical DAG node symbols (``dag/dag-language-reading.dagitty``, issue #374)
+for the ITT/standardised measures whose short modelling symbol differs from the
+DAG symbol. The modelling code keeps its own single-letter symbols; every
+human-facing surface (report titles, labels, key findings) displays the DAG
+symbol so notes and model outputs use one standard set. Symbols not listed
+(``TR``/``TE`` already match the DAG; ``UR``/``UE`` and block-2 variants have no
+DAG node) are shown unchanged."""
 
 
 ITT_OUTCOMES: tuple[str, ...] = ("W", "R", "E", "L", "P", "B", "F", "T")

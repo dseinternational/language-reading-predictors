@@ -1,5 +1,5 @@
 ---
-title: "LRPLF05: Factors associated with the level of phonetic spelling (P), off-floor"
+title: "LRPLF05: Factors associated with the level of phonetic spelling (PS), off-floor"
 
 format:
   html:

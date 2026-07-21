@@ -1,5 +1,5 @@
 ---
-title: "LRPGF01: Factors associated with gains in word reading (W)"
+title: "LRPGF01: Factors associated with gains in word reading (WR)"
 
 format:
   html:

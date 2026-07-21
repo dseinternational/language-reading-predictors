@@ -1,5 +1,5 @@
 ---
-title: "LRP88: Mechanism model — taught receptive vocabulary (TR) -> word reading (W)"
+title: "LRP88: Mechanism model — taught receptive vocabulary (TR) -> word reading (WR)"
 
 format:
   html:

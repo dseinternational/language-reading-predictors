@@ -1,5 +1,5 @@
 ---
-title: "LRP89: Mechanism model — taught expressive vocabulary (TE) -> word reading (W)"
+title: "LRP89: Mechanism model — taught expressive vocabulary (TE) -> word reading (WR)"
 
 format:
   html:

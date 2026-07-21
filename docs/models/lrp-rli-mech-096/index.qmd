@@ -1,5 +1,5 @@
 ---
-title: "LRP96: Decoding channel — letter-sound knowledge (L) -> nonword reading (N)"
+title: "LRP96: Decoding channel — letter-sound knowledge (LS) -> nonword reading (NW)"
 
 format:
   html:

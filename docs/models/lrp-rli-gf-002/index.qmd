@@ -1,5 +1,5 @@
 ---
-title: "LRPGF02: Factors associated with gains in receptive vocabulary (R)"
+title: "LRPGF02: Factors associated with gains in receptive vocabulary (RV)"
 
 format:
   html:

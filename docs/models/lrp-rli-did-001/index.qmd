@@ -1,5 +1,5 @@
 ---
-title: "LRPDID01: Waitlist-crossover arm-by-wave sensitivity for word reading (EWRSWR) (W)"
+title: "LRPDID01: Waitlist-crossover arm-by-wave sensitivity for word reading (EWRSWR) (WR)"
 
 format:
   html:

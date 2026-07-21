@@ -1,5 +1,5 @@
 ---
-title: "LRP84: Period-resolved dose-response — intervention dose -> phoneme blending (B)"
+title: "LRP84: Period-resolved dose-response — intervention dose -> phoneme blending (PA)"
 
 format:
   html:

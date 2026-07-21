@@ -1,5 +1,5 @@
 ---
-title: "LRPAL06: Aligned-40-week per-protocol gain for phoneme blending (B)"
+title: "LRPAL06: Aligned-40-week per-protocol gain for phoneme blending (PA)"
 
 format:
   html:

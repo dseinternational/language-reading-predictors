@@ -1,5 +1,5 @@
 ---
-title: "LRPDID05: Waitlist-crossover arm-by-wave sensitivity for receptive vocabulary (ROWPVT) (R)"
+title: "LRPDID05: Waitlist-crossover arm-by-wave sensitivity for receptive vocabulary (ROWPVT) (RV)"
 
 format:
   html:

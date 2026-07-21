@@ -1,5 +1,5 @@
 ---
-title: "LRPGF03: Factors associated with gains in expressive vocabulary (E)"
+title: "LRPGF03: Factors associated with gains in expressive vocabulary (EV)"
 
 format:
   html:
