@@ -428,6 +428,31 @@ def test_writer_emits_all_artifacts(tmp_path):
     assert len(summary_b) == 3
 
 
+def test_writer_split_emits_individual_files(tmp_path):
+    """split=True writes the distribution and effect panels as separate files."""
+    eta, tau, _, kappa = _rng_trace(seed=71)
+    trace = _trace(eta, tau, kappa=kappa)
+    G = (np.arange(eta.shape[2]) % 2).astype(float)
+
+    write_predicted_scores_artifacts(
+        str(tmp_path),
+        trace,
+        outcome_symbol="L",
+        item_label="Letter-sound knowledge (LS)",
+        G=G,
+        n_trials=32,
+        term="tau",
+        varying_term="",
+        delta=2.0,
+        random_seed=13,
+        split=True,
+    )
+    for stem in ("predicted_scores", "predicted_effect"):
+        assert (tmp_path / f"{stem}.png").exists()
+        assert (tmp_path / f"{stem}.svg").exists()
+        assert (tmp_path / f"{stem}.csv").exists()
+
+
 def test_writer_skips_icon_array_without_delta(tmp_path):
     eta, tau, _, kappa = _rng_trace(seed=61)
     trace = _trace(eta, tau, kappa=kappa)
