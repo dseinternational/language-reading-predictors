@@ -83,6 +83,16 @@ def main() -> None:
         help="Override NUTS target_accept (default: preset from --config)",
     )
     parser.add_argument(
+        "--reuse-trace",
+        action="store_true",
+        help=(
+            "Re-emit artefacts from each model's existing trace.nc instead of "
+            "sampling: rebuilds the model, loads the saved posterior, recomputes "
+            "LOO / posterior-predictive, and redraws every figure. Use to backfill "
+            "figure or template changes onto already-fitted models without NUTS."
+        ),
+    )
+    parser.add_argument(
         "--upload",
         action="store_true",
         help="Upload model output to Azure Blob Storage after fitting.",
@@ -106,6 +116,13 @@ def main() -> None:
 
     paths.set_output_root(args.output_dir)
     rprint(f"[bold]Output root:[/bold] {paths.describe_output_root()}")
+
+    if args.reuse_trace:
+        os.environ["DSE_LRP_REUSE_TRACE"] = "1"
+        rprint(
+            "[cyan]Reuse-trace mode: loading each model's saved posterior instead "
+            "of sampling; artefacts are re-emitted from the existing draws.[/cyan]"
+        )
 
     run_options = StatisticalRunOptions(target_accept=args.target_accept)
     if run_options.target_accept is not None:
