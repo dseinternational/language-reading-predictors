@@ -22,6 +22,8 @@ zero (near 1 favours benefit, near 0.5 is no clear direction). The
 `sigma_dose_between_period` row, when present, is how much the slope varies from
 period to period — small means periods share a common dose association.
 
+_Read the period pattern against the pooled comparator._ The period-specific slopes carry a weakly-informative `HalfNormal(0.5)` between-period scale that partially pools them toward a common value, so any apparent fading of the dose association across periods is in part prior shrinkage rather than data. Read the period-resolved slopes alongside the well-identified pooled-dose comparator, which does not partition the dose signal by period.
+
 ```{python}
 # | echo: false
 # | output: asis

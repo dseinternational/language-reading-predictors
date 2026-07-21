@@ -39,6 +39,8 @@ it is a **descriptive association** (locked DAG, ID-2); the instrument improves 
 measurement match, it does **not** identify effects. The randomised causal claims live
 in the ITT/DiD suites and the mediation models, not here.
 
+_Read the correlation structure as one matrix, not four._ The trait-vs-state decomposition puts almost all of the between-child correlation in the stable trait component (`trait_share` posterior ≈ 0.94), which collapses the four per-wave latent correlation matrices into essentially one — the wave-specific state correlations are near-prior and not separately identified, so do **not** read any across-wave change in correlation structure as a finding. The vocabulary–grammar latent correlation (≈ 0.86) is the single most prior-influenced number here: it is the most power-scaling-sensitive parameter and the `LKJ` prior is actively holding it below the disattenuation ceiling, so treat it as a conservative lower bound rather than a point estimate.
+
 _Fragility at n ~ 54._ A longitudinal latent model at n ~ 54 is fragile and prior-dependent — more so than the
 single-wave `mm-001`, since it carries a trait correlation matrix and one state
 correlation matrix per wave. The reporting-tier fit gives nominal, exploratory
