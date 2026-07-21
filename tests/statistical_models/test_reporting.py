@@ -343,6 +343,49 @@ def test_tau_summary_itt_direction_uses_moderated_average_effect():
     assert out["favoured_direction"] == "negative"
 
 
+def test_gain_factor_direction_follows_marginal_effect_not_coefficient():
+    """#391: with an active treatment interaction the ``beta_trt`` coefficient and the
+    period-1 AME differ in sign, so the reported direction — ``treatment_marginal_effect``
+    ``prob_trt_pos`` and ``rope_summary`` ``pd`` under ``direction_from_ame`` — must
+    follow the AME, while the ITT default (``direction_from_ame=False``) is unchanged."""
+    n_draw, n_obs = 40, 3
+    trt = np.array([1.0, 0.0, 1.0])
+    beta_trt = np.full((1, n_draw), 0.2)  # coefficient clearly positive
+    interaction = np.full((1, n_draw), -1.0)
+    moderator = np.ones(n_obs)
+    delta = 0.2 - 1.0 * moderator  # per-row treatment contribution < 0
+    eta = np.broadcast_to((delta * trt)[None, None, :], (1, n_draw, n_obs)).copy()
+    posterior = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), eta),
+            "beta_trt": (("chain", "draw"), beta_trt),
+            "gamma_int_trt_own": (("chain", "draw"), interaction),
+        }
+    )
+    trace = SimpleNamespace(posterior=posterior)
+    mods = (("gamma_int_trt_own", moderator),)
+
+    tm = treatment_marginal_effect(trace, trt=trt, n_trials=10, moderators=mods)
+    assert tm["prob_trt_logit_pos"] == pytest.approx(1.0)  # coefficient positive
+    assert tm["prob_trt_pos"] == pytest.approx(0.0)  # marginal effect negative
+
+    rope_ame = rope_summary(
+        trace, G=trt, n_trials=10, delta=0.5, term="beta_trt", varying_term="",
+        moderators=mods, direction_from_ame=True,
+    )
+    assert rope_ame["pd_coef"] == pytest.approx(1.0)
+    assert rope_ame["pd"] == pytest.approx(0.0)
+    assert rope_ame["favoured_direction"] == "negative"
+
+    # ITT default is unchanged: pd still tracks the coefficient, no pd_coef emitted.
+    rope_coef = rope_summary(
+        trace, G=trt, n_trials=10, delta=0.5, term="beta_trt", varying_term="",
+        moderators=mods,
+    )
+    assert rope_coef["pd"] == pytest.approx(1.0)
+    assert "pd_coef" not in rope_coef
+
+
 def _joint_trace(tau: np.ndarray, eta0: np.ndarray, G: np.ndarray):
     """Synthetic factorised multi-outcome trace with eta built at observed G."""
     n_chain, n_draw, n_outcome = tau.shape
