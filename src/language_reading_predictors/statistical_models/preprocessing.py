@@ -419,6 +419,31 @@ def load_and_prepare(
     csv_path = Path(path) if path is not None else _default_data_path()
     data_path, data_sha256 = _data_provenance(csv_path)
     df = pd.read_csv(csv_path)
+    # Fail loud on source-key defects before any pre/post merge (#392): a duplicate
+    # (subject_id, time) row is silently double-counted by the autoregressive inner
+    # merge (a duplicated key fans into a cartesian product, over-weighting that
+    # child's likelihood), and a within-subject change of randomised group breaks the
+    # time-invariant assignment the ITT identification relies on. Mirrors the
+    # fail-loud checks the floor and historical loaders already apply.
+    _dup = df.duplicated(subset=[V.SUBJECT_ID, V.TIME], keep=False)
+    if _dup.any():
+        _keys = (
+            df.loc[_dup, [V.SUBJECT_ID, V.TIME]]
+            .drop_duplicates()
+            .sort_values([V.SUBJECT_ID, V.TIME])
+        )
+        _pairs = ", ".join(f"{k}@t{t}" for k, t in _keys.itertuples(index=False))
+        raise ValueError(
+            f"Source data has duplicate (subject_id, time) rows: {_pairs}. These "
+            "would be double-counted in the pre/post merge; fix the source data."
+        )
+    _grp_n = df.dropna(subset=[V.GROUP]).groupby(V.SUBJECT_ID)[V.GROUP].nunique()
+    _changed = sorted(str(s) for s in _grp_n.index[_grp_n > 1])
+    if _changed:
+        raise ValueError(
+            "Source data has subjects whose randomised group is not constant across "
+            f"waves (time-invariant assignment violated): {_changed}."
+        )
     # Derive the missing-indicator hearing-status covariates (HS; #244) up front so
     # ``hs`` / ``hs_missing`` are available as complete adjusters (no row dropping).
     df = add_hearing_status(df)
