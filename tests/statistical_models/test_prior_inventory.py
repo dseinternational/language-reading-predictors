@@ -200,6 +200,16 @@ def _representative_models(tmp_path) -> dict[str, object]:
     models["mediation_multi_conf"] = build_two_mediator_model(
         itt, outcome_symbol="W", mediator_symbols=("L", "B"), confounder_symbols=("E",)
     )[0].model
+    # Latent growth-curve family: the mean slope (beta), non-centred RE offsets
+    # (z_intercept/z_slope) and the shared-tempo factor scores (G_tempo) previously
+    # dropped to role='other' (a pre-existing #141 gap). Now classified, so the
+    # family joins the no-'other' completeness guard.
+    gpanel = load_wave_panel(
+        path=p, outcomes=("W", "L", "E"), baseline_covariates=("blocks",)
+    )
+    models["growth"] = build_growth_model(
+        gpanel, use_shared_factor=True, age_ability_interaction=True
+    ).model
     return models
 
 
@@ -412,25 +422,33 @@ def test_dose_beta_G_and_mu_dose_rationales(built_models):
     assert "dose-response slope" in by["mu_dose"]["rationale"]
 
 
-def test_growth_interaction_and_tempo_loading(tmp_path):
-    # Built locally (not via the shared fixture) so the no-``other`` completeness
-    # guard is not extended to the growth family's pre-existing bespoke RE/tempo
-    # terms (beta / z_intercept / z_slope / G_tempo) in this PR — this test targets
-    # only the #384 label corrections on gamma_age / gamma_int / loading.
-    p = _write_synthetic(tmp_path)
-    gpanel = load_wave_panel(
-        path=p, outcomes=("W", "L", "E"), baseline_covariates=("blocks",)
-    )
-    model = build_growth_model(
-        gpanel, use_shared_factor=True, age_ability_interaction=True
-    ).model
-    by = _labelled(model, kind="growth")
+def test_growth_interaction_and_tempo_loading(built_models):
+    by = _labelled(built_models["growth"], kind="growth")
     assert by["gamma_int"]["role"] == "association"
     assert "age x ability interaction" in by["gamma_int"]["rationale"]
     assert "age main effect" in by["gamma_age"]["rationale"]
     # ``loading`` must not inherit the CFA test->domain measurement-loading text.
     assert "growth-tempo factor" in by["loading"]["rationale"]
     assert "domain factor" not in by["loading"]["rationale"]
+
+
+def test_growth_bespoke_terms_classified(built_models):
+    """The growth mean-slope + random-effect/tempo terms previously dropped to
+    role='other' (a #141 completeness gap). beta is labelled an association (a
+    descriptive maturational trend — a reviewable call, see PR note); the offsets
+    and factor scores are nuisances."""
+    by = _labelled(built_models["growth"], kind="growth")
+    # beta: per-measure population mean growth rate -> association (not 'other').
+    assert by["beta"]["role"] == "association"
+    assert "growth rate" in by["beta"]["rationale"]
+    # Non-centred RE offsets + shared-tempo factor scores -> nuisance with a real
+    # rationale (were role='other', empty rationale).
+    for name in ("z_intercept", "z_slope", "G_tempo"):
+        assert by[name]["role"] == "nuisance", name
+        assert by[name]["rationale"].strip(), name
+    # The concurrent-family focal ``beta`` (Normal(0, 0.3)) is unaffected by the
+    # growth-scale beta rationale (kept out by the scale guard).
+    assert priors._fallback_rationale("beta", "Normal(0, 0.3)") == ""
 
 
 def test_itt_adjust_covariate_and_ses_are_precision(built_models):
