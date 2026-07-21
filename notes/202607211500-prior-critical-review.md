@@ -57,7 +57,7 @@ None of these is a blocker. All are addressable with targeted sensitivity refits
 
 **Parameters:** `factor_corr_pairs` (12 rows, 4 waves × 3 pairs) and `trait_share` (3 rows).
 
-**Evidence:** prior sensitivity 0.054–0.104, likelihood sensitivity 0.202–0.336, diagnosis "potential prior-data conflict" on all 15. `trait_share` posterior pushed to 0.93–0.95 against a Beta(1.5,1.5) whose density there is ~~44% of peak. The most prior-sensitive single number is the vocabulary~~grammar latent correlation (ρ=0.86, prior sens 0.104, largest disattenuation gap ~0.26).
+**Evidence:** prior sensitivity 0.054–0.104, likelihood sensitivity 0.202–0.336, diagnosis "potential prior-data conflict" on all 15. `trait_share` posterior pushed to 0.93–0.95 against a Beta(1.5,1.5) whose density there is ≈44% of peak. The most prior-sensitive single number is the vocabulary–grammar latent correlation (ρ=0.86, prior sens 0.104, largest disattenuation gap ≈0.26).
 
 **Why it matters:** these ARE the family's headline deliverable, so the flags are not dismissible as nuisance. **But the direction is benign:** in every row the likelihood sensitivity is 3–6× the prior sensitivity (data dominate), and the LKJ(η=2) shrinks correlations _toward zero_, so the reported latent correlations are if anything conservative — the LKJ is actively keeping ρ(vocab,grammar) off the disattenuation ceiling, not inflating it.
 
