@@ -166,14 +166,18 @@ _rope.T if _rope is not None else None
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("rope_summary.png", "ROPE-anchored posterior and P(benefit ≥ δ)"))
+print(_img("rope_summary.png", "ROPE-anchored posterior effect (items scale)"))
 print(
-    "\n_How to read the ROPE summary:_ the left panel is the posterior effect on the "
-    "items scale; the shaded band is the region of practical equivalence (ROPE) — "
-    "effects small enough to count as no practical difference. The right panel traces "
-    "the probability of a benefit as the 'meaningful' threshold δ rises, so you can see "
-    "how likely a *worthwhile* gain is, not just any gain above zero."
+    "\n_How to read it:_ the posterior effect on the items scale; the shaded band is the "
+    "region of practical equivalence (ROPE) — effects small enough to count as no practical "
+    "difference."
 )
+if _has("rope_benefit_curve.png"):
+    print(_img("rope_benefit_curve.png", "P(benefit ≥ δ) as the meaningful threshold δ rises"))
+    print(
+        "\n_How to read it:_ the probability of a benefit as the 'meaningful' threshold δ "
+        "rises, so you can see how likely a *worthwhile* gain is, not just any gain above zero."
+    )
 if _rope is not None:
     # The leading blank line separates the fence from the paragraph printed
     # above; without it Pandoc reads ::: as paragraph text, not a fenced div.
@@ -196,18 +200,23 @@ _pred = _csv("predicted_scores.csv")
 if _pred is not None:
     _pop = str(_pred.iloc[0].population)
     _status = str(_pred.iloc[0].contrast_status)
-    print(_img("predicted_scores.png", "Predicted test scores under each arm, and the items-scale effect with ROPE"))
+    print(_img("predicted_scores.png", "Predicted test scores under each arm"))
     print(
-        f"\n_How to read it:_ the left panel shows the score the model predicts on {outcome_label} "
+        f"\n_How to read it:_ the score the model predicts on {outcome_label} "
         f"(out of {n_trials}) for a **{_pop}** — one distribution per randomised arm, with each "
         "arm's median marked and the items-scale difference annotated. The width of each "
         "distribution is real predictive uncertainty for one child: parameter uncertainty plus "
         "child-to-child spread, so heavily overlapping distributions are expected even when the "
-        "average effect is well supported. The right panel is the posterior of the items-scale "
-        "average treatment effect with the ROPE band shaded and the three probabilities "
-        "(meaningful benefit / negligible / meaningful harm) printed. "
-        f"The contrast is a {_status}; the plotted quantities are in `predicted_scores.csv`."
+        "average effect is well supported."
     )
+    if _has("predicted_effect.png"):
+        print(_img("predicted_effect.png", "Items-scale average treatment effect with ROPE"))
+        print(
+            "\n_How to read it:_ the posterior of the items-scale average treatment effect with "
+            "the ROPE band shaded and the three probabilities (meaningful benefit / negligible / "
+            "meaningful harm) printed. "
+            f"The contrast is a {_status}; the plotted quantities are in `predicted_scores.csv`."
+        )
 ```
 
 ```{python}
@@ -225,5 +234,45 @@ if _has("icon_array.png"):
         "and data. Green dots are worlds where the benefit reaches the agreed meaningful "
         "difference δ, red dots are worlds with meaningful harm, and grey dots are worlds where "
         "the effect is smaller than δ in either direction."
+    )
+```
+
+### Intervention vs no-intervention overlap
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("arm_overlap_mean.png"):
+    print(_img("arm_overlap_mean.png", "Posterior of each arm's population-average expected outcome, overlaid"))
+    print(
+        f"\n_How to read it:_ two smoothed posterior curves for the model's population-average "
+        f"expected {outcome_label} — no intervention (grey) and intervention (blue) — with the "
+        "overlapping area shaded and each arm's median marked. The **overlap fraction** is an "
+        "at-a-glance summary of how distinguishable the arms are: near-separate curves mean a "
+        "confidently signed effect, heavily overlapping curves mean the arms are hard to tell "
+        "apart. The annotated average effect and P(intervention higher) are the same guard-tested "
+        "quantities as the ROPE summary above; the plotted numbers are in `arm_overlap_mean.csv`."
+    )
+    print(
+        '\n::: {.callout-note title="Overlap of the arms vs uncertainty about the difference"}\n\n'
+        "These two curves share the untreated linear predictor within each posterior draw, so "
+        "they are positively correlated — their *marginal* overlap can look larger than the "
+        "uncertainty in the **difference** actually is. Read the effect itself from the ROPE / "
+        "effect density above; this figure is the intuitive companion, not a replacement.\n\n:::\n"
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("arm_overlap_predictive.png"):
+    print(_img("arm_overlap_predictive.png", "Predicted-outcome overlap for a new child under each arm"))
+    print(
+        f"\n_How to read it:_ the same two-arm overlap view, but for the predicted {outcome_label} "
+        "of a **single new child** rather than the population average — so these curves also carry "
+        "child-to-child and sampling spread and are much wider. Heavy overlap here is expected "
+        "even when the average effect is well supported: it describes how much individual outcomes "
+        "overlap, not how well-estimated the average difference is. Numbers are in "
+        "`arm_overlap_predictive.csv`."
     )
 ```

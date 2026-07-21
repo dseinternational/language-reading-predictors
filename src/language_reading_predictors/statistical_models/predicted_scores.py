@@ -50,6 +50,14 @@ import xarray as xr
 from scipy.special import expit
 from scipy.stats import gaussian_kde
 
+from dse_research_utils.plot.styles import (
+    COLOUR_BLUE,
+    COLOUR_GREEN,
+    COLOUR_ORANGE,
+    COLOUR_RED,
+    FIGSIZE_LG,
+)
+
 from language_reading_predictors.figure_io import save_styled_figure
 
 __all__ = [
@@ -58,18 +66,22 @@ __all__ = [
     "icon_array_counts",
     "predicted_scores_table",
     "save_icon_array",
+    "save_predicted_distribution",
+    "save_predicted_effect",
     "save_predicted_scores_panel",
     "write_predicted_scores_artifacts",
 ]
 
-#: Arm colours: wait-list control (grey) and immediate intervention (blue),
-#: matching the report's existing predictive-check palette.
-_CONTROL_COLOR = "#7f7f7f"
-_INTERVENTION_COLOR = "#1f77b4"
-#: Icon-array / ROPE-triple colours: benefit, negligible, harm.
-_BENEFIT_COLOR = "#2ca02c"
+#: Arm colours from the shared project palette (``dse_research_utils.plot.styles``):
+#: wait-list control orange and immediate intervention blue.
+_CONTROL_COLOR = COLOUR_ORANGE
+_INTERVENTION_COLOR = COLOUR_BLUE
+#: Icon-array / ROPE-triple colours: benefit (green), negligible (neutral grey),
+#: harm (red) — the semantic colours from the same palette, with a neutral for
+#: the "no meaningful difference" band.
+_BENEFIT_COLOR = COLOUR_GREEN
 _ROPE_COLOR = "#c7c7c7"
-_HARM_COLOR = "#d62728"
+_HARM_COLOR = COLOUR_RED
 
 
 @dataclass
@@ -441,6 +453,73 @@ def _effect_density_axis(
         ax.legend(loc="upper right", fontsize=8)
 
 
+def _draw_distribution_axis(
+    ax: plt.Axes,
+    contrast: PredictiveContrast,
+    *,
+    outcome_symbol: str,
+    item_label: str,
+    event_label: str,
+) -> None:
+    """Left-panel body: per-arm predicted-score distribution (graded) or off-floor
+    probability bars (floor rule). Shared by the combined panel and the split file."""
+    if contrast.score_control.size:
+        n = contrast.n_trials
+        bins = np.arange(-0.5, n + 1.5) if n <= 60 else 60
+        ax.hist(contrast.score_control, bins=bins, density=True,
+                color=_CONTROL_COLOR, alpha=0.55, label="wait-list control")
+        ax.hist(contrast.score_intervention, bins=bins, density=True,
+                color=_INTERVENTION_COLOR, alpha=0.55, label="immediate intervention")
+        med_c = float(np.median(contrast.score_control))
+        med_t = float(np.median(contrast.score_intervention))
+        ame_med = float(np.median(contrast.ame_items))
+        ax.axvline(med_c, color=_CONTROL_COLOR, lw=1.5)
+        ax.axvline(med_t, color=_INTERVENTION_COLOR, lw=1.5)
+        ax.set_xlabel(f"{item_label} — score out of {contrast.n_trials}")
+        ax.set_ylabel("predictive density")
+        ax.set_title(f"Predicted score, new typical child ({outcome_symbol})", fontsize=10)
+        ax.legend(fontsize=8)
+        ax.text(
+            0.98, 0.98,
+            f"medians: {med_t:.0f} vs {med_c:.0f}\naverage effect ≈ {ame_med:+.1f} items",
+            transform=ax.transAxes, va="top", ha="right", fontsize=8,
+            bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
+        )
+    else:
+        arms = ("wait-list control", "immediate intervention")
+        draws = (contrast.prob_control, contrast.prob_intervention)
+        colors = (_CONTROL_COLOR, _INTERVENTION_COLOR)
+        for x, (label, d, color) in enumerate(zip(arms, draws, colors, strict=True)):
+            med = float(np.median(d))
+            lo, hi = float(np.quantile(d, 0.055)), float(np.quantile(d, 0.945))
+            ax.bar(x, med, color=color, alpha=0.75, width=0.6, label=label)
+            ax.errorbar(x, med, yerr=[[med - lo], [hi - med]], fmt="none", ecolor="k", capsize=4)
+        ax.set_xticks([0, 1])
+        ax.set_xticklabels(arms, fontsize=8)
+        ax.set_ylim(0, 1)
+        ax.set_ylabel(f"P({event_label})")
+        ax.set_title(f"Probability {event_label} by arm ({outcome_symbol})", fontsize=10)
+
+
+def _draw_effect_axis(
+    ax: plt.Axes, contrast: PredictiveContrast, *, delta: float | None
+) -> None:
+    """Right-panel body: items-scale (graded) or percentage-point (floor) effect
+    density with the ROPE band and the three ROPE probabilities printed."""
+    if contrast.score_control.size:
+        _effect_density_axis(ax, contrast.ame_items, delta=delta,
+                             unit_label="treatment effect (items)", delta_unit=" items")
+        ax.set_title("Items-scale effect with ROPE", fontsize=10)
+    else:
+        # Percentage-point scale so the ROPE band / triple read "±10 pp".
+        _effect_density_axis(
+            ax, contrast.ame_prob * 100.0,
+            delta=None if delta is None else float(delta) * 100.0,
+            unit_label="risk difference (percentage points)", delta_unit=" pp",
+        )
+        ax.set_title("Risk difference with ROPE", fontsize=10)
+
+
 def save_predicted_scores_panel(
     output_dir: str,
     contrast: PredictiveContrast,
@@ -452,93 +531,49 @@ def save_predicted_scores_panel(
     event_label: str = "off the floor at follow-up",
     name: str = "predicted_scores",
 ) -> None:
-    """Two-panel predicted-scores figure (#316 items 1–2).
+    """Combined two-panel predicted-scores figure (#316 items 1–2).
 
-    Graded outcomes: left = the posterior-predictive score distribution for a
-    new typical child under each arm (medians marked, items difference
-    annotated); right = the items-scale effect density with the ROPE band and
-    the three ROPE probabilities printed. Floor-rule outcomes: left = paired
-    off-floor probability bars with credible intervals; right = the
-    risk-difference density with the same annotations.
+    Retained for the families that present the two panels together; the ITT
+    reports instead emit the two panels as individual files (see
+    :func:`save_predicted_distribution` and :func:`save_predicted_effect`).
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+    _draw_distribution_axis(ax1, contrast, outcome_symbol=outcome_symbol,
+                            item_label=item_label, event_label=event_label)
+    _draw_effect_axis(ax2, contrast, delta=delta)
+    fig.tight_layout()
+    save_styled_figure(output_dir, name, fig=fig, data=summary)
 
-    if contrast.score_control.size:
-        n = contrast.n_trials
-        bins = np.arange(-0.5, n + 1.5) if n <= 60 else 60
-        ax1.hist(
-            contrast.score_control,
-            bins=bins,
-            density=True,
-            color=_CONTROL_COLOR,
-            alpha=0.55,
-            label="wait-list control",
-        )
-        ax1.hist(
-            contrast.score_intervention,
-            bins=bins,
-            density=True,
-            color=_INTERVENTION_COLOR,
-            alpha=0.55,
-            label="immediate intervention",
-        )
-        med_c = float(np.median(contrast.score_control))
-        med_t = float(np.median(contrast.score_intervention))
-        ame_med = float(np.median(contrast.ame_items))
-        ax1.axvline(med_c, color=_CONTROL_COLOR, lw=1.5)
-        ax1.axvline(med_t, color=_INTERVENTION_COLOR, lw=1.5)
-        ax1.set_xlabel(f"{item_label} — score out of {contrast.n_trials}")
-        ax1.set_ylabel("predictive density")
-        ax1.set_title(f"Predicted score, new typical child ({outcome_symbol})", fontsize=10)
-        ax1.legend(fontsize=8)
-        ax1.text(
-            0.98,
-            0.98,
-            (
-                f"medians: {med_t:.0f} vs {med_c:.0f}\n"
-                f"average effect ≈ {ame_med:+.1f} items"
-            ),
-            transform=ax1.transAxes,
-            va="top",
-            ha="right",
-            fontsize=8,
-            bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
-        )
-        _effect_density_axis(
-            ax2,
-            contrast.ame_items,
-            delta=delta,
-            unit_label="treatment effect (items)",
-            delta_unit=" items",
-        )
-        ax2.set_title("Items-scale effect with ROPE", fontsize=10)
-    else:
-        arms = ("wait-list control", "immediate intervention")
-        draws = (contrast.prob_control, contrast.prob_intervention)
-        colors = (_CONTROL_COLOR, _INTERVENTION_COLOR)
-        for x, (label, d, color) in enumerate(zip(arms, draws, colors, strict=True)):
-            med = float(np.median(d))
-            lo, hi = float(np.quantile(d, 0.055)), float(np.quantile(d, 0.945))
-            ax1.bar(x, med, color=color, alpha=0.75, width=0.6, label=label)
-            ax1.errorbar(x, med, yerr=[[med - lo], [hi - med]], fmt="none", ecolor="k", capsize=4)
-        ax1.set_xticks([0, 1])
-        ax1.set_xticklabels(arms, fontsize=8)
-        ax1.set_ylim(0, 1)
-        ax1.set_ylabel(f"P({event_label})")
-        ax1.set_title(
-            f"Probability {event_label} by arm ({outcome_symbol})", fontsize=10
-        )
-        # Display the risk difference in percentage points so the ROPE band and
-        # printed triple read "±10 pp", matching the report prose for δ = 0.10.
-        _effect_density_axis(
-            ax2,
-            contrast.ame_prob * 100.0,
-            delta=None if delta is None else float(delta) * 100.0,
-            unit_label="risk difference (percentage points)",
-            delta_unit=" pp",
-        )
-        ax2.set_title("Risk difference with ROPE", fontsize=10)
 
+def save_predicted_distribution(
+    output_dir: str,
+    contrast: PredictiveContrast,
+    *,
+    outcome_symbol: str,
+    item_label: str,
+    summary: pd.DataFrame,
+    event_label: str = "off the floor at follow-up",
+    name: str = "predicted_scores",
+) -> None:
+    """Individual predicted-distribution figure (the combined panel's left half)."""
+    fig, ax = plt.subplots(figsize=FIGSIZE_LG)
+    _draw_distribution_axis(ax, contrast, outcome_symbol=outcome_symbol,
+                            item_label=item_label, event_label=event_label)
+    fig.tight_layout()
+    save_styled_figure(output_dir, name, fig=fig, data=summary)
+
+
+def save_predicted_effect(
+    output_dir: str,
+    contrast: PredictiveContrast,
+    *,
+    delta: float | None,
+    summary: pd.DataFrame,
+    name: str = "predicted_effect",
+) -> None:
+    """Individual treatment-effect-with-ROPE figure (the combined panel's right half)."""
+    fig, ax = plt.subplots(figsize=FIGSIZE_LG)
+    _draw_effect_axis(ax, contrast, delta=delta)
     fig.tight_layout()
     save_styled_figure(output_dir, name, fig=fig, data=summary)
 
@@ -657,11 +692,16 @@ def write_predicted_scores_artifacts(
     contrast_status: str = "randomised contrast",
     event_label: str = "off the floor at follow-up",
     random_seed: int | None = None,
+    split: bool = False,
 ) -> pd.DataFrame:
     """Compute and save every #316 artefact; returns the summary table.
 
-    Writes ``predicted_scores.png``/``.svg`` with sidecar ``predicted_scores.csv``
-    and, when ``delta`` is available, ``icon_array.png``/``.svg``/``.csv``.
+    With ``split=False`` writes the combined two-panel ``predicted_scores.png``.
+    With ``split=True`` (the ITT reports) writes the two panels as individual
+    files instead — ``predicted_scores.png`` (the distribution) and
+    ``predicted_effect.png`` (the effect with ROPE) — each with its own sidecar
+    CSV. ``predicted_scores.csv`` is always written, and when ``delta`` is
+    available so is ``icon_array.png``/``.svg``/``.csv``.
     """
     rng = np.random.default_rng(random_seed)
     contrast = counterfactual_predictive_contrast(
@@ -690,15 +730,22 @@ def write_predicted_scores_artifacts(
     # Write the citable numbers first so the CSV survives even if a plotting
     # backend fails; the panel then attaches the same table as its #208 sidecar.
     summary.to_csv(os.path.join(output_dir, "predicted_scores.csv"), index=False)
-    save_predicted_scores_panel(
-        output_dir,
-        contrast,
-        outcome_symbol=outcome_symbol,
-        item_label=item_label,
-        delta=delta,
-        summary=summary,
-        event_label=event_label,
-    )
+    if split:
+        save_predicted_distribution(
+            output_dir, contrast, outcome_symbol=outcome_symbol,
+            item_label=item_label, summary=summary, event_label=event_label,
+        )
+        save_predicted_effect(output_dir, contrast, delta=delta, summary=summary)
+    else:
+        save_predicted_scores_panel(
+            output_dir,
+            contrast,
+            outcome_symbol=outcome_symbol,
+            item_label=item_label,
+            delta=delta,
+            summary=summary,
+            event_label=event_label,
+        )
     if delta is not None:
         effect = contrast.ame_items if likelihood == "beta_binomial" else contrast.ame_prob
         p_benefit, p_rope, p_harm = _rope_triple(np.asarray(effect), float(delta))

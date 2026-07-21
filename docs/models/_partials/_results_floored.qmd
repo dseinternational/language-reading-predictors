@@ -284,12 +284,16 @@ if _rope is not None:
     print(rope_markdown(_rope, f"P({outcome_label} off-floor)"))
 print(_img("rope_summary.png", "ROPE-anchored posterior (risk-difference scale)"))
 print(
-    "\n_How to read the ROPE summary:_ the left panel is the posterior off-floor "
-    "risk difference; the shaded band is the region of practical equivalence (ROPE), "
-    "i.e. effects small enough to count as no practical difference. The right panel "
-    "traces the probability of a benefit as the meaningful threshold delta rises, so "
-    "you can see how likely a worthwhile gain is, not just any gain above zero."
+    "\n_How to read it:_ the posterior off-floor risk difference; the shaded band is the "
+    "region of practical equivalence (ROPE), i.e. effects small enough to count as no "
+    "practical difference."
 )
+if _has("rope_benefit_curve.png"):
+    print(_img("rope_benefit_curve.png", "P(benefit ≥ δ) as the meaningful threshold δ rises"))
+    print(
+        "\n_How to read it:_ the probability of a benefit as the meaningful threshold delta "
+        "rises, so you can see how likely a worthwhile gain is, not just any gain above zero."
+    )
 ```
 
 ```{python}
@@ -313,15 +317,20 @@ _pred = _csv("predicted_scores.csv")
 if _pred is not None:
     _pop = str(_pred.iloc[0].population)
     _status = str(_pred.iloc[0].contrast_status)
-    print(_img("predicted_scores.png", "Off-floor probability by arm, and the risk difference with ROPE"))
+    print(_img("predicted_scores.png", "Off-floor probability by arm"))
     print(
-        f"\n_How to read it:_ this outcome is heavily floored, so instead of score distributions the "
-        f"left panel shows the model's probability that a **{_pop}** moves off the floor, one bar per "
-        "randomised arm with 89% credible intervals. The right panel is the posterior of the "
-        "risk difference (intervention minus control) with the ROPE band shaded and the three "
-        "probabilities (meaningful benefit / negligible / meaningful harm) printed. "
-        f"The contrast is a {_status}. The plotted quantities are in `predicted_scores.csv`."
+        f"\n_How to read it:_ this outcome is heavily floored, so instead of score distributions "
+        f"this shows the model's probability that a **{_pop}** moves off the floor, one bar per "
+        "randomised arm with 89% credible intervals."
     )
+    if _has("predicted_effect.png"):
+        print(_img("predicted_effect.png", "Off-floor risk difference with ROPE"))
+        print(
+            "\n_How to read it:_ the posterior of the risk difference (intervention minus control) "
+            "with the ROPE band shaded and the three probabilities (meaningful benefit / negligible "
+            "/ meaningful harm) printed. "
+            f"The contrast is a {_status}. The plotted quantities are in `predicted_scores.csv`."
+        )
 ```
 
 ```{python}
@@ -339,6 +348,30 @@ if _has("icon_array.png"):
         "data. Green dots are worlds where the intervention raises the off-floor chance by at least the "
         "agreed δ (10 percentage points), red dots are worlds with at least that much harm, and grey "
         "dots are worlds where the difference is smaller either way."
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("arm_overlap_mean.png"):
+    print(_img("arm_overlap_mean.png", "Posterior off-floor probability by arm, overlaid"))
+    print(
+        f"\n_How to read it:_ two smoothed posterior curves for the model's off-floor probability on "
+        f"{outcome_label} — no intervention (grey) and intervention (blue) — with the overlapping area "
+        "shaded and each arm's median marked. The **overlap fraction** summarises how distinguishable "
+        "the arms are: near-separate curves mean a confidently signed effect, heavily overlapping "
+        "curves mean the arms are hard to tell apart. The annotated risk difference and "
+        "P(intervention higher) are the same quantities as the ROPE summary above; the plotted numbers "
+        "are in `arm_overlap_mean.csv`. Only this arm-mean view is drawn — a single binary off-floor "
+        "outcome has no smooth per-child predictive density."
+    )
+    print(
+        '\n::: {.callout-note title="Overlap of the arms vs uncertainty about the difference"}\n\n'
+        "These two curves share the untreated linear predictor within each posterior draw, so they are "
+        "positively correlated — their *marginal* overlap can look larger than the uncertainty in the "
+        "**difference** actually is. Read the effect itself from the ROPE / risk-difference density "
+        "above; this figure is the intuitive companion, not a replacement.\n\n:::\n"
     )
 ```
 
