@@ -32,6 +32,8 @@ and the construct-structure summary that precedes any coupling model (Phase
 C). Wave 3 is used because it is the only wave carrying the full ability triad
 (`basmat` is wave-3+ only).
 
+_This fit did not pass the convergence gate — read the correlations as provisional._ It carries divergent transitions with the strict R̂/ESS gate missed on the factor-correlation geometry; the reported reading-ability factor correlation (≈ 0.88) and the `bpvs` loading/communality are themselves under-converged, so their point estimates are stable only to ~2 d.p. and their 89% interval tails are not trustworthy. The memory-factor correlations additionally rest on an assumed test reliability of r = 0.8 for the single `basdig` indicator. Treat the whole correlation matrix as provisional pending the loading-prior / `LKJCorr` fix.
+
 _Measurement / triangulation only — nothing causal._ Every factor correlation is a **descriptive association** in an observational
 cohort (`causal_status="none"`). There is deliberately **no structural leg**:
 the factors → gain question belongs to Phase D (`lrp-rlm-adj-001` /
