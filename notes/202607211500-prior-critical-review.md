@@ -15,7 +15,7 @@ The verdict is nonetheless **"adequate with minor concerns" rather than "clean"*
 
 3. **Some rendered prior-panel rationales and one role label are misattributed.** The fitted `priors_table.csv` **values** match the source at the reporting-fit commit (`898ea03`) _and_ current `main` — `gamma_own` is `N(1,0.25)` in both, the distal-tier `alpha`/`tau` constructors exist (`tau_prior_distal` → `N(0,0.3)`), and the mechanism HSGPs route through `ell_prior_mech()` = `IG(5,5)` — so a refit on HEAD reproduces the tables. What is stale is a handful of **auto-derived rationale strings and one role label** (the rationale is generated from constructor docstrings via `_RV_TO_CTOR`): e.g. `mm-002` `beta_G` is tagged role `causal` with a `tau` rationale though it is an association covariate, and the `mech` `ell` rationale cites `IG(3,1)` while the fitted value is the correct `IG(5,5)`. This is a presentational bug in the rationale-derivation seam, not a value or reproducibility problem.
 
-None of these is a blocker. All are addressable with targeted sensitivity refits, a small number of report caveats, and a source-vs-artifact reconciliation.
+None of these is a blocker. All are addressable with targeted sensitivity refits, a small number of report caveats, and a fix to the auto-derived rationale/role labels in the prior tables.
 
 ---
 
