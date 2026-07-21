@@ -1001,6 +1001,7 @@ def _save_rope_plot(
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     items: np.ndarray | None = None,
     row_mask: np.ndarray | None = None,
+    split: bool = False,
 ) -> None:
     """ROPE-anchored figure for a randomised effect: the items-scale posterior with
     the region of practical equivalence, and ``P(effect > delta)`` as the
@@ -1011,10 +1012,14 @@ def _save_rope_plot(
     ``varying_term`` / ``moderators`` / ``G`` select the effect, including any
     treatment interactions); the level family passes its t2 contrast items draws
     directly via ``items`` (its AME nets out a group×ability interaction the generic
-    core cannot reconstruct).
+    core cannot reconstruct). With ``split=True`` (the ITT reports) the two panels
+    are written as individual files (``rope_summary`` + ``rope_benefit_curve``)
+    rather than one combined figure.
     """
     try:
-        from scipy.stats import gaussian_kde
+        from language_reading_predictors.statistical_models.effect_plots import (
+            write_rope_figures,
+        )
 
         if items is None:
             _, ame_prob = _report._itt_ame_draws(
@@ -1022,55 +1027,10 @@ def _save_rope_plot(
                 moderators=moderators, row_mask=row_mask,
             )
             items = ame_prob * float(n_trials)
-        med = float(np.median(items))
-        risk_difference = n_trials == 1 and delta <= 1
-        effect_label = (
-            "treatment effect (risk difference)"
-            if risk_difference
-            else "treatment effect (extra items correct)"
+        write_rope_figures(
+            ctx.output_dir, items, symbol=symbol, delta=delta,
+            n_trials=n_trials, split=split,
         )
-        delta_label = (
-            "minimally-important difference, delta (probability)"
-            if risk_difference
-            else "minimally-important difference, delta (items)"
-        )
-        scale_title = "risk-difference scale" if risk_difference else "items scale"
-        xmax = float(np.quantile(items, 0.995)) + 0.5
-        xmin = min(-delta - 0.5, float(np.quantile(items, 0.005)))
-        xs = np.linspace(xmin, xmax, 300)
-        kde = gaussian_kde(items)
-
-        fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(11, 4.2))
-        ax_l.axvspan(
-            -delta, delta, color="#bdbdbd", alpha=0.30,
-            label=f"ROPE (within ±{delta:g})",
-        )
-        ax_l.axvline(0, color="#444444", lw=1.0, ls=":")
-        ax_l.plot(xs, kde(xs), color="#1b7837", lw=2.2)
-        ax_l.fill_between(xs, kde(xs), color="#1b7837", alpha=0.12)
-        ax_l.axvline(med, color="#1b7837", lw=1.2, label=f"median {med:+.1f}")
-        ax_l.set_xlabel(effect_label)
-        ax_l.set_ylabel("posterior density")
-        ax_l.set_title(f"{symbol}: effect on the {scale_title}, with ROPE")
-        ax_l.legend(fontsize=8, frameon=False)
-
-        dgrid = np.linspace(0.0, max(xmax, delta + 0.5), 200)
-        pex = np.array([float((items > d).mean()) for d in dgrid])
-        ax_r.plot(dgrid, pex, color="#2166ac", lw=2.2)
-        ax_r.axvline(delta, color="#888888", lw=1.0, ls="--", label=f"delta = {delta:g}")
-        ax_r.axhline(0.975, color="#cccccc", lw=1.0, ls=":")
-        ax_r.set_ylim(0, 1.02)
-        ax_r.set_xlabel(delta_label)
-        ax_r.set_ylabel("P(effect > delta)")
-        ax_r.set_title("Probability of a meaningful benefit")
-        ax_r.legend(fontsize=8, frameon=False)
-
-        for ax in (ax_l, ax_r):
-            for sp in ("top", "right"):
-                ax.spines[sp].set_visible(False)
-        fig.tight_layout()
-        # rope_summary.csv is written by the ITT/factor result path, so no data= here.
-        save_styled_figure(ctx.output_dir, "rope_summary", fig=fig)
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]ROPE plot failed: {exc}[/yellow]")
 
@@ -1092,6 +1052,7 @@ def _write_predicted_scores(
     population: str,
     contrast_status: str,
     event_label: str = "off the floor at follow-up",
+    split: bool = False,
 ) -> None:
     """Predicted-scores contrast panel, ROPE-triple density and icon array (#316).
 
@@ -1128,10 +1089,70 @@ def _write_predicted_scores(
             contrast_status=contrast_status,
             event_label=event_label,
             random_seed=ctx.sampling.random_seed,
+            split=split,
         )
         ctx.tables["predicted_scores"] = summary
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]Predicted-scores figures failed: {exc}[/yellow]")
+
+
+def _write_arm_overlap(
+    ctx: StatisticalFitContext,
+    *,
+    outcome_symbol: str,
+    G: np.ndarray,
+    n_trials: int,
+    term: str,
+    varying_term: str = "tau_i",
+    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
+    row_mask: np.ndarray | None = None,
+    likelihood: str = "beta_binomial",
+    child_re: bool = False,
+    child_idx: np.ndarray | None = None,
+    population: str,
+    contrast_status: str,
+    event_label: str = "off the floor at follow-up",
+) -> None:
+    """Intervention vs no-intervention posterior-overlap figures (two individual
+    files: ``arm_overlap_mean`` and, for graded outcomes, ``arm_overlap_predictive``).
+
+    Guarded like the other optional figure emitters. The contrast reuses the
+    exact ``counterfactual_predictive_contrast`` machinery behind
+    ``predicted_scores``, so the annotated average marginal effect matches
+    ``rope_summary.csv`` and the predictive curves are drawn from the same
+    simulated new-child scores.
+    """
+    from language_reading_predictors.statistical_models.arm_overlap import (
+        write_arm_overlap_artifacts,
+    )
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    try:
+        tables = write_arm_overlap_artifacts(
+            ctx.output_dir,
+            ctx.trace,
+            outcome_symbol=outcome_symbol,
+            item_label=MEASURES[outcome_symbol].label,
+            G=np.asarray(G, dtype=float),
+            n_trials=int(n_trials),
+            term=term,
+            varying_term=varying_term,
+            moderators=moderators,
+            row_mask=row_mask,
+            likelihood=likelihood,
+            child_effect_name="u_child" if child_re else None,
+            child_sd_name="sigma_child" if child_re else None,
+            child_idx=child_idx,
+            ci_prob=ctx.reporting.ci_prob,
+            population=population,
+            contrast_status=contrast_status,
+            event_label=event_label,
+            random_seed=ctx.sampling.random_seed,
+        )
+        for name, table in tables.items():
+            ctx.tables[name] = table
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Arm-overlap figures failed: {exc}[/yellow]")
 
 
 def _ctx_pareto_k(ctx: StatisticalFitContext) -> np.ndarray | None:
@@ -1779,6 +1800,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             int(built.prepared.n_trials[spec.outcome_symbol]),
             delta_items,
             moderators=tau_moderators,
+            split=True,
         )
 
         # δ-sensitivity sweep (issue #144): P(benefit ≥ δ) at the adopted δ and a
@@ -1807,6 +1829,24 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         term="tau",
         moderators=tau_moderators,
         delta=delta_items,
+        population=(
+            "new child; covariate profiles drawn from the fitted ITT analysis rows"
+        ),
+        contrast_status="randomised contrast (ITT)",
+        split=True,
+    )
+
+    # Intervention vs no-intervention overlap (two individual figures): the
+    # arm-mean expected-outcome posterior and the new-child predictive outcome,
+    # each drawn as smoothed overlapping density curves. Same reference rows and
+    # contrast arithmetic as the predicted-scores panel above.
+    _write_arm_overlap(
+        ctx,
+        outcome_symbol=spec.outcome_symbol,
+        G=built.prepared.G,
+        n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
+        term="tau",
+        moderators=tau_moderators,
         population=(
             "new child; covariate profiles drawn from the fitted ITT analysis rows"
         ),
@@ -2059,7 +2099,7 @@ def _fit_itt_floor_rule(
         )
         ctx.tables["rope_summary"] = pd.DataFrame([rope_s])
         _save_rope_plot(
-            ctx, own, built.prepared.G, 1, delta_prob, varying_term=""
+            ctx, own, built.prepared.G, 1, delta_prob, varying_term="", split=True
         )
 
         # δ-sensitivity sweep on the risk-difference scale (issue #144): 10/15/20 pp.
@@ -2087,6 +2127,26 @@ def _fit_itt_floor_rule(
         varying_term="",
         likelihood="bernoulli",
         delta=delta_prob,
+        population=(
+            "new child; covariate profiles drawn from the baseline-floored "
+            "at-risk analysis rows"
+        ),
+        contrast_status="randomised contrast (floor-rule subgroup ITT)",
+        event_label="off the floor at t2",
+        split=True,
+    )
+
+    # Intervention vs no-intervention overlap: only the arm-mean off-floor
+    # probability posterior is meaningful here — a single binary outcome has no
+    # smooth predictive density, so the predictive figure is not emitted.
+    _write_arm_overlap(
+        ctx,
+        outcome_symbol=own,
+        G=built.prepared.G,
+        n_trials=1,
+        term="tau",
+        varying_term="",
+        likelihood="bernoulli",
         population=(
             "new child; covariate profiles drawn from the baseline-floored "
             "at-risk analysis rows"

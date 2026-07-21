@@ -51,6 +51,13 @@ import pandas as pd
 from numpy.polynomial.hermite import hermgauss
 from scipy.special import expit
 
+from dse_research_utils.plot.styles import (
+    COLOUR_BLUE,
+    COLOUR_DARK_GREEN,
+    COLOUR_ORANGE,
+    COLOUR_RED,
+)
+
 from language_reading_predictors.figure_io import save_styled_figure
 
 __all__ = [
@@ -65,13 +72,14 @@ __all__ = [
     "write_outcome_trajectory",
 ]
 
-#: Arm colours, matching the report's predictive-check palette
-#: (``predicted_scores.py``): wait-list control grey, immediate intervention blue.
-_CONTROL_COLOR = "#7f7f7f"
-_INTERVENTION_COLOR = "#1f77b4"
-#: Observed-overlay and ribbon accents.
-_OBSERVED_COLOR = "#d62728"
-_FIT_COLOR = "#1b7837"
+#: Arm colours from the shared project palette (``dse_research_utils.plot.styles``),
+#: matching ``predicted_scores.py``: wait-list control orange, immediate
+#: intervention blue.
+_CONTROL_COLOR = COLOUR_ORANGE
+_INTERVENTION_COLOR = COLOUR_BLUE
+#: Observed-overlay (red) and fit-ribbon (dark green) accents from the same palette.
+_OBSERVED_COLOR = COLOUR_RED
+_FIT_COLOR = COLOUR_DARK_GREEN
 #: Per-arm colour lookup and human labels (dataset arm coding: 1 = immediate, 0 = waitlist).
 ARM_COLORS: dict[int, str] = {0: _CONTROL_COLOR, 1: _INTERVENTION_COLOR}
 ARM_LABELS: dict[int, str] = {0: "wait-list control", 1: "immediate intervention"}
