@@ -929,6 +929,48 @@ def _write_separate_loo(
     pd.DataFrame(rows).to_csv(out_path, index=False)
 
 
+def _max_pareto_k(model_id: str, config: str) -> tuple[float | None, float]:
+    """Max pointwise Pareto-k and its good-k threshold from a fit's persisted
+    ``pareto_k.csv``.
+
+    Returns ``(None, threshold)`` when the file is absent or has no usable values:
+    the reliability of a fit without persisted diagnostics cannot be established from
+    here, so the caller treats it as "not checkable" and proceeds (LOO-enabled
+    reporting fits always persist this table). Reads the fit's own reported Pareto-k
+    rather than recomputing importance sampling.
+    """
+    path = os.path.join(_run_dir(model_id, config), "pareto_k.csv")
+    if not os.path.exists(path):
+        return None, 0.7
+    frame = pd.read_csv(path)
+    if "pareto_k" not in frame.columns or frame.empty:
+        return None, 0.7
+    khat = pd.to_numeric(frame["pareto_k"], errors="coerce")
+    threshold = 0.7
+    if "good_k_threshold" in frame.columns:
+        thr = pd.to_numeric(frame["good_k_threshold"], errors="coerce")
+        if thr.notna().any():
+            threshold = float(thr.iloc[0])
+    if not khat.notna().any():
+        return None, threshold
+    return float(khat.max()), threshold
+
+
+def _unreliable_pareto_k(model_ids, config: str) -> dict[str, float]:
+    """Models whose persisted max Pareto-k exceeds the good-k threshold.
+
+    PSIS-LOO — and therefore every ``elpd_diff`` in a comparison — is unreliable
+    when any pointwise Pareto-k exceeds the threshold (#390 P1; e.g. DID-007/DID-107
+    at khat ~1.14), so the comparison must not be marked valid in that case.
+    """
+    unreliable: dict[str, float] = {}
+    for mid in model_ids:
+        maxk, threshold = _max_pareto_k(mid, config)
+        if maxk is not None and maxk > threshold:
+            unreliable[mid] = maxk
+    return unreliable
+
+
 def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
     """Write ``az.compare`` over the fitted models in ``ids`` (LOO).
 
@@ -1011,6 +1053,18 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
         reason = (
             f"ordered analysis rows differ on {identity_source}: "
             f"{reference_id} vs {', '.join(mismatched)}"
+        )
+        print(
+            f"[warn] {reason}; writing per-model elpd_loo instead of az.compare "
+            "deltas."
+        )
+        _write_separate_loo(traces, sizes, config, out_path, reason=reason)
+        return True
+
+    unreliable = _unreliable_pareto_k(traces, config)
+    if unreliable:
+        reason = "unreliable PSIS-LOO Pareto-k (> good_k): " + ", ".join(
+            f"{mid}={maxk:.2f}" for mid, maxk in sorted(unreliable.items())
         )
         print(
             f"[warn] {reason}; writing per-model elpd_loo instead of az.compare "
