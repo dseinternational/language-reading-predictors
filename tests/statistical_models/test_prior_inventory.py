@@ -449,6 +449,10 @@ def test_growth_bespoke_terms_classified(built_models):
     # The concurrent-family focal ``beta`` (Normal(0, 0.3)) is unaffected by the
     # growth-scale beta rationale (kept out by the scale guard).
     assert priors._fallback_rationale("beta", "Normal(0, 0.3)") == ""
+    # A future inline ``beta`` at any other scale must still fall through to
+    # role='other' so the completeness guard catches it (Copilot #397): the role
+    # rule is keyed to the growth Normal(0, 0.5) signature, not the bare name.
+    assert priors._classify_fallback("beta", "Normal(0, 1)") == ("other", "")
 
 
 def test_itt_adjust_covariate_and_ses_are_precision(built_models):

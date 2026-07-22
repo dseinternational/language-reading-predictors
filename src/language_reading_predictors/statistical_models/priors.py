@@ -697,12 +697,13 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     if base.startswith(("g_", "b_", "a_", "aL", "aE", "aB", "d_")):
         return ("association", "")
     # Latent growth-curve per-measure mean growth rate (``beta``, the slope on
-    # standardised age; Normal(0, 0.5)). Reached only after the Normal(0, 0.3)
-    # signature above, so the concurrent family's Normal(0, 0.3) ``beta`` (a focal
-    # skill coefficient) keeps its gamma_cross route and is unaffected. Labelled an
-    # association (a descriptive maturational trend) pending review — see the
-    # growth-family note in #384/#393.
-    if base == "beta":
+    # standardised age; Normal(0, 0.5)). Keyed to the growth scale so the concurrent
+    # family's Normal(0, 0.3) ``beta`` (a focal skill coefficient) keeps its
+    # gamma_cross route, AND a future inline ``beta`` at any other scale still falls
+    # through to ``other`` and trips the completeness guard. Labelled an association
+    # (a descriptive maturational trend) pending review — see the growth-family note
+    # in #384/#393.
+    if base == "beta" and distribution == "Normal(0, 0.5)":
         return ("association", "")
     return ("other", "")
 
@@ -778,8 +779,9 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
     if base in {"z_intercept", "z_slope"}:
         which = "intercept" if base == "z_intercept" else "slope"
         return (
-            f"Non-centred standard-normal per-child {which} offsets ({fitted}); scaled "
-            f"by the random-{which} SD to form the child-level growth {which}s."
+            f"Non-centred standard-normal per-child, per-measure {which} offsets "
+            f"({fitted}); scaled by the random-{which} SD to form the child-by-measure "
+            f"growth {which}s."
         )
     if base == "G_tempo":
         return (
