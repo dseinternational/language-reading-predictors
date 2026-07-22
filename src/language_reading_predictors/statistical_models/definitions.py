@@ -218,6 +218,10 @@ _MECH = [
     _d("lrp93", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x receptive-vocabulary interaction"),
     _d("lrp94", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-receptive-vocabulary interaction"),
     _d("lrp95", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-expressive-vocabulary interaction"),
+    # Joint-readiness: letter sounds x CODE-ROUTE interaction on word reading (#404).
+    # Does the L->W conversion depend on blending (B) / nonword decoding (N) being in
+    # place? B/N are downstream of L, so gamma_int is effect-modification by a descendant,
+    # not a symmetric 'both needed' test. Each has a no-interaction baseline (nested LOO).
     _d("lrp61", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x phoneme-blending interaction (#404)"),
     _d("lrp161", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline (L + blending main effects -> W)", base="lrp61"),
     _d("lrp63", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x nonword-decoding interaction (#404)"),
