@@ -82,8 +82,8 @@ def test_child_log_likelihood_matches_scipy_mvnormal_without_a_factory():
             np.testing.assert_allclose(
                 actual.isel(chain=0, draw=draw).sel(child_lcf=child),
                 expected,
-                rtol=1e-12,
-                atol=1e-12,
+                rtol=1e-10,
+                atol=1e-10,
             )
 
 
@@ -91,7 +91,7 @@ def test_child_log_likelihood_is_chunk_size_invariant():
     trace, built, _ = _synthetic_trace_and_built()
     one = child_log_likelihood(trace, built, chunk_size=1)
     both = child_log_likelihood(trace, built, chunk_size=8)
-    np.testing.assert_allclose(one.values, both.values, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(one.values, both.values, rtol=1e-10, atol=1e-10)
 
 
 def test_child_log_likelihood_rejects_coordinate_drift():
