@@ -1,0 +1,82 @@
+---
+title: "LRP61: Mechanism model — letter-sound (LS) -> word reading (WR), moderated by phoneme blending (PA)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP61 is a **joint-readiness** interaction model. It extends [LRP58](../lrp-rli-mech-058) —
+the mechanism estimate $f^L$ of letter-sound knowledge on word reading — with a **linear
+moderation** by **phoneme blending** $B$ (`blending`, PA), the first *code-route* moderator
+in the joint-readiness family (the companions [LRP71](../lrp-rli-mech-071)/93/94/95 moderate
+the same $L \to W$ curve by vocabulary). Its nearest sibling [LRP72](../lrp-rli-mech-072)
+asks the same $L \times B$ question on *decoding* (nonword) and came out sub-additive
+($\gamma_{\text{int}} = -0.33$, 89% CrI $-0.57$ to $-0.09$); LRP61 moves the outcome to word
+reading, the cell the mechanism suite otherwise leaves open.
+
+The mediation suite already shows the intervention's word-reading gain does not measurably
+run *through* blending (`med-066` $\mathrm{NIE}_B \approx -0.03$ words, P=42%; `med-075`
+$L \to B \to W \approx 0$, P=42%). LRP61 asks the different question of whether the
+letter-sound $\to$ word-reading **conversion is gated by** blending — whether letter sounds
+only translate into word reading once blending is in place.
+
+Letter sounds enter as the nonparametric **HSGP** curve $f^L$ (as in LRP58); phoneme blending
+enters as a standardised linear main effect plus the interaction:
+
+$$
+\eta = \dots + f^{L}(\operatorname{logit} L_{\text{post}})
+       + \gamma_{\text{mod}}\, z(B)
+       + \gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(B)
+$$
+
+where $z(\cdot)$ standardises to mean 0, sd 1 over the fitted rows. Both cross-coupling
+coefficients use the regularising $\mathrm{Normal}(0, 0.3)$ prior.
+
+_Reading the interaction._ $\gamma_{\text{int}}$ is the change in the letter-sound -> word-reading slope per +1 SD of
+phoneme blending.
+
+- $\gamma_{\text{int}} > 0$ = **synergy**: letter sounds convert to word reading most strongly
+  once blending is also high.
+- $\gamma_{\text{int}} \approx 0$ = **additive**: letter sounds convert independently of blending.
+- $\gamma_{\text{int}} < 0$ = **substitutive**: diminishing returns to having both.
+
+## Adjustment set
+
+The revised LRP58 $L \to W$ set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$ —
+group, linear age, hearing, intervention sessions, speech production, and baseline word reading.
+Phoneme blending $B$ enters **additionally**, via its main effect and interaction only.
+
+_Blending is a downstream skill, not a parallel prerequisite._ Unlike the vocabulary moderators,
+blending $B = \mathrm{PA}$ is a **DAG-descendant of the exposure** $L$ ($\mathrm{LS} \to \mathrm{PA}$).
+Conditioning on it therefore makes $f^L$ a **controlled-direct** effect of letter sounds *at fixed
+blending*, and $\gamma_{\text{int}}$ is **effect-modification by a downstream skill**, not a
+symmetric "need both" prerequisite test — the same estimand caveat documented on
+[LRP72](../lrp-rli-mech-072). Blending has a 10-item ceiling.
+
+_Adjusted association, not causal._ Latent general ability ($GA$) is not adjusted for, so
+everything here — $f^L$, $\gamma_{\text{mod}}$ and $\gamma_{\text{int}}$ — is a
+**latent-GA-confounded adjusted association**, never a causal effect. The randomised causal claim
+lives in the ITT suite.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

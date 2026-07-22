@@ -1,0 +1,74 @@
+---
+title: "LRP63: Mechanism model — letter-sound (LS) -> word reading (WR), moderated by nonword decoding (NW)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP63 is a **joint-readiness** interaction model, companion to [LRP61](../lrp-rli-mech-061)
+(blending) and the vocabulary-moderator family. It extends [LRP58](../lrp-rli-mech-058) — the
+mechanism estimate $f^L$ of letter-sound knowledge on word reading — with a **linear moderation**
+by **nonword decoding** $N$ (`nonword`, NW). The mediation suite shows the word-reading gain does
+not measurably run *through* decoding (`med-074` $\mathrm{NIE} \approx +0.0$ words, 89% CrI $-0.4$
+to $+0.5$); LRP63 asks instead whether the letter-sound $\to$ word-reading **conversion is gated
+by** decoding — whether letter sounds only translate into word reading once nonword decoding is in
+place.
+
+Letter sounds enter as the nonparametric **HSGP** curve $f^L$ (as in LRP58); nonword decoding
+enters as a standardised linear main effect plus the interaction:
+
+$$
+\eta = \dots + f^{L}(\operatorname{logit} L_{\text{post}})
+       + \gamma_{\text{mod}}\, z(N)
+       + \gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(N)
+$$
+
+where $z(\cdot)$ standardises to mean 0, sd 1 over the fitted rows. Both cross-coupling
+coefficients use the regularising $\mathrm{Normal}(0, 0.3)$ prior.
+
+_Reading the interaction._ $\gamma_{\text{int}}$ is the change in the letter-sound -> word-reading slope per +1 SD of
+nonword decoding: $> 0$ = **synergy**, $\approx 0$ = **additive**, $< 0$ = **substitutive**.
+
+## Adjustment set
+
+The revised LRP58 $L \to W$ set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$;
+nonword decoding $N$ enters **additionally**, via its main effect and interaction only.
+
+_Decoding is a downstream skill, not a parallel prerequisite._ Nonword decoding
+$N = \mathrm{NW}$ is a **DAG-descendant of the exposure** $L$ ($\mathrm{LS} \to \dots \to \mathrm{NW}$).
+Conditioning on it makes $f^L$ a **controlled-direct** effect of letter sounds *at fixed decoding*,
+and $\gamma_{\text{int}}$ is **effect-modification by a downstream skill**, not a symmetric "need
+both" prerequisite test — the estimand caveat documented on [LRP72](../lrp-rli-mech-072).
+
+_Weakly powered — suggestive at best._ Nonword decoding is $\approx 57\%$ floored (median 0), so
+$z(N)$ carries little variation and this interaction is **weakly powered**; read
+$\gamma_{\text{int}}$ (and the nested LOO contrast against [LRP63base](../lrp-rli-mech-163)) as an
+exploratory description. It complements the descriptive finding that a small sight-word subgroup
+reads with little decoding while fluent reading (40+ words) always co-occurs with decoding.
+
+_Adjusted association, not causal._ Latent general ability is not adjusted for, so $f^L$,
+$\gamma_{\text{mod}}$ and $\gamma_{\text{int}}$ are **latent-GA-confounded adjusted associations**,
+never causal effects.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

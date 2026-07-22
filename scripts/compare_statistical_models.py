@@ -105,6 +105,13 @@ LOO_COMPARE_IDS: list[str] = ["lrp-rli-mech-058", "lrp-rli-mech-071"]
 # NOT comparable to the LOO_COMPARE_IDS set (different outcome: decoding vs W).
 PHONICS_LOO_IDS: list[str] = ["lrp-rli-mech-072", "lrp-rli-mech-172"]
 
+# Joint-readiness on WORD READING (#404): each L x code-route interaction model vs its
+# no-interaction baseline, same W outcome -- clean nested PSIS-LOO tests of the L x B and
+# L x N interactions. Both moderators are DAG-descendants of L (controlled-direct estimand),
+# so each interaction/baseline pair is like-for-like. Distinct from PHONICS_LOO_IDS (decoding).
+JOINT_READINESS_LXB_W_LOO_IDS: list[str] = ["lrp-rli-mech-061", "lrp-rli-mech-161"]
+JOINT_READINESS_LXN_W_LOO_IDS: list[str] = ["lrp-rli-mech-063", "lrp-rli-mech-163"]
+
 # Age moderation (LRP73): interaction vs no-interaction baseline, same word-reading
 # outcome — a clean nested PSIS-LOO test of the L x age interaction.
 AGE_LOO_IDS: list[str] = ["lrp-rli-mech-073", "lrp-rli-mech-173"]
@@ -1038,6 +1045,16 @@ def phonics_route_loo_compare(config: str, out_path: str) -> bool:
     return _loo_compare(PHONICS_LOO_IDS, config, out_path)
 
 
+def joint_readiness_lxb_w_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP61 vs its no-interaction baseline (isolates L x B on word reading)."""
+    return _loo_compare(JOINT_READINESS_LXB_W_LOO_IDS, config, out_path)
+
+
+def joint_readiness_lxn_w_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP63 vs its no-interaction baseline (isolates L x N on word reading)."""
+    return _loo_compare(JOINT_READINESS_LXN_W_LOO_IDS, config, out_path)
+
+
 def age_moderation_loo_compare(config: str, out_path: str) -> bool:
     """LOO comparison of LRP73 against its no-interaction baseline (isolates L x age)."""
     return _loo_compare(AGE_LOO_IDS, config, out_path)
@@ -1267,6 +1284,18 @@ def main() -> None:
         print(f"Wrote {phonics_path}")
     else:
         print("Skipping phonics-route LOO compare: LRP72 / LRP72base runs missing.")
+
+    lxb_w_path = os.path.join(args.out, "joint_readiness_lxb_w_loo_compare.csv")
+    if joint_readiness_lxb_w_loo_compare(args.config, lxb_w_path):
+        print(f"Wrote {lxb_w_path}")
+    else:
+        print("Skipping L x B -> W LOO compare: LRP61 / LRP61base runs missing.")
+
+    lxn_w_path = os.path.join(args.out, "joint_readiness_lxn_w_loo_compare.csv")
+    if joint_readiness_lxn_w_loo_compare(args.config, lxn_w_path):
+        print(f"Wrote {lxn_w_path}")
+    else:
+        print("Skipping L x N -> W LOO compare: LRP63 / LRP63base runs missing.")
 
     age_path = os.path.join(args.out, "age_moderation_loo_compare.csv")
     if age_moderation_loo_compare(args.config, age_path):
