@@ -228,6 +228,17 @@ _MECH = [
     _d("lrp98", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "negative-control outcome: letter sounds -> expressive vocabulary"),
     _d("lrp99", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "negative-control outcome: letter sounds -> receptive grammar"),
     _d("lrp100", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "negative-control outcome: letter sounds -> basic concepts"),
+    # Taught vocabulary -> letter sounds (#405, companion to #404): an exploratory
+    # edge-check against the revised DAG, which posits NO vocabulary -> letter-sound
+    # edge. For each of TR and TE, a concurrent readout (mechanism at post) and a
+    # lagged / predictive readout (mechanism at period-start, mechanism_at_pre=True)
+    # that tests prediction of letter-sound growth. Adjusted associations, never
+    # causal; erbto (RW) is dropped from the mech-088/089 adjustment set because it
+    # does not reach letter sounds (see each module's backdoor derivation).
+    _d("lrp102", "mechanism", "Mechanism", Status.ASSOCIATION, "L", "taught receptive vocabulary -> letter sounds (concurrent)"),
+    _d("lrp103", "mechanism", "Mechanism", Status.ASSOCIATION, "L", "taught receptive vocabulary -> letter sounds (lagged/predictive)"),
+    _d("lrp104", "mechanism", "Mechanism", Status.ASSOCIATION, "L", "taught expressive vocabulary -> letter sounds (concurrent)"),
+    _d("lrp105", "mechanism", "Mechanism", Status.ASSOCIATION, "L", "taught expressive vocabulary -> letter sounds (lagged/predictive)"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),
