@@ -1,0 +1,108 @@
+---
+title: "LRP102: Mechanism model — taught receptive vocabulary (TR) -> letter sounds (L), concurrent"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP102 estimates the adjusted **concurrent** association between taught receptive
+vocabulary ($TR$) and letter-sound knowledge ($L$; DAG symbol $LS$) across *all three
+phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with phase-specific intercepts.
+The mechanism and the outcome are read at the **same wave**
+($TR_{\text{post}} \to L_{\text{post}}$), conditioning on the child's own
+letter-sound baseline $L_{\text{pre}}$. It turns the descriptive finding that taught vocabulary is a strong
+*concurrent* correlate of letter sounds (pooled $r \approx 0.62$, rising across waves)
+into a confounder-adjusted slope (#405, companion to #404).
+
+::: {.callout-important title="Exploratory edge-check — not a hypothesised causal path"}
+The revised DAG (`dag/dag-language-reading.dagitty`) posits **no vocabulary $\to$
+letter-sound edge**: $TR \to \{TE, RV, EV, LF, RG, WR\}$ and none of those reach $LS$,
+so there is no directed $TR \to LS$ path. Letter sounds' parents are cognitive ability,
+hearing, speech and the intervention — not vocabulary — which is why the letter-sound
+gain model `gf-004` carries no skill adjusters. Any association estimated here is
+therefore **entirely confounding / selection**, dominated by the latent
+general-ability ($GA$) common cause that cannot be fully closed. Read it as a
+latent-ability-confounded adjusted association, an edge-check on the committed DAG,
+**never** a mechanism.
+:::
+
+_Linear mechanism (estimand note)._ The mechanism enters as a **linear slope**
+$\beta_{\text{mech}}$ on $\text{logit}_*(TR_{\text{post}}, N_{TR})$, not the 1-D HSGP
+curve used elsewhere in this family, following the vocabulary-exposure precedent
+(LRP56/57, `mech-088`): the nonparametric curve does not converge on vocabulary
+predictors at reporting tier, and DAG-required adjusters are not dropped to buy
+convergence. The estimand is the **linear** $TR \to L$ adjusted association — a single
+slope, not a shape.
+
+_Concurrent vs lagged._ This is the **concurrent** readout. Its lagged / predictive
+sibling **LRP103** takes $TR$ at period-start
+($TR_{\text{pre}} \to L_{\text{post}} \mid L_{\text{pre}}$) and is the design that
+actually tests *prediction of letter-sound growth*. A positive concurrent slope here alongside a null lagged slope in LRP103 is
+the expected "tracks, but doesn't drive" signature.
+
+## Adjustment set
+
+Re-derived for the $TR$--$LS$ backdoor under the revised DAG (2026-07-10). Parents of
+$TR$: $\{A, GA, HS, IG, IS, RW\}$; parents of $LS$: $\{A, GA, HS, IG, IS, SP\}$. The
+model conditions on the observable common causes:
+
+- $G$ — group; always conditioned on via $\beta_G$.
+- $A$ — age; conditioned on linearly (a $\gamma_A\,z(\text{age})$ term).
+- $HS$ — hearing status (`hs` / `hs_missing`); common cause $TR \leftarrow HS \to LS$.
+- $IS$ — intervention sessions (`attend`); common cause $TR \leftarrow IS \to LS$ (the
+  intervention teaches both vocabulary and letter sounds). Adjusted, with the
+  $IG \to IS \leftarrow GA$ collider closed at the always-conditioned arm $G$ (the
+  d-separation argument of `mech-088`).
+- $SP$ — speech production (`deapp_c` / `deapp_c_missing`); **not** a parent of $TR$,
+  so not a confounder of this slope, but a strong, stable, pre-treatment parent of
+  $LS$, kept as a **precision adjuster**. Every
+  $TR \leftarrow \{A, GA, HS\} \to SP \to LS$ backdoor is already blocked at $A$ /
+  $HS$ / the $GA$ proxy, so conditioning on it cannot bias the slope. It also keeps
+  the $TR$ and $TE$ (LRP104) adjustment sets
+  identical, where $SP$ *is* a required confounder.
+- $L_{\text{pre}}$ — baseline letter sounds (autoregressive term; temporal precedence,
+  not a collider).
+
+_Deliberately **not** adjusted:_
+
+- $RW$ — phonological memory (`erbto`). Unlike `mech-088` ($TR \to WR$),
+  $RW \to \{TE, EV, TR, RV, PA, NW, PS\}$ **never reaches $LS$**, so it is not a
+  common cause of $TR$ and $LS$. Dropping it is the key re-derivation for the
+  letter-sound outcome.
+- $TE$, $RV$ — descendants of $TR$; conditioning would block legitimate indirect paths.
+- $GA$ — latent and unadjustable; the child random intercept proxies its time-invariant
+  part, so the slope stays an adjusted association.
+
+### Interpretation caveats
+
+- *No unmeasured confounder assumption* for $(TR_{\text{post}}, L_{\text{post}})$:
+  strong and not testable, and the latent $GA$ is a named violation direction that
+  cannot be closed. The DAG posits no causal $TR \to LS$ edge, so a non-zero slope is expected
+  to reflect that residual common-cause structure.
+- $TR_{\text{post}}$ is measured with error; non-negligible error attenuates the slope.
+- Taught-vocabulary variation is largely intervention-generated, so the slope describes
+  covariation within a treated system.
+- Across-phase pooling assumes a stable structural relationship over time.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

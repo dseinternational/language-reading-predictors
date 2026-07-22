@@ -1,0 +1,82 @@
+---
+title: "LRP104: Mechanism model — taught expressive vocabulary (TE) -> letter sounds (L), concurrent"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP104 is the taught **expressive** vocabulary arm of #405: the adjusted **concurrent**
+association between taught expressive vocabulary ($TE$) and letter-sound knowledge
+($L$; DAG symbol $LS$), same-wave $TE_{\text{post}} \to L_{\text{post}}$ conditioning on
+$L_{\text{pre}}$, across all three phase transitions. Descriptively $TE$ is a slightly
+stronger concurrent correlate of letter sounds than $TR$ (pooled $r \approx 0.65$) but
+likewise does not predict letter-sound growth. It parallels the receptive-vocabulary
+LRP102.
+
+::: {.callout-important title="Exploratory edge-check — not a hypothesised causal path"}
+The revised DAG (`dag/dag-language-reading.dagitty`) posits **no vocabulary $\to$
+letter-sound edge**: $TE \to \{EV, EG, EI, PA, WR\}$ and none reaches $LS$, so there is
+no directed $TE \to LS$ path. Any association is latent-general-ability-confounded, an
+edge-check on the committed DAG, **never** a mechanism.
+:::
+
+_Linear mechanism (estimand note)._ Linear slope $\beta_{\text{mech}}$ on
+$\text{logit}_*(TE_{\text{post}}, N_{TE})$, per the vocabulary-exposure precedent
+(LRP56/57, `mech-089`). The lagged / predictive sibling
+($TE_{\text{pre}} \to L_{\text{post}} \mid L_{\text{pre}}$) is **LRP105**; a positive
+concurrent slope here
+with a null lagged slope there is the "tracks, but doesn't drive" signature.
+
+## Adjustment set
+
+Re-derived for the $TE$--$LS$ backdoor under the revised DAG. Parents of $TE$:
+$\{A, GA, HS, IG, IS, TR, RW, SP\}$; parents of $LS$: $\{A, GA, HS, IG, IS, SP\}$. The model
+conditions on the observable common causes:
+
+- $G$ ($\beta_G$), $A$ ($\gamma_A$), and $L_{\text{pre}}$ (autoregressive baseline).
+- $HS$ — hearing (`hs` / `hs_missing`); common cause $TE \leftarrow HS \to LS$.
+- $IS$ — intervention sessions (`attend`); common cause $TE \leftarrow IS \to LS$, with
+  the $IG \to IS \leftarrow GA$ collider closed at the always-conditioned arm $G$.
+- $SP$ — speech production (`deapp_c` / `deapp_c_missing`); **a required confounder
+  here** — $SP \to TE$ *and* $SP \to LS$, so $TE \leftarrow SP \to LS$ is an open
+  backdoor unless $SP$ is adjusted. (In the receptive model LRP102 $SP$ is only a
+  precision adjuster; the fitted set is identical.)
+
+_Deliberately **not** adjusted:_
+
+- $TR$ and $RW$ (`erbto`) — both are parents of $TE$ ($TR \to TE$, $RW \to TE$) but
+  **neither reaches $LS$**, so neither is a common cause of $TE$ and $LS$. This differs
+  from `mech-089` ($TE \to WR$), which adjusts $TR$ because $TR \to WR$.
+- $GA$ — latent; proxied by the child random intercept.
+
+### Interpretation caveats
+
+- *No unmeasured confounder assumption* for $(TE_{\text{post}}, L_{\text{post}})$:
+  strong and not testable; latent $GA$ is the named violation direction that cannot be closed.
+  The DAG posits no causal $TE \to LS$ edge.
+- $TE_{\text{post}}$ is measured with error; attenuation applies.
+- Taught-vocabulary variation is largely intervention-generated (covariation within a
+  treated system); across-phase pooling assumes a stable relationship over time.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

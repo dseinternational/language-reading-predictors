@@ -3348,6 +3348,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         linear_mechanism=spec.extra.get("linear_mechanism", False),
         adjust_for=adjust_for,
         mechanism_is_covariate=mechanism_is_covariate,
+        mechanism_at_pre=spec.extra.get("mechanism_at_pre", False),
     )
     _attach_built(ctx, built)
 

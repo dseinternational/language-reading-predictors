@@ -1,0 +1,70 @@
+---
+title: "LRP105: Mechanism model — taught expressive vocabulary (TE) -> letter sounds (L), lagged / predictive"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP105 is the **lagged / predictive** sibling of the concurrent **LRP104**, for taught
+**expressive** vocabulary. It takes $TE$ at **period-start** ($TE_{\text{pre}}$)
+predicting letter-sound knowledge at **period-end** ($L_{\text{post}}$; DAG symbol
+$LS$), conditioning on the period-start letter-sound level ($L_{\text{pre}}$), across
+all three phase transitions. The slope reads as "does where a child's taught
+expressive vocabulary started predict how much their letter sounds then changed" — the
+growth-prediction design behind the descriptive null. This is the expressive arm of
+#405's growth-prediction half.
+
+::: {.callout-important title="Exploratory edge-check — not a hypothesised causal path"}
+The revised DAG (`dag/dag-language-reading.dagitty`) posits **no vocabulary $\to$
+letter-sound edge**, so any association is latent-general-ability-confounded, an
+edge-check on the committed DAG, **never** a mechanism. See LRP104 for the no-edge
+argument.
+:::
+
+_Lagged form (estimand note)._ The single build-level difference from LRP104 is
+`mechanism_at_pre=True`: the mechanism regressor is $TE$'s period-start (pre) logit.
+The outcome stays at post and the autoregressive baseline stays at $L_{\text{pre}}$,
+giving $TE_{\text{pre}} \to L_{\text{post}} \mid L_{\text{pre}}$. A positive concurrent
+slope (LRP104) alongside a null lagged slope here is the "tracks, but doesn't drive"
+signature. Linear mechanism (vocabulary-exposure precedent LRP56/57, `mech-089`).
+
+## Adjustment set
+
+Identical to the concurrent LRP104 — re-derived for the $TE$--$LS$ backdoor under the
+revised DAG: $\{G, A, HS, IS(\text{attend}), SP(\text{deapp\_c})\}$ plus the
+$L_{\text{pre}}$ autoregressive baseline, with $GA$ proxied by the child random
+intercept. $SP$ is a **required** confounder for the expressive model ($SP \to TE$ and
+$SP \to LS$). $TR$ and phonological memory $RW$ (`erbto`) are **not** adjusted (parents
+of $TE$ that do not reach $LS$). See [LRP104](../lrp-rli-mech-104/) for the per-symbol
+derivation.
+
+### Interpretation caveats
+
+- *No unmeasured confounder assumption* for $(TE_{\text{pre}}, L_{\text{post}})$:
+  strong and not testable; latent $GA$ is the named violation direction that cannot be closed.
+- The later increment is not itself randomised, so this is a triangulation read.
+- $TE_{\text{pre}}$ is measured with error; attenuation applies.
+- Across-phase pooling assumes a stable structural relationship over time.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

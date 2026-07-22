@@ -660,6 +660,57 @@ def test_mechanism_factory_age_moderator_not_double_counted(tmp_path):
     assert "gamma_A" not in names
 
 
+def test_mechanism_factory_mechanism_at_pre_uses_period_start_regressor(tmp_path):
+    """``mechanism_at_pre=True`` (#405 lagged / predictive readout) takes the
+    mechanism regressor from the period-start (pre) logit; the default takes the
+    post-count logit. The two alignments give different regressors, and each matches
+    its source on the same logit-safe scale. Default-off, so the concurrent mechanism
+    family is byte-identical."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    common = dict(
+        mechanism_symbol="R",
+        outcome_symbol="W",
+        adjust_baseline_symbol="W",
+        confounder_symbols=(),
+        linear_mechanism=True,
+    )
+    post_built = build_mechanism_model(prep, **common)  # default: mechanism at post
+    pre_built = build_mechanism_model(prep, mechanism_at_pre=True, **common)
+
+    post_reg = post_built.model["mech_post_logit"].get_value()
+    pre_reg = pre_built.model["mech_post_logit"].get_value()
+
+    # The complete synthetic panel keeps every row for both alignments.
+    assert len(post_reg) == len(pre_reg) == prep.n_obs
+    # The two alignments produce genuinely different regressors.
+    assert not np.allclose(post_reg, pre_reg)
+    # Each matches its source: post = logit_safe(post counts); pre = the pre logit.
+    np.testing.assert_allclose(
+        post_reg, logit_safe(prep.post_counts["R"], prep.n_trials["R"])
+    )
+    np.testing.assert_allclose(pre_reg, prep.pre_logit["R"])
+
+
+def test_mechanism_factory_mechanism_at_pre_rejects_covariate_exposure(tmp_path):
+    """A standardised covariate exposure has no separate period-start score, so
+    combining the two options is refused rather than silently ignored."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    with pytest.raises(ValueError, match="mechanism_at_pre is incompatible"):
+        build_mechanism_model(
+            prep,
+            mechanism_symbol="R",
+            outcome_symbol="W",
+            mechanism_is_covariate=True,
+            mechanism_at_pre=True,
+        )
+
+
 def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
     """With the age GP on, age is represented by ``f_A``, so the linear
     ``gamma_A`` term is not added (no double adjustment)."""
