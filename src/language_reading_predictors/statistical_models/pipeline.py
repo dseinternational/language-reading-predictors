@@ -1635,6 +1635,8 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["y_event"])
 
@@ -3100,6 +3102,15 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         if spec.extra.get("include_interaction", True):
             _mech_vars.append("gamma_int")
     _diag.summary_diagnostics(ctx, var_names=_mech_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381). For the
+    # HSGP mechanism curve the estimand is the shape, governed by the deliberately
+    # tight ``eta_main_prior`` amplitude the prior review flagged; the linear slope
+    # ``beta_mech`` is already in ``_mech_vars``, so add the GP amplitude and
+    # lengthscale only when the nonparametric curve is fitted.
+    _mech_psense_vars = list(_mech_vars)
+    if not spec.extra.get("linear_mechanism", False):
+        _mech_psense_vars += ["f_mech__eta", "f_mech__ell"]
+    _diag.run_psense(ctx, var_names=_mech_psense_vars)
 
     _run_ppc(ctx)
 
@@ -3568,6 +3579,8 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         dose_vars.append("gamma_dose_stage")
     dose_vars.extend(f"gamma_{s}_pre" for s in ability)
     _diag.summary_diagnostics(ctx, var_names=dose_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=dose_vars)
 
     _run_ppc(ctx)
 
@@ -5188,6 +5201,8 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_al_diag_vars(spec))
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=_al_diag_vars(spec))
 
     _run_ppc(ctx, var_names=[obs_node])
 
@@ -5734,6 +5749,8 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     diag_vars = ["alpha", *coupling_vars, "kappa", "hs_tau", "hs_c2", "beta"]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx)
 
@@ -5854,6 +5871,8 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     _run_ppc(ctx)
     _adjusted_diag_vars = ["alpha", "gamma_own", "kappa", *beta_names]
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=_adjusted_diag_vars)
 
     section_header("Extended diagnostics")
     # Capture the primary gate verdict so the sub-fit tables can label their
@@ -6494,6 +6513,8 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     if include_group:
         diag_vars.append("beta_group_nuisance")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
     _run_ppc(ctx)
     section_header("Extended diagnostics (primary wave)")
     _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -6805,6 +6826,8 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["y_obs"])
 
@@ -7046,6 +7069,8 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["y_obs"])
 
@@ -7219,6 +7244,8 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["score"])
 
@@ -7408,6 +7435,8 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     diag_vars = ["alpha", "gamma_own", "kappa", *beta_names, *nuisance]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx)
 
@@ -7594,6 +7623,8 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     diag_vars = ["alpha", "gamma_own", "kappa", "hs_tau", "hs_c2", "beta", *nuisance]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx)
 
