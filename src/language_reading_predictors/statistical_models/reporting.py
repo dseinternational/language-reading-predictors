@@ -1888,49 +1888,36 @@ def joint_treatment_marginals(
     n_trials: Mapping[str, int],
     deltas: Mapping[str, float],
     ci_prob: float = 0.95,
+    row_mask: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Items-scale treatment marginals for every outcome in a joint ITT fit.
 
     The joint model stores ``eta`` on ``(obs_id, outcome)`` and one ``tau`` per
-    outcome.  For each posterior draw and outcome this removes the fitted group
-    contribution to recover the untreated linear predictor, toggles treatment
-    on, averages the probability difference over fitted rows, and multiplies by
-    that outcome's item denominator.  This is the joint analogue of
-    :func:`treatment_marginal_effect`; keeping it as a fitted artefact lets the
-    key-findings builder report the project-agreed range-plus-count headline
-    without approximating item effects from logit coefficients.
+    outcome.  This is the items-scale companion to :func:`tau_summary_joint`: it
+    takes that function's probability-scale average marginal effect and multiplies
+    by each outcome's item denominator, so the two summaries of a single fit report
+    the *same* quantity on two scales.
+
+    **Averaging population (#392):** the AME is computed by
+    :func:`_joint_ame_draws`, which averages each outcome over the rows where that
+    outcome is *observed* (its flattened-cell mask), not over every fitted row.
+    Under outcome-specific post-score missingness the observed populations differ
+    per outcome — this function reports each outcome on its own observed population,
+    matching :func:`tau_summary_joint`. Passing ``row_mask`` (a boolean/int mask over
+    fitted rows) restricts every outcome to a *common* subset, intersected with each
+    outcome's observed rows, for a common-population cross-outcome comparison. (On the
+    current registered joint datasets every outcome is complete, so the mask is all
+    rows and the estimates are unchanged.)
 
     ``deltas`` contains the project-agreed minimally-important item difference
     where one exists.  Rows without an agreed delta retain the items-scale
     estimate but leave the ROPE fields missing.
     """
-    posterior = trace.posterior
-    tau = (
-        posterior["tau"]
-        .stack(sample=("chain", "draw"))
-        .transpose("outcome", "sample")
-    )
-    eta = (
-        posterior["eta"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "outcome", "sample")
-    )
-    groups = np.asarray(G, dtype=float)
-    if groups.shape[0] != eta.sizes["obs_id"]:
-        raise ValueError(
-            f"G has {groups.shape[0]} rows but eta has {eta.sizes['obs_id']} "
-            "observations"
-        )
-
+    _, ame = _joint_ame_draws(trace, outcomes, G=G, row_mask=row_mask)
     lo_q = (1 - ci_prob) / 2
     rows: list[dict[str, float | str]] = []
-    for outcome in outcomes:
-        effect = np.asarray(tau.sel(outcome=outcome).values).reshape(-1)
-        eta_k = np.asarray(eta.sel(outcome=outcome).values)
-        eta_zero = eta_k - groups[:, None] * effect[None, :]
-        item_draws = (
-            expit(eta_zero + effect[None, :]) - expit(eta_zero)
-        ).mean(axis=0) * float(n_trials[outcome])
+    for k, outcome in enumerate(outcomes):
+        item_draws = ame[k] * float(n_trials[outcome])
         delta = deltas.get(outcome)
         row: dict[str, float | str] = {
             "outcome": outcome,
@@ -1939,7 +1926,7 @@ def joint_treatment_marginals(
             "items_hi": float(np.quantile(item_draws, 1 - lo_q)),
             "items_lo50": float(np.quantile(item_draws, 0.25)),
             "items_hi50": float(np.quantile(item_draws, 0.75)),
-            "prob_pos": float(np.mean(effect > 0)),
+            "prob_pos": float(np.mean(item_draws > 0)),
         }
         if delta is not None:
             d = float(delta)
