@@ -4198,6 +4198,10 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
+    # Power-scaling prior sensitivity (#381): this family does not compute LOO,
+    # so add the log groups explicitly, then power-scale the reported parameters.
+    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
+    _diag.run_psense(ctx, var_names=coef_vars)
 
     _run_ppc(ctx, var_names=[mediator_node, outcome_node])
 
@@ -4438,6 +4442,10 @@ def fit_mediation_period_stacked(
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity (#381): this family does not compute LOO,
+    # so add the log groups explicitly, then power-scale the reported parameters.
+    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=[mediator_node, "y_post"])
 
@@ -5625,6 +5633,10 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
+    # Power-scaling prior sensitivity (#381): this family does not compute LOO,
+    # so add the log groups explicitly, then power-scale the reported parameters.
+    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
+    _diag.run_psense(ctx, var_names=coef_vars)
 
     _run_ppc(ctx, var_names=[f"{mediators[0]}_post", f"{mediators[1]}_post", "y_post"])
 
@@ -8417,6 +8429,10 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=summary_vars)
+    # Power-scaling prior sensitivity (#381): this family does not compute LOO,
+    # so add the log groups explicitly, then power-scale the reported parameters.
+    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
+    _diag.run_psense(ctx, var_names=summary_vars)
 
     # Sample both observed nodes (the indicator matrix + the structural outcome).
     # These are two SEPARATE checks, not a joint predictive draw: the factor scores
