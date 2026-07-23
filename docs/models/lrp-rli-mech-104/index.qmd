@@ -38,9 +38,12 @@ edge-check on the committed DAG, **never** a mechanism.
 _Linear mechanism (estimand note)._ Linear slope $\beta_{\text{mech}}$ on
 $\text{logit}_*(TE_{\text{post}}, N_{TE})$, per the vocabulary-exposure precedent
 (LRP56/57, `mech-089`). The lagged / predictive sibling
-($TE_{\text{pre}} \to L_{\text{post}} \mid L_{\text{pre}}$) is **LRP105**; a positive
-concurrent slope here
-with a null lagged slope there is the "tracks, but doesn't drive" signature.
+($TE_{\text{pre}} \to L_{\text{post}} \mid L_{\text{pre}}$) is **LRP105**. A positive
+concurrent slope here with a *near-zero* lagged slope there would be the "tracks, but
+doesn't drive" pattern; a *positive* lagged slope there carries equal billing (the
+#405 baseline-$L$-adjusted descriptive correlation is positive, $r = +0.27$, 89%
+interval $+0.05$ to $+0.46$) and, on the committed no-edge DAG, is to be flagged as a
+possible challenge to that DAG rather than presupposed null. See LRP105.
 
 ## Adjustment set
 

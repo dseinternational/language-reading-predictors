@@ -26,8 +26,7 @@ predicting letter-sound knowledge at **period-end** ($L_{\text{post}}$; DAG symb
 $LS$), conditioning on the period-start letter-sound level ($L_{\text{pre}}$), across
 all three phase transitions. The slope reads as "does where a child's taught
 expressive vocabulary started predict how much their letter sounds then changed" — the
-growth-prediction design behind the descriptive null. This is the expressive arm of
-#405's growth-prediction half.
+growth-prediction design of #405's expressive arm.
 
 ::: {.callout-important title="Exploratory edge-check — not a hypothesised causal path"}
 The revised DAG (`dag/dag-language-reading.dagitty`) posits **no vocabulary $\to$
@@ -39,9 +38,16 @@ argument.
 _Lagged form (estimand note)._ The single build-level difference from LRP104 is
 `mechanism_at_pre=True`: the mechanism regressor is $TE$'s period-start (pre) logit.
 The outcome stays at post and the autoregressive baseline stays at $L_{\text{pre}}$,
-giving $TE_{\text{pre}} \to L_{\text{post}} \mid L_{\text{pre}}$. A positive concurrent
-slope (LRP104) alongside a null lagged slope here is the "tracks, but doesn't drive"
-signature. Linear mechanism (vocabulary-exposure precedent LRP56/57, `mech-089`).
+giving $TE_{\text{pre}} \to L_{\text{post}} \mid L_{\text{pre}}$. We report the
+concurrent-versus-lagged comparison without presupposing its direction. A lagged slope
+near zero (with a positive concurrent slope in LRP104) would be the "tracks, but
+doesn't drive" pattern. A **positive** lagged slope carries equal billing: the #405
+baseline-$L$-adjusted descriptive correlation is positive ($r = +0.27$, 89% interval
+$+0.05$ to $+0.46$), and the PR's own dev fit is positive, so period-start $TE$ may
+predict letter-sound *growth*. On the committed no-edge DAG that reads as a
+latent-ability-confounded edge-check — and, per #405, a positive lagged result is to
+be flagged as a possible challenge to that DAG, not dismissed as expected noise. Linear
+mechanism (vocabulary-exposure precedent LRP56/57, `mech-089`).
 
 ## Adjustment set
 

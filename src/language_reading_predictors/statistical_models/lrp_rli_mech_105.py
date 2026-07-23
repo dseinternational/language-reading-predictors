@@ -9,13 +9,18 @@ vocabulary. Sibling of the concurrent ``mech-104`` that tests *prediction of
 growth*: TE at **period-start** (TE_pre) predicting letter sounds at **period-end**
 (L_post), conditioning on the period-start letter-sound level (L_pre). The slope
 reads as "does where a child's taught expressive vocabulary started predict how much
-their letter sounds then changed" - the design behind the descriptive null.
+their letter sounds then changed" - the growth-prediction design of #405's
+expressive arm.
 
 The single build-level difference from ``mech-104`` is ``mechanism_at_pre=True``
 (mechanism regressor at TE's period-start logit). Outcome stays at post, baseline
-stays at L_pre, giving the lagged form ``TE_pre -> L_post | L_pre``. A positive
-concurrent slope (``mech-104``) with a null lagged slope here is the expected
-"tracks, doesn't drive" signature.
+stays at L_pre, giving the lagged form ``TE_pre -> L_post | L_pre``. Report the
+concurrent-vs-lagged comparison without presupposing its direction: a near-zero
+lagged slope (with a positive concurrent slope in ``mech-104``) is the "tracks,
+doesn't drive" pattern, but a *positive* lagged slope carries equal billing - the
+#405 baseline-L-adjusted descriptive correlation is positive (r = +0.27, 89% interval
++0.05 to +0.46) and the dev fit is positive, so on the committed no-edge DAG a
+positive result is flagged as a possible challenge to that DAG, not expected noise.
 
 **Exploratory edge-check, never causal.** As for ``mech-104``, the revised DAG
 posits **no vocabulary -> letter-sound edge**, so any association is

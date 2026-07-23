@@ -3590,6 +3590,7 @@ def _subset(
         A_months=prepared.A_months[keep],
         A_std=prepared.A_std[keep],
         pre_logit={s: v[keep] for s, v in prepared.pre_logit.items()},
+        pre_counts={s: v[keep] for s, v in prepared.pre_counts.items()},
         post_counts={s: v[keep] for s, v in prepared.post_counts.items()},
         covariates={s: v[keep] for s, v in prepared.covariates.items()},
         n_obs=int(keep.sum()),

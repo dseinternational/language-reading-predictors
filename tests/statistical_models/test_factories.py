@@ -2148,3 +2148,98 @@ def test_association_group_terms_not_tiered(tmp_path):
     aligned = load_and_prepare_aligned(path=p)
     al = build_aligned_model(aligned, outcome_symbol="E")
     assert _tau_dist(al.model, "beta_cohort") == "Normal(0, 0.5)"
+
+
+def test_load_and_prepare_populates_pre_counts(tmp_path):
+    """#405 review: the un-logited pre count is carried alongside pre_logit so the
+    items-scale writer can place a period-start exposure on its own axis."""
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare,
+        logit_safe,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    assert set(prep.pre_counts) == set(prep.post_counts)
+    for s in prep.post_counts:
+        assert prep.pre_counts[s].shape == prep.post_counts[s].shape
+        finite = prep.pre_counts[s][np.isfinite(prep.pre_counts[s])]
+        assert np.all(finite == np.rint(finite))  # integer counts
+        # pre_logit is exactly the Haldane-corrected logit of the pre count.
+        assert np.allclose(
+            prep.pre_logit[s],
+            logit_safe(prep.pre_counts[s], MEASURES[s].n_trials),
+            equal_nan=True,
+        )
+
+
+def test_mechanism_writers_use_pre_exposure_when_lagged(tmp_path):
+    """#405 review (P1): with mechanism_at_pre the model fits the period-start
+    exposure, so the curve and items writers must report that same pre exposure —
+    not the post score — or the artifacts mislabel a lagged fit as concurrent."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models import pipeline as pl
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare,
+        logit_safe,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=25)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="R",
+        outcome_symbol="W",
+        confounder_symbols=(),
+        linear_mechanism=True,
+        mechanism_at_pre=True,
+        use_subject_random_intercept=False,
+    )
+    with built.model:
+        trace = pm.sample(
+            tune=15,
+            draws=15,
+            chains=1,
+            cores=1,
+            progressbar=False,
+            random_seed=1,
+            compute_convergence_checks=False,
+        )
+
+    out = tmp_path / "mech_out"
+    out.mkdir()
+    ctx = SimpleNamespace(
+        trace=trace,
+        prepared=built.prepared,
+        spec=SimpleNamespace(
+            mechanism_symbol="R",
+            outcome_symbol="W",
+            extra={"mechanism_at_pre": True, "linear_mechanism": True},
+        ),
+        reporting=SimpleNamespace(ci_prob=0.89),
+        output_dir=str(out),
+        tables={},
+    )
+
+    # Logit-scale curve: the x column is the pre logit, not the post logit.
+    pl._write_mechanism_curve(ctx)
+    curve = pd.read_csv(out / "mechanism_curve.csv")
+    got = np.sort(curve["mech_logit"].to_numpy())
+    pre = np.sort(np.asarray(built.prepared.pre_logit["R"], dtype=float))
+    post = np.sort(
+        logit_safe(built.prepared.post_counts["R"], MEASURES["R"].n_trials)
+    )
+    assert np.allclose(got, pre)
+    assert not np.allclose(got, post)
+
+    # Items-scale companion: the exposure axis is the pre counts.
+    worked = pl._write_mechanism_items(ctx)
+    assert worked  # ran without falling into the defensive except
+    items = pd.read_csv(out / "mechanism_curve_items.csv")
+    assert np.allclose(
+        np.unique(items["exposure"].to_numpy()),
+        np.unique(np.asarray(built.prepared.pre_counts["R"], dtype=float)),
+    )

@@ -3514,6 +3514,15 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
         x_vals = _scaler.inverse(z_loaded) if _scaler is not None else z_loaded
         z_L, _ = standardise(z_loaded)
         x_col, x_label = "mech_x", f"{sym} (raw score)"
+    elif bool(ctx.spec.extra.get("mechanism_at_pre", False)):
+        # Lagged form: the factory fits the mechanism on its period-start (pre)
+        # logit, so the reported curve must use that same vector on the same rows.
+        # Using the post logit here would plot and label the fitted pre-slope
+        # against the wrong exposure — pre/post differ materially (#405 review).
+        mech_logit = np.asarray(ctx.prepared.pre_logit[sym], dtype=float)
+        x_vals = mech_logit
+        z_L, _ = standardise(mech_logit)
+        x_col, x_label = "mech_logit", f"logit({sym}_pre)"
     else:
         N = MEASURES[sym].n_trials
         mech_logit = logit_safe(ctx.prepared.post_counts[sym], N)
@@ -3667,6 +3676,14 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
             x_exposure = scaler.inverse(z_loaded) if scaler is not None else z_loaded
             exposure_label = _COVARIATE_EXPOSURE_LABELS.get(sym, sym)
             exposure_n_trials = None
+        elif bool(spec.extra.get("mechanism_at_pre", False)):
+            # Lagged form: the fitted curve (via z_mech_logit) is on the pre
+            # exposure, so the items-scale x-axis must be the pre counts, not the
+            # post counts — otherwise the worked-example quantiles land on the
+            # wrong distribution and the axis is mislabelled (#405 review).
+            x_exposure = np.asarray(ctx.prepared.pre_counts[sym], dtype=float)
+            exposure_label = f"{MEASURES[sym].label} (period start)"
+            exposure_n_trials = MEASURES[sym].n_trials
         else:
             x_exposure = np.asarray(ctx.prepared.post_counts[sym], dtype=float)
             exposure_label = MEASURES[sym].label
