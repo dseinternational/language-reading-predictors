@@ -652,6 +652,12 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     # cells/intervals are deterministics of ``eta_cell``), not skill couplings.
     if base in {"z_subject", "eta_cell"}:
         return ("nuisance", "")
+    # Latent growth-curve (LRP69/70/85) random-effect offsets and the shared
+    # growth-tempo factor scores: non-centred standard normals whose meaning is
+    # carried by their SD / loading, so they are nuisances. (The reported tempo
+    # quantity is the ``loading``, documented in the growth override.)
+    if base in {"z_intercept", "z_slope", "G_tempo"}:
+        return ("nuisance", "")
     # The stable-trait variance share and exact-zero-sum factor means organise the
     # longitudinal measurement structure but are not themselves skill couplings.
     if base in {"trait_share", "factor_mean"}:
@@ -689,6 +695,15 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     if distribution == "Normal(0, 0.3)":
         return ("association", "gamma_cross")
     if base.startswith(("g_", "b_", "a_", "aL", "aE", "aB", "d_")):
+        return ("association", "")
+    # Latent growth-curve per-measure mean growth rate (``beta``, the slope on
+    # standardised age; Normal(0, 0.5)). Keyed to the growth scale so the concurrent
+    # family's Normal(0, 0.3) ``beta`` (a focal skill coefficient) keeps its
+    # gamma_cross route, AND a future inline ``beta`` at any other scale still falls
+    # through to ``other`` and trips the completeness guard. Labelled an association
+    # (a descriptive maturational trend) pending review — see the growth-family note
+    # in #384/#393.
+    if base == "beta" and distribution == "Normal(0, 0.5)":
         return ("association", "")
     return ("other", "")
 
@@ -760,6 +775,26 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
             f"LKJ(eta=2) prior on the Cholesky factor of the between-child "
             f"cross-measure correlation ({fitted}); R = chol @ chol.T is the headline "
             "reading-language-memory coupling estimand."
+        )
+    if base in {"z_intercept", "z_slope"}:
+        which = "intercept" if base == "z_intercept" else "slope"
+        return (
+            f"Non-centred standard-normal per-child, per-measure {which} offsets "
+            f"({fitted}); scaled by the random-{which} SD to form the child-by-measure "
+            f"growth {which}s."
+        )
+    if base == "G_tempo":
+        return (
+            f"Shared child-level growth-tempo factor scores ({fitted}); a rank-1 "
+            "latent 'faster growth on every measure' tempo whose reported quantity is "
+            "the per-measure loading, not the scores themselves."
+        )
+    # Growth-curve per-measure mean growth rate (Normal(0, 0.5)); keyed to the scale
+    # so the concurrent family's Normal(0, 0.3) focal ``beta`` is not described here.
+    if base == "beta" and distribution == "Normal(0, 0.5)":
+        return (
+            "Per-measure population mean growth rate (slope on standardised age); a "
+            "descriptive maturational trend, not a causal or adjusted-coupling term."
         )
     return ""
 
