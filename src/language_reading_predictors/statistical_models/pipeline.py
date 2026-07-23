@@ -7933,8 +7933,12 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     domains = {k: tuple(v) for k, v in e["domains"].items()}
     reliability = float(e.get("single_indicator_reliability", 0.8))
     lkj_eta = float(e.get("lkj_eta", 2.0))
-    comm_alpha = float(e.get("comm_alpha", 2.0))
-    comm_beta = float(e.get("comm_beta", 2.0))
+    comm_alpha = float(
+        e.get("comm_alpha", _default_of(_factories.build_rlm_corr_factor_model, "comm_alpha"))
+    )
+    comm_beta = float(
+        e.get("comm_beta", _default_of(_factories.build_rlm_corr_factor_model, "comm_beta"))
+    )
 
     ctx = make_context(spec, config)
     _apply_spec_target_accept(ctx, spec)

@@ -158,6 +158,17 @@ def test_build_rlm_corr_factor_rejects_bad_reliability(tmp_path):
         )
 
 
+def test_build_rlm_corr_factor_rejects_bad_communality_shapes(tmp_path):
+    path = _write_battery_csv(tmp_path)
+    battery = load_rlm_wave_battery(wave=3, path=path)
+    with pytest.raises(ValueError, match="comm_alpha and comm_beta"):
+        build_rlm_corr_factor_model(
+            battery,
+            domains={"memory": ("basdig",), "reading": ("basread", "basspel")},
+            comm_alpha=0.0,
+        )
+
+
 def test_build_rlm_joint_growth(tmp_path):
     from language_reading_predictors.statistical_models.datasets import (
         RLM_MEASURES,

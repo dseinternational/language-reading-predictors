@@ -5440,12 +5440,14 @@ def build_rlm_corr_factor_model(
     residual left that sum unconstrained — an over-parameterised lambda-sigma ridge
     whose Heywood corner (``lambda -> 1``, ``sigma -> 0``) drove the gate failure
     (143 divergences, R-hat 1.03). Instead the **communality is the free parameter**:
-    ``c ~ Beta(comm_alpha, comm_beta)`` (in the open interval, with zero density at
-    the singular corners), then ``lambda = sqrt(c)`` and ``sigma = sqrt(1 - c)``.
-    This enforces the unit variance the standardisation implies — as the fixed
-    single-indicator domain already does — removes the ridge, and makes the reported
-    communality a direct parameter. ``comm_alpha``/``comm_beta`` default to
-    ``Beta(2, 2)``, a weakly-informative communality prior centred at 0.5.
+    ``c ~ Beta(comm_alpha, comm_beta)`` on the open unit interval, then
+    ``lambda = sqrt(c)`` and ``sigma = sqrt(1 - c)``. This enforces the unit variance
+    the standardisation implies — as the fixed single-indicator domain already does —
+    removes the ridge, and makes the reported communality a direct parameter.
+    ``comm_alpha``/``comm_beta`` default to ``Beta(2, 2)``, a weakly-informative
+    communality prior centred at 0.5 that (with both shapes > 1) also has zero density
+    at the singular corners c = 0 and c = 1; ``comm_alpha, comm_beta`` must be
+    positive.
     """
     domain_names = list(domains)
     D = len(domain_names)
@@ -5476,6 +5478,16 @@ def build_rlm_corr_factor_model(
     r = float(single_indicator_reliability)
     if not (0.0 < r < 1.0):
         raise ValueError(f"single_indicator_reliability must be in (0, 1); got {r}.")
+    if not (
+        np.isfinite(comm_alpha)
+        and np.isfinite(comm_beta)
+        and comm_alpha > 0.0
+        and comm_beta > 0.0
+    ):
+        raise ValueError(
+            "comm_alpha and comm_beta must be finite and positive (Beta shape "
+            f"parameters); got {comm_alpha}, {comm_beta}."
+        )
 
     coords = {
         "obs_id": np.arange(battery.n_obs),
