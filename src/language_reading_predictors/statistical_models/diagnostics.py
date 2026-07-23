@@ -216,6 +216,40 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
     )
 
 
+def compute_log_likelihood_and_prior(
+    context: StatisticalFitContext, *, strict: bool = True
+) -> None:
+    """Add the ``log_likelihood`` and ``log_prior`` groups to the trace.
+
+    Both are needed by PSIS-LOO and by power-scaling prior sensitivity
+    (``arviz_stats.psense``). Split out of :func:`compute_log_likelihood_and_loo`
+    (#381) so families that do not compute LOO (e.g. mediation, correlated-factor)
+    can still reach psense by calling this directly, without the LOO step. Families
+    with a bespoke log-likelihood (the longitudinal correlated-factor model) build
+    their groups their own way and do not call this.
+
+    ``strict`` (default True): re-raise a ``pm.compute_log_likelihood`` failure — the
+    contract the LOO path relies on. The psense-only callers pass ``strict=False`` so
+    a model whose likelihood ``pm.compute_log_likelihood`` cannot evaluate (e.g. the
+    RLM joint-growth LKJ-Cholesky model, which is ``compute_loo=False`` for exactly
+    that reason) degrades to a warning and simply gets no psense, rather than
+    crashing the fit over a secondary diagnostic. ``log_prior`` is always guarded.
+    """
+    with context.model:
+        try:
+            context.trace = pm.compute_log_likelihood(context.trace)
+        except Exception as exc:
+            if strict:
+                raise
+            rprint(f"[yellow]log_likelihood group skipped: {exc}[/yellow]")
+        try:
+            from pymc.stats import compute_log_prior
+
+            context.trace = compute_log_prior(context.trace)
+        except Exception as exc:  # pragma: no cover - psense is secondary
+            rprint(f"[yellow]log_prior group skipped: {exc}[/yellow]")
+
+
 def compute_log_likelihood_and_loo(context: StatisticalFitContext) -> None:
     """Add log-likelihood + log-prior groups and compute pointwise LOO.
 
@@ -225,14 +259,7 @@ def compute_log_likelihood_and_loo(context: StatisticalFitContext) -> None:
     ``log_prior`` group is added (guarded) so power-scaling prior sensitivity
     (``arviz_stats.psense``) is reachable from the persisted trace.
     """
-    with context.model:
-        context.trace = pm.compute_log_likelihood(context.trace)
-        try:
-            from pymc.stats import compute_log_prior
-
-            context.trace = compute_log_prior(context.trace)
-        except Exception as exc:  # pragma: no cover - psense is secondary
-            rprint(f"[yellow]log_prior group skipped: {exc}[/yellow]")
+    compute_log_likelihood_and_prior(context)
     child_ll = _joint_log_likelihood_by_child(context.trace)
     if child_ll is not None:
         context.trace.log_likelihood["y_post_child"] = child_ll
