@@ -188,3 +188,42 @@ def test_did_dose_comparison_is_copied_beside_both_reports(
     for model_id in cmp_mod.DID_DOSE_LOO_IDS:
         copied = Path(cmp_mod._run_dir(model_id, "dev")) / out.name
         assert copied.read_text() == out.read_text()
+
+
+@pytest.mark.parametrize(
+    "func_name, ids_attr, out_name",
+    [
+        (
+            "joint_readiness_lxb_w_loo_compare",
+            "JOINT_READINESS_LXB_W_LOO_IDS",
+            "joint_readiness_lxb_w_loo_compare.csv",
+        ),
+        (
+            "joint_readiness_lxn_w_loo_compare",
+            "JOINT_READINESS_LXN_W_LOO_IDS",
+            "joint_readiness_lxn_w_loo_compare.csv",
+        ),
+    ],
+)
+def test_joint_readiness_comparison_copied_beside_both_reports(
+    cmp_mod, out_root, monkeypatch, func_name, ids_attr, out_name
+):
+    """#404 review: each interaction-vs-baseline comparison must be copied beside
+    both paired reports under the generic mechanism_loo_compare.csv name the
+    mechanism report partial reads, or the reports silently omit it."""
+    ids = getattr(cmp_mod, ids_attr)
+    for model_id in ids:
+        _install_run(cmp_mod, model_id, passed=True)
+
+    def _write(got_ids, config, out_path):
+        assert got_ids == ids and config == "dev"
+        pd.DataFrame({"comparison_valid": [True]}).to_csv(out_path, index=False)
+        return True
+
+    monkeypatch.setattr(cmp_mod, "_loo_compare", _write)
+    out = out_root / "comparison" / out_name
+    out.parent.mkdir()
+    assert getattr(cmp_mod, func_name)("dev", str(out))
+    for model_id in ids:
+        copied = Path(cmp_mod._run_dir(model_id, "dev")) / "mechanism_loo_compare.csv"
+        assert copied.read_text() == out.read_text()

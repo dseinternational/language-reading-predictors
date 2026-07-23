@@ -218,6 +218,14 @@ _MECH = [
     _d("lrp93", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x receptive-vocabulary interaction"),
     _d("lrp94", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-receptive-vocabulary interaction"),
     _d("lrp95", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-expressive-vocabulary interaction"),
+    # Joint-readiness: letter sounds x CODE-ROUTE interaction on word reading (#404).
+    # Does the L->W conversion depend on blending (B) / nonword decoding (N) being in
+    # place? B/N are downstream of L, so gamma_int is effect-modification by a descendant,
+    # not a symmetric 'both needed' test. Each has a no-interaction baseline (nested LOO).
+    _d("lrp61", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x phoneme-blending interaction (#404)"),
+    _d("lrp161", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline (L + blending main effects -> W)", base="lrp61"),
+    _d("lrp63", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x nonword-decoding interaction (#404)"),
+    _d("lrp163", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline (L + nonword decoding main effects -> W)", base="lrp63"),
     # Tier-1 decoding-specificity mini-suite (notes/202607172330-tier1-decoding-specificity-spec.md):
     # matched *linear* letter-sound slopes for the L->N vs L->W convergent-discriminant
     # contrast (1A) and the negative-control-outcome panel (1B). All linear_mechanism so

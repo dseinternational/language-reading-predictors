@@ -105,6 +105,13 @@ LOO_COMPARE_IDS: list[str] = ["lrp-rli-mech-058", "lrp-rli-mech-071"]
 # NOT comparable to the LOO_COMPARE_IDS set (different outcome: decoding vs W).
 PHONICS_LOO_IDS: list[str] = ["lrp-rli-mech-072", "lrp-rli-mech-172"]
 
+# Joint-readiness on WORD READING (#404): each L x code-route interaction model vs its
+# no-interaction baseline, same W outcome -- clean nested PSIS-LOO tests of the L x B and
+# L x N interactions. Both moderators are DAG-descendants of L (controlled-direct estimand),
+# so each interaction/baseline pair is like-for-like. Distinct from PHONICS_LOO_IDS (decoding).
+JOINT_READINESS_LXB_W_LOO_IDS: list[str] = ["lrp-rli-mech-061", "lrp-rli-mech-161"]
+JOINT_READINESS_LXN_W_LOO_IDS: list[str] = ["lrp-rli-mech-063", "lrp-rli-mech-163"]
+
 # Age moderation (LRP73): interaction vs no-interaction baseline, same word-reading
 # outcome — a clean nested PSIS-LOO test of the L x age interaction.
 AGE_LOO_IDS: list[str] = ["lrp-rli-mech-073", "lrp-rli-mech-173"]
@@ -1092,6 +1099,45 @@ def phonics_route_loo_compare(config: str, out_path: str) -> bool:
     return _loo_compare(PHONICS_LOO_IDS, config, out_path)
 
 
+def _copy_compare_beside_runs(
+    out_path: str,
+    ids: list[str],
+    config: str,
+    filename: str = "mechanism_loo_compare.csv",
+) -> None:
+    """Copy a written comparison CSV beside each paired run.
+
+    Model reports render from their own run directories, so a comparison that lives
+    only in the shared comparison directory silently disappears from the rendered
+    reports (issue #404 review). Mirrors :func:`did_dose_loo_compare`'s copy-beside,
+    but writes the generic ``mechanism_loo_compare.csv`` name that
+    ``_results_mechanism.qmd`` already looks up first — so no per-family lookup is
+    needed in the partial. Each of the two paired reports (interaction + baseline)
+    therefore shows their shared nested comparison."""
+    for model_id in ids:
+        run_dir = _run_dir(model_id, config)
+        if os.path.isdir(run_dir):
+            destination = os.path.join(run_dir, filename)
+            if os.path.abspath(out_path) != os.path.abspath(destination):
+                shutil.copyfile(out_path, destination)
+
+
+def joint_readiness_lxb_w_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP61 vs its no-interaction baseline (isolates L x B on word reading)."""
+    if not _loo_compare(JOINT_READINESS_LXB_W_LOO_IDS, config, out_path):
+        return False
+    _copy_compare_beside_runs(out_path, JOINT_READINESS_LXB_W_LOO_IDS, config)
+    return True
+
+
+def joint_readiness_lxn_w_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP63 vs its no-interaction baseline (isolates L x N on word reading)."""
+    if not _loo_compare(JOINT_READINESS_LXN_W_LOO_IDS, config, out_path):
+        return False
+    _copy_compare_beside_runs(out_path, JOINT_READINESS_LXN_W_LOO_IDS, config)
+    return True
+
+
 def age_moderation_loo_compare(config: str, out_path: str) -> bool:
     """LOO comparison of LRP73 against its no-interaction baseline (isolates L x age)."""
     return _loo_compare(AGE_LOO_IDS, config, out_path)
@@ -1321,6 +1367,18 @@ def main() -> None:
         print(f"Wrote {phonics_path}")
     else:
         print("Skipping phonics-route LOO compare: LRP72 / LRP72base runs missing.")
+
+    lxb_w_path = os.path.join(args.out, "joint_readiness_lxb_w_loo_compare.csv")
+    if joint_readiness_lxb_w_loo_compare(args.config, lxb_w_path):
+        print(f"Wrote {lxb_w_path}")
+    else:
+        print("Skipping L x B -> W LOO compare: LRP61 / LRP61base runs missing.")
+
+    lxn_w_path = os.path.join(args.out, "joint_readiness_lxn_w_loo_compare.csv")
+    if joint_readiness_lxn_w_loo_compare(args.config, lxn_w_path):
+        print(f"Wrote {lxn_w_path}")
+    else:
+        print("Skipping L x N -> W LOO compare: LRP63 / LRP63base runs missing.")
 
     age_path = os.path.join(args.out, "age_moderation_loo_compare.csv")
     if age_moderation_loo_compare(args.config, age_path):
