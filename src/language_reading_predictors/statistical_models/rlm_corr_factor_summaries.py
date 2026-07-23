@@ -28,7 +28,7 @@ import pandas as pd
 def loadings_communalities_table(
     post: Any, domains: dict[str, tuple[str, ...]], *, lo_q: float
 ) -> pd.DataFrame:
-    """Per-indicator loading, factor correlation (= sqrt communality) and communality
+    """Per-indicator loading, indicator-factor correlation (= sqrt communality) and communality
     posterior summaries (median, mean, ``lo_q``/``1 - lo_q`` and 50% quantiles)."""
     dom_of = {s: d for d, syms in domains.items() for s in syms}
     rows = []
