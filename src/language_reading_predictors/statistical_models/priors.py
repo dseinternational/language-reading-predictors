@@ -675,13 +675,20 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     # was tightened from 0.5 to 0.25 (Finding 2); keep this signature in step.
     if distribution == "Normal(1, 0.25)":
         return ("precision", "gamma_own")
+    # Own-measure self-feedback (…_self): the change-score recursion's own AR(1) lag
+    # (phi = 1 + b_self), the LCSM analogue of gamma_own's own-baseline
+    # autoregression (already precision) — an own-dynamics structural term, not one
+    # of the reported adjusted cross-couplings (g_par). "precision" is defined
+    # relative to tau; this descriptive LCSM has none, so here it denotes an
+    # own-dynamics term that supports, but is not, a reported coupling (#384 review,
+    # Frank). Checked before the coupling-shaped catch-all below.
+    if base.endswith("_self"):
+        return ("precision", "")
     # Everything else that is coupling-shaped is an adjusted association; route to
     # the gamma_cross panel when it shares that prior's scale.
     if distribution == "Normal(0, 0.3)":
         return ("association", "gamma_cross")
-    if base.startswith(("g_", "b_", "a_", "aL", "aE", "aB", "d_")) or base.endswith(
-        "_self"
-    ):
+    if base.startswith(("g_", "b_", "a_", "aL", "aE", "aB", "d_")):
         return ("association", "")
     return ("other", "")
 
@@ -725,8 +732,11 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
         return (
             f"Within-measure self-feedback of the change-score recursion (level "
             f"AR(1): phi = 1 + b_self; {fitted}); centred at -0.3 (phi ~ 0.7) so "
-            "trajectories mean-revert rather than random-walk — an own-dynamics term, "
-            "not a cross-skill association."
+            "trajectories mean-revert rather than random-walk — a precision "
+            "own-dynamics term (the LCSM analogue of the own-baseline gamma_own), not "
+            "one of the reported cross-skill couplings. This descriptive LCSM has no "
+            "randomised effect, so 'precision' here means an own-dynamics term that "
+            "supports, but is not, a reported coupling."
         )
     if base == "z_subject":
         return (

@@ -284,6 +284,11 @@ def test_lcsm_inline_priors_not_mislabelled(built_models):
     assert by_param["b_self"]["distribution"] == "Normal(-0.3, 0.2)"
     # And none of them are the wrongly-inherited cross-coupling scale.
     assert by_param["a_change"]["distribution"] != "Normal(0, 0.3)"
+    # b_self is the own-measure AR(1) self-feedback (phi = 1 + b_self), the LCSM
+    # analogue of the own-baseline gamma_own — a precision own-dynamics term, not one
+    # of the reported cross-couplings (#384 review, Frank).
+    assert by_param["b_self"]["role"] == "precision"
+    assert priors._classify_fallback("b_self", "Normal(-0.3, 0.2)")[0] == "precision"
 
 
 def test_joint_lkj_residual_documented(built_models):
@@ -372,8 +377,11 @@ def test_corr_factor_beta_G_is_association_not_causal(built_models):
     assert by["beta_G"]["panel"] == "predictor_slope"
     assert "mech-058" in by["beta_G"]["rationale"]
     assert "Treatment effect tau" not in by["beta_G"]["rationale"]
-    # factor_cov keeps role nuisance (deferred) but must carry a real rationale.
+    # factor_cov is an association: its off-diagonals are the reported
+    # factor-correlation matrix (the ``factor_corr_pairs`` deterministic), consistent
+    # with this branch's ``*_corr_chol`` carve-out (#384 review, Frank).
     if "factor_cov" in by:
+        assert by["factor_cov"]["role"] == "association"
         assert by["factor_cov"]["rationale"].strip()
 
 
@@ -425,7 +433,7 @@ def test_growth_interaction_and_tempo_loading(tmp_path):
     assert "domain factor" not in by["loading"]["rationale"]
 
 
-def test_itt_adjust_covariate_precision_and_ses_rationale_only(built_models):
+def test_itt_adjust_covariate_and_ses_are_precision(built_models):
     by = _labelled(
         built_models["itt_adjusted"],
         kind="itt",
@@ -434,16 +442,34 @@ def test_itt_adjust_covariate_precision_and_ses_rationale_only(built_models):
     )
     assert by["gamma_blocks"]["role"] == "precision"
     assert "cannot confound" in by["gamma_blocks"]["rationale"]
-    # SES covariates keep role association (reclassification deferred to review);
-    # only the rationale is corrected.
+    # SES covariates are precision too (#384 review, Frank): pre-randomisation and
+    # balanced across arms in expectation, so they cannot confound tau and only
+    # sharpen it — the identical causal status to blocks/area, documented in the
+    # LRPITT13/113 module docstrings so the role is quoted, not inferred.
     spec = SimpleNamespace(
         kind="itt", extra={"adjust_for": ("mumedupost16",)}, outcome_symbol="R"
     )
     _, role, rationale = _prior_table_overrides(
         SimpleNamespace(spec=spec, model=SimpleNamespace(free_RVs=[]))
     )
-    assert "gamma_mumedupost16" not in role  # no role change
-    assert "cross-baseline" in rationale["gamma_mumedupost16"]
+    assert role["gamma_mumedupost16"] == "precision"
+    assert "cannot confound" in rationale["gamma_mumedupost16"]
+
+
+def test_missing_indicator_coefficients_are_nuisance():
+    """beta_{cov}_missing indicators are subgroup mean-offsets under the
+    missing-indicator method, confounded with the fill value and uninterpretable as
+    an effect, so they are nuisance (not predictor-slope associations) in every
+    family that carries them (currently adjusted LRP65 and correlated-factor mm-002;
+    #384 review, Frank)."""
+    rv = SimpleNamespace(name="beta_hs_missing")
+    for kind in ("adjusted", "corr_factor"):
+        spec = SimpleNamespace(kind=kind, extra={}, outcome_symbol="W")
+        _, role, rationale = _prior_table_overrides(
+            SimpleNamespace(spec=spec, model=SimpleNamespace(free_RVs=[rv]))
+        )
+        assert role["beta_hs_missing"] == "nuisance"
+        assert "missing-indicator" in rationale["beta_hs_missing"].lower()
 
 
 def test_mediation_paths_and_confounders(built_models):

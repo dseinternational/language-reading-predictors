@@ -638,6 +638,13 @@ def _prior_table_overrides(
                 if not (rv.name.startswith("a_") or rv.name.startswith("b_")):
                     continue
                 dist = (_priors._dist_from_rv(rv) or "").replace(" ", "")
+                # Scale-string-fragile (#384 review, Frank, non-blocking): this keys
+                # the confounder reroute off the exact ``Normal(0, 0.3)`` scale. The
+                # explicit a_G/b_G (tau 0.5) and reported b_M (b_path 1.0) carve-outs
+                # above never match it, so it is correct today — but a future
+                # confounder built at a different scale, or a genuine reported path
+                # that happens to be Normal(0, 0.3), would be silently mislabelled.
+                # Labelling-only risk; no estimand is affected.
                 if dist == "Normal(0,0.3)":
                     ctor[rv.name] = "gamma_cross"
                     role[rv.name] = "association"
@@ -709,23 +716,14 @@ def _prior_table_overrides(
             # predictor-slope/association bucket here.
             if rv.name.startswith("beta_group_nuisance"):
                 continue
+            # Missing-data indicators (beta_{cov}_missing) are handled by the
+            # universal missing-indicator sweep below (role nuisance, #384 review) —
+            # skip them here so they are not tagged as predictor-slope associations.
+            if rv.name.endswith("_missing"):
+                continue
             if rv.name.startswith("beta_"):
                 ctor[rv.name] = "predictor_slope"
                 role[rv.name] = "association"
-                if rv.name.endswith("_missing"):
-                    # Missing-indicator companion (…_missing = 1 when the value is
-                    # unknown/imputed): a subgroup intercept shift under the
-                    # missing-indicator method, not a substantive trait slope. The
-                    # role is left as ``association`` — the nuisance reclassification
-                    # is a judgement call deferred to methodological review (#384);
-                    # only the misleading "standardised predictor slope" rationale is
-                    # corrected here.
-                    rationale[rv.name] = (
-                        f"Missing-data indicator ({rv.name[len('beta_'):]} = 1 when "
-                        "the value is unknown/imputed); a subgroup intercept shift "
-                        "under the missing-indicator method, not a substantive "
-                        "standardised-trait association."
-                    )
     elif spec.kind == "growth":
         # Baseline non-verbal ability -> trajectory shape (gamma on the growth rate,
         # delta on the baseline level): adjusted, latent-GA-confounded associations,
@@ -772,11 +770,14 @@ def _prior_table_overrides(
         # adjust_for covariates are built as gamma_{covariate} from gamma_cross_prior,
         # so they inherit the gamma_cross panel's "cross-baseline coupling gamma_k"
         # rationale + association role. They are pre-randomisation adjustment/precision
-        # covariates, not cross-baseline skill couplings. ``blocks``/``area`` are
-        # documented "precision" verbatim in their modules; the SES covariates are
-        # pre-randomisation robustness adjustments whose role reclassification is a
-        # judgement call left to review (#384) — only their rationale is corrected.
-        _quoted_precision = {"blocks", "area"}
+        # covariates, not cross-baseline skill couplings: under randomisation a
+        # baseline covariate is balanced across arms in expectation, so it cannot
+        # confound tau and only sharpens it — the definition of a precision covariate.
+        # ``blocks``/``area`` and the SES adjusters (parental education, age first
+        # exposed to books) are all documented "precision covariate" in their modules,
+        # so the role is quoted, not inferred (#384 review, Frank: promote SES to
+        # precision — identical causal status to blocks/area).
+        _quoted_precision = {"blocks", "area", "mumedupost16", "dadedupost16", "agebooks"}
         for c in spec.extra.get("adjust_for", ()):
             name = f"gamma_{c}"
             if c in _quoted_precision:
@@ -809,9 +810,15 @@ def _prior_table_overrides(
                 "the randomised ITT effect (the causal claim lives in the ITT suite)."
             )
         if "factor_cov" in _rv_names:
-            # Rationale-only: the empty/plumbing rationale on the headline factor
-            # correlation matrix is a clear bug; the nuisance->association role change
-            # is a judgement call deferred to review (#384).
+            # ``factor_cov``'s off-diagonals are the reported factor-correlation
+            # matrix (exposed as the ``factor_corr_pairs`` deterministic the strict
+            # gate evaluates), so it is an ``association`` — the same carve-out this
+            # branch already applies to ``measure_corr_chol`` / ``trait_corr_chol`` /
+            # ``state_corr_chol_w``, one step more direct. Only the discarded
+            # ``sd_dist`` scales are nuisance (scale is carried by the loadings),
+            # which is why the fallback originally lumped it with ``u_chol`` / ``chol``
+            # (#384 review, Frank: promote nuisance -> association).
+            role["factor_cov"] = "association"
             rationale["factor_cov"] = (
                 "LKJ(eta=2) prior on the domain-factor correlation matrix (the SDs "
                 "are discarded; scale is carried by the loadings); its off-diagonals "
@@ -881,6 +888,29 @@ def _prior_table_overrides(
         # (the distribution column already reads the true 1.0 off the built RV).
         ctor.setdefault("alpha", "alpha_distal")
         ctor.setdefault("alpha_offset", "alpha_distal")
+
+    # Missing-data-indicator coefficients (beta_{cov}_missing) are subgroup
+    # mean-offsets under the missing-indicator method — confounded with the constant
+    # fill value and well known to be uninterpretable as an effect (Greenland &
+    # Finkle 1995, Am J Epidemiol 142(12):1255-64; Groenwold et al. 2012, CMAJ
+    # 184(11):1265-9) — so they are nuisance, not predictor-slope associations, in
+    # every family that carries them (currently the adjusted LRP65 and the
+    # correlated-factor mm-002). Swept once here rather than per kind (#384 review,
+    # Frank). The distribution column, read off the RV, still shows the true
+    # predictor_slope Normal(0, 0.3). See also the predictor_associations.csv filter
+    # in the adjusted/RLM writers, which keeps the reported-associations table from
+    # contradicting this nuisance label.
+    if context.model is not None:
+        for rv in context.model.free_RVs:
+            if rv.name.startswith("beta_") and rv.name.endswith("_missing"):
+                ctor.setdefault(rv.name, "predictor_slope")
+                role[rv.name] = "nuisance"
+                rationale[rv.name] = (
+                    f"Missing-data indicator ({rv.name[len('beta_') :]} = 1 when the "
+                    "value is unknown/imputed); a subgroup mean-offset under the "
+                    "missing-indicator method, confounded with the fill value and not "
+                    "interpretable as a substantive standardised-trait association."
+                )
 
     return ctor, role, rationale
 
@@ -6151,6 +6181,16 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             }
         )
     assoc_df = pd.DataFrame(rows)
+    # Missing-data-indicator coefficients are subgroup mean-offsets under the
+    # missing-indicator method, not interpretable predictor associations — the same
+    # basis on which the prior table now labels them nuisance (the missing-indicator
+    # sweep in _prior_table_overrides; #384 review, Frank). Keep them out of the
+    # reported associations table + forest so it does not contradict that nuisance
+    # label; they remain in the fitted model (as adjusters) and in the full
+    # diagnostics summary above.
+    _missing_mask = assoc_df["predictor"].astype(str).str.endswith("_missing")
+    if _missing_mask.any():
+        assoc_df = assoc_df[~_missing_mask].reset_index(drop=True)
     assoc_df.to_csv(
         os.path.join(ctx.output_dir, "predictor_associations.csv"), index=False
     )
