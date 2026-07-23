@@ -7,8 +7,10 @@ concurrent readout.
 #405 (companion to #404): the expressive-vocabulary arm of "does taught vocabulary
 predict letter-sound knowledge?". Same-wave TE_post -> L_post adjusted association,
 conditioning on the child's own letter-sound baseline L_pre. Descriptively TE is a
-slightly stronger concurrent correlate of letter sounds than TR (pooled r ~ 0.65)
-but likewise does not predict letter-sound growth.
+slightly stronger concurrent correlate of letter sounds than TR (pooled r ~ 0.65);
+whether TE predicts letter-sound *growth* is the lagged sibling ``mech-105``, where
+the #405 baseline-L-adjusted descriptive signal is positive (r = +0.27, 89% interval
++0.05 to +0.46) and is not presupposed null.
 
 **Exploratory edge-check, never causal.** The revised DAG
 (``dag/dag-language-reading.dagitty``) posits **no vocabulary -> letter-sound edge**:
