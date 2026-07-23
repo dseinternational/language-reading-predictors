@@ -7976,37 +7976,11 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     # --- Loadings + communalities (the measurement headline) ----------------
     section_header("Loadings + communalities")
-    dom_of = {s: d for d, syms in domains.items() for s in syms}
-    load_rows = []
-    for j, name in enumerate(str(s) for s in post["indicator"].values):
-        lam_d = post["loading"].isel(indicator=j).values.reshape(-1)
-        com_d = post["communality"].isel(indicator=j).values.reshape(-1)
-        corr_d = np.sqrt(com_d)
-        load_rows.append(
-            {
-                "indicator": name,
-                "domain": dom_of.get(name, "?"),
-                "loading_median": float(np.median(lam_d)),
-                "loading_mean": float(np.mean(lam_d)),
-                "loading_lo": float(np.quantile(lam_d, lo_q)),
-                "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
-                "loading_lo50": float(np.quantile(lam_d, 0.25)),
-                "loading_hi50": float(np.quantile(lam_d, 0.75)),
-                "correlation_median": float(np.median(corr_d)),
-                "correlation_mean": float(np.mean(corr_d)),
-                "correlation_lo": float(np.quantile(corr_d, lo_q)),
-                "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
-                "correlation_lo50": float(np.quantile(corr_d, 0.25)),
-                "correlation_hi50": float(np.quantile(corr_d, 0.75)),
-                "communality_median": float(np.median(com_d)),
-                "communality_mean": float(np.mean(com_d)),
-                "communality_lo": float(np.quantile(com_d, lo_q)),
-                "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
-                "communality_lo50": float(np.quantile(com_d, 0.25)),
-                "communality_hi50": float(np.quantile(com_d, 0.75)),
-            }
-        )
-    load_df = pd.DataFrame(load_rows)
+    from language_reading_predictors.statistical_models import (
+        rlm_corr_factor_summaries as _rlm_summaries,
+    )
+
+    load_df = _rlm_summaries.loadings_communalities_table(post, domains, lo_q=lo_q)
     load_df.to_csv(os.path.join(ctx.output_dir, "loadings_summary.csv"), index=False)
     ctx.tables["loadings_summary"] = load_df
     print_table(
@@ -8024,36 +7998,10 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     # --- Factor correlation matrix + per-pair summary ------------------------
     section_header("Factor correlation")
-    corr_draws = post["factor_corr"]
-    dnames = [str(d) for d in post["domain"].values]
-    corr_df = pd.DataFrame(
-        corr_draws.mean(dim=("chain", "draw")).values, index=dnames, columns=dnames
-    )
+    corr_df = _rlm_summaries.factor_correlation_matrix(post)
     corr_df.to_csv(os.path.join(ctx.output_dir, "factor_correlation.csv"))
     ctx.tables["factor_correlation"] = corr_df
-    corr_stacked = corr_draws.stack(sample=("chain", "draw"))
-    corr_rows = []
-    for i, di in enumerate(dnames):
-        for j, dj in enumerate(dnames):
-            if j <= i:
-                continue
-            pair = np.asarray(
-                corr_stacked.isel(domain=i, domain_b=j).values
-            ).reshape(-1)
-            corr_rows.append(
-                {
-                    "domain_i": di,
-                    "domain_j": dj,
-                    "median": float(np.median(pair)),
-                    "mean": float(np.mean(pair)),
-                    "lo": float(np.quantile(pair, lo_q)),
-                    "hi": float(np.quantile(pair, 1 - lo_q)),
-                    "lo50": float(np.quantile(pair, 0.25)),
-                    "hi50": float(np.quantile(pair, 0.75)),
-                    "prob_pos": float(np.mean(pair > 0)),
-                }
-            )
-    corr_summary_df = pd.DataFrame(corr_rows)
+    corr_summary_df = _rlm_summaries.factor_correlation_pairs(post, lo_q=lo_q)
     corr_summary_df.to_csv(
         os.path.join(ctx.output_dir, "factor_correlation_summary.csv"), index=False
     )
