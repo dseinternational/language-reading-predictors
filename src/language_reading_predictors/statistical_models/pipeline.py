@@ -78,6 +78,9 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
+from language_reading_predictors.statistical_models.gain_factors import (
+    resolve_gain_factors_run_plan,
+)
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
     build_itt_from_plan,
@@ -4702,51 +4705,34 @@ def _gf_association_terms(
 
 def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _require_spec(spec, "gain_factors", outcome=True)
+
+    # Resolve and validate the family contract before the context resets an output
+    # directory or the loader reads any data (#391 finding 6). One plan then drives
+    # preparation, factory arguments, the teaching recipe and config.json. The
+    # covariate wave-split (#247 timing: language-proximal SP/RW confounders at the
+    # pre-randomisation baseline, hearing contemporaneous) is resolved into the plan.
+    plan = resolve_gain_factors_run_plan(spec)
     ctx = make_context(spec, config)
-    extra = spec.extra
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
+
+    skill_symbols = plan.skill_symbols
+    ability_covariate = plan.ability_covariate
+    treated_only = plan.treated_only
+    off_floor = plan.off_floor
+    obs_node = plan.obs_node
 
     section_header("Prepare data")
-    skill_symbols = tuple(extra.get("skill_symbols", ()))
-    ability_covariate = extra.get("ability_covariate")
-    interactions = tuple(tuple(p) for p in extra.get("interactions", ()))
-    treated_only = bool(extra.get("treated_only", False))
-    likelihood = extra.get("likelihood", "beta_binomial")
-    off_floor = likelihood == "bernoulli_offfloor"
-    obs_node = "y_offfloor" if off_floor else "y_post"
-    baseline_covariates = (ability_covariate,) if ability_covariate else ()
-    # Revised-DAG raw-covariate confounders (hearing/speech/phonological memory; #247).
-    # Timing (review finding A1; team decision 2026-07-13): the language-proximal SP/RW
-    # confounders (deapp_c/erbto + their missing indicators) are read at the pre-
-    # randomisation BASELINE (t1) — at the period-1 post wave (t2) they may already be
-    # treatment-affected, so conditioning there would adjust a descendant of the exposure
-    # and bias the randomised beta_trt. Hearing (hs) is exogenous to a language
-    # intervention and stays contemporaneous (post); ``attend`` (if ever present) stays on
-    # the interval pre row. Re-filter after loading — a constant ``_missing`` indicator is
-    # dropped by the loader and must not be built or gated.
-    adjust_for = tuple(extra.get("adjust_for", ()))
-    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
-    baseline_adj, post_adj = split_confounders_by_timing(post_adj)
-    prepared = load_and_prepare(
-        phase_mode="all",
-        outcomes=(spec.outcome_symbol, *skill_symbols),
-        baseline_covariates=(*baseline_covariates, *baseline_adj),
-        covariates=pre_adj,
-        post_covariates=post_adj,
-    )
-    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    # Re-filter after loading — a constant ``_missing`` indicator is dropped by the
+    # loader and must not be built or reported as adjusted-for.
+    adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     ctx.prepared = prepared
     _print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_gain_factors_model(
-        prepared,
-        outcome_symbol=spec.outcome_symbol,
-        skill_symbols=skill_symbols,
-        ability_covariate=ability_covariate,
-        adjust_for=adjust_for,
-        interactions=interactions,
-        treated_only=treated_only,
-        likelihood=likelihood,
+        prepared, **plan.factory_kwargs(effective_adjustment=adjust_for)
     )
     _attach_built(ctx, built)
 

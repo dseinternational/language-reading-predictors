@@ -27,6 +27,10 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.gain_factors import (
+    GainFactorsRunPlan,
+    resolve_gain_factors_run_plan,
+)
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
     declared_settings_dict,
@@ -2261,11 +2265,28 @@ def _itt_run_plan(context: StatisticalFitContext) -> IttRunPlan:
     return resolve_itt_run_plan(context.spec)
 
 
+def _gain_factors_run_plan(context: StatisticalFitContext) -> GainFactorsRunPlan:
+    """Return the gain-factor plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, GainFactorsRunPlan):
+        return resolved_plan
+    return resolve_gain_factors_run_plan(context.spec)
+
+
+def _resolved_run_plan(context: StatisticalFitContext):
+    """The typed run plan for families that have one (ITT, gain factors), else None."""
+    if context.spec.kind == "itt":
+        return _itt_run_plan(context)
+    if context.spec.kind == "gain_factors":
+        return _gain_factors_run_plan(context)
+    return None
+
+
 def write_model_recipe(context: StatisticalFitContext) -> str | None:
-    """Write the human-readable recipe generated from a typed ITT run plan."""
-    if context.spec.kind != "itt":
+    """Write the human-readable recipe generated from a typed run plan (ITT / gain factors)."""
+    plan = _resolved_run_plan(context)
+    if plan is None:
         return None
-    plan = _itt_run_plan(context)
     os.makedirs(context.output_dir, exist_ok=True)
     path = os.path.join(context.output_dir, "model_recipe.md")
     with open(path, "w", encoding="utf-8") as handle:
@@ -2280,9 +2301,8 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
     environment_path, environment_sha256 = write_environment_lock(out)
     spec = context.spec
     recipe_path = write_model_recipe(context)
-    resolved_plan = (
-        _itt_run_plan(context).as_dict() if spec.kind == "itt" else None
-    )
+    _plan = _resolved_run_plan(context)
+    resolved_plan = _plan.as_dict() if _plan is not None else None
     cfg = {
         "model_id": spec.model_id,
         # Canonical model-ID scheme (#168 Phase 1); legacy id stays primary.
