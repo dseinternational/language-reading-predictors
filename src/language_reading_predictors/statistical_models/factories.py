@@ -5411,9 +5411,8 @@ def build_rlm_corr_factor_model(
     *,
     domains: dict[str, tuple[str, ...]],
     single_indicator_reliability: float = 0.8,
-    loading_mu: float = 0.0,
-    loading_sigma: float = 1.0,
-    residual_sigma: float = 1.0,
+    comm_alpha: float = 2.0,
+    comm_beta: float = 2.0,
     lkj_eta: float = 2.0,
 ) -> BuiltModel:
     """Byrne correlated-domain-factor measurement model (#338 Phase B).
@@ -5435,9 +5434,20 @@ def build_rlm_corr_factor_model(
     ``r = single_indicator_reliability`` (default 0.8, a conventional
     test-retest figure for short-term memory span scales; the report states the
     assumption and the correlation involving that domain scales with it).
-    Multi-indicator domains keep the RLI priors: positive
-    ``TruncatedNormal(loading_mu, loading_sigma)`` loadings (= HalfNormal at
-    the defaults) and ``HalfNormal(residual_sigma)`` residuals.
+    **Communality parameterisation (#409 item B, the mm-001 gate rescue).**
+    Standardised indicators have unit marginal variance, so a free indicator's
+    ``lambda**2 + sigma**2 = 1``. The earlier free ``HalfNormal`` loading and
+    residual left that sum unconstrained — an over-parameterised lambda-sigma ridge
+    whose Heywood corner (``lambda -> 1``, ``sigma -> 0``) drove the gate failure
+    (143 divergences, R-hat 1.03). Instead the **communality is the free parameter**:
+    ``c ~ Beta(comm_alpha, comm_beta)`` on the open unit interval, then
+    ``lambda = sqrt(c)`` and ``sigma = sqrt(1 - c)``. This enforces the unit variance
+    the standardisation implies — as the fixed single-indicator domain already does —
+    removes the ridge, and makes the reported communality a direct parameter.
+    ``comm_alpha``/``comm_beta`` default to ``Beta(2, 2)``, a weakly-informative
+    communality prior centred at 0.5 that (with both shapes > 1) also has zero density
+    at the singular corners c = 0 and c = 1; ``comm_alpha, comm_beta`` must be
+    positive.
     """
     domain_names = list(domains)
     D = len(domain_names)
@@ -5468,6 +5478,16 @@ def build_rlm_corr_factor_model(
     r = float(single_indicator_reliability)
     if not (0.0 < r < 1.0):
         raise ValueError(f"single_indicator_reliability must be in (0, 1); got {r}.")
+    if not (
+        np.isfinite(comm_alpha)
+        and np.isfinite(comm_beta)
+        and comm_alpha > 0.0
+        and comm_beta > 0.0
+    ):
+        raise ValueError(
+            "comm_alpha and comm_beta must be finite and positive (Beta shape "
+            f"parameters); got {comm_alpha}, {comm_beta}."
+        )
 
     coords = {
         "obs_id": np.arange(battery.n_obs),
@@ -5495,15 +5515,19 @@ def build_rlm_corr_factor_model(
                 pt.stack([corr[i, j] for i, j in zip(iu, ju, strict=True)]),
             )
 
-        lam_free = pm.TruncatedNormal(
-            "lambda_free",
-            mu=loading_mu,
-            sigma=loading_sigma,
-            lower=0.0,
-            dims="free_indicator",
+        # Communality parameterisation (see the docstring): the free parameter is the
+        # communality c in (0, 1); the loading and residual are derived so that
+        # lambda**2 + sigma**2 = 1 exactly. This enforces the unit variance the
+        # standardised indicators imply and removes the over-parameterised
+        # lambda-sigma ridge / Heywood corner that gate-failed the free build.
+        comm_free = pm.Beta(
+            "communality_free", alpha=comm_alpha, beta=comm_beta, dims="free_indicator"
         )
-        sigma_free = pm.HalfNormal(
-            "sigma_free", sigma=residual_sigma, dims="free_indicator"
+        lam_free = pm.Deterministic(
+            "lambda_free", pt.sqrt(comm_free), dims="free_indicator"
+        )
+        sigma_free = pm.Deterministic(
+            "sigma_free", pt.sqrt(1.0 - comm_free), dims="free_indicator"
         )
         lam_full = pt.zeros(J)
         sig_full = pt.zeros(J)
