@@ -1,5 +1,8 @@
 # Exploratory analysis scripts
 
+> [!NOTE]
+> Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+
 Descriptive, pre-model exploratory passes that inform the gated modelling decisions.
 Purely descriptive — **no models, no causal language.** Each script loads a study's
 data directly and writes one figure per file (PNG + SVG + CSV) under
@@ -25,9 +28,13 @@ Writes to `output/exploratory/rlm/`:
   correlates children's mean levels ("do children who read well tend to score well
   elsewhere"); the within-child matrix correlates each wave's departures from the
   child's own mean ("is a good year for reading a good year for the other skill").
-  They answer different questions and are reported separately. Word reading couples
-  with age much more strongly within-child (developmental growth) than between-child
-  (where cohort composition flattens it).
+  They answer different questions and are reported separately. Restricted to the
+  prespecified common w1–w3 window so child means are comparable across children
+  (the later waves are progressively Down-syndrome-only); within that window children
+  still contribute unequal numbers of observed waves, so read the within-child matrix
+  as a descriptive decomposition, not a balanced variance partition. Word reading
+  couples with age much more strongly within-child (developmental growth) than
+  between-child (where cohort composition flattens it).
 - **RTM-corrected baseline → gain partials** (`rtm_partial_{pooled,group1,group2,group3}`,
   with the uncorrected `raw_baseline_gain_*` alongside): for every predictor–outcome
   pair, the correlation of the predictor's wave-1 level with the outcome's w1→w3 gain,
@@ -36,11 +43,16 @@ Writes to `output/exploratory/rlm/`:
   descriptive analogue (the correction that flipped the taught-vocabulary reading in
   the RLI strand, #405). The predictor-equals-outcome diagonal is undefined after
   conditioning and is left blank.
-- **Within-group age check** (`age_within_group_check`): whether the pooled
-  age → word-reading-gain signal (`lrp-rlm-adj-001`'s headline) survives inside each
-  `readgrp`. The pooled correlation is stronger than any within-group one, so the
-  pooled age signal is partly cohort composition rather than a purely within-child
-  effect.
+- **Within-group age check** (`age_within_group_check`): a crude age → word-reading-gain
+  diagnostic, conditioning only on baseline word reading, pooled and within each
+  `readgrp`. This is deliberately crude and is **not** a reproduction of
+  `lrp-rlm-adj-001`: that model uses a different analytic sample (n ≈ 69) and a full
+  covariate adjustment set (`bpvs`, `trog`, `basdig`, `bassim`, `basnum` and group
+  nuisance terms), whereas this diagnostic uses the pooled n ≈ 77 with baseline word
+  reading alone, and the group-specific rows are child-level (between-child), not
+  within-child. Read the pattern — the pooled correlation running stronger than any
+  within-group one — as a descriptive prompt that the pooled age signal may be partly
+  cohort composition, not as an adjusted effect estimate.
 
 Groups follow the catalogue labels (1 = Down syndrome, 2 = Average readers,
 3 = Reading-matched). Correlations use Pearson's r throughout, for coherence with

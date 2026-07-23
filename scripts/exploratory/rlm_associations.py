@@ -18,8 +18,11 @@ one figure per file (PNG + SVG + CSV) under ``output/exploratory/rlm/``:
    correlations in this design are regression-to-the-mean-confounded by
    construction; the partial is the honest descriptive analogue (the correction that
    flipped the taught-vocabulary reading in the RLI strand, #405).
-3. **Within-group age check**: does ``adj-001``'s pooled age -> word-reading-gain
-   signal survive inside each ``readgrp``, or is it partly cohort composition?
+3. **Within-group age check**: a crude age -> word-reading-gain diagnostic
+   (conditioning only on baseline word reading) -- is the pooled association also
+   present inside each ``readgrp``, or partly cohort composition? This is *not* a
+   reproduction of ``lrp-rlm-adj-001``, which uses a different analytic sample and a
+   full covariate adjustment set; it is a descriptive prompt, not that estimate.
 
 Nothing here is causal. ``readgrp`` is an observational cohort factor; every
 association is an adjusted/observed descriptive correlate with a residual-confounding
@@ -57,6 +60,13 @@ CORE_MEASURES = ["basread", "basspel", "woco", "bpvs", "trog", "basdig", "basnum
 ABILITY_MEASURES = ["bassim", "basmat"]
 ALL_MEASURES = CORE_MEASURES + ABILITY_MEASURES
 
+# Measures with a usable wave-1 baseline. ``basmat`` is wave-3+ only, so it has no
+# wave-1 level and cannot serve as a baseline predictor (it would be an all-blank row
+# in every baseline -> gain matrix); ``bassim`` is the sole wave-1 ability proxy (see
+# #409 D4). ``basmat`` still appears in the per-wave and between/within matrices,
+# where it is observed at the later waves.
+BASELINE_MEASURES = CORE_MEASURES + ["bassim"]
+
 LABELS = {sym: RLM_MEASURES[sym].label for sym in ALL_MEASURES}
 LABELS["age"] = "age (months)"
 
@@ -86,9 +96,16 @@ def _pairwise_corr(frame: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     """Pearson correlation matrix over ``cols`` using pairwise-complete rows, with
     cells backed by fewer than ``MIN_PAIRWISE`` complete pairs blanked to NaN."""
     corr = frame[cols].corr(method="pearson", min_periods=MIN_PAIRWISE)
+    return corr.where(_pairwise_n(frame, cols).to_numpy() >= MIN_PAIRWISE)
+
+
+def _pairwise_n(frame: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    """Number of pairwise-complete rows behind each cell of the ``cols`` matrix.
+
+    Pairwise-complete cells can each rest on a different n, so these counts are
+    written alongside the per-wave matrices rather than a single headline n."""
     counts = frame[cols].notna().astype(float)
-    pair_n = counts.T @ counts
-    return corr.where(pair_n.to_numpy() >= MIN_PAIRWISE)
+    return (counts.T @ counts).astype(int)
 
 
 def _heatmap(matrix: pd.DataFrame, title: str, name: str) -> None:
@@ -124,23 +141,49 @@ def _heatmap(matrix: pd.DataFrame, title: str, name: str) -> None:
 
 
 def per_wave_matrices(df: pd.DataFrame) -> None:
-    """One cross-sectional correlation matrix per wave over the observed battery + age."""
+    """One cross-sectional correlation matrix per wave over the observed battery + age.
+
+    The long file carries a (child, wave) row even where a child has no observation
+    at that wave, so the reported n is the number of children with at least one
+    observed measure at the wave (the analytic sample), not the placeholder row
+    count; the header also names the groups actually represented, because the later
+    waves are progressively Down-syndrome-only. Individual cells rest on
+    pairwise-complete pairs whose n is smaller and varies by pair -- those counts are
+    written to the companion ``per_wave_pair_n_w*`` CSVs."""
     for wave in sorted(df["time"].dropna().unique()):
         sub = df[df["time"] == wave]
-        cols = [m for m in ALL_MEASURES if sub[m].notna().sum() >= MIN_PAIRWISE]
+        observed = sub[sub[ALL_MEASURES].notna().any(axis=1)]
+        cols = [m for m in ALL_MEASURES if observed[m].notna().sum() >= MIN_PAIRWISE]
         cols = cols + ["age"]
-        matrix = _pairwise_corr(sub, cols)
-        n_children = int(sub["subject_id"].nunique())
+        matrix = _pairwise_corr(observed, cols)
+        n_children = int(observed["subject_id"].nunique())
+        groups = ", ".join(
+            RLM_GROUP_LABELS[g]
+            for g in sorted(observed["readgrp"].dropna().unique())
+            if g in RLM_GROUP_LABELS
+        )
         _heatmap(
             matrix,
-            f"Wave {int(wave)} level correlations (pooled, n = {n_children})",
+            f"Wave {int(wave)} level correlations ({groups}; n = {n_children}, pairwise)",
             f"per_wave_corr_w{int(wave)}",
+        )
+        figure_io.save_plot_data(
+            _OUT_DIR, f"per_wave_pair_n_w{int(wave)}", _pairwise_n(observed, cols), index=True
         )
 
 
 def between_within(df: pd.DataFrame) -> None:
     """Between-child (child means) vs within-child (departures from the child mean)
-    correlation matrices over the battery + age, pooled across waves."""
+    correlation matrices over the battery + age.
+
+    Restricted to the prespecified common w1-w3 window: pooling every wave would
+    compute child means over different developmental windows (the panel runs to w5,
+    but w4/w5 are progressively Down-syndrome-only), so a child's mean level and its
+    within-child departures would not be comparable across children. Even within
+    w1-w3 children contribute unequal numbers of observed waves, so the within-child
+    correlation still weights the better-observed children more heavily -- read these
+    as a descriptive decomposition, not a balanced variance partition."""
+    df = df[df["time"].between(BASELINE_WAVE, GAIN_WAVE)]
     cols = ALL_MEASURES + ["age"]
     grouped = df.groupby("subject_id")
     child_means = grouped[cols].transform("mean")
@@ -226,7 +269,7 @@ def rtm_partials(df: pd.DataFrame) -> None:
     conditioning on the outcome's own baseline) alongside the raw baseline -> gain
     correlations, per group and pooled."""
     wide = _child_wide(df)
-    predictors = ALL_MEASURES + ["age"]
+    predictors = BASELINE_MEASURES + ["age"]  # basmat has no wave-1 baseline
     outcomes = CORE_MEASURES  # gains in the core battery
     groups = [(None, "pooled")] + [(g, RLM_GROUP_LABELS[g]) for g in sorted(RLM_GROUP_LABELS)]
 
@@ -262,9 +305,13 @@ def rtm_partials(df: pd.DataFrame) -> None:
 
 
 def age_within_group(df: pd.DataFrame) -> None:
-    """Does the pooled age -> word-reading-gain signal survive inside each group?
-    Reports the raw and RTM-corrected (given baseline word reading) age->gain
-    correlation, pooled and per group."""
+    """Crude age -> word-reading-gain diagnostic, pooled vs within each group.
+
+    Reports the raw and RTM-corrected age->gain correlation, where "corrected"
+    conditions only on baseline word reading. This is a deliberately crude,
+    child-level (between-child within each group) descriptive check -- not a
+    reproduction of ``lrp-rlm-adj-001``, whose analytic sample and adjustment set
+    (bpvs, trog, basdig, bassim, basnum and group nuisance terms) both differ."""
     wide = _child_wide(df)
     rows = []
     groups = [(None, "pooled")] + [(g, RLM_GROUP_LABELS[g]) for g in sorted(RLM_GROUP_LABELS)]
