@@ -8,7 +8,8 @@ follow-up, the Byrne :func:`pipeline.fit_rlm_corr_factor`) — the loadings /
 correlations / communalities table and the domain-factor correlation matrix
 (posterior-mean matrix + per-pair summary) — computed as pure functions of the
 posterior. Extracted from the fit orchestration (#394 pillar 6, "separate
-computation from presentation", mirroring :mod:`lcf_summaries`) so the numeric
+computation from presentation", mirroring the longitudinal correlated-factor
+summary extraction in #402) so the numeric
 summaries are testable without an output directory, Quarto template or Matplotlib
 session; the fit function keeps the CSV persistence, console table and plots.
 
