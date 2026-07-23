@@ -523,7 +523,10 @@ removesuffix
 replite
 repr
 resid
+residualisation
+residualise
 residualised
+residualization
 residualized
 resumable
 retau
