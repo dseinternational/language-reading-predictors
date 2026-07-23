@@ -3142,8 +3142,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             child_idx=built.prepared.child_idx,
             delta=ROPE_DELTA_PROB.get(sym) if off_floor else ROPE_DELTA.get(sym),
             population=(
-                "new typical child at t2; child random intercept integrated over "
-                "its population distribution, covariates from the fitted t2 rows"
+                "new typical child at t2; covariates from the fitted t2 rows"
             ),
             contrast_status=(
                 "randomised t2 arm contrast within a within-child longitudinal "
@@ -4962,8 +4961,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             child_idx=built.prepared.child_idx,
             delta=delta_prob if off_floor else delta_items,
             population=(
-                "new typical child; child random intercept integrated over its "
-                "population distribution, covariates from the period-1 "
+                "new typical child; covariates from the period-1 "
                 "randomised-transition rows"
             ),
             contrast_status="randomised on-intervention contrast (period-1 anchor)",
