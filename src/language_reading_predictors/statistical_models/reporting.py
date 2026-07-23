@@ -1588,9 +1588,12 @@ def did_cell_ppc(
     well-fitted cells compensate for a badly fitted one. This helper therefore
     compares the observed cell mean and zero rate with their replicated posterior-
     predictive distributions for every wave/arm (binary model) or period/arm (dose
-    model). The upper-tail probabilities are diagnostics, not hypothesis-test
-    p-values. Values near zero or one flag an observed statistic in a predictive
-    tail and should be investigated before interpreting contrasts.
+    model). The mean uses the upper-tail probability ``P(rep >= obs)``; the discrete
+    zero rate uses a **mid-p** upper tail (``P(rep > obs) + 0.5 P(rep == obs)``) so a
+    boundary cell — observed zero-rate exactly 0 or 1, where a plain ``>=`` tail is
+    degenerate — is not falsely flagged. These are diagnostics, not hypothesis-test
+    p-values. Values near zero or one flag an observed statistic in a predictive tail
+    and should be investigated before interpreting contrasts.
     """
     phase_arr = np.asarray(phase)
     group_arr = np.asarray(G)
@@ -1651,7 +1654,14 @@ def did_cell_ppc(
             replicated_mean = replicated_cell.mean(axis=0)
             replicated_zero = (replicated_cell == 0).mean(axis=0)
             p_mean = float(np.mean(replicated_mean >= observed_mean))
-            p_zero = float(np.mean(replicated_zero >= observed_zero))
+            # Mid-p upper tail for the discrete zero-rate statistic: split ties so a
+            # boundary cell is not falsely flagged. A plain P(rep >= obs) is
+            # necessarily 1.0 when the observed zero-rate is exactly 0 (and small when
+            # it is exactly 1), which spuriously flagged well-fitting cells (#390 P2).
+            zero_mid_p = float(
+                np.mean(replicated_zero > observed_zero)
+                + 0.5 * np.mean(replicated_zero == observed_zero)
+            )
             rows.append(
                 {
                     "cell": f"{prefix}{int(phase_code) + 1}_{arm_name}",
@@ -1675,8 +1685,10 @@ def did_cell_ppc(
                     "replicated_zero_rate_hi": float(
                         np.quantile(replicated_zero, hi_q)
                     ),
-                    "p_rep_zero_ge_observed": p_zero,
-                    "zero_tail_flag": bool(p_zero <= 0.025 or p_zero >= 0.975),
+                    "zero_rate_ppc_mid_p": zero_mid_p,
+                    "zero_tail_flag": bool(
+                        zero_mid_p <= 0.025 or zero_mid_p >= 0.975
+                    ),
                 }
             )
     return pd.DataFrame(rows)

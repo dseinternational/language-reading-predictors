@@ -827,6 +827,42 @@ def test_did_cell_ppc_stratifies_every_wave_arm_cell():
     assert set(out["zero_tail_flag"].unique()).issubset({True, False})
 
 
+def test_did_cell_ppc_zero_rate_boundaries_are_not_falsely_flagged():
+    """#390 P2: at the observed zero-rate boundaries the mid-p tail must not
+    spuriously flag a well-fitting cell. The waitlist cell is fully floored
+    (observed zero-rate 1) and reliably replicated as such; the immediate cell has
+    no observed zeros (observed zero-rate 0). A plain ``P(rep_zero >= obs_zero)``
+    would be 1.0 for the no-zeros cell (every replicate is trivially >= 0) and would
+    flag it; the mid-p split does not."""
+    phase = np.zeros(6, dtype=int)
+    group = np.array([0, 0, 0, 1, 1, 1])
+    observed = np.array([0, 0, 0, 1, 2, 3])
+    replicated = np.array(
+        [
+            [
+                [0, 0, 0, 1, 2, 3],
+                [0, 0, 0, 1, 2, 3],
+                [0, 0, 0, 0, 2, 3],
+                [0, 0, 0, 1, 2, 3],
+            ]
+        ]
+    )
+    trace = SimpleNamespace(
+        posterior_predictive=xr.Dataset(
+            {"y_post": (("chain", "draw", "obs_id"), replicated)}
+        ),
+        observed_data=xr.Dataset({"y_post": (("obs_id",), observed)}),
+    )
+
+    out = did_cell_ppc(trace, phase=phase, G=group).set_index("cell")
+
+    assert out.loc["t1_waitlist", "observed_zero_rate"] == 1.0
+    assert out.loc["t1_immediate", "observed_zero_rate"] == 0.0
+    for cell in ("t1_waitlist", "t1_immediate"):
+        assert not out.loc[cell, "zero_tail_flag"], cell
+        assert 0.025 < out.loc[cell, "zero_rate_ppc_mid_p"] < 0.975, cell
+
+
 def test_did_cell_ppc_validates_row_alignment_and_dose_labels():
     trace = SimpleNamespace(
         posterior_predictive=xr.Dataset(
