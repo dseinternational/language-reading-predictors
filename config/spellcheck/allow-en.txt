@@ -504,6 +504,7 @@ pathlib
 pipefail
 pred
 preliz
+prespecified
 prob
 probs
 proc
