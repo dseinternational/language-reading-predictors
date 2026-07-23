@@ -3755,6 +3755,22 @@ def build_gain_factors_model(
         if own_pre_d is not None:
             gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
             eta = eta + gamma_own * own_pre_d
+        elif any("own" in pair for pair in active_interactions):
+            # Off-floor path (own_pre_d is None): the graded gamma_own precision term is
+            # dropped because its Normal(1, 0.25) "post tracks pre 1:1" prior does not
+            # transfer to the binary off-floor indicator. But an interaction on ``own``
+            # (e.g. trt×own) is active, so omitting the own MAIN effect would violate
+            # interaction hierarchy — it forces the control off-floor probability to be
+            # flat in the baseline and lets the interaction absorb the real baseline
+            # dependence rather than represent credible effect modification (#391
+            # Finding 2). Restore the main effect on the SAME standardised baseline the
+            # interaction uses, with a REGULARISED cross prior (Normal(0, 0.3))
+            # appropriate to the binary outcome (not the graded gamma_own). A
+            # period-1-only floor model that avoids treatment-affected later baselines
+            # is the cleaner causal alternative, flagged for review.
+            own_ff_d = pm.Data("own_pre_logit_std", term_vecs["own"], dims="obs_id")
+            gamma_own_ff = _priors.gamma_cross_prior().to_pymc("gamma_own_offfloor")
+            eta = eta + gamma_own_ff * own_ff_d
 
         if include_trt:
             beta_trt = _priors.tau_prior(
