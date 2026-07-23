@@ -343,6 +343,49 @@ def test_tau_summary_itt_direction_uses_moderated_average_effect():
     assert out["favoured_direction"] == "negative"
 
 
+def test_gain_factor_direction_follows_marginal_effect_not_coefficient():
+    """#391: with an active treatment interaction the ``beta_trt`` coefficient and the
+    period-1 AME differ in sign, so the reported direction — ``treatment_marginal_effect``
+    ``prob_trt_pos`` and ``rope_summary`` ``pd`` under ``direction_from_ame`` — must
+    follow the AME, while the ITT default (``direction_from_ame=False``) is unchanged."""
+    n_draw, n_obs = 40, 3
+    trt = np.array([1.0, 0.0, 1.0])
+    beta_trt = np.full((1, n_draw), 0.2)  # coefficient clearly positive
+    interaction = np.full((1, n_draw), -1.0)
+    moderator = np.ones(n_obs)
+    delta = 0.2 - 1.0 * moderator  # per-row treatment contribution < 0
+    eta = np.broadcast_to((delta * trt)[None, None, :], (1, n_draw, n_obs)).copy()
+    posterior = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), eta),
+            "beta_trt": (("chain", "draw"), beta_trt),
+            "gamma_int_trt_own": (("chain", "draw"), interaction),
+        }
+    )
+    trace = SimpleNamespace(posterior=posterior)
+    mods = (("gamma_int_trt_own", moderator),)
+
+    tm = treatment_marginal_effect(trace, trt=trt, n_trials=10, moderators=mods)
+    assert tm["prob_trt_logit_pos"] == pytest.approx(1.0)  # coefficient positive
+    assert tm["prob_trt_pos"] == pytest.approx(0.0)  # marginal effect negative
+
+    rope_ame = rope_summary(
+        trace, G=trt, n_trials=10, delta=0.5, term="beta_trt", varying_term="",
+        moderators=mods, direction_from_ame=True,
+    )
+    assert rope_ame["pd_coef"] == pytest.approx(1.0)
+    assert rope_ame["pd"] == pytest.approx(0.0)
+    assert rope_ame["favoured_direction"] == "negative"
+
+    # ITT default is unchanged: pd still tracks the coefficient, no pd_coef emitted.
+    rope_coef = rope_summary(
+        trace, G=trt, n_trials=10, delta=0.5, term="beta_trt", varying_term="",
+        moderators=mods,
+    )
+    assert rope_coef["pd"] == pytest.approx(1.0)
+    assert "pd_coef" not in rope_coef
+
+
 def _joint_trace(tau: np.ndarray, eta0: np.ndarray, G: np.ndarray):
     """Synthetic factorised multi-outcome trace with eta built at observed G."""
     n_chain, n_draw, n_outcome = tau.shape
@@ -1072,6 +1115,72 @@ def test_joint_treatment_marginals_push_each_outcome_to_its_item_scale():
         assert out.loc[outcome, "items_median"] == pytest.approx(np.median(draws))
     assert out.loc["W", "prob_benefit_ge_delta"] == pytest.approx(1.0)
     assert np.isnan(out.loc["L", "delta_items"])
+
+
+def test_joint_marginals_respect_outcome_specific_missingness():
+    """#392 P2a: item-scale marginals must average each outcome over its OBSERVED
+    rows — the same population ``tau_summary_joint`` uses — not over every fitted
+    row. Outcome ``L`` is unobserved on row 2, whose untreated predictor sits near
+    the ceiling, so the naive all-rows average diverges materially from the
+    observed-rows average."""
+    outcomes = ["W", "L"]
+    G = np.array([0.0, 1.0, 0.0])
+    tau_W, tau_L = 0.5, 0.8
+    # tau: (chain, draw, outcome); two identical draws for deterministic medians.
+    tau = np.array([[[tau_W, tau_L], [tau_W, tau_L]]])
+    # Untreated predictor eta0 per (obs, outcome): row 2 of L is near the ceiling.
+    eta0 = np.array([[0.0, 0.0], [0.0, 0.0], [0.0, 3.0]])
+    eta = np.empty((1, 2, 3, 2))
+    for s in range(2):
+        eta[0, s] = eta0 + tau[0, s][None, :] * G[:, None]
+    posterior = xr.Dataset(
+        {
+            "tau": (("chain", "draw", "outcome"), tau),
+            "eta": (("chain", "draw", "obs_id", "outcome"), eta),
+        },
+        coords={
+            "chain": [0],
+            "draw": np.arange(2),
+            "obs_id": np.arange(3),
+            "outcome": outcomes,
+        },
+    )
+    # Flattened-cell maps: W observed on rows 0,1,2; L observed on rows 0,1 only.
+    constant = xr.Dataset(
+        {
+            "y_post_cell_row": ("cell", np.array([0, 1, 2, 0, 1])),
+            "y_post_cell_outcome": ("cell", np.array([0, 0, 0, 1, 1])),
+        },
+        coords={"cell": np.arange(5)},
+    )
+    trace = SimpleNamespace(posterior=posterior, constant_data=constant)
+    n_trials = {"W": 100, "L": 30}
+
+    jm = joint_treatment_marginals(
+        trace, outcomes=outcomes, G=G, n_trials=n_trials, deltas={}, ci_prob=0.89
+    ).set_index("outcome")
+    ts = tau_summary_joint(trace, outcomes, ci_prob=0.89, G=G).set_index("outcome")
+
+    # (1) The item- and probability-scale summaries now agree: items == AME × denom.
+    for o in outcomes:
+        assert jm.loc[o, "items_median"] == pytest.approx(
+            ts.loc[o, "ame_prob_median"] * n_trials[o]
+        )
+    # (2) L uses only its observed rows {0, 1}, not the near-ceiling row 2, so it
+    #     differs materially from the (buggy) all-rows average.
+    masked_L = (expit(tau_L) - 0.5) * n_trials["L"]
+    all_rows_L = (
+        np.mean(
+            [
+                expit(tau_L) - 0.5,
+                expit(tau_L) - 0.5,
+                expit(3.0 + tau_L) - expit(3.0),
+            ]
+        )
+        * n_trials["L"]
+    )
+    assert jm.loc["L", "items_median"] == pytest.approx(masked_L)
+    assert abs(masked_L - all_rows_L) > 1.0
 
 
 def test_treatment_marginal_effect_folds_onto_core_and_reports_median():
