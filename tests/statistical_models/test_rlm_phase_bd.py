@@ -126,9 +126,16 @@ def test_build_rlm_corr_factor_single_indicator_fixed(tmp_path):
         battery, domains=domains, single_indicator_reliability=0.8
     )
     names = {v.name for v in built.model.free_RVs}
-    assert {"factor_cov", "lambda_free", "sigma_free"}.issubset(names)
+    # Communality parameterisation (#409 item B): the free parameter is the
+    # communality; the loading sqrt(c) and residual sqrt(1 - c) are derived
+    # deterministics (enforcing lambda**2 + sigma**2 = 1, the fix for the Heywood
+    # loading-residual ridge).
+    assert {"factor_cov", "communality_free"}.issubset(names)
+    det_names = {v.name for v in built.model.deterministics}
+    assert {"lambda_free", "sigma_free"}.issubset(det_names)
     # The single-indicator memory domain contributes NO free loading/residual:
     # 9 indicators, 1 fixed -> 8 free.
+    assert built.model.named_vars["communality_free"].eval().shape == (8,)
     assert built.model.named_vars["lambda_free"].eval().shape == (8,)
     # The fixed indicator's loading/residual are sqrt(r) / sqrt(1 - r).
     loading = built.model.named_vars["loading"].eval()
