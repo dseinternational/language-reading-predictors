@@ -5200,17 +5200,20 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_al_diag_vars(spec))
+    # Deterministic for a given spec — compute once and reuse across the diagnostics,
+    # power-scaling, gate and prior/posterior overlay (PR #408 review).
+    _al_vars = _al_diag_vars(spec)
+    _diag.summary_diagnostics(ctx, var_names=_al_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=_al_diag_vars(spec))
+    _diag.run_psense(ctx, var_names=_al_vars)
 
     _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=_al_diag_vars(spec))
+    _diag.write_diagnostics_summary(ctx, var_names=_al_vars)
     _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=_al_diag_vars(spec))
+    _diag.save_prior_posterior_plot(ctx, var_names=_al_vars)
 
     section_header("Factor summary")
     # Per-protocol design: NOTHING is a clean randomised effect, so no term is
