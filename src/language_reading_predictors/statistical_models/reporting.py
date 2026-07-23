@@ -466,6 +466,7 @@ def rope_summary(
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     row_mask: np.ndarray | None = None,
+    direction_from_ame: bool = False,
 ) -> dict[str, float | str]:
     """ROPE-anchored continuous report card for a randomised treatment effect.
 
@@ -489,6 +490,12 @@ def rope_summary(
     and ``G`` the on-intervention indicator. See
     ``notes/202606261304-evidence-strength-and-rope-reporting.md`` for the rationale
     (sign-vs-size, the median convention, the δ choice).
+
+    ``direction_from_ame`` (default False → ITT behaviour unchanged): when True the
+    direction fields (``pd`` / ``direction_label`` / ``favoured_direction*``) are taken
+    from the probability-scale AME rather than the coefficient, and ``pd_coef`` records
+    the coefficient direction. The gain-factor family sets this because its treatment
+    interactions make the coefficient and the marginal effect diverge in sign (#391).
     """
     effect_draws, ame_prob = _itt_ame_draws(
         trace,
@@ -508,9 +515,33 @@ def rope_summary(
     def _is90(key: str) -> bool:
         return key.endswith("_lo90") or key.endswith("_hi90")
 
+    # rope_card derives its direction fields (``pd`` / ``direction_label`` /
+    # ``favoured_direction*``) from the first argument — the coefficient draws. With
+    # active treatment interactions the coefficient and the marginal effect can differ
+    # in sign per draw, so ``direction_from_ame`` re-derives the direction from the
+    # probability-scale AME (the reported estimand), exactly as ``tau_summary_itt``,
+    # and keeps the coefficient direction as ``pd_coef`` (#391). Benefit/harm/ROPE
+    # already use the items (AME) draws, so they are unaffected.
+    def _redirect_from_ame(mapping):
+        prob_ame_pos = float(np.mean(ame_prob > 0))
+        mapping["pd_coef"] = mapping["pd"]
+        mapping["pd"] = prob_ame_pos
+        mapping["direction_label"] = evidence_label(prob_ame_pos)
+        mapping.update(favoured_direction(prob_ame_pos))
+        return mapping
+
     if isinstance(card, dict):
-        return {k: v for k, v in card.items() if not _is90(k)}
-    return card.drop(columns=[c for c in card.columns if _is90(c)])
+        card = {k: v for k, v in card.items() if not _is90(k)}
+        return _redirect_from_ame(card) if direction_from_ame else card
+    card = card.drop(columns=[c for c in card.columns if _is90(c)])
+    if direction_from_ame:
+        prob_ame_pos = float(np.mean(ame_prob > 0))
+        card["pd_coef"] = float(card["pd"].iloc[0])
+        card["pd"] = prob_ame_pos
+        card["direction_label"] = evidence_label(prob_ame_pos)
+        for _k, _v in favoured_direction(prob_ame_pos).items():
+            card[_k] = _v
+    return card
 
 
 def rope_sensitivity(
@@ -1888,49 +1919,36 @@ def joint_treatment_marginals(
     n_trials: Mapping[str, int],
     deltas: Mapping[str, float],
     ci_prob: float = 0.95,
+    row_mask: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Items-scale treatment marginals for every outcome in a joint ITT fit.
 
     The joint model stores ``eta`` on ``(obs_id, outcome)`` and one ``tau`` per
-    outcome.  For each posterior draw and outcome this removes the fitted group
-    contribution to recover the untreated linear predictor, toggles treatment
-    on, averages the probability difference over fitted rows, and multiplies by
-    that outcome's item denominator.  This is the joint analogue of
-    :func:`treatment_marginal_effect`; keeping it as a fitted artefact lets the
-    key-findings builder report the project-agreed range-plus-count headline
-    without approximating item effects from logit coefficients.
+    outcome.  This is the items-scale companion to :func:`tau_summary_joint`: it
+    takes that function's probability-scale average marginal effect and multiplies
+    by each outcome's item denominator, so the two summaries of a single fit report
+    the *same* quantity on two scales.
+
+    **Averaging population (#392):** the AME is computed by
+    :func:`_joint_ame_draws`, which averages each outcome over the rows where that
+    outcome is *observed* (its flattened-cell mask), not over every fitted row.
+    Under outcome-specific post-score missingness the observed populations differ
+    per outcome — this function reports each outcome on its own observed population,
+    matching :func:`tau_summary_joint`. Passing ``row_mask`` (a boolean/int mask over
+    fitted rows) restricts every outcome to a *common* subset, intersected with each
+    outcome's observed rows, for a common-population cross-outcome comparison. (On the
+    current registered joint datasets every outcome is complete, so the mask is all
+    rows and the estimates are unchanged.)
 
     ``deltas`` contains the project-agreed minimally-important item difference
     where one exists.  Rows without an agreed delta retain the items-scale
     estimate but leave the ROPE fields missing.
     """
-    posterior = trace.posterior
-    tau = (
-        posterior["tau"]
-        .stack(sample=("chain", "draw"))
-        .transpose("outcome", "sample")
-    )
-    eta = (
-        posterior["eta"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "outcome", "sample")
-    )
-    groups = np.asarray(G, dtype=float)
-    if groups.shape[0] != eta.sizes["obs_id"]:
-        raise ValueError(
-            f"G has {groups.shape[0]} rows but eta has {eta.sizes['obs_id']} "
-            "observations"
-        )
-
+    _, ame = _joint_ame_draws(trace, outcomes, G=G, row_mask=row_mask)
     lo_q = (1 - ci_prob) / 2
     rows: list[dict[str, float | str]] = []
-    for outcome in outcomes:
-        effect = np.asarray(tau.sel(outcome=outcome).values).reshape(-1)
-        eta_k = np.asarray(eta.sel(outcome=outcome).values)
-        eta_zero = eta_k - groups[:, None] * effect[None, :]
-        item_draws = (
-            expit(eta_zero + effect[None, :]) - expit(eta_zero)
-        ).mean(axis=0) * float(n_trials[outcome])
+    for k, outcome in enumerate(outcomes):
+        item_draws = ame[k] * float(n_trials[outcome])
         delta = deltas.get(outcome)
         row: dict[str, float | str] = {
             "outcome": outcome,
@@ -1939,7 +1957,7 @@ def joint_treatment_marginals(
             "items_hi": float(np.quantile(item_draws, 1 - lo_q)),
             "items_lo50": float(np.quantile(item_draws, 0.25)),
             "items_hi50": float(np.quantile(item_draws, 0.75)),
-            "prob_pos": float(np.mean(effect > 0)),
+            "prob_pos": float(np.mean(item_draws > 0)),
         }
         if delta is not None:
             d = float(delta)
@@ -2484,13 +2502,17 @@ def treatment_marginal_effect(
     equal-tailed ``ci_prob`` interval. Point estimates are the **median** —
     transformation-invariant across the logit and items scales, matching the ROPE
     convention adopted in #130 (notes/202606261304-evidence-strength-and-rope-
-    reporting.md). ``prob_trt_pos`` is ``P(term > 0)`` on the logit scale.
+    reporting.md). ``prob_trt_pos`` is the probability of direction of the **marginal
+    effect** (``P(AME > 0)``); ``prob_trt_logit_pos`` keeps ``P(term > 0)`` as a
+    coefficient-scale diagnostic.
 
     ``row_mask`` (default None = all fitted rows): restrict the observation average to
     a row subset. The gain-factor family passes the **period-1** mask (``phase == 0``)
     so the marginal is averaged only over the genuinely randomised transition, not the
-    post-crossover ones that carry no untreated observations (#247 P2). The logit-scale
-    ``prob_trt_pos`` is unaffected — it summarises the ``term`` draws directly.
+    post-crossover ones that carry no untreated observations (#247 P2). The direction
+    probability follows that same marginal effect: with active treatment interactions
+    the coefficient and the AME can differ in sign per draw, so ``prob_trt_pos`` is
+    ``P(AME > 0)``, not ``P(term > 0)`` (#391) — mirroring ``tau_summary_itt``.
     """
     b, ame_prob = _itt_ame_draws(
         trace,
@@ -2517,7 +2539,13 @@ def treatment_marginal_effect(
         "trt_items_hi": float(np.quantile(ame_items, hi_q)),
         "trt_items_lo50": items_lo50,
         "trt_items_hi50": items_hi50,
-        "prob_trt_pos": float(np.mean(b > 0)),
+        # Direction of the *marginal effect* (the reported estimand). With active
+        # treatment interactions the coefficient ``b`` and the per-draw AME differ in
+        # sign, so the probability of direction must summarise ``ame_prob``, not ``b``
+        # (#391); the coefficient direction is kept as an explicit diagnostic. Mirrors
+        # ``tau_summary_itt``'s ``prob_ame_pos`` / ``prob_tau_logit_pos`` convention.
+        "prob_trt_pos": float(np.mean(ame_prob > 0)),
+        "prob_trt_logit_pos": float(np.mean(b > 0)),
     }
 
 
