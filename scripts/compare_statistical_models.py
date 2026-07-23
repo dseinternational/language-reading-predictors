@@ -1099,14 +1099,43 @@ def phonics_route_loo_compare(config: str, out_path: str) -> bool:
     return _loo_compare(PHONICS_LOO_IDS, config, out_path)
 
 
+def _copy_compare_beside_runs(
+    out_path: str,
+    ids: list[str],
+    config: str,
+    filename: str = "mechanism_loo_compare.csv",
+) -> None:
+    """Copy a written comparison CSV beside each paired run.
+
+    Model reports render from their own run directories, so a comparison that lives
+    only in the shared comparison directory silently disappears from the rendered
+    reports (issue #404 review). Mirrors :func:`did_dose_loo_compare`'s copy-beside,
+    but writes the generic ``mechanism_loo_compare.csv`` name that
+    ``_results_mechanism.qmd`` already looks up first — so no per-family lookup is
+    needed in the partial. Each of the two paired reports (interaction + baseline)
+    therefore shows their shared nested comparison."""
+    for model_id in ids:
+        run_dir = _run_dir(model_id, config)
+        if os.path.isdir(run_dir):
+            destination = os.path.join(run_dir, filename)
+            if os.path.abspath(out_path) != os.path.abspath(destination):
+                shutil.copyfile(out_path, destination)
+
+
 def joint_readiness_lxb_w_loo_compare(config: str, out_path: str) -> bool:
     """LOO comparison of LRP61 vs its no-interaction baseline (isolates L x B on word reading)."""
-    return _loo_compare(JOINT_READINESS_LXB_W_LOO_IDS, config, out_path)
+    if not _loo_compare(JOINT_READINESS_LXB_W_LOO_IDS, config, out_path):
+        return False
+    _copy_compare_beside_runs(out_path, JOINT_READINESS_LXB_W_LOO_IDS, config)
+    return True
 
 
 def joint_readiness_lxn_w_loo_compare(config: str, out_path: str) -> bool:
     """LOO comparison of LRP63 vs its no-interaction baseline (isolates L x N on word reading)."""
-    return _loo_compare(JOINT_READINESS_LXN_W_LOO_IDS, config, out_path)
+    if not _loo_compare(JOINT_READINESS_LXN_W_LOO_IDS, config, out_path):
+        return False
+    _copy_compare_beside_runs(out_path, JOINT_READINESS_LXN_W_LOO_IDS, config)
+    return True
 
 
 def age_moderation_loo_compare(config: str, out_path: str) -> bool:

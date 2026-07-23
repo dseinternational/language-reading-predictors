@@ -34,15 +34,23 @@ enters as a standardised linear main effect plus the interaction:
 
 $$
 \eta = \dots + f^{L}(\operatorname{logit} L_{\text{post}})
-       + \gamma_{\text{mod}}\, z(N)
-       + \gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(N)
+       + \gamma_{\text{mod}}\, z(\operatorname{logit} N_{\text{post}})
+       + \gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(\operatorname{logit} N_{\text{post}})
 $$
 
-where $z(\cdot)$ standardises to mean 0, sd 1 over the fitted rows. Both cross-coupling
-coefficients use the regularising $\mathrm{Normal}(0, 0.3)$ prior.
+where $z(\cdot)$ standardises to mean 0, sd 1 over the fitted rows. The moderator enters on the
+**same logit-safe scale as the exposure**: the bounded decoding proportion is Haldane-logit
+transformed and then standardised, so $\gamma_{\text{int}}$ reads per +1 SD of the
+*logit-transformed* decoding proportion, not per raw-score SD. With decoding $\approx 57\%$ floored
+at zero the logit transform still leaves little spread, reinforcing the weak-power caveat below.
+Both cross-coupling coefficients use the regularising $\mathrm{Normal}(0, 0.3)$ prior.
 
-_Reading the interaction._ $\gamma_{\text{int}}$ is the change in the letter-sound -> word-reading slope per +1 SD of
-nonword decoding: $> 0$ = **synergy**, $\approx 0$ = **additive**, $< 0$ = **substitutive**.
+_Reading the interaction (logit scale)._ $\gamma_{\text{int}}$ is the change, **on the latent
+logit linear predictor**, in the letter-sound -> word-reading slope per +1 SD of logit decoding:
+$> 0$ = **synergy**, $\approx 0$ = **additive**, $< 0$ = **substitutive**. These label the
+logit-scale product term only — $\gamma_{\text{int}} \approx 0$ is no logit interaction, not
+count-scale additivity, and the sign alone does not establish that word reading is highest when
+both skills are high (read the posterior curve for that item-scale claim).
 
 ## Adjustment set
 
