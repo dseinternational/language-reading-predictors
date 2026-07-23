@@ -10,6 +10,13 @@ dropping, so the fit runs on the SES-complete subset; LRPITT14 is the matched
 unadjusted comparator on the same rows (so LRPITT13 vs LRPITT14 isolates the SES
 adjustment, sample held fixed). Sign convention: positive tau => intervention
 helps.
+
+The SES adjusters (parental education, age first exposed to books) are
+**precision covariates**: they are measured pre-randomisation and are balanced
+across arms in expectation, so they cannot confound the randomised effect and
+only sharpen tau — the identical causal status to the ``blocks``/``area``
+adjusters. Their prior-table role is therefore ``precision``, not a cross-baseline
+association (#384 review).
 """
 
 from language_reading_predictors.data_variables import Variables as V
