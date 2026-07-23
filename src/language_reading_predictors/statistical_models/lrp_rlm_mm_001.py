@@ -53,8 +53,26 @@ SPEC = ModelSpec(
         },
         "single_indicator_reliability": 0.8,
         "lkj_eta": 2.0,
-        # Small-n latent-factor geometry: the RLI corr-factor fits lift
-        # target_accept above the tier default to clear boundary divergences.
+        # Communality parameterisation (#409 item B, the gate rescue): the free
+        # parameter is each indicator's communality c ~ Beta(comm_alpha, comm_beta),
+        # with lambda = sqrt(c) and sigma = sqrt(1 - c) so lambda**2 + sigma**2 = 1
+        # (the unit variance standardised indicators imply). This removes the
+        # over-parameterised lambda-sigma ridge / Heywood corner that gate-failed the
+        # earlier free HalfNormal build (143 divergences, R-hat 1.03). Beta(2, 2) is a
+        # weakly-informative communality prior centred at 0.5 — flagged for review.
+        "comm_alpha": 2.0,
+        "comm_beta": 2.0,
+        # target_accept stays at 0.99 (as the RLI corr-factor fits use). The wave-3
+        # domains are near-collinear (factor correlations 0.81-0.95), so the LKJ
+        # correlation matrix sits against the positive-definite boundary and leaves
+        # residual boundary divergences even after the communality reparameterisation
+        # removed the loading-residual ridge (143 -> 72). Pushing target_accept to
+        # 0.999 cut those to ~12 but starved the chains (min ESS 749 -> 99, max R-hat
+        # 1.006 -> 1.045), so 0.99 is the better operating point: the deliverables
+        # (loadings, communalities, factor correlations) converge cleanly (R-hat
+        # <= 1.01, ESS >= 400) and only the intrinsic near-singular-correlation
+        # divergences remain. Whether that structure should instead be a higher-order
+        # / single general factor is a modelling-structure question flagged for review.
         "target_accept": 0.99,
     },
 )

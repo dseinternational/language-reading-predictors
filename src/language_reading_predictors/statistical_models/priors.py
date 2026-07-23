@@ -650,6 +650,12 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     # Measurement loadings (correlated-factor CFA).
     if base.startswith(("lambda", "load")):
         return ("association", "")
+    # Communality parameterisation (RLM mm-001, #409 item B): the free parameter is
+    # each indicator's communality c ~ Beta, with the loading sqrt(c) and residual
+    # sqrt(1 - c) derived. It IS the reported communality — an association, like the
+    # loading it defines — carried on its own inline Beta prior (no shared ctor).
+    if base.startswith("communality"):
+        return ("association", "")
     # Latent-mean anchors and per-leg intercepts (…0, mu1, a_change).
     if base in {"mu1", "a_change"} or re.search(r"0$", base):
         return ("nuisance", "")
@@ -680,6 +686,13 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
         return (
             f"Positive indicator loading ({fitted}); maps each standardised test "
             "to its unit-variance domain factor."
+        )
+    if base.startswith("communality"):
+        return (
+            f"Indicator communality ({fitted}); the share of a standardised test's "
+            "variance explained by its domain factor, with loading = sqrt(c) and "
+            "residual = sqrt(1 - c) so lambda**2 + sigma**2 = 1 (the standardised "
+            "unit-variance constraint that removes the loading-residual ridge)."
         )
     if base == "sigma_indicator":
         return (
