@@ -4562,8 +4562,20 @@ def _gf_coef_names(
     if not treated_only:
         names.append("beta_trt")
     # gamma_own drops on the off-floor (Bernoulli) path (A4) — see build_gain_factors_model.
+    # There, if an interaction on ``own`` is *active*, a regularised own-baseline main
+    # effect ``gamma_own_offfloor`` is added instead to keep interaction hierarchy
+    # (#391 Finding 2); report it in its place. Mirror the factory's active-interaction
+    # filter: treated_only variants drop trt interactions, so a treated-only spec whose
+    # only ``own`` interaction is trt×own builds no gamma_own_offfloor.
+    active_interactions = [
+        tuple(pair)
+        for pair in extra.get("interactions", ())
+        if not treated_only or "trt" not in tuple(pair)
+    ]
     if extra.get("likelihood") != "bernoulli_offfloor":
         names.append("gamma_own")
+    elif any("own" in pair for pair in active_interactions):
+        names.append("gamma_own_offfloor")
     names.append("gamma_A")
     if extra.get("ability_covariate"):
         names.append("gamma_ability")
