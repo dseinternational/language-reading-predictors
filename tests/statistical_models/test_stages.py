@@ -78,6 +78,59 @@ def test_sampling_stage_keeps_sampling_loo_reporting_order(monkeypatch):
     ]
 
 
+def test_sample_and_loo_skips_the_loo_block_when_disabled(monkeypatch):
+    """compute_loo=False is the mediation-family path (no ordinary PSIS-LOO); the
+    shared lifecycle must sample but skip the whole LOO/report/influence block. A
+    refactor that centralises the lifecycle must preserve this genuine difference."""
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace()
+    monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
+    monkeypatch.setattr(
+        stages._diag, "sample_posterior", lambda _ctx: events.append("sample")
+    )
+
+    def _fail(_ctx):
+        raise AssertionError("LOO must not run when compute_loo=False")
+
+    monkeypatch.setattr(stages._diag, "compute_log_likelihood_and_loo", _fail)
+    monkeypatch.setattr(stages._report, "write_loo_summary", _fail)
+
+    runner.sample_and_loo(ctx, compute_loo=False)
+
+    assert events == ["Sampling posterior (nutpie)", "sample"]
+
+
+def test_posterior_predictive_defaults_to_the_y_post_node(monkeypatch):
+    """With no explicit var_names the shared PPC stage draws (and saves the primary
+    node as) ``y_post`` — the default observation node for the count families."""
+    sampled = []
+    saved = []
+    ctx = SimpleNamespace()
+    monkeypatch.setattr(stages, "section_header", lambda _title: None)
+    monkeypatch.setattr(
+        stages._diag,
+        "sample_posterior_predictive",
+        lambda _ctx, *, var_names: sampled.append(var_names),
+    )
+    runner = SharedFitStages(
+        StageHooks(
+            emit_priors=lambda _ctx: None,
+            save_ppc=lambda _ctx, *, primary_node: saved.append(primary_node),
+            write_loo_influence=lambda _ctx: None,
+            print_loo_row=lambda _ctx: None,
+            copy_report_template=lambda _ctx: None,
+            publish_output=lambda _ctx: None,
+            print_footer=lambda _ctx: None,
+        )
+    )
+
+    runner.posterior_predictive(ctx)
+
+    assert sampled == [["y_post"]]
+    assert saved == ["y_post"]
+
+
 def test_posterior_predictive_uses_the_last_requested_node(monkeypatch):
     events = []
     runner = _stage_runner(events)

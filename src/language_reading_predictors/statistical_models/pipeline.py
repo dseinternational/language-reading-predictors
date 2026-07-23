@@ -62,6 +62,7 @@ from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
     factories as _factories,
     historical as _historical,
+    lcf_inference as _lcf_inference,
     priors as _priors,
     reporting as _report,
     survival as _survival,
@@ -1905,6 +1906,8 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["y_event"])
 
@@ -3370,6 +3373,15 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         if spec.extra.get("include_interaction", True):
             _mech_vars.append("gamma_int")
     _diag.summary_diagnostics(ctx, var_names=_mech_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381). For the
+    # HSGP mechanism curve the estimand is the shape, governed by the deliberately
+    # tight ``eta_main_prior`` amplitude the prior review flagged; the linear slope
+    # ``beta_mech`` is already in ``_mech_vars``, so add the GP amplitude and
+    # lengthscale only when the nonparametric curve is fitted.
+    _mech_psense_vars = list(_mech_vars)
+    if not spec.extra.get("linear_mechanism", False):
+        _mech_psense_vars += ["f_mech__eta", "f_mech__ell"]
+    _diag.run_psense(ctx, var_names=_mech_psense_vars)
 
     _run_ppc(ctx)
 
@@ -3838,6 +3850,8 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         dose_vars.append("gamma_dose_stage")
     dose_vars.extend(f"gamma_{s}_pre" for s in ability)
     _diag.summary_diagnostics(ctx, var_names=dose_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=dose_vars)
 
     _run_ppc(ctx)
 
@@ -4866,6 +4880,9 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 varying_term="",
                 moderators=trt_moderators,
                 row_mask=p1_mask,
+                # Treatment interactions make beta_trt and the AME diverge in sign, so
+                # the reported direction follows the marginal effect, not the coefficient (#391).
+                direction_from_ame=True,
             )
             rope_df = pd.DataFrame([rope_s])
             rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
@@ -4892,6 +4909,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 ctx.trace, G=trt, n_trials=1, delta=delta_prob,
                 ci_prob=ctx.reporting.ci_prob, term="beta_trt", varying_term="",
                 moderators=trt_moderators, row_mask=p1_mask,
+                direction_from_ame=True,  # direction from the off-floor RD AME, not beta_trt (#391)
             )
             rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
             rope_s["delta_scale"] = "risk_difference"
@@ -5457,15 +5475,20 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_al_diag_vars(spec))
+    # Deterministic for a given spec — compute once and reuse across the diagnostics,
+    # power-scaling, gate and prior/posterior overlay (PR #408 review).
+    _al_vars = _al_diag_vars(spec)
+    _diag.summary_diagnostics(ctx, var_names=_al_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=_al_vars)
 
     _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=_al_diag_vars(spec))
+    _diag.write_diagnostics_summary(ctx, var_names=_al_vars)
     _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=_al_diag_vars(spec))
+    _diag.save_prior_posterior_plot(ctx, var_names=_al_vars)
 
     section_header("Factor summary")
     # Per-protocol design: NOTHING is a clean randomised effect, so no term is
@@ -6004,6 +6027,8 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     diag_vars = ["alpha", *coupling_vars, "kappa", "hs_tau", "hs_c2", "beta"]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx)
 
@@ -6124,6 +6149,8 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     _run_ppc(ctx)
     _adjusted_diag_vars = ["alpha", "gamma_own", "kappa", *beta_names]
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=_adjusted_diag_vars)
 
     section_header("Extended diagnostics")
     # Capture the primary gate verdict so the sub-fit tables can label their
@@ -6774,6 +6801,8 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     if include_group:
         diag_vars.append("beta_group_nuisance")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
     _run_ppc(ctx)
     section_header("Extended diagnostics (primary wave)")
     _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -7085,6 +7114,8 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["y_obs"])
 
@@ -7326,6 +7357,8 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["y_obs"])
 
@@ -7499,6 +7532,8 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["score"])
 
@@ -7688,6 +7723,8 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     diag_vars = ["alpha", "gamma_own", "kappa", *beta_names, *nuisance]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx)
 
@@ -7874,6 +7911,8 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     diag_vars = ["alpha", "gamma_own", "kappa", "hs_tau", "hs_c2", "beta", *nuisance]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381).
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx)
 
@@ -8545,195 +8584,12 @@ _LCF_DEFAULT_DOMAINS = {
 }
 
 
-def _lcf_child_log_likelihood(trace, built, *, chunk_size: int = 256):
-    """Evaluate the LCF's exact per-child MvNormal log likelihood.
-
-    PyMC 6.1 cannot reconstruct this model's log likelihood from its posterior:
-    removing the ``LKJCorr`` transforms gives the compiled value variables an extra
-    ``_cholesky`` suffix, while the posterior keeps the random-variable names. The
-    generic helper therefore rejects the inputs before evaluating the density.
-
-    The fitted trace already contains the exact marginal mean ``mean_z`` and
-    covariance ``Sigma_z`` used by every observed-pattern ``MvNormal``. Evaluate
-    that density directly, in bounded draw chunks, and return one contribution per
-    child. This avoids PyMC's transformed-value plumbing. It can also recover LOO
-    from a persisted trace when the exact matching model and data are rebuilt; the
-    coordinate and observed-data checks below reject positional drift.
-    """
-    import xarray as xr
-
-    if chunk_size < 1:
-        raise ValueError(f"chunk_size must be positive (got {chunk_size})")
-
-    posterior = trace.posterior
-    mean_z = posterior["mean_z"].transpose("chain", "draw", "cell")
-    sigma_z = posterior["Sigma_z"].transpose(
-        "chain", "draw", "cell", "cell_b"
-    )
-    expected_cells = np.asarray(built.extras["cell_names"], dtype=str)
-    for variable, dimension in ((mean_z, "cell"), (sigma_z, "cell"), (sigma_z, "cell_b")):
-        actual_cells = np.asarray(variable.coords[dimension].values, dtype=str)
-        if not np.array_equal(actual_cells, expected_cells):
-            raise ValueError(
-                f"LCF posterior {dimension!r} coordinates do not match the rebuilt "
-                "model; refusing positional likelihood recovery"
-            )
-    n_chains = mean_z.sizes["chain"]
-    n_draws = mean_z.sizes["draw"]
-
-    groups = []
-    all_children: list[int] = []
-    for node in built.extras["z_nodes"]:
-        children = np.asarray(built.extras["child_of_node"][node], dtype=int)
-        cell_indices = np.asarray(
-            built.extras["cell_indices_of_node"][node], dtype=int
-        )
-        observed = np.asarray(built.extras["observed_z_of_node"][node], dtype=float)
-        expected_shape = (len(children), len(cell_indices))
-        if observed.shape != expected_shape:
-            raise ValueError(
-                f"{node} observed data have shape {observed.shape}; expected "
-                f"{expected_shape} from the child/cell indices"
-            )
-        if "observed_data" in trace.children:
-            if node not in trace.observed_data:
-                raise ValueError(f"LCF persisted observed_data is missing {node!r}")
-            persisted = np.asarray(trace.observed_data[node].values, dtype=float)
-            if persisted.shape != observed.shape or not np.allclose(
-                persisted, observed, rtol=0.0, atol=0.0
-            ):
-                raise ValueError(
-                    f"LCF persisted observations for {node!r} do not match the "
-                    "rebuilt model data"
-                )
-        groups.append((children, cell_indices, observed))
-        all_children.extend(children.tolist())
-
-    used_children = np.asarray(sorted(all_children), dtype=int)
-    if len(np.unique(used_children)) != len(used_children):
-        raise ValueError("LCF observed-pattern groups assign a child more than once")
-    expected_children = int(built.extras["n_used_children"])
-    if len(used_children) != expected_children:
-        raise ValueError(
-            f"LCF observed-pattern groups cover {len(used_children)} children; "
-            f"expected {expected_children}"
-        )
-    child_column = {child: i for i, child in enumerate(used_children)}
-
-    log_likelihood = np.full(
-        (n_chains, n_draws, expected_children), np.nan, dtype=float
-    )
-    log_2pi = np.log(2.0 * np.pi)
-    for chain in range(n_chains):
-        for draw_start in range(0, n_draws, chunk_size):
-            draw_stop = min(draw_start + chunk_size, n_draws)
-            means = np.asarray(
-                mean_z.isel(chain=chain, draw=slice(draw_start, draw_stop))
-            )
-            covariances = np.asarray(
-                sigma_z.isel(chain=chain, draw=slice(draw_start, draw_stop))
-            )
-            for children, cell_indices, observed in groups:
-                covariance = covariances[:, cell_indices[:, None], cell_indices]
-                mean = means[:, cell_indices]
-                chol = np.linalg.cholesky(covariance)
-                residual = observed[None, :, :] - mean[:, None, :]
-                whitened = np.linalg.solve(chol, np.swapaxes(residual, 1, 2))
-                quadratic = np.sum(whitened**2, axis=1)
-                log_determinant = 2.0 * np.sum(
-                    np.log(np.diagonal(chol, axis1=1, axis2=2)), axis=1
-                )
-                values = -0.5 * (
-                    len(cell_indices) * log_2pi
-                    + log_determinant[:, None]
-                    + quadratic
-                )
-                columns = np.asarray(
-                    [child_column[int(child)] for child in children], dtype=int
-                )
-                # Advanced indexing places the child dimension first on the target.
-                log_likelihood[chain, draw_start:draw_stop, columns] = values.T
-
-    if not np.isfinite(log_likelihood).all():
-        raise ValueError("LCF per-child log likelihood contains non-finite values")
-
-    return xr.DataArray(
-        log_likelihood,
-        dims=("chain", "draw", "child_lcf"),
-        coords={
-            "chain": mean_z.coords["chain"],
-            "draw": mean_z.coords["draw"],
-            "child_lcf": used_children,
-        },
-        name="lcf_child",
-    )
-
-
-def _lcf_log_prior(trace, model):
-    """Compute exact constrained-scale LCF log-prior terms.
-
-    PyMC 6.1's generic ``compute_log_prior`` removes transforms but then supplies
-    the posterior's random-variable names to the resulting value variables. For
-    ``LKJCorr`` those names differ (for example ``trait_corr_chol`` versus
-    ``trait_corr_chol_cholesky``), so the generic helper fails before evaluation.
-
-    Isolate the version-sensitive workaround here: build the same transform-free
-    model PyMC uses, rename constrained posterior inputs to its value-variable names,
-    and apply the compiled elementwise prior density over chain and draw. Keeping
-    the component terms (rather than only their sum) preserves the standard
-    ``log_prior`` contract used by power-scaling sensitivity diagnostics.
-    """
-    from pymc.backends.arviz import (
-        apply_function_over_dataset,
-        coords_and_dims_for_inferencedata,
-    )
-    from pymc.model.transform.conditioning import remove_value_transforms
-
-    posterior_node = trace.posterior
-    posterior = (
-        posterior_node.to_dataset()
-        if hasattr(posterior_node, "to_dataset")
-        else posterior_node
-    )
-    original_names = [rv.name for rv in model.free_RVs]
-    missing = sorted(set(original_names) - set(posterior.data_vars))
-    if missing:
-        raise ValueError(f"LCF posterior is missing free variables: {missing}")
-
-    untransformed_model = remove_value_transforms(model)
-    prior_rvs = list(untransformed_model.free_RVs)
-    inputs = posterior[original_names]
-    rename = {
-        rv.name: untransformed_model.rvs_to_values[rv].name
-        for rv in prior_rvs
-        if rv.name != untransformed_model.rvs_to_values[rv].name
-    }
-    inputs = inputs.rename(rename)
-    inputs = inputs.astype(
-        {
-            value.name: value.type.dtype
-            for value in untransformed_model.value_vars
-        },
-        copy=False,
-    )
-    logp_fn = untransformed_model.compile_fn(
-        inputs=untransformed_model.value_vars,
-        outs=untransformed_model.logp(vars=prior_rvs, sum=False),
-        on_unused_input="ignore",
-    )
-    coords, dims = coords_and_dims_for_inferencedata(untransformed_model)
-    result = apply_function_over_dataset(
-        logp_fn,
-        inputs,
-        output_var_names=[rv.name for rv in prior_rvs],
-        sample_dims=("chain", "draw"),
-        coords=coords,
-        dims=dims,
-        progressbar=False,
-    )
-    if any(not np.isfinite(variable).all() for variable in result.data_vars.values()):
-        raise ValueError("LCF log-prior contains non-finite values")
-    return result
+# The LCF exact child-level log-likelihood and constrained-scale log-prior
+# recovery are substantive numerical algorithms, isolated in ``lcf_inference``
+# so they are testable independently of report publication (#394, pillar 7).
+# Re-exported here under their historical private names for existing callers.
+_lcf_child_log_likelihood = _lcf_inference.child_log_likelihood
+_lcf_log_prior = _lcf_inference.log_prior
 
 
 def _lcf_stitch_loo(ctx: StatisticalFitContext, built) -> None:
