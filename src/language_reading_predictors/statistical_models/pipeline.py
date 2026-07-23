@@ -4866,6 +4866,9 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 varying_term="",
                 moderators=trt_moderators,
                 row_mask=p1_mask,
+                # Treatment interactions make beta_trt and the AME diverge in sign, so
+                # the reported direction follows the marginal effect, not the coefficient (#391).
+                direction_from_ame=True,
             )
             rope_df = pd.DataFrame([rope_s])
             rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
@@ -4892,6 +4895,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 ctx.trace, G=trt, n_trials=1, delta=delta_prob,
                 ci_prob=ctx.reporting.ci_prob, term="beta_trt", varying_term="",
                 moderators=trt_moderators, row_mask=p1_mask,
+                direction_from_ame=True,  # direction from the off-floor RD AME, not beta_trt (#391)
             )
             rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
             rope_s["delta_scale"] = "risk_difference"

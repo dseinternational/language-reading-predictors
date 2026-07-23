@@ -466,6 +466,7 @@ def rope_summary(
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     row_mask: np.ndarray | None = None,
+    direction_from_ame: bool = False,
 ) -> dict[str, float | str]:
     """ROPE-anchored continuous report card for a randomised treatment effect.
 
@@ -489,6 +490,12 @@ def rope_summary(
     and ``G`` the on-intervention indicator. See
     ``notes/202606261304-evidence-strength-and-rope-reporting.md`` for the rationale
     (sign-vs-size, the median convention, the δ choice).
+
+    ``direction_from_ame`` (default False → ITT behaviour unchanged): when True the
+    direction fields (``pd`` / ``direction_label`` / ``favoured_direction*``) are taken
+    from the probability-scale AME rather than the coefficient, and ``pd_coef`` records
+    the coefficient direction. The gain-factor family sets this because its treatment
+    interactions make the coefficient and the marginal effect diverge in sign (#391).
     """
     effect_draws, ame_prob = _itt_ame_draws(
         trace,
@@ -508,9 +515,33 @@ def rope_summary(
     def _is90(key: str) -> bool:
         return key.endswith("_lo90") or key.endswith("_hi90")
 
+    # rope_card derives its direction fields (``pd`` / ``direction_label`` /
+    # ``favoured_direction*``) from the first argument — the coefficient draws. With
+    # active treatment interactions the coefficient and the marginal effect can differ
+    # in sign per draw, so ``direction_from_ame`` re-derives the direction from the
+    # probability-scale AME (the reported estimand), exactly as ``tau_summary_itt``,
+    # and keeps the coefficient direction as ``pd_coef`` (#391). Benefit/harm/ROPE
+    # already use the items (AME) draws, so they are unaffected.
+    def _redirect_from_ame(mapping):
+        prob_ame_pos = float(np.mean(ame_prob > 0))
+        mapping["pd_coef"] = mapping["pd"]
+        mapping["pd"] = prob_ame_pos
+        mapping["direction_label"] = evidence_label(prob_ame_pos)
+        mapping.update(favoured_direction(prob_ame_pos))
+        return mapping
+
     if isinstance(card, dict):
-        return {k: v for k, v in card.items() if not _is90(k)}
-    return card.drop(columns=[c for c in card.columns if _is90(c)])
+        card = {k: v for k, v in card.items() if not _is90(k)}
+        return _redirect_from_ame(card) if direction_from_ame else card
+    card = card.drop(columns=[c for c in card.columns if _is90(c)])
+    if direction_from_ame:
+        prob_ame_pos = float(np.mean(ame_prob > 0))
+        card["pd_coef"] = float(card["pd"].iloc[0])
+        card["pd"] = prob_ame_pos
+        card["direction_label"] = evidence_label(prob_ame_pos)
+        for _k, _v in favoured_direction(prob_ame_pos).items():
+            card[_k] = _v
+    return card
 
 
 def rope_sensitivity(
@@ -2484,13 +2515,17 @@ def treatment_marginal_effect(
     equal-tailed ``ci_prob`` interval. Point estimates are the **median** —
     transformation-invariant across the logit and items scales, matching the ROPE
     convention adopted in #130 (notes/202606261304-evidence-strength-and-rope-
-    reporting.md). ``prob_trt_pos`` is ``P(term > 0)`` on the logit scale.
+    reporting.md). ``prob_trt_pos`` is the probability of direction of the **marginal
+    effect** (``P(AME > 0)``); ``prob_trt_logit_pos`` keeps ``P(term > 0)`` as a
+    coefficient-scale diagnostic.
 
     ``row_mask`` (default None = all fitted rows): restrict the observation average to
     a row subset. The gain-factor family passes the **period-1** mask (``phase == 0``)
     so the marginal is averaged only over the genuinely randomised transition, not the
-    post-crossover ones that carry no untreated observations (#247 P2). The logit-scale
-    ``prob_trt_pos`` is unaffected — it summarises the ``term`` draws directly.
+    post-crossover ones that carry no untreated observations (#247 P2). The direction
+    probability follows that same marginal effect: with active treatment interactions
+    the coefficient and the AME can differ in sign per draw, so ``prob_trt_pos`` is
+    ``P(AME > 0)``, not ``P(term > 0)`` (#391) — mirroring ``tau_summary_itt``.
     """
     b, ame_prob = _itt_ame_draws(
         trace,
@@ -2517,7 +2552,13 @@ def treatment_marginal_effect(
         "trt_items_hi": float(np.quantile(ame_items, hi_q)),
         "trt_items_lo50": items_lo50,
         "trt_items_hi50": items_hi50,
-        "prob_trt_pos": float(np.mean(b > 0)),
+        # Direction of the *marginal effect* (the reported estimand). With active
+        # treatment interactions the coefficient ``b`` and the per-draw AME differ in
+        # sign, so the probability of direction must summarise ``ame_prob``, not ``b``
+        # (#391); the coefficient direction is kept as an explicit diagnostic. Mirrors
+        # ``tau_summary_itt``'s ``prob_ame_pos`` / ``prob_tau_logit_pos`` convention.
+        "prob_trt_pos": float(np.mean(ame_prob > 0)),
+        "prob_trt_logit_pos": float(np.mean(b > 0)),
     }
 
 
