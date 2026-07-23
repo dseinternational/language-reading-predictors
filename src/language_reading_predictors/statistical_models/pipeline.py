@@ -476,6 +476,32 @@ def _prior_table_overrides(
                 "beta_G": "association",
             }
         )
+        # role is demoted above, but without a rationale override each RV would
+        # inherit its reused constructor's docstring ("Treatment effect tau…" for
+        # beta_G, "Linear-mechanism slope beta_mech…" for the dose slopes).
+        rationale.update(
+            {
+                "beta_G": (
+                    "Intervention-arm (G) backdoor adjustment: the confounder of the "
+                    "dose->outcome edge; an adjusted association, not the randomised "
+                    "treatment effect."
+                ),
+                "mu_dose": (
+                    "Average (pooled) per-period dose-response slope; outcome-logit "
+                    "change per 1 SD of per-period dose — the model's focal "
+                    "adjusted-association estimand."
+                ),
+                "beta_dose_phase": (
+                    "Partial-pooled per-period dose-response slopes; each period's "
+                    "outcome-logit change per 1 SD of dose, an adjusted association."
+                ),
+                "beta_dose": (
+                    "Single pooled dose-response slope (no period variation); the "
+                    "comparator's focal adjusted-association estimand, not a mechanism "
+                    "slope."
+                ),
+            }
+        )
     elif spec.kind == "did":
         # Time offsets and every post-crossover term are associations.  Only the
         # saturated arm-by-wave model's t2 arm gap is licensed by randomisation.
@@ -569,31 +595,132 @@ def _prior_table_overrides(
         # mediator-outcome confounder). See the :mod:`mediation` module docstring.
         role["a_G"] = "association"
         role["b_G"] = "association"
-        # B3 (review 2026-07-13): in the SINGLE-mediator outcome leg every confounder
-        # coefficient is ``b_{symbol}`` built from gamma_cross_prior (Normal(0, 0.3)).
-        # But ``b_E``/``b_B`` are *also* globally mapped to the ``b_path`` constructor
-        # (Normal(0, 1)) for the TWO-mediator models, where E/B are the mediators —
-        # so in LRP59/62/78 (E a confounder) that global mapping mislabels the prior
-        # table's rationale + panel (the distribution column, read off the RV, stays
-        # correct). Route every confounder ``b_X`` (X not a structural term) to
-        # gamma_cross. ``mediation_multi`` is left alone: there b_L/b_E or b_L/b_B ARE
-        # the mediator b-paths, and its other confounders already route to gamma_cross
-        # via the RV-distribution fallback.
-        if spec.kind == "mediation" and context.model is not None:
-            _structural_b = {"M", "G", "GM", "W", "A"}
+        rationale["a_G"] = (
+            "Group->mediator (a-path) coefficient (tau-scaled Normal(0, 0.5)); a "
+            "structural g-formula building block, an adjusted association, not the "
+            "reported estimand."
+        )
+        rationale["b_G"] = (
+            "Group->outcome direct-path (c') coefficient (tau-scaled Normal(0, 0.5)); "
+            "a structural g-formula building block, an adjusted association, not an "
+            "identified natural effect and not the reported estimand."
+        )
+        # B3 (review 2026-07-13; generalised #384). A confounder coefficient in the
+        # a-/b-legs is built from gamma_cross_prior (Normal(0, 0.3)); a genuine
+        # mediator b-path is b_path (Normal(0, 1)) and an own-baseline autoregression
+        # is gamma_own (Normal(1, 0.25)). Reused names are ctor-mapped by NAME to the
+        # wrong panel — b_E/b_B are globally mapped to b_path (mediators) yet are
+        # confounders in LRP66/75; a_L is mapped to gamma_own (own-baseline) yet is a
+        # cross-baseline confounder in LRP68/80 where the own-baseline is a_TE/a_TR —
+        # so the rationale + panel misreport them (the distribution column, read off
+        # the RV, stays correct). Detect confounders by their fitted scale and route
+        # to gamma_cross for BOTH kinds. a_G/b_G (tau, 0.5) and the reported b_M
+        # (b_path, 1.0) never match Normal(0, 0.3), so their explicit labels stand.
+        if context.model is not None:
             for rv in context.model.free_RVs:
-                if rv.name.startswith("b_") and rv.name[2:] not in _structural_b:
+                # Per-mediator group->mediator a-paths in the two-mediator model are
+                # named a{sym}_G (aL_G / aE_G / aB_G) rather than a_G; they are the
+                # tau-scaled a-paths and otherwise carry an empty rationale.
+                if (
+                    rv.name != "a_G"
+                    and rv.name.startswith("a")
+                    and rv.name.endswith("_G")
+                ):
+                    rationale.setdefault(
+                        rv.name,
+                        "Group->mediator (a-path) coefficient for one mediator "
+                        "(tau-scaled Normal(0, 0.5)); a structural g-formula building "
+                        "block, an adjusted association, not the reported estimand.",
+                    )
+                    continue
+                if rv.name in ("a_G", "b_G"):
+                    continue
+                if not (rv.name.startswith("a_") or rv.name.startswith("b_")):
+                    continue
+                dist = (_priors._dist_from_rv(rv) or "").replace(" ", "")
+                # Scale-string-fragile (#384 review, Frank, non-blocking): this keys
+                # the confounder reroute off the exact ``Normal(0, 0.3)`` scale. The
+                # explicit a_G/b_G (tau 0.5) and reported b_M (b_path 1.0) carve-outs
+                # above never match it, so it is correct today — but a future
+                # confounder built at a different scale, or a genuine reported path
+                # that happens to be Normal(0, 0.3), would be silently mislabelled.
+                # Labelling-only risk; no estimand is affected.
+                if dist == "Normal(0,0.3)":
                     ctor[rv.name] = "gamma_cross"
+                    role[rv.name] = "association"
+                    rationale[rv.name] = (
+                        "Cross-baseline confounder coupling in the mediation legs "
+                        "(Normal(0, 0.3)); an adjusted association, not a mediator "
+                        "a-/b-path and not the reported estimand."
+                    )
+        # Period-stacked two-mediator model (med-092). b_trt (direct path, tau 0.5)
+        # and b_phase (per-phase offset, Normal(0, 0.5)) are not rerouted above (not
+        # 0.3) but would inherit empty/misleading rationales; b_trtM (exposure x
+        # mediator, gamma_cross 0.3) IS rerouted above but wants a specific
+        # description. These names are unique to med-092, so the overrides are inert
+        # on other models (no matching row). Set after the loop so b_trtM wins.
+        rationale["b_trt"] = (
+            "Per-period on-intervention direct-path coefficient (tau-scaled "
+            "Normal(0, 0.5)); a structural g-formula building block leaning on "
+            "gain-factor ignorability, an adjusted association, not a cross-baseline "
+            "coupling."
+        )
+        rationale["b_phase"] = (
+            "Per-phase intercept/period offset (Normal(0, 0.5)); an "
+            "age/maturation/period association, not a cross-baseline skill coupling."
+        )
+        rationale["b_trtM"] = (
+            "Exposure x mediator interaction (on-intervention x standardised "
+            "mediator; Normal(0, 0.3)); admits exposure-mediator interaction in the "
+            "g-formula, not a cross-baseline coupling."
+        )
     elif spec.kind == "mechanism":
         # ``beta_G`` reuses the tau constructor (its Normal(0, 0.5) scale) but here
         # it is the group main effect entered as a DAG backdoor adjustment, not the
-        # randomised ITT effect — an adjusted association, not a causal term.
+        # randomised ITT effect — an adjusted association, not a causal term. The
+        # role is demoted but the rationale still inherits the tau docstring, so set
+        # it explicitly. ``f_mech__ell`` is built with ell_prior_mech() = IG(5, 5)
+        # (#265) but the ``__ell`` suffix routes it to the default ell constructor
+        # whose docstring says IG(3, 1); the distribution column (read off the RV)
+        # correctly shows IG(5, 5), so the rationale contradicts its own row.
         role["beta_G"] = "association"
+        rationale["beta_G"] = (
+            "Group main effect entered as a DAG backdoor adjustment (reuses the tau "
+            "Normal(0, 0.5) scale); an adjusted association, not the randomised "
+            "treatment effect."
+        )
+        rationale["f_mech__ell"] = (
+            "Mechanism-curve GP lengthscale ell ~ InverseGamma(5, 5) on standardised "
+            "inputs (issue #265)."
+        )
     elif spec.kind == "aligned":
         ctor["beta_cohort"] = "tau"
         role["beta_cohort"] = "association"
+        rationale["beta_cohort"] = (
+            "Per-protocol cohort contrast (immediate vs wait-list) at onset-aligned "
+            "endpoints; an adjusted association confounded by age-at-onset and "
+            "cohort/timing, never the randomised treatment effect."
+        )
+        rationale["gamma_ability"] = (
+            "Cognitive-ability (block design) covariate coupling ~ Normal(0, 0.3); an "
+            "adjusted association, not a cross-baseline coupling."
+        )
+        rationale["gamma_dose"] = (
+            "Within-arm cumulative-session dose coupling ~ Normal(0, 0.3); a "
+            "collider-adjusted sensitivity association, never a causal dose effect."
+        )
     elif spec.kind == "adjusted" and context.model is not None:
         for rv in context.model.free_RVs:
+            # Cohort group-nuisance dummies are classified as inline nuisances in
+            # priors.prior_info_for_rv (prefix match) — do not sweep them into the
+            # predictor-slope/association bucket here.
+            if rv.name.startswith("beta_group_nuisance"):
+                continue
+            # Missing-data indicators (beta_{cov}_missing) are handled by the
+            # universal missing-indicator sweep below (role nuisance, #384 review) —
+            # skip them here so they are not tagged as predictor-slope associations.
+            if rv.name.endswith("_missing"):
+                continue
             if rv.name.startswith("beta_"):
                 ctor[rv.name] = "predictor_slope"
                 role[rv.name] = "association"
@@ -601,9 +728,32 @@ def _prior_table_overrides(
         # Baseline non-verbal ability -> trajectory shape (gamma on the growth rate,
         # delta on the baseline level): adjusted, latent-GA-confounded associations,
         # never causal — routed to the predictor-slope panel / association role.
-        for _rv in ("gamma", "delta"):
+        # gamma_age (baseline-age main effect) and gamma_int (the #228 item-10
+        # baseline age x ability interaction) are also association slopes, but their
+        # names fall through the ``gamma`` prefix to the gamma_cross panel + its
+        # "cross-baseline coupling gamma_k" docstring — the wrong quantity.
+        for _rv in ("gamma", "delta", "gamma_age", "gamma_int"):
             ctor[_rv] = "predictor_slope"
             role[_rv] = "association"
+        rationale["gamma_age"] = (
+            "Baseline (t1) age main effect on the growth rate (gamma_age * age0); an "
+            "adjusted, GA-confounded association, not a cross-baseline coupling."
+        )
+        rationale["gamma_int"] = (
+            "Baseline age x ability interaction on the growth rate (the #228 item-10 "
+            "headline: older-and-more-able children grow faster than age and ability "
+            "predict separately); an adjusted, GA-confounded association, never "
+            "causal."
+        )
+        # ``loading`` (rank-1 growth-tempo factor loading) otherwise inherits the
+        # CFA test->domain measurement-loading fallback text, which is the wrong
+        # model — override the rationale (role/association already correct).
+        rationale["loading"] = (
+            "Positive loading (HalfNormal(0.5)) of the shared child-level "
+            "growth-tempo factor G onto measure k's growth rate; a rank-1 stand-in "
+            "for cross-measure slope covariation, not a CFA test->domain measurement "
+            "loading."
+        )
     elif spec.kind == "level_factors" and spec.extra.get("group_by_time", True):
         # The prior table is one row per RV, while ``b_grp_time`` is a vector whose
         # elements have different interpretation: only b_grp_time[1] is the clean
@@ -615,6 +765,103 @@ def _prior_table_overrides(
             "randomised t2 contrast, while the vector row is documented "
             "conservatively because other elements are pre-randomisation or "
             "post-crossover associations."
+        )
+    elif spec.kind == "itt":
+        # adjust_for covariates are built as gamma_{covariate} from gamma_cross_prior,
+        # so they inherit the gamma_cross panel's "cross-baseline coupling gamma_k"
+        # rationale + association role. They are pre-randomisation adjustment/precision
+        # covariates, not cross-baseline skill couplings: under randomisation a
+        # baseline covariate is balanced across arms in expectation, so it cannot
+        # confound tau and only sharpens it — the definition of a precision covariate.
+        # ``blocks``/``area`` and the SES adjusters (parental education, age first
+        # exposed to books) are all documented "precision covariate" in their modules,
+        # so the role is quoted, not inferred (#384 review, Frank: promote SES to
+        # precision — identical causal status to blocks/area).
+        _quoted_precision = {"blocks", "area", "mumedupost16", "dadedupost16", "agebooks"}
+        for c in spec.extra.get("adjust_for", ()):
+            name = f"gamma_{c}"
+            if c in _quoted_precision:
+                role[name] = "precision"
+                rationale[name] = (
+                    f"Baseline adjustment/precision covariate ({c}) ~ Normal(0, 0.3); "
+                    "a pre-randomisation term that sharpens tau and cannot confound "
+                    "the randomised effect, not a cross-baseline coupling."
+                )
+            else:
+                rationale[name] = (
+                    f"Pre-randomisation adjustment covariate ({c}) ~ Normal(0, 0.3); "
+                    "a robustness adjustment that cannot confound the randomised "
+                    "effect (balanced across arms in expectation), not a "
+                    "cross-baseline coupling."
+                )
+    elif spec.kind == "corr_factor" and context.model is not None:
+        _rv_names = {rv.name for rv in context.model.free_RVs}
+        if "beta_G" in _rv_names:
+            # The randomised arm G enters mm-002 as a mech-058 backdoor covariate on
+            # the predictor_slope prior (Normal(0, 0.3)); it reuses the ``beta_G``
+            # name, so _RV_TO_CTOR maps it to ``tau`` (role causal + "Treatment
+            # effect tau" rationale) — the most severe mislabel, a causal claim the
+            # model explicitly disowns. Route to predictor_slope + association.
+            ctor["beta_G"] = "predictor_slope"
+            role["beta_G"] = "association"
+            rationale["beta_G"] = (
+                "Randomised arm G entered as an adjusted-association (mech-058) "
+                "backdoor covariate on the standardised predictor_slope prior, not "
+                "the randomised ITT effect (the causal claim lives in the ITT suite)."
+            )
+        if "factor_cov" in _rv_names:
+            # ``factor_cov``'s off-diagonals are the reported factor-correlation
+            # matrix (exposed as the ``factor_corr_pairs`` deterministic the strict
+            # gate evaluates), so it is an ``association`` — the same carve-out this
+            # branch already applies to ``measure_corr_chol`` / ``trait_corr_chol`` /
+            # ``state_corr_chol_w``, one step more direct. Only the discarded
+            # ``sd_dist`` scales are nuisance (scale is carried by the loadings),
+            # which is why the fallback originally lumped it with ``u_chol`` / ``chol``
+            # (#384 review, Frank: promote nuisance -> association).
+            role["factor_cov"] = "association"
+            rationale["factor_cov"] = (
+                "LKJ(eta=2) prior on the domain-factor correlation matrix (the SDs "
+                "are discarded; scale is carried by the loadings); its off-diagonals "
+                "are the reported factor-correlation matrix — the study's headline "
+                "descriptive association."
+            )
+    elif spec.kind == "concurrent" and context.model is not None:
+        # The focal concurrent skill coefficients are ``beta``/``beta_age``; every
+        # ``gamma_{c}`` is a trait-covariate adjustment (non-verbal ability, hearing,
+        # speech, phonological memory) built from predictor_slope_prior (Normal(0,
+        # 0.3)). The ``gamma`` prefix routes them to the gamma_cross panel + its
+        # "cross-baseline coupling" docstring — the wrong quantity.
+        for rv in context.model.free_RVs:
+            if rv.name.startswith("gamma_"):
+                ctor[rv.name] = "predictor_slope"
+                role[rv.name] = "association"
+                rationale[rv.name] = (
+                    "Trait-covariate adjustment slope (non-verbal ability / hearing / "
+                    "speech / phonological-memory t1 baseline; Normal(0, 0.3)); a "
+                    "regularised adjusted association, not a between-skill "
+                    "cross-baseline coupling."
+                )
+    elif spec.kind == "block_exposure":
+        # ``delta`` reuses the tau constructor (role causal), but it is the
+        # block-active exposure shift in the block-2 taught-vocabulary logit — a
+        # parallel-trends association, not a randomised treatment effect. Plain
+        # assignment (not setdefault) so the distal `is_distal` block below keeps its
+        # tau_distal *panel* for bx-003/004 while the role stays association.
+        role["delta"] = "association"
+        rationale["delta"] = (
+            "Block-active exposure shift in the block-2 taught-vocabulary logit; a "
+            "parallel-trends association ('block-2-active vs block-1-active'), not a "
+            "randomised treatment effect."
+        )
+    elif spec.kind == "survival":
+        # The cloglog survival models set causal_status='none' (by t4 both arms are
+        # treated), so ``tau`` is a prognostic association anchored on the immediate
+        # arm's randomised first interval, not a randomised treatment effect.
+        role["tau"] = "association"
+        rationale["tau"] = (
+            "Intervention-aligned treatment hazard shift; a prognostic association "
+            "anchored on the immediate arm's randomised first interval, not a "
+            "randomised treatment effect of record (both arms are treated by t4)."
         )
 
     # Distal outcomes take the tighter tau prior (issue #141): the factory built
@@ -641,6 +888,29 @@ def _prior_table_overrides(
         # (the distribution column already reads the true 1.0 off the built RV).
         ctor.setdefault("alpha", "alpha_distal")
         ctor.setdefault("alpha_offset", "alpha_distal")
+
+    # Missing-data-indicator coefficients (beta_{cov}_missing) are subgroup
+    # mean-offsets under the missing-indicator method — confounded with the constant
+    # fill value and well known to be uninterpretable as an effect (Greenland &
+    # Finkle 1995, Am J Epidemiol 142(12):1255-64; Groenwold et al. 2012, CMAJ
+    # 184(11):1265-9) — so they are nuisance, not predictor-slope associations, in
+    # every family that carries them (currently the adjusted LRP65 and the
+    # correlated-factor mm-002). Swept once here rather than per kind (#384 review,
+    # Frank). The distribution column, read off the RV, still shows the true
+    # predictor_slope Normal(0, 0.3). See also the predictor_associations.csv filter
+    # in the adjusted/RLM writers, which keeps the reported-associations table from
+    # contradicting this nuisance label.
+    if context.model is not None:
+        for rv in context.model.free_RVs:
+            if rv.name.startswith("beta_") and rv.name.endswith("_missing"):
+                ctor.setdefault(rv.name, "predictor_slope")
+                role[rv.name] = "nuisance"
+                rationale[rv.name] = (
+                    f"Missing-data indicator ({rv.name[len('beta_') :]} = 1 when the "
+                    "value is unknown/imputed); a subgroup mean-offset under the "
+                    "missing-indicator method, confounded with the fill value and not "
+                    "interpretable as a substantive standardised-trait association."
+                )
 
     return ctor, role, rationale
 
@@ -5915,6 +6185,16 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             }
         )
     assoc_df = pd.DataFrame(rows)
+    # Missing-data-indicator coefficients are subgroup mean-offsets under the
+    # missing-indicator method, not interpretable predictor associations — the same
+    # basis on which the prior table now labels them nuisance (the missing-indicator
+    # sweep in _prior_table_overrides; #384 review, Frank). Keep them out of the
+    # reported associations table + forest so it does not contradict that nuisance
+    # label; they remain in the fitted model (as adjusters) and in the full
+    # diagnostics summary above.
+    _missing_mask = assoc_df["predictor"].astype(str).str.endswith("_missing")
+    if _missing_mask.any():
+        assoc_df = assoc_df[~_missing_mask].reset_index(drop=True)
     assoc_df.to_csv(
         os.path.join(ctx.output_dir, "predictor_associations.csv"), index=False
     )
