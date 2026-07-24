@@ -277,21 +277,21 @@ cumulative-session dose sensitivity term (a collider — sensitivity only).
 phases, with subject random intercepts and optional linear moderation. Every slope is an
 **adjusted association** (latent-ability confounded), not a causal effect.
 
-| Model                         | Path     | Purpose                                                                                                                   |
-| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `lrp-rli-mech-056`            | `R → W`  | Receptive vocabulary → word reading                                                                                       |
-| `lrp-rli-mech-057`            | `E → W`  | Expressive vocabulary → word reading                                                                                      |
-| `lrp-rli-mech-058`            | `L → W`  | Letter-sound knowledge → word reading                                                                                     |
-| `lrp-rli-mech-071`            | `L → W`  | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                                              |
-| `lrp-rli-mech-072` / `72base` | `L → N`  | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction)                     |
-| `lrp-rli-mech-073` / `73base` | `L → W`  | Letter sounds → word reading, moderated by age (with / without the interaction)                                           |
-| `lrp-rli-mech-061` / `161`    | `L → W`  | Joint readiness: letter sounds moderated by phoneme blending `B` → word reading (with / without the interaction; #404)    |
-| `lrp-rli-mech-063` / `163`    | `L → W`  | Joint readiness: letter sounds moderated by nonword decoding `N` → word reading (with / without the interaction; #404)    |
-| `lrp-rli-mech-088`            | `TR → W` | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)                               |
-| `lrp-rli-mech-089`            | `TE → W` | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                             |
-| `lrp-rli-mech-090`            | `RW → W` | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor) |
+| Model                         | Path     | Purpose                                                                                                                                          |
+| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lrp-rli-mech-056`            | `R → W`  | Receptive vocabulary → word reading                                                                                                              |
+| `lrp-rli-mech-057`            | `E → W`  | Expressive vocabulary → word reading                                                                                                             |
+| `lrp-rli-mech-058`            | `L → W`  | Letter-sound knowledge → word reading                                                                                                            |
+| `lrp-rli-mech-071`            | `L → W`  | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                                                                     |
+| `lrp-rli-mech-072` / `72base` | `L → N`  | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction)                                            |
+| `lrp-rli-mech-073` / `73base` | `L → W`  | Letter sounds → word reading, moderated by age (with / without the interaction)                                                                  |
+| `lrp-rli-mech-061` / `161`    | `L → W`  | Joint readiness: letter sounds moderated by phoneme blending `B` → word reading (with / without the interaction; #404)                           |
+| `lrp-rli-mech-063` / `163`    | `L → W`  | Joint readiness: letter sounds moderated by nonword decoding `N` → word reading (with / without the interaction; #404)                           |
+| `lrp-rli-mech-088`            | `TR → W` | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)                                                      |
+| `lrp-rli-mech-089`            | `TE → W` | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                                                    |
+| `lrp-rli-mech-090`            | `RW → W` | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor)                        |
 | `lrp-rli-mech-106`            | `RW → N` | Phonological memory → nonword decoding (#421; alphabetic-route counterpart of mech-090; covariate exposure, adjust `HS`, linear/floored outcome) |
-| `lrp-rli-mech-107`            | `SP → N` | Speech production → nonword decoding (#421; first SP-exposure mechanism; covariate exposure, adjust `HS`, linear/floored outcome) |
+| `lrp-rli-mech-107`            | `SP → N` | Speech production → nonword decoding (#421; first SP-exposure mechanism; covariate exposure, adjust `HS`, linear/floored outcome)                |
 
 ### Mediation — `lrp-rli-med` (`kind="mediation"` / `"mediation_multi"`)
 
