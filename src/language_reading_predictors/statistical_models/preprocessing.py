@@ -144,6 +144,13 @@ class PreparedData:
     """Absolute path of the CSV used to construct this prepared dataset."""
     data_sha256: str = ""
     """SHA-256 digest of the CSV used to construct this prepared dataset."""
+    dropped_by_reason: dict[str, int] = field(default_factory=dict)
+    """Row exclusions attributed by reason, so :attr:`dropped_rows` is not one
+    opaque count (#390 P3). The loader records its own drops under ``"loader"``;
+    each factory :func:`~...factories._subset` adds its keep-mask drops under a
+    reason label (default ``"factory_stage"``). Values always sum to
+    :attr:`dropped_rows`; a family that needs a finer split (e.g. the DiD
+    analysis-row contract's design vs missing counts) records it alongside."""
 
 
 # ---------------------------------------------------------------------------
@@ -756,6 +763,7 @@ def load_and_prepare(
         n_children=int(len(np.unique(child_idx))),
         n_phases=n_phases,
         dropped_rows=dropped,
+        dropped_by_reason={"loader": int(dropped)} if dropped else {},
         phase_mode=phase_mode,
         column_map=column_map,
         data_path=data_path,
@@ -1067,6 +1075,7 @@ def load_and_prepare_aligned(
         n_children=int(len(np.unique(child_idx))),
         n_phases=1,
         dropped_rows=dropped,
+        dropped_by_reason={"loader": int(dropped)} if dropped else {},
         phase_mode="aligned",
         column_map=column_map,
         data_path=data_path,
