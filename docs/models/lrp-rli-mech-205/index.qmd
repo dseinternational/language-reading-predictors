@@ -1,0 +1,45 @@
+---
+title: "LRP205: Letter-sound → word reading with NW main effect, no interaction"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP205 is the no-interaction companion to [LRP105](../lrp-rli-mech-105/). It keeps the same letter-sound mechanism, word-reading outcome, subject random intercept and nonword-decoding (NW) main effect, but sets `include_interaction=False`, so there is no letter-sound × NW `gamma_int` term.
+
+The purpose is a nested comparison: LRP105 versus LRP205 asks whether the NW moderation improves predictive fit beyond the NW main effect (`compare_statistical_models.nw_moderation_loo_compare`). As in LRP105, NW is a mediator and heavily floored, so any signal is a descriptive, floor-limited adjusted association, never causal.
+
+## Model
+
+$$
+\eta = \alpha + \alpha_{\text{phase}} + \beta_G G
+  + f^L(\operatorname{logit}_* L_{\text{post}})
+  + \gamma_{\text{mod}} z(\operatorname{logit}_* \text{NW}_{\text{post}})
+  + \gamma_{\text{own}}\operatorname{logit}_*(W_{\text{pre}})
+  + \gamma_A z(A) + \sum_c \gamma_c z(c) + u_{\text{child}}.
+$$
+
+The omitted term is the LRP105 interaction $\gamma_{\text{int}} z(\operatorname{logit}_* L_{\text{post}})\, z(\operatorname{logit}_* \text{NW}_{\text{post}})$.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

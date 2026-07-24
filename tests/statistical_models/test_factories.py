@@ -660,6 +660,46 @@ def test_mechanism_factory_age_moderator_not_double_counted(tmp_path):
     assert "gamma_A" not in names
 
 
+def test_mechanism_factory_covariate_moderator_non_age(tmp_path):
+    """A non-age covariate moderator (e.g. phonological memory ``erbto``, LRP104)
+    enters via ``gamma_mod`` + ``gamma_int`` from ``prepared.covariates`` — the same
+    read path age uses, but it must be *loaded* first (the ``fit_mechanism``
+    covariate-moderator enabler, #421 Tier 2). Age is not the moderator here, so it
+    stays a plain linear ``gamma_A`` adjuster. The no-interaction companion (LRP204)
+    keeps ``gamma_mod`` but drops ``gamma_int``."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="L",
+        outcome_symbol="W",
+        confounder_symbols=("G", "A"),
+        moderator_symbol="erbto",
+        moderator_is_covariate=True,
+        include_interaction=True,
+        use_age_gp=False,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_mod", "gamma_int", "gamma_A"} <= names
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=11)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+    baseline = build_mechanism_model(
+        prep,
+        mechanism_symbol="L",
+        outcome_symbol="W",
+        confounder_symbols=("G", "A"),
+        moderator_symbol="erbto",
+        moderator_is_covariate=True,
+        include_interaction=False,
+        use_age_gp=False,
+    )
+    base_names = {v.name for v in baseline.model.free_RVs}
+    assert "gamma_mod" in base_names and "gamma_int" not in base_names
+
+
 def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
     """With the age GP on, age is represented by ``f_A``, so the linear
     ``gamma_A`` term is not added (no double adjustment)."""

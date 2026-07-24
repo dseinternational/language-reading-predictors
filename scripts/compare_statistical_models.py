@@ -116,6 +116,13 @@ JOINT_READINESS_LXN_W_LOO_IDS: list[str] = ["lrp-rli-mech-063", "lrp-rli-mech-16
 # outcome — a clean nested PSIS-LOO test of the L x age interaction.
 AGE_LOO_IDS: list[str] = ["lrp-rli-mech-073", "lrp-rli-mech-173"]
 
+# RW / NW moderation of letter-sound -> word reading (#421 Tier 2, review note #424):
+# each interaction model vs its no-interaction baseline, same W outcome -- clean nested
+# PSIS-LOO tests of the L x RW and L x NW interactions. Same shape as the joint-readiness
+# pairs above (moderation on word reading), distinct outcome from PHONICS_LOO_IDS (decoding).
+RW_MODERATION_LOO_IDS: list[str] = ["lrp-rli-mech-104", "lrp-rli-mech-204"]
+NW_MODERATION_LOO_IDS: list[str] = ["lrp-rli-mech-105", "lrp-rli-mech-205"]
+
 # Dose-response (LRP77, #104 Phase 2): the period-varying dose model vs its
 # pooled-dose comparator, same word-reading outcome and rows — a nested PSIS-LOO
 # test of whether the dose-gain slope varies by period.
@@ -1151,6 +1158,22 @@ def age_moderation_loo_compare(config: str, out_path: str) -> bool:
     return _loo_compare(AGE_LOO_IDS, config, out_path)
 
 
+def rw_moderation_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP104 vs its no-interaction baseline (isolates L x RW on word reading)."""
+    if not _loo_compare(RW_MODERATION_LOO_IDS, config, out_path):
+        return False
+    _copy_compare_beside_runs(out_path, RW_MODERATION_LOO_IDS, config)
+    return True
+
+
+def nw_moderation_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LRP105 vs its no-interaction baseline (isolates L x NW on word reading)."""
+    if not _loo_compare(NW_MODERATION_LOO_IDS, config, out_path):
+        return False
+    _copy_compare_beside_runs(out_path, NW_MODERATION_LOO_IDS, config)
+    return True
+
+
 def dose_response_loo_compare(config: str, out_path: str) -> bool:
     """LOO comparison of LRP77 against its pooled-dose comparator (does dose vary by period?)."""
     return _loo_compare(DOSE_LOO_IDS, config, out_path)
@@ -1393,6 +1416,18 @@ def main() -> None:
         print(f"Wrote {age_path}")
     else:
         print("Skipping age-moderation LOO compare: LRP73 / LRP73base runs missing.")
+
+    rw_mod_path = os.path.join(args.out, "rw_moderation_loo_compare.csv")
+    if rw_moderation_loo_compare(args.config, rw_mod_path):
+        print(f"Wrote {rw_mod_path}")
+    else:
+        print("Skipping L x RW -> W LOO compare: LRP104 / LRP204 runs missing.")
+
+    nw_mod_path = os.path.join(args.out, "nw_moderation_loo_compare.csv")
+    if nw_moderation_loo_compare(args.config, nw_mod_path):
+        print(f"Wrote {nw_mod_path}")
+    else:
+        print("Skipping L x NW -> W LOO compare: LRP105 / LRP205 runs missing.")
 
     dose_path = os.path.join(args.out, "dose_response_loo_compare.csv")
     if dose_response_loo_compare(args.config, dose_path):

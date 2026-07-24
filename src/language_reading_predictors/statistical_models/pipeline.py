@@ -3288,6 +3288,21 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         if spec.mechanism_symbol in require_observed:
             extra_load += (f"{spec.mechanism_symbol}_missing",)
         load_covariates = tuple(dict.fromkeys((*adjust_for, *extra_load)))
+    # A covariate moderator that is not intrinsic age (e.g. phonological memory
+    # ``erbto``) must also be loaded: the factory reads it from
+    # ``prepared.covariates`` whereas age alone is intrinsic (``prepared.A_std``).
+    # Mirrors the ``mechanism_is_covariate`` load above; the moderator must not sit
+    # in ``adjust_for`` (the factory gives it ``gamma_mod``, not a plain ``gamma``).
+    if spec.extra.get("moderator_is_covariate") and spec.extra.get(
+        "moderator_symbol"
+    ) not in (None, "A"):
+        mod_sym = spec.extra["moderator_symbol"]
+        if mod_sym in adjust_for:
+            raise ValueError(
+                f"{spec.model_id}: covariate moderator {mod_sym!r} must not also "
+                "appear in adjust_for (it would enter the linear predictor twice)."
+            )
+        load_covariates = tuple(dict.fromkeys((*load_covariates, mod_sym)))
     pre_adj, post_adj = split_covariates_by_wave(load_covariates)
     _kw = {
         "covariates": pre_adj,

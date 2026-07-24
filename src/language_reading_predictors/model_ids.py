@@ -117,6 +117,8 @@ _VARIANT_RENUMBER: dict[str, tuple[str, int]] = {
     "lrpdid07base": ("did", 107),
     "lrp72base": ("mech", 172),
     "lrp73base": ("mech", 173),
+    "lrp104base": ("mech", 204),
+    "lrp105base": ("mech", 205),
     "lrp77a": ("dose", 177),
     "lrp77base": ("dose", 277),
 }
