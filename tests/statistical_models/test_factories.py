@@ -752,6 +752,8 @@ def test_mechanism_factory_mechanism_at_pre_rejects_covariate_exposure(tmp_path)
             mechanism_is_covariate=True,
             mechanism_at_pre=True,
         )
+
+
 def test_joint_mechanism_factory_builds_identified_delta(tmp_path):
     """The bivariate mechanism (#421 Tier 3) stacks two outcomes on one exposure with
     a SINGLE shared child random intercept and a per-outcome linear slope, so the
