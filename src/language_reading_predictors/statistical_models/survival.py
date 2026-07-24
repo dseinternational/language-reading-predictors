@@ -63,7 +63,6 @@ from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.factories import (
     BuiltModel,
-    _variables_dict,
 )
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -294,7 +293,6 @@ def build_survival_model(
 
     return BuiltModel(
         model=model,
-        variables=_variables_dict(model),
         prepared=panel,
         extras={},
     )

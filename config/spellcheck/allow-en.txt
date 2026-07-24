@@ -516,6 +516,7 @@ pyproject
 pytest
 readgrp
 recomputation
+redescribing
 reframing
 reparameterisation
 reparameterise
@@ -527,6 +528,7 @@ resid
 residualisation
 residualise
 residualised
+residualising
 residualization
 residualized
 resumable
@@ -577,9 +579,12 @@ trivariate
 trog
 unadjustable
 unblockable
+chokepoint
+unclustered
 unconfounded
 unconverged
 unfittable
+unidimensionality
 univariates
 unmodelled
 unrepresentable

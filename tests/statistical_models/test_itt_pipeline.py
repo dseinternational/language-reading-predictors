@@ -132,7 +132,6 @@ def fast_pipeline(monkeypatch, tmp_path):
             ),
             prepared=None,
             model=None,
-            model_vars=None,
             prior_samples=None,
             trace=None,
             loo=None,
@@ -553,7 +552,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
 
     def build(data, **kwargs):
         build_calls.append(kwargs)
-        return BuiltModel(_FakeModel(), {}, data)
+        return BuiltModel(_FakeModel(), data)
 
     monkeypatch.setattr(pipeline._factories, "build_itt_model", build)
 
@@ -707,7 +706,7 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
         names = ("alpha", "tau", "gamma_A")
         if likelihood == "beta_binomial":
             names += ("kappa",)
-        return BuiltModel(_FakeModel(names), {}, data)
+        return BuiltModel(_FakeModel(names), data)
 
     monkeypatch.setattr(pipeline._factories, "build_itt_model", build)
 
@@ -811,7 +810,6 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
         build_calls.append(kwargs)
         return BuiltModel(
             _FakeModel(),
-            {},
             data,
             extras={
                 "joint_dependence": "factorised_outcome_marginals",
@@ -943,7 +941,7 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
     monkeypatch.setattr(
         pipeline._factories,
         "build_itt_model",
-        lambda data, **kwargs: BuiltModel(_FakeModel(), {}, data),
+        lambda data, **kwargs: BuiltModel(_FakeModel(), data),
     )
 
     for module, name, label in (

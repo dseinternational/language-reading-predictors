@@ -39,9 +39,6 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-from dse_research_utils.statistics.models.pymc_utils import (
-    get_variables_dict as _variables_dict,
-)
 
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.hsgp import (
@@ -208,7 +205,6 @@ def _standardise_child_baseline(
 @dataclass
 class BuiltModel:
     model: pm.Model
-    variables: dict[str, pt.TensorVariable]
     prepared: PreparedData | WavePanel | LongitudinalPanel
     """The (possibly row-subset) prepared data that the model was built on.
 
@@ -545,7 +541,6 @@ def build_itt_model(
             off_floor = (post > 0).astype(np.int64)
             pm.Bernoulli("y_offfloor", logit_p=eta, observed=off_floor, dims="obs_id")
 
-    variables = _variables_dict(model)
     # Expose the tau-moderator vector so the AME report can net out the full
     # per-row treatment contribution ``(tau + gamma_tau_int·z_M)·G`` when a
     # linear tau moderator with interaction is fitted (Part B; latent — no
@@ -556,7 +551,6 @@ def build_itt_model(
         tau_moderators.append(("gamma_tau_int", np.asarray(z_M, dtype=float)))
     return BuiltModel(
         model=model,
-        variables=variables,
         prepared=prepared,
         extras={"tau_interaction_moderators": tau_moderators},
     )
@@ -816,7 +810,6 @@ def build_joint_model(
     )
     return BuiltModel(
         model=model,
-        variables=_variables_dict(model),
         prepared=prepared,
         extras={
             "joint_dependence": dependence,
@@ -848,6 +841,7 @@ def build_mechanism_model(
     linear_mechanism: bool = False,
     adjust_for: Iterable[str] = (),
     mechanism_is_covariate: bool = False,
+    mechanism_at_pre: bool = False,
 ) -> BuiltModel:
     """
     Mechanism model on the outcome post-score.
@@ -933,6 +927,22 @@ def build_mechanism_model(
     observed exposure rows (``require_observed`` in the loader): mean-imputation
     plus a missingness indicator is an *adjuster* policy and is not acceptable for
     the exposure itself.
+
+    ``mechanism_at_pre`` (default False): take the mechanism regressor from the
+    *period-start* (pre) score of ``mechanism_symbol`` rather than its post score.
+    The default post alignment is the concurrent form (mechanism and outcome both
+    at period-end); setting this True gives the lagged / predictive form
+    ``mechanism_pre -> outcome_post`` which, with ``adjust_baseline_symbol`` the
+    outcome, conditions on the outcome's own period-start level and so estimates
+    whether the period-start mechanism predicts the *change* in the outcome over
+    that period (issue #405: does taught vocabulary predict letter-sound growth?).
+    Only the mechanism's own alignment moves — the outcome stays at post and the
+    autoregressive baseline stays at pre. The pre logit is on the same
+    ``logit_safe`` scale as the post branch and is standardised identically, so the
+    reported slope keeps its per-SD-of-mechanism reading. Incompatible with
+    ``mechanism_is_covariate`` (a standardised covariate has no separate pre score);
+    ``phase_specific_mechanism`` is likewise unaffected. Default-off, so the
+    concurrent mechanism family is byte-identical.
     """
     # Materialise once: ``confounder_symbols`` is iterated several times below
     # (keep-mask, coefficient loop, the "A in confounders" check, and the
@@ -943,6 +953,11 @@ def build_mechanism_model(
     adjust_for = tuple(adjust_for)
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
+    if mechanism_at_pre and mechanism_is_covariate:
+        raise ValueError(
+            "mechanism_at_pre is incompatible with mechanism_is_covariate: a "
+            "standardised covariate exposure has no separate period-start score."
+        )
     if mechanism_is_covariate:
         # A covariate exposure may enter EITHER linearly (a single ``beta_mech``
         # slope) OR as a nonparametric HSGP curve (``linear_mechanism=False``). The
@@ -970,6 +985,11 @@ def build_mechanism_model(
     outcome_post = prepared.post_counts[outcome_symbol]
     if mechanism_is_covariate:
         mechanism_vals = prepared.covariates[mechanism_symbol]
+    elif mechanism_at_pre:
+        # Lagged form: the regressor is the period-start score, so the keep-mask
+        # must require the *pre* value observed (a row may have TR_pre but no
+        # TR_post, or vice versa).
+        mechanism_vals = prepared.pre_logit[mechanism_symbol]
     else:
         mechanism_vals = prepared.post_counts[mechanism_symbol]
 
@@ -999,6 +1019,11 @@ def build_mechanism_model(
         # No n_trials / logit transform exists for it (that is the point of the
         # covariate route: no fabricated denominator).
         mech_input = prepared.covariates[mechanism_symbol]
+    elif mechanism_at_pre:
+        # Period-start regressor, already on the loader's logit-safe scale (the
+        # same transform ``logit_safe`` applies to the post branch), standardised
+        # below exactly as the post logit is.
+        mech_input = prepared.pre_logit[mechanism_symbol]
     else:
         N_mechanism = prepared.n_trials[mechanism_symbol]
         mech_input = logit_safe(
@@ -1241,7 +1266,7 @@ def build_mechanism_model(
             dims="obs_id",
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -1431,7 +1456,7 @@ def build_dose_response_model(
             dims="obs_id",
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -1620,7 +1645,6 @@ def build_did_model(
 
         return BuiltModel(
             model=model,
-            variables=_variables_dict(model),
             prepared=prepared,
             extras={
                 "design": "dose_intensive_margin",
@@ -1785,7 +1809,6 @@ def build_did_model(
 
     return BuiltModel(
         model=model,
-        variables=_variables_dict(model),
         prepared=prepared,
         extras={
             "design": "arm_by_wave",
@@ -2123,7 +2146,7 @@ def build_mediation_model(
         mediator_symbol=mediator_symbol,
         off_floor=off_floor,
     )
-    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared)
     return built, med_data
 
 
@@ -2255,7 +2278,7 @@ def _build_route_composite_model(
         M_pre_std=c_pre_std,
         route_symbols=route_symbols,
     )
-    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared)
     return built, med_data
 
 
@@ -2475,7 +2498,7 @@ def build_two_mediator_model(
         confounder_symbols=confounder_symbols,
         chain=chain,
     )
-    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared)
     return built, med_data
 
 
@@ -2715,7 +2738,7 @@ def build_period_stacked_mediation_model(
         med_sd=float(med_scaler.sd),
         mediator_symbol=mediator_symbol,
     )
-    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared)
     return built, med_data
 
 
@@ -2851,7 +2874,7 @@ def build_adjusted_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -2999,7 +3022,7 @@ def build_concurrent_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -3158,7 +3181,7 @@ def build_horseshoe_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -3508,7 +3531,7 @@ def build_correlated_factor_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -3544,6 +3567,7 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
         A_months=prepared.A_months[keep],
         A_std=prepared.A_std[keep],
         pre_logit={s: v[keep] for s, v in prepared.pre_logit.items()},
+        pre_counts={s: v[keep] for s, v in prepared.pre_counts.items()},
         post_counts={s: v[keep] for s, v in prepared.post_counts.items()},
         covariates={s: v[keep] for s, v in prepared.covariates.items()},
         n_obs=int(keep.sum()),
@@ -3832,7 +3856,6 @@ def build_gain_factors_model(
 
     return BuiltModel(
         model=model,
-        variables=_variables_dict(model),
         prepared=prepared,
         extras={"trt_interaction_moderators": trt_moderators},
     )
@@ -3998,7 +4021,7 @@ def build_level_factors_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 def build_block_exposure_model(
@@ -4158,7 +4181,7 @@ def build_block_exposure_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 def build_aligned_model(
@@ -4257,7 +4280,7 @@ def build_aligned_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -4636,7 +4659,7 @@ def build_lcsm_model(
             observed=counts_int[idx_i, idx_t, idx_k],
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
+    return BuiltModel(model=model, prepared=panel)
 
 
 def build_growth_model(
@@ -4829,7 +4852,7 @@ def build_growth_model(
             observed=counts_int[idx_i, idx_t, idx_k],
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
+    return BuiltModel(model=model, prepared=panel)
 
 
 # ---------------------------------------------------------------------------
@@ -5128,7 +5151,7 @@ def build_longitudinal_corr_factor_model(
         "invariance": "wave-invariant loadings and residual scales",
     }
     return BuiltModel(
-        model=model, variables=_variables_dict(model), prepared=panel, extras=extras
+        model=model, prepared=panel, extras=extras
     )
 
 
@@ -5288,7 +5311,7 @@ def build_historical_growth_model(
             )
 
     return BuiltModel(
-        model=model, variables=_variables_dict(model), prepared=panel
+        model=model, prepared=panel
     )
 
 
@@ -5370,7 +5393,7 @@ def build_rlm_adjusted_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=frame)
+    return BuiltModel(model=model, prepared=frame)
 
 
 def build_rlm_horseshoe_model(
@@ -5419,7 +5442,7 @@ def build_rlm_horseshoe_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=frame)
+    return BuiltModel(model=model, prepared=frame)
 
 
 def build_rlm_corr_factor_model(
@@ -5427,9 +5450,8 @@ def build_rlm_corr_factor_model(
     *,
     domains: dict[str, tuple[str, ...]],
     single_indicator_reliability: float = 0.8,
-    loading_mu: float = 0.0,
-    loading_sigma: float = 1.0,
-    residual_sigma: float = 1.0,
+    comm_alpha: float = 2.0,
+    comm_beta: float = 2.0,
     lkj_eta: float = 2.0,
 ) -> BuiltModel:
     """Byrne correlated-domain-factor measurement model (#338 Phase B).
@@ -5451,9 +5473,20 @@ def build_rlm_corr_factor_model(
     ``r = single_indicator_reliability`` (default 0.8, a conventional
     test-retest figure for short-term memory span scales; the report states the
     assumption and the correlation involving that domain scales with it).
-    Multi-indicator domains keep the RLI priors: positive
-    ``TruncatedNormal(loading_mu, loading_sigma)`` loadings (= HalfNormal at
-    the defaults) and ``HalfNormal(residual_sigma)`` residuals.
+    **Communality parameterisation (#409 item B, the mm-001 gate rescue).**
+    Standardised indicators have unit marginal variance, so a free indicator's
+    ``lambda**2 + sigma**2 = 1``. The earlier free ``HalfNormal`` loading and
+    residual left that sum unconstrained — an over-parameterised lambda-sigma ridge
+    whose Heywood corner (``lambda -> 1``, ``sigma -> 0``) drove the gate failure
+    (143 divergences, R-hat 1.03). Instead the **communality is the free parameter**:
+    ``c ~ Beta(comm_alpha, comm_beta)`` on the open unit interval, then
+    ``lambda = sqrt(c)`` and ``sigma = sqrt(1 - c)``. This enforces the unit variance
+    the standardisation implies — as the fixed single-indicator domain already does —
+    removes the ridge, and makes the reported communality a direct parameter.
+    ``comm_alpha``/``comm_beta`` default to ``Beta(2, 2)``, a weakly-informative
+    communality prior centred at 0.5 that (with both shapes > 1) also has zero density
+    at the singular corners c = 0 and c = 1; ``comm_alpha, comm_beta`` must be
+    positive.
     """
     domain_names = list(domains)
     D = len(domain_names)
@@ -5484,6 +5517,16 @@ def build_rlm_corr_factor_model(
     r = float(single_indicator_reliability)
     if not (0.0 < r < 1.0):
         raise ValueError(f"single_indicator_reliability must be in (0, 1); got {r}.")
+    if not (
+        np.isfinite(comm_alpha)
+        and np.isfinite(comm_beta)
+        and comm_alpha > 0.0
+        and comm_beta > 0.0
+    ):
+        raise ValueError(
+            "comm_alpha and comm_beta must be finite and positive (Beta shape "
+            f"parameters); got {comm_alpha}, {comm_beta}."
+        )
 
     coords = {
         "obs_id": np.arange(battery.n_obs),
@@ -5511,15 +5554,19 @@ def build_rlm_corr_factor_model(
                 pt.stack([corr[i, j] for i, j in zip(iu, ju, strict=True)]),
             )
 
-        lam_free = pm.TruncatedNormal(
-            "lambda_free",
-            mu=loading_mu,
-            sigma=loading_sigma,
-            lower=0.0,
-            dims="free_indicator",
+        # Communality parameterisation (see the docstring): the free parameter is the
+        # communality c in (0, 1); the loading and residual are derived so that
+        # lambda**2 + sigma**2 = 1 exactly. This enforces the unit variance the
+        # standardised indicators imply and removes the over-parameterised
+        # lambda-sigma ridge / Heywood corner that gate-failed the free build.
+        comm_free = pm.Beta(
+            "communality_free", alpha=comm_alpha, beta=comm_beta, dims="free_indicator"
         )
-        sigma_free = pm.HalfNormal(
-            "sigma_free", sigma=residual_sigma, dims="free_indicator"
+        lam_free = pm.Deterministic(
+            "lambda_free", pt.sqrt(comm_free), dims="free_indicator"
+        )
+        sigma_free = pm.Deterministic(
+            "sigma_free", pt.sqrt(1.0 - comm_free), dims="free_indicator"
         )
         lam_full = pt.zeros(J)
         sig_full = pt.zeros(J)
@@ -5556,7 +5603,7 @@ def build_rlm_corr_factor_model(
             dims=("obs_id", "indicator"),
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=battery)
+    return BuiltModel(model=model, prepared=battery)
 
 
 def build_rlm_joint_growth_model(
@@ -5734,4 +5781,4 @@ def build_rlm_joint_growth_model(
                     dims="group",
                 )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
+    return BuiltModel(model=model, prepared=panel)
