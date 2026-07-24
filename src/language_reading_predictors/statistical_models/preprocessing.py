@@ -151,6 +151,12 @@ class PreparedData:
     reason label (default ``"factory_stage"``). Values always sum to
     :attr:`dropped_rows`; a family that needs a finer split (e.g. the DiD
     analysis-row contract's design vs missing counts) records it alongside."""
+    pre_counts: dict[str, np.ndarray] = field(default_factory=dict)
+    """For each symbol with a pre wave: integer pre-score count — the un-logited
+    companion to :attr:`pre_logit`, on the same row set. Populated by
+    :func:`load_and_prepare` when a pre row exists; empty otherwise. Used by the
+    items-scale mechanism writer to place a period-start (``mechanism_at_pre``)
+    exposure on its own item axis, rather than mislabelling it with the post count."""
 
 
 # ---------------------------------------------------------------------------
@@ -650,6 +656,7 @@ def load_and_prepare(
     A_std, age_scaler = standardise(A_months)
 
     pre_logit: dict[str, np.ndarray] = {}
+    pre_counts: dict[str, np.ndarray] = {}
     post_counts: dict[str, np.ndarray] = {}
     n_trials_dict: dict[str, int] = {}
     column_map: dict[str, str] = {}
@@ -703,6 +710,10 @@ def load_and_prepare(
                     )
         if has_pre:
             pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
+            # Un-logited pre count, on the same rows — the items-scale companion to
+            # pre_logit for a period-start (lagged) mechanism exposure. Any ceiling
+            # violation was NaN'd in merged above, so this matches pre_logit's NaNs.
+            pre_counts[s] = merged[f"{m.column}_pre"].to_numpy()
         n_trials_dict[s] = m.n_trials
         column_map[s] = m.column
 
@@ -758,6 +769,7 @@ def load_and_prepare(
         covariates=covariate_values,
         covariate_scalers=covariate_scalers,
         covariate_time=covariate_time,
+        pre_counts=pre_counts,
         dropped_covariates=tuple(dropped_covariates),
         n_obs=int(len(merged)),
         n_children=int(len(np.unique(child_idx))),
