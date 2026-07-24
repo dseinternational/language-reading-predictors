@@ -40,9 +40,9 @@ $\beta_{\text{mech}}$ is the adjusted association per **+1 SD of the observed ER
 not imputed. The mechanism is necessarily **linear** — a single slope, not a shape.
 
 _Floored outcome (linear, not HSGP)._ Nonword reading is a 6-item count floored at zero
-for ≈72/64/52/40% of children at t1–t4. A nonparametric age dose-response is not
-identifiable at that floor (the same reasoning as `mech-072`), so the exposure enters
-linearly; the outcome is still the graded Beta-Binomial on the nonword count,
+for ≈72/64/52/40% of children at t1–t4. A nonparametric mechanism (exposure–response)
+curve is not identifiable at that floor (the same reasoning as `mech-072`), so the
+exposure enters linearly; the outcome is still the graded Beta-Binomial on the nonword count,
 conditioning on its own baseline $N_{\text{pre}}$.
 
 ## Adjustment set

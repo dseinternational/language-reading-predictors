@@ -40,13 +40,13 @@ the observed measure** (the raw-scale SD is recorded in `config.json` as
 a shape.
 
 _Floored outcome (linear, not HSGP)._ As `mech-106`, nonword reading is a 6-item count
-heavily floored at zero, so a nonparametric age dose-response is not identifiable; the
-exposure enters linearly and the outcome is the graded Beta-Binomial on the nonword
+heavily floored at zero, so a nonparametric mechanism (exposure–response) curve is not
+identifiable; the exposure enters linearly and the outcome is the graded Beta-Binomial on the nonword
 count, conditioning on its own baseline $N_{\text{pre}}$.
 
 ## Adjustment set
 
-Measured parents of $SP$ under the revised DAG: $\{A, GA, HS\}$.
+Parents of $SP$ under the revised DAG: $\{A, GA, HS\}$.
 
 - $G$ — group; always conditioned on via $\beta_G$.
 - $A$ — age; conditioned on linearly (a $\gamma_A\,z(\text{age})$ term).

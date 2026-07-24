@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPGF13 - gain factors for taught expressive vocabulary (TE), with upstream vocabulary.
+"""LRPGF13 - gain factors for taught expressive vocabulary (TE), with broad vocabulary associates.
 
 #421 Tier 1: extends ``gf-010`` (taught-expressive-vocabulary gains) with the broad
 transfer-vocabulary skills. ``gf-010`` carries only ``skill_symbols = ("TR",)``, but the
@@ -23,7 +23,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-013",
     kind="gain_factors",
-    title="Factors associated with gains in taught expressive vocabulary (TE), with upstream vocabulary",
+    title="Factors associated with gains in taught expressive vocabulary (TE), with broad vocabulary associates",
     outcome_symbol="TE",
     extra={
         # gf-010's TR plus broad receptive/expressive vocabulary (the review's finding).

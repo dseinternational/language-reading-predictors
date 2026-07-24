@@ -1,5 +1,5 @@
 ---
-title: "LRPGF13: Factors associated with gains in taught expressive vocabulary (TE), with upstream vocabulary"
+title: "LRPGF13: Factors associated with gains in taught expressive vocabulary (TE), with broad vocabulary associates"
 
 format:
   html:

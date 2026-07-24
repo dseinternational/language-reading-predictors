@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPGF12 - gain factors for taught receptive vocabulary (TR), with upstream vocabulary.
+"""LRPGF12 - gain factors for taught receptive vocabulary (TR), with broad vocabulary associates.
 
 #421 Tier 1: extends ``gf-009`` (taught-receptive-vocabulary gains) with the standardised
 transfer-vocabulary skills as adjusted associations. ``gf-009`` deliberately carries
@@ -26,7 +26,7 @@ from language_reading_predictors.statistical_models.pipeline import fit_gain_fac
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-012",
     kind="gain_factors",
-    title="Factors associated with gains in taught receptive vocabulary (TR), with upstream vocabulary",
+    title="Factors associated with gains in taught receptive vocabulary (TR), with broad vocabulary associates",
     outcome_symbol="TR",
     extra={
         # The review's finding: broad receptive (and expressive) vocabulary as
