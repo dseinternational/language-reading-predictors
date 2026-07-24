@@ -661,12 +661,15 @@ def test_mechanism_factory_age_moderator_not_double_counted(tmp_path):
 
 
 def test_mechanism_factory_covariate_moderator_non_age(tmp_path):
-    """A non-age covariate moderator (e.g. phonological memory ``erbto``, LRP104)
-    enters via ``gamma_mod`` + ``gamma_int`` from ``prepared.covariates`` — the same
-    read path age uses, but it must be *loaded* first (the ``fit_mechanism``
-    covariate-moderator enabler, #421 Tier 2). Age is not the moderator here, so it
-    stays a plain linear ``gamma_A`` adjuster. The no-interaction companion (LRP204)
-    keeps ``gamma_mod`` but drops ``gamma_int``."""
+    """The *factory* handling of a non-age covariate moderator (e.g. phonological
+    memory ``erbto``, LRP104): given a prepared dataset, ``build_mechanism_model``
+    reads the covariate from ``prepared.covariates`` and adds ``gamma_mod`` +
+    ``gamma_int`` (the same read path age uses). The covariate is injected into
+    ``prepared.covariates`` directly here, so this verifies the factory contract, not
+    ``fit_mechanism``'s covariate-loading path (the #421 Tier 2 pipeline enabler,
+    which this test does not exercise). Age is not the moderator here, so it stays a
+    plain linear ``gamma_A`` adjuster. The no-interaction companion (LRP204) keeps
+    ``gamma_mod`` but drops ``gamma_int``."""
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="all")
     prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)
