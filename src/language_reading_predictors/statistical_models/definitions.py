@@ -233,11 +233,11 @@ _MECH = [
     _d("lrp96", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "decoding channel: letter sounds -> nonword decoding (1A contrast vs lrp101)"),
     _d("lrp101", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "linear letter sounds -> word reading (Tier-1 contrast/panel anchor; linear counterpart of the HSGP lrp58)"),
     # #421 Tier 1: phonological-memory / speech -> nonword decoding (alphabetic-route
-    # discriminators from the LS->WR review). Covariate exposures, linear (floored N
-    # outcome). Renumbered from the issue's 102/103, which collide with the #405
-    # TR/TE->L models (mech-102..105).
-    _d("lrp106", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "phonological memory (RW) -> nonword decoding (#421 Tier 1; linear, covariate exposure)"),
-    _d("lrp107", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "speech production (SP) -> nonword decoding (#421 Tier 1; linear, covariate exposure)"),
+    # discriminators from the LS->WR review note, #424). Covariate exposures, linear
+    # (floored N outcome). Ids 102/103 per that note; the earlier #405 TR/TE->L models
+    # that had reserved 102-105 were dropped (#423), freeing them.
+    _d("lrp102", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "phonological memory (RW) -> nonword decoding (#421 Tier 1; linear, covariate exposure)"),
+    _d("lrp103", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "speech production (SP) -> nonword decoding (#421 Tier 1; linear, covariate exposure)"),
     _d("lrp97", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "negative-control outcome: letter sounds -> receptive vocabulary"),
     _d("lrp98", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "negative-control outcome: letter sounds -> expressive vocabulary"),
     _d("lrp99", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "negative-control outcome: letter sounds -> receptive grammar"),
@@ -353,9 +353,9 @@ _GAIN += [
     _d("lrpgf11", "gain_factors", "Gain factors", Status.ASSOCIATION, "N",
        "ANCOVA gain; only the on-intervention term is causal"),
     _d("lrpgf12", "gain_factors", "Gain factors", Status.ASSOCIATION, "TR",
-       "TR gains with upstream vocabulary R,E (#421 Tier 1); only the on-intervention term is causal"),
+       "TR gains with broad vocabulary associates R,E (#421 Tier 1); only the on-intervention term is causal"),
     _d("lrpgf13", "gain_factors", "Gain factors", Status.ASSOCIATION, "TE",
-       "TE gains with upstream vocabulary TR,R,E (#421 Tier 1); only the on-intervention term is causal"),
+       "TE gains with broad vocabulary associates TR,R,E (#421 Tier 1); only the on-intervention term is causal"),
 ]
 _LEVEL += [
     _d("lrplf11", "level_factors", "Level factors", Status.ASSOCIATION, "N",

@@ -1,5 +1,5 @@
 ---
-title: "LRP106: Mechanism model — phonological memory (RW) -> nonword decoding (N)"
+title: "LRP102: Mechanism model — phonological memory (RW) -> nonword decoding (N)"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRP106 is the alphabetic-route counterpart of [`lrp-rli-mech-090`](../lrp-rli-mech-090)
+LRP102 is the alphabetic-route counterpart of [`lrp-rli-mech-090`](../lrp-rli-mech-090)
 (RW $\to$ word reading): it estimates the adjusted association between phonological
 memory (word and nonword repetition, the ERB total) and **nonword decoding** across
 *all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with phase-specific

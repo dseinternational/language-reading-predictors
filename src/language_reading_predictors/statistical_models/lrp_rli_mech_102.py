@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRP106 - Mechanism model: phonological memory (RW) -> nonword decoding (N).
+"""LRP102 - Mechanism model: phonological memory (RW) -> nonword decoding (N).
 
 #421 Tier 1: the alphabetic-route counterpart of ``mech-090`` (RW -> word reading). The
 letter-sound -> word-reading review found nonword repetition (the phonological
@@ -31,7 +31,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_mechanism
 
 SPEC = ModelSpec(
-    model_id="lrp-rli-mech-106",
+    model_id="lrp-rli-mech-102",
     kind="mechanism",
     title=(
         "Mechanism model: phonological memory (RW, word/nonword repetition) -> "

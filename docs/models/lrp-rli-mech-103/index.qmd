@@ -1,5 +1,5 @@
 ---
-title: "LRP107: Mechanism model — speech production (SP) -> nonword decoding (N)"
+title: "LRP103: Mechanism model — speech production (SP) -> nonword decoding (N)"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRP107 is the suite's first **speech-production-exposure** mechanism model. It estimates
+LRP103 is the suite's first **speech-production-exposure** mechanism model. It estimates
 the adjusted association between speech production (`deapp_c`) and **nonword decoding**
 across *all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with
 phase-specific intercepts (#421 Tier 1). Under the revised DAG (2026-07-10) speech
@@ -39,7 +39,7 @@ the observed measure** (the raw-scale SD is recorded in `config.json` as
 **dropped**, not imputed. The mechanism is necessarily **linear** — a single slope, not
 a shape.
 
-_Floored outcome (linear, not HSGP)._ As `mech-106`, nonword reading is a 6-item count
+_Floored outcome (linear, not HSGP)._ As `mech-102`, nonword reading is a 6-item count
 heavily floored at zero, so a nonparametric mechanism (exposure–response) curve is not
 identifiable; the exposure enters linearly and the outcome is the graded Beta-Binomial on the nonword
 count, conditioning on its own baseline $N_{\text{pre}}$.

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRP107 - Mechanism model: speech production (SP) -> nonword decoding (N).
+"""LRP103 - Mechanism model: speech production (SP) -> nonword decoding (N).
 
 #421 Tier 1: the suite's first speech-production-exposure mechanism. Under the revised
 DAG speech production (SP, ``deapp_c``) is a parent of both letter sounds and nonword
@@ -14,7 +14,7 @@ transitions.
 **Covariate exposure.** SP is the speech-accuracy covariate ``deapp_c`` (no bounded-count
 denominator), so it enters as a standardised continuous covariate
 (``mechanism_is_covariate``); ``beta_mech`` is the association per +1 SD. ``require_observed``
-drops the mean-imputed rows. **Linear, not HSGP:** as ``mech-106``, nonword reading is
+drops the mean-imputed rows. **Linear, not HSGP:** as ``mech-102``, nonword reading is
 heavily floored, so a nonparametric curve is not identifiable; the outcome is the graded
 Beta-Binomial on the nonword count with its own baseline ``N_pre``.
 
@@ -28,7 +28,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_mechanism
 
 SPEC = ModelSpec(
-    model_id="lrp-rli-mech-107",
+    model_id="lrp-rli-mech-103",
     kind="mechanism",
     title="Mechanism model: speech production (SP, deapp_c) -> nonword decoding (N)",
     outcome_symbol="N",
