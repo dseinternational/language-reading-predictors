@@ -74,6 +74,26 @@ SPEC = ModelSpec(
         # divergences remain. Whether that structure should instead be a higher-order
         # / single general factor is a modelling-structure question flagged for review.
         "target_accept": 0.99,
+        # Recorded, signed-off sampling-quality gate exception (#412 decision,
+        # 2026-07-24). The ~72 residual divergences are intrinsic to the
+        # near-singular wave-3 domain-correlation matrix (factor correlations
+        # 0.81-0.95), not a fixable parameterisation fault: a target_accept=0.999
+        # run explored the space under different dynamics and returned the same
+        # estimates, the deliverables reach R-hat 1.006 over six chains, and a
+        # divergence-influence probe shows excluding the divergent draws leaves the
+        # correlations and communalities unmoved at reporting precision. Only the
+        # divergences check is waived; R-hat, ESS and BFMI stay live, so a refit that
+        # regresses on mixing still fails the gate. See the notes/ entry.
+        "gate_exception": {
+            "checks": ["divergences"],
+            "reason": (
+                "intrinsic near-singular wave-3 domain-correlation geometry; "
+                "target_accept=0.999 invariance + R-hat 1.006 + divergence-influence "
+                "probe show the deliverables are unaffected"
+            ),
+            "issue": 409,
+            "signed_off": "2026-07-24",
+        },
     },
 )
 
