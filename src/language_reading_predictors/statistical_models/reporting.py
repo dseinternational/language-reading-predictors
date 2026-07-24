@@ -3832,6 +3832,40 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
             "causal",
         )
     )
+    # Moderated (joint-readiness) mechanism models ask about gamma_int, not the
+    # unmoderated curve, so headline it when present (#404 review): its median,
+    # 50%/89% intervals and tail probability, on the logit scale. The unmoderated
+    # curve sentences above then read as supporting context.
+    interaction = _kf_csv_row(output_dir, "interaction_summary.csv")
+    if interaction is not None and "gamma_int_median" in interaction:
+        med = _kf_float(interaction["gamma_int_median"])
+        lo = _kf_float(interaction["gamma_int_lo"])
+        hi = _kf_float(interaction["gamma_int_hi"])
+        lo50 = _kf_float(interaction["gamma_int_lo50"])
+        hi50 = _kf_float(interaction["gamma_int_hi50"])
+        p = _kf_float(interaction["prob_gamma_int_pos"])
+        focal = _kf_sentence(
+            "The moderation coefficient — how the letter-sound to word-reading "
+            "slope changes per +1 SD of the moderator, on the latent logit scale — "
+            f"is **{med:+.2f}** (50% interval {lo50:+.2f} to {hi50:+.2f}; 89% "
+            f"{lo:+.2f} to {hi:+.2f}), with P(> 0) = {p:.2f}.",
+            "headline",
+        )
+        direction = _kf_sentence(
+            _kf_association_direction(
+                interaction["prob_gamma_int_pos"],
+                positive_claim=(
+                    "the letter-sound slope tends to be steeper where the moderator "
+                    "is higher (logit-scale synergy), not additivity in word counts"
+                ),
+                negative_claim=(
+                    "the letter-sound slope tends to be shallower where the moderator "
+                    "is higher (logit-scale substitution), not additivity in word counts"
+                ),
+            ),
+            "confidence",
+        )
+        sentences = [focal, direction, *sentences]
     return sentences
 
 
