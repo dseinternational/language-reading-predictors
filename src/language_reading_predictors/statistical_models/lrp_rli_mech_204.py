@@ -32,6 +32,9 @@ SPEC = ModelSpec(
         "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
         "moderator_symbol": "erbto",
         "moderator_is_covariate": True,
+        # Match mech-104: drop mean-imputed erbto rows rather than moderate the
+        # main effect by an average-filled modifier (loads erbto_missing).
+        "require_observed": ("erbto",),
         "include_interaction": False,
         "use_age_gp": False,
         "phase_specific_mechanism": False,
