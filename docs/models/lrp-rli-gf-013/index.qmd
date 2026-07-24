@@ -29,7 +29,7 @@ _Causal labelling (DAG guardrails)._
 ## Model
 
 Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the period post-count, $N = 24$, with
-$\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \beta_{\text{trt}}\text{OnIntervention} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s}\beta_s\,z(s) + \sum_{c}\gamma_c\,z(c) + \sum\text{interactions} + u_{\text{child}}$, where the $z(s)$ are the standardised same-wave skill associates taught receptive (TR = `TR`), receptive (RV = `R`) and expressive (EV = `E`) vocabulary, and the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech production (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator. Priors: shared template in `priors.py`.
+$\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \beta_{\text{trt}}\text{OnIntervention} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s}\gamma_s\,\operatorname{logit}_*(s_{\text{pre}}) + \sum_{c}\gamma_c\,z(c) + \sum\text{interactions} + u_{\text{child}}$, where the $\operatorname{logit}_*(s_{\text{pre}})$ are the period-start (pre-wave) logits of the skill associates taught receptive (TR = `TR`), receptive (RV = `R`) and expressive (EV = `E`) vocabulary, and the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech production (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator. Priors: shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

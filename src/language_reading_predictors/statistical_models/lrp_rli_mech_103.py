@@ -7,7 +7,7 @@
 DAG speech production (SP, ``deapp_c``) is a parent of both letter sounds and nonword
 decoding (``SP -> { TE EV LS PA NW }``), and the letter-sound -> word-reading review
 found it a consistent discriminator of word reading among children alike on letter
-sounds (+0.19 to +0.28 across waves), yet no SP-exposure mechanism model existed. This
+sounds, yet no SP-exposure mechanism model existed. This
 fits the adjusted SP -> nonword-decoding dose-response across the three phase
 transitions.
 

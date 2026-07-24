@@ -6,7 +6,7 @@
 #421 Tier 1: extends ``gf-010`` (taught-expressive-vocabulary gains) with the broad
 transfer-vocabulary skills. ``gf-010`` carries only ``skill_symbols = ("TR",)``, but the
 letter-sound -> word-reading review found both receptive **and** expressive vocabulary
-associated with taught-expressive gains (RV ≈ +0.28, EV ≈ +0.31, both P ≈ 0.98). This
+associated with taught-expressive gains. This
 model adds ``R`` and ``E`` to the existing ``TR`` term as adjusted associations.
 
 The ``TR``/``R``/``E`` skill terms are **adjusted associations, not DAG-parent
