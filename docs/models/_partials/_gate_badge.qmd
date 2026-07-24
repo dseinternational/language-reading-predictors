@@ -18,5 +18,16 @@ try:
 except (FileNotFoundError, OSError, UnicodeDecodeError, _gate_json.JSONDecodeError):
     _gate_summary = None
 
-print(convergence_gate_badge_markdown(_gate_summary))
+# A recorded, signed-off sampling-quality gate exception (#412) is declared on the
+# model spec and persisted to config.json (spec_extra.gate_exception); read it so
+# the badge can show the third "passed with a recorded exception" state.
+try:
+    with open(_GatePath(".") / "config.json") as _cfg_fh:
+        _gate_exception = (_gate_json.load(_cfg_fh).get("spec_extra") or {}).get(
+            "gate_exception"
+        )
+except (FileNotFoundError, OSError, UnicodeDecodeError, _gate_json.JSONDecodeError, AttributeError):
+    _gate_exception = None
+
+print(convergence_gate_badge_markdown(_gate_summary, _gate_exception))
 ```
