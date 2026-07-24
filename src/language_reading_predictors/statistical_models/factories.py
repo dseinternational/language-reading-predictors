@@ -848,6 +848,7 @@ def build_mechanism_model(
     linear_mechanism: bool = False,
     adjust_for: Iterable[str] = (),
     mechanism_is_covariate: bool = False,
+    mechanism_at_pre: bool = False,
 ) -> BuiltModel:
     """
     Mechanism model on the outcome post-score.
@@ -933,6 +934,22 @@ def build_mechanism_model(
     observed exposure rows (``require_observed`` in the loader): mean-imputation
     plus a missingness indicator is an *adjuster* policy and is not acceptable for
     the exposure itself.
+
+    ``mechanism_at_pre`` (default False): take the mechanism regressor from the
+    *period-start* (pre) score of ``mechanism_symbol`` rather than its post score.
+    The default post alignment is the concurrent form (mechanism and outcome both
+    at period-end); setting this True gives the lagged / predictive form
+    ``mechanism_pre -> outcome_post`` which, with ``adjust_baseline_symbol`` the
+    outcome, conditions on the outcome's own period-start level and so estimates
+    whether the period-start mechanism predicts the *change* in the outcome over
+    that period (issue #405: does taught vocabulary predict letter-sound growth?).
+    Only the mechanism's own alignment moves — the outcome stays at post and the
+    autoregressive baseline stays at pre. The pre logit is on the same
+    ``logit_safe`` scale as the post branch and is standardised identically, so the
+    reported slope keeps its per-SD-of-mechanism reading. Incompatible with
+    ``mechanism_is_covariate`` (a standardised covariate has no separate pre score);
+    ``phase_specific_mechanism`` is likewise unaffected. Default-off, so the
+    concurrent mechanism family is byte-identical.
     """
     # Materialise once: ``confounder_symbols`` is iterated several times below
     # (keep-mask, coefficient loop, the "A in confounders" check, and the
@@ -943,6 +960,11 @@ def build_mechanism_model(
     adjust_for = tuple(adjust_for)
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
+    if mechanism_at_pre and mechanism_is_covariate:
+        raise ValueError(
+            "mechanism_at_pre is incompatible with mechanism_is_covariate: a "
+            "standardised covariate exposure has no separate period-start score."
+        )
     if mechanism_is_covariate:
         # A covariate exposure may enter EITHER linearly (a single ``beta_mech``
         # slope) OR as a nonparametric HSGP curve (``linear_mechanism=False``). The
@@ -970,6 +992,11 @@ def build_mechanism_model(
     outcome_post = prepared.post_counts[outcome_symbol]
     if mechanism_is_covariate:
         mechanism_vals = prepared.covariates[mechanism_symbol]
+    elif mechanism_at_pre:
+        # Lagged form: the regressor is the period-start score, so the keep-mask
+        # must require the *pre* value observed (a row may have TR_pre but no
+        # TR_post, or vice versa).
+        mechanism_vals = prepared.pre_logit[mechanism_symbol]
     else:
         mechanism_vals = prepared.post_counts[mechanism_symbol]
 
@@ -999,6 +1026,11 @@ def build_mechanism_model(
         # No n_trials / logit transform exists for it (that is the point of the
         # covariate route: no fabricated denominator).
         mech_input = prepared.covariates[mechanism_symbol]
+    elif mechanism_at_pre:
+        # Period-start regressor, already on the loader's logit-safe scale (the
+        # same transform ``logit_safe`` applies to the post branch), standardised
+        # below exactly as the post logit is.
+        mech_input = prepared.pre_logit[mechanism_symbol]
     else:
         N_mechanism = prepared.n_trials[mechanism_symbol]
         mech_input = logit_safe(
@@ -3558,6 +3590,7 @@ def _subset(
         A_months=prepared.A_months[keep],
         A_std=prepared.A_std[keep],
         pre_logit={s: v[keep] for s, v in prepared.pre_logit.items()},
+        pre_counts={s: v[keep] for s, v in prepared.pre_counts.items()},
         post_counts={s: v[keep] for s, v in prepared.post_counts.items()},
         covariates={s: v[keep] for s, v in prepared.covariates.items()},
         n_obs=int(keep.sum()),

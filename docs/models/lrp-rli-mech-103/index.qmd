@@ -1,0 +1,74 @@
+---
+title: "LRP103: Mechanism model — taught receptive vocabulary (TR) -> letter sounds (L), lagged / predictive"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP103 is the **lagged / predictive** sibling of the concurrent **LRP102**. It takes
+taught receptive vocabulary at **period-start** ($TR_{\text{pre}}$) predicting
+letter-sound knowledge at **period-end** ($L_{\text{post}}$; DAG symbol $LS$),
+conditioning on the child's period-start letter-sound level ($L_{\text{pre}}$), across
+all three phase transitions with phase-specific intercepts. Because the predictor
+precedes the outcome increment and the outcome's own baseline is held, the slope reads
+as "does where a child's taught vocabulary started predict how much their letter sounds
+then changed" — the design that actually tests *prediction of letter-sound growth* and
+the one behind the descriptive null (baseline $TR \approx -0.1$ with the subsequent $L$
+gain). This is the growth-prediction half of #405.
+
+::: {.callout-important title="Exploratory edge-check — not a hypothesised causal path"}
+The revised DAG (`dag/dag-language-reading.dagitty`) posits **no vocabulary $\to$
+letter-sound edge**, so any association is latent-general-ability-confounded, an
+edge-check on the committed DAG, **never** a mechanism. See LRP102 for the full
+no-edge argument.
+:::
+
+_Lagged form (estimand note)._ The single build-level difference from LRP102 is
+`mechanism_at_pre=True`: the mechanism regressor is $TR$'s period-start (pre) logit
+rather than its post logit. The outcome stays at post and the autoregressive baseline
+stays at $L_{\text{pre}}$, giving
+$TR_{\text{pre}} \to L_{\text{post}} \mid L_{\text{pre}}$. A positive concurrent
+slope (LRP102) alongside a null lagged slope
+here is the expected "tracks, but doesn't drive" signature. The mechanism is a
+**linear** slope (vocabulary-exposure precedent LRP56/57, `mech-088`).
+
+## Adjustment set
+
+Identical to the concurrent LRP102 — re-derived for the $TR$--$LS$ backdoor under the
+revised DAG: $\{G, A, HS, IS(\text{attend}), SP(\text{deapp\_c})\}$ plus the
+$L_{\text{pre}}$ autoregressive baseline, with $GA$ proxied by the child random
+intercept. Phonological memory $RW$ (`erbto`) is **not** adjusted (it does not reach
+$LS$); $SP$ is kept as a precision adjuster. See [LRP102](../lrp-rli-mech-102/) for the
+per-symbol derivation.
+
+### Interpretation caveats
+
+- *No unmeasured confounder assumption* for $(TR_{\text{pre}}, L_{\text{post}})$:
+  strong and not testable; latent $GA$ is the named violation direction that cannot be closed.
+- The $t2 \to$ later increment is not itself randomised, so this is a triangulation
+  read, not a headline causal contrast.
+- $TR_{\text{pre}}$ is measured with error; attenuation applies.
+- Across-phase pooling assumes a stable structural relationship over time.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
