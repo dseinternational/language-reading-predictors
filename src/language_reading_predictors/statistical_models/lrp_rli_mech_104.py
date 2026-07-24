@@ -19,7 +19,11 @@ exactly the Q3 hypothesis. W is not floored, so the nonparametric ``f_mech`` HSG
 **Covariate moderator.** RW is the ERB total (``erbto``), a covariate rather than a
 ``MEASURES`` symbol, so it enters as ``moderator_is_covariate=True`` - the ``mech-073``
 path, except that (unlike intrinsic age) a covariate moderator must be *loaded*; the
-pipeline now does so. Confounder set is the ``mech-058``/``mech-073`` letter-sound ->
+pipeline now does so. It also complete-cases on the moderator (``require_observed``):
+``erbto`` is mean-imputed for the children missing it, and moderating an interaction by
+a sample-mean-filled effect modifier is not meaningful, so those rows are dropped rather
+than read as sitting at average phonological memory. Confounder set is the
+``mech-058``/``mech-073`` letter-sound ->
 word-reading set {G, A, HS, IS(attend), SP} + ``W_pre``; RW is not in it (it is the
 moderator, entered via ``gamma_mod``/``gamma_int``, never ``adjust_for``).
 
@@ -51,6 +55,9 @@ SPEC = ModelSpec(
         "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
         "moderator_symbol": "erbto",
         "moderator_is_covariate": True,
+        # Drop the mean-imputed erbto rows: do not moderate by an average-filled
+        # effect modifier (loads erbto_missing for the loader's filter).
+        "require_observed": ("erbto",),
         "include_interaction": True,
         "use_age_gp": False,
         "phase_specific_mechanism": False,

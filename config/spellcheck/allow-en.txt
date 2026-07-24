@@ -562,6 +562,7 @@ sklearn
 spearmanr
 speedup
 spphon
+spraw
 startswith
 subfit
 subsetting
@@ -601,6 +602,7 @@ workstream
 worktree
 worktrees
 xcheck
+yarcewr
 yarclet
 yarcsi
 ypre
