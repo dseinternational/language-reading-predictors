@@ -912,3 +912,79 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
     assert cfg["extra"]["loo_unit"] == "child"
     assert cfg["extra"]["tau_difference"]["headline_scale"] == ("proportion_correct_risk_difference")
     assert cfg["extra"]["difference_metadata"] == SPEC.extra["difference_metadata"]
+
+
+def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, monkeypatch):
+    """#394 characterisation: lock the ORDER of the ITT reference family's
+    primary-fit lifecycle milestones, so the planned lifecycle centralisation
+    (pillar 2 — "the invariant primary-fit lifecycle is expressed once and covered
+    by ordering tests") stays behaviour-preserving. Each milestone wrapper records
+    then delegates to whatever ``fast_pipeline`` installed, so this asserts the
+    real fit_itt sequence. Update the expected list only with a *deliberate*
+    lifecycle change (relocation must not reorder it)."""
+    events: list[str] = []
+
+    def record(module, name, label):
+        original = getattr(module, name)
+
+        def wrapper(*args, _original=original, _label=label, **kwargs):
+            events.append(_label)
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(module, name, wrapper)
+
+    prepared = _prepared(
+        {"W": np.arange(12) % 8},
+        {"W": np.linspace(-2.0, 2.0, 12)},
+        group=np.array([1] * 6 + [0] * 6),
+        n_trials={"W": 79},
+    )
+    monkeypatch.setattr(pipeline, "load_and_prepare", lambda **kwargs: prepared)
+    monkeypatch.setattr(
+        pipeline._factories,
+        "build_itt_model",
+        lambda data, **kwargs: BuiltModel(_FakeModel(), {}, data),
+    )
+
+    for module, name, label in (
+        (pipeline, "load_and_prepare", "prepare"),
+        (pipeline._factories, "build_itt_model", "build"),
+        (pipeline, "_emit_priors", "emit_priors"),
+        (pipeline._diag, "run_prior_predictive", "prior_predictive"),
+        (pipeline, "_run_sampling_and_loo", "sample+loo"),
+        (pipeline._diag, "summary_diagnostics", "summary"),
+        (pipeline, "_run_ppc", "posterior_predictive"),
+        (pipeline._diag, "write_diagnostics_summary", "convergence_gate"),
+        (pipeline._diag, "run_extended_diagnostics", "extended_diagnostics"),
+        (pipeline._diag, "save_trace", "persist_trace"),
+        (pipeline, "_emit_itt_extras", "sensitivity"),
+        (pipeline._report, "write_run_metadata", "metadata"),
+        (pipeline, "_finalize_report", "finalize"),
+    ):
+        record(module, name, label)
+
+    spec = ModelSpec(
+        model_id="lrp-rli-itt-902",
+        kind="itt",
+        title="lifecycle order characterisation",
+        outcome_symbol="W",
+        model_settings=IttModelSettings(),
+    )
+
+    pipeline.fit_itt(spec, config="dev")
+
+    assert events == [
+        "prepare",
+        "build",
+        "emit_priors",
+        "prior_predictive",
+        "sample+loo",
+        "summary",
+        "posterior_predictive",
+        "convergence_gate",
+        "extended_diagnostics",
+        "persist_trace",
+        "sensitivity",
+        "metadata",
+        "finalize",
+    ]

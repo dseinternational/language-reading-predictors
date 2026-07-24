@@ -125,6 +125,48 @@ def test_equal_counts_but_different_row_order_do_not_produce_delta(
     written = pd.read_csv(out)
     assert not written["comparison_valid"].any()
     assert "ordered analysis rows differ" in written["comparison_reason"].iloc[0]
+
+
+def test_unreliable_pareto_k_invalidates_the_comparison(
+    cmp_mod, out_root, monkeypatch
+):
+    """#390 P1: when a fit's persisted Pareto-k is unreliable (> good_k), PSIS-LOO
+    and therefore elpd_diff are untrustworthy, so the comparison must fall back to
+    per-model elpd_loo marked invalid rather than az.compare deltas."""
+    ids = ["model-a", "model-b"]
+    for model_id in ids:
+        run_dir = _install_run(cmp_mod, model_id, passed=True)
+        max_k = 1.2 if model_id == "model-b" else 0.3  # model-b is unreliable
+        pd.DataFrame(
+            {
+                "observation_index": [0, 1],
+                "pareto_k": [max_k, 0.1],
+                "good_k_threshold": [0.7, 0.7],
+            }
+        ).to_csv(run_dir / "pareto_k.csv", index=False)
+    traces = {model_id: _fake_trace() for model_id in ids}
+    monkeypatch.setattr(
+        cmp_mod.az,
+        "from_netcdf",
+        lambda path: traces[Path(path).parent.name.removesuffix("-dev")],
+    )
+    monkeypatch.setattr(
+        cmp_mod.az,
+        "compare",
+        lambda _: pytest.fail("az.compare must not run when Pareto-k is unreliable"),
+    )
+    monkeypatch.setattr(
+        cmp_mod.az,
+        "loo",
+        lambda _: SimpleNamespace(elpd=-10.0, se=2.0, p=1.5),
+    )
+
+    out = out_root / "comparison.csv"
+    assert cmp_mod._loo_compare(ids, "dev", str(out))
+    written = pd.read_csv(out)
+    assert not written["comparison_valid"].any()
+    assert "Pareto-k" in written["comparison_reason"].iloc[0]
+    assert "model-b" in written["comparison_reason"].iloc[0]
     assert "elpd_diff" not in written.columns
 
 
