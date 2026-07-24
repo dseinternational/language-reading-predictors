@@ -3351,6 +3351,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         linear_mechanism=spec.extra.get("linear_mechanism", False),
         adjust_for=adjust_for,
         mechanism_is_covariate=mechanism_is_covariate,
+        mechanism_at_pre=spec.extra.get("mechanism_at_pre", False),
     )
     _attach_built(ctx, built)
 
@@ -3516,6 +3517,15 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
         x_vals = _scaler.inverse(z_loaded) if _scaler is not None else z_loaded
         z_L, _ = standardise(z_loaded)
         x_col, x_label = "mech_x", f"{sym} (raw score)"
+    elif bool(ctx.spec.extra.get("mechanism_at_pre", False)):
+        # Lagged form: the factory fits the mechanism on its period-start (pre)
+        # logit, so the reported curve must use that same vector on the same rows.
+        # Using the post logit here would plot and label the fitted pre-slope
+        # against the wrong exposure — pre/post differ materially (#405 review).
+        mech_logit = np.asarray(ctx.prepared.pre_logit[sym], dtype=float)
+        x_vals = mech_logit
+        z_L, _ = standardise(mech_logit)
+        x_col, x_label = "mech_logit", f"logit({sym}_pre)"
     else:
         N = MEASURES[sym].n_trials
         mech_logit = logit_safe(ctx.prepared.post_counts[sym], N)
@@ -3669,6 +3679,14 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
             x_exposure = scaler.inverse(z_loaded) if scaler is not None else z_loaded
             exposure_label = _COVARIATE_EXPOSURE_LABELS.get(sym, sym)
             exposure_n_trials = None
+        elif bool(spec.extra.get("mechanism_at_pre", False)):
+            # Lagged form: the fitted curve (via z_mech_logit) is on the pre
+            # exposure, so the items-scale x-axis must be the pre counts, not the
+            # post counts — otherwise the worked-example quantiles land on the
+            # wrong distribution and the axis is mislabelled (#405 review).
+            x_exposure = np.asarray(ctx.prepared.pre_counts[sym], dtype=float)
+            exposure_label = f"{MEASURES[sym].label} (period start)"
+            exposure_n_trials = MEASURES[sym].n_trials
         else:
             x_exposure = np.asarray(ctx.prepared.post_counts[sym], dtype=float)
             exposure_label = MEASURES[sym].label
@@ -4574,8 +4592,20 @@ def _gf_coef_names(
     if not treated_only:
         names.append("beta_trt")
     # gamma_own drops on the off-floor (Bernoulli) path (A4) — see build_gain_factors_model.
+    # There, if an interaction on ``own`` is *active*, a regularised own-baseline main
+    # effect ``gamma_own_offfloor`` is added instead to keep interaction hierarchy
+    # (#391 Finding 2); report it in its place. Mirror the factory's active-interaction
+    # filter: treated_only variants drop trt interactions, so a treated-only spec whose
+    # only ``own`` interaction is trt×own builds no gamma_own_offfloor.
+    active_interactions = [
+        tuple(pair)
+        for pair in extra.get("interactions", ())
+        if not treated_only or "trt" not in tuple(pair)
+    ]
     if extra.get("likelihood") != "bernoulli_offfloor":
         names.append("gamma_own")
+    elif any("own" in pair for pair in active_interactions):
+        names.append("gamma_own_offfloor")
     names.append("gamma_A")
     if extra.get("ability_covariate"):
         names.append("gamma_ability")
@@ -7971,6 +8001,12 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     domains = {k: tuple(v) for k, v in e["domains"].items()}
     reliability = float(e.get("single_indicator_reliability", 0.8))
     lkj_eta = float(e.get("lkj_eta", 2.0))
+    comm_alpha = float(
+        e.get("comm_alpha", _default_of(_factories.build_rlm_corr_factor_model, "comm_alpha"))
+    )
+    comm_beta = float(
+        e.get("comm_beta", _default_of(_factories.build_rlm_corr_factor_model, "comm_beta"))
+    )
 
     ctx = make_context(spec, config)
     _apply_spec_target_accept(ctx, spec)
@@ -7988,6 +8024,8 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         battery,
         domains=domains,
         single_indicator_reliability=reliability,
+        comm_alpha=comm_alpha,
+        comm_beta=comm_beta,
         lkj_eta=lkj_eta,
     )
     _attach_built(ctx, built)
@@ -8014,37 +8052,11 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     # --- Loadings + communalities (the measurement headline) ----------------
     section_header("Loadings + communalities")
-    dom_of = {s: d for d, syms in domains.items() for s in syms}
-    load_rows = []
-    for j, name in enumerate(str(s) for s in post["indicator"].values):
-        lam_d = post["loading"].isel(indicator=j).values.reshape(-1)
-        com_d = post["communality"].isel(indicator=j).values.reshape(-1)
-        corr_d = np.sqrt(com_d)
-        load_rows.append(
-            {
-                "indicator": name,
-                "domain": dom_of.get(name, "?"),
-                "loading_median": float(np.median(lam_d)),
-                "loading_mean": float(np.mean(lam_d)),
-                "loading_lo": float(np.quantile(lam_d, lo_q)),
-                "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
-                "loading_lo50": float(np.quantile(lam_d, 0.25)),
-                "loading_hi50": float(np.quantile(lam_d, 0.75)),
-                "correlation_median": float(np.median(corr_d)),
-                "correlation_mean": float(np.mean(corr_d)),
-                "correlation_lo": float(np.quantile(corr_d, lo_q)),
-                "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
-                "correlation_lo50": float(np.quantile(corr_d, 0.25)),
-                "correlation_hi50": float(np.quantile(corr_d, 0.75)),
-                "communality_median": float(np.median(com_d)),
-                "communality_mean": float(np.mean(com_d)),
-                "communality_lo": float(np.quantile(com_d, lo_q)),
-                "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
-                "communality_lo50": float(np.quantile(com_d, 0.25)),
-                "communality_hi50": float(np.quantile(com_d, 0.75)),
-            }
-        )
-    load_df = pd.DataFrame(load_rows)
+    from language_reading_predictors.statistical_models import (
+        rlm_corr_factor_summaries as _rlm_summaries,
+    )
+
+    load_df = _rlm_summaries.loadings_communalities_table(post, domains, lo_q=lo_q)
     load_df.to_csv(os.path.join(ctx.output_dir, "loadings_summary.csv"), index=False)
     ctx.tables["loadings_summary"] = load_df
     print_table(
@@ -8062,36 +8074,10 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     # --- Factor correlation matrix + per-pair summary ------------------------
     section_header("Factor correlation")
-    corr_draws = post["factor_corr"]
-    dnames = [str(d) for d in post["domain"].values]
-    corr_df = pd.DataFrame(
-        corr_draws.mean(dim=("chain", "draw")).values, index=dnames, columns=dnames
-    )
+    corr_df = _rlm_summaries.factor_correlation_matrix(post)
     corr_df.to_csv(os.path.join(ctx.output_dir, "factor_correlation.csv"))
     ctx.tables["factor_correlation"] = corr_df
-    corr_stacked = corr_draws.stack(sample=("chain", "draw"))
-    corr_rows = []
-    for i, di in enumerate(dnames):
-        for j, dj in enumerate(dnames):
-            if j <= i:
-                continue
-            pair = np.asarray(
-                corr_stacked.isel(domain=i, domain_b=j).values
-            ).reshape(-1)
-            corr_rows.append(
-                {
-                    "domain_i": di,
-                    "domain_j": dj,
-                    "median": float(np.median(pair)),
-                    "mean": float(np.mean(pair)),
-                    "lo": float(np.quantile(pair, lo_q)),
-                    "hi": float(np.quantile(pair, 1 - lo_q)),
-                    "lo50": float(np.quantile(pair, 0.25)),
-                    "hi50": float(np.quantile(pair, 0.75)),
-                    "prob_pos": float(np.mean(pair > 0)),
-                }
-            )
-    corr_summary_df = pd.DataFrame(corr_rows)
+    corr_summary_df = _rlm_summaries.factor_correlation_pairs(post, lo_q=lo_q)
     corr_summary_df.to_csv(
         os.path.join(ctx.output_dir, "factor_correlation_summary.csv"), index=False
     )
@@ -8442,41 +8428,17 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     # --- Loadings + communalities (the measurement headline) ---
     section_header("Loadings + communalities")
-    dom_of = {s: d for d, syms in domains.items() for s in syms}
-    load_rows = []
-    for j, name in enumerate(str(s) for s in post["indicator"].values):
-        lam_d = post["lambda_load"].isel(indicator=j).values.reshape(-1)
-        com_d = post["communality"].isel(indicator=j).values.reshape(-1)
-        # The residual variance sigma is free, so the loading lambda is a
-        # coefficient on the unit-variance factor, NOT in general a correlation.
-        # The standardised loading / indicator-factor correlation is
-        # lambda / sqrt(lambda**2 + sigma**2) = sqrt(communality).
-        corr_d = np.sqrt(com_d)
-        load_rows.append(
-            {
-                "indicator": name,
-                "domain": dom_of.get(name, "?"),
-                "loading_median": float(np.median(lam_d)),
-                "loading_mean": float(np.mean(lam_d)),
-                "loading_lo": float(np.quantile(lam_d, lo_q)),
-                "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
-                "loading_lo50": float(np.quantile(lam_d, 0.25)),
-                "loading_hi50": float(np.quantile(lam_d, 0.75)),
-                "correlation_median": float(np.median(corr_d)),
-                "correlation_mean": float(np.mean(corr_d)),
-                "correlation_lo": float(np.quantile(corr_d, lo_q)),
-                "correlation_hi": float(np.quantile(corr_d, 1 - lo_q)),
-                "correlation_lo50": float(np.quantile(corr_d, 0.25)),
-                "correlation_hi50": float(np.quantile(corr_d, 0.75)),
-                "communality_median": float(np.median(com_d)),
-                "communality_mean": float(np.mean(com_d)),
-                "communality_lo": float(np.quantile(com_d, lo_q)),
-                "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
-                "communality_lo50": float(np.quantile(com_d, 0.25)),
-                "communality_hi50": float(np.quantile(com_d, 0.75)),
-            }
-        )
-    load_df = pd.DataFrame(load_rows)
+    from language_reading_predictors.statistical_models import (
+        corr_factor_summaries as _cf_summaries,
+    )
+
+    # The RLI factor loadings live under ``lambda_load`` (the Byrne model uses
+    # ``loading``); the residual sigma is free, so lambda is a coefficient on the
+    # unit-variance factor, not in general a correlation — the standardised loading /
+    # indicator-factor correlation reported alongside is sqrt(communality).
+    load_df = _cf_summaries.loadings_communalities_table(
+        post, domains, lo_q=lo_q, loading_var="lambda_load"
+    )
     load_df.to_csv(os.path.join(ctx.output_dir, "loadings_summary.csv"), index=False)
     ctx.tables["loadings_summary"] = load_df
     print_table(
@@ -8494,37 +8456,15 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     # --- Factor correlation matrix ---
     section_header("Factor correlation")
-    corr_draws = post["factor_corr"]  # (chain, draw, domain, domain2)
-    corr = corr_draws.mean(dim=("chain", "draw")).values
+    corr_df = _cf_summaries.factor_correlation_matrix(post)
+    # Domain names are also used by the structural leg below (beta_factor dims).
     dnames = [str(d) for d in post["domain"].values]
-    corr_df = pd.DataFrame(corr, index=dnames, columns=dnames)
     corr_df.to_csv(os.path.join(ctx.output_dir, "factor_correlation.csv"))
     ctx.tables["factor_correlation"] = corr_df
     # The bare mean matrix above is kept for the heatmap, but the house rule is
     # "never a bare point estimate": persist each unique off-diagonal pair with a
     # posterior mean, equal-tailed interval and tail probability alongside it.
-    corr_stacked = corr_draws.stack(sample=("chain", "draw"))
-    lo_q = (1 - hdi) / 2
-    corr_rows = []
-    for i, di in enumerate(dnames):
-        for j, dj in enumerate(dnames):
-            if j <= i:
-                continue
-            pair = np.asarray(corr_stacked.isel(domain=i, domain_b=j).values).reshape(-1)
-            corr_rows.append(
-                {
-                    "domain_i": di,
-                    "domain_j": dj,
-                    "median": float(np.median(pair)),
-                    "mean": float(np.mean(pair)),
-                    "lo": float(np.quantile(pair, lo_q)),
-                    "hi": float(np.quantile(pair, 1 - lo_q)),
-                    "lo50": float(np.quantile(pair, 0.25)),
-                    "hi50": float(np.quantile(pair, 0.75)),
-                    "prob_pos": float(np.mean(pair > 0)),
-                }
-            )
-    corr_summary_df = pd.DataFrame(corr_rows)
+    corr_summary_df = _cf_summaries.factor_correlation_pairs(post, lo_q=lo_q)
     corr_summary_df.to_csv(
         os.path.join(ctx.output_dir, "factor_correlation_summary.csv"), index=False
     )

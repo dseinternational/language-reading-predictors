@@ -660,6 +660,57 @@ def test_mechanism_factory_age_moderator_not_double_counted(tmp_path):
     assert "gamma_A" not in names
 
 
+def test_mechanism_factory_mechanism_at_pre_uses_period_start_regressor(tmp_path):
+    """``mechanism_at_pre=True`` (#405 lagged / predictive readout) takes the
+    mechanism regressor from the period-start (pre) logit; the default takes the
+    post-count logit. The two alignments give different regressors, and each matches
+    its source on the same logit-safe scale. Default-off, so the concurrent mechanism
+    family is byte-identical."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    common = dict(
+        mechanism_symbol="R",
+        outcome_symbol="W",
+        adjust_baseline_symbol="W",
+        confounder_symbols=(),
+        linear_mechanism=True,
+    )
+    post_built = build_mechanism_model(prep, **common)  # default: mechanism at post
+    pre_built = build_mechanism_model(prep, mechanism_at_pre=True, **common)
+
+    post_reg = post_built.model["mech_post_logit"].get_value()
+    pre_reg = pre_built.model["mech_post_logit"].get_value()
+
+    # The complete synthetic panel keeps every row for both alignments.
+    assert len(post_reg) == len(pre_reg) == prep.n_obs
+    # The two alignments produce genuinely different regressors.
+    assert not np.allclose(post_reg, pre_reg)
+    # Each matches its source: post = logit_safe(post counts); pre = the pre logit.
+    np.testing.assert_allclose(
+        post_reg, logit_safe(prep.post_counts["R"], prep.n_trials["R"])
+    )
+    np.testing.assert_allclose(pre_reg, prep.pre_logit["R"])
+
+
+def test_mechanism_factory_mechanism_at_pre_rejects_covariate_exposure(tmp_path):
+    """A standardised covariate exposure has no separate period-start score, so
+    combining the two options is refused rather than silently ignored."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    with pytest.raises(ValueError, match="mechanism_at_pre is incompatible"):
+        build_mechanism_model(
+            prep,
+            mechanism_symbol="R",
+            outcome_symbol="W",
+            mechanism_is_covariate=True,
+            mechanism_at_pre=True,
+        )
+
+
 def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
     """With the age GP on, age is represented by ``f_A``, so the linear
     ``gamma_A`` term is not added (no double adjustment)."""
@@ -1729,6 +1780,59 @@ def test_gain_factors_skills_ability_interactions(tmp_path):
     assert mods["gamma_int_trt_ability"].mean() == pytest.approx(0.0, abs=1e-9)
 
 
+def test_gain_factors_offfloor_own_interaction_keeps_hierarchy(tmp_path):
+    """#391 Finding 2: on the Bernoulli off-floor path the graded ``gamma_own``
+    precision term is dropped (its Normal(1, 0.25) prior does not transfer to the
+    binary indicator), but a ``trt×own`` interaction must not be left without its own
+    main effect. The factory restores a regularised ``gamma_own_offfloor`` main effect
+    on the same standardised baseline the interaction uses, so the interaction reads as
+    effect modification rather than compensating for the missing term."""
+    prep = load_and_prepare(
+        path=_write_synthetic(tmp_path, n_children=20),
+        phase_mode="all",
+        outcomes=("N",),
+    )
+    built = build_gain_factors_model(
+        prep,
+        outcome_symbol="N",
+        likelihood="bernoulli_offfloor",
+        interactions=(("trt", "own"),),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    # Off-floor path: the graded gamma_own is dropped ...
+    assert "gamma_own" not in names
+    # ... but the trt×own interaction is present, so its own main effect is restored.
+    assert "gamma_own_offfloor" in names
+    assert "gamma_int_trt_own" in names
+
+    # No own interaction -> no off-floor own main effect (nothing to keep hierarchy for).
+    built_no_own = build_gain_factors_model(
+        prep,
+        outcome_symbol="N",
+        likelihood="bernoulli_offfloor",
+        interactions=(),
+    )
+    no_own_names = {v.name for v in built_no_own.model.free_RVs}
+    assert "gamma_own_offfloor" not in no_own_names
+    assert "gamma_own" not in no_own_names
+
+
+def test_gf_coef_names_gamma_own_offfloor_respects_treated_only():
+    """The reported-coefficient list must match what the factory actually builds
+    (#413 review): the off-floor own main effect is added only when an ``own``
+    interaction survives the treated_only filter (which drops trt interactions), so
+    a treated-only spec whose only own interaction is trt×own reports no
+    ``gamma_own_offfloor``."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.pipeline import _gf_coef_names
+
+    base = {"likelihood": "bernoulli_offfloor", "interactions": (("trt", "own"),)}
+    assert "gamma_own_offfloor" in _gf_coef_names(SimpleNamespace(extra=dict(base)))
+    treated = SimpleNamespace(extra={**base, "treated_only": True})
+    assert "gamma_own_offfloor" not in _gf_coef_names(treated)
+
+
 def test_gain_factors_adjust_for_covariates(tmp_path):
     """#247: revised-DAG raw-covariate confounders enter as linear ``gamma_{c}`` terms
     alongside the skill baselines, mirroring the mechanism factory's adjust_for path."""
@@ -2097,3 +2201,98 @@ def test_association_group_terms_not_tiered(tmp_path):
     aligned = load_and_prepare_aligned(path=p)
     al = build_aligned_model(aligned, outcome_symbol="E")
     assert _tau_dist(al.model, "beta_cohort") == "Normal(0, 0.5)"
+
+
+def test_load_and_prepare_populates_pre_counts(tmp_path):
+    """#405 review: the un-logited pre count is carried alongside pre_logit so the
+    items-scale writer can place a period-start exposure on its own axis."""
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare,
+        logit_safe,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    assert set(prep.pre_counts) == set(prep.post_counts)
+    for s in prep.post_counts:
+        assert prep.pre_counts[s].shape == prep.post_counts[s].shape
+        finite = prep.pre_counts[s][np.isfinite(prep.pre_counts[s])]
+        assert np.all(finite == np.rint(finite))  # integer counts
+        # pre_logit is exactly the Haldane-corrected logit of the pre count.
+        assert np.allclose(
+            prep.pre_logit[s],
+            logit_safe(prep.pre_counts[s], MEASURES[s].n_trials),
+            equal_nan=True,
+        )
+
+
+def test_mechanism_writers_use_pre_exposure_when_lagged(tmp_path):
+    """#405 review (P1): with mechanism_at_pre the model fits the period-start
+    exposure, so the curve and items writers must report that same pre exposure —
+    not the post score — or the artifacts mislabel a lagged fit as concurrent."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models import pipeline as pl
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare,
+        logit_safe,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=25)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="R",
+        outcome_symbol="W",
+        confounder_symbols=(),
+        linear_mechanism=True,
+        mechanism_at_pre=True,
+        use_subject_random_intercept=False,
+    )
+    with built.model:
+        trace = pm.sample(
+            tune=15,
+            draws=15,
+            chains=1,
+            cores=1,
+            progressbar=False,
+            random_seed=1,
+            compute_convergence_checks=False,
+        )
+
+    out = tmp_path / "mech_out"
+    out.mkdir()
+    ctx = SimpleNamespace(
+        trace=trace,
+        prepared=built.prepared,
+        spec=SimpleNamespace(
+            mechanism_symbol="R",
+            outcome_symbol="W",
+            extra={"mechanism_at_pre": True, "linear_mechanism": True},
+        ),
+        reporting=SimpleNamespace(ci_prob=0.89),
+        output_dir=str(out),
+        tables={},
+    )
+
+    # Logit-scale curve: the x column is the pre logit, not the post logit.
+    pl._write_mechanism_curve(ctx)
+    curve = pd.read_csv(out / "mechanism_curve.csv")
+    got = np.sort(curve["mech_logit"].to_numpy())
+    pre = np.sort(np.asarray(built.prepared.pre_logit["R"], dtype=float))
+    post = np.sort(
+        logit_safe(built.prepared.post_counts["R"], MEASURES["R"].n_trials)
+    )
+    assert np.allclose(got, pre)
+    assert not np.allclose(got, post)
+
+    # Items-scale companion: the exposure axis is the pre counts.
+    worked = pl._write_mechanism_items(ctx)
+    assert worked  # ran without falling into the defensive except
+    items = pd.read_csv(out / "mechanism_curve_items.csv")
+    assert np.allclose(
+        np.unique(items["exposure"].to_numpy()),
+        np.unique(np.asarray(built.prepared.pre_counts["R"], dtype=float)),
+    )

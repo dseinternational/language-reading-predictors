@@ -115,6 +115,88 @@ def test_gate_failed_withholds_findings(tmp_path):
     assert (d / KEY_FINDINGS_FILENAME).exists()
 
 
+_GATE_EXCEPTION = {
+    "checks": ["divergences"],
+    "reason": "intrinsic near-singular geometry; probe shows the deliverables are unaffected",
+    "issue": 409,
+    "signed_off": "2026-07-24",
+}
+
+
+def _diag(**checks: bool) -> dict:
+    """A diagnostics-gate payload; ``passed`` is True iff every check is True."""
+    return {"passed": all(checks.values()), "checks": checks}
+
+
+def _diverged() -> dict:
+    return _diag(rhat=True, ess=True, divergences=False, bfmi=True)
+
+
+def test_gate_exception_shows_findings_with_a_mandatory_caveat(tmp_path):
+    # #412: a recorded exception waives the only failing check (divergences) -> the
+    # gate is "passed with exception": findings are shown but a caveat leads them.
+    d = _setup_dir(
+        tmp_path, "itt", config=_config("itt", spec_extra={"gate_exception": _GATE_EXCEPTION})
+    )
+    _write_json(d, "diagnostics_summary.json", _diverged())
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "gate_exception"
+    assert payload["waived_checks"] == ["divergent transitions"]
+    assert "recorded exception" in payload["sentences"][0]["text"]
+    assert len(payload["sentences"]) >= 2  # caveat + at least one real finding
+
+
+def test_gate_exception_does_not_clear_an_unwaived_failure(tmp_path):
+    # R-hat also fails; the divergence waiver must not rescue it.
+    d = _setup_dir(
+        tmp_path, "itt", config=_config("itt", spec_extra={"gate_exception": _GATE_EXCEPTION})
+    )
+    _write_json(
+        d, "diagnostics_summary.json",
+        _diag(rhat=False, ess=True, divergences=False, bfmi=True),
+    )
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "gate_failed"
+    assert "R-hat" in payload["failing_checks"]
+    assert payload["sentences"] == []
+
+
+def test_gate_exception_naming_a_passing_check_is_a_noop(tmp_path):
+    # The named check is actually passing -> ordinary clean pass, not an error.
+    d = _setup_dir(
+        tmp_path, "itt", config=_config("itt", spec_extra={"gate_exception": _GATE_EXCEPTION})
+    )  # _setup_dir writes an all-pass gate
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert "waived_checks" not in payload
+
+
+def test_gate_exception_badge_and_key_findings_agree(tmp_path):
+    badge = convergence_gate_badge_markdown(_diverged(), _GATE_EXCEPTION)
+    assert "callout-warning" in badge and "recorded exception" in badge
+    assert "callout-tip" not in badge and "callout-important" not in badge
+
+    d = _setup_dir(
+        tmp_path, "itt", config=_config("itt", spec_extra={"gate_exception": _GATE_EXCEPTION})
+    )
+    _write_json(d, "diagnostics_summary.json", _diverged())
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    assert generate_key_findings(d)["status"] == "gate_exception"
+
+
+def test_without_gate_exception_a_divergence_failure_is_unchanged(tmp_path):
+    d = _setup_dir(tmp_path, "itt")  # no spec_extra.gate_exception
+    _write_json(d, "diagnostics_summary.json", _diverged())
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "gate_failed"
+    assert "divergent transitions" in payload["failing_checks"]
+    assert "callout-important" in convergence_gate_badge_markdown(_diverged(), None)
+
+
 def test_missing_diagnostics_summary_degrades(tmp_path):
     d = tmp_path / "no-gate"
     d.mkdir()
