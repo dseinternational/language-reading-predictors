@@ -15,7 +15,9 @@ assumption alongside every fit.
 The gain-factor design is a period-stacked ANCOVA: the post-score is regressed on
 the child's own pre-score with a non-centred child random intercept. The headline
 randomised quantity is the interaction-aware **period-1 average marginal effect**
-of random assignment (``beta_trt``); every skill / ability / interaction term is a
+of random assignment (computed from ``beta_trt`` together with any active
+treatment-interaction terms, not ``beta_trt`` alone); every skill / ability /
+interaction term is a
 latent-ability-confounded **adjusted association**, never a causal effect.
 """
 
@@ -120,12 +122,16 @@ class GainFactorsModelSettings:
                 f"{model_id}: unknown gain-factor setting(s): {', '.join(unknown)}. "
                 "Declare GainFactorsModelSettings so misspellings fail fast."
             )
+        # Pass raw values through so __post_init__ is the single validation/coercion
+        # point; pre-coercing here (tuple(...)/bool(...)) would silently reshape
+        # misshaped legacy settings ("TR" -> ('T', 'R'), 1 -> True) instead of failing
+        # fast against the strict checks in __post_init__.
         return cls(
-            skill_symbols=tuple(extra.get("skill_symbols", ())),
+            skill_symbols=extra.get("skill_symbols", ()),
             ability_covariate=extra.get("ability_covariate"),
-            adjust_for=tuple(extra.get("adjust_for", ())),
-            interactions=tuple(tuple(p) for p in extra.get("interactions", ())),
-            treated_only=bool(extra.get("treated_only", False)),
+            adjust_for=extra.get("adjust_for", ()),
+            interactions=extra.get("interactions", ()),
+            treated_only=extra.get("treated_only", False),
             likelihood=extra.get("likelihood", "beta_binomial"),
         )
 
@@ -298,7 +304,8 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
         )
         estimand = (
             "Interaction-aware period-1 average marginal effect of random assignment "
-            "(beta_trt), on the fitted available-case sample."
+            "(computed from beta_trt and any active treatment-interaction terms), "
+            "on the fitted available-case sample."
         )
     if settings.treated_only:
         estimand = (
