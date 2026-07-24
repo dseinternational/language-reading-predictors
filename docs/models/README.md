@@ -281,6 +281,8 @@ phases, with subject random intercepts and optional linear moderation. Every slo
 | `lrp-rli-mech-071`            | `L → W`  | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                                              |
 | `lrp-rli-mech-072` / `72base` | `L → N`  | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction)                     |
 | `lrp-rli-mech-073` / `73base` | `L → W`  | Letter sounds → word reading, moderated by age (with / without the interaction)                                           |
+| `lrp-rli-mech-061` / `161`    | `L → W`  | Joint readiness: letter sounds moderated by phoneme blending `B` → word reading (with / without the interaction; #404)    |
+| `lrp-rli-mech-063` / `163`    | `L → W`  | Joint readiness: letter sounds moderated by nonword decoding `N` → word reading (with / without the interaction; #404)    |
 | `lrp-rli-mech-088`            | `TR → W` | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)                               |
 | `lrp-rli-mech-089`            | `TE → W` | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                             |
 | `lrp-rli-mech-090`            | `RW → W` | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor) |

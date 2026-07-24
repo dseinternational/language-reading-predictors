@@ -785,6 +785,65 @@ def test_horseshoe_findings_do_not_claim_threshold_was_pre_specified(tmp_path):
     assert "pre-specified" not in _texts(payload)
 
 
+def test_mechanism_findings_headline_interaction_when_present(tmp_path):
+    """#404 review: a moderated mechanism fit headlines gamma_int (median, 50%/89%
+    intervals, tail probability) ahead of the unmoderated curve contrast."""
+    d = _setup_dir(tmp_path, "mechanism")
+    _write_csv(
+        d,
+        "mechanism_summary.csv",
+        {
+            "exposure_low": 0,
+            "exposure_high": 30,
+            "exposure_unit": "L items",
+            "items_median": 3.2,
+            "items_lo": 0.4,
+            "items_hi": 6.8,
+            "prob_pos": 0.98,
+        },
+    )
+    _write_csv(
+        d,
+        "interaction_summary.csv",
+        {
+            "gamma_int_median": -0.33,
+            "gamma_int_mean": -0.33,
+            "gamma_int_lo": -0.57,
+            "gamma_int_hi": -0.09,
+            "gamma_int_lo50": -0.42,
+            "gamma_int_hi50": -0.24,
+            "prob_gamma_int_pos": 0.06,
+            "gamma_mod_median": 0.1,
+            "gamma_mod_mean": 0.1,
+            "gamma_mod_lo": -0.2,
+            "gamma_mod_hi": 0.4,
+            "gamma_mod_lo50": -0.05,
+            "gamma_mod_hi50": 0.25,
+            "prob_gamma_mod_pos": 0.7,
+        },
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    first = payload["sentences"][0]["text"]
+    # gamma_int leads, on the logit scale, with median + both intervals + tail prob.
+    assert "moderation coefficient" in first
+    assert "logit" in first
+    assert "-0.33" in first and "-0.42" in first and "-0.57" in first
+    assert "P(> 0) = 0.06" in first
+    # The unmoderated curve contrast is retained as supporting context.
+    assert "fitted exposure range" in _texts(payload)
+
+
+def test_mechanism_findings_without_interaction_are_unchanged(tmp_path):
+    """A non-moderated mechanism fit (no interaction_summary.csv) still leads with
+    the curve contrast — the interaction headline is strictly conditional."""
+    d, expected = _remaining_family_case(tmp_path, "mechanism")
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert "moderation coefficient" not in _texts(payload)
+    assert expected in payload["sentences"][0]["text"]
+
+
 def test_builder_registry_covers_every_declared_family():
     assert KINDS <= _KF_BUILDERS.keys()
 
