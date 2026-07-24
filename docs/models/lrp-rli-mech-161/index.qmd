@@ -1,0 +1,51 @@
+---
+title: "LRP61base: Joint-readiness baseline (no interaction) — letter-sound (LS) + phoneme blending (PA) main effects -> word reading (WR)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP61base is the no-interaction companion to [LRP61](../lrp-rli-mech-061/). It uses the same
+outcome, data window and **HSGP** letter-sound mechanism $f^L$, and enters phoneme blending
+($B$) through the **same** moderator main effect $\gamma_{\text{mod}} z(B)$ as LRP61, with
+`include_interaction=False` dropping only the $\gamma_{\text{int}}$ ($L \times B$) term. The two
+models therefore differ by *exactly* the interaction, with an identical prior on the blending
+main effect — a clean **nested** comparison.
+
+The purpose is model comparison: LRP61 versus LRP61base asks whether adding the letter-sound
+$\times$ blending interaction improves predictive fit for word reading (PSIS-LOO). Because
+blending $B = \mathrm{PA}$ is a DAG-descendant of the exposure $L$, both models estimate a
+**controlled-direct** $L \to W$ effect at fixed blending, so the comparison is like-for-like. All
+coefficients are latent-GA-confounded adjusted associations, not causal skill-to-skill effects.
+
+## Model
+
+$$
+\eta = \dots + f^{L}(\operatorname{logit} L_{\text{post}}) + \gamma_{\text{mod}}\, z(B),
+$$
+
+the same as [LRP61](../lrp-rli-mech-061/) but without $\gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(B)$.
+The outcome is word reading (`WR`, `ewrswr`) with a Beta-Binomial likelihood.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
