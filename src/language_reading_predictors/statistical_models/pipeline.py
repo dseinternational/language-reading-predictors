@@ -3302,7 +3302,16 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
                 f"{spec.model_id}: covariate moderator {mod_sym!r} must not also "
                 "appear in adjust_for (it would enter the linear predictor twice)."
             )
-        load_covariates = tuple(dict.fromkeys((*load_covariates, mod_sym)))
+        mod_load: tuple[str, ...] = (mod_sym,)
+        # When the spec complete-cases on the moderator, load its ``_missing`` flag
+        # too so the loader's ``require_observed`` filter can drop the mean-imputed
+        # rows. Moderating by an average-filled effect modifier is not meaningful:
+        # a child with a missing modifier would be assigned the sample-mean value
+        # and then read as sitting at that (fictional) point on the interaction.
+        # Mirrors the ``mechanism_is_covariate`` load above.
+        if mod_sym in require_observed:
+            mod_load += (f"{mod_sym}_missing",)
+        load_covariates = tuple(dict.fromkeys((*load_covariates, *mod_load)))
     pre_adj, post_adj = split_covariates_by_wave(load_covariates)
     _kw = {
         "covariates": pre_adj,
