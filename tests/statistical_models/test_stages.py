@@ -33,16 +33,12 @@ def _stage_runner(events):
 
 def test_attach_stage_sets_the_built_contract_before_priors():
     events = []
-    ctx = SimpleNamespace(model=None, model_vars=None, prepared=None)
-    built = SimpleNamespace(model="model", variables={"tau": 1}, prepared="data")
+    ctx = SimpleNamespace(model=None, prepared=None)
+    built = SimpleNamespace(model="model", prepared="data")
 
     _stage_runner(events).attach_built(ctx, built)
 
-    assert (ctx.model, ctx.model_vars, ctx.prepared) == (
-        "model",
-        {"tau": 1},
-        "data",
-    )
+    assert (ctx.model, ctx.prepared) == ("model", "data")
     assert events == ["priors"]
 
 
