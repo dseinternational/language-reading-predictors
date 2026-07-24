@@ -39,9 +39,6 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-from dse_research_utils.statistics.models.pymc_utils import (
-    get_variables_dict as _variables_dict,
-)
 
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.hsgp import (
@@ -208,7 +205,6 @@ def _standardise_child_baseline(
 @dataclass
 class BuiltModel:
     model: pm.Model
-    variables: dict[str, pt.TensorVariable]
     prepared: PreparedData | WavePanel | LongitudinalPanel
     """The (possibly row-subset) prepared data that the model was built on.
 
@@ -545,7 +541,6 @@ def build_itt_model(
             off_floor = (post > 0).astype(np.int64)
             pm.Bernoulli("y_offfloor", logit_p=eta, observed=off_floor, dims="obs_id")
 
-    variables = _variables_dict(model)
     # Expose the tau-moderator vector so the AME report can net out the full
     # per-row treatment contribution ``(tau + gamma_tau_int·z_M)·G`` when a
     # linear tau moderator with interaction is fitted (Part B; latent — no
@@ -556,7 +551,6 @@ def build_itt_model(
         tau_moderators.append(("gamma_tau_int", np.asarray(z_M, dtype=float)))
     return BuiltModel(
         model=model,
-        variables=variables,
         prepared=prepared,
         extras={"tau_interaction_moderators": tau_moderators},
     )
@@ -816,7 +810,6 @@ def build_joint_model(
     )
     return BuiltModel(
         model=model,
-        variables=_variables_dict(model),
         prepared=prepared,
         extras={
             "joint_dependence": dependence,
@@ -1241,7 +1234,7 @@ def build_mechanism_model(
             dims="obs_id",
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -1431,7 +1424,7 @@ def build_dose_response_model(
             dims="obs_id",
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -1620,7 +1613,6 @@ def build_did_model(
 
         return BuiltModel(
             model=model,
-            variables=_variables_dict(model),
             prepared=prepared,
             extras={
                 "design": "dose_intensive_margin",
@@ -1785,7 +1777,6 @@ def build_did_model(
 
     return BuiltModel(
         model=model,
-        variables=_variables_dict(model),
         prepared=prepared,
         extras={
             "design": "arm_by_wave",
@@ -2123,7 +2114,7 @@ def build_mediation_model(
         mediator_symbol=mediator_symbol,
         off_floor=off_floor,
     )
-    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared)
     return built, med_data
 
 
@@ -2255,7 +2246,7 @@ def _build_route_composite_model(
         M_pre_std=c_pre_std,
         route_symbols=route_symbols,
     )
-    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared)
     return built, med_data
 
 
@@ -2475,7 +2466,7 @@ def build_two_mediator_model(
         confounder_symbols=confounder_symbols,
         chain=chain,
     )
-    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared)
     return built, med_data
 
 
@@ -2715,7 +2706,7 @@ def build_period_stacked_mediation_model(
         med_sd=float(med_scaler.sd),
         mediator_symbol=mediator_symbol,
     )
-    built = BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared)
     return built, med_data
 
 
@@ -2851,7 +2842,7 @@ def build_adjusted_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -2999,7 +2990,7 @@ def build_concurrent_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -3158,7 +3149,7 @@ def build_horseshoe_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -3508,7 +3499,7 @@ def build_correlated_factor_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -3816,7 +3807,6 @@ def build_gain_factors_model(
 
     return BuiltModel(
         model=model,
-        variables=_variables_dict(model),
         prepared=prepared,
         extras={"trt_interaction_moderators": trt_moderators},
     )
@@ -3982,7 +3972,7 @@ def build_level_factors_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 def build_block_exposure_model(
@@ -4142,7 +4132,7 @@ def build_block_exposure_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 def build_aligned_model(
@@ -4241,7 +4231,7 @@ def build_aligned_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared)
 
 
 # ---------------------------------------------------------------------------
@@ -4620,7 +4610,7 @@ def build_lcsm_model(
             observed=counts_int[idx_i, idx_t, idx_k],
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
+    return BuiltModel(model=model, prepared=panel)
 
 
 def build_growth_model(
@@ -4813,7 +4803,7 @@ def build_growth_model(
             observed=counts_int[idx_i, idx_t, idx_k],
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
+    return BuiltModel(model=model, prepared=panel)
 
 
 # ---------------------------------------------------------------------------
@@ -5112,7 +5102,7 @@ def build_longitudinal_corr_factor_model(
         "invariance": "wave-invariant loadings and residual scales",
     }
     return BuiltModel(
-        model=model, variables=_variables_dict(model), prepared=panel, extras=extras
+        model=model, prepared=panel, extras=extras
     )
 
 
@@ -5272,7 +5262,7 @@ def build_historical_growth_model(
             )
 
     return BuiltModel(
-        model=model, variables=_variables_dict(model), prepared=panel
+        model=model, prepared=panel
     )
 
 
@@ -5354,7 +5344,7 @@ def build_rlm_adjusted_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=frame)
+    return BuiltModel(model=model, prepared=frame)
 
 
 def build_rlm_horseshoe_model(
@@ -5403,7 +5393,7 @@ def build_rlm_horseshoe_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=frame)
+    return BuiltModel(model=model, prepared=frame)
 
 
 def build_rlm_corr_factor_model(
@@ -5540,7 +5530,7 @@ def build_rlm_corr_factor_model(
             dims=("obs_id", "indicator"),
         )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=battery)
+    return BuiltModel(model=model, prepared=battery)
 
 
 def build_rlm_joint_growth_model(
@@ -5718,4 +5708,4 @@ def build_rlm_joint_growth_model(
                     dims="group",
                 )
 
-    return BuiltModel(model=model, variables=_variables_dict(model), prepared=panel)
+    return BuiltModel(model=model, prepared=panel)
