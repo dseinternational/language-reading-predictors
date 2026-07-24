@@ -1,0 +1,47 @@
+---
+title: "LRP60: Sequential code route — letter sounds → nonword decoding → word reading (off-floor)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP60 is the chained companion to [LRP75](../lrp-rli-med-075) (letter sounds $L \to$ blending $B \to$ word reading $W$), but through the alphabetic route's own fingerprint — **nonword decoding $N$** (#421 Tier 3; review note #424, decoding-specificity spec §6). It was specced as "med-081" and **withdrawn at build time**: `build_two_mediator_model` required each mediator's autoregressive baseline, and $N$ is post-only with a ~72%-floored t1 score. This model uses a new **off-floor second-mediator leg** — $N$ enters as a Bernoulli off-floor indicator ($P(N>0)$) with no autoregressive baseline — so the chained $L \to N \to W$ g-formula decomposition finally builds.
+
+_(Registered as `med-060`, not the note's `med-081`: the bare legacy alias `lrp81` is already the live `lcsm-081`, so 081 was never free; 060 is the lowest free bare alias in the mediation range.)_
+
+With `chain=True` the $N$ leg regresses on post-$L$ (the $L \to N$ coupling $a_{N\leftarrow L}$), and the g-formula draws the off-floor $N$ indicator conditional on the *simulated* $L$, so the joint indirect effect through the $\{L, N\}$ block carries the $L \to N \to W$ sub-path.
+
+## What to read (and what not to)
+
+- **Robust headline — the joint indirect effect through $\{L, N\}$** (`NIE_joint`): both mediators respond to treatment, including the $L \to N$ coupling. The outcome $W$ stays a graded Beta-Binomial; only the $N$ *mediator* is off-floor, so its path is "the effect flowing through *crossing the decoding floor*", not through graded decoding skill.
+- **The $L \to N$ coupling** ($a_{N\leftarrow L}$, a fitted coefficient, an *association*): a clearly-positive value is direct evidence that decoding is downstream of letter sounds.
+- **Per-path $\text{NIE}_L$ / $\text{NIE}_N$**: reported but **exploratory, ordering-dependent, and — because $N$ is heavily floored — floor-limited and low-power**. Expect the $N$-path to be near zero with a wide, undecided interval; that is the honest floor-limited result, not evidence of no code route (the review's own caveat, and the reason the model was first withdrawn).
+
+_Causal labelling._ Every path is an **adjusted association / g-formula decomposition under the stated cross-world assumptions**, never an identified natural effect — the $IG \to IS \to \{L, N, W\}$ dose witness is untouched.
+
+::: {.callout-note}
+The adjustment set ($\{E, R\}$ + hearing/speech/phonological-memory traits, mirroring `med-075`) and the off-floor-mediator NIE definition are flagged for Frank's methodological sign-off: the estimand is his call. This model ships the machinery + a fittable specification.
+:::
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

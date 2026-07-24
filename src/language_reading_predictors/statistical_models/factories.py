@@ -2485,6 +2485,10 @@ class TwoMediatorData:
     #: Sequential code route (LRP75): the second mediator regresses on post-L, so
     #: the g-formula must draw it conditional on the simulated first mediator.
     chain: bool = False
+    #: Off-floor (Bernoulli) second mediator (e.g. floored nonword decoding N, med-081):
+    #: its leg models P(mediator > 0) with no dispersion / denominator / own-baseline,
+    #: and the g-formula draws it as a Bernoulli indicator, not a Beta-Binomial count.
+    second_mediator_offfloor: bool = False
 
 
 def build_two_mediator_model(
@@ -2494,6 +2498,7 @@ def build_two_mediator_model(
     mediator_symbols: tuple[str, str] = ("L", "E"),
     confounder_symbols: Iterable[str] = ("R",),
     chain: bool = False,
+    second_mediator_offfloor: bool = False,
 ) -> tuple[BuiltModel, TwoMediatorData]:
     """Joint two-mediator + outcome model for the ITT-phase decomposition (LRP64).
 
@@ -2535,9 +2540,14 @@ def build_two_mediator_model(
             "build_two_mediator_model hard-codes the first leg to L; "
             f"mediator_symbols[0] must be 'L', got {mediator_symbols!r}"
         )
-    for s in (outcome_symbol, mL, mE):
+    # An off-floor second mediator (e.g. floored nonword decoding N) has no usable
+    # autoregressive baseline, so its pre-score is not required — only its post count.
+    _need_pre = (outcome_symbol, mL) if second_mediator_offfloor else (outcome_symbol, mL, mE)
+    for s in _need_pre:
         if s not in prepared.pre_logit:
             raise KeyError(f"Symbol {s!r} missing from prepared data")
+    if mE not in prepared.post_counts:
+        raise KeyError(f"Second mediator {mE!r} missing a post score in prepared data")
     for s in confounder_symbols:
         if s not in prepared.pre_logit and s not in prepared.covariates:
             raise KeyError(f"Confounder {s!r} not in prepared pre_logit or covariates")
@@ -2561,10 +2571,23 @@ def build_two_mediator_model(
     W2 = prepared.post_counts[outcome_symbol].astype(np.int64)
 
     zL, zL_scaler = standardise(logit_safe(L2, N_L))
-    zE, zE_scaler = standardise(logit_safe(E2, N_E))
+    if second_mediator_offfloor:
+        # The regressor entering the outcome leg for an off-floor mediator is the
+        # off-floor INDICATOR (mediator > 0), not a standardised count logit — it has
+        # no dispersion, denominator or own-baseline. zE_mean/zE_sd are placeholders
+        # (the g-formula draws a Bernoulli indicator, so no destandardisation applies).
+        zE = (E2 > 0).astype(float)
+        zE_mean, zE_sd = 0.0, 1.0
+    else:
+        zE, zE_scaler = standardise(logit_safe(E2, N_E))
+        zE_mean, zE_sd = float(zE_scaler.mean), float(zE_scaler.sd)
 
     L1 = prepared.pre_logit[mL]
-    E1 = prepared.pre_logit[mE]
+    E1 = (
+        np.zeros(prepared.n_obs, dtype=float)
+        if second_mediator_offfloor
+        else prepared.pre_logit[mE]
+    )
     W1 = prepared.pre_logit[outcome_symbol]
     conf_logit = {
         s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
@@ -2577,7 +2600,8 @@ def build_two_mediator_model(
         G_d = pm.Data("G", G_f, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         L1_d = pm.Data("L_pre_logit", L1, dims="obs_id")
-        E1_d = pm.Data(f"{mE}_pre_logit", E1, dims="obs_id")
+        if not second_mediator_offfloor:
+            E1_d = pm.Data(f"{mE}_pre_logit", E1, dims="obs_id")
         W1_d = pm.Data(f"{outcome_symbol}_pre_logit", W1, dims="obs_id")
         conf_d = {
             s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
@@ -2601,27 +2625,44 @@ def build_two_mediator_model(
             "L_post", mu_L, n_trials=N_L, kappa=kappa_L, observed=L2, dims="obs_id"
         )
 
-        # --- Mediator 2 (``mE``; expressive vocabulary in LRP64, blending in LRP66) ---
+        # --- Mediator 2 (``mE``; expressive vocabulary in LRP64, blending in LRP66;
+        #     off-floor nonword decoding N in med-081) ---
         aE0 = _priors.alpha_prior().to_pymc(f"a{mE}0")
         aE_G = _priors.tau_prior().to_pymc(f"a{mE}_G")
-        aE_E = _priors.gamma_own_prior().to_pymc(f"a{mE}_{mE}")
-        aE_A = _priors.gamma_cross_prior().to_pymc(f"a{mE}_A")
-        mu_E = aE0 + aE_G * G_d + aE_E * E1_d + aE_A * A_d
+        if second_mediator_offfloor:
+            # Off-floor mediator: no autoregressive own-baseline (no usable pre-score),
+            # so no a{mE}_{mE} term and no {mE}_pre_logit Data node.
+            aE_A = _priors.gamma_cross_prior().to_pymc(f"a{mE}_A")
+            mu_E = aE0 + aE_G * G_d + aE_A * A_d
+        else:
+            aE_E = _priors.gamma_own_prior().to_pymc(f"a{mE}_{mE}")
+            aE_A = _priors.gamma_cross_prior().to_pymc(f"a{mE}_A")
+            mu_E = aE0 + aE_G * G_d + aE_E * E1_d + aE_A * A_d
         for s in confounder_symbols:
             aE_c = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{s}")
             mu_E = mu_E + aE_c * conf_d[s]
         if chain:
-            # Sequential code route (LRP75): the second mediator is downstream of
-            # the first (L -> B), so post-L (``z_L``) enters the mE leg. The
-            # coefficient a{mE}_L is the L->B coupling; the g-formula then draws the
+            # Sequential code route (LRP75 / med-081): the second mediator is downstream
+            # of the first (L -> B, or L -> N), so post-L (``z_L``) enters the mE leg. The
+            # coefficient a{mE}_L is the L->mE coupling; the g-formula then draws the
             # second mediator conditional on the *simulated* L.
             aE_L = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{mL}")
             mu_E = mu_E + aE_L * zL_d
         mu_E = pm.Deterministic(f"mu_{mE}", mu_E, dims="obs_id")
-        kappa_E = _priors.kappa_prior().to_pymc(f"kappa_{mE}")
-        beta_binomial_from_logit(
-            f"{mE}_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id"
-        )
+        if second_mediator_offfloor:
+            # Bernoulli off-floor leg: models P(mediator > 0); no dispersion, no
+            # denominator, no own-baseline (mirrors the off-floor outcome leg).
+            pm.Bernoulli(
+                f"{mE}_offfloor",
+                logit_p=mu_E,
+                observed=(E2 > 0).astype(np.int64),
+                dims="obs_id",
+            )
+        else:
+            kappa_E = _priors.kappa_prior().to_pymc(f"kappa_{mE}")
+            beta_binomial_from_logit(
+                f"{mE}_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id"
+            )
 
         # --- Outcome W ---
         b0 = _priors.alpha_prior().to_pymc("b0")
@@ -2663,11 +2704,12 @@ def build_two_mediator_model(
         zL_sd=float(zL_scaler.sd),
         E1_logit=E1,
         n_trials_E=int(N_E),
-        zE_mean=float(zE_scaler.mean),
-        zE_sd=float(zE_scaler.sd),
+        zE_mean=zE_mean,
+        zE_sd=zE_sd,
         mediator_symbols=(mL, mE),
         confounder_symbols=confounder_symbols,
         chain=chain,
+        second_mediator_offfloor=second_mediator_offfloor,
     )
     built = BuiltModel(model=model, prepared=prepared)
     return built, med_data
