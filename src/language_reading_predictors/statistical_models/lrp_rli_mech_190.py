@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRP91 - GP knee-test: phoneme blending / phonological awareness (B) -> word reading (W).
+"""LRP190 - GP knee-test: phoneme blending / phonological awareness (B) -> word reading (W).
 
 A NEW mechanism model (no prior blending -> reading fit existed) built to TEST whether
 phoneme blending shows a "knee" - a level of blending skill beyond which it is

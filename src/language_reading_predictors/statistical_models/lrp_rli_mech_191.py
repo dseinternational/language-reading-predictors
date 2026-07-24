@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRP92 - GP knee-test: intervention sessions delivered (IS) -> word reading (W).
+"""LRP191 - GP knee-test: intervention sessions delivered (IS) -> word reading (W).
 
 A NEW dose-response knee-test: does the amount of intervention delivered show a
 "knee" - a number of sessions beyond which more sessions go with a more marked
