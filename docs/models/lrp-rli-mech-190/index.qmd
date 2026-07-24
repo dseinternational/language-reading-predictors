@@ -28,9 +28,16 @@ way [LRP58](../lrp-rli-mech-058) found for letter sounds?
 The mechanism enters as a nonparametric **HSGP** curve on the logit-safe transform of the blending
 post-score, at `target_accept` **0.999** (per LRP58).
 
-_A demanding fit — non-convergence is itself the result._ Blending is a small bounded count ($n = 10$ items), so the nonparametric curve is demanding at this
-sample size. A divergence is itself an honest result and would leave the knee untestable — check
-the gate badge above before reading any shape into the curve.
+_A demanding fit, reparameterised for thin support (#430)._ Blending is a small bounded count ($n = 10$ items, chance floor $\approx 3.3$, roughly 19% at
+ceiling by t4), so the nonparametric curve is demanding at this sample size. At the shared
+`f_mech` defaults it diverged (31 times at reporting tier) — a boundary-geometry funnel, not a
+mixing failure (R-hat and ESS were both fine). A smaller HSGP basis and a tighter lengthscale
+prior (`InverseGamma(8, 8)`, the short-lengthscale tail thinned, mode essentially unchanged) clear
+it to zero divergences without forcing the curve flat. The fitted curve is then **flat and wide** —
+a small posterior-mean amplitude against a much wider credible band, with near-zero slope
+throughout — so the honest knee-test answer is that **no knee is resolved** for blending at this
+sample size, unlike the letter-sound knee [LRP58](../lrp-rli-mech-058) resolves. Read the curve as
+"shape unresolved", with the same bounded-scale / logit-link caveat LRP58 carries.
 
 ## Adjustment set
 

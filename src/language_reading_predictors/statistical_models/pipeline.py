@@ -3351,6 +3351,17 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         adjust_for=adjust_for,
         mechanism_is_covariate=mechanism_is_covariate,
         mechanism_at_pre=spec.extra.get("mechanism_at_pre", False),
+        # Thin-support HSGP reparameterisation (issue #430): a spec may shrink the
+        # basis count and/or tighten the lengthscale prior for a mechanism curve whose
+        # exposure support is too thin for the shared defaults (e.g. mech-190 blending).
+        # Both default to None -> the factory keeps _MECH_HSGP_M / ell_prior_mech, so
+        # every other mechanism model is byte-identical.
+        mech_hsgp_m=spec.extra.get("mech_hsgp_m"),
+        mech_lengthscale_prior=(
+            _priors.ell_prior_mech_tight()
+            if spec.extra.get("mech_lengthscale_tight", False)
+            else None
+        ),
     )
     _attach_built(ctx, built)
 
