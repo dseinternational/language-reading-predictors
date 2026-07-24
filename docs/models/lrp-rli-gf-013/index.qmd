@@ -1,0 +1,40 @@
+---
+title: "LRPGF13: Factors associated with gains in taught expressive vocabulary (TE), with upstream vocabulary"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPGF13 is [`lrp-rli-gf-010`](../lrp-rli-gf-010) — the **gain-factors** model for taught expressive vocabulary (`b1extau`), ANCOVA on the period post-count given its pre-count, Beta-Binomial logit with a child random intercept — extended with the broad transfer-vocabulary skills as **adjusted associations** (#421 Tier 1). `gf-010` carries only `skill_symbols = ("TR",)` (taught receptive vocabulary), but the letter-sound → word-reading review found both **receptive and expressive** vocabulary associated with taught-expressive gains (RV ≈ +0.28, EV ≈ +0.31, both P ≈ 0.98). This model adds `R` (RV) and `E` (EV) to the existing `TR` term, alongside the randomised term, own baseline, age, cognitive ability (block design), and the revised-DAG confounders hearing (HS = `hs`), speech production (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator; focal interactions group$\times$ability, group$\times$own-baseline, age$\times$ability.
+
+_Causal labelling (DAG guardrails)._
+
+**Only the randomised on-intervention term is causal.** Its **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is the ITT-anchor estimand; `beta_trt` itself is only the on-intervention log-odds contrast. Every other coefficient is an **adjusted association**, latent-GA-confounded. The `TR`/`R`/`E` skill terms are emphatically **not** DAG-parent adjustments — they are entered only to *describe* the review's finding, and read as "associated with", never "drives". The child random intercept is a partial, shrunken stand-in for between-child heterogeneity and does not control latent general ability. Intervention sessions/dose are never conditioned on (a DAG collider); SES is excluded (not a DAG node).
+
+## Model
+
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the period post-count, $N = 24$, with
+$\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \beta_{\text{trt}}\text{OnIntervention} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s}\beta_s\,z(s) + \sum_{c}\gamma_c\,z(c) + \sum\text{interactions} + u_{\text{child}}$, where the $z(s)$ are the standardised same-wave skill associates taught receptive (TR = `TR`), receptive (RV = `R`) and expressive (EV = `E`) vocabulary, and the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech production (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator. Priors: shared template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_factors.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

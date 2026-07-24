@@ -1,0 +1,45 @@
+# Copyright (c) 2026 Down Syndrome Education International and contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""LRPGF12 - gain factors for taught receptive vocabulary (TR), with upstream vocabulary.
+
+#421 Tier 1: extends ``gf-009`` (taught-receptive-vocabulary gains) with the standardised
+transfer-vocabulary skills as adjusted associations. ``gf-009`` deliberately carries
+**no** ``skill_symbols`` (under the revised DAG the standardised measures RV/EV sit
+*downstream* of taught vocabulary, ``TR -> RV``), but the letter-sound -> word-reading
+review found broad **receptive** vocabulary to be the single clearest predictor of
+taught-word learning anywhere in the suite (RV -> TR gains ≈ +0.38, P ≈ 0.999). This
+model surfaces that association explicitly by adding ``skill_symbols = ("R", "E")``
+alongside the randomised term and the trait adjusters.
+
+The ``R``/``E`` terms are **adjusted associations, not DAG-parent adjustments** - they
+are entered to describe the review's finding, and (like every non-randomised term here)
+are latent-GA-confounded. Only the randomised on-intervention term is causal, as its
+period-1 average marginal effect; everything else is descriptive. Report median + inner
+50% + outer 89% credible interval + P(>0) with that caveat.
+"""
+
+from language_reading_predictors.data_variables import Variables as V
+from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.pipeline import fit_gain_factors
+
+SPEC = ModelSpec(
+    model_id="lrp-rli-gf-012",
+    kind="gain_factors",
+    title="Factors associated with gains in taught receptive vocabulary (TR), with upstream vocabulary",
+    outcome_symbol="TR",
+    extra={
+        # The review's finding: broad receptive (and expressive) vocabulary as
+        # associates of taught-receptive-vocabulary gains. Adjusted associations.
+        "skill_symbols": ("R", "E"),
+        "ability_covariate": V.BLOCKS,
+        # TR's non-measure confounders (matches gf-009): hearing + phonological memory.
+        "adjust_for": ("hs", "hs_missing", "erbto", "erbto_missing"),
+        "interactions": (("trt", "ability"), ("trt", "own"), ("age", "ability")),
+        "treated_only": False,
+    },
+)
+
+
+def fit(config: str = "dev"):
+    return fit_gain_factors(SPEC, config=config)

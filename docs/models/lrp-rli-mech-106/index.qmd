@@ -1,0 +1,83 @@
+---
+title: "LRP106: Mechanism model — phonological memory (RW) -> nonword decoding (N)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP106 is the alphabetic-route counterpart of [`lrp-rli-mech-090`](../lrp-rli-mech-090)
+(RW $\to$ word reading): it estimates the adjusted association between phonological
+memory (word and nonword repetition, the ERB total) and **nonword decoding** across
+*all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with phase-specific
+intercepts (#421 Tier 1). The letter-sound $\to$ word-reading review found nonword
+repetition the sharpest discriminator of word reading *among children alike on letter
+sounds*; `mech-090` already tests whether RW feeds word reading, but nothing tested
+whether it feeds the **alphabetic route** specifically — *"is a higher word/nonword
+repetition score associated with more nonwords read?"*
+
+_Covariate exposure (estimand note)._ As `mech-090`, the exposure is the raw ERB total
+(`erbto`), an integer score whose documented test maximum is recorded nowhere in the
+project — so it cannot honestly enter the Beta-Binomial logit machinery as a
+bounded-count measure. It enters instead as a **standardised continuous covariate**:
+$\beta_{\text{mech}}$ is the adjusted association per **+1 SD of the observed ERB total**
+(the raw-score size of that SD is recorded in `config.json` as
+`mechanism_exposure_sd_raw`). Rows where the ERB total was not measured are **dropped**,
+not imputed. The mechanism is necessarily **linear** — a single slope, not a shape.
+
+_Floored outcome (linear, not HSGP)._ Nonword reading is a 6-item count floored at zero
+for ≈72/64/52/40% of children at t1–t4. A nonparametric age dose-response is not
+identifiable at that floor (the same reasoning as `mech-072`), so the exposure enters
+linearly; the outcome is still the graded Beta-Binomial on the nonword count,
+conditioning on its own baseline $N_{\text{pre}}$.
+
+## Adjustment set
+
+Parents of $RW$ under the revised DAG (2026-07-10): $\{A, GA, HS\}$ — and nothing else
+(unchanged from `mech-090`; only the outcome differs).
+
+- $G$ — group; always conditioned on via $\beta_G$.
+- $A$ — age; conditioned on linearly (a $\gamma_A\,z(\text{age})$ term).
+- $HS$ — hearing status (`hs` / `hs_missing`), $RW$'s only measured parent; blocks every
+  $RW \leftarrow HS \to \{\dots\} \to N$ route at its root.
+- $N_{\text{pre}}$ — baseline nonword decoding (temporal precedence; not a collider).
+
+_No session-dose backdoor (as mech-090)._ The DAG has no $IG \to RW$ or $IS \to RW$
+edge, so session dose is not a common cause of exposure and outcome; $RW$'s variation is
+not intervention-generated.
+
+$PA$ and the other reading/vocabulary descendants of $RW$ are mediators of the
+$RW \to N$ association (e.g. $RW \to PA \to N$); conditioning on them would block
+legitimate indirect routes and pull the slope toward the direct-only component, so they
+are **not** in the adjustment set. $GA$ (general ability) is latent and cannot be
+conditioned on; the child random intercept proxies its time-invariant part, so the slope
+stays an **adjusted association, never causal**.
+
+### Interpretation caveats
+
+- *No unmeasured confounder assumption* for $(RW_{\text{post}}, N_{\text{post}})$: strong and not testable — latent general ability is only partially proxied by the child intercept.
+- The ERB total is measured with error; non-negligible error attenuates the slope toward zero.
+- Dropping unmeasured-exposure rows assumes the missingness is unrelated to the association being estimated (missing-at-random given the adjusters); the fitted row count is reported in `config.json`.
+- The heavy nonword-reading floor limits outcome variance in the early waves; across-phase pooling assumes a stable structural relationship (a phase-specific sensitivity fit is available via the `phase_specific_mechanism` flag).
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

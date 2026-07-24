@@ -1,0 +1,59 @@
+---
+title: "LRP-CA-010: Concurrent letter sounds → word reading, minimal adjustment (per wave)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP-CA-010 is the letter-sound → word-reading review's headline, promoted from a scratch
+fit to a registered model (#421 Tier 1). At each timepoint (t1–t4) it fits a between-child
+Beta-Binomial regression of word-reading level on the standardised same-wave logit of
+**letter-sound knowledge** (`L`), adjusting **only** for age, hearing (`hs`) and non-verbal
+ability (block design, `blocks`) — *"at wave t, among children alike on age, hearing and
+non-verbal ability, how much higher is word reading per +1 SD of letter sounds"*.
+
+This is a deliberately **minimal** adjustment. The nearest registered model,
+[`lrp-rli-ca-001`](../lrp-rli-ca-001), mutually adjusts word reading for five other
+same-wave skills (`B`, `TR`, `TE`, `R`, `E`) — a different conditional question.
+`ca-010` isolates the `L` → `W` level association against the trait covariates alone.
+Its companion [`lrp-rli-ca-011`](../lrp-rli-ca-011) adds same-wave nonword decoding to
+ask whether the association survives holding decoding fixed.
+
+_Estimand: descriptive association (no causal warrant)._ Every coefficient is an
+**adjusted association**, latent-general-ability-confounded — the only randomisation-licensed
+effect in the study is the ITT arm. Read with the measurement-error and
+collinearity/regularisation caveats in the Results section.
+
+## Design
+
+- **Four separate cross-sectional fits** (one row per child per wave), reported side by
+  side — not one stacked model (issue #312 estimand decision). The largest-complete-outcome
+  wave (ties → latest) is the diagnostic anchor, not substantively primary.
+- **Letter sounds** enters as a standardised same-wave logit with a regularising
+  `Normal(0, 0.3)` slope; age, hearing and non-verbal ability are the only adjusters.
+- **Group** is a non-interpretable nuisance (absorbs arm composition), not reported.
+- **Missing covariate values** mean-imputed (0 on the standardised scale); rows missing
+  the focal outcome are dropped.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_concurrent.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
