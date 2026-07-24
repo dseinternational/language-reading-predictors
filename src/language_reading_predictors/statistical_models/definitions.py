@@ -80,6 +80,7 @@ KINDS: frozenset[str] = frozenset(
         "block_exposure",
         "concurrent",
         "long_corr_factor",
+        "joint_mechanism",
     }
 )
 
@@ -428,11 +429,21 @@ _LCF = [
     _d("lrplcf01", "long_corr_factor", "Measurement model", Status.ASSOCIATION, None, "longitudinal correlated-domain-factor model (per-wave latent skill correlations)"),
 ]
 
+# --- Joint bivariate mechanism (#421 Tier 3, LS->WR review note #424) --------------
+# One standardised letter-sound exposure -> two outcomes (word reading W + nonword
+# decoding N) fitted jointly with ONE shared child random intercept (the GA proxy),
+# so the decoding-specificity contrast delta = beta(LS->N) - beta(LS->W) is an
+# identified within-model deterministic rather than the product-of-marginals
+# sensitivity that separate mech-096 / mech-101 fits can only bound. Descriptive.
+_JM = [
+    _d("lrpjm01", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "bivariate letter sounds -> {word reading, nonword decoding}; identified decoding-specificity contrast (#421 Tier 3)"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA, *_LCF)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA, *_LCF, *_JM)
 }
 
 

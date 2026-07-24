@@ -819,6 +819,177 @@ def build_joint_model(
     )
 
 
+def build_joint_mechanism_model(
+    prepared: PreparedData,
+    *,
+    mechanism_symbol: str = "L",
+    outcome_symbols: Iterable[str] = ("W", "N"),
+    contrast: tuple[str, str] = ("N", "W"),
+    adjust_for: Iterable[str] = (),
+    confounder_symbols: Iterable[str] = ("G", "A"),
+    sigma_child_prior_sigma: float = 0.5,
+) -> BuiltModel:
+    """Bivariate mechanism: one exposure -> two outcomes jointly, sharing ONE child
+    random intercept, with a per-outcome linear slope.
+
+    Frank's #421 Tier-3 design (notes 202607172358 / 202607172330-spec, line 46): stack
+    the two outcomes (default word reading ``W`` and nonword decoding ``N``) as functions
+    of the same standardised letter-sound exposure, giving each its own linear slope
+    ``beta_mech[k]`` while a **single** child random intercept -- the best available
+    latent-general-ability proxy -- is partialled from **both**. That makes the
+    decoding-specificity contrast
+
+        delta_ls_decoding = beta_mech[contrast[0]] - beta_mech[contrast[1]]   (default N - W)
+
+    an **identified within-model deterministic** rather than the product-of-marginals
+    paired-draws sensitivity that two separate mechanism fits (``mech-096`` / ``mech-101``)
+    can only bound. Each outcome keeps its own autoregressive baseline
+    (``{outcome}_pre``), per-outcome group / age / adjuster coefficients, and its own
+    Beta-Binomial denominator; ``N`` (6 items, heavily floored) and ``W`` (79 items) are
+    never pooled -- the flattened-cell likelihood mirrors ``build_joint_model``.
+
+    Every slope is an **adjusted association**, latent general ability only partially
+    proxied by the shared intercept -- never causal.
+    """
+    from dse_research_utils.math.constants import EPSILON
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+        standardise,
+    )
+
+    outcome_symbols = tuple(outcome_symbols)
+    confounder_symbols = tuple(confounder_symbols)
+    adjust_for = tuple(adjust_for)
+    K = len(outcome_symbols)
+    if K != 2:
+        raise ValueError("joint mechanism model expects exactly two outcomes")
+    for s in (*outcome_symbols, *contrast):
+        if s not in outcome_symbols:
+            raise ValueError(f"contrast outcome {s!r} not in outcome_symbols")
+        if s not in prepared.post_counts:
+            raise KeyError(f"Outcome {s!r} missing a post score in prepared data")
+        if s not in prepared.pre_logit:
+            raise KeyError(f"Outcome baseline {s!r}_pre missing from prepared data")
+    if mechanism_symbol not in prepared.post_counts:
+        raise KeyError(f"Mechanism {mechanism_symbol!r} missing from prepared data")
+
+    N_obs = prepared.n_obs
+    # Shared exposure: standardised letter-sound post logit (identical for both legs,
+    # so the two slopes are on one commensurate logit-per-SD-of-exposure scale).
+    z_L = standardise(
+        logit_safe(
+            prepared.post_counts[mechanism_symbol],
+            prepared.n_trials[mechanism_symbol],
+        )
+    )[0]
+
+    # Per-outcome observation mask + flattened observed cells (robust to
+    # outcome-specific post missingness), mirroring build_joint_model.
+    mask = np.stack(
+        [~np.isnan(prepared.post_counts[s]) for s in outcome_symbols], axis=1
+    )
+    post_counts_int = np.stack(
+        [
+            np.nan_to_num(prepared.post_counts[s], nan=0.0).astype(np.int64)
+            for s in outcome_symbols
+        ],
+        axis=1,
+    )
+    n_trials_vec = np.array([prepared.n_trials[s] for s in outcome_symbols], dtype=int)
+    pre_logit = np.stack([prepared.pre_logit[s] for s in outcome_symbols], axis=1)
+    idx_row, idx_col = np.nonzero(mask)
+
+    coords = {
+        "obs_id": np.arange(N_obs),
+        "outcome": list(outcome_symbols),
+        "phase": np.arange(prepared.n_phases),
+        "child": np.arange(prepared.n_children),
+        "cell": np.arange(idx_row.size),
+    }
+
+    with pm.Model(coords=coords) as model:
+        G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
+        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        z_L_d = pm.Data("z_mech_logit", z_L, dims="obs_id")
+        phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+        child_idx_d = pm.Data(
+            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
+        )
+        pre_logit_d = pm.Data("pre_logit", pre_logit, dims=("obs_id", "outcome"))
+        adjust_data = {
+            c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id")
+            for c in adjust_for
+        }
+
+        # Per-outcome scalar parameters (dims="outcome"), shared prior constructors.
+        alpha = _priors.alpha_prior().to_pymc("alpha", dims="outcome")
+        beta_G = _priors.tau_prior().to_pymc("beta_G", dims="outcome")
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")
+        beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech", dims="outcome")
+        alpha_phase = pm.Normal(
+            "alpha_phase", mu=0.0, sigma=0.5, dims=("phase", "outcome")
+        )
+
+        eta = (
+            alpha[None, :]
+            + alpha_phase[phase_d]
+            + beta_G[None, :] * pt.shape_padright(G_d)
+            + gamma_own[None, :] * pre_logit_d
+            + beta_mech[None, :] * pt.shape_padright(z_L_d)
+        )
+
+        # Age (linear, per outcome) — A is a declared confounder of the exposure.
+        if "A" in confounder_symbols:
+            gamma_A = _priors.gamma_cross_prior().to_pymc("gamma_A", dims="outcome")
+            eta = eta + gamma_A[None, :] * pt.shape_padright(A_std_d)
+
+        # Raw-covariate adjusters (hearing / speech / sessions …), per outcome.
+        for c in adjust_for:
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}", dims="outcome")
+            eta = eta + gamma_c[None, :] * pt.shape_padright(adjust_data[c])
+
+        # ONE shared child random intercept across both outcomes (the GA proxy).
+        sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
+        u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+        u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
+        eta = eta + pt.shape_padright(u_child[child_idx_d])
+
+        eta = pm.Deterministic("eta", eta, dims=("obs_id", "outcome"))
+
+        # Identified decoding-specificity contrast (within-model deterministic).
+        hi = outcome_symbols.index(contrast[0])
+        lo = outcome_symbols.index(contrast[1])
+        pm.Deterministic("delta_ls_decoding", beta_mech[hi] - beta_mech[lo])
+
+        kappa = _priors.kappa_prior().to_pymc("kappa", dims="outcome")
+        mu = pm.math.clip(pm.math.sigmoid(eta), EPSILON, 1 - EPSILON)
+        alpha_bb = mu * kappa[None, :]
+        beta_bb = (1 - mu) * kappa[None, :]
+
+        pm.Data("y_post_cell_row", idx_row.astype("int64"), dims="cell")
+        pm.Data("y_post_cell_outcome", idx_col.astype("int64"), dims="cell")
+        pm.BetaBinomial(
+            "y_post",
+            n=n_trials_vec[idx_col],
+            alpha=alpha_bb[idx_row, idx_col],
+            beta=beta_bb[idx_row, idx_col],
+            observed=post_counts_int[idx_row, idx_col],
+            dims="cell",
+        )
+
+    return BuiltModel(
+        model=model,
+        prepared=prepared,
+        extras={
+            "joint_dependence": "shared_child_intercept",
+            "loo_unit": "child",
+            "outcomes": outcome_symbols,
+            "mechanism_symbol": mechanism_symbol,
+            "contrast": contrast,
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # LRP56-LRP58: mechanism factory
 # ---------------------------------------------------------------------------

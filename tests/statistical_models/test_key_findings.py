@@ -826,6 +826,17 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             },
         )
         return d, "translated latent coupling"
+    if kind == "joint_mechanism":
+        _write_rows(
+            d,
+            "joint_mechanism_slopes.csv",
+            [
+                {"term": "beta_mech[W]", "median": 0.24, "lo": 0.14, "hi": 0.34, "prob_pos": 1.0},
+                {"term": "beta_mech[N]", "median": 1.02, "lo": 0.72, "hi": 1.33, "prob_pos": 1.0},
+                {"term": "delta_ls_decoding (N-W)", "median": 0.79, "lo": 0.47, "hi": 1.09, "prob_pos": 0.999},
+            ],
+        )
+        return d, "decoding-use signature"
     raise AssertionError(f"No synthetic case for {kind}")
 
 

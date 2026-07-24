@@ -4530,9 +4530,64 @@ def _kf_build_fallback(output_dir, config: Mapping) -> list[dict[str, str]]:
     ]
 
 
+def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Identified decoding-specificity contrast from the bivariate mechanism (#421
+    Tier 3): the two per-outcome letter-sound slopes and their within-model
+    difference, read from ``joint_mechanism_slopes.csv``."""
+    df = _kf_csv(output_dir, "joint_mechanism_slopes.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("joint_mechanism_slopes.csv is missing")
+    rows = {str(r["term"]): r for _, r in df.iterrows()}
+    delta_key = next((k for k in rows if k.startswith("delta_ls_decoding")), None)
+    if delta_key is None:
+        raise _KeyFindingsUnavailable("joint_mechanism_slopes.csv has no delta row")
+    d = rows[delta_key]
+    sentences: list[dict[str, str]] = [
+        _kf_sentence(
+            "Letter-sound knowledge predicts nonword decoding more strongly than word "
+            f"reading: the identified contrast is **{_kf_float(d['median']):+.2f} logit "
+            f"per SD** (89% credible range {_kf_float(d['lo']):+.2f} to "
+            f"{_kf_float(d['hi']):+.2f}), from a single joint posterior rather than a "
+            "product of two separate fits.",
+            "headline",
+        )
+    ]
+    n_row, w_row = rows.get("beta_mech[N]"), rows.get("beta_mech[W]")
+    if n_row is not None and w_row is not None:
+        sentences.append(
+            _kf_sentence(
+                f"The letter-sound slope is {_kf_float(n_row['median']):+.2f} on nonword "
+                f"decoding (89% {_kf_float(n_row['lo']):+.2f} to "
+                f"{_kf_float(n_row['hi']):+.2f}) versus "
+                f"{_kf_float(w_row['median']):+.2f} on word reading "
+                f"({_kf_float(w_row['lo']):+.2f} to {_kf_float(w_row['hi']):+.2f}), on one "
+                "commensurate logit-per-SD scale.",
+                "detail",
+            )
+        )
+    sentences.append(
+        _kf_sentence(
+            _kf_association_direction(
+                d["prob_pos"],
+                positive_claim=(
+                    "letter sounds feed the pure-decoding channel more than the mixed "
+                    "word-reading channel — the decoding-use signature (an adjusted "
+                    "association, not a causal effect)"
+                ),
+                negative_claim=(
+                    "letter sounds feed word reading more than pure decoding"
+                ),
+            ),
+            "confidence",
+        )
+    )
+    return sentences
+
+
 _KF_BUILDERS = {
     "itt": _kf_build_itt,
     "joint": _kf_build_joint,
+    "joint_mechanism": _kf_build_joint_mechanism,
     "mechanism": _kf_build_mechanism,
     "mediation": _kf_build_mediation,
     "mediation_multi": _kf_build_mediation,

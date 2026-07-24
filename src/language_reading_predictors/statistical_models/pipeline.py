@@ -3233,6 +3233,165 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
 
 # ---------------------------------------------------------------------------
+# Joint-mechanism pipeline (#421 Tier 3): bivariate letter-sound -> {W, N}
+# ---------------------------------------------------------------------------
+
+
+def _joint_mechanism_slope_summary(
+    ctx: StatisticalFitContext,
+    outcome_symbols: tuple[str, ...],
+    contrast: tuple[str, str],
+) -> pd.DataFrame:
+    """Per-outcome linear letter-sound slopes + the identified decoding-specificity
+    contrast, at the model's reporting CI. ``delta_ls_decoding`` is a within-model
+    deterministic, so its interval is the true joint-posterior contrast (not a
+    product-of-marginals convolution)."""
+    post = ctx.trace.posterior
+    ci = ctx.reporting.ci_prob
+    lo_q, hi_q = (1 - ci) / 2, 1 - (1 - ci) / 2
+    rows: list[dict] = []
+    bm = post["beta_mech"]
+    for sym in outcome_symbols:
+        v = np.asarray(bm.sel(outcome=sym).values).ravel()
+        rows.append(
+            {
+                "term": f"beta_mech[{sym}]",
+                "median": float(np.median(v)),
+                "lo": float(np.quantile(v, lo_q)),
+                "hi": float(np.quantile(v, hi_q)),
+                "prob_pos": float(np.mean(v > 0)),
+            }
+        )
+    d = np.asarray(post["delta_ls_decoding"].values).ravel()
+    rows.append(
+        {
+            "term": f"delta_ls_decoding ({contrast[0]}-{contrast[1]})",
+            "median": float(np.median(d)),
+            "lo": float(np.quantile(d, lo_q)),
+            "hi": float(np.quantile(d, hi_q)),
+            "prob_pos": float(np.mean(d > 0)),
+        }
+    )
+    return pd.DataFrame(rows)
+
+
+def fit_joint_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
+    """Fit the bivariate mechanism (#421 Tier 3): one standardised exposure ->
+    two outcomes jointly, sharing ONE child random intercept, and report the
+    identified decoding-specificity contrast ``delta_ls_decoding``."""
+    _require_spec(spec, "joint_mechanism")
+    ctx = make_context(spec, config)
+
+    section_header("Prepare data")
+    mechanism_symbol = spec.mechanism_symbol or "L"
+    outcome_symbols = tuple(spec.extra.get("outcome_symbols", ("W", "N")))
+    contrast = tuple(spec.extra.get("contrast", ("N", "W")))
+    adjust_for = tuple(spec.extra.get("adjust_for", ()))
+    confounder_symbols = tuple(spec.extra.get("confounder_symbols", ("G", "A")))
+    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
+    prepared = load_and_prepare(
+        phase_mode="all",
+        outcomes=(*outcome_symbols, mechanism_symbol),
+        covariates=pre_adj,
+        post_covariates=post_adj,
+    )
+    ctx.prepared = prepared
+    # Drop any adjuster the loader dropped as constant on the fitted rows.
+    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
+
+    _print_header(ctx)
+
+    section_header("Build model")
+    built = _factories.build_joint_mechanism_model(
+        prepared,
+        mechanism_symbol=mechanism_symbol,
+        outcome_symbols=outcome_symbols,
+        contrast=contrast,
+        adjust_for=adjust_for,
+        confounder_symbols=confounder_symbols,
+    )
+    _attach_built(ctx, built)
+    _render_model_graph(ctx)
+
+    section_header("Prior predictive")
+    _diag.run_prior_predictive(ctx, draws=1000)
+    for index, symbol in enumerate(outcome_symbols):
+        stem = (
+            "prior_predictive_check"
+            if index == 0
+            else f"prior_predictive_check_{symbol.lower()}"
+        )
+        _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
+
+    _run_sampling_and_loo(ctx)
+
+    section_header("Summary diagnostics")
+    _jm_vars = [
+        "alpha",
+        "beta_G",
+        "gamma_own",
+        "beta_mech",
+        "delta_ls_decoding",
+        "kappa",
+    ]
+    if "A" in confounder_symbols:
+        _jm_vars.append("gamma_A")
+    _jm_vars += [f"gamma_{c}" for c in adjust_for]
+    _jm_vars.append("sigma_child")
+    _diag.summary_diagnostics(ctx, var_names=_jm_vars)
+
+    section_header("Posterior predictive")
+    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
+    for index, symbol in enumerate(outcome_symbols):
+        stem = (
+            "posterior_predictive_check"
+            if index == 0
+            else f"posterior_predictive_check_{symbol.lower()}"
+        )
+        _diag.save_joint_posterior_predictive_plot(ctx, symbol, filename_stem=stem)
+
+    section_header("Extended diagnostics")
+    _diag.write_diagnostics_summary(ctx, var_names=_jm_vars)
+    # LOO-PIT is saved per outcome (flattened cells pool incompatible denominators).
+    _diag.run_extended_diagnostics(ctx, include_loo_pit=False)
+    for index, symbol in enumerate(outcome_symbols):
+        stem = "loo_pit" if index == 0 else f"loo_pit_{symbol.lower()}"
+        _diag.save_joint_loo_pit_plot(ctx, symbol, filename_stem=stem)
+    _diag.save_trace(ctx)
+    _diag.save_prior_posterior_plot(ctx, var_names=_jm_vars)
+
+    section_header("Decoding-specificity contrast")
+    slopes_df = _joint_mechanism_slope_summary(ctx, outcome_symbols, contrast)
+    slopes_df.to_csv(
+        os.path.join(ctx.output_dir, "joint_mechanism_slopes.csv"), index=False
+    )
+    ctx.tables["joint_mechanism_slopes"] = slopes_df
+    print_table(
+        metrics_table(
+            slopes_df.to_dict("records"),
+            title=(
+                f"Letter-sound slopes + identified {contrast[0]}-{contrast[1]} contrast "
+                f"({int(ctx.reporting.ci_prob * 100)}% CI, equal-tailed)"
+            ),
+            columns=["term", "median", "lo", "hi", "prob_pos"],
+        )
+    )
+
+    _write_run_metadata(
+        ctx,
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "mechanism_symbol": mechanism_symbol,
+            "outcome_symbols": list(outcome_symbols),
+            "contrast": list(contrast),
+            "adjust_for": list(adjust_for),
+            "joint_mechanism_slopes": slopes_df.to_dict("records"),
+        },
+    )
+    return _finalize_report(ctx)
+
+
+# ---------------------------------------------------------------------------
 # Mechanism pipeline (LRP56 / LRP57 / LRP58)
 # ---------------------------------------------------------------------------
 

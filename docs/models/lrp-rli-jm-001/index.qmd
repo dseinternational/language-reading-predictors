@@ -1,0 +1,42 @@
+---
+title: "LRPJM01: Joint bivariate mechanism — letter sounds → {word reading, nonword decoding}"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPJM01 makes the letter-sound → word-reading review's **decoding-specificity** finding an _identified_ posterior contrast (#421 Tier 3; review note #424, decoding-specificity note `202607172358`). The finding: letter-sound knowledge predicts **pure decoding** (nonword reading, `N`) far more strongly than **mixed word reading** (`W`) — the signature that letter-sound knowledge is actually being converted into decoding, since a pure general-ability account gives no reason for letter sounds to predict the narrower decoding skill *more* than the broader reading one.
+
+Until now that contrast, Δ = β(LS→N) − β(LS→W), was a **product-of-marginals sensitivity**: it paired draws from two *separate* mechanism fits ([`mech-096`](../lrp-rli-mech-096/) and [`mech-101`](../lrp-rli-mech-101/)) under a working-independence assumption, so its interval was not an identified posterior. This model fits both outcomes **jointly** on the same standardised letter-sound exposure, each with its own linear slope, while a **single** child random intercept — the best available latent-general-ability proxy — is partialled from both. Δ = `delta_ls_decoding` is then a within-model deterministic with the true cross-outcome covariance baked in.
+
+## Design
+
+- **Bivariate mechanism, phase-stacked.** Both outcomes' post counts are stacked over the three period transitions; each keeps its own autoregressive baseline (`W_pre` / `N_pre`) and its own Beta-Binomial denominator (79 items for `W`, 6 for `N`), so the heavily-floored 6-item nonword count is never pooled with word reading (a flattened-cell likelihood, as in the joint ITT factory).
+- **One shared child intercept** across both outcomes (not a free residual correlation): the same stable-trait latent is subtracted from both slopes, which is what makes their difference interpretable as a like-for-like contrast.
+- **Per-outcome** group, age, and adjuster coefficients. Adjustment set = the `mech-058`/`mech-101` letter-sound → word-reading confounders {G, A, HS, IS(`attend`), SP(`deapp_c`)} + each outcome's own baseline.
+- **Linear** letter-sound slopes on a common logit-per-SD scale (as `mech-101`/`mech-096`), so the two are commensurate and their difference is meaningful.
+
+_Estimand: descriptive association (no causal warrant)._ Every slope is latent-GA-confounded — only partially proxied by the shared intercept. The Δ is a Campbell–Fiske convergent/discriminant argument for decoding-use, **not** identification of a causal decoding effect. The only randomisation-licensed effect in the study is the ITT arm.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_joint_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

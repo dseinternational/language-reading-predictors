@@ -1,0 +1,66 @@
+## Results
+
+In plain terms: this section reads off how strongly letter-sound knowledge tracks
+each of the two outcomes — word reading and nonword decoding — from a **single joint
+model**, and reports the difference between those two slopes. Because both slopes come
+from one posterior (with a shared child intercept partialling the same stable-trait
+latent), their difference is an **identified** contrast, not a product of two separate
+fits.
+
+Every slope is an **adjusted association**, latent general ability only partially proxied
+by the shared child intercept — never a causal effect. The contrast is read as a
+Campbell–Fiske convergent/discriminant argument (a pure-general-ability account gives no
+reason for letter sounds to predict pure decoding *more* than mixed word reading), not as
+identification of a causal decoding mechanism.
+
+```{python}
+# | echo: false
+slopes = _csv("joint_mechanism_slopes.csv")
+slopes
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if slopes is not None and len(slopes):
+    _r = {str(row["term"]): row for _, row in slopes.iterrows()}
+    _delta_key = next((k for k in _r if k.startswith("delta_ls_decoding")), None)
+    if _delta_key is not None:
+        d = _r[_delta_key]
+        print(
+            f"**Identified decoding-specificity contrast (Δ = β[N] − β[W]):** median "
+            f"**{d['median']:+.2f} logit per SD** (89% credible interval "
+            f"{d['lo']:+.2f} to {d['hi']:+.2f}); P(Δ > 0) = {d['prob_pos']:.3f}. "
+            "This is a within-model deterministic — the true joint-posterior contrast, "
+            "not the product-of-marginals sensitivity that two separate mechanism fits "
+            "(`mech-096` / `mech-101`) can only bound."
+        )
+    _n, _w = _r.get("beta_mech[N]"), _r.get("beta_mech[W]")
+    if _n is not None and _w is not None:
+        print(
+            f"\n\n**The two letter-sound slopes.** Nonword decoding: "
+            f"{_n['median']:+.2f} (89% {_n['lo']:+.2f} to {_n['hi']:+.2f}); "
+            f"word reading: {_w['median']:+.2f} ({_w['lo']:+.2f} to {_w['hi']:+.2f}). "
+            "Both on one commensurate logit-per-SD-of-letter-sounds scale. A larger "
+            "slope on pure decoding than on mixed word reading is the decoding-use "
+            "signature."
+        )
+    print(
+        "\n\n_How to read the table:_ `median` is the posterior median of each "
+        "coefficient, `lo`/`hi` its 89% equal-tailed credible interval, and `prob_pos` "
+        "the posterior probability it exceeds zero. `beta_mech[·]` are the per-outcome "
+        "letter-sound slopes; `delta_ls_decoding` is their identified difference."
+    )
+```
+
+### Posterior predictive checks (per outcome)
+
+_Each outcome is checked on its own denominator_ (word reading over 79 items, nonword
+decoding over 6) — the flattened bivariate likelihood never pools the two scales.
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("posterior_predictive_check.png", "Posterior predictive check — word reading"))
+print(_img("posterior_predictive_check_n.png", "Posterior predictive check — nonword decoding"))
+```

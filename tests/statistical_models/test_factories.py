@@ -752,6 +752,35 @@ def test_mechanism_factory_mechanism_at_pre_rejects_covariate_exposure(tmp_path)
             mechanism_is_covariate=True,
             mechanism_at_pre=True,
         )
+def test_joint_mechanism_factory_builds_identified_delta(tmp_path):
+    """The bivariate mechanism (#421 Tier 3) stacks two outcomes on one exposure with
+    a SINGLE shared child random intercept and a per-outcome linear slope, so the
+    decoding-specificity contrast is a within-model deterministic. Asserts: per-outcome
+    ``beta_mech`` (dims outcome), the ``delta_ls_decoding`` deterministic, exactly one
+    shared child-intercept block, and a flattened two-outcome Beta-Binomial that builds
+    + prior-samples."""
+    from language_reading_predictors.statistical_models.factories import (
+        build_joint_mechanism_model,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W", "N", "L"))
+    built = build_joint_mechanism_model(
+        prep, mechanism_symbol="L", outcome_symbols=("W", "N"), contrast=("N", "W")
+    )
+    names = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+    # per-outcome slope, single shared child intercept, the identified contrast
+    assert "beta_mech" in names
+    assert built.model["beta_mech"].eval().shape == (2,)
+    assert "delta_ls_decoding" in dets
+    # exactly one shared child-intercept block (not one per outcome)
+    assert "sigma_child" in names and "u_child_raw" in names
+    assert built.extras["joint_dependence"] == "shared_child_intercept"
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=9)
+    # flattened cells = observed (child x outcome) pairs, both outcomes present
+    assert pp.prior_predictive["y_post"].shape[-1] > built.prepared.n_obs
 
 
 def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
