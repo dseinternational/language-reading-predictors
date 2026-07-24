@@ -32,7 +32,7 @@ and the construct-structure summary that precedes any coupling model (Phase
 C). Wave 3 is used because it is the only wave carrying the full ability triad
 (`basmat` is wave-3+ only).
 
-_This fit did not pass the convergence gate — read the correlations as provisional._ It carries divergent transitions with the strict R̂/ESS gate missed on the factor-correlation geometry; the reported reading-ability factor correlation (≈ 0.88) and the `bpvs` loading/communality are themselves under-converged, so their point estimates are stable only to ~2 d.p. and their 89% interval tails are not trustworthy. The memory-factor correlations additionally rest on an assumed test reliability of r = 0.8 for the single `basdig` indicator. Treat the whole correlation matrix as provisional pending the loading-prior / `LKJCorr` fix.
+_This fit passed the sampling-quality gate with a **recorded exception** (#412)._ The strict gate flags residual divergent transitions, but they are intrinsic to the near-singular wave-3 domain-correlation geometry (factor correlations 0.81–0.95 push the correlation matrix against the positive-definite boundary), not a fixable parameterisation fault. A `target_accept=0.999` run returned the same estimates under different dynamics; the reported deliverables (loadings, communalities, factor correlations) mix well (R̂ ≤ 1.01, ESS ≥ 400; max R̂ 1.006 over six chains); and a divergence-influence probe shows excluding the divergent draws leaves the correlations and communalities unmoved at reporting precision. Only the divergences check is waived — R̂, ESS and BFMI stay live. Rationale and the reproducible probe: `notes/202607241200-mm001-gate-exception.md`.
 
 _Measurement / triangulation only — nothing causal._ Every factor correlation is a **descriptive association** in an observational
 cohort (`causal_status="none"`). There is deliberately **no structural leg**:
@@ -46,6 +46,15 @@ they are **fixed by an assumed reliability of 0.8**
 memory factor scale with that assumption — read them as conditional on it.
 Loadings are pooled across the three reading groups: measurement invariance is
 **assumed, not tested**, at this n.
+
+_Latent (disattenuated) correlations, near one dimension._ These are **latent**
+factor correlations, corrected for measurement error, so they sit systematically
+**above** the observed inter-test correlations a reader would compute from the raw
+scores. At wave 3 the four domains are close to a single dimension: the first
+eigenvalue of the correlation matrix carries ≈ **89%** of its variance (89% CI
+85.4–92.7). That near-unidimensionality is a reason to publish and read the full
+correlation matrix, and its dominant-eigenvalue share, rather than to collapse the
+domains to one general factor.
 
 ## Model
 

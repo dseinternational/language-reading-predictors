@@ -178,7 +178,6 @@ class StatisticalFitContext:
     run_options: StatisticalRunOptions = field(default_factory=StatisticalRunOptions)
     prepared: PreparedData | WavePanel | LongitudinalPanel | None = None
     model: pm.Model | None = None
-    model_vars: dict[str, Any] | None = None
     prior_samples: xr.DataTree | None = None
     trace: xr.DataTree | None = None
     loo: az.ELPDData | None = None
