@@ -3516,7 +3516,9 @@ def build_correlated_factor_model(
 # ---------------------------------------------------------------------------
 
 
-def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
+def _subset(
+    prepared: PreparedData, keep: np.ndarray, *, reason: str = "factory_stage"
+) -> PreparedData:
     """Return a copy of ``prepared`` restricted to rows where ``keep`` is True.
 
     Built with :func:`dataclasses.replace` so every row-indexed field is
@@ -3524,6 +3526,14 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
     Scalars and per-symbol metadata (``column_map``, ``n_trials``,
     ``age_scaler``, ``covariate_scalers``) are intentionally aliased
     from the parent — they do not depend on the row set.
+
+    ``reason`` labels *why* these rows leave the analysis so the drop is
+    attributable rather than folded into one opaque count (#390 P3). It is
+    accumulated into :attr:`PreparedData.dropped_by_reason`, whose values always
+    sum to :attr:`PreparedData.dropped_rows`. The default ``"factory_stage"``
+    covers the usual missing-data / not-in-design keep-masks; a caller that
+    excludes rows for a distinct reason (e.g. a design restriction) passes its own
+    label.
     """
     if bool(keep.all()):
         return prepared
@@ -3533,6 +3543,10 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
     # Re-index children so child_idx is dense 0..n_children-1.
     _, child_idx = np.unique(subject_ids, return_inverse=True)
     child_idx = child_idx.astype(np.int64)
+
+    n_dropped = int((~keep).sum())
+    by_reason = dict(prepared.dropped_by_reason)
+    by_reason[reason] = by_reason.get(reason, 0) + n_dropped
 
     phase = prepared.phase[keep]
     return replace(
@@ -3549,7 +3563,8 @@ def _subset(prepared: PreparedData, keep: np.ndarray) -> PreparedData:
         n_obs=int(keep.sum()),
         n_children=int(len(np.unique(child_idx))),
         n_phases=int(phase.max()) + 1 if phase.size else 0,
-        dropped_rows=prepared.dropped_rows + int((~keep).sum()),
+        dropped_rows=prepared.dropped_rows + n_dropped,
+        dropped_by_reason=by_reason,
     )
 
 

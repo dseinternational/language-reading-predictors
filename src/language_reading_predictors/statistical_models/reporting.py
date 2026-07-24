@@ -2323,6 +2323,11 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "n_phases": context.prepared.n_phases if context.prepared else None,
         "n_waves": getattr(context.prepared, "n_waves", None) if context.prepared else None,
         "dropped_rows": context.prepared.dropped_rows if context.prepared else None,
+        "dropped_by_reason": (
+            dict(getattr(context.prepared, "dropped_by_reason", {}) or {})
+            if context.prepared
+            else None
+        ),
         "ci_prob": context.reporting.ci_prob,
         "sampling": {
             "draws": context.sampling.draws,
