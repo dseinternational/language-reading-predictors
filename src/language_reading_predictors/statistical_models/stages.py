@@ -54,7 +54,6 @@ class SharedFitStages:
         """Attach a freshly built model and emit its prior artifacts."""
 
         ctx.model = built.model
-        ctx.model_vars = built.variables
         ctx.prepared = built.prepared
         self.hooks.emit_priors(ctx)
 
