@@ -504,6 +504,7 @@ pathlib
 pipefail
 pred
 preliz
+prespecified
 prob
 probs
 proc
@@ -523,7 +524,10 @@ removesuffix
 replite
 repr
 resid
+residualisation
+residualise
 residualised
+residualization
 residualized
 resumable
 retau

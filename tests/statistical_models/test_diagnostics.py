@@ -547,3 +547,41 @@ def test_prior_posterior_overlay_raises_subplot_limit_for_curated_vectors(
         },
     }
     assert az.rcParams["plot.max_subplots"] == original_limit
+
+
+def test_compute_log_likelihood_and_prior_strict_controls_reraise(monkeypatch):
+    """The psense-only path (strict=False) must not abort a fit when
+    ``pm.compute_log_likelihood`` cannot evaluate the likelihood, while the LOO
+    path (strict=True) must still re-raise. Guards the #416 robustness contract.
+    """
+    import pymc as pm
+
+    with pm.Model() as model:
+        mu = pm.Normal("mu", 0.0, 1.0)
+        pm.Normal("y", mu, 1.0, observed=np.array([0.0, 1.0, -1.0]))
+        trace = pm.sample(
+            tune=5,
+            draws=5,
+            chains=1,
+            cores=1,
+            progressbar=False,
+            random_seed=1,
+            compute_convergence_checks=False,
+        )
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("cannot evaluate log-likelihood")
+
+    monkeypatch.setattr(diag.pm, "compute_log_likelihood", _boom)
+
+    # LOO contract: strict=True re-raises the failure.
+    strict_ctx = SimpleNamespace(model=model, trace=trace.copy())
+    with pytest.raises(RuntimeError, match="cannot evaluate log-likelihood"):
+        diag.compute_log_likelihood_and_prior(strict_ctx, strict=True)
+
+    # psense-only contract: strict=False swallows it (no raise) and still adds the
+    # log_prior group, which power-scaling sensitivity needs.
+    lenient_ctx = SimpleNamespace(model=model, trace=trace.copy())
+    diag.compute_log_likelihood_and_prior(lenient_ctx, strict=False)
+    assert "log_prior" in lenient_ctx.trace
+    assert "log_likelihood" not in lenient_ctx.trace
