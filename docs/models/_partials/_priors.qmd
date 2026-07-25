@@ -64,6 +64,11 @@ Sensitivity of each parameter to power-scaling its prior and likelihood
 (Kallioinen et al. 2024); a `✓` flags no concern. Recommended-but-secondary at
 this sample size.
 
+In the figure, the legend's power-scaling factor is conventionally written α. A
+model whose own intercept is also named `alpha` therefore has that parameter's
+panel labelled `alpha (parameter)`, to keep the two apart; the table below uses
+the model's own names throughout.
+
 ```{python}
 # | echo: false
 _ps = _csv("psense_summary.csv", index_col=0)

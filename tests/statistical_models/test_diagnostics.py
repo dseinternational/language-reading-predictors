@@ -80,6 +80,105 @@ def test_run_psense_atomically_replaces_summary(
     assert context.tables["psense_summary"].equals(expected)
 
 
+def _psense_trace(posterior_names: tuple[str, ...]) -> xr.DataTree:
+    """A minimal trace with the groups ``plot_psense_dist`` needs."""
+    rng = np.random.default_rng(0)
+    chains, draws, obs = 2, 200, 30
+    posterior = xr.Dataset(
+        {n: (("chain", "draw"), rng.normal(size=(chains, draws))) for n in posterior_names}
+    )
+    return xr.DataTree.from_dict(
+        {
+            "posterior": posterior,
+            "log_prior": posterior.copy(deep=True),
+            "log_likelihood": xr.Dataset(
+                {"y": (("chain", "draw", "obs"), rng.normal(size=(chains, draws, obs)))},
+                coords={"obs": np.arange(obs)},
+            ),
+        }
+    )
+
+
+def test_psense_plot_view_leaves_clash_free_traces_alone():
+    trace = _psense_trace(("tau", "kappa"))
+    view, var_names = diag._psense_plot_view(trace, ["tau"])
+    assert view is trace
+    assert var_names == ["tau"]
+
+
+def test_psense_plot_view_renames_reserved_posterior_names():
+    trace = _psense_trace(("alpha", "tau", "kappa"))
+
+    # Unrequested clash: the variable still has to be renamed, because
+    # plot_psense_dist resamples the whole posterior regardless of var_names.
+    view, var_names = diag._psense_plot_view(trace, ["tau"])
+    assert var_names == ["tau"]
+    assert "alpha" not in view.posterior.to_dataset().variables
+    assert "alpha (parameter)" in view.posterior.to_dataset().variables
+
+    # Requested clash: the mapping is applied to var_names too, so the parameter
+    # keeps its panel in the figure.
+    _, var_names = diag._psense_plot_view(trace, ["alpha", "tau"])
+    assert var_names == ["alpha (parameter)", "tau"]
+
+
+def test_psense_plot_view_survives_an_unexpected_trace():
+    sentinel = object()
+    view, var_names = diag._psense_plot_view(sentinel, ["tau"])
+    assert view is sentinel
+    assert var_names == ["tau"]
+
+
+@pytest.mark.parametrize("var_names", [["tau"], ["alpha", "tau"]])
+def test_psense_plot_view_lets_plot_psense_dist_run(var_names):
+    """Regression for issue #340 — the un-viewed trace raises, the view does not."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    import arviz_plots as azp
+
+    trace = _psense_trace(("alpha", "tau", "kappa"))
+    try:
+        with pytest.raises(ValueError, match="alpha already exists"):
+            azp.plot_psense_dist(trace, var_names=var_names, backend="matplotlib")
+
+        view, mapped = diag._psense_plot_view(trace, var_names)
+        azp.plot_psense_dist(view, var_names=mapped, backend="matplotlib")
+    finally:
+        plt.close("all")
+
+
+def test_psense_layout_only_overrides_multi_row_grids():
+    trace = _psense_trace(("tau", "kappa"))
+
+    assert diag._psense_layout(trace, ["tau"]) == ({}, {})
+    assert diag._psense_layout(object(), ["tau"]) == ({}, {})
+
+    plot_kwargs, rc = diag._psense_layout(trace, ["tau", "kappa"])
+    figure_kwargs = plot_kwargs["figure_kwargs"]
+    assert figure_kwargs["figsize"][1] >= 2 * 2.0
+    # gridspec_kw must NOT be set: the house style's constrained layout
+    # overrides it and collapses the panels.
+    assert set(figure_kwargs) == {"figsize"}
+    # Four panels is under ArviZ's default guard, so it stays untouched.
+    assert rc == {}
+
+
+def test_psense_layout_raises_the_subplot_guard_for_wide_selections():
+    rng = np.random.default_rng(0)
+    posterior = xr.Dataset(
+        {"b": (("chain", "draw", "time"), rng.normal(size=(2, 50, 25)))},
+        coords={"time": np.arange(25)},
+    )
+    trace = xr.DataTree.from_dict({"posterior": posterior})
+
+    _, rc = diag._psense_layout(trace, ["b"])
+    # 25 coordinate levels x prior/likelihood = 50 panels, past the default 40.
+    assert rc == {"plot.max_subplots": 50}
+
+
 def test_interval_cols_matches_eti_and_hdi():
     cols = ["mean", "sd", "eti95_lb", "eti95_ub", "ess_bulk", "ess_tail", "r_hat"]
     assert diag._interval_cols(cols) == ["eti95_lb", "eti95_ub"]
