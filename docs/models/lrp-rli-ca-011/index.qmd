@@ -1,0 +1,68 @@
+---
+title: "LRP-CA-011: Concurrent letter sounds + nonword decoding → word reading (per wave)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP-CA-011 is the "does the letter-sound → word-reading association survive holding
+decoding fixed" decomposition (#421 Tier 1). It is identical to
+[`lrp-rli-ca-010`](../lrp-rli-ca-010) — minimal adjustment for age, hearing and non-verbal
+ability — but adds same-wave **nonword reading** (`N`) as a second predictor. The
+letter-sound slope here is the `L` → `W` level association *among children alike on
+nonword decoding*; comparing it to `ca-010`'s slope is the review's attenuation check
+(the review found a fifth-to-a-third attenuation, still decisively positive).
+
+**The floor on `N` limits the estimand, not just the precision.** Nonword reading is a
+6-item measure that is heavily floored (≈72/64/52/40% at zero across t1–t4; 80% of
+children score 0 or 1 at t1). It is *admissible* as a linear standardised predictor logit
+— `ca-001` excluded floored measures by *choice*, not a factory limit, and the
+identifiability problem with a floored *outcome* or a nonparametric curve does not arise
+here. But the severe floor is coarsening and measurement error **in the variable being
+conditioned on**, so this fit holds decoding fixed only *partially*: the residual `L`
+slope is an **upper bound** on the non-decoding channel ("at most this much"), not a clean
+non-decoding association. Better measurement of decoding would, if anything, attribute
+more of the `L`–`W` association to it. Two further qualifications carry over from the
+source note (`notes/202607241000-findings-letter-sounds-word-reading-association.md`):
+under the revised DAG `N` is a **mediator** of `L → W`, not a confounder, so adjusting for
+it deliberately *removes* a pathway; and because `N` is a common effect of `L` and other
+reading inputs, conditioning on it can also **open a collider path**. Read this fit
+alongside `ca-010`, never instead of it.
+
+_Estimand: descriptive association (no causal warrant)._ As `ca-010`, every coefficient
+is a latent-GA-confounded **adjusted association**, never causal. The single-posterior
+`L`-slope contrast against `ca-010` that the review's "share retained" wants is a #421
+Tier-3 joint {W, N} fit (deferred); this pair of separate fits is its descriptive version,
+and the ratio it implies is a sensitivity, not an identified quantity — the two slopes
+come from separate fits, so pairing their draws assumes working independence.
+
+## Design
+
+- **Four separate cross-sectional fits** per wave, reported side by side (as `ca-010`).
+- **Predictors** `L` and `N` enter as standardised same-wave logits with regularising
+  `Normal(0, 0.3)` slopes; age, hearing and non-verbal ability are the only trait adjusters.
+- **Group** is a non-interpretable nuisance; **missing** covariate values mean-imputed;
+  rows missing the focal outcome dropped.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_concurrent.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

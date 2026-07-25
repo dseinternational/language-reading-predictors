@@ -193,7 +193,7 @@ to `output/statistical_models/models/{model_id}-{config}/`.
 | `lrp-rli-itt-026`         | `T`                 | ITT on receptive grammar (TROG-2) — effect only (no agreed δ)                                  |
 | `lrp-rli-itt-027` / `28`  | `W` / `L`           | Site-adjusted (`area`, North/South) robustness — `area` complete, so no matched comparator     |
 
-### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-011` (+ `…b`) (`kind="gain_factors"`)
+### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-013` (+ `…b`) (`kind="gain_factors"`)
 
 **Purpose.** A DAG-focused ANCOVA on each outcome's period gain (post-score given its own
 pre-score), stacking every on-intervention and untreated period with a child random
@@ -223,6 +223,10 @@ in #247. The `…b` variant is treated-only (gains while on intervention). Desig
 | `lrp-rli-gf-009` | `TR`    | —                                         | `HS`, `RW`                 | —                 |
 | `lrp-rli-gf-010` | `TE`    | `TR`                                      | `HS`, `SP`, `RW`           | —                 |
 | `lrp-rli-gf-011` | `N`     | `L`, `B` (off-floor Bernoulli likelihood) | `SP`, `RW`                 | —                 |
+| `lrp-rli-gf-012` | `TR`    | `R`, `E`                                  | `HS`, `RW`                 | —                 |
+| `lrp-rli-gf-013` | `TE`    | `TR`, `R`, `E`                            | `HS`, `SP`, `RW`           | —                 |
+
+> `gf-012` and `gf-013` (#421) extend `gf-009`/`gf-010` by entering broad receptive/expressive vocabulary as **downstream descriptive associations** (the review's RV/EV → taught-vocabulary finding), _not_ DAG-parent baselines; as everywhere in this family, only the randomised on-intervention term is causal.
 
 ### Level factors — `lrp-rli-lf-001–lrp-rli-lf-011` (`kind="level_factors"`)
 
@@ -267,25 +271,27 @@ so _no_ term is causal — every coefficient is an association. Design note:
 `04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`; **`lrp-rli-al-101`** adds a
 cumulative-session dose sensitivity term (a collider — sensitivity only).
 
-### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073`, `lrp-rli-mech-088–lrp-rli-mech-090` (`kind="mechanism"`)
+### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073`, `lrp-rli-mech-088–lrp-rli-mech-090`, `lrp-rli-mech-102–lrp-rli-mech-103` (`kind="mechanism"`)
 
 **Purpose.** The adjustment-set dose-response of one measured skill on another across all
 phases, with subject random intercepts and optional linear moderation. Every slope is an
 **adjusted association** (latent-ability confounded), not a causal effect.
 
-| Model                         | Path     | Purpose                                                                                                                   |
-| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `lrp-rli-mech-056`            | `R → W`  | Receptive vocabulary → word reading                                                                                       |
-| `lrp-rli-mech-057`            | `E → W`  | Expressive vocabulary → word reading                                                                                      |
-| `lrp-rli-mech-058`            | `L → W`  | Letter-sound knowledge → word reading                                                                                     |
-| `lrp-rli-mech-071`            | `L → W`  | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                                              |
-| `lrp-rli-mech-072` / `72base` | `L → N`  | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction)                     |
-| `lrp-rli-mech-073` / `73base` | `L → W`  | Letter sounds → word reading, moderated by age (with / without the interaction)                                           |
-| `lrp-rli-mech-061` / `161`    | `L → W`  | Joint readiness: letter sounds moderated by phoneme blending `B` → word reading (with / without the interaction; #404)    |
-| `lrp-rli-mech-063` / `163`    | `L → W`  | Joint readiness: letter sounds moderated by nonword decoding `N` → word reading (with / without the interaction; #404)    |
-| `lrp-rli-mech-088`            | `TR → W` | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)                               |
-| `lrp-rli-mech-089`            | `TE → W` | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                             |
-| `lrp-rli-mech-090`            | `RW → W` | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor) |
+| Model                         | Path     | Purpose                                                                                                                                          |
+| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lrp-rli-mech-056`            | `R → W`  | Receptive vocabulary → word reading                                                                                                              |
+| `lrp-rli-mech-057`            | `E → W`  | Expressive vocabulary → word reading                                                                                                             |
+| `lrp-rli-mech-058`            | `L → W`  | Letter-sound knowledge → word reading                                                                                                            |
+| `lrp-rli-mech-071`            | `L → W`  | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                                                                     |
+| `lrp-rli-mech-072` / `72base` | `L → N`  | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction)                                            |
+| `lrp-rli-mech-073` / `73base` | `L → W`  | Letter sounds → word reading, moderated by age (with / without the interaction)                                                                  |
+| `lrp-rli-mech-061` / `161`    | `L → W`  | Joint readiness: letter sounds moderated by phoneme blending `B` → word reading (with / without the interaction; #404)                           |
+| `lrp-rli-mech-063` / `163`    | `L → W`  | Joint readiness: letter sounds moderated by nonword decoding `N` → word reading (with / without the interaction; #404)                           |
+| `lrp-rli-mech-088`            | `TR → W` | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)                                                      |
+| `lrp-rli-mech-089`            | `TE → W` | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                                                    |
+| `lrp-rli-mech-090`            | `RW → W` | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor)                        |
+| `lrp-rli-mech-102`            | `RW → N` | Phonological memory → nonword decoding (#421; alphabetic-route counterpart of mech-090; covariate exposure, adjust `HS`, linear/floored outcome) |
+| `lrp-rli-mech-103`            | `SP → N` | Speech production → nonword decoding (#421; first SP-exposure mechanism; covariate exposure, adjust `HS`, linear/floored outcome)                |
 
 ### Mediation — `lrp-rli-med` (`kind="mediation"` / `"mediation_multi"`)
 
@@ -375,7 +381,7 @@ concurrent letter sounds are excluded as a treatment-affected mediator. Descript
 
 ### Concurrent conditional associations — `lrp-rli-ca` (`kind="concurrent"`)
 
-**Purpose.** The one family that describes how contemporaneous skill levels co-occur with the focal outcome at each wave (#312, descriptive-association workstream #314). At every timepoint it fits a between-child Beta-Binomial regression of the focal outcome's _level_ on the standardised same-wave logits of the other core skills, plus age and a group nuisance term — "at wave t, among children alike on age and the other skills, +n of a predictor is associated with +m of the outcome". The family's core skill set is {`W`, `L`, `B`, `TR`, `TE`, `R`, `E`}; each core-set model conditions its focal outcome on the remaining six, so together they describe the conditional joint distribution of the same measure set from different sides. `ca-007` (phoneme blending, `B`) completes that core set as a focal outcome; `ca-008` (basic concepts, CELF `F`) and `ca-009` (receptive grammar, TROG-2 `T`) are focal-only scope extensions (#371) that condition on the full seven-measure core set without being added to the sibling models' predictor sets, so the levels panel of the association matrix covers all non-floored outcomes. These three also carry the gains-panel trait covariates (non-verbal ability, hearing, speech, phonological memory) as t1 baselines (#371). The four waves are fitted separately (one row per child per wave) and reported side by side. The wave with the largest complete-outcome sample (ties → latest) is an operational diagnostic anchor for the standard trace and plots, not a claim that it is best-powered; every adjusted and bivariate fit has its own complete convergence metrics.
+**Purpose.** The one family that describes how contemporaneous skill levels co-occur with the focal outcome at each wave (#312, descriptive-association workstream #314). At every timepoint it fits a between-child Beta-Binomial regression of the focal outcome's _level_ on the standardised same-wave logits of the other core skills, plus age and a group nuisance term — "at wave t, among children alike on age and the other skills, +n of a predictor is associated with +m of the outcome". The family's core skill set is {`W`, `L`, `B`, `TR`, `TE`, `R`, `E`}; each core-set model conditions its focal outcome on the remaining six, so together they describe the conditional joint distribution of the same measure set from different sides. `ca-007` (phoneme blending, `B`) completes that core set as a focal outcome; `ca-008` (basic concepts, CELF `F`) and `ca-009` (receptive grammar, TROG-2 `T`) are focal-only scope extensions (#371) that condition on the full seven-measure core set without being added to the sibling models' predictor sets, so the levels panel of the association matrix covers all non-floored outcomes. These three also carry the gains-panel trait covariates (non-verbal ability, hearing, speech, phonological memory) as t1 baselines (#371). The four waves are fitted separately (one row per child per wave) and reported side by side. The wave with the largest complete-outcome sample (ties → latest) is an operational diagnostic anchor for the standard trace and plots, not a claim that it is best-powered; every adjusted and bivariate fit has its own complete convergence metrics. `ca-010` and `ca-011` (#421) are a separate **minimal-adjustment** pair: instead of the seven-measure mutual adjustment they regress word reading on letter sounds — and, in `ca-011`, same-wave nonword decoding — adjusting only for age, hearing and non-verbal ability, giving the letter-sound → word-reading review's headline association and its holding-decoding-fixed decomposition.
 
 | Model            | Kind         | Outcome | Purpose                                                                                                 |
 | ---------------- | ------------ | ------- | ------------------------------------------------------------------------------------------------------- |
@@ -388,6 +394,8 @@ concurrent letter sounds are excluded as a treatment-affected mediator. Descript
 | `lrp-rli-ca-007` | `concurrent` | `B`     | per-wave conditional associations of concurrent skills with phoneme blending                            |
 | `lrp-rli-ca-008` | `concurrent` | `F`     | per-wave conditional associations of concurrent skills with basic concepts (CELF)                       |
 | `lrp-rli-ca-009` | `concurrent` | `T`     | per-wave conditional associations of concurrent skills with receptive grammar (TROG-2)                  |
+| `lrp-rli-ca-010` | `concurrent` | `W`     | minimal-adjustment letter sounds → word reading, per wave (#421)                                        |
+| `lrp-rli-ca-011` | `concurrent` | `W`     | letter sounds + nonword decoding → word reading, decoding held fixed (#421)                             |
 
 **Association only — three caveats.** Every coefficient is an adjusted association; conditioning on contemporaneous (post-treatment) skill levels is intentional because nothing is read causally (contrast the level-factors family, which omits cross-skill terms to protect a causal contrast). Read with the **Table-2 fallacy** (each coefficient answers a different conditional question), **measurement error** (classical error often attenuates a simple association, but the size and direction of distortion are not guaranteed in a multivariable nonlinear model; longitudinal factor model #313 is a complementary latent-measurement analysis), and **collinearity plus regularisation** (n ≈ 53 with a correlated predictor cluster, so adjusted and bivariate coefficients answer materially different questions). Their difference shows sensitivity to the conditioning set; it is not a decomposition of shared variance. Group is a non-interpretable nuisance. Floored measures (`P`, `N`) are excluded as predictors and as focal outcomes; `TR` approaches its 24-item ceiling at later waves, which the Beta-Binomial respects but which compresses the resolution of `ca-003`'s later-wave associations. The 170-item standardised `R` and `E` measures do not have that focal-specific warning.
 

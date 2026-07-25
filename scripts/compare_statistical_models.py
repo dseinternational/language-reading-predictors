@@ -251,6 +251,12 @@ def _triangulation_outcomes() -> list[tuple[str, str, str, str]]:
     waitlist-crossover arm-by-wave DiDs (not dose or heterogeneity variants), and
     full-sample gain-factor models (not treated-only companions). Outcomes must be
     present in all three families and must share the graded logit estimand.
+
+    When more than one full-sample gain-factor model shares an outcome — e.g. the #421
+    review extensions ``gf-012``/``gf-013`` add downstream descriptive skill terms to the
+    canonical ``gf-009``/``gf-010`` — the catalogue keeps the canonical, lowest-numbered
+    model (its DAG adjustment set is the primary comparator); the supplementary variants
+    are reported on their own pages, not in the triangulation.
     """
     primary_itts = {
         definition.model_id: definition
@@ -275,7 +281,9 @@ def _triangulation_outcomes() -> list[tuple[str, str, str, str]]:
             and definition.status is Status.ASSOCIATION
             and definition.base is None
         ):
-            by_kind["gain_factors"][outcome] = definition.model_id
+            existing = by_kind["gain_factors"].get(outcome)
+            if existing is None or definition.model_id < existing:
+                by_kind["gain_factors"][outcome] = definition.model_id
 
     shared = set.intersection(*(set(ids) for ids in by_kind.values()))
     ordered = [o for o in _TRIANGULATION_OUTCOME_ORDER if o in shared]

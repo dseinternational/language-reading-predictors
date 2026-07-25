@@ -232,6 +232,12 @@ _MECH = [
     # the cross-outcome forest/contrast is like-for-like.
     _d("lrp96", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "decoding channel: letter sounds -> nonword decoding (1A contrast vs lrp101)"),
     _d("lrp101", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "linear letter sounds -> word reading (Tier-1 contrast/panel anchor; linear counterpart of the HSGP lrp58)"),
+    # #421 Tier 1: phonological-memory / speech -> nonword decoding (alphabetic-route
+    # discriminators from the LS->WR review note, #424). Covariate exposures, linear
+    # (floored N outcome). Ids 102/103 per that note; the earlier #405 TR/TE->L models
+    # that had reserved 102-105 were dropped (#423), freeing them.
+    _d("lrp102", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "phonological memory (RW) -> nonword decoding (#421 Tier 1; linear, covariate exposure)"),
+    _d("lrp103", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "speech production (SP) -> nonword decoding (#421 Tier 1; linear, covariate exposure)"),
     _d("lrp97", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "negative-control outcome: letter sounds -> receptive vocabulary"),
     _d("lrp98", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "negative-control outcome: letter sounds -> expressive vocabulary"),
     _d("lrp99", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "negative-control outcome: letter sounds -> receptive grammar"),
@@ -346,6 +352,10 @@ _LEVEL += [
 _GAIN += [
     _d("lrpgf11", "gain_factors", "Gain factors", Status.ASSOCIATION, "N",
        "ANCOVA gain; only the on-intervention term is causal"),
+    _d("lrpgf12", "gain_factors", "Gain factors", Status.ASSOCIATION, "TR",
+       "TR gains with broad vocabulary associates R,E (#421 Tier 1); only the on-intervention term is causal"),
+    _d("lrpgf13", "gain_factors", "Gain factors", Status.ASSOCIATION, "TE",
+       "TE gains with broad vocabulary associates TR,R,E (#421 Tier 1); only the on-intervention term is causal"),
 ]
 _LEVEL += [
     _d("lrplf11", "level_factors", "Level factors", Status.ASSOCIATION, "N",
@@ -397,6 +407,8 @@ _CA = [
     _d("lrpca07", "concurrent", "Concurrent associations", Status.ASSOCIATION, "B", "per-wave conditional associations of concurrent skills with phoneme blending"),
     _d("lrpca08", "concurrent", "Concurrent associations", Status.ASSOCIATION, "F", "per-wave conditional associations of concurrent skills with basic concepts (CELF)"),
     _d("lrpca09", "concurrent", "Concurrent associations", Status.ASSOCIATION, "T", "per-wave conditional associations of concurrent skills with receptive grammar (TROG-2)"),
+    _d("lrpca10", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "minimal-adjustment concurrent letter sounds -> word reading (#421 Tier 1)"),
+    _d("lrpca11", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "letter sounds -> word reading holding nonword decoding fixed (#421 Tier 1)"),
 ]
 
 # --- Longitudinal correlated-domain-factor model (#313, descriptive-association #314)
