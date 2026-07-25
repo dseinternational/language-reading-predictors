@@ -274,6 +274,25 @@ def ell_prior_mech() -> Continuous:
     return pz.InverseGamma(alpha=5.0, beta=5.0)
 
 
+def ell_prior_mech_tight() -> Continuous:
+    """Thin-support mechanism-curve GP lengthscale ell ~ InverseGamma(8, 8) (issue #430).
+
+    For a mechanism exposure whose support is too thin to inform the default
+    ``ell_prior_mech`` (``InverseGamma(5, 5)``) — e.g. mech-190's phoneme blending, a
+    10-item three-alternative picture task with a chance floor near 3.3 and ~19% at
+    ceiling by t4 — ``InverseGamma(5, 5)`` still keeps enough mass on short
+    lengthscales to leave a wiggly, weakly-identified ``f_mech`` that diverges even at
+    target_accept 0.999 (31 divergences at reporting tier). ``InverseGamma(8, 8)``
+    (mode 0.89 vs 0.83, but sd ~0.47 vs ~0.72) barely moves the central lengthscale
+    while thinning the short-lengthscale tail that drives the boundary-geometry funnel,
+    so the curve samples cleanly. It is a genuine tightening, not a flat prior: the
+    mode is essentially unchanged, so real curvature is still permitted where the data
+    support it. Opt-in per spec (``mech_lengthscale_tight``); the default mechanism
+    curves keep ``ell_prior_mech`` unchanged.
+    """
+    return pz.InverseGamma(alpha=8.0, beta=8.0)
+
+
 def eta_partial_pool_prior() -> Continuous:
     """Joint-model outcome-specific age-GP amplitude ~ HalfNormal(0.3)."""
     return pz.HalfNormal(sigma=0.3)

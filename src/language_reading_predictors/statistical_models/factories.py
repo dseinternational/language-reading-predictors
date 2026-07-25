@@ -33,11 +33,14 @@ draws and assemble report tables), the row-subset ``prepared`` data, and any
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
+
+if TYPE_CHECKING:
+    from preliz.distributions.distributions import Continuous
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -1263,6 +1266,8 @@ def build_mechanism_model(
     adjust_for: Iterable[str] = (),
     mechanism_is_covariate: bool = False,
     mechanism_at_pre: bool = False,
+    mech_hsgp_m: int | None = None,
+    mech_lengthscale_prior: Continuous | None = None,
 ) -> BuiltModel:
     """
     Mechanism model on the outcome post-score.
@@ -1364,6 +1369,18 @@ def build_mechanism_model(
     ``mechanism_is_covariate`` (a standardised covariate has no separate pre score);
     ``phase_specific_mechanism`` is likewise unaffected. Default-off, so the
     concurrent mechanism family is byte-identical.
+
+    ``mech_hsgp_m`` / ``mech_lengthscale_prior`` (both default None): thin-support
+    reparameterisation of the ``f_mech`` HSGP (issue #430). ``None`` reproduces the
+    shared defaults exactly — basis count ``_MECH_HSGP_M`` and ``ell_prior_mech()`` —
+    so every existing mechanism model is byte-identical. A spec sets them when its
+    exposure support is too thin for those defaults (e.g. mech-190 blending: 10 items,
+    chance floor ≈ 3.3, ~19% at ceiling), where a smaller basis and a lengthscale prior
+    with a thinner short-lengthscale tail smooth the boundary geometry that otherwise
+    diverges even at target_accept 0.999. Applies to both the standard and the
+    ``phase_specific_mechanism`` ``f_mech`` builds; ``linear_mechanism`` ignores them
+    (no HSGP is built). Only ``None`` selects the default — a non-positive
+    ``mech_hsgp_m`` raises rather than falling back silently.
     """
     # Materialise once: ``confounder_symbols`` is iterated several times below
     # (keep-mask, coefficient loop, the "A in confounders" check, and the
@@ -1378,6 +1395,15 @@ def build_mechanism_model(
         raise ValueError(
             "mechanism_at_pre is incompatible with mechanism_is_covariate: a "
             "standardised covariate exposure has no separate period-start score."
+        )
+    # The thin-support knobs below are resolved with ``is None``, not ``or``, so a
+    # spec that mistypes a falsy value is not silently read as "use the shared
+    # default". ``mech_hsgp_m=0`` is a misconfiguration, not a request for
+    # ``_MECH_HSGP_M`` — fail on it here rather than downstream in the HSGP build.
+    if mech_hsgp_m is not None and mech_hsgp_m < 1:
+        raise ValueError(
+            "mech_hsgp_m must be a positive HSGP basis count (or None for the "
+            f"shared default {_MECH_HSGP_M}); got {mech_hsgp_m!r}."
         )
     if mechanism_is_covariate:
         # A covariate exposure may enter EITHER linearly (a single ``beta_mech``
@@ -1644,8 +1670,12 @@ def build_mechanism_model(
                     build_hsgp_1d(
                         f"f_mech_phase{p}",
                         mech_logit_std,
-                        m=_MECH_HSGP_M,
-                        lengthscale_prior=_priors.ell_prior_mech(),
+                        m=_MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m,
+                        lengthscale_prior=(
+                            _priors.ell_prior_mech()
+                            if mech_lengthscale_prior is None
+                            else mech_lengthscale_prior
+                        ),
                     )
                 )
             # Register the combined per-observation curve as ``f_mech`` (each row's
@@ -1670,8 +1700,12 @@ def build_mechanism_model(
             f_mech = build_hsgp_1d(
                 "f_mech",
                 mech_logit_std,
-                m=_MECH_HSGP_M,
-                lengthscale_prior=_priors.ell_prior_mech(),
+                m=_MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m,
+                lengthscale_prior=(
+                    _priors.ell_prior_mech()
+                    if mech_lengthscale_prior is None
+                    else mech_lengthscale_prior
+                ),
             )
             eta = eta + f_mech
 
