@@ -66,7 +66,7 @@ this sample size.
 
 In the figure, the legend's power-scaling factor is conventionally written α. A
 model whose own intercept is also named `alpha` therefore has that parameter's
-panel labelled `alpha (parameter)`, to keep the two apart; the table above uses
+panel labelled `alpha (parameter)`, to keep the two apart; the table below uses
 the model's own names throughout.
 
 ```{python}

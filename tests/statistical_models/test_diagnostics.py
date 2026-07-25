@@ -130,20 +130,24 @@ def test_psense_plot_view_survives_an_unexpected_trace():
 
 
 @pytest.mark.parametrize("var_names", [["tau"], ["alpha", "tau"]])
-def test_psense_plot_view_lets_plot_psense_dist_run(var_names, monkeypatch):
+def test_psense_plot_view_lets_plot_psense_dist_run(var_names):
     """Regression for issue #340 — the un-viewed trace raises, the view does not."""
     import matplotlib
 
     matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     import arviz_plots as azp
 
     trace = _psense_trace(("alpha", "tau", "kappa"))
-    with pytest.raises(ValueError, match="alpha already exists"):
-        azp.plot_psense_dist(trace, var_names=var_names, backend="matplotlib")
+    try:
+        with pytest.raises(ValueError, match="alpha already exists"):
+            azp.plot_psense_dist(trace, var_names=var_names, backend="matplotlib")
 
-    view, mapped = diag._psense_plot_view(trace, var_names)
-    azp.plot_psense_dist(view, var_names=mapped, backend="matplotlib")
-    matplotlib.pyplot.close("all")
+        view, mapped = diag._psense_plot_view(trace, var_names)
+        azp.plot_psense_dist(view, var_names=mapped, backend="matplotlib")
+    finally:
+        plt.close("all")
 
 
 def test_psense_layout_only_overrides_multi_row_grids():
