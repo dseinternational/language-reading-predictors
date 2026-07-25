@@ -819,37 +819,174 @@ def build_joint_model(
     )
 
 
+def _bivariate_lkj_residual(
+    name: str,
+    *,
+    n_outcomes: int,
+    row_dim: str,
+    lkj_eta: float,
+    sd_sigma: float,
+) -> tuple[pt.TensorVariable, pt.TensorVariable, pt.TensorVariable]:
+    """Non-centred multivariate-normal offsets with an LKJ correlation, one row per
+    ``row_dim`` entry and one column per outcome.
+
+    Returns ``(u, corr, sigmas)`` where ``u`` has dims ``(row_dim, "outcome")``,
+    ``corr`` is the outcome x outcome correlation matrix (dims
+    ``("outcome", "outcome2")``) and ``sigmas`` the per-outcome standard deviations
+    (dims ``"outcome"``). Both are registered as Deterministics under ``{name}_corr``
+    / ``sigma_{name}``.
+
+    ``pm.LKJCholeskyCov`` with ``sd_dist=HalfNormal(sd_sigma)`` bakes the per-outcome
+    scales into ``chol`` (Sigma = chol @ chol.T), so there is **no** separate outer
+    scale term — multiplying ``chol`` by an independent HalfNormal would double-scale
+    Sigma and leave the block unidentified (the bug fixed in ``build_joint_model``).
+    Contrast :func:`build_longitudinal_corr_factor_model`, which uses bare
+    ``pm.LKJCorr`` precisely because a correlation-only role has no use for the sds;
+    here the sds are load-bearing — the conditional-slope deterministics below are
+    functions of ``rho * sigma_focal / sigma_held``, not of ``rho`` alone.
+
+    Must be called inside a ``pm.Model`` whose coords declare ``row_dim``,
+    ``"outcome"`` and ``"outcome2"``.
+    """
+    chol, corr, sigmas = pm.LKJCholeskyCov(
+        f"{name}_chol",
+        n=n_outcomes,
+        eta=lkj_eta,
+        sd_dist=pm.HalfNormal.dist(sd_sigma),
+        compute_corr=True,
+    )
+    pm.Deterministic(f"{name}_corr", corr, dims=("outcome", "outcome2"))
+    pm.Deterministic(f"sigma_{name}", sigmas, dims="outcome")
+    z_raw = pm.Normal(f"{name}_z", mu=0.0, sigma=1.0, dims=(row_dim, "outcome"))
+    # u_i = chol @ z_i  =>  rowwise U = Z @ chol.T.
+    u = pm.Deterministic(f"{name}", pt.dot(z_raw, chol.T), dims=(row_dim, "outcome"))
+    return u, corr, sigmas
+
+
+def _add_decoding_contrast_deterministics(
+    *,
+    beta_mech: pt.TensorVariable,
+    outcome_symbols: tuple[str, ...],
+    contrast: tuple[str, str],
+    corr: pt.TensorVariable | None,
+    sigmas: pt.TensorVariable | None,
+    conditional_slope: bool,
+) -> None:
+    """Register the two identified within-model contrasts on ``beta_mech``.
+
+    ``delta_ls_decoding = beta_mech[contrast[0]] - beta_mech[contrast[1]]`` (default
+    ``N - W``) is the decoding-specificity difference. Because both slopes come from
+    one posterior, its interval carries the true cross-outcome covariance rather than
+    the paired-draws convolution that ``mech-096`` / ``mech-101`` can only bound.
+
+    ``rho_outcome`` — the off-diagonal of the dependence block — is registered
+    whenever one exists. It is the quantity that makes the block auditable: a
+    correlation whose interval sits on zero says the joint fit is buying nothing over
+    two separate fits, and the report must be able to show that either way.
+
+    With ``conditional_slope`` the **conditional** slope is registered too. Writing
+    the focal outcome ``f`` (default
+    ``W``) and the held-fixed outcome ``h`` (default ``N``) as latent logits with
+    residual covariance Sigma,
+
+        E[y_f | z, y_h] = z (beta_f - (Sigma_fh / Sigma_hh) beta_h) + (Sigma_fh / Sigma_hh) y_h
+
+    so the exposure coefficient *holding the other outcome fixed* is
+
+        beta_mech_focal_given_held = beta_f - rho (sigma_f / sigma_h) beta_h
+
+    and ``share_retained = beta_mech_focal_given_held / beta_f`` is the identified
+    counterpart of the review's product-of-marginals ratio (the ``ca-010`` /
+    ``ca-011`` paired-draws quantity). ``share_retained`` is a **ratio of posterior
+    quantities**: it is only interpretable while the denominator stays away from
+    zero, and the report must say so rather than quoting a mean.
+
+    Note the estimands differ subtly and deliberately: ``ca-011`` conditions on the
+    *observed* nonword count (measurement error and all), whereas this conditions on
+    the *latent* nonword logit. Partialling the latent skill is the cleaner reading of
+    "holding decoding fixed", and it will generally retain *less* than the
+    observed-score version, which attenuates the adjustment toward no adjustment.
+    """
+    hi = outcome_symbols.index(contrast[0])
+    lo = outcome_symbols.index(contrast[1])
+    pm.Deterministic("delta_ls_decoding", beta_mech[hi] - beta_mech[lo])
+    if corr is None or sigmas is None:
+        return
+    # Focal = the outcome whose slope is partialled (W); held fixed = the other (N).
+    focal, held = lo, hi
+    rho = pm.Deterministic("rho_outcome", corr[focal, held])
+    if not conditional_slope:
+        return
+    ratio = rho * sigmas[focal] / sigmas[held]
+    pm.Deterministic("beta_held_on_focal", ratio)
+    conditional = beta_mech[focal] - ratio * beta_mech[held]
+    pm.Deterministic("beta_mech_focal_given_held", conditional)
+    pm.Deterministic("share_retained", conditional / beta_mech[focal])
+
+
 def build_joint_mechanism_model(
     prepared: PreparedData,
     *,
+    design: str = "levels",
     mechanism_symbol: str = "L",
     outcome_symbols: Iterable[str] = ("W", "N"),
     contrast: tuple[str, str] = ("N", "W"),
     adjust_for: Iterable[str] = (),
     confounder_symbols: Iterable[str] = ("G", "A"),
+    include_group: bool = True,
+    predictor_slope_sigma: float = 0.3,
+    residual_lkj_eta: float = 2.0,
+    residual_sd_sigma: float = 1.0,
+    child_lkj_eta: float = 2.0,
     sigma_child_prior_sigma: float = 0.5,
 ) -> BuiltModel:
-    """Bivariate mechanism: one exposure -> two outcomes jointly, sharing ONE child
-    random intercept, with a per-outcome linear slope.
+    """Bivariate mechanism: one standardised exposure -> two outcomes fitted jointly
+    with an **LKJ cross-outcome dependence block**, in either of two designs.
 
-    Frank's #421 Tier-3 design (notes 202607172358 / 202607172330-spec, line 46): stack
-    the two outcomes (default word reading ``W`` and nonword decoding ``N``) as functions
-    of the same standardised letter-sound exposure, giving each its own linear slope
-    ``beta_mech[k]`` while a **single** child random intercept -- the best available
-    latent-general-ability proxy -- is partialled from **both**. That makes the
-    decoding-specificity contrast
+    Frank's #421 Tier-3 (1) build. Two quantities that the suite currently reports as
+    *product-of-marginals sensitivities* — the decoding-specificity contrast
+    ``Delta = beta(LS->N) - beta(LS->W)`` (``notes/202607172358``) and the
+    share-retained ratio for "does the letter-sound association survive holding
+    decoding fixed" (``notes/202607241000`` Q2) — are assembled by pairing draws from
+    *separate* fits under a working-independence assumption. The fits share children,
+    so the true joint posterior has a cross-outcome covariance the pairing ignores.
+    Fitting ``W`` and ``N`` in one model with an explicit dependence block makes both
+    quantities **within-model deterministics**.
 
-        delta_ls_decoding = beta_mech[contrast[0]] - beta_mech[contrast[1]]   (default N - W)
+    The dependence block is what does the work. A single scalar child intercept with a
+    fixed loading of 1 on both logits (this factory's first cut, #427 review) permits
+    only the *same* stable shift in both outcomes: conditional on it the two likelihood
+    legs still factorise, so it yields no outcome-specific child effect, no residual
+    correlation, and no conditional slope. The LKJ block gives all three.
 
-    an **identified within-model deterministic** rather than the product-of-marginals
-    paired-draws sensitivity that two separate mechanism fits (``mech-096`` / ``mech-101``)
-    can only bound. Each outcome keeps its own autoregressive baseline
-    (``{outcome}_pre``), per-outcome group / age / adjuster coefficients, and its own
-    Beta-Binomial denominator; ``N`` (6 items, heavily floored) and ``W`` (79 items) are
-    never pooled -- the flattened-cell likelihood mirrors ``build_joint_model``.
+    Designs
+    -------
+    ``design="levels"`` (``jm-001``) — the per-wave levels/concurrent design #421
+    specifies. Expects a **single-wave** subset of the ``phase_mode="levels"`` frame
+    (the pipeline slices ``prepared.phase == wave`` and calls once per wave), so there
+    is one row per child. Each outcome's *level* is regressed on the standardised
+    same-wave letter-sound logit, age, a group nuisance and the trait covariates,
+    matched term-for-term to ``ca-010`` / ``ca-011`` so the identified share-retained
+    replaces their paired-draws ratio like for like. The likelihood is **Binomial**,
+    not Beta-Binomial: the bivariate residual already models extra-binomial variance,
+    and carrying ``kappa`` as well would leave two overdispersion mechanisms competing
+    on the same row — the route by which the ITT joint's LKJ block went
+    prior-dominated in 2026-04. Here the residual *is* the overdispersion, and its
+    correlation is the estimand.
 
-    Every slope is an **adjusted association**, latent general ability only partially
-    proxied by the shared intercept -- never causal.
+    ``design="transition"`` (``jm-002``) — the phase-stacked ANCOVA companion, matched
+    term-for-term to ``mech-096`` / ``mech-101`` (own baseline, phase intercepts,
+    the same {G, A, HS, IS, SP} adjustment set) so the Tier-1 Delta is re-reported on
+    the *same parameterisation* it was originally computed on. Here the dependence
+    block is a **bivariate child random intercept** (child-level covariance, three
+    rows per child) and the Beta-Binomial ``kappa`` is retained for within-child
+    overdispersion — the two are at different levels, so both are identified.
+
+    Every slope is an **adjusted association**: latent general ability is unobserved
+    and neither dependence block stands in for it. The contrast is a Campbell-Fiske
+    convergent/discriminant argument, never identification of a causal decoding
+    effect. Each outcome keeps its own denominator (79 items for ``W``, 6 for ``N``);
+    the flattened-cell likelihood never pools them.
     """
     from dse_research_utils.math.constants import EPSILON
     from language_reading_predictors.statistical_models.preprocessing import (
@@ -857,25 +994,63 @@ def build_joint_mechanism_model(
         standardise,
     )
 
+    if design not in {"levels", "transition"}:
+        raise ValueError(
+            f"joint mechanism design must be 'levels' or 'transition'; got {design!r}"
+        )
     outcome_symbols = tuple(outcome_symbols)
     confounder_symbols = tuple(confounder_symbols)
     adjust_for = tuple(adjust_for)
     K = len(outcome_symbols)
     if K != 2:
         raise ValueError("joint mechanism model expects exactly two outcomes")
-    for s in (*outcome_symbols, *contrast):
+    for s in contrast:
         if s not in outcome_symbols:
             raise ValueError(f"contrast outcome {s!r} not in outcome_symbols")
+    for s in outcome_symbols:
         if s not in prepared.post_counts:
             raise KeyError(f"Outcome {s!r} missing a post score in prepared data")
-        if s not in prepared.pre_logit:
-            raise KeyError(f"Outcome baseline {s!r}_pre missing from prepared data")
     if mechanism_symbol not in prepared.post_counts:
         raise KeyError(f"Mechanism {mechanism_symbol!r} missing from prepared data")
 
+    expected_mode = "levels" if design == "levels" else "all"
+    if prepared.phase_mode != expected_mode:
+        raise ValueError(
+            f"joint mechanism design={design!r} requires phase_mode="
+            f"{expected_mode!r}; got {prepared.phase_mode!r}"
+        )
+    if design == "transition":
+        for s in outcome_symbols:
+            if s not in prepared.pre_logit:
+                raise KeyError(f"Outcome baseline {s!r}_pre missing from prepared data")
+
+    # Shared exposure: standardised letter-sound post logit, identical for both legs,
+    # so the two slopes sit on one commensurate logit-per-SD-of-exposure scale. Rows
+    # with a missing exposure are DROPPED rather than mean-imputed — imputing the
+    # focal exposure shrinks its realised variance and biases both slopes toward zero,
+    # which would corrupt the very contrast the model exists to estimate.
+    exposure_ok = ~np.isnan(prepared.post_counts[mechanism_symbol])
+    # A row observing neither outcome contributes no likelihood cell.
+    any_outcome = np.zeros(prepared.n_obs, dtype=bool)
+    for s in outcome_symbols:
+        any_outcome |= ~np.isnan(prepared.post_counts[s])
+    keep = exposure_ok & any_outcome
+    if not keep.all():
+        prepared = _subset(prepared, keep)
+    if prepared.n_obs == 0:
+        raise ValueError(
+            "joint mechanism model has no usable rows: no observation has both the "
+            f"exposure {mechanism_symbol!r} and at least one of {outcome_symbols}."
+        )
+
+    if design == "levels" and prepared.n_obs != prepared.n_children:
+        raise ValueError(
+            "joint mechanism design='levels' expects one row per child (a single "
+            f"wave); got {prepared.n_obs} rows over {prepared.n_children} children "
+            "— pass a single-wave subset."
+        )
+
     N_obs = prepared.n_obs
-    # Shared exposure: standardised letter-sound post logit (identical for both legs,
-    # so the two slopes are on one commensurate logit-per-SD-of-exposure scale).
     z_L = standardise(
         logit_safe(
             prepared.post_counts[mechanism_symbol],
@@ -896,12 +1071,15 @@ def build_joint_mechanism_model(
         axis=1,
     )
     n_trials_vec = np.array([prepared.n_trials[s] for s in outcome_symbols], dtype=int)
-    pre_logit = np.stack([prepared.pre_logit[s] for s in outcome_symbols], axis=1)
     idx_row, idx_col = np.nonzero(mask)
 
     coords = {
         "obs_id": np.arange(N_obs),
         "outcome": list(outcome_symbols),
+        # Second outcome axis for outcome x outcome quantities: PyMC requires
+        # distinct dim names per axis, so the correlation matrix cannot reuse
+        # "outcome" for both.
+        "outcome2": list(outcome_symbols),
         "phase": np.arange(prepared.n_phases),
         "child": np.arange(prepared.n_children),
         "cell": np.arange(idx_row.size),
@@ -909,83 +1087,155 @@ def build_joint_mechanism_model(
 
     with pm.Model(coords=coords) as model:
         G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
-        A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
+        A_std_d = pm.Data(
+            "A_std", np.nan_to_num(np.asarray(prepared.A_std, dtype=float)),
+            dims="obs_id",
+        )
         z_L_d = pm.Data("z_mech_logit", z_L, dims="obs_id")
-        phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
         child_idx_d = pm.Data(
             "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
         )
-        pre_logit_d = pm.Data("pre_logit", pre_logit, dims=("obs_id", "outcome"))
         adjust_data = {
-            c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id")
+            c: pm.Data(
+                f"{c}_adj",
+                np.nan_to_num(np.asarray(prepared.covariates[c], dtype=float)),
+                dims="obs_id",
+            )
             for c in adjust_for
+            if c in prepared.covariates
         }
 
-        # Per-outcome scalar parameters (dims="outcome"), shared prior constructors.
         alpha = _priors.alpha_prior().to_pymc("alpha", dims="outcome")
-        beta_G = _priors.tau_prior().to_pymc("beta_G", dims="outcome")
-        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")
-        beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech", dims="outcome")
-        alpha_phase = pm.Normal(
-            "alpha_phase", mu=0.0, sigma=0.5, dims=("phase", "outcome")
-        )
+        if design == "levels":
+            # Matched to ca-010 / ca-011: the same regularising association prior on
+            # the letter-sound slope, so the identified share-retained is comparable
+            # with the paired-draws ratio it replaces.
+            beta_mech = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                "beta_mech", dims="outcome"
+            )
+        else:
+            # Matched to mech-096 / mech-101, whose Delta this design re-reports.
+            beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech", dims="outcome")
 
-        eta = (
-            alpha[None, :]
-            + alpha_phase[phase_d]
-            + beta_G[None, :] * pt.shape_padright(G_d)
-            + gamma_own[None, :] * pre_logit_d
-            + beta_mech[None, :] * pt.shape_padright(z_L_d)
-        )
+        eta = alpha[None, :] + beta_mech[None, :] * pt.shape_padright(z_L_d)
 
-        # Age (linear, per outcome) — A is a declared confounder of the exposure.
+        if design == "transition":
+            pre_logit = np.stack(
+                [prepared.pre_logit[s] for s in outcome_symbols], axis=1
+            )
+            pre_logit_d = pm.Data(
+                "pre_logit", pre_logit, dims=("obs_id", "outcome")
+            )
+            gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")
+            phase_d = pm.Data(
+                "phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
+            )
+            alpha_phase = pm.Normal(
+                "alpha_phase", mu=0.0, sigma=0.5, dims=("phase", "outcome")
+            )
+            eta = eta + gamma_own[None, :] * pre_logit_d + alpha_phase[phase_d]
+
+        if include_group or "G" in confounder_symbols:
+            # Group is a NON-INTERPRETABLE nuisance in the levels design (it only
+            # absorbs arm composition at the wave, as in build_concurrent_model); in
+            # the transition design it is the same arm term the mechanism family
+            # carries. Named per design so no consumer reads one as the other.
+            g_name = "beta_group_nuisance" if design == "levels" else "beta_G"
+            beta_G = _priors.tau_prior().to_pymc(g_name, dims="outcome")
+            eta = eta + beta_G[None, :] * pt.shape_padright(G_d)
+
         if "A" in confounder_symbols:
-            gamma_A = _priors.gamma_cross_prior().to_pymc("gamma_A", dims="outcome")
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A", dims="outcome")
             eta = eta + gamma_A[None, :] * pt.shape_padright(A_std_d)
 
-        # Raw-covariate adjusters (hearing / speech / sessions …), per outcome.
-        for c in adjust_for:
+        for c, cov_d in adjust_data.items():
             gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}", dims="outcome")
-            eta = eta + gamma_c[None, :] * pt.shape_padright(adjust_data[c])
+            eta = eta + gamma_c[None, :] * pt.shape_padright(cov_d)
 
-        # ONE shared child random intercept across both outcomes (the GA proxy).
-        sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_child_prior_sigma)
-        u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
-        u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
-        eta = eta + pt.shape_padright(u_child[child_idx_d])
+        # --- Cross-outcome dependence block ---------------------------------------
+        if design == "levels":
+            # One row per child, so the residual IS the child effect at this wave and
+            # its off-diagonal is the *within-wave* residual correlation #421 asks for.
+            u, corr, sigmas = _bivariate_lkj_residual(
+                "u_resid",
+                n_outcomes=K,
+                row_dim="obs_id",
+                lkj_eta=residual_lkj_eta,
+                sd_sigma=residual_sd_sigma,
+            )
+        else:
+            # Three rows per child: the covariance lives at the CHILD level and the
+            # Beta-Binomial kappa keeps the within-child overdispersion.
+            u_child, corr, sigmas = _bivariate_lkj_residual(
+                "u_child",
+                n_outcomes=K,
+                row_dim="child",
+                lkj_eta=child_lkj_eta,
+                sd_sigma=sigma_child_prior_sigma,
+            )
+            u = u_child[child_idx_d]
+        eta = eta + u
 
         eta = pm.Deterministic("eta", eta, dims=("obs_id", "outcome"))
 
-        # Identified decoding-specificity contrast (within-model deterministic).
-        hi = outcome_symbols.index(contrast[0])
-        lo = outcome_symbols.index(contrast[1])
-        pm.Deterministic("delta_ls_decoding", beta_mech[hi] - beta_mech[lo])
+        _add_decoding_contrast_deterministics(
+            beta_mech=beta_mech,
+            outcome_symbols=outcome_symbols,
+            contrast=contrast,
+            corr=corr,
+            sigmas=sigmas,
+            # The conditional slope is a *within-wave, same-row* partialling, so it is
+            # only meaningful where the covariance block sits on the observation row.
+            # In the transition design the block is a between-child intercept
+            # covariance, which answers a different question ("children who run high
+            # on W also run high on N"), not "holding this child's decoding fixed at
+            # this wave" — so that design reports rho and Delta, and no share-retained.
+            conditional_slope=design == "levels",
+        )
 
-        kappa = _priors.kappa_prior().to_pymc("kappa", dims="outcome")
-        mu = pm.math.clip(pm.math.sigmoid(eta), EPSILON, 1 - EPSILON)
-        alpha_bb = mu * kappa[None, :]
-        beta_bb = (1 - mu) * kappa[None, :]
-
+        # Record the flattened cell mapping so the diagnostics can select one outcome
+        # for predictive checks (incompatible denominators are never pooled).
         pm.Data("y_post_cell_row", idx_row.astype("int64"), dims="cell")
         pm.Data("y_post_cell_outcome", idx_col.astype("int64"), dims="cell")
-        pm.BetaBinomial(
-            "y_post",
-            n=n_trials_vec[idx_col],
-            alpha=alpha_bb[idx_row, idx_col],
-            beta=beta_bb[idx_row, idx_col],
-            observed=post_counts_int[idx_row, idx_col],
-            dims="cell",
-        )
+
+        mu = pm.math.clip(pm.math.sigmoid(eta), EPSILON, 1 - EPSILON)
+        if design == "levels":
+            pm.Binomial(
+                "y_post",
+                n=n_trials_vec[idx_col],
+                p=mu[idx_row, idx_col],
+                observed=post_counts_int[idx_row, idx_col],
+                dims="cell",
+            )
+        else:
+            kappa = _priors.kappa_prior().to_pymc("kappa", dims="outcome")
+            alpha_bb = mu * kappa[None, :]
+            beta_bb = (1 - mu) * kappa[None, :]
+            pm.BetaBinomial(
+                "y_post",
+                n=n_trials_vec[idx_col],
+                alpha=alpha_bb[idx_row, idx_col],
+                beta=beta_bb[idx_row, idx_col],
+                observed=post_counts_int[idx_row, idx_col],
+                dims="cell",
+            )
 
     return BuiltModel(
         model=model,
         prepared=prepared,
         extras={
-            "joint_dependence": "shared_child_intercept",
+            "design": design,
+            "joint_dependence": (
+                "lkj_residual_within_wave"
+                if design == "levels"
+                else "lkj_child_intercept"
+            ),
+            "likelihood": "binomial" if design == "levels" else "beta_binomial",
             "loo_unit": "child",
             "outcomes": outcome_symbols,
             "mechanism_symbol": mechanism_symbol,
             "contrast": contrast,
+            "adjust_for": tuple(adjust_data),
         },
     )
 

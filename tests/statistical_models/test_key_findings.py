@@ -827,13 +827,52 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
         )
         return d, "translated latent coupling"
     if kind == "joint_mechanism":
+        # The family's switches live under ``extra``: the top-level ``design`` key is
+        # the human-readable study-design string, so a builder reading it would branch
+        # on the wrong value and never emit the levels caveat.
+        _write_json(
+            d,
+            "config.json",
+            {
+                **_config(kind),
+                "design": "per-wave cross-sectional bivariate levels",
+                "extra": {"design": "levels", "contrast": ["N", "W"]},
+            },
+        )
+        # Two waves, so the builder's per-wave path (range + clearest-wave lead) is
+        # exercised, plus the levels-only conditional-slope / share-retained rows.
+        def _jm(wave, term, median, lo, hi, prob_pos):
+            span = (hi - lo) / 4.0
+            return {
+                "wave": wave,
+                "term": term,
+                "label": term,
+                "median": median,
+                "mean": median,
+                "lo50": median - span,
+                "hi50": median + span,
+                "lo": lo,
+                "hi": hi,
+                "prob_pos": prob_pos,
+                "converged": True,
+            }
+
         _write_rows(
             d,
             "joint_mechanism_slopes.csv",
             [
-                {"term": "beta_mech[W]", "median": 0.24, "lo": 0.14, "hi": 0.34, "prob_pos": 1.0},
-                {"term": "beta_mech[N]", "median": 1.02, "lo": 0.72, "hi": 1.33, "prob_pos": 1.0},
-                {"term": "delta_ls_decoding (N-W)", "median": 0.79, "lo": 0.47, "hi": 1.09, "prob_pos": 0.999},
+                _jm("t3", "beta_mech[W]", 0.24, 0.14, 0.34, 1.0),
+                _jm("t3", "beta_mech[N]", 1.02, 0.72, 1.33, 1.0),
+                _jm("t3", "delta_ls_decoding", 0.79, 0.47, 1.09, 0.999),
+                _jm("t3", "rho_outcome", 0.41, 0.12, 0.66, 0.99),
+                _jm("t3", "beta_mech_focal_given_held", 0.17, 0.06, 0.28, 0.99),
+                _jm("t3", "share_retained", 0.71, 0.42, 0.95, 1.0),
+                _jm("t4", "beta_mech[W]", 0.29, 0.18, 0.40, 1.0),
+                _jm("t4", "beta_mech[N]", 0.95, 0.61, 1.29, 1.0),
+                _jm("t4", "delta_ls_decoding", 0.66, 0.31, 1.01, 0.996),
+                _jm("t4", "rho_outcome", 0.38, 0.08, 0.64, 0.98),
+                _jm("t4", "beta_mech_focal_given_held", 0.19, 0.07, 0.31, 0.99),
+                _jm("t4", "share_retained", 0.66, 0.38, 0.92, 1.0),
             ],
         )
         return d, "decoding-use signature"

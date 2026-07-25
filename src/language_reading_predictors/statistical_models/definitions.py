@@ -429,14 +429,17 @@ _LCF = [
     _d("lrplcf01", "long_corr_factor", "Measurement model", Status.ASSOCIATION, None, "longitudinal correlated-domain-factor model (per-wave latent skill correlations)"),
 ]
 
-# --- Joint bivariate mechanism (#421 Tier 3, LS->WR review note #424) --------------
+# --- Joint bivariate mechanism (#421 Tier 3 (1), LS->WR review note #424) ---------
 # One standardised letter-sound exposure -> two outcomes (word reading W + nonword
-# decoding N) fitted jointly with ONE shared child random intercept (the GA proxy),
-# so the decoding-specificity contrast delta = beta(LS->N) - beta(LS->W) is an
-# identified within-model deterministic rather than the product-of-marginals
-# sensitivity that separate mech-096 / mech-101 fits can only bound. Descriptive.
+# decoding N) fitted jointly with an LKJ cross-outcome dependence block, so the
+# quantities the suite reports as product-of-marginals sensitivities become
+# within-model deterministics. jm-001 is the per-wave LEVELS design #421 specifies
+# (matched to ca-010 / ca-011; reports the identified share-retained AND Delta);
+# jm-002 is the phase-stacked ANCOVA companion (matched to mech-096 / mech-101) that
+# re-reports the Tier-1 Delta on its original parameterisation. Descriptive.
 _JM = [
-    _d("lrpjm01", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "bivariate letter sounds -> {word reading, nonword decoding}; identified decoding-specificity contrast (#421 Tier 3)"),
+    _d("lrpjm01", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "per-wave bivariate levels {word reading, nonword decoding}; identified share-retained + decoding-specificity contrast (#421 Tier 3)"),
+    _d("lrpjm02", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "phase-stacked bivariate ANCOVA companion; identified Tier-1 decoding-specificity contrast (#421 Tier 3)", "lrpjm01"),
 ]
 
 

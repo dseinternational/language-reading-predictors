@@ -1099,11 +1099,22 @@ def save_joint_posterior_predictive_plot(
         rprint(f"[yellow]Joint posterior-predictive plot failed: {exc}[/yellow]")
 
 
+#: Posterior variables the joint LOO-PIT tree will carry for relative-ESS, in
+#: preference order. ArviZ only needs *a* posterior group to compute the relative
+#: effective sample size behind the PSIS weights; the ITT-shaped joint families
+#: carry ``tau``, but a joint family whose reported coefficient is something else
+#: (the ``joint_mechanism`` slopes, for instance) must not be silently skipped —
+#: which is what happened before #427 review, when the hard ``tau`` requirement
+#: raised a ``KeyError`` that :func:`save_joint_loo_pit_plot` swallowed.
+_JOINT_LOO_PIT_POSTERIOR_VARS: tuple[str, ...] = ("tau", "beta_mech", "alpha")
+
+
 def _joint_outcome_predictive_tree(
     context: StatisticalFitContext,
     outcome_symbol: str,
     *,
     samples: xr.DataTree | None = None,
+    posterior_var: str | None = None,
 ) -> xr.DataTree:
     """Return one outcome's observed, replicated and log-likelihood cells.
 
@@ -1112,6 +1123,13 @@ def _joint_outcome_predictive_tree(
     construct an outcome-specific ArviZ tree. Keeping the matching pointwise log
     likelihood means PSIS weights are recomputed for that outcome rather than
     borrowed from pooled tests with different denominators.
+
+    ``posterior_var`` names the posterior variable carried into the tree for the
+    relative-ESS calculation; ``None`` resolves the first of
+    :data:`_JOINT_LOO_PIT_POSTERIOR_VARS` present, then any posterior variable.
+    The choice does not change the LOO-PIT values — it only supplies ArviZ with a
+    posterior group — so the fallback is safe, and it is what lets non-ITT joint
+    families emit the plot at all.
     """
     samples = context.trace if samples is None else samples
     if samples is None:
@@ -1142,11 +1160,22 @@ def _joint_outcome_predictive_tree(
         return data.isel({cell_dim: keep})
 
     posterior = samples.posterior.ds
-    if "tau" not in posterior:
-        raise KeyError("joint LOO-PIT requires posterior['tau'] for relative ESS")
+    if posterior_var is not None:
+        if posterior_var not in posterior:
+            raise KeyError(
+                f"joint LOO-PIT requires posterior[{posterior_var!r}] for relative ESS"
+            )
+        ess_var = posterior_var
+    else:
+        ess_var = next(
+            (v for v in _JOINT_LOO_PIT_POSTERIOR_VARS if v in posterior),
+            next(iter(posterior.data_vars), None),
+        )
+        if ess_var is None:
+            raise KeyError("joint LOO-PIT requires a non-empty posterior group")
     return xr.DataTree.from_dict(
         {
-            "/posterior": posterior[["tau"]],
+            "/posterior": posterior[[ess_var]],
             "/observed_data": _subset("observed_data"),
             "/posterior_predictive": _subset("posterior_predictive"),
             "/log_likelihood": _subset("log_likelihood"),
@@ -1159,12 +1188,17 @@ def save_joint_loo_pit_plot(
     outcome_symbol: str,
     *,
     filename_stem: str = "loo_pit",
+    posterior_var: str | None = None,
 ) -> None:
-    """Save an outcome-specific LOO-PIT calibration plot for a joint fit."""
+    """Save an outcome-specific LOO-PIT calibration plot for a joint fit.
+
+    ``posterior_var`` is forwarded to :func:`_joint_outcome_predictive_tree`; leave
+    it ``None`` unless a family needs a specific relative-ESS variable.
+    """
     try:
         samples = thin_for_plots(context.trace)
         outcome_tree = _joint_outcome_predictive_tree(
-            context, outcome_symbol, samples=samples
+            context, outcome_symbol, samples=samples, posterior_var=posterior_var
         )
     except Exception as exc:  # pragma: no cover - diagnostic fallback
         rprint(f"[yellow]Joint LOO-PIT preparation failed: {exc}[/yellow]")
