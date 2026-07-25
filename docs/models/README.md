@@ -271,7 +271,7 @@ so _no_ term is causal — every coefficient is an association. Design note:
 `04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`; **`lrp-rli-al-101`** adds a
 cumulative-session dose sensitivity term (a collider — sensitivity only).
 
-### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073`, `lrp-rli-mech-088–lrp-rli-mech-090`, `lrp-rli-mech-102–lrp-rli-mech-105` (`kind="mechanism"`)
+### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073`, `lrp-rli-mech-088–lrp-rli-mech-090`, `lrp-rli-mech-102–lrp-rli-mech-104` (`kind="mechanism"`)
 
 **Purpose.** The adjustment-set dose-response of one measured skill on another across all
 phases, with subject random intercepts and optional linear moderation. Every slope is an
@@ -293,7 +293,6 @@ phases, with subject random intercepts and optional linear moderation. Every slo
 | `lrp-rli-mech-102`            | `RW → N` | Phonological memory → nonword decoding (#421; alphabetic-route counterpart of mech-090; covariate exposure, adjust `HS`, linear/floored outcome) |
 | `lrp-rli-mech-103`            | `SP → N` | Speech production → nonword decoding (#421; first SP-exposure mechanism; covariate exposure, adjust `HS`, linear/floored outcome)                |
 | `lrp-rli-mech-104` / `204`    | `L → W`  | Letter sounds → word reading, moderated by phonological memory `RW` (with / without the interaction; #421 Tier 2)                                |
-| `lrp-rli-mech-105` / `205`    | `L → W`  | Letter sounds → word reading, moderated by nonword decoding `NW` (with / without the interaction; #421 Tier 2)                                   |
 
 ### Mediation — `lrp-rli-med` (`kind="mediation"` / `"mediation_multi"`)
 

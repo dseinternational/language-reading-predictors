@@ -198,13 +198,15 @@ _MECH = [
     _d("lrp73", "mechanism", "Moderation", Status.ASSOCIATION, "W", "age-moderated letter-sound -> word reading"),
     _d("lrp73base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp73"),
     # #421 Tier 2 (LS->WR review note, #424): does the letter-sound -> word-reading
-    # effect depend on phonological memory (RW) / decoding (NW)? The direct interaction
-    # form of the review's Q3 discrepancy. Each with a no-interaction companion for the
-    # nested PSIS-LOO test (the mech-073/173 pattern). Descriptive; gamma_int never causal.
+    # effect depend on phonological memory (RW)? The direct interaction form of the
+    # review's Q3 discrepancy, with a no-interaction companion for the nested PSIS-LOO
+    # test (the mech-073/173 pattern). Descriptive; gamma_int never causal.
+    # The note's companion NW moderation is *not* registered here: it would duplicate the
+    # existing lrp63/lrp163 pair (same rows, outcome, adjusters and L x N interaction), so
+    # joint_readiness_lxn_w_loo_compare already answers it. The genuinely distinct
+    # off-floor-NW variant is a follow-up.
     _d("lrp104", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds -> word reading, moderated by phonological memory RW (#421 Tier 2)"),
     _d("lrp104base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp104"),
-    _d("lrp105", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds -> word reading, moderated by nonword decoding NW (#421 Tier 2)"),
-    _d("lrp105base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp105"),
     # Taught-vocabulary dose-response (#311, descriptive-association workstream #314).
     _d("lrp88", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading"),
     _d("lrp89", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading"),
