@@ -5,9 +5,16 @@
 
 The #427 review found four house artefacts silently absent from a fit that reported
 success: the per-outcome LOO-PIT plots, ``ppc_summary.csv``, power-scaling prior
-sensitivity, and the inner 50% intervals. Three of those are guarded here (the
-LOO-PIT one in ``test_diagnostics.py``, where the helper lives), so a future refactor
-cannot drop them without a red test.
+sensitivity, and the inner 50% intervals. All four are guarded here — the LOO-PIT one
+by asserting the pipeline asks for it per outcome by name, with the artefact-level
+counterpart in ``test_diagnostics.py`` where the helper lives — so a future refactor
+cannot drop any of them without a red test.
+
+The marginal-coverage guard is the subtle one. In the levels design the residual is
+saturated (one bivariate latent per child over exactly two cells), so the conditional
+coverage is 1.00 by construction and an implementation that quietly reuses the fitted
+residuals would report that same vacuous figure under a "new-child" label. That is not
+hypothetical: it is what ``pm.sample_posterior_predictive(var_names=[...])`` did.
 """
 
 from __future__ import annotations
@@ -19,12 +26,15 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+from language_reading_predictors.statistical_models import pipeline as _pipeline
 from language_reading_predictors.statistical_models.lrp_rli_jm_001 import SPEC as JM001
 from language_reading_predictors.statistical_models.lrp_rli_jm_002 import SPEC as JM002
 from language_reading_predictors.statistical_models.pipeline import (
     _JM_SLOPE_REQUIRED,
     _jm_diag_vars,
+    _jm_marginal_ppc,
     _jm_slope_rows,
+    _jm_standard_artefacts,
     _jm_write_slopes,
 )
 
@@ -211,3 +221,186 @@ def test_registered_specs_declare_their_designs_and_comparators():
         "deapp_c_missing",
     )
     assert JM001.extra["contrast"] == JM002.extra["contrast"] == ("N", "W")
+
+
+# --- artefact contract: the four outputs the #427 review found silently absent ----
+
+
+def _artefact_trace(*, n_obs: int = 12, exact: bool) -> xr.DataTree:
+    """A trace complete enough for the coverage helpers.
+
+    ``exact=True`` gives a *conditional* predictive that reproduces every observation
+    — the saturated-residual situation the levels design is actually in — so a
+    marginal helper that quietly reuses the conditional draws is detectable.
+    """
+    rng = np.random.default_rng(11)
+    chains, draws, n_outcomes = 2, 60, 2
+    n_trials = np.array([79, 6])
+    # Two cells per row: (row, outcome) in the flattened order the factory writes.
+    rows = np.repeat(np.arange(n_obs), n_outcomes)
+    cols = np.tile(np.arange(n_outcomes), n_obs)
+    observed = rng.integers(0, n_trials[cols] + 1)
+
+    if exact:
+        y_rep = np.broadcast_to(observed, (chains, draws, observed.size)).copy()
+    else:
+        y_rep = rng.integers(0, n_trials[cols] + 1, size=(chains, draws, observed.size))
+
+    eta = rng.normal(0.0, 0.5, size=(chains, draws, n_obs, n_outcomes))
+    u_resid = rng.normal(0.0, 0.3, size=(chains, draws, n_obs, n_outcomes))
+    return xr.DataTree.from_dict(
+        {
+            "posterior": xr.Dataset(
+                {
+                    "eta": (("chain", "draw", "obs_id", "outcome"), eta),
+                    "u_resid": (("chain", "draw", "obs_id", "outcome"), u_resid),
+                    "sigma_u_resid": (
+                        ("chain", "draw", "outcome"),
+                        rng.uniform(0.5, 1.5, size=(chains, draws, n_outcomes)),
+                    ),
+                    "rho_outcome": (
+                        ("chain", "draw"),
+                        rng.uniform(0.1, 0.6, size=(chains, draws)),
+                    ),
+                    "beta_mech": (
+                        ("chain", "draw", "outcome"),
+                        rng.normal(0.5, 0.2, size=(chains, draws, n_outcomes)),
+                    ),
+                },
+                coords={
+                    "chain": range(chains),
+                    "draw": range(draws),
+                    "obs_id": range(n_obs),
+                    "outcome": list(_OUTCOMES),
+                },
+            ),
+            "observed_data": xr.Dataset({"y_post": ("cell", observed)}),
+            "posterior_predictive": xr.Dataset(
+                {"y_post": (("chain", "draw", "cell"), y_rep)}
+            ),
+            "constant_data": xr.Dataset(
+                {
+                    "y_post_cell_row": ("cell", rows),
+                    "y_post_cell_outcome": ("cell", cols),
+                }
+            ),
+        }
+    )
+
+
+def _artefact_ctx(tmp_path, trace) -> SimpleNamespace:
+    return SimpleNamespace(
+        output_dir=str(tmp_path),
+        tables={},
+        trace=trace,
+        model=None,
+        prepared=SimpleNamespace(n_trials={"W": 79, "N": 6}),
+        sampling=SimpleNamespace(random_seed=5),
+        reporting=SimpleNamespace(ci_prob=0.89),
+    )
+
+
+@pytest.fixture
+def _silent_diagnostics(monkeypatch):
+    """Stub the plotting/sampling stages so the artefact contract can be checked
+    without a fit, recording the calls the review asked to be reinstated."""
+    calls: dict[str, list] = {"psense": [], "loo_pit": []}
+    for name in (
+        "summary_diagnostics",
+        "sample_posterior_predictive",
+        "save_joint_posterior_predictive_plot",
+        "run_extended_diagnostics",
+        "save_trace",
+        "save_prior_posterior_plot",
+    ):
+        monkeypatch.setattr(_pipeline._diag, name, lambda *a, **k: None)
+    monkeypatch.setattr(
+        _pipeline._diag, "write_diagnostics_summary", lambda *a, **k: {"passed": True}
+    )
+    monkeypatch.setattr(
+        _pipeline._diag,
+        "run_psense",
+        lambda ctx, *, var_names: calls["psense"].append(list(var_names)),
+    )
+    monkeypatch.setattr(
+        _pipeline._diag,
+        "save_joint_loo_pit_plot",
+        lambda ctx, symbol, **k: calls["loo_pit"].append((symbol, k.get("posterior_var"))),
+    )
+    return calls
+
+
+def test_standard_artefacts_write_ppc_summary_and_audit_the_priors(
+    tmp_path, _silent_diagnostics
+):
+    """`ppc_summary.csv` is written, psense runs on the reported coefficients, and
+    the per-outcome LOO-PIT is asked for by name. All three were silently absent
+    from a fit that reported success (#427 review)."""
+    ctx = _artefact_ctx(tmp_path, _artefact_trace(exact=False))
+
+    gate = _jm_standard_artefacts(
+        ctx,
+        outcome_symbols=_OUTCOMES,
+        diag_vars=["beta_mech"],
+        psense_vars=["beta_mech", "delta_ls_decoding"],
+    )
+
+    assert gate == {"passed": True}
+    summary = pd.read_csv(tmp_path / "ppc_summary.csv")
+    assert set(summary["level_pct"]) == {50, 90}
+    assert {"coverage", "n_total", "n_inside"} <= set(summary.columns)
+    assert ctx.tables["ppc_summary"] is not None
+    # Power-scaling sensitivity on the reported coefficients, not skipped.
+    assert _silent_diagnostics["psense"] == [["beta_mech", "delta_ls_decoding"]]
+    # One LOO-PIT per outcome, each naming this family's own coefficient — the
+    # hard-coded `tau` was what made these silently no-op.
+    assert _silent_diagnostics["loo_pit"] == [("W", "beta_mech"), ("N", "beta_mech")]
+    # No marginal companion unless the design asks for one.
+    assert not (tmp_path / "ppc_summary_marginal.csv").exists()
+
+
+def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagnostics):
+    """The levels design is saturated in its residual, so the conditional coverage is
+    1.00 by construction. The marginal companion must redraw the residual — a version
+    that quietly reuses the fitted values would report the same vacuous 1.00 under a
+    'new-child' label, which is exactly what `pm.sample_posterior_predictive` did."""
+    ctx = _artefact_ctx(tmp_path, _artefact_trace(exact=True))
+
+    _jm_standard_artefacts(
+        ctx,
+        outcome_symbols=_OUTCOMES,
+        diag_vars=["beta_mech"],
+        psense_vars=["beta_mech"],
+        marginal_ppc=True,
+    )
+
+    conditional = pd.read_csv(tmp_path / "ppc_summary.csv")
+    marginal = pd.read_csv(tmp_path / "ppc_summary_marginal.csv")
+    # The conditional predictive reproduces every observation exactly.
+    assert (conditional["coverage"] == 1.0).all()
+    # The marginal one is a genuinely different, falsifiable statistic.
+    assert set(marginal["mode"]) == {"count_interval_marginal"}
+    assert (marginal["coverage"] < 1.0).any()
+    assert list(marginal["level_pct"]) == [50, 90]
+
+
+def test_marginal_ppc_degrades_when_the_covariance_block_is_absent(tmp_path):
+    """A design with no residual covariance (the transition companion) must simply not
+    write the file, rather than fabricating a marginal from missing variables."""
+    full = _artefact_trace(exact=True)
+    # Rebuild without the correlation: DataTree.ds hands back a copy, so deleting
+    # from it would leave the real tree untouched and silently pass.
+    trace = xr.DataTree.from_dict(
+        {
+            "posterior": full["posterior"].ds.drop_vars("rho_outcome"),
+            "observed_data": full["observed_data"].ds,
+            "posterior_predictive": full["posterior_predictive"].ds,
+            "constant_data": full["constant_data"].ds,
+        }
+    )
+    assert "rho_outcome" not in trace["posterior"].ds
+    ctx = _artefact_ctx(tmp_path, trace)
+
+    _jm_marginal_ppc(ctx, outcome_symbols=_OUTCOMES)
+
+    assert not (tmp_path / "ppc_summary_marginal.csv").exists()
