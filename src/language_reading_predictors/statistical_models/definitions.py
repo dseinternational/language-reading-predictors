@@ -80,6 +80,7 @@ KINDS: frozenset[str] = frozenset(
         "block_exposure",
         "concurrent",
         "long_corr_factor",
+        "joint_mechanism",
     }
 )
 
@@ -430,11 +431,24 @@ _LCF = [
     _d("lrplcf01", "long_corr_factor", "Measurement model", Status.ASSOCIATION, None, "longitudinal correlated-domain-factor model (per-wave latent skill correlations)"),
 ]
 
+# --- Joint bivariate mechanism (#421 Tier 3 (1), LS->WR review note #424) ---------
+# One standardised letter-sound exposure -> two outcomes (word reading W + nonword
+# decoding N) fitted jointly with an LKJ cross-outcome dependence block, so the
+# quantities the suite reports as product-of-marginals sensitivities become
+# within-model deterministics. jm-001 is the per-wave LEVELS design #421 specifies
+# (matched to ca-010 / ca-011; reports the identified share-retained AND Delta);
+# jm-002 is the phase-stacked ANCOVA companion (matched to mech-096 / mech-101) that
+# re-reports the Tier-1 Delta on its original parameterisation. Descriptive.
+_JM = [
+    _d("lrpjm01", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "per-wave bivariate levels {word reading, nonword decoding}; identified share-retained + decoding-specificity contrast (#421 Tier 3)"),
+    _d("lrpjm02", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "phase-stacked bivariate ANCOVA companion; identified Tier-1 decoding-specificity contrast (#421 Tier 3)", "lrpjm01"),
+]
+
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA, *_LCF)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA, *_LCF, *_JM)
 }
 
 

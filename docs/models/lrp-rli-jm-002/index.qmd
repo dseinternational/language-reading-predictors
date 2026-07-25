@@ -1,0 +1,44 @@
+---
+title: "LRPJM02: Phase-stacked joint {word reading, nonword decoding} ANCOVA"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPJM02 is the companion to [`jm-001`](../lrp-rli-jm-001/) (#421 Tier 3 (1)). Where `jm-001` makes the review's per-wave **share retained** an identified quantity, this model does the same for the **Tier-1 decoding-specificity contrast** Δ = β(LS→N) − β(LS→W) — on the parameterisation that contrast was originally computed on.
+
+Why a second model rather than reading Δ off `jm-001`. The Tier-1 Δ in `notes/202607172358-findings-decoding-specificity.md` is defined on the *mechanism* (transition / ANCOVA) parameterisation: [`mech-096`](../lrp-rli-mech-096/) and [`mech-101`](../lrp-rli-mech-101/) regress each outcome's post-score on the standardised letter-sound logit **given its own baseline**, over the three stacked transitions. A levels Δ and an ANCOVA Δ are different estimands — "how much higher is the level per SD of letter sounds" versus "how much more does the score move per SD of letter sounds given where it started". Re-reporting the note's Δ from a levels fit would swap the quantity while claiming to identify it. This model holds the parameterisation fixed and changes only what the review asked to change: the two outcomes are fitted **together**, so their difference carries the cross-outcome covariance instead of a paired-draws convolution.
+
+## Design
+
+- **Phase-stacked ANCOVA.** `phase_mode="all"` (three transitions), each outcome keeping its own autoregressive baseline (`W_pre` / `N_pre`), its own phase intercepts and its own Beta-Binomial denominator — 79 items for word reading, 6 for nonword decoding, never pooled.
+- **Matched adjustment.** {G, A, HS(`hs`), IS(`attend`), SP(`deapp_c`)} exactly as `mech-096` / `mech-101` carry it (revised-DAG parents of `L`, #245), so the re-reported Δ is like-for-like with the number it replaces.
+- **Bivariate child random intercept.** The dependence block is a two-column child intercept with an LKJ correlation, so `rho_outcome` is a **between-child** covariance ("children who run high on word reading also run high on decoding"). The Beta-Binomial `kappa` is retained for within-child overdispersion: the two sit at different levels and are separately identified.
+- **Linear letter-sound slopes** on a common logit-per-SD scale (as `mech-096` / `mech-101`), so the two are commensurate and their difference is meaningful.
+
+Because the covariance here is between children rather than within a wave, this model reports `rho_outcome` and `delta_ls_decoding` and **no** share retained — "holding this child's decoding fixed at this wave" is `jm-001`'s quantity.
+
+_Estimand: descriptive association (no causal warrant)._ Every slope is latent-general-ability-confounded; the child intercept does not stand in for general ability. Δ is a Campbell–Fiske convergent/discriminant argument, not identification of a causal decoding effect. Nonword decoding is heavily floored, which costs power on its slope — read a small or uncertain `beta_mech[N]` as floor-limited, not as "letters do not feed decoding".
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_joint_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

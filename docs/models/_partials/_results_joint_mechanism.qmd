@@ -1,0 +1,217 @@
+## Results
+
+_In plain terms:_ this section reads off how strongly letter-sound knowledge tracks each of two outcomes — word reading and nonword decoding — from a **single joint model**, and reports the quantities that need both outcomes at once: the difference between the two slopes, and (in the per-wave levels design) how much of the letter-sound → word-reading association survives holding decoding fixed.
+
+Why fit them together at all. Both quantities used to be assembled by pairing draws from two _separate_ fits, which silently assumes the two posteriors are independent. They are not — the same children appear in both — so the pairing imposes a cross-outcome covariance of zero that the data do not have. Fitting the pair with an explicit **LKJ dependence block** makes each quantity a within-model deterministic carrying the covariance the model actually estimates.
+
+_These are associations — read them as such._ Every slope is an **adjusted association**, never a causal effect: latent general ability is unobserved, and the dependence block does not stand in for it. The difference between the slopes is a Campbell–Fiske convergent/discriminant argument — a pure-general-ability account gives no reason for letter sounds to predict *pure decoding* more than *sight-readable word reading* — not identification of a causal decoding mechanism. Where a group term appears in the levels design it is a non-interpretable nuisance absorbing arm composition, and is not reported as an association.
+
+```{python}
+# | echo: false
+# | output: asis
+_extra = (config.get("extra") or {}) if isinstance(config, dict) else {}
+_design = str(_extra.get("design", "levels"))
+if _design == "levels":
+    print(
+        "_Design:_ one cross-sectional fit per timepoint, one row per child, with the "
+        "**within-wave residual correlation** between the two outcomes free. Both the "
+        "difference and the share retained are reported per wave. The adjustment set "
+        "and slope prior are matched to `ca-010` / `ca-011`, so the identified share "
+        "retained replaces their paired-draws ratio like for like."
+    )
+else:
+    print(
+        "_Design:_ the phase-stacked ANCOVA companion — each outcome given its own "
+        "baseline, over the three period transitions, matched term-for-term to "
+        "`mech-096` / `mech-101` so the Tier-1 difference is re-reported on the "
+        "parameterisation it was originally computed on. The covariance here is a "
+        "**between-child** random intercept, so this design reports the difference "
+        "and the correlation but **no** share retained: 'children who run high on one "
+        "run high on the other' is not 'holding this child's decoding fixed'."
+    )
+```
+
+### Slopes and identified contrasts
+
+```{python}
+# | echo: false
+slopes = _csv("joint_mechanism_slopes.csv")
+slopes if slopes is not None else "No joint-mechanism slope table."
+```
+
+_How to read the table:_ one row per fitted wave and term. `median` is the posterior median; `lo50`/`hi50` the inner 50% and `lo`/`hi` the outer 89% equal-tailed credible interval; `prob_pos` the posterior probability the quantity exceeds zero. `beta_mech[·]` are the per-outcome letter-sound slopes on one commensurate logit-per-SD scale; `delta_ls_decoding` is their identified difference; `rho_outcome` is the cross-outcome correlation of the dependence block; `beta_mech_focal_given_held` and `share_retained` (levels design only) are the letter-sound → word-reading slope holding decoding fixed and its ratio to the unconditional slope. `converged` must be true before a row is interpreted.
+
+```{python}
+# | echo: false
+# | output: asis
+def _fmt(row):
+    return (
+        f"**{row['median']:+.2f}** (50% {row['lo50']:+.2f} to {row['hi50']:+.2f}; "
+        f"89% {row['lo']:+.2f} to {row['hi']:+.2f})"
+    )
+
+
+if slopes is not None and len(slopes):
+    _waves = [str(w) for w in slopes["wave"].drop_duplicates()]
+    _delta = slopes[slopes["term"] == "delta_ls_decoding"]
+    if len(_delta):
+        _lead = _delta.iloc[(_delta["prob_pos"] - 0.5).abs().argmax()]
+        _at = f" at {_lead['wave']}" if len(_waves) > 1 else ""
+        print(
+            f"**Identified decoding-specificity contrast (Δ = β[N] − β[W]).** "
+            f"{_fmt(_lead)} logit per SD{_at}; P(Δ > 0) = {_lead['prob_pos']:.3f}."
+        )
+        if len(_waves) > 1:
+            _by = ", ".join(
+                f"{r['wave']} {r['median']:+.2f}" for _, r in _delta.iterrows()
+            )
+            print(f" Across waves: {_by}.")
+        print(
+            " This is a within-model deterministic, not the product-of-marginals "
+            "sensitivity that two separate fits can only bound.\n"
+        )
+        if _design == "levels":
+            print(
+                "\n_Which way it points, and why that is not a contradiction._ This is "
+                "a **levels** contrast: how much higher each score is per SD of letter "
+                "sounds at that wave. The Tier-1 contrast in "
+                "`notes/202607172358-findings-decoding-specificity.md` is a "
+                "**transition/ANCOVA** contrast: how much more each score *moves* per "
+                "SD of letter sounds given where it started. Those are different "
+                "questions and they need not agree in sign — a shared "
+                "reading-development / general-ability component lifts the "
+                "letter-sound → word-reading *level* association without lifting the "
+                "*change* association, and the 6-item nonword floor compresses "
+                "nonword levels harder than it compresses nonword change. The "
+                "ANCOVA-parameterisation counterpart is `jm-002`; compare the two "
+                "there, not here.\n"
+            )
+
+    _share = slopes[slopes["term"] == "share_retained"]
+    if len(_share):
+        _by = ", ".join(f"{r['wave']} {r['median']:.2f}" for _, r in _share.iterrows())
+        _lo_share, _hi_share = _share["median"].min(), _share["median"].max()
+        # Read the direction off the fit rather than asserting it: a share near zero
+        # would make an "attenuated but not removed" claim simply false.
+        if _lo_share >= 0.5:
+            _reading = (
+                "Most of the letter-sound → word-reading association is retained: it "
+                "is attenuated but not removed when nonword decoding is held fixed."
+            )
+        elif _hi_share <= 0.5:
+            _reading = (
+                "Less than half the letter-sound → word-reading association is "
+                "retained, so most of it runs through the decoding channel this "
+                "model conditions on."
+            )
+        else:
+            _reading = (
+                "How much is retained varies across waves — from most of the "
+                "association to less than half — so no single summary applies "
+                "throughout."
+            )
+        print(
+            f"\n**Does it survive holding decoding fixed?** The identified share "
+            f"retained is {_by}. {_reading}\n"
+        )
+        print(
+            "\n_Two cautions._ First, this conditions on the **latent** nonword logit, "
+            "whereas the `ca-011` comparator conditions on the *observed* nonword "
+            "count; partialling the latent skill also partials its measurement error, "
+            "so this version generally retains **less**. Read the two as bracketing "
+            "the answer rather than one correcting the other. Second, the share is a "
+            "*ratio* of posterior quantities — informative only while the "
+            "unconditional slope stays clear of zero, which is why the median and "
+            "interval are quoted and never a mean.\n"
+        )
+
+    _rho = slopes[slopes["term"] == "rho_outcome"]
+    if len(_rho):
+        _lead_rho = _rho.iloc[(_rho["prob_pos"] - 0.5).abs().argmax()]
+        _level = (
+            "within-wave residual" if _design == "levels" else "between-child"
+        )
+        _at = f" at {_lead_rho['wave']}" if len(_waves) > 1 else ""
+        print(
+            f"\n**The dependence block itself.** The {_level} correlation between the "
+            f"two outcomes{_at} is {_fmt(_lead_rho)}. This is the quantity that makes "
+            "the joint fit worth running: an interval sitting on zero would mean the "
+            "joint posterior is close to the product of two separate ones, and the "
+            "identified contrasts would then agree closely with the paired-draws "
+            "versions they replace.\n"
+        )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _design == "levels":
+    print(
+        _img(
+            "joint_mechanism_by_wave.png",
+            "Letter-sound slopes and their identified difference, by wave",
+        )
+    )
+    print(
+        "\n_How to read the plot:_ one row per wave and term. The circle is the "
+        "posterior median, the thick bar the inner 50% and the thin bar the outer 89% "
+        "credible interval. Blue rows are the two per-outcome slopes, amber rows their "
+        "identified difference. The dotted line at 0 is no association."
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _design == "levels":
+    print("### Fit-level convergence checks\n")
+    print(
+        "_In plain terms:_ the levels design publishes one fit per timepoint. The "
+        "standard diagnostics elsewhere in this report describe the diagnostic-anchor "
+        "wave (the one with the most rows, ties broken toward the later wave — an "
+        "operational choice about which fit carries the artefacts, **not** a claim "
+        "that the wave is substantively primary). This table records the gate "
+        "quantities for every published wave so none is read from a Boolean alone.\n"
+    )
+```
+
+```{python}
+# | echo: false
+# None renders as nothing, so the transition design simply has no table here.
+jm_fits = _csv("joint_mechanism_fit_diagnostics.csv") if _design == "levels" else None
+jm_fits
+```
+
+### Posterior predictive checks (per outcome)
+
+_Each outcome is checked on its own denominator_ (word reading over 79 items, nonword decoding over 6) — the flattened bivariate likelihood never pools the two scales. Nonword decoding is heavily floored, so its check should be read as a floor-dominated distribution rather than a failure of fit.
+
+```{python}
+# | echo: false
+# | output: asis
+print(_img("posterior_predictive_check.png", "Posterior predictive check — word reading"))
+print(_img("posterior_predictive_check_n.png", "Posterior predictive check — nonword decoding"))
+```
+
+```{python}
+# | echo: false
+# | output: asis
+jm_marginal = _csv("ppc_summary_marginal.csv") if _design == "levels" else None
+if jm_marginal is not None and len(jm_marginal):
+    _lines = ", ".join(
+        f"{int(r['level_pct'])}% interval {r['coverage'] * 100:.0f}%"
+        for _, r in jm_marginal.iterrows()
+    )
+    print(
+        "**Read the coverage statistic with care in this design.** The levels model "
+        "carries one bivariate latent residual per child, and each child contributes "
+        "only two likelihood cells, so the model is close to saturated: the ordinary "
+        "coverage figure quoted in the technical section conditions on those fitted "
+        "residuals and will read at or near 100% whatever the fit is like. That is a "
+        "property of the design, not evidence of a good fit. The informative version "
+        "redraws each child's residual from its estimated distribution — the "
+        "predictive for a **new** child with the same covariates — and gives "
+        f"{_lines}. Coverage close to the nominal level there is the check that could "
+        "actually have failed."
+    )
+```

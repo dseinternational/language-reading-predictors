@@ -329,6 +329,99 @@ def test_joint_loo_pit_tree_selects_matching_outcome_cells():
     )
 
 
+def _joint_trace_without_tau(posterior_var: str = "beta_mech") -> xr.DataTree:
+    """A joint-shaped trace whose reported coefficient is not called ``tau``."""
+    rng = np.random.default_rng(0)
+    n_draw, n_cell = 40, 4
+    posterior = xr.Dataset(
+        {
+            posterior_var: (
+                ("chain", "draw", "outcome"),
+                rng.normal(size=(2, n_draw, 2)),
+            )
+        },
+        coords={
+            "chain": [0, 1],
+            "draw": range(n_draw),
+            "outcome": ["W", "N"],
+        },
+    )
+    return xr.DataTree.from_dict(
+        {
+            "posterior": posterior,
+            "observed_data": xr.Dataset(
+                {"y_post": ("cell", np.array([1, 101, 2, 102]))}
+            ),
+            "posterior_predictive": xr.Dataset(
+                {
+                    "y_post": (
+                        ("chain", "draw", "cell"),
+                        rng.integers(0, 100, size=(2, n_draw, n_cell)),
+                    )
+                }
+            ),
+            "log_likelihood": xr.Dataset(
+                {
+                    "y_post": (
+                        ("chain", "draw", "cell"),
+                        -rng.random((2, n_draw, n_cell)),
+                    )
+                }
+            ),
+            "constant_data": xr.Dataset(
+                {"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}
+            ),
+        }
+    )
+
+
+def test_joint_loo_pit_tree_falls_back_when_tau_is_absent():
+    """A joint family whose reported coefficient is not ``tau`` must still get a
+    tree. The hard ``posterior['tau']`` requirement raised a ``KeyError`` that
+    :func:`save_joint_loo_pit_plot` swallowed, so the ``joint_mechanism`` family's
+    two promised per-outcome LOO-PIT plots were always omitted even though the fit
+    completed (#427 review)."""
+    context = SimpleNamespace(
+        trace=_joint_trace_without_tau(),
+        prior_samples=None,
+        spec=SimpleNamespace(extra={}),
+        model=None,
+    )
+
+    selected = diag._joint_outcome_predictive_tree(context, "N")
+
+    # The fallback carries *a* posterior group for the relative-ESS calculation.
+    assert "beta_mech" in selected.posterior
+    np.testing.assert_array_equal(
+        selected.observed_data["y_post"].values, np.array([101, 102])
+    )
+    # An explicitly named variable is honoured, and a missing one still raises
+    # rather than silently picking something else.
+    assert "beta_mech" in diag._joint_outcome_predictive_tree(
+        context, "N", posterior_var="beta_mech"
+    ).posterior
+    with pytest.raises(KeyError, match="tau"):
+        diag._joint_outcome_predictive_tree(context, "N", posterior_var="tau")
+
+
+def test_save_joint_loo_pit_plot_writes_file_without_tau(tmp_path):
+    """Artefact-level check: the per-outcome LOO-PIT PNG is actually written for a
+    joint family with no ``tau``. Asserting on the *file* is the point — the
+    previous failure mode was a plot that never appeared while the fit reported
+    success."""
+    context = SimpleNamespace(
+        trace=_joint_trace_without_tau(),
+        prior_samples=None,
+        spec=SimpleNamespace(extra={}),
+        model=None,
+        output_dir=str(tmp_path),
+    )
+
+    diag.save_joint_loo_pit_plot(context, "N", filename_stem="loo_pit_n")
+
+    assert (tmp_path / "loo_pit_n.png").exists()
+
+
 def _synthetic_trace(
     shift, *, n=800, chains=4, seed=1, n_div=0, kappa_shift=None
 ):

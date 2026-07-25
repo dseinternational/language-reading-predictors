@@ -4555,9 +4555,178 @@ def _kf_build_fallback(output_dir, config: Mapping) -> list[dict[str, str]]:
     ]
 
 
+def _kf_jm_interval(row) -> str:
+    """One coefficient as median + inner 50% + outer reporting interval.
+
+    The house standard is median with an inner 50% and outer 89% equal-tailed
+    interval (METHODS.md), which is also #421's acceptance criterion — the first cut
+    of this family reported only the outer interval (#427 review).
+    """
+    return (
+        f"**{_kf_float(row['median']):+.2f}** (50% "
+        f"{_kf_float(row['lo50']):+.2f} to {_kf_float(row['hi50']):+.2f}; 89% "
+        f"{_kf_float(row['lo']):+.2f} to {_kf_float(row['hi']):+.2f})"
+    )
+
+
+def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Identified decoding-specificity contrast — and, in the per-wave levels design,
+    the identified share retained — from the bivariate joint model (#421 Tier 3 (1)).
+
+    Reads ``joint_mechanism_slopes.csv``, which carries one block of rows per fitted
+    wave (``t1``…``t4`` for ``design="levels"``, a single ``stacked`` block for
+    ``design="transition"``).
+    """
+    df = _kf_csv(output_dir, "joint_mechanism_slopes.csv")
+    if df is None:
+        raise _KeyFindingsUnavailable("joint_mechanism_slopes.csv is missing")
+    for column in ("wave", "term", "median", "lo50", "hi50", "lo", "hi", "prob_pos"):
+        if column not in df.columns:
+            raise _KeyFindingsUnavailable(
+                f"joint_mechanism_slopes.csv has no {column!r} column"
+            )
+    delta = df[df["term"] == "delta_ls_decoding"]
+    if delta.empty:
+        raise _KeyFindingsUnavailable("joint_mechanism_slopes.csv has no delta row")
+    waves = [str(w) for w in df["wave"].drop_duplicates()]
+    per_wave = len(waves) > 1
+    # The family's own keys live under ``extra``; the top-level ``design`` is the
+    # human-readable study-design string, not the "levels"/"transition" switch.
+    extra = config.get("extra") or {}
+    design = str(extra.get("design", "levels"))
+    contrast = extra.get("contrast") or ("N", "W")
+    hi_sym, lo_sym = (str(contrast[0]), str(contrast[1]))
+
+    # Headline: the identified contrast. With several waves, lead with the clearest
+    # one (distance of P(>0) from 0.5) and give the range, rather than implying a
+    # single number applies throughout.
+    lead = _kf_most_resolved_row(delta, prob_col="prob_pos")
+    where = f" at {lead['wave']}" if per_wave else ""
+    # The direction is read from the fit, never asserted. It is genuinely
+    # design-dependent: the ANCOVA parameterisation puts letter sounds well ahead on
+    # nonword decoding, while the levels parameterisation can favour word reading —
+    # they answer different questions, which is why both designs exist.
+    stronger, weaker = (
+        (hi_sym, lo_sym) if _kf_float(lead["median"]) > 0 else (lo_sym, hi_sym)
+    )
+    headline = (
+        f"On this model's scale letter-sound knowledge tracks "
+        f"{_kf_measure_label(stronger)} more closely than "
+        f"{_kf_measure_label(weaker)}: the identified contrast "
+        f"Δ = β(LS→{hi_sym}) − β(LS→{lo_sym}) is {_kf_jm_interval(lead)} logit per "
+        f"SD{where}."
+    )
+    if per_wave:
+        medians = [_kf_float(v) for v in delta["median"]]
+        headline += (
+            f" Across the {len(waves)} fitted timepoints it ranges "
+            f"{min(medians):+.2f} to {max(medians):+.2f}."
+        )
+    headline += (
+        " Both slopes come from one posterior with an explicit cross-outcome "
+        "dependence block, so this is a within-model contrast — not the "
+        "product-of-marginals sensitivity that separate fits can only bound."
+    )
+    if design == "levels":
+        headline += (
+            " This is a **levels** contrast (score at the wave); it is a different "
+            "estimand from the transition/ANCOVA contrast the Tier-1 note reports, "
+            "and the two need not agree in sign."
+        )
+    sentences: list[dict[str, str]] = [_kf_sentence(headline, "headline")]
+
+    slopes = df[df["term"].isin([f"beta_mech[{lo_sym}]", f"beta_mech[{hi_sym}]"])]
+    lead_wave = str(lead["wave"])
+    at_lead = {
+        str(r["term"]): r
+        for _, r in slopes[slopes["wave"] == lead_wave].iterrows()
+    }
+    hi_row, lo_row = at_lead.get(f"beta_mech[{hi_sym}]"), at_lead.get(
+        f"beta_mech[{lo_sym}]"
+    )
+    if hi_row is not None and lo_row is not None:
+        sentences.append(
+            _kf_sentence(
+                f"The two letter-sound slopes{where}: nonword decoding "
+                f"{_kf_jm_interval(hi_row)} versus word reading "
+                f"{_kf_jm_interval(lo_row)}, on one commensurate logit-per-SD scale.",
+                "detail",
+            )
+        )
+
+    share = df[df["term"] == "share_retained"]
+    if not share.empty:
+        shares = [_kf_float(v) for v in share["median"]]
+        by_wave = ", ".join(
+            f"{str(r['wave'])} {_kf_float(r['median']):.2f}"
+            for _, r in share.iterrows()
+        )
+        conditional = df[df["term"] == "beta_mech_focal_given_held"]
+        lead_cond = conditional[conditional["wave"] == lead_wave]
+        tail = ""
+        if not lead_cond.empty:
+            tail = (
+                f" At {lead_wave} the letter-sound slope on word reading holding "
+                f"decoding fixed is {_kf_jm_interval(lead_cond.iloc[0])} logit per SD."
+            )
+        # Stated as a measured fraction, not as "it survives": the direction is the
+        # fit's to report, and a share near zero would make the claim false.
+        sentences.append(
+            _kf_sentence(
+                "Holding nonword decoding fixed, the identified share of the "
+                f"letter-sound → word-reading association retained is {by_wave} "
+                f"(median {min(shares):.2f}–{max(shares):.2f} across waves).{tail} "
+                "This replaces the paired-draws ratio of two separate fits; it "
+                "partials the *latent* decoding skill, so it retains less than a "
+                "version conditioning on the observed nonword count. Read it as a "
+                "ratio — informative only while the unconditional slope stays clear "
+                "of zero.",
+                "detail",
+            )
+        )
+
+    rho = df[df["term"] == "rho_outcome"]
+    if not rho.empty:
+        lead_rho = rho[rho["wave"] == lead_wave]
+        if not lead_rho.empty:
+            level = "within-wave residual" if design == "levels" else "between-child"
+            sentences.append(
+                _kf_sentence(
+                    f"The {level} correlation between the two outcomes{where} is "
+                    f"{_kf_jm_interval(lead_rho.iloc[0])}. This is the dependence "
+                    "block doing the work: an interval sitting on zero would mean the "
+                    "joint fit buys little over two separate ones.",
+                    "detail",
+                )
+            )
+
+    sentences.append(
+        _kf_sentence(
+            _kf_association_direction(
+                lead["prob_pos"],
+                positive_claim=(
+                    "letter sounds track the pure-decoding channel more closely than "
+                    "the mixed word-reading channel — the decoding-use signature (an "
+                    "adjusted association, not a causal effect)"
+                ),
+                negative_claim=(
+                    "letter sounds track word reading more closely than pure "
+                    "decoding, which on the levels scale is what a shared "
+                    "reading-development / general-ability component would produce "
+                    "and what the 6-item nonword floor would exaggerate (an adjusted "
+                    "association, not a causal effect)"
+                ),
+            ),
+            "confidence",
+        )
+    )
+    return sentences
+
+
 _KF_BUILDERS = {
     "itt": _kf_build_itt,
     "joint": _kf_build_joint,
+    "joint_mechanism": _kf_build_joint_mechanism,
     "mechanism": _kf_build_mechanism,
     "mediation": _kf_build_mediation,
     "mediation_multi": _kf_build_mediation,
