@@ -199,13 +199,15 @@ _MECH = [
     _d("lrp73", "mechanism", "Moderation", Status.ASSOCIATION, "W", "age-moderated letter-sound -> word reading"),
     _d("lrp73base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp73"),
     # #421 Tier 2 (LS->WR review note, #424): does the letter-sound -> word-reading
-    # effect depend on phonological memory (RW) / decoding (NW)? The direct interaction
-    # form of the review's Q3 discrepancy. Each with a no-interaction companion for the
-    # nested PSIS-LOO test (the mech-073/173 pattern). Descriptive; gamma_int never causal.
+    # effect depend on phonological memory (RW)? The direct interaction form of the
+    # review's Q3 discrepancy, with a no-interaction companion for the nested PSIS-LOO
+    # test (the mech-073/173 pattern). Descriptive; gamma_int never causal.
+    # The note's companion NW moderation is *not* registered here: it would duplicate the
+    # existing lrp63/lrp163 pair (same rows, outcome, adjusters and L x N interaction), so
+    # joint_readiness_lxn_w_loo_compare already answers it. The genuinely distinct
+    # off-floor-NW variant is a follow-up.
     _d("lrp104", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds -> word reading, moderated by phonological memory RW (#421 Tier 2)"),
     _d("lrp104base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp104"),
-    _d("lrp105", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds -> word reading, moderated by nonword decoding NW (#421 Tier 2)"),
-    _d("lrp105base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp105"),
     # Taught-vocabulary dose-response (#311, descriptive-association workstream #314).
     _d("lrp88", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading"),
     _d("lrp89", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading"),
@@ -432,14 +434,17 @@ _LCF = [
     _d("lrplcf01", "long_corr_factor", "Measurement model", Status.ASSOCIATION, None, "longitudinal correlated-domain-factor model (per-wave latent skill correlations)"),
 ]
 
-# --- Joint bivariate mechanism (#421 Tier 3, LS->WR review note #424) --------------
+# --- Joint bivariate mechanism (#421 Tier 3 (1), LS->WR review note #424) ---------
 # One standardised letter-sound exposure -> two outcomes (word reading W + nonword
-# decoding N) fitted jointly with ONE shared child random intercept (the GA proxy),
-# so the decoding-specificity contrast delta = beta(LS->N) - beta(LS->W) is an
-# identified within-model deterministic rather than the product-of-marginals
-# sensitivity that separate mech-096 / mech-101 fits can only bound. Descriptive.
+# decoding N) fitted jointly with an LKJ cross-outcome dependence block, so the
+# quantities the suite reports as product-of-marginals sensitivities become
+# within-model deterministics. jm-001 is the per-wave LEVELS design #421 specifies
+# (matched to ca-010 / ca-011; reports the identified share-retained AND Delta);
+# jm-002 is the phase-stacked ANCOVA companion (matched to mech-096 / mech-101) that
+# re-reports the Tier-1 Delta on its original parameterisation. Descriptive.
 _JM = [
-    _d("lrpjm01", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "bivariate letter sounds -> {word reading, nonword decoding}; identified decoding-specificity contrast (#421 Tier 3)"),
+    _d("lrpjm01", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "per-wave bivariate levels {word reading, nonword decoding}; identified share-retained + decoding-specificity contrast (#421 Tier 3)"),
+    _d("lrpjm02", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "phase-stacked bivariate ANCOVA companion; identified Tier-1 decoding-specificity contrast (#421 Tier 3)", "lrpjm01"),
 ]
 
 

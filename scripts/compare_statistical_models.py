@@ -116,12 +116,13 @@ JOINT_READINESS_LXN_W_LOO_IDS: list[str] = ["lrp-rli-mech-063", "lrp-rli-mech-16
 # outcome — a clean nested PSIS-LOO test of the L x age interaction.
 AGE_LOO_IDS: list[str] = ["lrp-rli-mech-073", "lrp-rli-mech-173"]
 
-# RW / NW moderation of letter-sound -> word reading (#421 Tier 2, review note #424):
-# each interaction model vs its no-interaction baseline, same W outcome -- clean nested
-# PSIS-LOO tests of the L x RW and L x NW interactions. Same shape as the joint-readiness
-# pairs above (moderation on word reading), distinct outcome from PHONICS_LOO_IDS (decoding).
+# RW moderation of letter-sound -> word reading (#421 Tier 2, review note #424): the
+# interaction model vs its no-interaction baseline, same W outcome -- a clean nested
+# PSIS-LOO test of the L x RW interaction. Same shape as the joint-readiness pairs above
+# (moderation on word reading), distinct outcome from PHONICS_LOO_IDS (decoding). The
+# note's L x NW counterpart is JOINT_READINESS_LXN_W_LOO_IDS -- lrp-rli-mech-063/163
+# already are that comparison, so no second pair is registered for it.
 RW_MODERATION_LOO_IDS: list[str] = ["lrp-rli-mech-104", "lrp-rli-mech-204"]
-NW_MODERATION_LOO_IDS: list[str] = ["lrp-rli-mech-105", "lrp-rli-mech-205"]
 
 # Dose-response (LRP77, #104 Phase 2): the period-varying dose model vs its
 # pooled-dose comparator, same word-reading outcome and rows — a nested PSIS-LOO
@@ -717,19 +718,80 @@ def _beta_mech_draws(model_id: str, config: str) -> np.ndarray | None:
     return trace.posterior["beta_mech"].stack(sample=("chain", "draw")).values.ravel()
 
 
+#: The joint bivariate ANCOVA companion (#421 Tier 3 (1)). It fits the same two
+#: outcomes on the same exposure with the same {G, A, HS, IS, SP} adjustment and own
+#: baselines as mech-096 / mech-101, but *together*, so its ``delta_ls_decoding``
+#: deterministic is the identified counterpart of the product-of-marginals 1A row.
+TIER1_JOINT_MODEL = "lrp-rli-jm-002"
+
+
+def _joint_delta_draws(model_id: str, config: str) -> np.ndarray | None:
+    """Flattened draws of the within-model ``delta_ls_decoding`` contrast, or None."""
+    nc = os.path.join(_run_dir(model_id, config), "trace.nc")
+    if not os.path.exists(nc):
+        return None
+    trace = az.from_netcdf(nc)
+    if "delta_ls_decoding" not in trace.posterior:
+        return None
+    return (
+        trace.posterior["delta_ls_decoding"]
+        .stack(sample=("chain", "draw"))
+        .values.ravel()
+    )
+
+
+def _tier1_delta_row(
+    *,
+    config: str,
+    delta: np.ndarray,
+    estimand: str,
+    identified: bool,
+    assumption: str,
+    source: str,
+    gate_ok: bool,
+    beta_n_mean: float | None = None,
+    beta_w_mean: float | None = None,
+) -> dict:
+    """One row of ``tier1_1a_contrast.csv``, on the house interval convention."""
+    return {
+        "config": config,
+        "estimand": estimand,
+        "identified": identified,
+        "assumption": assumption,
+        "source": source,
+        "delta_median": float(np.median(delta)),
+        "delta_mean": float(np.mean(delta)),
+        # 89% equal-tailed (house standard); inner 50% alongside.
+        "delta_lo": float(np.quantile(delta, 0.055)),
+        "delta_hi": float(np.quantile(delta, 0.945)),
+        "delta_lo50": float(np.quantile(delta, 0.25)),
+        "delta_hi50": float(np.quantile(delta, 0.75)),
+        "prob_delta_gt_0": float(np.mean(delta > 0)),
+        "beta_N_mean": beta_n_mean,
+        "beta_W_mean": beta_w_mean,
+        "gate_ok": gate_ok,
+    }
+
+
 def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
     """Write the 1A contrast CSV and the 1B negative-control forest (PNG + CSV).
 
-    1A: Delta = beta(L->N) - beta(L->W). N and W are fitted **separately**, so their
-    *joint* posterior is not available. mech-096 (N) and mech-101 (W) share children
-    and related outcomes, so the true cross-outcome posterior covariance is non-zero
-    and unknown; pairing the two independent marginals index-wise convolves them under
-    a **working independence assumption**. The resulting Delta interval and
-    ``P(Delta > 0)`` are therefore a **product-of-marginals sensitivity** quantity, not
-    an identified posterior contrast (PR #359 review): with positive shared-child
-    covariance the true difference is *more* precise than reported. Identifying it
-    needs a joint fit of N and W (or a child-level resampling design that preserves the
-    dependence). The output row is labelled and flagged ``identified=False`` accordingly.
+    1A: Delta = beta(L->N) - beta(L->W), written as **up to two labelled rows**.
+
+    The historical row pairs mech-096 (N) and mech-101 (W), which are fitted
+    *separately*. They share children, so the true cross-outcome posterior covariance
+    is non-zero and unknown; pairing the two independent marginals index-wise convolves
+    them under a **working independence assumption**, making that Delta interval and
+    ``P(Delta > 0)`` a **product-of-marginals sensitivity**, not an identified
+    posterior contrast (PR #359 review). It is flagged ``identified=False``.
+
+    The second row is the **identified** contrast from ``jm-002`` (#421 Tier 3 (1)) —
+    the same ANCOVA parameterisation and adjustment set fitted *jointly*, with an LKJ
+    child-intercept covariance — flagged ``identified=True``. It is added rather than
+    substituted: the sensitivity row is the comparator the decoding-specificity note
+    quotes, and the difference between the two rows is the evidence about what the
+    working-independence assumption cost. When no ``jm-002`` run exists for the config,
+    only the sensitivity row is written and a message says so.
     1B: a forest of ``beta_mech`` per outcome, grouped positive-control (written code:
     W, N) vs negative-control (oral language: R, E, T, F). A non-converged run is
     *marked*, never silently dropped (METHODS.md).
@@ -765,40 +827,68 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
     forest_csv = os.path.join(out_dir, "tier1_negative_control_forest.csv")
     df.to_csv(forest_csv, index=False)
 
-    # 1A product-of-marginals sensitivity (needs both positive anchors). NOT an
-    # identified posterior contrast — see the docstring: pairing two independent
-    # marginals imposes zero cross-outcome covariance the shared-child joint posterior
-    # does not have. Flagged identified=False so no consumer reads it as a joint contrast.
+    # 1A. Two rows where both are available, never one replacing the other:
+    #
+    #  * the product-of-marginals *sensitivity* from the separate mech-096 / mech-101
+    #    fits (identified=False) — pairing two independent marginals imposes a zero
+    #    cross-outcome covariance the shared-child joint posterior does not have; and
+    #  * the **identified** contrast from the joint bivariate ANCOVA jm-002
+    #    (identified=True), the same parameterisation fitted jointly, whose interval
+    #    carries the covariance the pairing sets to zero.
+    #
+    # Keeping the sensitivity row is deliberate: it is the historical comparator the
+    # decoding-specificity note quotes, and the gap between the two rows is itself the
+    # evidence about how much the working-independence assumption cost.
+    contrast_rows: list[dict] = []
     if "N" in draws and "W" in draws:
         s = min(draws["N"].shape[0], draws["W"].shape[0])
         delta = draws["N"][:s] - draws["W"][:s]
-        pd.DataFrame(
-            [
-                {
-                    "config": config,
-                    "estimand": (
-                        "beta(L->N) - beta(L->W); logit per SD of letter sounds "
-                        "(product-of-marginals under independence; NOT an identified "
-                        "posterior contrast)"
-                    ),
-                    "identified": False,
-                    "assumption": "independence_product_of_marginals",
-                    "delta_median": float(np.median(delta)),
-                    "delta_mean": float(np.mean(delta)),
-                    # 89% equal-tailed (house standard); inner 50% alongside. These
-                    # widths assume zero cross-outcome covariance (see estimand note).
-                    "delta_lo": float(np.quantile(delta, 0.055)),
-                    "delta_hi": float(np.quantile(delta, 0.945)),
-                    "delta_lo50": float(np.quantile(delta, 0.25)),
-                    "delta_hi50": float(np.quantile(delta, 0.75)),
-                    "prob_delta_gt_0": float(np.mean(delta > 0)),
-                    "beta_N_mean": float(np.mean(draws["N"])),
-                    "beta_W_mean": float(np.mean(draws["W"])),
-                    "gate_ok_N": _gate_ok("lrp-rli-mech-096", config),
-                    "gate_ok_W": _gate_ok("lrp-rli-mech-101", config),
-                }
-            ]
-        ).to_csv(os.path.join(out_dir, "tier1_1a_contrast.csv"), index=False)
+        contrast_rows.append(
+            _tier1_delta_row(
+                config=config,
+                delta=delta,
+                estimand=(
+                    "beta(L->N) - beta(L->W); logit per SD of letter sounds "
+                    "(product-of-marginals under independence; NOT an identified "
+                    "posterior contrast)"
+                ),
+                identified=False,
+                assumption="independence_product_of_marginals",
+                source="lrp-rli-mech-096 + lrp-rli-mech-101 (paired draws)",
+                gate_ok=(
+                    _gate_ok("lrp-rli-mech-096", config)
+                    and _gate_ok("lrp-rli-mech-101", config)
+                ),
+                beta_n_mean=float(np.mean(draws["N"])),
+                beta_w_mean=float(np.mean(draws["W"])),
+            )
+        )
+    joint_delta = _joint_delta_draws(TIER1_JOINT_MODEL, config)
+    if joint_delta is not None:
+        contrast_rows.append(
+            _tier1_delta_row(
+                config=config,
+                delta=joint_delta,
+                estimand=(
+                    "beta(L->N) - beta(L->W); logit per SD of letter sounds "
+                    "(identified within-model contrast from the joint bivariate "
+                    "ANCOVA, LKJ child-intercept covariance)"
+                ),
+                identified=True,
+                assumption="joint_posterior_lkj_child_intercept",
+                source=TIER1_JOINT_MODEL,
+                gate_ok=_gate_ok(TIER1_JOINT_MODEL, config),
+            )
+        )
+    else:
+        print(
+            f"Tier-1 1A: no {TIER1_JOINT_MODEL} run for config {config!r}; writing the "
+            "product-of-marginals sensitivity row only."
+        )
+    if contrast_rows:
+        pd.DataFrame(contrast_rows).to_csv(
+            os.path.join(out_dir, "tier1_1a_contrast.csv"), index=False
+        )
 
     # 1B forest.
     labels, means, los, his, colors = [], [], [], [], []
@@ -1166,14 +1256,6 @@ def rw_moderation_loo_compare(config: str, out_path: str) -> bool:
     return True
 
 
-def nw_moderation_loo_compare(config: str, out_path: str) -> bool:
-    """LOO comparison of LRP105 vs its no-interaction baseline (isolates L x NW on word reading)."""
-    if not _loo_compare(NW_MODERATION_LOO_IDS, config, out_path):
-        return False
-    _copy_compare_beside_runs(out_path, NW_MODERATION_LOO_IDS, config)
-    return True
-
-
 def dose_response_loo_compare(config: str, out_path: str) -> bool:
     """LOO comparison of LRP77 against its pooled-dose comparator (does dose vary by period?)."""
     return _loo_compare(DOSE_LOO_IDS, config, out_path)
@@ -1422,12 +1504,6 @@ def main() -> None:
         print(f"Wrote {rw_mod_path}")
     else:
         print("Skipping L x RW -> W LOO compare: LRP104 / LRP204 runs missing.")
-
-    nw_mod_path = os.path.join(args.out, "nw_moderation_loo_compare.csv")
-    if nw_moderation_loo_compare(args.config, nw_mod_path):
-        print(f"Wrote {nw_mod_path}")
-    else:
-        print("Skipping L x NW -> W LOO compare: LRP105 / LRP205 runs missing.")
 
     dose_path = os.path.join(args.out, "dose_response_loo_compare.csv")
     if dose_response_loo_compare(args.config, dose_path):

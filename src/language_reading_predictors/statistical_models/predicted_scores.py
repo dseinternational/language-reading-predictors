@@ -19,13 +19,22 @@ This module adds the undergraduate-readability artefacts:
 4. ``predicted_scores.csv`` carrying the plotted quantities so report prose can
    cite them.
 
-Prediction population ("new typical child"): covariate profiles are drawn from
-the designated reference rows (for the gain family, the period-1 randomised
-transition — the same rows as ``treatment_marginal.csv``), and models with a
-child random intercept integrate over the *population* intercept distribution —
-each simulated child receives a fresh ``u ~ Normal(0, sigma_child)`` draw in
-place of a fitted child's intercept. This is a marginal new-child prediction,
-NOT a same-children conditional display; captions must say so.
+Two prediction populations, kept distinct (#391 finding 4). Covariate profiles
+always come from the designated reference rows (for the gain family, the period-1
+randomised transition — the same rows as ``treatment_marginal.csv``). They differ
+in how the child random intercept is handled:
+
+- **observed-child, sample-conditional** — the reference rows keep their *fitted*
+  intercepts. This is the ``average_marginal_effect`` (and per-arm event
+  probabilities), matching ``treatment_marginal.csv`` / ``rope_summary.csv``.
+- **new-child, population-average** — the fitted intercept is removed and
+  integrated over the population ``Normal(0, sigma_child)`` distribution. The
+  simulated score distributions draw a fresh ``u`` per simulated child; the
+  ``*_new_child_population`` rows integrate it out by Gauss–Hermite quadrature.
+
+Because inverse-logit is nonlinear the two are not equal, so they are labelled and
+tabulated separately rather than merged under one "new typical child" caption. A
+model with no child random intercept has only one population (the two coincide).
 
 Floor-rule outcomes (P, N) replace the score distributions with a paired
 off-floor probability display (two bars with credible intervals) plus a
@@ -89,10 +98,22 @@ class PredictiveContrast:
     """Draws behind one predicted-scores panel.
 
     ``ame_prob`` (and its ``ame_items`` rescale) reproduce
-    ``reporting._itt_ame_draws`` exactly — the guard test relies on this.
+    ``reporting._itt_ame_draws`` exactly — the guard test relies on this. It is
+    the **observed-child, sample-conditional** effect: the reference rows carry
+    their *fitted* child random intercepts, so ``ame_prob`` is an average over the
+    fitted sample, not over a new child (#391 finding 4).
+
+    ``ame_prob_new_child`` (and its ``ame_items_new_child`` rescale) is the
+    companion **new-child, population-average** effect: the fitted intercept is
+    removed and integrated over the population ``Normal(0, sigma_child)`` intercept
+    distribution (Gauss–Hermite), so it answers "a *new* typical child" rather than
+    "the fitted children on average". Because inverse-logit is nonlinear the two
+    generally differ. Populated (with ``prob_*_new_child``) only when the model has
+    a child random intercept; empty otherwise (then new-child == conditional).
+
     ``score_*`` hold simulated new-child test scores (empty for the binary
-    off-floor path); ``prob_*`` hold the per-draw marginal event/score
-    probabilities per arm.
+    off-floor path); ``prob_*`` hold the per-draw observed-child marginal
+    event/score probabilities per arm.
     """
 
     ame_prob: np.ndarray
@@ -101,10 +122,17 @@ class PredictiveContrast:
     prob_intervention: np.ndarray
     score_control: np.ndarray = field(default_factory=lambda: np.empty(0))
     score_intervention: np.ndarray = field(default_factory=lambda: np.empty(0))
+    ame_prob_new_child: np.ndarray = field(default_factory=lambda: np.empty(0))
+    prob_control_new_child: np.ndarray = field(default_factory=lambda: np.empty(0))
+    prob_intervention_new_child: np.ndarray = field(default_factory=lambda: np.empty(0))
 
     @property
     def ame_items(self) -> np.ndarray:
         return self.ame_prob * float(self.n_trials)
+
+    @property
+    def ame_items_new_child(self) -> np.ndarray:
+        return self.ame_prob_new_child * float(self.n_trials)
 
     @property
     def score_difference(self) -> np.ndarray:
@@ -228,6 +256,29 @@ def _new_child_adjustment(
     return eta0 - u_child[idx], sigma
 
 
+# Gauss–Hermite degree for the new-child intercept integral. 32 nodes make the
+# smooth 1-D Normal integral of expit effectively exact at negligible cost.
+_GH_DEG = 32
+
+
+def _new_child_prob(eta: np.ndarray, sigma_child: np.ndarray) -> np.ndarray:
+    """Population-average event probability integrating the intercept out.
+
+    Returns ``E_{u ~ Normal(0, sigma_child[s])}[expit(eta[r, s] + u)]`` per
+    ``(row r, draw s)`` by Gauss–Hermite quadrature. With ``sigma_child == 0`` the
+    nodes collapse and this returns ``expit(eta)`` exactly, so a model with no
+    child intercept reduces to the conditional probability (new-child == observed).
+    """
+    nodes, weights = np.polynomial.hermite.hermgauss(_GH_DEG)
+    norm = float(np.sqrt(np.pi))
+    acc = np.zeros_like(eta, dtype=float)
+    # E_{u~N(0,s)}[g(u)] = (1/sqrt(pi)) * sum_k w_k g(sqrt(2) s x_k).
+    shift = np.sqrt(2.0) * sigma_child[None, :]  # (1, S)
+    for x_k, w_k in zip(nodes, weights, strict=True):
+        acc += w_k * expit(eta + shift * x_k)
+    return acc / norm
+
+
 def counterfactual_predictive_contrast(
     trace: xr.DataTree,
     *,
@@ -288,14 +339,13 @@ def counterfactual_predictive_contrast(
         prob_control=prob_control,
         prob_intervention=prob_intervention,
     )
-    if likelihood == "bernoulli":
-        return contrast
 
-    posterior = trace.posterior
-    if kappa_name not in posterior:
-        raise KeyError(f"{kappa_name!r} not in the posterior; needed for score simulation")
-    kappa = posterior[kappa_name].stack(sample=("chain", "draw")).values.ravel()  # (S,)
-
+    # New-child, population-average effect: strip the fitted child intercept and
+    # integrate over the population Normal(0, sigma_child) intercept distribution.
+    # Computed for BOTH likelihoods whenever the model has a child intercept — the
+    # floor-rule Bernoulli path used to return before any new-child step (#391
+    # finding 4), so its reports could only show the observed-child conditional
+    # effect. Reused below for the graded score simulation.
     eta0_new, sigma_child = _new_child_adjustment(
         trace,
         eta0,
@@ -304,6 +354,20 @@ def counterfactual_predictive_contrast(
         child_idx=child_idx,
         row_mask=row_mask,
     )
+    if child_effect_name is not None:
+        pc_new = _new_child_prob(eta0_new, sigma_child).mean(axis=0)
+        pi_new = _new_child_prob(eta0_new + delta, sigma_child).mean(axis=0)
+        contrast.prob_control_new_child = pc_new
+        contrast.prob_intervention_new_child = pi_new
+        contrast.ame_prob_new_child = pi_new - pc_new
+
+    if likelihood == "bernoulli":
+        return contrast
+
+    posterior = trace.posterior
+    if kappa_name not in posterior:
+        raise KeyError(f"{kappa_name!r} not in the posterior; needed for score simulation")
+    kappa = posterior[kappa_name].stack(sample=("chain", "draw")).values.ravel()  # (S,)
 
     n_rows, n_samples = eta0_new.shape
     n_sims = int(min(max_score_sims, max(n_samples, 4_000)))
@@ -342,17 +406,36 @@ def predicted_scores_table(
 ) -> pd.DataFrame:
     """Tabulate the plotted quantities for ``predicted_scores.csv``.
 
-    One row per quantity. For graded outcomes: the per-arm predictive score
-    distributions, their paired difference (common random numbers, so it is the
-    treated-minus-untreated score for the *same* simulated child), and the
-    items-scale AME whose median must agree with ``treatment_marginal.csv`` /
-    ``rope_summary.csv`` (guard test). For the binary floor rule: the per-arm
-    off-floor probabilities and their risk difference.
+    One row per quantity, each tagged with the population its target is defined
+    over (#391 finding 4). The ``average_marginal_effect`` row is the
+    **observed-child, sample-conditional** effect whose median must agree with
+    ``treatment_marginal.csv`` / ``rope_summary.csv`` (guard test). For graded
+    outcomes the per-arm predictive score distributions and their paired difference
+    (common random numbers → the treated-minus-untreated score for the *same*
+    simulated child) are **new-child, population-average** quantities. For the
+    binary floor rule: the per-arm off-floor probabilities (observed-child) and
+    their risk difference.
+
+    When the model has a child random intercept, a companion
+    ``average_marginal_effect_new_child_population`` row (and, for the floor rule,
+    ``event_probability_*_new_child_population``) is appended — the same effect with
+    the intercept integrated out — so the two targets are never conflated under one
+    population label. Absent a child intercept the two coincide and only the single
+    labelled set is written.
     """
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
+    has_new = contrast.ame_prob_new_child.size > 0
+    # `population` carries the covariate/subject provenance (shared by both targets
+    # and used verbatim in report captions); the orthogonal `intercept_basis` column
+    # records which random-intercept target the row is defined over.
+    _OBSERVED = "observed-child; random intercept at fitted values"
+    _NEWCHILD = "new-child; random intercept integrated over its population"
+    _SINGLE = "single population; no child random intercept"
+    observed_basis = _OBSERVED if has_new else _SINGLE
+    newchild_basis = _NEWCHILD if has_new else _SINGLE
 
-    def _row(quantity: str, draws: np.ndarray, scale: str) -> dict:
+    def _row(quantity: str, draws: np.ndarray, scale: str, basis: str) -> dict:
         d = np.asarray(draws, dtype=float)
         return {
             "outcome": outcome_symbol,
@@ -365,29 +448,65 @@ def predicted_scores_table(
             "hi50": float(np.quantile(d, 0.75)),
             "n_trials": contrast.n_trials,
             "population": population,
+            "intercept_basis": basis,
             "contrast_status": contrast_status,
         }
 
     rows: list[dict] = []
     if contrast.score_control.size:
-        rows.append(_row("predicted_score_control", contrast.score_control, "items"))
+        rows.append(_row("predicted_score_control", contrast.score_control, "items", newchild_basis))
         rows.append(
-            _row("predicted_score_intervention", contrast.score_intervention, "items")
+            _row("predicted_score_intervention", contrast.score_intervention, "items", newchild_basis)
         )
         rows.append(
-            _row("predicted_score_paired_difference", contrast.score_difference, "items")
+            _row("predicted_score_paired_difference", contrast.score_difference, "items", newchild_basis)
         )
-        rows.append(_row("average_marginal_effect", contrast.ame_items, "items"))
+        rows.append(_row("average_marginal_effect", contrast.ame_items, "items", observed_basis))
+        if has_new:
+            rows.append(
+                _row(
+                    "average_marginal_effect_new_child_population",
+                    contrast.ame_items_new_child,
+                    "items",
+                    _NEWCHILD,
+                )
+            )
     else:
-        rows.append(_row("event_probability_control", contrast.prob_control, "probability"))
+        rows.append(_row("event_probability_control", contrast.prob_control, "probability", observed_basis))
         rows.append(
             _row(
                 "event_probability_intervention",
                 contrast.prob_intervention,
                 "probability",
+                observed_basis,
             )
         )
-        rows.append(_row("average_marginal_effect", contrast.ame_prob, "risk_difference"))
+        rows.append(_row("average_marginal_effect", contrast.ame_prob, "risk_difference", observed_basis))
+        if has_new:
+            rows.append(
+                _row(
+                    "event_probability_control_new_child_population",
+                    contrast.prob_control_new_child,
+                    "probability",
+                    _NEWCHILD,
+                )
+            )
+            rows.append(
+                _row(
+                    "event_probability_intervention_new_child_population",
+                    contrast.prob_intervention_new_child,
+                    "probability",
+                    _NEWCHILD,
+                )
+            )
+            rows.append(
+                _row(
+                    "average_marginal_effect_new_child_population",
+                    contrast.ame_prob_new_child,
+                    "risk_difference",
+                    _NEWCHILD,
+                )
+            )
     return pd.DataFrame(rows)
 
 

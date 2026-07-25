@@ -757,6 +757,106 @@ def save_prior_posterior_plot(
         )
 
 
+# Dimensions ``arviz_plots.plot_psense_dist`` introduces on the resampled
+# posterior: ``alpha`` (the power-scaling factor, from
+# ``arviz_stats.power_scale_dataset``), ``component_group`` (prior vs
+# likelihood) and ``sample`` (the stacked chain × draw dimension). A model
+# parameter sharing one of these names collides with the new dimension.
+_PSENSE_RESERVED_DIMS = ("alpha", "component_group", "sample")
+
+
+def _psense_plot_view(trace, var_names: list[str]) -> tuple[object, list[str]]:
+    """Return a trace view whose posterior cannot collide with psense's own dims.
+
+    ``plot_psense_dist`` resamples the **whole** posterior group and then
+    concatenates the results along a new ``alpha`` dimension, so a model with an
+    ``alpha`` parameter — the intercept, in nearly every family here — raises
+    ``alpha already exists as coordinate or variable name`` before ``var_names``
+    is ever applied. Selecting different ``var_names`` therefore cannot avoid the
+    clash (issue #340); the colliding *variable* has to go.
+
+    Renaming rather than dropping, because ``alpha`` is itself a requested
+    parameter for several families, and because ``arviz_stats.extract`` returns a
+    bare ``DataArray`` when a posterior is cut down to one variable, which
+    ``plot_psense_dist`` cannot consume. The renamed parameter keeps its panel in
+    the figure, labelled ``alpha (parameter)`` to separate it from the
+    power-scaling α in the legend. ``psense_summary.csv`` is computed from the
+    untouched trace and keeps the original names.
+
+    Returns the (possibly unchanged) trace and the correspondingly mapped
+    ``var_names``. Guarded — an unexpected structure degrades to the original
+    pair, i.e. to the pre-existing behaviour.
+    """
+    try:
+        posterior = trace.posterior.to_dataset()
+        clashing = [
+            name
+            for name in _PSENSE_RESERVED_DIMS
+            if name in posterior.variables or name in posterior.dims
+        ]
+        if not clashing:
+            return trace, var_names
+        renames: dict[str, str] = {}
+        for name in clashing:
+            renamed = f"{name} (parameter)"
+            while renamed in posterior.variables or renamed in renames.values():
+                renamed += "_"
+            renames[name] = renamed
+        groups = {}
+        for group in trace.children:
+            ds = trace[group].to_dataset()
+            groups[group] = ds.rename(renames) if group == "posterior" else ds
+        return type(trace).from_dict(groups), [renames.get(n, n) for n in var_names]
+    except Exception as exc:
+        rprint(f"[yellow]psense plot view unchanged: {exc}[/yellow]")
+        return trace, var_names
+
+
+def _psense_layout(trace, var_names: list[str]) -> tuple[dict, dict]:
+    """Explicit geometry for the two-column psense grid, and a matching rc patch.
+
+    ``plot_psense_dist`` lays out one row per parameter — and per level of any
+    non-sampling coordinate — against two fixed columns (prior, likelihood). Its
+    auto-sized default barely grows with the row count: a five-row selection
+    gets ~0.4 inches of plotting area per panel, which flattens every density
+    into a line. Size the figure by the row count instead.
+
+    Only ``figsize`` is set, deliberately. The house style
+    (``set_matplotlib_default_style``, applied at the fit entry point) turns on
+    matplotlib's constrained layout, which computes its own spacing and makes
+    room for the ``suptitle`` ``_save_pc`` adds — but which also *overrides* any
+    ``gridspec_kw``. Passing ``hspace``/``top`` alongside it does not tighten the
+    grid, it collapses the panels to ~0.2 inches.
+
+    A single row lays out correctly unaided, so leave that case on the defaults.
+    Returns ``(plot_kwargs, rc)``, both empty when nothing needs overriding; the
+    rc patch raises ArviZ's 40-panel guard for selections that exceed it.
+    """
+    rows = 0
+    try:
+        posterior = trace.posterior
+        for name in var_names:
+            if name not in posterior:
+                continue
+            levels = [
+                size
+                for dim, size in posterior[name].sizes.items()
+                if dim not in {"chain", "draw"}
+            ]
+            rows += int(np.prod(levels, dtype=int))
+    except Exception:
+        return {}, {}
+    if rows < 2:
+        return {}, {}
+    panels = 2 * rows
+    limit = az.rcParams["plot.max_subplots"]
+    rc = {"plot.max_subplots": panels} if limit is not None and panels > limit else {}
+    # ~2 inches a row keeps the densities legible; the cap stops a 25-level
+    # coefficient vector from producing an unmanageable figure file.
+    height = min(2.0 * rows + 1.0, 36.0)
+    return {"figure_kwargs": {"figsize": (11.0, height)}}, rc
+
+
 def run_psense(
     context: StatisticalFitContext,
     *,
@@ -812,13 +912,15 @@ def run_psense(
 
     import arviz_plots as azp
 
-    tr = thin_for_plots(context.trace)
-    _save_pc(
-        out,
-        lambda: azp.plot_psense_dist(tr, var_names=var_names),
-        "psense.png",
-        title="Prior/likelihood power-scaling sensitivity",
-    )
+    tr, plot_var_names = _psense_plot_view(thin_for_plots(context.trace), var_names)
+    plot_kwargs, rc = _psense_layout(tr, plot_var_names)
+    with az.rc_context(rc):
+        _save_pc(
+            out,
+            lambda: azp.plot_psense_dist(tr, var_names=plot_var_names, **plot_kwargs),
+            "psense.png",
+            title="Prior/likelihood power-scaling sensitivity",
+        )
 
 
 def sample_posterior_predictive(
@@ -1099,11 +1201,22 @@ def save_joint_posterior_predictive_plot(
         rprint(f"[yellow]Joint posterior-predictive plot failed: {exc}[/yellow]")
 
 
+#: Posterior variables the joint LOO-PIT tree will carry for relative-ESS, in
+#: preference order. ArviZ only needs *a* posterior group to compute the relative
+#: effective sample size behind the PSIS weights; the ITT-shaped joint families
+#: carry ``tau``, but a joint family whose reported coefficient is something else
+#: (the ``joint_mechanism`` slopes, for instance) must not be silently skipped —
+#: which is what happened before #427 review, when the hard ``tau`` requirement
+#: raised a ``KeyError`` that :func:`save_joint_loo_pit_plot` swallowed.
+_JOINT_LOO_PIT_POSTERIOR_VARS: tuple[str, ...] = ("tau", "beta_mech", "alpha")
+
+
 def _joint_outcome_predictive_tree(
     context: StatisticalFitContext,
     outcome_symbol: str,
     *,
     samples: xr.DataTree | None = None,
+    posterior_var: str | None = None,
 ) -> xr.DataTree:
     """Return one outcome's observed, replicated and log-likelihood cells.
 
@@ -1112,6 +1225,13 @@ def _joint_outcome_predictive_tree(
     construct an outcome-specific ArviZ tree. Keeping the matching pointwise log
     likelihood means PSIS weights are recomputed for that outcome rather than
     borrowed from pooled tests with different denominators.
+
+    ``posterior_var`` names the posterior variable carried into the tree for the
+    relative-ESS calculation; ``None`` resolves the first of
+    :data:`_JOINT_LOO_PIT_POSTERIOR_VARS` present, then any posterior variable.
+    The choice does not change the LOO-PIT values — it only supplies ArviZ with a
+    posterior group — so the fallback is safe, and it is what lets non-ITT joint
+    families emit the plot at all.
     """
     samples = context.trace if samples is None else samples
     if samples is None:
@@ -1142,11 +1262,22 @@ def _joint_outcome_predictive_tree(
         return data.isel({cell_dim: keep})
 
     posterior = samples.posterior.ds
-    if "tau" not in posterior:
-        raise KeyError("joint LOO-PIT requires posterior['tau'] for relative ESS")
+    if posterior_var is not None:
+        if posterior_var not in posterior:
+            raise KeyError(
+                f"joint LOO-PIT requires posterior[{posterior_var!r}] for relative ESS"
+            )
+        ess_var = posterior_var
+    else:
+        ess_var = next(
+            (v for v in _JOINT_LOO_PIT_POSTERIOR_VARS if v in posterior),
+            next(iter(posterior.data_vars), None),
+        )
+        if ess_var is None:
+            raise KeyError("joint LOO-PIT requires a non-empty posterior group")
     return xr.DataTree.from_dict(
         {
-            "/posterior": posterior[["tau"]],
+            "/posterior": posterior[[ess_var]],
             "/observed_data": _subset("observed_data"),
             "/posterior_predictive": _subset("posterior_predictive"),
             "/log_likelihood": _subset("log_likelihood"),
@@ -1159,12 +1290,17 @@ def save_joint_loo_pit_plot(
     outcome_symbol: str,
     *,
     filename_stem: str = "loo_pit",
+    posterior_var: str | None = None,
 ) -> None:
-    """Save an outcome-specific LOO-PIT calibration plot for a joint fit."""
+    """Save an outcome-specific LOO-PIT calibration plot for a joint fit.
+
+    ``posterior_var`` is forwarded to :func:`_joint_outcome_predictive_tree`; leave
+    it ``None`` unless a family needs a specific relative-ESS variable.
+    """
     try:
         samples = thin_for_plots(context.trace)
         outcome_tree = _joint_outcome_predictive_tree(
-            context, outcome_symbol, samples=samples
+            context, outcome_symbol, samples=samples, posterior_var=posterior_var
         )
     except Exception as exc:  # pragma: no cover - diagnostic fallback
         rprint(f"[yellow]Joint LOO-PIT preparation failed: {exc}[/yellow]")

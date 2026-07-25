@@ -274,6 +274,91 @@ def test_new_child_intercepts_vary_per_simulated_child():
     assert contrast.score_control.std() > 30.0
 
 
+def test_new_child_population_ame_integrates_the_intercept():
+    """#391 finding 4: the new-child AME integrates the intercept out, so it differs
+    from the observed-child (fitted-intercept) AME and matches the analytic integral.
+    """
+    n_chain, n_draw, n_obs = 1, 1, 6
+    # Widely-spread fitted intercepts with a small population SD: eta = u_child
+    # (eta_base 0), G = 0 so eta0 = eta. The conditional AME averages expit over the
+    # spread fitted intercepts; the new-child AME concentrates near u = 0, so the two
+    # diverge sharply — exactly the nonlinearity finding 4 is about.
+    u_vals = np.array([-3.0, -1.8, -0.6, 0.6, 1.8, 3.0])
+    u_child = u_vals.reshape(n_chain, n_draw, n_obs)
+    eta = u_child.copy()
+    d = 1.0
+    tau = np.full((n_chain, n_draw), d)  # constant treatment contribution
+    s = 0.3
+    trace = _trace(
+        eta,
+        tau,
+        extra={
+            "u_child": (("chain", "draw", "child"), u_child),
+            "sigma_child": (("chain", "draw"), np.full((n_chain, n_draw), s)),
+        },
+    )
+    contrast = counterfactual_predictive_contrast(
+        trace,
+        G=np.zeros(n_obs),
+        n_trials=1,
+        term="tau",
+        varying_term="",
+        likelihood="bernoulli",  # floor-rule path: previously no new-child step
+        child_effect_name="u_child",
+        child_sd_name="sigma_child",
+        child_idx=np.arange(n_obs),
+    )
+    # New-child: eta0_new = eta0 - u_child = 0, so p_control = E[expit(u)] and
+    # p_intervention = E[expit(d + u)], u ~ N(0, s). Compare to a large MC integral.
+    mc = np.random.default_rng(0).normal(0.0, s, size=2_000_000)
+    mc_ame = float(expit(d + mc).mean() - expit(mc).mean())
+    assert contrast.ame_prob_new_child.size == 1
+    assert contrast.ame_prob_new_child[0] == pytest.approx(mc_ame, abs=2e-3)
+    # The observed-child AME averages expit(u_r + d) - expit(u_r) over the spread
+    # fitted intercepts, so it is materially different from the population value.
+    assert abs(contrast.ame_prob[0] - contrast.ame_prob_new_child[0]) > 0.03
+
+
+def test_bernoulli_table_emits_both_population_targets():
+    """The floor-rule table now carries the new-child population effect alongside the
+    observed-child conditional one, with distinct population labels."""
+    n_chain, n_draw, n_obs = 1, 40, 6
+    rng = np.random.default_rng(5)
+    u_child = rng.normal(0.0, 1.0, size=(n_chain, n_draw, n_obs))
+    eta = u_child + rng.normal(0.0, 0.3, size=(n_chain, n_draw, n_obs))
+    tau = rng.normal(0.5, 0.1, size=(n_chain, n_draw))
+    trace = _trace(
+        eta,
+        tau,
+        extra={
+            "u_child": (("chain", "draw", "child"), u_child),
+            "sigma_child": (("chain", "draw"), np.abs(rng.normal(1.0, 0.1, (n_chain, n_draw)))),
+        },
+    )
+    contrast = counterfactual_predictive_contrast(
+        trace, G=(np.arange(n_obs) % 2).astype(float), n_trials=1, term="tau",
+        varying_term="", likelihood="bernoulli", child_effect_name="u_child",
+        child_sd_name="sigma_child", child_idx=np.arange(n_obs),
+    )
+    table = predicted_scores_table(
+        contrast, outcome_symbol="P", ci_prob=0.89, population="ref", contrast_status="s",
+    )
+    assert list(table.quantity) == [
+        "event_probability_control",
+        "event_probability_intervention",
+        "average_marginal_effect",
+        "event_probability_control_new_child_population",
+        "event_probability_intervention_new_child_population",
+        "average_marginal_effect_new_child_population",
+    ]
+    observed = table[table.quantity == "average_marginal_effect"].iloc[0]
+    newchild = table[table.quantity == "average_marginal_effect_new_child_population"].iloc[0]
+    assert observed["intercept_basis"].startswith("observed-child")
+    assert newchild["intercept_basis"].startswith("new-child")
+    # `population` (covariate/subject provenance) is shared; the basis distinguishes.
+    assert observed["population"] == newchild["population"] == "ref"
+
+
 def test_child_re_requires_sd_and_index():
     eta, tau, _, kappa = _rng_trace(seed=31)
     trace = _trace(eta, tau, kappa=kappa)
@@ -364,8 +449,11 @@ def test_table_schema_graded_and_binary():
     ]
     assert set(graded.columns) >= {
         "outcome", "quantity", "scale", "median", "lo", "hi", "lo50", "hi50",
-        "n_trials", "population", "contrast_status",
+        "n_trials", "population", "intercept_basis", "contrast_status",
     }
+    # No child intercept was supplied, so there is a single population and no
+    # separate new-child rows.
+    assert (graded.intercept_basis == "single population; no child random intercept").all()
 
     binary = predicted_scores_table(
         counterfactual_predictive_contrast(

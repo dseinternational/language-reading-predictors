@@ -808,35 +808,146 @@ def test_mechanism_factory_mechanism_at_pre_rejects_covariate_exposure(tmp_path)
         )
 
 
-def test_joint_mechanism_factory_builds_identified_delta(tmp_path):
-    """The bivariate mechanism (#421 Tier 3) stacks two outcomes on one exposure with
-    a SINGLE shared child random intercept and a per-outcome linear slope, so the
-    decoding-specificity contrast is a within-model deterministic. Asserts: per-outcome
-    ``beta_mech`` (dims outcome), the ``delta_ls_decoding`` deterministic, exactly one
-    shared child-intercept block, and a flattened two-outcome Beta-Binomial that builds
-    + prior-samples."""
+def _joint_mechanism_levels_subset(tmp_path, *, wave: int = 3, n_children: int = 20):
+    """A single-wave ``phase_mode="levels"`` subset, as the pipeline slices one."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _subset_prepared,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=n_children)
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "N", "L"))
+    return _subset_prepared(prep, prep.phase == wave)
+
+
+def test_joint_mechanism_levels_builds_identified_contrasts(tmp_path):
+    """The per-wave levels design (#421 Tier 3 (1)) fits both outcomes on one exposure
+    with an **LKJ residual correlation**, so the decoding-specificity contrast *and*
+    the share retained are within-model deterministics.
+
+    Asserts the pieces the #427 review found missing: a genuine bivariate dependence
+    block (per-outcome residual SDs and an off-diagonal correlation, not one scalar
+    intercept with a fixed loading of 1 on both logits), the conditional slope built
+    from it, and a flattened two-outcome likelihood that prior-samples.
+    """
+    from language_reading_predictors.statistical_models.factories import (
+        build_joint_mechanism_model,
+    )
+
+    sub = _joint_mechanism_levels_subset(tmp_path)
+    built = build_joint_mechanism_model(
+        sub,
+        design="levels",
+        mechanism_symbol="L",
+        outcome_symbols=("W", "N"),
+        contrast=("N", "W"),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+
+    assert "beta_mech" in names
+    assert built.model["beta_mech"].eval().shape == (2,)
+    # The dependence block: an LKJ Cholesky covariance with per-outcome scales, NOT a
+    # single equal-loading scalar intercept (conditional on which the legs factorise).
+    assert "u_resid_chol" in names and "u_resid_z" in names
+    assert "sigma_child" not in names and "u_child_raw" not in names
+    assert built.model["sigma_u_resid"].eval().shape == (2,)
+    assert built.model["u_resid_corr"].eval().shape == (2, 2)
+    # Both identified contrasts.
+    for det in (
+        "delta_ls_decoding",
+        "rho_outcome",
+        "beta_mech_focal_given_held",
+        "share_retained",
+    ):
+        assert det in dets, det
+    assert built.extras["joint_dependence"] == "lkj_residual_within_wave"
+    # Binomial, not Beta-Binomial: the bivariate residual already carries the
+    # extra-binomial variance, so a kappa would be a second, competing mechanism.
+    assert built.extras["likelihood"] == "binomial"
+    assert "kappa" not in names
+
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=9)
+    # Flattened cells = observed (child x outcome) pairs, both outcomes present.
+    assert pp.prior_predictive["y_post"].shape[-1] > built.prepared.n_obs
+
+
+def test_joint_mechanism_levels_conditional_slope_matches_covariance(tmp_path):
+    """``beta_mech_focal_given_held`` is exactly the partial-regression algebra
+    ``beta_W - rho (sigma_W / sigma_N) beta_N``, and ``share_retained`` its ratio to
+    ``beta_W``. Checked against the model's own prior draws so a future refactor
+    cannot silently change what the published quantity means."""
+    from language_reading_predictors.statistical_models.factories import (
+        build_joint_mechanism_model,
+    )
+
+    sub = _joint_mechanism_levels_subset(tmp_path)
+    built = build_joint_mechanism_model(sub, design="levels")
+    with built.model:
+        prior = pm.sample_prior_predictive(draws=40, random_seed=3).prior
+
+    beta = prior["beta_mech"].values  # (chain, draw, outcome) with outcome = (W, N)
+    beta_w, beta_n = beta[..., 0].ravel(), beta[..., 1].ravel()
+    sigma = prior["sigma_u_resid"].values
+    sigma_w, sigma_n = sigma[..., 0].ravel(), sigma[..., 1].ravel()
+    rho = prior["rho_outcome"].values.ravel()
+
+    expected = beta_w - rho * (sigma_w / sigma_n) * beta_n
+    np.testing.assert_allclose(
+        prior["beta_mech_focal_given_held"].values.ravel(), expected, rtol=1e-6
+    )
+    np.testing.assert_allclose(
+        prior["share_retained"].values.ravel(), expected / beta_w, rtol=1e-6
+    )
+
+
+def test_joint_mechanism_transition_uses_bivariate_child_intercept(tmp_path):
+    """The phase-stacked companion (``jm-002``) keeps the mech-096 / mech-101 ANCOVA
+    parameterisation — own baselines, phase intercepts, Beta-Binomial kappa — and
+    carries the cross-outcome covariance in a **bivariate** child random intercept.
+
+    It reports the correlation and Delta but deliberately no share retained: a
+    between-child covariance does not answer "holding this child's decoding fixed at
+    this wave"."""
     from language_reading_predictors.statistical_models.factories import (
         build_joint_mechanism_model,
     )
 
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W", "N", "L"))
-    built = build_joint_mechanism_model(
-        prep, mechanism_symbol="L", outcome_symbols=("W", "N"), contrast=("N", "W")
-    )
+    built = build_joint_mechanism_model(prep, design="transition")
     names = {v.name for v in built.model.free_RVs}
     dets = {v.name for v in built.model.deterministics}
-    # per-outcome slope, single shared child intercept, the identified contrast
-    assert "beta_mech" in names
-    assert built.model["beta_mech"].eval().shape == (2,)
-    assert "delta_ls_decoding" in dets
-    # exactly one shared child-intercept block (not one per outcome)
-    assert "sigma_child" in names and "u_child_raw" in names
-    assert built.extras["joint_dependence"] == "shared_child_intercept"
+
+    assert "u_child_chol" in names and "u_child_z" in names
+    assert built.model["sigma_u_child"].eval().shape == (2,)
+    assert {"gamma_own", "alpha_phase", "kappa"} <= names
+    assert {"delta_ls_decoding", "rho_outcome"} <= dets
+    assert "share_retained" not in dets
+    assert built.extras["joint_dependence"] == "lkj_child_intercept"
+    assert built.extras["likelihood"] == "beta_binomial"
+
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=9)
-    # flattened cells = observed (child x outcome) pairs, both outcomes present
     assert pp.prior_predictive["y_post"].shape[-1] > built.prepared.n_obs
+
+
+def test_joint_mechanism_rejects_mismatched_phase_mode(tmp_path):
+    """Each design names the frame it needs, so a levels model can never be built on
+    stacked transitions (which would silently make the 'per-wave' estimand a
+    multi-row-per-child one)."""
+    from language_reading_predictors.statistical_models.factories import (
+        build_joint_mechanism_model,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W", "N", "L"))
+    with pytest.raises(ValueError, match="requires phase_mode='levels'"):
+        build_joint_mechanism_model(prep, design="levels")
+
+    sub = _joint_mechanism_levels_subset(tmp_path)
+    with pytest.raises(ValueError, match="requires phase_mode='all'"):
+        build_joint_mechanism_model(sub, design="transition")
 
 
 def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):

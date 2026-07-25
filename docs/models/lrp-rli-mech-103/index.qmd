@@ -26,8 +26,10 @@ across *all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with
 phase-specific intercepts (#421 Tier 1). Under the revised DAG (2026-07-10) speech
 production is a parent of both letter sounds and nonword decoding
 ($SP \to \{TE, EV, LS, PA, NW\}$), and the letter-sound $\to$ word-reading review found
-it a consistent discriminator of word reading *among children alike on letter sounds*
-(+0.19 to +0.28 across waves) — yet no SP-exposure mechanism existed. This fits the
+it a consistent discriminator of word reading *among children alike on letter sounds* —
+yet no SP-exposure mechanism existed. (The review's figures came from a probe carrying
+`deapp_c` as a **t1 baseline**; this model loads a per-transition post-wave covariate
+exposure, so they are motivation, not a prediction for this fit.) This fits the
 adjusted $SP \to N$ dose-response — *"is clearer speech associated with more nonwords
 read?"*
 

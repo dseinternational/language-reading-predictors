@@ -8,9 +8,11 @@ transfer-vocabulary skills as adjusted associations. ``gf-009`` deliberately car
 **no** ``skill_symbols`` (under the revised DAG the standardised measures RV/EV sit
 *downstream* of taught vocabulary, ``TR -> RV``), but the letter-sound -> word-reading
 review found broad **receptive** vocabulary to be the single clearest predictor of
-taught-word learning anywhere in the suite (RV -> TR gains ≈ +0.38, P ≈ 0.999). This
-model surfaces that association explicitly by adding ``skill_symbols = ("R", "E")``
-alongside the randomised term and the trait adjusters.
+taught-word learning anywhere in the suite. This model surfaces that association
+explicitly by adding ``skill_symbols = ("R", "E")`` alongside the randomised term and the
+trait adjusters. (The review's headline figure came from a probe that also carried ``L``;
+this registered model fits ``R``/``E`` only, so that number is motivation, not a
+prediction for this fit.)
 
 The ``R``/``E`` terms are **adjusted associations, not DAG-parent adjustments** - they
 are entered to describe the review's finding, and (like every non-randomised term here)

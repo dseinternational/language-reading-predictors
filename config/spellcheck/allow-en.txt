@@ -380,6 +380,7 @@ expm
 extau
 exto
 federated
+figsize
 fittable
 followup
 fontsize
@@ -389,6 +390,7 @@ getattr
 gnombo
 gnomo
 gotchas
+gridspec
 handoff
 hashlib
 hclust
@@ -397,6 +399,7 @@ homoscedasticity
 horseshoe
 hpdi
 hsgp
+hspace
 hyperparam
 hyperparameters
 hyperparams
@@ -503,6 +506,7 @@ partialled
 partialling
 pathlib
 pipefail
+plotcollection
 pred
 preliz
 prespecified
@@ -567,6 +571,7 @@ startswith
 subfit
 subsetting
 subskill
+suptitle
 surv
 tachang
 tascore

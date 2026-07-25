@@ -28,16 +28,28 @@ letter-sound slope here is the `L` → `W` level association *among children ali
 nonword decoding*; comparing it to `ca-010`'s slope is the review's attenuation check
 (the review found a fifth-to-a-third attenuation, still decisively positive).
 
-Nonword reading is heavily floored (≈72/64/52/40% at zero across t1–t4). It enters as a
-standardised predictor logit; the floor reduces its variance, not its admissibility
-(`ca-001` excluded floored measures by *choice*, not a factory limit). The
-identifiability concern with floored `N` applies to `N` as an *outcome* or to a
-nonparametric curve, not to `N` as a linear predictor here.
+**The floor on `N` limits the estimand, not just the precision.** Nonword reading is a
+6-item measure that is heavily floored (≈72/64/52/40% at zero across t1–t4; 80% of
+children score 0 or 1 at t1). It is *admissible* as a linear standardised predictor logit
+— `ca-001` excluded floored measures by *choice*, not a factory limit, and the
+identifiability problem with a floored *outcome* or a nonparametric curve does not arise
+here. But the severe floor is coarsening and measurement error **in the variable being
+conditioned on**, so this fit holds decoding fixed only *partially*: the residual `L`
+slope is an **upper bound** on the non-decoding channel ("at most this much"), not a clean
+non-decoding association. Better measurement of decoding would, if anything, attribute
+more of the `L`–`W` association to it. Two further qualifications carry over from the
+source note (`notes/202607241000-findings-letter-sounds-word-reading-association.md`):
+under the revised DAG `N` is a **mediator** of `L → W`, not a confounder, so adjusting for
+it deliberately *removes* a pathway; and because `N` is a common effect of `L` and other
+reading inputs, conditioning on it can also **open a collider path**. Read this fit
+alongside `ca-010`, never instead of it.
 
 _Estimand: descriptive association (no causal warrant)._ As `ca-010`, every coefficient
 is a latent-GA-confounded **adjusted association**, never causal. The single-posterior
 `L`-slope contrast against `ca-010` that the review's "share retained" wants is a #421
-Tier-3 joint {W, N} fit (deferred); this pair of separate fits is its descriptive version.
+Tier-3 joint {W, N} fit (deferred); this pair of separate fits is its descriptive version,
+and the ratio it implies is a sensitivity, not an identified quantity — the two slopes
+come from separate fits, so pairing their draws assumes working independence.
 
 ## Design
 
