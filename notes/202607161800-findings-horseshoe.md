@@ -34,21 +34,21 @@ Concurrent reading-system partners top the list. Both leaders have credible rang
 | 4    | Age                   | +0.19 logit        | −0.01 to +0.38     | +    | 0.745 — plausible                         |
 | 5    | Receptive vocab (RV)  | +0.15 logit        | −0.01 to +0.31     | +    | 0.670 — plausible                         |
 
-Below rank 5: block-design ability B +0.12 (0.629), F +0.06 (0.261).
+Below rank 5: phoneme blending (PA) +0.12 (0.629), basic concepts (LF) +0.06 (0.261).
 
 ### `lrp-rli-hs-004` — letter-sound **level** (RLI cohort) · association
 
 The mirror image of hs-002: word reading and expressive vocabulary dominate, both with credible ranges wholly positive (direction effectively certain).
 
-| Rank | Predictor                | Standardised slope | 89% credible range | Sign | P(\|beta\|>0.1) — matters?       |
-| ---- | ------------------------ | ------------------ | ------------------ | ---- | -------------------------------- |
-| 1    | Word reading (WR)        | +0.70 logit        | +0.52 to +0.87     | +    | 1.00 — clears (renders as 99.9%) |
-| 2    | Expressive vocab (EV)    | +0.47 logit        | +0.29 to +0.66     | +    | 0.998 — clears                   |
-| 3    | Block-design ability (B) | +0.06 logit        | −0.04 to +0.18     | +    | 0.285 — below threshold          |
-| 4    | F                        | +0.06 logit        | −0.04 to +0.18     | +    | 0.259 — below threshold          |
-| 5    | Age                      | +0.03 logit        | −0.08 to +0.15     | +    | 0.176 — below threshold          |
+| Rank | Predictor             | Standardised slope | 89% credible range | Sign | P(\|beta\|>0.1) — matters?       |
+| ---- | --------------------- | ------------------ | ------------------ | ---- | -------------------------------- |
+| 1    | Word reading (WR)     | +0.70 logit        | +0.52 to +0.87     | +    | 1.00 — clears (renders as 99.9%) |
+| 2    | Expressive vocab (EV) | +0.47 logit        | +0.29 to +0.66     | +    | 0.998 — clears                   |
+| 3    | Phoneme blending (PA) | +0.06 logit        | −0.04 to +0.18     | +    | 0.285 — below threshold          |
+| 4    | Basic concepts (LF)   | +0.06 logit        | −0.04 to +0.18     | +    | 0.259 — below threshold          |
+| 5    | Age                   | +0.03 logit        | −0.08 to +0.15     | +    | 0.176 — below threshold          |
 
-Below rank 5: R +0.01 (0.113), T −0.01 (0.071).
+Below rank 5: receptive vocab (RV) +0.01 (0.113), grammar (RG) −0.01 (0.071).
 
 ### `lrp-rli-hs-001` — word-reading **gain** (RLI cohort) · association · GATE-FAILED (2 divergences)
 
@@ -59,10 +59,10 @@ Reported for completeness with the divergence caveat. **No predictor clears the 
 | 1    | Age                  | −0.15 logit        | −0.34 to +0.02     | −    | 0.582 — below threshold    |
 | 2    | Letter sounds (LS)   | +0.11 logit        | −0.04 to +0.33     | +    | 0.429 — below threshold    |
 | 3    | Behaviour (behav)    | −0.09 logit        | −0.27 to +0.04     | −    | 0.380 — below threshold    |
-| 4    | F                    | +0.08 logit        | −0.04 to +0.24     | +    | 0.331 — below threshold    |
+| 4    | Basic concepts (LF)  | +0.08 logit        | −0.04 to +0.24     | +    | 0.331 — below threshold    |
 | 5    | Receptive vocab (RV) | +0.04 logit        | −0.09 to +0.22     | +    | 0.224 — below threshold    |
 
-Below rank 5: T +0.04 (0.209), E +0.01 (0.160), block-design B +0.02 (0.132), B(item) +0.01 (0.103).
+Below rank 5: grammar (RG) +0.04 (0.209), expressive vocab (EV) +0.01 (0.160), block-design ability (`blocks`) +0.02 (0.132), phoneme blending (PA) +0.01 (0.103).
 
 ### `lrp-rli-hs-003` — letter-sound **gain** (RLI cohort) · association
 
@@ -71,12 +71,12 @@ Like the word-reading gain model, near-flat: the top predictor sits below the th
 | Rank | Predictor                     | Standardised slope | 89% credible range | Sign | P(\|beta\|>0.1) — matters?                  |
 | ---- | ----------------------------- | ------------------ | ------------------ | ---- | ------------------------------------------- |
 | 1    | Grammar / TROG (RG)           | +0.13 logit        | −0.04 to +0.37     | +    | 0.453 — below threshold (informally "weak") |
-| 2    | F                             | +0.07 logit        | −0.06 to +0.27     | +    | 0.287 — below threshold                     |
+| 2    | Basic concepts (LF)           | +0.07 logit        | −0.06 to +0.27     | +    | 0.287 — below threshold                     |
 | 3    | Word reading (WR)             | +0.07 logit        | −0.07 to +0.28     | +    | 0.280 — below threshold                     |
 | 4    | Block-design ability (blocks) | −0.06 logit        | −0.23 to +0.07     | −    | 0.238 — below threshold                     |
 | 5    | Behaviour (behav)             | −0.05 logit        | −0.20 to +0.05     | −    | 0.225 — below threshold                     |
 
-Below rank 5: age −0.03 (0.164), E −0.01 (0.148), R −0.004 (0.141), B +0.02 (0.139).
+Below rank 5: age −0.03 (0.164), expressive vocab (EV) −0.01 (0.148), receptive vocab (RV) −0.004 (0.141), phoneme blending (PA) +0.02 (0.139).
 
 ### `lrp-rlm-hs-001` — Byrne-cohort word-reading **gain** · association
 
@@ -94,7 +94,7 @@ Below rank 5: BPVS vocabulary −0.001 (0.139).
 
 ## The one-paragraph story
 
-For **levels**, the horseshoe cleanly picks out the obvious reading-system partners — **word reading and letter sounds top each other's rankings** (hs-002 and hs-004) with the leaders' credible ranges wholly above zero, and expressive vocabulary is a strong second concurrent associate in both (E is actually the larger slope in hs-002, ranked second only because ordering is by exceedance probability, not effect size). This agrees with the mechanism and concurrent analyses. For the **RLI gain models** (hs-001 word reading, hs-003 letter sounds), no single predictor clears the worth-noticing threshold — the honest result at this sample size: gain is hard to predict from baseline features. The Byrne gain model (rlm-hs-001) is the one exception where a predictor does clear the threshold: age leads negatively (older children gaining less, `P(|beta|>0.1) = 0.91`), echoing the [adjusted](202607161800-findings-adjusted.md) family. These are shrinkage-ranked adjusted associations throughout — a convergent description, not a causal story — and the note is a companion cross-check to the [ITT](202607161800-findings-itt.md) causal estimates.
+For **levels**, the horseshoe cleanly picks out the obvious reading-system partners — **word reading and letter sounds top each other's rankings** (hs-002 and hs-004) with the leaders' credible ranges wholly above zero, and expressive vocabulary is a strong second concurrent associate in both (EV is actually the larger slope in hs-002, ranked second only because ordering is by exceedance probability, not effect size). This agrees with the mechanism and concurrent analyses. For the **RLI gain models** (hs-001 word reading, hs-003 letter sounds), no single predictor clears the worth-noticing threshold — the honest result at this sample size: gain is hard to predict from baseline features. The Byrne gain model (rlm-hs-001) is the one exception where a predictor does clear the threshold: age leads negatively (older children gaining less, `P(|beta|>0.1) = 0.91`), echoing the [adjusted](202607161800-findings-adjusted.md) family. These are shrinkage-ranked adjusted associations throughout — a convergent description, not a causal story — and the note is a companion cross-check to the [ITT](202607161800-findings-itt.md) causal estimates.
 
 ## What is causal
 
