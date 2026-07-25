@@ -1,0 +1,45 @@
+---
+title: "LRP204: Letter-sound → word reading with RW main effect, no interaction"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP204 is the no-interaction companion to [LRP104](../lrp-rli-mech-104/). It keeps the same letter-sound mechanism, word-reading outcome, subject random intercept and phonological-memory (RW) main effect, but sets `include_interaction=False`, so there is no letter-sound × RW `gamma_int` term.
+
+The purpose is a nested comparison: LRP104 versus LRP204 asks whether the RW moderation improves predictive fit beyond the RW main effect (`compare_statistical_models.rw_moderation_loo_compare`). The mechanism curve and RW term remain adjusted associations, not causal effects.
+
+## Model
+
+$$
+\eta = \alpha + \alpha_{\text{phase}} + \beta_G G
+  + f^L(\operatorname{logit}_* L_{\text{post}})
+  + \gamma_{\text{mod}} z(\text{RW})
+  + \gamma_{\text{own}}\operatorname{logit}_*(W_{\text{pre}})
+  + \gamma_A z(A) + \sum_c \gamma_c z(c) + u_{\text{child}}.
+$$
+
+The omitted term is the LRP104 interaction $\gamma_{\text{int}} z(\operatorname{logit}_* L_{\text{post}})\, z(\text{RW})$.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

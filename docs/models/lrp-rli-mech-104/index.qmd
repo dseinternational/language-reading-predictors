@@ -1,0 +1,47 @@
+---
+title: "LRP104: Letter-sound → word reading, moderated by phonological memory (RW)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP104 is the direct, uncertainty-quantified form of the letter-sound → word-reading review's Q3 finding (#421 Tier 2; review note #424). Q3 showed that among children who know their letter sounds but read few words, the sharpest distinguishing feature is weak **phonological memory** (word/nonword repetition, RW = `erbto`) — but it rested on a 15-vs-15 descriptive split plus one-at-a-time partials. This model asks the same question as a moderation of the letter-sound mechanism: does letter-sound knowledge convert to word reading *more* strongly for children with better phonological memory? A positive interaction `gamma_int` would say yes.
+
+The letter-sound curve `f_mech` stays nonparametric (HSGP) — word reading is not floored. RW is a covariate (the ERB total, no test maximum), so it enters as `moderator_is_covariate=True`: a standardised main effect `gamma_mod·z(RW)` plus the interaction `gamma_int·z(logit L)·z(RW)`. It is **not** in the adjustment set (it is the moderator, not a confounder).
+
+_Causal labelling._ Every coefficient is an **adjusted association**, latent general ability unblocked; `gamma_int` is descriptive, never causal. The interaction family's consistent lesson (`mech-071`/`072`/`073`) is that an apparent moderation is often a between-child ability confound that collapses under adjustment and subject random effects — the honest prior expectation here too. [`lrp-rli-mech-204`](../lrp-rli-mech-204/) is the no-interaction companion for the nested PSIS-LOO test, and the within-child check (`scripts/within_child_interaction_check.py`) is the key diagnostic.
+
+## Model
+
+$$
+\eta = \alpha + \alpha_{\text{phase}} + \beta_G G
+  + f^L(\operatorname{logit}_* L_{\text{post}})
+  + \gamma_{\text{mod}} z(\text{RW}) + \gamma_{\text{int}} z(\operatorname{logit}_* L_{\text{post}})\, z(\text{RW})
+  + \gamma_{\text{own}}\operatorname{logit}_*(W_{\text{pre}})
+  + \gamma_A z(A) + \sum_c \gamma_c z(c) + u_{\text{child}},
+$$
+
+where the $z(c)$ are the letter-sound → word-reading confounders hearing (`hs`), intervention sessions (`attend`) and speech production (`deapp_c`), each with a missing-indicator. `gamma_int` is the tested quantity.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

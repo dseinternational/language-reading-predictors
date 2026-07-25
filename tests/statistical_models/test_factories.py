@@ -660,6 +660,103 @@ def test_mechanism_factory_age_moderator_not_double_counted(tmp_path):
     assert "gamma_A" not in names
 
 
+def test_mechanism_factory_covariate_moderator_non_age(tmp_path):
+    """The *factory* handling of a non-age covariate moderator (e.g. phonological
+    memory ``erbto``, LRP104): given a prepared dataset, ``build_mechanism_model``
+    reads the covariate from ``prepared.covariates`` and adds ``gamma_mod`` +
+    ``gamma_int`` (the same read path age uses). The covariate is injected into
+    ``prepared.covariates`` directly here, so this verifies the factory contract, not
+    ``fit_mechanism``'s covariate-loading path (the #421 Tier 2 pipeline enabler,
+    which this test does not exercise). Age is not the moderator here, so it stays a
+    plain linear ``gamma_A`` adjuster. The no-interaction companion (LRP204) keeps
+    ``gamma_mod`` but drops ``gamma_int``."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="L",
+        outcome_symbol="W",
+        confounder_symbols=("G", "A"),
+        moderator_symbol="erbto",
+        moderator_is_covariate=True,
+        include_interaction=True,
+        use_age_gp=False,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_mod", "gamma_int", "gamma_A"} <= names
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=11)
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+    baseline = build_mechanism_model(
+        prep,
+        mechanism_symbol="L",
+        outcome_symbol="W",
+        confounder_symbols=("G", "A"),
+        moderator_symbol="erbto",
+        moderator_is_covariate=True,
+        include_interaction=False,
+        use_age_gp=False,
+    )
+    base_names = {v.name for v in baseline.model.free_RVs}
+    assert "gamma_mod" in base_names and "gamma_int" not in base_names
+
+
+def test_fit_mechanism_loads_and_complete_cases_covariate_moderator(monkeypatch):
+    """The #421 Tier 2 *pipeline* enabler (companion to the factory test above):
+    ``fit_mechanism`` must load a non-age covariate moderator (``erbto``) from the
+    data and, when the spec complete-cases on it, also request its ``_missing`` flag
+    and pass ``require_observed`` to the loader - so the mean-imputed rows are dropped
+    rather than moderated at the sample mean. The factory test injects ``erbto`` into
+    ``prepared.covariates`` directly and so passes even if these loading lines are
+    removed; this test captures the ``load_and_prepare`` call and asserts the wiring,
+    then short-circuits before the fit, so it fails if the moderator-loading branch
+    regresses."""
+    from language_reading_predictors.statistical_models import pipeline
+
+    captured: dict[str, object] = {}
+
+    class _StopBeforeFit(Exception):
+        pass
+
+    def _capture(**kwargs):
+        captured.update(kwargs)
+        raise _StopBeforeFit
+
+    monkeypatch.setattr(pipeline, "load_and_prepare", _capture)
+
+    spec = ModelSpec(
+        model_id="test-mech-covariate-moderator",
+        kind="mechanism",
+        title="test",
+        outcome_symbol="W",
+        mechanism_symbol="L",
+        adjustment=["G", "A", "W_pre"],
+        extra={
+            "outcomes": ("W", "L"),
+            "adjust_baseline_symbol": "W",
+            "adjust_for": ("hs", "hs_missing"),
+            "moderator_symbol": "erbto",
+            "moderator_is_covariate": True,
+            "require_observed": ("erbto",),
+            "include_interaction": True,
+        },
+    )
+    with pytest.raises(_StopBeforeFit):
+        pipeline.fit_mechanism(spec, config="dev")
+
+    loaded = set(captured.get("covariates", ())) | set(
+        captured.get("post_covariates", ())
+    )
+    # The moderator is loaded from the data (not injected by the caller)...
+    assert "erbto" in loaded
+    # ...and its missingness flag is loaded so require_observed can filter on it...
+    assert "erbto_missing" in loaded
+    # ...and the complete-case filter is forwarded to the loader.
+    assert captured.get("require_observed") == ("erbto",)
+
+
 def test_mechanism_factory_mechanism_at_pre_uses_period_start_regressor(tmp_path):
     """``mechanism_at_pre=True`` (#405 lagged / predictive readout) takes the
     mechanism regressor from the period-start (pre) logit; the default takes the
