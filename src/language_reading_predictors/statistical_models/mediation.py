@@ -671,9 +671,13 @@ def decompose_two_mediator(
     aL0, aL_G, aL_L, aL_A = d("aL0"), d("aL_G"), d("aL_L"), d("aL_A")
     aL_conf = {s: d(f"aL_{s}") for s in confs}
     kappa_L = d("kappa_L")
-    aE0, aE_G, aE_E, aE_A = d(f"a{mE}0"), d(f"a{mE}_G"), d(f"a{mE}_{mE}"), d(f"a{mE}_A")
+    # An off-floor (Bernoulli) second mediator has no autoregressive own-baseline
+    # coefficient (a{mE}_{mE}) and no dispersion (kappa_{mE}) in the trace.
+    off2 = getattr(med, "second_mediator_offfloor", False)
+    aE0, aE_G, aE_A = d(f"a{mE}0"), d(f"a{mE}_G"), d(f"a{mE}_A")
+    aE_E = None if off2 else d(f"a{mE}_{mE}")
     aE_conf = {s: d(f"a{mE}_{s}") for s in confs}
-    kappa_E = d(f"kappa_{mE}")
+    kappa_E = None if off2 else d(f"kappa_{mE}")
 
     A = med.A_std[None, :]
     W1 = med.W1_logit[None, :]
@@ -713,8 +717,13 @@ def decompose_two_mediator(
 
     def mediator2_p(g, zL_val):
         """Second-mediator success prob under exposure ``g``; chained on ``zL_val``
-        (the simulated first mediator on its standardised scale) when med.chain."""
-        mu = aE0[:, None] + aE_G[:, None] * g + aE_E[:, None] * E1 + aE_A[:, None] * A
+        (the simulated first mediator on its standardised scale) when med.chain.
+
+        For an off-floor mediator this is P(mediator > 0) with no autoregressive
+        own-baseline term (the leg dropped it)."""
+        mu = aE0[:, None] + aE_G[:, None] * g + aE_A[:, None] * A
+        if not off2:
+            mu = mu + aE_E[:, None] * E1
         for s in confs:
             mu = mu + aE_conf[s][:, None] * conf[s]
         if med.chain:
@@ -724,9 +733,15 @@ def decompose_two_mediator(
     pL_t = mediator_p(aL0, aL_G, aL_L, aL_A, aL_conf, L1, _TREAT)
     pL_c = mediator_p(aL0, aL_G, aL_L, aL_A, aL_conf, L1, _CTRL)
     # Parallel model: the second mediator is independent of L, so precompute once.
+    # (``mediator2_p`` with a null zL is the off-floor-aware form; the graded parallel
+    # path keeps the original ``mediator_p`` call unchanged.)
     if not med.chain:
-        pE_t = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _TREAT)
-        pE_c = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _CTRL)
+        if off2:
+            pE_t = mediator2_p(_TREAT, None)
+            pE_c = mediator2_p(_CTRL, None)
+        else:
+            pE_t = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _TREAT)
+            pE_c = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _CTRL)
 
     def zdraw(p, kappa, N, mean, sd):
         k = rng.binomial(N, rng.beta(p * kappa[:, None], (1 - p) * kappa[:, None]))
@@ -742,11 +757,20 @@ def decompose_two_mediator(
         zL_t = zdraw(pL_t, kappa_L, N_L, med.zL_mean, med.zL_sd)
         zL_c = zdraw(pL_c, kappa_L, N_L, med.zL_mean, med.zL_sd)
         if med.chain:
-            # Draw the second mediator conditional on the simulated L: treated B
-            # under treated L, control B under control L (carrying L -> B -> W into
-            # the joint indirect effect).
-            zE_t = zdraw(mediator2_p(_TREAT, zL_t), kappa_E, N_E, med.zE_mean, med.zE_sd)
-            zE_c = zdraw(mediator2_p(_CTRL, zL_c), kappa_E, N_E, med.zE_mean, med.zE_sd)
+            # Draw the second mediator conditional on the simulated L: treated
+            # under treated L, control under control L (carrying L -> mE -> W into
+            # the joint indirect effect). Off-floor: a Bernoulli 0/1 off-floor
+            # indicator enters the outcome leg directly (matching the factory's
+            # indicator regressor); graded: a Beta-Binomial count re-standardised.
+            if off2:
+                zE_t = rng.binomial(1, mediator2_p(_TREAT, zL_t)).astype(float)
+                zE_c = rng.binomial(1, mediator2_p(_CTRL, zL_c)).astype(float)
+            else:
+                zE_t = zdraw(mediator2_p(_TREAT, zL_t), kappa_E, N_E, med.zE_mean, med.zE_sd)
+                zE_c = zdraw(mediator2_p(_CTRL, zL_c), kappa_E, N_E, med.zE_mean, med.zE_sd)
+        elif off2:
+            zE_t = rng.binomial(1, pE_t).astype(float)
+            zE_c = rng.binomial(1, pE_c).astype(float)
         else:
             zE_t = zdraw(pE_t, kappa_E, N_E, med.zE_mean, med.zE_sd)
             zE_c = zdraw(pE_c, kappa_E, N_E, med.zE_mean, med.zE_sd)

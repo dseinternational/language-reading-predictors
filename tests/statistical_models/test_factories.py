@@ -1614,6 +1614,36 @@ def test_two_mediator_factory_builds(tmp_path):
         assert pp.prior_predictive[node].shape[-1] == built.prepared.n_obs
 
 
+def test_two_mediator_factory_off_floor_second_leg(tmp_path):
+    """med-060 (#421 Tier 3): an off-floor second mediator (floored nonword decoding N)
+    enters as a Bernoulli off-floor leg — P(N > 0), with no dispersion (kappa_N), no
+    autoregressive own-baseline (aN_N) and no N_pre_logit Data node — while the graded
+    outcome W, its own-baseline (b_W), and the chained L->N coupling (aN_L) are kept."""
+    p = _write_synthetic(tmp_path, n_children=25)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("W", "L", "N"))
+    built, med = build_two_mediator_model(
+        prep,
+        outcome_symbol="W",
+        mediator_symbols=("L", "N"),
+        confounder_symbols=(),  # N is loaded explicitly; keep the leg-structure test minimal
+        chain=True,
+        second_mediator_offfloor=True,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert med.second_mediator_offfloor is True
+    # outcome paths + graded-W own-baseline + the L->N chain coupling are present
+    assert {"b_L", "b_N", "aN_L", "b_W", "kappa_Y"}.issubset(names)
+    # the off-floor mediator leg has no dispersion and no autoregressive own-baseline
+    assert "kappa_N" not in names
+    assert "aN_N" not in names
+    # and no pre-score Data node for the off-floor mediator
+    assert "N_pre_logit" not in built.model.named_vars
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=6)
+    for node in ("L_post", "N_offfloor", "y_post"):
+        assert pp.prior_predictive[node].shape[-1] == built.prepared.n_obs
+
+
 # ---------------------------------------------------------------------------
 # Waitlist-crossover / difference-in-differences factory (kind="did")
 # ---------------------------------------------------------------------------

@@ -6385,7 +6385,15 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             [*_raw_cov, *([_calibration_symbol] if _calibration_symbol else [])]
         )
     )
-    prepared = load_and_prepare(phase_mode="itt", covariates=_loaded_cov)
+    # A floored second mediator (e.g. nonword decoding N, med-081) is not in the
+    # default ITT outcome set, so load exactly the requested outcomes when given.
+    _load_outcomes = spec.extra.get("outcomes")
+    if _load_outcomes is not None:
+        prepared = load_and_prepare(
+            phase_mode="itt", covariates=_loaded_cov, outcomes=tuple(_load_outcomes)
+        )
+    else:
+        prepared = load_and_prepare(phase_mode="itt", covariates=_loaded_cov)
     # Drop any missing-indicator constant on the ITT-phase rows (see fit_mediation).
     confounders = tuple(
         c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
@@ -6396,12 +6404,14 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     section_header("Build model")
 
+    second_offfloor = bool(spec.extra.get("second_mediator_offfloor", False))
     built, med_data = _factories.build_two_mediator_model(
         prepared,
         outcome_symbol=spec.outcome_symbol or "W",
         mediator_symbols=mediators,
         confounder_symbols=confounders,
         chain=bool(spec.extra.get("chain", False)),
+        second_mediator_offfloor=second_offfloor,
     )
     _attach_built(ctx, built)
 
@@ -6427,7 +6437,8 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.compute_log_likelihood_and_prior(ctx, strict=False)
     _diag.run_psense(ctx, var_names=coef_vars)
 
-    _run_ppc(ctx, var_names=[f"{mediators[0]}_post", f"{mediators[1]}_post", "y_post"])
+    _m2_node = f"{mediators[1]}_offfloor" if second_offfloor else f"{mediators[1]}_post"
+    _run_ppc(ctx, var_names=[f"{mediators[0]}_post", _m2_node, "y_post"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=coef_vars)

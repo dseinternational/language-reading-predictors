@@ -261,6 +261,9 @@ _MECH = [
     _d("lrp64", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs expressive vocabulary)"),
     _d("lrp66", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs phoneme blending)"),
     _d("lrp75", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "sequential code route (letter sounds -> blending -> reading)"),
+    # #421 Tier 3: the note proposed med-081, but the bare alias lrp81 is already the
+    # live lcsm-081; registered as med-060 (lowest free bare alias in the med range).
+    _d("lrp60", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "sequential code route (letter sounds -> nonword decoding -> reading; off-floor second mediator, #421 Tier 3; note's proposed 081 collided with lcsm-081)"),
     _d("lrp76", "mediation", "Mediation", Status.ASSOCIATION, "W", "longitudinal-ordering (letter sounds t2 -> reading t4)"),
     _d("lrp176", "mediation", "Mediation", Status.ASSOCIATION, "L", "reverse longitudinal-ordering (word reading t2 -> letter sounds t4); WR->LS direction contrast to lrp76", base="lrp76"),
     _d("lrp276", "mediation", "Mediation", Status.ASSOCIATION, "L", "reverse WR->LS with t3 outcome (less-ceilinged sensitivity to lrp176)", base="lrp176"),
@@ -468,8 +471,8 @@ SUPERSEDED: dict[str, str] = {
     "LRP74 [pre-#168 taught-expressive ITT]": "lrpitt02",  # ≠ live lrp-rli-med-074
     "LRP75 [pre-#168 taught-receptive ITT]": "lrpitt01",   # ≠ live lrp-rli-med-075
     "LRP55": "lrpitt12",   # joint
-    "LRP60": "lrpitt13",   # SES (word reading)
-    "LRP60a": "lrpitt14",  # SES matched comparator
+    "LRP60 [pre-#168 SES word reading]": "lrpitt13",  # ≠ live lrp-rli-med-060 (#421 Tier 3)
+    "LRP60a [pre-#168 SES matched comparator]": "lrpitt14",
     "LRP76 [pre-#168 generalisation contrast]": "lrpitt15",  # ≠ live lrp-rli-med-076
 }
 

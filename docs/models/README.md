@@ -299,24 +299,25 @@ phases, with subject random intercepts and optional linear moderation. Every slo
 
 **Purpose.** g-formula decomposition of how much of an intervention-outcome contrast runs through a given skill. The natural-effect models report NDE/NIE; MED-078/186/187 report the interventional IDE/IIE analogues. Neither class is point-identified under the revised DAG because latent general ability confounds mediator→outcome paths; the interventional class additionally removes the recanting-witness cross-world obstacle, but does not turn the decomposition into a causal route.
 
-| Model             | Purpose                                                                                                                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lrp-rli-med-059` | Single-mediator: word-reading gain via letter-sound knowledge `L`                                                                                                                           |
-| `lrp-rli-med-062` | Reading-route decomposition: code-based-route (`L` + blending `B`) vs lexical share                                                                                                         |
-| `lrp-rli-med-064` | Two-mediator split: `L` vs expressive vocabulary `E` (joint indirect + path-specific `NIE_L`/`NIE_E`)                                                                                       |
-| `lrp-rli-med-066` | Two-mediator split: letter sounds `L` and phoneme blending `B` as parallel routes to word reading                                                                                           |
-| `lrp-rli-med-068` | Single-mediator: word-reading gain via taught expressive vocabulary `TE`                                                                                                                    |
-| `lrp-rli-med-074` | Single-mediator: word-reading gain via nonword decoding `N` (floor-limited mediator)                                                                                                        |
-| `lrp-rli-med-075` | Sequential code route: letter sounds `L` → blending `B` → word reading                                                                                                                      |
-| `lrp-rli-med-076` | Longitudinal-ordering companion: letter sounds at t2 → word reading at t4                                                                                                                   |
-| `lrp-rli-med-078` | Interventional companion to MED-059: IDE/IIE for word reading via letter sounds                                                                                                             |
-| `lrp-rli-med-079` | Negative-control mediator: receptive grammar calibrating residual confounding                                                                                                               |
-| `lrp-rli-med-080` | Single-mediator: word-reading gain via taught receptive vocabulary `TR`                                                                                                                     |
-| `lrp-rli-med-086` | Natural-effect decomposition: nonword off-floor risk via letter sounds                                                                                                                      |
-| `lrp-rli-med-087` | Natural-effect decomposition: phoneme blending via letter sounds                                                                                                                            |
-| `lrp-rli-med-092` | Period-stacked companion (#229): the `med-059` design on the gain-factor scaffold — exposure = per-period on-intervention (ignorability, not randomisation); all-period + period-1 readouts |
-| `lrp-rli-med-186` | Interventional companion to MED-086: IDE/IIE for nonword off-floor risk via letter sounds                                                                                                   |
-| `lrp-rli-med-187` | Interventional companion to MED-087: IDE/IIE for phoneme blending via letter sounds                                                                                                         |
+| Model             | Purpose                                                                                                                                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-med-059` | Single-mediator: word-reading gain via letter-sound knowledge `L`                                                                                                                                   |
+| `lrp-rli-med-062` | Reading-route decomposition: code-based-route (`L` + blending `B`) vs lexical share                                                                                                                 |
+| `lrp-rli-med-064` | Two-mediator split: `L` vs expressive vocabulary `E` (joint indirect + path-specific `NIE_L`/`NIE_E`)                                                                                               |
+| `lrp-rli-med-066` | Two-mediator split: letter sounds `L` and phoneme blending `B` as parallel routes to word reading                                                                                                   |
+| `lrp-rli-med-068` | Single-mediator: word-reading gain via taught expressive vocabulary `TE`                                                                                                                            |
+| `lrp-rli-med-074` | Single-mediator: word-reading gain via nonword decoding `N` (floor-limited mediator)                                                                                                                |
+| `lrp-rli-med-075` | Sequential code route: letter sounds `L` → blending `B` → word reading                                                                                                                              |
+| `lrp-rli-med-060` | Sequential code route: letter sounds `L` → nonword decoding `N` → word reading, via an **off-floor** second-mediator leg (#421 Tier 3; the note's proposed `med-081` collided with live `lcsm-081`) |
+| `lrp-rli-med-076` | Longitudinal-ordering companion: letter sounds at t2 → word reading at t4                                                                                                                           |
+| `lrp-rli-med-078` | Interventional companion to MED-059: IDE/IIE for word reading via letter sounds                                                                                                                     |
+| `lrp-rli-med-079` | Negative-control mediator: receptive grammar calibrating residual confounding                                                                                                                       |
+| `lrp-rli-med-080` | Single-mediator: word-reading gain via taught receptive vocabulary `TR`                                                                                                                             |
+| `lrp-rli-med-086` | Natural-effect decomposition: nonword off-floor risk via letter sounds                                                                                                                              |
+| `lrp-rli-med-087` | Natural-effect decomposition: phoneme blending via letter sounds                                                                                                                                    |
+| `lrp-rli-med-092` | Period-stacked companion (#229): the `med-059` design on the gain-factor scaffold — exposure = per-period on-intervention (ignorability, not randomisation); all-period + period-1 readouts         |
+| `lrp-rli-med-186` | Interventional companion to MED-086: IDE/IIE for nonword off-floor risk via letter sounds                                                                                                           |
+| `lrp-rli-med-187` | Interventional companion to MED-087: IDE/IIE for phoneme blending via letter sounds                                                                                                                 |
 
 ### Predictor / within-child dynamics — `lrp-rli-adj-065`, `lrp-rli-lcsm-067/081/082/091`, `lrp-rli-dose-077` (+ variants)
 
