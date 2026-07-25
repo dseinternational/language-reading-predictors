@@ -612,6 +612,60 @@ def test_mechanism_factory_adjust_for_unknown_covariate_raises(tmp_path):
         )
 
 
+def _mech_ell_params(built):
+    """The ``(alpha, beta)`` actually given to the ``f_mech`` lengthscale prior."""
+    ell = built.model["f_mech__ell"]
+    return tuple(float(np.asarray(i.eval())) for i in ell.owner.inputs[-2:])
+
+
+def test_mechanism_hsgp_knobs_default_to_the_shared_settings(tmp_path):
+    """#430: ``None`` means "shared default" — basis count 10, InverseGamma(5, 5)."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    built = build_mechanism_model(
+        prep, mechanism_symbol="R", outcome_symbol="W", confounder_symbols=()
+    )
+    coeffs = built.model.initial_point()["f_mech__g_unit_hsgp_coeffs"]
+    assert coeffs.shape == (10,)
+    assert _mech_ell_params(built) == (5.0, 5.0)
+
+
+def test_mechanism_hsgp_knobs_honour_explicit_thin_support_values(tmp_path):
+    """#430: an explicit basis count / lengthscale prior reaches the ``f_mech`` HSGP."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    built = build_mechanism_model(
+        prep,
+        mechanism_symbol="R",
+        outcome_symbol="W",
+        confounder_symbols=(),
+        mech_hsgp_m=6,
+        mech_lengthscale_prior=priors.ell_prior_mech_tight(),
+    )
+    coeffs = built.model.initial_point()["f_mech__g_unit_hsgp_coeffs"]
+    assert coeffs.shape == (6,)
+    assert _mech_ell_params(built) == (8.0, 8.0)
+
+
+def test_mechanism_hsgp_basis_count_rejects_non_positive(tmp_path):
+    """A falsy ``mech_hsgp_m`` is a misconfiguration, not a request for the default.
+
+    Guards the ``is None`` resolution: under the earlier ``or`` fallback, ``0``
+    silently became the shared basis count of 10 (#434 review).
+    """
+    p = _write_synthetic(tmp_path, n_children=10)
+    prep = load_and_prepare(path=p, phase_mode="all")
+    for bad in (0, -1):
+        with pytest.raises(ValueError, match="positive HSGP basis count"):
+            build_mechanism_model(
+                prep,
+                mechanism_symbol="R",
+                outcome_symbol="W",
+                confounder_symbols=(),
+                mech_hsgp_m=bad,
+            )
+
+
 def test_itt_factory_rejects_wrong_phase(tmp_path):
     p = _write_synthetic(tmp_path, n_children=10)
     prep = load_and_prepare(path=p, phase_mode="all")

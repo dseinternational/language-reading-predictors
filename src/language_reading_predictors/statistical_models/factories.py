@@ -958,7 +958,8 @@ def build_mechanism_model(
     with a thinner short-lengthscale tail smooth the boundary geometry that otherwise
     diverges even at target_accept 0.999. Applies to both the standard and the
     ``phase_specific_mechanism`` ``f_mech`` builds; ``linear_mechanism`` ignores them
-    (no HSGP is built).
+    (no HSGP is built). Only ``None`` selects the default — a non-positive
+    ``mech_hsgp_m`` raises rather than falling back silently.
     """
     # Materialise once: ``confounder_symbols`` is iterated several times below
     # (keep-mask, coefficient loop, the "A in confounders" check, and the
@@ -973,6 +974,15 @@ def build_mechanism_model(
         raise ValueError(
             "mechanism_at_pre is incompatible with mechanism_is_covariate: a "
             "standardised covariate exposure has no separate period-start score."
+        )
+    # The thin-support knobs below are resolved with ``is None``, not ``or``, so a
+    # spec that mistypes a falsy value is not silently read as "use the shared
+    # default". ``mech_hsgp_m=0`` is a misconfiguration, not a request for
+    # ``_MECH_HSGP_M`` — fail on it here rather than downstream in the HSGP build.
+    if mech_hsgp_m is not None and mech_hsgp_m < 1:
+        raise ValueError(
+            "mech_hsgp_m must be a positive HSGP basis count (or None for the "
+            f"shared default {_MECH_HSGP_M}); got {mech_hsgp_m!r}."
         )
     if mechanism_is_covariate:
         # A covariate exposure may enter EITHER linearly (a single ``beta_mech``
@@ -1239,9 +1249,11 @@ def build_mechanism_model(
                     build_hsgp_1d(
                         f"f_mech_phase{p}",
                         mech_logit_std,
-                        m=mech_hsgp_m or _MECH_HSGP_M,
+                        m=_MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m,
                         lengthscale_prior=(
-                            mech_lengthscale_prior or _priors.ell_prior_mech()
+                            _priors.ell_prior_mech()
+                            if mech_lengthscale_prior is None
+                            else mech_lengthscale_prior
                         ),
                     )
                 )
@@ -1267,9 +1279,11 @@ def build_mechanism_model(
             f_mech = build_hsgp_1d(
                 "f_mech",
                 mech_logit_std,
-                m=mech_hsgp_m or _MECH_HSGP_M,
+                m=_MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m,
                 lengthscale_prior=(
-                    mech_lengthscale_prior or _priors.ell_prior_mech()
+                    _priors.ell_prior_mech()
+                    if mech_lengthscale_prior is None
+                    else mech_lengthscale_prior
                 ),
             )
             eta = eta + f_mech

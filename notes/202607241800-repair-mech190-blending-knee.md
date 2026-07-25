@@ -24,16 +24,16 @@ The HSGP is already non-centred (a basis-coefficient parameterisation), so that 
 
 Refitted at `--config reporting`:
 
-| Check | Baseline (m=10, IG(5,5)) | Repaired (m=6, IG(8,8)) |
-| --- | --- | --- |
-| divergences | **31** (fail) | **0** (pass) |
-| max R-hat | 1.0015 | 1.0029 |
-| min ESS | 2621 | 2699 |
-| gate | fail | **PASS** |
+| Check       | Baseline (m=10, IG(5,5)) | Repaired (m=6, IG(8,8)) |
+| ----------- | ------------------------ | ----------------------- |
+| divergences | **31** (fail)            | **0** (pass)            |
+| max R-hat   | 1.0015                   | 1.0029                  |
+| min ESS     | 2621                     | 2699                    |
+| gate        | fail                     | **PASS**                |
 
 The reparameterisation clears the geometry without forcing the curve flat. The fitted curve is then **flat and wide on its own terms**: the posterior-mean amplitude spans ≈ 0.14 on the logit scale against an 89% band ≈ 0.45 wide throughout, with near-zero slope in both halves (≈ 0.03 lower, ≈ 0.01 upper). So the honest knee-test answer is that **no knee is resolved** for blending at this sample size and measurement support — unlike the letter-sound knee `mech-058` resolves at ≈ 29.5 of 32 (itself wide and partly manufactured by the bounded scale). The curve should be read as "shape unresolved", not "shape flat"; it carries the same bounded-scale / logit-link caveat as `mech-058`.
 
-This satisfies the issue's decision tree: the linear-fallback route (`linear_mechanism=True`) is reserved for when the geometry **cannot** be fixed, and here it can. Keeping the curve lets the report show *why* the knee is unanswerable (the flat, wide band is the evidence) rather than sidestepping to a linearity assumption that cannot test for a knee at all.
+This satisfies the issue's decision tree: the linear-fallback route (`linear_mechanism=True`) is reserved for when the geometry **cannot** be fixed, and here it can. Keeping the curve lets the report show _why_ the knee is unanswerable (the flat, wide band is the evidence) rather than sidestepping to a linearity assumption that cannot test for a knee at all.
 
 ## Second item — docstring alias headers
 
