@@ -530,10 +530,12 @@ readgrp
 recomputation
 redescribing
 reframing
+reloo
 removesuffix
 reparameterisation
 reparameterise
 reparameterised
+reparameterising
 replite
 repr
 resid

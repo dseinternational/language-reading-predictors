@@ -767,7 +767,9 @@ def test_fit_mechanism_loads_and_complete_cases_covariate_moderator(monkeypatch)
     removed; this test captures the ``load_and_prepare`` call and asserts the wiring,
     then short-circuits before the fit, so it fails if the moderator-loading branch
     regresses."""
-    from language_reading_predictors.statistical_models import pipeline
+    # The loader call moved into the family-owned ``mechanism`` module (#438) so the
+    # fit and any ``reloo`` refit share one construction path; patch it there.
+    from language_reading_predictors.statistical_models import mechanism
 
     captured: dict[str, object] = {}
 
@@ -778,7 +780,7 @@ def test_fit_mechanism_loads_and_complete_cases_covariate_moderator(monkeypatch)
         captured.update(kwargs)
         raise _StopBeforeFit
 
-    monkeypatch.setattr(pipeline, "load_and_prepare", _capture)
+    monkeypatch.setattr(mechanism, "load_and_prepare", _capture)
 
     spec = ModelSpec(
         model_id="test-mech-covariate-moderator",
@@ -798,7 +800,7 @@ def test_fit_mechanism_loads_and_complete_cases_covariate_moderator(monkeypatch)
         },
     )
     with pytest.raises(_StopBeforeFit):
-        pipeline.fit_mechanism(spec, config="dev")
+        mechanism.resolve_mechanism_plan(spec)
 
     loaded = set(captured.get("covariates", ())) | set(
         captured.get("post_covariates", ())

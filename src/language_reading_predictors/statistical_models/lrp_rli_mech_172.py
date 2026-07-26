@@ -11,7 +11,7 @@ term with the identical prior in both — a PSIS-LOO comparison of LRP72 against
 this baseline is a clean **nested** test of whether the blending × letter-sound
 interaction improves predictive fit.
 
-This mirrors the LRP73/LRP73base exact-nesting construction. Earlier revisions
+This mirrors the LRP63/LRP63base exact-nesting construction. Earlier revisions
 entered B here on the raw logit scale (`gamma_B · logit B_post`) as a plain
 confounder, which is *not* prior-invariant to LRP72's standardised `z(B)`: under
 proper priors part of any ELPD difference would then be attributable to the
