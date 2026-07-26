@@ -856,22 +856,26 @@ def _psense_layout(trace, var_names: list[str]) -> tuple[dict, dict]:
     return {"figure_kwargs": {"figsize": (11.0, height)}}, rc
 
 
-def run_psense(
-    context: StatisticalFitContext,
-    *,
+def psense_artifacts(
+    trace,
+    out: str,
     var_names: list[str],
-) -> None:
-    """Power-scaling prior/likelihood sensitivity (issue #125 Area 1, secondary).
+):
+    """Write ``psense_summary.csv`` and ``psense.png`` for ``var_names``.
 
-    Writes ``psense_summary.csv`` and ``psense.png`` for the named parameters
-    (usually the causal term). Requires the ``log_prior`` and ``log_likelihood``
-    groups added by :func:`compute_log_likelihood_and_loo`. Guarded — a missing
-    group or an API mismatch degrades to a warning (psense is recommended-but-
-    secondary at this n). Kallioinen et al. 2024.
+    Split out of :func:`run_psense` (#381) so the regeneration script can produce
+    exactly the fit-time artefacts from a stored trace, with no second
+    implementation to drift. Power-scaling is importance reweighting over the draws
+    already in hand, **not** a refit, so any fit whose trace carries the
+    ``log_prior`` and ``log_likelihood`` groups can be measured after the fact.
+
+    Returns the summary frame, or ``None`` when psense could not be computed (a
+    missing group, an API mismatch). The caller decides whether that is fatal: at
+    fit time it is a warning, because psense is recommended-but-secondary at this
+    n; a regeneration run reports it as a skip with its reason.
     """
-    out = context.output_dir
     summary_path = os.path.join(out, "psense_summary.csv")
-    context.tables.pop("psense_summary", None)
+    df = None
     try:
         os.unlink(summary_path)
     except FileNotFoundError:
@@ -884,7 +888,7 @@ def run_psense(
         # the FULL trace (thin_for_plots' own contract: "numeric summaries always
         # use the full trace"); the thinned view is only for the figure below
         # (issue #270 item 2).
-        s = azs.psense_summary(context.trace, var_names=var_names)
+        s = azs.psense_summary(trace, var_names=var_names)
         if hasattr(s, "to_dataframe"):
             df = s.to_dataframe()
         else:
@@ -900,8 +904,8 @@ def run_psense(
         df.to_csv(temporary_path)
         os.replace(temporary_path, summary_path)
         temporary_path = None
-        context.tables["psense_summary"] = df
     except Exception as exc:  # pragma: no cover
+        df = None
         if temporary_path is not None:
             try:
                 os.unlink(temporary_path)
@@ -911,7 +915,7 @@ def run_psense(
 
     import arviz_plots as azp
 
-    tr, plot_var_names = _psense_plot_view(thin_for_plots(context.trace), var_names)
+    tr, plot_var_names = _psense_plot_view(thin_for_plots(trace), var_names)
     plot_kwargs, rc = _psense_layout(tr, plot_var_names)
     with az.rc_context(rc):
         _save_pc(
@@ -920,6 +924,26 @@ def run_psense(
             "psense.png",
             title="Prior/likelihood power-scaling sensitivity",
         )
+    return df
+
+
+def run_psense(
+    context: StatisticalFitContext,
+    *,
+    var_names: list[str],
+) -> None:
+    """Power-scaling prior/likelihood sensitivity (issue #125 Area 1, secondary).
+
+    Writes ``psense_summary.csv`` and ``psense.png`` for the named parameters
+    (usually the causal term). Requires the ``log_prior`` and ``log_likelihood``
+    groups added by :func:`compute_log_likelihood_and_loo`. Guarded — a missing
+    group or an API mismatch degrades to a warning (psense is recommended-but-
+    secondary at this n). Kallioinen et al. 2024.
+    """
+    context.tables.pop("psense_summary", None)
+    df = psense_artifacts(context.trace, context.output_dir, var_names)
+    if df is not None:
+        context.tables["psense_summary"] = df
 
 
 def sample_posterior_predictive(
