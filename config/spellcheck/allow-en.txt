@@ -548,6 +548,7 @@ residualized
 resumable
 retau
 reto
+reweighting
 rglob
 rhat
 riclpm
