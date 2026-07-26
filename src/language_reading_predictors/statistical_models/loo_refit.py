@@ -72,6 +72,46 @@ def _as_dataset(group):
     return inner if hasattr(inner, "data_vars") else group
 
 
+def _observed_variable_name(model: pm.Model, idata_orig, model_id: str) -> str:
+    """Name of the model's single observed node, verified against the stored trace.
+
+    Hard-coding ``"y_post"`` is correct only for the Beta-Binomial mechanism models
+    that exist today. The floor-rule likelihood registers its observed node as
+    ``y_offfloor`` (see ``factories``), so a hard-coded name would turn the alignment
+    guards below into a ``KeyError`` raised at *comparison* time — after the fits have
+    already run — the moment an off-floor mechanism model is registered (#433). Deriving
+    the name from the built model instead keeps the failure mode "this model is not
+    supported", stated up front, rather than "this crashed after an hour of sampling".
+
+    Refuses anything the wrapper's single-variable pointwise indexing cannot represent:
+    a multi-outcome model has one ``obs_id`` axis per outcome, and there is no
+    well-defined single row for ``reloo`` to hold out.
+    """
+    observed = [rv.name for rv in model.observed_RVs]
+    if len(observed) != 1:
+        raise ValueError(
+            f"{model_id}: rebuilt model has {len(observed)} observed variables "
+            f"({sorted(observed) if observed else 'none'}); the exact-refit repair "
+            "splices a single pointwise log-likelihood and cannot hold out a row of a "
+            "multi-outcome model — refusing to refit"
+        )
+    name = observed[0]
+    stored = set(_as_dataset(idata_orig.log_likelihood).data_vars)
+    if len(stored) != 1:
+        raise ValueError(
+            f"{model_id}: stored log_likelihood group holds {sorted(stored)}; the "
+            "exact-refit repair cannot tell which variable the Pareto-k indices refer "
+            "to — refusing to refit"
+        )
+    if name not in stored:
+        raise ValueError(
+            f"{model_id}: rebuilt model observes {name!r} but the stored trace holds "
+            f"{sorted(stored)}; the construction path has drifted from the one that "
+            "produced this fit — refusing to refit"
+        )
+    return name
+
+
 @dataclass(frozen=True)
 class RefitPlan:
     """Sampler settings for a refit, taken from the original fit's ``config.json``.
@@ -124,6 +164,7 @@ class MechanismSamplingWrapper(SamplingWrapper):
         refit: RefitPlan,
         full_model: pm.Model,
         design,
+        obs_var: str,
         *,
         progressbar: bool = False,
     ) -> None:
@@ -133,6 +174,10 @@ class MechanismSamplingWrapper(SamplingWrapper):
         self.design = design
         self.refit = refit
         self.full_model = full_model
+        # Derived from the built model rather than assumed, so a likelihood change
+        # renames the node without silently breaking the splice (see
+        # :func:`_observed_variable_name`).
+        self.obs_var = obs_var
         self.progressbar = progressbar
         self.n_refits = 0
 
@@ -244,7 +289,7 @@ class MechanismSamplingWrapper(SamplingWrapper):
             log_lik = pm.compute_log_likelihood(
                 idata__i, extend_inferencedata=False, progressbar=False
             )
-        return log_lik["y_post"].isel(obs_id=int(excluded_observed_data))
+        return log_lik[self.obs_var].isel(obs_id=int(excluded_observed_data))
 
 
 def build_mechanism_wrapper(
@@ -262,10 +307,11 @@ def build_mechanism_wrapper(
     """
     plan = _mechanism.resolve_mechanism_plan(spec)
     built = _mechanism.build_mechanism_for_plan(plan)
+    obs_var = _observed_variable_name(built.model, idata_orig, spec.model_id)
     # Take the observation count from the log-likelihood group, which *is* the
     # authoritative observation index for LOO, rather than from a posterior dim that
     # only exists because some deterministic happens to carry ``obs_id``.
-    stored_ll = idata_orig.log_likelihood["y_post"]
+    stored_ll = _as_dataset(idata_orig.log_likelihood)[obs_var]
     n_trace = int(stored_ll.sizes["obs_id"])
     if built.prepared.n_obs != n_trace:
         raise ValueError(
@@ -278,7 +324,7 @@ def build_mechanism_wrapper(
         recomputed = pm.compute_log_likelihood(
             idata_orig, model=built.model, extend_inferencedata=False, progressbar=False
         )
-    delta = float(np.abs(stored_ll.values - recomputed["y_post"].values).max())
+    delta = float(np.abs(stored_ll.values - recomputed[obs_var].values).max())
     if delta > 1e-6:
         raise ValueError(
             f"{spec.model_id}: rebuilt model does not reproduce the stored "
@@ -338,5 +384,6 @@ def build_mechanism_wrapper(
         refit=RefitPlan.from_config(config),
         full_model=built.model,
         design=design,
+        obs_var=obs_var,
         progressbar=progressbar,
     )
