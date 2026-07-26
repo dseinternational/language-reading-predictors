@@ -227,3 +227,4 @@ def test_joint_readiness_comparison_copied_beside_both_reports(
     for model_id in ids:
         copied = Path(cmp_mod._run_dir(model_id, "dev")) / "mechanism_loo_compare.csv"
         assert copied.read_text() == out.read_text()
+

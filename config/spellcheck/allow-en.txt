@@ -523,9 +523,11 @@ readgrp
 recomputation
 redescribing
 reframing
+reloo
 reparameterisation
 reparameterise
 reparameterised
+reparameterising
 removesuffix
 replite
 repr

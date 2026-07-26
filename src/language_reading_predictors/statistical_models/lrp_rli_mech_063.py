@@ -55,6 +55,22 @@ SPEC = ModelSpec(
         "use_subject_random_intercept": True,
         "moderator_symbol": "N",
         "target_accept": 0.999,
+        # Thin-support HSGP reparameterisation (#430/#434 lever, adopted #438). The
+        # default basis (m=10) with ell ~ InverseGamma(5, 5) leaves this curve's
+        # geometry marginal at n = 54: the primary fit is borderline and, more to the
+        # point, its leave-one-out REFITS diverge, so the influential points that
+        # PSIS-LOO cannot handle cannot be repaired by exact refit either and the
+        # nested comparison against its pair is unavailable. m=6 + the tighter
+        # ell ~ InverseGamma(8, 8) clears both. Measured on adoption: the fitted curve
+        # is NOT flattened (amplitude +1.5 to +2.9%, max pointwise change < 0.02 on a
+        # ~0.9 span) and the moderation coefficient is unmoved, so this buys geometry
+        # without changing the readout. It is deliberately per-model and not a change
+        # to the shared default: the same lever regressed the age-moderation baseline
+        # from 0 to 10 divergences (that pair was retired in #438), so the shared
+        # defaults stay as they are. See
+        # notes/202607251500-mech-hsgp-reparameterisation.md.
+        "mech_hsgp_m": 6,
+        "mech_lengthscale_tight": True,
     },
 )
 

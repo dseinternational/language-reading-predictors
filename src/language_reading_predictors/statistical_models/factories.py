@@ -58,6 +58,7 @@ from language_reading_predictors.statistical_models.measures import (
 from language_reading_predictors.statistical_models.preprocessing import (
     LongitudinalPanel,
     PreparedData,
+    Standardiser,
     WavePanel,
     standardise,
 )
@@ -72,6 +73,46 @@ from language_reading_predictors.statistical_models.preprocessing import (
 # funnel; at n ~ 157 with a smooth curve, ~12 is more resolution than the data
 # support. Scoped to f_mech so other GP-bearing models keep the default.
 _MECH_HSGP_M = 10
+# ``build_hsgp_1d``'s default boundary factor, named here so a frozen design can
+# reproduce the same boundary on a row subset.
+_MECH_HSGP_C = 1.5
+
+
+@dataclass(frozen=True)
+class MechanismDesign:
+    """Data-derived design quantities of a mechanism fit, pinned for refits (#438).
+
+    A leave-one-out refit re-derives the exposure/moderator standardisation and the
+    HSGP boundary from n-1 rows, so its basis weights are defined against a slightly
+    different design than the full-data model used to score the held-out point. The
+    spliced density is then not exact LOO. Capturing these three quantities from the
+    full build and replaying them into each refit removes that drift.
+
+    Only the quantities that ``build_mechanism_model`` derives from its own rows are
+    held here. Age and the confounder columns are standardised once by the loader and
+    are unaffected by row subsetting, so they need no pinning.
+    """
+
+    mech_scaler: Standardiser
+    hsgp_L: float | None
+    moderator_scaler: Standardiser | None = None
+
+    def require_moderator_scaler(self) -> Standardiser:
+        if self.moderator_scaler is None:
+            raise ValueError(
+                "frozen design carries no moderator scaler, but the model builds a "
+                "moderator term; the design was captured from a different model"
+            )
+        return self.moderator_scaler
+
+    def hsgp_c_for(self, x: np.ndarray) -> float:
+        """Boundary factor reproducing the fit's ``hsgp_L`` on ``x``'s support."""
+        if self.hsgp_L is None:
+            raise ValueError("frozen design carries no HSGP boundary to reproduce")
+        support = float(max(abs(np.min(x)), abs(np.max(x))))
+        if not np.isfinite(support) or support <= 0:
+            raise ValueError("cannot reproduce an HSGP boundary on degenerate support")
+        return self.hsgp_L / support
 
 
 def _scalar_prior(name: str, prior_ctor) -> pt.TensorVariable:
@@ -1268,6 +1309,7 @@ def build_mechanism_model(
     mechanism_at_pre: bool = False,
     mech_hsgp_m: int | None = None,
     mech_lengthscale_prior: Continuous | None = None,
+    frozen_design: MechanismDesign | None = None,
 ) -> BuiltModel:
     """
     Mechanism model on the outcome post-score.
@@ -1324,7 +1366,7 @@ def build_mechanism_model(
 
     ``include_interaction`` (default True): when False, only the moderator main
     effect ``gamma_mod * z(M)`` is added (no ``gamma_int``). Used to build a
-    clean no-interaction baseline (e.g. LRP73base) that differs from the full
+    clean no-interaction baseline (e.g. LRP63base) that differs from the full
     model by exactly the interaction term, for a nested PSIS-LOO comparison.
 
     ``adjust_for`` (default ()): revised-DAG confounders that are not bounded-count
@@ -1491,7 +1533,20 @@ def build_mechanism_model(
     # plotted against the raw logit). For a covariate exposure the input is the
     # loader's z-values, re-standardised here on the kept rows so beta_mech reads
     # per SD of the exposure on the fitted data.
-    mech_logit_std, _ = standardise(mech_input)
+    # A leave-one-out refit must interpret its basis coefficients against the *same*
+    # design as the fit that produced the point being scored, so ``frozen_design``
+    # pins every data-derived design quantity (#438 review). Default None reproduces
+    # the original behaviour exactly, so every existing caller is byte-identical.
+    _mod_scaler: Standardiser | None = None
+    _mech_c = _MECH_HSGP_C
+    _hsgp_boundary_realised = False
+    if frozen_design is None:
+        mech_logit_std, _mech_scaler = standardise(mech_input)
+    else:
+        _mech_scaler = frozen_design.mech_scaler
+        mech_logit_std = (np.asarray(mech_input, dtype=float) - _mech_scaler.mean) / (
+            _mech_scaler.sd
+        )
     z_L: np.ndarray | None = None
     z_M: np.ndarray | None = None
     if moderator_symbol is not None or linear_mechanism:
@@ -1513,13 +1568,23 @@ def build_mechanism_model(
                     f"Covariate moderator {moderator_symbol!r} not in "
                     "prepared.covariates (use 'A' for age)."
                 )
-            z_M, _ = standardise(raw_M)
+            if frozen_design is None:
+                z_M, _mod_scaler = standardise(raw_M)
+            else:
+                _mod_scaler = frozen_design.require_moderator_scaler()
+                z_M = (np.asarray(raw_M, dtype=float) - _mod_scaler.mean) / _mod_scaler.sd
         else:
             moderator_post_logit = logit_safe(
                 prepared.post_counts[moderator_symbol],
                 prepared.n_trials[moderator_symbol],
             )
-            z_M, _ = standardise(moderator_post_logit)
+            if frozen_design is None:
+                z_M, _mod_scaler = standardise(moderator_post_logit)
+            else:
+                _mod_scaler = frozen_design.require_moderator_scaler()
+                z_M = (
+                    np.asarray(moderator_post_logit, dtype=float) - _mod_scaler.mean
+                ) / _mod_scaler.sd
 
     coords = {
         "obs_id": np.arange(prepared.n_obs),
@@ -1697,10 +1762,18 @@ def build_mechanism_model(
             # divergences, without discarding the curve. Scoped to f_mech only. The
             # curve is still plotted against the raw logit downstream, so its
             # shape/location is unchanged where the old fit was trustworthy.
+            # ``build_hsgp_1d`` derives its boundary as ``max(|X|) * c``, so a refit on
+            # n-1 rows would silently move it and redefine what the basis weights mean.
+            # Passing the equivalent ``c`` reproduces the *fit's* boundary exactly on
+            # the subset's support (#438 review).
+            if frozen_design is not None:
+                _mech_c = frozen_design.hsgp_c_for(mech_logit_std)
+            _hsgp_boundary_realised = True
             f_mech = build_hsgp_1d(
                 "f_mech",
                 mech_logit_std,
                 m=_MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m,
+                c=_mech_c,
                 lengthscale_prior=(
                     _priors.ell_prior_mech()
                     if mech_lengthscale_prior is None
@@ -1721,7 +1794,22 @@ def build_mechanism_model(
             dims="obs_id",
         )
 
-    return BuiltModel(model=model, prepared=prepared)
+    # Publish the realised design so a leave-one-out refit can replay it rather than
+    # re-deriving a slightly different one from n-1 rows (#438 review). ``hsgp_L`` is
+    # None on the linear-mechanism and phase-specific paths, which is what
+    # ``loo_refit`` checks before it will refit at all.
+    realised_design = MechanismDesign(
+        mech_scaler=_mech_scaler,
+        hsgp_L=(
+            float(max(abs(mech_logit_std.min()), abs(mech_logit_std.max())) * _mech_c)
+            if _hsgp_boundary_realised
+            else None
+        ),
+        moderator_scaler=_mod_scaler,
+    )
+    return BuiltModel(
+        model=model, prepared=prepared, extras={"mechanism_design": realised_design}
+    )
 
 
 # ---------------------------------------------------------------------------
