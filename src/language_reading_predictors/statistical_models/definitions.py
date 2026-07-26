@@ -197,7 +197,6 @@ _MECH = [
     _d("lrp72", "mechanism", "Moderation", Status.ASSOCIATION, "N", "phonics route (letter-sound x blending -> decoding)"),
     _d("lrp72base", "mechanism", "Moderation", Status.COMPANION, "N", "no-interaction baseline", base="lrp72"),
     _d("lrp73", "mechanism", "Moderation", Status.ASSOCIATION, "W", "age-moderated letter-sound -> word reading"),
-    _d("lrp73base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp73"),
     # #421 Tier 2 (LS->WR review note, #424): does the letter-sound -> word-reading
     # effect depend on phonological memory (RW)? The direct interaction form of the
     # review's Q3 discrepancy, with a no-interaction companion for the nested PSIS-LOO

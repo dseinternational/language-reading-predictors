@@ -66,8 +66,10 @@ SPEC = ModelSpec(
         # is NOT flattened (amplitude +1.5 to +2.9%, max pointwise change < 0.02 on a
         # ~0.9 span) and the moderation coefficient is unmoved, so this buys geometry
         # without changing the readout. It is deliberately per-model and not a change
-        # to the shared default: the same lever regresses mech-173 from 0 to 10
-        # divergences, so the defaults stay as they are.
+        # to the shared default: the same lever regressed the age-moderation baseline
+        # from 0 to 10 divergences (that pair was retired in #438), so the shared
+        # defaults stay as they are. See
+        # notes/202607251500-mech-hsgp-reparameterisation.md.
         "mech_hsgp_m": 6,
         "mech_lengthscale_tight": True,
     },

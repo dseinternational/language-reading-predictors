@@ -117,12 +117,21 @@ _VARIANT_RENUMBER: dict[str, tuple[str, int]] = {
     "lrpal01d": ("al", 101),
     "lrpdid07base": ("did", 107),
     "lrp72base": ("mech", 172),
-    "lrp73base": ("mech", 173),
     "lrp104base": ("mech", 204),
     "lrp77a": ("dose", 177),
     "lrp77base": ("dose", 277),
 }
 #: Inverse of :data:`_VARIANT_RENUMBER`: (family, canonical number) -> legacy id.
+#: Retired variant ids. Kept so their canonical numbers are never silently reused by
+#: a new model: ``lrp73base``/``mech-173`` was the age-moderation no-interaction
+#: baseline, retired in #438 when its nested PSIS-LOO comparison was abandoned (its
+#: leave-one-out refits diverge at the default HSGP basis, and the reparameterisation
+#: that fixes the other pairs regresses it from 0 to 10 divergences). See
+#: ``notes/202607251500-mech-hsgp-reparameterisation.md``.
+_RETIRED_VARIANT_NUMBERS: dict[str, tuple[str, int]] = {
+    "lrp73base": ("mech", 173),
+}
+
 _VARIANT_LEGACY_ID: dict[tuple[str, int], str] = {
     (fam, num): legacy for legacy, (fam, num) in _VARIANT_RENUMBER.items()
 }

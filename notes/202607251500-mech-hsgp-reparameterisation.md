@@ -36,6 +36,14 @@ This was the risk #434 named, and the one that would have disqualified the lever
 
 Amplitude marginally _increases_ in every case, on a curve spanning ~0.9. The moderation coefficients are likewise unmoved: `mech-063`'s `gamma_int` goes −0.050 (89 % −0.130 to +0.030, P(>0) = 0.15) → −0.053 (89 % −0.135 to +0.027, P(>0) = 0.15). The change buys geometry without changing the readout.
 
+## `mech-073` / `mech-173`: comparison abandoned, baseline retired
+
+Neither route works for the age-moderation pair. At the defaults its leave-one-out refits diverge, so the influential points cannot be repaired; under the reparameterisation the baseline's own primary fit regresses from 0 to 10 divergences. The nested PSIS-LOO test is therefore **abandoned** (#438): `age_moderation_loo_compare` is removed from `scripts/compare_statistical_models.py`, and `lrp-rli-mech-173` — which existed _only_ to serve that comparison — is **retired**.
+
+`lrp-rli-mech-073` stays. Its `gamma_int` is a real estimand (−0.058, 89 % −0.119 to +0.006, P(>0) = 0.07 — no credible age moderation of the letter-sound → word-reading effect) and it completes the interaction family's recurring pattern, alongside `mech-071` (vocabulary) and `mech-072` (blending), of apparent moderations collapsing once subject random effects and adjustment are in. It is now read from its own posterior with no predictive-comparison companion, which is the reporting standard the restated criterion points to anyway.
+
+`mech-173`'s canonical number is **reserved, not freed**: `model_ids._RETIRED_VARIANT_NUMBERS` keeps `lrp73base → ("mech", 173)` so a future model cannot silently reuse it. Earlier dated findings notes that quote `mech-173` results (e.g. `notes/202607161800-findings-mechanism.md`) are left as they stand — they are historical records of what was fitted at the time, not live claims.
+
 ## Why the defaults stay
 
 `mech-173` is the counter-example that settles it: 0 divergences at the default, 10 under the reparameterisation. A lever that helps three pairs and breaks a fourth is a per-model tool, not a better default, so `_MECH_HSGP_M = 10` with `ell_prior_mech()` remains the shared setting. The `mech_hsgp_m` / `mech_lengthscale_tight` knobs #434 introduced are exactly the right shape for this; the six adopting specs carry the override and a comment recording the measurement.

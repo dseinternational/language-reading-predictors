@@ -37,8 +37,12 @@ contributors to reading combine **additively**; the raw moderations are
 between-child ability confounds. The within-child check
 (`scripts/within_child_interaction_check.py`) is the key diagnostic; see the note.
 
-`lrp-rli-mech-173.py` is the no-interaction companion (same f_mech + age main effect, no
-L×age) for the nested PSIS-LOO test.
+The no-interaction companion `lrp-rli-mech-173` (LRP73base) was **retired in #438**:
+its leave-one-out refits diverge at the default HSGP basis, so the nested PSIS-LOO test
+could not be repaired, and the reparameterisation that fixes the other moderation pairs
+regresses it from 0 to 10 divergences. `gamma_int` below is therefore read from its own
+posterior with no predictive-comparison companion. See
+`notes/202607251500-mech-hsgp-reparameterisation.md`.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

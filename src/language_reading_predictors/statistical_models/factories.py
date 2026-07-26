@@ -1366,7 +1366,7 @@ def build_mechanism_model(
 
     ``include_interaction`` (default True): when False, only the moderator main
     effect ``gamma_mod * z(M)`` is added (no ``gamma_int``). Used to build a
-    clean no-interaction baseline (e.g. LRP73base) that differs from the full
+    clean no-interaction baseline (e.g. LRP63base) that differs from the full
     model by exactly the interaction term, for a nested PSIS-LOO comparison.
 
     ``adjust_for`` (default ()): revised-DAG confounders that are not bounded-count

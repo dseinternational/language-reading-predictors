@@ -112,9 +112,6 @@ PHONICS_LOO_IDS: list[str] = ["lrp-rli-mech-072", "lrp-rli-mech-172"]
 JOINT_READINESS_LXB_W_LOO_IDS: list[str] = ["lrp-rli-mech-061", "lrp-rli-mech-161"]
 JOINT_READINESS_LXN_W_LOO_IDS: list[str] = ["lrp-rli-mech-063", "lrp-rli-mech-163"]
 
-# Age moderation (LRP73): interaction vs no-interaction baseline, same word-reading
-# outcome — a clean nested PSIS-LOO test of the L x age interaction.
-AGE_LOO_IDS: list[str] = ["lrp-rli-mech-073", "lrp-rli-mech-173"]
 
 # RW moderation of letter-sound -> word reading (#421 Tier 2, review note #424): the
 # interaction model vs its no-interaction baseline, same W outcome -- a clean nested
@@ -177,48 +174,12 @@ def _gate_status(model_id: str, config: str) -> str:
             payload = json.load(f)
     except Exception:  # pragma: no cover - defensive
         return "MISSING"
-    if payload.get("passed") is True:
-        return "PASS"
-    # A recorded, signed-off gate exception (#412 machinery) releases a model into
-    # the comparison layer on exactly the checks it waives, as it already does into
-    # the report. Waiving is per-check: a fit failing anything the exception does not
-    # name stays REVIEW. ``diagnostics_summary.json`` keeps ``passed: false`` as the
-    # measured truth either way, so this reads the exception rather than the verdict.
-    if _gate_exception_covers_failures(model_id, config, payload):
-        return "GATE_EXCEPTION"
-    return "REVIEW"
-
-
-def _gate_exception_covers_failures(model_id: str, config: str, payload: dict) -> bool:
-    """True when every failing check is named by the run's recorded gate exception."""
-    checks = payload.get("checks")
-    if not isinstance(checks, dict):
-        return False
-    # Fail closed, matching ``reporting._convergence_gate_failures``: anything that is
-    # not literally True is a failure. Counting only literal False would let a null or
-    # missing check (e.g. ``rhat: null`` beside a waived divergence) pass here while
-    # the report correctly stays blocked.
-    failing = {name for name, ok in checks.items() if ok is not True}
-    if not failing:
-        return False
-    cfg_path = os.path.join(_run_dir(model_id, config), "config.json")
-    try:
-        with open(cfg_path) as f:
-            cfg = json.load(f)
-    except Exception:  # pragma: no cover - defensive
-        return False
-    extra = cfg.get("spec_extra") or {}
-    exception = extra.get("gate_exception")
-    if not isinstance(exception, dict):
-        return False
-    waived = {str(c) for c in (exception.get("checks") or [])}
-    return bool(waived) and failing <= waived
+    return "PASS" if payload.get("passed") is True else "REVIEW"
 
 
 def _gate_ok(model_id: str, config: str) -> bool:
-    """True when the run exists and is releasable — a clean pass, or a pass on every
-    check bar those a recorded, signed-off exception waives."""
-    return _gate_status(model_id, config) in ("PASS", "GATE_EXCEPTION")
+    """True only if the run exists and its gate passed."""
+    return _gate_status(model_id, config) == "PASS"
 
 
 # ---------------------------------------------------------------------------
@@ -1389,9 +1350,6 @@ def joint_readiness_lxn_w_loo_compare(config: str, out_path: str) -> bool:
     return True
 
 
-def age_moderation_loo_compare(config: str, out_path: str) -> bool:
-    """LOO comparison of LRP73 against its no-interaction baseline (isolates L x age)."""
-    return _loo_compare(AGE_LOO_IDS, config, out_path)
 
 
 def rw_moderation_loo_compare(config: str, out_path: str) -> bool:
@@ -1639,11 +1597,6 @@ def main() -> None:
     else:
         print("Skipping L x N -> W LOO compare: LRP63 / LRP63base runs missing.")
 
-    age_path = os.path.join(args.out, "age_moderation_loo_compare.csv")
-    if age_moderation_loo_compare(args.config, age_path):
-        print(f"Wrote {age_path}")
-    else:
-        print("Skipping age-moderation LOO compare: LRP73 / LRP73base runs missing.")
 
     rw_mod_path = os.path.join(args.out, "rw_moderation_loo_compare.csv")
     if rw_moderation_loo_compare(args.config, rw_mod_path):
