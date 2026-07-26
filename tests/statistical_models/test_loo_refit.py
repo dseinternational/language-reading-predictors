@@ -179,6 +179,108 @@ def test_frozen_design_refuses_when_it_cannot_reproduce():
         ).require_moderator_scaler()
 
 
+class _FakeRV:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+class _FakeModel:
+    """Stand-in exposing only ``observed_RVs``, which is all the guard reads."""
+
+    def __init__(self, *names: str) -> None:
+        self.observed_RVs = [_FakeRV(n) for n in names]
+
+
+def _fake_idata(*names: str):
+    import xarray as xr
+
+    from types import SimpleNamespace
+
+    ds = xr.Dataset(
+        {n: (("chain", "draw", "obs_id"), np.zeros((2, 3, 4))) for n in names}
+    )
+    return SimpleNamespace(log_likelihood=ds)
+
+
+def test_observed_variable_name_follows_the_likelihood_rather_than_assuming_y_post():
+    """The observed node's name is a property of the likelihood, not a constant.
+
+    Beta-Binomial mechanism models register ``y_post``; the floor-rule likelihood
+    registers ``y_offfloor``. Hard-coding the former made the alignment guards raise
+    ``KeyError`` at *comparison* time — after the fits — the moment an off-floor
+    mechanism model was registered (#433)."""
+    from language_reading_predictors.statistical_models.loo_refit import (
+        _observed_variable_name,
+    )
+
+    assert (
+        _observed_variable_name(_FakeModel("y_post"), _fake_idata("y_post"), "m")
+        == "y_post"
+    )
+    assert (
+        _observed_variable_name(
+            _FakeModel("y_offfloor"), _fake_idata("y_offfloor"), "m"
+        )
+        == "y_offfloor"
+    )
+
+
+def test_observed_variable_name_refuses_a_multi_outcome_model():
+    """A joint model has one ``obs_id`` axis per outcome, so there is no single row
+    for ``reloo`` to hold out. Refuse rather than splice against the first one."""
+    from language_reading_predictors.statistical_models.loo_refit import (
+        _observed_variable_name,
+    )
+
+    with pytest.raises(ValueError, match="multi-outcome"):
+        _observed_variable_name(
+            _FakeModel("y_W", "y_N"), _fake_idata("y_W", "y_N"), "m"
+        )
+
+
+def test_observed_variable_name_refuses_when_the_trace_names_something_else():
+    from language_reading_predictors.statistical_models.loo_refit import (
+        _observed_variable_name,
+    )
+
+    with pytest.raises(ValueError, match="drifted"):
+        _observed_variable_name(_FakeModel("y_offfloor"), _fake_idata("y_post"), "m")
+
+    with pytest.raises(ValueError, match="which variable"):
+        _observed_variable_name(
+            _FakeModel("y_post"), _fake_idata("y_post", "y_aux"), "m"
+        )
+
+
+def test_held_out_density_is_read_from_the_derived_observed_name(monkeypatch):
+    """Closes the loop: the wrapper must *use* the derived name, not just record it."""
+    import contextlib
+
+    import pymc as pm_mod
+    import xarray as xr
+
+    from language_reading_predictors.statistical_models.loo_refit import (
+        MechanismSamplingWrapper,
+    )
+
+    log_lik = xr.Dataset(
+        {
+            "y_offfloor": (("chain", "draw", "obs_id"), np.arange(24.0).reshape(2, 3, 4)),
+        }
+    )
+    monkeypatch.setattr(
+        pm_mod, "compute_log_likelihood", lambda *a, **k: log_lik, raising=True
+    )
+
+    wrapper = object.__new__(MechanismSamplingWrapper)
+    wrapper.obs_var = "y_offfloor"
+    wrapper.full_model = contextlib.nullcontext()
+
+    got = wrapper.log_likelihood__i(2, idata__i=None)
+    assert got.name == "y_offfloor"
+    np.testing.assert_allclose(got.values, log_lik["y_offfloor"].isel(obs_id=2).values)
+
+
 def test_as_dataset_unwraps_a_datatree_group():
     """ArviZ 1.x groups are ``DataTree``s whose ``.items()`` yields child *nodes*, not
     variables — iterating one directly and reading ``.values`` raises instead of
