@@ -45,7 +45,6 @@ import argparse
 
 import arviz as az
 import numpy as np
-import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 from scipy.special import gammaln
@@ -69,12 +68,14 @@ def _summary(x: np.ndarray, label: str) -> str:
 
 
 def _diagnostics(idata) -> str:
-    # az.summary's value dtypes vary across ArviZ versions; coerce before reducing.
-    summ = az.summary(idata, kind="diagnostics")
-    rhat = pd.to_numeric(summ["r_hat"], errors="coerce").max()
-    ess = pd.to_numeric(summ["ess_bulk"], errors="coerce").min()
-    div = int(idata.sample_stats["diverging"].sum())
-    return f"max R-hat {rhat:.4f}, min bulk-ESS {ess:.0f}, divergences {div}"
+    # Mirrors statistical_models.diagnostics: ``round_to="none"`` (the string) genuinely
+    # disables rounding, so R-hat/ESS are read unrounded — ``round_to=None`` falls through
+    # to rcParams' 2 significant figures and would report a rounded R-hat.
+    summ = az.summary(idata, round_to="none", kind="diagnostics")
+    rhat = float(summ["r_hat"].max())
+    ess = float(min(summ["ess_bulk"].min(), summ["ess_tail"].min()))
+    div = int(np.asarray(idata.sample_stats["diverging"].values).sum())
+    return f"max R-hat {rhat:.4f}, min ESS {ess:.0f}, divergences {div}"
 
 
 def _fit(symbol: str, observation: str, draws: int, tune: int, chains: int,

@@ -63,7 +63,7 @@ Interpretation requires the two mechanical inflators named in §2: equal-tailed 
 
 ## 5. Follow-up B — blending guessing-floor link prototype (results)
 
-`scripts/likelihood_sensitivity_prototypes.py blending-chance-floor` refits the `lrp-rli-itt-008` structure (n = 54, 10 items) twice with shared priors and sampler (4 chains × 2,000 draws, `nutpie`, `target_accept` 0.92, seed 20260726; both fits: R-hat ≤ 1.000, bulk-ESS ≥ 6,000, 0 divergences), differing only in the link. Validation: the standard arm reproduces the stored reporting fit (τ **+0.44** here vs **+0.45** stored; items-scale effect **+0.96** vs **+0.99**).
+`scripts/likelihood_sensitivity_prototypes.py blending-chance-floor` refits the `lrp-rli-itt-008` structure (n = 54, 10 items) twice with shared priors and sampler (4 chains × 2,000 draws, `nutpie`, `target_accept` 0.92, seed 20260726; both fits: R-hat ≤ 1.002, min ESS ≥ 4,137, 0 divergences — comfortably inside the suite gate), differing only in the link. Validation: the standard arm reproduces the stored reporting fit (τ **+0.44** here vs **+0.45** stored; items-scale effect **+0.96** vs **+0.99**).
 
 | model                                       | τ (logit), median [89 %] | treatment effect (items), median [89 %] | P(> 0) |
 | ------------------------------------------- | ------------------------ | --------------------------------------- | ------ |
@@ -74,7 +74,7 @@ Respecting the guessing floor roughly **halves the items-scale treatment effect 
 
 ## 6. Follow-up C — word-reading Conway–Maxwell-binomial prototype (results)
 
-`scripts/likelihood_sensitivity_prototypes.py word-reading-cmb` refits the `lrp-rli-itt-010` structure (n = 53, 79 items; same shared priors and sampler; both fits: R-hat ≤ 1.000, bulk-ESS ≥ 1,493, 0 divergences), swapping the Beta-Binomial for the Conway–Maxwell-binomial with ν ~ LogNormal(0, 0.5). Validation: the standard arm reproduces the stored reporting fit to three decimals (τ +0.354 both).
+`scripts/likelihood_sensitivity_prototypes.py word-reading-cmb` refits the `lrp-rli-itt-010` structure (n = 53, 79 items; same shared priors and sampler; both fits: R-hat ≤ 1.002, min ESS ≥ 1,494, 0 divergences), swapping the Beta-Binomial for the Conway–Maxwell-binomial with ν ~ LogNormal(0, 0.5). Validation: the standard arm reproduces the stored reporting fit to three decimals (τ +0.354 both).
 
 | model                   | τ (logit), median [89 %] | treatment effect (items), median [89 %] | P(> 0) | dispersion                | 50 % / 90 % coverage |
 | ----------------------- | ------------------------ | --------------------------------------- | ------ | ------------------------- | -------------------- |
