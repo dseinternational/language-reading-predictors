@@ -84,6 +84,7 @@ Gottman
 Graphviz
 Grasman
 Gunn
+Guttman
 HPDI
 HSGP
 Haldane
@@ -106,6 +107,7 @@ Isager
 JCPP
 Jakulin
 Jarrold
+Kadane
 Kapalková
 Kass
 Kostewicz
@@ -131,7 +133,6 @@ LRPLF
 LRPMM
 LRPSURV
 LSAM
-MAXJOBS
 Laan
 Lakens
 Lawson
@@ -146,6 +147,7 @@ Loveall
 Lucas
 Lyster
 Lüdecke
+MAXJOBS
 MCMC
 MCSE
 MIMIC
@@ -219,6 +221,7 @@ RLOG
 RMSE
 RMSEA
 Raftery
+Rasch
 Ratz
 Reichow
 Rhemtulla
@@ -284,6 +287,7 @@ agespeak
 anchoring
 aptgram
 aptinfo
+argmax
 asis
 assoc
 autoregressive
@@ -308,6 +312,7 @@ brms
 bytree
 caveated
 celf
+chokepoint
 cloglog
 coef
 coeffs
@@ -410,8 +415,8 @@ importorskip
 incl
 invlogit
 isfinite
-isna
 isinstance
+isna
 issubset
 iterdir
 iterrows
@@ -461,7 +466,6 @@ miscalibration
 monofont
 monofontoptions
 morphosyntax
-mypy
 multicollinear
 multicollinearity
 multimethod
@@ -469,22 +473,23 @@ multitrait
 mumedu
 mumedupost
 mumocc
+mypy
 ncol
 ndarray
 networkx
 noconstruct
 nogp
 nohup
-noqa
 noncentred
 nonlinear
 nonparametric
 nonword
 nonwords
 nonzero
-nunique
+noqa
 numchil
 numpy
+nunique
 nutpie
 offfloor
 operationalisation
@@ -494,6 +499,8 @@ operatorname
 optuna
 orcid
 othertimeread
+overcover
+overcoverage
 overdispersion
 overfit
 overfits
@@ -523,10 +530,10 @@ readgrp
 recomputation
 redescribing
 reframing
+removesuffix
 reparameterisation
 reparameterise
 reparameterised
-removesuffix
 replite
 repr
 resid
@@ -558,6 +565,7 @@ scikit
 scipy
 scrartcl
 scratchpad
+secondaries
 sens
 shutil
 sigmas
@@ -586,10 +594,13 @@ trivariate
 trog
 unadjustable
 unblockable
-chokepoint
+uncentred
 unclustered
 unconfounded
 unconverged
+undercoverage
+underdispersed
+underdispersion
 unfittable
 unidimensionality
 univariates
@@ -613,10 +624,3 @@ yarcsi
 ypre
 zproc
 ΔELPD
-secondaries
-uncentred
-argmax
-cloglog
-disattenuated
-disattenuation
-surv
