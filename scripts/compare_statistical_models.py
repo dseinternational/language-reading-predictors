@@ -177,12 +177,48 @@ def _gate_status(model_id: str, config: str) -> str:
             payload = json.load(f)
     except Exception:  # pragma: no cover - defensive
         return "MISSING"
-    return "PASS" if payload.get("passed") is True else "REVIEW"
+    if payload.get("passed") is True:
+        return "PASS"
+    # A recorded, signed-off gate exception (#412 machinery) releases a model into
+    # the comparison layer on exactly the checks it waives, as it already does into
+    # the report. Waiving is per-check: a fit failing anything the exception does not
+    # name stays REVIEW. ``diagnostics_summary.json`` keeps ``passed: false`` as the
+    # measured truth either way, so this reads the exception rather than the verdict.
+    if _gate_exception_covers_failures(model_id, config, payload):
+        return "GATE_EXCEPTION"
+    return "REVIEW"
+
+
+def _gate_exception_covers_failures(model_id: str, config: str, payload: dict) -> bool:
+    """True when every failing check is named by the run's recorded gate exception."""
+    checks = payload.get("checks")
+    if not isinstance(checks, dict):
+        return False
+    # Fail closed, matching ``reporting._convergence_gate_failures``: anything that is
+    # not literally True is a failure. Counting only literal False would let a null or
+    # missing check (e.g. ``rhat: null`` beside a waived divergence) pass here while
+    # the report correctly stays blocked.
+    failing = {name for name, ok in checks.items() if ok is not True}
+    if not failing:
+        return False
+    cfg_path = os.path.join(_run_dir(model_id, config), "config.json")
+    try:
+        with open(cfg_path) as f:
+            cfg = json.load(f)
+    except Exception:  # pragma: no cover - defensive
+        return False
+    extra = cfg.get("spec_extra") or {}
+    exception = extra.get("gate_exception")
+    if not isinstance(exception, dict):
+        return False
+    waived = {str(c) for c in (exception.get("checks") or [])}
+    return bool(waived) and failing <= waived
 
 
 def _gate_ok(model_id: str, config: str) -> bool:
-    """True only if the run exists and its gate passed."""
-    return _gate_status(model_id, config) == "PASS"
+    """True when the run exists and is releasable — a clean pass, or a pass on every
+    check bar those a recorded, signed-off exception waives."""
+    return _gate_status(model_id, config) in ("PASS", "GATE_EXCEPTION")
 
 
 # ---------------------------------------------------------------------------
@@ -1083,6 +1119,14 @@ def _unreliable_pareto_k(model_ids, config: str) -> dict[str, float]:
     return unreliable
 
 
+# Exact-refit repair budget for unreliable PSIS-LOO points (#438). The mechanism
+# family's HSGP pairs carry one or two influential observations out of ~150; a model
+# needing more than a handful of refits is telling us something about its structure,
+# not about importance sampling, so it declines to the per-model table instead.
+_RELOO_K_THRESHOLD = 0.7
+_RELOO_MAX_REFITS = 5
+
+
 def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
     """Write ``az.compare`` over the fitted models in ``ids`` (LOO).
 
@@ -1174,24 +1218,126 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
         return True
 
     unreliable = _unreliable_pareto_k(traces, config)
+    method = "psis"
+    refit_counts: dict[str, int] = {}
     if unreliable:
-        reason = "unreliable PSIS-LOO Pareto-k (> good_k): " + ", ".join(
-            f"{mid}={maxk:.2f}" for mid, maxk in sorted(unreliable.items())
-        )
+        # Repair the handful of influential points by exact refit (#438) rather than
+        # abandoning the contrast. Every HSGP mechanism pair in this suite has one or
+        # two such points out of ~150, so this costs a few refits, not ~150. If the
+        # repair is unavailable (unsupported family, too many bad points, or a refit
+        # that cannot be proved comparable to the fit), fall back to the per-model
+        # table exactly as before — never a delta computed on unreliable weights.
+        repaired, refit_counts, failure = _reloo_repair(traces, config, unreliable)
+        if repaired is None:
+            reason = "unreliable PSIS-LOO Pareto-k (> good_k): " + ", ".join(
+                f"{mid}={maxk:.2f}" for mid, maxk in sorted(unreliable.items())
+            )
+            if failure:
+                reason += f"; exact-refit repair unavailable ({failure})"
+            print(
+                f"[warn] {reason}; writing per-model elpd_loo instead of az.compare "
+                "deltas."
+            )
+            _write_separate_loo(traces, sizes, config, out_path, reason=reason)
+            return True
         print(
-            f"[warn] {reason}; writing per-model elpd_loo instead of az.compare "
-            "deltas."
+            "[info] repaired unreliable Pareto-k by exact refit: "
+            + ", ".join(f"{mid}={n}" for mid, n in sorted(refit_counts.items()))
+            + " refit(s)"
         )
-        _write_separate_loo(traces, sizes, config, out_path, reason=reason)
-        return True
+        method = "psis+reloo"
+        cmp = az.compare(repaired)
+    else:
+        cmp = az.compare(traces)  # ic="loo" by default
 
-    cmp = az.compare(traces)  # ic="loo" by default
     cmp = cmp.copy()
     cmp.insert(0, "config", config)  # record the tier that produced the row
     cmp.insert(1, "row_identity", identity_source)
     cmp.insert(2, "comparison_valid", True)
+    # Provenance: a reader must be able to see that a repair happened rather than
+    # infer it from a silently-valid row.
+    cmp.insert(3, "loo_method", method)
+    cmp.insert(4, "n_exact_refits", [int(refit_counts.get(str(i), 0)) for i in cmp.index])
+    # Interpretability verdict (#438 option B). A nested pair differing by one
+    # regularised coefficient sits near the floor of what predictive comparison can
+    # resolve at this sample size, so an inconclusive contrast is the *expected*
+    # outcome and is recorded as such — it is not a failed comparison. Validity is
+    # about whether the number can be trusted; this column is about whether it
+    # discriminates.
+    # ``elpd_diff`` is absent when the comparison backend reports only per-model
+    # scores; record the verdict as unavailable rather than aborting a whole
+    # comparison run over one missing column.
+    diffs = cmp["elpd_diff"] if "elpd_diff" in cmp.columns else [None] * len(cmp)
+    cmp.insert(5, "elpd_verdict", [_elpd_verdict(v) for v in diffs])
     cmp.to_csv(out_path)
     return True
+
+
+def _elpd_verdict(elpd_diff: float) -> str:
+    """Label an ``elpd_diff`` by whether it discriminates between the models.
+
+    Follows the suite's existing ``|elpd_diff| < 4`` rule: below that the models are
+    not distinguished by LOO, and the standard error is itself unreliable in that
+    regime, so the magnitude governs rather than the ratio.
+    """
+    if elpd_diff is None or not np.isfinite(elpd_diff):
+        return "unavailable"
+    if abs(float(elpd_diff)) < 4:
+        return "inconclusive (|elpd_diff| < 4)"
+    return "discriminating (|elpd_diff| >= 4)"
+
+
+def _reloo_repair(
+    traces: dict, config: str, unreliable: dict[str, float]
+) -> tuple[dict | None, dict[str, int], str]:
+    """Refit the high-Pareto-k points exactly and return repaired traces.
+
+    Returns ``(repaired_or_None, refit_counts, failure_reason)``. Repair is attempted
+    only for the ``mechanism`` family, which is where the problem lives; any other
+    family, or any model whose bad-point count exceeds ``_RELOO_MAX_REFITS``, declines
+    and the caller falls back to the per-model table.
+    """
+    from arviz_stats import loo as _loo_fn, reloo as _reloo_fn
+
+    from language_reading_predictors.statistical_models import loo_refit as _loo_refit
+    from language_reading_predictors.statistical_models.registry import discover_models
+
+    models = discover_models()
+    repaired: dict = {}
+    counts: dict[str, int] = {}
+    for mid, idata in traces.items():
+        definition = MODEL_REGISTRY.get(mid)
+        if definition is None or definition.kind != "mechanism":
+            return None, {}, f"{mid} is not a mechanism model"
+        lo = _loo_fn(idata, pointwise=True)
+        # Use the fit's *own* persisted ``good_k`` — the same threshold the outer
+        # reliability check applied — not a hard-coded 0.7. They differ by tier (dev
+        # writes good_k = 0.6667), and a lower threshold here would count a k = 0.68
+        # point as fine, return the model unrepaired, and let the comparison be marked
+        # valid on exactly the weights the outer check had just rejected.
+        _, threshold = _max_pareto_k(mid, config)
+        n_bad = int((np.asarray(lo.pareto_k) > threshold).sum())
+        if n_bad == 0:
+            # Store the pointwise LOO object, not the raw trace, so every entry handed
+            # to az.compare is the same type and the comparison reuses these scores
+            # rather than recomputing LOO for some models and not others.
+            repaired[mid] = lo
+            counts[mid] = 0
+            continue
+        if n_bad > _RELOO_MAX_REFITS:
+            return None, {}, f"{mid} has {n_bad} points above k={threshold:.4g}"
+        cfg_path = os.path.join(_run_dir(mid, config), "config.json")
+        try:
+            with open(cfg_path) as fh:
+                cfg = json.load(fh)
+            spec = models[mid].SPEC
+            wrapper = _loo_refit.build_mechanism_wrapper(spec, idata, cfg)
+            new_loo = _reloo_fn(wrapper, loo_orig=lo, k_threshold=threshold, pointwise=True)
+        except Exception as exc:  # noqa: BLE001 - reported, never silently swallowed
+            return None, {}, f"{mid}: {exc}"
+        repaired[mid] = new_loo
+        counts[mid] = wrapper.n_refits
+    return repaired, counts, ""
 
 
 def mechanism_loo_compare(config: str, out_path: str) -> bool:

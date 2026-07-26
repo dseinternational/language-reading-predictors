@@ -64,6 +64,7 @@ from language_reading_predictors.statistical_models import (
     historical as _historical,
     lcf_inference as _lcf_inference,
     lcf_summaries as _lcf_summaries,
+    mechanism as _mechanism,
     priors as _priors,
     reporting as _report,
     survival as _survival,
@@ -4000,144 +4001,23 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
-    # A model may restrict the prepared outcomes (e.g. LRP72 uses only L/B/N) so
-    # ``drop_missing_pre`` does not discard rows for measures the model ignores.
-    extra_outcomes = spec.extra.get("outcomes")
-    # Raw-covariate adjusters (revised-DAG confounders that are not bounded-count
-    # measures): hearing (hs/hs_missing), speech (deapp_c), phonological memory
-    # (erbto), sessions (attend). Entered as standardised linear terms (#245).
-    #
-    # WAVE: split by semantics, not loaded wholesale from the pre row (#258 review,
-    # P1). The DAG is contemporaneous, and the exposure, outcome and bounded-count
-    # confounders are all read from the transition's POST row — so the *state*
-    # covariates (hearing, speech, phonological memory) must come from the post row
-    # too. Reading them from the pre row fits a hybrid pre/post adjustment set that
-    # no graph licenses. Only ``attend`` is an *interval* variable (sessions
-    # delivered during the pre -> post window; recorded t1-t3, absent at t4), so it
-    # alone belongs on the pre row. See ``preprocessing.INTERVAL_COVARIATES``.
-    adjust_for = tuple(spec.extra.get("adjust_for", ()))
-    # Complete-case comparator: drop the mean-imputed rows so the confounders are
-    # genuinely observed. Mean-imputation + a missingness indicator keeps every
-    # child, but does not by itself guarantee adequate confounding control, so the
-    # imputed fit needs this comparator beside it (#258 review).
-    require_observed = tuple(spec.extra.get("require_observed", ()))
-    # Covariate exposure (#311 route (b)): the mechanism variable is a standardised
-    # continuous covariate (e.g. phonological memory ``erbto``, whose documented test
-    # maximum is unrecorded, so it cannot honestly be a bounded-count Measure). Load
-    # it — and, when the spec complete-cases on it, its ``_missing`` flag for the
-    # loader's ``require_observed`` filter — alongside the adjusters. It must not
-    # also be in ``adjust_for``: the factory gives it ``beta_mech``, so a ``gamma``
-    # term too would enter it twice.
-    mechanism_is_covariate = bool(spec.extra.get("mechanism_is_covariate", False))
-    load_covariates = adjust_for
-    if mechanism_is_covariate:
-        if spec.mechanism_symbol in adjust_for:
-            raise ValueError(
-                f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} "
-                "must not also appear in adjust_for (it would enter the linear "
-                "predictor twice)."
-            )
-        extra_load: tuple[str, ...] = (spec.mechanism_symbol,)
-        if spec.mechanism_symbol in require_observed:
-            extra_load += (f"{spec.mechanism_symbol}_missing",)
-        load_covariates = tuple(dict.fromkeys((*adjust_for, *extra_load)))
-    # A covariate moderator that is not intrinsic age (e.g. phonological memory
-    # ``erbto``) must also be loaded: the factory reads it from
-    # ``prepared.covariates`` whereas age alone is intrinsic (``prepared.A_std``).
-    # Mirrors the ``mechanism_is_covariate`` load above; the moderator must not sit
-    # in ``adjust_for`` (the factory gives it ``gamma_mod``, not a plain ``gamma``).
-    if spec.extra.get("moderator_is_covariate") and spec.extra.get(
-        "moderator_symbol"
-    ) not in (None, "A"):
-        mod_sym = spec.extra["moderator_symbol"]
-        if mod_sym in adjust_for:
-            raise ValueError(
-                f"{spec.model_id}: covariate moderator {mod_sym!r} must not also "
-                "appear in adjust_for (it would enter the linear predictor twice)."
-            )
-        mod_load: tuple[str, ...] = (mod_sym,)
-        # When the spec complete-cases on the moderator, load its ``_missing`` flag
-        # too so the loader's ``require_observed`` filter can drop the mean-imputed
-        # rows. Moderating by an average-filled effect modifier is not meaningful:
-        # a child with a missing modifier would be assigned the sample-mean value
-        # and then read as sitting at that (fictional) point on the interaction.
-        # Mirrors the ``mechanism_is_covariate`` load above.
-        if mod_sym in require_observed:
-            mod_load += (f"{mod_sym}_missing",)
-        load_covariates = tuple(dict.fromkeys((*load_covariates, *mod_load)))
-    pre_adj, post_adj = split_covariates_by_wave(load_covariates)
-    _kw = {
-        "covariates": pre_adj,
-        "post_covariates": post_adj,
-        "require_observed": require_observed,
-    }
-    if extra_outcomes is not None:
-        prepared = load_and_prepare(
-            phase_mode="all", outcomes=tuple(extra_outcomes), **_kw
-        )
-    else:
-        prepared = load_and_prepare(phase_mode="all", **_kw)
+    # Data preparation and construction live in the family-owned ``mechanism``
+    # module (#438) so that a leave-one-out refit for ``reloo`` builds the *same*
+    # model as this fit rather than a re-derived lookalike. Behaviour-preserving
+    # relocation: the loader-argument derivation, confounder filtering and factory
+    # keyword mapping moved verbatim.
+    plan = _mechanism.resolve_mechanism_plan(spec)
+    prepared = plan.prepared
     ctx.prepared = prepared
-    # A constant covariate (e.g. a ``_missing`` indicator that is all-zero on the
-    # fitted rows) is dropped by the loader and receives no coefficient, so it must
-    # not be built into the model nor reported as adjusted-for.
-    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
-    if mechanism_is_covariate and spec.mechanism_symbol not in prepared.covariates:
-        # The drop-constant policy is fine for an adjuster but fatal for the
-        # exposure itself — there is no model without it.
-        raise ValueError(
-            f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} was "
-            "dropped by the loader (constant on the fitted rows); cannot fit."
-        )
+    adjust_for = plan.adjust_for
+    confounders = list(plan.confounders)
+    moderator_symbol = spec.extra.get("moderator_symbol")
+    mechanism_is_covariate = bool(spec.extra.get("mechanism_is_covariate", False))
 
     _print_header(ctx)
 
     section_header("Build model")
-    moderator_symbol = spec.extra.get("moderator_symbol")
-    # Drop the autoregressive baseline (any ``*_pre`` token, e.g. W_pre / N_pre)
-    # from the confounder list — it enters via ``adjust_baseline_symbol``.
-    from language_reading_predictors.statistical_models.measures import MEASURES
-
-    confounders = [s for s in spec.adjustment if not s.endswith("_pre")]
-    if moderator_symbol is not None:
-        # The moderator is carried by its standardised main effect + interaction
-        # in the factory, so drop it from the plain confounder loop to avoid a
-        # collinear duplicate main effect. The standardised term still adjusts
-        # for M, preserving any DAG-required conditioning (e.g. E in LRP71).
-        confounders = [s for s in confounders if s != moderator_symbol]
-
-    built = _factories.build_mechanism_model(
-        prepared,
-        mechanism_symbol=spec.mechanism_symbol,
-        outcome_symbol=spec.outcome_symbol or "W",
-        adjust_baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
-        confounder_symbols=tuple(
-            s for s in confounders if s in ("G", "A") or s in MEASURES
-        ),
-        use_age_gp=spec.extra.get("use_age_gp", False),
-        phase_specific_mechanism=spec.extra.get("phase_specific_mechanism", False),
-        use_subject_random_intercept=spec.extra.get(
-            "use_subject_random_intercept", True
-        ),
-        moderator_symbol=moderator_symbol,
-        moderator_is_covariate=spec.extra.get("moderator_is_covariate", False),
-        include_interaction=spec.extra.get("include_interaction", True),
-        linear_mechanism=spec.extra.get("linear_mechanism", False),
-        adjust_for=adjust_for,
-        mechanism_is_covariate=mechanism_is_covariate,
-        mechanism_at_pre=spec.extra.get("mechanism_at_pre", False),
-        # Thin-support HSGP reparameterisation (issue #430): a spec may shrink the
-        # basis count and/or tighten the lengthscale prior for a mechanism curve whose
-        # exposure support is too thin for the shared defaults (e.g. mech-190 blending).
-        # Both default to None -> the factory keeps _MECH_HSGP_M / ell_prior_mech, so
-        # every other mechanism model is byte-identical.
-        mech_hsgp_m=spec.extra.get("mech_hsgp_m"),
-        mech_lengthscale_prior=(
-            _priors.ell_prior_mech_tight()
-            if spec.extra.get("mech_lengthscale_tight", False)
-            else None
-        ),
-    )
+    built = _mechanism.build_mechanism_for_plan(plan)
     _attach_built(ctx, built)
 
     _render_model_graph(ctx)
