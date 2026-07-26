@@ -60,6 +60,9 @@ from language_reading_predictors.models._reporting import (
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.sampling_quality import (
+    sampling_quality as _sampling_quality,
+)
 from language_reading_predictors.statistical_models.plotting import (
     save_plotcollection,
     save_styled_figure,
@@ -571,22 +574,18 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
         "n_divergences": None,
     }
     try:
-        # ``round_to="none"`` (the string) genuinely disables rounding; ``round_to=None``
-        # falls through to ``rcParams["stats.round_to"]`` (2 sig figs) and would silently
-        # gate on rounded R-hat/ESS — the dseinternational/research#65 bug this check must
-        # not reproduce (it advertises "unrounded" signals above).
-        summ = az.summary(
-            trace, var_names=var_names, round_to="none", kind="diagnostics"
-        )
-        max_rhat = float(summ["r_hat"].max())
-        min_ess = float(min(summ["ess_bulk"].min(), summ["ess_tail"].min()))
-        n_div = int(np.asarray(trace.sample_stats["diverging"].values).sum())
-        bfmi = _bfmi_per_chain(trace)
-        min_bfmi = (
-            float(np.min(bfmi))
-            if bfmi is not None and np.all(np.isfinite(bfmi))
-            else None
-        )
+        # Unrounded extraction lives in ``sampling_quality`` — see that module for the
+        # ``round_to="none"`` and coercion traps it exists to stop recurring.
+        signals = _sampling_quality(trace, var_names=var_names)
+        max_rhat = signals.max_rhat
+        min_ess = signals.min_ess
+        min_bfmi = signals.min_bfmi
+        if signals.n_divergences is None:
+            # No ``diverging`` in sample_stats: the gate cannot be evaluated, which is
+            # the "uncheckable" case (``converged=None``), not a failure. Previously the
+            # missing key raised and landed in the except branch below.
+            raise KeyError("sample_stats has no 'diverging' variable")
+        n_div = signals.n_divergences
         result.update(
             max_rhat=max_rhat,
             min_ess=min_ess,

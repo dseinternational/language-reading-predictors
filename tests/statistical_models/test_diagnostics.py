@@ -15,6 +15,9 @@ import pytest
 import xarray as xr
 
 from language_reading_predictors.statistical_models import diagnostics as diag
+from language_reading_predictors.statistical_models import (
+    sampling_quality as sampling_quality_mod,
+)
 
 
 def test_run_psense_removes_stale_summary_when_recomputation_fails(
@@ -610,7 +613,11 @@ def test_subfit_convergence_catches_bad_nuisance_parameter():
 
 
 def test_subfit_convergence_flags_low_bfmi(monkeypatch):
-    monkeypatch.setattr(diag, "_bfmi_per_chain", lambda _trace: np.asarray([0.2, 0.8]))
+    # BFMI is now read by the shared ``sampling_quality`` extractor, so that is the
+    # seam to patch; ``diag._bfmi_per_chain`` is no longer on this call path.
+    monkeypatch.setattr(
+        sampling_quality_mod, "_bfmi_per_chain", lambda _trace: np.asarray([0.2, 0.8])
+    )
     result = diag.subfit_convergence(
         _synthetic_trace(0.0), label="low-bfmi", var_names=["tau"]
     )

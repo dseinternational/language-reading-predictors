@@ -34,7 +34,6 @@ import os
 import shutil
 import warnings
 
-import arviz as az
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -47,6 +46,9 @@ from language_reading_predictors.statistical_models.factories import build_itt_m
 from language_reading_predictors.statistical_models.itt import resolve_itt_run_plan
 from language_reading_predictors.statistical_models.measures import MEASURES, ROPE_DELTA
 from language_reading_predictors.statistical_models.preprocessing import load_and_prepare
+from language_reading_predictors.statistical_models.sampling_quality import (
+    sampling_quality,
+)
 
 matplotlib.use("Agg")
 warnings.filterwarnings("ignore")
@@ -95,19 +97,13 @@ def _refit_convergence(model, idata) -> dict:
     would fall through to ``rcParams["stats.round_to"]`` at 2 sig figs and let a
     borderline R-hat pass); free RVs match the headline gate's coverage.
     """
-    try:
-        free = [rv.name for rv in model.free_RVs]
-        summ = az.summary(idata, var_names=free, round_to="none", kind="diagnostics")
-        max_rhat = float(np.nanmax(summ["r_hat"].values))
-        min_ess = float(np.nanmin(summ[["ess_bulk", "ess_tail"]].min(axis=1).values))
-    except Exception:  # pragma: no cover - defensive
-        max_rhat, min_ess = float("nan"), float("nan")
     n_div = None
     try:
-        if "diverging" in idata.sample_stats:
-            n_div = int(np.asarray(idata.sample_stats["diverging"].values).sum())
+        free = [rv.name for rv in model.free_RVs]
+        signals = sampling_quality(idata, var_names=free)
+        max_rhat, min_ess, n_div = signals.max_rhat, signals.min_ess, signals.n_divergences
     except Exception:  # pragma: no cover - defensive
-        pass
+        max_rhat, min_ess = float("nan"), float("nan")
     converged = bool(
         np.isfinite(max_rhat)
         and max_rhat <= 1.01

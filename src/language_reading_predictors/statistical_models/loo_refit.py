@@ -35,7 +35,6 @@ import warnings
 from dataclasses import dataclass
 from typing import Any
 
-import arviz as az
 import numpy as np
 import pymc as pm
 from arviz_stats.loo.wrapper import SamplingWrapper
@@ -43,12 +42,14 @@ from dse_research_utils.statistics.diagnostics import (
     BFMI_THRESHOLD,
     ESS_THRESHOLD,
     RHAT_MAX,
-    _bfmi_per_chain,
 )
 
 from language_reading_predictors.statistical_models import mechanism as _mechanism
 from language_reading_predictors.statistical_models.factories import _subset
 from language_reading_predictors.statistical_models.preprocessing import PreparedData
+from language_reading_predictors.statistical_models.sampling_quality import (
+    sampling_quality,
+)
 
 __all__ = ["MechanismSamplingWrapper", "RefitPlan", "build_mechanism_wrapper"]
 
@@ -195,20 +196,25 @@ class MechanismSamplingWrapper(SamplingWrapper):
         return idata
 
     def _assert_refit_converged(self, idata) -> None:
-        """Fail the refit unless it clears the suite's sampling-quality thresholds."""
-        summary = az.summary(idata, round_to=None)
-        max_rhat = float(np.nanmax(summary["r_hat"].to_numpy()))
-        min_ess = float(np.nanmin(summary["ess_bulk"].to_numpy()))
-        divergences = int(np.asarray(idata.sample_stats["diverging"].values).sum())
-        # Use the shared per-chain helper: ``az.bfmi`` returns a DataTree in ArviZ 1.x,
-        # which cannot be coerced to an array.
-        bfmi = _bfmi_per_chain(idata)
-        min_bfmi = (
-            float(np.min(bfmi)) if bfmi is not None and np.all(np.isfinite(bfmi)) else np.inf
-        )
+        """Fail the refit unless it clears the suite's sampling-quality thresholds.
+
+        Signals come from :func:`sampling_quality` so the refit gate reads them exactly
+        as the fit-time gate does. This previously called ``az.summary(round_to=None)``,
+        which rounds to two significant figures: every R-hat from 1.011 to 1.049 became
+        ``1.0`` and cleared the ``<= 1.01`` threshold, so the R-hat arm of this gate was
+        effectively ``< 1.05``. It also took ESS from ``ess_bulk`` alone, where the gate
+        takes the bulk/tail minimum.
+        """
+        signals = sampling_quality(idata)
+        max_rhat = signals.max_rhat
+        min_ess = signals.min_ess
+        divergences = signals.n_divergences
+        # A missing BFMI is not treated as a failure here (unlike the fit-time sub-fit
+        # check), preserving this gate's original policy.
+        min_bfmi = np.inf if signals.min_bfmi is None else signals.min_bfmi
 
         failures = []
-        if divergences > GATE_MAX_DIVERGENCES:
+        if divergences is None or divergences > GATE_MAX_DIVERGENCES:
             failures.append(f"{divergences} divergences")
         if not np.isfinite(max_rhat) or max_rhat > RHAT_MAX:
             failures.append(f"max R-hat {max_rhat:.4f}")

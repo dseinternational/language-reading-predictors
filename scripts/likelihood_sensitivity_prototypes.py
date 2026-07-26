@@ -52,6 +52,9 @@ from scipy.stats import betabinom as sp_betabinom
 
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.preprocessing import load_and_prepare
+from language_reading_predictors.statistical_models.sampling_quality import (
+    sampling_quality,
+)
 
 EPSILON = 1e-6
 SEED = 20260726
@@ -68,14 +71,7 @@ def _summary(x: np.ndarray, label: str) -> str:
 
 
 def _diagnostics(idata) -> str:
-    # Mirrors statistical_models.diagnostics: ``round_to="none"`` (the string) genuinely
-    # disables rounding, so R-hat/ESS are read unrounded — ``round_to=None`` falls through
-    # to rcParams' 2 significant figures and would report a rounded R-hat.
-    summ = az.summary(idata, round_to="none", kind="diagnostics")
-    rhat = float(summ["r_hat"].max())
-    ess = float(min(summ["ess_bulk"].min(), summ["ess_tail"].min()))
-    div = int(np.asarray(idata.sample_stats["diverging"].values).sum())
-    return f"max R-hat {rhat:.4f}, min ESS {ess:.0f}, divergences {div}"
+    return sampling_quality(idata).summary_line()
 
 
 def _fit(symbol: str, observation: str, draws: int, tune: int, chains: int,
