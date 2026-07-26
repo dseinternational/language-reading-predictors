@@ -31,9 +31,19 @@ _console = Console()
 
 
 def _subdirs(root: Path) -> list[Path]:
+    """Published fit directories, excluding in-flight output transactions.
+
+    ``StatisticalFitContext.reset_output_dir`` stages each run in a *hidden* sibling
+    (``.<id>-<config>.staging-XXXX``) and promotes it only on success, so a dotted
+    directory is either a run in progress or an abandoned one. Uploading one would
+    publish the half-written artefacts of a fit that was never accepted, under a
+    label no report or comparison refers to.
+    """
     if not root.is_dir():
         return []
-    return sorted(d for d in root.iterdir() if d.is_dir())
+    return sorted(
+        d for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")
+    )
 
 
 def resolve_targets(target: str) -> list[tuple[str, Path]]:
