@@ -36,6 +36,10 @@ from language_reading_predictors.statistical_models.itt import (
     declared_settings_dict,
     resolve_itt_run_plan,
 )
+from language_reading_predictors.statistical_models.level_factors import (
+    LevelFactorsRunPlan,
+    resolve_level_factors_run_plan,
+)
 from language_reading_predictors.statistical_models.provenance import (
     run_provenance,
     write_environment_lock,
@@ -2273,12 +2277,22 @@ def _gain_factors_run_plan(context: StatisticalFitContext) -> GainFactorsRunPlan
     return resolve_gain_factors_run_plan(context.spec)
 
 
+def _level_factors_run_plan(context: StatisticalFitContext) -> LevelFactorsRunPlan:
+    """Return the level-factor plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, LevelFactorsRunPlan):
+        return resolved_plan
+    return resolve_level_factors_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
-    """The typed run plan for families that have one (ITT, gain factors), else None."""
+    """The typed run plan for families that have one (ITT, gain / level factors), else None."""
     if context.spec.kind == "itt":
         return _itt_run_plan(context)
     if context.spec.kind == "gain_factors":
         return _gain_factors_run_plan(context)
+    if context.spec.kind == "level_factors":
+        return _level_factors_run_plan(context)
     return None
 
 
