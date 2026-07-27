@@ -2961,6 +2961,7 @@ def level_t2_marginal_effect(
     interaction_term: str = "gamma_grp_ability",
     ability: np.ndarray | None = None,
     eta_name: str = "eta",
+    group: str = "posterior",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Per-draw t2 randomised contrast and its items-scale AME (LRPLF, #127).
 
@@ -2988,7 +2989,10 @@ def level_t2_marginal_effect(
     standardised ability covariate aligned with ``eta``'s ``obs_id`` axis (pass
     ``None`` when the model has no group×ability term).
     """
-    posterior = trace.posterior
+    # ``group`` selects the posterior (the estimate) or the prior (the estimand-scale
+    # prior-predictive pushforward, #389 finding 3); both carry eta / contrast /
+    # interaction, so the same net-out transform applies to either.
+    posterior = getattr(trace, group)
     phase = np.asarray(phase)
     G = np.asarray(G, dtype=float)
     mask = phase == t2_phase
@@ -3034,6 +3038,45 @@ def level_t2_marginal_effect(
     # separately, not in the causal card (issue #271 item 5).
     ame_prob = (expit(eta0 + contrast_draws[None, :]) - expit(eta0)).mean(axis=0)  # (S,)
     return contrast_draws, ame_prob
+
+
+def level_prior_pushforward(
+    trace: xr.DataTree,
+    *,
+    phase: np.ndarray,
+    G: np.ndarray,
+    n_trials: int,
+    ability: np.ndarray | None = None,
+    ci_prob: float = 0.95,
+) -> dict[str, float]:
+    """Push the **prior** on the t2 group contrast through the items-scale AME (#389 finding 3).
+
+    The estimand-scale prior-predictive check for the level family, the counterpart
+    of :func:`prior_pushforward` for the ITT/gain families: before seeing data, what
+    does the prior on the t2 group term imply for the items-scale average marginal
+    effect? It runs :func:`level_t2_marginal_effect` on the persisted ``prior`` group,
+    so the prior is pushed through the *same* t2 net-out transform as the posterior
+    estimate (the level model's per-timepoint group vector + group x ability term
+    means the plain ``eta - term*G`` ITT pushforward does not apply). Returns the same
+    schema as :func:`prior_pushforward` so ``config.json`` and any consumer treat the
+    two families' prior checks uniformly.
+    """
+    contrast_draws, ame_prob = level_t2_marginal_effect(
+        trace, phase=phase, G=G, ability=ability, group="prior"
+    )
+    items = ame_prob * float(n_trials)
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    return {
+        "prior_logit_median": float(np.median(contrast_draws)),
+        "prior_logit_lo": float(np.quantile(contrast_draws, lo_q)),
+        "prior_logit_hi": float(np.quantile(contrast_draws, hi_q)),
+        "prior_items_median": float(np.median(items)),
+        "prior_items_lo50": float(np.quantile(items, 0.25)),
+        "prior_items_hi50": float(np.quantile(items, 0.75)),
+        "prior_items_lo": float(np.quantile(items, lo_q)),
+        "prior_items_hi": float(np.quantile(items, hi_q)),
+        "n_trials": int(n_trials),
+    }
 
 
 def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame:
@@ -3284,6 +3327,28 @@ def _kf_csv_row(output_dir, name: str) -> dict | None:
     if df.empty:
         return None
     return df.iloc[0].to_dict()
+
+
+def _kf_psense_diagnosis(output_dir, term: str) -> str | None:
+    """Power-scaling diagnosis for ``term`` from ``psense_summary.csv`` (#389 finding 3).
+
+    Returns the ``diagnosis`` string (e.g. "potential prior-data conflict") when the
+    parameter is flagged, or ``None`` when the file or row is absent or the parameter
+    is clear — so a caller can surface a warning beside the headline without breaking
+    fits that never ran power-scaling."""
+    path = os.path.join(str(output_dir), "psense_summary.csv")
+    if not os.path.exists(path):
+        return None
+    try:
+        df = pd.read_csv(path, index_col=0)
+    except Exception:
+        return None
+    if "diagnosis" not in df.columns or term not in df.index:
+        return None
+    diag = str(df.loc[term, "diagnosis"]).strip()
+    if not diag or diag.lower() in {"-", "nan", "none"}:
+        return None
+    return diag
 
 
 def _kf_csv(output_dir, name: str) -> pd.DataFrame | None:
@@ -3620,6 +3685,20 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
         rope, outcome_label, "at the end of the randomised period (t2)"
     )
     sentences.append(_kf_sentence(headline, "headline"))
+    # Surface the t2 power-scaling verdict beside the headline (#389 finding 3): the
+    # level headline was previously unqualified even when psense flagged the t2 term
+    # for prior-data conflict, with the warning hidden in a collapsed prior section.
+    _t2_psense = _kf_psense_diagnosis(output_dir, "b_grp_time[1]")
+    if _t2_psense:
+        sentences.append(
+            _kf_sentence(
+                "Caution: a power-scaling check flags this t2 estimate as "
+                f"prior-sensitive ({_t2_psense}) — the prior meaningfully shapes it, "
+                "so read the headline alongside the prior-sensitivity section rather "
+                "than as a purely data-driven result.",
+                "warning",
+            )
+        )
     sentences.append(
         _kf_sentence(_kf_direction_words(rope["pd"], is_rd=is_rd), "confidence")
     )
