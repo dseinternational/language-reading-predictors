@@ -73,6 +73,9 @@ from language_reading_predictors.statistical_models.plotting import (
     save_plotcollection,
     save_styled_figure,
 )
+from language_reading_predictors.statistical_models.aligned import (
+    resolve_aligned_run_plan,
+)
 from language_reading_predictors.statistical_models.concurrent import (
     resolve_concurrent_run_plan,
 )
@@ -6126,33 +6129,24 @@ def _al_diag_vars(spec: ModelSpec) -> list[str]:
 
 def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _require_spec(spec, "aligned", outcome=True)
+    # Resolve and validate the family contract before the context resets an output
+    # directory or the loader reads any data (#394 pillar 4). One plan drives
+    # preparation, factory arguments, the teaching recipe and config.json.
+    plan = resolve_aligned_run_plan(spec)
     ctx = make_context(spec, config)
-    extra = spec.extra
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
+
+    off_floor = plan.off_floor
+    obs_node = plan.obs_node
 
     section_header("Prepare data")
-    ability_covariate = extra.get("ability_covariate")
-    use_cohort = bool(extra.get("use_cohort", True))
-    use_dose = bool(extra.get("use_dose", False))
-    likelihood = extra.get("likelihood", "beta_binomial")
-    off_floor = likelihood == "bernoulli_offfloor"
-    obs_node = "y_offfloor" if off_floor else "y_post"
-    prepared = load_and_prepare_aligned(
-        outcomes=(spec.outcome_symbol,),
-        ability_covariate=ability_covariate,
-        include_dose=use_dose,
-    )
+    prepared = load_and_prepare_aligned(**plan.prepare_kwargs())
     ctx.prepared = prepared
     _print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_aligned_model(
-        prepared,
-        outcome_symbol=spec.outcome_symbol,
-        ability_covariate=ability_covariate,
-        use_cohort=use_cohort,
-        use_dose=use_dose,
-        likelihood=likelihood,
-    )
+    built = _factories.build_aligned_model(prepared, **plan.factory_kwargs())
     _attach_built(ctx, built)
 
     _render_model_graph(ctx)
@@ -6203,7 +6197,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Items-scale cohort contrast (immediate vs wait-list at aligned endpoints).
     # This is a PER-PROTOCOL association, NOT a randomised treatment effect --
     # confounded by age-at-onset and cohort/timing (see the LRPAL design note).
-    if use_cohort:
+    if plan.use_cohort:
         cohort = built.prepared.G.astype(float)
         n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
         cme = _report.treatment_marginal_effect(

@@ -27,6 +27,10 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.aligned import (
+    AlignedRunPlan,
+    resolve_aligned_run_plan,
+)
 from language_reading_predictors.statistical_models.concurrent import (
     ConcurrentRunPlan,
     resolve_concurrent_run_plan,
@@ -2309,6 +2313,14 @@ def _concurrent_run_plan(context: StatisticalFitContext) -> ConcurrentRunPlan:
     return resolve_concurrent_run_plan(context.spec)
 
 
+def _aligned_run_plan(context: StatisticalFitContext) -> AlignedRunPlan:
+    """Return the aligned plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, AlignedRunPlan):
+        return resolved_plan
+    return resolve_aligned_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2325,6 +2337,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _did_run_plan(context)
     if context.spec.kind == "concurrent":
         return _concurrent_run_plan(context)
+    if context.spec.kind == "aligned":
+        return _aligned_run_plan(context)
     return None
 
 
