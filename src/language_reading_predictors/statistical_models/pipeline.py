@@ -73,6 +73,9 @@ from language_reading_predictors.statistical_models.plotting import (
     save_plotcollection,
     save_styled_figure,
 )
+from language_reading_predictors.statistical_models.concurrent import (
+    resolve_concurrent_run_plan,
+)
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
     StatisticalFitContext,
@@ -7356,35 +7359,39 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     detailed probability/items marginals (wave × predictor × {+1 SD, +k items}).
     """
     _require_spec(spec, "concurrent", outcome=True)
-    e = spec.extra
-    outcome = spec.outcome_symbol or "W"
-    predictor_symbols = list(e.get("predictor_symbols", ["L", "B", "TR", "TE", "R", "E"]))
+    # Resolve and validate the family contract before the context resets an output
+    # directory or the loader reads any data (#394 pillar 4). One plan drives
+    # preparation, the teaching recipe and config.json.
+    plan = resolve_concurrent_run_plan(spec)
+    outcome = plan.outcome_symbol
+    predictor_symbols = list(plan.predictor_symbols)
     # Trait covariates (non-verbal ability, hearing, speech, phonological memory),
     # aligned with the gains panel. They are t1-measured, so they enter as
     # baseline covariates broadcast across the waves (there is no per-wave value).
-    covariates = list(e.get("covariates", []))
-    include_age = bool(e.get("include_age", True))
-    include_group = bool(e.get("include_group", True))
-    sigma0 = float(
-        e.get(
-            "predictor_slope_sigma",
-            _default_of(_factories.build_concurrent_model, "predictor_slope_sigma"),
+    covariates = list(plan.covariates)
+    include_age = plan.include_age
+    include_group = plan.include_group
+    # ``predictor_slope_sigma`` is None on the plan when a spec does not set it, so the
+    # build_concurrent_model default is filled via _default_of here — the anti-drift
+    # single source #394 retains until typed family defaults replace it.
+    sigma0 = (
+        float(plan.predictor_slope_sigma)
+        if plan.predictor_slope_sigma is not None
+        else float(
+            _default_of(_factories.build_concurrent_model, "predictor_slope_sigma")
         )
     )
 
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
     N_focal = MEASURES[outcome].n_trials
 
     section_header("Prepare data")
-    measure_outcomes = tuple(dict.fromkeys([outcome, *predictor_symbols]))
-    prepared_all = load_and_prepare(
-        phase_mode="levels",
-        outcomes=measure_outcomes,
-        baseline_covariates=tuple(covariates),
-    )
+    prepared_all = load_and_prepare(**plan.prepare_kwargs())
 
     # Timepoints present; each wave's row count and its usable predictor set (a
     # predictor whose same-wave logit has positive variance on the wave's rows —
