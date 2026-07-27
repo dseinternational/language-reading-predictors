@@ -43,6 +43,10 @@ from language_reading_predictors.statistical_models.gain_factors import (
     GainFactorsRunPlan,
     resolve_gain_factors_run_plan,
 )
+from language_reading_predictors.statistical_models.growth import (
+    GrowthRunPlan,
+    resolve_growth_run_plan,
+)
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
     declared_settings_dict,
@@ -2321,6 +2325,14 @@ def _aligned_run_plan(context: StatisticalFitContext) -> AlignedRunPlan:
     return resolve_aligned_run_plan(context.spec)
 
 
+def _growth_run_plan(context: StatisticalFitContext) -> GrowthRunPlan:
+    """Return the growth plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, GrowthRunPlan):
+        return resolved_plan
+    return resolve_growth_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2339,6 +2351,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _concurrent_run_plan(context)
     if context.spec.kind == "aligned":
         return _aligned_run_plan(context)
+    if context.spec.kind == "growth":
+        return _growth_run_plan(context)
     return None
 
 
