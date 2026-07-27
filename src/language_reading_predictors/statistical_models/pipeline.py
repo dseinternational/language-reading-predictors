@@ -78,6 +78,9 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
+from language_reading_predictors.statistical_models.did import (
+    resolve_did_run_plan,
+)
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
 from language_reading_predictors.statistical_models.gain_factors import (
     resolve_gain_factors_run_plan,
@@ -2978,50 +2981,30 @@ def _did_analysis_contract(
 def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _require_spec(spec, "did", outcome=True)
 
+    # Resolve and validate the family contract before the context resets an output
+    # directory or the loader reads any data (#394 pillar 4). One plan then drives
+    # preparation, factory arguments, the teaching recipe and config.json. Binary
+    # models use the t1-t3 levels frame so the randomised t2 arm gap and the
+    # post-crossover t3 gap are estimated separately; dose models retain the
+    # transition frame because sessions are interval exposures (resolved in the plan).
+    plan = resolve_did_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
+
+    sym = spec.outcome_symbol
+    dose = plan.dose
+    period_varying = plan.period_varying
+    off_floor = plan.off_floor
 
     section_header("Prepare data")
-    sym = spec.outcome_symbol
-    dose = bool(spec.extra.get("dose", False))
-    period_varying = dose and bool(spec.extra.get("period_varying_dose", False))
-    likelihood = spec.extra.get("likelihood", "beta_binomial")
-    off_floor = likelihood == "bernoulli_offfloor"
-    # Binary models use t1--t3 levels so the randomised t2 arm gap and the
-    # post-crossover t3 gap are estimated separately. Dose models retain the
-    # transition frame because sessions are interval exposures.
-    outcomes = tuple(spec.extra.get("outcomes", (sym,)))
-    covariates = ("attend",) if dose else ()
-    if dose:
-        prepared = load_and_prepare(
-            phase_mode="all",
-            outcomes=outcomes,
-            covariates=covariates,
-            pre_required=(),
-            require_any_post=False,
-        )
-    else:
-        prepared = load_and_prepare(
-            phase_mode="levels",
-            outcomes=outcomes,
-            require_any_post=False,
-        )
+    prepared = load_and_prepare(**plan.prepare_kwargs())
     ctx.prepared = prepared
 
     _print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_did_model(
-        prepared,
-        outcome_symbol=sym,
-        waves=tuple(spec.extra.get("waves", (0, 1, 2))),
-        periods=tuple(spec.extra.get("periods", (0, 1))),
-        use_child_re=spec.extra.get("use_child_re", True),
-        use_age=spec.extra.get("use_age", True),
-        dose=dose,
-        period_varying_dose=period_varying,
-        use_varying_delta=spec.extra.get("use_varying_delta", False),
-        likelihood=likelihood,
-    )
+    built = _factories.build_did_model(prepared, **plan.factory_kwargs())
     _attach_built(ctx, built)
     _print_header(ctx)
     did_contract = _did_analysis_contract(
@@ -3145,7 +3128,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             varying_term="",
             row_mask=built.prepared.phase == 1,
             likelihood="bernoulli" if off_floor else "beta_binomial",
-            child_re=bool(spec.extra.get("use_child_re", True)),
+            child_re=plan.use_child_re,
             child_idx=built.prepared.child_idx,
             delta=ROPE_DELTA_PROB.get(sym) if off_floor else ROPE_DELTA.get(sym),
             population=(
@@ -3190,7 +3173,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         section_header("Period-resolved dose-slope summary")
         _write_dose_slope_summary(ctx, period_varying=True)
     het = None
-    if spec.extra.get("use_varying_delta", False):
+    if plan.use_varying_delta:
         section_header("Exploratory waitlist catch-up heterogeneity")
         het = _did_heterogeneity_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
         pd.DataFrame([het]).to_csv(
