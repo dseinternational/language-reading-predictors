@@ -8835,6 +8835,15 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     diag_vars = ["eta_cell", "sigma_subject", "kappa", "measure_corr_pairs"]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381). This family
+    # is ``compute_loo=False``, so the groups psense needs are not attached by the
+    # sampling stage and have to be requested here. ``strict=False`` because this is
+    # the model whose LKJ-Cholesky likelihood ``pm.compute_log_likelihood`` cannot
+    # evaluate — the very case that argument exists for. When it cannot, the fit
+    # degrades to a warning and simply gets no psense, which is a *measured and
+    # declined* exemption rather than the silent absence it was before.
+    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=[f"score_{m}" for m in measure_syms])
 
