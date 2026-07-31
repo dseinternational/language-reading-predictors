@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.30.1"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -15,35 +15,35 @@ dependencies = [
   "arviz-plots>=1.2.0",
   "arviz-stats>=1.2.0",
   "arviz>=1.2.0",
-  "dse-research-utils>=0.8.0",
+  "dse-research-utils>=0.9.0",
   "graphviz",
-  "lightgbm>=4.6.0",
-  "matplotlib>=3.10.8",
+  "lightgbm>=4.7.0",
+  "matplotlib>=3.11.1",
   "networkx",
-  "numpy>=2.4.3",
-  "pandas>=3.0.2",
-  "preliz>=0.27.0",
-  "pymc>=6.0.1",
+  "numpy>=2.4.6,<2.5",  # pymc -> pytensor -> numba pins numpy <2.5; matches the shared conda core
+  "pandas>=3.0.5",
+  "preliz>=0.27.1",
+  "pymc>=6.2.0",
   "rich>=15.0.0",
   "scikit-learn>=1.9.0",
   "seaborn>=0.13.2",
   "shap>=0.52.0",
   "scipy>=1.18.0",
-  "xarray>=2026.4.0"
+  "xarray>=2026.7.0"
 ]
 
 [project.optional-dependencies]
 dev = [
   "jupyter>=1.1.1",
   "mypy>=1.18.2",
-  "pytest>=9.0.3"
+  "pytest>=9.1.1"
 ]
 
 [tool.uv.sources]
 # dse-research-utils isn't published to PyPI — resolve it from the public git
 # tag. (The conda env in environment.yml installs it from the same tag in its
 # pip layer; this entry is only consumed by uv.)
-dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.8.0" }
+dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.9.0" }
 
 [tool.hatch.version]
 path = "src/language_reading_predictors/__init__.py"
