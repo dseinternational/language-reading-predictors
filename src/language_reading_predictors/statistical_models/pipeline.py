@@ -91,6 +91,9 @@ from language_reading_predictors.statistical_models.environment import DOCS_DIR
 from language_reading_predictors.statistical_models.gain_factors import (
     resolve_gain_factors_run_plan,
 )
+from language_reading_predictors.statistical_models.growth import (
+    resolve_growth_run_plan,
+)
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
     build_itt_from_plan,
@@ -8019,25 +8022,27 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """
     _require_spec(spec, "growth")
 
+    # Resolve and validate the family contract before the context resets an output
+    # directory or the loader reads any data (#394 pillar 4). One plan drives
+    # preparation, factory arguments, the teaching recipe and config.json.
+    plan = resolve_growth_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
+
+    outcomes = plan.outcomes
+    baseline_cov = plan.baseline_covariate
+    use_factor = plan.use_shared_factor
+    age_ability = plan.age_ability_interaction
 
     section_header("Prepare data")
-    outcomes = tuple(spec.extra.get("outcomes", ("R", "E", "T", "W", "L")))
-    baseline_cov = spec.extra.get("baseline_covariate", "blocks")
-    use_factor = bool(spec.extra.get("use_shared_factor", False))
-    age_ability = bool(spec.extra.get("age_ability_interaction", False))
-    panel = load_wave_panel(outcomes=outcomes, baseline_covariates=(baseline_cov,))
+    panel = load_wave_panel(**plan.prepare_kwargs())
     ctx.prepared = panel
 
     _print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_growth_model(
-        panel,
-        baseline_covariate=baseline_cov,
-        use_shared_factor=use_factor,
-        age_ability_interaction=age_ability,
-    )
+    built = _factories.build_growth_model(panel, **plan.factory_kwargs())
     _attach_built(ctx, built)
 
     _render_model_graph(ctx)
