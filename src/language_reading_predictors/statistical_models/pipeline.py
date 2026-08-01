@@ -91,6 +91,9 @@ from language_reading_predictors.statistical_models.itt import (
     write_itt_analysis_audit,
     write_itt_ppc_calibration,
 )
+from language_reading_predictors.statistical_models.level_factors import (
+    resolve_level_factors_run_plan,
+)
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
@@ -5736,49 +5739,34 @@ def _lf_diag_vars(
 
 def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _require_spec(spec, "level_factors", outcome=True)
+    # Resolve and validate the family contract before the context resets an output
+    # directory or the loader reads any data (#389 finding 6). One plan then drives
+    # preparation, factory arguments, the teaching recipe and config.json. The
+    # covariate wave-split is resolved into the plan (#247 timing; review finding A1:
+    # the language-proximal SP/RW confounders load at the pre-randomisation baseline
+    # so the t2 randomised contrast is not conditioned on a treatment-affected
+    # descendant; hearing is exogenous and stays contemporaneous). The level model
+    # takes no measure-skill adjusters (post-treatment mediators).
+    plan = resolve_level_factors_run_plan(spec)
     ctx = make_context(spec, config)
-    extra = spec.extra
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
+
+    ability_covariate = plan.ability_covariate
+    off_floor = plan.off_floor
+    obs_node = plan.obs_node
 
     section_header("Prepare data")
-    ability_covariate = extra.get("ability_covariate")
-    likelihood = extra.get("likelihood", "beta_binomial")
-    off_floor = likelihood == "bernoulli_offfloor"
-    obs_node = "y_offfloor" if off_floor else "y_post"
-    baseline_covariates = (ability_covariate,) if ability_covariate else ()
-    # Revised-DAG raw-covariate confounders (hearing/speech/phonological memory; #247).
-    # Timing (review finding A1; team decision 2026-07-13): the language-proximal SP/RW
-    # confounders (deapp_c/erbto + missing indicators) are read at the pre-randomisation
-    # BASELINE (t1) — the clean randomised contrast here is the t2 group term, and at t2
-    # these language-proximal states may already be treatment-affected, so a
-    # contemporaneous read would condition the causal contrast on a descendant of the
-    # exposure. Hearing (hs) is exogenous and stays contemporaneous (post). Re-filter
-    # after loading so a constant ``_missing`` indicator dropped by the loader is not
-    # built or gated. The level model takes no measure-skill adjusters (post-treatment
-    # mediators).
-    adjust_for = tuple(extra.get("adjust_for", ()))
-    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
-    baseline_adj, post_adj = split_confounders_by_timing(post_adj)
-    prepared = load_and_prepare(
-        phase_mode="levels",
-        outcomes=(spec.outcome_symbol,),
-        baseline_covariates=(*baseline_covariates, *baseline_adj),
-        covariates=pre_adj,
-        post_covariates=post_adj,
-    )
-    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    # Re-filter after loading — a constant ``_missing`` indicator is dropped by the
+    # loader and must not be built or reported as adjusted-for.
+    adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     ctx.prepared = prepared
     _print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_level_factors_model(
-        prepared,
-        outcome_symbol=spec.outcome_symbol,
-        ability_covariate=ability_covariate,
-        adjust_for=adjust_for,
-        group_by_time=bool(extra.get("group_by_time", True)),
-        ability_by_time=bool(extra.get("ability_by_time", True)),
-        group_ability=bool(extra.get("group_ability", True)),
-        likelihood=likelihood,
+        prepared, **plan.factory_kwargs(effective_adjustment=adjust_for)
     )
     _attach_built(ctx, built)
 
@@ -5796,7 +5784,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
-    _lf_group_by_time = extra.get("group_by_time", True)
+    _lf_group_by_time = plan.group_by_time
     # For the shipped group-by-time LF models the flagged-causal term is the t2
     # element of the per-timepoint group vector, ``b_grp_time`` (``b_grp_time[1]``,
     # which reporting.level_t2_marginal_effect reads into the causal ROPE card), so
@@ -5813,7 +5801,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     section_header("Factor summary")
     # Only the t2 group contrast (b_grp_time[1]) is the clean randomised effect;
     # the other timepoints are post-crossover (see the level-model caveat).
-    causal = ("b_grp_time[1]",) if extra.get("group_by_time", True) else ()
+    causal = ("b_grp_time[1]",) if plan.group_by_time else ()
     fs = _report.factor_summary(
         ctx.trace, _lf_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob, causal_terms=causal
     )
@@ -5856,7 +5844,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     delta_items = ROPE_DELTA.get(spec.outcome_symbol)
     delta_prob = ROPE_DELTA_PROB.get(spec.outcome_symbol)
-    _gbt = extra.get("group_by_time", True)
+    _gbt = plan.group_by_time
     _graded_card = delta_items is not None and not off_floor and _gbt
     _offfloor_card = off_floor and delta_prob is not None and _gbt
     if _graded_card or _offfloor_card:
