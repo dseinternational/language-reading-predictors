@@ -27,6 +27,10 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.did import (
+    DiDRunPlan,
+    resolve_did_run_plan,
+)
 from language_reading_predictors.statistical_models.gain_factors import (
     GainFactorsRunPlan,
     resolve_gain_factors_run_plan,
@@ -2285,19 +2289,33 @@ def _level_factors_run_plan(context: StatisticalFitContext) -> LevelFactorsRunPl
     return resolve_level_factors_run_plan(context.spec)
 
 
+def _did_run_plan(context: StatisticalFitContext) -> DiDRunPlan:
+    """Return the DiD plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, DiDRunPlan):
+        return resolved_plan
+    return resolve_did_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
-    """The typed run plan for families that have one (ITT, gain / level factors), else None."""
+    """The typed run plan for whichever families have been converted, else None.
+
+    Families are added here one at a time by the #394 pillar-4 series; the
+    branches below are the authoritative list, so this docstring deliberately
+    does not enumerate them."""
     if context.spec.kind == "itt":
         return _itt_run_plan(context)
     if context.spec.kind == "gain_factors":
         return _gain_factors_run_plan(context)
     if context.spec.kind == "level_factors":
         return _level_factors_run_plan(context)
+    if context.spec.kind == "did":
+        return _did_run_plan(context)
     return None
 
 
 def write_model_recipe(context: StatisticalFitContext) -> str | None:
-    """Write the human-readable recipe generated from a typed run plan (ITT / gain factors)."""
+    """Write the human-readable recipe generated from a typed run plan, if any."""
     plan = _resolved_run_plan(context)
     if plan is None:
         return None
