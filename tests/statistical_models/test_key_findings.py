@@ -489,6 +489,66 @@ def test_level_factors_golden_sentences(tmp_path):
     assert "at the end of the randomised period (t2)" in texts[0]
     assert "Only this t2 comparison is randomised" in texts[3]
     assert "crossed over" in texts[3]
+    # No psense_summary.csv → no caution bullet (base case is four sentences).
+    assert [s["kind"] for s in payload["sentences"]] == [
+        "headline", "confidence", "rope", "causal"
+    ]
+
+
+def test_level_factors_surfaces_t2_psense_warning(tmp_path):
+    # #389 finding 3: when power-scaling flags the t2 term (b_grp_time[1]), a caution
+    # bullet is surfaced right after the headline instead of being hidden in a
+    # collapsed prior section. psense_summary.csv is index-keyed by parameter.
+    d = _setup_dir(tmp_path, "level_factors")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    pd.DataFrame(
+        {
+            "prior": [0.083],
+            "likelihood": [0.053],
+            "diagnosis": ["potential prior-data conflict"],
+        },
+        index=["b_grp_time[1]"],
+    ).to_csv(d / "psense_summary.csv")
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert [s["kind"] for s in payload["sentences"]] == [
+        "headline", "warning", "confidence", "rope", "causal"
+    ]
+    warn = payload["sentences"][1]["text"]
+    assert "prior-sensitive" in warn
+    assert "potential prior-data conflict" in warn
+
+
+@pytest.mark.parametrize("clear_marker", ["✓", "-", ""])
+def test_level_factors_no_warning_when_t2_psense_clear(tmp_path, clear_marker):
+    # A clear diagnosis for the t2 term produces no caution bullet.
+    #
+    # "✓" is the case that matters: it is what arviz_stats actually writes for an
+    # unflagged parameter and the most common value in the stored suite, while "-"
+    # never appears in it. Treating the tick as a diagnosis published a
+    # "prior-sensitive" caution on six of the eleven level-factor reporting fits
+    # whose t2 term is in fact clear.
+    d = _setup_dir(tmp_path, "level_factors")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    pd.DataFrame(
+        {"prior": [0.01], "likelihood": [0.02], "diagnosis": [clear_marker]},
+        index=["b_grp_time[1]"],
+    ).to_csv(d / "psense_summary.csv")
+    payload = generate_key_findings(d)
+    assert "warning" not in [s["kind"] for s in payload["sentences"]]
+
+
+def test_level_factors_warns_on_an_unrecognised_psense_marker(tmp_path):
+    # An unknown marker is treated as a flag, not silently dropped: under-warning on
+    # a real prior-data conflict is the worse failure of the two.
+    d = _setup_dir(tmp_path, "level_factors")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    pd.DataFrame(
+        {"prior": [0.9], "likelihood": [0.01], "diagnosis": ["some future verdict"]},
+        index=["b_grp_time[1]"],
+    ).to_csv(d / "psense_summary.csv")
+    payload = generate_key_findings(d)
+    assert "warning" in [s["kind"] for s in payload["sentences"]]
 
 
 def test_did_golden_sentences(tmp_path):

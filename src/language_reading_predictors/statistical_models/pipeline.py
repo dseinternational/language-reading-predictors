@@ -5860,6 +5860,32 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                 f"{spec.outcome_symbol}, delta={delta_prob:g})"
             )
         items = ame_prob * n_marg
+        # Estimand-scale prior pushforward for the t2 term (#389 finding 3): the
+        # prior-predictive counterpart of this card, pushed through the same t2
+        # net-out transform, so the level family emits the check the ITT / gain
+        # families do (it previously lacked one). Same n_trials scaling as the AME.
+        # Guarded like every other secondary artefact here: the ``prior`` group is
+        # grafted on by the (itself guarded) ``_attach_prior_groups``, and reading it
+        # off a trace that has none raises AttributeError. This runs after sampling,
+        # so an unguarded failure would lose a completed reporting-tier fit over a
+        # prior check. Degrade to a warning and no CSV instead.
+        try:
+            pf = _report.level_prior_pushforward(
+                ctx.trace,
+                phase=built.prepared.phase,
+                G=built.prepared.G,
+                n_trials=n_marg,
+                ability=ability,
+                ci_prob=ctx.reporting.ci_prob,
+            )
+        except Exception as exc:
+            rprint(f"[yellow]prior_pushforward skipped: {exc}[/yellow]")
+        else:
+            pd.DataFrame([pf]).to_csv(
+                os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
+            )
+            ctx.tables["prior_pushforward"] = pd.DataFrame([pf])
+            meta_extra["prior_pushforward"] = pf
         rope_s = _report.rope_card(
             contrast_draws, items, delta=delta, ci_prob=ctx.reporting.ci_prob
         )

@@ -25,6 +25,7 @@ from language_reading_predictors.statistical_models.reporting import (
     evidence_label,
     favoured_direction,
     joint_treatment_marginals,
+    level_prior_pushforward,
     level_t2_marginal_effect,
     longitudinal_conditional_slopes,
     longitudinal_factor_correlations,
@@ -1408,6 +1409,72 @@ def test_level_t2_marginal_effect_requires_t2_rows():
     with pytest.raises(ValueError, match="No rows at t2_phase"):
         level_t2_marginal_effect(
             SimpleNamespace(posterior=ds), phase=np.array([0, 2, 3]), G=np.ones(3)
+        )
+
+
+def test_level_prior_pushforward_uses_prior_group_and_reports_items_schema():
+    # #389 finding 3: the level-family estimand-scale prior pushforward runs the t2
+    # net-out transform on the *prior* group (group="prior") and returns the same
+    # items-scale schema as the ITT/gain prior_pushforward. The logit summary must
+    # match b_grp_time[t2] read from the prior group (proving it reads the prior, not
+    # the posterior), and the items summary is that AME scaled by n_trials.
+    n_chain, n_draw, n_obs, n_phase = 1, 8, 6, 4
+    rng = np.random.default_rng(7)
+    prior = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), rng.normal(0.0, 1.0, (n_chain, n_draw, n_obs))),
+            "b_grp_time": (("chain", "draw", "phase"), rng.normal(0.2, 0.5, (n_chain, n_draw, n_phase))),
+            "gamma_grp_ability": (("chain", "draw"), rng.normal(0.0, 0.1, (n_chain, n_draw))),
+        },
+        coords={
+            "chain": np.arange(n_chain), "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs), "phase": np.arange(n_phase),
+        },
+    )
+    # A distinct posterior group: if the pushforward wrongly read it, the logit
+    # summary below would not match the prior's b_grp_time[t2].
+    posterior = prior.copy(deep=True)
+    posterior["b_grp_time"] = posterior["b_grp_time"] + 100.0
+    trace = SimpleNamespace(prior=prior, posterior=posterior)
+
+    phase = np.array([0, 1, 2, 3, 1, 0])
+    G = np.array([1.0, 1.0, 0.0, 1.0, 0.0, 1.0])
+    ability = np.array([0.5, -1.0, 0.2, 0.3, 0.8, -0.4])
+
+    pf = level_prior_pushforward(
+        trace, phase=phase, G=G, n_trials=79, ability=ability, ci_prob=0.95
+    )
+    assert set(pf) == {
+        "prior_logit_median", "prior_logit_lo", "prior_logit_hi",
+        "prior_items_median", "prior_items_lo50", "prior_items_hi50",
+        "prior_items_lo", "prior_items_hi", "n_trials",
+    }
+    assert pf["n_trials"] == 79
+    # Read the prior group's b_grp_time[t2] directly and confirm the logit summary
+    # matches it (so the pushforward used the prior, not the +100 posterior).
+    contrast, _ = level_t2_marginal_effect(
+        trace, phase=phase, G=G, ability=ability, group="prior"
+    )
+    assert pf["prior_logit_median"] == pytest.approx(float(np.median(contrast)))
+    assert pf["prior_logit_lo"] < pf["prior_logit_hi"]
+
+
+def test_level_prior_pushforward_raises_without_a_prior_group():
+    # ``_attach_prior_groups`` is itself guarded, so a trace can reach this point with
+    # no ``prior`` group. Reading one off then raises rather than returning empty —
+    # which is why fit_level_factors wraps the call. Pin the contract so the call
+    # site's guard is not later removed as redundant.
+    posterior = xr.Dataset(
+        {"eta": (("chain", "draw", "obs_id"), np.zeros((1, 4, 3)))},
+        coords={"chain": [0], "draw": np.arange(4), "obs_id": np.arange(3)},
+    )
+    trace = SimpleNamespace(posterior=posterior)
+    with pytest.raises(AttributeError):
+        level_prior_pushforward(
+            trace,
+            phase=np.array([0, 1, 2]),
+            G=np.array([1.0, 0.0, 1.0]),
+            n_trials=79,
         )
 
 
