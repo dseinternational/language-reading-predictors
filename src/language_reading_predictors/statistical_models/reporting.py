@@ -3330,9 +3330,21 @@ def _kf_csv_row(output_dir, name: str) -> dict | None:
 
 
 # Values in psense_summary.csv's ``diagnosis`` column that mean "not flagged".
-# "✓" is what arviz_stats actually writes for a clear parameter; the rest are
-# defensive (empty / placeholder / a plain-ASCII fallback).
-_PSENSE_CLEAR_MARKERS = frozenset({"-", "nan", "none", "✓", "ok", "check"})
+# "✓" is what arviz_stats actually writes for a clear parameter; the wording
+# variants match sensitivity.tau_psense_status, which is the established
+# convention for reading this column. The rest are defensive placeholders.
+_PSENSE_CLEAR_MARKERS = frozenset(
+    {
+        "✓",
+        "-",
+        "nan",
+        "none",
+        "ok",
+        "no concern",
+        "no conflict",
+        "no prior-data conflict",
+    }
+)
 
 
 def _kf_psense_diagnosis(output_dir, term: str) -> str | None:
