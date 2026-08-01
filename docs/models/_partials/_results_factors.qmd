@@ -240,14 +240,22 @@ if factor_summary is not None and "term" in factor_summary.columns:
     if _present:
         _names = " and ".join(_present)
         _plural = len(_present) > 1
+        # Hearing is the contrasting case, so only mention it where it is actually
+        # one of this model's adjusters.
+        _hearing = (
+            " Hearing, being exogenous, is read contemporaneously instead."
+            if "gamma_hs" in _terms
+            else ""
+        )
         print(
             f"\n_Timing of the {_names} adjuster{'s' if _plural else ''}:_ read at "
             f"the child's **baseline (t1)** value — so the randomised contrast is not "
             f"conditioned on a treatment-affected descendant of the intervention "
-            f"(#247 timing) — {'these are' if _plural else 'so this is'} a "
-            f"**baseline-predictor association** applied across all of a child's "
-            f"observations, **not** a contemporaneous per-wave factor. Hearing, being "
-            f"exogenous, is read contemporaneously instead."
+            f"(#247 timing) — {'these are' if _plural else 'so this is a'} "
+            f"**baseline-predictor association{'s' if _plural else ''}** applied "
+            f"across all of a child's observations, **not** "
+            f"{'contemporaneous per-wave factors' if _plural else 'a contemporaneous per-wave factor'}."
+            f"{_hearing}"
         )
 ```
 
