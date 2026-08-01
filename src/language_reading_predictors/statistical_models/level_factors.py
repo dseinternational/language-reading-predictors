@@ -70,10 +70,14 @@ def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
 class LevelFactorsModelSettings:
     """Immutable settings declared by a single level-factor model module.
 
-    Defaults encode the primary per-wave levels model: no ability covariate, no
-    extra adjusters, group and ability both entered as per-timepoint vectors with a
-    group x ability effect-modification term, and the Beta-Binomial working
-    likelihood.
+    Defaults encode the primary per-wave levels model: no extra adjusters, group and
+    ability both entered as per-timepoint vectors with a group x ability
+    effect-modification term, and the Beta-Binomial working likelihood.
+
+    ``ability_covariate`` has no default because there is no coherent one: every
+    registered model sets it, and the default ``group_ability=True`` requires it, so
+    the settings object is deliberately not constructible with no arguments at all
+    (:func:`resolve_level_factors_run_plan` rejects that pairing).
     """
 
     ability_covariate: str | None = None
@@ -254,6 +258,14 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
 
     settings, source = declared_level_factors_settings(spec)
     own = spec.outcome_symbol
+    if settings.group_ability and settings.ability_covariate is None:
+        # build_level_factors_model raises this too, but only after make_context has
+        # reset the output directory and the loader has read the panel. Lifting it
+        # here is the point of the plan: an incoherent contract fails before either
+        # (cf. the did family's period_varying_dose => dose check).
+        raise ValueError(
+            f"{spec.model_id}: group_ability requires an ability_covariate"
+        )
     off_floor = settings.likelihood == "bernoulli_offfloor"
 
     # Covariate loading split by measurement wave -- identical to the former inline

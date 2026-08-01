@@ -139,10 +139,19 @@ def test_resolve_primary_records_t2_randomised_estimand():
 
 
 def test_resolve_off_floor_sets_bernoulli_node_and_risk_difference():
-    plan = resolve_level_factors_run_plan(_spec(likelihood="bernoulli_offfloor"))
+    plan = resolve_level_factors_run_plan(
+        _spec(ability_covariate="blocks", likelihood="bernoulli_offfloor")
+    )
     assert plan.off_floor
     assert plan.obs_node == "y_offfloor"
     assert "risk difference" in plan.estimand
+
+
+def test_resolve_rejects_group_ability_without_an_ability_covariate():
+    # build_level_factors_model raises this, but only after the output directory has
+    # been reset and the panel loaded; the plan has to catch it first.
+    with pytest.raises(ValueError, match="group_ability requires an ability_covariate"):
+        resolve_level_factors_run_plan(_spec(group_ability=True))
 
 
 def test_resolve_splits_adjust_for_by_wave():
@@ -158,7 +167,9 @@ def test_resolve_splits_adjust_for_by_wave():
 
 
 def test_factory_kwargs_apply_effective_adjustment():
-    plan = resolve_level_factors_run_plan(_spec(adjust_for=("hs", "deapp_c")))
+    plan = resolve_level_factors_run_plan(
+        _spec(ability_covariate="blocks", adjust_for=("hs", "deapp_c"))
+    )
     kw = plan.factory_kwargs(effective_adjustment=("hs",))
     assert kw["adjust_for"] == ("hs",)
 
