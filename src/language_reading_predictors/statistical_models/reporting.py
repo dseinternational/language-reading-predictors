@@ -27,6 +27,10 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.concurrent import (
+    ConcurrentRunPlan,
+    resolve_concurrent_run_plan,
+)
 from language_reading_predictors.statistical_models.did import (
     DiDRunPlan,
     resolve_did_run_plan,
@@ -2297,6 +2301,14 @@ def _did_run_plan(context: StatisticalFitContext) -> DiDRunPlan:
     return resolve_did_run_plan(context.spec)
 
 
+def _concurrent_run_plan(context: StatisticalFitContext) -> ConcurrentRunPlan:
+    """Return the concurrent plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, ConcurrentRunPlan):
+        return resolved_plan
+    return resolve_concurrent_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2311,6 +2323,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _level_factors_run_plan(context)
     if context.spec.kind == "did":
         return _did_run_plan(context)
+    if context.spec.kind == "concurrent":
+        return _concurrent_run_plan(context)
     return None
 
 
