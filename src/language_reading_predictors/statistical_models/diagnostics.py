@@ -232,11 +232,16 @@ def compute_log_likelihood_and_prior(
     their groups their own way and do not call this.
 
     ``strict`` (default True): re-raise a ``pm.compute_log_likelihood`` failure — the
-    contract the LOO path relies on. The psense-only callers pass ``strict=False`` so
-    a model whose likelihood ``pm.compute_log_likelihood`` cannot evaluate (e.g. the
-    RLM joint-growth LKJ-Cholesky model, which is ``compute_loo=False`` for exactly
-    that reason) degrades to a warning and simply gets no psense, rather than
-    crashing the fit over a secondary diagnostic. ``log_prior`` is always guarded.
+    contract the LOO path relies on. The psense-only callers pass ``strict=False`` so a
+    model ``pm.compute_log_likelihood`` refuses degrades to a warning and simply gets no
+    psense, rather than crashing the fit over a secondary diagnostic. The known instance
+    is the RLM joint-growth model, and the cause is a *naming* seam, not an intractable
+    likelihood: it draws ``pm.LKJCorr`` and PyMC's ``get_untransformed_name`` mangles the
+    resulting ``..._cholesky_corr__`` value variable, so the posterior and value-var name
+    sets disagree (notes/202607261700-psense-coverage-backfill.md; upstream draft in
+    notes/assets/). That family's ``compute_loo=False`` is a separate matter — one
+    likelihood node per measure makes single-target pointwise PSIS-LOO undefined.
+    ``log_prior`` is always guarded.
     """
     with context.model:
         try:

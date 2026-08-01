@@ -8833,6 +8833,22 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     diag_vars = ["eta_cell", "sigma_subject", "kappa", "measure_corr_pairs"]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity on the reported parameters (#381). This family
+    # is ``compute_loo=False`` (one likelihood node per measure, so a single pointwise
+    # PSIS-LOO is undefined — not a likelihood PyMC cannot evaluate), so the groups
+    # psense needs are not attached by the sampling stage and have to be requested
+    # here. ``strict=False`` because psense is a secondary diagnostic and must not
+    # crash a fit: today both groups are in fact refused, but by a *naming* seam
+    # rather than an intractable likelihood — the model draws
+    # ``pm.LKJCorr("measure_corr_chol", ...)`` and PyMC stores its value variable as
+    # ``measure_corr_chol_cholesky``, which ``get_untransformed_name`` mangles (see
+    # notes/202607261700-psense-coverage-backfill.md and the upstream draft in
+    # notes/assets/). That is plausibly fixable upstream; when it is, this call site
+    # needs no change. Meanwhile the fit degrades to a warning and gets no psense,
+    # which is a *measured and declined* exemption rather than the silent absence it
+    # was before.
+    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=[f"score_{m}" for m in measure_syms])
 

@@ -3,9 +3,9 @@
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 5).
 
-# Power-scaling sensitivity is now measured for 170 of 193 reporting fits (#381)
+# Power-scaling sensitivity is now measured for 192 of 194 reporting fits (#381)
 
-**What changed (2026-07-26, #381):** every stored `--config reporting` fit whose trace carries the `log_prior` and `log_likelihood` groups now has a `psense_summary.csv` and `psense.png`, backfilled by `scripts/regenerate_psense.py` without refitting anything. Coverage goes from 86 to 170 of 193 fits. The remaining 23 need a refit and are listed below.
+**What changed (2026-07-26, #381):** every stored `--config reporting` fit whose trace carries the `log_prior` and `log_likelihood` groups now has a `psense_summary.csv` and `psense.png`, backfilled by `scripts/regenerate_psense.py` without refitting anything — coverage 86 → 170. A second pass the same day refitted the 21 fits whose traces predated that wiring, taking coverage to **192 of 194**; see the closing section for what that changed (nothing) and for the two that remain.
 
 ## Why this was a gap rather than a clean result
 
@@ -43,11 +43,35 @@ These are precisely the refits #382 already proposes, and this pass supplies the
 
 Two other results worth recording. `lrp-rli-hs-001`'s slab scale `hs_c2` comes back at prior 1.12 against likelihood 0.028 — `potential strong prior / weak likelihood`, exactly the dependence #381 predicted for horseshoe rankings ("the reported P(|β| > 0.1) is a direct function of `tau0`/`slab_scale`"). And `rli-lcf` and `rli-surv` flag on 100 % of their measured parameters, on small parameter sets.
 
-## Still uncovered: 23 fits needing a refit
+## The remaining 23, resolved (2026-07-26, later the same day)
 
-Their traces predate the `log_prior` / `log_likelihood` wiring, so power-scaling cannot be reconstructed from them: the `med` family (18 of 19), all three `rli-mm`, `rlm-jc-001` and `rlm-mm-001`. `rlm-mm-001` is the one legitimate exemption #381 already records — its posterior has not converged, so a sensitivity diagnostic on it would not mean anything. The rest need a `--config reporting` refit, at which point the fit-time wiring emits psense on its own with no further change.
+Their traces predate the `log_prior` / `log_likelihood` wiring, so power-scaling could not be reconstructed from them. **Twenty-one were refitted at `--config reporting` and now carry psense; coverage is 192 of 194.** The two that remain are not refit gaps, and this section's original claim that they were is corrected below.
 
 `scripts/regenerate_psense.py` exits non-zero while any target is in this state, so a sweep cannot report success while leaving estimands unmeasured.
+
+### The refits changed no published result
+
+Nineteen mediation and measurement fits were overwritten, so the first thing checked was whether anything moved. Nothing did. The mediation headlines reproduce the values already quoted in #404 and the findings notes — `med-066` NIE_B −0.030 words, `med-075` −0.033, `med-074` proportion mediated 0.7 % — and the three `rli-mm` models reproduce their **gate failures to the digit** against `notes/202607210914-findings-measurement.md`: `mm-001` R-hat 1.0195 / ESS 354 / 1 divergence, `mm-002` 1.0478 / 64 / 0, `mm-101` 1.0213 / 260 / 57. Those failures are pre-existing and documented, their structural legs already on HOLD; the exact reproduction across a two-week gap and a `dse-research-utils` v0.8.0 bump is itself a reproducibility check the suite had not previously run.
+
+One consequence for reading the new numbers: the three `rli-mm` fits flag ~96 % of their parameters (168/176, 170/179, 169/176), which corroborates #383's diagnosis that `HalfNormal(1)` on loadings-and-residuals puts ~32 % of prior mass on loadings > 1. But those posteriors **fail the gate**, so the same reasoning that exempts `rlm-mm-001` applies: treat this as corroboration of #383, not as an independent measurement.
+
+### `rlm-jc-001` was a code gap, not a refit gap — and is now a diagnosed one
+
+This note originally listed `rlm-jc-001` among the fits needing a refit. That was wrong. `fit_rlm_joint_growth` calls `_run_sampling_and_loo(ctx, compute_loo=False)` and never called `compute_log_likelihood_and_prior` **or** `run_psense` at all — #416 added that wiring to `fit_mediation` and `fit_correlated_factor` but not to this family — so a refit alone would have burned sampling time and produced nothing.
+
+The wiring is now added, and the refit shows the real obstacle, which is neither what this note assumed nor what was predicted before running it. Both groups are skipped with:
+
+```
+exact match required for all data variable names, but
+['eta_cell', 'sigma_subject', 'measure_corr_chol_cholesky', 'z_subject', 'kappa'] !=
+['eta_cell', 'sigma_subject', 'kappa', 'measure_corr_chol', 'z_subject']
+```
+
+The model draws `pm.LKJCorr("measure_corr_chol", ...)` — chosen deliberately over `LKJCholeskyCov` to avoid its unidentified nuisance sd scales — and PyMC stores the **transformed value variable** in the posterior as `measure_corr_chol_cholesky` while the model's free RV keeps the base name. `compute_log_prior` and `compute_log_likelihood` both require an exact name match, so both refuse. It is a naming seam, not an intractable likelihood, and it blocks the prior group as well as the likelihood group.
+
+That makes it plausibly fixable rather than an intrinsic exemption, and the value of adding the wiring is precisely that the absence is now **diagnosed with a specific error** instead of silent. Fixing it means reconciling the LKJCorr value-variable name across the `compute_log_*` seam, which reaches beyond psense coverage and is left as a follow-up.
+
+`rlm-mm-001` remains the one true exemption #381 already records: its posterior has not converged, so a sensitivity diagnostic on it would not mean anything.
 
 ## Not addressed here
 

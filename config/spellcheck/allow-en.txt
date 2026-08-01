@@ -474,6 +474,7 @@ mumedu
 mumedupost
 mumocc
 mypy
+myvar
 ncol
 ndarray
 networkx
@@ -620,6 +621,7 @@ woco
 workstream
 worktree
 worktrees
+xarray
 xcheck
 yarcewr
 yarclet
