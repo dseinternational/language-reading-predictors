@@ -224,6 +224,44 @@ if factor_summary is not None and "role" in factor_summary.columns:
 ```{python}
 # | echo: false
 # | output: asis
+# SP / RW baseline-timing note (#389 finding 5). Speech accuracy (deapp_c) and
+# phonological memory (erbto) are read at the child's BASELINE (t1) value so the
+# randomised contrast is not conditioned on a treatment-affected descendant (#247
+# timing); their coefficients are therefore baseline-predictor associations, not
+# contemporaneous per-wave factors. Term-gated, so it prints only where such an
+# adjuster is actually in the summary (and stays silent for models without one).
+if factor_summary is not None and "term" in factor_summary.columns:
+    _terms = set(factor_summary["term"].astype(str))
+    _baseline_adj = {
+        "gamma_deapp_c": "speech accuracy",
+        "gamma_erbto": "phonological memory (nonword repetition)",
+    }
+    _present = [lbl for t, lbl in _baseline_adj.items() if t in _terms]
+    if _present:
+        _names = " and ".join(_present)
+        _plural = len(_present) > 1
+        # Hearing is the contrasting case, so only mention it where it is actually
+        # one of this model's adjusters.
+        _hearing = (
+            " Hearing, being exogenous, is read contemporaneously instead."
+            if "gamma_hs" in _terms
+            else ""
+        )
+        print(
+            f"\n_Timing of the {_names} adjuster{'s' if _plural else ''}:_ read at "
+            f"the child's **baseline (t1)** value — so the randomised contrast is not "
+            f"conditioned on a treatment-affected descendant of the intervention "
+            f"(#247 timing) — {'these are' if _plural else 'so this is a'} "
+            f"**baseline-predictor association{'s' if _plural else ''}** applied "
+            f"across all of a child's observations, **not** "
+            f"{'contemporaneous per-wave factors' if _plural else 'a contemporaneous per-wave factor'}."
+            f"{_hearing}"
+        )
+```
+
+```{python}
+# | echo: false
+# | output: asis
 # Items-scale association marginals (#310): the interpretable companion to the
 # logit-scale adjusted associations above. For each covariate, the average marginal
 # effect of a +1 SD perturbation (and, for the bounded-count baselines, a +k-items
