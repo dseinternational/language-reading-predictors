@@ -1459,6 +1459,25 @@ def test_level_prior_pushforward_uses_prior_group_and_reports_items_schema():
     assert pf["prior_logit_lo"] < pf["prior_logit_hi"]
 
 
+def test_level_prior_pushforward_raises_without_a_prior_group():
+    # ``_attach_prior_groups`` is itself guarded, so a trace can reach this point with
+    # no ``prior`` group. Reading one off then raises rather than returning empty —
+    # which is why fit_level_factors wraps the call. Pin the contract so the call
+    # site's guard is not later removed as redundant.
+    posterior = xr.Dataset(
+        {"eta": (("chain", "draw", "obs_id"), np.zeros((1, 4, 3)))},
+        coords={"chain": [0], "draw": np.arange(4), "obs_id": np.arange(3)},
+    )
+    trace = SimpleNamespace(posterior=posterior)
+    with pytest.raises(AttributeError):
+        level_prior_pushforward(
+            trace,
+            phase=np.array([0, 1, 2]),
+            G=np.array([1.0, 0.0, 1.0]),
+            n_trials=79,
+        )
+
+
 def test_proportion_at_zero_ppc():
     prepared = SimpleNamespace(post_counts={"N": np.array([0.0, 0.0, 1.0, 3.0])})
     # Replicated y_post (chain, draw, obs): zero-fractions 3/4 and 1/4.
