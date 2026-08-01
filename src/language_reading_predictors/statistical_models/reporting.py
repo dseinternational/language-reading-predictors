@@ -3329,13 +3329,25 @@ def _kf_csv_row(output_dir, name: str) -> dict | None:
     return df.iloc[0].to_dict()
 
 
+# Values in psense_summary.csv's ``diagnosis`` column that mean "not flagged".
+# "✓" is what arviz_stats actually writes for a clear parameter; the rest are
+# defensive (empty / placeholder / a plain-ASCII fallback).
+_PSENSE_CLEAR_MARKERS = frozenset({"-", "nan", "none", "✓", "ok", "check"})
+
+
 def _kf_psense_diagnosis(output_dir, term: str) -> str | None:
     """Power-scaling diagnosis for ``term`` from ``psense_summary.csv`` (#389 finding 3).
 
     Returns the ``diagnosis`` string (e.g. "potential prior-data conflict") when the
     parameter is flagged, or ``None`` when the file or row is absent or the parameter
     is clear — so a caller can surface a warning beside the headline without breaking
-    fits that never ran power-scaling."""
+    fits that never ran power-scaling.
+
+    ``arviz_stats`` writes a **tick** for an unflagged parameter, not a blank, and that
+    is the single most common value in the stored suite (1117 of 2648 rows). Treating
+    it as a diagnosis would publish a "prior-sensitive" caution on a *clean* estimate —
+    so the clear markers are matched explicitly. Anything unrecognised is deliberately
+    treated as a flag: an unknown marker should over-warn, not go silent."""
     path = os.path.join(str(output_dir), "psense_summary.csv")
     if not os.path.exists(path):
         return None
@@ -3346,7 +3358,7 @@ def _kf_psense_diagnosis(output_dir, term: str) -> str | None:
     if "diagnosis" not in df.columns or term not in df.index:
         return None
     diag = str(df.loc[term, "diagnosis"]).strip()
-    if not diag or diag.lower() in {"-", "nan", "none"}:
+    if not diag or diag.lower() in _PSENSE_CLEAR_MARKERS:
         return None
     return diag
 
