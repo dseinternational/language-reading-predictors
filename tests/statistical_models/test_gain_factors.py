@@ -63,6 +63,61 @@ def test_settings_reject_bad_interaction_pairs():
         GainFactorsModelSettings(interactions=(("trt",),))  # not a 2-tuple
 
 
+def test_settings_reject_an_unknown_interaction_term():
+    # #455: build_gain_factors_model rejects this, but only after an output directory
+    # has been reset and the panel loaded. A typo is the realistic case.
+    with pytest.raises(ValueError, match="interaction term 'abilty' not available"):
+        GainFactorsModelSettings(
+            interactions=(("trt", "abilty"),), ability_covariate="blocks"
+        )
+
+
+def test_settings_reject_ability_interaction_without_an_ability_covariate():
+    with pytest.raises(ValueError, match="interaction term 'ability' not available"):
+        GainFactorsModelSettings(interactions=(("trt", "ability"),))
+
+
+def test_settings_reject_an_interaction_on_an_undeclared_skill():
+    with pytest.raises(ValueError, match="interaction term 'TR' not available"):
+        GainFactorsModelSettings(interactions=(("trt", "TR"),))
+
+
+def test_settings_accept_every_term_the_factory_builds():
+    # trt / age / own are always available; declared skills and (with a covariate)
+    # "ability" join them. treated_only keeps "trt" — the factory allows it too.
+    GainFactorsModelSettings(
+        skill_symbols=("TR", "R"),
+        ability_covariate="blocks",
+        interactions=(("trt", "own"), ("age", "ability"), ("trt", "TR"), ("own", "R")),
+    )
+    GainFactorsModelSettings(interactions=(("trt", "own"),), treated_only=True)
+
+
+def test_interaction_vocabulary_matches_the_factory_term_set():
+    """The settings check and build_gain_factors_model must not drift apart.
+
+    Both are asserted against the factory's own source so a change there fails here
+    rather than silently making one of the two stricter than the other.
+    """
+    import inspect
+
+    from language_reading_predictors.statistical_models import factories
+
+    src = inspect.getsource(factories.build_gain_factors_model)
+    assert 'valid_terms = {"trt", "age", "own", *skill_symbols}' in src
+    assert 'valid_terms.add("ability")' in src
+
+    for skills in [(), ("TR",), ("R", "E"), ("TR", "TE", "L", "B")]:
+        for ability in (None, "blocks"):
+            expected = {"trt", "age", "own", *skills}
+            if ability is not None:
+                expected.add("ability")
+            settings = GainFactorsModelSettings(
+                skill_symbols=skills, ability_covariate=ability
+            )
+            assert set(settings.interaction_vocabulary()) == expected
+
+
 def test_settings_reject_string_skill_symbols():
     # A bare string is a common mistake for a sequence-of-strings field.
     with pytest.raises(TypeError, match="skill_symbols"):
