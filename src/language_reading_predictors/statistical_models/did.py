@@ -107,8 +107,8 @@ class DiDModelSettings:
         # The remaining cross-field constraints build_did_model enforces (#455). They
         # depend on nothing but these settings, so the factory would only reject them
         # after make_context had reset an output directory and the loader had read the
-        # panel. Checked here, a misdeclared model fails at import instead. The factory
-        # keeps its own copies as belt-and-braces for direct callers.
+        # panel. Checked here, incoherent settings fail at settings construction time
+        # (often at model-module import time, otherwise at resolve time). The factory keeps its own copies as belt-and-braces for direct callers.
         if self.dose and self.likelihood == "bernoulli_offfloor":
             raise ValueError(
                 "bernoulli_offfloor is the binary prevalence estimand; use dose=False"
