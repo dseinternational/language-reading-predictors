@@ -151,7 +151,7 @@ LSAM and `deapp_c` are level-only.
 
 ## Layer 2 — Bayesian statistical models
 
-Single-outcome ITT modules use immutable `IttModelSettings`, resolved and validated before data loading as one `IttRunPlan`. The pipeline records the full plan in `config.json` and writes `model_recipe.md`, a plain-language description that students can read beside the fitted report; the recipe and executable paths are generated from the same plan so they cannot quietly disagree.
+Converted families use immutable typed settings, resolved and validated before data loading as one run plan — `itt`, `gain_factors`, `level_factors`, `did`, `concurrent`, `aligned` and `growth` so far. The pipeline records the full plan in `config.json` and writes `model_recipe.md`, a plain-language description that students can read beside the fitted report; the recipe and executable paths are generated from the same plan so they cannot quietly disagree. Where a family drops a declared term at fit time — a treated-only gain-factor fit drops its treatment interactions, the indicator being constant — the plan records the declared and the fitted set separately, so the recipe never names a coefficient the posterior lacks.
 
 One module per model, each defining a `SPEC = ModelSpec(...)` and a `fit(config)`. Eight
 factory/pipeline families keyed by `ModelSpec.kind`. Shared priors, HSGP helpers, the
