@@ -89,6 +89,7 @@ from language_reading_predictors.statistical_models.did import (
 )
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
 from language_reading_predictors.statistical_models.gain_factors import (
+    resolve_active_interactions,
     resolve_gain_factors_run_plan,
 )
 from language_reading_predictors.statistical_models.growth import (
@@ -5254,14 +5255,12 @@ def _gf_coef_names(
     # gamma_own drops on the off-floor (Bernoulli) path (A4) — see build_gain_factors_model.
     # There, if an interaction on ``own`` is *active*, a regularised own-baseline main
     # effect ``gamma_own_offfloor`` is added instead to keep interaction hierarchy
-    # (#391 Finding 2); report it in its place. Mirror the factory's active-interaction
-    # filter: treated_only variants drop trt interactions, so a treated-only spec whose
-    # only ``own`` interaction is trt×own builds no gamma_own_offfloor.
-    active_interactions = [
-        tuple(pair)
-        for pair in extra.get("interactions", ())
-        if not treated_only or "trt" not in tuple(pair)
-    ]
+    # (#391 Finding 2); report it in its place. A treated-only variant drops its trt
+    # interactions, so a treated-only spec whose only ``own`` interaction is trt×own
+    # builds no gamma_own_offfloor.
+    active_interactions = resolve_active_interactions(
+        extra.get("interactions", ()), treated_only=treated_only
+    )
     if extra.get("likelihood") != "bernoulli_offfloor":
         names.append("gamma_own")
     elif any("own" in pair for pair in active_interactions):
@@ -5271,11 +5270,7 @@ def _gf_coef_names(
         names.append("gamma_ability")
     names += [f"gamma_{s}" for s in extra.get("skill_symbols", ())]
     names += [f"gamma_{c}" for c in adj]
-    for pair in extra.get("interactions", ()):
-        a, b = tuple(pair)
-        if treated_only and "trt" in (a, b):
-            continue
-        names.append(f"gamma_int_{a}_{b}")
+    names += [f"gamma_int_{a}_{b}" for a, b in active_interactions]
     return names
 
 
@@ -5346,9 +5341,9 @@ def _gf_association_terms(
     # a partner. Omitted under treated_only (then constant, and the factory drops it).
     if not treated_only:
         term_vecs["trt"] = ((bp.G == 1) | (bp.phase >= 1)).astype(float)
-    active_interactions = [
-        pair for pair in interactions if not treated_only or "trt" not in pair
-    ]
+    active_interactions = resolve_active_interactions(
+        interactions, treated_only=treated_only
+    )
 
     def _ints_for(key: str) -> tuple[tuple[str, np.ndarray], ...]:
         out: list[tuple[str, np.ndarray]] = []
