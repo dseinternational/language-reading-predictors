@@ -62,6 +62,38 @@ if factor_summary is not None and "role" in factor_summary.columns:
 ```{python}
 # | echo: false
 # | output: asis
+# Level family only: the group contribution at t2 is
+# (b_grp_time[1] + gamma_grp_ability*ability)*G, but the causal card deliberately adds
+# back only b_grp_time[1] — gamma_grp_ability is a single *time-invariant* coefficient,
+# identified from all four timepoints, three of which are not randomised, so folding it
+# in would import a non-randomised component into a causal claim (#271 item 5; design
+# note Decision 4). That makes the estimand "at mean ability", which the reader has to
+# be told (#389 finding 1). Gated on the term's presence, so a level model fitted
+# without group x ability prints nothing.
+if (
+    factor_summary is not None
+    and "term" in factor_summary.columns
+    and (factor_summary.term == "gamma_grp_ability").any()
+):
+    print(
+        "_What the causal effect holds fixed:_ this model also carries a "
+        "**group × ability** term, so the full group contribution at t2 is "
+        "`b_grp_time[1] + gamma_grp_ability × ability`. The effect reported above and "
+        "in the items-scale card below adds back **only `b_grp_time[1]`**: every child "
+        "keeps their own baseline, but each receives the *same* group increment. The "
+        "headline is therefore the average effect **at mean ability** — neither a "
+        "population-average effect that lets the benefit vary with ability, nor a "
+        "prediction for a single average-ability child. `gamma_grp_ability` is one "
+        "*time-invariant* coefficient identified from all four timepoints, three of "
+        "them not randomised, so folding it into the causal card would import a "
+        "non-randomised component; it is reported on its own row above, as an adjusted "
+        "association. See `notes/202606261230-gain-level-factors-design.md` Decision 4."
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
 # Items-scale treatment effect (gain family) and the causal-term forest.
 treatment_marginal = _csv("treatment_marginal.csv")
 if treatment_marginal is not None:
