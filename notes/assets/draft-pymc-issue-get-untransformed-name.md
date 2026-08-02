@@ -96,8 +96,8 @@ ValueError: exact match required for all data variable names, but ['x_log_exp'] 
 ### PyMC version information
 
 ```
-PyMC: 6.1.0
-PyTensor: 3.1.2
+PyMC: 6.2.0
+PyTensor: 3.2.3
 ArviZ: 1.2.0
 xarray: 2026.7.0
 Python: 3.14.6
@@ -105,7 +105,11 @@ OS: Darwin 25.5.0 (arm64)
 Installed via conda-forge
 ```
 
-`get_untransformed_name` and `CholeskyCorrTransform.name` are unchanged at the `v6.2.0` tag, so this is present on the current release as well as 6.1.0.
+Both reproducers above were re-run on this environment; the two error messages are
+quoted from that run. Originally observed on PyMC 6.1.0 / PyTensor 3.1.2, so the
+behaviour is unchanged across both releases.
+
+`cholesky_corr` and `log_exp_m1` are the only two shipped transform names containing an underscore — checked exhaustively over `pymc.distributions.transforms` — so they are the only two affected.
 
 ### Context for the issue
 

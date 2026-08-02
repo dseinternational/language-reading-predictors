@@ -311,8 +311,9 @@ def resolve_did_run_plan(spec: ModelSpec) -> DiDRunPlan:
     else:
         design = (
             "Waitlist-crossover difference-in-differences on the t1-t3 levels frame: "
-            "the arm gap is estimated separately at each wave (tau_t2 the randomised "
-            "t2 contrast, arm_gap_t3 the post-crossover 40-vs-20-week association, "
+            "the arm gap is estimated separately at each wave (arm_gap_t1 the "
+            "pre-treatment balance quantity, tau_t2 the randomised t2 contrast, "
+            "arm_gap_t3 the post-crossover 40-vs-20-week association, "
             "delta_crossover = tau_t2 - arm_gap_t3 the waitlist catch-up), with a "
             "non-centred child random intercept."
         )
