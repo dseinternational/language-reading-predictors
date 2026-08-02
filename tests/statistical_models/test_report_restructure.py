@@ -229,8 +229,12 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
         ",SECRET_FACTOR\nSECRET_FACTOR,1\n"
     )
     (tmp_path / "diagnostics.csv").write_text(
-        ",mean,hdi_5.5%,hdi_94.5%,r_hat,ess_bulk,ess_tail\n"
-        "theta,9876.54321,9870,9880,1.02,10,20\n"
+        ",mean,sd,hdi_5.5%,hdi_94.5%,mcse_mean,mcse_sd,r_hat,ess_bulk,ess_tail\n"
+        "theta,9876.54321,4321.09876,9870.12345,9880.67890,0.123,0.456,1.02,10,20\n"
+    )
+    (tmp_path / "diagnostics_deterministics.csv").write_text(
+        ",mean,sd,hdi_5.5%,hdi_94.5%,mcse_mean,mcse_sd,r_hat,ess_bulk,ess_tail\n"
+        "derived_theta,8765.43210,3210.98765,8760.12345,8770.67890,0.789,0.654,1.03,11,21\n"
     )
     (tmp_path / "structural_summary.csv").write_text(
         "coefficient,mean,lo50,hi50,lo,hi,prob_pos\n"
@@ -255,6 +259,7 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
         "# | output: asis\n"
         'print(_img("secret_result.png", "SECRET RESULT FIGURE"))\n'
         'print(_csv("diagnostics.csv", index_col=0).to_html())\n'
+        'print(_csv("diagnostics_deterministics.csv", index_col=0).to_html())\n'
         "```\n"
     )
     env = {
@@ -288,5 +293,18 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
     assert "SECRET RESULT FIGURE" not in html
     assert "SECRET CAPTION MUST NOT RENDER" not in html
     assert "9876.54321" not in html
+    assert "4321.09876" not in html
+    assert "9870.12345" not in html
+    assert "9880.67890" not in html
+    assert "8765.43210" not in html
+    assert "3210.98765" not in html
+    assert "8760.12345" not in html
+    assert "8770.67890" not in html
     assert "r_hat" in html
     assert "ess_bulk" in html
+    assert "mcse_mean" in html
+    assert "mcse_sd" in html
+    assert "0.123" in html
+    assert "0.456" in html
+    assert "0.789" in html
+    assert "0.654" in html

@@ -13,6 +13,8 @@ below). A high R-hat or a below-floor ESS means the chains have not mixed well a
 the summaries below are not yet reliable. See
 `notes/202607181200-ess-reporting-standard.md`.
 
+MCSE measures simulation error in a posterior summary; it does not make the underlying posterior quantity reliable when the sampling-quality gate has failed.
+
 ```{python}
 # | echo: false
 diag = _csv("diagnostics.csv", index_col=0)
