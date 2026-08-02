@@ -3597,6 +3597,23 @@ def _kf_rope_sentence(rope: Mapping, *, is_rd: bool) -> str:
     )
 
 
+def _kf_has_factor_term(output_dir, term: str) -> bool:
+    """Whether ``factor_summary.csv`` carries a row for ``term``.
+
+    Used to gate prose on a coefficient the fit actually contains, so a caveat
+    about (say) group×ability is not published for a model fitted without it.
+    Absent or malformed file → ``False``: a missing caveat is better than one
+    that describes a term the reader cannot find in the table."""
+    path = os.path.join(str(output_dir), "factor_summary.csv")
+    if not os.path.exists(path):
+        return False
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        return False
+    return "term" in df.columns and bool((df["term"].astype(str) == term).any())
+
+
 def _kf_strongest_factor(output_dir, *, exclude_roles: tuple[str, ...] = ("causal",)) -> str | None:
     """Family-highlight sentence: the most clearly resolved adjusted association
     in ``factor_summary.csv``, or None when nothing usable is present.
@@ -3787,15 +3804,27 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
         _kf_sentence(_kf_direction_words(rope["pd"], is_rd=is_rd), "confidence")
     )
     sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
-    sentences.append(
-        _kf_sentence(
-            "Only this t2 comparison is randomised and supports a cause-and-effect "
-            "reading; group differences at later timepoints — after the "
-            "waiting-list children had crossed over to the intervention — are "
-            "associations.",
-            "causal",
-        )
+    causal = (
+        "Only this t2 comparison is randomised and supports a cause-and-effect "
+        "reading; group differences at later timepoints — after the "
+        "waiting-list children had crossed over to the intervention — are "
+        "associations."
     )
+    # The headline nets out the *full* group contribution and adds back only
+    # b_grp_time[1], so it is the effect at mean ability, not a population average
+    # that lets the benefit vary with ability (#271 item 5; design note Decision 4).
+    # Appended to the causal sentence rather than added as a sixth: the box truncates
+    # at KEY_FINDINGS_MAX_SENTENCES, and on a psense-flagged fit a sixth sentence
+    # would silently drop this causal one — the least droppable of the set.
+    if _kf_has_factor_term(output_dir, "gamma_grp_ability"):
+        causal += (
+            " That headline is the effect **for a child of typical cognitive "
+            "ability**: the model does let the benefit differ by ability, but that "
+            "part is estimated partly from the timepoints that are not randomised, "
+            "so it is reported on its own below rather than folded into the "
+            "cause-and-effect figure."
+        )
+    sentences.append(_kf_sentence(causal, "causal"))
     return sentences
 
 

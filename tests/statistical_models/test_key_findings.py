@@ -495,6 +495,91 @@ def test_level_factors_golden_sentences(tmp_path):
     ]
 
 
+def test_level_factors_caveats_the_headline_as_at_mean_ability(tmp_path):
+    # #389 finding 1 / #271 item 5: the t2 items-scale headline nets out the *full*
+    # group contribution and adds back only b_grp_time[1], excluding the
+    # time-invariant gamma_grp_ability term (identified mostly from the three
+    # non-randomised timepoints). The estimand is therefore the effect *at mean
+    # ability*, and the box has to say so rather than implying a population average.
+    d = _setup_dir(tmp_path, "level_factors")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    _write_rows(
+        d,
+        "factor_summary.csv",
+        [
+            {"term": "b_grp_time[1]", "role": "causal", "prob_positive": 0.94},
+            {"term": "gamma_grp_ability", "role": "association", "prob_positive": 0.31},
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
+    assert "for a child of typical cognitive ability" in causal["text"]
+    assert "not randomised" in causal["text"]
+    # Carried on the causal sentence, not as a sixth: the box truncates at five.
+    assert [s["kind"] for s in payload["sentences"]] == [
+        "headline", "confidence", "rope", "causal"
+    ]
+
+
+def test_level_factors_omits_the_ability_caveat_without_the_term(tmp_path):
+    # A level model fitted without group x ability must not carry the caveat — it
+    # would describe a coefficient the reader cannot find in the summary table.
+    d = _setup_dir(tmp_path, "level_factors")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    _write_rows(
+        d,
+        "factor_summary.csv",
+        [{"term": "b_grp_time[1]", "role": "causal", "prob_positive": 0.94}],
+    )
+    payload = generate_key_findings(d)
+    causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
+    assert "typical cognitive ability" not in causal["text"]
+
+
+def test_level_factors_keeps_the_causal_sentence_when_psense_also_flags(tmp_path):
+    # The caveat rides on the causal sentence precisely so this case still fits: a
+    # psense warning plus a sixth sentence would push the causal one past the cap.
+    d = _setup_dir(tmp_path, "level_factors")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    _write_rows(
+        d,
+        "factor_summary.csv",
+        [{"term": "gamma_grp_ability", "role": "association", "prob_positive": 0.31}],
+    )
+    pd.DataFrame(
+        {
+            "prior": [0.083],
+            "likelihood": [0.053],
+            "diagnosis": ["potential prior-data conflict"],
+        },
+        index=["b_grp_time[1]"],
+    ).to_csv(d / "psense_summary.csv")
+    payload = generate_key_findings(d)
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert kinds == ["headline", "warning", "confidence", "rope", "causal"]
+    assert len(kinds) <= KEY_FINDINGS_MAX_SENTENCES
+    assert "typical cognitive ability" in payload["sentences"][-1]["text"]
+
+
+def test_results_factors_partial_gates_the_ability_caveat_on_the_term():
+    # The report prose and the key-findings prose must make the same claim, and the
+    # partial must print it only for a fit that actually has the term (#389 finding 1).
+    text = (REPO / "docs/models/_partials/_results_factors.qmd").read_text()
+    assert 'factor_summary.term == "gamma_grp_ability"' in text
+    assert "at mean ability" in text
+    assert "notes/202606261230-gain-level-factors-design.md" in text
+
+
+def test_design_note_records_the_group_ability_exclusion():
+    # The rationale used to live only in a comment on level_t2_marginal_effect, which
+    # is why #389 re-derived it from the outside as an open question (#271 item 5).
+    text = (REPO / "notes/202606261230-gain-level-factors-design.md").read_text()
+    assert "Decision 4" in text
+    assert "gamma_grp_ability" in text
+    assert "at mean ability" in text
+
+
 def test_level_factors_surfaces_t2_psense_warning(tmp_path):
     # #389 finding 3: when power-scaling flags the t2 term (b_grp_time[1]), a caution
     # bullet is surfaced right after the headline instead of being hidden in a

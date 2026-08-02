@@ -1,7 +1,7 @@
 # DAG-focused gain- and level-factor families (LRPGF / LRPLF) — design decisions
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8); Decision 4 extended by a LLM-based AI tool (Claude Code/Opus 5) on 2026-08-02 to record the group×ability caveat (#389 finding 1, closing out #271 item 5).
 
 Date: 2026-06-26
 
@@ -107,6 +107,45 @@ the one post-baseline timepoint at which the immediate arm has been treated and
 the waitlist has not. `b_grp_time[2]`/`[3]` (t3/t4) are **post-crossover** and are
 flagged as associations (cohort/timing), not effects. The report and the
 `factor_summary` `role` column carry this distinction explicitly.
+
+#### The group×ability term is excluded from the headline — the estimand is "at mean ability"
+
+_Added 2026-08-02, closing out #271 item 5; see #389 finding 1._
+
+The group contribution at t2 is not `b_grp_time[1]` alone but
+`(b_grp_time[1] + gamma_grp_ability·z(ability))·group`. The headline items-scale
+average marginal effect (`level_t2_marginal_effect`, and so `rope_summary.csv`,
+the ROPE card and the key-findings box) deliberately **omits the second part**: it
+nets out the _full_ group contribution to recover each child's untreated
+counterfactual, then adds back **only `b_grp_time[1]`**.
+
+The reason is identification, not convenience. `gamma_grp_ability` is a **single
+time-invariant coefficient**, so it is identified from all four timepoints — and
+three of those four (t1, t3, t4) are not randomised contrasts. Folding it into the
+t2 causal card would import a non-randomised component into a quantity labelled
+causal. Giving group×ability the same `dims="phase"` treatment as `b_grp_time`
+would fix that in principle, but it spends four parameters instead of one at
+n≈53; #271 item 5 offered both routes and this suite takes the second.
+
+The consequence is a **naming obligation**, and it is the whole point of this
+sub-decision. The headline is the population-averaged marginal effect of a
+treatment increment **fixed at mean ability** — each child keeps their own
+untreated baseline, but every child receives the _same_ group increment. It is
+therefore neither a plain population-average t2 effect nor a prediction for a
+single mean-ability child, and it must not be reported as either. The
+group×ability moderation is reported on its own row in `factor_summary.csv`, as
+an adjusted association; the shared `_results_factors.qmd` partial prints the
+caveat whenever a `gamma_grp_ability` row is present.
+
+Quantified at the 2026-08 reporting fits, the alternative (population-standardised
+over the observed ability distribution) shifts the headline by at most **0.38
+items** (R; W +1.45→+1.67, R −3.80→−4.18, others ≤0.16), changes **no sign and no
+ROPE verdict**, and leaves L the only outcome whose 89% interval excludes zero
+under both definitions. The choice is therefore about honest labelling, not about
+which conclusion the suite reaches. The moderation itself is not null — R
+(−0.134 [−0.254, −0.009]) and T (+0.176 [+0.011, +0.345]) both exclude zero — so
+dropping the term altogether would discard something real, even though it is not
+cleanly identified _as t2 moderation_.
 
 ### Decision 5 — phonetic spelling (P) takes the suite floor rule
 
