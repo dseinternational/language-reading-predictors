@@ -81,28 +81,69 @@ def test_from_legacy_extra_rejects_unknown_key():
         )
 
 
-def test_from_legacy_extra_round_trips_known_keys():
+def test_from_legacy_extra_round_trips_the_dose_keys():
+    # Split from the binary case below because dose excludes bernoulli_offfloor and
+    # use_varying_delta (#455); one settings object cannot carry every non-default at
+    # once and still describe a model the factory would build.
     settings = DiDModelSettings.from_legacy_extra(
         {
             "dose": True,
             "period_varying_dose": True,
-            "likelihood": "bernoulli_offfloor",
+            "likelihood": "beta_binomial",
             "outcomes": ("W",),
             "waves": (0, 1),
             "periods": (0, 1),
-            "use_child_re": False,
+            "use_child_re": True,
             "use_age": False,
-            "use_varying_delta": True,
         },
         model_id="lrp-rli-did-999",
     )
     assert settings.dose is True
     assert settings.period_varying_dose is True
-    assert settings.likelihood == "bernoulli_offfloor"
     assert settings.outcomes == ("W",)
     assert settings.waves == (0, 1)
-    assert settings.use_child_re is False
+    assert settings.periods == (0, 1)
+    assert settings.use_age is False
+
+
+def test_from_legacy_extra_round_trips_the_binary_keys():
+    settings = DiDModelSettings.from_legacy_extra(
+        {
+            "dose": False,
+            "likelihood": "bernoulli_offfloor",
+            "outcomes": ("W", "L"),
+            "waves": (0, 1, 2),
+            "use_child_re": True,
+            "use_varying_delta": True,
+        },
+        model_id="lrp-rli-did-999",
+    )
+    assert settings.dose is False
+    assert settings.likelihood == "bernoulli_offfloor"
+    assert settings.outcomes == ("W", "L")
+    assert settings.waves == (0, 1, 2)
+    assert settings.use_child_re is True
     assert settings.use_varying_delta is True
+
+
+def test_settings_reject_off_floor_with_dose():
+    with pytest.raises(ValueError, match="bernoulli_offfloor is the binary prevalence"):
+        DiDModelSettings(dose=True, likelihood="bernoulli_offfloor")
+
+
+def test_settings_reject_varying_delta_with_dose():
+    with pytest.raises(ValueError, match="use_varying_delta is unavailable for dose"):
+        DiDModelSettings(dose=True, use_varying_delta=True)
+
+
+def test_settings_reject_varying_delta_without_a_child_random_intercept():
+    with pytest.raises(ValueError, match="use_varying_delta=True requires use_child_re"):
+        DiDModelSettings(use_varying_delta=True, use_child_re=False)
+
+
+def test_settings_reject_dose_with_non_transition_periods():
+    with pytest.raises(ValueError, match=r"dose variants require periods=\(0, 1\)"):
+        DiDModelSettings(dose=True, periods=(0, 1, 2))
 
 
 # --- resolve ------------------------------------------------------------------

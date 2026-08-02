@@ -107,6 +107,28 @@ class GainFactorsModelSettings:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
             )
+        # Interaction terms must name something the model actually builds (#455).
+        # build_gain_factors_model raises the same way, but only once make_context has
+        # reset an output directory and the loader has read the panel; the vocabulary
+        # is fixed by skill_symbols and ability_covariate, both settings fields, so it
+        # can be checked at declaration. This deliberately mirrors the factory's set
+        # exactly — including "trt" for treated_only fits, which the factory also
+        # allows — so the two cannot disagree about what is buildable.
+        valid_terms = self.interaction_vocabulary()
+        for pair in self.interactions:
+            for term in pair:
+                if term not in valid_terms:
+                    raise ValueError(
+                        f"interaction term {term!r} not available; "
+                        f"have {sorted(valid_terms)}"
+                    )
+
+    def interaction_vocabulary(self) -> frozenset[str]:
+        """Terms an interaction pair may name, given the declared skills / ability."""
+        terms = {"trt", "age", "own", *self.skill_symbols}
+        if self.ability_covariate is not None:
+            terms.add("ability")
+        return frozenset(terms)
 
     @classmethod
     def from_legacy_extra(

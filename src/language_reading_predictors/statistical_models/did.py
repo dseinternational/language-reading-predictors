@@ -104,6 +104,23 @@ class DiDModelSettings:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
             )
+        # The remaining cross-field constraints build_did_model enforces (#455). They
+        # depend on nothing but these settings, so the factory would only reject them
+        # after make_context had reset an output directory and the loader had read the
+        # panel. Checked here, incoherent settings fail at settings construction time
+        # (often at model-module import time, otherwise at resolve time). The factory keeps its own copies as belt-and-braces for direct callers.
+        if self.dose and self.likelihood == "bernoulli_offfloor":
+            raise ValueError(
+                "bernoulli_offfloor is the binary prevalence estimand; use dose=False"
+            )
+        if self.use_varying_delta and self.dose:
+            raise ValueError("use_varying_delta is unavailable for dose models")
+        if self.use_varying_delta and not self.use_child_re:
+            raise ValueError("use_varying_delta=True requires use_child_re=True")
+        if self.dose and self.periods != (0, 1):
+            raise ValueError(
+                f"DiD dose variants require periods=(0, 1); got {self.periods}."
+            )
 
     @classmethod
     def from_legacy_extra(
