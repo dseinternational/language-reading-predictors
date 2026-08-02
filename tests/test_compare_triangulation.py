@@ -133,6 +133,7 @@ def test_triangulation_consistent_and_disagreeing(cmp_mod, out_root):
 
     w = by["W"]
     assert w["n_designs"] == 3 and w["all_converged"]
+    assert "B excluded" in w["response_link_scope"]
     assert bool(w["direction_agree"]) and bool(w["intervals_overlap"])
     assert bool(w["consistent"]) is True
 
@@ -185,7 +186,7 @@ def test_all_negative_overlapping_is_consistent(cmp_mod, out_root):
 
 
 def test_registry_catalogue_includes_every_complete_graded_suite(cmp_mod):
-    """TR, TE and F must not silently fall out when all three models exist."""
+    """Complete ordinary-logit suites remain; link-sensitive B is deliberately out."""
     by_outcome = {
         outcome: (itt_id, did_id, gf_id)
         for outcome, itt_id, did_id, gf_id in cmp_mod.TRIANGULATION_OUTCOMES
@@ -195,11 +196,31 @@ def test_registry_catalogue_includes_every_complete_graded_suite(cmp_mod):
         "R": ("lrp-rli-itt-005", "lrp-rli-did-005", "lrp-rli-gf-002"),
         "E": ("lrp-rli-itt-006", "lrp-rli-did-009", "lrp-rli-gf-003"),
         "L": ("lrp-rli-itt-007", "lrp-rli-did-002", "lrp-rli-gf-004"),
-        "B": ("lrp-rli-itt-008", "lrp-rli-did-003", "lrp-rli-gf-006"),
         "TR": ("lrp-rli-itt-001", "lrp-rli-did-008", "lrp-rli-gf-009"),
         "TE": ("lrp-rli-itt-002", "lrp-rli-did-004", "lrp-rli-gf-010"),
         "F": ("lrp-rli-itt-025", "lrp-rli-did-010", "lrp-rli-gf-007"),
     }
+
+
+def test_itt_vs_joint_excludes_response_link_sensitive_blending(cmp_mod, out_root):
+    for model_id, _outcome in cmp_mod.ITT_IDS:
+        _write_itt(cmp_mod, model_id, median=0.3, lo=0.1, hi=0.5, prob=0.98)
+
+    joint_dir = _run_dir(cmp_mod, cmp_mod.JOINT_ID)
+    joint_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [
+            {"outcome": outcome, "tau_median": 0.3, "tau_lo": 0.1, "tau_hi": 0.5}
+            for outcome in ["W", "R", "E", "L", "B"]
+        ]
+    ).to_csv(joint_dir / "tau_summary.csv", index=False)
+    _write_gate(joint_dir, True)
+
+    df = cmp_mod.build_itt_vs_joint("dev")
+
+    assert df is not None
+    assert set(df["outcome"]) == {"W", "R", "E", "L"}
+    assert "B excluded" in df["response_link_scope"].iat[0]
 
 
 def test_triangulation_uses_randomised_t2_contrast_from_redesigned_did(

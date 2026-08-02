@@ -168,7 +168,7 @@ if _diff is not None:
 _ITT-vs-joint consistency._ The single-outcome LRPITT models and this joint model estimate the *same* ITT
 effects; the joint τ per outcome should track the singles. The cross-model
 ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
-(`output/statistical_models/comparison/`).
+(`output/statistical_models/comparison/`). Phoneme blending (`B`) is deliberately excluded from this ordinary-logit comparison: its result must instead be read across the required `lrp-rli-itt-008` / `lrp-rli-itt-108` ordinary-logit versus guessing-floor response-link sensitivity.
 
 ```{python}
 # | echo: false

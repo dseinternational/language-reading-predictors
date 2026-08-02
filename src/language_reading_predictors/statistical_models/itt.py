@@ -21,6 +21,10 @@ import numpy as np
 import pandas as pd
 
 from language_reading_predictors.statistical_models.definitions import FLOORED
+from language_reading_predictors.statistical_models.likelihood import (
+    SCORE_MEAN_LINKS,
+    ScoreMeanLink,
+)
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 
 if TYPE_CHECKING:
@@ -48,6 +52,7 @@ _LEGACY_KEYS = frozenset(
         "outcomes",
         "pre_required",
         "restrict_complete",
+        "score_mean_link",
         "tau_moderator_interaction",
         "tau_moderator_is_covariate",
         "tau_moderator_symbol",
@@ -138,6 +143,7 @@ class IttModelSettings:
     alpha_sigma: float | None = None
     gamma_own_sigma: float | None = None
     kappa_sigma: float | None = None
+    score_mean_link: ScoreMeanLink = "logit"
     floor_rule: bool = False
     floor_rule_provenance: str | None = None
     floor_estimand_role: str | None = None
@@ -185,6 +191,11 @@ class IttModelSettings:
             value = getattr(self, name)
             if value is not None and (not isinstance(value, str) or not value):
                 raise TypeError(f"{name} must be a non-empty string or None")
+        if self.score_mean_link not in SCORE_MEAN_LINKS:
+            raise ValueError(
+                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+                f"got {self.score_mean_link!r}"
+            )
 
     @classmethod
     def for_floor_outcome(cls) -> IttModelSettings:
@@ -264,6 +275,7 @@ class IttModelSettings:
             alpha_sigma=_legacy_optional_float(extra, "alpha_sigma"),
             gamma_own_sigma=_legacy_optional_float(extra, "gamma_own_sigma"),
             kappa_sigma=_legacy_optional_float(extra, "kappa_sigma"),
+            score_mean_link=extra.get("score_mean_link", "logit"),
             floor_rule=_legacy_bool(extra, "floor_rule", False),
             floor_rule_provenance=extra.get("floor_rule_provenance"),
             floor_estimand_role=extra.get("floor_estimand_role"),
@@ -296,6 +308,9 @@ class IttRunPlan:
     alpha_sigma: float | None
     gamma_own_sigma: float | None
     kappa_sigma: float | None
+    score_mean_link: ScoreMeanLink
+    required_link_companion_model_id: str | None
+    link_sensitivity_required_for_release: bool
     floor_rule: bool
     floor_rule_provenance: str | None
     floor_estimand_role: str | None
@@ -344,23 +359,35 @@ class IttRunPlan:
             "alpha_sigma": self.alpha_sigma,
             "gamma_own_sigma": self.gamma_own_sigma,
             "kappa_sigma": self.kappa_sigma,
+            "score_mean_link": self.score_mean_link,
         }
 
     def recipe_markdown(self, *, title: str) -> str:
         """Explain the executable plan in undergraduate-friendly Markdown."""
         if self.floor_rule:
             question = (
-                "What is the effect of random assignment on the probability of "
-                "moving above the test floor at t2 among children observed at the "
-                "floor at t1?"
+                "What is the assigned-arm contrast in the probability of moving "
+                "above the test floor at t2 among children observed at the floor "
+                "at t1?"
             )
             likelihood = (
                 "The headline uses a Bernoulli model for whether the child moves "
                 "above zero. Graded Beta-Binomial fits are secondary checks."
             )
+        elif self.score_mean_link == "three_choice_guessing_floor":
+            question = (
+                f"What is the assigned-arm contrast in the t2 "
+                f"{self.outcome_symbol} score in the fitted available-case sample?"
+            )
+            likelihood = (
+                "The observed score is modelled with a Beta-Binomial likelihood. "
+                "Its mean uses a three-choice guessing-floor link, so the expected "
+                "score proportion runs from one third (chance) to one rather than "
+                "from zero to one."
+            )
         else:
             question = (
-                f"What is the effect of random assignment on the t2 "
+                f"What is the assigned-arm contrast in the t2 "
                 f"{self.outcome_symbol} score in the fitted available-case sample?"
             )
             likelihood = (
@@ -395,6 +422,15 @@ class IttRunPlan:
             if self.restrict_complete
             else "none"
         )
+        robustness_text = ""
+        if self.link_sensitivity_required_for_release:
+            robustness_text = (
+                "\n\n## Required robustness\n\n"
+                "Phoneme blending is response-link sensitive. Release requires this "
+                "fit to be paired with the current, trace-validated "
+                f"`{self.required_link_companion_model_id}` fit; the ordinary-logit "
+                "and one-in-three guessing-floor estimates must be reported together."
+            )
         return (
             "Note: Generated from the validated ITT run plan; template drafted by "
             "a LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -406,12 +442,14 @@ class IttRunPlan:
             "available row per child. Requested outcomes: "
             f"{', '.join(self.outcomes)}. Complete-case-only restrictions: "
             f"{restriction_text}.\n\n"
-            f"## Model\n\n{likelihood}\n\n"
+            f"## Model\n\n{likelihood}{robustness_text}\n\n"
             "The treatment term compares the assigned intervention and wait-list "
-            "groups. Positive values mean the intervention helps. Random assignment "
-            "supports the causal interpretation of this term within the observed "
-            "analysis set; extending it to every randomised child also requires a "
-            "missing-outcome assumption. Random assignment does not make the other "
+            "groups. Positive values mean the intervention arm is higher under the "
+            "model. A causal reading in the observed analysis set requires archive "
+            "inclusion, outcome observation and any complete-case restriction not to "
+            "induce an association between assigned arm and potential outcomes. "
+            "Extending it to every randomised child requires further missing-outcome "
+            "assumptions and sensitivity. Random assignment does not make the other "
             "coefficients causal.\n\n"
             f"Age effect: {self.age_effect}. Baseline terms: {baseline_text}. "
             f"Requested additional adjustment terms: {adjustment_text}. Treatment-"
@@ -546,6 +584,15 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         raise ValueError(
             f"{spec.model_id}: floor_rule cannot use treatment-effect moderation"
         )
+    if settings.score_mean_link == "three_choice_guessing_floor" and own != "B":
+        raise ValueError(
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
+            f"phoneme blending (B), got {own!r}"
+        )
+    if settings.floor_rule and settings.score_mean_link != "logit":
+        raise ValueError(
+            f"{spec.model_id}: floor_rule requires score_mean_link='logit'"
+        )
     if (
         settings.tau_moderator_symbol is None
         and not settings.tau_moderator_interaction
@@ -644,6 +691,15 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         alpha_sigma=settings.alpha_sigma,
         gamma_own_sigma=settings.gamma_own_sigma,
         kappa_sigma=settings.kappa_sigma,
+        score_mean_link=settings.score_mean_link,
+        required_link_companion_model_id=(
+            "lrp-rli-itt-008"
+            if own == "B" and settings.score_mean_link == "three_choice_guessing_floor"
+            else "lrp-rli-itt-108"
+            if own == "B"
+            else None
+        ),
+        link_sensitivity_required_for_release=own == "B",
         floor_rule=settings.floor_rule,
         floor_rule_provenance=settings.floor_rule_provenance,
         floor_estimand_role=settings.floor_estimand_role,

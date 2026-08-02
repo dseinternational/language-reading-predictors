@@ -20,17 +20,12 @@ format:
 
 ## Overview
 
-**In plain terms.** Did the children offered the intervention understand more vocabulary they were *not* directly taught (a test of whether learning generalised) than those who were not — and how large, and how certain, is that difference? Randomisation identifies the effect of *being offered* the programme within the fitted observed-data analysis set. Because the repository omits three randomised children and the model requires its analytic variables to be observed, this is an available-case modified-ITT contrast whose wider causal reading assumes ignorable missingness, not a full ITT of all 57 children.
+**In plain terms.** Did the children offered the intervention understand more vocabulary they were *not* directly taught (a test of whether learning generalised) than those who were not — and how large, and how certain, is that difference? This model estimates the assigned-arm contrast among children in the fitted observed-data analysis set. Randomisation created exchangeability in the original full randomised cohort, but conditioning on archive inclusion and observed analytic variables can break it. A causal reading of the fitted contrast therefore requires selection not to induce an association between assigned arm and potential outcomes; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
-LRPITT03 is the available-case modified-ITT analysis for not-taught receptive vocabulary, block 1 (`b1rent`). The estimand is the randomised offer effect of group assignment $G$ on the post-score $UR_{\text{post}}$ in the model-specific fitted sample, using the RCT phase only (time 1 $\rightarrow$ time 2).
+LRPITT03 is the available-case modified-ITT analysis for not-taught receptive vocabulary, block 1 (`b1rent`). The estimand is the assigned-arm contrast in the post-score $UR_{\text{post}}$ in the model-specific fitted sample, using the RCT phase only (time 1 $\rightarrow$ time 2).
 
 
-_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ within the fitted analysis set without adjustment. Generalising it to all 57 randomised children additionally requires ignorable selection and missingness. The own baseline $\gamma_{\text{own}}$
-and linear age $\gamma_A$ are **precision terms only** — they sharpen $\tau$ but are
-not what licenses the causal interpretation, and no cross-baseline conditioning is
-used. Attendance / sessions are never conditioned on (a DAG collider).
-**Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
-the intervention raises the outcome.
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so the offer contrast in the original full randomised cohort requires no baseline-covariate adjustment. This fit instead conditions on archive inclusion and observed analytic variables; a causal reading of $\tau$ in the fitted sample requires that selection did not induce an association between assigned arm and potential outcomes, and extending it to all 57 randomised children requires further missing-data assumptions and sensitivity. The own baseline $\gamma_{\text{own}}$ and linear age $\gamma_A$ are **precision terms only** — they may sharpen $\tau$ but do not identify effects after selection — and no cross-baseline conditioning is used. Attendance or sessions are never conditioned on (a DAG collider). **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means the intervention arm has the higher modelled outcome.
 
 ## Model
 

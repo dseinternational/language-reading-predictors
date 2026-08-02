@@ -9,15 +9,18 @@ scripts/fit_statistical_model.py all``). Produces, under
 
 - ``itt_vs_joint_tau.csv`` — per-outcome tau from the LRPITT single-outcome
   fits alongside tau_k from the LRPITT12 joint (consistency check), on the shared
-  (non-floored) outcomes W, R, E, L, B.
+  ordinary-logit outcomes W, R, E and L. Response-link-sensitive phoneme blending
+  (B) is excluded; read its mandatory LRPITT08/LRPITT08B paired sensitivity instead.
 - ``triangulation_consistency.csv`` — per-outcome cross-*design* consistency of the
   randomised on-intervention effect (single-outcome ITT ``tau`` vs waitlist-crossover
   t2 arm contrast ``tau_t2`` vs gain-factor ``beta_trt``): whether the analyses agree
   in direction and their intervals overlap on the shared logit scale. A consistency
   check, never a pooled estimate — the analyses share the same trial data (issue #230
-  §6).
+  §6). B is excluded because its mandatory response-link pair is the relevant
+  sensitivity comparison.
 - ``tau_forest.png`` — forest plot of the LRPITT12 joint taus, overlaid with
-  the LRPITT single-outcome taus on those shared outcomes.
+  the LRPITT single-outcome taus on those shared outcomes. B is excluded because
+  its conclusion must be assessed across the ordinary-logit and guessing-floor links.
 - ``mechanism_forest.png`` — forest plot of the marginal slope of each
   mechanism GP (LRP56 R->W, LRP57 E->W, LRP58 L->W). Slopes are computed
   from each model's actual posterior ``f_mech`` samples on its own
@@ -64,9 +67,21 @@ from language_reading_predictors.statistical_models.reporting import (
 # not misrepresent it.
 FLOORED_SYMBOLS: frozenset[str] = frozenset(ROPE_DELTA_PROB)
 
+# Phoneme blending (B) has a mandatory alternative inverse-link companion:
+# LRPITT08 uses the ordinary logit mean while LRPITT08B respects the test's
+# one-in-three guessing floor. A standard-logit coefficient can be compared with
+# other standard-logit coefficients algebraically, but presenting that comparison as
+# the cross-model conclusion would bypass the required link sensitivity.
+RESPONSE_LINK_SENSITIVITY_SYMBOLS: frozenset[str] = frozenset({"B"})
+RESPONSE_LINK_SCOPE = (
+    "ordinary-logit outcomes; response-link-sensitive B excluded — read the "
+    "paired lrp-rli-itt-008/lrp-rli-itt-108 sensitivity"
+)
+
 
 # Single-outcome ITT models (LRPITT suite, #119) overlaid on the LRPITT12 joint, on
-# the outcomes the joint also carries. The floored outcomes P (lrp-rli-itt-009) and N
+# the outcomes the joint also carries. Response-link-sensitive B is excluded, as are
+# the floored outcomes P (lrp-rli-itt-009) and N
 # (lrp-rli-itt-011) are excluded from the graded overlay: their exploratory headline is the
 # binary off-floor effect, read from their own reports rather than compared to the
 # joint's graded tau. F/T have standalone ITTs but are not outcomes in this joint fit.
@@ -75,7 +90,6 @@ ITT_IDS: list[tuple[str, str]] = [
     ("lrp-rli-itt-005", "R"),
     ("lrp-rli-itt-006", "E"),
     ("lrp-rli-itt-007", "L"),
-    ("lrp-rli-itt-008", "B"),
 ]
 MECH_IDS: list[tuple[str, str]] = [("lrp-rli-mech-056", "R"), ("lrp-rli-mech-057", "E"), ("lrp-rli-mech-058", "L")]
 
@@ -191,6 +205,12 @@ def _gate_ok(model_id: str, config: str) -> bool:
 
 
 def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
+    """Compare like-link single-outcome and joint ITT coefficients.
+
+    B is intentionally absent: its scientific conclusion is conditional on the
+    mandatory ordinary-logit versus guessing-floor pair, which the joint model does
+    not reproduce. ``response_link_scope`` keeps that exclusion visible in the CSV.
+    """
     rows: list[dict] = []
     for model_id, outcome in ITT_IDS:
         tau_path = os.path.join(_run_dir(model_id, config), "tau_summary.csv")
@@ -202,6 +222,7 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
                 "config": config,
                 "outcome": outcome,
                 "source": model_id,
+                "response_link_scope": RESPONSE_LINK_SCOPE,
                 "floored": outcome in FLOORED_SYMBOLS,
                 "converged": _gate_ok(model_id, config),
                 "tau_median": df["tau_logit_median"].iloc[0],
@@ -214,12 +235,16 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
         return None
     joint = pd.read_csv(joint_path)
     joint_ok = _gate_ok(JOINT_ID, config)
+    compared_outcomes = {outcome for _model_id, outcome in ITT_IDS}
     for _, row in joint.iterrows():
+        if row["outcome"] not in compared_outcomes:
+            continue
         rows.append(
             {
                 "config": config,
                 "outcome": row["outcome"],
                 "source": JOINT_ID,
+                "response_link_scope": RESPONSE_LINK_SCOPE,
                 "floored": row["outcome"] in FLOORED_SYMBOLS,
                 "converged": joint_ok,
                 "tau_median": row["tau_median"],
@@ -245,7 +270,6 @@ _TRIANGULATION_OUTCOME_ORDER: tuple[str, ...] = (
     "R",
     "E",
     "L",
-    "B",
     "TR",
     "TE",
     "F",
@@ -274,7 +298,11 @@ def _triangulation_outcomes() -> list[tuple[str, str, str, str]]:
     by_kind: dict[str, dict[str, str]] = {"itt": {}, "did": {}, "gain_factors": {}}
     for definition in MODEL_REGISTRY.values():
         outcome = definition.outcome
-        if outcome is None or definition.floored:
+        if (
+            outcome is None
+            or definition.floored
+            or outcome in RESPONSE_LINK_SENSITIVITY_SYMBOLS
+        ):
             continue
         if definition.model_id in primary_itts:
             by_kind["itt"][outcome] = definition.model_id
@@ -396,6 +424,11 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
     the value is in whether distinct model specifications triangulate on the same story
     (issue #230 §6). Returns ``None`` if no outcome has at least two design summaries.
 
+    B is excluded even though all three ordinary-logit coefficients exist: the
+    phoneme-blending conclusion must first be read across the registered
+    LRPITT08/LRPITT08B response-link pair. ``response_link_scope`` records this
+    conservative scope in every emitted row.
+
     Two interpretation caveats (#295 review), why the flags are read qualitatively:
 
     - **The three logit effects are on the same *scale* but not the same conditioning
@@ -442,6 +475,7 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
         row: dict = {
             "config": config,
             "outcome": outcome,
+            "response_link_scope": RESPONSE_LINK_SCOPE,
             "n_designs": len(ests),
             "n_converged": len(converged),
             "all_converged": len(converged) == len(ests),
@@ -469,11 +503,18 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
 
 def tau_forest(config: str, out_path: str) -> bool:
     """Forest plot of the LRPITT12 joint taus, overlaid with the LRPITT single-outcome
-    fits on the shared (non-floored) outcomes."""
+    fits on the shared (non-floored) outcomes.
+
+    The response-link-sensitive B row is omitted; its paired LRPITT08/LRPITT08B
+    sensitivity is the required comparison.
+    """
     joint_path = os.path.join(_run_dir(JOINT_ID, config), "tau_summary.csv")
     if not os.path.exists(joint_path):
         return False  # joint run not fitted — main() reports the skip
     joint = pd.read_csv(joint_path)
+    joint = joint[~joint["outcome"].isin(RESPONSE_LINK_SENSITIVITY_SYMBOLS)].copy()
+    if joint.empty:
+        return False
     # Gate-awareness (issue #274 review): a REVIEW fit "is not interpretable"
     # (METHODS.md), so mark any non-converged run feeding this forest rather than
     # plotting its tau unflagged.
@@ -542,7 +583,10 @@ def tau_forest(config: str, out_path: str) -> bool:
         return s + (" †" if s in FLOORED_SYMBOLS else "") + (" ‡" if s in uni_review else "")
 
     ax.set_yticklabels([_ylabel(s) for s in outcomes])
-    _caption = []
+    _caption = [
+        "B excluded — read the required LRPITT08/LRPITT08B ordinary-logit versus "
+        "guessing-floor sensitivity"
+    ]
     if floored_present:
         _caption.append(
             "† floored outcome — graded τ shown; post-hoc exploratory headline is "
@@ -566,7 +610,7 @@ def tau_forest(config: str, out_path: str) -> bool:
         )
     ax.invert_yaxis()
     ax.set_xlabel(r"$\tau$ (logit scale, coefficient on $G=1$ = intervention; positive = benefit)")
-    ax.set_title("Treatment effect by outcome")
+    ax.set_title("Treatment effect by outcome (response-link-sensitive B excluded)")
     ax.legend(loc="lower left", fontsize=9)
     plt.tight_layout()
     plt.savefig(out_path, dpi=300, bbox_inches="tight")

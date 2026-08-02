@@ -44,6 +44,9 @@ def test_typed_defaults_resolve_to_the_single_outcome_teaching_model():
     assert plan.cross_symbols == ()
     assert plan.age_effect == "linear"
     assert plan.use_own_baseline is True
+    assert plan.score_mean_link == "logit"
+    assert plan.link_sensitivity_required_for_release is False
+    assert plan.required_link_companion_model_id is None
     assert plan.headline_likelihood == "beta_binomial"
     assert plan.prepare_kwargs() == {
         "phase_mode": "itt",
@@ -53,6 +56,30 @@ def test_typed_defaults_resolve_to_the_single_outcome_teaching_model():
         "drop_missing_pre": True,
         "pre_required": None,
     }
+    assert plan.factory_kwargs()["score_mean_link"] == "logit"
+
+
+def test_blending_guessing_floor_link_is_explicit_in_the_build_contract():
+    plan = resolve_itt_run_plan(
+        _spec(
+            IttModelSettings(
+                score_mean_link="three_choice_guessing_floor",
+            ),
+            outcome="B",
+        )
+    )
+
+    assert plan.score_mean_link == "three_choice_guessing_floor"
+    assert plan.link_sensitivity_required_for_release is True
+    assert plan.required_link_companion_model_id == "lrp-rli-itt-008"
+    assert plan.factory_kwargs()["score_mean_link"] == (
+        "three_choice_guessing_floor"
+    )
+    recipe = plan.recipe_markdown(title="Blending link sensitivity")
+    assert "three-choice guessing-floor link" in recipe
+    assert "from one third (chance) to one" in recipe
+    assert "Required robustness" in recipe
+    assert "`lrp-rli-itt-008`" in recipe
 
 
 def test_typed_settings_normalise_sequences_and_remain_immutable():
@@ -257,6 +284,13 @@ def test_legacy_outcomes_without_cross_symbols_keep_the_loaded_outcome_default()
             ),
             "P",
             "floor_rule cannot use treatment-effect moderation",
+        ),
+        (
+            IttModelSettings(
+                score_mean_link="three_choice_guessing_floor",
+            ),
+            "W",
+            "only valid for phoneme blending",
         ),
     ],
 )

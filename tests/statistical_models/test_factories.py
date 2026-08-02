@@ -38,6 +38,9 @@ from language_reading_predictors.statistical_models.itt import (
     IttModelSettings,
     resolve_itt_run_plan,
 )
+from language_reading_predictors.statistical_models.likelihood import (
+    apply_score_mean_link,
+)
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
@@ -110,6 +113,66 @@ def test_itt_factory_builds_with_adjusters(tmp_path):
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=11)
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_three_choice_guessing_floor_link_mapping():
+    unit_probability = np.array([0.0, 0.25, 0.5, 1.0])
+
+    np.testing.assert_allclose(
+        apply_score_mean_link(unit_probability, "logit"),
+        unit_probability,
+    )
+    np.testing.assert_allclose(
+        apply_score_mean_link(
+            unit_probability,
+            "three_choice_guessing_floor",
+        ),
+        np.array([1 / 3, 1 / 2, 2 / 3, 1.0]),
+    )
+
+
+def test_itt_factory_builds_blending_guessing_floor_link(tmp_path):
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("B",))
+    built = build_itt_model(
+        prep,
+        outcome_symbol="B",
+        cross_symbols=(),
+        score_mean_link="three_choice_guessing_floor",
+    )
+
+    assert built.extras["score_mean_link"] == "three_choice_guessing_floor"
+    assert {variable.name for variable in built.model.observed_RVs} == {"y_post"}
+    with built.model:
+        predictive = pm.sample_prior_predictive(draws=10, random_seed=27)
+    assert predictive.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_itt_factory_restricts_the_guessing_floor_link_to_blending(tmp_path):
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("W",))
+
+    with pytest.raises(ValueError, match="only valid for phoneme blending"):
+        build_itt_model(
+            prep,
+            outcome_symbol="W",
+            cross_symbols=(),
+            score_mean_link="three_choice_guessing_floor",
+        )
+
+
+def test_itt_factory_rejects_score_mean_link_for_offfloor_likelihood(tmp_path):
+    p = _write_synthetic(tmp_path)
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("B",))
+
+    with pytest.raises(ValueError, match="only to the Beta-Binomial likelihood"):
+        build_itt_model(
+            prep,
+            outcome_symbol="B",
+            cross_symbols=(),
+            likelihood="bernoulli_offfloor",
+            score_mean_link="three_choice_guessing_floor",
+        )
 
 
 def test_taught_block1_measures_registered():

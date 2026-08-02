@@ -1,6 +1,97 @@
+```{python}
+# | echo: false
+# | output: asis
+_blending_link_summary = None
+if _symbol == "B" and _scientific_results_released:
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_local_blending_link_sensitivity,
+    )
+
+    _blending_link_status = evaluate_local_blending_link_sensitivity(
+        _here, config=config
+    )
+    if not _blending_link_status.get("ready"):
+        _scientific_results_released = False
+        print(
+            '## Response-link release check\n\n'
+            '::: {.callout-important title="Phoneme-blending findings withheld"}\n\n'
+            "This forced-choice outcome requires a current, trace-backed comparison "
+            "of the ordinary logit mean with the one-in-three guessing-floor mean. "
+            f"The required pair is not ready ({_blending_link_status.get('reason', 'unknown reason')}), "
+            "so the scientific result tables and figures below are withheld even if "
+            "the primary sampler gate passed. Refit both `lrp-rli-itt-008` and "
+            "`lrp-rli-itt-108`, then run `scripts/blending_link_sensitivity.py` and "
+            "regenerate the key findings.\n\n:::"
+        )
+    else:
+        _blending_link_summary = _blending_link_status["summary"]
+        print(
+            '## Response-link release check\n\n'
+            '::: {.callout-caution title="Phoneme-blending conclusion is link-sensitive"}\n\n'
+            "Both reporting fits passed the trace-backed pair validator and use the "
+            "same children, treatment assignments, data, sampling contract and model "
+            "settings apart from the declared score-mean link. The table below is the "
+            "mandatory adjacent sensitivity result; neither row should be selected in "
+            "isolation. The same latent-scale coefficient priors map to different "
+            "items-scale priors under the two inverse links, so the second table "
+            "shows that prior pushforward explicitly.\n\n:::"
+        )
+```
+
+```{python}
+# | echo: false
+_blending_link_summary[
+    [
+        "model_id",
+        "score_mean_link",
+        "effect_items_median",
+        "effect_items_lo",
+        "effect_items_hi",
+        "prob_effect_positive",
+        "prob_meaningful_benefit",
+        "loo_elpd",
+        "loo_reliable",
+    ]
+] if _blending_link_summary is not None else None
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _blending_link_summary is not None:
+    _blending_loo = _blending_link_summary.iloc[0]
+    _blending_loo_reliable = _blending_link_summary["loo_reliable"].map(
+        lambda value: str(value).strip().lower() == "true"
+    ).all()
+    _blending_loo_qualification = (
+        "Both fits meet their recorded Pareto-k reliability threshold."
+        if _blending_loo_reliable
+        else "At least one fit fails its Pareto-k reliability threshold, so do not use this predictive comparison to prefer a link."
+    )
+    print(
+        "**Paired predictive comparison.** The guessing-floor-minus-ordinary-logit "
+        f"PSIS-LOO difference is **{_blending_loo.guessing_floor_minus_logit_elpd:+.2f} elpd** "
+        f"(paired SE {_blending_loo.guessing_floor_minus_logit_elpd_se:.2f}). "
+        f"{_blending_loo_qualification}"
+    )
+```
+
+```{python}
+# | echo: false
+_blending_link_summary[
+    [
+        "model_id",
+        "score_mean_link",
+        "prior_effect_items_median",
+        "prior_effect_items_lo",
+        "prior_effect_items_hi",
+    ]
+] if _blending_link_summary is not None else None
+```
+
 ## Analysis set and estimand
 
-This report estimates the **randomised offer effect in this model's fitted analysis set**: children retain their assigned arm, but the repository contains 54 of the 57 randomised children and the model additionally requires its outcome, baseline and any named robustness covariates to be observed. It is therefore an available-case **modified-ITT** analysis, not an unqualified full-population ITT. Extending the causal interpretation beyond the observed analytic data assumes that exclusions and missingness are ignorable given the observed pre-treatment information—that is, they are not differentially related by arm to the unobserved potential outcomes. Any extra complete-case restriction is stated in the model overview.
+This report estimates the **randomised-arm contrast in this model's fitted analysis set**: children retain their assigned arm, but the repository contains 54 of the 57 randomised children and the model additionally requires its outcome, baseline and any named robustness covariates to be observed. It is therefore an available-case **modified-ITT** analysis, not an unqualified full-population ITT. Randomisation balances the original assigned arms in expectation; it does not guarantee balance after restricting the analysis to archived and observed cases. A causal reading even for the fitted contrast therefore assumes that archive inclusion, outcome observation and any further complete-case restriction did not select children differently between arms according to their potential outcomes, after allowing for the stated pre-treatment information. Interpreting the contrast as the effect for all 57 randomised children requires further assumptions about the missing outcomes and a corresponding attrition sensitivity. Any extra complete-case restriction is stated in the model overview.
 
 ```{python}
 # | echo: false
@@ -23,7 +114,7 @@ _analysis_set
 # | output: asis
 _attrition_bounds = _csv("attrition_bounds.csv")
 if _attrition_bounds is not None:
-    print("**Attrition sensitivity bounds.** These bounds show how conclusions change under the emitted missing-outcome scenarios.")
+    print("**Attrition sensitivity bounds.** These model-free extreme-case bounds describe the raw marginal post-score contrast under the emitted missing-outcome scenarios. They are not the covariate-adjusted Bayesian average marginal effect and are not a missing-at-random or missing-not-at-random model.")
 ```
 
 ```{python}
@@ -37,7 +128,7 @@ _attrition_bounds
 # | echo: false
 # | output: asis
 print(
-    f"This section reports the estimated randomised offer effect on {outcome_label} "
+    f"This section reports the estimated adjusted randomised-arm contrast on {outcome_label} "
     "within the fitted available-case modified-ITT analysis set "
     "and how much of it is large enough to matter in practice (the ROPE summary). Take "
     "the **direction** from `P(intervention helps)`, not from whether an interval clears "
@@ -72,7 +163,7 @@ if tau_summary is not None:
         else ""
     )
     print(
-        f"On the probability scale the average marginal randomised offer effect on "
+        f"On the probability scale the average marginal randomised-arm contrast on "
         f"{outcome_label} is **{_t.tau_prob_median:+.3f}** (risk difference){_items} "
         f"(central 50% credible interval {_t.tau_prob_lo50:+.3f} to {_t.tau_prob_hi50:+.3f}; "
         f"89% {_t.tau_prob_lo:+.3f} to {_t.tau_prob_hi:+.3f}). "
@@ -117,7 +208,7 @@ if tau_summary is not None:
 ```
 
 - `tau_logit_*`: posterior median and equal-tailed central interval (coverage `ci_prob`) of $\tau$ on the logit scale.
-- `tau_prob_*`: average marginal randomised offer effect on the probability scale (risk difference), averaged over the fitted available-case analysis set per posterior draw.
+- `tau_prob_*`: average marginal randomised-arm contrast on the probability scale (risk difference), averaged over the fitted available-case analysis set per posterior draw.
 - `tau_*_lo/hi`, `tau_*_lo50/hi50`: the fixed posterior-band convention (#177, revised 2026-07-17) — the equal-tailed **89%** headline interval (`_lo/_hi`) and the **central 50%** interval (`_lo50/_hi50`, the middle half of the posterior mass; a visual aid, not a threshold), reported alongside the full posterior. Direction is read from `prob_ame_pos`, never from whether a band excludes zero.
 - `tau_*_hpdi_lo/hi`: 89% highest posterior density interval (HPDI) at the same coverage — a per-scale sensitivity companion to the equal-tailed interval. The HPDI is not transformation-invariant, so it is reported separately on the logit and probability scales, not mapped between them.
 - `prob_ame_pos`: posterior probability that the probability-scale average marginal effect is positive, $P(\operatorname{AME} > 0) = P(\text{intervention helps})$; this is the headline direction probability and `direction_label` is its round-odds evidence label.
@@ -212,7 +303,7 @@ if _pred is not None:
     if _has("predicted_effect.png"):
         print(_img("predicted_effect.png", "Items-scale average treatment effect with ROPE"))
         print(
-            "\n_How to read it:_ the posterior of the items-scale average treatment effect with "
+            "\n_How to read it:_ the posterior of the items-scale average arm contrast with "
             "the ROPE band shaded and the three probabilities (meaningful benefit / negligible / "
             "meaningful harm) printed. "
             f"The contrast is a {_status}; the plotted quantities are in `predicted_scores.csv`."
@@ -250,7 +341,7 @@ if _has("arm_overlap_mean.png"):
         "overlapping area shaded and each arm's median marked. The **overlap fraction** is an "
         "at-a-glance summary of how distinguishable the arms are: near-separate curves mean a "
         "confidently signed effect, heavily overlapping curves mean the arms are hard to tell "
-        "apart. The annotated average effect and P(intervention higher) are the same guard-tested "
+        "apart. The annotated average contrast and P(intervention higher) are the same guard-tested "
         "quantities as the ROPE summary above; the plotted numbers are in `arm_overlap_mean.csv`."
     )
     print(

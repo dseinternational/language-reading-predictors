@@ -131,6 +131,7 @@ _ITT = [
     _d("lrpitt06", "itt", "ITT suite", Status.MODEL_OF_RECORD, "E", "randomised ITT effect"),
     _d("lrpitt07", "itt", "ITT suite", Status.MODEL_OF_RECORD, "L", "randomised ITT effect"),
     _d("lrpitt08", "itt", "ITT suite", Status.MODEL_OF_RECORD, "B", "randomised ITT effect"),
+    _d("lrpitt08b", "itt", "ITT link sensitivity", Status.ROBUSTNESS, "B", "three-choice guessing-floor score-mean link", base="lrpitt08"),
     _d("lrpitt09", "itt", "ITT suite", Status.MODEL_OF_RECORD, "P", "floor-rule branch"),
     _d("lrpitt10", "itt", "ITT suite", Status.MODEL_OF_RECORD, "W", "randomised ITT effect (primary outcome)"),
     _d("lrpitt11", "itt", "ITT suite", Status.MODEL_OF_RECORD, "N", "floor-rule branch"),

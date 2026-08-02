@@ -580,6 +580,9 @@ def summarise_influence_refit(
     """Decompose full-versus-leave-out AMEs and attach convergence/provenance."""
     built = influence_build.built
     ci_prob = float(reference.metadata.get("ci_prob", 0.95))
+    score_mean_link = (
+        resolve_itt_run_plan(spec).score_mean_link if spec.kind == "itt" else "logit"
+    )
     if spec.kind == "joint":
         outcomes = list(trace.posterior["outcome"].values.astype(str))
         refit = _report.tau_summary_joint(
@@ -592,6 +595,7 @@ def summarise_influence_refit(
             ci_prob=ci_prob,
             G=built.prepared.G,
             moderators=moderators,
+            score_mean_link=score_mean_link,
         )
         refit = pd.DataFrame([summary])
 
@@ -637,6 +641,7 @@ def summarise_influence_refit(
                         G=primary_G,
                         moderators=primary_moderators,
                         row_mask=retained_mask,
+                        score_mean_link=score_mean_link,
                     )
                 ]
             )
@@ -898,6 +903,11 @@ def evaluate_influence_bundle(
             raise ValueError("influence model id does not match current primary config")
         if model_kind != str(report_config.get("kind")):
             raise ValueError("influence model kind does not match current primary config")
+        score_mean_link = str(
+            (report_config.get("resolved_run_plan") or {}).get(
+                "score_mean_link", "logit"
+            )
+        )
         if str(_one_value(summary, "config")) != expected_config:
             raise ValueError("influence sampling config does not match the report directory")
         if (
@@ -1069,6 +1079,7 @@ def evaluate_influence_bundle(
                         ci_prob=ci_prob,
                         G=primary_G,
                         moderators=primary_moderators,
+                        score_mean_link=score_mean_link,
                     )
                 ]
             )
@@ -1080,6 +1091,7 @@ def evaluate_influence_bundle(
                         G=primary_G,
                         moderators=primary_moderators,
                         row_mask=retained_mask,
+                        score_mean_link=score_mean_link,
                     )
                 ]
             )
@@ -1258,6 +1270,7 @@ def evaluate_influence_bundle(
                         ci_prob=ci_prob,
                         G=G,
                         moderators=moderators,
+                        score_mean_link=score_mean_link,
                     )
                 ]
             )

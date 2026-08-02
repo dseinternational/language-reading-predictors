@@ -175,8 +175,44 @@ def test_bernoulli_contrast_probabilities_are_analytic():
     assert contrast.score_control.size == 0  # no score simulation for the floor rule
 
 
-def test_score_simulation_mean_tracks_expit_eta():
-    """With a huge kappa the Beta collapses; score means ≈ n·E[expit(eta)]."""
+def test_three_choice_guessing_floor_transforms_arm_means_and_ame():
+    eta = np.array([[[0.0, 1.0], [0.5, -0.5]]])  # (1, 2, 2)
+    tau = np.array([[0.8, 0.8]])
+    trace = _trace(eta, tau)
+    G = np.array([1.0, 0.0])
+
+    contrast = counterfactual_predictive_contrast(
+        trace,
+        G=G,
+        n_trials=1,
+        term="tau",
+        varying_term="",
+        likelihood="bernoulli",
+        score_mean_link="three_choice_guessing_floor",
+    )
+    eta0 = eta[0] - 0.8 * G[None, :]
+    expected_control = (1.0 / 3.0) + (2.0 / 3.0) * expit(eta0).mean(axis=1)
+    expected_intervention = (1.0 / 3.0) + (2.0 / 3.0) * expit(
+        eta0 + 0.8
+    ).mean(axis=1)
+    np.testing.assert_allclose(contrast.prob_control, expected_control)
+    np.testing.assert_allclose(contrast.prob_intervention, expected_intervention)
+    np.testing.assert_allclose(
+        contrast.ame_prob,
+        expected_intervention - expected_control,
+    )
+    assert contrast.score_mean_link == "three_choice_guessing_floor"
+
+
+@pytest.mark.parametrize(
+    ("score_mean_link", "floor"),
+    [
+        ("logit", 0.0),
+        ("three_choice_guessing_floor", 1.0 / 3.0),
+    ],
+)
+def test_score_simulation_mean_tracks_score_mean_link(score_mean_link, floor):
+    """With a huge kappa, score means track the declared inverse-link mean."""
     rng_eta = np.random.default_rng(3)
     eta = rng_eta.normal(0.3, 0.05, size=(2, 200, 10))
     tau = np.full((2, 200), 0.6)
@@ -191,11 +227,14 @@ def test_score_simulation_mean_tracks_expit_eta():
         n_trials=n_trials,
         term="tau",
         varying_term="",
+        score_mean_link=score_mean_link,
         rng=np.random.default_rng(5),
     )
     eta0 = eta - 0.6 * G[None, None, :]
-    expected_c = n_trials * expit(eta0).mean()
-    expected_t = n_trials * expit(eta0 + 0.6).mean()
+    expected_c = n_trials * (floor + (1.0 - floor) * expit(eta0).mean())
+    expected_t = n_trials * (
+        floor + (1.0 - floor) * expit(eta0 + 0.6).mean()
+    )
     assert contrast.score_control.mean() == pytest.approx(expected_c, abs=0.35)
     assert contrast.score_intervention.mean() == pytest.approx(expected_t, abs=0.35)
     assert contrast.score_control.min() >= 0
@@ -317,6 +356,62 @@ def test_new_child_population_ame_integrates_the_intercept():
     # The observed-child AME averages expit(u_r + d) - expit(u_r) over the spread
     # fitted intercepts, so it is materially different from the population value.
     assert abs(contrast.ame_prob[0] - contrast.ame_prob_new_child[0]) > 0.03
+
+
+def test_guessing_floor_new_child_ame_uses_transformed_quadrature():
+    """New-child integration applies the guessing-floor link at every node."""
+    n_chain, n_draw, n_obs = 1, 1, 3
+    u_vals = np.array([-1.0, 0.0, 1.0])
+    u_child = u_vals.reshape(n_chain, n_draw, n_obs)
+    d = 0.9
+    sigma = 0.4
+    trace = _trace(
+        u_child.copy(),
+        np.full((n_chain, n_draw), d),
+        kappa=np.full((n_chain, n_draw), 40.0),
+        extra={
+            "u_child": (("chain", "draw", "child"), u_child),
+            "sigma_child": (
+                ("chain", "draw"),
+                np.full((n_chain, n_draw), sigma),
+            ),
+        },
+    )
+    contrast = counterfactual_predictive_contrast(
+        trace,
+        G=np.zeros(n_obs),
+        n_trials=30,
+        term="tau",
+        varying_term="",
+        score_mean_link="three_choice_guessing_floor",
+        child_effect_name="u_child",
+        child_sd_name="sigma_child",
+        child_idx=np.arange(n_obs),
+        rng=np.random.default_rng(23),
+    )
+
+    mc = np.random.default_rng(0).normal(0.0, sigma, size=2_000_000)
+    ordinary_ame = float(expit(d + mc).mean() - expit(mc).mean())
+    assert contrast.prob_control_new_child[0] >= 1.0 / 3.0
+    assert contrast.ame_prob_new_child[0] == pytest.approx(
+        (2.0 / 3.0) * ordinary_ame,
+        abs=2e-3,
+    )
+
+
+def test_invalid_score_mean_link_is_rejected():
+    eta = np.zeros((1, 1, 2))
+    trace = _trace(eta, np.zeros((1, 1)))
+    with pytest.raises(ValueError, match="score_mean_link"):
+        counterfactual_predictive_contrast(
+            trace,
+            G=np.zeros(2),
+            n_trials=1,
+            term="tau",
+            varying_term="",
+            likelihood="bernoulli",
+            score_mean_link="probit",
+        )
 
 
 def test_bernoulli_table_emits_both_population_targets():
@@ -449,7 +544,8 @@ def test_table_schema_graded_and_binary():
     ]
     assert set(graded.columns) >= {
         "outcome", "quantity", "scale", "median", "lo", "hi", "lo50", "hi50",
-        "n_trials", "population", "intercept_basis", "contrast_status",
+        "n_trials", "score_mean_link", "population", "intercept_basis",
+        "contrast_status",
     }
     # No child intercept was supplied, so there is a single population and no
     # separate new-child rows.
@@ -487,6 +583,7 @@ def test_writer_emits_all_artifacts(tmp_path):
         n_trials=32,
         term="tau",
         varying_term="",
+        score_mean_link="three_choice_guessing_floor",
         delta=2.0,
         random_seed=13,
     )
@@ -495,6 +592,9 @@ def test_writer_emits_all_artifacts(tmp_path):
     assert (tmp_path / "icon_array.png").exists()
     assert (tmp_path / "icon_array.csv").exists()
     assert len(summary) == 4
+    assert set(summary["score_mean_link"]) == {
+        "three_choice_guessing_floor"
+    }
 
     binary_dir = tmp_path / "binary"
     binary_dir.mkdir()

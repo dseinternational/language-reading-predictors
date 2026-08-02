@@ -95,3 +95,24 @@ def test_registered_itt_family_model_builds(model_id: str, spec: ModelSpec):
         assert "tau" in free_names, model_id
         assert observed_names & {"y_post", "y_offfloor"}, model_id
         assert built.prepared.n_obs > 0, model_id
+
+
+def test_registered_blending_link_sensitivity_has_the_typed_companion_contract():
+    spec = dict(_REGISTERED_SPECS)["lrp-rli-itt-108"]
+    plan = resolve_itt_run_plan(spec)
+
+    assert spec.kind == "itt"
+    assert spec.outcome_symbol == "B"
+    assert plan.score_mean_link == "three_choice_guessing_floor"
+    assert plan.link_sensitivity_required_for_release is True
+    assert plan.required_link_companion_model_id == "lrp-rli-itt-008"
+    assert plan.headline_likelihood == "beta_binomial"
+
+
+def test_registered_blending_primary_requires_the_link_companion():
+    spec = dict(_REGISTERED_SPECS)["lrp-rli-itt-008"]
+    plan = resolve_itt_run_plan(spec)
+
+    assert plan.score_mean_link == "logit"
+    assert plan.link_sensitivity_required_for_release is True
+    assert plan.required_link_companion_model_id == "lrp-rli-itt-108"

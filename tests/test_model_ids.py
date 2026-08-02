@@ -28,6 +28,7 @@ _GB_DIR = _STAT_DIR.parent / "models"
 _CASES: list[tuple[str, str | None, str]] = [
     ("lrpitt10", "itt", "lrp-rli-itt-010"),
     ("lrpitt01", "itt", "lrp-rli-itt-001"),
+    ("lrpitt08b", "itt", "lrp-rli-itt-108"),
     ("lrpitt15b", "joint", "lrp-rli-itt-115"),
     ("lrpgf01b", "gain_factors", "lrp-rli-gf-101"),
     ("lrplf08", "level_factors", "lrp-rli-lf-008"),
@@ -106,6 +107,7 @@ def test_resolve_to_canonical_maps_forward() -> None:
 
 
 def test_variant_role_from_suffix() -> None:
+    assert M.parse_legacy("lrpitt08b", kind="itt").variant_role == "companion"
     assert M.parse_legacy("lrpgf01b", kind="gain_factors").variant_role == "companion"
     assert M.parse_legacy("lrp77base", kind="dose_response").variant_role == "comparator"
     assert M.parse_legacy("lrpal01d", kind="aligned").variant_role == "dose_sensitivity"

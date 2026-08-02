@@ -130,6 +130,7 @@ def _regenerate_one(fit_dir: Path) -> str:
         "bernoulli" if plan.get("headline_likelihood") == "bernoulli_offfloor"
         else "beta_binomial"
     )
+    score_mean_link = str(plan.get("score_mean_link", "logit"))
     n_trials = 1 if floored else int(MEASURES[symbol].n_trials)
     ci_prob = float(config.get("ci_prob", 0.89))
     random_seed = (config.get("sampling") or {}).get("random_seed")
@@ -144,6 +145,7 @@ def _regenerate_one(fit_dir: Path) -> str:
         term="tau",
         varying_term="" if floored else "tau_i",
         likelihood=likelihood,
+        score_mean_link=score_mean_link,
         ci_prob=ci_prob,
         random_seed=random_seed,
     )
@@ -157,6 +159,7 @@ def _regenerate_one(fit_dir: Path) -> str:
     # effect draws exactly as _save_rope_plot does at fit time.
     _, ame_prob = _report._itt_ame_draws(
         trace, G=G, term="tau", varying_term="" if floored else "tau_i",
+        score_mean_link=score_mean_link,
     )
     write_rope_figures(
         str(fit_dir), ame_prob * float(n_trials),

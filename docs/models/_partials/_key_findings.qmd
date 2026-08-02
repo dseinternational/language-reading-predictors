@@ -17,13 +17,47 @@ from language_reading_predictors.statistical_models.reporting import (
 
 _kf_path = _KFPath(".") / "key_findings.json"
 _kf_gate_path = _KFPath(".") / "diagnostics_summary.json"
+_kf_config_path = _KFPath(".") / "config.json"
 try:
     with open(_kf_gate_path) as _kf_gate_fh:
         _kf_gate = _kf_json.load(_kf_gate_fh)
 except (FileNotFoundError, OSError, UnicodeDecodeError, _kf_json.JSONDecodeError):
     _kf_gate = None
 
-if not _kf_gate_clean_passed(_kf_gate):
+_kf_gate_is_clean = _kf_gate_clean_passed(_kf_gate)
+_kf_blending_required = False
+_kf_blending_ready = True
+_kf_blending_reason = ""
+_kf_blending_sha256 = None
+if _kf_gate_is_clean:
+    try:
+        with open(_kf_config_path) as _kf_config_fh:
+            _kf_config = _kf_json.load(_kf_config_fh)
+    except (
+        FileNotFoundError,
+        OSError,
+        UnicodeDecodeError,
+        _kf_json.JSONDecodeError,
+    ):
+        _kf_config = None
+    if isinstance(_kf_config, dict) and _kf_config.get("outcome_symbol") == "B":
+        from language_reading_predictors.statistical_models.blending_sensitivity import (
+            evaluate_local_blending_link_sensitivity as _kf_evaluate_blending,
+        )
+
+        _kf_blending_required = True
+        _kf_blending_status = _kf_evaluate_blending(
+            _KFPath("."), config=_kf_config
+        )
+        _kf_blending_ready = bool(_kf_blending_status.get("ready"))
+        _kf_blending_reason = str(
+            _kf_blending_status.get("reason") or "the paired evidence is stale"
+        )
+        _kf_blending_sha256 = _kf_blending_status.get("summary_sha256")
+        if not _kf_blending_ready:
+            _scientific_results_released = False
+
+if not _kf_gate_is_clean:
     _kf_gate_checks = (
         _kf_gate.get("checks", {}) if isinstance(_kf_gate, dict) else {}
     )
@@ -38,6 +72,15 @@ if not _kf_gate_clean_passed(_kf_gate):
         "released. See Technical checks before interpreting any estimate."
         "\n\n:::"
     )
+elif _kf_blending_required and not _kf_blending_ready:
+    print(
+        '::: {.callout-important title="Findings withheld: response-link '
+        'evidence is not current"}\n\n'
+        "Phoneme blending requires the current, trace-bound ordinary-logit and "
+        "one-in-three guessing-floor pair before any stored finding is released "
+        f"({_kf_blending_reason}). Rebuild the pair and regenerate key findings."
+        "\n\n:::"
+    )
 elif not _kf_path.exists():
     print(
         '::: {.callout-note title="Key findings"}\n\n'
@@ -50,7 +93,18 @@ else:
     with open(_kf_path) as _kf_fh:
         _kf = _kf_json.load(_kf_fh)
     _kf_status = _kf.get("status")
-    if _kf_status == "gate_failed":
+    if _kf_blending_required and _kf.get(
+        "blending_link_sensitivity_sha256"
+    ) != _kf_blending_sha256:
+        _scientific_results_released = False
+        print(
+            '::: {.callout-important title="Findings withheld: response-link '
+            'summary changed"}\n\n'
+            "The stored phoneme-blending key findings are not bound to the current "
+            "paired sensitivity file. Regenerate `key_findings.json` before "
+            "interpreting or releasing this report.\n\n:::"
+        )
+    elif _kf_status == "gate_failed":
         _kf_checks = ", ".join(_kf.get("failing_checks", [])) or "unknown"
         print(
             '::: {.callout-note title="Key findings need regeneration"}\n\n'

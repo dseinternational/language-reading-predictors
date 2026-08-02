@@ -6,6 +6,8 @@
 > Substantially edited in the waitlist-crossover, ITT direction-field and release-run workflow guidance by a LLM-based AI tool (Codex/GPT-5).
 >
 > Divergent-transition qualification workflow updated by a LLM-based AI tool (Codex/GPT-5).
+>
+> Phoneme-blending link-sensitivity release workflow updated by a LLM-based AI tool (Codex/GPT-5).
 
 # Runbook — full statistical-model refit, render, publish and record
 
@@ -306,7 +308,13 @@ python scripts/tau_prior_sensitivity.py --config reporting --outcomes R E UR UE 
 python scripts/tau_prior_sensitivity.py --config reporting --outcomes P N
 ```
 
-The floor-sensitivity command retains failed candidates only in its central sensitivity directory, exits non-zero, and does not replace either report-local grid when validation fails. Independently re-run both fail-closed evaluators after the commands succeed. The standard evaluator requires its exact 44-cell outcome/axis contract and reporting configuration, all 44 content-addressed traces, convergence recomputed from those traces, and alignment to the current eight primary ITT fits. The floor evaluator similarly requires both installed grids to be primary-aligned and trace-backed:
+Build the mandatory phoneme-blending response-link bundle after both registered reporting fits have completed. `lrp-rli-itt-008` is the ordinary-logit primary fit; `lrp-rli-itt-108` is its one-third guessing-floor companion. The command requires a like-for-like pair (same fitted children, treatment assignments, data, source, environment, sampling settings and resolved plan apart from the link), recomputes convergence, posterior and prior items-scale summaries, ROPE probabilities, LOO and Pareto-k from both traces, archives content-addressed traces and child row maps under `$STAT_ROOT/blending_link_sensitivity/`, seals the SHA-256 hashes of all 15 scientific CSV/PNG artefacts that either report can render, installs the two-row summary beside both reports, and regenerates both key-findings files against that exact summary hash. Neither phoneme-blending result is releasable without this validated pair:
+
+```bash
+python scripts/blending_link_sensitivity.py --config reporting
+```
+
+The floor-sensitivity command retains failed candidates only in its central sensitivity directory, exits non-zero, and does not replace either report-local grid when validation fails. Independently re-run all three fail-closed evaluators after the commands succeed. The standard evaluator requires its exact 44-cell outcome/axis contract and reporting configuration, all 44 content-addressed traces, convergence recomputed from those traces, and alignment to the current eight primary ITT fits. The floor evaluator similarly requires both installed grids to be primary-aligned and trace-backed. The blending evaluator reopens both archived traces, reproduces every published paired quantity, checks the archived child row maps against trace-derived Pareto-k values and verifies that the config, trace, row map and every sealed scientific table/figure still match the current 008 and 108 fits:
 
 ```bash
 python - <<'PY'
@@ -315,6 +323,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from language_reading_predictors.statistical_models.blending_sensitivity import (
+    BLENDING_LINK_MODELS,
+    BLENDING_SENSITIVITY_FILENAME,
+    evaluate_blending_link_sensitivity,
+)
 from language_reading_predictors.statistical_models.sensitivity import (
     FLOOR_SENSITIVITY_FILENAME,
     FLOOR_SENSITIVITY_MODEL_IDS,
@@ -329,6 +342,20 @@ from language_reading_predictors.statistical_models.sensitivity import (
 stat_dir = Path(os.environ["STAT_ROOT"])
 models_dir = Path(os.environ["STAT_MODELS_DIR"])
 failed = False
+blending_dir = stat_dir / "blending_link_sensitivity"
+blending_path = blending_dir / BLENDING_SENSITIVITY_FILENAME
+blending = pd.read_csv(blending_path) if blending_path.is_file() else None
+blending_status = evaluate_blending_link_sensitivity(
+    blending,
+    trace_root=blending_dir,
+    primary_model_dirs={
+        model_id: models_dir / f"{model_id}-reporting"
+        for model_id, _link in BLENDING_LINK_MODELS
+    },
+)
+print(f"phoneme-blending link sensitivity: {blending_status}")
+failed = failed or not blending_status["ready"]
+
 standard_path = stat_dir / "tau_prior_sensitivity" / STANDARD_SENSITIVITY_FILENAME
 standard = pd.read_csv(standard_path) if standard_path.is_file() else None
 standard_references = load_primary_standard_references(
@@ -363,14 +390,21 @@ for symbol, model_id in FLOOR_SENSITIVITY_MODEL_IDS.items():
     print(f"{model_id}: {status}")
     failed = failed or not status["ready"]
 if failed:
-    raise SystemExit("Standard or P/N floor-sensitivity release gate failed")
+    raise SystemExit("Blending-link, standard or P/N sensitivity release gate failed")
 PY
+```
+
+The bundle command already regenerates both phoneme-blending key-findings files after installing the validated pair. After the independent check above, the following explicit rerun is harmless and confirms that both JSON files remain reproducible before Step 3 rerenders the reports:
+
+```bash
+python scripts/regenerate_key_findings.py lrp-rli-itt-008-reporting
+python scripts/regenerate_key_findings.py lrp-rli-itt-108-reporting
 ```
 
 Treat the resulting range as evidence, not merely a checkbox. A complete grid clears the computational gate; material movement in the risk difference or `P(benefit)` is prior sensitivity that must be reported.
 
 > [!IMPORTANT]
-> Step 2 creates and copies the P/N and influential-child sensitivity artefacts **after** Step 1's batch render. The affected HTML is therefore stale even when Step 1 completed successfully. Re-render the changed reports in Step 3 before verification or publication.
+> Step 2 creates and copies the B-link, P/N and influential-child sensitivity artefacts **after** Step 1's batch render. The affected HTML is therefore stale even when Step 1 completed successfully. Re-render the changed reports in Step 3 before verification or publication.
 
 ---
 
@@ -544,7 +578,7 @@ Writes to `$COMPARISON_DIR`: `itt_vs_joint_tau.csv` (single-outcome τ vs joint 
 > [!IMPORTANT]
 > **Gotcha — the built-in `--upload` 403s from a VM.** The public `dseresearch` container needs the write role. `az login` (Frank's identity) has it; the VM **managed identity** does not, and `DefaultAzureCredential` prefers the MI — so the built-in flag fails with 403. Publish with the small wrapper below, which forces `AzureCliCredential`, and run it with `AZURE_CLIENT_ID` unset so nothing re-selects the MI. To make `--upload` first-class instead, grant the runner identity **Storage Blob Data Contributor** on the `dseresearch` account.
 
-The wrapper independently re-runs the machine-checkable scientific release gates; it does not assume that Steps 2–3 happened merely because their files exist. It validates the clean checkout, commit, data hashes and output root both before the checks and immediately before upload. It derives every model kind from the current registered specification and requires the saved `config.json` kind to match before using that registered kind to route the ITT/joint influence gate. It refuses any failed convergence summary, a malformed or internally inconsistent ITT/joint Pareto table, any high-k ITT/joint fit without a current converged direct leave-out bundle tied to the same fit, a standard prior-sensitivity archive that is incomplete, trace-invalid or no longer aligned to the eight primary ITT fits, either P/N model without a current complete and trace-validated floor-sensitivity grid, and any HTML page that is missing or older than one of the complete report inputs defined in Step 0. Passing these checks does not replace scientific review of the sensitivity effect sizes or the study owner's publication approval.
+The wrapper independently re-runs the machine-checkable scientific release gates; it does not assume that Steps 2–3 happened merely because their files exist. It validates the clean checkout, commit, data hashes and output root both before the checks and immediately before upload. It derives every model kind from the current registered specification and requires the saved `config.json` kind to match before using that registered kind to route the ITT/joint influence gate. It refuses any failed convergence summary, a malformed or internally inconsistent ITT/joint Pareto table, any high-k ITT/joint fit without a current converged direct leave-out bundle tied to the same fit, a standard prior-sensitivity archive that is incomplete, trace-invalid or no longer aligned to the eight primary ITT fits, either P/N model without a current complete and trace-validated floor-sensitivity grid, the 008/108 phoneme-blending pair without a current trace-validated response-link bundle, and any HTML page that is missing or older than one of the complete report inputs defined in Step 0. Passing these checks does not replace scientific review of the sensitivity effect sizes or the study owner's publication approval.
 
 Save as `/tmp/upload_public.py`:
 
@@ -562,6 +596,11 @@ import pandas as pd
 from azure.identity import AzureCliCredential
 from dse_research_utils.storage.azure import upload_directory_to_blob_storage
 from language_reading_predictors.paths import DATA_DIR, output_root
+from language_reading_predictors.statistical_models.blending_sensitivity import (
+    BLENDING_LINK_MODELS,
+    BLENDING_SENSITIVITY_FILENAME,
+    evaluate_blending_link_sensitivity,
+)
 from language_reading_predictors.statistical_models.influence import (
     evaluate_influence_bundle,
 )
@@ -578,6 +617,7 @@ from language_reading_predictors.statistical_models.sensitivity import (
     evaluate_standard_sensitivity,
     load_primary_floor_reference,
     load_primary_standard_references,
+    sha256_file,
     tau_psense_status,
 )
 
@@ -591,6 +631,7 @@ run_metadata_dir = Path(os.environ["RUN_METADATA_DIR"])
 standard_sensitivity_dir = Path(os.environ["STAT_ROOT"]) / "tau_prior_sensitivity"
 floor_sensitivity_dir = Path(os.environ["STAT_ROOT"]) / "floor_tau_prior_sensitivity"
 influence_sensitivity_dir = Path(os.environ["STAT_ROOT"]) / "influence_sensitivity"
+blending_sensitivity_dir = Path(os.environ["STAT_ROOT"]) / "blending_link_sensitivity"
 report_input_suffixes = tuple(os.environ["REPORT_INPUT_SUFFIXES"].split())
 if (
     not report_input_suffixes
@@ -608,6 +649,7 @@ targets = [
     standard_sensitivity_dir,
     floor_sensitivity_dir,
     influence_sensitivity_dir,
+    blending_sensitivity_dir,
     run_metadata_dir,
 ]
 missing = [str(path) for path in targets if not path.is_dir()]
@@ -715,6 +757,53 @@ if not standard_status["ready"]:
         "standard prior-sensitivity archive is invalid: "
         f"{standard_status}"
     )
+
+blending_path = blending_sensitivity_dir / BLENDING_SENSITIVITY_FILENAME
+blending = pd.read_csv(blending_path) if blending_path.is_file() else None
+blending_status = evaluate_blending_link_sensitivity(
+    blending,
+    trace_root=blending_sensitivity_dir,
+    primary_model_dirs={
+        model_id: models_dir / f"{model_id}-reporting"
+        for model_id, _link in BLENDING_LINK_MODELS
+    },
+)
+if not blending_status["ready"]:
+    release_errors.append(
+        "phoneme-blending response-link archive is invalid: "
+        f"{blending_status}"
+    )
+for model_id, _link in BLENDING_LINK_MODELS:
+    model_dir = models_dir / f"{model_id}-reporting"
+    report_copy = model_dir / BLENDING_SENSITIVITY_FILENAME
+    key_findings = model_dir / "key_findings.json"
+    if (
+        not blending_path.is_file()
+        or not report_copy.is_file()
+        or report_copy.read_bytes() != blending_path.read_bytes()
+    ):
+        release_errors.append(
+            f"{model_dir.name}: installed blending-link summary is missing or stale"
+        )
+    elif not key_findings.is_file():
+        release_errors.append(
+            f"{model_dir.name}: key findings were not regenerated after the link bundle"
+        )
+    else:
+        try:
+            key_payload = json.loads(key_findings.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            key_payload = None
+        if (
+            not isinstance(key_payload, dict)
+            or key_payload.get("status") != "ok"
+            or key_payload.get("blending_link_sensitivity_sha256")
+            != sha256_file(report_copy)
+            or key_findings.stat().st_mtime_ns <= report_copy.stat().st_mtime_ns
+        ):
+            release_errors.append(
+                f"{model_dir.name}: key findings are not bound to the current link bundle"
+            )
 
 for model_dir in model_targets:
     config = configs.get(model_dir.name)
@@ -870,6 +959,7 @@ trace_backed_targets = {
     standard_sensitivity_dir,
     floor_sensitivity_dir,
     influence_sensitivity_dir,
+    blending_sensitivity_dir,
 }
 ok, fail = {}, []
 for d in targets:
@@ -891,7 +981,7 @@ if fail:
     raise SystemExit(1)
 ```
 
-The standard, floor and influential-child sensitivity targets upload their content-addressed NetCDF traces because their certified manifests and report-local comparisons point to that evidence. The much larger primary per-model `trace.nc` files remain excluded. All three central sensitivity directories are required targets, so a missing archive stops the release rather than producing unverifiable report claims.
+The standard, floor, influential-child and phoneme-blending link-sensitivity targets upload their content-addressed NetCDF traces because their validated summaries or manifests and report-local comparisons point to that evidence. The phoneme-blending archive also includes content-addressed child row maps so its fitted-child identity and Pareto-k alignment remain independently checkable. The much larger primary per-model `trace.nc` files remain excluded. All four central sensitivity directories are required targets, so a missing archive stops the release rather than producing unverifiable report claims.
 
 Run it with the MI de-selected:
 

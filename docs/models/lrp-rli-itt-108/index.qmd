@@ -1,0 +1,62 @@
+---
+title: "LRPITT08B: Guessing-floor link sensitivity for phoneme blending (PA)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+**In plain terms.** This is the mandatory response-link companion to `lrp-rli-itt-008`. It asks how much the estimated randomised-arm contrast in phoneme blending changes when the model respects the test's one-in-three guessing level. It is a robustness analysis, not a second independent experiment or a replacement outcome.
+
+The analysis rows, treatment coding, own-baseline and age precision terms, priors, sampling configuration, diagnostics and available-case causal assumptions match the primary B model. Random assignment created exchangeability in the original cohort, but conditioning on archive inclusion and observed analytic variables can break it. Reading even the fitted-sample contrast causally therefore assumes that selection did not depend jointly on assigned arm and potential outcomes; extending it to all 57 randomised children requires further missing-data assumptions and sensitivity.
+
+## Model
+
+The linear predictor is identical to the primary model:
+
+$$
+\eta_i = \alpha + \tau\, G_i
+       + \gamma_{\text{own}}\, \operatorname{logit}_*(B_{\text{pre},i}, N)
+       + \gamma_A\, A_{\text{std},i}.
+$$
+
+The observed count remains Beta-Binomial,
+
+$$
+B_{\text{post},i} \sim \operatorname{BetaBinomial}
+\left(N,\mu_i\kappa,(1-\mu_i)\kappa\right), \qquad N=10,
+$$
+
+but the score mean is
+
+$$
+\mu_i = \frac{1}{3} + \frac{2}{3}\,\sigma(\eta_i),
+$$
+
+so it ranges from the chance performance of a three-alternative item to perfect performance. The ordinary companion uses $\mu_i=\sigma(\eta_i)$ and permits expected scores below chance. Systematic distractor choice could in principle produce below-chance performance, so the guessing floor is mechanically motivated rather than unquestionably true; this is why the two fits must be reported together. Although both models use the same latent-scale coefficient priors, the inverse link maps those priors to different distributions for the items-scale effect. The paired report therefore shows both prior pushforwards as well as both posteriors.
+
+::: {.callout-important title="Interpret only as a paired sensitivity"}
+The items-scale average marginal effect, its interval, direction probability and practical-significance probability are link-dependent. Release requires the content-addressed comparison bundle to prove that both reporting traces passed the clean all-variable gate and used the same children, treatment assignments, data, sampling contract and settings apart from `score_mean_link`. Do not select whichever link gives the more favourable result.
+:::
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_itt.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
