@@ -15,6 +15,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.gain_factors import (
     GainFactorsModelSettings,
     GainFactorsRunPlan,
+    resolve_active_interactions,
     resolve_gain_factors_run_plan,
 )
 
@@ -91,6 +92,71 @@ def test_settings_accept_every_term_the_factory_builds():
         interactions=(("trt", "own"), ("age", "ability"), ("trt", "TR"), ("own", "R")),
     )
     GainFactorsModelSettings(interactions=(("trt", "own"),), treated_only=True)
+
+
+def test_treated_only_plan_separates_declared_from_fitted_interactions():
+    # The b companions declare their parent's interactions on purpose, so the pair is
+    # a one-line diff; the factory then drops the trt ones because the treatment
+    # indicator is constant. The plan must record both, or config.json would claim
+    # coefficients the posterior does not contain.
+    spec = _spec(
+        skill_symbols=("TR",),
+        ability_covariate="blocks",
+        interactions=(("trt", "ability"), ("trt", "own"), ("age", "ability")),
+        treated_only=True,
+    )
+    plan = resolve_gain_factors_run_plan(spec)
+
+    assert plan.interactions == (("trt", "ability"), ("trt", "own"), ("age", "ability"))
+    assert plan.active_interactions == (("age", "ability"),)
+    assert plan.factory_kwargs()["interactions"] == (("age", "ability"),)
+
+    recorded = plan.as_dict()
+    assert recorded["interactions"] == [
+        ["trt", "ability"], ["trt", "own"], ["age", "ability"],
+    ]
+    assert recorded["active_interactions"] == [["age", "ability"]]
+
+    recipe = plan.recipe_markdown(title="t")
+    assert "Interactions: age x ability" in recipe
+    assert "declared but not fitted" in recipe
+
+
+def test_untreated_plan_leaves_interactions_alone():
+    plan = resolve_gain_factors_run_plan(
+        _spec(
+            ability_covariate="blocks",
+            interactions=(("trt", "ability"), ("age", "ability")),
+        )
+    )
+    assert plan.active_interactions == plan.interactions
+    assert plan.as_dict()["active_interactions"] == plan.as_dict()["interactions"]
+    assert "declared but not fitted" not in plan.recipe_markdown(title="t")
+
+
+def test_active_interactions_matches_the_factory_filter():
+    """The shared helper and build_gain_factors_model must not drift apart.
+
+    The factory keeps its own copy because it takes raw keyword arguments from any
+    caller, so pin its filter line and check the helper agrees on both branches.
+    """
+    import inspect
+
+    from language_reading_predictors.statistical_models import factories
+
+    src = inspect.getsource(factories.build_gain_factors_model)
+    assert 'pair for pair in interactions if include_trt or "trt" not in pair' in src
+    assert "include_trt = not treated_only" in src
+
+    declared = (("trt", "ability"), ("trt", "own"), ("age", "ability"), ("own", "TR"))
+    for treated_only in (False, True):
+        include_trt = not treated_only
+        expected = tuple(
+            p for p in declared if include_trt or "trt" not in p
+        )
+        assert (
+            resolve_active_interactions(declared, treated_only=treated_only) == expected
+        )
 
 
 def test_interaction_vocabulary_matches_the_factory_term_set():

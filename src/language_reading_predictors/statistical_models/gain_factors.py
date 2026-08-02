@@ -49,6 +49,29 @@ _LEGACY_KEYS = frozenset(
 _LIKELIHOODS = frozenset({"beta_binomial", "bernoulli_offfloor"})
 
 
+def resolve_active_interactions(
+    interactions: Any, *, treated_only: bool
+) -> tuple[tuple[str, str], ...]:
+    """The interactions a fit actually contains, given ``treated_only``.
+
+    In a treated-only fit every kept row is on intervention, so the treatment
+    indicator is constant and unidentified; ``build_gain_factors_model`` drops it and
+    every interaction naming it. The ``b`` companions still *declare* those pairs, on
+    purpose — it keeps each companion a one-line diff from its parent so the two are
+    directly comparable — so the declared and effective sets legitimately differ and
+    both are worth recording.
+
+    This is the single definition of that rule for everything downstream of the
+    factory: the run plan, the reported coefficient names and the covariate
+    marginals. The factory keeps its own copy, since it accepts raw keyword
+    arguments from any caller; ``test_gain_factors.py`` pins the two together.
+    """
+    pairs = tuple(tuple(p) for p in interactions)
+    if not treated_only:
+        return pairs  # type: ignore[return-value]
+    return tuple(p for p in pairs if "trt" not in p)  # type: ignore[return-value]
+
+
 def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
     if isinstance(value, str) or not hasattr(value, "__iter__"):
         raise TypeError(f"{name} must be a sequence of strings, got {value!r}")
@@ -187,12 +210,28 @@ class GainFactorsRunPlan:
     def obs_node(self) -> str:
         return "y_offfloor" if self.off_floor else "y_post"
 
+    @property
+    def active_interactions(self) -> tuple[tuple[str, str], ...]:
+        """The interactions the fitted model actually contains.
+
+        ``interactions`` is what the module *declared*; this is what survives
+        resolution. The two differ only for a treated-only fit — see
+        :func:`resolve_active_interactions`.
+        """
+        return resolve_active_interactions(
+            self.interactions, treated_only=self.treated_only
+        )
+
     def as_dict(self) -> dict[str, Any]:
         """Return the JSON-ready run-plan contract for ``config.json``."""
         d = asdict(self)
         # asdict turns the interaction pairs into lists; keep them as [a, b] lists
         # (JSON has no tuples) — round-trips fine and reads cleanly.
         d["interactions"] = [list(p) for p in self.interactions]
+        # Record what was actually fitted alongside what was declared. A treated-only
+        # fit drops its trt interactions, so recording only the declared list would
+        # describe a model with terms the posterior does not contain (#455 follow-up).
+        d["active_interactions"] = [list(p) for p in self.active_interactions]
         return d
 
     def prepare_kwargs(self) -> dict[str, Any]:
@@ -216,7 +255,10 @@ class GainFactorsRunPlan:
             "adjust_for": self.adjust_for
             if effective_adjustment is None
             else effective_adjustment,
-            "interactions": self.interactions,
+            # The effective set, not the declared one. Byte-identical in the built
+            # model — the factory applies the same filter — but it means the arguments
+            # the plan hands over are the arguments the fit actually uses.
+            "interactions": self.active_interactions,
             "treated_only": self.treated_only,
             "likelihood": self.likelihood,
         }
@@ -225,11 +267,20 @@ class GainFactorsRunPlan:
         """Undergraduate-friendly explanation generated from the resolved plan."""
         skills = ", ".join(self.skill_symbols) if self.skill_symbols else "none"
         adjust = ", ".join(self.adjust_for) if self.adjust_for else "none"
-        inter = (
-            "; ".join(f"{a} x {b}" for a, b in self.interactions)
-            if self.interactions
-            else "none"
-        )
+        # Report the interactions the fit contains, and say plainly which declared
+        # ones were dropped — a treated-only recipe that listed trt x ability would
+        # describe a coefficient the posterior does not have.
+        active = self.active_interactions
+        inter = "; ".join(f"{a} x {b}" for a, b in active) if active else "none"
+        dropped = tuple(p for p in self.interactions if p not in active)
+        if dropped:
+            inter += (
+                " (declared but not fitted, because the treatment indicator is "
+                "constant in a treated-only fit and so is dropped along with its "
+                "interactions: "
+                + "; ".join(f"{a} x {b}" for a, b in dropped)
+                + ")"
+            )
         return (
             "Note: Generated from the validated gain-factor run plan; template "
             "drafted by an LLM-based AI tool (Claude Code/Opus 4.8).\n\n"
