@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Findings below from the four R-hat/ESS-failing cross-sectional measurement fits are withheld under `notes/202608021625-divergence-qualification-policy.md`; those failures are not eligible for divergence-only qualification. Only the clean-pass `lrp-rli-lcf-001` findings remain a dated historical snapshot.
 
 This is one of a set of per-family notes from the full 2026-07-21 re-fit of every Bayesian statistical model in the study (production `reporting` configuration, 6 chains × 6000 draws, 89% credible intervals). Read the findings index and reading guide (`notes/202607210900-findings-00-index-and-reading-guide.md`) first — it explains the study, the outcome measures and their maxima, and the house rules for reading a posterior. This note covers the **correlated-factor measurement** family: **5 models**, of which **1 passes the convergence gate** cleanly (the longitudinal model `lrp-rli-lcf-001`) and **4 are gate-review models** (the cross-sectional `corr_factor` measurement models, which fail on convergence and are reported with an explicit caveat below). **Every quantity in this note is an association or a description of how the skills go together — none is a causal effect.** The study's causal content lives in the randomised ITT, difference-in-differences and gain-factor families, which these models never touch.
 

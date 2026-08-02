@@ -4,6 +4,11 @@
 
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8). Records the reparameterisation that clears `mech-190`'s 31 reporting-tier divergences (a geometry funnel, not a mixing failure) so the blending → word-reading curve is usable, and the honest reading of the resulting curve: no knee is resolved for blending at this sample size. Also fixes the misleading docstring alias headers in `mech-190`/`mech-191`.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** The currently stored `mech-190` reporting artefact has 31 divergences. Its curve and knee findings are withheld under `notes/202608021625-divergence-qualification-policy.md`; nonlinear shape quantities remain zero-divergence-only. This note remains a historical record of the attempted reparameterisation, not evidence that the current fit passes.
 
 ## The problem
 

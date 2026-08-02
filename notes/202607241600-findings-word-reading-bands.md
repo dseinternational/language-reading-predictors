@@ -4,6 +4,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Four passes: word-reading halves and quartiles compared across every measure at every wave (model-free, descriptive); an identification analysis of whether a lagged model could test word reading feeding back into letter sounds, blending or nonword reading; and the forward question of whether blending predicts reading. The pass-1 and pass-2 numbers are **raw band contrasts** — not adjusted for anything, so age and latent general ability sit inside every one of them. Passes 3 and 4 report **adjusted associations** from already-fitted models plus machine-checked d-separation results. **Nothing here is causal.** Preliminary — n ≈ 51–53 children, exploratory study.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** The model-free band descriptions remain a dated exploratory snapshot, but any `mech-190` curve, shape or knee statement below is withheld under `notes/202608021625-divergence-qualification-policy.md`; the current reporting fit has divergences and nonlinear shape quantities remain zero-divergence-only.
 
 ## Why this note exists
 

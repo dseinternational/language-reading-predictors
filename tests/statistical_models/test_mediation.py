@@ -373,7 +373,22 @@ def test_generate_is_calibration_uses_gate_passed_dose_sources(tmp_path):
         source = models_dir / f"{model_id}-dev"
         source.mkdir(parents=True)
         with (source / "diagnostics_summary.json").open("w") as f:
-            json.dump({"passed": True}, f)
+            json.dump(
+                {
+                    "passed": True,
+                    "checks": {
+                        "rhat": True,
+                        "ess": True,
+                        "divergences": True,
+                        "bfmi": True,
+                    },
+                    "divergences": 0,
+                    "max_rhat": 1.001,
+                    "min_ess": 1000.0,
+                    "bfmi_per_chain": [0.8, 0.9],
+                },
+                f,
+            )
         pd.DataFrame(
             [
                 {
@@ -423,6 +438,42 @@ def test_generate_is_calibration_uses_gate_passed_dose_sources(tmp_path):
     assert "lrp-rli-dose-084-dev" in row["outcome_source"]
     assert np.isfinite(row["delta_is_point"])
     assert row["n_calibration"] == built.prepared.n_obs
+
+    invalid_gate = models_dir / "lrp-rli-dose-083-dev" / "diagnostics_summary.json"
+    with invalid_gate.open("w") as f:
+        json.dump(
+            {
+                "passed": True,
+                "checks": {
+                    "rhat": True,
+                    "ess": True,
+                    "divergences": False,
+                    "bfmi": True,
+                },
+                "divergences": 1,
+                "max_rhat": 1.001,
+                "min_ess": 1000.0,
+                "bfmi_per_chain": [0.8, 0.9],
+            },
+            f,
+        )
+    rejected = generate_is_calibration(
+        spec,
+        config="dev",
+        output_dir=output_dir,
+        prepared=built.prepared,
+        med=med,
+        sweep=sweep,
+        sensitivity_summary={
+            "already_null_at_zero": False,
+            "robust_over_full_sweep": False,
+            "tipping_delta": 0.5,
+        },
+        data_path=data_path,
+    )
+    assert rejected is not None
+    assert rejected.iloc[0]["status"] == "not_available"
+    assert "failed its convergence gate" in rejected.iloc[0]["reason"]
 
 
 def test_decompose_follows_fitted_confounder_set(tmp_path):

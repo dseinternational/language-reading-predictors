@@ -1,16 +1,44 @@
 ```{python}
 # | echo: false
 # | output: asis
-# Key-findings box (#320): a dumb renderer of key_findings.json, which the fit
+# Key-findings box (#320): a renderer of key_findings.json, which the fit
 # pipeline (or scripts/regenerate_key_findings.py) generates from the fit's own
 # CSVs. All sentence logic lives in reporting.generate_key_findings so the prose
-# cannot drift from the computation (#271). Deliberately self-contained (no
-# _setup.qmd dependency) so it remains robust in the #321 findings-first order.
+# cannot drift from the computation (#271). It independently rechecks the current
+# automatic gate so stale "ok" JSON cannot release findings after a failed refit.
+# Deliberately self-contained (no _setup.qmd dependency) so it remains robust in
+# the #321 findings-first order.
 import json as _kf_json
 from pathlib import Path as _KFPath
 
+from language_reading_predictors.statistical_models.reporting import (
+    convergence_gate_clean_passed as _kf_gate_clean_passed,
+)
+
 _kf_path = _KFPath(".") / "key_findings.json"
-if not _kf_path.exists():
+_kf_gate_path = _KFPath(".") / "diagnostics_summary.json"
+try:
+    with open(_kf_gate_path) as _kf_gate_fh:
+        _kf_gate = _kf_json.load(_kf_gate_fh)
+except (FileNotFoundError, OSError, UnicodeDecodeError, _kf_json.JSONDecodeError):
+    _kf_gate = None
+
+if not _kf_gate_clean_passed(_kf_gate):
+    _kf_gate_checks = (
+        _kf_gate.get("checks", {}) if isinstance(_kf_gate, dict) else {}
+    )
+    _kf_failed = ", ".join(
+        str(name) for name, ok in _kf_gate_checks.items() if ok is not True
+    ) or "missing or internally inconsistent convergence summary"
+    print(
+        '::: {.callout-important title="Findings withheld: sampling-quality '
+        'checks failed"}\n\n'
+        f"The current fit did not pass the complete convergence gate "
+        f"(failed or unavailable: {_kf_failed}), so no stored findings are "
+        "released. See Technical checks before interpreting any estimate."
+        "\n\n:::"
+    )
+elif not _kf_path.exists():
     print(
         '::: {.callout-note title="Key findings"}\n\n'
         "A key-findings summary is not available for this fit (it predates the "
@@ -25,12 +53,21 @@ else:
     if _kf_status == "gate_failed":
         _kf_checks = ", ".join(_kf.get("failing_checks", [])) or "unknown"
         print(
-            '::: {.callout-important title="Findings withheld: sampling-quality '
-            'checks failed"}\n\n'
-            f"This fit did not pass the convergence gate (failing: {_kf_checks}), "
-            "so no findings are summarised — estimates from an unconverged fit "
-            "cannot be trusted. See Technical checks for the failing diagnostics."
+            '::: {.callout-note title="Key findings need regeneration"}\n\n'
+            f"The stored summary records a failed gate (failing: {_kf_checks}), "
+            "so no findings are summarised. Regenerate the key-findings file from "
+            "the current clean fit before interpreting it."
             "\n\n:::"
+        )
+    elif _kf_status == "gate_exception":
+        _kf_checks = ", ".join(_kf.get("waived_checks", [])) or "unknown"
+        print(
+            '::: {.callout-important title="Findings withheld: retired sampling-quality '
+            'exception"}\n\n'
+            "This stored summary used the retired model-spec gate exception "
+            f"(checks: {_kf_checks}). It is treated as failed under the current "
+            "trace-bound policy, so no findings are summarised. Regenerate the "
+            "key-findings file after obtaining a clean fit.\n\n:::"
         )
     elif _kf_status == "ok" and _kf.get("sentences"):
         _kf_lines = "\n".join(f"- {s['text']}" for s in _kf["sentences"])

@@ -1,5 +1,7 @@
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).
+
+Divergent-transition qualification policy updated by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 # Glossary {#sec-glossary}
@@ -24,7 +26,7 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 **DAG (directed acyclic graph).** A graph encoding assumed causal directions and the absence of cycles. It makes the adjustment and identification assumptions available to inspect; fitting a model does not empirically prove the DAG.
 
-**Divergence.** A numerical warning that Hamiltonian Monte Carlo could not follow part of the posterior geometry reliably. The convergence gate permits zero divergences.
+**Divergence.** A numerical warning that Hamiltonian Monte Carlo could not follow part of the posterior geometry reliably. Zero is the only automatic clean pass. A genuinely small divergence-only result may exceptionally be labelled qualified—not passed—after a separate trace- and estimand-specific review; a low percentage alone is never sufficient.
 
 **Effective sample size (ESS).** The number of independent draws that would contain roughly the same information as the autocorrelated Markov chain. Bulk ESS concerns central summaries; tail ESS concerns interval limits and tail probabilities.
 

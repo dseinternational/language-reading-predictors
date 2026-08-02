@@ -45,31 +45,16 @@ Only the first half of that is true. The conjugate rewrite **is** measure-preser
 prior change is not — so the two were confounded, and neither could be assessed on its own.
 LRPMM101 separates them.
 
-## What the ablation found
+## Required comparison
 
-A 2×2 over {original, recalibrated} priors × {0.95, 0.999} `target_accept`, reporting tier
-(6 chains × 6000 draws):
+The original- and recalibrated-prior fits may be compared only when both current reporting traces pass the complete automatic gate. Earlier ablation runs are diagnostic history, not a waiver or a substitute for artefact-driven status. After a clean pair is available, compare factor correlations, structural slopes and communalities with Monte Carlo uncertainty; do not infer prior robustness merely because point estimates appear similar.
 
-| priors | `target_accept` = 0.95 | `target_accept` = 0.999 |
-| --- | --- | --- |
-| original $\text{HalfNormal}(1)$ | **FAIL** — 571 divergences, min ESS 370 | **PASS** — 0 divergences, min ESS 2200 |
-| recalibrated | **FAIL** — 528 divergences, min ESS 850 | **PASS** — 0 divergences, min ESS 1700 |
-
-The prior recalibration is therefore **neither necessary nor sufficient** for convergence:
-at 0.95 both prior sets fail by a comparable margin, and at 0.999 both pass. What actually
-clears the gate is the **marginalisation** (which repairs the energy diagnostic, BFMI
-0.21 → ≈ 0.87) plus the **raised `target_accept`** (which clears the boundary divergences
-the strict gate requires to be zero).
-
-And the two posteriors agree to within Monte-Carlo error — factor correlations within 0.02,
-every structural slope to the third decimal. The data dominate the prior.
-
-Meanwhile the recalibration is **not free**. It moves the prior-implied median communality
+The recalibration is **not free**. It moves the prior-implied median communality
 from **0.50 to 0.79**, and $P(\text{communality} > 0.8)$ from **0.29 to 0.49**. With only two
 indicators per factor at $n \approx 51$ that is a substantive prior commitment about how well
 the indicators measure their domain — which is precisely the quantity the model exists to
-estimate. Buying nothing and costing that, the recalibration was **reverted** in LRPMM01 and
-is retained here as the sensitivity fit.
+estimate. The recalibration was therefore reverted in LRPMM01 and is retained here as the
+sensitivity fit whose posterior comparison remains conditional on both fits passing.
 
 _Measurement / triangulation, NOT causal._ As with LRPMM01: per the locked DAG's **ID-2**, every factor → gain slope is a
 **latent-ability-confounded adjusted association**. The randomised causal claim lives in the

@@ -4,6 +4,9 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 
+> [!WARNING]
+> **Superseded in part on 2026-08-02 by a LLM-based AI tool (Codex/GPT-5).** This remains a dated run record, but its percentage-based assertion that divergence-flagged fits were trustworthy or usable is no longer active. Under `notes/202608021625-divergence-qualification-policy.md`, no current trace is qualified and findings from every failed gate are withheld.
+
 # Full reporting fit of all statistical (Bayesian) models — findings
 
 Date: 2026-07-08 (revised 2026-07-09 for readability and to expand the gain- and level-factor sections). A clean full fit of the entire Bayesian statistical-model suite from `main` at commit `8ec2089`, under the production sampling configuration, with every Quarto report rendered and all artefacts uploaded to Azure Blob Storage. This note records what was run, how well it converged, and what the fits say — read alongside each model's own report and `METHODS.md`.

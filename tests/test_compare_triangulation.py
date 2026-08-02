@@ -38,7 +38,23 @@ def _run_dir(cmp_mod, model_id: str, config: str = "dev") -> Path:
 
 
 def _write_gate(d: Path, passed: bool) -> None:
-    (d / "diagnostics_summary.json").write_text(json.dumps({"passed": passed}))
+    (d / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "passed": passed,
+                "checks": {
+                    "rhat": True,
+                    "ess": True,
+                    "divergences": passed,
+                    "bfmi": True,
+                },
+                "divergences": 0 if passed else 1,
+                "max_rhat": 1.001,
+                "min_ess": 1000.0,
+                "bfmi_per_chain": [0.8, 0.9],
+            }
+        )
+    )
 
 
 def _write_itt(cmp_mod, model_id, *, median, lo, hi, prob, passed=True):

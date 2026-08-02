@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Any finding below drawn from a gate-failed fit is withheld under `notes/202608021625-divergence-qualification-policy.md`. The former ≤1% “usable with a note” rule is no longer active, no current trace has a reviewed divergence qualification, and an R-hat or ESS failure is never eligible for that policy. Findings from clean-pass fits remain a dated historical snapshot.
 
 This is the entry point for a set of dated notes that report, model by model, the findings from the full re-fit of every Bayesian statistical model in the study (**179 models**, production `reporting` configuration, fit 2026-07-20/21). There is one companion note per model family; each covers **every** model in its family, and reports adjusted **associations** as fully as **causal** effects. This note explains the study, the families, and — importantly — how to read the numbers the family notes quote. It is written for a broad audience, including readers who do not work with Bayesian statistics day to day.
 

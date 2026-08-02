@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** This remains a dated run record, but any interpretation below from a gate-failed fit is withheld under `notes/202608021625-divergence-qualification-policy.md`; percentage-based divergence leniency and model-level exceptions are no longer active.
 
 ## Run metadata
 

@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Findings below from the divergence-only `lrp-rli-hs-001` fit are withheld under `notes/202608021625-divergence-qualification-policy.md`; horseshoe rankings remain zero-divergence-only, and the former “usable with a note” status is no longer active. Findings from the four clean-pass fits remain a dated historical snapshot.
 
 This is one of a set of per-family findings notes from the full 2026-07-21 re-fit of every Bayesian statistical model in the study (production `reporting` configuration, 6 chains × 6000 draws, 89% credible intervals). Read the [findings index and reading guide](202607210900-findings-00-index-and-reading-guide.md) first for the study background, the outcome measures, the house reporting standard and — importantly — the rule that separates causal effects from adjusted associations. This family has **five models**; **four pass the convergence gate cleanly** and the fifth (`lrp-rli-hs-001`) is a divergence-only review case that is usable with a note. Everything below is preliminary: roughly 51–69 children contribute per model, so estimates are uncertain and should be read interval-first.
 

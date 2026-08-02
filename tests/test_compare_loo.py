@@ -65,9 +65,45 @@ def _install_run(cmp_mod, model_id: str, *, passed: bool) -> Path:
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "trace.nc").touch()
     (run_dir / "diagnostics_summary.json").write_text(
-        json.dumps({"passed": passed})
+        json.dumps(
+            {
+                "passed": passed,
+                "checks": {
+                    "rhat": True,
+                    "ess": True,
+                    "divergences": passed,
+                    "bfmi": True,
+                },
+                "divergences": 0 if passed else 1,
+                "max_rhat": 1.001,
+                "min_ess": 1000.0,
+                "bfmi_per_chain": [0.8, 0.9],
+            }
+        )
     )
     return run_dir
+
+
+def test_gate_status_rejects_inconsistent_pass_payload(cmp_mod, out_root):
+    run_dir = _install_run(cmp_mod, "inconsistent", passed=True)
+    (run_dir / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "passed": True,
+                "checks": {
+                    "rhat": True,
+                    "ess": True,
+                    "divergences": False,
+                    "bfmi": True,
+                },
+                "divergences": 1,
+                "max_rhat": 1.001,
+                "min_ess": 1000.0,
+                "bfmi_per_chain": [0.8, 0.9],
+            }
+        )
+    )
+    assert cmp_mod._gate_status("inconsistent", "dev") == "REVIEW"
 
 
 def test_loo_excludes_gate_failures(cmp_mod, out_root, monkeypatch):
@@ -227,4 +263,3 @@ def test_joint_readiness_comparison_copied_beside_both_reports(
     for model_id in ids:
         copied = Path(cmp_mod._run_dir(model_id, "dev")) / "mechanism_loo_compare.csv"
         assert copied.read_text() == out.read_text()
-

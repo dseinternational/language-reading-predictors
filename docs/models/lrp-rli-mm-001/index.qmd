@@ -33,10 +33,7 @@ model improves the measurement match, it does **not** identify effects. The
 randomised causal claim lives in the ITT suite (`lrp-rli-itt-010` for word reading) and
 the `gain_factors` randomised term, not here.
 
-_Fragility at n ~ 51._ A correlated-factor latent model at n ~ 51 is fragile and prior-dependent. Read it
-as **triangulation** against the `gain_factors` family, with the **wide intervals
-stated as the honest result** (exactly as the closed LRP66 did). The
-reporting-tier re-fit gives the final magnitudes.
+_Fragility at n ~ 51._ A correlated-factor latent model at n ~ 51 is expected to be fragile and prior-dependent. If a reporting-tier fit passes, read it as triangulation against the `gain_factors` family and lead with its intervals. No magnitude or interval from a failed fit is a result.
 
 ## Model
 

@@ -9,6 +9,11 @@
 > guidance. Empirical claims are placeholders to be filled from the model CSVs at
 > drafting time; reading-science and method citations must have DOIs verified per
 > `METHODS.md` before they enter the report.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** The proposed “< 1% divergences” reporting criterion below is not active. Zero divergences is the only automatic clean pass; the narrow trace- and estimand-bound qualification policy is recorded in `notes/202608021625-divergence-qualification-policy.md`.
 
 Date: 2026-06-26 — **Status: PROPOSAL** (author decisions of 2026-06-26 incorporated;
 see §7. Ready to scaffold `docs/report/` on the next pass.)

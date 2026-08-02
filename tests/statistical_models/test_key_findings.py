@@ -43,10 +43,7 @@ def _write_rows(d: Path, name: str, rows: list[dict]) -> None:
 
 
 def _passing_gate() -> dict:
-    return {
-        "passed": True,
-        "checks": {"rhat": True, "ess": True, "divergences": True, "bfmi": True},
-    }
+    return _diag(rhat=True, ess=True, divergences=True, bfmi=True)
 
 
 def _config(kind: str, **overrides) -> dict:
@@ -101,10 +98,7 @@ def test_gate_failed_withholds_findings(tmp_path):
     _write_json(
         d,
         "diagnostics_summary.json",
-        {
-            "passed": False,
-            "checks": {"rhat": False, "ess": True, "divergences": False, "bfmi": True},
-        },
+        _diag(rhat=False, ess=True, divergences=False, bfmi=True),
     )
     _write_csv(d, "rope_summary.csv", _rope_row())
     payload = generate_key_findings(d)
@@ -115,86 +109,44 @@ def test_gate_failed_withholds_findings(tmp_path):
     assert (d / KEY_FINDINGS_FILENAME).exists()
 
 
-_GATE_EXCEPTION = {
-    "checks": ["divergences"],
-    "reason": "intrinsic near-singular geometry; probe shows the deliverables are unaffected",
-    "issue": 409,
-    "signed_off": "2026-07-24",
-}
-
-
 def _diag(**checks: bool) -> dict:
     """A diagnostics-gate payload; ``passed`` is True iff every check is True."""
-    return {"passed": all(checks.values()), "checks": checks}
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "divergences": 0 if checks["divergences"] else 1,
+        "max_rhat": 1.001 if checks["rhat"] else 1.02,
+        "min_ess": 1000.0 if checks["ess"] else 100.0,
+        "bfmi_per_chain": [0.8, 0.9] if checks["bfmi"] else [0.2, 0.9],
+    }
 
 
 def _diverged() -> dict:
     return _diag(rhat=True, ess=True, divergences=False, bfmi=True)
 
 
-def test_gate_exception_shows_findings_with_a_mandatory_caveat(tmp_path):
-    # #412: a recorded exception waives the only failing check (divergences) -> the
-    # gate is "passed with exception": findings are shown but a caveat leads them.
+def test_legacy_model_spec_gate_exception_does_not_override_failure(tmp_path):
+    # The 2026-08-02 policy retired permanent model-spec waivers. A qualification must
+    # be trace-bound and separately reviewed, so an old config dictionary fails closed.
+    legacy_exception = {
+        "checks": ["divergences"],
+        "reason": "legacy model-spec waiver",
+        "issue": 409,
+        "signed_off": "2026-07-24",
+    }
     d = _setup_dir(
-        tmp_path, "itt", config=_config("itt", spec_extra={"gate_exception": _GATE_EXCEPTION})
+        tmp_path,
+        "itt",
+        config=_config("itt", spec_extra={"gate_exception": legacy_exception}),
     )
-    _write_json(d, "diagnostics_summary.json", _diverged())
-    _write_csv(d, "rope_summary.csv", _rope_row())
-    payload = generate_key_findings(d)
-    assert payload["status"] == "gate_exception"
-    assert payload["waived_checks"] == ["divergent transitions"]
-    assert "recorded exception" in payload["sentences"][0]["text"]
-    assert len(payload["sentences"]) >= 2  # caveat + at least one real finding
-
-
-def test_gate_exception_does_not_clear_an_unwaived_failure(tmp_path):
-    # R-hat also fails; the divergence waiver must not rescue it.
-    d = _setup_dir(
-        tmp_path, "itt", config=_config("itt", spec_extra={"gate_exception": _GATE_EXCEPTION})
-    )
-    _write_json(
-        d, "diagnostics_summary.json",
-        _diag(rhat=False, ess=True, divergences=False, bfmi=True),
-    )
-    _write_csv(d, "rope_summary.csv", _rope_row())
-    payload = generate_key_findings(d)
-    assert payload["status"] == "gate_failed"
-    assert "R-hat" in payload["failing_checks"]
-    assert payload["sentences"] == []
-
-
-def test_gate_exception_naming_a_passing_check_is_a_noop(tmp_path):
-    # The named check is actually passing -> ordinary clean pass, not an error.
-    d = _setup_dir(
-        tmp_path, "itt", config=_config("itt", spec_extra={"gate_exception": _GATE_EXCEPTION})
-    )  # _setup_dir writes an all-pass gate
-    _write_csv(d, "rope_summary.csv", _rope_row())
-    payload = generate_key_findings(d)
-    assert payload["status"] == "ok"
-    assert "waived_checks" not in payload
-
-
-def test_gate_exception_badge_and_key_findings_agree(tmp_path):
-    badge = convergence_gate_badge_markdown(_diverged(), _GATE_EXCEPTION)
-    assert "callout-warning" in badge and "recorded exception" in badge
-    assert "callout-tip" not in badge and "callout-important" not in badge
-
-    d = _setup_dir(
-        tmp_path, "itt", config=_config("itt", spec_extra={"gate_exception": _GATE_EXCEPTION})
-    )
-    _write_json(d, "diagnostics_summary.json", _diverged())
-    _write_csv(d, "rope_summary.csv", _rope_row())
-    assert generate_key_findings(d)["status"] == "gate_exception"
-
-
-def test_without_gate_exception_a_divergence_failure_is_unchanged(tmp_path):
-    d = _setup_dir(tmp_path, "itt")  # no spec_extra.gate_exception
     _write_json(d, "diagnostics_summary.json", _diverged())
     _write_csv(d, "rope_summary.csv", _rope_row())
     payload = generate_key_findings(d)
     assert payload["status"] == "gate_failed"
     assert "divergent transitions" in payload["failing_checks"]
-    assert "callout-important" in convergence_gate_badge_markdown(_diverged(), None)
+    badge = convergence_gate_badge_markdown(_diverged(), legacy_exception)
+    assert "callout-important" in badge
+    assert "recorded exception" not in badge
 
 
 def test_missing_diagnostics_summary_degrades(tmp_path):
@@ -255,15 +207,7 @@ def test_convergence_gate_badge_passes_compactly():
 
 def test_convergence_gate_badge_fails_closed_and_names_checks():
     markdown = convergence_gate_badge_markdown(
-        {
-            "passed": False,
-            "checks": {
-                "rhat": False,
-                "ess": True,
-                "divergences": False,
-                "bfmi": True,
-            },
-        }
+        _diag(rhat=False, ess=True, divergences=False, bfmi=True)
     )
     assert "callout-important" in markdown
     assert "Sampling-quality gate: failed" in markdown
@@ -278,10 +222,8 @@ def test_convergence_gate_badge_fails_closed_and_names_checks():
 
 def test_non_boolean_gate_verdict_fails_closed_everywhere(tmp_path):
     d = _setup_dir(tmp_path, "itt")
-    inconsistent = {
-        "passed": "yes",
-        "checks": {"rhat": True, "ess": True, "divergences": True, "bfmi": True},
-    }
+    inconsistent = _passing_gate()
+    inconsistent["passed"] = "yes"
     _write_json(d, "diagnostics_summary.json", inconsistent)
     _write_csv(d, "rope_summary.csv", _rope_row())
 
@@ -292,6 +234,60 @@ def test_non_boolean_gate_verdict_fails_closed_everywhere(tmp_path):
     assert "callout-important" in convergence_gate_badge_markdown(inconsistent)
 
 
+def test_true_gate_verdict_cannot_override_failed_divergence_check(tmp_path):
+    d = _setup_dir(tmp_path, "itt")
+    inconsistent = _diag(rhat=True, ess=True, divergences=False, bfmi=True)
+    inconsistent["passed"] = True
+    _write_json(d, "diagnostics_summary.json", inconsistent)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+
+    payload = generate_key_findings(d)
+    assert payload["status"] == "gate_failed"
+    assert payload["failing_checks"] == ["divergent transitions"]
+    assert payload["sentences"] == []
+    assert "callout-important" in convergence_gate_badge_markdown(inconsistent)
+
+
+def test_true_gate_verdict_cannot_override_missing_required_check(tmp_path):
+    d = _setup_dir(tmp_path, "itt")
+    incomplete = _passing_gate()
+    del incomplete["checks"]["divergences"]
+    _write_json(d, "diagnostics_summary.json", incomplete)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+
+    payload = generate_key_findings(d)
+    assert payload["status"] == "gate_failed"
+    assert payload["failing_checks"] == ["convergence summary incomplete"]
+    assert payload["sentences"] == []
+    assert "callout-important" in convergence_gate_badge_markdown(incomplete)
+
+
+def test_stored_pass_cannot_override_failing_raw_measurements(tmp_path):
+    d = _setup_dir(tmp_path, "itt")
+    inconsistent = _passing_gate()
+    inconsistent.update(
+        {
+            "divergences": 17,
+            "max_rhat": 1.25,
+            "min_ess": 10,
+            "bfmi_per_chain": [0.1, 0.8],
+        }
+    )
+    _write_json(d, "diagnostics_summary.json", inconsistent)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+
+    payload = generate_key_findings(d)
+    assert payload["status"] == "gate_failed"
+    assert payload["failing_checks"] == [
+        "R-hat",
+        "effective sample size",
+        "divergent transitions",
+        "sampling energy (BFMI)",
+    ]
+    assert payload["sentences"] == []
+    assert "callout-important" in convergence_gate_badge_markdown(inconsistent)
+
+
 def test_gate_outranks_malformed_config(tmp_path):
     d = tmp_path / "bad-config-failed-gate"
     d.mkdir()
@@ -299,7 +295,7 @@ def test_gate_outranks_malformed_config(tmp_path):
     _write_json(
         d,
         "diagnostics_summary.json",
-        {"passed": False, "checks": {"rhat": False, "ess": True, "divergences": True, "bfmi": True}},
+        _diag(rhat=False, ess=True, divergences=True, bfmi=True),
     )
     payload = generate_key_findings(d)
     assert payload["status"] == "gate_failed"
@@ -1189,10 +1185,13 @@ def test_sentence_cap_and_no_nan_everywhere(tmp_path):
 # --- partial and pilot-include guards --------------------------------------------
 
 
-def test_key_findings_partial_is_a_dumb_renderer():
+def test_key_findings_partial_is_a_self_contained_renderer():
     text = (REPO / "docs/models/_partials/_key_findings.qmd").read_text()
     assert "key_findings.json" in text
+    assert "convergence_gate_clean_passed" in text
     assert "gate_failed" in text
+    assert "gate_exception" in text
+    assert "retired model-spec gate exception" in text
     assert "not available" in text
     assert "callout-important" in text  # the red withheld-findings warning
     # Self-contained: must not depend on _setup.qmd helpers so #321 can move it.
@@ -1254,3 +1253,9 @@ def test_technical_partial_keeps_full_checks_inside_the_fold():
     assert 'title="Technical checks"' in text
     assert text.count("_partials/_convergence.qmd") == 1
     assert text.count("_partials/_diagnostics.qmd") == 1
+
+
+def test_integrated_report_uses_the_same_fail_closed_gate():
+    text = (REPO / "docs/report/_report_data.qmd").read_text()
+    assert "convergence_gate_clean_passed" in text
+    assert 'diag.get("passed") is True' not in text

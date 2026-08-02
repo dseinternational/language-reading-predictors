@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Direction of the adj-065 hearing association corrected 2026-07-22 (Claude Code/Fable 5).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Covariance, correlation and latent-structure findings below from any gate-failed fit are withheld under `notes/202608021625-divergence-qualification-policy.md`; those quantities remain zero-divergence-only, and R-hat or ESS failures are never eligible for divergence qualification. Findings from clean-pass fits remain a dated historical snapshot.
 
 This is one of the per-family companion notes to the findings index and reading guide (`notes/202607200900-findings-00-index-and-reading-guide.md`) — read that first for the study, the outcome measures and their maxima, and the house rules for reading a posterior. This note covers the **correlation and measurement-structure** family: 13 models in four sub-groups. **Every quantity in this note is an association or a description of how the skills go together — none is a causal effect.** The study's causal content lives in the randomised ITT/DiD/gain-factor families, which these models never touch.
 

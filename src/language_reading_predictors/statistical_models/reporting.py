@@ -4961,81 +4961,119 @@ _KF_CHECK_LABELS = {
     "divergences": "divergent transitions",
     "bfmi": "sampling energy (BFMI)",
 }
+_KF_REQUIRED_CHECKS = tuple(_KF_CHECK_LABELS)
+_KF_RHAT_MAX = 1.01
+_KF_ESS_MIN = 400.0
+_KF_BFMI_MIN = 0.3
 
 
-def _convergence_gate_failures(
-    diag_summary: Mapping | None, gate_exception: Mapping | None = None
-) -> tuple[list[str], list[str]]:
-    """Return ``(still_failing, waived)`` readable checks from a gate payload.
+def _raw_convergence_gate_checks(diag_summary: Mapping) -> dict[str, bool] | None:
+    """Recompute the fixed house gate from unrounded stored measurements.
 
-    ``passed`` is the authoritative verdict written by ``dse_research_utils``.
-    The per-check mapping supplies the explanation; an absent or internally
-    inconsistent payload fails closed as an incomplete convergence summary.
-
-    ``gate_exception`` (#412) is a recorded, signed-off waiver declared on the
-    model spec — ``{"checks": [...], "reason": ..., ...}``. It moves **only the
-    named** failing checks into ``waived``; every other failing check stays in
-    ``still_failing``, so a fit that regresses on an un-waived check (or on an
-    incomplete summary) still fails the gate. Naming a check that is actually
-    passing is a no-op. The same helper drives both the report badge and the
-    key-findings interlock so their labels and waiver cannot drift.
+    The stored ``passed`` and ``checks`` fields are useful audit records, but they
+    are mutable summaries. Scientific-result consumers therefore require the raw
+    measurements too and independently apply the house thresholds. Missing or
+    non-numeric fields return ``None`` so the caller fails closed as incomplete.
     """
-    waived_names: set[str] = set()
-    if isinstance(gate_exception, Mapping):
-        waived_names = {str(c) for c in (gate_exception.get("checks") or [])}
-    if not isinstance(diag_summary, Mapping) or diag_summary.get("passed") is not True:
-        checks = diag_summary.get("checks") if isinstance(diag_summary, Mapping) else None
-        if isinstance(checks, Mapping):
-            failing_names = [str(name) for name, ok in checks.items() if ok is not True]
-            if failing_names:
-                still = [
-                    _KF_CHECK_LABELS.get(n, n)
-                    for n in failing_names
-                    if n not in waived_names
-                ]
-                waived = [
-                    _KF_CHECK_LABELS.get(n, n)
-                    for n in failing_names
-                    if n in waived_names
-                ]
-                return still, waived
-        return ["convergence summary incomplete"], []
-    return [], []
+
+    required = ("divergences", "max_rhat", "min_ess", "bfmi_per_chain")
+    if any(name not in diag_summary for name in required):
+        return None
+    try:
+        if isinstance(diag_summary["divergences"], bool):
+            return None
+        divergences = float(diag_summary["divergences"])
+        max_rhat = float(diag_summary["max_rhat"])
+        min_ess = float(diag_summary["min_ess"])
+    except (TypeError, ValueError):
+        return None
+
+    bfmi_raw = diag_summary["bfmi_per_chain"]
+    if isinstance(bfmi_raw, (str, bytes, Mapping)):
+        return None
+    try:
+        bfmi = np.asarray(list(bfmi_raw), dtype=float)
+    except (TypeError, ValueError):
+        return None
+    if bfmi.size == 0:
+        return None
+
+    return {
+        "rhat": bool(np.isfinite(max_rhat) and max_rhat <= _KF_RHAT_MAX),
+        "ess": bool(np.isfinite(min_ess) and min_ess >= _KF_ESS_MIN),
+        "divergences": bool(np.isfinite(divergences) and divergences == 0),
+        "bfmi": bool(np.isfinite(bfmi).all() and np.all(bfmi >= _KF_BFMI_MIN)),
+    }
+
+
+def _convergence_gate_failures(diag_summary: Mapping | None) -> list[str]:
+    """Return readable failing checks from a sampling-quality gate payload.
+
+    ``passed`` is the measured verdict written by ``dse_research_utils``. The
+    required per-check values must agree with it; an absent or internally
+    inconsistent payload fails closed.
+
+    The automatic gate deliberately has no model-spec waiver. A future qualified
+    divergence-only result must follow the trace-bound review policy in ``METHODS.md``;
+    until a reviewed qualification artefact and verifier exist, every failed
+    ``diagnostics_summary.json`` fails closed here.
+    """
+    if not isinstance(diag_summary, Mapping):
+        return ["convergence summary incomplete"]
+
+    checks = diag_summary.get("checks")
+    if not isinstance(checks, Mapping) or any(
+        name not in checks for name in _KF_REQUIRED_CHECKS
+    ):
+        return ["convergence summary incomplete"]
+
+    raw_checks = _raw_convergence_gate_checks(diag_summary)
+    if raw_checks is None:
+        return ["convergence summary incomplete"]
+
+    failing_names = [
+        name
+        for name in _KF_REQUIRED_CHECKS
+        if checks.get(name) is not True or raw_checks[name] is not True
+    ]
+    failing_names.extend(
+        str(name)
+        for name, ok in checks.items()
+        if name not in _KF_REQUIRED_CHECKS and ok is not True
+    )
+    if failing_names:
+        return [_KF_CHECK_LABELS.get(n, n) for n in failing_names]
+    if diag_summary.get("passed") is not True:
+        return ["convergence summary incomplete"]
+    return []
+
+
+def convergence_gate_clean_passed(diag_summary: Mapping | None) -> bool:
+    """Return whether the complete automatic sampling-quality gate passed cleanly."""
+    return not _convergence_gate_failures(diag_summary)
 
 
 def convergence_gate_badge_markdown(
-    diag_summary: Mapping | None, gate_exception: Mapping | None = None
+    diag_summary: Mapping | None,
+    _legacy_gate_exception: Mapping | None = None,
 ) -> str:
     """Render the compact gate badge shown before report findings (#321).
 
-    Three states: a genuine pass (green ``tip``); a failure or unavailable gate
-    (red ``important``, findings withheld); and — when a recorded ``gate_exception``
-    (#412) waives the only failing check(s) — a third ``warning`` state that shows
-    the fit passed *with a recorded exception*, naming the waived check and its
-    reason, so the exception is visible at the same point a pass or fail would be.
-    An un-waived failure still renders red.  The full numerical banner remains
-    under Technical checks.
+    The automatic renderer has two states: a clean pass (green ``tip``) or a failure /
+    unavailable gate (red ``important``, findings withheld). The optional second
+    argument keeps older copied report partials callable but is deliberately ignored:
+    a model-spec exception can no longer alter the verdict. A divergence-qualified
+    result is not an automatic pass; the policy requires a trace-bound reviewed
+    artefact and a separate verifier before a third, amber state may be implemented.
+    The full numerical banner remains under Technical checks.
     """
-    failing, waived = _convergence_gate_failures(diag_summary, gate_exception)
+    failing = _convergence_gate_failures(diag_summary)
     if failing:
         failed_text = ", ".join(failing)
         return (
             '::: {.callout-important title="Sampling-quality gate: failed"}\n\n'
             f"**FAIL** — Sampling-quality checks failed: {failed_text}. Findings are "
             "withheld; review Technical checks before interpreting any estimate.\n\n:::"
-        )
-    if waived:
-        waived_text = ", ".join(waived)
-        reason = ""
-        if isinstance(gate_exception, Mapping):
-            reason = str(gate_exception.get("reason") or "").strip()
-        reason_clause = f" {reason}" if reason else ""
-        return (
-            '::: {.callout-warning title="Sampling-quality gate: passed with a '
-            'recorded exception"}\n\n'
-            f"**PASS (with exception)** — a recorded, signed-off exception waives: "
-            f"{waived_text}.{reason_clause} All other sampling-quality checks passed; "
-            "details are under Technical checks.\n\n:::"
         )
     return (
         '::: {.callout-tip title="Sampling-quality gate: passed"}\n\n'
@@ -5094,12 +5132,7 @@ def generate_key_findings(output_dir) -> dict:
             "gate cannot be checked"
         )
         return _write_key_findings(out, payload)
-    gate_exception = None
-    if isinstance(config, Mapping):
-        _spec_extra = config.get("spec_extra")
-        if isinstance(_spec_extra, Mapping):
-            gate_exception = _spec_extra.get("gate_exception")
-    failing, waived = _convergence_gate_failures(diag, gate_exception)
+    failing = _convergence_gate_failures(diag)
     if failing:
         payload["status"] = "gate_failed"
         payload["failing_checks"] = failing
@@ -5128,27 +5161,8 @@ def generate_key_findings(output_dir) -> dict:
         payload["reason"] = f"key-findings builder failed: {exc}"
         return _write_key_findings(out, payload)
 
-    if waived:
-        # Gate passed only because a recorded exception waived the failing check(s)
-        # (#412). Findings are shown, but a mandatory caveat leads them so the
-        # exception is never invisible; status is distinct from a clean "ok".
-        reason = ""
-        if isinstance(gate_exception, Mapping):
-            reason = str(gate_exception.get("reason") or "").strip()
-        caveat = _kf_sentence(
-            "This fit's sampling-quality gate passed with a **recorded exception** "
-            f"(waived: {', '.join(waived)}"
-            + (f"; {reason}" if reason else "")
-            + "). Read the findings with that caveat; see Technical checks for the "
-            "unwaived diagnostics.",
-            "gate",
-        )
-        payload["status"] = "gate_exception"
-        payload["waived_checks"] = waived
-        payload["sentences"] = [caveat, *sentences][:KEY_FINDINGS_MAX_SENTENCES]
-    else:
-        payload["status"] = "ok"
-        payload["sentences"] = sentences[:KEY_FINDINGS_MAX_SENTENCES]
+    payload["status"] = "ok"
+    payload["sentences"] = sentences[:KEY_FINDINGS_MAX_SENTENCES]
     return _write_key_findings(out, payload)
 
 

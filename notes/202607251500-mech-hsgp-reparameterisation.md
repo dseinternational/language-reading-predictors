@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 5), recording the #438 decision by Frank Buckley.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Policy clarification added 2026-08-02.** The recorded reparameterisation decision remains active, but the earlier model-spec gate-exception idiom is retired. Any remaining divergence fails closed unless a separate trace- and estimand-bound review satisfies `notes/202608021625-divergence-qualification-policy.md`; nonlinear curve outputs and subsidiary refits remain zero-divergence-only.
 
 # Adopting the thin-support HSGP reparameterisation for six mechanism models (#438)
 

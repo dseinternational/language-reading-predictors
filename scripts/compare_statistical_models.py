@@ -37,9 +37,9 @@ import shutil
 
 import arviz as az
 import matplotlib.pyplot as plt
-import xarray as xr
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.definitions import (
@@ -53,6 +53,9 @@ from language_reading_predictors.statistical_models.measures import (
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     logit_safe,
+)
+from language_reading_predictors.statistical_models.reporting import (
+    convergence_gate_clean_passed,
 )
 
 # Heavily-floored outcomes whose exploratory ITT headline is the binary off-floor
@@ -174,7 +177,7 @@ def _gate_status(model_id: str, config: str) -> str:
             payload = json.load(f)
     except Exception:  # pragma: no cover - defensive
         return "MISSING"
-    return "PASS" if payload.get("passed") is True else "REVIEW"
+    return "PASS" if convergence_gate_clean_passed(payload) else "REVIEW"
 
 
 def _gate_ok(model_id: str, config: str) -> bool:

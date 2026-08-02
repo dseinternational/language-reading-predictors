@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Cross-family synthesis of the reporting-config refit under the median + inner-50% + outer-89% equal-tailed credible-interval standard (2026-07-18; see [the credible-interval standard note](202607172359-credible-interval-standard.md) and [process note](202607161130-full-statistical-refit.md)); reviewed and extended on 2026-07-17 to cover all models in the family. Only the credible-interval brackets changed when we moved from 95% to 89% — medians, direction probabilities and evidence labels are unchanged. **One deliberate exception:** the six `rep-lite` GP knee-test rows in §2 keep their 95% intervals (their reporting-config re-fits fail the convergence gate, so the exploratory read is retained), as flagged at that table. Preliminary.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Threshold, knee and nonlinear-shape findings below from any gate-failed reporting or `rep-lite` fit are withheld under `notes/202608021625-divergence-qualification-policy.md`; these quantities remain zero-divergence-only. The former practice of retaining an exploratory curve after a failed reporting gate is no longer active.
 
 ## The question
 

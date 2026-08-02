@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 5).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** The power-scaling coverage record remains valid, but sensitivity diagnostics cannot release scientific quantities from a failed sampling gate. The former `rlm-mm-001` exemption is retired, and posterior conclusions below from gate-failed measurement or horseshoe fits are withheld under `notes/202608021625-divergence-qualification-policy.md`.
 
 # Power-scaling sensitivity is now measured for 192 of 194 reporting fits (#381)
 

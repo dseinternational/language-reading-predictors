@@ -13,6 +13,9 @@ import numpy as np  # noqa: F401  (available to downstream partials)
 import pandas as pd
 
 from language_reading_predictors.statistical_models import measures as _measures
+from language_reading_predictors.statistical_models.reporting import (
+    convergence_gate_clean_passed,
+)
 
 _here = Path(".")
 
@@ -26,10 +29,6 @@ def _has(name: str) -> bool:
     return (_here / name).exists()
 
 
-def _csv(name: str, **kw):
-    return pd.read_csv(_here / name, **kw) if _has(name) else None
-
-
 def _json(name: str):
     if not _has(name):
         return None
@@ -40,8 +39,87 @@ def _json(name: str):
         return None
 
 
+diag_summary = _json("diagnostics_summary.json") or {}
+_scientific_results_released = convergence_gate_clean_passed(diag_summary)
+
+# A failed automatic gate withholds scientific result tables while leaving the
+# analysis-set, prior, sampler and predictive diagnostics available for repair.
+# Unknown future CSVs fail closed until they are deliberately classified.
+_GATE_VISIBLE_DIAGNOSTIC_CSV = frozenset(
+    {
+        "analysis_set.csv",
+        "concurrent_fit_diagnostics.csv",
+        "did_cell_ppc.csv",
+        "joint_mechanism_fit_diagnostics.csv",
+        "pareto_k.csv",
+        "posterior_predictive_calibration.csv",
+        "posterior_predictive_shape_calibration.csv",
+        "ppc_summary.csv",
+        "ppc_summary_marginal.csv",
+        "prior_pushforward.csv",
+        "priors_table.csv",
+        "proportion_at_zero_ppc.csv",
+        "psense_summary.csv",
+    }
+)
+_GATE_SAMPLER_DIAGNOSTIC_CSV = frozenset(
+    {"diagnostics.csv", "diagnostics_deterministics.csv"}
+)
+_GATE_SAMPLER_DIAGNOSTIC_COLUMNS = frozenset(
+    {"ess_bulk", "ess_tail", "mcse_mean", "mcse_sd", "r_hat"}
+)
+_GATE_VISIBLE_DIAGNOSTIC_IMG = frozenset(
+    {
+        "energy_plot.png",
+        "ess_evolution.png",
+        "did_cell_ppc_mean.png",
+        "did_cell_ppc_zero_rate.png",
+        "loo_pit.png",
+        "pair_plot.png",
+        "pareto_k.png",
+        "posterior_predictive_check.png",
+        "ppc_calibration.png",
+        "prior_posterior.png",
+        "prior_predictive_check.png",
+        "prior_proportion_at_zero.png",
+        "proportion_at_zero_ppc.png",
+        "psense.png",
+        "rank_plot.png",
+        "trace_plot.png",
+    }
+)
+_GATE_VISIBLE_DIAGNOSTIC_IMG_PREFIXES = (
+    "loo_pit_",
+    "posterior_predictive_check_",
+    "prior_predictive_check_",
+)
+
+
+def _csv(name: str, **kw):
+    if not _has(name):
+        return None
+    if not _scientific_results_released:
+        if name in _GATE_SAMPLER_DIAGNOSTIC_CSV:
+            table = pd.read_csv(_here / name, **kw)
+            safe = [
+                column
+                for column in table.columns
+                if str(column).lower() in _GATE_SAMPLER_DIAGNOSTIC_COLUMNS
+            ]
+            return table.loc[:, safe]
+        if name not in _GATE_VISIBLE_DIAGNOSTIC_CSV:
+            return None
+    return pd.read_csv(_here / name, **kw)
+
+
 def _img(path: str, alt: str = "", attrs: str = "{.lightbox}") -> str:
     """Markdown image, or empty string when the file is absent (asis-safe)."""
+    name = Path(path).name
+    diagnostic = name in _GATE_VISIBLE_DIAGNOSTIC_IMG or name.startswith(
+        _GATE_VISIBLE_DIAGNOSTIC_IMG_PREFIXES
+    )
+    if not _scientific_results_released and not diagnostic:
+        return ""
     return f"![{alt}]({path}){attrs}\n\n" if _has(path) else ""
 
 
@@ -55,6 +133,5 @@ outcome_label = (
 n_trials = _measure.n_trials if _measure is not None else None
 n_trials_confirmed = _measure.n_trials_confirmed if _measure is not None else True
 
-diag_summary = _json("diagnostics_summary.json") or {}
 priors_table = _csv("priors_table.csv")
 ```

@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** This remains a dated process record, but its percentage-based “usable with a caveat” interpretation is no longer active. Under `notes/202608021625-divergence-qualification-policy.md`, no current trace is qualified and findings from every failed gate are withheld.
 
 **Date:** 2026-07-16
 **Driver:** coordinated refit of the entire Bayesian (Step 2) suite, requested to close out the reporting/interpret step of several tracked issues.
