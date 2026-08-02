@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Findings below from the four divergence-only period-varying dose fits are withheld under `notes/202608021625-divergence-qualification-policy.md`; hierarchical dose heterogeneity remains zero-divergence-only, and the former “usable with a caveat” status is no longer active. The clean-pass `dose-277` result remains a dated historical snapshot.
 
 This note reports the full re-fit (production `reporting` configuration: 6000 draws × 6000 tune × 6 chains) of the **dose-response family** — 5 models that ask whether children who attended **more intervention sessions** also made more progress. It is a companion to the shared reading guide `notes/202607200900-findings-00-index-and-reading-guide.md` (family note 08); read that first for the study background, the outcome measures and their maxima, and the house reporting standard. Every figure here is traceable to a model's own output CSVs in `output/statistical_models/models/<id>-reporting/`. Work in progress; all data are preliminary.
 

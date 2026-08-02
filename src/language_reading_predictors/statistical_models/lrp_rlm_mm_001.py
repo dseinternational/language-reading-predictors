@@ -62,38 +62,15 @@ SPEC = ModelSpec(
         # weakly-informative communality prior centred at 0.5 — flagged for review.
         "comm_alpha": 2.0,
         "comm_beta": 2.0,
-        # target_accept stays at 0.99 (as the RLI corr-factor fits use). The wave-3
-        # domains are near-collinear (factor correlations 0.81-0.95), so the LKJ
-        # correlation matrix sits against the positive-definite boundary and leaves
-        # residual boundary divergences even after the communality reparameterisation
-        # removed the loading-residual ridge (143 -> 72). Pushing target_accept to
-        # 0.999 cut those to ~12 but starved the chains (min ESS 749 -> 99, max R-hat
-        # 1.006 -> 1.045), so 0.99 is the better operating point: the deliverables
-        # (loadings, communalities, factor correlations) converge cleanly (R-hat
-        # <= 1.01, ESS >= 400) and only the intrinsic near-singular-correlation
-        # divergences remain. Whether that structure should instead be a higher-order
-        # / single general factor is a modelling-structure question flagged for review.
+        # target_accept stays at 0.99 for the next diagnostic fit. The wave-3 domains
+        # are near-collinear (factor correlations 0.81-0.95), so the LKJ correlation
+        # matrix approaches the positive-definite boundary. Earlier runs retained
+        # divergences after the communality reparameterisation. Under the 2026-08-02
+        # policy this specification carries no permanent model-level waiver. Its
+        # factor correlations are covariance and latent-structure headlines, which
+        # remain zero-divergence-only. A higher-order or single-general-factor model
+        # remains the preferred structural investigation.
         "target_accept": 0.99,
-        # Recorded, signed-off sampling-quality gate exception (#412 decision,
-        # 2026-07-24). The ~72 residual divergences are intrinsic to the
-        # near-singular wave-3 domain-correlation matrix (factor correlations
-        # 0.81-0.95), not a fixable parameterisation fault: a target_accept=0.999
-        # run explored the space under different dynamics and returned the same
-        # estimates, the deliverables reach R-hat 1.006 over six chains, and a
-        # divergence-influence probe shows excluding the divergent draws leaves the
-        # correlations and communalities unmoved at reporting precision. Only the
-        # divergences check is waived; R-hat, ESS and BFMI stay live, so a refit that
-        # regresses on mixing still fails the gate. See the notes/ entry.
-        "gate_exception": {
-            "checks": ["divergences"],
-            "reason": (
-                "intrinsic near-singular wave-3 domain-correlation geometry; "
-                "target_accept=0.999 invariance + R-hat 1.006 + divergence-influence "
-                "probe show the deliverables are unaffected"
-            ),
-            "issue": 409,
-            "signed_off": "2026-07-24",
-        },
     },
 )
 

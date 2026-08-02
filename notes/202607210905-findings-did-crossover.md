@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Findings below from the divergence-only `did-007` fit are withheld under `notes/202608021625-divergence-qualification-policy.md`; its former “usable with a caveat” status is no longer active. Findings from clean-pass fits remain a dated historical snapshot.
 
 This is family note 04 in the set of per-family notes from the full 2026-07-21 re-fit of every Bayesian statistical model in the study (production `reporting` configuration, 6 chains × 6000 draws, 89% credible intervals). Read it alongside the shared index and reading guide, `notes/202607210900-findings-00-index-and-reading-guide.md`, which explains the study, the outcome measures and their item maxima, and the house rules for reporting a posterior. The **difference-in-differences (DiD)** family has **fourteen** models: eleven binary arm-by-wave models (one per skill, plus one word-reading variant) and three session-dose companions. **Thirteen pass the convergence gate cleanly; one — did-007 — is a divergence-only gate-review fit that is usable with the caveat noted below.** All data and models are preliminary.
 

@@ -3746,10 +3746,10 @@ def _fit_joint_mechanism_levels(
                 label=f"{spec.model_id} anchor wave t{tp}",
                 var_names=[rv.name for rv in ctx.model.free_RVs],
             )
-            if gate:
-                convergence["converged"] = bool(
-                    gate.get("passed") and convergence.get("converged")
-                )
+            convergence["converged"] = bool(
+                _report.convergence_gate_clean_passed(gate)
+                and convergence.get("converged")
+            )
         else:
             trace, convergence = _sample_model(
                 built.model, ctx.sampling, label=f"{spec.model_id} wave t{tp}"
@@ -3949,7 +3949,7 @@ def _fit_joint_mechanism_transition(
             contrast=contrast,
             ci_prob=ci,
             wave="stacked",
-            converged=bool(gate.get("passed")) if gate else None,
+            converged=_report.convergence_gate_clean_passed(gate),
         ),
         contrast=contrast,
     )
@@ -6854,7 +6854,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # prior-sweep rows come from ``ctx.trace``, which this gate covers) consistently
     # with the sub-fits' own ``subfit_convergence`` flags (this review's finding B1).
     _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=_adjusted_diag_vars)
-    _primary_converged = bool(_primary_gate.get("passed")) if _primary_gate else None
+    _primary_converged = _report.convergence_gate_clean_passed(_primary_gate)
     _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_adjusted_diag_vars)
@@ -7511,10 +7511,10 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         label=f"{spec.model_id} primary wave t{primary_wave + 1}",
         var_names=[rv.name for rv in ctx.model.free_RVs],
     )
-    if _primary_gate:
-        _primary_conv["converged"] = bool(
-            _primary_gate.get("passed") and _primary_conv.get("converged")
-        )
+    _primary_conv["converged"] = bool(
+        _report.convergence_gate_clean_passed(_primary_gate)
+        and _primary_conv.get("converged")
+    )
     wave_fits[primary_wave]["convergence"] = _primary_conv
     _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
@@ -8432,7 +8432,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
 
     section_header("Extended diagnostics")
     _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _primary_converged = bool(_primary_gate.get("passed")) if _primary_gate else None
+    _primary_converged = _report.convergence_gate_clean_passed(_primary_gate)
     _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)

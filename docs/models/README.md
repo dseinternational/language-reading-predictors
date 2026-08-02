@@ -6,6 +6,8 @@
 > Substantially edited in the ITT, concurrent, longitudinal-factor and waitlist-crossover sections by a LLM-based AI tool (Codex/GPT-5).
 >
 > Substantially edited in the report-order documentation by a LLM-based AI tool (Codex/GPT-5).
+>
+> Divergent-transition qualification policy updated by a LLM-based AI tool (Codex/GPT-5).
 
 # Model inventory
 
@@ -496,7 +498,7 @@ sensitivity prerequisite).
 ## Conventions and pointers
 
 - **Fit a model:** `python scripts/fit_statistical_model.py {model_id|all} --config dev|test|reporting [--render]` (Layer 2); `python scripts/fit_model.py {model_id|all} --config dev [--render]` (Layer 1).
-- **Reports:** one per model at `docs/models/{model_id}/index.qmd`; thin templates that include shared partials from `docs/models/_partials/`. Statistical reports use the findings-first order `_header` → `_setup` → `_gate_badge` → `_key_findings` → collapsed `_reading_guide` → model prose → family results → `_priors` → `_prior_predictive` → collapsed `_technical` (the full convergence banner, sampling diagnostics and posterior-predictive checks) → `_footer`. A failed gate is a prominent red badge, and the key-findings interlock withholds result sentences. Selection variants fall back to their parent's template.
+- **Reports:** one per model at `docs/models/{model_id}/index.qmd`; thin templates that include shared partials from `docs/models/_partials/`. Statistical reports use the findings-first order `_header` → `_setup` → `_gate_badge` → `_key_findings` → collapsed `_reading_guide` → model prose → family results → `_priors` → `_prior_predictive` → collapsed `_technical` (the full convergence banner, sampling diagnostics and posterior-predictive checks) → `_footer`. A failed gate is a prominent red badge; the key-findings interlock withholds result sentences, and the shared setup suppresses scientific result tables and figures while retaining diagnostic material. Selection variants fall back to their parent's template.
 - **Cross-model comparisons:** `scripts/compare_statistical_models.py` (ITT-vs-joint `τ` consistency, `τ` and mechanism-slope forests, nested PSIS-LOO).
-- **Interpreting results:** read the visible sampling-quality badge before interpreting; expand Technical checks for R-hat, ESS, divergences, BFMI and the full predictive diagnostics. Report the posterior (median + inner 50 % and outer equal-tailed 89 % credible intervals + tail probability, with an 89 % HPDI sensitivity interval alongside); positive `τ` = intervention helps; only a contrast explicitly licensed by randomisation is causal. Full guidance in `METHODS.md`.
+- **Interpreting results:** read the visible sampling-quality badge before interpreting; expand Technical checks for R-hat, ESS, divergences, BFMI and the full predictive diagnostics. Zero divergences is the only automatic clean pass; a future trace-bound divergence qualification is amber and explicitly **not passed**, under the narrow policy in `METHODS.md`. Report the posterior (median + inner 50 % and outer equal-tailed 89 % credible intervals + tail probability, with an 89 % HPDI sensitivity interval alongside); positive `τ` = intervention helps; only a contrast explicitly licensed by randomisation is causal.
 - **Source of truth:** Layer-1 ids/outcomes live in each module + `models/registry.py`; Layer-2 in each module's `SPEC` (`statistical_models/`). Keep this inventory in step with those when models are added, renamed, or retired.

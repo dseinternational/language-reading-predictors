@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** The divergence-only `did-007` findings below are withheld under `notes/202608021625-divergence-qualification-policy.md`; the former caveated-use rule is no longer active. Findings from the clean-pass fits remain a dated historical snapshot.
 
 This is family note 04 in the suite. It reports every model in the **difference-in-differences (DiD)** family and should be read alongside the shared index and reading guide, `notes/202607200900-findings-00-index-and-reading-guide.md`, which explains the study, the outcome measures and their item maxima, and the house rules for reporting a posterior. All figures below are traced to each model's own output CSVs (`did_summary.csv`, `dose_slope_summary.csv`, `config.json`, `diagnostics_summary.json`) from the production `reporting` re-fit; all data are preliminary.
 

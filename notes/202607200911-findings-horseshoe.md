@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** The divergence-only word-reading-gain ranking below is withheld under `notes/202608021625-divergence-qualification-policy.md`; horseshoe rankings remain zero-divergence-only, and the former caveated-use rule is no longer active. Findings from clean-pass fits remain a dated historical snapshot.
 
 This is family note 11 in the series introduced by the [findings index and reading guide](202607200900-findings-00-index-and-reading-guide.md); read that note first for the study, the outcome measures, the house reporting standard and the causal-versus-association rule. All five models here were re-fit at the production `reporting` configuration (6000 draws × 6000 tune × 6 chains) on 2026-07-19. Everything below is preliminary.
 

@@ -50,8 +50,8 @@ functional form (HSGP curve vs period-varying slope) changes.
 _Strictly observational — never a treatment effect._ Session dose was **not** randomised (how much a child attended reflects ability, attendance and
 availability) and $IS$ is a partial collider, so the curve is an **adjusted association /
 sensitivity view**, never a treatment effect. Residual confounding by latent general ability ($GA$)
-remains. Read it as "children who attended more scored higher, and here is whether that
-relationship bends" — **not** "more sessions cause faster progress". The randomised causal claim
+remains. Read the estimand as "how word reading differs across observed session counts, and whether
+that relationship bends" — **not** "more sessions cause faster progress". The randomised causal claim
 lives in the ITT suite.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}

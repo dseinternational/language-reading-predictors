@@ -4,6 +4,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Records the ESS handling/reporting convention reviewed and tightened 2026-07-18. Companion to [`202607172359-credible-interval-standard.md`](202607172359-credible-interval-standard.md) (the median + 50 % + 89 % ETI decision): that note fixes the interval _width_; this one fixes what ESS is required to estimate that interval and how we report it.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** The ESS standard remains active, but satisfying ESS does not make a divergent fit usable. Zero divergences is the only automatic clean pass, and any exceptional qualification must follow `notes/202608021625-divergence-qualification-policy.md`.
 
 ## Summary
 
@@ -31,7 +36,7 @@ Practically: **target Tail-ESS ≈ 10,000** for a clean, safe, defensible number
 Measured across the 176 reporting fits on 2026-07-18:
 
 - **Headline causal terms** (τ / β_trt / δ / the t2 group contrast): Tail-ESS median ≈ **22,000**, 5th percentile ≈ 12,300, minimum ≈ 9,200 — above Kruschke's conservative 10,000 on essentially every fit, so the 89 % limits on the quantities we actually report are stable well beyond the precision we quote them at.
-- **Gate min-ESS** (the worst single parameter, including random-effect scales and HSGP basis weights): median ≈ 6,468. Four fits fall below 400 — all the latent-factor _measurement_ models (`mm-001/002/101`, `rlm-mm-001`), which the gate is designed to flag (a latent-factor funnel; hold their structural coefficients, their correlations are fine).
+- **Gate min-ESS** (the worst single parameter, including random-effect scales and HSGP basis weights): median ≈ 6,468. Four fits fall below 400 — all the latent-factor _measurement_ models (`mm-001/002/101`, `rlm-mm-001`), which the gate is designed to flag (a latent-factor funnel). Under the current policy, every scientific output from those failed traces is withheld, including structural coefficients and correlations.
 
 So the ESS argument for 89 % is **not** that we are ESS-starved — we are not. It is that (a) 95 % is an arbitrary NHST import, (b) per effective draw the 89 % limits are cheaper and more stable to estimate, and (c) the diagnostic we already gate and report (Tail-ESS) is the near-exact one for the 89 % limits.
 

@@ -141,7 +141,22 @@ def _write_reference_files(
         encoding="utf-8",
     )
     (model_dir / "diagnostics_summary.json").write_text(
-        json.dumps({"passed": True}), encoding="utf-8"
+        json.dumps(
+            {
+                "passed": True,
+                "checks": {
+                    "rhat": True,
+                    "ess": True,
+                    "divergences": True,
+                    "bfmi": True,
+                },
+                "divergences": 0,
+                "max_rhat": 1.001,
+                "min_ess": 1000.0,
+                "bfmi_per_chain": [0.8, 0.9],
+            }
+        ),
+        encoding="utf-8",
     )
     _synthetic_trace(n_obs=2, seed=40).to_netcdf(model_dir / "trace.nc")
     pd.DataFrame(
@@ -204,6 +219,40 @@ def test_load_reference_accepts_the_pre_typed_registered_itt_contract(tmp_path):
     assert reference.metadata["spec_extra"]["adjust_for"] == list(
         SES_SPEC.adjustment
     )
+
+
+def test_load_reference_rejects_internally_inconsistent_clean_gate(tmp_path):
+    spec = ModelSpec(
+        model_id="lrp-rli-itt-999",
+        kind="itt",
+        title="test",
+        outcome_symbol="W",
+        extra={"outcomes": ("W",), "cross_symbols": ()},
+    )
+    model_dir = _write_reference_files(tmp_path, spec)
+    (model_dir / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "passed": True,
+                "checks": {
+                    "rhat": True,
+                    "ess": True,
+                    "divergences": False,
+                    "bfmi": True,
+                },
+                "divergences": 1,
+                "max_rhat": 1.001,
+                "min_ess": 1000.0,
+                "bfmi_per_chain": [0.8, 0.9],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="did not pass its convergence gate"):
+        influence.load_influence_reference(
+            spec, "reporting", model_output_root=tmp_path
+        )
 
 
 def test_load_reference_rejects_non_child_level_pareto_rows(tmp_path):

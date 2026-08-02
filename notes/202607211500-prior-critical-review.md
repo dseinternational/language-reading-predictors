@@ -1,5 +1,10 @@
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Prior-specification observations remain a dated review, but blanket claims that reported estimands are not prior-manufactured and the `mm-002` posterior/structural interpretation below are withheld under `notes/202608021625-divergence-qualification-policy.md`. The current `mm-002` trace fails R-hat and ESS; no prior-sensitivity argument can release a posterior from a failed sampling gate.
 
 # Critical prior-analysis review: language-reading-predictors Bayesian model suite
 

@@ -4,6 +4,8 @@
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 >
 > Substantially edited in the waitlist-crossover, ITT direction-field and release-run workflow guidance by a LLM-based AI tool (Codex/GPT-5).
+>
+> Divergent-transition qualification workflow updated by a LLM-based AI tool (Codex/GPT-5).
 
 # Runbook — full statistical-model refit, render, publish and record
 
@@ -250,13 +252,17 @@ if observed != registered or incomplete:
 PY
 ```
 
-**Read the gate.** Each `diagnostics_summary.json` has `passed` + `checks` = {rhat, ess, divergences, bfmi}. Thresholds: **r̂ ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.30, zero divergences** (the divergence check fails on _any_ divergence). A quick sweep of what passed and what to look at:
+**Read the automatic clean-pass gate.** Each `diagnostics_summary.json` has `passed` + `checks` = {rhat, ess, divergences, bfmi}. Thresholds: **r̂ ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.30, zero divergences**; the measured divergence check fails on any divergence and is never rewritten. A quick sweep of what passed and what to look at:
 
 ```bash
 python - <<'PY'
 import json
 import os
 from pathlib import Path
+
+from language_reading_predictors.statistical_models.reporting import (
+    convergence_gate_clean_passed,
+)
 
 models = Path(os.environ["STAT_MODELS_DIR"])
 failed = False
@@ -268,7 +274,7 @@ for d in sorted(models.glob("*-reporting")):
         print(f"NO GATE {d.name}")
         failed = True
         continue
-    if not s["passed"]:
+    if not convergence_gate_clean_passed(s):
         print(f"FLAG {d.name}: div={s['divergences']} "
               f"rhat={s['max_rhat']:.4f} ess={s['min_ess']:.0f}")
         failed = True
@@ -277,7 +283,11 @@ if failed:
 PY
 ```
 
-**Triage — a failed gate is not reporting-ready.** Do not interpret or publish a flagged fit as though it passed, including a fit with only a small number of divergences. Refit after addressing the failure: `--target-accept 0.97` (or `0.99`) is the first lever for isolated divergences, while persistent funnels require reparameterisation. Record failed attempts and the corrective action rather than silently dropping them.
+**Triage — a failed gate is not automatically reporting-ready.** Do not interpret or publish a flagged fit as though it passed. Refit after addressing the failure: `--target-accept 0.97` (or `0.99`) is the first lever for isolated divergences, while persistent funnels require reparameterisation. Record failed attempts and the corrective action rather than silently dropping them.
+
+**Exceptional qualification — separate reviewed transaction.** Zero divergences is the only clean pass. A genuinely small absolute number of divergences may be labelled **QUALIFIED, NOT PASSED** only under the model-, trace- and estimand-specific policy in `METHODS.md` and `notes/202608021625-divergence-qualification-policy.md`; no percentage threshold is sufficient. The qualification must be a separate pull request carrying content-addressed evidence for the exact reporting trace, an independent-seed confirmation and a dedicated diagnostic run that deliberately generates enough transitions from the same problematic geometry to map them. It must show that every other gate passes and provide positive evidence that the named exploratory estimands do not share the divergent geometry; a visually unpatterned handful is not enough. Causal/model-of-record, mediation, floor/survival, nonlinear-shape, dose-heterogeneity, horseshoe-ranking, covariance and latent-structure results remain zero-divergence-only. Do not remove divergent draws. Do not declare a permanent waiver in `ModelSpec.extra`. Until the shared verifier for `divergence_qualification.json` is implemented and the fit-specific review is approved, leave the fit flagged and let this runbook abort the release.
+
+**Do not reuse pre-policy rendered reports.** Each fit output carries its own copied `index.qmd` and `_partials/`; files copied or rendered before 2026-08-02 do not acquire the new interlocks when the source partials change. Treat them as stale. Before any release, an audited refit or report-finalisation refresh must recopy the current partials, regenerate `key_findings.json` and rerender; the release transaction below must still reject every non-clean gate until the qualification verifier exists.
 
 **Sampling convergence is not the whole release gate.** Inspect `pareto_k.csv` and the quantitative predictive tables after every fit. Any `loo_reliable = false` row makes that model's PSIS-LOO score unreliable; do not use its elpd for comparison. In the single-period ITT and joint families, one point is one child, so run a direct leave-out treatment-effect refit excluding all flagged children before claiming robustness. This checks effect stability; it does not recompute an exact leave-one-out elpd. In repeated-measures random-intercept families, one point is a child × phase/period row and the score is conditional on that child's fitted intercept: use an observation-level sensitivity or exact/moment-matched LOO for that same predictive target, and use a separately designed grouped child-level analysis for new-child prediction. Do not mislabel the conditional row-level diagnostic as leave-one-child-out. For joint fits, inspect `posterior_predictive_shape_calibration.csv` as well as the arm/baseline table: an outcome-wide median, upper-quartile or interquartile-range flag qualifies comparisons involving that outcome even if R-hat, ESS and BFMI pass.
 
@@ -555,6 +565,9 @@ from language_reading_predictors.paths import DATA_DIR, output_root
 from language_reading_predictors.statistical_models.influence import (
     evaluate_influence_bundle,
 )
+from language_reading_predictors.statistical_models.reporting import (
+    convergence_gate_clean_passed,
+)
 from language_reading_predictors.statistical_models.registry import discover_models
 from language_reading_predictors.statistical_models.sensitivity import (
     FLOOR_SENSITIVITY_FILENAME,
@@ -673,7 +686,7 @@ for model_dir in model_targets:
         release_errors.append(f"{model_dir.name}: unreadable release metadata ({exc})")
         continue
     model_id = model_dir.name.removesuffix("-reporting")
-    if diagnostics.get("passed") is not True:
+    if not convergence_gate_clean_passed(diagnostics):
         release_errors.append(f"{model_dir.name}: convergence gate did not pass")
     if config.get("model_id") != model_id:
         release_errors.append(f"{model_dir.name}: config model identity mismatch")
@@ -921,10 +934,10 @@ Every full refit gets a dated `notes/` note. Follow `METHODS.md` "Interpret / Re
 | `lcsm`                 | `coupling_summary.csv`                                      | cross-lagged couplings (associations)                                                                                                                                                               |
 | `growth`               | `growth_association_summary.csv`                            | `gamma` = ability→growth-rate (association)                                                                                                                                                         |
 | `horseshoe`            | `predictor_ranking.csv`                                     | `p_abs_gt_delta` selection                                                                                                                                                                          |
-| `corr_factor`          | `factor_correlation_summary.csv` / `structural_summary.csv` | correlations robust; structural leg cautious                                                                                                                                                        |
+| `corr_factor`          | `factor_correlation_summary.csv` / `structural_summary.csv` | descriptive correlations / structural association; withhold both after any gate failure                                                                                                             |
 | `historical_growth`    | `posterior_growth_summary.csv`                              | per-group growth (separate historical study)                                                                                                                                                        |
 
-Record: the local `RUN_NAME`, `run_manifest.json` commit and data hashes, config, N fitted / failed, gate pass count + divergence caveats, the key randomised ITT τ and `tau_t2` contrasts, `arm_gap_t1` and the post-crossover `arm_gap_t3`/`delta_crossover` quantities separately, the comparison artefacts, and the publish `run_id` + report root. Never collapse the waitlist-crossover quantities into one “DiD treatment effect”. Use the **canonical DAG single-letter outcome codes** (`OUTCOME_LABELS` in `statistical_models/definitions.py`) consistently — do not invent labels.
+Record: the local `RUN_NAME`, `run_manifest.json` commit and data hashes, config, N fitted / failed, clean-pass count and any separately reviewed divergence qualifications, the key randomised ITT τ and `tau_t2` contrasts, `arm_gap_t1` and the post-crossover `arm_gap_t3`/`delta_crossover` quantities separately, the comparison artefacts, and the publish `run_id` + report root. Never collapse the waitlist-crossover quantities into one “DiD treatment effect”. Use the **canonical DAG single-letter outcome codes** (`OUTCOME_LABELS` in `statistical_models/definitions.py`) consistently — do not invent labels.
 
 ---
 

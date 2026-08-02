@@ -314,8 +314,21 @@ def _silent_diagnostics(monkeypatch):
         "save_prior_posterior_plot",
     ):
         monkeypatch.setattr(_pipeline._diag, name, lambda *a, **k: None)
+    clean_gate = {
+        "passed": True,
+        "checks": {
+            "rhat": True,
+            "ess": True,
+            "divergences": True,
+            "bfmi": True,
+        },
+        "divergences": 0,
+        "max_rhat": 1.001,
+        "min_ess": 1000.0,
+        "bfmi_per_chain": [0.8, 0.9],
+    }
     monkeypatch.setattr(
-        _pipeline._diag, "write_diagnostics_summary", lambda *a, **k: {"passed": True}
+        _pipeline._diag, "write_diagnostics_summary", lambda *a, **k: clean_gate
     )
     monkeypatch.setattr(
         _pipeline._diag,
@@ -345,7 +358,19 @@ def test_standard_artefacts_write_ppc_summary_and_audit_the_priors(
         psense_vars=["beta_mech", "delta_ls_decoding"],
     )
 
-    assert gate == {"passed": True}
+    assert gate == {
+        "passed": True,
+        "checks": {
+            "rhat": True,
+            "ess": True,
+            "divergences": True,
+            "bfmi": True,
+        },
+        "divergences": 0,
+        "max_rhat": 1.001,
+        "min_ess": 1000.0,
+        "bfmi_per_chain": [0.8, 0.9],
+    }
     summary = pd.read_csv(tmp_path / "ppc_summary.csv")
     assert set(summary["level_pct"]) == {50, 90}
     assert {"coverage", "n_total", "n_inside"} <= set(summary.columns)

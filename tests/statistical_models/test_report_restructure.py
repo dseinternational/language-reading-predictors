@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import base64
 import importlib.util
 import json
 import os
@@ -110,14 +111,17 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
                     "divergences": False,
                     "bfmi": True,
                 },
+                "divergences": 1,
+                "max_rhat": 1.02,
+                "min_ess": 1000.0,
+                "bfmi_per_chain": [0.8, 0.9],
             }
         )
     )
     (tmp_path / "key_findings.json").write_text(
         json.dumps(
             {
-                "status": "gate_failed",
-                "failing_checks": ["R-hat", "divergent transitions"],
+                "status": "ok",
                 "sentences": [
                     {"kind": "decoy", "text": "SECRET FINDING MUST NOT RENDER"}
                 ],
@@ -166,3 +170,123 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
     assert "ANALYST PPC CONTENT" in html
     assert 'aria-expanded="false"' in html
     assert "callout-collapse" in html
+
+
+@pytest.mark.skipif(QUARTO is None, reason="Quarto is not installed")
+def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
+    import arviz as az
+    import numpy as np
+
+    partials = tmp_path / "_partials"
+    partials.mkdir()
+    for name in (
+        "_setup.qmd",
+        "_gate_badge.qmd",
+        "_results_corr_factor.qmd",
+        "_results_mechanism.qmd",
+    ):
+        shutil.copy(REPO / "docs/models/_partials" / name, partials / name)
+
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": "failed-result-fixture",
+                "kind": "corr_factor",
+                "outcome_symbol": "W",
+                "title": "Failed result fixture",
+                "extra": {
+                    "mechanism_items": {
+                        "caption": "SECRET CAPTION MUST NOT RENDER"
+                    }
+                },
+            }
+        )
+    )
+    (tmp_path / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "passed": False,
+                "checks": {
+                    "rhat": True,
+                    "ess": True,
+                    "divergences": False,
+                    "bfmi": True,
+                },
+                "divergences": 1,
+                "max_rhat": 1.001,
+                "min_ess": 1000.0,
+                "bfmi_per_chain": [0.8, 0.9],
+            }
+        )
+    )
+    az.from_dict({"posterior": {"theta": np.zeros((2, 4))}}).to_netcdf(
+        tmp_path / "trace.nc"
+    )
+    (tmp_path / "loadings_summary.csv").write_text(
+        "indicator,loading_median\nSECRET_LOADING,9\n"
+    )
+    (tmp_path / "factor_correlation.csv").write_text(
+        ",SECRET_FACTOR\nSECRET_FACTOR,1\n"
+    )
+    (tmp_path / "diagnostics.csv").write_text(
+        ",mean,hdi_5.5%,hdi_94.5%,r_hat,ess_bulk,ess_tail\n"
+        "theta,9876.54321,9870,9880,1.02,10,20\n"
+    )
+    (tmp_path / "structural_summary.csv").write_text(
+        "coefficient,mean,lo50,hi50,lo,hi,prob_pos\n"
+        "SECRET_SLOPE,9,8,10,7,11,1\n"
+    )
+    (tmp_path / "secret_result.png").write_bytes(
+        base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        )
+    )
+    (tmp_path / "index.qmd").write_text(
+        "---\n"
+        'title: "Failed-result fixture"\n'
+        "format: html\n"
+        "---\n\n"
+        "{{< include _partials/_setup.qmd >}}\n\n"
+        "{{< include _partials/_gate_badge.qmd >}}\n\n"
+        "{{< include _partials/_results_corr_factor.qmd >}}\n\n"
+        "{{< include _partials/_results_mechanism.qmd >}}\n\n"
+        "```{python}\n"
+        "# | echo: false\n"
+        "# | output: asis\n"
+        'print(_img("secret_result.png", "SECRET RESULT FIGURE"))\n'
+        'print(_csv("diagnostics.csv", index_col=0).to_html())\n'
+        "```\n"
+    )
+    env = {
+        key: os.environ[key]
+        for key in ("PATH", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
+        if key in os.environ
+    }
+    env["HOME"] = str(tmp_path)
+    env["QUARTO_PYTHON"] = sys.executable
+    env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
+    env["PYTHONPATH"] = os.pathsep.join(
+        filter(
+            None,
+            (str(REPO / "src"), str(REPO), env.get("PYTHONPATH")),
+        )
+    )
+    subprocess.run(
+        [QUARTO, "render", "index.qmd", "--to", "html"],
+        cwd=tmp_path,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    html = (tmp_path / "index.html").read_text()
+    assert "Sampling-quality gate: failed" in html
+    assert "No loadings summary" in html
+    assert "No factor-correlation matrix" in html
+    assert "SECRET_" not in html
+    assert "SECRET RESULT FIGURE" not in html
+    assert "SECRET CAPTION MUST NOT RENDER" not in html
+    assert "9876.54321" not in html
+    assert "r_hat" in html
+    assert "ess_bulk" in html

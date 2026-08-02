@@ -224,7 +224,7 @@ def load_influence_reference(
     model_dir = root / f"{spec.model_id}-{config}"
     metadata = _read_json(model_dir / "config.json")
     diagnostics = _read_json(model_dir / "diagnostics_summary.json")
-    if diagnostics.get("passed") is not True:
+    if not _report.convergence_gate_clean_passed(diagnostics):
         raise ValueError(
             f"the completed {spec.model_id}-{config} fit did not pass its convergence gate"
         )

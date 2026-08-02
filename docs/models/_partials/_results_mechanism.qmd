@@ -65,19 +65,23 @@ _Comparing the GP curve with its linear anchor._ Where a companion model fits th
 # | echo: false
 # | output: asis
 _mech_items = (config.get("extra") or {}).get("mechanism_items") or {}
-print(_img("mechanism_curve_items.png", "Items-scale mechanism curve with worked example"))
-if _mech_items.get("caption"):
-    print(f"\n**Worked example.** {_mech_items['caption']}")
-print(
-    "\n\n_How to read it:_ read the shape and the ribbon width, not a single point "
-    "— the ribbon widens where the data thin out. The red points mark the "
-    "worked-example contrast (a fixed pair of percentiles of the observed exposure), "
-    "and the difference between their predicted outcomes is the sentence above, "
-    "computed from the posterior. As with every quantity in this family it is an "
-    "**adjusted association under the DAG, not a causal effect** — the intervention "
-    "is not being moved here, so this is not what would happen if a child were taught "
-    "more of the earlier skill."
+_mech_items_figure = _img(
+    "mechanism_curve_items.png", "Items-scale mechanism curve with worked example"
 )
+if _mech_items_figure:
+    print(_mech_items_figure)
+    if _mech_items.get("caption"):
+        print(f"\n**Worked example.** {_mech_items['caption']}")
+    print(
+        "\n\n_How to read it:_ read the shape and the ribbon width, not a single point "
+        "— the ribbon widens where the data thin out. The red points mark the "
+        "worked-example contrast (a fixed pair of percentiles of the observed exposure), "
+        "and the difference between their predicted outcomes is the sentence above, "
+        "computed from the posterior. As with every quantity in this family it is an "
+        "**adjusted association under the DAG, not a causal effect** — the intervention "
+        "is not being moved here, so this is not what would happen if a child were taught "
+        "more of the earlier skill."
+    )
 ```
 
 ```{python}
@@ -211,9 +215,13 @@ if readiness is not None and len(readiness):
 ```{python}
 # | echo: false
 # | output: asis
-if _has("child_fit_panels.png"):
+_child_fit_figure = _img(
+    "child_fit_panels.png",
+    "Per-child fitted-vs-observed small multiples (observed dots, posterior-predictive band)",
+)
+if _child_fit_figure:
     print("### Per-child fit\n")
-    print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples (observed dots, posterior-predictive band)"))
+    print(_child_fit_figure)
     print(
         "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
         f"child's observed {outcome_label} scores across the period transitions; the green band is the "

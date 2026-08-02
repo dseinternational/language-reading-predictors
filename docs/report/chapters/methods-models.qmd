@@ -5,6 +5,8 @@ abstract: "An undergraduate route through the canonical taught-receptive-vocabul
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).
+
+Divergent-transition qualification policy updated by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 This chapter follows one deliberately simple model from its research question to its saved report. The canonical example is `lrp-rli-itt-001`, the available-case intention-to-treat (ITT) analysis of taught receptive vocabulary in intervention block 1. It is a useful teaching model because it has one outcome, one randomised comparison, one row per child, and no floor-rule or cross-baseline branch. The more elaborate families reuse parts of this workflow but answer different questions; they must not inherit this model's causal label merely because their code looks similar.
@@ -163,7 +165,9 @@ For posterior draw $s$, $\eta_{0i}^{(s)}$ is child $i$'s untreated linear predic
 
 ## 10. Check computation before interpretation
 
-The convergence gate requires zero divergences, R-hat no greater than 1.01, bulk and tail effective sample sizes of at least 400, and Bayesian fraction of missing information (BFMI) of at least 0.3. These checks ask whether the sampler explored the specified posterior adequately. Passing them does not establish that the likelihood, DAG, or missingness assumptions are correct.
+The automatic clean-pass gate requires zero divergences, R-hat no greater than 1.01, bulk and tail effective sample sizes of at least 400, and Bayesian fraction of missing information (BFMI) of at least 0.3. These checks ask whether the sampler explored the specified posterior adequately. Passing them does not establish that the likelihood, DAG, or missingness assumptions are correct.
+
+A divergence means the numerical trajectory could not reliably follow some posterior geometry, so even a small percentage cannot simply be ignored. Zero remains the only clean pass. In exceptional non-causal exploratory work, a genuinely small absolute number may be reported as **qualified, not passed** only after an independent, trace-bound review shows that all other diagnostics pass, reasonable reparametrisations were tried, the result is stable across seeds, and the named reported quantity does not share the divergent geometry. Causal treatment effects and tail-, curve-, ranking-, covariance- or latent-structure-sensitive quantities always require zero. No current fit has such a qualification; until the reviewed verifier exists, any divergence stops interpretation.
 
 Posterior-predictive checking asks a different question. For each posterior draw, generate a replicated score $Y_i^{\mathrm{rep}}$ from the fitted model and compare the replicated distribution with the observations.
 
@@ -174,7 +178,7 @@ PSIS-LOO assesses predictive performance when one observation is left out approx
 ## 11. Read the generated report in a fixed order
 
 1. Confirm the model ID, outcome, analysis rows, assignment coding, and available-case qualification in `config.json`, `analysis_set.csv`, and `model_recipe.md`.
-2. Read the convergence gate. Stop if it fails.
+2. Read the convergence gate. Stop if it fails; a future amber qualification must be a separate trace-bound reviewed artefact and is never a clean pass.
 3. Read posterior-predictive coverage and distribution checks. Qualify or revise the working likelihood if discrepancies are material.
 4. Read the item-scale average marginal effect with its inner 50% and outer 89% intervals and $P(\mathrm{AME}>0)$.
 5. Read the post-hoc practical-threshold result only beside its $\delta$-sensitivity sweep.
@@ -194,7 +198,7 @@ Before accepting an explanation of this or a related model, ask:
 - Does it separate probability of direction from probability of exceeding the post-hoc practical threshold?
 - Does it treat the Beta-Binomial as a bounded-score working likelihood, not a literal equal-difficulty item model?
 - Does it say a random intercept partially pools stable residual heterogeneity, not that it controls omitted latent ability?
-- Does it stop interpretation after a failed convergence gate and still inspect predictive fit after a passed gate?
+- Does it stop interpretation after a failed convergence gate, distinguish any separately reviewed qualification from a clean pass, and still inspect predictive fit after a clean pass?
 - Does every causal statement name the randomised contrast that licenses it? If not, the safer description is an adjusted association.
 
 ## 13. Evidence labels bridge probability to prose {#sec-bridge}

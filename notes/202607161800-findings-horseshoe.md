@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Numbers are read from the `reporting`-config refit under the median + inner-50% + outer-89% credible-interval standard (2026-07-18; see [the credible-interval standard note](202607172359-credible-interval-standard.md) and [the refit process note](202607161130-full-statistical-refit.md)); reviewed and extended on 2026-07-17 to cover all models in the family. This family reports 89% highest-density intervals (HDI); only the interval brackets changed when we moved from 94% to 89% — point estimates, signs and exceedance probabilities are unchanged. Preliminary.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** The divergence-only word-reading-gain ranking below is withheld under `notes/202608021625-divergence-qualification-policy.md`; horseshoe rankings remain zero-divergence-only, and the former caveated-use rule is no longer active. Findings from clean-pass fits remain a dated historical snapshot.
 
 ## What these models ask
 

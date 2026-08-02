@@ -4,6 +4,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Four associational questions asked of the existing suite and, where the suite had no exactly-matching fit, of a new exploratory probe (`notes/assets/202607241000-ls-wr-association-probe.py`). Numbers follow the house standard — posterior **median** with an **89% equal-tailed** credible interval and the tail probability, never a p-value ([credible-interval standard](202607172359-credible-interval-standard.md)). **Nothing in this note is causal.** Latent general ability (`GA`) is unobserved and unblockable, and every quantity here conditions on contemporaneous, post-treatment skill levels; the only randomisation-licensed effect in the study is the ITT arm. Preliminary — n ≈ 51–53 children, exploratory study.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** The model-free descriptions and explicitly clean scratch fits remain a dated exploratory snapshot, but claims below inherited from gate-failed registered mechanism or knee-test fits are withheld under `notes/202608021625-divergence-qualification-policy.md`; nonlinear shape quantities remain zero-divergence-only.
 
 ## Why this note exists
 

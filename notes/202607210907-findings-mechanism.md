@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Findings below from divergence-only mechanism fits are withheld under `notes/202608021625-divergence-qualification-policy.md`; nonlinear shapes and knees remain zero-divergence-only, and the former ≤1% “usable with a note” rule is no longer active. Findings from clean-pass fits remain a dated historical snapshot.
 
 This is one of a set of per-family notes from the full 2026-07-21 re-fit of every Bayesian statistical model in the study (production `reporting` configuration: 6 chains × 6000 draws, 89% credible intervals). Read the shared index and reading guide first — `notes/202607210900-findings-00-index-and-reading-guide.md` — for the study background, the outcome measures and their maxima, the causal-versus-association distinction, and how to read Bayesian numbers. The **mechanism** family has **27 models** (`lrp-rli-mech-*`). **Twenty pass the convergence gate cleanly**; the remaining **seven carry divergence-only flags** — everything else about their fits passes, and the handful of divergences each carries is well under the 1%-of-draws guidance, so their headline numbers are usable with a note (details in each row and in the caveats). Work in progress; all data are preliminary.
 

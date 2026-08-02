@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Findings below from divergence-only mechanism fits are withheld under `notes/202608021625-divergence-qualification-policy.md`; nonlinear curve shapes and knees remain zero-divergence-only, and the former “usable with a note” rule is no longer active. Findings from clean-pass fits remain a dated historical snapshot.
 
 This note reports the full re-fit (production `reporting` configuration: 6000 draws × 6000 tune × 6 chains) of the **mechanism** family — 27 models that describe the _shape_ of one measured skill's association with another. It is a companion to the shared reading guide `notes/202607200900-findings-00-index-and-reading-guide.md`; read that first for the study background, the outcome measures and their maxima, and the house reporting standard. Every figure here is traceable to a model's own output CSVs in `output/statistical_models/models/<id>-reporting/`. Work in progress; all data are preliminary.
 

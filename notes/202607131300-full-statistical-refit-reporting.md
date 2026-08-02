@@ -6,6 +6,9 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 
+> [!WARNING]
+> **Superseded in part on 2026-08-02 by a LLM-based AI tool (Codex/GPT-5).** This remains a dated run record, but the percentage-based “usable” status for divergence-only fits is no longer active. Under `notes/202608021625-divergence-qualification-policy.md`, no current trace is qualified and findings from every failed gate are withheld.
+
 # Full statistical-model refit (reporting config) — run record and results
 
 Date: 2026-07-13

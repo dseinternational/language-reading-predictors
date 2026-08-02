@@ -50,6 +50,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
     standardise,
 )
+from language_reading_predictors.statistical_models.reporting import (
+    convergence_gate_clean_passed,
+)
 
 
 @dataclass(frozen=True)
@@ -259,7 +262,7 @@ def _read_dose_slope(
         raise _CalibrationUnavailable(
             f"{model_id}-{config} diagnostics could not be read"
         ) from exc
-    if not diagnostics.get("passed", False):
+    if not convergence_gate_clean_passed(diagnostics):
         raise _CalibrationUnavailable(
             f"{model_id}-{config} failed its convergence gate"
         )

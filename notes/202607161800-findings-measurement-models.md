@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Numbers are read from the `reporting`-config refit under the median + inner-50% + outer-89% equal-tailed credible-interval standard (2026-07-18; see [the credible-interval standard note](202607172359-credible-interval-standard.md) and [the refit process note](202607161130-full-statistical-refit.md)); the note was reviewed and extended on 2026-07-17 to cover all models in the family. Only the credible-interval brackets changed when we moved from 95% to 89% — medians, direction probabilities, evidence labels and the convergence caveats are unchanged. Preliminary.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Covariance, correlation and latent-structure findings below from any gate-failed fit are withheld under `notes/202608021625-divergence-qualification-policy.md`; those quantities remain zero-divergence-only, and R-hat or ESS failures are never eligible for divergence qualification. Findings from clean-pass fits remain a dated historical snapshot.
 
 ## What these models ask
 

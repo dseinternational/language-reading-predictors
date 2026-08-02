@@ -21,6 +21,9 @@ from IPython.display import Markdown
 
 from dse_research_utils.report.data import ReportData
 from dse_research_utils.report.data import show_or_pending as _show_or_pending
+from language_reading_predictors.statistical_models.reporting import (
+    convergence_gate_clean_passed,
+)
 
 
 def _repo_root(start: Path | None = None) -> Path:
@@ -87,22 +90,27 @@ def show_gated(model_id: str, df, what: str, config: str = "reporting"):
     """Render results only when the model's convergence gate passed (issue #274).
 
     A fit whose gate verdict is REVIEW "is not interpretable — fix the model, do
-    not report it" (METHODS.md). So if the gate exists and ``passed`` is not
-    ``True``, a visible convergence warning is rendered *in place of* the numbers
-    rather than publishing them unflagged in the headline report. When the gate
-    passes — or has not been written yet (model not fitted) — this defers to
-    :func:`show_or_pending` for the usual pending-fit degradation.
+    not report it" (METHODS.md). Unless the complete gate is internally consistent
+    and clean, a visible convergence warning is rendered *in place of* the numbers
+    rather than publishing them unflagged in the headline report. A clean gate
+    defers to :func:`show_or_pending`. When neither fit nor gate exists, the usual
+    pending-fit placeholder remains; a missing or malformed gate fails closed when
+    a result CSV exists.
     """
     diag = load_diagnostics(model_id, config)
-    if diag is None or diag.get("passed") is True:
+    if convergence_gate_clean_passed(diag):
         return show_or_pending(df, what)
-    checks = diag.get("checks", {}) or {}
+    if diag is None and df is None:
+        return show_or_pending(df, what)
+    checks = diag.get("checks", {}) if isinstance(diag, dict) else {}
     failed = ", ".join(k for k, v in checks.items() if not v) or "unknown"
     return Markdown(
         f"**⚠ Convergence: REVIEW — {what} withheld.** "
         f"`{model_id}` did not pass the convergence gate "
-        f"(failed: {failed}; max R-hat {diag.get('max_rhat')}, "
-        f"min ESS {diag.get('min_ess')}, divergences {diag.get('divergences')}). "
+        f"(failed or unavailable: {failed}; max R-hat "
+        f"{diag.get('max_rhat') if isinstance(diag, dict) else None}, min ESS "
+        f"{diag.get('min_ess') if isinstance(diag, dict) else None}, divergences "
+        f"{diag.get('divergences') if isinstance(diag, dict) else None}). "
         "Its estimates are not interpretable and are withheld until it converges."
     )
 ```

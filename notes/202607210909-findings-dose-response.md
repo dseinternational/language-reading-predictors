@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Findings below from the four divergence-only period-varying dose fits are withheld under `notes/202608021625-divergence-qualification-policy.md`; hierarchical dose heterogeneity remains zero-divergence-only, and the former “usable with a caveat” status is no longer active. The clean-pass `dose-277` result remains a dated historical snapshot.
 
 This is one of a set of per-family notes from the full 2026-07-21 re-fit of every Bayesian statistical model in the study (production `reporting` configuration: 6 chains × 6000 draws, 89% credible intervals, fit 2026-07-20/21). Read the shared index and reading guide `notes/202607210900-findings-00-index-and-reading-guide.md` first — it explains the study, the outcome measures and their maxima, and how to read Bayesian numbers (median, 89% interval, tail probability, evidence ladder). The **dose-response family has 5 models** (dose-077, dose-083, dose-084, dose-177, dose-277); **1 of the 5 passes the convergence gate cleanly** (dose-277). The other four carry a divergence-only flag and are usable with the caveat noted below. All data and models are preliminary.
 

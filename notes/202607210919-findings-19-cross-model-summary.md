@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Any synthesis below that relies on a divergence-only fit is withheld under `notes/202608021625-divergence-qualification-policy.md`; the former ≤1% “usable with a note” rule is no longer active, and no current trace has a reviewed qualification. Clean-pass results remain a dated historical snapshot.
 
 This note reads the whole suite together. It is the companion synthesis to the per-family notes (01–18) and the index/reading guide (`notes/202607210900-findings-00-index-and-reading-guide.md`), reporting the findings from the full re-fit of every Bayesian statistical model in the study (179 models, production `reporting` configuration, fit 2026-07-20/21). Read the index first for the study design, the outcome measures, the 89% credible-interval / tail-probability / evidence-ladder conventions, and — crucially — the rule that **only a contrast anchored in randomisation is causal**; everything else is an adjusted association describing _who progresses_, not a lever. All data and models are preliminary and the sample is small (~54 children), so throughout we lead with the interval, not the point.
 

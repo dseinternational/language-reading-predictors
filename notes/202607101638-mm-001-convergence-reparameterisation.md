@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** This remains a historical reparameterisation record. The currently stored `mm-001` reporting trace fails R-hat, ESS and divergences, so its correlations, loadings, communalities and structural quantities are all withheld under `notes/202608021625-divergence-qualification-policy.md`; no earlier clean attempt or model-level exception transfers to that trace.
 
 Date: 2026-07-10, **revised 2026-07-12** after the review of #261. This records why the correlated-domain-factor measurement model `lrp-rli-mm-001` (`kind="corr_factor"`, `statistical_models/factories.py::build_correlated_factor_model`) failed its convergence gate, what was changed to fix it, what the fixed fit says, and — following the review — which of those changes actually did the work. Read alongside the model's design note `notes/202606291700-correlated-domain-factor-measurement-model.md` and `METHODS.md`.
 

@@ -2,6 +2,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Cross-family synthesis of the reporting-config refit under the median + inner-50% + outer-89% equal-tailed credible-interval standard (2026-07-18; see [the credible-interval standard note](202607172359-credible-interval-standard.md) and [process note](202607161130-full-statistical-refit.md)); reviewed and extended on 2026-07-17 to cover all models in the family. Only the credible-interval brackets changed when we moved from 95% to 89% — medians, direction probabilities and evidence labels are unchanged (a few mediation sensitivity tipping-fractions were also refreshed to the current fit). Direction of the adj-065 hearing association corrected 2026-07-22 (Claude Code/Fable 5). Preliminary.
+>
+> Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+
+> [!WARNING]
+> **Superseded in part on 2026-08-02.** Any synthesis claim below drawn from a gate-failed mechanism, dose, horseshoe, mediation or measurement fit is withheld under `notes/202608021625-divergence-qualification-policy.md`; nonlinear shapes, dose heterogeneity, rankings, decompositions and latent structure remain zero-divergence-only. Contributions from clean-pass fits remain a dated historical snapshot.
 
 ## What this note asks
 
