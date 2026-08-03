@@ -626,8 +626,8 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
         lock_path.read_bytes()
     ).hexdigest()
     recipe = (out / "model_recipe.md").read_text()
-    assert "supports the causal interpretation" in recipe
-    assert "missing-outcome assumption" in recipe
+    assert "A causal reading in the observed analysis set requires" in recipe
+    assert "further missing-outcome assumptions and sensitivity" in recipe
     assert "does not make the other coefficients causal" in recipe
     assert "machine-readable form" in recipe
     assert cfg["extra"]["adjust_for"] == ["kept_adjuster"]

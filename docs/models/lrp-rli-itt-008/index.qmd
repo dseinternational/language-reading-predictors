@@ -20,17 +20,12 @@ format:
 
 ## Overview
 
-**In plain terms.** Did the children offered the intervention blend more spoken sounds together into words than those who were not — and how large, and how certain, is that difference? Randomisation identifies the effect of *being offered* the programme within the fitted observed-data analysis set. Because the repository omits three randomised children and the model requires its analytic variables to be observed, this is an available-case modified-ITT contrast whose wider causal reading assumes ignorable missingness, not a full ITT of all 57 children.
+**In plain terms.** Did the children offered the intervention blend more spoken sounds together into words than those who were not—and how large, and how certain, is that difference? This model estimates the assigned-arm contrast among children in the fitted observed-data analysis set. Because the repository omits three randomised children and the model requires its analytic variables to be observed, calling even that selected-sample contrast causal assumes that archive inclusion and outcome observation did not select children differently between arms according to how they would have scored under either assignment. Extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
-LRPITT08 is the available-case modified-ITT analysis for phoneme blending (`blending`). The estimand is the randomised offer effect of group assignment $G$ on the post-score $B_{\text{post}}$ in the model-specific fitted sample, using the RCT phase only (time 1 $\rightarrow$ time 2).
+LRPITT08 is the available-case modified-ITT analysis for phoneme blending (`blending`). The estimand is the assigned-arm contrast in the post-score $B_{\text{post}}$ in the model-specific fitted sample, using the randomised controlled trial phase only (time 1 $\rightarrow$ time 2); its causal interpretation is conditional on the selection assumption above.
 
 
-_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so randomisation identifies the offer contrast $\tau$ within the fitted analysis set without adjustment. Generalising it to all 57 randomised children additionally requires ignorable selection and missingness. The own baseline $\gamma_{\text{own}}$
-and linear age $\gamma_A$ are **precision terms only** — they sharpen $\tau$ but are
-not what licenses the causal interpretation, and no cross-baseline conditioning is
-used. Attendance / sessions are never conditioned on (a DAG collider).
-**Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
-the intervention raises the outcome.
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so assignment creates exchangeability for the full randomised cohort without covariate adjustment. Restricting to archived and observed cases can break that exchangeability; a causal interpretation of the fitted contrast therefore requires ignorable archive inclusion and outcome observation, and a claim for all 57 randomised children needs further missing-data assumptions and sensitivity. The own baseline $\gamma_{\text{own}}$ and linear age $\gamma_A$ are **precision terms only**—they may sharpen $\tau$ but do not supply missing-data identification—and no cross-baseline conditioning is used. Attendance or sessions are never conditioned on (a DAG collider). **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means the intervention arm has the higher outcome under the model.
 
 ## Model
 
@@ -44,6 +39,10 @@ with Beta-Binomial likelihood $B_{\text{post},i} \sim \text{BetaBinomial}(N, \mu
 $\mu_i = \sigma(\eta_i)$, $N = 10$. Priors follow the shared template in `priors.py`.
 HSGPs on age and own baseline are off by default (the 2026-04-18 sensitivity
 verdict).
+
+::: {.callout-important title="Mandatory guessing-floor link sensitivity"}
+The working model above uses the ordinary logit mean $\mu_i = \sigma(\eta_i)$, which permits fitted mean scores anywhere between zero and ten. Each blending item has three response alternatives, so random guessing implies a mean proportion correct of one third. The required companion instead uses $\mu_i = 1/3 + (2/3)\sigma(\eta_i)$, restricting the modelled mean to the range from chance to perfect performance. This is an estimand-scale sensitivity rather than a cosmetic re-expression: the primary item-scale effect, its uncertainty, direction probability and practical-significance judgement must be read beside a companion fitted through the same pipeline and passing the same computational and reporting gates. The same latent-scale priors map to different items-scale priors under the two inverse links, so the paired report shows both prior pushforwards. Do not release an unqualified blending headline until that comparison is available; neither link should be treated as settled by the ordinary-logit fit alone.
+:::
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

@@ -20,15 +20,11 @@ format:
 
 ## Overview
 
-The generalisation contrasts [LRPITT15](../lrp-rli-itt-015) (expressive: TE vs UE) and
-[LRPITT15b](../lrp-rli-itt-115) (receptive: TR vs UR) each compare taught vs not-taught
-*within* a modality. Neither asks whether the intervention moved the directly-taught words
-more in the **expressive** modality than in the **receptive** modality. LRPITT16 supplies that
-missing contrast: the two Block 1 *taught* outcomes — expressive taught target words $TE$ and
-receptive taught target words $TR$ — are fitted together as factorised marginals over the randomised window, and the
-headline quantity is the difference in probability-scale intervention benefit, $\mathrm{AME}_{TE} - \mathrm{AME}_{TR}$.
+The generalisation contrasts [LRPITT15](../lrp-rli-itt-015) (expressive: TE vs UE) and [LRPITT15b](../lrp-rli-itt-115) (receptive: TR vs UR) each compare taught versus not-taught *within* a modality. Neither asks whether the assigned-arm difference for directly-taught words is larger in the **expressive** modality than in the **receptive** modality. LRPITT16 supplies that missing contrast: the two Block 1 *taught* outcomes — expressive taught target words $TE$ and receptive taught target words $TR$ — are fitted together as factorised marginals over the randomised window, and the headline quantity is the difference between their probability-scale average marginal effects, $\mathrm{AME}_{TE} - \mathrm{AME}_{TR}$.
 
-A positive contrast means the intervention increased expected proportion correct more for taught expressive words than for taught receptive words. This is a modality contrast, not a taught-versus-untaught generalisation contrast. The conditional logit-coefficient difference is retained as a secondary summary.
+A positive contrast means the model estimates a larger assigned-arm difference in expected proportion correct for taught expressive words than for taught receptive words. This is a modality contrast, not a taught-versus-untaught generalisation contrast. The conditional logit-coefficient difference is retained as a secondary summary.
+
+Randomisation created exchangeability in the original full randomised cohort, so these offer contrasts require no baseline-covariate adjustment there. The fitted factorised contrast instead conditions on archive inclusion and the required observed variables for both outcomes. A causal reading of either component or their difference requires that this selection did not induce an association between assigned arm and the potential values of either outcome; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
 ## Design
 

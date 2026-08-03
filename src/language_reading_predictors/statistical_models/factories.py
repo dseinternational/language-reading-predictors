@@ -49,7 +49,10 @@ from language_reading_predictors.statistical_models.hsgp import (
     build_tau_modifier,
 )
 from language_reading_predictors.statistical_models.likelihood import (
+    SCORE_MEAN_LINKS,
+    ScoreMeanLink,
     beta_binomial_from_logit,
+    beta_binomial_from_score_mean_link,
 )
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
@@ -285,6 +288,7 @@ def build_itt_model(
     use_age_linear: bool = False,
     use_own_baseline: bool = True,
     likelihood: str = "beta_binomial",
+    score_mean_link: ScoreMeanLink = "logit",
     tau_moderator_symbol: str | None = None,
     tau_moderator_is_covariate: bool = False,
     tau_moderator_interaction: bool = True,
@@ -311,9 +315,10 @@ def build_itt_model(
               + gamma_tau_int * G_i * z(M_i)           # optional tau-moderator interaction
 
     The observation node is a Beta-Binomial on the post count (``likelihood=
-    "beta_binomial"``) or, for the floored-outcome floor rule, a Bernoulli on the
-    binary "off-floor at t2" indicator ``post > 0`` (``likelihood=
-    "bernoulli_offfloor"``).
+    "beta_binomial"``), using either the ordinary logit score-mean link or the
+    phoneme-blending three-choice guessing-floor link, or, for the floored-outcome
+    floor rule, a Bernoulli on the binary "off-floor at t2" indicator ``post > 0``
+    (``likelihood="bernoulli_offfloor"``).
 
     Parameters
     ----------
@@ -364,6 +369,12 @@ def build_itt_model(
         Bernoulli/logistic ``tau`` on the binary off-floor indicator
         ``post > 0`` (no ``kappa``), which targets where the randomised signal
         verifiably lives for heavily-floored outcomes.
+    score_mean_link
+        Inverse link for the expected score proportion. ``"logit"`` is the suite
+        default. ``"three_choice_guessing_floor"`` maps the inverse logit onto
+        ``[1/3, 1]`` and is valid only for the ten-item, three-alternative phoneme-
+        blending outcome ``B``. It changes the mean link, not the Beta-Binomial
+        observation family.
     tau_moderator_symbol, tau_moderator_is_covariate, tau_moderator_interaction
         Part B (HTE) plumbing: moderate ``tau`` by a **pre-randomisation**
         quantity ``M`` (so the interaction stays randomisation-respecting). With
@@ -410,6 +421,21 @@ def build_itt_model(
         raise ValueError(
             "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
             f"got {likelihood!r}"
+        )
+    if score_mean_link not in SCORE_MEAN_LINKS:
+        raise ValueError(
+            f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+            f"got {score_mean_link!r}"
+        )
+    if score_mean_link == "three_choice_guessing_floor" and outcome_symbol != "B":
+        raise ValueError(
+            "three_choice_guessing_floor is only valid for phoneme blending (B), "
+            f"got {outcome_symbol!r}"
+        )
+    if likelihood != "beta_binomial" and score_mean_link != "logit":
+        raise ValueError(
+            "score_mean_link applies only to the Beta-Binomial likelihood; "
+            f"got likelihood={likelihood!r}"
         )
     if use_age_gp and use_age_linear:
         raise ValueError(
@@ -573,11 +599,12 @@ def build_itt_model(
                 else _priors.kappa_prior(sigma=kappa_sigma)
             )
             kappa = kappa_spec.to_pymc("kappa")
-            beta_binomial_from_logit(
+            beta_binomial_from_score_mean_link(
                 "y_post",
                 eta,
                 n_trials=prepared.n_trials[own],
                 kappa=kappa,
+                score_mean_link=score_mean_link,
                 observed=post,
                 dims="obs_id",
             )
@@ -596,7 +623,10 @@ def build_itt_model(
     return BuiltModel(
         model=model,
         prepared=prepared,
-        extras={"tau_interaction_moderators": tau_moderators},
+        extras={
+            "tau_interaction_moderators": tau_moderators,
+            "score_mean_link": score_mean_link,
+        },
     )
 
 

@@ -116,6 +116,56 @@ def test_mean_figure_ame_matches_contrast(tmp_path):
     assert 0.0 <= overlap <= 1.0
 
 
+def test_guessing_floor_is_forwarded_to_overlap_artifacts(tmp_path):
+    eta, tau, kappa = _rng_trace(seed=17)
+    trace = _trace(eta, tau, kappa=kappa)
+    G = np.array([0, 1] * 6, dtype=float)
+
+    tables = write_arm_overlap_artifacts(
+        str(tmp_path),
+        trace,
+        outcome_symbol="B",
+        item_label="Phoneme blending",
+        G=G,
+        n_trials=40,
+        term="tau",
+        likelihood="beta_binomial",
+        score_mean_link="three_choice_guessing_floor",
+        ci_prob=0.89,
+        random_seed=3,
+    )
+    guessing_floor = counterfactual_predictive_contrast(
+        trace,
+        G=G,
+        n_trials=40,
+        term="tau",
+        likelihood="beta_binomial",
+        score_mean_link="three_choice_guessing_floor",
+        rng=np.random.default_rng(3),
+    )
+    ordinary = counterfactual_predictive_contrast(
+        trace,
+        G=G,
+        n_trials=40,
+        term="tau",
+        likelihood="beta_binomial",
+        rng=np.random.default_rng(3),
+    )
+
+    mean = tables["arm_overlap_mean"]
+    ame_row = mean.loc[mean["quantity"] == "average_marginal_effect"].iloc[0]
+    expected_ame_pp = float(np.median(guessing_floor.ame_prob)) * 100.0
+    assert ame_row["median"] == pytest.approx(expected_ame_pp, abs=1e-12)
+    assert expected_ame_pp == pytest.approx(
+        (2.0 / 3.0) * float(np.median(ordinary.ame_prob)) * 100.0,
+        abs=1e-12,
+    )
+    for table in tables.values():
+        assert set(table["score_mean_link"]) == {
+            "three_choice_guessing_floor"
+        }
+
+
 @pytest.mark.parametrize(
     ("likelihood", "expect_predictive"),
     [("beta_binomial", True), ("bernoulli", False)],

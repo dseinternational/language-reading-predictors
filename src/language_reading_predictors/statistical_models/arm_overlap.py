@@ -47,6 +47,7 @@ from scipy.stats import gaussian_kde
 from dse_research_utils.plot.styles import COLOUR_BLUE, COLOUR_ORANGE, FIGSIZE_LG
 
 from language_reading_predictors.figure_io import save_styled_figure
+from language_reading_predictors.statistical_models.likelihood import ScoreMeanLink
 from language_reading_predictors.statistical_models.predicted_scores import (
     PredictiveContrast,
     counterfactual_predictive_contrast,
@@ -150,6 +151,7 @@ def arm_overlap_summary(
     ci_prob: float,
     population: str,
     contrast_status: str,
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> pd.DataFrame:
     """Tabulate the citable overlap quantities as ``<figure>.csv`` (issue #208)."""
 
@@ -166,6 +168,7 @@ def arm_overlap_summary(
             "hi50": hi50,
             "population": population,
             "contrast_status": contrast_status,
+            "score_mean_link": score_mean_link,
         }
 
     def _scalar(quantity: str, value: float, scale: str) -> dict:
@@ -180,6 +183,7 @@ def arm_overlap_summary(
             "hi50": float("nan"),
             "population": population,
             "contrast_status": contrast_status,
+            "score_mean_link": score_mean_link,
         }
 
     rows = [
@@ -255,6 +259,7 @@ def save_arm_overlap_mean(
         ci_prob=ci_prob,
         population=population,
         contrast_status=contrast_status,
+        score_mean_link=contrast.score_mean_link,
     )
 
     fig, ax = plt.subplots(figsize=FIGSIZE_LG)
@@ -327,6 +332,7 @@ def save_arm_overlap_predictive(
         ci_prob=ci_prob,
         population=population,
         contrast_status=contrast_status,
+        score_mean_link=contrast.score_mean_link,
     )
 
     fig, ax = plt.subplots(figsize=FIGSIZE_LG)
@@ -366,6 +372,7 @@ def write_arm_overlap_artifacts(
     moderators=None,
     row_mask=None,
     likelihood: str = "beta_binomial",
+    score_mean_link: ScoreMeanLink = "logit",
     kappa_name: str = "kappa",
     child_effect_name: str | None = None,
     child_sd_name: str | None = None,
@@ -394,6 +401,7 @@ def write_arm_overlap_artifacts(
         moderators=moderators,
         row_mask=row_mask,
         likelihood=likelihood,
+        score_mean_link=score_mean_link,
         kappa_name=kappa_name,
         child_effect_name=child_effect_name,
         child_sd_name=child_sd_name,

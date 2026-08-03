@@ -20,24 +20,20 @@ format:
 
 ## Overview
 
-**In plain terms.** Among children whose nonword-reading score was observed to be zero before randomisation, did those offered the intervention become more likely to score above zero at t2? Random assignment supports a causal arm contrast for this pre-treatment subgroup, but this particular subgroup estimand was selected post-hoc, unknown baseline-floor status excludes children from it, and the repository does not contain all randomised children.
+**In plain terms.** Among children whose nonword-reading score was observed to be zero before randomisation, did those offered the intervention become more likely to score above zero at t2? Random assignment would support a causal contrast for a pre-treatment subgroup whose eligibility and follow-up outcomes were observed for the original randomised cohort. This fitted subgroup is selected by archive inclusion, observed baseline eligibility and observed t2 outcome, so a causal reading requires that selection did not induce an association between assigned arm and potential off-floor outcomes. Extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity; the subgroup estimand is also post-hoc.
 
 LRPITT11 is an available-case, modified-ITT reanalysis of nonword reading (`nonword`) over the randomised t1 $\rightarrow$ t2 phase. At baseline, 36/50 observed scores (72%) were zero; at t2, 34/53 observed scores (about 64%) were zero. The transition estimand requires baseline floor status even though baseline is not a regression covariate.
 
 _Post-hoc floored-outcome estimand — exploratory headline._ The floor rule and its 40% threshold were adopted after inspecting these outcome distributions and earlier model results. It is therefore **post-hoc and data-adaptive**, not pre-registered or prospectively specified. Applying the mechanical gate without arm labels reduces treatment-effect-driven selection, but does not change that evidential status. This model:
 
 - uses an **age-only** predictor (no baseline regression term);
-- reports $\Pr(\text{post} > 0 \mid \text{observed pre} = 0)$ among 36 eligible children (21 intervention, 15 control) as the exploratory headline. Baseline floor status is pre-randomisation, so conditioning on its observed value preserves the causal arm contrast for that subgroup, subject to missingness assumptions;
+- reports $\Pr(\text{post} > 0 \mid \text{observed pre} = 0)$ among 36 eligible children (21 intervention, 15 control) as the exploratory headline. Defining a subgroup by a fully observed pre-randomisation score would not itself undo randomisation, but this subgroup also requires archive inclusion, observed eligibility and observed t2 outcome. Its causal reading therefore requires that those selection steps did not induce an association between assigned arm and potential off-floor outcomes;
 - explicitly excludes three children with an observed t2 score but missing t1 score from this transition estimand (one intervention, two control), rather than treating missing baselines as zeros; and
 - retains the graded Beta-Binomial $\tau$ over all 53 observed t2 scores as a flagged, **detection-limited secondary**.
 
-_Analysis population and eligibility._ The published trial randomised 57 children (29 intervention, 28 wait-list), whereas the archived repository dataset contains 54 (28 intervention, 26 wait-list); one archived control child has neither a t1 nor t2 nonword score. This is therefore not a full-randomised-cohort ITT analysis. Each fit writes `baseline_floor_eligibility.csv` and records the same arm-specific counts in `config.json`; the causal reading requires an explicit missingness assumption or a sensitivity analysis for unavailable randomised participants and unknown eligibility.
+_Analysis population and eligibility._ The published trial randomised 57 children (29 intervention, 28 wait-list), whereas the archived repository dataset contains 54 (28 intervention, 26 wait-list); one archived control child has neither a t1 nor t2 nonword score. This is therefore not a full-randomised-cohort ITT analysis. Each fit writes `baseline_floor_eligibility.csv` and records the same arm-specific counts in `config.json`; extending the subgroup result to all 57 requires explicit assumptions or sensitivity analyses for unavailable participants, unknown eligibility and missing outcomes.
 
-_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so the ITT effect $\tau$ is
-identified by the **empty adjustment set**; linear age is a precision term only.
-**Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means
-the intervention raises the outcome — here, raises the probability of coming off
-the floor.
+_Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so the offer contrast in the original full randomised cohort requires the **empty adjustment set**. A fully observed subgroup defined by pre-randomisation floor status would likewise require no baseline-covariate adjustment. This fit instead conditions on archive inclusion, observed eligibility and observed outcome; a causal reading of $\tau$ requires that this selection did not induce an association between assigned arm and potential off-floor outcomes, while extension to all 57 requires further missing-data assumptions and sensitivity. Linear age is a precision term only. **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means the intervention arm has the higher modelled probability of coming off the floor.
 
 ## Model
 

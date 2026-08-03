@@ -52,6 +52,10 @@ from language_reading_predictors.statistical_models.itt import (
     declared_settings_dict,
     resolve_itt_run_plan,
 )
+from language_reading_predictors.statistical_models.likelihood import (
+    ScoreMeanLink,
+    apply_score_mean_link,
+)
 from language_reading_predictors.statistical_models.level_factors import (
     LevelFactorsRunPlan,
     resolve_level_factors_run_plan,
@@ -136,6 +140,7 @@ def _itt_ame_draws(
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     group: str = "posterior",
     row_mask: np.ndarray | None = None,
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Per-draw treatment effect and its probability-scale average marginal effect.
 
@@ -172,6 +177,13 @@ def _itt_ame_draws(
     prior-predictive estimand check (issue #125 Area 1/2). The prior group must
     carry ``term`` and ``eta_name`` — it does, since :func:`run_prior_predictive`
     now samples all free RVs + deterministics.
+
+    ``score_mean_link`` is the inverse link used by the fitted score model.  The
+    standard ITT models use ``"logit"``.  The registered phoneme-blending
+    sensitivity uses ``"three_choice_guessing_floor"`` and therefore maps the
+    latent inverse-logit probability onto ``[1/3, 1]`` before differencing.  This
+    argument is carried by every estimand and prediction consumer so a fit cannot
+    use one link and report an effect from another.
 
     ``row_mask`` (default None = all rows): restrict the observation average to a
     subset of ``obs_id`` rows. The gain-factor family passes the **period-1** mask
@@ -223,7 +235,9 @@ def _itt_ame_draws(
             )
         delta = delta + np.outer(mod, coef_draws)  # (n_obs, S)
     eta0 = eta - delta * G[:, None]  # untreated baseline (G=0 = control) per obs/draw
-    contrib = expit(eta0 + delta) - expit(eta0)  # (n_obs, S)
+    treated_mean = apply_score_mean_link(expit(eta0 + delta), score_mean_link)
+    untreated_mean = apply_score_mean_link(expit(eta0), score_mean_link)
+    contrib = treated_mean - untreated_mean  # (n_obs, S)
     if row_mask is not None:
         m = np.asarray(row_mask)
         # Validate dtype + dimensionality so a 2-D or float mask fails loudly rather
@@ -262,6 +276,7 @@ def tau_summary_itt(
     G: np.ndarray,
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     row_mask: np.ndarray | None = None,
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> dict[str, float]:
     """Summarise the treatment effect ``tau`` on both scales for an ITT model.
 
@@ -314,6 +329,7 @@ def tau_summary_itt(
         G=G,
         moderators=moderators,
         row_mask=row_mask,
+        score_mean_link=score_mean_link,
     )
     # Monte-Carlo precision of the probability-scale AME — a *derived* estimand
     # (post-processed from draws, so the convergence gate never sees it). Reported
@@ -491,6 +507,7 @@ def rope_summary(
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     row_mask: np.ndarray | None = None,
     direction_from_ame: bool = False,
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> dict[str, float | str]:
     """ROPE-anchored continuous report card for a randomised treatment effect.
 
@@ -529,6 +546,7 @@ def rope_summary(
         eta_name=eta_name,
         moderators=moderators,
         row_mask=row_mask,
+        score_mean_link=score_mean_link,
     )
     items = ame_prob * float(n_trials)
     card = rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
@@ -579,6 +597,7 @@ def rope_sensitivity(
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     row_mask: np.ndarray | None = None,
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> pd.DataFrame:
     """How the meaningful-benefit claim moves as the threshold δ varies (issue #144).
 
@@ -603,6 +622,7 @@ def rope_sensitivity(
         eta_name=eta_name,
         moderators=moderators,
         row_mask=row_mask,
+        score_mean_link=score_mean_link,
     )
     items = ame_prob * float(n_trials)
     rows: list[dict[str, float | str]] = []
@@ -664,6 +684,7 @@ def prior_pushforward(
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     ci_prob: float = 0.95,
     row_mask: np.ndarray | None = None,
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> dict[str, float]:
     """Push the **prior** on the effect through the items-scale AME (issue #125 Area 1/2).
 
@@ -685,6 +706,7 @@ def prior_pushforward(
         moderators=moderators,
         group="prior",
         row_mask=row_mask,
+        score_mean_link=score_mean_link,
     )
     items = ame_prob * float(n_trials)
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
@@ -3565,17 +3587,147 @@ def _kf_headline_from_rope(rope: Mapping, outcome_label: str, scope: str) -> tup
     hi = _kf_float(rope["items_hi"]) * scale
     if is_rd:
         text = (
-            f"Best estimate: the intervention changed the chance of scoring above "
-            f"zero on {outcome_label} by **{med:+.0f} percentage points** {scope} "
+            f"Best estimate: the model-estimated intervention-minus-comparison "
+            f"contrast in the chance of scoring above zero on {outcome_label} was "
+            f"**{med:+.0f} percentage points** {scope} "
             f"(89% credible range {lo:+.0f} to {hi:+.0f})."
         )
     else:
         text = (
-            f"Best estimate: the intervention changed {outcome_label} by "
-            f"**{med:+.1f} items** {scope} "
+            f"Best estimate: the model-estimated intervention-minus-comparison "
+            f"contrast for {outcome_label} was **{med:+.1f} items** {scope} "
             f"(89% credible range {lo:+.1f} to {hi:+.1f})."
         )
     return text, is_rd
+
+
+def _kf_itt_analysis_population(output_dir) -> dict[str, int]:
+    """Validate and summarise the two-arm available-case audit for an ITT fit.
+
+    The causal sentence is not allowed to infer its population from a model title or
+    a generic config label.  ``analysis_set.csv`` is generated from the actual fitted
+    rows and carries the published randomised allocation, archived cohort and fitted
+    arm counts.  Missing or incoherent arithmetic withholds the key findings rather
+    than publishing an unqualified randomisation claim.
+    """
+
+    path = os.path.join(str(output_dir), "analysis_set.csv")
+    if not os.path.exists(path):
+        raise _KeyFindingsUnavailable(
+            "analysis_set.csv is missing, so the fitted causal population cannot be verified"
+        )
+    try:
+        frame = pd.read_csv(path)
+    except (OSError, pd.errors.ParserError, UnicodeDecodeError) as exc:
+        raise _KeyFindingsUnavailable("analysis_set.csv is not readable") from exc
+    required = {
+        "arm",
+        "G",
+        "randomised_n",
+        "available_t1_n",
+        "fitted_n",
+        "absent_from_archive_n",
+        "not_in_fitted_analysis_n",
+        "excluded_after_archive_n",
+    }
+    if len(frame) != 2 or not required.issubset(frame.columns):
+        raise _KeyFindingsUnavailable(
+            "analysis_set.csv does not contain exactly the two required arm rows"
+        )
+    numeric = frame[list(required - {"arm"})].apply(pd.to_numeric, errors="coerce")
+    if not np.isfinite(numeric.to_numpy(dtype=float)).all():
+        raise _KeyFindingsUnavailable("analysis_set.csv contains non-numeric counts")
+    if not np.equal(numeric.to_numpy(), np.floor(numeric.to_numpy())).all():
+        raise _KeyFindingsUnavailable("analysis_set.csv counts must be integers")
+    work = frame.copy()
+    for column in numeric:
+        work[column] = numeric[column].astype(int)
+    if set(work["G"]) != {0, 1} or work["G"].duplicated().any():
+        raise _KeyFindingsUnavailable("analysis_set.csv does not identify both arms")
+    if not (
+        (work["randomised_n"] - work["available_t1_n"])
+        .eq(work["absent_from_archive_n"])
+        .all()
+        and (work["randomised_n"] - work["fitted_n"])
+        .eq(work["not_in_fitted_analysis_n"])
+        .all()
+        and (work["available_t1_n"] - work["fitted_n"])
+        .eq(work["excluded_after_archive_n"])
+        .all()
+        and (work["randomised_n"] >= work["available_t1_n"]).all()
+        and (work["available_t1_n"] >= work["fitted_n"]).all()
+        and (work["fitted_n"] > 0).all()
+    ):
+        raise _KeyFindingsUnavailable("analysis_set.csv arm-count arithmetic is inconsistent")
+    indexed = work.set_index("G")
+    return {
+        "randomised": int(work["randomised_n"].sum()),
+        "archived": int(work["available_t1_n"].sum()),
+        "fitted": int(work["fitted_n"].sum()),
+        "fitted_intervention": int(indexed.loc[1, "fitted_n"]),
+        "fitted_control": int(indexed.loc[0, "fitted_n"]),
+    }
+
+
+def _kf_itt_causal_sentence(population: Mapping[str, int]) -> str:
+    """Selected-population causal wording shared by every single-outcome ITT."""
+
+    return (
+        "Random assignment supports a cause-and-effect reading only under the "
+        "available-case assumption: for the "
+        f"{population['fitted']} fitted children "
+        f"({population['fitted_intervention']} immediate-intervention and "
+        f"{population['fitted_control']} waiting-list), archive inclusion, outcome "
+        "observation and any complete-case restriction must not depend jointly on "
+        "assigned arm and potential outcomes. Without further missing-data "
+        f"assumptions, this is not the effect for all {population['randomised']} "
+        "randomised children."
+    )
+
+
+def _kf_blending_link_evidence(
+    output_dir,
+    config: Mapping,
+) -> tuple[Mapping, str] | None:
+    """Return the current trace-recomputed B row and its paired-link sentence."""
+
+    if str(config.get("outcome_symbol")) != "B":
+        return None
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        BLENDING_COMPANION_MODEL_ID,
+        BLENDING_PRIMARY_MODEL_ID,
+        evaluate_local_blending_link_sensitivity,
+    )
+
+    status = evaluate_local_blending_link_sensitivity(output_dir, config=config)
+    if not status.get("ready"):
+        raise _KeyFindingsUnavailable(str(status.get("reason") or "B link sensitivity is not ready"))
+    summary = status["summary"].set_index("model_id")
+    ordinary = summary.loc[BLENDING_PRIMARY_MODEL_ID]
+    guessing = summary.loc[BLENDING_COMPANION_MODEL_ID]
+    current_model_id = str(config.get("model_id"))
+    if current_model_id not in summary.index:
+        raise _KeyFindingsUnavailable(
+            "current B model is not one of the validated paired-link fits"
+        )
+    current = summary.loc[current_model_id]
+
+    def _effect(row: Mapping) -> str:
+        return (
+            f"{_kf_float(row['effect_items_median']):+.1f} items "
+            f"(89% credible range {_kf_float(row['effect_items_lo']):+.1f} to "
+            f"{_kf_float(row['effect_items_hi']):+.1f})"
+        )
+
+    sentence = (
+        "The phoneme-blending conclusion is response-link sensitive: the ordinary "
+        f"logit model gives {_effect(ordinary)}, whereas the mechanically motivated "
+        f"one-in-three guessing-floor model gives {_effect(guessing)}. Read neither "
+        "link in isolation; the pair, not the more favourable estimate, is the "
+        "robustness result. The shared latent-scale priors also map to different "
+        "items-scale priors under the two links, as shown in the paired report."
+    )
+    return current, sentence
 
 
 def _kf_rope_sentence(rope: Mapping, *, is_rd: bool) -> str:
@@ -3657,51 +3809,93 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
     """ITT suite (incl. the floored off-floor primaries): rope card first, tau
     summary as the no-agreed-delta fallback (F / T)."""
     outcome_label = _kf_outcome_label(config)
-    rope = _kf_csv_row(output_dir, "rope_summary.csv")
+    population = _kf_itt_analysis_population(output_dir)
+    blending_evidence = _kf_blending_link_evidence(output_dir, config)
+    score_mean_link = str(
+        (config.get("resolved_run_plan") or {}).get("score_mean_link", "logit")
+    )
     sentences: list[dict[str, str]] = []
-    if rope is not None:
-        headline, is_rd = _kf_headline_from_rope(rope, outcome_label, "over the trial period")
-        sentences.append(_kf_sentence(headline, "headline"))
-        sentences.append(
-            _kf_sentence(_kf_direction_words(rope["pd"], is_rd=is_rd), "confidence")
-        )
-        sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
-    else:
-        tau = _kf_csv_row(output_dir, "tau_summary.csv")
-        if tau is None:
-            raise _KeyFindingsUnavailable(
-                "neither rope_summary.csv nor tau_summary.csv is present"
-            )
-        from language_reading_predictors.statistical_models.measures import MEASURES
-
-        measure = MEASURES.get(config.get("outcome_symbol"))
-        if measure is not None:
-            n = measure.n_trials
-            med = _kf_float(tau["tau_prob_median"]) * n
-            lo = _kf_float(tau["tau_prob_lo"]) * n
-            hi = _kf_float(tau["tau_prob_hi"]) * n
-            sentences.append(
-                _kf_sentence(
-                    f"Best estimate: the intervention changed {outcome_label} by "
-                    f"**{med:+.1f} items** over the trial period "
-                    f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
-                    "headline",
-                )
-            )
-        sentences.append(
-            _kf_sentence(_kf_direction_words(tau["prob_tau_pos"], is_rd=False), "confidence")
+    if blending_evidence is not None:
+        blending_row, blending_sentence = blending_evidence
+        link_prefix = (
+            "Under the ordinary-logit model, "
+            if score_mean_link == "logit"
+            else "Under the one-in-three guessing-floor model, "
         )
         sentences.append(
             _kf_sentence(
-                "No minimally-important difference has been agreed for this "
-                "outcome, so no is-it-big-enough-to-matter verdict is reported.",
-                "note",
+                f"{link_prefix}best estimate: the model-estimated "
+                f"intervention-minus-comparison contrast for {outcome_label} was "
+                f"**{_kf_float(blending_row['effect_items_median']):+.1f} items** "
+                "over the trial period "
+                f"(89% credible range "
+                f"{_kf_float(blending_row['effect_items_lo']):+.1f} to "
+                f"{_kf_float(blending_row['effect_items_hi']):+.1f}).",
+                "headline",
             )
         )
+        sentences.append(_kf_sentence(blending_sentence, "sensitivity"))
+        direction_sentence = _kf_direction_words(
+            blending_row["prob_effect_positive"], is_rd=False
+        )
+        sentences.append(
+            _kf_sentence(
+                f"{link_prefix}{direction_sentence[0].lower()}{direction_sentence[1:]}",
+                "confidence",
+            )
+        )
+    else:
+        rope = _kf_csv_row(output_dir, "rope_summary.csv")
+        if rope is not None:
+            headline, is_rd = _kf_headline_from_rope(
+                rope, outcome_label, "over the trial period"
+            )
+            sentences.append(_kf_sentence(headline, "headline"))
+            sentences.append(
+                _kf_sentence(
+                    _kf_direction_words(rope["pd"], is_rd=is_rd), "confidence"
+                )
+            )
+            sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
+        else:
+            tau = _kf_csv_row(output_dir, "tau_summary.csv")
+            if tau is None:
+                raise _KeyFindingsUnavailable(
+                    "neither rope_summary.csv nor tau_summary.csv is present"
+                )
+            from language_reading_predictors.statistical_models.measures import MEASURES
+
+            measure = MEASURES.get(config.get("outcome_symbol"))
+            if measure is not None:
+                n = measure.n_trials
+                med = _kf_float(tau["tau_prob_median"]) * n
+                lo = _kf_float(tau["tau_prob_lo"]) * n
+                hi = _kf_float(tau["tau_prob_hi"]) * n
+                sentences.append(
+                    _kf_sentence(
+                        "Best estimate: the model-estimated "
+                        f"intervention-minus-comparison contrast for {outcome_label} "
+                        f"was **{med:+.1f} items** over the trial period "
+                        f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
+                        "headline",
+                    )
+                )
+            sentences.append(
+                _kf_sentence(
+                    _kf_direction_words(tau["prob_tau_pos"], is_rd=False),
+                    "confidence",
+                )
+            )
+            sentences.append(
+                _kf_sentence(
+                    "No minimally-important difference has been agreed for this "
+                    "outcome, so no is-it-big-enough-to-matter verdict is reported.",
+                    "note",
+                )
+            )
     sentences.append(
         _kf_sentence(
-            "Because children were randomly assigned to the intervention or the "
-            "waiting list, this estimate supports a cause-and-effect reading.",
+            _kf_itt_causal_sentence(population),
             "causal",
         )
     )
@@ -3748,9 +3942,9 @@ def _kf_build_gain_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
         lo = _kf_float(tm["trt_items_lo"])
         hi = _kf_float(tm["trt_items_hi"])
         sentences.append(
-            _kf_sentence(
-                f"Best estimate: being on the intervention changed {outcome_label} "
-                f"by **{med:+.1f} items** {scope} "
+                _kf_sentence(
+                    f"Best estimate: the model-estimated on-intervention contrast "
+                    f"for {outcome_label} was **{med:+.1f} items** {scope} "
                 f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
                 "headline",
             )
@@ -3760,9 +3954,12 @@ def _kf_build_gain_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
         )
     sentences.append(
         _kf_sentence(
-            "The on-intervention effect is the only cause-and-effect estimate in "
-            "this report (it rests on the randomised first period); every other "
-            "factor is an adjusted association.",
+            "The on-intervention effect is the only potentially cause-and-effect "
+            "estimate in this report because it rests on the randomised first "
+            "period. That reading is limited to the fitted available-case rows and "
+            "assumes outcome and required-covariate observation do not depend "
+            "jointly on treatment and potential outcomes; every other factor is an "
+            "adjusted association.",
             "causal",
         )
     )
@@ -3805,8 +4002,10 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
     )
     sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
     causal = (
-        "Only this t2 comparison is randomised and supports a cause-and-effect "
-        "reading; group differences at later timepoints — after the "
+        "Only this t2 comparison is randomised. A cause-and-effect reading is "
+        "limited to the fitted available-case t2 population and assumes outcome "
+        "and required-covariate observation do not depend jointly on arm and "
+        "potential outcomes; group differences at later timepoints — after the "
         "waiting-list children had crossed over to the intervention — are "
         "associations."
     )
@@ -3866,8 +4065,9 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
         sentences.append(
             _kf_sentence(
                 f"Best estimate: at t2 — the randomised comparison — being in the "
-                f"immediate-intervention group changed the chance of scoring above "
-                f"zero on {outcome_label} by **{med:+.0f} percentage points** "
+                f"immediate-intervention group was associated with a "
+                f"**{med:+.0f} percentage-point** contrast in the chance of scoring "
+                f"above zero on {outcome_label} "
                 f"compared with the waiting list "
                 f"(89% credible range {lo:+.0f} to {hi:+.0f}).",
                 "headline",
@@ -3894,9 +4094,11 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
     )
     sentences.append(
         _kf_sentence(
-            "The t2 contrast is randomised and supports a cause-and-effect "
-            "reading; the arm gaps at t1 and t3, and the catch-up quantity below, "
-            "are descriptive associations.",
+            "The t2 contrast is randomised, but its cause-and-effect reading is "
+            "limited to the fitted available-case t2 population and assumes "
+            "outcome and required-covariate observation do not depend jointly on "
+            "arm and potential outcomes. The arm gaps at t1 and t3, and the "
+            "catch-up quantity below, are descriptive associations.",
             "causal",
         )
     )
@@ -3984,8 +4186,11 @@ def _kf_build_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
             )
     sentences.append(
         _kf_sentence(
-            "These are intention-to-treat effects from random assignment, so the "
-            "outcome-specific estimates support a cause-and-effect reading.",
+            "These are randomised-arm contrasts in the fitted available-case "
+            "population. Their cause-and-effect reading assumes archive inclusion, "
+            "outcome observation and any complete-case restriction do not depend "
+            "jointly on arm and potential outcomes; without further missing-data "
+            "assumptions they are not effects for all 57 randomised children.",
             "causal",
         )
     )
@@ -5163,6 +5368,17 @@ def generate_key_findings(output_dir) -> dict:
 
     payload["status"] = "ok"
     payload["sentences"] = sentences[:KEY_FINDINGS_MAX_SENTENCES]
+    if str(config.get("outcome_symbol")) == "B":
+        from language_reading_predictors.statistical_models.blending_sensitivity import (
+            BLENDING_SENSITIVITY_FILENAME,
+        )
+        from language_reading_predictors.statistical_models.sensitivity import (
+            sha256_file,
+        )
+
+        payload["blending_link_sensitivity_sha256"] = sha256_file(
+            os.path.join(out, BLENDING_SENSITIVITY_FILENAME)
+        )
     return _write_key_findings(out, payload)
 
 

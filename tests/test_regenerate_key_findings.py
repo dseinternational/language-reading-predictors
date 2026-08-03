@@ -20,8 +20,11 @@ path. ``regenerate_psense.py`` carries the same rule and pins it in its own test
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
@@ -163,3 +166,59 @@ def test_missing_output_root_resolves_to_no_targets(module_name, published, tmp_
     scratch disk that has been torn down) reports no targets rather than raising."""
     module = _load(module_name)
     assert module._subdirs(tmp_path / "absent") == []
+
+
+def test_itt_contrast_backfill_preserves_the_registered_score_mean_link(
+    tmp_path, monkeypatch
+):
+    """The 108 backfill must not overwrite guessing-floor artefacts as logit."""
+
+    module = _load("regenerate_itt_contrast_figures")
+    fit_dir = tmp_path / "lrp-rli-itt-108-reporting"
+    fit_dir.mkdir()
+    (fit_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "kind": "itt",
+                "ci_prob": 0.89,
+                "sampling": {"random_seed": 47},
+                "resolved_run_plan": {
+                    "outcome_symbol": "B",
+                    "floor_rule": False,
+                    "headline_likelihood": "beta_binomial",
+                    "score_mean_link": "three_choice_guessing_floor",
+                    "tau_moderator_symbol": None,
+                },
+            }
+        )
+    )
+    (fit_dir / "trace.nc").write_text("placeholder")
+    trace = SimpleNamespace(
+        constant_data={"G": SimpleNamespace(values=np.array([0.0, 1.0]))}
+    )
+    monkeypatch.setattr(module.az, "from_netcdf", lambda _path: trace)
+    monkeypatch.setattr(module, "_PARTIALS_SRC", tmp_path / "no-partials")
+    calls: dict[str, str] = {}
+
+    def predicted(*_args, **kwargs):
+        calls["predicted"] = kwargs["score_mean_link"]
+
+    def overlap(*_args, **kwargs):
+        calls["overlap"] = kwargs["score_mean_link"]
+        return {}
+
+    def ame(*_args, **kwargs):
+        calls["ame"] = kwargs["score_mean_link"]
+        return np.zeros(2), np.zeros(2)
+
+    monkeypatch.setattr(module, "write_predicted_scores_artifacts", predicted)
+    monkeypatch.setattr(module, "write_arm_overlap_artifacts", overlap)
+    monkeypatch.setattr(module._report, "_itt_ame_draws", ame)
+    monkeypatch.setattr(module, "write_rope_figures", lambda *_args, **_kwargs: None)
+
+    assert module._regenerate_one(fit_dir).startswith("ok")
+    assert calls == {
+        "predicted": "three_choice_guessing_floor",
+        "overlap": "three_choice_guessing_floor",
+        "ame": "three_choice_guessing_floor",
+    }

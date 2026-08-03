@@ -1298,6 +1298,7 @@ def _save_rope_plot(
     items: np.ndarray | None = None,
     row_mask: np.ndarray | None = None,
     split: bool = False,
+    score_mean_link: str = "logit",
 ) -> None:
     """ROPE-anchored figure for a randomised effect: the items-scale posterior with
     the region of practical equivalence, and ``P(effect > delta)`` as the
@@ -1321,6 +1322,7 @@ def _save_rope_plot(
             _, ame_prob = _report._itt_ame_draws(
                 ctx.trace, G=G, term=term, varying_term=varying_term,
                 moderators=moderators, row_mask=row_mask,
+                score_mean_link=score_mean_link,
             )
             items = ame_prob * float(n_trials)
         write_rope_figures(
@@ -1349,6 +1351,7 @@ def _write_predicted_scores(
     contrast_status: str,
     event_label: str = "off the floor at follow-up",
     split: bool = False,
+    score_mean_link: str = "logit",
 ) -> None:
     """Predicted-scores contrast panel, ROPE-triple density and icon array (#316).
 
@@ -1386,6 +1389,7 @@ def _write_predicted_scores(
             event_label=event_label,
             random_seed=ctx.sampling.random_seed,
             split=split,
+            score_mean_link=score_mean_link,
         )
         ctx.tables["predicted_scores"] = summary
     except Exception as exc:  # pragma: no cover
@@ -1408,6 +1412,7 @@ def _write_arm_overlap(
     population: str,
     contrast_status: str,
     event_label: str = "off the floor at follow-up",
+    score_mean_link: str = "logit",
 ) -> None:
     """Intervention vs no-intervention posterior-overlap figures (two individual
     files: ``arm_overlap_mean`` and, for graded outcomes, ``arm_overlap_predictive``).
@@ -1444,6 +1449,7 @@ def _write_arm_overlap(
             contrast_status=contrast_status,
             event_label=event_label,
             random_seed=ctx.sampling.random_seed,
+            score_mean_link=score_mean_link,
         )
         for name, table in tables.items():
             ctx.tables[name] = table
@@ -1610,6 +1616,7 @@ def _emit_itt_extras(
     term: str = "tau",
     varying_term: str = "tau_i",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
+    score_mean_link: str = "logit",
 ) -> None:
     """Area 1/4 extras for an ITT-style fit (issue #125).
 
@@ -1629,6 +1636,7 @@ def _emit_itt_extras(
             varying_term=varying_term,
             moderators=moderators,
             ci_prob=ctx.reporting.ci_prob,
+            score_mean_link=score_mean_link,
         )
         pd.DataFrame([pf]).to_csv(
             os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
@@ -2034,11 +2042,13 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # ``tau_moderator_symbol`` — but wired so a heterogeneity fit reports the
     # model-implied effect, not ``tau`` alone.
     tau_moderators = built.extras.get("tau_interaction_moderators", [])
+    score_mean_link = plan.score_mean_link
     n_trials_own = int(built.prepared.n_trials[spec.outcome_symbol])
     _emit_itt_extras(
         ctx, built, n_trials=n_trials_own,
         overlay_vars=_itt_diag_vars(plan, adjust_for),
         moderators=tau_moderators,
+        score_mean_link=score_mean_link,
     )
 
     # Treatment-effect summary on both scales.
@@ -2050,6 +2060,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # on, so G aligns with eta's obs_id axis (finding #2 in issue #78).
         G=built.prepared.G,
         moderators=tau_moderators,
+        score_mean_link=score_mean_link,
     )
     tau_df = pd.DataFrame([tau_s])
     tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
@@ -2080,6 +2091,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             delta=delta_items,
             ci_prob=ctx.reporting.ci_prob,
             moderators=tau_moderators,
+            score_mean_link=score_mean_link,
         )
         rope_df = pd.DataFrame([rope_s])
         rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
@@ -2099,6 +2111,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             delta_items,
             moderators=tau_moderators,
             split=True,
+            score_mean_link=score_mean_link,
         )
 
         # δ-sensitivity sweep (issue #144): P(benefit ≥ δ) at the adopted δ and a
@@ -2109,6 +2122,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
             deltas=rope_delta_grid(spec.outcome_symbol),
             moderators=tau_moderators,
+            score_mean_link=score_mean_link,
         )
         sens_df.to_csv(
             os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
@@ -2132,6 +2146,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ),
         contrast_status="randomised contrast (ITT)",
         split=True,
+        score_mean_link=score_mean_link,
     )
 
     # Intervention vs no-intervention overlap (two individual figures): the
@@ -2149,6 +2164,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "new child; covariate profiles drawn from the fitted ITT analysis rows"
         ),
         contrast_status="randomised contrast (ITT)",
+        score_mean_link=score_mean_link,
     )
 
     # Tau-moderator (Part B / HTE) summary: the effect-modification coefficient

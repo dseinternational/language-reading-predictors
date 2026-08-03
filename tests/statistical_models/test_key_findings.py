@@ -78,11 +78,44 @@ def _rope_row(**overrides) -> dict:
     return row
 
 
-def _setup_dir(tmp_path: Path, kind: str, *, config: dict | None = None) -> Path:
-    d = tmp_path / f"{kind}-dev"
+def _setup_dir(
+    tmp_path: Path,
+    kind: str,
+    *,
+    config: dict | None = None,
+    directory_name: str | None = None,
+) -> Path:
+    d = tmp_path / (directory_name or f"{kind}-dev")
     d.mkdir()
     _write_json(d, "config.json", config or _config(kind))
     _write_json(d, "diagnostics_summary.json", _passing_gate())
+    if kind == "itt":
+        _write_rows(
+            d,
+            "analysis_set.csv",
+            [
+                {
+                    "arm": "intervention",
+                    "G": 1,
+                    "randomised_n": 29,
+                    "available_t1_n": 28,
+                    "fitted_n": 28,
+                    "absent_from_archive_n": 1,
+                    "not_in_fitted_analysis_n": 1,
+                    "excluded_after_archive_n": 0,
+                },
+                {
+                    "arm": "control",
+                    "G": 0,
+                    "randomised_n": 28,
+                    "available_t1_n": 26,
+                    "fitted_n": 26,
+                    "absent_from_archive_n": 2,
+                    "not_in_fitted_analysis_n": 2,
+                    "excluded_after_archive_n": 0,
+                },
+            ],
+        )
     return d
 
 
@@ -166,6 +199,28 @@ def test_missing_csvs_degrade_to_not_available(tmp_path):
     # The payload must still be valid JSON on disk (the partial renders it).
     with open(d / KEY_FINDINGS_FILENAME) as f:
         assert json.load(f)["status"] == "not_available"
+
+
+def test_itt_missing_analysis_set_withholds_causal_findings(tmp_path):
+    d = _setup_dir(tmp_path, "itt")
+    (d / "analysis_set.csv").unlink()
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "not_available"
+    assert "causal population" in payload["reason"]
+    assert payload["sentences"] == []
+
+
+def test_itt_inconsistent_analysis_set_withholds_causal_findings(tmp_path):
+    d = _setup_dir(tmp_path, "itt")
+    audit = pd.read_csv(d / "analysis_set.csv")
+    audit.loc[audit["G"] == 1, "not_in_fitted_analysis_n"] = 99
+    audit.to_csv(d / "analysis_set.csv", index=False)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "not_available"
+    assert "arithmetic" in payload["reason"]
+    assert payload["sentences"] == []
 
 
 def test_missing_config_degrades(tmp_path):
@@ -346,8 +401,8 @@ def test_itt_golden_sentences(tmp_path):
     assert kinds == ["headline", "confidence", "rope", "causal"]
     texts = [s["text"] for s in payload["sentences"]]
     assert texts[0] == (
-        "Best estimate: the intervention changed Word reading (WR) by "
-        "**+2.4 items** over the trial period "
+        "Best estimate: the model-estimated intervention-minus-comparison contrast "
+        "for Word reading (WR) was **+2.4 items** over the trial period "
         "(89% credible range -0.3 to +5.9)."
     )
     assert texts[1] == (
@@ -361,8 +416,218 @@ def test_itt_golden_sentences(tmp_path):
         "the effect is too small to matter either way is 17%; because the threshold "
         "is post-hoc, read this beside the threshold-sensitivity analysis."
     )
-    assert "randomly assigned" in texts[3]
-    assert "cause-and-effect" in texts[3]
+    assert "54 fitted children" in texts[3]
+    assert "29" not in texts[3]  # fitted arm counts, not published allocation
+    assert "28 immediate-intervention" in texts[3]
+    assert "26 waiting-list" in texts[3]
+    assert "depend jointly on assigned arm and potential outcomes" in texts[3]
+    assert "all 57 randomised children" in texts[3]
+
+
+def _blending_config(model_id: str, link: str) -> dict:
+    return _config(
+        "itt",
+        model_id=model_id,
+        outcome_symbol="B",
+        model_settings={"score_mean_link": link},
+        resolved_run_plan={"score_mean_link": link},
+    )
+
+
+def _write_blending_link_summary(d: Path) -> Path:
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS,
+        BLENDING_SENSITIVITY_SCHEMA_VERSION,
+    )
+    from language_reading_predictors.statistical_models.sensitivity import sha256_file
+
+    (d / "trace.nc").write_text("primary B trace")
+    (d / "pareto_k.csv").write_text("primary B row map")
+    companion_dir = d.parent / "lrp-rli-itt-108-dev"
+    companion_dir.mkdir()
+    _write_json(
+        companion_dir,
+        "config.json",
+        _blending_config(
+            "lrp-rli-itt-108",
+            "three_choice_guessing_floor",
+        ),
+    )
+    (companion_dir / "trace.nc").write_text("companion B trace")
+    (companion_dir / "pareto_k.csv").write_text("companion B row map")
+    (companion_dir / "diagnostics_summary.json").write_bytes(
+        (d / "diagnostics_summary.json").read_bytes()
+    )
+    (companion_dir / "analysis_set.csv").write_bytes(
+        (d / "analysis_set.csv").read_bytes()
+    )
+
+    def _artifact_hashes(directory: Path, label: str) -> str:
+        for name in BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS:
+            path = directory / name
+            if not path.is_file():
+                path.write_bytes(f"{label}:{name}".encode())
+        return json.dumps(
+            {
+                name: sha256_file(directory / name)
+                for name in BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    primary_artifacts = _artifact_hashes(d, "primary")
+    companion_artifacts = _artifact_hashes(companion_dir, "companion")
+
+    primary_trace_sha = sha256_file(d / "trace.nc")
+    companion_trace_sha = sha256_file(companion_dir / "trace.nc")
+    primary_row_sha = sha256_file(d / "pareto_k.csv")
+    companion_row_sha = sha256_file(companion_dir / "pareto_k.csv")
+    shared = {
+        "schema_version": BLENDING_SENSITIVITY_SCHEMA_VERSION,
+        "config": "dev",
+        "outcome": "B",
+        "sensitivity_of": "lrp-rli-itt-008",
+        "data_sha256": "a" * 64,
+        "environment_lock_sha256": "b" * 64,
+        "source_commit": "c" * 40,
+        "n": 54,
+        "n_intervention": 28,
+        "n_control": 26,
+        "subject_order_sha256": "d" * 64,
+        "treatment_order_sha256": "e" * 64,
+        "sampling_draws": 100,
+        "sampling_tune": 100,
+        "sampling_chains": 2,
+        "sampling_target_accept": 0.95,
+        "sampling_random_seed": 47,
+        "ci_prob": 0.89,
+        "converged": True,
+        "max_rhat": 1.0,
+        "min_ess": 800.0,
+        "min_bfmi": 0.8,
+        "n_divergences": 0,
+        "loo_elpd": -10.0,
+        "loo_p": 2.0,
+        "pareto_k_max": 0.4,
+        "good_k_threshold": 0.7,
+        "loo_reliable": True,
+        "prob_meaningful_benefit": 0.4,
+        "prob_practically_negligible": 0.5,
+        "prior_effect_items_median": 0.0,
+        "prior_effect_items_lo": -1.3,
+        "prior_effect_items_hi": 1.3,
+        "guessing_floor_minus_logit_elpd": 1.0,
+        "guessing_floor_minus_logit_elpd_se": 0.5,
+    }
+    _write_rows(
+        d,
+        "blending_link_sensitivity.csv",
+        [
+            {
+                **shared,
+                "model_id": "lrp-rli-itt-008",
+                "score_mean_link": "logit",
+                "config_sha256": sha256_file(d / "config.json"),
+                "trace_sha256": primary_trace_sha,
+                "trace_file": f"lrp-rli-itt-008-{primary_trace_sha[:16]}.nc",
+                "row_map_sha256": primary_row_sha,
+                "row_map_file": f"lrp-rli-itt-008-rows-{primary_row_sha[:16]}.csv",
+                "scientific_artifacts_sha256": primary_artifacts,
+                "effect_items_median": 1.0,
+                "effect_items_lo": 0.2,
+                "effect_items_hi": 1.8,
+                "prob_effect_positive": 0.95,
+            },
+            {
+                **shared,
+                "model_id": "lrp-rli-itt-108",
+                "score_mean_link": "three_choice_guessing_floor",
+                "config_sha256": sha256_file(companion_dir / "config.json"),
+                "trace_sha256": companion_trace_sha,
+                "trace_file": f"lrp-rli-itt-108-{companion_trace_sha[:16]}.nc",
+                "row_map_sha256": companion_row_sha,
+                "row_map_file": f"lrp-rli-itt-108-rows-{companion_row_sha[:16]}.csv",
+                "scientific_artifacts_sha256": companion_artifacts,
+                "effect_items_median": 0.5,
+                "effect_items_lo": -0.2,
+                "effect_items_hi": 1.1,
+                "prob_effect_positive": 0.85,
+                "loo_elpd": -9.0,
+            },
+        ],
+    )
+    (companion_dir / "blending_link_sensitivity.csv").write_bytes(
+        (d / "blending_link_sensitivity.csv").read_bytes()
+    )
+    return companion_dir
+
+
+def test_blending_headline_is_withheld_without_trace_backed_link_pair(tmp_path):
+    d = _setup_dir(
+        tmp_path,
+        "itt",
+        config=_blending_config("lrp-rli-itt-008", "logit"),
+        directory_name="lrp-rli-itt-008-dev",
+    )
+    _write_csv(d, "rope_summary.csv", _rope_row(items_median=1.0))
+    payload = generate_key_findings(d)
+    assert payload["status"] == "not_available"
+    assert "B link sensitivity" in payload["reason"]
+    assert payload["sentences"] == []
+
+
+def test_blending_key_findings_show_both_current_links(tmp_path):
+    from language_reading_predictors.statistical_models.sensitivity import sha256_file
+
+    d = _setup_dir(
+        tmp_path,
+        "itt",
+        config=_blending_config("lrp-rli-itt-008", "logit"),
+        directory_name="lrp-rli-itt-008-dev",
+    )
+    # Deliberately conflict with the bundle. B headlines and direction must come
+    # from its trace-recomputed paired row, never this separately stored table.
+    _write_csv(d, "rope_summary.csv", _rope_row(items_median=-9.0, pd=0.01))
+    companion_dir = _write_blending_link_summary(d)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    kinds = [sentence["kind"] for sentence in payload["sentences"]]
+    assert kinds == ["headline", "sensitivity", "confidence", "causal"]
+    texts = _texts(payload)
+    assert "Under the ordinary-logit model" in texts
+    assert "ordinary logit model gives +1.0 items" in texts
+    assert "one-in-three guessing-floor model gives +0.5 items" in texts
+    assert "Read neither link in isolation" in texts
+    assert "95% probability" in texts
+    assert "-9.0 items" not in texts
+    assert payload["blending_link_sensitivity_sha256"] == sha256_file(
+        d / "blending_link_sensitivity.csv"
+    )
+
+    companion_payload = generate_key_findings(companion_dir)
+    assert companion_payload["status"] == "ok", companion_payload.get("reason")
+    companion_texts = _texts(companion_payload)
+    assert "Under the one-in-three guessing-floor model" in companion_texts
+    assert "**+0.5 items**" in companion_texts
+    assert "85% probability" in companion_texts
+
+
+def test_blending_link_summary_stale_for_current_config_withholds(tmp_path):
+    d = _setup_dir(
+        tmp_path,
+        "itt",
+        config=_blending_config("lrp-rli-itt-008", "logit"),
+        directory_name="lrp-rli-itt-008-dev",
+    )
+    _write_csv(d, "rope_summary.csv", _rope_row(items_median=1.0))
+    _write_blending_link_summary(d)
+    config = json.loads((d / "config.json").read_text())
+    config["title"] = "changed after sensitivity installation"
+    _write_json(d, "config.json", config)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "not_available"
+    assert "config has changed" in payload["reason"]
 
 
 def test_itt_floored_risk_difference_wording(tmp_path):
@@ -442,7 +707,8 @@ def test_gain_factors_golden_sentences(tmp_path):
     assert kinds == ["headline", "confidence", "rope", "causal", "highlight"]
     texts = [s["text"] for s in payload["sentences"]]
     assert "during the randomised first period" in texts[0]
-    assert "only cause-and-effect estimate" in texts[3]
+    assert "only potentially cause-and-effect estimate" in texts[3]
+    assert "fitted available-case rows" in texts[3]
     assert "the child's own starting point on this measure" in texts[4]
     assert "99.9%" in texts[4]  # a certainty of 1.0 in finite draws caps at 99.9%
     assert "100%" not in texts[4]
@@ -677,7 +943,7 @@ def test_did_off_floor_uses_percentage_points(tmp_path):
     payload = generate_key_findings(d)
     assert payload["status"] == "ok"
     headline = payload["sentences"][0]["text"]
-    assert "+22 percentage points" in headline
+    assert "**+22 percentage-point** contrast" in headline
     assert "scoring above zero" in headline
 
 
@@ -1194,9 +1460,25 @@ def test_key_findings_partial_is_a_self_contained_renderer():
     assert "retired model-spec gate exception" in text
     assert "not available" in text
     assert "callout-important" in text  # the red withheld-findings warning
+    assert "evaluate_local_blending_link_sensitivity" in text
+    assert "blending_link_sensitivity_sha256" in text
+    assert "response-link" in text
+    assert "summary changed" in text
     # Self-contained: must not depend on _setup.qmd helpers so #321 can move it.
     assert "_csv(" not in text
     assert "_json(" not in text
+
+
+def test_itt_results_require_the_trace_backed_blending_link_pair():
+    text = (REPO / "docs/models/_partials/_results_itt.qmd").read_text()
+    assert "evaluate_local_blending_link_sensitivity" in text
+    assert "Phoneme-blending findings withheld" in text
+    assert "lrp-rli-itt-008" in text
+    assert "lrp-rli-itt-108" in text
+    assert 'if _symbol == "B" and _scientific_results_released' in text
+    assert "_scientific_results_released = False" in text
+    assert "neither row should be selected" in text
+    assert "isolation" in text
 
 
 def test_reading_guide_is_a_collapsed_callout():

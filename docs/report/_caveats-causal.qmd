@@ -5,10 +5,5 @@ chapters/) or {{< include _caveats-causal.qmd >}} (from a top-level file).
 -->
 
 ::: {.callout-important title="Causal status — [CAUSAL]"}
-The estimate(s) here are identified by **randomisation**. Under the locked DAG
-(@sec-dag) the intervention group is a randomised root, so the intention-to-treat effect
-is the one quantity the design licenses as **causal**. The own baseline and linear age
-are **precision** terms — they sharpen the estimate but are *not* what licenses the
-causal reading — and intervention sessions / dose are **never** conditioned on (a DAG
-collider). A **positive** effect means the intervention raised the outcome.
+Randomisation licenses a causal assigned-arm contrast in the full randomised cohort under the locked DAG (@sec-dag), but the reported models use an available-case modified intention-to-treat analysis rather than all 57 assigned children. A causal reading even for a fitted-sample contrast additionally assumes that archive inclusion, outcome observation and any complete-case restriction did not select children differently between arms according to their potential outcomes, after allowing for the stated pre-treatment information; randomisation alone does not guarantee that condition after selection. Extending the result to all 57 randomised children requires further assumptions about their missing outcomes and an appropriate attrition sensitivity. The own baseline and linear age are **precision** terms—they may sharpen the estimate but do *not* supply this missing-data identification—and intervention sessions or dose are **never** conditioned on (a DAG collider). A **positive** contrast means the intervention arm had the higher outcome under the model; call it a causal effect only under the stated selection and missing-data assumptions.
 :::

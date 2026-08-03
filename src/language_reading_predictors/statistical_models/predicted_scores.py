@@ -68,6 +68,10 @@ from dse_research_utils.plot.styles import (
 )
 
 from language_reading_predictors.figure_io import save_styled_figure
+from language_reading_predictors.statistical_models.likelihood import (
+    ScoreMeanLink,
+    apply_score_mean_link,
+)
 
 __all__ = [
     "PredictiveContrast",
@@ -120,6 +124,7 @@ class PredictiveContrast:
     n_trials: int
     prob_control: np.ndarray
     prob_intervention: np.ndarray
+    score_mean_link: ScoreMeanLink = "logit"
     score_control: np.ndarray = field(default_factory=lambda: np.empty(0))
     score_intervention: np.ndarray = field(default_factory=lambda: np.empty(0))
     ame_prob_new_child: np.ndarray = field(default_factory=lambda: np.empty(0))
@@ -261,13 +266,28 @@ def _new_child_adjustment(
 _GH_DEG = 32
 
 
-def _new_child_prob(eta: np.ndarray, sigma_child: np.ndarray) -> np.ndarray:
+def _score_mean(eta: np.ndarray, score_mean_link: ScoreMeanLink) -> np.ndarray:
+    """Map a linear predictor to its expected score proportion."""
+
+    return np.asarray(
+        apply_score_mean_link(expit(eta), score_mean_link),
+        dtype=float,
+    )
+
+
+def _new_child_prob(
+    eta: np.ndarray,
+    sigma_child: np.ndarray,
+    *,
+    score_mean_link: ScoreMeanLink,
+) -> np.ndarray:
     """Population-average event probability integrating the intercept out.
 
-    Returns ``E_{u ~ Normal(0, sigma_child[s])}[expit(eta[r, s] + u)]`` per
-    ``(row r, draw s)`` by Gauss–Hermite quadrature. With ``sigma_child == 0`` the
-    nodes collapse and this returns ``expit(eta)`` exactly, so a model with no
-    child intercept reduces to the conditional probability (new-child == observed).
+    Returns the selected score-mean inverse link, integrated over
+    ``u ~ Normal(0, sigma_child[s])``, per ``(row r, draw s)`` by Gauss–Hermite
+    quadrature. With ``sigma_child == 0`` the nodes collapse and this returns the
+    direct inverse-link value, so a model with no child intercept reduces to the
+    conditional probability (new-child == observed).
     """
     nodes, weights = np.polynomial.hermite.hermgauss(_GH_DEG)
     norm = float(np.sqrt(np.pi))
@@ -275,7 +295,7 @@ def _new_child_prob(eta: np.ndarray, sigma_child: np.ndarray) -> np.ndarray:
     # E_{u~N(0,s)}[g(u)] = (1/sqrt(pi)) * sum_k w_k g(sqrt(2) s x_k).
     shift = np.sqrt(2.0) * sigma_child[None, :]  # (1, S)
     for x_k, w_k in zip(nodes, weights, strict=True):
-        acc += w_k * expit(eta + shift * x_k)
+        acc += w_k * _score_mean(eta + shift * x_k, score_mean_link)
     return acc / norm
 
 
@@ -290,6 +310,7 @@ def counterfactual_predictive_contrast(
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     row_mask: np.ndarray | None = None,
     likelihood: str = "beta_binomial",
+    score_mean_link: ScoreMeanLink = "logit",
     kappa_name: str = "kappa",
     child_effect_name: str | None = None,
     child_sd_name: str | None = None,
@@ -301,9 +322,11 @@ def counterfactual_predictive_contrast(
 
     For every posterior draw the untreated linear predictor ``eta0`` and the
     per-row treatment contribution ``delta`` are recovered exactly as in
-    ``reporting._itt_ame_draws``. The per-draw marginal probabilities average
-    ``expit(eta0)`` / ``expit(eta0 + delta)`` over the reference rows, and
-    ``ame_prob`` is their difference (the guard-tested AME).
+    ``reporting._itt_ame_draws``. The per-draw marginal probabilities apply the
+    declared ``score_mean_link`` to ``eta0`` / ``eta0 + delta`` and average over
+    the reference rows; ``ame_prob`` is their difference. The default ``"logit"``
+    path is the guard-tested ordinary AME. ``"three_choice_guessing_floor"`` maps
+    the expected score proportion onto ``[1/3, 1]``.
 
     With ``likelihood="beta_binomial"`` the contrast additionally simulates
     integer test scores: each simulation picks one posterior draw and one
@@ -327,17 +350,21 @@ def counterfactual_predictive_contrast(
         moderators=moderators,
         row_mask=row_mask,
     )
-    # AME on the fitted intercepts — identical to _itt_ame_draws / rope_summary,
-    # so the CSV row and printed triple match the existing artefacts exactly.
-    ame_prob = (expit(eta0 + delta) - expit(eta0)).mean(axis=0)
-    prob_control = expit(eta0).mean(axis=0)
-    prob_intervention = expit(eta0 + delta).mean(axis=0)
+    # AME on the fitted intercepts. The ordinary-logit path is identical to
+    # _itt_ame_draws / rope_summary; the guessing-floor path uses the same declared
+    # inverse link as the likelihood and the other score-scale summaries.
+    mu_control = _score_mean(eta0, score_mean_link)
+    mu_intervention = _score_mean(eta0 + delta, score_mean_link)
+    ame_prob = (mu_intervention - mu_control).mean(axis=0)
+    prob_control = mu_control.mean(axis=0)
+    prob_intervention = mu_intervention.mean(axis=0)
 
     contrast = PredictiveContrast(
         ame_prob=ame_prob,
         n_trials=int(n_trials),
         prob_control=prob_control,
         prob_intervention=prob_intervention,
+        score_mean_link=score_mean_link,
     )
 
     # New-child, population-average effect: strip the fitted child intercept and
@@ -355,8 +382,16 @@ def counterfactual_predictive_contrast(
         row_mask=row_mask,
     )
     if child_effect_name is not None:
-        pc_new = _new_child_prob(eta0_new, sigma_child).mean(axis=0)
-        pi_new = _new_child_prob(eta0_new + delta, sigma_child).mean(axis=0)
+        pc_new = _new_child_prob(
+            eta0_new,
+            sigma_child,
+            score_mean_link=score_mean_link,
+        ).mean(axis=0)
+        pi_new = _new_child_prob(
+            eta0_new + delta,
+            sigma_child,
+            score_mean_link=score_mean_link,
+        ).mean(axis=0)
         contrast.prob_control_new_child = pc_new
         contrast.prob_intervention_new_child = pi_new
         contrast.ame_prob_new_child = pi_new - pc_new
@@ -387,7 +422,7 @@ def counterfactual_predictive_contrast(
     kappa_j = kappa[sample_j]
 
     def _scores(eta_arm: np.ndarray) -> np.ndarray:
-        mu = np.clip(expit(eta_arm), 1e-9, 1 - 1e-9)
+        mu = np.clip(_score_mean(eta_arm, score_mean_link), 1e-9, 1 - 1e-9)
         p = rng.beta(mu * kappa_j, (1.0 - mu) * kappa_j)
         return rng.binomial(int(n_trials), p).astype(np.int64)
 
@@ -447,6 +482,7 @@ def predicted_scores_table(
             "lo50": float(np.quantile(d, 0.25)),
             "hi50": float(np.quantile(d, 0.75)),
             "n_trials": contrast.n_trials,
+            "score_mean_link": contrast.score_mean_link,
             "population": population,
             "intercept_basis": basis,
             "contrast_status": contrast_status,
@@ -801,6 +837,7 @@ def write_predicted_scores_artifacts(
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     row_mask: np.ndarray | None = None,
     likelihood: str = "beta_binomial",
+    score_mean_link: ScoreMeanLink = "logit",
     kappa_name: str = "kappa",
     child_effect_name: str | None = None,
     child_sd_name: str | None = None,
@@ -833,6 +870,7 @@ def write_predicted_scores_artifacts(
         moderators=moderators,
         row_mask=row_mask,
         likelihood=likelihood,
+        score_mean_link=score_mean_link,
         kappa_name=kappa_name,
         child_effect_name=child_effect_name,
         child_sd_name=child_sd_name,
