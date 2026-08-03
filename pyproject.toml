@@ -20,7 +20,7 @@ dependencies = [
   "lightgbm>=4.7.0",
   "matplotlib>=3.11.1",
   "networkx",
-  "numpy>=2.4.6,<2.5",  # pymc -> pytensor -> numba pins numpy <2.5; matches the shared conda core
+  "numpy>=2.4.6,<2.6",  # pymc -> pytensor -> numba pins numpy <2.5; matches the shared conda core
   "pandas>=3.0.5",
   "preliz>=0.27.1",
   "pymc>=6.2.0",
