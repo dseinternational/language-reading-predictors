@@ -42,6 +42,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import xarray as xr
+from pymc.stats import compute_log_likelihood
 from rich import print as rprint
 
 from dse_research_utils.statistics.diagnostics import (
@@ -232,9 +233,9 @@ def compute_log_likelihood_and_prior(
     with a bespoke log-likelihood (the longitudinal correlated-factor model) build
     their groups their own way and do not call this.
 
-    ``strict`` (default True): re-raise a ``pm.compute_log_likelihood`` failure — the
+    ``strict`` (default True): re-raise a ``compute_log_likelihood`` failure — the
     contract the LOO path relies on. The psense-only callers pass ``strict=False`` so a
-    model ``pm.compute_log_likelihood`` refuses degrades to a warning and simply gets no
+    model ``compute_log_likelihood`` refuses degrades to a warning and simply gets no
     psense, rather than crashing the fit over a secondary diagnostic. The known instance
     is the RLM joint-growth model, and the cause is a *naming* seam, not an intractable
     likelihood: it draws ``pm.LKJCorr`` and PyMC's ``get_untransformed_name`` mangles the
@@ -246,7 +247,7 @@ def compute_log_likelihood_and_prior(
     """
     with context.model:
         try:
-            context.trace = pm.compute_log_likelihood(context.trace)
+            context.trace = compute_log_likelihood(context.trace)
         except Exception as exc:
             if strict:
                 raise

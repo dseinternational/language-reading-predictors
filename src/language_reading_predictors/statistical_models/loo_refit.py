@@ -38,6 +38,7 @@ from typing import Any
 import numpy as np
 import pymc as pm
 from arviz_stats.loo.wrapper import SamplingWrapper
+from pymc.stats import compute_log_likelihood, compute_log_prior
 from dse_research_utils.statistics.diagnostics import (
     BFMI_THRESHOLD,
     ESS_THRESHOLD,
@@ -66,7 +67,7 @@ def _as_dataset(group):
     ArviZ 1.x hands back a ``DataTree`` whose ``.items()`` yields *child nodes*, not
     variables, so iterating it directly and reading ``.values`` raises rather than
     comparing anything. ``.dataset`` is the accessor that reaches the variables; a
-    plain Dataset (what ``pm.compute_log_prior`` returns) passes through unchanged.
+    plain Dataset (what ``compute_log_prior`` returns) passes through unchanged.
     """
     inner = getattr(group, "dataset", group)
     return inner if hasattr(inner, "data_vars") else group
@@ -286,7 +287,7 @@ class MechanismSamplingWrapper(SamplingWrapper):
         :func:`mechanism.holdout_is_safe`).
         """
         with self.full_model:
-            log_lik = pm.compute_log_likelihood(
+            log_lik = compute_log_likelihood(
                 idata__i, extend_inferencedata=False, progressbar=False
             )
         return log_lik[self.obs_var].isel(obs_id=int(excluded_observed_data))
@@ -321,7 +322,7 @@ def build_mechanism_wrapper(
         )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        recomputed = pm.compute_log_likelihood(
+        recomputed = compute_log_likelihood(
             idata_orig, model=built.model, extend_inferencedata=False, progressbar=False
         )
     delta = float(np.abs(stored_ll.values - recomputed[obs_var].values).max())
@@ -343,7 +344,7 @@ def build_mechanism_wrapper(
         )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        recomputed_prior = pm.compute_log_prior(
+        recomputed_prior = compute_log_prior(
             idata_orig, model=built.model, extend_inferencedata=False, progressbar=False
         )
     stored_prior = _as_dataset(idata_orig.log_prior)

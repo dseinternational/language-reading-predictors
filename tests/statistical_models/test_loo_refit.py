@@ -256,9 +256,9 @@ def test_held_out_density_is_read_from_the_derived_observed_name(monkeypatch):
     """Closes the loop: the wrapper must *use* the derived name, not just record it."""
     import contextlib
 
-    import pymc as pm_mod
     import xarray as xr
 
+    from language_reading_predictors.statistical_models import loo_refit as _loo_refit
     from language_reading_predictors.statistical_models.loo_refit import (
         MechanismSamplingWrapper,
     )
@@ -268,8 +268,10 @@ def test_held_out_density_is_read_from_the_derived_observed_name(monkeypatch):
             "y_offfloor": (("chain", "draw", "obs_id"), np.arange(24.0).reshape(2, 3, 4)),
         }
     )
+    # Patch the name bound in ``loo_refit`` — it imports from ``pymc.stats`` directly,
+    # so patching the pymc root namespace would succeed but patch nothing it calls.
     monkeypatch.setattr(
-        pm_mod, "compute_log_likelihood", lambda *a, **k: log_lik, raising=True
+        _loo_refit, "compute_log_likelihood", lambda *a, **k: log_lik, raising=True
     )
 
     wrapper = object.__new__(MechanismSamplingWrapper)
