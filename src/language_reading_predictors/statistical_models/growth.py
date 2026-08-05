@@ -36,6 +36,11 @@ _LEGACY_KEYS = frozenset(
         "baseline_covariate",
         "use_shared_factor",
         "age_ability_interaction",
+        # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
+        # ``context.make_context`` (CLI override > spec default > preset) and is never
+        # read by this family's settings. Listed so a legitimate per-model declaration
+        # is not rejected as a misspelling by the strict unknown-key check.
+        "target_accept",
     }
 )
 
