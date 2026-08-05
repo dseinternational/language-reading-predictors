@@ -261,3 +261,48 @@ def test_every_registered_did_model_resolves_with_metadata():
         saw_binary |= not plan.dose
     assert saw_dose, "no dose DiD model found"
     assert saw_binary, "no binary DiD model found"
+
+
+# --- power-scaling coverage of variant-defining terms (#390 P2) ---------------
+
+
+def test_psense_terms_cover_the_focal_effect_on_a_plain_binary_model():
+    plan = resolve_did_run_plan(_spec())
+    assert plan.psense_terms == ("tau_t2",)
+
+
+def test_psense_terms_add_the_period_varying_dose_structure():
+    """DID-007's variant *is* its period-resolved dose slope, so leaving
+    ``sigma_dose`` / ``beta_dose_phase`` unmeasured showed a reader no flag on the
+    thing the model exists to claim."""
+    plan = resolve_did_run_plan(_spec(dose=True, period_varying_dose=True))
+    assert plan.psense_terms == ("mu_dose", "sigma_dose", "beta_dose_phase")
+
+
+def test_psense_terms_add_the_waitlist_catch_up_scale():
+    """DID-013's ``sigma_delta`` is informed by one t3 observation per waitlist
+    child, which is exactly where a prior-dominated posterior is most likely."""
+    plan = resolve_did_run_plan(_spec(use_varying_delta=True))
+    assert plan.psense_terms == ("tau_t2", "sigma_delta")
+
+
+def test_psense_terms_stop_at_variant_defining_parameters():
+    """Nuisance scales stay out on purpose: at n ~ 54 they flag suite-wide and
+    would bury the rows a reader should act on."""
+    plan = resolve_did_run_plan(_spec(use_varying_delta=True))
+    assert "kappa" not in plan.psense_terms
+    assert "sigma_child" not in plan.psense_terms
+
+
+def test_every_registered_did_model_power_scales_its_variant_terms():
+    """No registered variant may report a structure it never power-scaled."""
+    for spec in _did_specs():
+        plan = resolve_did_run_plan(spec)
+        assert plan.psense_terms[0] == plan.effect_term, spec.model_id
+        assert len(set(plan.psense_terms)) == len(plan.psense_terms), spec.model_id
+        if plan.period_varying:
+            assert {"sigma_dose", "beta_dose_phase"} <= set(plan.psense_terms), (
+                spec.model_id
+            )
+        if plan.use_varying_delta:
+            assert "sigma_delta" in plan.psense_terms, spec.model_id

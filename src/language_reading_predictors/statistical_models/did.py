@@ -192,6 +192,30 @@ class DiDRunPlan:
             return "mu_dose"
         return "beta_dose" if self.dose else "tau_t2"
 
+    @property
+    def psense_terms(self) -> tuple[str, ...]:
+        """Parameters to power-scale: the focal effect plus variant-defining terms.
+
+        Power-scaling used to cover :attr:`effect_term` alone, which left every term
+        that *defines* a variant unmeasured (#390 P2). A reader of DID-007 saw no flag
+        on its period-varying dose structure because it was never measured, not because
+        it came back clean; likewise DID-013's between-child catch-up scale. Those are
+        the places a weak likelihood is most likely, each being informed by far fewer
+        observations than the headline.
+
+        Deliberately stops at variant-defining terms. Adding the ordinary nuisance
+        scales (``kappa``, ``sigma_child``) would flag across the whole suite at this n
+        and bury the rows worth reading. ``sigma_delta`` remains a sensitivity quantity
+        whatever it power-scales to — each waitlist deviation is informed by a single t3
+        observation, so it cannot identify individual responders.
+        """
+        terms = [self.effect_term]
+        if self.period_varying:
+            terms += ["sigma_dose", "beta_dose_phase"]
+        if self.use_varying_delta:
+            terms.append("sigma_delta")
+        return tuple(terms)
+
     def as_dict(self) -> dict[str, Any]:
         """Return the JSON-ready run-plan contract for ``config.json``."""
         d = asdict(self)
