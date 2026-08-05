@@ -50,12 +50,7 @@ from language_reading_predictors.statistical_models.definitions import (
     Status,
 )
 from language_reading_predictors.statistical_models.measures import (
-    MEASURES,
     ROPE_DELTA_PROB,
-)
-from language_reading_predictors.statistical_models.preprocessing import (
-    load_and_prepare,
-    logit_safe,
 )
 from language_reading_predictors.statistical_models.reporting import (
     convergence_gate_clean_passed,
@@ -658,9 +653,6 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     los: list[float] = []
     his: list[float] = []
 
-    # Shared prepared (all phases) so we can rebuild the mech_logit vector per model.
-    prepared = load_and_prepare(phase_mode="all")
-
     for model_id, sym in MECH_IDS:
         nc = os.path.join(_run_dir(model_id, config), "trace.nc")
         if not os.path.exists(nc):
@@ -669,36 +661,26 @@ def mechanism_forest(config: str, out_path: str) -> bool:
         if "f_mech" not in trace.posterior:
             continue
 
-        # Rebuild the logit vector used at fit time. Rows with missing
-        # outcome_post or mechanism_post are dropped by the mechanism factory,
-        # so filter prepared to rows where both W_post and mech_post are
-        # observed (and match the trace's obs_id length).
+        # Read the mechanism logit vector the fit actually used, from the trace's
+        # ``constant_data``, rather than rebuilding it from the prepared frame.
         #
-        # CAVEAT: the factory ALSO drops rows with missing *confounder* post-scores
-        # (lrp-rli-mech-057 adjusts for R; lrp-rli-mech-058 for E and R). This keep-mask does not model
-        # that, so if confounder-only missingness ever occurs the reconstructed
-        # length will not match the trace and the guard below skips the model. That
-        # skip is a *silent drop of the model from the persisted forest/CSV* — the
-        # warning is deliberately explicit about that so a reader notices a missing
-        # row rather than assuming the model was never fitted.
-        mech_post = prepared.post_counts[sym]
-        w_post = prepared.post_counts["W"]
-        keep = ~(np.isnan(mech_post) | np.isnan(w_post))
-        mech_logit = logit_safe(mech_post[keep], MEASURES[sym].n_trials)
-
-        if mech_logit.shape[0] != trace.posterior.sizes["obs_id"]:
-            # Skip rather than silently misalign. Most likely cause: the factory
-            # dropped rows for missing confounder post-scores that this simplified
-            # keep-mask (outcome + mechanism only) does not account for.
+        # The former reconstruction filtered on outcome + mechanism missingness only,
+        # but the mechanism factory ALSO drops rows with a missing *confounder*
+        # post-score (mech-057 adjusts for R; mech-058 for E and R). For mech-058 that
+        # produced 157 rows against the trace's 156, the guard skipped it, and the
+        # whole forest was then abandoned as incomplete — so ``mechanism_forest.png``
+        # and its CSV were silently never written. The persisted vector removes both
+        # the mismatch and the residual risk of a length that matches by luck while
+        # the rows differ. Verified 2026-08-05: identical to the old reconstruction
+        # for mech-056 and mech-057, and the correct 156 rows for mech-058.
+        if "mech_post_logit" not in getattr(trace, "constant_data", {}):
             print(
-                f"[warn] {model_id}: reconstructed mech_logit size "
-                f"({mech_logit.shape[0]}) != trace obs_id size "
-                f"({trace.posterior.sizes['obs_id']}) — likely confounder-only "
-                "missingness the keep-mask does not model. DROPPING this model "
-                "from the persisted mechanism forest AND its CSV (it will be "
-                "absent from the artefact, not merely un-plotted)."
+                f"[warn] {model_id}: no mech_post_logit in constant_data; DROPPING "
+                "this model from the persisted mechanism forest AND its CSV (it "
+                "will be absent from the artefact, not merely un-plotted)."
             )
             continue
+        mech_logit = np.asarray(trace.constant_data["mech_post_logit"].values, dtype=float)
 
         slopes = _mechanism_slope_distribution(trace, mech_logit)
         means.append(float(np.mean(slopes)))
