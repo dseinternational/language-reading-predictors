@@ -784,3 +784,125 @@ def test_compute_log_likelihood_and_prior_strict_controls_reraise(monkeypatch):
     diag.compute_log_likelihood_and_prior(lenient_ctx, strict=False)
     assert "log_prior" in lenient_ctx.trace
     assert "log_likelihood" not in lenient_ctx.trace
+
+
+def _prior_draws_as_posterior(model, *, draws: int = 6, seed: int = 3):
+    """A cheap stand-in posterior: prior draws relabelled as the posterior group.
+
+    ``compute_log_prior`` / ``compute_log_likelihood`` only ever read the posterior
+    group's variable names, shapes and values, so prior draws exercise exactly the
+    naming seam under test without paying for NUTS.
+    """
+    import pymc as pm
+
+    with model:
+        prior = pm.sample_prior_predictive(draws=draws, random_seed=seed)
+    tree = xr.DataTree()
+    tree["posterior"] = prior.prior
+    return tree
+
+
+def _lkj_corr_model():
+    """A minimal model carrying the transform whose name contains an underscore."""
+    import pymc as pm
+
+    with pm.Model() as model:
+        pm.LKJCorr("corr", n=3, eta=2.0)
+        sigma = pm.HalfNormal("sigma", 1.0)
+        pm.Normal("y", 0.0, sigma, observed=np.array([0.4, -1.1, 0.2, 0.9, -0.3]))
+    return model
+
+
+def test_log_density_model_returns_ordinary_models_unchanged():
+    """Only underscore-named transforms need repairing (#453).
+
+    Identity, not equality: an untouched model is the strongest possible statement
+    that the ordinary log-density path is bit-for-bit what it was before the fix.
+    """
+    import pymc as pm
+
+    with pm.Model() as model:
+        mu = pm.Normal("mu", 0.0, 1.0)
+        sigma = pm.HalfNormal("sigma", 1.0)  # log transform
+        pm.Beta("p", 2.0, 2.0)  # logodds transform
+        pm.Normal("y", mu, sigma, observed=np.array([0.0, 1.0, -1.0]))
+
+    assert diag.log_density_model(model) is model
+
+
+def test_pymc_still_mangles_underscore_named_transforms():
+    """Pin the upstream bug itself, so a PyMC upgrade cannot silently change it.
+
+    ``get_untransformed_name`` drops a fixed three underscore-separated components,
+    which only round-trips when ``transform.name`` has no underscore of its own.
+    ``LKJCorr``'s default ``cholesky_corr`` transform does. If this assertion ever
+    fails, upstream has fixed it and :func:`log_density_model` can become a no-op.
+    """
+    from pymc.util import get_transformed_name, get_untransformed_name
+
+    class _Transform:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    for clean in ("log", "logodds", "ordered", "cholesky-cov"):
+        assert (
+            get_untransformed_name(get_transformed_name("v", _Transform(clean)))
+            == "v"
+        )
+
+    for broken in ("cholesky_corr", "log_exp_m1"):
+        assert (
+            get_untransformed_name(get_transformed_name("v", _Transform(broken)))
+            != "v"
+        )
+
+
+def test_log_density_model_repairs_the_lkjcorr_naming_seam():
+    """An ``LKJCorr`` model can have both log-density groups computed (#453)."""
+    import pymc as pm
+    from pymc.stats import compute_log_prior
+
+    model = _lkj_corr_model()
+    trace = _prior_draws_as_posterior(model)
+
+    # Unrepaired, PyMC refuses both groups on the name mismatch, not on the density.
+    with pytest.raises(ValueError, match="exact match required"):
+        compute_log_prior(trace.copy(), model=model, progressbar=False)
+
+    repaired = diag.log_density_model(model)
+    assert repaired is not model
+    assert {value.name for value in repaired.value_vars} == {
+        rv.name for rv in repaired.free_RVs
+    }
+
+    out = compute_log_prior(trace.copy(), model=repaired, progressbar=False)
+    out = pm.compute_log_likelihood(out, model=repaired, progressbar=False)
+    assert set(out.log_prior.data_vars) == {"corr", "sigma"}
+    assert "y" in out.log_likelihood.data_vars
+    assert np.isfinite(out.log_prior["corr"].values).all()
+
+
+def test_repaired_lkjcorr_log_prior_matches_a_direct_logp_evaluation():
+    """The repair renames; it must not rescale (#453 acceptance criterion).
+
+    The substantive risk in reconciling names at this seam is passing values on the
+    wrong scale — which would yield plausible numbers rather than an error. Checked
+    against ``pm.logp`` on the bare distribution, evaluated at the same draws.
+    """
+    import pymc as pm
+    import pytensor.tensor as pt
+    from pymc.stats import compute_log_prior
+
+    model = _lkj_corr_model()
+    trace = _prior_draws_as_posterior(model)
+    repaired = diag.log_density_model(model)
+    out = compute_log_prior(trace.copy(), model=repaired, progressbar=False)
+
+    draws = np.asarray(trace["posterior"]["corr"].values)
+    flat = draws.reshape(-1, *draws.shape[2:])
+    value = pt.tensor("value", shape=flat.shape[1:], dtype=draws.dtype)
+    logp_fn = pm.compile([value], pm.logp(pm.LKJCorr.dist(n=3, eta=2.0), value))
+
+    expected = np.array([float(np.asarray(logp_fn(draw))) for draw in flat])
+    got = np.asarray(out.log_prior["corr"].values).reshape(-1)
+    np.testing.assert_allclose(got, expected, rtol=0, atol=0)
