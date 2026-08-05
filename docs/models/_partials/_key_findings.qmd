@@ -113,6 +113,25 @@ else:
             "the current clean fit before interpreting it."
             "\n\n:::"
         )
+    elif _kf_status == "robustness_unresolved":
+        # #392 P1: the robustness release gate withheld the findings. This must be a
+        # callout-important that also suppresses the scientific result tables, not the
+        # soft "not available" note — the point of the gate is that the box and the
+        # report's own release section can no longer say different things.
+        _scientific_results_released = False
+        _kf_reason = _kf.get("reason") or "required robustness evidence is missing"
+        _kf_evidence = (_kf.get("release") or {}).get("evidence")
+        _kf_next = (
+            f" Attach {_kf_evidence}, then regenerate the key-findings file."
+            if _kf_evidence
+            else ""
+        )
+        print(
+            '::: {.callout-important title="Findings withheld: robustness evidence '
+            'is unresolved"}\n\n'
+            f"The fit passed its sampling-quality checks, but {_kf_reason}, so no "
+            f"cause-and-effect statement is released.{_kf_next}\n\n:::"
+        )
     elif _kf_status == "gate_exception":
         _kf_checks = ", ".join(_kf.get("waived_checks", [])) or "unknown"
         print(
