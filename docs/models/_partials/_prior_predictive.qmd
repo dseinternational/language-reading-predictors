@@ -22,6 +22,40 @@ if config.get("kind") == "corr_factor":
         "conditions on the observed indicators rather than generating outcomes from "
         "the prior alone.\n"
     )
+
+# Empirical-Bayes intercept anchors (#390 P1, Frank's 2026-07-24 ruling, condition 2:
+# state the prior-predictive limitation explicitly, not only the EB label). Each of
+# these families locates its intercept prior on a statistic of the observed outcomes,
+# which then also enter the likelihood, so the check below is not the fully
+# independent one it appears to be. The per-parameter label is in the priors table.
+_eb_anchor = {
+    "did": (
+        "the intercept prior is centred on the **pooled observed t1 logit**",
+        "t1 rows",
+    ),
+    "lcsm": (
+        "the initial-level prior `mu1` is centred on the **observed wave-1 mean "
+        "logit** per outcome",
+        "wave-1 rows",
+    ),
+    "growth": (
+        "the intercept prior `alpha` is centred on the **grand mean observed logit "
+        "across every wave**",
+        "the whole outcome series",
+    ),
+}.get(config.get("kind"))
+if _eb_anchor:
+    _where, _rows = _eb_anchor
+    print(
+        f"_Note — this prior is partly data-informed:_ {_where}, and those same "
+        f"observations enter the likelihood. The prior is therefore **empirical "
+        f"Bayes** rather than independent of the data, and this check is "
+        f"correspondingly weaker: it cannot detect a prior that is well-centred "
+        f"only because it was told where the data are. Read it as a check on "
+        f"*spread* — whether the prior admits a plausible range around that "
+        f"centre — not on location. The anchor is computed from "
+        f"{_rows}.\n"
+    )
 ```
 
 ```{python}

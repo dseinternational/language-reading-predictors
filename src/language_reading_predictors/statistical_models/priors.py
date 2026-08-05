@@ -831,6 +831,62 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
     return ""
 
 
+# --- Empirical-Bayes anchors (#390 P1) --------------------------------------------
+#
+# Three families locate a prior's *mean* on a statistic of the observed outcomes,
+# which then also enter the likelihood. That is empirical Bayes, not a prior
+# independent of the data, and it means the reported prior-predictive distribution
+# is partly data-informed. Frank ruled on 2026-07-24 that the anchor may be kept
+# (option B) provided the report says so explicitly rather than only carrying the
+# label (condition 2), and that the same label is applied to ``growth`` and ``lcsm``
+# or the reason for not doing so is recorded (condition 3) — the growth anchor being
+# the weaker case, since it is a grand mean over every wave rather than a baseline.
+#
+# Detection is by *distribution* rather than by parameter name, because ``alpha`` is
+# anchored in ``growth`` and a free zero-centred deviation everywhere else. A rendered
+# ``Normal(<constant>, ...)`` mean is precisely the signature of a location computed
+# from data: across the whole suite it matches only ``growth``'s ``alpha`` and
+# ``lcsm``'s ``mu1``. The DiD anchor is added downstream in a Deterministic, so its
+# free ``alpha_offset`` renders zero-centred and is matched by name instead.
+EMPIRICAL_BAYES_SENTENCE = (
+    "Empirical Bayes: the prior mean is computed from the same observed outcomes "
+    "that enter the likelihood, so this prior is not independent of the data and "
+    "the reported prior-predictive distribution is partly data-informed."
+)
+
+_EMPIRICAL_BAYES_ANCHORS: dict[str, str] = {
+    "alpha": (
+        "Per-measure intercept on the logit scale, its mean anchored on the grand "
+        "mean observed logit across all waves (not a baseline wave)."
+    ),
+    "mu1": (
+        "Initial latent level, its mean anchored on the observed wave-1 mean logit "
+        "per outcome."
+    ),
+    "alpha_offset": (
+        "Zero-centred offset around the pooled observed t1 logit anchor; the "
+        "deterministic alpha is the anchored t1 level."
+    ),
+}
+
+
+def empirical_bayes_rationale(base: str, distribution: str | None) -> str:
+    """Rationale for an outcome-anchored prior, or ``""`` if it is not one.
+
+    Returns a *replacement* rather than a suffix: ``growth``'s inline anchored
+    ``alpha`` otherwise inherits :func:`alpha_prior`'s docstring, which describes a
+    zero-centred ``Normal(0, 1.5)`` and so misstates the prior actually fitted, and
+    ``lcsm``'s ``mu1`` reaches no rationale at all.
+    """
+    dist = distribution or ""
+    anchored = base == "alpha_offset" or (
+        base in _EMPIRICAL_BAYES_ANCHORS and dist.startswith("Normal(<constant>,")
+    )
+    if not anchored:
+        return ""
+    return f"{_EMPIRICAL_BAYES_ANCHORS[base]} {EMPIRICAL_BAYES_SENTENCE}"
+
+
 def prior_info_for_rv(
     rv_name: str,
     *,
@@ -853,6 +909,14 @@ def prior_info_for_rv(
     base = rv_name.split("[")[0]
     rationale_overrides = rationale_overrides or {}
     rationale = rationale_overrides.get(rv_name, rationale_overrides.get(base))
+    # An outcome-anchored prior is described by its anchor (#390 P1). Applied before
+    # every other route because the alternatives are wrong for it, not merely thinner:
+    # the constructor docstring describes the zero-centred prior this one is not.
+    if rationale is None:
+        rationale = (
+            empirical_bayes_rationale(base, _dist_from_rv(rv) if rv is not None else None)
+            or None
+        )
     # The RLM cohort group-nuisance dummies are slug-suffixed
     # (``beta_group_nuisance_down_syndrome`` / ``_reading_matched``), so the exact
     # ``_INLINE_PRIORS`` match below misses and the ``beta_`` prefix would route
