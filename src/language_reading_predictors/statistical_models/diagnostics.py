@@ -42,6 +42,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import xarray as xr
+from pymc.stats import compute_log_likelihood, compute_log_prior
 from rich import print as rprint
 
 from dse_research_utils.statistics.diagnostics import (
@@ -283,11 +284,13 @@ def compute_log_likelihood_and_prior(
 
     Both calls go through :func:`log_density_model`, which repairs the ``pm.LKJCorr``
     value-variable naming seam (#453) that previously cost the RLM joint-growth model
-    both groups — and therefore its psense — at every fit.
+    both groups — and therefore its psense — at every fit. Passing the model explicitly
+    is what makes that possible, and it also removes this function's reliance on an
+    ambient model context.
 
-    ``strict`` (default True): re-raise a ``pm.compute_log_likelihood`` failure — the
+    ``strict`` (default True): re-raise a ``compute_log_likelihood`` failure — the
     contract the LOO path relies on. The psense-only callers pass ``strict=False`` so a
-    model ``pm.compute_log_likelihood`` refuses degrades to a warning and simply gets no
+    model ``compute_log_likelihood`` refuses degrades to a warning and simply gets no
     psense, rather than crashing the fit over a secondary diagnostic. The RLM
     joint-growth family's ``compute_loo=False`` is a separate matter — one likelihood
     node per measure makes single-target pointwise PSIS-LOO undefined. ``log_prior`` is
@@ -295,16 +298,12 @@ def compute_log_likelihood_and_prior(
     """
     density_model = log_density_model(context.model)
     try:
-        context.trace = pm.compute_log_likelihood(
-            context.trace, model=density_model
-        )
+        context.trace = compute_log_likelihood(context.trace, model=density_model)
     except Exception as exc:
         if strict:
             raise
         rprint(f"[yellow]log_likelihood group skipped: {exc}[/yellow]")
     try:
-        from pymc.stats import compute_log_prior
-
         context.trace = compute_log_prior(context.trace, model=density_model)
     except Exception as exc:  # pragma: no cover - psense is secondary
         rprint(f"[yellow]log_prior group skipped: {exc}[/yellow]")

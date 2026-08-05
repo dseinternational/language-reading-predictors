@@ -750,8 +750,13 @@ def test_prior_posterior_overlay_raises_subplot_limit_for_curated_vectors(
 
 def test_compute_log_likelihood_and_prior_strict_controls_reraise(monkeypatch):
     """The psense-only path (strict=False) must not abort a fit when
-    ``pm.compute_log_likelihood`` cannot evaluate the likelihood, while the LOO
+    ``compute_log_likelihood`` cannot evaluate the likelihood, while the LOO
     path (strict=True) must still re-raise. Guards the #416 robustness contract.
+
+    The patch target is the name **bound in** ``diagnostics`` — not ``diag.pm`` —
+    because the module imports it from ``pymc.stats`` directly. Patching the pymc
+    root namespace would still succeed (the attribute exists there) but would patch
+    nothing the module actually calls, silently voiding this test.
     """
     import pymc as pm
 
@@ -771,7 +776,7 @@ def test_compute_log_likelihood_and_prior_strict_controls_reraise(monkeypatch):
     def _boom(*_args, **_kwargs):
         raise RuntimeError("cannot evaluate log-likelihood")
 
-    monkeypatch.setattr(diag.pm, "compute_log_likelihood", _boom)
+    monkeypatch.setattr(diag, "compute_log_likelihood", _boom, raising=True)
 
     # LOO contract: strict=True re-raises the failure.
     strict_ctx = SimpleNamespace(model=model, trace=trace.copy())
