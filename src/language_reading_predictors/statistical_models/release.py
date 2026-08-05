@@ -377,10 +377,13 @@ def _floor_decision(
         return ReleaseDecision(
             status="withhold",
             reason=(
-                "the treatment-prior grid this floor-rule outcome requires is absent, "
-                "incomplete, or not provenance-aligned with this fit, so its "
-                f"{FLOOR_SENSITIVITY_FILENAME} evidence cannot support a "
-                "cause-and-effect statement"
+                # Ends at the state of the evidence, deliberately: the callout in
+                # ``_key_findings.qmd`` supplies the consequence ("... so no
+                # cause-and-effect statement is released"), so a reason that also
+                # spelled it out rendered the clause twice in the published report.
+                f"the {FLOOR_SENSITIVITY_FILENAME} treatment-prior grid this "
+                "floor-rule outcome requires is absent, incomplete, or not "
+                "provenance-aligned with this fit"
             ),
             evidence=(
                 f"a complete, trace-validated {FLOOR_SENSITIVITY_FILENAME} grid in "
