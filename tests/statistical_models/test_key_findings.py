@@ -116,7 +116,24 @@ def _setup_dir(
                 },
             ],
         )
+        _write_psense(d)
     return d
+
+
+def _write_psense(d: Path, *, prior: float = 0.01, likelihood: float = 0.02) -> None:
+    """Write a ``tau`` power-scaling row for the #392 robustness release gate.
+
+    ITT fixtures need one because the gate is deliberately fail-closed: a fit with no
+    ``psense_summary.csv`` has not been measured clean, it has not been measured, and
+    that withholds. Defaults are below the 0.05 flag threshold, so a fixture releases
+    unless it overrides them. ArviZ writes a tick for an unflagged parameter, which is
+    reproduced here so the fixture matches the real artefact.
+    """
+    frame = pd.DataFrame(
+        [{"prior": prior, "likelihood": likelihood, "diagnosis": "✓"}],
+        index=["tau"],
+    )
+    frame.to_csv(d / "psense_summary.csv")
 
 
 def _texts(payload: dict) -> str:
@@ -461,6 +478,7 @@ def _write_blending_link_summary(d: Path) -> Path:
     (companion_dir / "analysis_set.csv").write_bytes(
         (d / "analysis_set.csv").read_bytes()
     )
+    _write_psense(companion_dir)
 
     def _artifact_hashes(directory: Path, label: str) -> str:
         for name in BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS:
@@ -1566,3 +1584,352 @@ def test_integrated_report_uses_the_same_fail_closed_gate():
     text = (REPO / "docs/report/_report_data.qmd").read_text()
     assert "convergence_gate_clean_passed" in text
     assert 'diag.get("passed") is True' not in text
+
+
+# --- #392 P1: the robustness release gate -------------------------------------
+
+
+def _floor_config(**overrides) -> dict:
+    """An ITT config for a P/N floor-rule primary."""
+    cfg = _config("itt", outcome_symbol="P")
+    cfg["resolved_run_plan"] = {
+        "floor_rule": True,
+        "floor_rule_provenance": "post_hoc_data_adaptive_t2_zero_rate",
+        "floor_estimand_role": "exploratory_headline",
+    }
+    cfg.update(overrides)
+    return cfg
+
+
+def test_clean_power_scaling_releases_itt_findings_unchanged(tmp_path):
+    """The gate must be invisible when the evidence is clean."""
+    d = _setup_dir(tmp_path, "itt")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert payload["release"]["status"] == "release"
+    assert payload["release"]["tau_class"] == "clear"
+    assert [s["kind"] for s in payload["sentences"]] == [
+        "headline",
+        "confidence",
+        "rope",
+        "causal",
+    ]
+
+
+def test_prior_data_conflict_releases_with_an_attenuation_note(tmp_path):
+    """A conservative zero-centred prior attenuates a real effect rather than
+    inventing one, so a conflict where the data still move the posterior is released
+    with a note that the size is a lower bound — not withheld."""
+    d = _setup_dir(tmp_path, "itt")
+    _write_psense(d, prior=0.09, likelihood=0.22)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert payload["release"]["status"] == "release"
+    assert payload["release"]["tau_class"] == "prior_data_conflict"
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert "robustness" in kinds
+    # The note must not displace the causal sentence (#464): it goes before it.
+    assert kinds.index("robustness") < kinds.index("causal")
+    assert "lower bound" in _texts(payload)
+
+
+def test_prior_dominant_tau_withholds_the_causal_headline(tmp_path):
+    """The case worth gating: the prior out-works the data on the causal term."""
+    d = _setup_dir(tmp_path, "itt")
+    _write_psense(d, prior=0.41, likelihood=0.02)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert payload["sentences"] == []
+    assert "responds to the prior" in payload["reason"]
+    assert payload["release"]["tau_class"] == "prior_dominant"
+    assert "tau_prior_sensitivity.csv" in payload["release"]["evidence"]
+
+
+def _write_tau_sweep(d: Path, *, rows: list[dict] | None = None, outcome: str = "W"):
+    """A minimally valid attached treatment-prior sweep, bound to this fit.
+
+    Carries the standard sweep's full column set (so a hand-rolled CSV of the same
+    name cannot pass), two prior scales, converged cells, matching primary hashes and
+    a stable effect sign. Individual tests break exactly one clause.
+    """
+    from language_reading_predictors.statistical_models.sensitivity import (
+        _STANDARD_REQUIRED_COLUMNS,
+        sha256_file,
+    )
+
+    (d / "trace.nc").write_text("fit trace")
+    base = dict.fromkeys(_STANDARD_REQUIRED_COLUMNS, 1)
+    base.update(
+        {
+            "outcome": outcome,
+            "converged": True,
+            "primary_config_sha256": sha256_file(d / "config.json"),
+            "primary_trace_sha256": sha256_file(d / "trace.nc"),
+        }
+    )
+    if rows is None:
+        rows = [
+            {"tau_sigma": 0.25, "tau_logit_mean": 0.31},
+            {"tau_sigma": 0.5, "tau_logit_mean": 0.44},
+        ]
+    pd.DataFrame([{**base, **row} for row in rows]).to_csv(
+        d / "tau_prior_sensitivity.csv", index=False
+    )
+
+
+def _prior_dominant_dir(tmp_path: Path) -> Path:
+    d = _setup_dir(tmp_path, "itt")
+    _write_psense(d, prior=0.41, likelihood=0.02)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    return d
+
+
+def test_an_attached_tau_sweep_turns_a_withhold_into_a_qualified_release(tmp_path):
+    """Evidence-bound: a valid co-located treatment-prior sweep lifts the withhold,
+    and the finding then ships labelled prior-informed rather than unqualified."""
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(d)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert payload["release"]["status"] == "qualify"
+    assert "prior-informed and exploratory" in _texts(payload)
+
+
+def test_an_empty_sweep_file_does_not_lift_the_withhold(tmp_path):
+    """Presence is not evidence. A zero-byte or header-only file passing the gate
+    would make the policy evidence-*named* rather than evidence-bound."""
+    d = _prior_dominant_dir(tmp_path)
+    (d / "tau_prior_sensitivity.csv").write_text("")
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "empty or unreadable" in payload["reason"]
+
+
+def test_a_csv_of_the_right_name_but_wrong_shape_does_not_lift_the_withhold(tmp_path):
+    d = _prior_dominant_dir(tmp_path)
+    _write_csv(d, "tau_prior_sensitivity.csv", {"outcome": "W", "tau_sigma": 0.5})
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "not a standard treatment-prior sweep" in payload["reason"]
+
+
+def test_a_single_prior_scale_is_not_a_sweep(tmp_path):
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(
+        d,
+        rows=[
+            {"tau_sigma": 0.5, "tau_logit_mean": 0.31},
+            {"tau_sigma": 0.5, "tau_logit_mean": 0.44},
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "fewer than two scales" in payload["reason"]
+
+
+def test_an_unconverged_sweep_cell_is_not_evidence(tmp_path):
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(
+        d,
+        rows=[
+            {"tau_sigma": 0.25, "tau_logit_mean": 0.31},
+            {"tau_sigma": 0.5, "tau_logit_mean": 0.44, "converged": False},
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "did not converge" in payload["reason"]
+
+
+def test_a_sweep_bound_to_a_different_fit_does_not_lift_the_withhold(tmp_path):
+    """"Computed from the same trace and commit as the posterior" is the stated bar,
+    so a sweep carrying another fit's primary hashes is not this fit's evidence."""
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(d)
+    frame = pd.read_csv(d / "tau_prior_sensitivity.csv")
+    frame["primary_trace_sha256"] = "0" * 64
+    frame.to_csv(d / "tau_prior_sensitivity.csv", index=False)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "different trace.nc" in payload["reason"]
+
+
+def test_a_sweep_whose_effect_changes_sign_does_not_lift_the_withhold(tmp_path):
+    """Sign stability is the bar, not interval width: a conservative prior is
+    expected to move the magnitude, so only a direction flip disqualifies."""
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(
+        d,
+        rows=[
+            {"tau_sigma": 0.25, "tau_logit_mean": 0.31},
+            {"tau_sigma": 0.5, "tau_logit_mean": -0.12},
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "changes sign" in payload["reason"]
+
+
+def test_unmeasured_power_scaling_withholds_rather_than_passing_silently(tmp_path):
+    """#381's meta-finding, enforced: no psense means not measured, not measured
+    clean. Repairable by regenerate_psense + regenerate_key_findings, no refit."""
+    d = _setup_dir(tmp_path, "itt")
+    (d / "psense_summary.csv").unlink()
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "unmeasured rather than measured clean" in payload["reason"]
+    assert payload["release"]["tau_class"] == "unavailable"
+
+
+def test_duplicate_tau_rows_are_ambiguous_not_first_wins(tmp_path):
+    """A gate that silently picks one of two disagreeing diagnoses is worse than
+    one that reports it cannot tell."""
+    d = _setup_dir(tmp_path, "itt")
+    pd.DataFrame(
+        [
+            {"prior": 0.01, "likelihood": 0.02, "diagnosis": "✓"},
+            {"prior": 0.40, "likelihood": 0.01, "diagnosis": "potential strong prior"},
+        ],
+        index=["tau", "tau"],
+    ).to_csv(d / "psense_summary.csv")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert payload["release"]["tau_class"] == "unavailable"
+
+
+def test_floored_primary_withholds_without_its_required_grid(tmp_path):
+    """#392 P1a: the P/N floor models were emitting an unqualified headline before
+    the floor-sensitivity gate further down the report was ever reached."""
+    d = _setup_dir(tmp_path, "itt", config=_floor_config())
+    # The floor gate keys off ArviZ's diagnosis string (as `_results_floored.qmd`
+    # does), not off this module's finer numeric class, so the two fire together.
+    pd.DataFrame(
+        [
+            {
+                "prior": 0.12,
+                "likelihood": 0.30,
+                "diagnosis": "potential prior-data conflict",
+            }
+        ],
+        index=["tau"],
+    ).to_csv(d / "psense_summary.csv")
+    _write_csv(d, "rope_summary.csv", _rope_row(delta_scale="risk_difference"))
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert payload["sentences"] == []
+    assert "floor_tau_prior_sensitivity.csv" in payload["reason"]
+    assert payload["release"]["floor_rule"] is True
+    assert payload["release"]["floor_grid_required"] is True
+    assert payload["release"]["floor_grid_ready"] is False
+
+
+def test_floored_primary_releases_when_no_grid_is_required(tmp_path):
+    """A clean `tau` diagnosis does not require the grid — the gate mirrors
+    `_results_floored.qmd`'s condition exactly so the two cannot disagree."""
+    d = _setup_dir(tmp_path, "itt", config=_floor_config())
+    _write_csv(d, "rope_summary.csv", _rope_row(delta_scale="risk_difference"))
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert payload["release"]["floor_grid_required"] is False
+
+
+def test_released_floored_findings_name_the_post_hoc_subgroup(tmp_path):
+    """#392 P1a second half: when a floor model *is* released, its causal sentence
+    must identify the post-hoc baseline-floor subgroup and the missingness
+    assumption, not read as an ordinary ITT."""
+    d = _setup_dir(tmp_path, "itt", config=_floor_config())
+    _write_csv(d, "rope_summary.csv", _rope_row(delta_scale="risk_difference"))
+    payload = generate_key_findings(d)
+    causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
+    assert "scored at the floor of this measure at baseline" in causal["text"]
+    assert "chosen after the data were seen" in causal["text"]
+    assert "already off the floor" in causal["text"]
+
+
+def test_ordinary_itt_causal_sentence_is_unchanged_by_the_floor_wording(tmp_path):
+    d = _setup_dir(tmp_path, "itt")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    causal = next(
+        s for s in generate_key_findings(d)["sentences"] if s["kind"] == "causal"
+    )
+    assert "at the floor of this measure" not in causal["text"]
+    assert "available-case assumption" in causal["text"]
+
+
+def test_release_gate_does_not_touch_other_families(tmp_path):
+    """Scope is ITT (#392's own scope). A gain-factors fit with no psense at all
+    must still release, so this change cannot silently gate the whole suite."""
+    d = _setup_dir(tmp_path, "gain_factors")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert "release" not in payload
+
+
+def test_a_release_gate_that_cannot_be_evaluated_fails_closed(tmp_path, monkeypatch):
+    """A gate that cannot be evaluated must withhold, not silently ungate — the
+    alternative reinstates the defect precisely when something unexpected is wrong."""
+    from language_reading_predictors.statistical_models import release as release_mod
+
+    d = _setup_dir(tmp_path, "itt")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("evidence store unreachable")
+
+    monkeypatch.setattr(release_mod, "evaluate_itt_release", _boom)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "could not be evaluated" in payload["reason"]
+    assert "evidence store unreachable" in payload["reason"]
+
+
+def test_release_classes_reproduce_arviz_psense_diagnoses_exactly():
+    """The release class must agree with the psense table printed in the report.
+
+    Rather than assert a rule of our own, this drives ArviZ's own ``_diagnose``
+    predicate over a grid and checks the two agree on every cell. It also pins the
+    case an intuitive rule gets backwards: a posterior sensitive to the *likelihood*
+    and insensitive to the prior is the ideal, not a conflict — the data are driving
+    the result and the prior is doing nothing.
+    """
+    from language_reading_predictors.statistical_models.release import (
+        PSENSE_THRESHOLD,
+        classify_tau_sensitivity,
+    )
+
+    expected_for = {
+        "potential prior-data conflict": "prior_data_conflict",
+        "potential strong prior / weak likelihood": "prior_dominant",
+        "✓": "clear",
+    }
+
+    def arviz_diagnose(prior: float, likelihood: float) -> str:
+        # arviz_stats.psense_summary._diagnose, reproduced comparison for comparison.
+        if prior >= PSENSE_THRESHOLD and likelihood >= PSENSE_THRESHOLD:
+            return "potential prior-data conflict"
+        if prior > PSENSE_THRESHOLD > likelihood:
+            return "potential strong prior / weak likelihood"
+        return "✓"
+
+    grid = (0.0, 0.01, 0.049, PSENSE_THRESHOLD, 0.051, 0.2, 0.9)
+    seen = set()
+    for prior in grid:
+        for likelihood in grid:
+            frame = pd.DataFrame(
+                [{"prior": prior, "likelihood": likelihood}], index=["tau"]
+            )
+            got, _, _, _ = classify_tau_sensitivity(frame)
+            diagnosis = arviz_diagnose(prior, likelihood)
+            assert got == expected_for[diagnosis], (prior, likelihood, diagnosis, got)
+            seen.add(got)
+    assert seen == {"clear", "prior_data_conflict", "prior_dominant"}
+
+    # The healthy case, stated explicitly: data-sensitive, prior-insensitive.
+    frame = pd.DataFrame([{"prior": 0.015, "likelihood": 0.092}], index=["tau"])
+    assert classify_tau_sensitivity(frame)[0] == "clear"

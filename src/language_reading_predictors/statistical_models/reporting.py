@@ -3669,19 +3669,51 @@ def _kf_itt_analysis_population(output_dir) -> dict[str, int]:
     }
 
 
-def _kf_itt_causal_sentence(population: Mapping[str, int]) -> str:
-    """Selected-population causal wording shared by every single-outcome ITT."""
+def _kf_itt_causal_sentence(
+    population: Mapping[str, int], *, floor_rule: bool = False
+) -> str:
+    """Selected-population causal wording shared by every single-outcome ITT.
 
+    ``floor_rule`` names the extra qualification the P/N off-floor primaries carry
+    (#392): they are a *post-hoc*, data-adaptive contrast within the subgroup observed
+    at the floor at baseline, so the population is narrower than the trial's and the
+    subgroup was chosen after seeing the data. The review found these emitting the
+    ordinary ITT sentence, which understates both.
+    """
+
+    scope = (
+        (
+            "Random assignment supports a cause-and-effect reading only within the "
+            "subgroup of children who scored at the floor of this measure at "
+            "baseline — a group chosen after the data were seen, so this is an "
+            "exploratory analysis rather than a planned one — and only under the "
+            "available-case assumption: for the "
+        )
+        if floor_rule
+        else (
+            "Random assignment supports a cause-and-effect reading only under the "
+            "available-case assumption: for the "
+        )
+    )
+    tail = (
+        (
+            " Without further missing-data assumptions, this is neither the effect "
+            f"for all {population['randomised']} randomised children nor the effect "
+            "for children who were already off the floor."
+        )
+        if floor_rule
+        else (
+            " Without further missing-data assumptions, this is not the effect for "
+            f"all {population['randomised']} randomised children."
+        )
+    )
     return (
-        "Random assignment supports a cause-and-effect reading only under the "
-        "available-case assumption: for the "
-        f"{population['fitted']} fitted children "
+        scope
+        + f"{population['fitted']} fitted children "
         f"({population['fitted_intervention']} immediate-intervention and "
         f"{population['fitted_control']} waiting-list), archive inclusion, outcome "
         "observation and any complete-case restriction must not depend jointly on "
-        "assigned arm and potential outcomes. Without further missing-data "
-        f"assumptions, this is not the effect for all {population['randomised']} "
-        "randomised children."
+        "assigned arm and potential outcomes." + tail
     )
 
 
@@ -3895,7 +3927,12 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
             )
     sentences.append(
         _kf_sentence(
-            _kf_itt_causal_sentence(population),
+            _kf_itt_causal_sentence(
+                population,
+                floor_rule=bool(
+                    (config.get("resolved_run_plan") or {}).get("floor_rule", False)
+                ),
+            ),
             "causal",
         )
     )
@@ -5159,6 +5196,81 @@ _KF_BUILDERS = {
     "long_corr_factor": _kf_build_long_corr_factor,
 }
 
+#: Families whose key findings are gated on robustness evidence as well as on
+#: sampling quality (#392 P1). ITT is the family the review covered; the same rule
+#: was proposed to mirror onto ``did``'s ``tau_t2`` and ``gain_factors``'
+#: ``beta_trt``, which is a deliberate follow-up rather than an oversight.
+_KF_RELEASE_GATED_KINDS = {"itt"}
+
+#: Roles that may be dropped to make room for a release note. The causal sentence is
+#: never droppable: #464 recorded that silently losing it is exactly what happens when
+#: a sixth sentence is appended past the cap, and it is the sentence carrying the
+#: study's central qualification.
+_KF_DROPPABLE_ROLES = ("rope", "note")
+
+
+def _kf_release_decision(output_dir, config: Mapping):
+    """The robustness release decision for this fit, or None if out of scope.
+
+    A gate that cannot be evaluated **withholds**, matching how an unverifiable
+    analysis population is already handled: the alternative — degrading to "no
+    gating" — would silently reinstate the exact defect the gate exists to prevent,
+    and would do so precisely when something unexpected is wrong. Withholding is loud,
+    costs no data (every CSV is still written), and is repaired by regenerating the
+    key findings once the cause is fixed. It never raises, so a fit's finalisation is
+    not lost after sampling.
+    """
+    if config.get("kind") not in _KF_RELEASE_GATED_KINDS:
+        return None
+    from language_reading_predictors.statistical_models.release import (
+        ReleaseDecision,
+        evaluate_itt_release,
+    )
+
+    try:
+        return evaluate_itt_release(output_dir, config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return ReleaseDecision(
+            status="withhold",
+            tau_class="unavailable",
+            reason=(
+                "the robustness release gate could not be evaluated for this fit "
+                f"({exc}), so its prior dependence is unverified"
+            ),
+        )
+
+
+def _kf_with_release_note(
+    sentences: list[dict[str, str]], note: str
+) -> list[dict[str, str]]:
+    """Insert a robustness note before the causal sentence, within the cap.
+
+    The box truncates at :data:`KEY_FINDINGS_MAX_SENTENCES`, and #464 recorded the
+    failure mode: appending a sixth sentence silently drops the causal one, because
+    truncation takes the first five. So the note goes *before* the causal sentence,
+    and if that would overflow, a droppable sentence makes room. If nothing is
+    droppable the note is omitted rather than displacing anything — a missing note is
+    a smaller loss than a missing qualification, and the note is also recorded
+    verbatim under ``release`` in the payload either way.
+    """
+    result = list(sentences)
+    causal_at = next(
+        (i for i, s in enumerate(result) if s.get("kind") == "causal"), len(result)
+    )
+    if len(result) >= KEY_FINDINGS_MAX_SENTENCES:
+        droppable = [
+            i for i, s in enumerate(result) if s.get("kind") in _KF_DROPPABLE_ROLES
+        ]
+        if not droppable:
+            return result
+        removed = droppable[-1]
+        del result[removed]
+        if removed < causal_at:
+            causal_at -= 1
+    result.insert(causal_at, _kf_sentence(note, "robustness"))
+    return result
+
+
 # Human-readable names for the convergence-gate checks (the gate-failed banner).
 _KF_CHECK_LABELS = {
     "rhat": "R-hat",
@@ -5352,6 +5464,19 @@ def generate_key_findings(output_dir) -> dict:
         )
         return _write_key_findings(out, payload)
 
+    # Robustness gate (#392 P1), after sampling quality and before any sentence is
+    # built. A diagnosed prior-data conflict on the causal term, or a floor-rule model
+    # whose required treatment-prior grid is missing or not provenance-aligned,
+    # suppresses the causal headline until validated evidence covers the model. Without
+    # this the box could publish an unqualified cause-and-effect sentence that the
+    # report's own release gate further down then contradicts.
+    release = _kf_release_decision(out, config)
+    if release is not None and not release.released:
+        payload["status"] = "robustness_unresolved"
+        payload["reason"] = release.reason
+        payload["release"] = release.as_dict()
+        return _write_key_findings(out, payload)
+
     builder = _KF_BUILDERS.get(config.get("kind"), _kf_build_fallback)
     try:
         sentences = builder(out, config)
@@ -5365,6 +5490,11 @@ def generate_key_findings(output_dir) -> dict:
         payload["status"] = "not_available"
         payload["reason"] = f"key-findings builder failed: {exc}"
         return _write_key_findings(out, payload)
+
+    if release is not None:
+        payload["release"] = release.as_dict()
+        if release.note:
+            sentences = _kf_with_release_note(sentences, release.note)
 
     payload["status"] = "ok"
     payload["sentences"] = sentences[:KEY_FINDINGS_MAX_SENTENCES]

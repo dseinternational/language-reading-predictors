@@ -42,7 +42,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import xarray as xr
-from pymc.stats import compute_log_likelihood
+from pymc.stats import compute_log_likelihood, compute_log_prior
 from rich import print as rprint
 
 from dse_research_utils.statistics.diagnostics import (
@@ -221,6 +221,55 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
     )
 
 
+def log_density_model(model: pm.Model) -> pm.Model:
+    """Return a model whose value-variable names round-trip to their RV names (#453).
+
+    ``pm.compute_log_prior`` / ``pm.compute_log_likelihood`` call
+    ``remove_value_transforms`` and then subset the posterior by
+    ``[rv.name for rv in model.free_RVs]``. The un-transforming step recovers each
+    value variable's base name with ``pymc.util.get_untransformed_name``, which drops
+    a **fixed three** trailing underscore-separated components — one for the transform
+    name and two for the ``__`` marker. That is only correct when ``transform.name``
+    itself contains no underscore. Two shipped transforms violate it:
+    ``CholeskyCorrTransform`` (``cholesky_corr``, the default for ``pm.LKJCorr``) and
+    ``LogExpM1`` (``log_exp_m1``). For those, ``corr_cholesky_corr__`` comes back as
+    ``corr_cholesky`` while the posterior stores ``corr``, and ``xarray`` raises
+    ``exact match required for all data variable names`` — for the *prior* group as
+    well as the likelihood group. Present in PyMC 6.1.0 and 6.2.0 alike; see
+    ``notes/assets/draft-pymc-issue-get-untransformed-name.md``.
+
+    The repair is a rename, not a rescale: the posterior already stores the
+    constrained draw, which is exactly what the un-transformed model's log-density
+    expects, so only the label is wrong. We build the un-transformed model ourselves,
+    restore each value variable's name from its RV, and hand *that* to PyMC — whose
+    own second ``remove_value_transforms`` is then a no-op on the names.
+
+    A model whose names already round-trip is returned unchanged, so the ordinary
+    path is untouched. ``tests/statistical_models/test_diagnostics.py`` pins both
+    halves, including the upstream round-trip itself, so a PyMC upgrade that fixes
+    ``get_untransformed_name`` cannot silently reintroduce or mask the seam.
+    """
+    from pymc.model.transform.conditioning import remove_value_transforms
+    from pymc.util import get_untransformed_name
+
+    def _recovered_name(value_name: str) -> str:
+        try:
+            return get_untransformed_name(value_name)
+        except ValueError:
+            return value_name
+
+    values = model.rvs_to_values
+    if all(_recovered_name(values[rv].name) == rv.name for rv in model.free_RVs):
+        return model
+
+    untransformed = remove_value_transforms(model)
+    for rv in untransformed.free_RVs:
+        value = untransformed.rvs_to_values[rv]
+        if value.name != rv.name:
+            value.name = rv.name
+    return untransformed
+
+
 def compute_log_likelihood_and_prior(
     context: StatisticalFitContext, *, strict: bool = True
 ) -> None:
@@ -233,31 +282,35 @@ def compute_log_likelihood_and_prior(
     with a bespoke log-likelihood (the longitudinal correlated-factor model) build
     their groups their own way and do not call this.
 
+    Both calls go through :func:`log_density_model`, which repairs the ``pm.LKJCorr``
+    value-variable naming seam (#453) that previously cost the RLM joint-growth model
+    both groups — and therefore its psense — at every fit. Passing the model explicitly
+    is what makes that possible, and it also removes this function's reliance on an
+    ambient model context.
+
     ``strict`` (default True): re-raise a ``compute_log_likelihood`` failure — the
     contract the LOO path relies on. The psense-only callers pass ``strict=False`` so a
     model ``compute_log_likelihood`` refuses degrades to a warning and simply gets no
-    psense, rather than crashing the fit over a secondary diagnostic. The known instance
-    is the RLM joint-growth model, and the cause is a *naming* seam, not an intractable
-    likelihood: it draws ``pm.LKJCorr`` and PyMC's ``get_untransformed_name`` mangles the
-    resulting ``..._cholesky_corr__`` value variable, so the posterior and value-var name
-    sets disagree (notes/202607261700-psense-coverage-backfill.md; upstream draft in
-    notes/assets/). That family's ``compute_loo=False`` is a separate matter — one
-    likelihood node per measure makes single-target pointwise PSIS-LOO undefined.
-    ``log_prior`` is always guarded.
+    psense, rather than crashing the fit over a secondary diagnostic. The RLM
+    joint-growth family's ``compute_loo=False`` is a separate matter — one likelihood
+    node per measure makes single-target pointwise PSIS-LOO undefined. ``log_prior`` is
+    always guarded.
     """
-    with context.model:
-        try:
-            context.trace = compute_log_likelihood(context.trace)
-        except Exception as exc:
-            if strict:
-                raise
-            rprint(f"[yellow]log_likelihood group skipped: {exc}[/yellow]")
-        try:
-            from pymc.stats import compute_log_prior
-
-            context.trace = compute_log_prior(context.trace)
-        except Exception as exc:  # pragma: no cover - psense is secondary
-            rprint(f"[yellow]log_prior group skipped: {exc}[/yellow]")
+    density_model = log_density_model(context.model)
+    try:
+        context.trace = compute_log_likelihood(
+            context.trace, model=density_model, progressbar=False
+        )
+    except Exception as exc:
+        if strict:
+            raise
+        rprint(f"[yellow]log_likelihood group skipped: {exc}[/yellow]")
+    try:
+        context.trace = compute_log_prior(
+            context.trace, model=density_model, progressbar=False
+        )
+    except Exception as exc:  # pragma: no cover - psense is secondary
+        rprint(f"[yellow]log_prior group skipped: {exc}[/yellow]")
 
 
 def compute_log_likelihood_and_loo(context: StatisticalFitContext) -> None:

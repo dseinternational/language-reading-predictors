@@ -1,0 +1,517 @@
+# Copyright (c) 2026 Down Syndrome Education International and contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""The release decision that gates the findings-first key-findings box (#392 P1).
+
+Before this module, ``reporting.generate_key_findings`` checked only the sampling
+gate. A fit could therefore publish an unqualified cause-and-effect headline while a
+robustness gap the report *itself* diagnoses further down remained unresolved — a
+``tau`` prior-data conflict from power-scaling, or a P/N floor-rule model whose
+required treatment-prior grid was absent. ``_results_floored.qmd`` already refused to
+release under exactly those conditions, so the findings box and the prose below it
+could contradict each other, with the box winning the reader's attention.
+
+The policy implemented here is the **evidence-bound withhold** signed off on
+2026-08-05 (option A of the three offered on #392): a diagnosed robustness gap
+suppresses the causal headline until provenance-validated sensitivity evidence covers
+the model. Two consequences follow that are worth stating plainly.
+
+**A conflict is not automatically a withhold.** The suite's effect priors are
+zero-centred and conservative, so a prior-data conflict means the prior *attenuates* a
+real effect, not that it invents one. The case worth gating is where the prior
+out-works the data. :func:`classify_tau_sensitivity` therefore separates a *prior-data
+conflict* — both prior and likelihood move the posterior, released with a note saying
+the size is a lower bound and the direction is the reliable part — from a
+*prior-dominant* posterior, where the prior moves it and the data do not, which is
+withheld without evidence. Both classes come from ArviZ's own predicate rather than a
+rule of our own, so a fit's release class and the psense table printed in its report
+cannot disagree.
+
+**Absence of measurement is a gap, not a pass.** A fit with no ``psense_summary.csv``
+has not been measured clean; it has not been measured. #381 named that distinction as
+its central meta-finding, and ``tau_psense_status`` is already fail-closed for the
+floor gate on the same reasoning, so an unavailable diagnosis withholds here too. The
+reason string distinguishes the two cases, so a fit that withholds only because
+power-scaling was never run is repaired by
+``scripts/regenerate_psense.py`` followed by ``scripts/regenerate_key_findings.py``,
+with no refit.
+
+**Scope.** ITT, including the floored P/N primaries — the family #392 reviewed. The
+decision object and the classifier are family-agnostic, and the same rule was proposed
+to mirror onto ``did``'s ``tau_t2`` and ``gain_factors``' ``beta_trt``; that mirroring
+is deliberately left to a follow-up so this change stays reviewable against the
+issue's own scope.
+
+**Tiering.** The policy applies uniformly across base ITT models, adjusted-robustness
+models and outcomes outside the standard 44-cell sweep. That was the default offered
+alongside option A; the graded alternative discussed earlier on #392 (withhold for
+primary, qualify-never-withhold for adjusted robustness) is a one-line change to
+:data:`_WITHHOLD_TIERS` if it is preferred.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Literal, Mapping
+
+import numpy as np
+import pandas as pd
+
+from language_reading_predictors.statistical_models.sensitivity import (
+    FLOOR_SENSITIVITY_FILENAME,
+    STANDARD_SENSITIVITY_FILENAME,
+    evaluate_floor_sensitivity,
+    load_primary_floor_reference,
+    tau_psense_status,
+)
+
+__all__ = [
+    "PSENSE_THRESHOLD",
+    "ReleaseDecision",
+    "TauSensitivityClass",
+    "classify_tau_sensitivity",
+    "evaluate_itt_release",
+]
+
+#: ArviZ's default power-scaling flag threshold. A parameter is "sensitive" when
+#: either its prior or its likelihood power-scaling statistic reaches this.
+PSENSE_THRESHOLD = 0.05
+
+TauSensitivityClass = Literal[
+    "clear", "prior_data_conflict", "prior_dominant", "unavailable"
+]
+
+ReleaseStatus = Literal["release", "qualify", "withhold"]
+
+#: Model tiers to which the withhold applies. Uniform by decision; narrowing this
+#: set is how a graded policy would be expressed.
+_WITHHOLD_TIERS = frozenset({"primary", "adjusted_robustness", "off_grid"})
+
+_PRIOR_ATTENUATION_NOTE = (
+    "The treatment-effect prior is deliberately cautious and pulls this estimate "
+    "towards no effect, so the size is best read as a lower bound while the "
+    "direction is the more reliable part."
+)
+
+_QUALIFY_NOTE = (
+    "This estimate leans substantially on the treatment-effect prior rather than on "
+    "the data alone, so it is reported as prior-informed and exploratory."
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ReleaseDecision:
+    """What the robustness evidence permits the key-findings box to say."""
+
+    status: ReleaseStatus
+    tau_class: TauSensitivityClass
+    #: Why a withhold happened, or why a note is attached. Empty on a clean release.
+    reason: str = ""
+    #: A sentence to append to the findings when the status is release-with-note or
+    #: qualify. Empty when nothing needs saying.
+    note: str = ""
+    #: What evidence lifted, or would lift, a withhold.
+    evidence: str = ""
+    tier: str = "primary"
+    floor_rule: bool = False
+    floor_grid_required: bool = False
+    floor_grid_ready: bool = False
+    prior_sensitivity: float | None = None
+    likelihood_sensitivity: float | None = None
+    diagnosis: str | None = None
+
+    @property
+    def released(self) -> bool:
+        return self.status != "withhold"
+
+    def as_dict(self) -> dict[str, Any]:
+        """JSON-ready record for ``key_findings.json``."""
+        return {k: v for k, v in asdict(self).items() if v not in ("", None)}
+
+
+def _tau_row(psense: pd.DataFrame | None, term: str) -> pd.Series | None:
+    """The single row for ``term``, or None if absent or ambiguous.
+
+    Duplicated rows are ambiguous rather than "take the first": a release gate that
+    silently picks one of two disagreeing diagnoses is worse than one that reports it
+    cannot tell.
+    """
+    if psense is None or psense.empty:
+        return None
+    wanted = term.strip().casefold()
+    mask = pd.Index(psense.index).astype(str).str.strip().str.casefold() == wanted
+    rows = psense.loc[mask]
+    if len(rows) != 1:
+        return None
+    return rows.iloc[0]
+
+
+def _finite(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if pd.notna(number) and abs(number) != float("inf") else None
+
+
+def classify_tau_sensitivity(
+    psense: pd.DataFrame | None, *, term: str = "tau"
+) -> tuple[TauSensitivityClass, float | None, float | None, str | None]:
+    """Classify a causal term's power-scaling sensitivity.
+
+    Returns the class alongside the prior and likelihood statistics and ArviZ's own
+    diagnosis string, so a payload records the numbers a reader would otherwise have
+    to open the CSV for.
+
+    The three classes reproduce ``arviz_stats.psense_summary``'s own predicate
+    exactly, comparison for comparison, so a fit's release class and the psense table
+    printed in its report can never disagree:
+
+    ================================  ==============================================
+    ``prior >= t`` and ``lik >= t``   ``prior_data_conflict`` — ArviZ's "potential
+                                      prior-data conflict"
+    ``prior > t > lik``               ``prior_dominant`` — ArviZ's "potential strong
+                                      prior / weak likelihood"
+    otherwise                         ``clear`` — ArviZ's ``✓``
+    ================================  ==============================================
+
+    The third row is the one worth reading twice, because an intuitive "flag whenever
+    either statistic is large" rule gets it backwards. A posterior that is sensitive
+    to the *likelihood* and insensitive to the prior is the **ideal** case: the data
+    are driving the result and the prior is doing nothing. Kallioinen et al. (2024)
+    classify on prior sensitivity, and only ask about the likelihood to separate a
+    conflict from a prior-dominated posterior.
+
+    Note also that ArviZ writes a tick (``✓``) for an unflagged parameter, so a reader
+    — or a filter — that treats only blank values as clear mis-reads every clean row.
+    """
+    row = _tau_row(psense, term)
+    if row is None or "prior" not in row.index or "likelihood" not in row.index:
+        return "unavailable", None, None, None
+    prior = _finite(row["prior"])
+    likelihood = _finite(row["likelihood"])
+    diagnosis = (
+        str(row["diagnosis"]).strip() if "diagnosis" in row.index else None
+    ) or None
+    if prior is None or likelihood is None:
+        return "unavailable", prior, likelihood, diagnosis
+    if prior >= PSENSE_THRESHOLD and likelihood >= PSENSE_THRESHOLD:
+        return "prior_data_conflict", prior, likelihood, diagnosis
+    if prior > PSENSE_THRESHOLD > likelihood:
+        return "prior_dominant", prior, likelihood, diagnosis
+    return "clear", prior, likelihood, diagnosis
+
+
+def _read_csv(output_dir: str | Path, name: str, **kwargs: Any) -> pd.DataFrame | None:
+    path = Path(output_dir) / name
+    if not path.exists():
+        return None
+    try:
+        return pd.read_csv(path, **kwargs)
+    except (OSError, UnicodeDecodeError, pd.errors.ParserError, ValueError):
+        return None
+
+
+def _config_name(output_dir: str | Path, model_id: str) -> str:
+    """The ``-<config>`` suffix of a fit directory (``…-reporting`` -> ``reporting``)."""
+    name = Path(output_dir).resolve().name
+    prefix = f"{model_id}-"
+    return name[len(prefix) :] if model_id and name.startswith(prefix) else ""
+
+
+def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool, str]:
+    """Does an attached ``tau`` sweep actually qualify as evidence for this fit?
+
+    Returns ``(ready, reason)``; ``reason`` names the first failure so a withhold can
+    say what is wrong with the evidence rather than only that there is none.
+
+    The bar comes from the release policy: a sweep *present in the output directory*,
+    *computed from the same trace and commit as the posterior*, and *showing the sign
+    of the effect is stable across the grid* — sign stability, not interval width,
+    since a conservative prior is expected to move the magnitude. Each clause is
+    checked:
+
+    - the file is readable, non-empty, and carries the standard sweep's full column
+      set, so a hand-rolled CSV of the same name cannot pass;
+    - it has rows for **this fit's outcome**, spanning at least two distinct
+      ``tau_sigma`` values (a one-point "sweep" is not a sweep);
+    - every such row converged, since an unconverged cell is not evidence;
+    - its recorded ``primary_config_sha256`` / ``primary_trace_sha256`` match this
+      directory's own ``config.json`` and ``trace.nc``, which is what binds the sweep
+      to *this* fit rather than to some earlier one;
+    - the sign of ``tau_logit_mean`` is the same in every cell.
+
+    This deliberately does not call ``evaluate_standard_sensitivity``. That evaluator
+    measures the sweep against ``_standard_expected_cells()`` — the complete 44-cell
+    cross-outcome grid — so its ``ready`` can only be true for the sweep-level artefact
+    that lives outside any single fit's directory, and calling it here would withhold
+    unconditionally. The checks above are the per-fit subset of the same idea.
+    """
+    from language_reading_predictors.statistical_models.sensitivity import (
+        _STANDARD_REQUIRED_COLUMNS,
+        sha256_file,
+    )
+
+    output_dir = Path(output_dir)
+    path = output_dir / STANDARD_SENSITIVITY_FILENAME
+    if not path.is_file():
+        return False, "no treatment-prior sweep is attached to this fit"
+    frame = _read_csv(output_dir, STANDARD_SENSITIVITY_FILENAME)
+    if frame is None or frame.empty:
+        return False, (
+            f"the attached {STANDARD_SENSITIVITY_FILENAME} is empty or unreadable"
+        )
+    missing = sorted(set(_STANDARD_REQUIRED_COLUMNS) - set(frame.columns))
+    if missing:
+        return False, (
+            f"the attached {STANDARD_SENSITIVITY_FILENAME} is not a standard "
+            f"treatment-prior sweep (missing columns: {', '.join(missing[:4])})"
+        )
+
+    rows = frame.loc[frame["outcome"].astype(str) == str(outcome)]
+    if rows.empty:
+        return False, (
+            f"the attached {STANDARD_SENSITIVITY_FILENAME} has no rows for outcome "
+            f"{outcome!r}"
+        )
+
+    tau_sigmas = pd.to_numeric(rows["tau_sigma"], errors="coerce").dropna().unique()
+    if len(tau_sigmas) < 2:
+        return False, (
+            "the attached treatment-prior sweep varies the prior over fewer than two "
+            "scales, so it cannot show the effect is stable across the grid"
+        )
+
+    converged = rows["converged"].map(
+        lambda value: str(value).strip().casefold() in {"true", "1", "yes"}
+    )
+    if not bool(converged.all()):
+        return False, (
+            "one or more cells of the attached treatment-prior sweep did not "
+            "converge, so the sweep is not usable evidence"
+        )
+
+    for column, artefact in (
+        ("primary_config_sha256", "config.json"),
+        ("primary_trace_sha256", "trace.nc"),
+    ):
+        artefact_path = output_dir / artefact
+        if not artefact_path.is_file():
+            return False, (
+                f"this fit has no {artefact}, so the attached treatment-prior sweep "
+                "cannot be bound to it"
+            )
+        recorded = {str(value).strip().lower() for value in rows[column]}
+        if recorded != {sha256_file(artefact_path)}:
+            return False, (
+                "the attached treatment-prior sweep was computed against a different "
+                f"{artefact} than this fit's, so it is not this fit's evidence"
+            )
+
+    signs = np.sign(
+        pd.to_numeric(rows["tau_logit_mean"], errors="coerce").to_numpy(dtype=float)
+    )
+    if not np.isfinite(signs).all() or len(set(signs.tolist())) != 1:
+        return False, (
+            "the effect changes sign across the attached treatment-prior sweep, so "
+            "its direction is not stable under the prior"
+        )
+    return True, ""
+
+
+def _floor_decision(
+    output_dir: str | Path,
+    config: Mapping[str, Any],
+    *,
+    tier: str,
+    tau_class: TauSensitivityClass,
+    prior: float | None,
+    likelihood: float | None,
+    diagnosis: str | None,
+) -> ReleaseDecision:
+    """Mirror ``_results_floored.qmd``'s gate, so box and prose cannot disagree.
+
+    The grid is *required* on exactly the condition that partial uses —
+    ``tau_psense_status`` in ``{conflict, unavailable}`` — rather than on this module's
+    finer class, so the two gates fire together. Both call the same evaluator, which
+    recomputes convergence, effects and provenance from the content-addressed traces
+    rather than trusting the CSV.
+    """
+    symbol = str(config.get("outcome_symbol") or "")
+    psense = _read_csv(output_dir, "psense_summary.csv", index_col=0)
+    grid_required = tau_psense_status(psense) in {"conflict", "unavailable"}
+
+    ready = False
+    if grid_required:
+        try:
+            primary_reference = load_primary_floor_reference(
+                Path(output_dir),
+                symbol,
+                config_name=_config_name(output_dir, str(config.get("model_id") or "")),
+            )
+        except Exception:  # noqa: BLE001 - an unreadable primary is a gate failure
+            primary_reference = None
+        status = evaluate_floor_sensitivity(
+            _read_csv(output_dir, FLOOR_SENSITIVITY_FILENAME),
+            symbol,
+            primary_reference=primary_reference,
+            trace_root=Path(output_dir),
+            require_hash_suffix=True,
+        )
+        ready = bool(status.get("ready"))
+
+    common = {
+        "tau_class": tau_class,
+        "tier": tier,
+        "floor_rule": True,
+        "floor_grid_required": grid_required,
+        "floor_grid_ready": ready,
+        "prior_sensitivity": prior,
+        "likelihood_sensitivity": likelihood,
+        "diagnosis": diagnosis,
+    }
+    if grid_required and not ready and tier in _WITHHOLD_TIERS:
+        return ReleaseDecision(
+            status="withhold",
+            reason=(
+                "the treatment-prior grid this floor-rule outcome requires is absent, "
+                "incomplete, or not provenance-aligned with this fit, so its "
+                f"{FLOOR_SENSITIVITY_FILENAME} evidence cannot support a "
+                "cause-and-effect statement"
+            ),
+            evidence=(
+                f"a complete, trace-validated {FLOOR_SENSITIVITY_FILENAME} grid in "
+                "this fit's output directory"
+            ),
+            **common,
+        )
+    return ReleaseDecision(status="release", **common)
+
+
+def evaluate_itt_release(
+    output_dir: str | Path,
+    config: Mapping[str, Any] | None = None,
+    *,
+    causal_term: str = "tau",
+) -> ReleaseDecision:
+    """Decide what an ITT fit's robustness evidence permits its findings box to say.
+
+    Reads only artefacts already in ``output_dir``, so it re-runs over a stored fit
+    without refitting — the same contract ``generate_key_findings`` keeps.
+    """
+    output_dir = Path(output_dir)
+    if config is None:
+        config = _load_config(output_dir) or {}
+    plan = config.get("resolved_run_plan") or {}
+    tier = _model_tier(config)
+
+    psense = _read_csv(output_dir, "psense_summary.csv", index_col=0)
+    tau_class, prior, likelihood, diagnosis = classify_tau_sensitivity(
+        psense, term=causal_term
+    )
+
+    if bool(plan.get("floor_rule", False)):
+        return _floor_decision(
+            output_dir,
+            config,
+            tier=tier,
+            tau_class=tau_class,
+            prior=prior,
+            likelihood=likelihood,
+            diagnosis=diagnosis,
+        )
+
+    common = {
+        "tau_class": tau_class,
+        "tier": tier,
+        "prior_sensitivity": prior,
+        "likelihood_sensitivity": likelihood,
+        "diagnosis": diagnosis,
+    }
+    if tau_class == "clear":
+        return ReleaseDecision(status="release", **common)
+    if tau_class == "prior_data_conflict":
+        return ReleaseDecision(
+            status="release",
+            note=_PRIOR_ATTENUATION_NOTE,
+            reason=(
+                f"power-scaling flags a prior-data conflict on `{causal_term}`, but "
+                "the likelihood moves the posterior too, so the conservative prior "
+                "attenuates the estimate rather than determining it"
+            ),
+            **common,
+        )
+    if tier not in _WITHHOLD_TIERS:
+        return ReleaseDecision(status="qualify", note=_QUALIFY_NOTE, **common)
+    sweep_ready, sweep_reason = _standard_sweep_evidence(
+        output_dir, str(config.get("outcome_symbol") or "")
+    )
+    if sweep_ready:
+        return ReleaseDecision(
+            status="qualify",
+            note=_QUALIFY_NOTE,
+            evidence=(
+                f"a trace-bound {STANDARD_SENSITIVITY_FILENAME} showing the effect "
+                "keeps its sign across the treatment-prior grid"
+            ),
+            **common,
+        )
+    if tau_class == "prior_dominant":
+        reason = (
+            f"power-scaling shows `{causal_term}` responds to the prior "
+            f"({prior:.3g}) but not to the likelihood ({likelihood:.3g}), and "
+            f"{sweep_reason}, so the direction of the effect is not established by "
+            "the data alone"
+        )
+    else:
+        reason = (
+            f"no unique, interpretable power-scaling diagnosis for `{causal_term}` is "
+            "available for this fit, so its prior dependence is unmeasured rather "
+            "than measured clean"
+        )
+    return ReleaseDecision(
+        status="withhold",
+        reason=reason,
+        evidence=(
+            f"a {STANDARD_SENSITIVITY_FILENAME} treatment-prior sweep, computed from "
+            "this fit's own trace, showing the sign of the effect is stable across "
+            "the grid"
+        ),
+        **common,
+    )
+
+
+def _model_tier(config: Mapping[str, Any]) -> str:
+    """Classify a fit for tiering purposes.
+
+    ``adjusted_robustness`` is any ITT fit carrying a robustness adjustment set (the
+    SES and general-ability comparators); ``off_grid`` is an outcome the standard
+    44-cell sweep does not cover; everything else is ``primary``. Recorded on the
+    decision even though the policy is currently uniform, so a graded policy needs no
+    new plumbing and so the audit trail says which tier a fit was judged in.
+    """
+    from language_reading_predictors.statistical_models.sensitivity import (
+        STANDARD_SENSITIVITY_OUTCOMES,
+    )
+
+    plan = config.get("resolved_run_plan") or {}
+    if plan.get("adjust_for") or plan.get("adjustment"):
+        return "adjusted_robustness"
+    if str(config.get("outcome_symbol") or "") not in STANDARD_SENSITIVITY_OUTCOMES:
+        return "off_grid"
+    return "primary"
+
+
+def _load_config(output_dir: Path) -> dict[str, Any] | None:
+    path = output_dir / "config.json"
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path) as handle:
+            loaded = json.load(handle)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return loaded if isinstance(loaded, dict) else None

@@ -3108,14 +3108,12 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _save_did_cell_ppc_plot(ctx, did_cell_ppc)
 
     section_header("Extended diagnostics")
-    _did_effect = (
-        "mu_dose" if period_varying else ("beta_dose" if dose else "tau_t2")
-    )
+    _did_effect = plan.effect_term
     _diag.write_diagnostics_summary(ctx, var_names=_did_diag_vars(spec))
     _diag.run_extended_diagnostics(ctx, causal_term=_did_effect)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_did_diag_vars(spec))
-    _diag.run_psense(ctx, var_names=[_did_effect])
+    _diag.run_psense(ctx, var_names=list(plan.psense_terms))
     if not dose:
         try:
             from language_reading_predictors.statistical_models.measures import MEASURES

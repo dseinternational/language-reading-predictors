@@ -79,7 +79,15 @@ WITHIN = [
     ("PA", ["NW", "WR", "PS"]),
     ("RG", ["EG"]),
 ]
-REVERSE = ["TE", "TR", "PA", "RW"]  # WR_w -> {..}_{w+1}
+# WR_w -> {..}_{w+1}. ``LS`` was added to the .dagitty on 2026-07-17 and this
+# archived list was not updated with it, so re-running the script built a graph the
+# DAG no longer matched (#428). Refreshed 2026-08-05. Adding it changes no verdict:
+# the stale and refreshed graphs differ only in the two WR_w -> LS_{w+1} edges (312
+# vs 314 edges in the three-slice unroll), and every [VALID] / [NOT-VALID] line the
+# design note quotes is identical either way — so nothing published on the back of
+# this script was wrong. ``assert_mirrors_dagitty`` below now fails loudly rather
+# than letting the next such drift pass silently.
+REVERSE = ["TE", "TR", "PA", "RW", "LS"]
 HS_CHILDREN = ["TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"]
 ITT_TARGETS = ["TR", "TE", "PA", "LS", "WR", "PS", "EI", "EG"]
 
@@ -138,9 +146,46 @@ def check(g: nx.DiGraph, x: str, y: str, z: set[str], label: str = "") -> bool:
     return ok
 
 
+def assert_mirrors_dagitty(tmpl: nx.DiGraph, unrolled: nx.DiGraph) -> None:
+    """Fail loudly if the hand-coded slice structure has drifted from the DAG.
+
+    This script's slice constants duplicate ``dag/dag-language-reading-lagged.dagitty``
+    by hand, and in 2026-07 that duplicate went stale without any signal: ``LS`` was
+    added to the reverse edge list in the DAG and not here, so re-running the script
+    silently answered questions about a graph the project no longer holds (#428).
+
+    Every template edge (bar the intervention block, which the unroll deliberately
+    widens to be crossover-aware) must appear in the corresponding unroll slice.
+    The authoritative, CI-enforced version of this check is
+    ``tests/test_lagged_dag_adjustment_sets.py::test_unroll_slices_mirror_the_dagitty_template``;
+    this copy exists so the archived script cannot be run against a stale mirror.
+    """
+
+    def rename(node: str) -> str:
+        if node.endswith("_t1"):
+            return node[:-3] + "_2"
+        if node.endswith("_t"):
+            return node[:-2] + "_1"
+        return node
+
+    missing = [
+        (u, v)
+        for u, v in tmpl.edges
+        if u not in ("IG", "IS_t")
+        and v != "IS_t"
+        and not unrolled.has_edge(rename(u), rename(v))
+    ]
+    if missing:
+        raise AssertionError(
+            "slice structure has drifted from dag/dag-language-reading-lagged.dagitty; "
+            f"edges present in the DAG but missing from the unroll: {sorted(missing)}"
+        )
+
+
 def main() -> None:
     tmpl = parse_dagitty(DAG_PATH)
     assert nx.is_directed_acyclic_graph(tmpl)
+    assert_mirrors_dagitty(tmpl, three_slice_unroll())
     print(f"template: {tmpl.number_of_nodes()} nodes, {tmpl.number_of_edges()} edges")
 
     print("\n-- two-slice template: W -> TE / TR (transition 1 semantics) --")
