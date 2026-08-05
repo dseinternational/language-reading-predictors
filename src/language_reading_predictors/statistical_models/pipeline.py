@@ -1037,7 +1037,9 @@ def _save_multi_outcome_ppc_overlays(
 
     idx = np.asarray(cd[key].values).ravel().astype(int)
     for position, sym in enumerate(outcomes):
-        if position >= len(outcomes) or not np.any(idx == position):
+        if not np.any(idx == position):
+            # A declared outcome with no rows in this fit's cell map. Skip rather
+            # than emit an empty overlay; ``ppc_summary.csv`` still counts the rest.
             continue
         _ppc_overlay_figure(
             context,
