@@ -518,9 +518,16 @@ def _prior_table_overrides(
         if not spec.extra.get("dose", False):
             role["tau_t2"] = "causal"
             role["alpha_offset"] = "nuisance"
+            # The empirical-Bayes sentence comes from ``priors`` rather than being
+            # written again here, so the family prose and the suite-wide label
+            # cannot drift (#390 P1, Frank's 2026-07-24 ruling, condition 2). Scoped
+            # to the arm-by-wave models by the enclosing branch, which is correct
+            # rather than incidental: the dose variants build an ordinary free
+            # ``alpha ~ Normal(0, 1.5)`` and have no anchor to label.
             rationale["alpha_offset"] = (
                 "Zero-centred offset around the pooled observed t1 logit anchor; "
-                "the deterministic alpha is the anchored t1 level."
+                "the deterministic alpha is the anchored t1 level. "
+                f"{_priors.EMPIRICAL_BAYES_SENTENCE}"
             )
         if spec.extra.get("dose", False):
             role["beta_group"] = "association"

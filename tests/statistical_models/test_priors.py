@@ -158,3 +158,51 @@ def test_priors_table_applies_rationale_overrides():
     row = df.iloc[0]
     assert row["role"] == "association"
     assert row["rationale"] == "Only b_grp_time[1] is randomised."
+
+
+def test_empirical_bayes_rationale_matches_only_anchored_locations():
+    """The EB label fires on a computed prior *mean*, not on any ``<constant>``.
+
+    Keyed on the distribution rather than the name because ``alpha`` is anchored in
+    the growth family and a free zero-centred deviation everywhere else (#390 P1).
+    The negatives are the other ``<constant>`` renderings in the suite — LKJ
+    dimensions and a ZeroSumNormal shape — which are structural arguments, not
+    locations, and must not be labelled empirical Bayes.
+    """
+    eb = priors.empirical_bayes_rationale
+    assert "grand mean observed logit" in eb("alpha", "Normal(<constant>, 1.5)")
+    assert "observed wave-1 mean logit" in eb("mu1", "Normal(<constant>, 1)")
+    assert "pooled observed t1 logit" in eb("alpha_offset", "Normal(0, 1.5)")
+    for anchored in ("alpha", "mu1", "alpha_offset"):
+        rationale = eb(anchored, "Normal(<constant>, 1)")
+        if anchored != "alpha_offset":
+            assert priors.EMPIRICAL_BAYES_SENTENCE in rationale
+
+    assert eb("alpha", "Normal(0, 1.5)") == ""
+    assert eb("mu1", "Normal(0, 1)") == ""
+    assert eb("factor_mean", "ZeroSumNormal(1, <constant>)") == ""
+    assert eb("trait_corr_chol", "LKJCorrRV(<constant>, 2)") == ""
+    assert eb("beta", "Normal(0, 0.5)") == ""
+
+
+def test_anchored_intercept_row_replaces_the_zero_centred_docstring():
+    """An anchored ``alpha`` must not inherit ``alpha_prior``'s docstring.
+
+    That docstring reads "Intercept alpha ~ Normal(0, 1.5)", which is the prior the
+    growth family does *not* fit — its mean is the grand mean observed logit. The
+    rationale is therefore replaced, not appended to.
+    """
+    import numpy as np
+    import pymc as pm
+
+    with pm.Model() as anchored:
+        pm.Normal("alpha", mu=np.array([0.3, -0.2]), sigma=1.5, shape=2)
+    row = priors.priors_table(anchored).iloc[0]
+    assert "<constant>" in row["distribution"]
+    assert priors.EMPIRICAL_BAYES_SENTENCE in row["rationale"]
+    assert "Normal(0, 1.5)" not in row["rationale"]
+
+    with pm.Model() as free:
+        pm.Normal("alpha", mu=0.0, sigma=1.5)
+    free_row = priors.priors_table(free).iloc[0]
+    assert priors.EMPIRICAL_BAYES_SENTENCE not in free_row["rationale"]
