@@ -13,7 +13,7 @@ Run record for a complete `reporting`-tier refit of every registered statistical
 - **Sampling preset (`reporting`):** 6 chains × 6,000 draws × 6,000 tune, `target_accept = 0.95`, `nutpie`.
 - **Scope:** 194 models. Note the count discrepancy worth knowing: `definitions.MODEL_REGISTRY` holds **181**, while the filename-derived `MODELS` map that `fit_statistical_model.py` actually iterates holds **194**. The sweep used the latter. The `lrp-fit-statistical` skill's "89 models across 16 families" is badly stale; `definitions.KINDS` now lists 22 kinds.
 - **Wall time:** 8.9 h of accumulated model time on a 16-core workstation. Long pole as expected: the two-mediator g-formula fits `med-064` (41 min), `med-075` (39 min), `med-066` (36 min).
-- **Result:** 194/194 fitted and rendered; **181 pass the convergence gate, 13 fail**.
+- **Result:** 194/194 fitted and rendered; **181 passed the convergence gate at the sweep and 13 failed**. All thirteen were subsequently resolved — the suite now stands at **194/194 passing** (see the gate section).
 
 ## A blocking defect found and fixed
 
@@ -25,9 +25,9 @@ The stamp sat _outside_ the `try/except` directly above it — the one whose com
 
 Introduced by `4e51cee` (#466). Fixed by keying the stamp on membership in `BLENDING_LINK_MODELS` instead of on the outcome symbol, with the outer `B` check retained so the import stays function-local (`blending_sensitivity` imports `reporting`, so a module-level import would be circular). The #466 release interlock is unchanged in the scope it was written for. Regression test: `test_non_itt_blending_outcome_does_not_require_the_paired_bundle`, verified to fail against a reverted copy of the source with the identical production error.
 
-## Convergence gate — 13 failures
+## Convergence gate — 13 failures at the sweep, all resolved
 
-Under `notes/202608021625-divergence-qualification-policy.md` and `METHODS.md:65`, **every divergent fit fails closed**; the earlier percentage-based leniency is superseded and there is no live qualification pathway. All 13 are withheld by the report gate.
+Under `notes/202608021625-divergence-qualification-policy.md` and `METHODS.md:65`, **every divergent fit fails closed**; the earlier percentage-based leniency is superseded and there is no live qualification pathway. All 13 were withheld by the report gate as fitted.
 
 | model        | failing checks          | divergences | max R-hat | min ESS |
 | ------------ | ----------------------- | ----------: | --------: | ------: |
@@ -45,7 +45,36 @@ Under `notes/202608021625-divergence-qualification-policy.md` and `METHODS.md:65
 | `mm-101`     | R-hat, ESS, divergences |           2 |    1.0241 |     213 |
 | `rlm-mm-001` | R-hat, divergences      |          58 |    1.0159 |     458 |
 
-The nine `mech`/`hs` failures are divergence-only with healthy R-hat and ESS. The four `corr_factor` failures are qualitatively different — they fail on **R-hat and/or ESS**, the known latent-factor funnel, and higher acceptance will not repair a weak-identification problem.
+The nine `mech`/`hs` failures are divergence-only with healthy R-hat and ESS. The four `corr_factor` failures are qualitatively different — they fail on **R-hat and/or ESS**.
+
+**All thirteen were resolved on 2026-08-05; the suite now stands at 194/194 passing.** How, and one diagnosis that turned out to be wrong, are recorded below.
+
+### The eight HSGP knee tests
+
+`mech-093/094/095/156/157/188/189/191` all carry an HSGP mechanism curve, and a nonlinear knee or shape is zero-divergence-only, so no qualification route exists. All eight adopt the #438 thin-support reparameterisation (basis count 6 from 10, tighter `InverseGamma(8, 8)` lengthscale prior) as a per-model opt-in — the shared defaults stay, since the same lever regressed `mech-173` from 0 to 10 divergences. Every one went to **0 divergences**, and against #438's own acceptance criteria the curve is intact: amplitude _increases_ slightly in all eight (the direction #438 measured), max pointwise |Δf| is 0.007–0.031, and no parameter moves more than 0.064 posterior SD.
+
+### `hs-001`
+
+A single divergence in 36,000 draws at its declared 0.99, where its `hs-002/003/004` siblings pass at the same setting. A horseshoe ranking is likewise zero-divergence-only. Lifted to 0.999 — above its own default, not below, which is the distinction the remediation trap above turns on — giving 0 divergences, R-hat 1.0007, min ESS 9,491, with the ranking unmoved (identical rank order, max change in `p_abs_gt_delta` 0.008). The value is declared in the spec, and a refit with no CLI override reproduces it.
+
+### The four `corr_factor` fits — the diagnosis was wrong
+
+The reading above, and the standing account in `notes/202607241200-mm001-gate-exception.md`, was that this is intrinsic near-singular correlation geometry that sampler tuning cannot repair — `rlm-mm-001`'s wave-3 domains are near-collinear (correlations 0.82–0.95, first eigenvalue ≈ 89.5 % of variance) and pushing `target_accept` 0.99 → 0.999 was measured to _starve_ the chains (min ESS 749 → 99, max R-hat 1.006 → 1.045). That made it the repo's standing example of geometry that genuinely cannot be fixed.
+
+It was not the geometry. **Every** R-hat/ESS failure across all four models sits on `factor_cov` alone, while every quantity the models actually report converges cleanly — `factor_corr` R-hat ≤ 1.003 with ESS 2.2 k–24 k, `lambda_load` and `communality` better still. `factor_cov` is an `LKJCholeskyCov` whose Cholesky factor and standard deviations are both discarded at construction (`_, corr, _`); in a CFA the factor scale is fixed by the loadings, so those sd components are **unidentified**. They wander, mix poorly, and — because the gate scans every free RV — fail the gate on behalf of a parameter nothing downstream reads. The existing override comment had already noticed the sds were discarded without drawing the conclusion.
+
+Switching both builders to bare `pm.LKJCorr` (the choice `build_longitudinal_corr_factor_model` and the measure-correlation block already make for exactly this reason, and which `lcf-001` — passing where these four failed — is the natural experiment for) clears all four outright:
+
+| model        | divergences | max R-hat       | min ESS     |
+| ------------ | ----------: | --------------- | ----------- |
+| `mm-001`     |   1 → **0** | 1.0136 → 1.0016 | 431 → 4,705 |
+| `mm-002`     |   0 → **0** | 1.0158 → 1.0017 | 328 → 5,441 |
+| `mm-101`     |   2 → **0** | 1.0241 → 1.0010 | 213 → 6,962 |
+| `rlm-mm-001` |  58 → **0** | 1.0159 → 1.0004 | 458 → 5,183 |
+
+Including `rlm-mm-001`, whose 58 divergences were the case held up as unfixable.
+
+**A caveat that matters, stated precisely.** The _prior_ is unchanged — the correlation has an LKJ(η) marginal under either construction, and the discarded components provably fed nothing. The _posterior estimates_ did move: the off-diagonal correlations rise by 0.001–0.028 in absolute terms, up to **0.23 posterior SD**, which is roughly ten times the Monte-Carlo error implied by their old ESS. So this is not "the same posterior, better sampled". The reading taken here is that the old fits' conditioning contaminated exploration of the correlation block even though its own R-hat and ESS looked acceptable — the missing-mass failure `METHODS.md:65` describes, where chains agree with each other while jointly failing to enter a region. The new fits are the better-conditioned ones and their estimates should be preferred. No published number changes, because the old fits failed the gate and were withheld in full. The substantive reading — high domain correlations, 0.65–0.95 — is unchanged either way.
 
 ## Geometry remediation — and a methodological trap
 
@@ -119,6 +148,8 @@ Exact-refit Pareto-k repair did succeed for the mechanism pairs `mech-058/071`, 
 1. ~~Promote or discount the five remediated `target_accept` values~~ **done 2026-08-05** — declared in each spec; resolution hoisted into `context.make_context` so a declaration binds for every family.
 2. ~~Emit prior-predictive checks for the 24 uncovered models~~ **done 2026-08-05** — all 194 now emit one; backfilled onto existing traces with `--reuse-trace`, no re-sampling, and every regenerated fit kept its gate verdict.
 3. **Apply the per-measure selection to the posterior side too.** `_PPC_MULTI_OUTCOME_KINDS = {joint, lcsm, growth}` currently _skips_ the posterior distribution overlay for those families because the node "pools measures with different denominators". The `y_obs_cell_outcome` map added here removes that obstacle, so the posterior overlay could now be emitted per measure exactly as the prior one is. Not done: it changes an existing artefact rather than adding a missing one. [open]
-4. **`corr_factor` weak identification** (`mm-001/002/101`, `rlm-mm-001`) is unresolved and not a sampler-tuning problem; a non-centred reparameterisation is the standing suggestion. [open]
-5. **`mech-156/157/191`** hold 21–28 divergences at the registered contract and did not improve at 0.99; these are the HSGP surfaces and want a geometry change, not more acceptance. [open]
-6. **Repair `mech-058`'s reconstruction size mismatch** so the mechanism forest is produced again. [open]
+4. ~~`corr_factor` weak identification~~ **done 2026-08-05** — not weak identification of the deliverable at all; the gate was failing on the discarded, unidentified `LKJCholeskyCov` sd components. Bare `LKJCorr` clears all four.
+5. ~~`mech-156/157/191` HSGP divergences~~ **done 2026-08-05** — resolved by the #438 thin-support reparameterisation, extended to all eight models in the same failure class.
+6. ~~Repair `mech-058`'s reconstruction size mismatch~~ **done 2026-08-05** — the comparison script now reads the persisted `mech_post_logit` instead of rebuilding it; the mechanism forest is produced again.
+7. **`MECH_IDS` is stale.** The mechanism forest is structurally a single point: the list still names `mech-056` and `mech-057`, which were linearised in the #258 review and therefore have no `f_mech` curve to contribute. Worth either dropping them or plotting their linear slopes on the same scale. [open]
+8. **Revisit `notes/202607241200-mm001-gate-exception.md`.** Its central claim — that `rlm-mm-001`'s divergences are intrinsic to a near-singular correlation matrix and not a fixable fault — is superseded by the `LKJCorr` result above (58 divergences → 0, no change to the domain collinearity). The note is already marked superseded on other grounds; this is a second, independent reason. [open]
