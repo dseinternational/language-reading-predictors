@@ -147,9 +147,20 @@ Exact-refit Pareto-k repair did succeed for the mechanism pairs `mech-058/071`, 
 
 1. ~~Promote or discount the five remediated `target_accept` values~~ **done 2026-08-05** — declared in each spec; resolution hoisted into `context.make_context` so a declaration binds for every family.
 2. ~~Emit prior-predictive checks for the 24 uncovered models~~ **done 2026-08-05** — all 194 now emit one; backfilled onto existing traces with `--reuse-trace`, no re-sampling, and every regenerated fit kept its gate verdict.
-3. **Apply the per-measure selection to the posterior side too.** `_PPC_MULTI_OUTCOME_KINDS = {joint, lcsm, growth}` currently _skips_ the posterior distribution overlay for those families because the node "pools measures with different denominators". The `y_obs_cell_outcome` map added here removes that obstacle, so the posterior overlay could now be emitted per measure exactly as the prior one is. Not done: it changes an existing artefact rather than adding a missing one. [open]
+3. ~~Apply the per-measure selection to the posterior side too~~ **done 2026-08-05** — `lcsm` and `growth` now emit one posterior overlay per measure, selected by the same persisted `y_obs_cell_outcome` map as the prior side, each on its own denominator. Scoped to those two: `joint` was in the same skip set but already splits per outcome itself in `fit_joint`, so the generic dispatch would only have been overwritten by its own writer.
 4. ~~`corr_factor` weak identification~~ **done 2026-08-05** — not weak identification of the deliverable at all; the gate was failing on the discarded, unidentified `LKJCholeskyCov` sd components. Bare `LKJCorr` clears all four.
 5. ~~`mech-156/157/191` HSGP divergences~~ **done 2026-08-05** — resolved by the #438 thin-support reparameterisation, extended to all eight models in the same failure class.
 6. ~~Repair `mech-058`'s reconstruction size mismatch~~ **done 2026-08-05** — the comparison script now reads the persisted `mech_post_logit` instead of rebuilding it; the mechanism forest is produced again.
-7. **`MECH_IDS` is stale.** The mechanism forest is structurally a single point: the list still names `mech-056` and `mech-057`, which were linearised in the #258 review and therefore have no `f_mech` curve to contribute. Worth either dropping them or plotting their linear slopes on the same scale. [open]
+7. ~~`MECH_IDS` is stale~~ **done 2026-08-05** — `mech-056` and `mech-057` are now included via their linear `beta_mech` coefficient rather than dropped, so the forest is a real three-model comparison again.
+
+   The scale needed care, and this is the part worth remembering. `beta_mech` multiplies the **standardised** mechanism logit, so it is already _per SD_; the curve models' average gradient was taken against the **raw** logit, so it was _per raw logit unit_. The two differ by exactly `sd(mech_logit)`, which runs 0.46–1.43 across these three models — putting them on one axis untransformed would have been a visibly wrong comparison rather than a merely imprecise one. The forest now reports everything per SD (curve gradients multiplied by `sd`, `ddof=1` to match `preprocessing.standardise`), and the CSV carries a `mechanism_shape` column so a reader can tell an average gradient from a coefficient.
+
+   | model            | shape  | slope per SD | 89 %            |
+   | ---------------- | ------ | -----------: | --------------- |
+   | `mech-056` (R→W) | linear |        0.064 | −0.057 to 0.185 |
+   | `mech-057` (E→W) | linear |        0.122 | −0.013 to 0.257 |
+   | `mech-058` (L→W) | curve  |        0.238 | 0.085 to 0.404  |
+
+   Consistent with the suite's established reading: letter-sound knowledge is the strongest route to word reading, and the two vocabulary routes are weaker with intervals spanning zero.
+
 8. ~~Revisit `notes/202607241200-mm001-gate-exception.md`~~ **done 2026-08-05** — a second supersession notice records that its central claim (divergences intrinsic to a near-singular correlation matrix) is wrong, that the causal attribution was to the unidentified `LKJCholeskyCov` sds rather than the collinearity, and that the note's own "Out of scope" bullet had already named `LKJCorr` + `L @ Lᵀ` as the route while under-scoping it to `mm-002` mixing.

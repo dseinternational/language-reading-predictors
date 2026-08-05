@@ -943,6 +943,10 @@ def _graphviz(model):
 # denominators (6..170), so a shared count axis for the overlay would pool them —
 # the meaninglessness #271 item 2 flagged. They still get coverage + calibration.
 _PPC_MULTI_OUTCOME_KINDS = {"joint", "lcsm", "growth"}
+# Of those, ``joint`` splits its own per-outcome overlays and calibration tables in
+# ``fit_joint`` (``save_joint_posterior_predictive_plot``), so the generic
+# per-measure dispatch would only be overwritten by them.
+_PPC_FAMILY_OWN_OVERLAY_KINDS = {"joint"}
 # Binary / event nodes: off-floor rate coverage rather than count intervals.
 _PPC_BINARY_NODES = {"y_offfloor", "y_event"}
 # Bounded-count outcome nodes that take the count-interval treatment.
@@ -984,14 +988,68 @@ def _save_count_ppc(
         _ppc_calibration_figure(context, symbol, cal)
     except Exception as exc:  # pragma: no cover - guarded
         rprint(f"[yellow]PPC calibration figure skipped: {exc}[/yellow]")
-    if kind in _PPC_MULTI_OUTCOME_KINDS:
+    if kind in _PPC_FAMILY_OWN_OVERLAY_KINDS:
         rprint(
-            f"[dim]PPC distribution overlay skipped for multi-outcome family "
-            f"'{kind}' (its likelihood node pools measures with different "
-            "denominators); coverage + calibration still emitted.[/dim]"
+            f"[dim]PPC distribution overlay left to the '{kind}' family's own "
+            "per-outcome writer.[/dim]"
         )
+    elif kind in _PPC_MULTI_OUTCOME_KINDS:
+        _save_multi_outcome_ppc_overlays(context, node, kind)
     else:
         _ppc_overlay_figure(context, node, symbol)
+
+
+def _save_multi_outcome_ppc_overlays(
+    context: StatisticalFitContext, node: str, kind: str
+) -> None:
+    """One overlay per measure for a stacked multi-outcome likelihood.
+
+    ``joint`` / ``lcsm`` / ``growth`` flatten every measure into a single likelihood
+    node, so a pooled overlay puts scales with different maxima on one axis and has
+    no interpretable predictive distribution. This was previously skipped outright
+    for those families; it is emitted per measure now that the factories persist a
+    cell map (``y_post_cell_outcome`` for the joint family, ``y_obs_cell_outcome``
+    for the stacked LCSM / growth likelihoods), which is the same selection the
+    prior-predictive checks use. The map is read back, never re-derived — a
+    reconstructed index is what silently misaligned those checks before.
+
+    The first measure keeps the unsuffixed filename the report partials expect;
+    the rest are suffixed. Falls back to the pooled overlay only when no map is
+    present, since that is a single-measure node reaching here by another route.
+    """
+    cd = getattr(context.trace, "constant_data", None)
+    key = next(
+        (k for k in (f"{node}_cell_outcome", "y_post_cell_outcome") if cd is not None and k in cd),
+        None,
+    )
+    outcomes = [str(o) for o in (context.spec.extra.get("outcomes") or ())]
+    if not outcomes:
+        plan = getattr(context, "resolved_plan", None)
+        outcomes = [str(o) for o in (getattr(plan, "outcomes", ()) or ())]
+    if key is None or not outcomes:
+        rprint(
+            f"[yellow]PPC per-measure overlay unavailable for '{kind}' "
+            f"(cell map={key!r}, outcomes={outcomes or None}); "
+            "falling back to the pooled overlay.[/yellow]"
+        )
+        _ppc_overlay_figure(context, node, context.spec.outcome_symbol)
+        return
+
+    idx = np.asarray(cd[key].values).ravel().astype(int)
+    for position, sym in enumerate(outcomes):
+        if position >= len(outcomes) or not np.any(idx == position):
+            continue
+        _ppc_overlay_figure(
+            context,
+            node,
+            sym,
+            row_mask=(idx == position),
+            filename_stem=(
+                "posterior_predictive_check"
+                if position == 0
+                else f"posterior_predictive_check_{sym.lower()}"
+            ),
+        )
 
 
 def _save_offfloor_ppc(
@@ -1043,7 +1101,12 @@ def _ppc_measure_label(symbol: str | None) -> tuple[str, int | None]:
 
 
 def _ppc_overlay_figure(
-    context: StatisticalFitContext, node: str, symbol: str | None
+    context: StatisticalFitContext,
+    node: str,
+    symbol: str | None,
+    *,
+    row_mask: np.ndarray | None = None,
+    filename_stem: str = "posterior_predictive_check",
 ) -> None:
     """Relabelled observed-vs-simulated distribution overlay on a labelled items axis.
 
@@ -1054,6 +1117,10 @@ def _ppc_overlay_figure(
     """
     try:
         y_rep, y_obs = _report._ppc_node_arrays(context.trace, node)
+        if row_mask is not None:
+            # One measure's rows out of a stacked likelihood, selected by the
+            # factory-persisted cell map (never a re-derived index).
+            y_rep, y_obs = y_rep[row_mask], y_obs[row_mask]
         finite = np.isfinite(y_obs)
         y_rep, y_obs = y_rep[finite], y_obs[finite]
         label, n_trials = _ppc_measure_label(symbol)
@@ -1091,7 +1158,7 @@ def _ppc_overlay_figure(
                 "pp_density_hi": hi_band,
             }
         )
-        save_styled_figure(context.output_dir, "posterior_predictive_check", data=data)
+        save_styled_figure(context.output_dir, filename_stem, data=data)
     except Exception as exc:  # pragma: no cover - guarded
         rprint(f"[yellow]PPC overlay figure failed: {exc}[/yellow]")
 

@@ -648,7 +648,29 @@ def _mechanism_slope_distribution(
 
 
 def mechanism_forest(config: str, out_path: str) -> bool:
+    """Compare the mechanism slopes of the R/E/L -> W models on one scale.
+
+    Reported **per SD of the mechanism logit**, which is what makes the three
+    comparable and is the linear models' native unit.
+
+    The family is mixed by design: ``mech-058`` (L) keeps its HSGP curve, while
+    ``mech-056`` (R) and ``mech-057`` (E) were switched to a linear mechanism in the
+    #258 review because the nonparametric curve would not converge for them. Their
+    slope is the ``beta_mech`` coefficient, which multiplies the *standardised*
+    mechanism logit and is therefore already per SD. A curve model has no single
+    slope, so its comparable quantity is the average gradient of ``f_mech`` — taken
+    against the raw logit, since that is the grid the curve is evaluated and plotted
+    on, and then multiplied by the raw logit's SD to reach the same per-SD scale.
+
+    That conversion is the point. The two quantities differ by exactly
+    ``sd(mech_logit)``, so plotting the raw-logit gradient beside ``beta_mech``
+    without it would put visibly different scales on one axis (the SDs here run
+    0.46 to 1.43). Until 2026-08-05 the function simply skipped any model without
+    ``f_mech``, so the two linear models contributed nothing and the "forest" was a
+    single point that looked like a complete comparison.
+    """
     labels: list[str] = []
+    shapes: list[str] = []
     means: list[float] = []
     los: list[float] = []
     his: list[float] = []
@@ -658,8 +680,6 @@ def mechanism_forest(config: str, out_path: str) -> bool:
         if not os.path.exists(nc):
             return False
         trace = az.from_netcdf(nc)
-        if "f_mech" not in trace.posterior:
-            continue
 
         # Read the mechanism logit vector the fit actually used, from the trace's
         # ``constant_data``, rather than rebuilding it from the prepared frame.
@@ -681,13 +701,32 @@ def mechanism_forest(config: str, out_path: str) -> bool:
             )
             continue
         mech_logit = np.asarray(trace.constant_data["mech_post_logit"].values, dtype=float)
+        # ddof=1 to match ``preprocessing.standardise``, which is what defined the
+        # scale ``beta_mech`` is expressed in.
+        mech_sd = float(np.std(mech_logit, ddof=1))
 
-        slopes = _mechanism_slope_distribution(trace, mech_logit)
+        if "f_mech" in trace.posterior:
+            # Average gradient w.r.t. the raw logit, rescaled to per-SD.
+            slopes = _mechanism_slope_distribution(trace, mech_logit) * mech_sd
+            shape = "curve"
+        elif "beta_mech" in trace.posterior:
+            # Already per SD: beta_mech multiplies the standardised mechanism logit.
+            slopes = np.asarray(trace.posterior["beta_mech"].values, dtype=float).ravel()
+            shape = "linear"
+        else:
+            print(
+                f"[warn] {model_id}: neither f_mech nor beta_mech in the posterior; "
+                "DROPPING this model from the persisted mechanism forest AND its CSV "
+                "(it will be absent from the artefact, not merely un-plotted)."
+            )
+            continue
+
         means.append(float(np.mean(slopes)))
         # 89% equal-tailed band (house standard).
         los.append(float(np.quantile(slopes, 0.055)))
         his.append(float(np.quantile(slopes, 0.945)))
-        labels.append(f"{model_id} ({sym}->W)")
+        labels.append(f"{model_id} ({sym}->W, {shape})")
+        shapes.append(shape)
 
     if not labels:
         return False
@@ -705,18 +744,20 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     plt.yticks(y, labels)
     plt.gca().invert_yaxis()
     plt.axvline(0.0, color="k", lw=0.75, ls="--")
-    plt.xlabel("Mean slope of $f^{\\mathrm{mech}}$ (logit scale)")
-    plt.title("Mechanism-model average slopes")
+    plt.xlabel("Mechanism slope (outcome logit per SD of the mechanism logit)")
+    plt.title("Mechanism-model slopes — curve models as the average gradient")
     plt.tight_layout()
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close()
 
     # Also write the underlying numbers. Record the config so a dev-config rerun
-    # does not silently masquerade as the reporting-config artefact.
+    # does not silently masquerade as the reporting-config artefact, and the shape
+    # so a reader knows which rows are an average gradient and which a coefficient.
     pd.DataFrame(
         {
             "config": config,
             "model": labels,
+            "mechanism_shape": shapes,
             "slope_mean": means,
             "slope_lo": los,
             "slope_hi": his,

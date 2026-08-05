@@ -629,3 +629,4 @@ yarcsi
 ypre
 zproc
 ΔELPD
+ddof
