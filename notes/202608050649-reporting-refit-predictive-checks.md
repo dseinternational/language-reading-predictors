@@ -109,7 +109,7 @@ Promoting them surfaced a second defect. `spec.extra["target_accept"]` was appli
 | `TE`    |       0.80 |      0.801 | +0.001 |     |                     |            |            |        |
 | `N`     |       0.82 |      0.814 | −0.006 |     |                     |            |            |        |
 
-Largest absolute drift anywhere: **0.009**. The 50 % bands overcover everywhere (0.58–0.92) and the 90 % bands sit at 0.93–1.00, exactly as before. Nothing has moved, on independently re-sampled fits — the established reading stands, and §6 of that note already settled that the overcoverage is substantially mechanical rather than a likelihood defect (the Conway–Maxwell-binomial probe, free to go below binomial variance, chose ν = 0.50 and coverage barely moved, 0.62 → 0.60).
+Largest absolute drift anywhere: **0.009**. The 50 % bands overcover everywhere — 0.58–0.85 aggregated by family, 0.65–0.92 aggregated by outcome — and the 90 % bands sit at 0.93–1.00, exactly as before. Nothing has moved, on independently re-sampled fits — the established reading stands, and §6 of that note already settled that the overcoverage is substantially mechanical rather than a likelihood defect (the Conway–Maxwell-binomial probe, free to go below binomial variance, chose ν = 0.50 and coverage barely moved, 0.62 → 0.60).
 
 ## Prior-predictive checks — healthy where present, absent for 24 models
 
