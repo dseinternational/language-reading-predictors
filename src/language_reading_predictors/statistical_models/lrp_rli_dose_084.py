@@ -38,6 +38,12 @@ SPEC = ModelSpec(
         "period_varying_dose": True,
         "use_subject_random_intercept": True,
         "outcomes": ("B",),
+        # Same period-varying dose geometry as LRP77, but far milder here: 1 divergence
+        # at the reporting preset's 0.95, 0 at 0.97 (R-hat 1.001, min ESS 6,720). Kept
+        # at the value actually validated rather than raised to the family's 0.99 — the
+        # default seed is fixed, so this reproduces the stored fit exactly. See
+        # notes/202608050649-reporting-refit-predictive-checks.md.
+        "target_accept": 0.97,
     },
 )
 

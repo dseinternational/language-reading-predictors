@@ -130,7 +130,7 @@ def test_build_rlm_corr_factor_single_indicator_fixed(tmp_path):
     # communality; the loading sqrt(c) and residual sqrt(1 - c) are derived
     # deterministics (enforcing lambda**2 + sigma**2 = 1, the fix for the Heywood
     # loading-residual ridge).
-    assert {"factor_cov", "communality_free"}.issubset(names)
+    assert {"factor_corr_chol", "communality_free"}.issubset(names)
     det_names = {v.name for v in built.model.deterministics}
     assert {"lambda_free", "sigma_free"}.issubset(det_names)
     # The single-indicator memory domain contributes NO free loading/residual:

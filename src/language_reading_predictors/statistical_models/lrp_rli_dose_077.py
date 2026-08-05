@@ -79,6 +79,14 @@ SPEC = ModelSpec(
         "period_varying_dose": True,
         "use_subject_random_intercept": True,
         "outcomes": ("W",),
+        # The period-varying dose slope over a subject random intercept is a mildly
+        # funnelled geometry: at the reporting preset's 0.95 this fit returned 8
+        # divergences, which the strict gate requires to be zero and which the
+        # divergence-qualification policy will not waive. 0.99 clears it (0 divergences,
+        # R-hat 1.001, min ESS 4,349). Recorded so the stored reporting fit is
+        # reproducible from the registry rather than only from a CLI override —
+        # notes/202608050649-reporting-refit-predictive-checks.md.
+        "target_accept": 0.99,
     },
 )
 

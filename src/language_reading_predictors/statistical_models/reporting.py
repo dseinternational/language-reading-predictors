@@ -5369,16 +5369,27 @@ def generate_key_findings(output_dir) -> dict:
     payload["status"] = "ok"
     payload["sentences"] = sentences[:KEY_FINDINGS_MAX_SENTENCES]
     if str(config.get("outcome_symbol")) == "B":
+        # The #466 provenance stamp belongs to the two *registered* paired-link fits
+        # that build the bundle, not to every ``B`` outcome. Nine further models
+        # (aligned, concurrent, did, dose_response, gain_factors, level_factors and
+        # mediation) share the outcome symbol but never write the CSV, and their
+        # family builders never reach the catchable ``_KeyFindingsUnavailable`` that
+        # ``_kf_build_itt`` raises — so hashing unconditionally killed those fits here
+        # in ``_finalize_report``, *after* sampling, discarding the staging directory.
+        # Imports stay function-local: ``blending_sensitivity`` imports this module.
         from language_reading_predictors.statistical_models.blending_sensitivity import (
+            BLENDING_LINK_MODELS,
             BLENDING_SENSITIVITY_FILENAME,
         )
-        from language_reading_predictors.statistical_models.sensitivity import (
-            sha256_file,
-        )
 
-        payload["blending_link_sensitivity_sha256"] = sha256_file(
-            os.path.join(out, BLENDING_SENSITIVITY_FILENAME)
-        )
+        if str(config.get("model_id")) in {mid for mid, _ in BLENDING_LINK_MODELS}:
+            from language_reading_predictors.statistical_models.sensitivity import (
+                sha256_file,
+            )
+
+            payload["blending_link_sensitivity_sha256"] = sha256_file(
+                os.path.join(out, BLENDING_SENSITIVITY_FILENAME)
+            )
     return _write_key_findings(out, payload)
 
 

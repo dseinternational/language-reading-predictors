@@ -14,6 +14,7 @@ import arviz as az
 import pandas as pd
 import pymc as pm
 import xarray as xr
+from rich import print as rprint
 
 import dse_research_utils.statistics.models.reporting as _reporting
 import dse_research_utils.statistics.models.sampling as _sampling
@@ -226,6 +227,47 @@ class StatisticalFitContext:
             self.output_transaction.abandon()
 
 
+def _resolve_target_accept(spec: ModelSpec, sampling, run_options):
+    """Resolve NUTS ``target_accept`` with explicit precedence, for **every** family.
+
+    Precedence is **CLI override > model-specific default > config preset**.
+
+    Some models (the horseshoe's global-local funnel, the small-n correlated-factor
+    CFA, the HSGP mechanism surfaces) need a higher ``target_accept`` than their tier
+    preset gives, and declare it in ``spec.extra``. That must not silently outrank an
+    explicit ``--target-accept`` from the command line: an earlier
+    ``max(preset_or_cli, spec_value)`` meant a deliberate ``--target-accept 0.95`` was
+    replaced by a spec's 0.999, so a diagnostic reproduction or an ablation silently
+    did not run at the requested setting.
+
+    This lives in the shared context factory rather than in per-family fit functions.
+    It was previously applied by ``pipeline._apply_spec_target_accept``, which only six
+    of the family entry points called — so a ``spec.extra["target_accept"]`` added to
+    any other family (dose-response, DiD, ITT, …) would have been accepted by the spec
+    and then silently ignored at sampling time. Resolving it here means a declaration
+    is honoured wherever it is made.
+    """
+    target_accept = spec.extra.get("target_accept")
+    if target_accept is not None:
+        target_accept = float(target_accept)
+        if not 0.0 < target_accept < 1.0:
+            raise ValueError(
+                "spec.extra['target_accept'] must be in the open interval (0, 1); "
+                f"got {target_accept!r}"
+            )
+    if run_options.target_accept is not None:
+        if target_accept is not None:
+            rprint(
+                "[yellow]Keeping the CLI --target-accept "
+                f"({run_options.target_accept}) over {spec.model_id}'s "
+                f"spec default ({target_accept}).[/yellow]"
+            )
+        return replace(sampling, target_accept=run_options.target_accept)
+    if target_accept is not None:
+        return replace(sampling, target_accept=target_accept)
+    return sampling
+
+
 def make_context(
     spec: ModelSpec,
     config: str = "dev",
@@ -262,8 +304,7 @@ def make_context(
     )
     run_options = current_run_options()
     sampling = _sampling.get_sampling_configuration(config, random_seed=random_seed)
-    if run_options.target_accept is not None:
-        sampling = replace(sampling, target_accept=run_options.target_accept)
+    sampling = _resolve_target_accept(spec, sampling, run_options)
     ctx = StatisticalFitContext(
         spec=spec,
         reporting=reporting,

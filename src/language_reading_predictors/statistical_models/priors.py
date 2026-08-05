@@ -661,7 +661,7 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     # the headline between-child cross-measure correlation — association parameters
     # rather than unreported covariance plumbing.
     if (
-        base in {"trait_corr_chol", "measure_corr_chol"}
+        base in {"trait_corr_chol", "measure_corr_chol", "factor_corr_chol"}
         or base.startswith("state_corr_chol_w")
     ):
         return ("association", "")

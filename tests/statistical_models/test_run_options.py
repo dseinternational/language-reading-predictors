@@ -9,9 +9,6 @@ import pytest
 
 from language_reading_predictors.statistical_models import context
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import (
-    _apply_spec_target_accept,
-)
 from language_reading_predictors.statistical_models.run_options import (
     StatisticalRunOptions,
     current_run_options,
@@ -51,7 +48,6 @@ def test_cli_override_is_scoped_and_outranks_model_default(tmp_path, monkeypatch
 
     with use_run_options(StatisticalRunOptions(target_accept=0.93)):
         fit_context = context.make_context(spec)
-        _apply_spec_target_accept(fit_context, spec)
 
     assert context._sampling.get_sampling_configuration is original_getter
     assert fit_context.sampling.target_accept == 0.93
@@ -72,6 +68,41 @@ def test_model_default_outranks_sampling_preset_without_cli_override(
     )
 
     fit_context = context.make_context(spec)
-    _apply_spec_target_accept(fit_context, spec)
 
     assert fit_context.sampling.target_accept == 0.97
+
+
+def test_spec_target_accept_is_honoured_for_every_family(tmp_path, monkeypatch):
+    """A spec declaration must bind regardless of which fit function runs.
+
+    ``spec.extra['target_accept']`` used to be applied by a pipeline helper that only
+    six family entry points called, so the same declaration on a dose-response, DiD or
+    ITT spec was accepted and then silently ignored — the fit sampled at the preset
+    while the module claimed otherwise. Resolution now lives in ``make_context``, which
+    every family goes through.
+    """
+    monkeypatch.setattr(context._env, "init_plotting", lambda: None)
+    monkeypatch.setattr(context._paths, "stat_dir", lambda: tmp_path)
+
+    for kind in ("dose_response", "did", "itt", "gain_factors", "mechanism"):
+        spec = ModelSpec(
+            model_id=f"lrp-rli-example-{kind}",
+            kind=kind,
+            title=f"{kind} spec-default test",
+            extra={"target_accept": 0.985},
+        )
+        assert context.make_context(spec).sampling.target_accept == 0.985, kind
+
+
+def test_spec_target_accept_must_be_a_probability(tmp_path, monkeypatch):
+    monkeypatch.setattr(context._env, "init_plotting", lambda: None)
+    monkeypatch.setattr(context._paths, "stat_dir", lambda: tmp_path)
+    spec = ModelSpec(
+        model_id="lrp-rli-example-003",
+        kind="example",
+        title="Invalid spec default",
+        extra={"target_accept": 1.0},
+    )
+
+    with pytest.raises(ValueError, match="open interval"):
+        context.make_context(spec)

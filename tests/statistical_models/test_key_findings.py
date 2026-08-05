@@ -613,6 +613,31 @@ def test_blending_key_findings_show_both_current_links(tmp_path):
     assert "85% probability" in companion_texts
 
 
+def test_non_itt_blending_outcome_does_not_require_the_paired_bundle(tmp_path):
+    """A ``B`` outcome outside the registered pair must still finalise (#466 scope).
+
+    ``blending_sensitivity`` builds its two-trace bundle for ``lrp-rli-itt-008`` and
+    ``lrp-rli-itt-108`` only, but nine further models across the aligned, concurrent,
+    did, dose_response, gain_factors, level_factors and mediation families share the
+    ``B`` outcome symbol. Stamping the bundle hash on outcome symbol alone raised
+    ``FileNotFoundError`` inside ``_finalize_report`` — after sampling, discarding the
+    whole fit — because those families' builders never reach the catchable
+    ``_KeyFindingsUnavailable`` that ``_kf_build_itt`` raises.
+    """
+    d, _ = _remaining_family_case(tmp_path, "aligned")
+    config = json.loads((d / "config.json").read_text())
+    config["model_id"] = "lrp-rli-al-006"
+    config["outcome_symbol"] = "B"
+    _write_json(d, "config.json", config)
+
+    assert not (d / "blending_link_sensitivity.csv").exists()
+    payload = generate_key_findings(d)
+
+    assert payload["status"] == "ok", payload.get("reason")
+    assert "blending_link_sensitivity_sha256" not in payload
+    assert payload["sentences"]
+
+
 def test_blending_link_summary_stale_for_current_config_withholds(tmp_path):
     d = _setup_dir(
         tmp_path,

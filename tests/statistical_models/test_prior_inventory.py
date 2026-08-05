@@ -387,12 +387,12 @@ def test_corr_factor_beta_G_is_association_not_causal(built_models):
     assert by["beta_G"]["panel"] == "predictor_slope"
     assert "mech-058" in by["beta_G"]["rationale"]
     assert "Treatment effect tau" not in by["beta_G"]["rationale"]
-    # factor_cov is an association: its off-diagonals are the reported
+    # factor_corr_chol is an association: its off-diagonals are the reported
     # factor-correlation matrix (the ``factor_corr_pairs`` deterministic), consistent
     # with this branch's ``*_corr_chol`` carve-out (#384 review, Frank).
-    if "factor_cov" in by:
-        assert by["factor_cov"]["role"] == "association"
-        assert by["factor_cov"]["rationale"].strip()
+    if "factor_corr_chol" in by:
+        assert by["factor_corr_chol"]["role"] == "association"
+        assert by["factor_corr_chol"]["rationale"].strip()
 
 
 def test_mechanism_beta_G_and_ell_rationales(built_models):

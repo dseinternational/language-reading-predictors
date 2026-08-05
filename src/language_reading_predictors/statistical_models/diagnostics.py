@@ -35,6 +35,7 @@ from __future__ import annotations
 import os
 import re
 import tempfile
+from typing import Any
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -992,7 +993,7 @@ def save_trace(context: StatisticalFitContext, filename: str = "trace.nc") -> st
 
 
 def _joint_cell_outcome_index(
-    context: StatisticalFitContext, outcome_symbol: str
+    context: StatisticalFitContext, outcome_symbol: str, node: str = "y_post"
 ) -> tuple[np.ndarray | None, int | None]:
     """Return the joint cell map and requested outcome position, or two ``None``s.
 
@@ -1005,9 +1006,16 @@ def _joint_cell_outcome_index(
     """
     samples = context.prior_samples if context.prior_samples is not None else context.trace
     cd = getattr(samples, "constant_data", None)
-    if cd is None or "y_post_cell_outcome" not in cd:
+    if cd is None:
         return None, None
-    idx = np.asarray(cd["y_post_cell_outcome"].values).ravel().astype(int)
+    # Per-node map first (``y_obs_cell_outcome`` for the stacked LCSM / growth
+    # likelihoods), then the joint family's original name.
+    key = next(
+        (k for k in (f"{node}_cell_outcome", "y_post_cell_outcome") if k in cd), None
+    )
+    if key is None:
+        return None, None
+    idx = np.asarray(cd[key].values).ravel().astype(int)
     outcomes: list[str] = []
     extra = getattr(getattr(context, "spec", None), "extra", {}) or {}
     outcomes = [str(o) for o in extra.get("outcomes", ())]
@@ -1053,7 +1061,7 @@ def _predictive_values_for_outcome(
         predictive = predictive.sel(outcome=outcome_symbol)
         return np.asarray(predictive.values, dtype=float), outcome_symbol
     values = np.asarray(predictive.values, dtype=float)
-    cell_idx, target = _joint_cell_outcome_index(context, outcome_symbol)
+    cell_idx, target = _joint_cell_outcome_index(context, outcome_symbol, node=node)
     if cell_idx is None:
         return values, outcome_symbol
     assert target is not None
@@ -1105,6 +1113,149 @@ def _overlay_count_histograms(
     )
 
 
+def _observed_values_for_node(
+    context: StatisticalFitContext,
+    *,
+    node: str,
+    outcome_symbol: str,
+    samples: Any = None,
+) -> np.ndarray:
+    """The likelihood's *own* observed vector for ``node``, selected like the replicates.
+
+    Read from the trace's ``observed_data`` group — the exact array PyMC passed to
+    ``observed=`` — and put through the same outcome selection as the predictive
+    draws, so the two are aligned by construction.
+
+    This must not be re-derived from the prepared container. Doing so silently
+    compares different row sets whenever the likelihood's rows are not one-to-one
+    with a symbol's panel cells, and the suite has two such shapes: the historical
+    cohort fits core **plus** observed extension waves while ``LongitudinalPanel.counts``
+    spans only the complete-case core window (300 modelled rows vs 228 core cells for
+    ``lrp-rlm-hg-001``), and the LCSM / growth families flatten *all* measures into one
+    ``y_obs`` vector (639 cells across W/L/E against 210 for W alone in
+    ``lrp-rli-lcsm-067``). Both produced a plausible-looking overlay of one row set's
+    replicates against another's observations. Same failure mode as the mechanism
+    forest's reconstructed-index mismatch: derive the index once, in the factory, and
+    read it back — never rebuild it in a consumer.
+    """
+    source = samples if samples is not None else context.prior_samples
+    values, _ = _predictive_values_for_outcome(
+        context,
+        source,
+        group="observed_data",
+        node=node,
+        outcome_symbol=outcome_symbol,
+    )
+    values = np.asarray(values, dtype=float).ravel()
+    values = values[np.isfinite(values)]
+    if node == "y_offfloor":
+        values = (values > 0).astype(float)
+    return values
+
+
+def save_prior_predictive_rate_plot(
+    context: StatisticalFitContext,
+    outcome_symbol: str,
+    *,
+    node: str,
+    filename_stem: str = "prior_predictive_check",
+) -> None:
+    """Prior-predictive check for a **binary / event** node, on the rate scale.
+
+    A count histogram is the wrong instrument for a 0/1 node: every replicate is 0 or
+    1, so the overlay carries no shape information. The posterior side already makes
+    this distinction — :func:`reporting.ppc_offfloor_rate_coverage` checks the observed
+    off-floor *rate* against the replicated-rate distribution "because per-observation
+    interval coverage of a 0/1 indicator is degenerate" — and this is the prior-side
+    counterpart of that same statistic, so the two ends of the check agree on what is
+    being tested.
+
+    The rate is taken over all modelled rows in one cell. The posterior check cells by
+    arm (x wave where available), but a prior-predictive draw is arm-blind by
+    construction — the prior does not know the assignment — so an overall rate is the
+    meaningful summary here.
+    """
+    if context.prior_samples is None:
+        rprint("[yellow]No prior samples to plot[/yellow]")
+        return
+    try:
+        rep = np.asarray(
+            getattr(context.prior_samples, "prior_predictive")[node].values, dtype=float
+        )
+        obs = np.asarray(
+            getattr(context.prior_samples, "observed_data")[node].values, dtype=float
+        ).ravel()
+        obs = obs[np.isfinite(obs)]
+        # Same 0/1 reduction as ``_offfloor_cell_rates`` so a raw-count node and a
+        # Bernoulli node behave identically.
+        obs_rate = float((obs > 0).mean())
+        rep = (rep > 0).astype(float).reshape(-1, rep.shape[-1])
+        rep_rate = rep.mean(axis=-1)  # one rate per prior draw
+        import pandas as pd
+
+        plt.figure(figsize=(6, 4))
+        # Same palette as ``_overlay_count_histograms`` so the rate check reads as a
+        # sibling of the count check rather than a different kind of figure.
+        plt.hist(
+            rep_rate, bins=30, density=True, alpha=0.55,
+            label="prior predictive", color="#1f77b4",
+        )
+        plt.axvline(
+            obs_rate, color="#d62728", linewidth=2,
+            label=f"observed rate = {obs_rate:.2f}",
+        )
+        plt.xlabel(f"{outcome_symbol} event rate")
+        plt.ylabel("density")
+        plt.title(f"Prior-predictive event-rate check ({outcome_symbol})")
+        plt.legend()
+        summary = (
+            pd.DataFrame(
+                {
+                    "prior_predictive_rate": pd.Series(rep_rate).describe(),
+                    "observed_rate": pd.Series([obs_rate]).describe(),
+                }
+            )
+            .reset_index()
+            .rename(columns={"index": "statistic"})
+        )
+        save_styled_figure(context.output_dir, filename_stem, data=summary)
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Prior-predictive rate plot failed: {exc}[/yellow]")
+
+
+def save_prior_predictive_dist_overlay(
+    context: StatisticalFitContext,
+    *,
+    filename_stem: str = "prior_predictive_check",
+) -> None:
+    """Prior-predictive marginals for a **measurement / latent** node.
+
+    The counterpart of the posterior side's generic overlay for models whose observed
+    node is a multi-indicator matrix (the correlated-factor CFAs' standardised
+    ``Z_obs`` / ``z_obs_*``). Those have no single count outcome, so
+    ``pipeline._save_ppc`` deliberately gives them the distribution overlay and **no**
+    coverage statistic; this keeps the prior end symmetric with that decision rather
+    than inventing a coverage number for a latent measurement model. Pooling the
+    indicators into one count histogram would be meaningless — they are standardised
+    scores on different instruments.
+    """
+    if context.prior_samples is None:
+        rprint("[yellow]No prior samples to plot[/yellow]")
+        return
+    try:
+        import arviz_plots as azp
+
+        pc = azp.plot_ppc_dist(context.prior_samples, group="prior_predictive")
+        save_plotcollection(
+            pc,
+            context.output_dir,
+            f"{filename_stem}.png",
+            suptitle="Prior-predictive marginals",
+        )
+    except Exception as exc:  # pragma: no cover
+        rprint(f"[yellow]Prior-predictive overlay failed: {exc}[/yellow]")
+
+
 def save_prior_predictive_plot(
     context: StatisticalFitContext,
     outcome_symbol: str,
@@ -1143,10 +1294,9 @@ def save_prior_predictive_plot(
             outcome_symbol=outcome_symbol,
         )
         rep = rep.ravel()
-        obs = np.asarray(context.prepared.post_counts[outcome_symbol], dtype=float)
-        obs = obs[np.isfinite(obs)]
-        if node == "y_offfloor":
-            obs = (obs > 0).astype(float)  # off-floor indicator, to match the node
+        obs = _observed_values_for_node(
+            context, node=node, outcome_symbol=outcome_symbol
+        )
         import pandas as pd
 
         plt.figure(figsize=(6, 4))
@@ -1202,8 +1352,9 @@ def save_joint_posterior_predictive_plot(
             outcome_symbol=outcome_symbol,
         )
         rep = rep.ravel()
-        obs = np.asarray(context.prepared.post_counts[outcome_symbol], dtype=float)
-        obs = obs[np.isfinite(obs)]
+        obs = _observed_values_for_node(
+            context, node=node, outcome_symbol=outcome_symbol, samples=context.trace
+        )
         import pandas as pd
 
         plt.figure(figsize=(6, 4))
