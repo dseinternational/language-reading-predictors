@@ -57,6 +57,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal, Mapping
 
+import numpy as np
 import pandas as pd
 
 from language_reading_predictors.statistical_models.sensitivity import (
@@ -221,17 +222,104 @@ def _config_name(output_dir: str | Path, model_id: str) -> str:
     return name[len(prefix) :] if model_id and name.startswith(prefix) else ""
 
 
-def _standard_sweep_present(output_dir: str | Path) -> bool:
-    """Is a same-directory standard ``tau`` sweep attached to this fit?
+def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool, str]:
+    """Does an attached ``tau`` sweep actually qualify as evidence for this fit?
 
-    Deliberately a presence check on the fit's *own* directory rather than a call to
-    ``evaluate_standard_sensitivity``: that evaluator validates the whole 44-cell
-    cross-model grid, which is a sweep-level artefact living outside any one fit's
-    output. Requiring co-location is what makes the evidence *this fit's*, which is the
-    provenance property the review asked for; validating its contents is the sweep
-    script's job and is not repeated here.
+    Returns ``(ready, reason)``; ``reason`` names the first failure so a withhold can
+    say what is wrong with the evidence rather than only that there is none.
+
+    The bar comes from the release policy: a sweep *present in the output directory*,
+    *computed from the same trace and commit as the posterior*, and *showing the sign
+    of the effect is stable across the grid* — sign stability, not interval width,
+    since a conservative prior is expected to move the magnitude. Each clause is
+    checked:
+
+    - the file is readable, non-empty, and carries the standard sweep's full column
+      set, so a hand-rolled CSV of the same name cannot pass;
+    - it has rows for **this fit's outcome**, spanning at least two distinct
+      ``tau_sigma`` values (a one-point "sweep" is not a sweep);
+    - every such row converged, since an unconverged cell is not evidence;
+    - its recorded ``primary_config_sha256`` / ``primary_trace_sha256`` match this
+      directory's own ``config.json`` and ``trace.nc``, which is what binds the sweep
+      to *this* fit rather than to some earlier one;
+    - the sign of ``tau_logit_mean`` is the same in every cell.
+
+    This deliberately does not call ``evaluate_standard_sensitivity``. That evaluator
+    measures the sweep against ``_standard_expected_cells()`` — the complete 44-cell
+    cross-outcome grid — so its ``ready`` can only be true for the sweep-level artefact
+    that lives outside any single fit's directory, and calling it here would withhold
+    unconditionally. The checks above are the per-fit subset of the same idea.
     """
-    return (Path(output_dir) / STANDARD_SENSITIVITY_FILENAME).exists()
+    from language_reading_predictors.statistical_models.sensitivity import (
+        _STANDARD_REQUIRED_COLUMNS,
+        sha256_file,
+    )
+
+    output_dir = Path(output_dir)
+    path = output_dir / STANDARD_SENSITIVITY_FILENAME
+    if not path.is_file():
+        return False, "no treatment-prior sweep is attached to this fit"
+    frame = _read_csv(output_dir, STANDARD_SENSITIVITY_FILENAME)
+    if frame is None or frame.empty:
+        return False, (
+            f"the attached {STANDARD_SENSITIVITY_FILENAME} is empty or unreadable"
+        )
+    missing = sorted(set(_STANDARD_REQUIRED_COLUMNS) - set(frame.columns))
+    if missing:
+        return False, (
+            f"the attached {STANDARD_SENSITIVITY_FILENAME} is not a standard "
+            f"treatment-prior sweep (missing columns: {', '.join(missing[:4])})"
+        )
+
+    rows = frame.loc[frame["outcome"].astype(str) == str(outcome)]
+    if rows.empty:
+        return False, (
+            f"the attached {STANDARD_SENSITIVITY_FILENAME} has no rows for outcome "
+            f"{outcome!r}"
+        )
+
+    tau_sigmas = pd.to_numeric(rows["tau_sigma"], errors="coerce").dropna().unique()
+    if len(tau_sigmas) < 2:
+        return False, (
+            "the attached treatment-prior sweep varies the prior over fewer than two "
+            "scales, so it cannot show the effect is stable across the grid"
+        )
+
+    converged = rows["converged"].map(
+        lambda value: str(value).strip().casefold() in {"true", "1", "yes"}
+    )
+    if not bool(converged.all()):
+        return False, (
+            "one or more cells of the attached treatment-prior sweep did not "
+            "converge, so the sweep is not usable evidence"
+        )
+
+    for column, artefact in (
+        ("primary_config_sha256", "config.json"),
+        ("primary_trace_sha256", "trace.nc"),
+    ):
+        artefact_path = output_dir / artefact
+        if not artefact_path.is_file():
+            return False, (
+                f"this fit has no {artefact}, so the attached treatment-prior sweep "
+                "cannot be bound to it"
+            )
+        recorded = {str(value).strip().lower() for value in rows[column]}
+        if recorded != {sha256_file(artefact_path)}:
+            return False, (
+                "the attached treatment-prior sweep was computed against a different "
+                f"{artefact} than this fit's, so it is not this fit's evidence"
+            )
+
+    signs = np.sign(
+        pd.to_numeric(rows["tau_logit_mean"], errors="coerce").to_numpy(dtype=float)
+    )
+    if not np.isfinite(signs).all() or len(set(signs.tolist())) != 1:
+        return False, (
+            "the effect changes sign across the attached treatment-prior sweep, so "
+            "its direction is not stable under the prior"
+        )
+    return True, ""
 
 
 def _floor_decision(
@@ -358,22 +446,25 @@ def evaluate_itt_release(
         )
     if tier not in _WITHHOLD_TIERS:
         return ReleaseDecision(status="qualify", note=_QUALIFY_NOTE, **common)
-    if _standard_sweep_present(output_dir):
+    sweep_ready, sweep_reason = _standard_sweep_evidence(
+        output_dir, str(config.get("outcome_symbol") or "")
+    )
+    if sweep_ready:
         return ReleaseDecision(
             status="qualify",
             note=_QUALIFY_NOTE,
             evidence=(
-                f"{STANDARD_SENSITIVITY_FILENAME} attached to this fit's output "
-                "directory"
+                f"a trace-bound {STANDARD_SENSITIVITY_FILENAME} showing the effect "
+                "keeps its sign across the treatment-prior grid"
             ),
             **common,
         )
     if tau_class == "prior_dominant":
         reason = (
             f"power-scaling shows `{causal_term}` responds to the prior "
-            f"({prior:.3g}) but not to the likelihood ({likelihood:.3g}), and no "
-            "treatment-prior sweep is attached to this fit, so the direction of the "
-            "effect is not established by the data alone"
+            f"({prior:.3g}) but not to the likelihood ({likelihood:.3g}), and "
+            f"{sweep_reason}, so the direction of the effect is not established by "
+            "the data alone"
         )
     else:
         reason = (

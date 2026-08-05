@@ -1648,17 +1648,129 @@ def test_prior_dominant_tau_withholds_the_causal_headline(tmp_path):
     assert "tau_prior_sensitivity.csv" in payload["release"]["evidence"]
 
 
-def test_an_attached_tau_sweep_turns_a_withhold_into_a_qualified_release(tmp_path):
-    """Evidence-bound: a co-located treatment-prior sweep lifts the withhold, and
-    the finding then ships labelled prior-informed rather than unqualified."""
+def _write_tau_sweep(d: Path, *, rows: list[dict] | None = None, outcome: str = "W"):
+    """A minimally valid attached treatment-prior sweep, bound to this fit.
+
+    Carries the standard sweep's full column set (so a hand-rolled CSV of the same
+    name cannot pass), two prior scales, converged cells, matching primary hashes and
+    a stable effect sign. Individual tests break exactly one clause.
+    """
+    from language_reading_predictors.statistical_models.sensitivity import (
+        _STANDARD_REQUIRED_COLUMNS,
+        sha256_file,
+    )
+
+    (d / "trace.nc").write_text("fit trace")
+    base = dict.fromkeys(_STANDARD_REQUIRED_COLUMNS, 1)
+    base.update(
+        {
+            "outcome": outcome,
+            "converged": True,
+            "primary_config_sha256": sha256_file(d / "config.json"),
+            "primary_trace_sha256": sha256_file(d / "trace.nc"),
+        }
+    )
+    if rows is None:
+        rows = [
+            {"tau_sigma": 0.25, "tau_logit_mean": 0.31},
+            {"tau_sigma": 0.5, "tau_logit_mean": 0.44},
+        ]
+    pd.DataFrame([{**base, **row} for row in rows]).to_csv(
+        d / "tau_prior_sensitivity.csv", index=False
+    )
+
+
+def _prior_dominant_dir(tmp_path: Path) -> Path:
     d = _setup_dir(tmp_path, "itt")
     _write_psense(d, prior=0.41, likelihood=0.02)
     _write_csv(d, "rope_summary.csv", _rope_row())
-    _write_csv(d, "tau_prior_sensitivity.csv", {"outcome": "W", "tau_sigma": 0.5})
+    return d
+
+
+def test_an_attached_tau_sweep_turns_a_withhold_into_a_qualified_release(tmp_path):
+    """Evidence-bound: a valid co-located treatment-prior sweep lifts the withhold,
+    and the finding then ships labelled prior-informed rather than unqualified."""
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(d)
     payload = generate_key_findings(d)
     assert payload["status"] == "ok"
     assert payload["release"]["status"] == "qualify"
     assert "prior-informed and exploratory" in _texts(payload)
+
+
+def test_an_empty_sweep_file_does_not_lift_the_withhold(tmp_path):
+    """Presence is not evidence. A zero-byte or header-only file passing the gate
+    would make the policy evidence-*named* rather than evidence-bound."""
+    d = _prior_dominant_dir(tmp_path)
+    (d / "tau_prior_sensitivity.csv").write_text("")
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "empty or unreadable" in payload["reason"]
+
+
+def test_a_csv_of_the_right_name_but_wrong_shape_does_not_lift_the_withhold(tmp_path):
+    d = _prior_dominant_dir(tmp_path)
+    _write_csv(d, "tau_prior_sensitivity.csv", {"outcome": "W", "tau_sigma": 0.5})
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "not a standard treatment-prior sweep" in payload["reason"]
+
+
+def test_a_single_prior_scale_is_not_a_sweep(tmp_path):
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(
+        d,
+        rows=[
+            {"tau_sigma": 0.5, "tau_logit_mean": 0.31},
+            {"tau_sigma": 0.5, "tau_logit_mean": 0.44},
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "fewer than two scales" in payload["reason"]
+
+
+def test_an_unconverged_sweep_cell_is_not_evidence(tmp_path):
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(
+        d,
+        rows=[
+            {"tau_sigma": 0.25, "tau_logit_mean": 0.31},
+            {"tau_sigma": 0.5, "tau_logit_mean": 0.44, "converged": False},
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "did not converge" in payload["reason"]
+
+
+def test_a_sweep_bound_to_a_different_fit_does_not_lift_the_withhold(tmp_path):
+    """"Computed from the same trace and commit as the posterior" is the stated bar,
+    so a sweep carrying another fit's primary hashes is not this fit's evidence."""
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(d)
+    frame = pd.read_csv(d / "tau_prior_sensitivity.csv")
+    frame["primary_trace_sha256"] = "0" * 64
+    frame.to_csv(d / "tau_prior_sensitivity.csv", index=False)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "different trace.nc" in payload["reason"]
+
+
+def test_a_sweep_whose_effect_changes_sign_does_not_lift_the_withhold(tmp_path):
+    """Sign stability is the bar, not interval width: a conservative prior is
+    expected to move the magnitude, so only a direction flip disqualifies."""
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(
+        d,
+        rows=[
+            {"tau_sigma": 0.25, "tau_logit_mean": 0.31},
+            {"tau_sigma": 0.5, "tau_logit_mean": -0.12},
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "changes sign" in payload["reason"]
 
 
 def test_unmeasured_power_scaling_withholds_rather_than_passing_silently(tmp_path):

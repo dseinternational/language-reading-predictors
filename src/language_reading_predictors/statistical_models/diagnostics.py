@@ -298,13 +298,17 @@ def compute_log_likelihood_and_prior(
     """
     density_model = log_density_model(context.model)
     try:
-        context.trace = compute_log_likelihood(context.trace, model=density_model)
+        context.trace = compute_log_likelihood(
+            context.trace, model=density_model, progressbar=False
+        )
     except Exception as exc:
         if strict:
             raise
         rprint(f"[yellow]log_likelihood group skipped: {exc}[/yellow]")
     try:
-        context.trace = compute_log_prior(context.trace, model=density_model)
+        context.trace = compute_log_prior(
+            context.trace, model=density_model, progressbar=False
+        )
     except Exception as exc:  # pragma: no cover - psense is secondary
         rprint(f"[yellow]log_prior group skipped: {exc}[/yellow]")
 
