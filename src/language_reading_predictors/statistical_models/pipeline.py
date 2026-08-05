@@ -2741,6 +2741,11 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         _diag.save_joint_loo_pit_plot(ctx, symbol, filename_stem=stem)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_joint_vars)
+    # Power-scaling prior sensitivity (#381) on the causal term only, matching the
+    # ITT family this shares an estimand with — ``tau`` is vector-valued here, so
+    # psense expands it to one row per outcome and the report can say which of the
+    # jointly-fitted effects lean on the prior.
+    _diag.run_psense(ctx, var_names=["tau"])
     # The probability-scale AMEs in tau_summary.csv are the headline effects. This
     # forest is deliberately retained as an explicitly labelled secondary view of
     # the conditional-logit coefficients.
@@ -8794,6 +8799,15 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     diag_vars = ["lambda_free", "sigma_free", "factor_corr_pairs"]
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
+    # Power-scaling prior sensitivity (#381), as in the RLI ``corr_factor`` family:
+    # LOO is skipped here, so the log groups have to be added explicitly before the
+    # reported loadings, residual scales and factor correlations can be power-scaled.
+    # #381 exempted this model on the grounds that its posterior had not converged;
+    # since the #383 ``LKJCorr`` fix it does (0 divergences, max R-hat 1.0004), so the
+    # exemption no longer applies and a latent-factor model is exactly where an
+    # unmeasured prior dependence would matter most.
+    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
+    _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["Z_obs"])
 
