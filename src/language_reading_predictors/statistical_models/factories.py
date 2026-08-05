@@ -3973,14 +3973,35 @@ def build_correlated_factor_model(
         # measure-preserving reparameterisation: the posterior over loadings,
         # residuals, factor correlations, factor scores and slopes is unchanged;
         # only the sampler geometry is.
-        _, corr, _ = pm.LKJCholeskyCov(
-            "factor_cov",
-            n=D,
-            eta=lkj_eta,
-            sd_dist=pm.Exponential.dist(1.0, size=D),
-            compute_corr=True,
-        )
-        pm.Deterministic("factor_corr", corr, dims=("domain", "domain_b"))
+        # Correlation-only role, so use bare ``LKJCorr`` rather than
+        # ``LKJCholeskyCov``. The previous build discarded both the Cholesky factor
+        # and the sds (``_, corr, _``) and used only the correlation; but in a CFA the
+        # factor scale is fixed by the loadings, so those D sd components are
+        # **unidentified**. They wandered, mixed poorly, and — because the convergence
+        # gate scans every free RV — failed R-hat/ESS on ``factor_cov`` (R-hat up to
+        # 1.024, ESS down to 213 at reporting tier) while every quantity the model
+        # actually reports converged cleanly (``factor_corr`` R-hat <= 1.003 with ESS
+        # 2.2k-24k; ``lambda_load`` and ``communality`` better still). The gate was
+        # therefore failing on a nuisance parameter nothing downstream reads.
+        #
+        # Bare ``LKJCorr`` has no sds to leave unidentified and gives the correlation
+        # the same LKJ(eta) marginal, so this is measure-preserving for everything
+        # reported. It follows the reasoning already applied in
+        # ``build_longitudinal_corr_factor_model`` and the measure-correlation block
+        # below, and ``lrp-rli-lcf-001`` — which already used bare ``LKJCorr`` — is the
+        # natural experiment: it passed the gate where these four did not.
+        #
+        # The environment's ``LKJCorr`` returns the CHOLESKY FACTOR L, not R, so
+        # R = L @ L.T. A single-domain model has no free correlation at all.
+        if D > 1:
+            factor_chol = pm.LKJCorr("factor_corr_chol", n=D, eta=lkj_eta)
+            corr = pm.Deterministic(
+                "factor_corr", factor_chol @ factor_chol.T, dims=("domain", "domain_b")
+            )
+        else:
+            corr = pm.Deterministic(
+                "factor_corr", pt.eye(D), dims=("domain", "domain_b")
+            )
 
         # The headline quantities of this model are the D*(D-1)/2 unique
         # off-diagonal factor correlations, but ``factor_corr`` cannot be used to
@@ -5281,6 +5302,12 @@ def build_lcsm_model(
         beta_bb = ((1 - mu_clip) * kappa[None, None, :]).reshape((-1,))
         idx_i, idx_t, idx_k = np.nonzero(mask)
         lin = np.ravel_multi_index((idx_i, idx_t, idx_k), (N, T, K))
+        # Persist each flattened cell's outcome position so predictive checks can
+        # select one measure. Without it a consumer must re-derive the mask order,
+        # and a pooled overlay across measures with different maxima has no
+        # interpretable predictive distribution (issue #208 / the joint family's
+        # ``y_post_cell_outcome`` idiom).
+        pm.Data("y_obs_cell_outcome", idx_k.astype("int64"), dims="y_obs_cell")
         pm.BetaBinomial(
             "y_obs",
             n=n_trials_vec[idx_k],
@@ -5474,6 +5501,12 @@ def build_growth_model(
         beta_bb = ((1 - mu_clip) * kappa[None, None, :]).reshape((-1,))
         idx_i, idx_t, idx_k = np.nonzero(mask)
         lin = np.ravel_multi_index((idx_i, idx_t, idx_k), (N, T, K))
+        # Persist each flattened cell's outcome position so predictive checks can
+        # select one measure. Without it a consumer must re-derive the mask order,
+        # and a pooled overlay across measures with different maxima has no
+        # interpretable predictive distribution (issue #208 / the joint family's
+        # ``y_post_cell_outcome`` idiom).
+        pm.Data("y_obs_cell_outcome", idx_k.astype("int64"), dims="y_obs_cell")
         pm.BetaBinomial(
             "y_obs",
             n=n_trials_vec[idx_k],
@@ -6169,14 +6202,35 @@ def build_rlm_corr_factor_model(
         # Factor correlation matrix, mirroring the RLI mm-001 build: the unique
         # off-diagonals are exposed as their own vector so the strict gate
         # evaluates exactly the numbers the report releases.
-        _, corr, _ = pm.LKJCholeskyCov(
-            "factor_cov",
-            n=D,
-            eta=lkj_eta,
-            sd_dist=pm.Exponential.dist(1.0, size=D),
-            compute_corr=True,
-        )
-        pm.Deterministic("factor_corr", corr, dims=("domain", "domain_b"))
+        # Correlation-only role, so use bare ``LKJCorr`` rather than
+        # ``LKJCholeskyCov``. The previous build discarded both the Cholesky factor
+        # and the sds (``_, corr, _``) and used only the correlation; but in a CFA the
+        # factor scale is fixed by the loadings, so those D sd components are
+        # **unidentified**. They wandered, mixed poorly, and — because the convergence
+        # gate scans every free RV — failed R-hat/ESS on ``factor_cov`` (R-hat up to
+        # 1.024, ESS down to 213 at reporting tier) while every quantity the model
+        # actually reports converged cleanly (``factor_corr`` R-hat <= 1.003 with ESS
+        # 2.2k-24k; ``lambda_load`` and ``communality`` better still). The gate was
+        # therefore failing on a nuisance parameter nothing downstream reads.
+        #
+        # Bare ``LKJCorr`` has no sds to leave unidentified and gives the correlation
+        # the same LKJ(eta) marginal, so this is measure-preserving for everything
+        # reported. It follows the reasoning already applied in
+        # ``build_longitudinal_corr_factor_model`` and the measure-correlation block
+        # below, and ``lrp-rli-lcf-001`` — which already used bare ``LKJCorr`` — is the
+        # natural experiment: it passed the gate where these four did not.
+        #
+        # The environment's ``LKJCorr`` returns the CHOLESKY FACTOR L, not R, so
+        # R = L @ L.T. A single-domain model has no free correlation at all.
+        if D > 1:
+            factor_chol = pm.LKJCorr("factor_corr_chol", n=D, eta=lkj_eta)
+            corr = pm.Deterministic(
+                "factor_corr", factor_chol @ factor_chol.T, dims=("domain", "domain_b")
+            )
+        else:
+            corr = pm.Deterministic(
+                "factor_corr", pt.eye(D), dims=("domain", "domain_b")
+            )
         iu, ju = np.triu_indices(D, k=1)
         if len(iu):
             pm.Deterministic(

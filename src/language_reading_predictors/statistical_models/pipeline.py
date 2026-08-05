@@ -35,7 +35,6 @@ import inspect
 import os
 import shutil
 from collections.abc import Iterable, Sequence
-from dataclasses import replace
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -310,41 +309,6 @@ def _effective_adjustment(
         "fitted": terms,
         "dropped_constant": list(prepared.dropped_covariates),
     }
-
-
-def _apply_spec_target_accept(ctx: StatisticalFitContext, spec: ModelSpec) -> None:
-    """Apply a model-specific ``spec.extra['target_accept']`` with explicit precedence.
-
-    Precedence is **CLI override > model-specific default > config preset**.
-
-    Some models (the horseshoe's global-local funnel, the small-n correlated-factor
-    CFA) need a higher ``target_accept`` than their tier preset gives, and declare
-    it in ``spec.extra``. That must not silently outrank an explicit
-    ``--target-accept`` from the command line: the previous
-    ``max(preset_or_cli, spec_value)`` meant a deliberate ``--target-accept 0.95``
-    was replaced by a spec's 0.999, so a diagnostic reproduction or an ablation
-    silently did not run at the requested setting. ``scripts/fit_statistical_model``
-    flags a CLI override on the sampling config; when that flag is set the spec
-    value is ignored.
-    """
-    target_accept = spec.extra.get("target_accept")
-    if target_accept is None:
-        return
-    target_accept = float(target_accept)
-    if not 0.0 < target_accept < 1.0:
-        raise ValueError(
-            "spec.extra['target_accept'] must be in the open interval (0, 1); "
-            f"got {target_accept!r}"
-        )
-    if ctx.run_options.target_accept is not None:
-        rprint(
-            "[yellow]Keeping the CLI --target-accept "
-            f"({ctx.sampling.target_accept}) over {spec.model_id}'s "
-            f"spec default ({target_accept}).[/yellow]"
-        )
-        return
-    # No CLI override: the model-specific value takes precedence over the preset.
-    ctx.sampling = replace(ctx.sampling, target_accept=target_accept)
 
 
 def _print_header(ctx: StatisticalFitContext) -> None:
@@ -831,21 +795,25 @@ def _prior_table_overrides(
                 "backdoor covariate on the standardised predictor_slope prior, not "
                 "the randomised ITT effect (the causal claim lives in the ITT suite)."
             )
-        if "factor_cov" in _rv_names:
-            # ``factor_cov``'s off-diagonals are the reported factor-correlation
+        if "factor_corr_chol" in _rv_names:
+            # ``factor_corr_chol``'s off-diagonals are the reported factor-correlation
             # matrix (exposed as the ``factor_corr_pairs`` deterministic the strict
             # gate evaluates), so it is an ``association`` — the same carve-out this
             # branch already applies to ``measure_corr_chol`` / ``trait_corr_chol`` /
-            # ``state_corr_chol_w``, one step more direct. Only the discarded
-            # ``sd_dist`` scales are nuisance (scale is carried by the loadings),
-            # which is why the fallback originally lumped it with ``u_chol`` / ``chol``
-            # (#384 review, Frank: promote nuisance -> association).
-            role["factor_cov"] = "association"
-            rationale["factor_cov"] = (
-                "LKJ(eta=2) prior on the domain-factor correlation matrix (the SDs "
-                "are discarded; scale is carried by the loadings); its off-diagonals "
-                "are the reported factor-correlation matrix — the study's headline "
-                "descriptive association."
+            # ``state_corr_chol_w`` (#384 review, Frank: promote nuisance ->
+            # association).
+            #
+            # Formerly ``factor_cov``, an ``LKJCholeskyCov`` whose ``sd_dist`` scales
+            # were discarded. That observation — scale is carried by the loadings, so
+            # the sds do nothing — is exactly why they were unidentified, and why the
+            # all-free-RV gate failed on them while every reported quantity converged.
+            # The bare ``LKJCorr`` has no such component to leave dangling.
+            role["factor_corr_chol"] = "association"
+            rationale["factor_corr_chol"] = (
+                "LKJ(eta=2) prior on the domain-factor correlation matrix, sampled as "
+                "its Cholesky factor (R = L L'); scale is carried by the loadings. Its "
+                "off-diagonals are the reported factor-correlation matrix — the "
+                "study's headline descriptive association."
             )
     elif spec.kind == "concurrent" and context.model is not None:
         # The focal concurrent skill coefficients are ``beta``/``beta_age``; every
@@ -1930,6 +1898,9 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_rate_plot(
+        ctx, spec.outcome_symbol, node="y_event"
+    )
 
     _run_sampling_and_loo(ctx)
 
@@ -4010,7 +3981,6 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Some mechanism fits keep the HSGP curve and need a higher target_accept for
     # the residual boundary divergences (LRP58/71/158); honour it with the shared
     # CLI > model-specific > preset precedence.
-    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     # Data preparation and construction live in the family-owned ``mechanism``
@@ -6688,7 +6658,6 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     ctx = make_context(spec, config, ci_prob=0.89)
     # The horseshoe has a funnel geometry (global-local scales); lift target_accept
     # above the tier default so the sampler takes smaller steps near the neck.
-    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     measure_syms = tuple(
@@ -7825,6 +7794,20 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    # One check per measure: ``y_obs`` flattens every measure into a single vector, so
+    # a lone overlay would pool scales with different maxima. The headline reading
+    # symbol keeps the unsuffixed filename the report partial expects.
+    for _sym in outcomes:
+        _diag.save_prior_predictive_plot(
+            ctx,
+            _sym,
+            node="y_obs",
+            filename_stem=(
+                "prior_predictive_check"
+                if _sym == reading_symbol
+                else f"prior_predictive_check_{_sym.lower()}"
+            ),
+        )
 
     _run_sampling_and_loo(ctx)
 
@@ -8070,6 +8053,20 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    # One check per measure: ``y_obs`` flattens (child, wave, outcome) into a single
+    # vector, so a lone overlay would pool scales with different maxima. The first
+    # outcome keeps the unsuffixed filename the report partial expects.
+    for _i, _sym in enumerate(outcomes):
+        _diag.save_prior_predictive_plot(
+            ctx,
+            _sym,
+            node="y_obs",
+            filename_stem=(
+                "prior_predictive_check"
+                if _i == 0
+                else f"prior_predictive_check_{_sym.lower()}"
+            ),
+        )
 
     _run_sampling_and_loo(ctx)
 
@@ -8245,6 +8242,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, measure, node="score")
 
     _run_sampling_and_loo(ctx)
 
@@ -8433,6 +8431,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
 
     _run_sampling_and_loo(ctx)
 
@@ -8595,7 +8594,6 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     slab_df = float(e.get("slab_df", 4.0))
 
     ctx = make_context(spec, config, ci_prob=0.89)
-    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     frame = load_rlm_span_frame(
@@ -8622,6 +8620,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
 
     _run_sampling_and_loo(ctx)
 
@@ -8698,7 +8697,6 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     )
 
     ctx = make_context(spec, config)
-    _apply_spec_target_accept(ctx, spec)
     hdi = ctx.reporting.ci_prob
     lo_q = (1.0 - hdi) / 2.0
 
@@ -8722,6 +8720,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    _diag.save_prior_predictive_dist_overlay(ctx)
 
     _run_sampling_and_loo(ctx, compute_loo=False)
 
@@ -8843,6 +8842,17 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
+    # One likelihood node per measure, so emit one check per measure rather than a
+    # pooled overlay: these scales have different maxima and pooling their counts has
+    # no interpretable predictive distribution (same reasoning as the joint family's
+    # symbol-suffixed checks).
+    for _sym in measure_syms:
+        _diag.save_prior_predictive_plot(
+            ctx,
+            _sym,
+            node=f"score_{_sym}",
+            filename_stem=f"prior_predictive_check_{_sym.lower()}",
+        )
 
     _run_sampling_and_loo(ctx, compute_loo=False)
 
@@ -9004,7 +9014,6 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # scores marginalised out of the measurement likelihood a few boundary
     # divergences survive at the tier-default target_accept, so lift it via the spec
     # (the strict gate requires zero), as the horseshoe fit does for its funnel.
-    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     domains = {
@@ -9293,7 +9302,6 @@ def fit_longitudinal_corr_factor(
     ctx = make_context(spec, config)
     # A small-n latent model; even fully marginalised a few boundary divergences can
     # survive at the tier default, so lift target_accept via the spec (as mm-001 does).
-    _apply_spec_target_accept(ctx, spec)
 
     section_header("Prepare data")
     domains = {
@@ -9358,6 +9366,7 @@ def fit_longitudinal_corr_factor(
     prior_vars = [rv.name for rv in built.model.free_RVs]
     prior_vars += ["communality", "factor_corr_pairs", *z_nodes]
     _diag.run_prior_predictive(ctx, draws=1000, var_names=prior_vars)
+    _diag.save_prior_predictive_dist_overlay(ctx)
 
     # Automatic single-target LOO is ambiguous with per-pattern observed nodes, so
     # sampling runs without it and the per-child stitch below computes LOO instead.
