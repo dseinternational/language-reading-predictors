@@ -45,6 +45,15 @@ SPEC = ModelSpec(
         "use_subject_random_intercept": True,
         "moderator_symbol": "TR",
         "target_accept": 0.999,
+        # Thin-support HSGP reparameterisation (#438 / notes/202607251500-mech-hsgp-
+        # reparameterisation.md): basis count 6 (from the shared default 10) and the
+        # tighter InverseGamma(8, 8) lengthscale prior. Adopted here because this fit
+        # holds 1 divergence(s) at target_accept 0.999, and a nonlinear knee/shape is
+        # zero-divergence-only under notes/202608021625-divergence-qualification-policy.md
+        # — the geometry has to be fixed, not waived. Per-model opt-in, not a default:
+        # the same lever regressed mech-173 from 0 to 10 divergences.
+        "mech_hsgp_m": 6,
+        "mech_lengthscale_tight": True,
     },
 )
 
