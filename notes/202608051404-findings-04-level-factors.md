@@ -23,19 +23,21 @@ The companion _levels_ view to the gain-factor family (note 03). Where the gain 
 
 The only causal quantity in each model, on the items scale, median with 89% range.
 
-| Model    | Outcome                    | t2 contrast (89%)             | P(>0) | Evidence     | ROPE |
-| -------- | -------------------------- | ----------------------------- | ----: | ------------ | ---: |
-| `lf-004` | Letter sounds (LS)         | **+2.5** items (+0.1 to +4.8) | 0.954 | moderate     | 0.38 |
-| `lf-001` | Word reading (WR)          | +1.5 items (−1.2 to +4.0)     | 0.813 | suggestive   | 0.32 |
-| `lf-007` | Basic concepts (LF)        | +0.5 items (−0.6 to +1.6)     | 0.772 | suggestive   | 0.75 |
-| `lf-006` | Phoneme blending (PA)      | +0.4 items (−0.4 to +1.2)     | 0.797 | suggestive   | 0.87 |
-| `lf-009` | Taught receptive (TR)      | +0.4 items (−1.0 to +1.7)     | 0.662 | inconclusive | 0.72 |
-| `lf-010` | Taught expressive (TE)     | +0.3 items (−1.0 to +1.7)     | 0.650 | inconclusive | 0.72 |
-| `lf-008` | Receptive grammar (RG)     | +0.2 items (−1.4 to +1.8)     | 0.584 | inconclusive | 0.67 |
-| `lf-011` | Nonword reading (NW)       | +0.0 items (−0.1 to +0.1)     | 0.529 | inconclusive | 0.84 |
-| `lf-005` | Phonetic spelling (PS)     | −0.0 items (−0.1 to +0.1)     | 0.434 | inconclusive | 0.94 |
-| `lf-003` | Expressive vocabulary (EV) | −2.4 items (−6.5 to +1.7)     | 0.181 | inconclusive | 0.40 |
-| `lf-002` | Receptive vocabulary (RV)  | −3.8 items (−8.2 to +0.6)     | 0.084 | inconclusive | 0.24 |
+| Model      | Outcome                    | t2 contrast (89%)             | P(>0) | Evidence     | ROPE |
+| ---------- | -------------------------- | ----------------------------- | ----: | ------------ | ---: |
+| `lf-004`   | Letter sounds (LS)         | **+2.5** items (+0.1 to +4.8) | 0.954 | moderate     | 0.38 |
+| `lf-001` ‡ | Word reading (WR)          | +1.5 items (−1.2 to +4.0)     | 0.813 | suggestive   | 0.32 |
+| `lf-007`   | Basic concepts (LF)        | +0.5 items (−0.6 to +1.6)     | 0.772 | suggestive   | 0.75 |
+| `lf-006`   | Phoneme blending (PA)      | +0.4 items (−0.4 to +1.2)     | 0.797 | suggestive   | 0.87 |
+| `lf-009`   | Taught receptive (TR)      | +0.4 items (−1.0 to +1.7)     | 0.662 | inconclusive | 0.72 |
+| `lf-010`   | Taught expressive (TE)     | +0.3 items (−1.0 to +1.7)     | 0.650 | inconclusive | 0.72 |
+| `lf-008`   | Receptive grammar (RG)     | +0.2 items (−1.4 to +1.8)     | 0.584 | inconclusive | 0.67 |
+| `lf-011`   | Nonword reading (NW)       | +0.0 items (−0.1 to +0.1)     | 0.529 | inconclusive | 0.84 |
+| `lf-005` ‡ | Phonetic spelling (PS)     | −0.0 items (−0.1 to +0.1)     | 0.434 | inconclusive | 0.94 |
+| `lf-003`   | Expressive vocabulary (EV) | −2.4 items (−6.5 to +1.7)     | 0.181 | inconclusive | 0.40 |
+| `lf-002`   | Receptive vocabulary (RV)  | −3.8 items (−8.2 to +0.6)     | 0.084 | inconclusive | 0.24 |
+
+‡ **Withheld from release** under the robustness gate — see below. The numbers are shown because this note is a technical record, not a published finding.
 
 **The direction survives for the two reading skills; the precision does not.** Letter sounds is the only outcome retaining even moderate evidence (+2.5 items, P = 0.95), and word reading drops to suggestive (+1.5, P = 0.81) — against +3.5 and +2.4 with strong-to-very-strong evidence in both the ITT and gain-factor families. The point estimates are compatible; the intervals are roughly twice as wide.
 
@@ -44,6 +46,16 @@ The only causal quantity in each model, on the items scale, median with 89% rang
 ## Post-crossover timepoints
 
 Each model also reports t3 and t4 group contrasts. These are **not** intervention effects — by then both arms have received the intervention, differing only in timing — and they are reported as associations. They are useful for describing the trajectory of the two cohorts, not for estimating benefit.
+
+## Withheld from release under the robustness gate
+
+The key-findings release gate (`notes/202608051500-decision-key-findings-robustness-release-gate.md`, `statistical_models/release.py`) was extended on 2026-08-05 from the ITT family to every family whose headline rests on a randomised term. It classifies the focal coefficient on power-scaling sensitivity, and where the posterior responds to the **prior** but not to the **likelihood** the direction is not established by the data alone, so the causal headline is withheld and the report's result tables are suppressed.
+
+- **`lf-001`** (word reading, `b_grp_time[1]` prior 0.061 vs likelihood 0.048) and **`lf-005`** (phonetic spelling, 0.064 vs 0.049) — both marginal, sitting just either side of the 0.05 threshold on the likelihood side.
+
+The gate reads `b_grp_time[1]` specifically, not the `b_grp_time` vector: only the t2 element is randomised, and a lookup on the bare name returns "unavailable" for all eleven fits — which would have withheld the whole family for a diagnosis sitting one row away.
+
+Nothing here needs refitting. Attaching a `tau_prior_sensitivity.csv` sweep to the fit, showing the sign holds across the treatment-prior grid, lifts the withhold. **Until then these rows are not results.**
 
 ## Caveats
 

@@ -17,6 +17,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from language_reading_predictors.statistical_models import release as _release
 from language_reading_predictors.statistical_models.definitions import KINDS
 from language_reading_predictors.statistical_models.reporting import (
     KEY_FINDINGS_FILENAME,
@@ -116,22 +117,32 @@ def _setup_dir(
                 },
             ],
         )
-        _write_psense(d)
+    if _release.gate_applies(_read_json(d, "config.json")):
+        _write_psense(d, term=_release.causal_term_for(_read_json(d, "config.json")))
     return d
 
 
-def _write_psense(d: Path, *, prior: float = 0.01, likelihood: float = 0.02) -> None:
-    """Write a ``tau`` power-scaling row for the #392 robustness release gate.
+def _read_json(d: Path, name: str) -> dict:
+    return json.loads((d / name).read_text())
 
-    ITT fixtures need one because the gate is deliberately fail-closed: a fit with no
-    ``psense_summary.csv`` has not been measured clean, it has not been measured, and
-    that withholds. Defaults are below the 0.05 flag threshold, so a fixture releases
-    unless it overrides them. ArviZ writes a tick for an unflagged parameter, which is
-    reproduced here so the fixture matches the real artefact.
+
+def _write_psense(
+    d: Path, *, prior: float = 0.01, likelihood: float = 0.02, term: str = "tau"
+) -> None:
+    """Write a power-scaling row for the #392 robustness release gate.
+
+    Every gated fixture needs one because the gate is deliberately fail-closed: a fit
+    with no ``psense_summary.csv`` has not been measured clean, it has not been
+    measured, and that withholds. Defaults are below the 0.05 flag threshold, so a
+    fixture releases unless it overrides them. ArviZ writes a tick for an unflagged
+    parameter, which is reproduced here so the fixture matches the real artefact.
+
+    ``term`` follows the family, since the gate reads ``beta_trt`` for gain factors,
+    ``b_grp_time[1]`` for level factors and ``tau_t2`` (or a dose slope) for DiD.
     """
     frame = pd.DataFrame(
         [{"prior": prior, "likelihood": likelihood, "diagnosis": "✓"}],
-        index=["tau"],
+        index=[term],
     )
     frame.to_csv(d / "psense_summary.csv")
 
@@ -862,7 +873,7 @@ def test_level_factors_keeps_the_causal_sentence_when_psense_also_flags(tmp_path
     ).to_csv(d / "psense_summary.csv")
     payload = generate_key_findings(d)
     kinds = [s["kind"] for s in payload["sentences"]]
-    assert kinds == ["headline", "warning", "confidence", "rope", "causal"]
+    assert kinds == ["headline", "confidence", "rope", "robustness", "causal"]
     assert len(kinds) <= KEY_FINDINGS_MAX_SENTENCES
     assert "typical cognitive ability" in payload["sentences"][-1]["text"]
 
@@ -887,8 +898,10 @@ def test_design_note_records_the_group_ability_exclusion():
 
 def test_level_factors_surfaces_t2_psense_warning(tmp_path):
     # #389 finding 3: when power-scaling flags the t2 term (b_grp_time[1]), a caution
-    # bullet is surfaced right after the headline instead of being hidden in a
-    # collapsed prior section. psense_summary.csv is index-keyed by parameter.
+    # is surfaced beside the headline instead of being hidden in a collapsed prior
+    # section. Carried by the release gate since it was extended to this family, so
+    # the caution is the gate's ``robustness`` note rather than a level-factor one —
+    # one canonical statement instead of two saying the same thing.
     d = _setup_dir(tmp_path, "level_factors")
     _write_csv(d, "rope_summary.csv", _rope_row())
     pd.DataFrame(
@@ -901,12 +914,12 @@ def test_level_factors_surfaces_t2_psense_warning(tmp_path):
     ).to_csv(d / "psense_summary.csv")
     payload = generate_key_findings(d)
     assert payload["status"] == "ok"
-    assert [s["kind"] for s in payload["sentences"]] == [
-        "headline", "warning", "confidence", "rope", "causal"
-    ]
-    warn = payload["sentences"][1]["text"]
-    assert "prior-sensitive" in warn
-    assert "potential prior-data conflict" in warn
+    assert payload["release"]["tau_class"] == "prior_data_conflict"
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert "robustness" in kinds
+    assert kinds.index("robustness") < kinds.index("causal")
+    warn = payload["sentences"][kinds.index("robustness")]["text"]
+    assert "lower bound" in warn
 
 
 @pytest.mark.parametrize("clear_marker", ["✓", "-", ""])
@@ -928,9 +941,11 @@ def test_level_factors_no_warning_when_t2_psense_clear(tmp_path, clear_marker):
     assert "warning" not in [s["kind"] for s in payload["sentences"]]
 
 
-def test_level_factors_warns_on_an_unrecognised_psense_marker(tmp_path):
-    # An unknown marker is treated as a flag, not silently dropped: under-warning on
-    # a real prior-data conflict is the worse failure of the two.
+def test_level_factors_withhold_beats_an_unrecognised_psense_marker(tmp_path):
+    # The gate classifies on the prior and likelihood statistics rather than on the
+    # marker string, so an unknown verdict cannot slip past: prior 0.9 against
+    # likelihood 0.01 is prior-dominant, and the headline is withheld outright —
+    # a stronger response than the caution this previously produced.
     d = _setup_dir(tmp_path, "level_factors")
     _write_csv(d, "rope_summary.csv", _rope_row())
     pd.DataFrame(
@@ -938,7 +953,9 @@ def test_level_factors_warns_on_an_unrecognised_psense_marker(tmp_path):
         index=["b_grp_time[1]"],
     ).to_csv(d / "psense_summary.csv")
     payload = generate_key_findings(d)
-    assert "warning" in [s["kind"] for s in payload["sentences"]]
+    assert payload["status"] == "robustness_unresolved"
+    assert payload["release"]["tau_class"] == "prior_dominant"
+    assert payload["sentences"] == []
 
 
 def test_did_golden_sentences(tmp_path):
@@ -1861,14 +1878,74 @@ def test_ordinary_itt_causal_sentence_is_unchanged_by_the_floor_wording(tmp_path
     assert "available-case assumption" in causal["text"]
 
 
-def test_release_gate_does_not_touch_other_families(tmp_path):
-    """Scope is ITT (#392's own scope). A gain-factors fit with no psense at all
-    must still release, so this change cannot silently gate the whole suite."""
-    d = _setup_dir(tmp_path, "gain_factors")
-    _write_csv(d, "rope_summary.csv", _rope_row())
+def test_release_gate_does_not_touch_observational_families(tmp_path):
+    """Scope is the randomisation-anchored families. An observational one has no
+    causal headline to gate, so it must release with no release block at all — the
+    extension must not silently gate the whole suite."""
+    d = _setup_dir(tmp_path, "mechanism")
     payload = generate_key_findings(d)
-    assert payload["status"] == "ok"
     assert "release" not in payload
+
+
+def test_gate_covers_the_randomised_families_and_fails_closed_unmeasured(tmp_path):
+    """The #392 rule mirrored onto did / gain_factors / level_factors.
+
+    Unmeasured withholds here for the same reason it does in ITT: a fit with no
+    psense has not been measured clean, it has not been measured.
+    """
+    for kind in ("did", "gain_factors", "level_factors"):
+        root = tmp_path / kind
+        root.mkdir()
+        d = _setup_dir(root, kind)
+        (d / "psense_summary.csv").unlink()
+        payload = generate_key_findings(d)
+        assert payload["status"] == "robustness_unresolved", kind
+        assert payload["release"]["tau_class"] == "unavailable", kind
+
+
+def test_treated_only_gain_factor_companions_are_out_of_scope(tmp_path):
+    """A treated-only companion has no randomised term to gate.
+
+    Every row is on intervention, so the treatment indicator is constant, the factory
+    drops ``beta_trt``, and the resolved plan says the fit is associational. Without
+    this the fail-closed rule reads a structurally absent term as an unmeasured one
+    and withholds all eight companions — "not measured" and "not present" are the
+    same absence to a lookup and opposite things to a reader.
+    """
+    d = _setup_dir(tmp_path, "gain_factors")
+    config = json.loads((d / "config.json").read_text())
+    config["resolved_run_plan"] = {**config.get("resolved_run_plan", {}), "treated_only": True}
+    (d / "config.json").write_text(json.dumps(config))
+    payload = generate_key_findings(d)
+    assert "release" not in payload
+    assert payload["status"] != "robustness_unresolved"
+
+
+def test_each_family_reads_its_own_causal_term():
+    """The gate must name the term the headline actually rests on.
+
+    ``level_factors`` fits one ``b_grp_time`` per timepoint and only t2 is randomised;
+    reading the bare vector name returns "unavailable" for all eleven fits. The DiD
+    dose models have no ``tau_t2`` at all — the choice mirrors ``DiDRunPlan.effect_term``
+    and is read from the persisted plan so the decision and the fit's own psense
+    emission cannot disagree.
+    """
+    from language_reading_predictors.statistical_models.release import causal_term_for
+
+    assert causal_term_for({"kind": "itt"}) == "tau"
+    assert causal_term_for({"kind": "gain_factors"}) == "beta_trt"
+    assert causal_term_for({"kind": "level_factors"}) == "b_grp_time[1]"
+    assert causal_term_for({"kind": "did"}) == "tau_t2"
+    assert (
+        causal_term_for({"kind": "did", "resolved_run_plan": {"dose": True}})
+        == "beta_dose"
+    )
+    assert (
+        causal_term_for(
+            {"kind": "did", "resolved_run_plan": {"dose": True, "period_varying": True}}
+        )
+        == "mu_dose"
+    )
 
 
 def test_a_release_gate_that_cannot_be_evaluated_fails_closed(tmp_path, monkeypatch):
@@ -1882,7 +1959,7 @@ def test_a_release_gate_that_cannot_be_evaluated_fails_closed(tmp_path, monkeypa
     def _boom(*_args, **_kwargs):
         raise RuntimeError("evidence store unreachable")
 
-    monkeypatch.setattr(release_mod, "evaluate_itt_release", _boom)
+    monkeypatch.setattr(release_mod, "evaluate_release", _boom)
     payload = generate_key_findings(d)
     assert payload["status"] == "robustness_unresolved"
     assert "could not be evaluated" in payload["reason"]

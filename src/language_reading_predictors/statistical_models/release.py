@@ -36,11 +36,23 @@ power-scaling was never run is repaired by
 ``scripts/regenerate_psense.py`` followed by ``scripts/regenerate_key_findings.py``,
 with no refit.
 
-**Scope.** ITT, including the floored P/N primaries — the family #392 reviewed. The
-decision object and the classifier are family-agnostic, and the same rule was proposed
-to mirror onto ``did``'s ``tau_t2`` and ``gain_factors``' ``beta_trt``; that mirroring
-is deliberately left to a follow-up so this change stays reviewable against the
-issue's own scope.
+**Scope.** Every family whose headline rests on a randomisation-anchored term: ITT
+(``tau``, including the floored P/N primaries), ``did`` (``tau_t2``, or the dose
+model's own focal slope), ``gain_factors`` (``beta_trt``) and ``level_factors``
+(``b_grp_time[1]``, the t2 element — the only randomised one). #392 reviewed ITT and
+its mirroring onto the others was left to a follow-up; Frank ruled the uniform
+extension on 2026-08-05 after it was measured, because the case that never bit in ITT
+does bite outside it. **No ITT fit is prior-dominant; eight fits across the other
+three families are**, and every one of them was publishing an unqualified causal
+headline. Same defect, same treatment.
+
+The floor-grid requirement stays ITT-only. It is bound to the registered six-cell
+grid and to :func:`sensitivity.evaluate_floor_sensitivity`'s provenance machinery,
+neither of which was specified for ``gain_factors``' off-floor models; those are gated
+on their ``beta_trt`` prior dependence alone. Both of them (``gf-005``, ``gf-011``)
+withhold on that route today, so nothing is currently under-gated — but a *clear*
+off-floor gain-factor fit would release without the grid its ITT counterpart needs,
+which is a gap to close rather than a decision.
 
 **Tiering.** The policy applies uniformly across base ITT models, adjusted-robustness
 models and outcomes outside the standard 44-cell sweep. That was the default offered
@@ -69,11 +81,15 @@ from language_reading_predictors.statistical_models.sensitivity import (
 )
 
 __all__ = [
+    "GATED_KINDS",
     "PSENSE_THRESHOLD",
     "ReleaseDecision",
     "TauSensitivityClass",
+    "causal_term_for",
     "classify_tau_sensitivity",
+    "gate_applies",
     "evaluate_itt_release",
+    "evaluate_release",
 ]
 
 #: ArviZ's default power-scaling flag threshold. A parameter is "sensitive" when
@@ -89,6 +105,62 @@ ReleaseStatus = Literal["release", "qualify", "withhold"]
 #: Model tiers to which the withhold applies. Uniform by decision; narrowing this
 #: set is how a graded policy would be expressed.
 _WITHHOLD_TIERS = frozenset({"primary", "adjusted_robustness", "off_grid"})
+
+#: Families the gate covers, each keyed to the term its causal headline rests on.
+#: A family is here only if a randomised contrast identifies its headline — the
+#: observational families report adjusted associations, which the reports already
+#: label as such, and gating those on prior sensitivity would say nothing a reader
+#: does not already know from the label.
+GATED_KINDS = frozenset({"itt", "did", "gain_factors", "level_factors"})
+
+
+def gate_applies(config: Mapping[str, Any]) -> bool:
+    """Is this fit in scope for the robustness gate at all?
+
+    Family membership is necessary but not sufficient. A ``gain_factors`` **treated-only**
+    companion keeps every row on intervention, so the treatment indicator is constant,
+    ``build_gain_factors_model`` drops ``beta_trt`` and every interaction naming it, and
+    the fit's own resolved plan states it has no randomised contrast. There is no causal
+    headline to gate, and no ``beta_trt`` row for power-scaling to measure.
+
+    That distinction is load-bearing rather than tidy-minded. Without it the gate reads
+    the absent term as an *unmeasured* one and withholds all eight companions — the
+    fail-closed rule doing real damage, because "not measured" and "structurally not
+    present" are the same absence to a lookup and opposite things to a reader.
+    """
+    if config.get("kind") not in GATED_KINDS:
+        return False
+    plan = config.get("resolved_run_plan") or {}
+    return not (
+        config.get("kind") == "gain_factors" and bool(plan.get("treated_only", False))
+    )
+
+
+def causal_term_for(config: Mapping[str, Any]) -> str:
+    """The psense row this fit's release decision turns on.
+
+    ``level_factors`` fits one ``b_grp_time`` coefficient per timepoint and only the
+    t2 element is randomised (#389 finding 1), so the gate names that element rather
+    than the vector. Reading the bare name instead returns "unavailable" for all
+    eleven fits — a gate that withholds every level-factor headline for a diagnosis
+    that is present and sitting one row away.
+
+    The ``did`` dose models have no ``tau_t2`` at all: their focal quantity is the
+    dose slope. The choice mirrors ``DiDRunPlan.effect_term`` and is read from the
+    persisted plan rather than re-derived from ``spec.extra``, so a fit's release
+    decision and its own psense emission cannot disagree about which term matters.
+    """
+    kind = config.get("kind")
+    if kind == "gain_factors":
+        return "beta_trt"
+    if kind == "level_factors":
+        return "b_grp_time[1]"
+    if kind == "did":
+        plan = config.get("resolved_run_plan") or {}
+        if plan.get("period_varying"):
+            return "mu_dose"
+        return "beta_dose" if plan.get("dose") else "tau_t2"
+    return "tau"
 
 _PRIOR_ATTENUATION_NOTE = (
     "The treatment-effect prior is deliberately cautious and pulls this estimate "
@@ -394,16 +466,39 @@ def _floor_decision(
     return ReleaseDecision(status="release", **common)
 
 
+def evaluate_release(
+    output_dir: str | Path,
+    config: Mapping[str, Any] | None = None,
+) -> ReleaseDecision:
+    """Decide what a randomised-effect fit's robustness evidence permits it to say.
+
+    The family entry point: resolves the term the headline rests on
+    (:func:`causal_term_for`) and applies the one policy. Callers that already know
+    the term can go straight to :func:`evaluate_itt_release`, which is the shared
+    implementation rather than an ITT-specific one — the name predates the extension
+    and is kept so existing callers and tests are undisturbed.
+    """
+    output_dir = Path(output_dir)
+    if config is None:
+        config = _load_config(output_dir) or {}
+    return evaluate_itt_release(
+        output_dir, config, causal_term=causal_term_for(config)
+    )
+
+
 def evaluate_itt_release(
     output_dir: str | Path,
     config: Mapping[str, Any] | None = None,
     *,
     causal_term: str = "tau",
 ) -> ReleaseDecision:
-    """Decide what an ITT fit's robustness evidence permits its findings box to say.
+    """Decide what a fit's robustness evidence permits its findings box to say.
 
     Reads only artefacts already in ``output_dir``, so it re-runs over a stored fit
     without refitting — the same contract ``generate_key_findings`` keeps.
+
+    ``causal_term`` defaults to ITT's ``tau``; :func:`evaluate_release` resolves it
+    per family.
     """
     output_dir = Path(output_dir)
     if config is None:
@@ -416,7 +511,11 @@ def evaluate_itt_release(
         psense, term=causal_term
     )
 
-    if bool(plan.get("floor_rule", False)):
+    # ITT-only: the six-cell grid and its provenance machinery are bound to the
+    # registered ITT floor rule. ``gain_factors``' off-floor models take the ordinary
+    # route on ``beta_trt`` — see this module's docstring for why, and for the gap
+    # that leaves if one of them ever comes back clear.
+    if config.get("kind") == "itt" and bool(plan.get("floor_rule", False)):
         return _floor_decision(
             output_dir,
             config,
