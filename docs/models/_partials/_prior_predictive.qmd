@@ -99,17 +99,23 @@ if _ipc is not None and len(_ipc):
         "inside the prior-predictive 90% band, judged against binomial sampling "
         "noise rather than a bare 0.90.\n"
     )
-    _worst = _ipc[_ipc["verdict"].isin(["too tight", "very loose"])]
     _ratios = _ipc["sd_ratio"].astype(float)
+    # Report the verdict distribution, not just the worst class. Saying "no
+    # indicator is flagged" above a table where 30 of 32 rows read "loose" is a
+    # contradiction to anyone who looks, even though "loose" is not a defect.
+    _counts = _ipc["verdict"].value_counts()
+    _tight = int(_counts.get("too tight", 0))
+    _spread = ", ".join(f"{int(n)} {v}" for v, n in _counts.items())
     print(
         f"Across {len(_ipc)} indicators the SD ratio runs "
         f"{_ratios.min():.2f} to {_ratios.max():.2f} "
-        f"(median {_ratios.median():.2f}). "
+        f"(median {_ratios.median():.2f}): {_spread}. "
         + (
-            f"**{len(_worst)} of them are flagged** "
-            f"({', '.join(sorted(set(_worst['verdict'])))}); see the table.\n"
-            if len(_worst)
-            else "No indicator is flagged.\n"
+            f"**{_tight} indicator(s) are narrower than the data** — the failure "
+            "that matters; see the table.\n"
+            if _tight
+            else "No indicator's prior is narrower than the data, so none of them "
+            "fights the likelihood.\n"
         )
     )
     print("")
