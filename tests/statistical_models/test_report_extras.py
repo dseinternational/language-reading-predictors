@@ -11,14 +11,21 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
+from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
     evidence_label,
     factor_summary,
+    joint_prior_pushforward,
+    labelled_pushforward,
+    marginal_prior_pushforward,
     prior_pushforward,
+    pushforward_values,
     rope_markdown,
     tau_summary_itt,
+    unavailable_pushforward,
 )
 from language_reading_predictors.statistical_models.pipeline import (
     _save_contrast_heatmap,
@@ -209,3 +216,152 @@ def test_diagnostics_report_surfaces_unreliable_pareto_k():
     assert "exact or moment-matched LOO" in diagnostics
     assert "same conditional row-level predictive target" in diagnostics
     assert "leaving out a whole child changes the target" in diagnostics
+
+
+# ---------------------------------------------------------------------------
+# Generalised estimand-scale prior pushforward (#381)
+# ---------------------------------------------------------------------------
+
+
+def test_marginal_pushforward_conventions_differ_and_match_their_transforms():
+    """The two conventions must be the transforms the families actually report.
+
+    ``forward`` is ``expit(eta + beta) - expit(eta)`` — the effect of one *more*
+    unit, which is what ``concurrent_marginals`` and the dose marginal compute.
+    ``net_out`` is ``expit(eta) - expit(eta - beta)`` — the unit already in the
+    linear predictor, the ``_itt_ame_draws`` convention. They are evaluated at
+    different operating points, so a family must not silently get the other one.
+    """
+    eta = np.full((1, 4, 3), 0.8)
+    beta = np.full((1, 4), 0.5)
+    trace = SimpleNamespace(prior=_ds(eta, beta.reshape(1, 4), extra={"b": beta}))
+
+    fwd = marginal_prior_pushforward(
+        trace, term="b", n_trials=10, ci_prob=0.9, convention="forward"
+    )
+    net = marginal_prior_pushforward(
+        trace, term="b", n_trials=10, ci_prob=0.9, convention="net_out"
+    )
+    expected_fwd = 10 * (expit(0.8 + 0.5) - expit(0.8))
+    expected_net = 10 * (expit(0.8) - expit(0.8 - 0.5))
+    assert fwd["prior_items_median"] == pytest.approx(expected_fwd)
+    assert net["prior_items_median"] == pytest.approx(expected_net)
+    # Concave inverse link above zero: one more unit buys less than the last one.
+    assert fwd["prior_items_median"] < net["prior_items_median"]
+    # The coefficient itself is convention-free.
+    assert fwd["prior_logit_median"] == pytest.approx(net["prior_logit_median"])
+
+
+def test_marginal_pushforward_selects_one_element_of_a_vector_term():
+    """The horseshoe families rank a ``beta`` indexed by predictor.
+
+    Without ``term_index`` the whole vector would stack into the draw axis and the
+    row would summarise a mixture of every predictor's coefficient, which is not a
+    quantity the model reports.
+    """
+    n_draw = 200
+    rng = np.random.default_rng(11)
+    beta = np.stack(
+        [rng.normal(-2.0, 0.01, n_draw), rng.normal(2.0, 0.01, n_draw)], axis=-1
+    )[None, ...]  # (1, n_draw, 2)
+    ds = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), np.zeros((1, n_draw, 3))),
+            "beta": (("chain", "draw", "predictor"), beta),
+        },
+        coords={
+            "chain": [0],
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(3),
+            "predictor": ["low", "high"],
+        },
+    )
+    trace = SimpleNamespace(prior=ds)
+    low = marginal_prior_pushforward(
+        trace, term="beta", n_trials=10, ci_prob=0.9, term_index={"predictor": "low"}
+    )
+    high = marginal_prior_pushforward(
+        trace, term="beta", n_trials=10, ci_prob=0.9, term_index={"predictor": "high"}
+    )
+    assert low["prior_logit_median"] == pytest.approx(-2.0, abs=0.05)
+    assert high["prior_logit_median"] == pytest.approx(2.0, abs=0.05)
+
+
+def test_labelled_pushforward_keeps_the_numeric_keys_the_blending_bundle_matches():
+    """Labels must not enter the numeric dict ``blending_sensitivity`` recomputes.
+
+    That validator intersects the saved CSV's columns with the keys
+    ``prior_pushforward`` returns and compares each with a float conversion, so a
+    string key in the returned dict would fail the released phoneme-blending
+    bundle. The labels therefore live only on the *written* row.
+    """
+    values = pushforward_values(
+        np.array([0.1, 0.2, 0.3]), np.array([1.0, 2.0, 3.0]), n_trials=10, ci_prob=0.9
+    )
+    assert all(isinstance(v, (int, float)) for v in values.values())
+    row = labelled_pushforward(
+        values, estimand="tau", estimand_label="the treatment effect", role="causal"
+    )
+    assert set(values) <= set(row)
+    assert row["status"] == "ok"
+    assert row["role"] == "causal"
+    # Every added key is a label, never a number the validator would compare.
+    assert set(row) - set(values) == {
+        "estimand",
+        "estimand_label",
+        "role",
+        "scale",
+        "status",
+        "reason",
+    }
+
+
+def test_unavailable_pushforward_records_the_reason_rather_than_vanishing():
+    """A check that could not run must stay visible — that is the #381 finding."""
+    row = unavailable_pushforward(
+        estimand="beta_cohort",
+        estimand_label="the cohort contrast",
+        role="association",
+        reason="this variant fits a single pooled cohort",
+    )
+    assert row["status"] == "unavailable"
+    assert "pooled cohort" in row["reason"]
+    assert np.isnan(row["prior_items_median"])
+
+
+def test_joint_pushforward_gives_each_outcome_its_own_row_and_denominator():
+    """A joint fit has one tau and one item ceiling per outcome.
+
+    A single-row schema would have to pick one outcome's denominator and apply it
+    to all of them, so the joint family gets one labelled row each.
+    """
+    n_draw = 300
+    rng = np.random.default_rng(7)
+    ds = xr.Dataset(
+        {
+            "eta": (
+                ("chain", "draw", "obs_id", "outcome"),
+                np.zeros((1, n_draw, 6, 2)),
+            ),
+            "tau": (("chain", "draw", "outcome"), rng.normal(0, 0.5, (1, n_draw, 2))),
+        },
+        coords={
+            "chain": [0],
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(6),
+            "outcome": ["W", "L"],
+        },
+    )
+    rows = joint_prior_pushforward(
+        SimpleNamespace(prior=ds),
+        outcomes=["W", "L"],
+        G=np.array([0.0, 1.0, 0.0, 1.0, 0.0, 1.0]),
+        n_trials={"W": 79, "L": 24},
+        ci_prob=0.89,
+    )
+    assert [r["estimand"] for r in rows] == ["tau[W]", "tau[L]"]
+    assert [r["n_trials"] for r in rows] == [79, 24]
+    assert all(r["role"] == "causal" for r in rows)
+    # Same logit prior, different denominators -> the wider ceiling gives the
+    # wider items range.
+    assert rows[0]["prior_items_hi"] > rows[1]["prior_items_hi"]

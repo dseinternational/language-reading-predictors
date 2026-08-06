@@ -9,6 +9,7 @@ import json
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
+from typing import Any, Literal
 
 import arviz as az
 import numpy as np
@@ -673,6 +674,107 @@ def rope_sensitivity_markdown(
     return "\n".join(lines) + "\n"
 
 
+def pushforward_values(
+    effect_draws: np.ndarray,
+    items: np.ndarray,
+    *,
+    n_trials: int,
+    ci_prob: float,
+) -> dict[str, float]:
+    """The numeric ``prior_pushforward.csv`` schema, shared by every family (#381).
+
+    ``effect_draws`` is the estimand on the model's own linear-predictor scale
+    (logit for every family that reports one) and ``items`` the same estimand
+    already multiplied onto the items scale, both ``(S,)`` per-draw arrays. Kept
+    separate from the family transforms so a new family cannot invent its own
+    column names, and separate from the *labelling* columns (see
+    :func:`labelled_pushforward`) so the numeric keys stay exactly what
+    ``blending_sensitivity`` recomputes and key-matches against the released
+    phoneme-blending bundle.
+    """
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    return {
+        "prior_logit_median": float(np.median(effect_draws)),
+        "prior_logit_lo": float(np.quantile(effect_draws, lo_q)),
+        "prior_logit_hi": float(np.quantile(effect_draws, hi_q)),
+        "prior_items_median": float(np.median(items)),
+        "prior_items_lo50": float(np.quantile(items, 0.25)),
+        "prior_items_hi50": float(np.quantile(items, 0.75)),
+        "prior_items_lo": float(np.quantile(items, lo_q)),
+        "prior_items_hi": float(np.quantile(items, hi_q)),
+        "n_trials": int(n_trials),
+    }
+
+
+def labelled_pushforward(
+    values: Mapping[str, float],
+    *,
+    estimand: str,
+    estimand_label: str,
+    role: str,
+    scale: str = "items",
+) -> dict[str, Any]:
+    """Attach the estimand-naming columns to one numeric pushforward row (#381).
+
+    The four label columns exist because the check generalised beyond the ITT
+    families: ``_priors.qmd`` used to hard-code "the prior on the **treatment
+    effect**", which is true of ``tau`` / ``beta_trt`` / ``tau_t2`` /
+    ``b_grp_time[1]`` and false of every family added since — the aligned cohort
+    contrast is explicitly *not* randomised, and the concurrent, dose, mechanism
+    and horseshoe estimands are adjusted associations. A renderer that cannot
+    read what the row is a pushforward *of* can only describe it wrongly, so the
+    row carries its own name, role and scale.
+
+    ``role`` is the same vocabulary the priors table uses (``causal``,
+    ``association``, ``descriptive``); ``scale`` names the units of the
+    ``prior_items_*`` columns (``items``, or ``percentage points`` where a
+    floor-rule outcome collapses the denominator to 1).
+    """
+    return {
+        "estimand": estimand,
+        "estimand_label": estimand_label,
+        "role": role,
+        "scale": scale,
+        "status": "ok",
+        "reason": "",
+        **{k: v for k, v in values.items()},
+    }
+
+
+def unavailable_pushforward(
+    *,
+    estimand: str,
+    estimand_label: str,
+    role: str,
+    reason: str,
+    scale: str = "items",
+) -> dict[str, Any]:
+    """A pushforward row recording that the check could **not** be computed (#381).
+
+    The finding that motivated #381 is that an absent artefact reads as a clean
+    one: "no flags" and "not measured" are indistinguishable to a reader of the
+    rendered report. So a family that cannot push its prior through its estimand
+    writes this row rather than no file, and ``_priors.qmd`` prints the reason.
+    """
+    return {
+        "estimand": estimand,
+        "estimand_label": estimand_label,
+        "role": role,
+        "scale": scale,
+        "status": "unavailable",
+        "reason": reason,
+        "prior_logit_median": float("nan"),
+        "prior_logit_lo": float("nan"),
+        "prior_logit_hi": float("nan"),
+        "prior_items_median": float("nan"),
+        "prior_items_lo50": float("nan"),
+        "prior_items_hi50": float("nan"),
+        "prior_items_lo": float("nan"),
+        "prior_items_hi": float("nan"),
+        "n_trials": 0,
+    }
+
+
 def prior_pushforward(
     trace: xr.DataTree,
     *,
@@ -696,6 +798,11 @@ def prior_pushforward(
     prior is pushed through the *same* transform as the posterior estimate.
     Requires the prior group to carry ``term`` and ``eta_name`` (it does — see
     :func:`diagnostics.run_prior_predictive`).
+
+    Returns the bare numeric row. The caller labels it via
+    :func:`labelled_pushforward`; the keys here are what ``blending_sensitivity``
+    recomputes from the trace and compares against the saved CSV, so they must not
+    grow non-numeric members.
     """
     effect_draws, ame_prob = _itt_ame_draws(
         trace,
@@ -708,19 +815,106 @@ def prior_pushforward(
         row_mask=row_mask,
         score_mean_link=score_mean_link,
     )
-    items = ame_prob * float(n_trials)
-    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
-    return {
-        "prior_logit_median": float(np.median(effect_draws)),
-        "prior_logit_lo": float(np.quantile(effect_draws, lo_q)),
-        "prior_logit_hi": float(np.quantile(effect_draws, hi_q)),
-        "prior_items_median": float(np.median(items)),
-        "prior_items_lo50": float(np.quantile(items, 0.25)),
-        "prior_items_hi50": float(np.quantile(items, 0.75)),
-        "prior_items_lo": float(np.quantile(items, lo_q)),
-        "prior_items_hi": float(np.quantile(items, hi_q)),
-        "n_trials": int(n_trials),
-    }
+    return pushforward_values(
+        effect_draws, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
+    )
+
+
+def marginal_prior_pushforward(
+    trace: xr.DataTree,
+    *,
+    term: str,
+    n_trials: int,
+    eta_name: str = "eta",
+    ci_prob: float = 0.95,
+    convention: Literal["net_out", "forward"] = "net_out",
+    row_mask: np.ndarray | None = None,
+    term_index: Mapping[str, Any] | None = None,
+) -> dict[str, float]:
+    """Prior pushforward for a family whose estimand is a one-unit items-scale AME (#381).
+
+    The generalisation of :func:`prior_pushforward` past the binary-treatment
+    families. ``term`` is a scalar coefficient in the ``prior`` group and the
+    estimand is the average, over fitted rows, of the probability-scale change
+    from a ``+1`` shift of whatever that coefficient multiplies — a ``+1 SD``
+    association for the concurrent / adjusted / horseshoe predictors, a ``+1 SD``
+    session-dose step for the dose companions.
+
+    For a **binary** exposure the estimand is the toggle-everyone contrast rather
+    than a one-unit shift on the rows that already carry it, so those families
+    (ITT, gain-factor, aligned, block-exposure) use :func:`prior_pushforward`
+    instead — it nets the contribution out per row and adds it back on *every*
+    row, which is not the same average and must not be approximated by this.
+
+    ``convention`` must match the transform the *same family's posterior* summary
+    uses, or the prior and the estimate would be pushed through different
+    functions and the check would not be a check of the reported quantity:
+
+    - ``"net_out"`` forms the baseline ``η₀ = η − β`` and adds the contribution
+      back, i.e. the effect of the unit already in the linear predictor. This is
+      the :func:`_itt_ame_draws` convention.
+    - ``"forward"`` shifts from the observed operating point, ``expit(η + β) −
+      expit(η)`` — the effect of *one more* unit. This is what
+      :func:`concurrent_marginals` and the dose marginal summary do.
+
+    ``term_index`` selects one element of a vector-valued coefficient, e.g.
+    ``{"predictor": "age_t1"}``.
+    """
+    prior = trace.prior
+    da = prior[term]
+    if term_index:
+        da = da.sel(term_index)
+    beta = da.stack(sample=("chain", "draw")).values.ravel()  # (S,)
+    eta = (
+        prior[eta_name]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )  # (n_obs, S)
+    if row_mask is not None:
+        eta = eta[np.asarray(row_mask)]
+    delta = beta[None, :]  # (1, S) — a +1 shift on every retained row
+    base = eta - delta if convention == "net_out" else eta
+    ame_prob = (expit(base + delta) - expit(base)).mean(axis=0)  # (S,)
+    return pushforward_values(
+        beta, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
+    )
+
+
+def joint_prior_pushforward(
+    trace: xr.DataTree,
+    *,
+    outcomes: Sequence[str],
+    G: np.ndarray,
+    n_trials: Mapping[str, int],
+    ci_prob: float = 0.95,
+    row_mask: np.ndarray | None = None,
+) -> list[dict[str, Any]]:
+    """One labelled prior-pushforward row per outcome of a joint ITT fit (#381).
+
+    The joint family stores ``tau`` and ``eta`` on a labelled ``outcome``
+    dimension and each outcome has its own item denominator, so a single row
+    cannot describe the fit. Runs :func:`_joint_ame_draws` — the same core the
+    posterior :func:`joint_treatment_marginals` uses — on the ``prior`` group, and
+    returns rows already labelled per outcome.
+    """
+    coefs, ames = _joint_ame_draws(
+        trace, outcomes, G=G, group="prior", row_mask=row_mask
+    )
+    rows: list[dict[str, Any]] = []
+    for k, name in enumerate(str(o) for o in outcomes):
+        n = int(n_trials[name])
+        rows.append(
+            labelled_pushforward(
+                pushforward_values(
+                    coefs[k], ames[k] * float(n), n_trials=n, ci_prob=ci_prob
+                ),
+                estimand=f"tau[{name}]",
+                estimand_label=f"the treatment effect on {name}",
+                role="causal",
+            )
+        )
+    return rows
 
 
 def offfloor_mover_table(prepared, symbol: str) -> pd.DataFrame:
@@ -3146,19 +3340,9 @@ def level_prior_pushforward(
     contrast_draws, ame_prob = level_t2_marginal_effect(
         trace, phase=phase, G=G, ability=ability, group="prior"
     )
-    items = ame_prob * float(n_trials)
-    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
-    return {
-        "prior_logit_median": float(np.median(contrast_draws)),
-        "prior_logit_lo": float(np.quantile(contrast_draws, lo_q)),
-        "prior_logit_hi": float(np.quantile(contrast_draws, hi_q)),
-        "prior_items_median": float(np.median(items)),
-        "prior_items_lo50": float(np.quantile(items, 0.25)),
-        "prior_items_hi50": float(np.quantile(items, 0.75)),
-        "prior_items_lo": float(np.quantile(items, lo_q)),
-        "prior_items_hi": float(np.quantile(items, hi_q)),
-        "n_trials": int(n_trials),
-    }
+    return pushforward_values(
+        contrast_draws, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
+    )
 
 
 def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame:

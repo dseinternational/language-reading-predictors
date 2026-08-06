@@ -421,6 +421,7 @@ isna
 issubset
 iterdir
 iterrows
+itertuples
 jcomdis
 jecp
 jslhr
