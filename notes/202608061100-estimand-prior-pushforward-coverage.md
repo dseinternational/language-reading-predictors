@@ -58,6 +58,16 @@ Every family now writes the file either way. A check that cannot run produces a 
 
 **No fit in the current suite produces one.** All 282 emitted rows across 150 fits are `status = "ok"` — every registered aligned model sets `use_cohort=True`, so the pooled-cohort branch that would emit the first real unavailable row never fires today. The branch is a guard for a future variant and for a transform that fails on a fit it should have handled; the unit test is what exercises it, not the suite. Worth stating plainly, because "the unavailable path is implemented" and "the unavailable path has been seen to work on real data" are different claims and only the first is true.
 
+## A pre-existing defect the review surfaced: risk differences published as items
+
+Copilot's review of the pull request flagged that the multi-row table renders a `percentage points` row without converting from the 0–1 probability scale. That is correct, and chasing it found the defect is both older and wider than the branch it points at.
+
+A denominator of **1** is how the pipeline signals that the marginal is a probability difference rather than an item count — a floor-rule outcome's off-floor risk difference, or a fit with no item ceiling. Nine rows in the suite carry it. One is new (`al-005`, the off-floor aligned fit). **The other eight predate this work entirely**: `itt-009`/`011`, `gf-005`/`011`, `lf-005`/`011` and `did-011`/`012` — the floor-rule outcomes of all four originally covered families. Their reports have been rendering the sentence "an items-scale average marginal effect ... −0.15 to +0.13", describing a prior that actually spans roughly **−15 to +13 percentage points**, a hundred times larger, and calling percentage points items while doing it.
+
+The fix is not per-call-site. `reporting.pushforward_scale_for` derives the scale from the row's own denominator, so a caller cannot pass `n_trials=1` and label it items, and the explicit `scale=` arguments the first version threaded through the aligned and block-exposure paths are gone. The renderer keys off `n_trials` for the same reason — that also repairs the eight legacy rows, which carry no `scale` column at all and were never going to be fixed by anything that read one. Their CSVs are untouched; only the rendering changes.
+
+Worth noting how it stayed hidden: the numbers were not obviously wrong. A prior pushforward of "−0.15 to +0.13 items" on a floored outcome reads as a tight, sensible prior, which is exactly what a reader expects to see. It took generalising the artefact to a family that _declares_ its scale for the mismatch to become visible at all.
+
 ## What the check found on the first run
 
 The point of #381 was to convert "no flags" from _unverified_ to _measured_, so two results are worth recording rather than leaving in 150 separate reports.

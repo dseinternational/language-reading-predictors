@@ -22,6 +22,7 @@ from language_reading_predictors.statistical_models.reporting import (
     labelled_pushforward,
     marginal_prior_pushforward,
     prior_pushforward,
+    pushforward_scale_for,
     pushforward_values,
     rope_markdown,
     tau_summary_itt,
@@ -365,3 +366,31 @@ def test_joint_pushforward_gives_each_outcome_its_own_row_and_denominator():
     # Same logit prior, different denominators -> the wider ceiling gives the
     # wider items range.
     assert rows[0]["prior_items_hi"] > rows[1]["prior_items_hi"]
+
+
+def test_scale_is_derived_from_the_denominator_so_it_cannot_disagree():
+    """A denominator of 1 means a probability difference, never an item count.
+
+    Eight pre-#381 fits (the floor-rule ITT, gain-factor, level-factor and DiD
+    outcomes) published an off-floor risk difference described as items, and so
+    a hundred times too small. Deriving the scale from ``n_trials`` in one place
+    means no call site can reintroduce that by passing a mismatched pair.
+    """
+    assert pushforward_scale_for(79) == "items"
+    assert pushforward_scale_for(1) == "percentage points"
+
+    values = pushforward_values(
+        np.array([0.0]), np.array([0.05]), n_trials=1, ci_prob=0.9
+    )
+    row = labelled_pushforward(
+        values,
+        estimand="tau",
+        estimand_label="the off-floor treatment effect",
+        role="causal",
+    )
+    assert row["scale"] == "percentage points"
+    # An explicit scale still wins, for a family whose units are neither.
+    override = labelled_pushforward(
+        values, estimand="tau", estimand_label="x", role="causal", scale="words/year"
+    )
+    assert override["scale"] == "words/year"

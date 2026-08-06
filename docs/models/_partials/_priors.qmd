@@ -34,24 +34,41 @@ if priors_table is not None and "panel" in priors_table.columns:
 _pf = _csv("prior_pushforward.csv")
 
 
+def _pf_units(row):
+    """``(multiplier, unit)`` for one row's ``prior_items_*`` columns.
+
+    A denominator of 1 means the marginal is a **probability difference**, not an
+    item count — a floor-rule outcome's off-floor risk difference, or a fit with
+    no item ceiling. Those read in percentage points, so they must be scaled by
+    100. Keyed off ``n_trials`` rather than the ``scale`` column so it also
+    corrects the pre-#381 rows, which carry no ``scale``: eight of them
+    (`itt-009`/`011`, `gf-005`/`011`, `lf-005`/`011`, `did-011`/`012`) were
+    published as items at a hundredth of their true size.
+    """
+    return (100.0, "pp") if int(row.n_trials) == 1 else (1.0, "items")
+
+
 def _pf_sentence(row, labelled):
+    multiplier, unit = _pf_units(row)
     if labelled:
-        unit = {"percentage points": "pp", "probability": ""}.get(
-            str(row.scale), str(row.scale)
-        )
         lead = f"the prior on {row.estimand_label} implies"
+    elif unit == "pp":
+        lead = (
+            "the prior on the treatment effect implies an average marginal "
+            "effect on the off-floor risk with"
+        )
     else:
-        unit = "items"
         lead = (
             "the prior on the treatment effect implies an items-scale average "
-            "marginal effect of"
+            "marginal effect with"
         )
     return (
         f"Before seeing data, {lead} a median of "
-        f"**{row.prior_items_median:+.1f}{' ' + unit if unit else ''}**, a 50% "
-        f"range {row.prior_items_lo50:+.1f} to {row.prior_items_hi50:+.1f}, and "
-        f"an 89% range {row.prior_items_lo:+.1f} to {row.prior_items_hi:+.1f} "
-        f"(denominator {int(row.n_trials)})."
+        f"**{row.prior_items_median * multiplier:+.1f} {unit}**, a 50% range "
+        f"{row.prior_items_lo50 * multiplier:+.1f} to {row.prior_items_hi50 * multiplier:+.1f}, "
+        f"and an 89% range {row.prior_items_lo * multiplier:+.1f} to "
+        f"{row.prior_items_hi * multiplier:+.1f}"
+        + (f" (denominator {int(row.n_trials)})." if unit == "items" else ".")
     )
 
 
@@ -83,13 +100,17 @@ else:
             "Before seeing data, the priors on this model's reported quantities "
             f"imply the ranges below. {_CALIBRATION}\n"
         )
-        print("| quantity | role | median | 50% range | 89% range |")
-        print("| :--- | :--- | ---: | :--- | :--- |")
+        print("| quantity | role | units | median | 50% range | 89% range |")
+        print("| :--- | :--- | :--- | ---: | :--- | :--- |")
         for _r in _usable:
+            # Per row, not per table: a joint fit mixes item-scale outcomes with
+            # floor-rule ones, so one shared multiplier would be wrong for some.
+            _mul, _unit = _pf_units(_r)
             print(
-                f"| {_r.estimand_label} | {_r.role} | {_r.prior_items_median:+.2f} | "
-                f"{_r.prior_items_lo50:+.2f} to {_r.prior_items_hi50:+.2f} | "
-                f"{_r.prior_items_lo:+.2f} to {_r.prior_items_hi:+.2f} |"
+                f"| {_r.estimand_label} | {_r.role} | {_unit} | "
+                f"{_r.prior_items_median * _mul:+.2f} | "
+                f"{_r.prior_items_lo50 * _mul:+.2f} to {_r.prior_items_hi50 * _mul:+.2f} | "
+                f"{_r.prior_items_lo * _mul:+.2f} to {_r.prior_items_hi * _mul:+.2f} |"
             )
         print("")
     for _r in _unavailable:

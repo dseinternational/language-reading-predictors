@@ -706,13 +706,31 @@ def pushforward_values(
     }
 
 
+def pushforward_scale_for(n_trials: float | int) -> str:
+    """Name the scale of the ``prior_items_*`` columns from the denominator (#381).
+
+    ``n_trials`` is the outcome's item ceiling, and the pipeline passes **1**
+    exactly when the quantity is not an item count at all — a floor-rule model's
+    off-floor risk difference, or a fit with no item denominator to put the
+    marginal on. No real measure in the suite has a ceiling of one, so the
+    denominator is a sound discriminator, and deriving the scale from it here
+    means a call site cannot pass a denominator of 1 and label it "items".
+
+    That mismatch is not hypothetical: eight fits across the four original
+    families (``itt-009``/``011``, ``gf-005``/``011``, ``lf-005``/``011``,
+    ``did-011``/``012``) published a probability difference described as items,
+    and so a hundred times too small, before this rule existed.
+    """
+    return "percentage points" if int(n_trials) == 1 else "items"
+
+
 def labelled_pushforward(
     values: Mapping[str, float],
     *,
     estimand: str,
     estimand_label: str,
     role: str,
-    scale: str = "items",
+    scale: str | None = None,
 ) -> dict[str, Any]:
     """Attach the estimand-naming columns to one numeric pushforward row (#381).
 
@@ -726,15 +744,17 @@ def labelled_pushforward(
     row carries its own name, role and scale.
 
     ``role`` is the same vocabulary the priors table uses (``causal``,
-    ``association``, ``descriptive``); ``scale`` names the units of the
-    ``prior_items_*`` columns (``items``, or ``percentage points`` where a
-    floor-rule outcome collapses the denominator to 1).
+    ``association``, ``descriptive``). ``scale`` names the units of the
+    ``prior_items_*`` columns and defaults to :func:`pushforward_scale_for` of
+    the row's own denominator — pass it only to override that.
     """
     return {
         "estimand": estimand,
         "estimand_label": estimand_label,
         "role": role,
-        "scale": scale,
+        "scale": scale
+        if scale is not None
+        else pushforward_scale_for(values.get("n_trials", 0)),
         "status": "ok",
         "reason": "",
         **{k: v for k, v in values.items()},
@@ -747,7 +767,7 @@ def unavailable_pushforward(
     estimand_label: str,
     role: str,
     reason: str,
-    scale: str = "items",
+    scale: str | None = None,
 ) -> dict[str, Any]:
     """A pushforward row recording that the check could **not** be computed (#381).
 
@@ -760,7 +780,9 @@ def unavailable_pushforward(
         "estimand": estimand,
         "estimand_label": estimand_label,
         "role": role,
-        "scale": scale,
+        # No numbers to scale, so the column is only a placeholder here; keep it
+        # populated rather than blank so a consumer can read it unconditionally.
+        "scale": scale if scale is not None else "items",
         "status": "unavailable",
         "reason": reason,
         "prior_logit_median": float("nan"),

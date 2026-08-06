@@ -1745,7 +1745,7 @@ def _horseshoe_pushforward_rows(
     outcome scale. Every predictor shares the global-local prior, so the rows
     differ only through each coefficient's own local scale draws.
     """
-    n_trials, scale = _pushforward_items_scale(ctx, outcome)
+    n_trials = _pushforward_n_trials(ctx, outcome)
     label = _pushforward_outcome_label(ctx, outcome)
     return _marginal_pushforward_rows(
         ctx,
@@ -1759,7 +1759,6 @@ def _horseshoe_pushforward_rows(
         ],
         n_trials=n_trials,
         convention="forward",
-        scale=scale,
     )
 
 
@@ -1784,22 +1783,20 @@ def _pushforward_outcome_label(ctx: StatisticalFitContext, outcome: str) -> str:
         return outcome
 
 
-def _pushforward_items_scale(
-    ctx: StatisticalFitContext, outcome: str
-) -> tuple[int, str]:
-    """``(n_trials, scale_label)`` for the pushforward's items columns (#381).
+def _pushforward_n_trials(ctx: StatisticalFitContext, outcome: str) -> int:
+    """The pushforward's item denominator, or 1 when the fit carries none (#381).
 
-    Most families know their outcome's item denominator, and the check is most
-    readable in items. Where the fit does not carry one — the Byrne-cohort
-    horseshoe ranks predictors of a standardised outcome — fall back to the
-    probability scale rather than inventing a denominator, and say so in the
-    ``scale`` column so the report cannot describe proportions as items.
+    Most families know their outcome's item ceiling and the check is most
+    readable in items. Where the fit does not carry one, return 1 rather than
+    inventing a denominator: the marginal is then a probability difference, and
+    :func:`reporting.pushforward_scale_for` labels it in percentage points off
+    that same 1 — one rule, so a denominator and its scale cannot disagree.
     """
     trials = getattr(ctx.prepared, "n_trials", None) or {}
     try:
-        return int(trials[outcome]), "items"
+        return int(trials[outcome])
     except (KeyError, TypeError, ValueError):
-        return 1, "probability"
+        return 1
 
 
 def _marginal_pushforward_rows(
@@ -1811,7 +1808,7 @@ def _marginal_pushforward_rows(
     convention: str = "forward",
     eta_name: str = "eta",
     row_mask: np.ndarray | None = None,
-    scale: str = "items",
+    scale: str | None = None,
 ) -> list[dict[str, object]]:
     """Build one labelled pushforward row per term (#381).
 
@@ -6556,7 +6553,6 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
             n_trials=1 if off_floor else MEASURES[sym].n_trials,
             convention="forward",
             eta_name="eta_base",
-            scale="percentage points" if off_floor else "items",
         ),
     )
 
@@ -6694,7 +6690,6 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                         "randomised effect)"
                     ),
                     role="association",
-                    scale="percentage points" if off_floor else "items",
                 )
             ]
         except Exception as exc:  # noqa: BLE001 - absence must stay legible
@@ -7432,7 +7427,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # missing-data indicators are dropped from that table as nuisance
     # subgroup offsets, and a prior row for a term the report does not show
     # would contradict the nuisance labelling it was dropped for.
-    _pf_n, _pf_scale = _pushforward_items_scale(ctx, outcome)
+    _pf_n = _pushforward_n_trials(ctx, outcome)
     _pf_outcome = _pushforward_outcome_label(ctx, outcome)
     _write_prior_pushforward(
         ctx,
@@ -7447,7 +7442,6 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ],
             n_trials=_pf_n,
             convention="forward",
-            scale=_pf_scale,
         ),
     )
     print_table(
@@ -9072,7 +9066,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # missing-data indicators are dropped from that table as nuisance
     # subgroup offsets, and a prior row for a term the report does not show
     # would contradict the nuisance labelling it was dropped for.
-    _pf_n, _pf_scale = _pushforward_items_scale(ctx, outcome)
+    _pf_n = _pushforward_n_trials(ctx, outcome)
     _pf_outcome = _pushforward_outcome_label(ctx, outcome)
     _write_prior_pushforward(
         ctx,
@@ -9087,7 +9081,6 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             ],
             n_trials=_pf_n,
             convention="forward",
-            scale=_pf_scale,
         ),
     )
     print_table(
