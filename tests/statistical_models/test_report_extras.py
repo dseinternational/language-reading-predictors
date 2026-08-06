@@ -16,8 +16,8 @@ import xarray as xr
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
-    evidence_label,
     _indicator_prior_verdict,
+    evidence_label,
     factor_summary,
     indicator_prior_check,
     joint_prior_pushforward,
@@ -482,3 +482,46 @@ def test_indicator_prior_check_pools_missingness_blocks_by_indicator():
     assert list(df["indicator"]) == ["a", "b"]
     assert (df["n_observed"] == 41).all()
     assert "not assessable" not in set(df["verdict"])
+
+
+def test_empty_prior_group_is_replaced_so_a_re_emit_can_repair_it(tmp_path):
+    """A trace loaded under --reuse-trace carries whatever group it was saved with.
+
+    Three RLI measurement fits were written with a restricted ``var_names`` and so
+    hold a ``prior`` node containing nothing. A plain "already present" test
+    blocks the freshly drawn prior from ever landing, which is why they kept
+    shipping without a prior-vs-posterior overlay after the restriction was
+    removed. An empty group must therefore be replaced — and a populated one
+    must still be left alone.
+    """
+    from language_reading_predictors.statistical_models import diagnostics as _diag
+
+    def _tree(prior_vars):
+        return xr.DataTree.from_dict(
+            {
+                "posterior": xr.Dataset(
+                    {"x": (("chain", "draw"), np.zeros((1, 2)))},
+                    coords={"chain": [0], "draw": [0, 1]},
+                ),
+                "prior": xr.Dataset(
+                    {
+                        name: (("chain", "draw"), np.full((1, 2), val))
+                        for name, val in prior_vars.items()
+                    },
+                    coords={"chain": [0], "draw": [0, 1]},
+                ),
+            }
+        )
+
+    fresh = _tree({"alpha": 7.0})
+
+    empty = _tree({})
+    ctx = SimpleNamespace(trace=empty, prior_samples=fresh)
+    _diag._attach_prior_groups(ctx)
+    assert list(ctx.trace["prior"].data_vars) == ["alpha"]
+    assert float(ctx.trace["prior"]["alpha"].values.ravel()[0]) == 7.0
+
+    populated = _tree({"alpha": 1.0})
+    ctx2 = SimpleNamespace(trace=populated, prior_samples=fresh)
+    _diag._attach_prior_groups(ctx2)
+    assert float(ctx2.trace["prior"]["alpha"].values.ravel()[0]) == 1.0

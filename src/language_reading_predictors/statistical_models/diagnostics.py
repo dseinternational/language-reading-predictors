@@ -1028,12 +1028,25 @@ def _attach_prior_groups(context: StatisticalFitContext) -> None:
     ``prior_predictive`` subtrees onto ``context.trace`` (an ``xarray`` DataTree)
     so ``trace.nc`` carries them for prior-predictive checks and prior-vs-
     posterior overlays. Guarded — a merge failure must not lose the trace.
+
+    An **empty** existing group is replaced rather than kept. Under
+    ``--reuse-trace`` the saved DataTree is loaded whole, so a trace that was
+    written with a restricted ``var_names`` carries a ``prior`` node with no
+    variables in it — and a plain "already present" test then blocks the freshly
+    drawn one from ever landing. That is how the three RLI measurement fits kept
+    shipping without a prior-vs-posterior overlay even after the restriction that
+    caused it was removed (#381): the re-emit drew the full prior and then
+    declined to attach it. A populated group is still never overwritten, so a
+    genuine reuse keeps the draws it was reusing.
     """
     if context.prior_samples is None or context.trace is None:
         return
     for group in ("prior", "prior_predictive"):
         try:
-            if group in context.prior_samples.children and group not in context.trace.children:
+            if group not in context.prior_samples.children:
+                continue
+            existing = context.trace.children.get(group)
+            if existing is None or not len(existing.data_vars):
                 context.trace[group] = context.prior_samples[group]
         except Exception as exc:  # pragma: no cover
             rprint(f"[yellow]Could not attach {group} group to trace: {exc}[/yellow]")
