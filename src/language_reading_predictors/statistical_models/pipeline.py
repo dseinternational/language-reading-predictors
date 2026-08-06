@@ -6505,6 +6505,10 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
         adjust_for=adjust_for,
         use_child_re=bool(extra.get("use_child_re", True)),
         likelihood=likelihood,
+        delta_prior_sigma=extra.get(
+            "delta_prior_sigma",
+            _default_of(_factories.build_block_exposure_model, "delta_prior_sigma"),
+        ),
     )
     _attach_built(ctx, built)
 

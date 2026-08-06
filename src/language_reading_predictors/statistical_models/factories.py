@@ -4761,6 +4761,11 @@ def build_block_exposure_model(
     use_child_re: bool = True,
     likelihood: str = "beta_binomial",
     sigma_child_prior_sigma: float = 0.5,
+    # #382 recommendation 4: optional one-off wider prior on the focal
+    # block-active exposure effect (LRPBX103). None keeps the outcome-tier
+    # default (UE2/UR2 are distal, 0.3); the companion sets 0.5 to confirm the
+    # distal tightening is not attenuating a real transfer effect.
+    delta_prior_sigma: float | None = None,
 ) -> BuiltModel:
     """Block-2 taught-vocabulary staggered block-active exposure model (LRPBX, #228 item 5).
 
@@ -4894,7 +4899,9 @@ def build_block_exposure_model(
         # Linear predictor without the exposure term, so the pipeline can read the
         # un-exposed baseline for the average-marginal-effect translation (as DiD).
         eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
-        delta = _priors.tau_prior(sigma=_tau_sigma_for(outcome_symbol)).to_pymc("delta")
+        delta = _priors.tau_prior(
+            sigma=_tau_sigma_for(outcome_symbol, delta_prior_sigma)
+        ).to_pymc("delta")
         eta_full = pm.Deterministic("eta", eta_base + delta * exposed_d, dims="obs_id")
 
         if likelihood == "beta_binomial":

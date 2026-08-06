@@ -1,0 +1,48 @@
+# Prior-sensitivity refits for the prior-dependent estimands (#382)
+
+> [!NOTE]
+> Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+
+**Date:** 2026-08-06. **Issue:** #382, the six sensitivity recommendations of the critical prior-analysis review (`notes/202607211500-prior-critical-review.md`, PR #380). Where the issue checklist and the review's refined recommendations (its closing section) differ, the review is treated as the source document; the two departures are flagged below. The review's framing held throughout: none of these checks overturned a result — each demonstrates robustness.
+
+## Items 2 and 4 (ITT): the certifying sweeps re-run against the current traces
+
+The standard 44-cell treatment-prior sweep and the separate P/N floor grids had already run at reporting on 2026-07-15 (`notes/202607151648-itt-audit-reporting-refit.md`). But those bundles bind to the **primary fits' `config.json`/`trace.nc` hashes**, and every ITT primary has been refitted or re-emitted since (#479/#482/#484), so the release gate was correctly refusing them as evidence — the current `itt-009`/`itt-011` directories carried no floor-sensitivity bundle at all. Both sweeps were re-run at reporting against the current primaries:
+
+- **Standard sweep** (`tau_prior_sensitivity.py`, R/E/UR/UE/T/F/L/W, 44 cells): all cells converge, and every outcome keeps one sign for `tau_logit_mean` across its whole grid — R and E flat-null (+0.007 to +0.009 across prior SDs), L (+0.41 to +0.63) and W (+0.27 to +0.38) robustly positive, and the borderline distal members small-positive throughout (UR +0.18 to +0.31, UE +0.09 to +0.14, T +0.07 to +0.10, F +0.16 to +0.31). The review's item 4 concern — that the distal N(0, 0.3) tightening might be attenuating a real transfer effect, `itt-025`'s posterior sitting in the prior's upper tail — is answered directly: widening to 0.5 moves the distal medians but crosses no evidence boundary and flips no sign.
+- **Floor grids** (P/N, 6 cells each: tau SD 0.5/1.0/1.5 × age on/off): all cells converge; the off-floor risk difference keeps one positive sign throughout (N +0.10 to +0.24, P +0.04 to +0.10).
+- The validated archive was attached to each certified primary (`tau_prior_sensitivity.csv` in the eight standard fits' directories; the report-local floor bundles written by the script itself into `itt-009`/`itt-011`), and `key_findings.json` regenerated for all ten — every one releases (`ok`) against current-trace evidence.
+
+## Item 1: LRPMM102, the focal-slope companion — `beta_code` only
+
+Registered `lrp-rli-mm-102`: identical to `mm-002` except the focal EiV code→word slope, `beta_code ~ N(0, 1)` (the documented primary-mechanism scale) instead of the association-scale `N(0, 0.3)`, via a new `focal_slope_sigma` factory knob that widens `beta_factor` alone. **Departure from the issue text:** the issue says "refit `beta_code`/`beta_G`", but the review's recommendation 1 explicitly says "do **not** rescale `beta_G`: it is a correctly-scaled association (arm-adjustment) covariate" — the companion follows the review, and the priors-table test locks `beta_G` at `N(0, 0.3)`.
+
+## Item 3: LRPDID102, the wide-`tau_t2` companion — `did-007` out of scope
+
+Registered `lrp-rli-did-102`: identical to `did-002` (the clearest right-tail case — posterior median ≈ 0.60 logits, 89% [0.20, 0.98] under the proximal `N(0, 0.5)`, power-scaling flagging prior-data conflict) except `tau_t2 ~ N(0, 1)`, via a typed `tau_t2_prior_sigma` setting validated at settings time — including a structural rejection on dose models, which have no `tau_t2`. **Departure from the issue text:** the issue lists "`did-007` dose on L", but the review's recommendation 3 scope note excludes it — the dose model's estimand is the observational `mu_dose ~ N(0, 1)`, already on the wide scale and assigned no causal status. `arm_gap_t3` keeps the tier scale, so `delta_crossover` is not a comparison target in the companion.
+
+## Item 4 (al/bx): one real gap — LRPBX103
+
+- **`itt` F/T:** covered by the standard sweep above (T and F rows span 0.2–0.5).
+- **`al` F/T:** moot by design — the aligned family's `beta_cohort` is deliberately **not** tiered (`_tau_sigma_for`'s own docstring: applied to randomised treatment effects, "not to adjusted-association group terms (… aligned `beta_cohort`)"), so `al-007`/`al-008` already run at `N(0, 0.5)` and a 0.5 "check" would test nothing.
+- **`bx` UE2:** real — `UE2` is in `DISTAL_OUTCOMES`, so `bx-003`'s focal `delta` runs at `N(0, 0.3)`. Registered `lrp-rli-bx-103`, identical except `delta ~ N(0, 0.5)` via a `delta_prior_sigma` override.
+
+## Item 5: mech HSGP psense and the functional-form caveat — already satisfied
+
+Verified on the current reporting artefacts rather than re-implemented: every HSGP mechanism fit (`mech-058/061/063/071/073`) carries `f_mech__eta`/`f_mech__ell` power-scaling rows in `psense_summary.csv` (the GP hyperpriors — the informative scaling the review's "eta" refers to), and the linear fits carry `beta_mech`. The review's requested statement that GP-vs-linear knee tests are not clean functional-form contrasts already exists verbatim in the shared mechanism partial (`docs/models/_partials/_results_mechanism.qmd`): "A GP-vs-linear difference therefore reflects prior/regularisation strength as well as functional form, so read the knee and saturation features below as _suggestive_ of nonlinearity … rather than as a clean functional-form contrast." Nothing further to build; recorded here so the checklist item has an evidence trail.
+
+## Item 6: the horseshoe tuning grid
+
+New `scripts/horseshoe_prior_sensitivity.py`: for each ranking model (`hs-001…004`, `rlm-hs-001`) it refits the registered model in-process over a one-at-a-time grid around the registered values — `tau0 ∈ {0.05, 0.2}` at the registered slab, `slab_scale ∈ {1.0, 4.0}` at the registered `tau0` — computes the same `P(|β| > δ)` ranking the pipeline reports, and compares each cell against the model's **existing reporting fit** (bound by its `config.json`/`trace.nc` hashes; the reference is not refit). Per-cell convergence is gated (R-hat ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.3, zero divergences); stability is summarised as Kendall rank correlation, top-3 overlap, and the maximum per-predictor change in `P(|β| > δ)`. Report-local copies land beside the reporting fits only.
+
+**Reporting-tier results** (at `target_accept` 0.999 — the first pass at the family's 0.99 threw the documented funnel-edge single divergences, which the zero-divergence gate rightly rejects however perfect the other diagnostics; the registered `hs-001` fit already records the same behaviour and remedy): **19 of 20 cells pass the full gate**; the one exception (`rlm-hs-001`, `tau0 = 0.2`) holds a single divergence in 36,000 draws with otherwise clean diagnostics (R-hat 1.00, min ESS 9,581, BFMI 0.79) and is excluded from the verdict per the runner's rule. The stability result is emphatic: **the rank order is identical to the reference in every cell — Kendall τ = 1.00 and top-3 overlap 1.00 in all 20, the excluded cell included — and the maximum per-predictor change in P(|β| > δ) anywhere in the grid is 0.071.** The ranking does not depend on `tau0` or `slab_scale` over the review's grid, which is exactly what the "independent cross-check" framing needed. Report-local `horseshoe_prior_sensitivity.csv` copies sit beside all five reference fits.
+
+## Companion refit results (reporting tier, 2026-08-06)
+
+All three companions and all three references pass the full convergence gate with 0 divergences. Focal posteriors (mean, 89% ETI):
+
+| pair                  | focal term  | reference             | companion (wide prior) | reading                                                                                                                                                                                                                                                                                                                            |
+| --------------------- | ----------- | --------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mm-002` → `mm-102`   | `beta_code` | +0.345 [+0.09, +0.60] | +0.461 [+0.16, +0.76]  | **Attenuation is real**: the association-scale N(0, 0.3) pulls the EiV code→word slope down by roughly a quarter. The sign and the above-zero interval are unchanged, so the reference is to be read as conservative, with the wide-prior interval quoted beside it — the review's suspicion ("plausibly under-scaled") confirmed. |
+| `did-002` → `did-102` | `tau_t2`    | +0.593 [+0.20, +0.98] | +0.720 [+0.29, +1.15]  | Mild attenuation confirmed — "attenuation, not a false result", exactly as the review read the right-tail posterior. The randomised letter-sound contrast is robustly positive under either scale.                                                                                                                                 |
+| `bx-003` → `bx-103`   | `delta`     | −0.115 [−0.38, +0.16] | −0.141 [−0.44, +0.16]  | Null under either scale: the distal tightening is not hiding a transfer effect on the not-taught comparator; the fidelity reading stands.                                                                                                                                                                                          |
