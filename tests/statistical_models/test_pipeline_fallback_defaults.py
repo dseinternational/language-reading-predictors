@@ -50,6 +50,9 @@ RECONCILED_FACTORY_DEFAULTS = [
     # Structural-slope prior reconciled 0.5 -> 0.3 to match the shared
     # predictor_slope_prior default (review finding B4, 2026-07-13).
     (factories.build_correlated_factor_model, "predictor_slope_sigma", 0.3),
+    # #382 item 1: unset by default — only the LRPMM102 sensitivity companion
+    # widens the focal beta_factor / beta_G pair to the N(0, 1) mechanism scale.
+    (factories.build_correlated_factor_model, "focal_slope_sigma", None),
     (factories.build_growth_model, "assoc_prior_sigma", 0.3),
     (factories.build_growth_model, "re_intercept_prior_sigma", 0.5),
 ]

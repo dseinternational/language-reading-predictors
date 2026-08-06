@@ -1,0 +1,73 @@
+---
+title: "LRPMM102: Focal-slope prior sensitivity for the EiV code→word mechanism"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPMM102 is the **focal-slope prior-sensitivity companion** to
+[LRPMM02](../lrp-rli-mm-002/), the errors-in-variables code→word-reading mechanism. It is
+the same model, the same data and the same sampler settings, differing in exactly one
+thing: the prior on the **focal** structural slope.
+
+| | LRPMM02 (reference) | LRPMM102 (this model) |
+| --- | --- | --- |
+| focal slope $\beta_{\text{code}}$ | $\mathcal{N}(0,\ 0.3)$ | $\mathcal{N}(0,\ 1)$ |
+| arm covariate $\beta_G$ | $\mathcal{N}(0,\ 0.3)$ | $\mathcal{N}(0,\ 0.3)$ — unchanged |
+| all other slopes (age, HS, SP, RW, missingness) | $\mathcal{N}(0,\ 0.3)$ | $\mathcal{N}(0,\ 0.3)$ — unchanged |
+| everything else | — | identical, including `target_accept` = 0.999 |
+
+## Why this model exists
+
+The prior-critical review (#382) flagged the LRPMM02 code→word slope as the one place in
+the suite where a headline prior is plausibly **under-scaled**. `N(0, 0.3)` is the
+association-scale default every adjusted covariate takes — but the code→word slope is
+the suite's documented **primary mechanism**, and the linear mechanism factory prices
+that role at `N(0, 1)`. An earlier draft of the review read LRPMM02's upper interval
+limit as "pressing against a prior ceiling"; that reasoning was corrected (a Normal
+prior is unbounded, so an interval ending near two prior SDs is not ceiling evidence) —
+which left the honest position that the attenuation question was simply **untested**:
+the only registered sensitivity companion (LRPMM101) varies the measurement-layer
+priors, never the structural slope.
+
+$\beta_G$ and the covariate/precision slopes deliberately keep the association scale:
+the review's recommendation 1 widens the mechanism slope only ("do **not** rescale
+`beta_G`: it is a correctly-scaled association covariate"), and widening the whole set
+would confound the answer.
+
+## How to read the comparison
+
+The two fits may be compared only when both current reporting traces pass the complete
+automatic gate. If the LRPMM02 posterior is genuinely data-dominated, the slope here
+should match it to within Monte-Carlo error. A materially larger slope under the wider
+prior means the reported estimate is prior-attenuated — the association scale doing
+quiet work — and LRPMM02's interval should then be read as conservative, with this
+fit's interval quoted beside it.
+
+_Measurement / triangulation, NOT causal._ As with LRPMM02: per the locked DAG's
+**ID-2** the code→W slope is a latent-ability-confounded **adjusted association**, and
+$\beta_G$ is an adjusted-association covariate, not the randomised ITT effect (that
+lives in [`lrp-rli-itt-010`](../lrp-rli-itt-010/)).
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_corr_factor.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

@@ -2049,6 +2049,10 @@ def build_did_model(
     period_varying_dose: bool = False,
     use_varying_delta: bool = False,
     likelihood: str = "beta_binomial",
+    # #382 recommendation 3: optional one-off wider prior on the single causal
+    # term (LRPDID102). None keeps the outcome-tier default; arm_gap_t3 keeps
+    # the tier scale either way, so the companion isolates tau_t2's prior.
+    tau_t2_prior_sigma: float | None = None,
 ) -> BuiltModel:
     """Waitlist-crossover triangulation with explicit arm-by-wave contrasts.
 
@@ -2305,9 +2309,13 @@ def build_did_model(
             [pt.zeros((1,), dtype=beta_period.dtype), beta_period]
         )
         arm_gap_t1 = _priors.gamma_cross_prior().to_pymc("arm_gap_t1")
-        tau_t2 = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc(
-            "tau_t2"
-        )
+        tau_t2 = _priors.tau_prior(
+            sigma=(
+                _tau_sigma_for(own)
+                if tau_t2_prior_sigma is None
+                else float(tau_t2_prior_sigma)
+            )
+        ).to_pymc("tau_t2")
         arm_gap_t3 = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc(
             "arm_gap_t3"
         )
@@ -3842,6 +3850,16 @@ def build_correlated_factor_model(
     # with the report's prior_predictor_slope panel (drawn at the 0.3 constructor
     # default), which previously showed 0.3 against a 0.5 RV (review finding B4, 2026-07-13).
     predictor_slope_sigma: float = 0.3,
+    # #382 item 1: when set, the structural FACTOR slopes (beta_factor) take
+    # this SD instead of predictor_slope_sigma, while every other slope —
+    # including the arm covariate beta_G, which the review's recommendation 1
+    # explicitly keeps at the association scale — is unchanged. The
+    # prior-critical review flagged the mm-002 code->word slope as the one place
+    # a headline prior is plausibly under-scaled: N(0, 0.3) is the association
+    # default, but the EiV code->W slope is the documented PRIMARY mechanism,
+    # whose linear-factory scale is N(0, 1). LRPMM102 is the registered
+    # sensitivity companion that widens exactly that term.
+    focal_slope_sigma: float | None = None,
     lkj_eta: float = 2.0,
 ) -> BuiltModel:
     """Correlated-domain-factor measurement model (LRPMM01, #134).
@@ -3927,6 +3945,13 @@ def build_correlated_factor_model(
     if loading_prior not in {"communality", "free"}:
         raise ValueError(
             f"loading_prior must be 'communality' or 'free'; got {loading_prior!r}"
+        )
+    if focal_slope_sigma is not None and not (
+        np.isfinite(focal_slope_sigma) and focal_slope_sigma > 0.0
+    ):
+        raise ValueError(
+            f"focal_slope_sigma must be finite and positive when set; got "
+            f"{focal_slope_sigma}"
         )
     if not (
         np.isfinite(comm_alpha)
@@ -4166,15 +4191,20 @@ def build_correlated_factor_model(
         # factor(s) — isolating one latent construct's measurement-error-corrected slope.
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        # #382 item 1: the focal factor slopes may take a wider,
+        # primary-mechanism-scale prior than the association-scale default.
+        _focal_sigma = (
+            predictor_slope_sigma if focal_slope_sigma is None else focal_slope_sigma
+        )
         if structural_factors is None:
             beta_factor = pm.Normal(
-                "beta_factor", 0.0, predictor_slope_sigma, dims="domain"
+                "beta_factor", 0.0, _focal_sigma, dims="domain"
             )
             struct = pm.math.dot(factors, beta_factor)
         else:
             _sidx = [domain_names.index(d) for d in structural_factors]
             beta_factor = pm.Normal(
-                "beta_factor", 0.0, predictor_slope_sigma, dims="struct_domain"
+                "beta_factor", 0.0, _focal_sigma, dims="struct_domain"
             )
             struct = pm.math.dot(factors[:, _sidx], beta_factor)
         eta = alpha + gamma_own * own_pre_d + struct

@@ -25,6 +25,8 @@ randomised.
 
 from __future__ import annotations
 
+import math
+
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -44,6 +46,7 @@ _LEGACY_KEYS = frozenset(
         "use_child_re",
         "use_age",
         "use_varying_delta",
+        "tau_t2_prior_sigma",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -93,6 +96,12 @@ class DiDModelSettings:
     use_child_re: bool = True
     use_age: bool = True
     use_varying_delta: bool = False
+    # #382 recommendation 3: a one-off wider prior on the single causal term.
+    # None keeps the outcome-tier default (proximal 0.5 / distal 0.3); LRPDID102
+    # sets 1.0 to test whether the right-tail letter-sound tau_t2 is
+    # prior-attenuated. arm_gap_t3 keeps the tier scale either way — the
+    # sensitivity question is about tau_t2 alone.
+    tau_t2_prior_sigma: float | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -126,6 +135,18 @@ class DiDModelSettings:
             raise ValueError(
                 f"DiD dose variants require periods=(0, 1); got {self.periods}."
             )
+        if self.tau_t2_prior_sigma is not None:
+            if self.dose:
+                raise ValueError(
+                    "tau_t2_prior_sigma applies to the arm-by-wave tau_t2 contrast; "
+                    "a dose model has no tau_t2 (its estimand is the dose slope), "
+                    "so the setting would be silently ignored (#382 rec 3 scope)."
+                )
+            sigma = self.tau_t2_prior_sigma
+            if not (isinstance(sigma, (int, float)) and math.isfinite(sigma) and sigma > 0):
+                raise ValueError(
+                    f"tau_t2_prior_sigma must be finite and positive when set; got {sigma!r}"
+                )
 
     @classmethod
     def from_legacy_extra(
@@ -154,6 +175,7 @@ class DiDModelSettings:
             use_child_re=extra.get("use_child_re", True),
             use_age=extra.get("use_age", True),
             use_varying_delta=extra.get("use_varying_delta", False),
+            tau_t2_prior_sigma=extra.get("tau_t2_prior_sigma"),
         )
 
 
@@ -174,6 +196,7 @@ class DiDRunPlan:
     use_child_re: bool
     use_age: bool
     use_varying_delta: bool
+    tau_t2_prior_sigma: float | None
     # Recorded audit metadata (#394 pillar 4).
     design: str
     estimand: str
@@ -260,6 +283,7 @@ class DiDRunPlan:
             "period_varying_dose": self.period_varying,
             "use_varying_delta": self.use_varying_delta,
             "likelihood": self.likelihood,
+            "tau_t2_prior_sigma": self.tau_t2_prior_sigma,
         }
 
     def recipe_markdown(self, *, title: str) -> str:
@@ -381,6 +405,7 @@ def resolve_did_run_plan(spec: ModelSpec) -> DiDRunPlan:
         use_child_re=settings.use_child_re,
         use_age=settings.use_age,
         use_varying_delta=settings.use_varying_delta,
+        tau_t2_prior_sigma=settings.tau_t2_prior_sigma,
         design=design,
         estimand=estimand,
         causal_status=causal_status,

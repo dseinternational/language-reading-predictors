@@ -9772,6 +9772,10 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
                 _factories.build_correlated_factor_model, "predictor_slope_sigma"
             ),
         ),
+        focal_slope_sigma=spec.extra.get(
+            "focal_slope_sigma",
+            _default_of(_factories.build_correlated_factor_model, "focal_slope_sigma"),
+        ),
     )
     _attach_built(ctx, built)
     _render_model_graph(ctx)

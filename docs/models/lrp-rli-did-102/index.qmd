@@ -1,0 +1,71 @@
+---
+title: "LRPDID102: Wide-tau prior sensitivity for the letter-sound arm-by-wave contrasts (YARC-LSK) (LS)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPDID102 is the **wide-tau prior-sensitivity companion** to
+[LRPDID02](../lrp-rli-did-002/). It is the same arm-by-wave model, the same data and the
+same sampler settings, differing in exactly one thing: the prior on the single causal
+coefficient.
+
+| | LRPDID02 (reference) | LRPDID102 (this model) |
+| --- | --- | --- |
+| randomised t2 contrast $\tau_{t2}$ | $\mathcal{N}(0,\ 0.5)$ | $\mathcal{N}(0,\ 1)$ |
+| $\text{arm\_gap}_{t3}$, $\beta_{\text{period}}$, all other terms | tier scale | tier scale — unchanged |
+| everything else | — | identical |
+
+## Why this model exists
+
+The prior-critical review (#382, recommendation 3) found the letter-sound fit the
+clearest case of a posterior sitting in its prior's **right tail**: under
+$\tau_{t2} \sim \mathcal{N}(0, 0.5)$ the reference posterior median is ≈ 0.60 logits,
+89% [0.20, 0.98], $P(>0) = 0.99$ — the data want a larger positive effect than the
+zero-centred half-unit scale comfortably allows, and power-scaling flags a prior-data
+conflict. The review reads this as mild **attenuation, not a false result**; this
+companion tests exactly that with the wide end of the defensible
+$\mathcal{N}(0, 0.75\text{–}1.0)$ range.
+
+Only $\tau_{t2}$ moves. $\text{arm\_gap}_{t3}$ keeps the tier scale, so
+$\delta_{\text{crossover}} = \tau_{t2} - \text{arm\_gap}_{t3}$ is **not** a comparison
+target in this fit — its two legs are deliberately priced differently here. Per the
+recommendation's scope note, the dose model
+[LRPDID07](../lrp-rli-did-007/) has no $\tau_{t2}$ (its estimand is the observational
+$\mu_{\text{dose}} \sim \mathcal{N}(0, 1)$, already on the wide scale, assigned no
+causal status), so no dose companion exists.
+
+## How to read the comparison
+
+The two fits may be compared only when both current reporting traces pass the complete
+automatic gate. If the reference $\tau_{t2}$ is genuinely data-dominated, the posterior
+here should match it to within Monte-Carlo error. A materially larger median under the
+wider prior confirms the reference estimate is prior-attenuated — to be read as
+conservative, with this fit's interval quoted beside it.
+
+_Sign convention and reading rules as LRPDID02:_ positive favours the intervention;
+$\tau_{t2}$ is the clean randomised t2 contrast, `arm_gap_t1` a baseline-balance
+quantity, and the post-crossover contrasts are associations.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_did.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
