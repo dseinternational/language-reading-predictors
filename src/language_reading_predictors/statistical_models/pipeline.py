@@ -1746,12 +1746,13 @@ def _horseshoe_pushforward_rows(
     differ only through each coefficient's own local scale draws.
     """
     n_trials, scale = _pushforward_items_scale(ctx, outcome)
+    label = _pushforward_outcome_label(ctx, outcome)
     return _marginal_pushforward_rows(
         ctx,
         [
             (
                 "beta",
-                f"the shrunk association of +1 SD {p} with the outcome",
+                f"the shrunk association of +1 SD {p} with {label}",
                 {"predictor": p},
             )
             for p in predictors
@@ -1760,6 +1761,27 @@ def _horseshoe_pushforward_rows(
         convention="forward",
         scale=scale,
     )
+
+
+def _pushforward_outcome_label(ctx: StatisticalFitContext, outcome: str) -> str:
+    """Reader-facing name for the pushforward's outcome, falling back to the symbol.
+
+    The rows are read by a science reader, not by whoever picked the symbols, so
+    ``W`` and ``basread`` should render as their measure labels. The study's own
+    measure table is the source: RLI symbols resolve through ``measures.MEASURES``
+    and the Byrne-cohort ones through their dataset's table, so neither study's
+    labels are hard-coded here.
+    """
+    from language_reading_predictors.statistical_models import datasets as _datasets
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    if outcome in MEASURES:
+        return str(MEASURES[outcome].label)
+    try:
+        _, measures = _datasets.resolve_dataset(ctx.spec.extra.get("study_id", "rlm"))
+        return str(measures[outcome].label)
+    except Exception:  # noqa: BLE001 - a label is cosmetic; the symbol still names it
+        return outcome
 
 
 def _pushforward_items_scale(
@@ -3386,7 +3408,8 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 [
                     (
                         "beta_dose",
-                        "the association of a +1 SD session-dose step with the outcome",
+                        "the association of a +1 SD session-dose step with "
+                        f"{_pushforward_outcome_label(ctx, sym)}",
                     )
                 ],
                 n_trials=1 if off_floor else MEASURES[sym].n_trials,
@@ -5096,7 +5119,8 @@ def _write_dose_slope_summary(
             [
                 (
                     "mu_dose" if period_varying else "beta_dose",
-                    "the association of a +1 SD session-dose step with the outcome",
+                    "the association of a +1 SD session-dose step with "
+                    f"{_pushforward_outcome_label(ctx, outcome)}",
                 )
             ],
             n_trials=int(ctx.prepared.n_trials[outcome]),
@@ -7409,6 +7433,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # subgroup offsets, and a prior row for a term the report does not show
     # would contradict the nuisance labelling it was dropped for.
     _pf_n, _pf_scale = _pushforward_items_scale(ctx, outcome)
+    _pf_outcome = _pushforward_outcome_label(ctx, outcome)
     _write_prior_pushforward(
         ctx,
         _marginal_pushforward_rows(
@@ -7416,7 +7441,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             [
                 (
                     f"beta_{r.predictor}",
-                    f"the adjusted association of +1 SD {r.label} with {outcome}",
+                    f"the adjusted association of +1 SD {r.label} with {_pf_outcome}",
                 )
                 for r in _pf_assoc.itertuples()
             ],
@@ -9048,6 +9073,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # subgroup offsets, and a prior row for a term the report does not show
     # would contradict the nuisance labelling it was dropped for.
     _pf_n, _pf_scale = _pushforward_items_scale(ctx, outcome)
+    _pf_outcome = _pushforward_outcome_label(ctx, outcome)
     _write_prior_pushforward(
         ctx,
         _marginal_pushforward_rows(
@@ -9055,7 +9081,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             [
                 (
                     f"beta_{r.predictor}",
-                    f"the adjusted association of +1 SD {r.label} with {outcome}",
+                    f"the adjusted association of +1 SD {r.label} with {_pf_outcome}",
                 )
                 for r in _pf_assoc.itertuples()
             ],
