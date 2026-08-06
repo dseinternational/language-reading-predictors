@@ -85,7 +85,7 @@ These are not "not done yet" — each needs an estimand defined that this change
 - **`mediation` / `mediation_multi` (19 fits)** — the estimand is an NDE/NIE decomposition produced by g-formula counterfactual simulation, not a transform of a stored linear predictor. Pushing the prior through it means running the simulation on prior draws, which is a distinct piece of work in `mediation.py`.
 - **`survival` (2)** — reports on the hazard scale; the items columns of this schema do not apply, and inventing an item denominator for it would be worse than leaving it uncovered.
 - **`lcsm` (5), `growth` (3)** — latent-change and latent-trajectory quantities with no `eta` in the prior group; their estimands are on the latent scale.
-- **`corr_factor` (4), `long_corr_factor` (1)** — #381 asks for an **indicator-scale** prior-predictive check for the measurement/CFA families specifically, which is a different artefact from this one.
+- **`corr_factor` (4), `long_corr_factor` (1)** — a different artefact, and now delivered: see "The measurement families" below.
 - **`gain_factors` treated-only companions (8, `gf-101`–`108`)** — genuinely **not applicable**, on the same ground the robustness release gate excludes them (#482): the treatment indicator is constant in a treated-only fit, so `beta_trt` is not in the model and there is no causal term whose prior could be pushed anywhere.
 
 The historical families (`historical_growth`, `historical_joint`) were nearly left here too, on the ground that `historical.growth_summary` computes its group intervals with panel subsetting rather than from a stored coefficient. They are in scope after all: threading `group` through that function is the same one-line change `mechanism_items` needed, and the resulting check — how much between-group total growth the priors alone permit — is worth having on a descriptive family whose whole deliverable is a growth comparison. `_summarize` gained `q25` / `q75` so those rows carry a real inner 50% band rather than a blank.
@@ -93,3 +93,35 @@ The historical families (`historical_growth`, `historical_joint`) were nearly le
 ## Coverage
 
 63 of 194 fits before; **150 after** — the 63 unchanged, plus 87 newly covered across eleven families. The remaining 44 are the four groups above, of which 8 are not applicable and 36 need an estimand this change does not define.
+
+## The measurement families: an indicator-scale check instead
+
+`corr_factor` and `long_corr_factor` report loadings, communalities and factor correlations. None of those is an outcome-scale quantity, so there is no estimand for a pushforward to push — which is exactly the position #381 wants them out of, since "no estimand check" and "no problem" are indistinguishable from the report. The issue asks for an indicator-scale prior-predictive check instead, on the scale these models do observe, and `indicator_prior_check.csv` is it.
+
+**Standardisation is what makes the check sharp.** The indicators are z-scored by construction, so the observed SD is ~1 by definition and the **SD ratio** — prior-predictive SD over observed SD — has a _known reference value of one_, not a judgement call. That is unusual: everywhere else in this work "is this prior too wide?" needs an argument about the measure. Here it does not.
+
+The asymmetry matters for how to read it. A ratio well above 1 means the priors spend most of their mass on configurations the standardisation makes impossible — wasteful, but it invalidates nothing. A ratio **below** 1 is the failure that counts: a prior narrower than the data cannot generate what was observed and will fight the likelihood.
+
+### What it found
+
+| Fit          | Indicators | SD ratio      | Verdict                         |
+| ------------ | ---------: | ------------- | ------------------------------- |
+| `rlm-mm-001` |          9 | 1.007 – 1.012 | essentially perfect calibration |
+| `mm-001`     |          6 | 1.36 – 1.48   | well scaled                     |
+| `mm-002`     |          6 | 1.39 – 1.43   | well scaled                     |
+| `mm-101`     |          6 | 0.96 – 0.97   | well scaled, at the tight edge  |
+| `lcf-001`    |         32 | 1.51 – 1.86   | loose (30 of 32)                |
+
+Two things worth keeping. **`mm-101` is the registered prior-sensitivity variant** of `mm-001` ("recalibrated loading / residual priors"), and the check quantifies the recalibration it was built to test: 0.96 against 1.41, from comfortably-wider-than-the-data to fractionally tighter. That contrast was previously an assertion in the model's description; it is now a number. And **the longitudinal model's indicator priors are the loosest in the suite**, implying spread about 1.6–1.9× the standardised data — not wrong, but the one place where the measurement priors are carrying visibly less information than their cross-sectional counterparts.
+
+### Two things the real data forced
+
+**Pool by indicator, not by observed node.** The longitudinal model splits its rows into missingness-pattern blocks and registers one observed node per block; some blocks hold a _single row_, whose within-block SD is identically zero. Grouping by node produced 86 "not assessable" rows for what is really 32 indicators observed in several pieces. Pooling by label gives 32.
+
+**Judge coverage against binomial noise, not a bare 0.90.** With 75 children the standard error on a 90% coverage rate is about 3.5 points, so a flat `coverage < 0.9` rule fires on ordinary sampling noise — it labelled three perfectly scaled `rlm-mm-001` indicators (SD ratio 1.007) "too tight" at coverage 0.88. The threshold is two standard errors below nominal, so a flag means a real shortfall.
+
+## A second pre-existing gap: the RLI measurement fits had no prior draws at all
+
+`fit_correlated_factor` called `run_prior_predictive` with `var_names=["Z_obs", "y_post"]` — its two _observed_ nodes and nothing else. `sample_prior_predictive` routes observed nodes to the `prior_predictive` group and free variables to `prior`, so the persisted `prior` group was **completely empty** for `mm-001`, `mm-002` and `mm-101`. The `save_prior_posterior_plot` call a few lines below therefore had nothing to overlay, and all three shipped with no prior-vs-posterior figure — while `rlm-mm-001`, which uses the default, has one.
+
+That is the same shape of defect as the pushforward's: a diagnostic absent by construction, rendering identically to one that ran and found nothing. Every other family draws the full prior; these now do too. The indicator check itself did not need the fix — it reads `prior_predictive`, which was always populated — so the gap would have survived this work if it had not been noticed while looking for something else.
