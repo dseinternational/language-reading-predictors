@@ -4020,20 +4020,14 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
         rope, outcome_label, "at the end of the randomised period (t2)"
     )
     sentences.append(_kf_sentence(headline, "headline"))
-    # Surface the t2 power-scaling verdict beside the headline (#389 finding 3): the
-    # level headline was previously unqualified even when psense flagged the t2 term
-    # for prior-data conflict, with the warning hidden in a collapsed prior section.
-    _t2_psense = _kf_psense_diagnosis(output_dir, "b_grp_time[1]")
-    if _t2_psense:
-        sentences.append(
-            _kf_sentence(
-                "Caution: a power-scaling check flags this t2 estimate as "
-                f"prior-sensitive ({_t2_psense}) — the prior meaningfully shapes it, "
-                "so read the headline alongside the prior-sensitivity section rather "
-                "than as a purely data-driven result.",
-                "warning",
-            )
-        )
+    # #389 finding 3 — surfacing the t2 power-scaling verdict beside the headline —
+    # is now the release gate's job rather than this builder's. The gate covers
+    # ``b_grp_time[1]`` for every level-factor fit, and it classifies on the prior and
+    # likelihood statistics rather than on the marker string, which is the better rule
+    # (see ``_kf_psense_diagnosis``: an unrecognised marker on a clean estimate should
+    # not publish a caution). Keeping a family-specific warning as well would say the
+    # same thing twice and cost the reader the ROPE sentence, since the box caps at
+    # five and ``rope`` is droppable — a size claim traded for a duplicated caution.
     sentences.append(
         _kf_sentence(_kf_direction_words(rope["pd"], is_rd=is_rd), "confidence")
     )
@@ -5196,12 +5190,6 @@ _KF_BUILDERS = {
     "long_corr_factor": _kf_build_long_corr_factor,
 }
 
-#: Families whose key findings are gated on robustness evidence as well as on
-#: sampling quality (#392 P1). ITT is the family the review covered; the same rule
-#: was proposed to mirror onto ``did``'s ``tau_t2`` and ``gain_factors``'
-#: ``beta_trt``, which is a deliberate follow-up rather than an oversight.
-_KF_RELEASE_GATED_KINDS = {"itt"}
-
 #: Roles that may be dropped to make room for a release note. The causal sentence is
 #: never droppable: #464 recorded that silently losing it is exactly what happens when
 #: a sixth sentence is appended past the cap, and it is the sentence carrying the
@@ -5219,16 +5207,22 @@ def _kf_release_decision(output_dir, config: Mapping):
     costs no data (every CSV is still written), and is repaired by regenerating the
     key findings once the cause is fixed. It never raises, so a fit's finalisation is
     not lost after sampling.
+
+    Scope and per-family term resolution are both declared in ``release``, so they
+    cannot drift apart. Imported inside the function because ``release`` reaches this
+    module through ``sensitivity``, and a top-level import would close that cycle.
     """
-    if config.get("kind") not in _KF_RELEASE_GATED_KINDS:
-        return None
     from language_reading_predictors.statistical_models.release import (
         ReleaseDecision,
-        evaluate_itt_release,
+        evaluate_release,
+        gate_applies,
     )
 
+    if not gate_applies(config):
+        return None
+
     try:
-        return evaluate_itt_release(output_dir, config)
+        return evaluate_release(output_dir, config)
     except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
         return ReleaseDecision(
             status="withhold",

@@ -28,18 +28,20 @@ The trial was a **waitlist crossover**: one arm received the intervention immedi
 
 Items scale (percentage points for the two floor-rule outcomes), median with 89% range.
 
-| Model     | Outcome                        | t2 contrast (89%)             | P(>0) | Evidence     | ITT (note 01)         |
-| --------- | ------------------------------ | ----------------------------- | ----: | ------------ | --------------------- |
-| `did-002` | Letter sounds (LS)             | **+3.5** items (+1.2 to +5.8) | 0.991 | very strong  | +3.5                  |
-| `did-001` | Word reading (WR)              | +2.2 items (−0.3 to +4.7)     | 0.920 | moderate     | +2.4                  |
-| `did-004` | Taught expressive (TE)         | +1.5 items (+0.0 to +3.0)     | 0.949 | moderate     | +1.5                  |
-| `did-008` | Taught receptive (TR)          | +1.2 items (−0.3 to +2.7)     | 0.902 | suggestive   | +1.4                  |
-| `did-003` | Phoneme blending (PA)          | +0.9 items (+0.1 to +1.7)     | 0.956 | moderate     | +1.0 (link-sensitive) |
-| `did-009` | Expressive vocabulary (EV)     | +0.8 items (−4.0 to +5.5)     | 0.608 | inconclusive | +0.2                  |
-| `did-010` | Basic concepts (LF)            | +0.6 items (−0.5 to +1.8)     | 0.809 | suggestive   | +0.9                  |
-| `did-005` | Receptive vocabulary (RV)      | −0.1 items (−5.1 to +5.0)     | 0.492 | inconclusive | +0.2                  |
-| `did-012` | Nonword reading (NW) — floor   | +6 pp (−6 to +18)             | 0.788 | suggestive   | +10 pp                |
-| `did-011` | Phonetic spelling (PS) — floor | +2 pp (−7 to +12)             | 0.652 | inconclusive | +4 pp                 |
+| Model       | Outcome                        | t2 contrast (89%)             | P(>0) | Evidence     | ITT (note 01)         |
+| ----------- | ------------------------------ | ----------------------------- | ----: | ------------ | --------------------- |
+| `did-002`   | Letter sounds (LS)             | **+3.5** items (+1.2 to +5.8) | 0.991 | very strong  | +3.5                  |
+| `did-001` ‡ | Word reading (WR)              | +2.2 items (−0.3 to +4.7)     | 0.920 | moderate     | +2.4                  |
+| `did-004`   | Taught expressive (TE)         | +1.5 items (+0.0 to +3.0)     | 0.949 | moderate     | +1.5                  |
+| `did-008`   | Taught receptive (TR)          | +1.2 items (−0.3 to +2.7)     | 0.902 | suggestive   | +1.4                  |
+| `did-003` ‡ | Phoneme blending (PA)          | +0.9 items (+0.1 to +1.7)     | 0.956 | moderate     | +1.0 (link-sensitive) |
+| `did-009`   | Expressive vocabulary (EV)     | +0.8 items (−4.0 to +5.5)     | 0.608 | inconclusive | +0.2                  |
+| `did-010`   | Basic concepts (LF)            | +0.6 items (−0.5 to +1.8)     | 0.809 | suggestive   | +0.9                  |
+| `did-005`   | Receptive vocabulary (RV)      | −0.1 items (−5.1 to +5.0)     | 0.492 | inconclusive | +0.2                  |
+| `did-012`   | Nonword reading (NW) — floor   | +6 pp (−6 to +18)             | 0.788 | suggestive   | +10 pp                |
+| `did-011`   | Phonetic spelling (PS) — floor | +2 pp (−7 to +12)             | 0.652 | inconclusive | +4 pp                 |
+
+‡ **Withheld from release** under the robustness gate — see below. The numbers are shown because this note is a technical record, not a published finding.
 
 **A third independent replication, and the closest agreement yet.** Letter sounds comes out at +3.5 items — the same number as the ITT model to one decimal place — and word reading at +2.2 against +2.4. The taught word sets and blending match too. Broad vocabulary is flat and inconclusive, as everywhere.
 
@@ -66,6 +68,18 @@ Four models (`did-006`, `did-007`, `did-013`, `did-107`) look at **how much** in
 **Dose is not randomised — only assignment is.** Attendance is a choice, and the 2012 trial caveat that "the children least able to learn tended to show the poorest attendance" is exactly the confounding path at issue. These slopes are observational associations and must not be read as "more sessions cause more progress".
 
 One reporting gap: `did-007` produces no plain-language key findings because the findings builder does not handle the dose companion's schema (it looks for a t2 items-scale contrast, which a dose model has no reason to produce). The numbers themselves are sound and are reported above; this is a builder limitation, not a data problem.
+
+## Withheld from release under the robustness gate
+
+The key-findings release gate (`notes/202608051500-decision-key-findings-robustness-release-gate.md`, `statistical_models/release.py`) was extended on 2026-08-05 from the ITT family to every family whose headline rests on a randomised term. It classifies the focal coefficient on power-scaling sensitivity, and where the posterior responds to the **prior** but not to the **likelihood** the direction is not established by the data alone, so the causal headline is withheld and the report's result tables are suppressed.
+
+- **`did-001`** (word reading, `tau_t2` prior 0.053 vs likelihood 0.031) and **`did-003`** (phoneme blending, 0.066 vs 0.047) — the two headline arm-by-wave models flagged.
+- **`did-013`** (word reading, 0.055 vs 0.026) — the catch-up-heterogeneity variant, whose t2 contrast is identical to `did-001`, so it fails on the same statistic.
+- **`did-007`** (letter sounds, `mu_dose` 0.063 vs 0.031) — the dose companion, gated on its own focal slope rather than on `tau_t2`, which it does not have.
+
+Note the shape of it: **the DiD family is the worst-affected in the suite**, with four of fourteen fits withheld against two of twenty-eight in ITT. The two families estimate overlapping effects from the same children, so this is a statement about how much the arm-by-wave parameterisation leans on its priors at n ≈ 54, not about the intervention.
+
+Nothing here needs refitting. Attaching a `tau_prior_sensitivity.csv` sweep to the fit, showing the sign holds across the treatment-prior grid, lifts the withhold. **Until then these rows are not results.**
 
 ## Caveats
 

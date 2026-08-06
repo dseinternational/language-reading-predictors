@@ -18,14 +18,14 @@ Five designs estimate the intervention's effect on the same outcomes from differ
 | Outcome                 | ITT (01) | Gain factors (03) | DiD (05) | Levels (04) | Aligned (06) |
 | ----------------------- | -------: | ----------------: | -------: | ----------: | -----------: |
 | **Letter sounds**       | **+3.5** |              +3.3 |     +3.5 |        +2.5 |         +2.2 |
-| **Word reading**        | **+2.4** |              +2.6 |     +2.2 |        +1.5 |         +2.1 |
+| **Word reading**        | **+2.4** |              +2.6 |   +2.2 ‡ |      +1.5 ‡ |         +2.1 |
 | Taught expressive vocab |     +1.5 |              +1.2 |     +1.5 |        +0.3 |            — |
 | Taught receptive vocab  |     +1.4 |              +1.1 |     +1.2 |        +0.4 |            — |
-| Phoneme blending        |   +1.0 † |              +0.8 |     +0.9 |        +0.4 |         +0.3 |
+| Phoneme blending        |   +1.0 † |              +0.8 |   +0.9 ‡ |        +0.4 |         +0.3 |
 | Receptive vocabulary    |     +0.2 |              −1.5 |     −0.1 |        −3.8 |         +2.7 |
 | Expressive vocabulary   |     +0.2 |              +1.1 |     +0.8 |        −2.4 |         −3.0 |
 
-† response-link sensitive — see below.
+† response-link sensitive — see below. ‡ **withheld from release** under the robustness gate (notes 04, 05) — shown because this is a technical record, not a published figure.
 
 **The two reading outcomes replicate across every design.** Letter sounds land between +2.2 and +3.5 items and word reading between +1.5 and +2.6. Across the three randomisation-anchored designs (ITT, gain factors, DiD) the spread is 0.24 items for letter sounds and 0.37 for word reading — well inside any one design's interval. The formal triangulation check confirms it: for W, L, TR, TE, E and F all three designs converge, agree in direction and have overlapping intervals.
 
@@ -71,7 +71,20 @@ Together these say that this cohort's skill ordering is highly stable, and that 
 
 **All 194 models pass the convergence gate, with zero divergent transitions across the entire suite.** Under the study's divergence policy every divergent fit fails closed with no qualification pathway, so this is the first run in which the whole suite clears computation. Thirteen fits initially failed and were repaired by geometry changes rather than waivers — the account is in `notes/202608050649-reporting-refit-predictive-checks.md`.
 
-**Clearing computation is not the same as clearing release.** A robustness gate adopted on 2026-08-05, after these fits were made, additionally classifies each ITT fit on the power-scaling sensitivity of its own τ. Across the 28 ITT fits it gives 26 release and **2 withhold** — the two floor-rule outcomes, phonetic spelling and nonword reading, whose required treatment-prior grid is not yet in place. Their headlines are not releasable, and they are not in the effects table above (which covers the seven outcomes all five designs estimate). A further eleven fits, including letter sounds and phoneme blending, release with an attenuation caveat: the conservative zero-centred prior is pulling those estimates toward zero, so their direction is more reliable than their size. Details in note 01.
+**Clearing computation is not the same as clearing release.** A robustness gate adopted on 2026-08-05, after these fits were made, additionally classifies each randomised-effect fit on the power-scaling sensitivity of the coefficient its headline rests on. It covers the five families with a randomisation-anchored estimand — ITT (τ), the joint models (τ per outcome), the arm-by-wave DiD (`tau_t2`, or a dose slope), gain factors (`beta_trt`) and level factors (the t2 element of `b_grp_time`) — **70 fits, of which 10 are withheld**.
+
+The distribution is the informative part, because it is not uniform:
+
+| Family        | gated | withheld |                                                             |
+| ------------- | ----: | -------: | ----------------------------------------------------------- |
+| ITT           |    28 |        2 | the floor-rule outcomes, missing their treatment-prior grid |
+| DiD           |    14 |    **4** | prior-dominant `tau_t2` / dose slope                        |
+| Gain factors  |    13 |        2 | prior-dominant `beta_trt`, both floor-rule outcomes         |
+| Level factors |    11 |        2 | prior-dominant t2 contrast                                  |
+
+**No ITT fit is prior-dominant; all eight of the others' withholds are.** The two ITT withholds fail on a missing grid instead. So the family that carries the study's headline estimates is also the one whose estimates lean least on their priors, while the arm-by-wave parameterisation — estimating overlapping effects from the same children — leans most. That is a statement about how much each design asks of n ≈ 54, not about the intervention.
+
+Three cells of the effects table above are affected: DiD word reading and phoneme blending, and the levels word-reading contrast. **Letter sounds is withheld in no design**, so the suite's strongest result is unaffected. A further eleven ITT fits, including letter sounds and phoneme blending, release with an attenuation caveat: the conservative zero-centred prior is pulling those estimates toward zero, so their direction is more reliable than their size. Details in notes 01, 03, 04 and 05.
 
 Every model emits a prior-predictive check (previously 24 did not), and **all 189 with a comparable summary schema cover the observed range**. Posterior-predictive coverage reproduces the 2026-07-26 baseline to within 0.009 across every outcome and family, so the calibration picture is unchanged on independently re-sampled fits. The 50% bands overcover throughout (0.58–0.85 by family); that is substantially mechanical — discrete counts, small denominators, and in-sample checks conditioning on fitted child effects in the repeated-measures families — rather than a likelihood defect, as the Conway–Maxwell-binomial probe established.
 

@@ -26,21 +26,23 @@ SES is deliberately excluded: it is not a node in the study's causal diagram and
 
 Treatment effect is the period-1 on-intervention marginal, median with 89% range.
 
-| Model    | Outcome                             | On-intervention effect (89%)  | P(>0) | Evidence     | ITT counterpart (note 01) |
-| -------- | ----------------------------------- | ----------------------------- | ----: | ------------ | ------------------------- |
-| `gf-004` | Letter sounds (LS)                  | **+3.3** items (+1.6 to +5.0) | 0.999 | very strong  | +3.5                      |
-| `gf-001` | Word reading (WR)                   | **+2.6** items (+0.9 to +4.3) | 0.991 | very strong  | +2.4                      |
-| `gf-013` | Taught expressive (TE) †            | +1.3 items (+0.2 to +2.4)     | 0.967 | moderate     | +1.5                      |
-| `gf-012` | Taught receptive (TR) †             | +1.3 items (+0.1 to +2.4)     | 0.962 | moderate     | +1.4                      |
-| `gf-010` | Taught expressive (TE)              | +1.2 items (−0.0 to +2.3)     | 0.944 | moderate     | +1.5                      |
-| `gf-009` | Taught receptive (TR)               | +1.1 items (−0.1 to +2.2)     | 0.927 | moderate     | +1.4                      |
-| `gf-007` | Basic concepts (LF)                 | +1.1 items (+0.1 to +2.0)     | 0.962 | moderate     | +0.9                      |
-| `gf-003` | Expressive vocabulary (EV)          | +1.1 items (−2.1 to +4.3)     | 0.708 | inconclusive | +0.2                      |
-| `gf-006` | Phoneme blending (PA)               | +0.8 items (+0.1 to +1.6)     | 0.961 | moderate     | +1.0 (link-sensitive)     |
-| `gf-008` | Receptive grammar (RG)              | +0.8 items (−0.5 to +2.2)     | 0.835 | suggestive   | +0.7                      |
-| `gf-002` | Receptive vocabulary (RV)           | −1.5 items (−5.3 to +2.4)     | 0.263 | inconclusive | +0.2                      |
-| `gf-011` | Nonword reading (NW) — floor rule   | +2.5 pp (−8.0 to +13.0)       | 0.650 | inconclusive | +10 pp                    |
-| `gf-005` | Phonetic spelling (PS) — floor rule | −2.0 pp (−11.1 to +6.8)       | 0.360 | inconclusive | +4 pp                     |
+| Model      | Outcome                             | On-intervention effect (89%)  | P(>0) | Evidence     | ITT counterpart (note 01) |
+| ---------- | ----------------------------------- | ----------------------------- | ----: | ------------ | ------------------------- |
+| `gf-004`   | Letter sounds (LS)                  | **+3.3** items (+1.6 to +5.0) | 0.999 | very strong  | +3.5                      |
+| `gf-001`   | Word reading (WR)                   | **+2.6** items (+0.9 to +4.3) | 0.991 | very strong  | +2.4                      |
+| `gf-013`   | Taught expressive (TE) †            | +1.3 items (+0.2 to +2.4)     | 0.967 | moderate     | +1.5                      |
+| `gf-012`   | Taught receptive (TR) †             | +1.3 items (+0.1 to +2.4)     | 0.962 | moderate     | +1.4                      |
+| `gf-010`   | Taught expressive (TE)              | +1.2 items (−0.0 to +2.3)     | 0.944 | moderate     | +1.5                      |
+| `gf-009`   | Taught receptive (TR)               | +1.1 items (−0.1 to +2.2)     | 0.927 | moderate     | +1.4                      |
+| `gf-007`   | Basic concepts (LF)                 | +1.1 items (+0.1 to +2.0)     | 0.962 | moderate     | +0.9                      |
+| `gf-003`   | Expressive vocabulary (EV)          | +1.1 items (−2.1 to +4.3)     | 0.708 | inconclusive | +0.2                      |
+| `gf-006`   | Phoneme blending (PA)               | +0.8 items (+0.1 to +1.6)     | 0.961 | moderate     | +1.0 (link-sensitive)     |
+| `gf-008`   | Receptive grammar (RG)              | +0.8 items (−0.5 to +2.2)     | 0.835 | suggestive   | +0.7                      |
+| `gf-002`   | Receptive vocabulary (RV)           | −1.5 items (−5.3 to +2.4)     | 0.263 | inconclusive | +0.2                      |
+| `gf-011` ‡ | Nonword reading (NW) — floor rule   | +2.5 pp (−8.0 to +13.0)       | 0.650 | inconclusive | +10 pp                    |
+| `gf-005` ‡ | Phonetic spelling (PS) — floor rule | −2.0 pp (−11.1 to +6.8)       | 0.360 | inconclusive | +4 pp                     |
+
+‡ **Withheld from release** under the robustness gate — see below. The numbers are shown because this note is a technical record, not a published finding.
 
 † `gf-012`/`gf-013` add broad vocabulary as an adjuster to the taught-word models.
 
@@ -65,6 +67,18 @@ These companions are the right place to look for "who progresses" questions and 
 Across this family the notable non-treatment association is that **age is negatively associated with gain, conditional on baseline**. This is not an artefact of the difficulty ladder or the likelihood: it was tested directly and survives (`notes/202607261405-binomial-exchangeability-item-difficulty-review.md` §3, which simulated Rasch-type ladders under a zero true age effect and found every ladder produces a _positive_ bias, the opposite direction).
 
 The honest reading is that this cannot separate developmental timing from trajectory selection. Being older at the same score _means_ having grown more slowly historically, and no cross-sectional adjustment distinguishes "older children gain less" from "slower-progressing children are older when they reach any given score". Both readings are consistent with the data.
+
+## Withheld from release under the robustness gate
+
+The key-findings release gate (`notes/202608051500-decision-key-findings-robustness-release-gate.md`, `statistical_models/release.py`) was extended on 2026-08-05 from the ITT family to every family whose headline rests on a randomised term. It classifies the focal coefficient on power-scaling sensitivity, and where the posterior responds to the **prior** but not to the **likelihood** the direction is not established by the data alone, so the causal headline is withheld and the report's result tables are suppressed.
+
+- **`gf-005`** (phonetic spelling, `beta_trt` prior 0.066 vs likelihood 0.024) and **`gf-011`** (nonword reading, 0.076 vs 0.039) — the two floor-rule models.
+
+Both are the off-floor risk-difference outcomes, and both are withheld in the ITT family too (`itt-009`, `itt-011`), there for a missing floor grid rather than for prior dominance. Two families reach the same verdict on the same two outcomes by different routes, which is worth more than either on its own: the heavily-floored measures do not carry a releasable treatment claim in this study.
+
+One asymmetry to record rather than discover. The ITT floor rule requires a registered six-cell treatment-prior grid before an off-floor headline releases; the gain-factor off-floor models have no such requirement, and are gated on prior dominance alone. Both withhold today, so nothing is under-gated — but a gain-factor off-floor fit that came back clear would release without the grid its ITT counterpart needs.
+
+Nothing here needs refitting. Attaching a `tau_prior_sensitivity.csv` sweep to the fit, showing the sign holds across the treatment-prior grid, lifts the withhold. **Until then these rows are not results.**
 
 ## Caveats
 
