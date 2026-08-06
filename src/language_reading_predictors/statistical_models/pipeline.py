@@ -9360,14 +9360,18 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["Z_obs"])
-    # Indicator-scale prior check (#381) — the measurement families' stand-in for
-    # the estimand pushforward the outcome families get.
-    _write_indicator_prior_check(ctx, ["Z_obs"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
     _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
+    # Indicator-scale prior check (#381) — the measurement families' stand-in for
+    # the estimand pushforward the outcome families get. AFTER save_trace, which
+    # is what attaches the prior/prior_predictive groups to ctx.trace on a fresh
+    # fit: called earlier, the check found no prior_predictive group and skipped
+    # silently (#383) — the re-emitted reporting artefacts never showed it
+    # because a reused trace arrives with its groups already on disk.
+    _write_indicator_prior_check(ctx, ["Z_obs"])
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     post = ctx.trace.posterior
@@ -9467,7 +9471,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         panel,
         measures=measure_syms,
         eta_prior_sigma=e.get("eta_prior_sigma", 1.5),
-        sigma_subject_prior_sigma=e.get("sigma_subject_prior_sigma", 0.5),
+        sigma_subject_prior_sigma=e.get("sigma_subject_prior_sigma", 1.0),
         kappa_prior_sigma=e.get("kappa_prior_sigma", 50.0),
         lkj_eta=e.get("lkj_eta", 2.0),
     )
@@ -9657,6 +9661,38 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     """
     _require_spec(spec, "corr_factor")
 
+    # #383 settings coherence, checked BEFORE make_context resets the output
+    # directory (the #455 principle): each loading parameterisation has knobs the
+    # other would silently ignore, so a spec mixing them is declaring settings the
+    # fitted model does not use.
+    _loading_prior = str(
+        spec.extra.get(
+            "loading_prior",
+            _default_of(_factories.build_correlated_factor_model, "loading_prior"),
+        )
+    )
+    if _loading_prior not in {"communality", "free"}:
+        raise ValueError(
+            f"Spec {spec.model_id}: loading_prior must be 'communality' or 'free'; "
+            f"got {_loading_prior!r}"
+        )
+    _free_knobs = sorted(
+        k for k in ("loading_mu", "loading_sigma", "residual_sigma") if k in spec.extra
+    )
+    _comm_knobs = sorted(k for k in ("comm_alpha", "comm_beta") if k in spec.extra)
+    if _loading_prior == "communality" and _free_knobs:
+        raise ValueError(
+            f"Spec {spec.model_id}: {_free_knobs} only apply to "
+            "loading_prior='free'; the communality parameterisation would silently "
+            "ignore them. Set loading_prior='free' or drop the knobs."
+        )
+    if _loading_prior == "free" and _comm_knobs:
+        raise ValueError(
+            f"Spec {spec.model_id}: {_comm_knobs} only apply to "
+            "loading_prior='communality'; the free parameterisation would silently "
+            "ignore them. Drop the knobs or use the default parameterisation."
+        )
+
     ctx = make_context(spec, config)
     # The correlated-factor CFA is a small-n latent model; even with the factor
     # scores marginalised out of the measurement likelihood a few boundary
@@ -9709,6 +9745,15 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         structural_factors=structural_factors,
         use_group=use_group,
         use_age=spec.extra.get("use_age", True),
+        loading_prior=_loading_prior,
+        comm_alpha=spec.extra.get(
+            "comm_alpha",
+            _default_of(_factories.build_correlated_factor_model, "comm_alpha"),
+        ),
+        comm_beta=spec.extra.get(
+            "comm_beta",
+            _default_of(_factories.build_correlated_factor_model, "comm_beta"),
+        ),
         loading_mu=spec.extra.get(
             "loading_mu",
             _default_of(_factories.build_correlated_factor_model, "loading_mu"),
@@ -9732,7 +9777,12 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     _render_model_graph(ctx)
 
     summary_vars = [
+        # ``communality`` is the free RV under the default communality
+        # parameterisation (#383) and a Deterministic under the legacy free pair;
+        # either way it is a reported quantity, so gate it explicitly alongside
+        # the derived lambda_load / sigma_indicator.
         "alpha", "gamma_own", "kappa", "beta_factor", "lambda_load", "sigma_indicator",
+        "communality",
         # The headline factor correlations MUST be in the gated set: they are what
         # the report releases, and the global checks (divergences, BFMI) are not a
         # substitute for parameter-specific R-hat / ESS on them. ``factor_corr``
@@ -9785,15 +9835,17 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # indicators*. Together they do not certify the joint model. See the
     # predictive-simulation caveat in ``build_correlated_factor_model``.
     _run_ppc(ctx, var_names=["Z_obs", "y_post"])
-    # Indicator-scale prior check (#381). Only ``Z_obs`` is the indicator matrix;
-    # ``y_post`` is the structural outcome and is covered by the ordinary
-    # prior-predictive plot above.
-    _write_indicator_prior_check(ctx, ["Z_obs"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
     _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
+    # Indicator-scale prior check (#381). Only ``Z_obs`` is the indicator matrix;
+    # ``y_post`` is the structural outcome and is covered by the ordinary
+    # prior-predictive plot above. AFTER save_trace, which is what attaches the
+    # prior/prior_predictive groups to ctx.trace on a fresh fit: called earlier,
+    # the check found no prior_predictive group and skipped silently (#383).
+    _write_indicator_prior_check(ctx, ["Z_obs"])
     _diag.save_prior_posterior_plot(ctx, var_names=summary_vars)
 
     post = ctx.trace.posterior
@@ -10039,15 +10091,18 @@ def fit_longitudinal_corr_factor(
     _diag.summary_diagnostics(ctx, var_names=summary_vars)
 
     _run_ppc(ctx, var_names=z_nodes)
-    # Indicator-scale prior check (#381), pooled across the missingness-pattern
-    # blocks: each block is its own observed node but the indicators are shared.
-    _write_indicator_prior_check(ctx, z_nodes)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
     _diag.run_extended_diagnostics(ctx, causal_term=None)
     _diag.run_psense(ctx, var_names=["factor_corr_pairs", "trait_share"])
     _diag.save_trace(ctx)
+    # Indicator-scale prior check (#381), pooled across the missingness-pattern
+    # blocks: each block is its own observed node but the indicators are shared.
+    # AFTER save_trace, which is what attaches the prior/prior_predictive groups
+    # to ctx.trace on a fresh fit: called earlier, the check found no
+    # prior_predictive group and skipped silently (#383).
+    _write_indicator_prior_check(ctx, z_nodes)
     _diag.save_prior_posterior_plot(ctx, var_names=summary_vars)
 
     post = ctx.trace.posterior

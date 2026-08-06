@@ -50,12 +50,18 @@ SPEC = ModelSpec(
         "waves": (1, 2, 3),
         "extension_waves": (4, 5),
         "eta_prior_sigma": 1.5,
-        # Reconciled 1.0 -> 0.5 to match the shared random-effect SD scale
-        # (sigma_child ~ HalfNormal(0.5)) — prior-critical-review 2026-07-07,
-        # recommendation 3. The eta[group, wave] grid stays unanchored at 1.5:
-        # the pushforward shows it is well-calibrated on the full-range basread
+        # Widened 0.5 -> 1.0 (#383, prior-critical-review 2026-07-21): under
+        # HalfNormal(0.5) the fitted Down-syndrome sigma_subject posteriors ran
+        # 1.25-1.39 across the verbal/reading measures — at/beyond the prior's
+        # 99th percentile (1.29) — a genuine prior-data conflict that mildly
+        # biased the reported between-child spread downward. HalfNormal(1.0)
+        # covers the fitted range (99th pct 2.58) while staying weakly
+        # informative for the low-heterogeneity measures. This reverses the
+        # 2026-07-07 review's 1.0 -> 0.5 reconciliation on the later review's
+        # evidence. The eta[group, wave] grid stays unanchored at 1.5: the
+        # pushforward shows it is well-calibrated on the full-range basread
         # scale (not a low-occupancy outcome), so anchoring it is not warranted.
-        "sigma_subject_prior_sigma": 0.5,
+        "sigma_subject_prior_sigma": 1.0,
         "kappa_prior_sigma": 50.0,
     },
 )

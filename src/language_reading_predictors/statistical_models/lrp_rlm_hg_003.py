@@ -57,7 +57,9 @@ SPEC = ModelSpec(
         "waves": (1, 2, 3),
         "extension_waves": (4, 5),
         "eta_prior_sigma": 1.5,
-        "sigma_subject_prior_sigma": 0.5,
+        # Widened 0.5 -> 1.0 (#383): DS sigma_subject posteriors sat at/beyond
+        # the HalfNormal(0.5) 99th percentile — see lrp_rlm_hg_001.py.
+        "sigma_subject_prior_sigma": 1.0,
         "kappa_prior_sigma": 50.0,
     },
 )
