@@ -1713,6 +1713,40 @@ def _growth_contrast_pushforward_rows(
     return rows
 
 
+def _write_indicator_prior_check(
+    ctx: StatisticalFitContext, nodes: Sequence[str]
+) -> None:
+    """Write ``indicator_prior_check.csv`` for a measurement family (#381).
+
+    The CFA families have no outcome-scale estimand to push a prior through —
+    they report loadings, communalities and factor correlations — so #381 asks
+    them for this instead, on the scale they do observe: the standardised
+    indicator matrix. Without it these families were exempt from the coverage
+    guarantee by construction rather than by argument.
+    """
+    try:
+        df = _report.indicator_prior_check(
+            ctx.trace, nodes=list(nodes), ci_prob=ctx.reporting.ci_prob
+        )
+    except Exception as exc:  # noqa: BLE001 - a report extra must not fail a fit
+        rprint(f"[yellow]indicator prior check skipped: {exc}[/yellow]")
+        return
+    if df.empty:
+        rprint("[yellow]indicator prior check: no indicator nodes found[/yellow]")
+        return
+    df.to_csv(os.path.join(ctx.output_dir, "indicator_prior_check.csv"), index=False)
+    ctx.tables["indicator_prior_check"] = df
+    print_table(
+        ranked_dataframe_table(
+            df,
+            title="Indicator-scale prior check (SD ratio 1 = prior matches the data)",
+            columns=["indicator", "observed_sd", "prior_sd", "sd_ratio", "coverage_90", "verdict"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+
 def _write_prior_pushforward(
     ctx: StatisticalFitContext, rows: Sequence[Mapping[str, object]]
 ) -> None:
@@ -9326,6 +9360,9 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["Z_obs"])
+    # Indicator-scale prior check (#381) — the measurement families' stand-in for
+    # the estimand pushforward the outcome families get.
+    _write_indicator_prior_check(ctx, ["Z_obs"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -9715,7 +9752,15 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         summary_vars.append("beta_G")
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["Z_obs", "y_post"])
+    # Draw the full prior, not just the two observed nodes (#381). Restricting
+    # ``var_names`` to ``["Z_obs", "y_post"]`` left the persisted ``prior`` group
+    # completely empty, so ``save_prior_posterior_plot`` below had nothing to
+    # overlay and these three fits shipped with no prior-vs-posterior figure at
+    # all — the one measurement family the prior-analysis review most wanted to
+    # see. The default (all free RVs + deterministics + observed nodes) is what
+    # every other family uses, and ``run_prior_predictive`` falls back to the
+    # minimal set on failure.
+    _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
 
     # Two observed nodes (the indicator matrix Z_obs + the structural y_post) make
@@ -9740,6 +9785,10 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # indicators*. Together they do not certify the joint model. See the
     # predictive-simulation caveat in ``build_correlated_factor_model``.
     _run_ppc(ctx, var_names=["Z_obs", "y_post"])
+    # Indicator-scale prior check (#381). Only ``Z_obs`` is the indicator matrix;
+    # ``y_post`` is the structural outcome and is covered by the ordinary
+    # prior-predictive plot above.
+    _write_indicator_prior_check(ctx, ["Z_obs"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
@@ -9990,6 +10039,9 @@ def fit_longitudinal_corr_factor(
     _diag.summary_diagnostics(ctx, var_names=summary_vars)
 
     _run_ppc(ctx, var_names=z_nodes)
+    # Indicator-scale prior check (#381), pooled across the missingness-pattern
+    # blocks: each block is its own observed node but the indicators are shared.
+    _write_indicator_prior_check(ctx, z_nodes)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)

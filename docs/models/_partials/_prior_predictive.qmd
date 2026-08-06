@@ -74,3 +74,48 @@ if not _has("prior_predictive_check.png"):
 # post-hoc binary off-floor branch; it does not establish prior specification.
 print(_img("prior_proportion_at_zero.png", "Prior proportion-at-zero check"))
 ```
+
+```{python}
+# | echo: false
+# | output: asis
+# Indicator-scale prior check for the measurement families (#381). These models
+# report loadings, communalities and factor correlations — none of them an
+# outcome-scale quantity — so they have no estimand pushforward. This is the
+# check that keeps them inside the coverage guarantee instead of exempt by
+# construction.
+_ipc = _csv("indicator_prior_check.csv")
+if _ipc is not None and len(_ipc):
+    print("### Indicator-scale prior check\n")
+    print(
+        "The indicators are standardised, so the observed SD is about 1 by "
+        "construction and the **SD ratio** (prior-predictive SD over observed SD) "
+        "has a known reference value of **1** rather than a judgement call. A "
+        "ratio near 1 means the priors generate indicator data of the right "
+        "scale. Well above 1 means they spend most of their mass on "
+        "configurations the standardisation makes impossible — wasteful, but it "
+        "invalidates nothing. **Below 1 is the one that matters**: a prior "
+        "narrower than the data cannot generate what was observed and will "
+        "fight the likelihood. `coverage_90` is the share of observed values "
+        "inside the prior-predictive 90% band, judged against binomial sampling "
+        "noise rather than a bare 0.90.\n"
+    )
+    _worst = _ipc[_ipc["verdict"].isin(["too tight", "very loose"])]
+    _ratios = _ipc["sd_ratio"].astype(float)
+    print(
+        f"Across {len(_ipc)} indicators the SD ratio runs "
+        f"{_ratios.min():.2f} to {_ratios.max():.2f} "
+        f"(median {_ratios.median():.2f}). "
+        + (
+            f"**{len(_worst)} of them are flagged** "
+            f"({', '.join(sorted(set(_worst['verdict'])))}); see the table.\n"
+            if len(_worst)
+            else "No indicator is flagged.\n"
+        )
+    )
+    print("")
+```
+
+```{python}
+# | echo: false
+_ipc if _ipc is not None and len(_ipc) else None
+```

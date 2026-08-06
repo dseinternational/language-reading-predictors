@@ -17,7 +17,9 @@ from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
     evidence_label,
+    _indicator_prior_verdict,
     factor_summary,
+    indicator_prior_check,
     joint_prior_pushforward,
     labelled_pushforward,
     marginal_prior_pushforward,
@@ -394,3 +396,89 @@ def test_scale_is_derived_from_the_denominator_so_it_cannot_disagree():
         values, estimand="tau", estimand_label="x", role="causal", scale="words/year"
     )
     assert override["scale"] == "words/year"
+
+
+# ---------------------------------------------------------------------------
+# Indicator-scale prior check for the measurement families (#381)
+# ---------------------------------------------------------------------------
+
+
+def _cfa_trace(prior_sd, *, node="Z_obs", n_obs=60, seed=5):
+    """A CFA-shaped trace: standardised observed indicators + prior draws of them."""
+    rng = np.random.default_rng(seed)
+    labels = ["a", "b"]
+    observed = rng.normal(0.0, 1.0, (n_obs, len(labels)))
+    if n_obs > 1:  # a single-row block has no within-block SD to divide by
+        observed = (observed - observed.mean(0)) / observed.std(0)  # standardised
+    sim = rng.normal(0.0, prior_sd, (1, 200, n_obs, len(labels)))
+    dims = ("chain", "draw", f"{node}_row", f"{node}_cell")
+    coords = {
+        "chain": [0],
+        "draw": np.arange(200),
+        f"{node}_row": np.arange(n_obs),
+        f"{node}_cell": labels,
+    }
+    return SimpleNamespace(
+        prior_predictive=xr.Dataset({node: (dims, sim)}, coords=coords),
+        observed_data=xr.Dataset(
+            {node: ((f"{node}_row", f"{node}_cell"), observed)},
+            coords={f"{node}_row": np.arange(n_obs), f"{node}_cell": labels},
+        ),
+    )
+
+
+def test_indicator_prior_check_uses_one_as_the_reference_sd_ratio():
+    """Standardisation is what makes this check sharp: observed SD is ~1."""
+    ok = indicator_prior_check(_cfa_trace(1.0), nodes=["Z_obs"])
+    assert list(ok["indicator"]) == ["a", "b"]
+    assert ok["sd_ratio"].between(0.9, 1.2).all()
+    assert set(ok["verdict"]) == {"well scaled"}
+
+    # A prior far wider than the standardised data is wasteful, not invalidating.
+    wide = indicator_prior_check(_cfa_trace(4.0), nodes=["Z_obs"])
+    assert set(wide["verdict"]) == {"very loose"}
+
+    # A prior narrower than the data is the failure that matters: it cannot
+    # generate what was observed.
+    tight = indicator_prior_check(_cfa_trace(0.4), nodes=["Z_obs"])
+    assert set(tight["verdict"]) == {"too tight"}
+    assert (tight["coverage_90"] < 0.9).all()
+
+
+def test_indicator_verdict_tolerates_binomial_noise_in_coverage():
+    """A flat ``coverage < 0.9`` rule fires on ordinary sampling noise.
+
+    With 75 children the standard error on a 90% coverage rate is ~3.5 points, so
+    0.88 is well inside noise — and a bare threshold labelled three perfectly
+    scaled `rlm-mm-001` indicators (sd_ratio 1.007) "too tight" at exactly that.
+    """
+    assert _indicator_prior_verdict(1.007, 0.88, 75) == "well scaled"
+    # A genuine shortfall, more than two standard errors below nominal, still fires.
+    assert _indicator_prior_verdict(1.007, 0.60, 75) == "too tight"
+    # Small samples are noisier, so the same coverage is tolerated there.
+    assert _indicator_prior_verdict(1.0, 0.75, 12) == "well scaled"
+
+
+def test_indicator_prior_check_pools_missingness_blocks_by_indicator():
+    """The longitudinal model registers one observed node per missingness block.
+
+    Some blocks hold a single row, whose within-block SD is identically zero, so
+    grouping by node would emit a pile of unassessable rows for what is really
+    one indicator observed in several pieces.
+    """
+    big = _cfa_trace(1.0, node="z_obs_0", n_obs=40, seed=1)
+    small = _cfa_trace(1.0, node="z_obs_1", n_obs=1, seed=2)
+    merged = SimpleNamespace(
+        prior_predictive=xr.merge(
+            [big.prior_predictive, small.prior_predictive], compat="override"
+        ),
+        observed_data=xr.merge(
+            [big.observed_data, small.observed_data], compat="override"
+        ),
+    )
+    df = indicator_prior_check(merged, nodes=["z_obs_0", "z_obs_1"])
+    # One row per indicator, not per (node, indicator) — and the single-row block
+    # contributes its observation rather than an unassessable row of its own.
+    assert list(df["indicator"]) == ["a", "b"]
+    assert (df["n_observed"] == 41).all()
+    assert "not assessable" not in set(df["verdict"])

@@ -419,6 +419,7 @@ isfinite
 isinstance
 isna
 issubset
+isin
 iterdir
 iterrows
 itertuples

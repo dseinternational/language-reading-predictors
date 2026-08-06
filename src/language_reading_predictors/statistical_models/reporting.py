@@ -939,6 +939,139 @@ def joint_prior_pushforward(
     return rows
 
 
+def indicator_prior_check(
+    trace: xr.DataTree,
+    *,
+    nodes: Sequence[str],
+    ci_prob: float = 0.89,
+) -> pd.DataFrame:
+    """Indicator-scale prior-predictive check for the measurement families (#381).
+
+    The CFA families report loadings, communalities and factor correlations —
+    none of which is an outcome-scale quantity, so the estimand pushforward the
+    other families use has nothing to push. #381 asks for this instead, so they
+    are not silently exempt from the coverage guarantee. The check is on the
+    scale the model actually observes: the standardised indicator matrix.
+
+    Standardisation is what makes it sharp. The indicators are z-scored by
+    construction, so the observed SD is ~1 by definition and ``sd_ratio`` —
+    prior-predictive SD over observed SD — has a *known reference value of one*
+    rather than a judgement call. A ratio near 1 means the prior generates
+    indicator data of the right scale; well above 1 means it spends most of its
+    mass on configurations the standardisation makes impossible; **below 1 is the
+    one that matters**, because a prior narrower than the data cannot generate
+    what was observed and will fight the likelihood.
+
+    ``coverage_90`` is the complementary view: the share of observed values
+    inside the prior-predictive 90% band, pooled over that indicator's rows. A
+    well-scaled prior covers essentially all of them.
+
+    One row per **indicator**, pooled across nodes. The longitudinal model splits
+    its observations into missingness-pattern blocks — one node each, sharing
+    indicator labels — and some of those blocks hold a single row, whose
+    within-block SD is identically zero. Grouping by node would emit dozens of
+    unassessable rows for what is really one indicator observed in several
+    pieces, so the pieces are pooled by label. Nodes absent from the trace are
+    skipped rather than raising: this runs after the fit and must not be able to
+    take a report down.
+    """
+    seen_obs: dict[str, list[np.ndarray]] = {}
+    seen_sim: dict[str, list[np.ndarray]] = {}
+    inside_flags: dict[str, list[np.ndarray]] = {}
+    order: list[str] = []
+    for node in nodes:
+        try:
+            pp = trace.prior_predictive[node]
+            observed = np.asarray(trace.observed_data[node].values, dtype=float)
+        except (AttributeError, KeyError):
+            continue
+        stacked = pp.stack(sample=("chain", "draw"))
+        other = [d for d in stacked.dims if d != "sample"]
+        draws = stacked.transpose(*other, "sample").values
+        labels = (
+            [str(x) for x in stacked.coords[other[-1]].values]
+            if len(other) > 1
+            else [node]
+        )
+        if draws.ndim == 2:  # a single-column node
+            draws = draws[:, None, :]
+            observed = observed.reshape(observed.shape[0], 1)
+        for k, label in enumerate(labels):
+            sim = draws[:, k, :]  # (obs, sample)
+            obs = observed[:, k]
+            finite = np.isfinite(obs)
+            if not finite.any():
+                continue
+            if label not in seen_obs:
+                order.append(label)
+                seen_obs[label], seen_sim[label], inside_flags[label] = [], [], []
+            seen_obs[label].append(obs[finite])
+            seen_sim[label].append(sim.ravel())
+            # Per-row bands, so coverage asks "was this child's value reachable",
+            # not "is it inside the pooled marginal" — the pooled version would
+            # flatter a prior that is wide overall but wrong row by row.
+            band_lo = np.quantile(sim, 0.05, axis=1)
+            band_hi = np.quantile(sim, 0.95, axis=1)
+            inside_flags[label].append(
+                (obs[finite] >= band_lo[finite]) & (obs[finite] <= band_hi[finite])
+            )
+
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    rows: list[dict[str, Any]] = []
+    for label in order:
+        seen = np.concatenate(seen_obs[label])
+        flat = np.concatenate(seen_sim[label])
+        inside = np.concatenate(inside_flags[label])
+        obs_sd = float(np.std(seen)) if seen.size > 1 else float("nan")
+        prior_sd = float(np.std(flat))
+        ratio = prior_sd / obs_sd if obs_sd else float("nan")
+        coverage = float(np.mean(inside)) if inside.size else float("nan")
+        rows.append(
+            {
+                "indicator": label,
+                "n_observed": int(seen.size),
+                "observed_sd": obs_sd,
+                "observed_lo": float(np.quantile(seen, lo_q)),
+                "observed_hi": float(np.quantile(seen, hi_q)),
+                "prior_sd": prior_sd,
+                "prior_lo": float(np.quantile(flat, lo_q)),
+                "prior_hi": float(np.quantile(flat, hi_q)),
+                "sd_ratio": ratio,
+                "coverage_90": coverage,
+                "verdict": _indicator_prior_verdict(ratio, coverage, int(seen.size)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _indicator_prior_verdict(sd_ratio: float, coverage: float, n: int) -> str:
+    """Label one indicator's prior scale (see :func:`indicator_prior_check`).
+
+    Ordered by which failure actually threatens a conclusion. A prior narrower
+    than the standardised data — or one that demonstrably fails to cover it — is
+    a real problem, because it cannot generate what was observed and will fight
+    the likelihood. A prior several times wider is wasteful and worth knowing
+    about, but it invalidates nothing.
+
+    The coverage arm is judged against **binomial sampling noise**, not against a
+    bare 0.90. With 75 children the standard error on a 90% coverage rate is
+    about 3.5 points, so a flat ``coverage < 0.9`` rule fires on ordinary noise:
+    it labelled three perfectly scaled ``rlm-mm-001`` indicators (``sd_ratio``
+    1.007) "too tight" at coverage 0.88. Two standard errors below nominal is the
+    threshold, so the flag means a real shortfall rather than a coin-flip.
+    """
+    if not np.isfinite(sd_ratio):
+        return "not assessable"
+    tolerance = 2.0 * float(np.sqrt(0.9 * 0.1 / n)) if n > 0 else 0.0
+    if sd_ratio < 0.9 or (np.isfinite(coverage) and coverage < 0.9 - tolerance):
+        return "too tight"
+    if sd_ratio > 3.0:
+        return "very loose"
+    if sd_ratio > 1.5:
+        return "loose"
+    return "well scaled"
+
+
 def offfloor_mover_table(prepared, symbol: str) -> pd.DataFrame:
     """Per-arm off-floor "mover" counts for a floored outcome (floor-rule, #119).
 
