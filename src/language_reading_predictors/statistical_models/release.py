@@ -36,15 +36,25 @@ power-scaling was never run is repaired by
 ``scripts/regenerate_psense.py`` followed by ``scripts/regenerate_key_findings.py``,
 with no refit.
 
-**Scope.** Every family whose headline rests on a randomisation-anchored term: ITT
-(``tau``, including the floored P/N primaries), ``did`` (``tau_t2``, or the dose
-model's own focal slope), ``gain_factors`` (``beta_trt``) and ``level_factors``
-(``b_grp_time[1]``, the t2 element — the only randomised one). #392 reviewed ITT and
-its mirroring onto the others was left to a follow-up; Frank ruled the uniform
-extension on 2026-08-05 after it was measured, because the case that never bit in ITT
-does bite outside it. **No ITT fit is prior-dominant; eight fits across the other
-three families are**, and every one of them was publishing an unqualified causal
-headline. Same defect, same treatment.
+**Scope.** :data:`GATED_KINDS` is the authoritative list, and it is exactly the
+families whose findings box publishes a randomisation-anchored causal claim: ``itt``
+(``tau``, including the floored P/N primaries), ``joint`` (``tau``, vector-valued —
+one randomised effect per jointly-fitted outcome, aggregated worst-first), ``did``
+(``tau_t2``, or the dose model's own focal slope), ``gain_factors`` (``beta_trt``) and
+``level_factors`` (``b_grp_time[1]``, the t2 element — the only randomised one).
+
+Everything else is out, and for one of two reasons. The observational families report
+adjusted associations, which their reports already label as such. A treated-only
+``gain_factors`` companion is in a gated family but has no randomised term at all — see
+:func:`gate_applies`.
+
+#392 reviewed ITT and left the mirroring onto the others to a follow-up; Frank ruled the
+uniform extension on 2026-08-05 after it was measured, because the case that never bit
+in ITT does bite outside it. **No ITT fit is prior-dominant; eight fits across ``did``,
+``gain_factors`` and ``level_factors`` are**, and every one of them was publishing an
+unqualified causal headline. Same defect, same treatment. ``joint`` was added in review:
+it publishes a causal headline too, and its ``itt-012`` fit has three prior-attenuated
+outcomes that the box said nothing about.
 
 The floor-grid requirement stays ITT-only. It is bound to the registered six-cell
 grid and to :func:`sensitivity.evaluate_floor_sensitivity`'s provenance machinery,
@@ -111,7 +121,7 @@ _WITHHOLD_TIERS = frozenset({"primary", "adjusted_robustness", "off_grid"})
 #: observational families report adjusted associations, which the reports already
 #: label as such, and gating those on prior sensitivity would say nothing a reader
 #: does not already know from the label.
-GATED_KINDS = frozenset({"itt", "did", "gain_factors", "level_factors"})
+GATED_KINDS = frozenset({"itt", "joint", "did", "gain_factors", "level_factors"})
 
 
 def gate_applies(config: Mapping[str, Any]) -> bool:
@@ -221,6 +231,28 @@ def _tau_row(psense: pd.DataFrame | None, term: str) -> pd.Series | None:
     return rows.iloc[0]
 
 
+#: Worst-first, so aggregating a vector-valued term takes the first class present.
+_CLASS_SEVERITY: tuple[TauSensitivityClass, ...] = (
+    "unavailable",
+    "prior_dominant",
+    "prior_data_conflict",
+    "clear",
+)
+
+
+def _element_rows(psense: pd.DataFrame | None, term: str) -> list[tuple[str, pd.Series]]:
+    """Rows for ``term[...]`` — every element of a vector-valued coefficient."""
+    if psense is None or psense.empty:
+        return []
+    wanted = term.strip().casefold()
+    out = []
+    for label, row in psense.iterrows():
+        text = str(label).strip()
+        if text.casefold().split("[")[0] == wanted and "[" in text:
+            out.append((text, row))
+    return out
+
+
 def _finite(value: Any) -> float | None:
     try:
         number = float(value)
@@ -259,8 +291,29 @@ def classify_tau_sensitivity(
 
     Note also that ArviZ writes a tick (``✓``) for an unflagged parameter, so a reader
     — or a filter — that treats only blank values as clear mis-reads every clean row.
+    ``term`` may name a **vector-valued** coefficient, which the ``joint`` family's
+    ``tau`` is: one randomised effect per jointly-fitted outcome, and every element a
+    causal claim the findings box speaks for. There is no single element to pick, so
+    the classification aggregates worst-first over ``term[...]`` and reports the
+    element that drove it. A per-fit decision cannot say less than its worst
+    constituent without the box overstating what the fit supports.
     """
     row = _tau_row(psense, term)
+    if row is None:
+        elements = _element_rows(psense, term)
+        if elements:
+            worst: tuple[TauSensitivityClass, str, Any] | None = None
+            for label, element in elements:
+                cls, prior, likelihood, diagnosis = classify_tau_sensitivity(
+                    psense.loc[[label]].rename(index={label: term}), term=term
+                )
+                rank = _CLASS_SEVERITY.index(cls)
+                if worst is None or rank < _CLASS_SEVERITY.index(worst[0]):
+                    worst = (cls, label, (prior, likelihood, diagnosis))
+            assert worst is not None
+            cls, label, (prior, likelihood, diagnosis) = worst
+            suffix = f" (driven by {label})" if cls != "clear" else ""
+            return cls, prior, likelihood, (diagnosis or "") + suffix or None
     if row is None or "prior" not in row.index or "likelihood" not in row.index:
         return "unavailable", None, None, None
     prior = _finite(row["prior"])

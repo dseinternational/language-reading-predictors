@@ -1933,6 +1933,7 @@ def test_each_family_reads_its_own_causal_term():
     from language_reading_predictors.statistical_models.release import causal_term_for
 
     assert causal_term_for({"kind": "itt"}) == "tau"
+    assert causal_term_for({"kind": "joint"}) == "tau"
     assert causal_term_for({"kind": "gain_factors"}) == "beta_trt"
     assert causal_term_for({"kind": "level_factors"}) == "b_grp_time[1]"
     assert causal_term_for({"kind": "did"}) == "tau_t2"
@@ -2010,3 +2011,53 @@ def test_release_classes_reproduce_arviz_psense_diagnoses_exactly():
     # The healthy case, stated explicitly: data-sensitive, prior-insensitive.
     frame = pd.DataFrame([{"prior": 0.015, "likelihood": 0.092}], index=["tau"])
     assert classify_tau_sensitivity(frame)[0] == "clear"
+
+
+def test_joint_tau_aggregates_worst_first_over_outcomes(tmp_path):
+    """``joint`` fits one randomised ``tau`` per outcome, and the box speaks for all.
+
+    There is no single element to classify, so the decision takes the worst class
+    present and names the element that drove it. A per-fit decision that reported
+    anything better than its worst constituent would have the box overstating what the
+    fit supports — and a bare ``tau`` lookup finds no row at all, which under the
+    fail-closed rule would withhold every joint fit for a diagnosis that is measured.
+    """
+    from language_reading_predictors.statistical_models.release import (
+        classify_tau_sensitivity,
+    )
+
+    frame = pd.DataFrame(
+        [
+            {"prior": 0.01, "likelihood": 0.18, "diagnosis": "✓"},
+            {"prior": 0.09, "likelihood": 0.22, "diagnosis": "potential prior-data conflict"},
+            {"prior": 0.01, "likelihood": 0.16, "diagnosis": "✓"},
+        ],
+        index=["tau[W]", "tau[L]", "tau[R]"],
+    )
+    cls, prior, _lik, diagnosis = classify_tau_sensitivity(frame, term="tau")
+    assert cls == "prior_data_conflict"
+    assert prior == 0.09
+    assert "tau[L]" in diagnosis
+
+    dominant = frame.copy()
+    dominant.loc["tau[R]"] = {"prior": 0.30, "likelihood": 0.01, "diagnosis": "x"}
+    cls, _prior, _lik, diagnosis = classify_tau_sensitivity(dominant, term="tau")
+    assert cls == "prior_dominant"
+    assert "tau[R]" in diagnosis
+
+    clean = frame.copy()
+    clean.loc["tau[L]"] = {"prior": 0.01, "likelihood": 0.2, "diagnosis": "✓"}
+    assert classify_tau_sensitivity(clean, term="tau")[0] == "clear"
+
+
+def test_a_scalar_term_is_unaffected_by_the_vector_path(tmp_path):
+    """The element aggregation must not change how a scalar term is classified."""
+    from language_reading_predictors.statistical_models.release import (
+        classify_tau_sensitivity,
+    )
+
+    scalar = pd.DataFrame(
+        [{"prior": 0.01, "likelihood": 0.02, "diagnosis": "✓"}], index=["tau"]
+    )
+    assert classify_tau_sensitivity(scalar, term="tau") == ("clear", 0.01, 0.02, "✓")
+    assert classify_tau_sensitivity(scalar, term="tau_t2")[0] == "unavailable"

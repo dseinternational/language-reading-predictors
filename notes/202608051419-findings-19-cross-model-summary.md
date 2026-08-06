@@ -71,7 +71,7 @@ Together these say that this cohort's skill ordering is highly stable, and that 
 
 **All 194 models pass the convergence gate, with zero divergent transitions across the entire suite.** Under the study's divergence policy every divergent fit fails closed with no qualification pathway, so this is the first run in which the whole suite clears computation. Thirteen fits initially failed and were repaired by geometry changes rather than waivers — the account is in `notes/202608050649-reporting-refit-predictive-checks.md`.
 
-**Clearing computation is not the same as clearing release.** A robustness gate adopted on 2026-08-05, after these fits were made, additionally classifies each randomised-effect fit on the power-scaling sensitivity of the coefficient its headline rests on. It covers the four families with a randomisation-anchored estimand — ITT (τ), the arm-by-wave DiD (`tau_t2`, or a dose slope), gain factors (`beta_trt`) and level factors (the t2 element of `b_grp_time`) — **74 fits, of which 10 are withheld**.
+**Clearing computation is not the same as clearing release.** A robustness gate adopted on 2026-08-05, after these fits were made, additionally classifies each randomised-effect fit on the power-scaling sensitivity of the coefficient its headline rests on. It covers the five families with a randomisation-anchored estimand — ITT (τ), the joint models (τ per outcome), the arm-by-wave DiD (`tau_t2`, or a dose slope), gain factors (`beta_trt`) and level factors (the t2 element of `b_grp_time`) — **70 fits, of which 10 are withheld**.
 
 The distribution is the informative part, because it is not uniform:
 
