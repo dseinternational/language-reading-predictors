@@ -54,7 +54,9 @@ That fallback is not a compromise: all four pre-existing families report a **tre
 
 The meta-finding behind #381 is that a missing artefact reads as a clean one. Every previous pushforward call site was wrapped in `try/except` that printed a yellow warning to a terminal nobody re-reads and wrote no file, so the rendered report was identical to one whose prior had been checked and found harmless.
 
-Every family now writes the file either way. A check that cannot run produces a row with `status = "unavailable"` and a reason, and the partial prints that reason in the report. The first real case is the pooled-cohort aligned variant, which fits no cohort contrast at all.
+Every family now writes the file either way. A check that cannot run produces a row with `status = "unavailable"` and a reason, and the partial prints that reason in the report.
+
+**No fit in the current suite produces one.** All 282 emitted rows across 150 fits are `status = "ok"` — every registered aligned model sets `use_cohort=True`, so the pooled-cohort branch that would emit the first real unavailable row never fires today. The branch is a guard for a future variant and for a transform that fails on a fit it should have handled; the unit test is what exercises it, not the suite. Worth stating plainly, because "the unavailable path is implemented" and "the unavailable path has been seen to work on real data" are different claims and only the first is true.
 
 ## Not in scope, and why
 
