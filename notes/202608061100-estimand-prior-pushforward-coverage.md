@@ -58,6 +58,16 @@ Every family now writes the file either way. A check that cannot run produces a 
 
 **No fit in the current suite produces one.** All 282 emitted rows across 150 fits are `status = "ok"` — every registered aligned model sets `use_cohort=True`, so the pooled-cohort branch that would emit the first real unavailable row never fires today. The branch is a guard for a future variant and for a transform that fails on a fit it should have handled; the unit test is what exercises it, not the suite. Worth stating plainly, because "the unavailable path is implemented" and "the unavailable path has been seen to work on real data" are different claims and only the first is true.
 
+## What the check found on the first run
+
+The point of #381 was to convert "no flags" from _unverified_ to _measured_, so two results are worth recording rather than leaving in 150 separate reports.
+
+**Historical growth is overwhelmingly data-driven.** On `lrp-rlm-hg-001` the prior permits a between-group total-growth contrast anywhere in roughly **−77 to +73 items**; the posterior for the same contrast is **14.9 to 22.3**. The data narrow the interval by something like a factor of twenty, and the prior's own median sits near zero with no directional pull. The between-group growth findings in that family are not being carried by their priors.
+
+**The horseshoe ranking threshold sits well inside its own prior.** `δ = 0.1` on the logit/per-SD scale, against a prior 89% range of roughly **−0.68 to +0.52** for a single coefficient. `P(|β| > δ)` therefore starts high a priori for every predictor, which means the ranking is informative about the _order_ of predictors and much less so about whether any one of them clears a threshold. That is a real qualification on how the horseshoe deliverable should be read, and it was not visible before this check existed.
+
+The mechanism family's prior-versus-posterior comparison is genuinely per-fit — the worked contrast depends on each fit's own exposure distribution — so it is left to the reports, which now show both sides. For the HSGP fits the prior worked contrast runs to about ±3 items, which is not obviously wide next to the curve rises being estimated; that is the review's "deliberately tight GP amplitude" concern, now measurable per model instead of argued in general.
+
 ## Not in scope, and why
 
 These are not "not done yet" — each needs an estimand defined that this change does not define, and one of them needs a different scale entirely:
