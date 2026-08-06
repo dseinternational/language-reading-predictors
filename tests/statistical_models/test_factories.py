@@ -2090,16 +2090,56 @@ def test_correlated_factor_model_builds(tmp_path):
     )
     free = {v.name for v in built.model.free_RVs}
     dets = {v.name for v in built.model.deterministics}
-    assert {
-        "factor_z", "lambda_load", "sigma_indicator", "beta_factor", "beta_blocks"
-    }.issubset(free)
-    assert {"factors", "factor_corr", "communality"}.issubset(dets)
+    # Default communality parameterisation (#383): the communality is the free RV;
+    # the loading sqrt(c) and residual sqrt(1 - c) are derived.
+    assert {"factor_z", "communality", "beta_factor", "beta_blocks"}.issubset(free)
+    assert {"factors", "factor_corr", "lambda_load", "sigma_indicator"}.issubset(dets)
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=9)
     # 6 indicators across 3 correlated domain factors.
     assert pp.prior["lambda_load"].sizes["indicator"] == 6
     assert pp.prior["factor_corr"].sizes["domain"] == 3
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+    # The unit-variance budget is exact: lambda**2 + sigma**2 = 1 by construction.
+    lam_d = pp.prior["lambda_load"].values
+    sig_d = pp.prior["sigma_indicator"].values
+    np.testing.assert_allclose(lam_d**2 + sig_d**2, 1.0, atol=1e-10)
+    np.testing.assert_allclose(pp.prior["communality"].values, lam_d**2, atol=1e-10)
+
+
+def test_correlated_factor_model_legacy_free_pair(tmp_path):
+    """loading_prior="free" reproduces the pre-#383 unconstrained pair (LRPMM101)."""
+    p = _write_synthetic(tmp_path, n_children=30)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_correlated_factor_model(
+        prep,
+        outcome_symbol="W",
+        domains={"vocabulary": ("R", "E"), "code": ("L", "B"), "grammar": ("F", "T")},
+        structural_covariates=("blocks",),
+        loading_prior="free",
+    )
+    free = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+    assert {"lambda_load", "sigma_indicator"}.issubset(free)
+    assert "communality" in dets
+    # The free pair does NOT enforce the unit budget — that is the point of the
+    # sensitivity contrast.
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=50, random_seed=9)
+    lam_d = pp.prior["lambda_load"].values
+    sig_d = pp.prior["sigma_indicator"].values
+    assert np.abs(lam_d**2 + sig_d**2 - 1.0).max() > 0.1
+
+
+def test_correlated_factor_model_rejects_bad_loading_prior(tmp_path):
+    """Unknown parameterisations and non-positive Beta shapes are rejected."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    with pytest.raises(ValueError, match="loading_prior"):
+        build_correlated_factor_model(prep, loading_prior="bounded")
+    with pytest.raises(ValueError, match="comm_alpha and comm_beta"):
+        build_correlated_factor_model(prep, comm_alpha=0.0)
 
 
 def test_correlated_factor_model_requires_two_indicators(tmp_path):

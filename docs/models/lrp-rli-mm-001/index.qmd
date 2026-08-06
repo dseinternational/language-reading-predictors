@@ -38,10 +38,14 @@ _Fragility at n ~ 51._ A correlated-factor latent model at n ~ 51 is expected to
 ## Model
 
 **Measurement** (correlated unit-variance factors; loadings positive for
-orientation). The residual variance $\sigma_j$ is free, so a loading $\lambda_j$
-is a coefficient on the unit-variance factor; the indicator-factor **correlation**
-is $\lambda_j / \sqrt{\lambda_j^2 + \sigma_j^2} = \sqrt{\text{communality}}$ and the
-**communality** is $\lambda_j^2 / (\lambda_j^2 + \sigma_j^2)$:
+orientation). The indicators are standardised, so each free indicator's variance
+budget is $\lambda_j^2 + \sigma_j^2 = 1$; since #383 that budget is structural —
+the **communality** $c_j \sim \text{Beta}(2, 2)$ is the free parameter, with the
+loading $\lambda_j = \sqrt{c_j}$ and residual $\sigma_j = \sqrt{1 - c_j}$
+derived. The indicator-factor **correlation** is then
+$\lambda_j / \sqrt{\lambda_j^2 + \sigma_j^2} = \lambda_j = \sqrt{\text{communality}}$
+(the legacy free-pair geometry lives on in
+[LRPMM101](../lrp-rli-mm-101/) as the sensitivity companion):
 
 $$
 \mathbf{f}_i \sim \mathcal{N}(\mathbf{0}, \Omega), \quad \Omega \sim \text{LKJ}(\eta),

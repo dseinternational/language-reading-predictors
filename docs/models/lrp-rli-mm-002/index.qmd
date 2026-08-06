@@ -36,7 +36,7 @@ _Convergence — no nuisance-parameter exception._ Isolating the structural leg 
 
 ## Model
 
-**Measurement** (correlated unit-variance factors; loadings positive; free residual $\sigma_j$, so the indicator-factor correlation is $\lambda_j/\sqrt{\lambda_j^2+\sigma_j^2}=\sqrt{\text{communality}}$):
+**Measurement** (correlated unit-variance factors; loadings positive; communality-scale priors since #383 — $c_j \sim \text{Beta}(2,2)$ free with $\lambda_j = \sqrt{c_j}$, $\sigma_j = \sqrt{1-c_j}$ derived, so $\lambda_j^2+\sigma_j^2=1$ exactly and the indicator-factor correlation is $\lambda_j = \sqrt{\text{communality}}$):
 
 $$
 \mathbf{f}_i \sim \mathcal{N}(\mathbf{0}, \Omega), \quad \Omega \sim \text{LKJ}(\eta),

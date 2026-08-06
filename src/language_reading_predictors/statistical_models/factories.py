@@ -3813,16 +3813,23 @@ def build_correlated_factor_model(
     structural_factors: tuple[str, ...] | None = None,
     use_group: bool = False,
     use_age: bool = True,
-    # The ORIGINAL priors: TruncatedNormal(mu=0, sigma=1, lower=0) IS HalfNormal(1),
-    # so these defaults reproduce the pre-#261 prior exactly while keeping the more
-    # general TruncatedNormal parameterisation available to the sensitivity model.
-    # An earlier revision of #261 recalibrated these to (0.6, 0.5) / 0.5 alongside
-    # the marginalisation. The 2x2 ablation (LRPMM101; see
-    # notes/202607101638-mm-001-convergence-reparameterisation.md) showed that the
-    # recalibration is neither necessary nor sufficient for convergence — raising
-    # target_accept is what clears the gate — while it does move the prior-implied
-    # median communality from 0.50 to 0.79. With two indicators per factor at
-    # n ~ 51 that is a real and unnecessary prior commitment, so the defaults revert.
+    # Loading / residual geometry (#383). The default is the communality-scale
+    # parameterisation ported from ``build_rlm_corr_factor_model`` (#409 item B):
+    # ``communality ~ Beta(comm_alpha, comm_beta)`` with the loading ``sqrt(c)``
+    # and residual ``sqrt(1 - c)`` derived, enforcing the lambda**2 + sigma**2 = 1
+    # budget the standardised indicators imply. ``loading_prior="free"`` retains
+    # the legacy unconstrained pair for the prior-geometry sensitivity companion
+    # (LRPMM101): TruncatedNormal(mu=0, sigma=1, lower=0) IS HalfNormal(1), so the
+    # legacy knobs' defaults reproduce the pre-#261 prior exactly. (An earlier
+    # revision of #261 recalibrated the free pair to (0.6, 0.5) / 0.5 alongside
+    # the marginalisation; the 2x2 ablation — LRPMM101, see
+    # notes/202607101638-mm-001-convergence-reparameterisation.md — showed that
+    # recalibration is neither necessary nor sufficient for convergence while
+    # moving prior-implied median communality 0.50 -> 0.79, so it was reverted.
+    # The communality default keeps the ablation's defended median of 0.5.)
+    loading_prior: str = "communality",
+    comm_alpha: float = 2.0,
+    comm_beta: float = 2.0,
     loading_mu: float = 0.0,
     loading_sigma: float = 1.0,
     residual_sigma: float = 1.0,
@@ -3875,14 +3882,23 @@ def build_correlated_factor_model(
     additionally lifts ``target_accept`` (via the spec) to clear the residual
     boundary divergences, which the strict gate requires to be exactly zero.
 
-    The priors are the model's **original** ones: ``lambda ~ HalfNormal(1)`` (written
-    as ``TruncatedNormal(mu=0, sigma=1, lower=0)``, which is the same distribution)
-    and ``sigma ~ HalfNormal(1)``. ``loading_mu`` / ``loading_sigma`` /
-    ``residual_sigma`` exist so a prior-sensitivity companion (LRPMM101) can vary
-    them; a 2x2 ablation over {old, recalibrated} priors x {0.95, 0.999}
-    ``target_accept`` showed the priors are neither necessary nor sufficient for
-    convergence and do not move the posterior, so they are not used to buy
-    convergence here. See
+    **Loading / residual priors (#383).** The default ``loading_prior="communality"``
+    makes each indicator's communality the free parameter — ``c ~ Beta(comm_alpha,
+    comm_beta)`` on (0, 1), with ``lambda = sqrt(c)`` and ``sigma = sqrt(1 - c)``
+    derived — exactly as ``build_rlm_corr_factor_model`` already does (#409 item B).
+    Standardised indicators have unit sample variance, so this enforces the
+    ``lambda**2 + sigma**2 = 1`` budget the data pipeline implies. The legacy free
+    pair (``lambda`` and ``sigma`` iid ``HalfNormal(1)``) implies ``communality ~
+    Beta(1/2, 1/2)`` — both squares are chi-square with one degree of freedom — an
+    arcsine prior piling mass on both singular corners (the ``lambda -> 0`` neck and
+    the Heywood-adjacent ``c -> 1`` boundary) and putting ~32% of loading mass above
+    1, which the unit-variance budget rules out (prior-critical review 2026-07-21,
+    #383). The default ``Beta(2, 2)`` keeps the median communality of 0.5 that the
+    LRPMM101 ablation defended against the 0.79-median recalibration, while placing
+    zero density at both corners. ``loading_prior="free"`` retains the original
+    ``TruncatedNormal`` / ``HalfNormal`` pair (knobs ``loading_mu`` /
+    ``loading_sigma`` / ``residual_sigma``) so the sensitivity companion (LRPMM101)
+    can vary only the geometry; on the ablation history see
     ``notes/202607101638-mm-001-convergence-reparameterisation.md``.
 
     ``domains`` maps each factor name to its indicator symbols (default vocabulary
@@ -3908,6 +3924,20 @@ def build_correlated_factor_model(
                 "correlated factor needs at least two indicators to be identified."
             )
     D = len(domain_names)
+    if loading_prior not in {"communality", "free"}:
+        raise ValueError(
+            f"loading_prior must be 'communality' or 'free'; got {loading_prior!r}"
+        )
+    if not (
+        np.isfinite(comm_alpha)
+        and np.isfinite(comm_beta)
+        and comm_alpha > 0.0
+        and comm_beta > 0.0
+    ):
+        raise ValueError(
+            "comm_alpha and comm_beta must be finite and positive (Beta shape "
+            f"parameters); got {comm_alpha}, {comm_beta}."
+        )
     if structural_factors is not None:
         structural_factors = tuple(structural_factors)
         _bad = [d for d in structural_factors if d not in domain_names]
@@ -4025,27 +4055,44 @@ def build_correlated_factor_model(
                 dims="factor_pair",
             )
 
-        # Free per-indicator loading and residual RVs. Defaults reproduce the
-        # original HalfNormal(1) priors; the TruncatedNormal form only exists so a
-        # prior-sensitivity companion can shift the loading mode off zero.
-        #
-        # NB the earlier claim that a HalfNormal(residual_sigma=0.5) "caps the
-        # residual SD below the unit total variance of a standardised indicator" was
-        # wrong: a HalfNormal has unbounded support and merely makes sigma > 1
-        # unlikely (~5% of prior mass). No cap is imposed, or needed.
-        lam = pm.TruncatedNormal(
-            "lambda_load",
-            mu=loading_mu,
-            sigma=loading_sigma,
-            lower=0.0,
-            dims="indicator",
-        )
-        sigma_ind = pm.HalfNormal(
-            "sigma_indicator", sigma=residual_sigma, dims="indicator"
-        )
-        pm.Deterministic(
-            "communality", lam**2 / (lam**2 + sigma_ind**2), dims="indicator"
-        )
+        # Loading / residual parameterisation (#383; see the docstring). Default:
+        # the communality is the free parameter — c ~ Beta(comm_alpha, comm_beta)
+        # on (0, 1), lambda = sqrt(c), sigma = sqrt(1 - c) — enforcing the
+        # lambda**2 + sigma**2 = 1 budget that standardised indicators imply,
+        # exactly as build_rlm_corr_factor_model already does. The node names
+        # (lambda_load / sigma_indicator / communality) are unchanged in both
+        # modes; only which of them is the free RV differs.
+        if loading_prior == "communality":
+            comm = pm.Beta(
+                "communality", alpha=comm_alpha, beta=comm_beta, dims="indicator"
+            )
+            lam = pm.Deterministic("lambda_load", pt.sqrt(comm), dims="indicator")
+            sigma_ind = pm.Deterministic(
+                "sigma_indicator", pt.sqrt(1.0 - comm), dims="indicator"
+            )
+        else:
+            # Legacy free pair, retained for the prior-geometry sensitivity
+            # companion (LRPMM101). Knob defaults reproduce the original
+            # HalfNormal(1) priors; the TruncatedNormal form exists so a companion
+            # can shift the loading mode off zero.
+            #
+            # NB the earlier claim that a HalfNormal(residual_sigma=0.5) "caps the
+            # residual SD below the unit total variance of a standardised indicator"
+            # was wrong: a HalfNormal has unbounded support and merely makes
+            # sigma > 1 unlikely (~5% of prior mass). No cap is imposed, or needed.
+            lam = pm.TruncatedNormal(
+                "lambda_load",
+                mu=loading_mu,
+                sigma=loading_sigma,
+                lower=0.0,
+                dims="indicator",
+            )
+            sigma_ind = pm.HalfNormal(
+                "sigma_indicator", sigma=residual_sigma, dims="indicator"
+            )
+            pm.Deterministic(
+                "communality", lam**2 / (lam**2 + sigma_ind**2), dims="indicator"
+            )
 
         # Sparse loading matrix Lambda (J x D): indicator j loads on its domain only.
         onehot = np.zeros((len(ind_names), D), dtype=float)
@@ -5828,7 +5875,11 @@ def build_historical_growth_model(
     *,
     measure: str = "basread",
     eta_prior_sigma: float = 1.5,
-    sigma_subject_prior_sigma: float = 0.5,
+    # HalfNormal(1.0) since #383: the 0.5 scale was in prior-data conflict with
+    # the Down-syndrome verbal/reading heterogeneity (posteriors 1.25-1.39, at
+    # the HalfNormal(0.5) 99th percentile). Every registered consumer sets the
+    # value explicitly in its spec; this default matches the reviewed choice.
+    sigma_subject_prior_sigma: float = 1.0,
     kappa_prior_sigma: float = 50.0,
 ) -> BuiltModel:
     """Descriptive group-by-wave growth model for a historical cohort.
@@ -6295,7 +6346,11 @@ def build_rlm_joint_growth_model(
     *,
     measures: tuple[str, ...] = ("basread", "bpvs", "basdig"),
     eta_prior_sigma: float = 1.5,
-    sigma_subject_prior_sigma: float = 0.5,
+    # HalfNormal(1.0) since #383: the 0.5 scale was in prior-data conflict with
+    # the Down-syndrome verbal/reading heterogeneity (posteriors 1.25-1.39, at
+    # the HalfNormal(0.5) 99th percentile). Every registered consumer sets the
+    # value explicitly in its spec; this default matches the reviewed choice.
+    sigma_subject_prior_sigma: float = 1.0,
     kappa_prior_sigma: float = 50.0,
     lkj_eta: float = 2.0,
 ) -> BuiltModel:
