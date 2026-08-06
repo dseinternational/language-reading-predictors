@@ -77,14 +77,16 @@ def _constant_1d(trace: xr.DataTree, name: str) -> np.ndarray:
     return np.asarray(trace.constant_data[name].values).reshape(-1)
 
 
-def _mechanism_contribution(trace: xr.DataTree) -> tuple[np.ndarray, str]:
+def _mechanism_contribution(
+    trace: xr.DataTree, group: str = "posterior"
+) -> tuple[np.ndarray, str]:
     """Per-observation mechanism contribution ``f_curve`` and its kind.
 
     ``f_mech`` (the HSGP / phase-specific curve) when present, else the linear
     ``beta_mech * z(exposure)`` reconstructed from the registered ``z_mech_logit``
     constant-data node — mirroring ``pipeline._write_mechanism_curve``.
     """
-    post = trace.posterior
+    post = getattr(trace, group)
     if "f_mech" in post:
         return _stack_obs(post["f_mech"]), "GP"
     if "beta_mech" in post:
@@ -99,7 +101,7 @@ def _mechanism_contribution(trace: xr.DataTree) -> tuple[np.ndarray, str]:
 
 
 def _moderator_contribution(
-    trace: xr.DataTree, n_obs: int
+    trace: xr.DataTree, n_obs: int, group: str = "posterior"
 ) -> np.ndarray:
     """Per-observation moderator contribution ``gamma_mod*z_M + gamma_int*z_L*z_M``.
 
@@ -109,7 +111,7 @@ def _moderator_contribution(
     mean (z_M has sample-mean 0, so the main effect vanishes; the interaction is
     removed explicitly because ``mean_i(z_L*z_M)`` need not be 0).
     """
-    post = trace.posterior
+    post = getattr(trace, group)
     if "gamma_mod" not in post:
         return np.zeros((n_obs, 1))
     z_M = _constant_1d(trace, "z_moderator")  # (n_obs,)
@@ -130,9 +132,10 @@ def _reference_constant(
     *,
     eta_name: str = "eta",
     child_effect_name: str = "u_child",
+    group: str = "posterior",
 ) -> np.ndarray:
     """Per-draw reference constant ``C[s]`` (see the module docstring)."""
-    post = trace.posterior
+    post = getattr(trace, group)
     eta = _stack_obs(post[eta_name])  # (n_obs, S)
     n_obs = eta.shape[0]
 
@@ -141,7 +144,7 @@ def _reference_constant(
         child_idx = _constant_1d(trace, "child_idx").astype(int)
         u_child = _stack_obs(post[child_effect_name])  # (n_children, S)
         baseline = baseline - u_child[child_idx]
-    baseline = baseline - _moderator_contribution(trace, n_obs)
+    baseline = baseline - _moderator_contribution(trace, n_obs, group)
     return baseline.mean(axis=0)  # (S,)
 
 
@@ -172,6 +175,7 @@ def mechanism_items_curve(
     outcome_off_floor: bool = False,
     eta_name: str = "eta",
     child_effect_name: str = "u_child",
+    group: str = "posterior",
 ) -> tuple[pd.DataFrame, dict]:
     """Items-scale mechanism curve and a data-driven worked-example contrast.
 
@@ -188,16 +192,28 @@ def mechanism_items_curve(
     *probability* rather than an item count. ``worked`` records the quantile
     reference points and the predicted difference between them, with its credible
     interval — everything the caption states, computed not hand-written.
+
+    ``group`` selects the inference group: ``"posterior"`` for the reported curve,
+    or ``"prior"`` to push the prior through this same transform for the
+    estimand-scale prior check (#381). Running the prior through the identical
+    reference-constant and interpolation path is the point — a separate
+    approximation would not be a check *of the reported quantity*. Both the HSGP
+    ``f_mech`` and the linear ``beta_mech`` reconstructions are available in the
+    prior group, so the check covers both mechanism forms.
     """
     x_exposure = np.asarray(x_exposure, dtype=float).reshape(-1)
-    f_curve, kind = _mechanism_contribution(trace)
+    f_curve, kind = _mechanism_contribution(trace, group)
     if f_curve.shape[0] != x_exposure.shape[0]:
         raise ValueError(
             f"x_exposure has {x_exposure.shape[0]} rows but the fitted mechanism "
             f"curve has {f_curve.shape[0]}; pass the fitted-subset exposure vector."
         )
     C = _reference_constant(
-        trace, f_curve, eta_name=eta_name, child_effect_name=child_effect_name
+        trace,
+        f_curve,
+        eta_name=eta_name,
+        child_effect_name=child_effect_name,
+        group=group,
     )  # (S,)
 
     lo_q = (1 - ci_prob) / 2
@@ -231,12 +247,21 @@ def mechanism_items_curve(
     x_hi = float(np.quantile(x_exposure, q_hi))
     if round_exposure:
         x_lo, x_hi = float(round(x_lo)), float(round(x_hi))
-    y_lo = _to_outcome(C + _interp_draws(xs, fs, x_lo))  # (S,)
-    y_hi = _to_outcome(C + _interp_draws(xs, fs, x_hi))  # (S,)
+    f_lo = _interp_draws(xs, fs, x_lo)  # (S,)
+    f_hi = _interp_draws(xs, fs, x_hi)  # (S,)
+    y_lo = _to_outcome(C + f_lo)  # (S,)
+    y_hi = _to_outcome(C + f_hi)  # (S,)
     diff = y_hi - y_lo
+    # The same contrast on the model's own linear-predictor scale. The reference
+    # constant cancels, so this is the curve's rise between the two quantiles --
+    # scale-free, and the quantity the GP amplitude prior acts on directly.
+    logit_diff = f_hi - f_lo  # (S,)
 
     worked = {
         "curve_kind": kind,
+        "logit_difference_median": float(np.median(logit_diff)),
+        "logit_difference_lo": float(np.quantile(logit_diff, lo_q)),
+        "logit_difference_hi": float(np.quantile(logit_diff, hi_q)),
         "n_trials_outcome": int(n_trials_outcome),
         "outcome_off_floor": bool(outcome_off_floor),
         "ref_quantile_low": q_lo,

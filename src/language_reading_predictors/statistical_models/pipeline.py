@@ -34,7 +34,7 @@ import hashlib
 import inspect
 import os
 import shutil
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -1651,6 +1651,254 @@ def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
         rprint(f"[yellow]Contrast heatmap failed: {exc}[/yellow]")
 
 
+def _growth_contrast_pushforward_rows(
+    ctx: StatisticalFitContext,
+    panel,
+    measure: str,
+    *,
+    fitted_var: str = "fitted_mean_items_obs",
+    prefix: str = "",
+) -> list[dict[str, object]]:
+    """Prior pushforward for a historical-growth family's group contrasts (#381).
+
+    The reported estimands are the pairwise ``total_growth_X_minus_Y`` rows over
+    the common window — how much more a comparison group grows than the
+    Down-syndrome group across the whole observed span. Running
+    :func:`historical.growth_summary` on the ``prior`` group answers how much of
+    that difference the priors alone permit; the cohorts are not randomised, so
+    the rows are descriptive contrasts rather than effects.
+    """
+    from language_reading_predictors.statistical_models import historical as _hist
+
+    source = getattr(ctx, "prior_samples", None) or ctx.trace
+    try:
+        prior_growth = _hist.growth_summary(
+            source, panel, measure, fitted_var=fitted_var, group="prior"
+        )
+    except Exception as exc:  # noqa: BLE001 - absence must stay legible
+        return [
+            _report.unavailable_pushforward(
+                estimand=f"{prefix}total_growth",
+                estimand_label="the between-group total-growth contrasts",
+                role="descriptive",
+                reason=str(exc),
+            )
+        ]
+    contrasts = prior_growth[
+        prior_growth["quantity"].astype(str).str.startswith("total_growth")
+    ]
+    rows: list[dict[str, object]] = []
+    for _, r in contrasts.iterrows():
+        rows.append(
+            _report.labelled_pushforward(
+                {
+                    # The growth summary is already in items; there is no separate
+                    # linear-predictor contrast to report, since the quantity is a
+                    # difference of fitted means rather than a coefficient.
+                    "prior_logit_median": float("nan"),
+                    "prior_logit_lo": float("nan"),
+                    "prior_logit_hi": float("nan"),
+                    "prior_items_median": float(r["q50"]),
+                    "prior_items_lo50": float(r["q25"]),
+                    "prior_items_hi50": float(r["q75"]),
+                    "prior_items_lo": float(r["q_lo"]),
+                    "prior_items_hi": float(r["q_hi"]),
+                    "n_trials": 0,
+                },
+                estimand=f"{prefix}{r['quantity']}",
+                estimand_label=str(r["label"]),
+                role="descriptive",
+            )
+        )
+    return rows
+
+
+def _write_indicator_prior_check(
+    ctx: StatisticalFitContext, nodes: Sequence[str]
+) -> None:
+    """Write ``indicator_prior_check.csv`` for a measurement family (#381).
+
+    The CFA families have no outcome-scale estimand to push a prior through —
+    they report loadings, communalities and factor correlations — so #381 asks
+    them for this instead, on the scale they do observe: the standardised
+    indicator matrix. Without it these families were exempt from the coverage
+    guarantee by construction rather than by argument.
+    """
+    try:
+        df = _report.indicator_prior_check(
+            ctx.trace, nodes=list(nodes), ci_prob=ctx.reporting.ci_prob
+        )
+    except Exception as exc:  # noqa: BLE001 - a report extra must not fail a fit
+        rprint(f"[yellow]indicator prior check skipped: {exc}[/yellow]")
+        return
+    if df.empty:
+        rprint("[yellow]indicator prior check: no indicator nodes found[/yellow]")
+        return
+    df.to_csv(os.path.join(ctx.output_dir, "indicator_prior_check.csv"), index=False)
+    ctx.tables["indicator_prior_check"] = df
+    print_table(
+        ranked_dataframe_table(
+            df,
+            title="Indicator-scale prior check (SD ratio 1 = prior matches the data)",
+            columns=["indicator", "observed_sd", "prior_sd", "sd_ratio", "coverage_90", "verdict"],
+            rank_column=False,
+            precision=3,
+        )
+    )
+
+
+def _write_prior_pushforward(
+    ctx: StatisticalFitContext, rows: Sequence[Mapping[str, object]]
+) -> None:
+    """Write ``prior_pushforward.csv`` — including when the check is unavailable (#381).
+
+    The meta-finding behind #381 is that a *missing* artefact reads as a clean
+    one: a family that never emitted the estimand-scale prior check looked, in the
+    rendered report, exactly like one whose prior was checked and found harmless.
+    So every family that reaches this point writes the file, and a row whose
+    ``status`` is ``unavailable`` carries the reason instead of being dropped.
+    """
+    df = pd.DataFrame(list(rows))
+    df.to_csv(os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False)
+    tables = getattr(ctx, "tables", None)
+    if tables is not None:
+        tables["prior_pushforward"] = df
+
+
+def _horseshoe_pushforward_rows(
+    ctx: StatisticalFitContext, predictors: Sequence[str], outcome: str
+) -> list[dict[str, object]]:
+    """Per-predictor prior pushforward for a horseshoe ranking fit (#381).
+
+    The horseshoe deliverable is a ranking by ``P(|beta| > delta)``, which the
+    prior-analysis review flagged as a direct function of ``tau0`` / ``slab_scale``
+    — so "no signal" and "shrunk to nothing by the prior" are the two readings that
+    have to be told apart. The ``prior_logit_*`` columns are the shrinkage prior's
+    own implied spread for a single coefficient, against which the ranking's
+    ``delta`` can be judged; the items columns put the same ``+1 SD`` shift on the
+    outcome scale. Every predictor shares the global-local prior, so the rows
+    differ only through each coefficient's own local scale draws.
+    """
+    n_trials = _pushforward_n_trials(ctx, outcome)
+    label = _pushforward_outcome_label(ctx, outcome)
+    return _marginal_pushforward_rows(
+        ctx,
+        [
+            (
+                "beta",
+                f"the shrunk association of +1 SD {p} with {label}",
+                {"predictor": p},
+            )
+            for p in predictors
+        ],
+        n_trials=n_trials,
+        convention="forward",
+    )
+
+
+def _pushforward_outcome_label(ctx: StatisticalFitContext, outcome: str) -> str:
+    """Reader-facing name for the pushforward's outcome, falling back to the symbol.
+
+    The rows are read by a science reader, not by whoever picked the symbols, so
+    ``W`` and ``basread`` should render as their measure labels. The study's own
+    measure table is the source: RLI symbols resolve through ``measures.MEASURES``
+    and the Byrne-cohort ones through their dataset's table, so neither study's
+    labels are hard-coded here.
+    """
+    from language_reading_predictors.statistical_models import datasets as _datasets
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    if outcome in MEASURES:
+        return str(MEASURES[outcome].label)
+    try:
+        _, measures = _datasets.resolve_dataset(ctx.spec.extra.get("study_id", "rlm"))
+        return str(measures[outcome].label)
+    except Exception:  # noqa: BLE001 - a label is cosmetic; the symbol still names it
+        return outcome
+
+
+def _pushforward_n_trials(ctx: StatisticalFitContext, outcome: str) -> int:
+    """The pushforward's item denominator, or 1 when the fit carries none (#381).
+
+    Most families know their outcome's item ceiling and the check is most
+    readable in items. Where the fit does not carry one, return 1 rather than
+    inventing a denominator: the marginal is then a probability difference, and
+    :func:`reporting.pushforward_scale_for` labels it in percentage points off
+    that same 1 — one rule, so a denominator and its scale cannot disagree.
+    """
+    trials = getattr(ctx.prepared, "n_trials", None) or {}
+    try:
+        return int(trials[outcome])
+    except (KeyError, TypeError, ValueError):
+        return 1
+
+
+def _marginal_pushforward_rows(
+    ctx: StatisticalFitContext,
+    terms: Sequence[tuple],
+    *,
+    n_trials: int,
+    role: str = "association",
+    convention: str = "forward",
+    eta_name: str = "eta",
+    row_mask: np.ndarray | None = None,
+    scale: str | None = None,
+) -> list[dict[str, object]]:
+    """Build one labelled pushforward row per term (#381).
+
+    Each entry is ``(term, label)``, or ``(term, label, index)`` to select one
+    element of a vector-valued coefficient — ``("beta", "...", {"predictor":
+    "age"})`` for the horseshoe families, whose ``beta`` carries a labelled
+    predictor dimension.
+
+    ``convention`` is passed straight through to
+    :func:`reporting.marginal_prior_pushforward` and must match the convention the
+    family's own posterior marginal uses. A term the prior group does not carry
+    yields an ``unavailable`` row naming it, rather than a silently shorter table.
+    """
+    # ``prior_samples`` carries the prior group from ``run_prior_predictive``; the
+    # trace only carries it after ``save_trace`` grafts it on, so prefer the former
+    # and the call site stays free to sit either side of that step.
+    source = getattr(ctx, "prior_samples", None) or ctx.trace
+    rows: list[dict[str, object]] = []
+    for entry in terms:
+        term, label = entry[0], entry[1]
+        index = entry[2] if len(entry) > 2 else None
+        named = term if not index else f"{term}[{'/'.join(map(str, index.values()))}]"
+        try:
+            values = _report.marginal_prior_pushforward(
+                source,
+                term=term,
+                n_trials=n_trials,
+                eta_name=eta_name,
+                ci_prob=ctx.reporting.ci_prob,
+                convention=convention,
+                row_mask=row_mask,
+                term_index=index,
+            )
+        except Exception as exc:  # noqa: BLE001 - an absent term must stay legible
+            rows.append(
+                _report.unavailable_pushforward(
+                    estimand=named,
+                    estimand_label=label,
+                    role=role,
+                    reason=str(exc),
+                    scale=scale,
+                )
+            )
+        else:
+            rows.append(
+                _report.labelled_pushforward(
+                    values,
+                    estimand=named,
+                    estimand_label=label,
+                    role=role,
+                    scale=scale,
+                )
+            )
+    return rows
+
+
 def _emit_itt_extras(
     ctx: StatisticalFitContext,
     built,
@@ -2810,6 +3058,29 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     ctx.tables["joint_treatment_marginal"] = joint_marginal
 
+    # Estimand-scale prior check, one row per outcome (#381). A joint fit has one
+    # tau and one item denominator per outcome, so the single-row ITT schema
+    # cannot describe it; the rows run through ``_joint_ame_draws``, the same core
+    # the posterior marginals above use.
+    try:
+        pf_rows = _report.joint_prior_pushforward(
+            ctx.prior_samples,
+            outcomes=outcomes,
+            G=built.prepared.G,
+            n_trials=built.prepared.n_trials,
+            ci_prob=ctx.reporting.ci_prob,
+        )
+    except Exception as exc:  # noqa: BLE001 - absence must stay legible
+        pf_rows = [
+            _report.unavailable_pushforward(
+                estimand="tau",
+                estimand_label="the per-outcome treatment effects",
+                role="causal",
+                reason=str(exc),
+            )
+        ]
+    _write_prior_pushforward(ctx, pf_rows)
+
     contrast = _report.tau_contrast_matrix(
         ctx.trace, outcomes, G=built.prepared.G, scale="probability"
     )
@@ -3154,6 +3425,27 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ["tau_t2", "arm_gap_t3", "delta_crossover"],
             name="did_contrasts_forest.png",
             title="Randomised t2 and post-crossover contrasts",
+        )
+    elif not period_varying:
+        # Pooled-dose companions (#381). The period-varying ones route through
+        # ``_write_dose_slope_summary`` below, which emits the same check from the
+        # shared writer; these do not reach it, so they emit it here.
+        from language_reading_predictors.statistical_models.measures import MEASURES
+
+        _write_prior_pushforward(
+            ctx,
+            _marginal_pushforward_rows(
+                ctx,
+                [
+                    (
+                        "beta_dose",
+                        "the association of a +1 SD session-dose step with "
+                        f"{_pushforward_outcome_label(ctx, sym)}",
+                    )
+                ],
+                n_trials=1 if off_floor else MEASURES[sym].n_trials,
+                convention="forward",
+            ),
         )
 
     from language_reading_predictors.statistical_models.measures import MEASURES
@@ -4422,7 +4714,8 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
         # y-axis is an item count. Floored (off-floor Bernoulli) mechanism
         # outcomes are a future addition (#319 design note); wire the flag when
         # such a model ships.
-        return write_mechanism_items_artifacts(
+        ref_quantiles = tuple(spec.extra.get("items_ref_quantiles", (0.25, 0.75)))
+        worked = write_mechanism_items_artifacts(
             ctx.output_dir,
             ctx.trace,
             x_exposure=x_exposure,
@@ -4433,14 +4726,114 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
             exposure_is_covariate=is_covariate,
             exposure_n_trials=exposure_n_trials,
             ci_prob=ctx.reporting.ci_prob,
-            ref_quantiles=tuple(
-                spec.extra.get("items_ref_quantiles", (0.25, 0.75))
-            ),
+            ref_quantiles=ref_quantiles,
             outcome_off_floor=False,
         )
+        _write_mechanism_prior_pushforward(
+            ctx,
+            x_exposure=x_exposure,
+            outcome=outcome,
+            exposure_label=exposure_label,
+            ref_quantiles=ref_quantiles,
+        )
+        return worked
     except Exception as exc:  # pragma: no cover - defensive; logit curve stands alone
         rprint(f"[yellow]Items-scale mechanism curve failed: {exc}[/yellow]")
+        _write_prior_pushforward(
+            ctx,
+            [
+                _report.unavailable_pushforward(
+                    estimand="mechanism_curve",
+                    estimand_label="the mechanism dose-response contrast",
+                    role="association",
+                    reason=f"the items-scale mechanism curve could not be built: {exc}",
+                )
+            ],
+        )
         return {}
+
+
+def _write_mechanism_prior_pushforward(
+    ctx: StatisticalFitContext,
+    *,
+    x_exposure: np.ndarray,
+    outcome: str,
+    exposure_label: str,
+    ref_quantiles: tuple[float, float],
+) -> None:
+    """Estimand-scale prior check for the mechanism family (#381).
+
+    The mechanism deliverable is a worked contrast — the predicted items-scale
+    difference between two fixed quantiles of the observed exposure — so that,
+    not a coefficient, is what the prior has to be pushed through. Runs
+    :func:`mechanism_items.mechanism_items_curve` on the ``prior`` group, which
+    reconstructs the HSGP ``f_mech`` curve or the linear ``beta_mech`` slope by
+    the same route as the posterior version. This is the check the prior-analysis
+    review asked for most directly: the GP amplitude prior is deliberately tight,
+    and its implied curve range is what says whether a flat fitted curve is
+    evidence of no dose-response or an artefact of the prior.
+
+    Never raises: this rides on the items-curve writer, and a prior check that
+    could abort the fitted curve it accompanies would trade a bigger deliverable
+    for a smaller one.
+    """
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.mechanism_items import (
+        mechanism_items_curve,
+    )
+
+    label = "the mechanism dose-response contrast"
+    try:
+        n_trials = MEASURES[outcome].n_trials
+        q_lo = int(round(100 * ref_quantiles[0]))
+        q_hi = int(round(100 * ref_quantiles[1]))
+        label = (
+            f"the predicted difference on {MEASURES[outcome].label} between the "
+            f"{q_hi}th and {q_lo}th percentile of {exposure_label}"
+        )
+        source = getattr(ctx, "prior_samples", None) or ctx.trace
+        _, worked = mechanism_items_curve(
+            source,
+            x_exposure=x_exposure,
+            n_trials_outcome=n_trials,
+            ci_prob=ctx.reporting.ci_prob,
+            ref_quantiles=ref_quantiles,
+            group="prior",
+        )
+        # ``logit_difference_*`` is the curve's rise between the two quantiles on
+        # the linear-predictor scale and ``outcome_difference_*`` the same contrast
+        # in items, so the two scales describe one quantity rather than two.
+        rows = [
+            _report.labelled_pushforward(
+                {
+                    "prior_logit_median": worked["logit_difference_median"],
+                    "prior_logit_lo": worked["logit_difference_lo"],
+                    "prior_logit_hi": worked["logit_difference_hi"],
+                    "prior_items_median": worked["outcome_difference_median"],
+                    "prior_items_lo50": worked["outcome_difference_lo50"],
+                    "prior_items_hi50": worked["outcome_difference_hi50"],
+                    "prior_items_lo": worked["outcome_difference_lo"],
+                    "prior_items_hi": worked["outcome_difference_hi"],
+                    "n_trials": int(n_trials),
+                },
+                estimand=f"mechanism_curve ({worked['curve_kind']})",
+                estimand_label=label,
+                role="association",
+            )
+        ]
+    except Exception as exc:  # noqa: BLE001 - absence must stay legible
+        rows = [
+            _report.unavailable_pushforward(
+                estimand="mechanism_curve",
+                estimand_label=label,
+                role="association",
+                reason=str(exc),
+            )
+        ]
+    try:
+        _write_prior_pushforward(ctx, rows)
+    except Exception as exc:  # noqa: BLE001 - see the docstring: never raises
+        rprint(f"[yellow]mechanism prior pushforward not written: {exc}[/yellow]")
 
 
 def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
@@ -4743,6 +5136,27 @@ def _write_dose_slope_summary(
             ),
             columns=["metric", "value", "lo", "hi"],
         )
+    )
+    # Estimand-scale prior check on the reported dose marginal (#381). Shared by
+    # ``fit_dose_response`` and the DiD dose companions, which both route their
+    # slope reporting through this writer. ``mu_dose`` is the period-varying
+    # family's overall slope, the same term ``dose_overall`` summarises above;
+    # ``forward`` matches the ``expit(eta + delta) - expit(eta)`` marginal
+    # computed a few lines up, so prior and estimate share one transform.
+    _write_prior_pushforward(
+        ctx,
+        _marginal_pushforward_rows(
+            ctx,
+            [
+                (
+                    "mu_dose" if period_varying else "beta_dose",
+                    "the association of a +1 SD session-dose step with "
+                    f"{_pushforward_outcome_label(ctx, outcome)}",
+                )
+            ],
+            n_trials=int(ctx.prepared.n_trials[outcome]),
+            convention="forward",
+        ),
     )
 
 
@@ -6162,6 +6576,19 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
             columns=["metric", "value"],
         )
     )
+    # Estimand-scale prior check (#381), through the same transform
+    # ``block_exposure_summary`` uses for ``delta_items_*``: a forward shift from
+    # the un-exposed linear predictor ``eta_base``, not the ITT net-out core.
+    _write_prior_pushforward(
+        ctx,
+        _marginal_pushforward_rows(
+            ctx,
+            [("delta", "the block-active exposure association")],
+            n_trials=1 if off_floor else MEASURES[sym].n_trials,
+            convention="forward",
+            eta_name="eta_base",
+        ),
+    )
 
     _write_run_metadata(
         ctx,
@@ -6278,6 +6705,51 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 title="Per-protocol cohort marginal (NOT randomised)",
                 columns=["metric", "value"],
             )
+        )
+        # Estimand-scale prior check on the same contrast (#381). The cohort term
+        # is binary, so this uses the toggle-everyone AME core rather than the
+        # one-unit marginal — the same transform ``treatment_marginal_effect``
+        # above runs on the posterior.
+        try:
+            pf = _report.prior_pushforward(
+                ctx.prior_samples, G=cohort, n_trials=n_marg,
+                term="beta_cohort", varying_term="", ci_prob=ctx.reporting.ci_prob,
+            )
+            rows = [
+                _report.labelled_pushforward(
+                    pf,
+                    estimand="beta_cohort",
+                    estimand_label=(
+                        "the per-protocol cohort contrast (an association, not a "
+                        "randomised effect)"
+                    ),
+                    role="association",
+                )
+            ]
+        except Exception as exc:  # noqa: BLE001 - absence must stay legible
+            rows = [
+                _report.unavailable_pushforward(
+                    estimand="beta_cohort",
+                    estimand_label="the per-protocol cohort contrast",
+                    role="association",
+                    reason=str(exc),
+                )
+            ]
+        _write_prior_pushforward(ctx, rows)
+    else:
+        _write_prior_pushforward(
+            ctx,
+            [
+                _report.unavailable_pushforward(
+                    estimand="beta_cohort",
+                    estimand_label="the per-protocol cohort contrast",
+                    role="association",
+                    reason=(
+                        "this aligned variant fits a single pooled cohort, so it "
+                        "carries no cohort contrast to push a prior through"
+                    ),
+                )
+            ],
         )
 
     _write_run_metadata(ctx, extra=meta_extra)
@@ -6803,6 +7275,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     ranking.to_csv(os.path.join(ctx.output_dir, "predictor_ranking.csv"), index=False)
     ctx.tables["predictor_ranking"] = ranking
     print_table(ranked_dataframe_table(ranking.head(10), title="Horseshoe predictor ranking (top 10)"))
+    _write_prior_pushforward(ctx, _horseshoe_pushforward_rows(ctx, predictors, outcome))
 
     meta_extra = {
         "framing": "gain" if gain else "level",
@@ -6982,6 +7455,29 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         os.path.join(ctx.output_dir, "predictor_associations.csv"), index=False
     )
     ctx.tables["predictor_associations"] = assoc_df
+    _pf_assoc = assoc_df
+    # Estimand-scale prior check on the headline adjusted associations (#381).
+    # Driven off the association table just written, not off ``headline``: the
+    # missing-data indicators are dropped from that table as nuisance
+    # subgroup offsets, and a prior row for a term the report does not show
+    # would contradict the nuisance labelling it was dropped for.
+    _pf_n = _pushforward_n_trials(ctx, outcome)
+    _pf_outcome = _pushforward_outcome_label(ctx, outcome)
+    _write_prior_pushforward(
+        ctx,
+        _marginal_pushforward_rows(
+            ctx,
+            [
+                (
+                    f"beta_{r.predictor}",
+                    f"the adjusted association of +1 SD {r.label} with {_pf_outcome}",
+                )
+                for r in _pf_assoc.itertuples()
+            ],
+            n_trials=_pf_n,
+            convention="forward",
+        ),
+    )
     print_table(
         ranked_dataframe_table(
             assoc_df,
@@ -7583,6 +8079,26 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     _diag.run_extended_diagnostics(ctx)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+    # Estimand-scale prior check on the primary wave's adjusted associations
+    # (#381) — one row per predictor, on the same ``+1 SD`` forward-shift scale
+    # ``concurrent_marginals`` reports below. Only the primary wave persists a
+    # prior group; the other waves are refits sampled without one.
+    _write_prior_pushforward(
+        ctx,
+        _marginal_pushforward_rows(
+            ctx,
+            [
+                (
+                    f"beta_{s}",
+                    f"the adjusted association of +1 SD {_ca_label(s)} with "
+                    f"{MEASURES[outcome].label} at t{primary_wave + 1}",
+                )
+                for s in prim["preds"]
+            ],
+            n_trials=N_focal,
+            convention="forward",
+        ),
+    )
 
     # ---- Adjusted vs bivariate coefficients + natural-scale marginals -----------
     section_header("Concurrent associations (adjusted vs bivariate)")
@@ -8359,6 +8875,9 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         os.path.join(ctx.output_dir, "posterior_growth_summary.csv"), index=False
     )
     ctx.tables["posterior_growth_summary"] = growth
+    _write_prior_pushforward(
+        ctx, _growth_contrast_pushforward_rows(ctx, panel, measure)
+    )
     print_table(
         ranked_dataframe_table(
             growth,
@@ -8575,6 +9094,29 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         os.path.join(ctx.output_dir, "predictor_associations.csv"), index=False
     )
     ctx.tables["predictor_associations"] = assoc
+    _pf_assoc = assoc
+    # Estimand-scale prior check on the headline adjusted associations (#381).
+    # Driven off the association table just written, not off ``headline``: the
+    # missing-data indicators are dropped from that table as nuisance
+    # subgroup offsets, and a prior row for a term the report does not show
+    # would contradict the nuisance labelling it was dropped for.
+    _pf_n = _pushforward_n_trials(ctx, outcome)
+    _pf_outcome = _pushforward_outcome_label(ctx, outcome)
+    _write_prior_pushforward(
+        ctx,
+        _marginal_pushforward_rows(
+            ctx,
+            [
+                (
+                    f"beta_{r.predictor}",
+                    f"the adjusted association of +1 SD {r.label} with {_pf_outcome}",
+                )
+                for r in _pf_assoc.itertuples()
+            ],
+            n_trials=_pf_n,
+            convention="forward",
+        ),
+    )
     print_table(
         ranked_dataframe_table(
             assoc,
@@ -8725,6 +9267,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     print_table(
         ranked_dataframe_table(ranking, title="Horseshoe predictor ranking")
     )
+    _write_prior_pushforward(ctx, _horseshoe_pushforward_rows(ctx, predictors, outcome))
 
     _write_run_metadata(
         ctx,
@@ -8817,6 +9360,9 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.run_psense(ctx, var_names=diag_vars)
 
     _run_ppc(ctx, var_names=["Z_obs"])
+    # Indicator-scale prior check (#381) — the measurement families' stand-in for
+    # the estimand pushforward the outcome families get.
+    _write_indicator_prior_check(ctx, ["Z_obs"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -9029,6 +9575,10 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
 
     # --- Per-measure fitted cells + growth (shared historical summaries) ----
     section_header("Per-measure growth summaries")
+    # One estimand-scale prior row per measure per contrast (#381), accumulated
+    # across the loop so the joint fit writes a single table rather than each
+    # measure overwriting the last.
+    _pf_rows: list[dict[str, object]] = []
     for m in measure_syms:
         label = measures[m].label
         baseline = _historical.observed_baseline(panel, m, label)
@@ -9057,6 +9607,16 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             index=False,
         )
         ctx.tables[f"posterior_growth_summary_{m}"] = growth
+        _pf_rows.extend(
+            _growth_contrast_pushforward_rows(
+                ctx,
+                panel,
+                m,
+                fitted_var=f"fitted_mean_items_obs_{m}",
+                prefix=f"{m}:",
+            )
+        )
+    _write_prior_pushforward(ctx, _pf_rows)
 
     _write_run_metadata(
         ctx,
@@ -9192,7 +9752,15 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         summary_vars.append("beta_G")
 
     section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=["Z_obs", "y_post"])
+    # Draw the full prior, not just the two observed nodes (#381). Restricting
+    # ``var_names`` to ``["Z_obs", "y_post"]`` left the persisted ``prior`` group
+    # completely empty, so ``save_prior_posterior_plot`` below had nothing to
+    # overlay and these three fits shipped with no prior-vs-posterior figure at
+    # all — the one measurement family the prior-analysis review most wanted to
+    # see. The default (all free RVs + deterministics + observed nodes) is what
+    # every other family uses, and ``run_prior_predictive`` falls back to the
+    # minimal set on failure.
+    _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
 
     # Two observed nodes (the indicator matrix Z_obs + the structural y_post) make
@@ -9217,6 +9785,10 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # indicators*. Together they do not certify the joint model. See the
     # predictive-simulation caveat in ``build_correlated_factor_model``.
     _run_ppc(ctx, var_names=["Z_obs", "y_post"])
+    # Indicator-scale prior check (#381). Only ``Z_obs`` is the indicator matrix;
+    # ``y_post`` is the structural outcome and is covered by the ordinary
+    # prior-predictive plot above.
+    _write_indicator_prior_check(ctx, ["Z_obs"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
@@ -9467,6 +10039,9 @@ def fit_longitudinal_corr_factor(
     _diag.summary_diagnostics(ctx, var_names=summary_vars)
 
     _run_ppc(ctx, var_names=z_nodes)
+    # Indicator-scale prior check (#381), pooled across the missingness-pattern
+    # blocks: each block is its own observed node but the indicators are shared.
+    _write_indicator_prior_check(ctx, z_nodes)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)

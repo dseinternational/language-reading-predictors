@@ -419,8 +419,10 @@ isfinite
 isinstance
 isna
 issubset
+isin
 iterdir
 iterrows
+itertuples
 jcomdis
 jecp
 jslhr

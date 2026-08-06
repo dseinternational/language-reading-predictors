@@ -27,22 +27,98 @@ if priors_table is not None and "panel" in priors_table.columns:
 ```{python}
 # | echo: false
 # | output: asis
-# What the prior on the effect implies on the items scale *before* seeing data
-# (#125 Area 1/2 estimand check).
+# What the prior on this model's reported estimand implies on the outcome scale
+# *before* seeing data (#125 Area 1/2, generalised past the treatment families in
+# #381). Rows written before #381 carry no ``estimand_label``; every one of them
+# is a treatment-effect AME, so the fallback sentence below is accurate for them.
 _pf = _csv("prior_pushforward.csv")
-if _pf is not None:
-    _r = _pf.iloc[0]
-    print(
-        f"Before seeing data, the prior on the treatment effect implies an "
-        f"items-scale average marginal effect with median "
-        f"**{_r.prior_items_median:+.1f}**, a 50% range "
-        f"{_r.prior_items_lo50:+.1f} to {_r.prior_items_hi50:+.1f}, and an 89% range "
-        f"{_r.prior_items_lo:+.1f} to {_r.prior_items_hi:+.1f} "
-        f"(denominator {int(_r.n_trials)}). A well-calibrated prior is wide but not "
-        f"absurd — it should not concentrate mass on implausibly large effects."
+
+
+def _pf_units(row):
+    """``(multiplier, unit)`` for one row's ``prior_items_*`` columns.
+
+    A denominator of 1 means the marginal is a **probability difference**, not an
+    item count — a floor-rule outcome's off-floor risk difference, or a fit with
+    no item ceiling. Those read in percentage points, so they must be scaled by
+    100. Keyed off ``n_trials`` rather than the ``scale`` column so it also
+    corrects the pre-#381 rows, which carry no ``scale``: eight of them
+    (`itt-009`/`011`, `gf-005`/`011`, `lf-005`/`011`, `did-011`/`012`) were
+    published as items at a hundredth of their true size.
+    """
+    return (100.0, "pp") if int(row.n_trials) == 1 else (1.0, "items")
+
+
+def _pf_sentence(row, labelled):
+    multiplier, unit = _pf_units(row)
+    if labelled:
+        lead = f"the prior on {row.estimand_label} implies"
+    elif unit == "pp":
+        lead = (
+            "the prior on the treatment effect implies an average marginal "
+            "effect on the off-floor risk with"
+        )
+    else:
+        lead = (
+            "the prior on the treatment effect implies an items-scale average "
+            "marginal effect with"
+        )
+    return (
+        f"Before seeing data, {lead} a median of "
+        f"**{row.prior_items_median * multiplier:+.1f} {unit}**, a 50% range "
+        f"{row.prior_items_lo50 * multiplier:+.1f} to {row.prior_items_hi50 * multiplier:+.1f}, "
+        f"and an 89% range {row.prior_items_lo * multiplier:+.1f} to "
+        f"{row.prior_items_hi * multiplier:+.1f}"
+        + (f" (denominator {int(row.n_trials)})." if unit == "items" else ".")
     )
-else:
+
+
+_CALIBRATION = (
+    "A well-calibrated prior is wide but not absurd — it should not concentrate "
+    "mass on implausibly large effects."
+)
+
+if _pf is None:
     print("_No prior pushforward available for this model._")
+else:
+    _labelled = "estimand_label" in _pf.columns
+    # Partition by status, not by row identity: an unavailable row is all-NaN and
+    # NaN != NaN, so a membership test would silently classify it as usable.
+    _status = (
+        _pf["status"].astype(str)
+        if _labelled and "status" in _pf.columns
+        else pd.Series(["ok"] * len(_pf), index=_pf.index)
+    )
+    _rows = list(_pf.itertuples())
+    _usable = [r for r, ok in zip(_rows, _status == "ok") if ok]
+    _unavailable = [r for r, ok in zip(_rows, _status == "ok") if not ok]
+    if _usable and (len(_usable) == 1 or not _labelled):
+        print(_pf_sentence(_usable[0], _labelled) + " " + _CALIBRATION)
+    elif _usable:
+        # Several reported quantities (per-outcome joint taus, per-predictor
+        # associations): a table, so no one row is silently promoted to headline.
+        print(
+            "Before seeing data, the priors on this model's reported quantities "
+            f"imply the ranges below. {_CALIBRATION}\n"
+        )
+        print("| quantity | role | units | median | 50% range | 89% range |")
+        print("| :--- | :--- | :--- | ---: | :--- | :--- |")
+        for _r in _usable:
+            # Per row, not per table: a joint fit mixes item-scale outcomes with
+            # floor-rule ones, so one shared multiplier would be wrong for some.
+            _mul, _unit = _pf_units(_r)
+            print(
+                f"| {_r.estimand_label} | {_r.role} | {_unit} | "
+                f"{_r.prior_items_median * _mul:+.2f} | "
+                f"{_r.prior_items_lo50 * _mul:+.2f} to {_r.prior_items_hi50 * _mul:+.2f} | "
+                f"{_r.prior_items_lo * _mul:+.2f} to {_r.prior_items_hi * _mul:+.2f} |"
+            )
+        print("")
+    for _r in _unavailable:
+        # Never silent: an unchecked prior must not read like a checked one.
+        print(
+            f"\n_The estimand-scale prior check for {_r.estimand_label} could not "
+            f"be computed: {_r.reason}._"
+        )
 ```
 
 ### Prior vs posterior

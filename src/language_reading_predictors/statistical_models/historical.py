@@ -38,7 +38,12 @@ def _summarize(values: np.ndarray) -> dict[str, float]:
         "mean": float(np.mean(values)),
         "sd": float(np.std(values, ddof=1)),
         "q_lo": float(np.quantile(values, 0.055)),
+        # Inner 50% band, reported alongside the 89% interval throughout the
+        # suite; the estimand-scale prior check (#381) reads it from here rather
+        # than re-deriving the contrast draws outside this module.
+        "q25": float(np.quantile(values, 0.25)),
         "q50": float(np.quantile(values, 0.5)),
+        "q75": float(np.quantile(values, 0.75)),
         "q_hi": float(np.quantile(values, 0.945)),
         "p_gt_0": float(np.mean(values > 0)),
     }
@@ -204,6 +209,7 @@ def growth_summary(
     panel: LongitudinalPanel,
     measure: str,
     fitted_var: str = "fitted_mean_items_obs",
+    group: str = "posterior",
 ) -> pd.DataFrame:
     """Within-group interval growth + pairwise total-growth contrasts (in items).
 
@@ -214,8 +220,13 @@ def growth_summary(
     Down-syndrome group's extension tail included); the pairwise total-growth
     contrasts are taken over the **common window** - the first-to-last wave
     every group supports - so they compare like horizons.
+
+    ``group`` selects the inference group: ``"posterior"`` for the reported
+    growth, or ``"prior"`` to push the prior through this same transform for the
+    estimand-scale prior check (#381), which asks how much between-group growth
+    the priors alone permit before any data are seen.
     """
-    posterior = trace.posterior
+    posterior = getattr(trace, group)
     rows: list[dict[str, Any]] = []
     per_group = _group_waves(panel, measure)
     common = _common_waves(panel, measure)

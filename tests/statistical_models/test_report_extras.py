@@ -11,14 +11,24 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
+from scipy.special import expit
 
 from language_reading_predictors.statistical_models.reporting import (
+    _indicator_prior_verdict,
     evidence_label,
     factor_summary,
+    indicator_prior_check,
+    joint_prior_pushforward,
+    labelled_pushforward,
+    marginal_prior_pushforward,
     prior_pushforward,
+    pushforward_scale_for,
+    pushforward_values,
     rope_markdown,
     tau_summary_itt,
+    unavailable_pushforward,
 )
 from language_reading_predictors.statistical_models.pipeline import (
     _save_contrast_heatmap,
@@ -209,3 +219,309 @@ def test_diagnostics_report_surfaces_unreliable_pareto_k():
     assert "exact or moment-matched LOO" in diagnostics
     assert "same conditional row-level predictive target" in diagnostics
     assert "leaving out a whole child changes the target" in diagnostics
+
+
+# ---------------------------------------------------------------------------
+# Generalised estimand-scale prior pushforward (#381)
+# ---------------------------------------------------------------------------
+
+
+def test_marginal_pushforward_conventions_differ_and_match_their_transforms():
+    """The two conventions must be the transforms the families actually report.
+
+    ``forward`` is ``expit(eta + beta) - expit(eta)`` — the effect of one *more*
+    unit, which is what ``concurrent_marginals`` and the dose marginal compute.
+    ``net_out`` is ``expit(eta) - expit(eta - beta)`` — the unit already in the
+    linear predictor, the ``_itt_ame_draws`` convention. They are evaluated at
+    different operating points, so a family must not silently get the other one.
+    """
+    eta = np.full((1, 4, 3), 0.8)
+    beta = np.full((1, 4), 0.5)
+    trace = SimpleNamespace(prior=_ds(eta, beta.reshape(1, 4), extra={"b": beta}))
+
+    fwd = marginal_prior_pushforward(
+        trace, term="b", n_trials=10, ci_prob=0.9, convention="forward"
+    )
+    net = marginal_prior_pushforward(
+        trace, term="b", n_trials=10, ci_prob=0.9, convention="net_out"
+    )
+    expected_fwd = 10 * (expit(0.8 + 0.5) - expit(0.8))
+    expected_net = 10 * (expit(0.8) - expit(0.8 - 0.5))
+    assert fwd["prior_items_median"] == pytest.approx(expected_fwd)
+    assert net["prior_items_median"] == pytest.approx(expected_net)
+    # Concave inverse link above zero: one more unit buys less than the last one.
+    assert fwd["prior_items_median"] < net["prior_items_median"]
+    # The coefficient itself is convention-free.
+    assert fwd["prior_logit_median"] == pytest.approx(net["prior_logit_median"])
+
+
+def test_marginal_pushforward_selects_one_element_of_a_vector_term():
+    """The horseshoe families rank a ``beta`` indexed by predictor.
+
+    Without ``term_index`` the whole vector would stack into the draw axis and the
+    row would summarise a mixture of every predictor's coefficient, which is not a
+    quantity the model reports.
+    """
+    n_draw = 200
+    rng = np.random.default_rng(11)
+    beta = np.stack(
+        [rng.normal(-2.0, 0.01, n_draw), rng.normal(2.0, 0.01, n_draw)], axis=-1
+    )[None, ...]  # (1, n_draw, 2)
+    ds = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), np.zeros((1, n_draw, 3))),
+            "beta": (("chain", "draw", "predictor"), beta),
+        },
+        coords={
+            "chain": [0],
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(3),
+            "predictor": ["low", "high"],
+        },
+    )
+    trace = SimpleNamespace(prior=ds)
+    low = marginal_prior_pushforward(
+        trace, term="beta", n_trials=10, ci_prob=0.9, term_index={"predictor": "low"}
+    )
+    high = marginal_prior_pushforward(
+        trace, term="beta", n_trials=10, ci_prob=0.9, term_index={"predictor": "high"}
+    )
+    assert low["prior_logit_median"] == pytest.approx(-2.0, abs=0.05)
+    assert high["prior_logit_median"] == pytest.approx(2.0, abs=0.05)
+
+
+def test_labelled_pushforward_keeps_the_numeric_keys_the_blending_bundle_matches():
+    """Labels must not enter the numeric dict ``blending_sensitivity`` recomputes.
+
+    That validator intersects the saved CSV's columns with the keys
+    ``prior_pushforward`` returns and compares each with a float conversion, so a
+    string key in the returned dict would fail the released phoneme-blending
+    bundle. The labels therefore live only on the *written* row.
+    """
+    values = pushforward_values(
+        np.array([0.1, 0.2, 0.3]), np.array([1.0, 2.0, 3.0]), n_trials=10, ci_prob=0.9
+    )
+    assert all(isinstance(v, (int, float)) for v in values.values())
+    row = labelled_pushforward(
+        values, estimand="tau", estimand_label="the treatment effect", role="causal"
+    )
+    assert set(values) <= set(row)
+    assert row["status"] == "ok"
+    assert row["role"] == "causal"
+    # Every added key is a label, never a number the validator would compare.
+    assert set(row) - set(values) == {
+        "estimand",
+        "estimand_label",
+        "role",
+        "scale",
+        "status",
+        "reason",
+    }
+
+
+def test_unavailable_pushforward_records_the_reason_rather_than_vanishing():
+    """A check that could not run must stay visible — that is the #381 finding."""
+    row = unavailable_pushforward(
+        estimand="beta_cohort",
+        estimand_label="the cohort contrast",
+        role="association",
+        reason="this variant fits a single pooled cohort",
+    )
+    assert row["status"] == "unavailable"
+    assert "pooled cohort" in row["reason"]
+    assert np.isnan(row["prior_items_median"])
+
+
+def test_joint_pushforward_gives_each_outcome_its_own_row_and_denominator():
+    """A joint fit has one tau and one item ceiling per outcome.
+
+    A single-row schema would have to pick one outcome's denominator and apply it
+    to all of them, so the joint family gets one labelled row each.
+    """
+    n_draw = 300
+    rng = np.random.default_rng(7)
+    ds = xr.Dataset(
+        {
+            "eta": (
+                ("chain", "draw", "obs_id", "outcome"),
+                np.zeros((1, n_draw, 6, 2)),
+            ),
+            "tau": (("chain", "draw", "outcome"), rng.normal(0, 0.5, (1, n_draw, 2))),
+        },
+        coords={
+            "chain": [0],
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(6),
+            "outcome": ["W", "L"],
+        },
+    )
+    rows = joint_prior_pushforward(
+        SimpleNamespace(prior=ds),
+        outcomes=["W", "L"],
+        G=np.array([0.0, 1.0, 0.0, 1.0, 0.0, 1.0]),
+        n_trials={"W": 79, "L": 24},
+        ci_prob=0.89,
+    )
+    assert [r["estimand"] for r in rows] == ["tau[W]", "tau[L]"]
+    assert [r["n_trials"] for r in rows] == [79, 24]
+    assert all(r["role"] == "causal" for r in rows)
+    # Same logit prior, different denominators -> the wider ceiling gives the
+    # wider items range.
+    assert rows[0]["prior_items_hi"] > rows[1]["prior_items_hi"]
+
+
+def test_scale_is_derived_from_the_denominator_so_it_cannot_disagree():
+    """A denominator of 1 means a probability difference, never an item count.
+
+    Eight pre-#381 fits (the floor-rule ITT, gain-factor, level-factor and DiD
+    outcomes) published an off-floor risk difference described as items, and so
+    a hundred times too small. Deriving the scale from ``n_trials`` in one place
+    means no call site can reintroduce that by passing a mismatched pair.
+    """
+    assert pushforward_scale_for(79) == "items"
+    assert pushforward_scale_for(1) == "percentage points"
+
+    values = pushforward_values(
+        np.array([0.0]), np.array([0.05]), n_trials=1, ci_prob=0.9
+    )
+    row = labelled_pushforward(
+        values,
+        estimand="tau",
+        estimand_label="the off-floor treatment effect",
+        role="causal",
+    )
+    assert row["scale"] == "percentage points"
+    # An explicit scale still wins, for a family whose units are neither.
+    override = labelled_pushforward(
+        values, estimand="tau", estimand_label="x", role="causal", scale="words/year"
+    )
+    assert override["scale"] == "words/year"
+
+
+# ---------------------------------------------------------------------------
+# Indicator-scale prior check for the measurement families (#381)
+# ---------------------------------------------------------------------------
+
+
+def _cfa_trace(prior_sd, *, node="Z_obs", n_obs=60, seed=5):
+    """A CFA-shaped trace: standardised observed indicators + prior draws of them."""
+    rng = np.random.default_rng(seed)
+    labels = ["a", "b"]
+    observed = rng.normal(0.0, 1.0, (n_obs, len(labels)))
+    if n_obs > 1:  # a single-row block has no within-block SD to divide by
+        observed = (observed - observed.mean(0)) / observed.std(0)  # standardised
+    sim = rng.normal(0.0, prior_sd, (1, 200, n_obs, len(labels)))
+    dims = ("chain", "draw", f"{node}_row", f"{node}_cell")
+    coords = {
+        "chain": [0],
+        "draw": np.arange(200),
+        f"{node}_row": np.arange(n_obs),
+        f"{node}_cell": labels,
+    }
+    return SimpleNamespace(
+        prior_predictive=xr.Dataset({node: (dims, sim)}, coords=coords),
+        observed_data=xr.Dataset(
+            {node: ((f"{node}_row", f"{node}_cell"), observed)},
+            coords={f"{node}_row": np.arange(n_obs), f"{node}_cell": labels},
+        ),
+    )
+
+
+def test_indicator_prior_check_uses_one_as_the_reference_sd_ratio():
+    """Standardisation is what makes this check sharp: observed SD is ~1."""
+    ok = indicator_prior_check(_cfa_trace(1.0), nodes=["Z_obs"])
+    assert list(ok["indicator"]) == ["a", "b"]
+    assert ok["sd_ratio"].between(0.9, 1.2).all()
+    assert set(ok["verdict"]) == {"well scaled"}
+
+    # A prior far wider than the standardised data is wasteful, not invalidating.
+    wide = indicator_prior_check(_cfa_trace(4.0), nodes=["Z_obs"])
+    assert set(wide["verdict"]) == {"very loose"}
+
+    # A prior narrower than the data is the failure that matters: it cannot
+    # generate what was observed.
+    tight = indicator_prior_check(_cfa_trace(0.4), nodes=["Z_obs"])
+    assert set(tight["verdict"]) == {"too tight"}
+    assert (tight["coverage_90"] < 0.9).all()
+
+
+def test_indicator_verdict_tolerates_binomial_noise_in_coverage():
+    """A flat ``coverage < 0.9`` rule fires on ordinary sampling noise.
+
+    With 75 children the standard error on a 90% coverage rate is ~3.5 points, so
+    0.88 is well inside noise — and a bare threshold labelled three perfectly
+    scaled `rlm-mm-001` indicators (sd_ratio 1.007) "too tight" at exactly that.
+    """
+    assert _indicator_prior_verdict(1.007, 0.88, 75) == "well scaled"
+    # A genuine shortfall, more than two standard errors below nominal, still fires.
+    assert _indicator_prior_verdict(1.007, 0.60, 75) == "too tight"
+    # Small samples are noisier, so the same coverage is tolerated there.
+    assert _indicator_prior_verdict(1.0, 0.75, 12) == "well scaled"
+
+
+def test_indicator_prior_check_pools_missingness_blocks_by_indicator():
+    """The longitudinal model registers one observed node per missingness block.
+
+    Some blocks hold a single row, whose within-block SD is identically zero, so
+    grouping by node would emit a pile of unassessable rows for what is really
+    one indicator observed in several pieces.
+    """
+    big = _cfa_trace(1.0, node="z_obs_0", n_obs=40, seed=1)
+    small = _cfa_trace(1.0, node="z_obs_1", n_obs=1, seed=2)
+    merged = SimpleNamespace(
+        prior_predictive=xr.merge(
+            [big.prior_predictive, small.prior_predictive], compat="override"
+        ),
+        observed_data=xr.merge(
+            [big.observed_data, small.observed_data], compat="override"
+        ),
+    )
+    df = indicator_prior_check(merged, nodes=["z_obs_0", "z_obs_1"])
+    # One row per indicator, not per (node, indicator) — and the single-row block
+    # contributes its observation rather than an unassessable row of its own.
+    assert list(df["indicator"]) == ["a", "b"]
+    assert (df["n_observed"] == 41).all()
+    assert "not assessable" not in set(df["verdict"])
+
+
+def test_empty_prior_group_is_replaced_so_a_re_emit_can_repair_it(tmp_path):
+    """A trace loaded under --reuse-trace carries whatever group it was saved with.
+
+    Three RLI measurement fits were written with a restricted ``var_names`` and so
+    hold a ``prior`` node containing nothing. A plain "already present" test
+    blocks the freshly drawn prior from ever landing, which is why they kept
+    shipping without a prior-vs-posterior overlay after the restriction was
+    removed. An empty group must therefore be replaced — and a populated one
+    must still be left alone.
+    """
+    from language_reading_predictors.statistical_models import diagnostics as _diag
+
+    def _tree(prior_vars):
+        return xr.DataTree.from_dict(
+            {
+                "posterior": xr.Dataset(
+                    {"x": (("chain", "draw"), np.zeros((1, 2)))},
+                    coords={"chain": [0], "draw": [0, 1]},
+                ),
+                "prior": xr.Dataset(
+                    {
+                        name: (("chain", "draw"), np.full((1, 2), val))
+                        for name, val in prior_vars.items()
+                    },
+                    coords={"chain": [0], "draw": [0, 1]},
+                ),
+            }
+        )
+
+    fresh = _tree({"alpha": 7.0})
+
+    empty = _tree({})
+    ctx = SimpleNamespace(trace=empty, prior_samples=fresh)
+    _diag._attach_prior_groups(ctx)
+    assert list(ctx.trace["prior"].data_vars) == ["alpha"]
+    assert float(ctx.trace["prior"]["alpha"].values.ravel()[0]) == 7.0
+
+    populated = _tree({"alpha": 1.0})
+    ctx2 = SimpleNamespace(trace=populated, prior_samples=fresh)
+    _diag._attach_prior_groups(ctx2)
+    assert float(ctx2.trace["prior"]["alpha"].values.ravel()[0]) == 1.0
