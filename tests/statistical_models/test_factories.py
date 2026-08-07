@@ -1317,21 +1317,36 @@ def _lcf_panel(tmp_path, n_children=40):
     return load_wave_panel(path=p, outcomes=indicators)
 
 
+def _lcf_wave_weights(panel, domains):
+    """Observed-cell wave weights (J, T) in the model's indicator order."""
+    ind_names = [s for v in domains.values() for s in v]
+    W = []
+    for s in ind_names:
+        counts = np.isfinite(np.asarray(panel.logit[s], dtype=float)).sum(axis=0)
+        W.append(counts / counts.sum())
+    return np.asarray(W, dtype=float)
+
+
 def test_longitudinal_corr_factor_builds(tmp_path):
     """#313: four-wave CFA — invariant loadings/residuals, per-wave cross-factor
     correlations, trait/state across-wave structure, factor scores marginalised out
-    (per-pattern MvNormal nodes; no per-child latent RV)."""
+    (per-pattern MvNormal nodes; no per-child latent RV). Default measurement
+    geometry is the pooled-budget communality parameterisation (#383 follow-up)."""
     panel = _lcf_panel(tmp_path)
     built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS)
     free = {v.name for v in built.model.free_RVs}
-    assert {"lambda_load", "sigma_indicator", "trait_share", "trait_corr_chol", "factor_mean"}.issubset(free)
+    assert {"communality", "trait_share", "trait_corr_chol", "factor_mean"}.issubset(free)
     assert {f"state_corr_chol_w{w}" for w in panel.waves}.issubset(free)
     # LKJCorr carries only the correlation's d.o.f. — no nuisance sd_dist scales.
     assert not any(v.name.endswith("_stds") for v in built.model.free_RVs)
     # Fully marginalised: no per-child latent factor score RV.
     assert "factor_z" not in free and "factors" not in free
     dets = {v.name for v in built.model.deterministics}
-    assert {"factor_corr", "factor_corr_pairs", "Sigma_z", "mean_z", "communality"}.issubset(dets)
+    assert {
+        "factor_corr", "factor_corr_pairs", "Sigma_z", "mean_z",
+        # The loading / residual pair is DERIVED under the default (#383 follow-up).
+        "lambda_load", "sigma_indicator", "within_share",
+    }.issubset(dets)
     # One observed MvNormal per observed-cell pattern; every child is used (masked,
     # not dropped).
     assert built.extras["z_nodes"] == [v.name for v in built.model.observed_RVs]
@@ -1340,8 +1355,69 @@ def test_longitudinal_corr_factor_builds(tmp_path):
     ip = built.model.initial_point()
     assert np.isfinite(built.model.compile_logp()(ip))
     with built.model:
-        pp = pm.sample_prior_predictive(draws=5, var_names=built.extras["z_nodes"], random_seed=3)
+        pp = pm.sample_prior_predictive(
+            draws=20,
+            var_names=[
+                "communality", "lambda_load", "sigma_indicator", "within_share",
+                "factor_mean", *built.extras["z_nodes"],
+            ],
+            random_seed=3,
+        )
     assert pp.prior_predictive[built.extras["z_nodes"][0]].sizes["chain"] == 1
+    # The POOLED unit-variance budget is exact in every draw: with V the
+    # observed-cell-weighted variance of the drawn wave means, the within-wave
+    # variance is lambda**2 + sigma**2 = 1 / (1 + c V) and the between-wave mean
+    # variance lambda**2 * V makes the total exactly 1; the communality stays
+    # exactly the free c.
+    lam_d = pp.prior["lambda_load"].values[0]  # (draws, J)
+    sig_d = pp.prior["sigma_indicator"].values[0]
+    comm_d = pp.prior["communality"].values[0]
+    ws_d = pp.prior["within_share"].values[0]
+    fm_d = pp.prior["factor_mean"].values[0]  # (draws, D, T)
+    W = _lcf_wave_weights(panel, _LCF_TEST_DOMAINS)  # (J, T)
+    domain_of = np.repeat(
+        np.arange(len(_LCF_TEST_DOMAINS)),
+        [len(v) for v in _LCF_TEST_DOMAINS.values()],
+    )
+    m_ind = fm_d[:, domain_of, :]  # (draws, J, T)
+    mbar = (W[None] * m_ind).sum(axis=2, keepdims=True)
+    V = (W[None] * (m_ind - mbar) ** 2).sum(axis=2)  # (draws, J)
+    np.testing.assert_allclose(lam_d**2 * (V + 1.0) + sig_d**2, 1.0, atol=1e-8)
+    np.testing.assert_allclose(lam_d**2 + sig_d**2, ws_d, atol=1e-10)
+    np.testing.assert_allclose(lam_d**2 / (lam_d**2 + sig_d**2), comm_d, atol=1e-8)
+
+
+def test_longitudinal_corr_factor_legacy_free_pair(tmp_path):
+    """loading_prior="free" reproduces the pre-port unconstrained pair, which does
+    NOT enforce the pooled budget — the point of a geometry-only contrast."""
+    panel = _lcf_panel(tmp_path)
+    built = build_longitudinal_corr_factor_model(
+        panel, domains=_LCF_TEST_DOMAINS, loading_prior="free"
+    )
+    free = {v.name for v in built.model.free_RVs}
+    dets = {v.name for v in built.model.deterministics}
+    assert {"lambda_load", "sigma_indicator"}.issubset(free)
+    assert {"communality", "within_share"}.issubset(dets)
+    with built.model:
+        pp = pm.sample_prior_predictive(
+            draws=50, var_names=["lambda_load", "sigma_indicator"], random_seed=9
+        )
+    lam_d = pp.prior["lambda_load"].values
+    sig_d = pp.prior["sigma_indicator"].values
+    assert np.abs(lam_d**2 + sig_d**2 - 1.0).max() > 0.1
+
+
+def test_longitudinal_corr_factor_rejects_bad_loading_prior(tmp_path):
+    """Unknown parameterisations and non-positive Beta shapes are rejected."""
+    panel = _lcf_panel(tmp_path)
+    with pytest.raises(ValueError, match="loading_prior"):
+        build_longitudinal_corr_factor_model(
+            panel, domains=_LCF_TEST_DOMAINS, loading_prior="bounded"
+        )
+    with pytest.raises(ValueError, match="comm_alpha and comm_beta"):
+        build_longitudinal_corr_factor_model(
+            panel, domains=_LCF_TEST_DOMAINS, comm_alpha=0.0
+        )
 
 
 def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):

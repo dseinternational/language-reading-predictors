@@ -39,7 +39,7 @@ it is a **descriptive association** (locked DAG, ID-2); the instrument improves 
 measurement match, it does **not** identify effects. The randomised causal claims live
 in the ITT/DiD suites and the mediation models, not here.
 
-_Read the correlation structure as one matrix, not four._ The trait-vs-state decomposition puts almost all of the between-child correlation in the stable trait component (`trait_share` posterior ≈ 0.94), which collapses the four per-wave latent correlation matrices into essentially one — the wave-specific state correlations are near-prior and not separately identified, so do **not** read any across-wave change in correlation structure as a finding. The vocabulary–grammar latent correlation (≈ 0.86) is the single most prior-influenced number here: it is the most power-scaling-sensitive parameter and the `LKJ` prior is actively holding it below the disattenuation ceiling, so treat it as a conservative lower bound rather than a point estimate.
+_Read the correlation structure as one matrix, not four._ The trait-vs-state decomposition puts almost all of the between-child correlation in the stable trait component (`trait_share` posterior ≈ 0.95), which collapses the four per-wave latent correlation matrices into essentially one — the wave-specific state correlations are near-prior and not separately identified, so do **not** read any across-wave change in correlation structure as a finding. The vocabulary–grammar latent correlation (≈ 0.88) is the single most prior-influenced number here: it is the most power-scaling-sensitive parameter and the `LKJ` prior is actively holding it below the disattenuation ceiling, so treat it as a conservative lower bound rather than a point estimate.
 
 _Fragility at n ~ 54._ A longitudinal latent model at n ~ 54 is fragile and prior-dependent — more so than the
 single-wave `mm-001`, since it carries a trait correlation matrix and one state
@@ -66,6 +66,23 @@ $$
 with per-wave factor means carried by an exact zero-sum-over-waves $\mu_{d,t}$. Each
 factor is unit-variance at every wave. The reported within-wave correlation is induced
 by the trait/state structure below, not drawn directly from a separate LKJ prior.
+
+**Loading / residual geometry (pooled-budget communality parameterisation, #383
+follow-up).** The free measurement parameter per indicator is its within-wave
+communality $c_j \sim \operatorname{Beta}(2, 2)$; the loading and residual are derived
+as $\lambda_j = \sqrt{c_j / (1 + c_j V_j)}$ and $\sigma_j = \sqrt{(1 - c_j) / (1 + c_j
+V_j)}$, where $V_j$ is the observed-cell-weighted variance of the fitted wave means for
+$j$'s domain. This makes the model-implied **pooled** indicator variance exactly 1 — the
+budget this model's all-wave standardisation actually imposes — while keeping
+$\lambda_j^2 / (\lambda_j^2 + \sigma_j^2) = c_j$ exact and placing zero prior mass on
+Heywood configurations. It is the longitudinal analogue of the cross-sectional `mm`
+family's exact $\lambda^2 + \sigma^2 = 1$ budget (#383): enforcing that form verbatim
+here would overstate the within-wave variance by the 5–18% share that between-wave
+growth carries in these indicators. The previous free
+$\operatorname{HalfNormal}(1)$ loading/residual pair — which implies an arcsine
+$\operatorname{Beta}(\tfrac{1}{2}, \tfrac{1}{2})$ communality prior with mass piled on
+both singular corners — remains available as a sensitivity contrast
+(`loading_prior="free"`).
 
 **Across-wave (trait / state).** $f_{i,d,t} = \sqrt{\pi_d}\,\tau_{i,d} +
 \sqrt{1-\pi_d}\,s_{i,d,t}$: a stable per-child trait $\tau_i \sim \mathcal{N}(0,

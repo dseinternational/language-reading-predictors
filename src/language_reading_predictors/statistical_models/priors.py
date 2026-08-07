@@ -745,9 +745,14 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
     if base.startswith("communality"):
         return (
             f"Indicator communality ({fitted}); the share of a standardised test's "
-            "variance explained by its domain factor, with loading = sqrt(c) and "
-            "residual = sqrt(1 - c) so lambda**2 + sigma**2 = 1 (the standardised "
-            "unit-variance constraint that removes the loading-residual ridge)."
+            "variance explained by its domain factor, with the loading / residual "
+            "pair derived from c under the family's unit-variance budget: "
+            "lambda**2 + sigma**2 = 1 exactly for cross-sectionally standardised "
+            "indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) in the "
+            "longitudinal CFA (V the spread of the fitted wave means, so the "
+            "POOLED indicator variance is exactly 1). Either way the "
+            "loading-residual ridge is removed and Heywood configurations have "
+            "zero prior mass."
         )
     if base == "sigma_indicator":
         return (
