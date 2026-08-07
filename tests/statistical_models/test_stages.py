@@ -157,10 +157,13 @@ def test_posterior_predictive_uses_the_last_requested_node(monkeypatch):
     assert saved == ["y_post"]
 
 
-def test_metadata_and_report_finalization_are_shared(monkeypatch):
+def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace(output_dir="output")
+    # A real (temporary) directory: finalisation now scans the output directory
+    # to write the artefact manifest, so the context must not point at the
+    # repository's real output root.
+    ctx = SimpleNamespace(output_dir=str(tmp_path))
     metadata = []
     monkeypatch.setattr(
         stages._report,
@@ -180,3 +183,5 @@ def test_metadata_and_report_finalization_are_shared(monkeypatch):
     assert metadata == [(ctx, {"family": "example"})]
     assert returned is ctx
     assert events == ["Report", "copy_report", "publish", "footer"]
+    # The manifest is written between the report copy and publication (#394).
+    assert (tmp_path / "artifact_manifest.json").exists()

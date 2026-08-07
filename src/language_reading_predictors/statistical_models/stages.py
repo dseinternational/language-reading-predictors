@@ -20,6 +20,7 @@ from rich import print as rprint
 
 from language_reading_predictors.models._reporting import section_header
 from language_reading_predictors.statistical_models import (
+    artifacts as _artifacts,
     diagnostics as _diag,
     reporting as _report,
 )
@@ -108,6 +109,13 @@ class SharedFitStages:
             f"{findings['status']} ({len(findings['sentences'])} sentences)"
         )
         self.hooks.copy_report_template(ctx)
+        # Manifest last-but-one: after the template copy so the report support
+        # files are inventoried, before publication so it ships with the fit.
+        manifest = _artifacts.write_manifest(ctx)
+        rprint(
+            f"  Artifact manifest: {manifest['n_written']} written, "
+            f"{manifest['n_skipped']} skipped, {manifest['n_untracked']} untracked"
+        )
         self.hooks.publish_output(ctx)
         self.hooks.print_footer(ctx)
         return ctx

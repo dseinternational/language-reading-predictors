@@ -21,6 +21,7 @@ import dse_research_utils.statistics.models.sampling as _sampling
 
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models import environment as _env
+from language_reading_predictors.statistical_models.artifacts import ArtifactLog
 from language_reading_predictors.statistical_models.preprocessing import (
     LongitudinalPanel,
     PreparedData,
@@ -183,6 +184,8 @@ class StatisticalFitContext:
     trace: xr.DataTree | None = None
     loo: az.ELPDData | None = None
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)
+    artifacts: ArtifactLog = field(default_factory=ArtifactLog)
+    """Per-fit artefact record consumed by the manifest at finalisation (#394)."""
     resolved_plan: Any | None = None
     """Validated family run plan resolved before data loading."""
     output_transaction: OutputTransaction | None = None
