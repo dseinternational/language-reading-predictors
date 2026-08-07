@@ -219,3 +219,89 @@ def test_every_registered_level_factor_model_resolves_with_metadata():
             )
         # The outcome is always loaded as its own (only) outcome.
         assert plan.prepare_kwargs()["outcomes"] == (spec.outcome_symbol,)
+
+
+# --- plan-owned names, roles and data guards (#389 criteria 10-11) -------------
+
+
+def _primary_spec(**extra_overrides) -> ModelSpec:
+    extra = {"ability_covariate": "blocks", "adjust_for": ("hs", "erbto")}
+    extra.update(extra_overrides)
+    return ModelSpec(
+        model_id="lrp-test-lf-plan", kind="level_factors", title="t",
+        outcome_symbol="W", extra=extra,
+    )
+
+
+def test_plan_owns_coefficient_names_and_diag_vars():
+    """The run plan is the single source of truth for coefficient and diagnostic
+    names (#389 finding 6): the former pipeline reconstruction is reproduced,
+    with the anchored-intercept nodes (#389 finding 2) in the gated set."""
+    plan = resolve_level_factors_run_plan(_primary_spec())
+    assert plan.coefficient_names() == [
+        "b_grp_time", "gamma_A", "gamma_ability_time", "gamma_grp_ability",
+        "gamma_hs", "gamma_erbto",
+    ]
+    # A loader-dropped constant covariate shrinks the reported set to match.
+    assert plan.coefficient_names(effective_adjustment=("erbto",)) == [
+        "b_grp_time", "gamma_A", "gamma_ability_time", "gamma_grp_ability",
+        "gamma_erbto",
+    ]
+    assert plan.diag_vars(effective_adjustment=()) == [
+        "alpha", "alpha_offset", "alpha_time",
+        "b_grp_time", "gamma_A", "gamma_ability_time", "gamma_grp_ability",
+        "kappa", "sigma_child",
+    ]
+    assert plan.causal_vector == "b_grp_time"
+    assert plan.causal_terms == ("b_grp_time[1]",)
+
+
+def test_plan_offfloor_diag_vars_drop_kappa_and_pooled_group_unflagged():
+    off = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), likelihood="bernoulli_offfloor")
+    )
+    assert "kappa" not in off.diag_vars()
+    pooled = resolve_level_factors_run_plan(_primary_spec(adjust_for=(), group_by_time=False))
+    assert pooled.causal_vector == "beta_grp"
+    # A pooled group coefficient mixes post-crossover waves: never flagged causal.
+    assert pooled.causal_terms == ()
+
+
+def _toy_prepared(*, drop_arm_at_t2: bool = False, nan_ability: bool = False):
+    """Minimal stand-in exposing the attributes validate_prepared reads."""
+    import numpy as np
+    from types import SimpleNamespace
+
+    n_children, n_phases = 6, 4
+    child = np.repeat(np.arange(n_children), n_phases)
+    phase = np.tile(np.arange(n_phases), n_children)
+    G = (child < 3).astype(float)
+    post = np.full(child.shape, 5.0)
+    if drop_arm_at_t2:
+        post[(phase == 1) & (G == 1.0)] = np.nan  # no immediate-arm outcomes at t2
+    blocks = np.linspace(-1.0, 1.0, child.size)
+    if nan_ability:
+        blocks = blocks.copy()
+        blocks[3] = np.nan
+    return SimpleNamespace(
+        post_counts={"W": post}, phase=phase, G=G, covariates={"blocks": blocks},
+    )
+
+
+def test_validate_prepared_accepts_identifiable_panel():
+    plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    plan.validate_prepared(_toy_prepared())  # must not raise
+
+
+def test_validate_prepared_rejects_t2_missing_an_arm():
+    """#389 acceptance criterion: fail before fitting if t2 lacks either arm."""
+    plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    with pytest.raises(ValueError, match="both randomised arms"):
+        plan.validate_prepared(_toy_prepared(drop_arm_at_t2=True))
+
+
+def test_validate_prepared_rejects_non_finite_ability():
+    """#389 acceptance criterion: fail before fitting on a non-finite ability."""
+    plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    with pytest.raises(ValueError, match="non-finite 'blocks'"):
+        plan.validate_prepared(_toy_prepared(nan_ability=True))

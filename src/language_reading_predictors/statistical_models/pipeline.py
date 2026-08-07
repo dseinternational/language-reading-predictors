@@ -5762,9 +5762,10 @@ def _gf_diag_vars(
         if spec.extra.get("likelihood") == "bernoulli_offfloor"
         else ["kappa", "sigma_child"]
     )
-    # Include the per-phase intercept vector, mirroring _lf_diag_vars' alpha_time
-    # (issue #274 item 2); the gate already covers it via the free-RV scan, this
-    # keeps the human-readable diagnostics.csv consistent across the two families.
+    # Include the per-phase intercept vector, mirroring the level-factor plan's
+    # alpha_time (issue #274 item 2); the gate already covers it via the free-RV
+    # scan, this keeps the human-readable diagnostics.csv consistent across the
+    # two families.
     return ["alpha", "alpha_phase", *_gf_coef_names(spec, adjust_for), *tail]
 
 
@@ -6176,33 +6177,6 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     return _finalize_report(ctx)
 
 
-def _lf_coef_names(
-    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
-) -> list[str]:
-    extra = spec.extra
-    adj = extra.get("adjust_for", ()) if adjust_for is None else adjust_for
-    names = ["b_grp_time" if extra.get("group_by_time", True) else "beta_grp", "gamma_A"]
-    if extra.get("ability_covariate"):
-        names.append(
-            "gamma_ability_time" if extra.get("ability_by_time", True) else "gamma_ability"
-        )
-        if extra.get("group_ability", True):
-            names.append("gamma_grp_ability")
-    names += [f"gamma_{c}" for c in adj]
-    return names
-
-
-def _lf_diag_vars(
-    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
-) -> list[str]:
-    tail = (
-        ["sigma_child"]
-        if spec.extra.get("likelihood") == "bernoulli_offfloor"
-        else ["kappa", "sigma_child"]
-    )
-    return ["alpha", "alpha_time", *_lf_coef_names(spec, adjust_for), *tail]
-
-
 def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _require_spec(spec, "level_factors", outcome=True)
     # Resolve and validate the family contract before the context resets an output
@@ -6224,6 +6198,11 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Prepare data")
     prepared = load_and_prepare(**plan.prepare_kwargs())
+    # Fail before model construction if the loaded panel cannot identify the
+    # declared quantities — t2 missing a randomised arm, or a non-finite ability
+    # value on a fitted row (#389 acceptance criterion; plan-owned so the guard
+    # and the declared contract cannot drift apart).
+    plan.validate_prepared(prepared)
     # Re-filter after loading — a constant ``_missing`` indicator is dropped by the
     # loader and must not be built or reported as adjusted-for.
     adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
@@ -6244,36 +6223,38 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     _run_sampling_and_loo(ctx)
 
+    _lf_diag = plan.diag_vars(effective_adjustment=adjust_for)
     section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_lf_diag_vars(spec, adjust_for))
+    _diag.summary_diagnostics(ctx, var_names=_lf_diag)
 
     _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
-    _lf_group_by_time = plan.group_by_time
     # For the shipped group-by-time LF models the flagged-causal term is the t2
     # element of the per-timepoint group vector, ``b_grp_time`` (``b_grp_time[1]``,
     # which reporting.level_t2_marginal_effect reads into the causal ROPE card), so
     # it must get the same prior-sensitivity + forest evidence as tau/beta_trt
-    # rather than being skipped (issue #273).
-    _causal_lf = "b_grp_time" if _lf_group_by_time else "beta_grp"
-    _diag.write_diagnostics_summary(ctx, var_names=_lf_diag_vars(spec, adjust_for))
+    # rather than being skipped (issue #273). Names come from the plan (#389
+    # finding 6): the run plan is the single source of truth.
+    _causal_lf = plan.causal_vector
+    _diag.write_diagnostics_summary(ctx, var_names=_lf_diag)
     _diag.run_extended_diagnostics(ctx, causal_term=_causal_lf)
     _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag_vars(spec, adjust_for))
+    _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag)
     _save_forest_plot(ctx, [_causal_lf])
     _diag.run_psense(ctx, var_names=[_causal_lf])
 
     section_header("Factor summary")
     # Only the t2 group contrast (b_grp_time[1]) is the clean randomised effect;
     # the other timepoints are post-crossover (see the level-model caveat).
-    causal = ("b_grp_time[1]",) if plan.group_by_time else ()
+    causal = plan.causal_terms
+    _lf_coefs = plan.coefficient_names(effective_adjustment=adjust_for)
     fs = _report.factor_summary(
-        ctx.trace, _lf_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob, causal_terms=causal
+        ctx.trace, _lf_coefs, ci_prob=ctx.reporting.ci_prob, causal_terms=causal
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
     ctx.tables["factor_summary"] = fs
-    _save_association_forest(ctx, _lf_coef_names(spec, adjust_for), causal)
+    _save_association_forest(ctx, _lf_coefs, causal)
     print_table(
         ranked_dataframe_table(
             fs,

@@ -4601,6 +4601,17 @@ def build_level_factors_model(
     likelihood: str = "beta_binomial",
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
+    # #389 finding 2: the zero-sum wave-deviation scale. Sized so the largest
+    # observed wave deviation from the across-wave mean level (about +/-0.85
+    # logits, phoneme segmenting) sits within ~1.3 marginal prior SD
+    # (ZeroSumNormal marginal SD = sigma * sqrt(3)/2 for four waves), rather
+    # than at ~1.9 SD as the former free Normal(0, 0.5) implied.
+    alpha_time_prior_sigma: float = 0.75,
+    # Sensitivity override for the focal randomised contrast's prior scale
+    # (the #382 idiom): None keeps the outcome-tier default from
+    # ``_tau_sigma_for``; the level-factor treatment-prior sweep passes explicit
+    # grid values.
+    tau_prior_sigma: float | None = None,
 ) -> BuiltModel:
     """Level-factors model (LRPLF): what is associated with achievement levels.
 
@@ -4614,6 +4625,24 @@ def build_level_factors_model(
             + g_ability[t] * z(ability)    # ability x time (observed GA handle)
             + gamma_grp_ability * group * z(ability)   # group x ability
             + u_child[i]                   # partial GA repair
+
+    **Intercepts (#389 finding 2).** ``alpha`` is a Deterministic — a pooled,
+    arm-blind empirical-Bayes anchor at the observed **pre-randomisation t1**
+    logit (Haldane-smoothed, the DiD ``alpha_anchor`` idiom, #390/#481) plus a
+    free zero-centred ``alpha_offset`` at the outcome-tier ``alpha`` scale —
+    and ``alpha_time`` is an exact **zero-sum** wave-deviation vector. The
+    former parameterisation (free global ``alpha`` centred at logit zero plus
+    four free ``alpha_time`` elements) was doubly defective: only the sums
+    ``alpha + alpha_time[t]`` were likelihood-identified (posterior
+    correlations between ``alpha`` and ``alpha_time`` elements ran -0.62 to
+    -0.96), and logit-zero centring implied prior-predictive scores near half
+    the instrument maximum against observed means far below it (W: 39.1 items
+    implied vs 11.8 observed). The zero-sum constraint removes the translation
+    ridge exactly; the t1 anchor recentres the level while using only
+    pre-randomisation data, deliberately under-centring the across-wave mean
+    by the (smaller) growth increment rather than importing treatment-affected
+    waves into the prior. The anchor is recorded in ``extras['alpha_anchor']``
+    and the priors table labels ``alpha_offset`` as empirical Bayes.
 
     **Level-model caveat (baked into the parameterisation + report):** after t2
     the waitlist crosses over, so the group effect across the four timepoints is
@@ -4667,6 +4696,20 @@ def build_level_factors_model(
     G_f = prepared.G.astype(float)
     ability = prepared.covariates[ability_covariate] if ability_covariate is not None else None
 
+    # Pooled, arm-blind empirical-Bayes intercept anchor from the observed
+    # PRE-randomisation t1 rows only (#389 finding 2; the DiD alpha_anchor idiom).
+    # Haldane smoothing keeps it finite at all-zero / all-max t1 scores.
+    t1 = post[prepared.phase == 0]
+    if not t1.size:
+        raise ValueError(f"Cannot anchor {own}: no observed t1 outcome values")
+    if likelihood == "bernoulli_offfloor":
+        movers = int(np.sum(t1 > 0))
+        alpha_anchor = float(np.log((movers + 0.5) / (t1.size - movers + 0.5)))
+    else:
+        successes = float(np.sum(t1))
+        failures = float(t1.size * prepared.n_trials[own] - successes)
+        alpha_anchor = float(np.log((successes + 0.5) / (failures + 0.5)))
+
     coords = {
         "obs_id": np.arange(prepared.n_obs),
         "phase": np.arange(prepared.n_phases),
@@ -4687,20 +4730,26 @@ def build_level_factors_model(
             for c in adjust_for
         }
 
-        # Level factors is own-baseline-free (a level model), so unlike the
-        # growth/LCSM mean-anchor rationale ``alpha`` is deliberately kept on the
-        # zero-centred prior: here the per-timepoint ``alpha_time`` vector carries
-        # the absolute level at each wave, leaving ``alpha`` as a small global
-        # offset for which the zero-centred prior is appropriate (issue #273).
-        alpha = _priors.alpha_prior(
+        # Identified, recentred intercepts (#389 finding 2; see the docstring).
+        # The former free alpha + free four-element alpha_time pair carried a
+        # translation ridge (only the sums identified) and a logit-zero centre
+        # far from this population; alpha is now anchored at the pooled
+        # pre-randomisation t1 level and alpha_time is an exact zero-sum
+        # wave-deviation vector, so both are identified and the anchor uses no
+        # treatment-affected data. The #273 "small global offset" reading this
+        # replaces is recorded in the git history of that decision.
+        alpha_offset = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha")
-        alpha_time = pm.Normal("alpha_time", mu=0.0, sigma=0.5, dims="phase")
+        ).to_pymc("alpha_offset")
+        alpha = pm.Deterministic("alpha", alpha_anchor + alpha_offset)
+        alpha_time = pm.ZeroSumNormal(
+            "alpha_time", sigma=alpha_time_prior_sigma, dims="phase"
+        )
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
 
         # group x time (or single group main effect).
-        _tau_sigma = _tau_sigma_for(outcome_symbol)
+        _tau_sigma = _tau_sigma_for(outcome_symbol, tau_prior_sigma)
         if group_by_time:
             b_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
                 "b_grp_time", dims="phase"
@@ -4749,7 +4798,9 @@ def build_level_factors_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, prepared=prepared)
+    return BuiltModel(
+        model=model, prepared=prepared, extras={"alpha_anchor": alpha_anchor}
+    )
 
 
 def build_block_exposure_model(

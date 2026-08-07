@@ -60,6 +60,16 @@ the clean randomised contrast. Priors follow the shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
+**Intercepts (#389 finding 2).** $\alpha$ is **anchored**: a pooled, arm-blind
+empirical-Bayes anchor at the observed **pre-randomisation t1** logit plus a free
+zero-centred offset, and $\alpha_{\text{time}}$ is an exact **zero-sum**
+wave-deviation vector. The previous parameterisation — a free global intercept and
+four free per-timepoint offsets, all centred at logit zero — was identified only
+through its sums (posterior correlations to $-0.96$) and implied prior-predictive
+scores near half the instrument maximum for a population observed far below it.
+The anchor uses only pre-randomisation data, so no treatment-affected quantity
+enters the prior; the priors table labels the offset as empirical Bayes.
+
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
 {{< include _partials/_results_factors.qmd >}}

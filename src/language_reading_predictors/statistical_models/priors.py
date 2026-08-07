@@ -506,9 +506,19 @@ _INLINE_PRIORS: dict[str, dict[str, str]] = {
         "rationale": "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5).",
     },
     "alpha_time": {
+        # The distribution is preferred from the built RV (see prior_info_for_rv):
+        # the level family fits an exact zero-sum wave-deviation vector
+        # (ZeroSumNormal(0.75), #389 finding 2) while the block-exposure family
+        # keeps the free Normal(0, 0.5) offsets, so a single recorded string
+        # would misreport one of them. The string below is the no-RV fallback.
         "role": "nuisance",
         "distribution": "Normal(0, 0.5)",
-        "rationale": "Per-timepoint intercept offset alpha_time ~ Normal(0, 0.5).",
+        "rationale": (
+            "Per-timepoint intercept deviations: in the level family an exact "
+            "zero-sum wave-deviation vector around the anchored mean level "
+            "(#389 finding 2); in the block-exposure family a free per-wave "
+            "offset."
+        ),
     },
     "sigma_child": {
         "role": "nuisance",
@@ -869,8 +879,10 @@ _EMPIRICAL_BAYES_ANCHORS: dict[str, str] = {
         "per outcome."
     ),
     "alpha_offset": (
-        "Zero-centred offset around the pooled observed t1 logit anchor; the "
-        "deterministic alpha is the anchored t1 level."
+        "Zero-centred offset around the pooled, arm-blind observed t1 logit "
+        "anchor (pre-randomisation data only); the deterministic alpha is the "
+        "t1-anchored intercept level (the DiD period-1 level; the level "
+        "family's across-wave mean level, #389 finding 2)."
     ),
 }
 
@@ -933,7 +945,16 @@ def prior_info_for_rv(
             info = {**info, "rationale": rationale}
         return {"parameter": rv_name, **info, "panel": ""}
     if base in _INLINE_PRIORS:
-        info = _INLINE_PRIORS[base]
+        info = dict(_INLINE_PRIORS[base])
+        # Prefer the built RV's own distribution over the recorded default, for
+        # the same reason the constructor route does below: an inline prior can
+        # be re-parameterised per family (the level family's ``alpha_time`` is a
+        # ZeroSumNormal since #389 finding 2 while block exposure keeps the free
+        # Normal), and the recorded string would misreport whichever family it
+        # does not match.
+        derived = _dist_from_rv(rv) if rv is not None else None
+        if derived:
+            info["distribution"] = derived
         if rationale is not None:
             info = {**info, "rationale": rationale}
         return {"parameter": rv_name, **info, "panel": ""}

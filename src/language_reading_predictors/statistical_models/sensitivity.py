@@ -575,6 +575,137 @@ def load_primary_standard_references(
     }
 
 
+# --- Level-factor treatment-prior sweep (#389 criterion 6) -------------------
+#
+# The robustness release gate (#482) extends to ``level_factors`` on
+# ``b_grp_time[1]``, and its per-fit evidence check
+# (``release._standard_sweep_evidence``) accepts a standard-schema
+# ``tau_prior_sensitivity.csv`` bound to the fit's own config/trace hashes.
+# These constants define the level-family sweep: the five outcomes the #389
+# review names (W, L, P, B, N — all proximal-tier, so the proximal grid
+# applies) and their registered primary model ids.
+
+LEVEL_SENSITIVITY_OUTCOMES = ("W", "L", "P", "B", "N")
+LEVEL_SENSITIVITY_MODEL_IDS = {
+    "W": "lrp-rli-lf-001",
+    "L": "lrp-rli-lf-004",
+    "P": "lrp-rli-lf-005",
+    "B": "lrp-rli-lf-006",
+    "N": "lrp-rli-lf-011",
+}
+
+
+def load_primary_level_reference(
+    model_dir: str | Path,
+    outcome_symbol: str,
+    *,
+    config_name: str,
+) -> PrimaryStandardReference:
+    """Load the current registered primary level-factor identity for one outcome.
+
+    The level analogue of :func:`load_primary_standard_reference`: same identity
+    and binding checks (model id, outcome, data hash, sampling provenance,
+    config/trace sha256), with the family's own posterior contract — the focal
+    vector is ``b_grp_time`` (``alpha`` is present as the anchored Deterministic,
+    #389 finding 2) — and arm counts read over the level rows, whose t2 subset is
+    what the randomised contrast is estimated from.
+    """
+    import arviz as az
+
+    directory = Path(model_dir)
+    config_path = directory / "config.json"
+    trace_path = directory / "trace.nc"
+    if not config_path.is_file() or not trace_path.is_file():
+        raise FileNotFoundError(f"primary level-factor fit is incomplete: {directory}")
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"primary config is not readable JSON: {config_path}") from exc
+    expected_model_id = LEVEL_SENSITIVITY_MODEL_IDS.get(outcome_symbol)
+    if expected_model_id is None:
+        raise ValueError(
+            f"unsupported level sensitivity outcome {outcome_symbol!r}"
+        )
+    if str(config.get("model_id")) != expected_model_id:
+        raise ValueError(
+            f"primary model mismatch for {outcome_symbol}: expected "
+            f"{expected_model_id}, got {config.get('model_id')!r}"
+        )
+    if str(config.get("outcome_symbol")) != outcome_symbol:
+        raise ValueError(f"primary outcome mismatch for {outcome_symbol}")
+    if str(config.get("kind")) != "level_factors":
+        raise ValueError(
+            f"primary kind mismatch for {outcome_symbol}: {config.get('kind')!r}"
+        )
+    data_sha256 = str(config.get("data_sha256", "")).strip().lower()
+    if not _is_sha256(data_sha256):
+        raise ValueError("primary config lacks a valid data_sha256")
+    n = _required_int(config.get("n_obs"), "primary n_obs", positive=True)
+    sampling_raw = config.get("sampling")
+    if not isinstance(sampling_raw, dict):
+        raise ValueError("primary config lacks sampling provenance")
+    sampling: dict[str, int | float] = {}
+    for key in _PRIMARY_SAMPLING_KEYS:
+        if key not in sampling_raw:
+            raise ValueError(f"primary sampling metadata lacks {key!r}")
+        if key == "target_accept":
+            value: int | float = _required_float(
+                sampling_raw[key], f"primary sampling {key}"
+            )
+            if not 0.0 < value <= 1.0:
+                raise ValueError(f"primary sampling metadata has invalid {key!r}")
+        else:
+            value = _required_int(
+                sampling_raw[key], f"primary sampling {key}", positive=True
+            )
+        sampling[key] = value
+
+    try:
+        trace = az.from_netcdf(trace_path)
+    except Exception as exc:  # noqa: BLE001 - corrupt primary artefact is gate data
+        raise ValueError(f"primary trace is not a readable NetCDF: {trace_path}") from exc
+    try:
+        posterior = getattr(trace, "posterior", None)
+        if posterior is None or not {"alpha", "b_grp_time"}.issubset(
+            posterior.data_vars
+        ):
+            raise ValueError("primary trace posterior lacks alpha or b_grp_time")
+        if (
+            int(posterior.sizes.get("chain", -1)) != sampling["chains"]
+            or int(posterior.sizes.get("draw", -1)) != sampling["draws"]
+        ):
+            raise ValueError(
+                "primary trace posterior chain/draw dimensions do not match config"
+            )
+        constant_data = getattr(trace, "constant_data", None)
+        if constant_data is None or "G" not in constant_data:
+            raise ValueError("primary trace constant_data lacks G")
+        G = np.asarray(constant_data["G"].values, dtype=float).reshape(-1)
+        if G.size != n or not np.isin(G, (0.0, 1.0)).all():
+            raise ValueError("primary trace treatment assignment is inconsistent")
+        n_intervention = int(np.sum(G == 1.0))
+        n_control = int(np.sum(G == 0.0))
+        if n_intervention <= 0 or n_control <= 0:
+            raise ValueError("primary trace must contain both randomised arms")
+    finally:
+        close = getattr(trace, "close", None)
+        if callable(close):
+            close()
+    return PrimaryStandardReference(
+        model_dir=directory,
+        config_name=str(config_name),
+        model_id=expected_model_id,
+        outcome=outcome_symbol,
+        data_sha256=data_sha256,
+        n=n,
+        n_intervention=n_intervention,
+        n_control=n_control,
+        config_sha256=sha256_file(config_path),
+        trace_sha256=sha256_file(trace_path),
+        sampling=sampling,
+    )
+
+
 def _as_bool(value: Any) -> bool | None:
     """Parse a CSV boolean without treating arbitrary non-empty strings as true."""
     if isinstance(value, (bool, np.bool_)):

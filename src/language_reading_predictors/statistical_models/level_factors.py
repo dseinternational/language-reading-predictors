@@ -34,8 +34,11 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
+import numpy as np
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.preprocessing import (
+    PreparedData,
     split_confounders_by_timing,
     split_covariates_by_wave,
 )
@@ -199,6 +202,94 @@ class LevelFactorsRunPlan:
             "group_ability": self.group_ability,
             "likelihood": self.likelihood,
         }
+
+    # -- Single source of truth for names, roles and diagnostics (#389 finding 6:
+    # the review found coefficient names and diagnostic variables separately
+    # reconstructed by ``_lf_coef_names``, ``_lf_diag_vars``, the factory and the
+    # reporting code; they now all derive from the resolved plan).
+
+    def coefficient_names(
+        self, *, effective_adjustment: tuple[str, ...] | None = None
+    ) -> list[str]:
+        """The reported structural coefficients, in report order.
+
+        ``effective_adjustment`` mirrors :meth:`factory_kwargs`: the loader drops a
+        constant covariate (e.g. an all-zero ``_missing`` indicator), and the
+        reported set must match what was actually built."""
+        adj = self.adjust_for if effective_adjustment is None else effective_adjustment
+        names = ["b_grp_time" if self.group_by_time else "beta_grp", "gamma_A"]
+        if self.ability_covariate:
+            names.append(
+                "gamma_ability_time" if self.ability_by_time else "gamma_ability"
+            )
+            if self.group_ability:
+                names.append("gamma_grp_ability")
+        names += [f"gamma_{c}" for c in adj]
+        return names
+
+    def diag_vars(
+        self, *, effective_adjustment: tuple[str, ...] | None = None
+    ) -> list[str]:
+        """Variables named in the summary/gate diagnostics for this plan's model.
+
+        ``alpha`` is a Deterministic (the t1-anchored level) and ``alpha_offset``
+        its free empirical-Bayes offset (#389 finding 2); both are reported."""
+        tail = ["sigma_child"] if self.off_floor else ["kappa", "sigma_child"]
+        return [
+            "alpha",
+            "alpha_offset",
+            "alpha_time",
+            *self.coefficient_names(effective_adjustment=effective_adjustment),
+            *tail,
+        ]
+
+    @property
+    def causal_vector(self) -> str:
+        """The group coefficient the extended diagnostics treat as focal."""
+        return "b_grp_time" if self.group_by_time else "beta_grp"
+
+    @property
+    def causal_terms(self) -> tuple[str, ...]:
+        """The elements flagged causal in summaries: only the randomised t2
+        contrast, and only when group is entered per timepoint — a pooled
+        ``beta_grp`` mixes post-crossover waves and is never flagged."""
+        return ("b_grp_time[1]",) if self.group_by_time else ()
+
+    def validate_prepared(self, prepared: PreparedData) -> None:
+        """Fail before model construction if the loaded panel cannot identify the
+        declared quantities (#389 acceptance criterion: fail before fitting if t2
+        lacks either randomised arm or required ability values are non-finite).
+
+        Mirrors the factory's row filter: rows with a missing outcome (or a
+        missing requested adjuster) never enter the likelihood, so they are
+        excluded from the checks too."""
+        own = self.outcome_symbol
+        fitted = ~np.isnan(prepared.post_counts[own])
+        for c in self.adjust_for:
+            if c in prepared.covariates:
+                fitted = fitted & ~np.isnan(prepared.covariates[c])
+        if self.group_by_time:
+            t2 = fitted & (prepared.phase == 1)
+            arms = {int(g) for g in np.unique(prepared.G[t2])}
+            if not {0, 1} <= arms:
+                raise ValueError(
+                    f"{self.model_id}: the t2 rows with an observed {own} outcome "
+                    f"do not contain both randomised arms (present: {sorted(arms)}), "
+                    "so the declared randomised t2 contrast b_grp_time[1] is "
+                    "unidentified."
+                )
+        if self.ability_covariate is not None:
+            ability = np.asarray(
+                prepared.covariates[self.ability_covariate], dtype=float
+            )
+            bad = int(np.sum(fitted & ~np.isfinite(ability)))
+            if bad:
+                raise ValueError(
+                    f"{self.model_id}: {bad} fitted row(s) carry a non-finite "
+                    f"{self.ability_covariate!r} value, so the ability and "
+                    "group x ability terms are not computable; a NaN here would "
+                    "otherwise propagate silently into the likelihood."
+                )
 
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
