@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
-# Level factors: identified anchored intercepts, plan-owned contracts and the family treatment-prior sweep (#389, remaining findings)
-
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+
+# Level factors: identified anchored intercepts, plan-owned contracts and the family treatment-prior sweep (#389, remaining findings)
 
 **Date:** 2026-08-07. **Issue:** #389, the level-factors critical review. Findings 1 (the t2 estimand — resolved and labelled via #464) and 3 (psense interlock — resolved by the #482 robustness release gate) were closed earlier; this note records the remaining work: **finding 2** (the intercept parameterisation, the one refit-bearing change), the verification trail for **findings 4 and 5** (largely landed with the typed run plan and the report partial), the closure of **finding 6's** last two acceptance criteria (data guards; plan-owned names), and the **family treatment-prior sweep** the release gate demanded for its withheld fits (criterion 6).
 
@@ -38,4 +38,29 @@ The #482 robustness release gate withholds a prior-dominant randomised claim unl
 
 ## Refit verification (reporting tier, 2026-08-07)
 
-_To be completed when the eleven refits, the sweep, and the cross-model comparison land._
+**All eleven refits pass the full gate with 0 divergences**, and the identification repair is visible directly in the sampler: min ESS improved for every model, dramatically where the old ridge bit hardest — `lf-002` 1,514 → 7,445, `lf-003` 2,150 → 8,794, `lf-008` 3,606 → 6,930, with max R-hat ≤ 1.0016 everywhere.
+
+**The intercepts recentred; the causal contrasts did not move.** The fitted `alpha` posteriors now sit at the anchored t1 levels (W: −2.54 against the old logit-zero centre) and `alpha_time` reproduces the observed wave-deviation pattern. The t2 items/risk-difference contrasts changed by at most 0.19 items (W +1.47 → +1.66, the largest; most ≤ 0.09) against 89% half-widths of ≈ 1–4 items, with no sign or ROPE-verdict changes — exactly what an arm-blind, pre-randomisation anchor should do: it moves the level, not the randomised comparison. L remains the one clearly positive t2 contrast (+2.53 [+0.22, +4.86]).
+
+**Criterion 12 — the revised t2 effects beside the ITT, gain-factor and DiD estimates** (items / off-floor risk-difference scale, medians with 89% ETIs, current reporting fits):
+
+| outcome | lf `b_grp_time[1]` (this refit) | itt `tau`            | gf `beta_trt`        | did `tau_t2`         |
+| ------- | ------------------------------- | -------------------- | -------------------- | -------------------- |
+| W       | +1.66 [−0.98, +4.20]            | +2.37 [+0.68, +4.07] | +2.59 [+0.87, +4.30] | +2.22 [−0.31, +4.69] |
+| L       | +2.53 [+0.22, +4.86]            | +3.52 [+1.68, +5.32] | +3.29 [+1.58, +4.99] | +3.53 [+1.18, +5.81] |
+| R       | −3.69 [−8.06, +0.74]            | +0.23 [−3.75, +4.26] | −1.49 [−5.31, +2.36] | −0.06 [−5.11, +5.00] |
+| E       | −2.20 [−6.34, +1.90]            | +0.18 [−3.08, +3.48] | +1.13 [−2.09, +4.33] | +0.84 [−3.97, +5.53] |
+| B       | +0.43 [−0.37, +1.26]            | +0.99 [+0.22, +1.74] | +0.83 [+0.08, +1.56] | +0.88 [+0.06, +1.69] |
+| P       | −0.01 [−0.09, +0.08]            | +0.04 [−0.07, +0.16] | −0.02 [−0.11, +0.07] | +0.02 [−0.07, +0.12] |
+| N       | +0.02 [−0.10, +0.13]            | +0.10 [−0.04, +0.24] | +0.03 [−0.08, +0.13] | +0.06 [−0.06, +0.18] |
+| TR      | +0.35 [−1.01, +1.73]            | +1.37 [+0.19, +2.53] | +1.05 [−0.10, +2.19] | +1.22 [−0.29, +2.70] |
+| TE      | +0.38 [−1.01, +1.76]            | +1.55 [+0.42, +2.67] | +1.16 [−0.01, +2.30] | +1.51 [+0.04, +2.95] |
+
+The cross-family picture is coherent: the decoding-and-taught cluster (W, L, B, and the taught vocabulary) is positive-leaning in every family, the floored P/N are null everywhere, and the level estimates run systematically closer to zero with wider intervals than their ANCOVA-style siblings — the expected price of estimating a t2 level contrast with no own-baseline conditioning, which is why the level family is registered as the sensitivity view rather than a headline. The one visually divergent cell — receptive vocabulary, lf −3.69 vs itt +0.23 — is two different estimands (the t2 score level at mean ability vs the baseline-adjusted ITT effect), both with intervals spanning zero; nothing to reconcile beyond the family's standing caveat.
+
+**The sweep: 15 of 15 cells converge, one sign per outcome, and the family's release states resolve.** Across the proximal grid (`tau_sigma` 0.25 / 0.5 / 0.75) the t2 contrast `b_grp_time[1]` keeps a single sign for every swept outcome — W +0.16 to +0.30, L +0.26 to +0.52, B +0.13 to +0.25, N +0.04 to +0.12, P −0.10 to −0.01 logits — with the familiar monotone widening as the prior loosens (attenuation, not instability). The trace-backed bundles were installed beside the five primaries (manifest + digest-verified cell traces, `trace_file` rewritten to the installed names, and the release gate's own evidence check asserted after install), and `key_findings.json` regenerated for all eleven:
+
+- **nine fits `release`** — six clear, three (`lf-001` W, `lf-004` L, `lf-011` N) at "potential prior-data conflict", which releases with the standard attenuation note;
+- **`lf-005` (P) and `lf-006` (B) `qualify`**, each backed by "a trace-bound `tau_prior_sensitivity.csv` showing the effect keeps its sign across the treatment-prior grid" — the exact evidence the gate named when it withheld them, now measured rather than waived.
+
+One movement worth recording: the psense classes shifted under the recentred intercepts — `lf-001` (W) moved from prior-dominant (the pre-change withhold) to prior-data conflict, and `lf-006` (B) moved into prior-dominant (now qualified by its sweep). The review's flagged set (W, L, P, B, N) is exactly the set the sweep covers, so every flagged outcome carries direct grid evidence whichever class it lands in. All eleven reports re-rendered against the regenerated key findings.
