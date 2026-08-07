@@ -619,6 +619,17 @@ DID_SENSITIVITY_MODEL_IDS = (
 )
 DID_SENSITIVITY_MU_DOSE_SIGMAS = (0.5, 1.0, 1.5)
 
+# The gate covers ``gain_factors`` on ``beta_trt`` (#391). Like the did sweep the
+# set is keyed by **model id**, not outcome: the taught-vocabulary outcomes each
+# have two registered primaries (TR: gf-009/gf-012; TE: gf-010/gf-013), so an
+# outcome-keyed map cannot name them all. Every non-companion primary is
+# sweepable — which fits *need* the evidence is decided by each refit's own
+# power-scaling diagnosis (prior-dominant -> sweep or withhold), not by this
+# tuple. Treated-only companions (no ``beta_trt``) and moderation variants
+# (``beta_trt`` present but never the causal headline — ``release.gate_applies``
+# skips them) are not sweepable.
+GF_SENSITIVITY_MODEL_IDS = tuple(f"lrp-rli-gf-{n:03d}" for n in range(1, 14))
+
 
 def load_primary_level_reference(
     model_dir: str | Path,
@@ -839,6 +850,145 @@ def load_primary_did_reference(
         n_control = int(np.sum(G == 0.0))
         if n_intervention <= 0 or n_control <= 0:
             raise ValueError("primary trace must contain both randomised arms")
+    finally:
+        close = getattr(trace, "close", None)
+        if callable(close):
+            close()
+    return PrimaryStandardReference(
+        model_dir=directory,
+        config_name=str(config_name),
+        model_id=model_id,
+        outcome=outcome,
+        data_sha256=data_sha256,
+        n=n,
+        n_intervention=n_intervention,
+        n_control=n_control,
+        config_sha256=sha256_file(config_path),
+        trace_sha256=sha256_file(trace_path),
+        sampling=sampling,
+    )
+
+
+def load_primary_gf_reference(
+    model_dir: str | Path,
+    model_id: str,
+    *,
+    config_name: str,
+) -> PrimaryStandardReference:
+    """Load the current registered primary gain-factor identity for one swept model.
+
+    The gain-factor analogue of :func:`load_primary_did_reference`, keyed by
+    **model id** because the taught-vocabulary outcomes each have two registered
+    primaries. Same identity and binding checks (model id, kind, data hash,
+    sampling provenance, config/trace sha256); the posterior contract requires
+    ``beta_trt`` (the family's single causal head), and the plan must be a
+    gated headline — a treated-only companion has no ``beta_trt`` and a
+    moderation variant's is never released as causal, so neither is sweepable.
+
+    ``n_intervention`` / ``n_control`` are the **period-1** arm counts: the
+    stacked later periods are all on-intervention, so the period-1 contrast is
+    the identifying sample the sweep's evidence speaks for.
+    """
+    import arviz as az
+
+    directory = Path(model_dir)
+    config_path = directory / "config.json"
+    trace_path = directory / "trace.nc"
+    if not config_path.is_file() or not trace_path.is_file():
+        raise FileNotFoundError(f"primary gain-factor fit is incomplete: {directory}")
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"primary config is not readable JSON: {config_path}") from exc
+    if model_id not in GF_SENSITIVITY_MODEL_IDS:
+        raise ValueError(f"unsupported gain-factor sensitivity model {model_id!r}")
+    if str(config.get("model_id")) != model_id:
+        raise ValueError(
+            f"primary model mismatch: expected {model_id}, got "
+            f"{config.get('model_id')!r}"
+        )
+    if str(config.get("kind")) != "gain_factors":
+        raise ValueError(
+            f"primary kind mismatch for {model_id}: {config.get('kind')!r}"
+        )
+    outcome = str(config.get("outcome_symbol") or "")
+    if not outcome:
+        raise ValueError(f"primary config lacks an outcome_symbol: {model_id}")
+    plan = config.get("resolved_run_plan")
+    if not isinstance(plan, dict):
+        raise ValueError(
+            f"primary config lacks a resolved run plan: {model_id}; the sweep "
+            "cannot confirm the fit is a gated headline"
+        )
+    if bool(plan.get("treated_only", False)):
+        raise ValueError(
+            f"{model_id} is a treated-only companion: it has no beta_trt to sweep"
+        )
+    if bool(plan.get("moderation_variant", False)):
+        raise ValueError(
+            f"{model_id} is a moderation variant: its beta_trt is never released "
+            "as causal, so the gate does not demand sweep evidence for it"
+        )
+    data_sha256 = str(config.get("data_sha256", "")).strip().lower()
+    if not _is_sha256(data_sha256):
+        raise ValueError("primary config lacks a valid data_sha256")
+    n = _required_int(config.get("n_obs"), "primary n_obs", positive=True)
+    sampling_raw = config.get("sampling")
+    if not isinstance(sampling_raw, dict):
+        raise ValueError("primary config lacks sampling provenance")
+    sampling: dict[str, int | float] = {}
+    for key in _PRIMARY_SAMPLING_KEYS:
+        if key not in sampling_raw:
+            raise ValueError(f"primary sampling metadata lacks {key!r}")
+        if key == "target_accept":
+            value: int | float = _required_float(
+                sampling_raw[key], f"primary sampling {key}"
+            )
+            if not 0.0 < value <= 1.0:
+                raise ValueError(f"primary sampling metadata has invalid {key!r}")
+        else:
+            value = _required_int(
+                sampling_raw[key], f"primary sampling {key}", positive=True
+            )
+        sampling[key] = value
+
+    try:
+        trace = az.from_netcdf(trace_path)
+    except Exception as exc:  # noqa: BLE001 - corrupt primary artefact is gate data
+        raise ValueError(f"primary trace is not a readable NetCDF: {trace_path}") from exc
+    try:
+        posterior = getattr(trace, "posterior", None)
+        if posterior is None or not {"alpha", "beta_trt"}.issubset(
+            posterior.data_vars
+        ):
+            raise ValueError("primary trace posterior lacks alpha or beta_trt")
+        if (
+            int(posterior.sizes.get("chain", -1)) != sampling["chains"]
+            or int(posterior.sizes.get("draw", -1)) != sampling["draws"]
+        ):
+            raise ValueError(
+                "primary trace posterior chain/draw dimensions do not match config"
+            )
+        constant_data = getattr(trace, "constant_data", None)
+        if constant_data is None or not {"on_intervention", "phase_idx"}.issubset(
+            constant_data
+        ):
+            raise ValueError(
+                "primary trace constant_data lacks on_intervention or phase_idx"
+            )
+        trt = np.asarray(
+            constant_data["on_intervention"].values, dtype=float
+        ).reshape(-1)
+        phase = np.asarray(constant_data["phase_idx"].values, dtype=float).reshape(-1)
+        if trt.size != n or phase.size != n or not np.isin(trt, (0.0, 1.0)).all():
+            raise ValueError("primary trace treatment assignment is inconsistent")
+        p1 = phase == 0.0
+        n_intervention = int(np.sum(trt[p1] == 1.0))
+        n_control = int(np.sum(trt[p1] == 0.0))
+        if n_intervention <= 0 or n_control <= 0:
+            raise ValueError(
+                "primary trace must contain both randomised arms in period 1"
+            )
     finally:
         close = getattr(trace, "close", None)
         if callable(close):

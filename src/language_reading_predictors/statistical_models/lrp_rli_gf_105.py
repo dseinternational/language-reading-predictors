@@ -19,7 +19,9 @@ L/B (``skill_symbols``) and the non-measure confounder phonological memory
 P is heavily floored, so it takes the suite floor rule (``likelihood="bernoulli_offfloor"``):
 the outcome is modelled as being off the floor **at post** (post>0) — a Bernoulli on
 the off-floor indicator that pools zero→positive movement, persistence above zero and
-return-to-floor (not merely "coming off the floor").
+return-to-floor (not merely "coming off the floor"). As in LRPGF05, the own baseline
+enters as the **binary off-floor-at-pre indicator** (``gamma_own_offfloor``, #391
+finding 2 decision, 2026-07-22).
 
 Treated-only companion: every remaining row is on intervention, so in the treated-only
 companion the on-intervention term is constant and dropped, along with its
@@ -43,7 +45,7 @@ SPEC = ModelSpec(
         "skill_symbols": ("L", "B"),
         "ability_covariate": V.BLOCKS,
         "adjust_for": ("erbto", "erbto_missing"),
-        "interactions": (("trt", "ability"), ("trt", "own"), ("age", "ability")),
+        "interactions": (("age", "ability"),),
         "treated_only": True,
         "likelihood": "bernoulli_offfloor",
     },

@@ -201,7 +201,7 @@ to `output/statistical_models/models/{model_id}-{config}/`.
 | `lrp-rli-itt-026`         | `T`                 | ITT on receptive grammar (TROG-2) — effect only (no agreed δ)                                  |
 | `lrp-rli-itt-027` / `28`  | `W` / `L`           | Site-adjusted (`area`, North/South) robustness — `area` complete, so no matched comparator     |
 
-### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-013` (+ `…b`) (`kind="gain_factors"`)
+### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-013` (+ `…b`, `…m`) (`kind="gain_factors"`)
 
 **Purpose.** A DAG-focused ANCOVA on each outcome's period gain (post-score given its own
 pre-score), stacking every on-intervention and untreated period with a child random
@@ -210,31 +210,40 @@ control for latent ability. The randomised on-intervention term is the **only** 
 coefficient, and its probability/items-scale marginal effect is averaged over the
 **period-1** (randomised) transition only; own baseline, age, cognitive ability (block
 design), the upstream DAG skill baselines (`skill_symbols`), the revised-DAG non-measure
-confounders hearing/speech/phonological memory (`adjust_for`), and focal interactions are
-explicit _adjusted associations_. Adjustment sets were re-derived against the revised DAG
-in #247. The `…b` variant is treated-only (gains while on intervention). Design note:
+confounders hearing/speech/phonological memory (`adjust_for`), and the `age × ability`
+precision interaction are explicit _adjusted associations_. Adjustment sets were
+re-derived against the revised DAG in #247. The causal headline is **interaction-free in
+`trt`** (#391 finding 3 decision, 2026-07-22): the pre-specified `trt × ability` /
+`trt × own` moderation questions live in the explicitly associational `…m` moderation
+variants (`lrp-rli-gf-201`–`211`, one per outcome, anchored to the per-outcome primary),
+whose interaction-aware marginal is model-dependent — partly informed by post-crossover
+data — and never released as causal. On the off-floor fits the own baseline is the
+**binary off-floor-at-pre indicator** (`gamma_own_offfloor`, #391 finding 2 decision):
+the graded pre logit of a heavily-floored measure is a near-degenerate spike, so the
+indicator is the honest functional form, in the main effect and any variant interaction
+alike. The `…b` variant is treated-only (gains while on intervention). Design note:
 `notes/202606261230-gain-level-factors-design.md`; re-derivation:
 `notes/202607122200-gf-lf-revised-dag-adjustments.md`.
 
 **Naming note.** "Factors" here (and in the level-factors family below) carries its plain-English sense — the observed covariates _associated with_ gains or levels — not the factor-analysis sense: these are regression models with no latent variables. The latent measurement model is `lrp-rli-mm-001` (`kind="corr_factor"`).
 
-| Model            | Outcome | Skill baselines (`skill_symbols`)         | Confounders (`adjust_for`) | Treated-only `…b` |
-| ---------------- | ------- | ----------------------------------------- | -------------------------- | ----------------- |
-| `lrp-rli-gf-001` | `W`     | `TR`, `TE`, `R`, `E`, `L`, `N`, `B`       | —                          | `lrp-rli-gf-101`  |
-| `lrp-rli-gf-002` | `R`     | `TR`                                      | `HS`, `RW`                 | `lrp-rli-gf-102`  |
-| `lrp-rli-gf-003` | `E`     | `R`, `TR`, `TE`                           | `HS`, `SP`, `RW`           | `lrp-rli-gf-103`  |
-| `lrp-rli-gf-004` | `L`     | —                                         | `HS`, `SP`                 | `lrp-rli-gf-104`  |
-| `lrp-rli-gf-005` | `P`     | `L`, `B` (off-floor Bernoulli likelihood) | `RW`                       | `lrp-rli-gf-105`  |
-| `lrp-rli-gf-006` | `B`     | `L`, `E`, `TE`                            | `HS`, `SP`, `RW`           | `lrp-rli-gf-106`  |
-| `lrp-rli-gf-007` | `F`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-107`  |
-| `lrp-rli-gf-008` | `T`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-108`  |
-| `lrp-rli-gf-009` | `TR`    | —                                         | `HS`, `RW`                 | —                 |
-| `lrp-rli-gf-010` | `TE`    | `TR`                                      | `HS`, `SP`, `RW`           | —                 |
-| `lrp-rli-gf-011` | `N`     | `L`, `B` (off-floor Bernoulli likelihood) | `SP`, `RW`                 | —                 |
-| `lrp-rli-gf-012` | `TR`    | `R`, `E`                                  | `HS`, `RW`                 | —                 |
-| `lrp-rli-gf-013` | `TE`    | `TR`, `R`, `E`                            | `HS`, `SP`, `RW`           | —                 |
+| Model            | Outcome | Skill baselines (`skill_symbols`)         | Confounders (`adjust_for`) | Treated-only `…b` | Moderation `…m`  |
+| ---------------- | ------- | ----------------------------------------- | -------------------------- | ----------------- | ---------------- |
+| `lrp-rli-gf-001` | `W`     | `TR`, `TE`, `R`, `E`, `L`, `N`, `B`       | —                          | `lrp-rli-gf-101`  | `lrp-rli-gf-201` |
+| `lrp-rli-gf-002` | `R`     | `TR`                                      | `HS`, `RW`                 | `lrp-rli-gf-102`  | `lrp-rli-gf-202` |
+| `lrp-rli-gf-003` | `E`     | `R`, `TR`, `TE`                           | `HS`, `SP`, `RW`           | `lrp-rli-gf-103`  | `lrp-rli-gf-203` |
+| `lrp-rli-gf-004` | `L`     | —                                         | `HS`, `SP`                 | `lrp-rli-gf-104`  | `lrp-rli-gf-204` |
+| `lrp-rli-gf-005` | `P`     | `L`, `B` (off-floor Bernoulli likelihood) | `RW`                       | `lrp-rli-gf-105`  | `lrp-rli-gf-205` |
+| `lrp-rli-gf-006` | `B`     | `L`, `E`, `TE`                            | `HS`, `SP`, `RW`           | `lrp-rli-gf-106`  | `lrp-rli-gf-206` |
+| `lrp-rli-gf-007` | `F`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-107`  | `lrp-rli-gf-207` |
+| `lrp-rli-gf-008` | `T`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-108`  | `lrp-rli-gf-208` |
+| `lrp-rli-gf-009` | `TR`    | —                                         | `HS`, `RW`                 | —                 | `lrp-rli-gf-209` |
+| `lrp-rli-gf-010` | `TE`    | `TR`                                      | `HS`, `SP`, `RW`           | —                 | `lrp-rli-gf-210` |
+| `lrp-rli-gf-011` | `N`     | `L`, `B` (off-floor Bernoulli likelihood) | `SP`, `RW`                 | —                 | `lrp-rli-gf-211` |
+| `lrp-rli-gf-012` | `TR`    | `R`, `E`                                  | `HS`, `RW`                 | —                 | —                |
+| `lrp-rli-gf-013` | `TE`    | `TR`, `R`, `E`                            | `HS`, `SP`, `RW`           | —                 | —                |
 
-> `gf-012` and `gf-013` (#421) extend `gf-009`/`gf-010` by entering broad receptive/expressive vocabulary as **downstream descriptive associations** (the review's RV/EV → taught-vocabulary finding), _not_ DAG-parent baselines; as everywhere in this family, only the randomised on-intervention term is causal.
+> `gf-012` and `gf-013` (#421) extend `gf-009`/`gf-010` by entering broad receptive/expressive vocabulary as **downstream descriptive associations** (the review's RV/EV → taught-vocabulary finding), _not_ DAG-parent baselines; as everywhere in this family, only the randomised on-intervention term is causal. Their moderation questions are carried by the per-outcome variants `gf-209`/`gf-210`, so they take no `…m` of their own.
 
 ### Level factors — `lrp-rli-lf-001–lrp-rli-lf-011` (`kind="level_factors"`)
 

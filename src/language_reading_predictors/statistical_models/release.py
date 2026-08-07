@@ -45,17 +45,19 @@ one randomised effect per jointly-fitted outcome, aggregated worst-first), ``did
 
 Everything else is out, and for one of two reasons. The observational families report
 adjusted associations, which their reports already label as such. A treated-only
-``gain_factors`` companion is in a gated family but has no randomised term at all — see
-:func:`gate_applies`.
+``gain_factors`` companion is in a gated family but has no randomised term at all, and
+a ``gain_factors`` moderation variant's ``beta_trt`` is never released as causal — see
+:func:`gate_applies` for both.
 
 #392 reviewed ITT and left the mirroring onto the others to a follow-up; Frank ruled the
 uniform extension on 2026-08-05 after it was measured, because the case that never bit
 in ITT does bite outside it. **No ITT fit is prior-dominant; eight fits across ``did``,
 ``gain_factors`` and ``level_factors`` were when the gate landed**, and every one of
-them was publishing an unqualified causal headline. Same defect, same treatment. The
-level (#389/#488) and did (#390) family sweeps have since attached trace-backed
-evidence that resolves their withholds to release/qualify; the two ``gain_factors``
-fits remain withheld pending #391's respecification. ``joint`` was added in review:
+them was publishing an unqualified causal headline. Same defect, same treatment. All
+eight have since been resolved by their family treatment-prior sweeps' trace-backed
+evidence: level (#389/#488), did (#390/#489), and the two ``gain_factors`` off-floor
+fits (#391 — swept against their post-respecification refits, since the #391
+findings 2+3 respec changed the primaries first). ``joint`` was added in review:
 it publishes a causal headline too, and its ``itt-012`` fit has three prior-attenuated
 outcomes that the box said nothing about.
 
@@ -63,9 +65,9 @@ The floor-grid requirement stays ITT-only. It is bound to the registered six-cel
 grid and to :func:`sensitivity.evaluate_floor_sensitivity`'s provenance machinery,
 neither of which was specified for ``gain_factors``' off-floor models; those are gated
 on their ``beta_trt`` prior dependence alone. Both of them (``gf-005``, ``gf-011``)
-withhold on that route today, so nothing is currently under-gated — but a *clear*
-off-floor gain-factor fit would release without the grid its ITT counterpart needs,
-which is a gap to close rather than a decision.
+resolve as prior-dominant qualifies on that route today, so nothing is currently
+under-gated — but a *clear* off-floor gain-factor fit would release without the grid
+its ITT counterpart needs, which is a gap to close rather than a decision.
 
 **Tiering.** The policy applies uniformly across base ITT models, adjusted-robustness
 models and outcomes outside the standard 44-cell sweep. That was the default offered
@@ -140,12 +142,24 @@ def gate_applies(config: Mapping[str, Any]) -> bool:
     the absent term as an *unmeasured* one and withholds all eight companions — the
     fail-closed rule doing real damage, because "not measured" and "structurally not
     present" are the same absence to a lookup and opposite things to a reader.
+
+    A ``gain_factors`` **moderation variant** (#391 finding 3 decision) is skipped for
+    the complementary reason: its posterior *does* contain ``beta_trt``, but by decision
+    its interaction-aware marginal is model-dependent (the treatment interactions are
+    estimated on all stacked periods, partly post-crossover) and is never presented as
+    the causal headline — that lives in the interaction-free primary the variant varies,
+    which IS gated. Gating the variant would demand treatment-prior sweep evidence for a
+    number the family never releases as causal.
     """
     if config.get("kind") not in GATED_KINDS:
         return False
     plan = config.get("resolved_run_plan") or {}
     return not (
-        config.get("kind") == "gain_factors" and bool(plan.get("treated_only", False))
+        config.get("kind") == "gain_factors"
+        and (
+            bool(plan.get("treated_only", False))
+            or bool(plan.get("moderation_variant", False))
+        )
     )
 
 

@@ -39,7 +39,7 @@ SPEC = ModelSpec(
         "skill_symbols": ("L", "E", "TE"),
         "ability_covariate": V.BLOCKS,
         "adjust_for": ("hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
-        "interactions": (("trt", "ability"), ("trt", "own"), ("age", "ability")),
+        "interactions": (("age", "ability"),),
         "treated_only": True,
     },
 )

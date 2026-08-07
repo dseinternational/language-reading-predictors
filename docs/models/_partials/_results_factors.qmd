@@ -1,16 +1,50 @@
 ## Results
 
-The factor model reports **one** causal coefficient — the randomised
-on-intervention / t2 group contrast — alongside a vector of *adjusted
-associations*. Under the revised DAG (2026-07-10) every non-randomised coefficient is an
-adjusted association: it is confounded by latent general ability, and the child random
-intercept is only a partial, shrunken stand-in for between-child heterogeneity — **not**
-a control for that ability. Read them as *associated with*, never *drives*.
-
-_In plain terms:_ this section reports one effect the study can call causal — the
-group difference created by randomising who received the intervention — plus a set
-of side-by-side relationships (associations) between skills that the design cannot
-untangle from underlying ability.
+```{python}
+# | echo: false
+# | output: asis
+# A gain-factor moderation variant (#391 finding 3) presents NO causal
+# coefficient: its treatment term and interactions are explicitly associational,
+# and the randomised headline lives in the interaction-free primary. Every
+# causal-framing sentence in this partial branches on that flag so a variant
+# report cannot contradict its own status.
+_mv = bool((config.get("resolved_run_plan") or {}).get("moderation_variant", False))
+if _mv:
+    print(
+        "This **moderation variant** reports **no causal coefficient**. It refits "
+        "the outcome's gain-factor model with the pre-specified treatment "
+        "interactions (on-intervention × ability, on-intervention × own baseline) "
+        "restored, to ask whether the on-intervention association varies with those "
+        "moderators. The interactions are estimated on **all** stacked periods — "
+        "including post-crossover transitions with no untreated comparison — so "
+        "every treatment-related quantity here, the netted marginal included, is a "
+        "**model-dependent adjusted association**, partly informed by "
+        "post-crossover data. Read the randomised causal headline from the "
+        "interaction-free primary model this varies. Under the revised DAG "
+        "(2026-07-10) every other coefficient is likewise an adjusted association: "
+        "confounded by latent general ability, which the child random intercept "
+        "does **not** control. Read them as *associated with*, never *drives*.\n\n"
+        "_In plain terms:_ this companion asks whether the intervention's link with "
+        "the outcome looks different for children with different starting points or "
+        "ability. Because part of that evidence comes from after the comparison "
+        "group had crossed over to the intervention, none of it counts as "
+        "cause-and-effect; the main model carries the causal result."
+    )
+else:
+    print(
+        "The factor model reports **one** causal coefficient — the randomised "
+        "on-intervention / t2 group contrast — alongside a vector of *adjusted "
+        "associations*. Under the revised DAG (2026-07-10) every non-randomised "
+        "coefficient is an adjusted association: it is confounded by latent general "
+        "ability, and the child random intercept is only a partial, shrunken "
+        "stand-in for between-child heterogeneity — **not** a control for that "
+        "ability. Read them as *associated with*, never *drives*.\n\n"
+        "_In plain terms:_ this section reports one effect the study can call "
+        "causal — the group difference created by randomising who received the "
+        "intervention — plus a set of side-by-side relationships (associations) "
+        "between skills that the design cannot untangle from underlying ability."
+    )
+```
 
 ```{python}
 # | echo: false
@@ -18,11 +52,24 @@ factor_summary = _csv("factor_summary.csv")
 factor_summary
 ```
 
-_How to read the summary table:_ each row is one coefficient on the logit
-(log-odds) scale; `median` is the best single estimate, `lo`/`hi` its 89% credible
-interval (the range the value plausibly falls in), and `prob_positive` the
-posterior probability the coefficient is above zero. The `role` column flags the
-single `causal` (randomised) term; every other row is an adjusted association.
+```{python}
+# | echo: false
+# | output: asis
+print(
+    "_How to read the summary table:_ each row is one coefficient on the logit "
+    "(log-odds) scale; `median` is the best single estimate, `lo`/`hi` its 89% "
+    "credible interval (the range the value plausibly falls in), and "
+    "`prob_positive` the posterior probability the coefficient is above zero. "
+    + (
+        "In this moderation variant **every** row — `beta_trt` and the "
+        "`gamma_int_trt_*` interactions included — carries the `association` "
+        "role: no term here is causal."
+        if _mv
+        else "The `role` column flags the single `causal` (randomised) term; "
+        "every other row is an adjusted association."
+    )
+)
+```
 
 ```{python}
 # | echo: false
@@ -52,6 +99,19 @@ if factor_summary is not None and "role" in factor_summary.columns:
                 f"effect is *{_r.favoured_direction_label}* (P = "
                 f"{_r.favoured_direction_prob:.3f})._"
             )
+    elif _mv and "term" in factor_summary.columns and (factor_summary.term == "beta_trt").any():
+        _r = factor_summary[factor_summary.term == "beta_trt"].iloc[0]
+        print(
+            f"**On-intervention term — `beta_trt` (model-dependent association):** "
+            f"posterior median {_r['median']:+.3f} on the logit scale "
+            f"(50% CrI {_r['lo50']:+.3f} to {_r['hi50']:+.3f}; "
+            f"89% {_r['lo']:+.3f} to {_r['hi']:+.3f}); "
+            f"P(> 0) = {_r.prob_positive:.3f} ({_odds(_r.prob_positive)}). "
+            f"In this moderation variant it is fitted alongside treatment "
+            f"interactions estimated partly on post-crossover data, so it is "
+            f"**not** presented as the randomised effect — the causal headline "
+            f"lives in the interaction-free primary model."
+        )
     else:
         print(
             "_This is a factor-association model with no randomised treatment term — "
@@ -94,21 +154,42 @@ if (
 ```{python}
 # | echo: false
 # | output: asis
-# Items-scale treatment effect (gain family) and the causal-term forest.
+# Items-scale treatment effect (gain family) and the on-intervention forest.
 treatment_marginal = _csv("treatment_marginal.csv")
 if treatment_marginal is not None:
     _t = treatment_marginal.iloc[0]
-    print(
-        f"On the items scale the treatment average marginal effect — averaged over the "
-        f"**period-1 (randomised) transition only**, the genuinely all-untreated-baseline "
-        f"contrast that anchors the ITT effect — is a median of "
-        f"**{_t.trt_items_median:+.1f} items** "
-        f"(50% CrI {_t.trt_items_lo50:+.1f} to {_t.trt_items_hi50:+.1f}; "
-        f"89% {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
-        f"P(> 0) = {_t.prob_trt_pos:.3f}. The logit-scale `beta_trt` coefficient itself is "
-        f"the on-intervention log-odds contrast, not the marginal ITT effect.\n"
+    if _mv:
+        print(
+            f"On the items scale, netting the fitted treatment interactions out of "
+            f"`beta_trt` and averaging over the period-1 rows gives a median of "
+            f"**{_t.trt_items_median:+.1f} items** "
+            f"(50% CrI {_t.trt_items_lo50:+.1f} to {_t.trt_items_hi50:+.1f}; "
+            f"89% {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
+            f"P(> 0) = {_t.prob_trt_pos:.3f}. Because the netted interactions are "
+            f"estimated on all stacked periods, this marginal is **model-dependent "
+            f"and partly informed by post-crossover data** — it is *not* "
+            f"exclusively randomised period-1 evidence, and the causal headline "
+            f"lives in the interaction-free primary model.\n"
+        )
+    else:
+        print(
+            f"On the items scale the treatment average marginal effect — averaged over the "
+            f"**period-1 (randomised) transition only**, the genuinely all-untreated-baseline "
+            f"contrast that anchors the ITT effect — is a median of "
+            f"**{_t.trt_items_median:+.1f} items** "
+            f"(50% CrI {_t.trt_items_lo50:+.1f} to {_t.trt_items_hi50:+.1f}; "
+            f"89% {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
+            f"P(> 0) = {_t.prob_trt_pos:.3f}. The logit-scale `beta_trt` coefficient itself is "
+            f"the on-intervention log-odds contrast, not the marginal ITT effect.\n"
+        )
+print(
+    _img(
+        "tau_forest.png",
+        "Posterior of the on-intervention term (forest, reference line at 0) — a model-dependent association in this moderation variant"
+        if _mv
+        else "Posterior of the causal term (forest, reference line at 0)",
     )
-print(_img("tau_forest.png", "Posterior of the causal term (forest, reference line at 0)"))
+)
 print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
 ```
 

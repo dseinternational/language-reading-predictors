@@ -122,6 +122,29 @@ def gamma_cross_prior() -> Continuous:
     return pz.Normal(mu=0.0, sigma=0.3)
 
 
+def gamma_own_offfloor_prior() -> Continuous:
+    """Binary off-floor-at-pre baseline contrast gamma_own_offfloor ~ Normal(0, 1).
+
+    The off-floor (Bernoulli) gain models drop the graded ``gamma_own`` term — its
+    Normal(1, 0.25) "post tracks pre 1:1" calibration is a graded test–retest fact
+    that does not transfer to a binary indicator, and the standardised pre-logit of
+    a heavily-floored measure is a near-degenerate spike (#391 finding 2 decision,
+    2026-07-22). The honest functional form for the baseline main effect is the
+    **binary off-floor-at-pre indicator**, entered raw (0/1), so this prior is the
+    log-odds contrast between children off vs at the floor at the period start.
+
+    Scale: ``Normal(0, 1)`` is deliberately wider than the cross-coupling
+    ``Normal(0, 0.3)`` — baseline status is expected to be strongly prognostic
+    (period-1 control children: 2/17 at-floor vs 7/8 off-floor moved off the floor
+    at post) — while still regularising against quasi-separation in a sample of
+    ~54 children: ±2 logits at 2 SD spans odds ratios up to ~7 without letting a
+    near-separated cell run to infinity. Direction is not baked in (mean 0), unlike
+    ``gamma_own_prior``: the tracking magnitude for the binary indicator has no
+    published calibration to anchor a non-zero mean.
+    """
+    return pz.Normal(mu=0.0, sigma=1.0)
+
+
 def gamma_age_prior() -> Continuous:
     """Linear age main-effect coupling gamma_A ~ Normal(0, 0.3).
 

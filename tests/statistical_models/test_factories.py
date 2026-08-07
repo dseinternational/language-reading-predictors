@@ -2385,57 +2385,67 @@ def test_gain_factors_skills_ability_interactions(tmp_path):
     assert mods["gamma_int_trt_ability"].mean() == pytest.approx(0.0, abs=1e-9)
 
 
-def test_gain_factors_offfloor_own_interaction_keeps_hierarchy(tmp_path):
-    """#391 Finding 2: on the Bernoulli off-floor path the graded ``gamma_own``
-    precision term is dropped (its Normal(1, 0.25) prior does not transfer to the
-    binary indicator), but a ``trt×own`` interaction must not be left without its own
-    main effect. The factory restores a regularised ``gamma_own_offfloor`` main effect
-    on the same standardised baseline the interaction uses, so the interaction reads as
-    effect modification rather than compensating for the missing term."""
+def test_gain_factors_offfloor_always_carries_pre_indicator_main_effect(tmp_path):
+    """#391 finding 2 decision (2026-07-22): on the Bernoulli off-floor path the
+    graded ``gamma_own`` is dropped (its Normal(1, 0.25) prior does not transfer to
+    a binary indicator) and the **binary off-floor-at-pre indicator** main effect
+    ``gamma_own_offfloor`` ALWAYS stands in for it — with or without an ``own``
+    interaction — so the control off-floor probability is never forced flat in the
+    baseline, and any declared interaction on ``own`` shares the indicator's
+    functional form (hierarchy by construction)."""
     prep = load_and_prepare(
         path=_write_synthetic(tmp_path, n_children=20),
         phase_mode="all",
         outcomes=("N",),
     )
+    # Headline form: no own interaction, indicator main effect still present.
     built = build_gain_factors_model(
-        prep,
-        outcome_symbol="N",
-        likelihood="bernoulli_offfloor",
-        interactions=(("trt", "own"),),
-    )
-    names = {v.name for v in built.model.free_RVs}
-    # Off-floor path: the graded gamma_own is dropped ...
-    assert "gamma_own" not in names
-    # ... but the trt×own interaction is present, so its own main effect is restored.
-    assert "gamma_own_offfloor" in names
-    assert "gamma_int_trt_own" in names
-
-    # No own interaction -> no off-floor own main effect (nothing to keep hierarchy for).
-    built_no_own = build_gain_factors_model(
         prep,
         outcome_symbol="N",
         likelihood="bernoulli_offfloor",
         interactions=(),
     )
-    no_own_names = {v.name for v in built_no_own.model.free_RVs}
-    assert "gamma_own_offfloor" not in no_own_names
-    assert "gamma_own" not in no_own_names
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_own" not in names
+    assert "gamma_own_offfloor" in names
+    # The data node is the raw 0/1 off-floor-at-pre indicator on the kept rows.
+    ind = np.asarray(built.model["own_pre_offfloor"].get_value(), dtype=float)
+    expected = (built.prepared.pre_counts["N"] > 0).astype(float)
+    np.testing.assert_array_equal(ind, expected)
+    assert set(np.unique(ind)).issubset({0.0, 1.0})
+
+    # Moderation-variant form: the trt x own interaction multiplies the SAME
+    # indicator, and the main effect stays (hierarchy).
+    built_mv = build_gain_factors_model(
+        prep,
+        outcome_symbol="N",
+        likelihood="bernoulli_offfloor",
+        interactions=(("trt", "own"),),
+    )
+    mv_names = {v.name for v in built_mv.model.free_RVs}
+    assert {"gamma_own_offfloor", "gamma_int_trt_own"}.issubset(mv_names)
+    trt = ((built_mv.prepared.G == 1) | (built_mv.prepared.phase >= 1)).astype(float)
+    prod = np.asarray(built_mv.model["int_trt_own"].get_value(), dtype=float)
+    expected_mv = trt * (built_mv.prepared.pre_counts["N"] > 0).astype(float)
+    np.testing.assert_allclose(prod, expected_mv)
 
 
-def test_gf_coef_names_gamma_own_offfloor_respects_treated_only():
-    """The reported-coefficient list must match what the factory actually builds
-    (#413 review): the off-floor own main effect is added only when an ``own``
-    interaction survives the treated_only filter (which drops trt interactions), so
-    a treated-only spec whose only own interaction is trt×own reports no
-    ``gamma_own_offfloor``."""
+def test_gf_coef_names_report_the_offfloor_indicator_unconditionally():
+    """The reported-coefficient list must match what the factory actually builds:
+    the off-floor path always carries ``gamma_own_offfloor`` (#391 finding 2
+    decision), with or without interactions and under treated_only alike; the
+    graded path always reports ``gamma_own``."""
     from types import SimpleNamespace
 
     from language_reading_predictors.statistical_models.pipeline import _gf_coef_names
 
-    base = {"likelihood": "bernoulli_offfloor", "interactions": (("trt", "own"),)}
+    base = {"likelihood": "bernoulli_offfloor", "interactions": ()}
     assert "gamma_own_offfloor" in _gf_coef_names(SimpleNamespace(extra=dict(base)))
     treated = SimpleNamespace(extra={**base, "treated_only": True})
-    assert "gamma_own_offfloor" not in _gf_coef_names(treated)
+    assert "gamma_own_offfloor" in _gf_coef_names(treated)
+    graded = SimpleNamespace(extra={"interactions": ()})
+    names = _gf_coef_names(graded)
+    assert "gamma_own" in names and "gamma_own_offfloor" not in names
 
 
 def test_gain_factors_adjust_for_covariates(tmp_path):

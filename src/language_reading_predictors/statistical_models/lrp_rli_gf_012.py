@@ -19,6 +19,12 @@ are entered to describe the review's finding, and (like every non-randomised ter
 are latent-GA-confounded. Only the randomised on-intervention term is causal, as its
 period-1 average marginal effect; everything else is descriptive. Report median + inner
 50% + outer 89% credible interval + P(>0) with that caveat.
+
+The causal headline is interaction-free (#391 finding 3 decision, 2026-07-22):
+the trt x ability / trt x own moderation questions for TR are carried by the
+associational variant LRPGF09m (anchored to the per-outcome primary; this alternate
+adjustment set declares none), and only the age x ability precision interaction
+remains here.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -37,7 +43,7 @@ SPEC = ModelSpec(
         "ability_covariate": V.BLOCKS,
         # TR's non-measure confounders (matches gf-009): hearing + phonological memory.
         "adjust_for": ("hs", "hs_missing", "erbto", "erbto_missing"),
-        "interactions": (("trt", "ability"), ("trt", "own"), ("age", "ability")),
+        "interactions": (("age", "ability"),),
         "treated_only": False,
     },
 )

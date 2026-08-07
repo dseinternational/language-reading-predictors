@@ -488,6 +488,20 @@ def _prior_table_overrides(
                 ),
             }
         )
+    elif spec.kind == "gain_factors" and spec.extra.get("moderation_variant", False):
+        # Moderation variants (#391 finding 3): beta_trt keeps the tau-tier prior
+        # but is never presented as causal — its interaction-aware marginal is
+        # model-dependent (the trt interactions are estimated on all stacked
+        # periods, partly post-crossover). The causal headline lives in the
+        # interaction-free primary; every artefact of a variant fit must agree.
+        role["beta_trt"] = "association"
+        rationale["beta_trt"] = (
+            "On-intervention log-odds contrast inside an explicitly associational "
+            "moderation variant: netted with the fitted treatment interactions it "
+            "is a model-dependent association, partly informed by post-crossover "
+            "data — read the randomised causal headline from the interaction-free "
+            "primary model."
+        )
     elif spec.kind == "did":
         # Time offsets and every post-crossover term are associations.  Only the
         # saturated arm-by-wave model's t2 arm gap is licensed by randomisation.
@@ -5741,18 +5755,16 @@ def _gf_coef_names(
     names: list[str] = []
     if not treated_only:
         names.append("beta_trt")
-    # gamma_own drops on the off-floor (Bernoulli) path (A4) — see build_gain_factors_model.
-    # There, if an interaction on ``own`` is *active*, a regularised own-baseline main
-    # effect ``gamma_own_offfloor`` is added instead to keep interaction hierarchy
-    # (#391 Finding 2); report it in its place. A treated-only variant drops its trt
-    # interactions, so a treated-only spec whose only ``own`` interaction is trt×own
-    # builds no gamma_own_offfloor.
+    # The graded gamma_own drops on the off-floor (Bernoulli) path (A4) — see
+    # build_gain_factors_model. The binary off-floor-at-pre indicator main effect
+    # ``gamma_own_offfloor`` always stands in for it there (#391 finding 2
+    # decision, 2026-07-22), so it is reported unconditionally in its place.
     active_interactions = resolve_active_interactions(
         extra.get("interactions", ()), treated_only=treated_only
     )
     if extra.get("likelihood") != "bernoulli_offfloor":
         names.append("gamma_own")
-    elif any("own" in pair for pair in active_interactions):
+    else:
         names.append("gamma_own_offfloor")
     names.append("gamma_A")
     if extra.get("ability_covariate"):
@@ -5797,8 +5809,10 @@ def _gf_association_terms(
     standardised throughout (``main_scale = 1``). Raw-covariate adjusters enter
     standardised with no interactions; their ``_missing`` companions are nuisance 0/1
     indicators (a ``+1 SD`` shift on them is not an interpretable association) and are
-    skipped. The own baseline is dropped on the off-floor (Bernoulli) path, matching the
-    factory (its ``gamma_own`` is not built there).
+    skipped. On the off-floor (Bernoulli) path the own baseline is the binary
+    off-floor-at-pre indicator (``gamma_own_offfloor``), matching the factory: its
+    perturbation is the at-floor -> off-floor switch, not a ``+1 SD`` shift (#391
+    finding 2 decision).
     """
     from scipy.special import expit as _expit
     from scipy.special import logit as _logit
@@ -5819,9 +5833,17 @@ def _gf_association_terms(
         z_ab, _ = standardise(bp.covariates[ability_covariate])
         term_vecs["ability"] = z_ab
         scales["ability"] = 1.0
-    z_own, s_own = standardise(bp.pre_logit[own])
-    term_vecs["own"] = z_own
-    scales["own"] = s_own.sd
+    if off_floor:
+        # Mirror the factory: "own" on the off-floor path is the binary
+        # off-floor-at-pre indicator (raw 0/1), used for both the main effect and
+        # any interaction naming it (#391 finding 2 decision). A "+1" perturbation
+        # is the at-floor -> off-floor switch, not a +1 SD shift.
+        term_vecs["own"] = (np.asarray(bp.pre_counts[own], dtype=float) > 0).astype(float)
+        scales["own"] = 1.0
+    else:
+        z_own, s_own = standardise(bp.pre_logit[own])
+        term_vecs["own"] = z_own
+        scales["own"] = s_own.sd
     for s in skill_symbols:
         z_s, sc = standardise(bp.pre_logit[s])
         term_vecs[s] = z_s
@@ -5860,6 +5882,13 @@ def _gf_association_terms(
             AT("own", "gamma_own", scales["own"], _ints_for("own"),
                n_items=n_own, mean_prop=p_own, sd_items=_sd_items(scales["own"], p_own, n_own))
         )
+    else:
+        # The binary off-floor-at-pre indicator association (#391 finding 2
+        # decision): the "+1" perturbation is the at-floor -> off-floor switch.
+        terms.append(
+            AT("own", "gamma_own_offfloor", 1.0, _ints_for("own"),
+               perturbation_label="off-floor at pre (0 to 1)")
+        )
     terms.append(AT("age", "gamma_A", 1.0, _ints_for("age")))
     if ability_covariate is not None:
         terms.append(AT("ability", "gamma_ability", 1.0, _ints_for("ability")))
@@ -5895,6 +5924,12 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     ability_covariate = plan.ability_covariate
     treated_only = plan.treated_only
     off_floor = plan.off_floor
+    # Explicitly associational moderation variant (#391 finding 3 decision): the
+    # netted treatment marginal is still computed (the #391 finding 1 netting is
+    # exactly what these variants exist to exercise) but no term — including
+    # beta_trt — is labelled causal; the randomised headline lives in the
+    # interaction-free primary.
+    moderation_variant = plan.moderation_variant
     obs_node = plan.obs_node
 
     section_header("Prepare data")
@@ -5925,23 +5960,36 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
-    _causal_gf = None if treated_only else "beta_trt"
+    # The diagnostic FOCAL term, not a causal designation: for a moderation
+    # variant beta_trt is still the term whose mixing, ESS evolution, forest and
+    # prior sensitivity a reader needs, but it is presented as a model-dependent
+    # association everywhere (factor_summary role, priors-table override, the
+    # results partial and the key-findings box all branch on moderation_variant)
+    # — the plot titles here are deliberately neutral ("Rank plot", "Effect
+    # posterior"), so focusing them on beta_trt asserts nothing causal.
+    _focal_gf = None if treated_only else "beta_trt"
     _diag.write_diagnostics_summary(ctx, var_names=_gf_diag_vars(spec, adjust_for))
-    _diag.run_extended_diagnostics(ctx, causal_term=_causal_gf)
+    _diag.run_extended_diagnostics(ctx, causal_term=_focal_gf)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_gf_diag_vars(spec, adjust_for))
-    if _causal_gf is not None:
-        _save_forest_plot(ctx, [_causal_gf])
-        _diag.run_psense(ctx, var_names=[_causal_gf])
+    if _focal_gf is not None:
+        _save_forest_plot(ctx, [_focal_gf])
+        _diag.run_psense(ctx, var_names=[_focal_gf])
 
     section_header("Factor summary")
+    # A moderation variant's beta_trt is NOT flagged causal: its interaction-aware
+    # marginal is model-dependent (partly informed by post-crossover data), so every
+    # row — the treatment term included — reads as an adjusted association there.
+    gf_causal_terms: tuple[str, ...] = (
+        () if moderation_variant else ("beta_trt",)
+    )
     fs = _report.factor_summary(
         ctx.trace, _gf_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob,
-        causal_terms=("beta_trt",),
+        causal_terms=gf_causal_terms,
     )
     fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
     ctx.tables["factor_summary"] = fs
-    _save_association_forest(ctx, _gf_coef_names(spec, adjust_for), ("beta_trt",))
+    _save_association_forest(ctx, _gf_coef_names(spec, adjust_for), gf_causal_terms)
     print_table(
         ranked_dataframe_table(
             fs,
@@ -6126,7 +6174,12 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 "covariate profiles drawn from the period-1 "
                 "randomised-transition rows"
             ),
-            contrast_status="randomised on-intervention contrast (period-1 anchor)",
+            contrast_status=(
+                "model-dependent interaction-aware contrast (associational "
+                "moderation variant; partly informed by post-crossover data)"
+                if moderation_variant
+                else "randomised on-intervention contrast (period-1 anchor)"
+            ),
             event_label="off the floor at the period end",
             split=True,
         )

@@ -32,6 +32,14 @@ association*: the child random intercept is a partial, shrunken stand-in for
 between-child heterogeneity — it does **not** control latent general ability, so those
 slopes remain descriptive associations. SES excluded (non-DAG / redundant). Flagged
 off-floor in the report.
+
+The own baseline enters as the **binary off-floor-at-pre indicator**
+(``gamma_own_offfloor``, #391 finding 2 decision, 2026-07-22): the graded pre logit of
+this heavily-floored measure is a near-degenerate spike, so the indicator is the honest
+functional form for the baseline main effect. The causal headline is interaction-free
+(#391 finding 3): the moderation questions live in the associational variant LRPGF11m
+(where trt x own is trt x this indicator), and only the age x ability precision
+interaction remains here.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -47,7 +55,7 @@ SPEC = ModelSpec(
         "skill_symbols": ("L", "B"),
         "ability_covariate": V.BLOCKS,
         "adjust_for": ("deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
-        "interactions": (("trt", "ability"), ("trt", "own"), ("age", "ability")),
+        "interactions": (("age", "ability"),),
         "treated_only": False,
         "likelihood": "bernoulli_offfloor",
     },

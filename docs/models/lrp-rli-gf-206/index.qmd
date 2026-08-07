@@ -1,0 +1,63 @@
+---
+title: "LRPGF06m: Treatment-moderation variant — gains in phoneme blending (blending) (B)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPGF06m is the **explicitly associational treatment-moderation variant** of
+LRPGF06 (#391 finding 3 decision, 2026-07-22): the same gain-factors model for
+phoneme blending (blending) (B) with the pre-specified treatment interactions
+(on-intervention $\times$ ability, on-intervention $\times$ own baseline)
+that the interaction-free causal headline dropped.
+
+_No causal headline here._ The moderation terms are estimated on **all** stacked
+period transitions — including post-crossover rows with no untreated comparison —
+so the interaction-aware period-1 marginal (the on-intervention contrast with the
+fitted interactions netted out) is model-dependent and partly informed by
+post-crossover data. Every number in this report, the netted treatment contrast
+included, is an **adjusted association**; read the randomised effect from
+LRPGF06. Moderation on roughly 25 period-1 control children is not seriously
+estimable in any case — these posteriors bound the moderation questions rather
+than settle them. The robustness release gate skips this fit for exactly that
+reason (the gated causal headline lives in LRPGF06).
+
+## Model
+
+The linear predictor is LRPGF06's (see that report for the full formula and
+adjustment-set rationale) plus the two treatment-interaction terms:
+
+$$
+\ldots + \gamma_{\text{int:trt}\times\text{ability}}\,
+(\text{trt} \times z(\text{blocks}))
+ + \gamma_{\text{int:trt}\times\text{own}}\,
+(\text{trt} \times z(\operatorname{logit}_*(\text{own}_{\text{pre}}))),
+$$
+
+with the same likelihood, priors and non-centred child random intercept as
+LRPGF06. The reported treatment contrast nets both interactions out of
+`beta_trt` per draw (#391 finding 1), and its direction, intervals and ROPE
+classification all come from those same netted draws.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_factors.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

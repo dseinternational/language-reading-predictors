@@ -552,6 +552,9 @@ residualised
 residualising
 residualization
 residualized
+respec
+respecification
+respecified
 resumable
 retau
 reto
@@ -620,6 +623,7 @@ unsuffixed
 untiered
 vars
 vcfg
+vecs
 vocab
 vpreds
 waitlist

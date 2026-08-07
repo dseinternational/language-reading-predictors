@@ -23,6 +23,12 @@ Both roles are still *adjusted associations*, latent-GA-confounded - only the ra
 on-intervention term is causal (its period-1 average marginal effect). Report median +
 inner 50% + outer 89% credible interval + P(>0) with that caveat, and read the skill
 slopes as "associated with", never "drives".
+
+The causal headline is interaction-free (#391 finding 3 decision, 2026-07-22):
+the trt x ability / trt x own moderation questions for TE are carried by the
+associational variant LRPGF10m (anchored to the per-outcome primary; this alternate
+adjustment set declares none), and only the age x ability precision interaction
+remains here.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -43,7 +49,7 @@ SPEC = ModelSpec(
         "adjust_for": (
             "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"
         ),
-        "interactions": (("trt", "ability"), ("trt", "own"), ("age", "ability")),
+        "interactions": (("age", "ability"),),
         "treated_only": False,
     },
 )
