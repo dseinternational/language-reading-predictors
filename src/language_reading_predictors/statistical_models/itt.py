@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 import numpy as np
 import pandas as pd
 
+from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.definitions import FLOORED
 from language_reading_predictors.statistical_models.likelihood import (
     SCORE_MEAN_LINKS,
@@ -826,14 +827,8 @@ def write_itt_analysis_audit(
 
     analysis_df = pd.concat(analysis_frames, ignore_index=True)
     bounds_df = pd.concat(bound_frames, ignore_index=True)
-    analysis_df.to_csv(
-        os.path.join(context.output_dir, "analysis_set.csv"), index=False
-    )
-    bounds_df.to_csv(
-        os.path.join(context.output_dir, "attrition_bounds.csv"), index=False
-    )
-    context.tables["analysis_set"] = analysis_df
-    context.tables["attrition_bounds"] = bounds_df
+    save_table(context, "analysis_set", analysis_df)
+    save_table(context, "attrition_bounds", bounds_df)
 
 
 def write_itt_ppc_calibration(
@@ -906,13 +901,12 @@ def write_itt_ppc_calibration(
             )
 
     calibration = pd.concat(frames, ignore_index=True)
-    calibration.to_csv(os.path.join(context.output_dir, filename), index=False)
-    context.tables[os.path.splitext(filename)[0]] = calibration
+    save_table(
+        context, os.path.splitext(filename)[0], calibration, filename=filename
+    )
     if shape_frames:
         shape_calibration = pd.concat(shape_frames, ignore_index=True)
-        shape_filename = "posterior_predictive_shape_calibration.csv"
-        shape_calibration.to_csv(
-            os.path.join(context.output_dir, shape_filename), index=False
+        save_table(
+            context, "posterior_predictive_shape_calibration", shape_calibration
         )
-        context.tables[os.path.splitext(shape_filename)[0]] = shape_calibration
     return calibration

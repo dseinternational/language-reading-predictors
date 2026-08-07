@@ -75,6 +75,11 @@ from language_reading_predictors.statistical_models.plotting import (
 from language_reading_predictors.statistical_models.aligned import (
     resolve_aligned_run_plan,
 )
+from language_reading_predictors.statistical_models.artifacts import (
+    guard_optional,
+    record_artifact,
+    save_table,
+)
 from language_reading_predictors.statistical_models.concurrent import (
     resolve_concurrent_run_plan,
 )
@@ -126,6 +131,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     standardise,
 )
 from language_reading_predictors.statistical_models.stages import (
+    PrimaryFitPlan,
     SharedFitStages,
     StageHooks,
 )
@@ -426,8 +432,7 @@ def _emit_priors(context: StatisticalFitContext) -> None:
         role_overrides=role_overrides,
         rationale_overrides=rationale_overrides,
     )
-    table.to_csv(os.path.join(context.output_dir, "priors_table.csv"), index=False)
-    context.tables["priors_table"] = table
+    save_table(context, "priors_table", table)
 
 
 def _prior_table_overrides(
@@ -929,15 +934,16 @@ def _prior_table_overrides(
 
 
 def _render_model_graph(context: StatisticalFitContext) -> None:
-    try:
+    with guard_optional(
+        context, "Graphviz render",
+        filename="model_graph.png", kind="figure", verb="failed",
+    ):
         g = _graphviz(context.model)
         g.render(
             filename=os.path.join(context.output_dir, "model_graph"),
             format="png",
             cleanup=True,
         )
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Graphviz render failed: {exc}[/yellow]")
 
 
 def _graphviz(model):
@@ -1000,17 +1006,15 @@ def _save_count_ppc(
     context: StatisticalFitContext, node: str, symbol: str | None, kind: str
 ) -> None:
     """Count-interval coverage CSV + calibration panel (+ overlay for single-measure)."""
-    try:
+    with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         cov = _report.ppc_interval_coverage(context.trace, node=node)
-        cov.to_csv(os.path.join(context.output_dir, "ppc_summary.csv"), index=False)
-        context.tables["ppc_summary"] = cov
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]ppc_summary.csv skipped: {exc}[/yellow]")
-    try:
+        save_table(context, "ppc_summary", cov, required=False)
+    with guard_optional(
+        context, "PPC calibration figure",
+        filename="ppc_calibration.png", kind="figure", verb="skipped",
+    ):
         cal = _report.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
         _ppc_calibration_figure(context, symbol, cal)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC calibration figure skipped: {exc}[/yellow]")
     if kind in _PPC_FAMILY_OWN_OVERLAY_KINDS:
         rprint(
             f"[dim]PPC distribution overlay left to the '{kind}' family's own "
@@ -1082,19 +1086,17 @@ def _save_offfloor_ppc(
 ) -> None:
     """Off-floor RATE coverage CSV + per-cell observed-vs-predicted rate figure."""
     group = _offfloor_group_labels(context)
-    try:
+    with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         cov = _report.ppc_offfloor_rate_coverage(context.trace, node=node, group=group)
-        cov.to_csv(os.path.join(context.output_dir, "ppc_summary.csv"), index=False)
-        context.tables["ppc_summary"] = cov
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]ppc_summary.csv skipped: {exc}[/yellow]")
-    try:
+        save_table(context, "ppc_summary", cov, required=False)
+    with guard_optional(
+        context, "PPC off-floor figure",
+        filename="posterior_predictive_check.png", kind="figure", verb="skipped",
+    ):
         cells = _report.ppc_offfloor_cell_table(
             context.trace, node=node, group=group, ci_prob=0.9
         )
         _ppc_offfloor_figure(context, symbol, cells)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC off-floor figure skipped: {exc}[/yellow]")
 
 
 def _offfloor_group_labels(context: StatisticalFitContext) -> np.ndarray | None:
@@ -1140,7 +1142,13 @@ def _ppc_overlay_figure(
     dataset is one posterior-predictive draw over all observations. Writes
     ``posterior_predictive_check.png`` (+ a density-band data CSV).
     """
-    try:
+    with guard_optional(
+        context,
+        "PPC overlay figure",
+        filename=f"{filename_stem}.png",
+        kind="figure",
+        verb="failed",
+    ):
         y_rep, y_obs = _report._ppc_node_arrays(context.trace, node)
         if row_mask is not None:
             # One measure's rows out of a stacked likelihood, selected by the
@@ -1184,8 +1192,6 @@ def _ppc_overlay_figure(
             }
         )
         save_styled_figure(context.output_dir, filename_stem, data=data)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC overlay figure failed: {exc}[/yellow]")
 
 
 def _ppc_calibration_figure(
@@ -1198,7 +1204,10 @@ def _ppc_calibration_figure(
     observations whose observed score falls outside the 90% range are flagged.
     Writes ``ppc_calibration.png`` (+ the per-observation data CSV).
     """
-    try:
+    with guard_optional(
+        context, "PPC calibration figure",
+        filename="ppc_calibration.png", kind="figure", verb="failed",
+    ):
         label, n_trials = _ppc_measure_label(symbol)
         obs = cal["observed"].to_numpy(float)
         med = cal["pp_median"].to_numpy(float)
@@ -1222,8 +1231,6 @@ def _ppc_calibration_figure(
         plt.title(f"Per-observation calibration: {label}")
         plt.legend(fontsize=8)
         save_styled_figure(context.output_dir, "ppc_calibration", data=cal)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC calibration figure failed: {exc}[/yellow]")
 
 
 def _ppc_offfloor_figure(
@@ -1235,7 +1242,10 @@ def _ppc_offfloor_figure(
     overlay: the observed rate should sit inside the model's predictive range for
     each cell) plus the per-cell data CSV.
     """
-    try:
+    with guard_optional(
+        context, "PPC off-floor figure",
+        filename="posterior_predictive_check.png", kind="figure", verb="failed",
+    ):
         label, _ = _ppc_measure_label(symbol)
         x = np.arange(len(cells))
         med = cells["pp_rate_median"].to_numpy(float)
@@ -1255,15 +1265,16 @@ def _ppc_offfloor_figure(
         plt.title(f"Off-floor rate posterior-predictive check: {label}")
         plt.legend(fontsize=8)
         save_styled_figure(context.output_dir, "posterior_predictive_check", data=cells)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC off-floor figure failed: {exc}[/yellow]")
 
 
 def _save_legacy_ppc_overlay(context: StatisticalFitContext) -> None:
     # arviz 1.x removed az.plot_ppc; the equivalent is arviz_plots.plot_ppc_dist
     # (returns a PlotCollection with .savefig). Used for measurement / latent nodes
     # that have no single count outcome. Guarded — a PPC plot failure must not abort.
-    try:
+    with guard_optional(
+        context, "PPC plot",
+        filename="posterior_predictive_check.png", kind="figure", verb="failed",
+    ):
         import arviz_plots as azp
 
         pc = azp.plot_ppc_dist(context.trace)
@@ -1273,8 +1284,6 @@ def _save_legacy_ppc_overlay(context: StatisticalFitContext) -> None:
             "posterior_predictive_check.png",
             suptitle="Posterior-predictive vs observed",
         )
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]PPC plot failed: {exc}[/yellow]")
 
 
 def _draw_did_cell_panel(
@@ -1305,7 +1314,10 @@ def _save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) 
     """Cell-stratified DiD posterior-predictive checks as two individual figures:
     ``did_cell_ppc_mean`` (cell mean) and ``did_cell_ppc_zero_rate`` (proportion
     at zero)."""
-    try:
+    with guard_optional(
+        ctx, "DiD cell PPC plot",
+        filename="did_cell_ppc_mean.png", kind="figure", verb="failed",
+    ):
         for stem, ylabel, name in (
             ("mean", "cell mean", "did_cell_ppc_mean"),
             ("zero_rate", "proportion at zero", "did_cell_ppc_zero_rate"),
@@ -1317,15 +1329,16 @@ def _save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) 
             )
             fig.tight_layout()
             save_styled_figure(ctx.output_dir, name, fig=fig)
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]DiD cell PPC plot failed: {exc}[/yellow]")
 
 
 def _save_proportion_at_zero_plot(
     ctx: StatisticalFitContext, symbol: str, ppc0: dict
 ) -> None:
     """Plot the proportion-at-zero PPC: replicated distribution vs observed."""
-    try:
+    with guard_optional(
+        ctx, "Proportion-at-zero PPC plot",
+        filename="proportion_at_zero_ppc.png", kind="figure", verb="failed",
+    ):
         rep = ppc0["rep"]
         obs = ppc0["obs_prop_at_zero"]
         plt.figure(figsize=FIGSIZE_LG)
@@ -1341,8 +1354,6 @@ def _save_proportion_at_zero_plot(
         # Scalar PPC summary (rep excluded) is already written to CSV by the
         # graded/floor path, so no data= here — just the styled PNG + SVG.
         save_styled_figure(ctx.output_dir, "proportion_at_zero_ppc")
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Proportion-at-zero PPC plot failed: {exc}[/yellow]")
 
 
 def _save_rope_plot(
@@ -1373,7 +1384,10 @@ def _save_rope_plot(
     are written as individual files (``rope_summary`` + ``rope_benefit_curve``)
     rather than one combined figure.
     """
-    try:
+    with guard_optional(
+        ctx, "ROPE plot",
+        filename="rope_summary.png", kind="figure", verb="failed",
+    ):
         from language_reading_predictors.statistical_models.effect_plots import (
             write_rope_figures,
         )
@@ -1389,8 +1403,6 @@ def _save_rope_plot(
             ctx.output_dir, items, symbol=symbol, delta=delta,
             n_trials=n_trials, split=split,
         )
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]ROPE plot failed: {exc}[/yellow]")
 
 
 def _write_predicted_scores(
@@ -1426,7 +1438,10 @@ def _write_predicted_scores(
         write_predicted_scores_artifacts,
     )
 
-    try:
+    with guard_optional(
+        ctx, "Predicted-scores figures",
+        filename="predicted_scores.png", kind="figure", verb="failed",
+    ):
         summary = write_predicted_scores_artifacts(
             ctx.output_dir,
             ctx.trace,
@@ -1452,8 +1467,9 @@ def _write_predicted_scores(
             score_mean_link=score_mean_link,
         )
         ctx.tables["predicted_scores"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Predicted-scores figures failed: {exc}[/yellow]")
+        # ``predicted_scores.csv`` is written inside the helper (which takes an
+        # output directory, not a context); record it so the manifest lists it.
+        record_artifact(ctx, "predicted_scores", df=summary, required=False)
 
 
 def _write_arm_overlap(
@@ -1488,7 +1504,10 @@ def _write_arm_overlap(
     )
     from language_reading_predictors.statistical_models.measures import MEASURES
 
-    try:
+    with guard_optional(
+        ctx, "Arm-overlap figures",
+        filename="arm_overlap_mean.png", kind="figure", verb="failed",
+    ):
         tables = write_arm_overlap_artifacts(
             ctx.output_dir,
             ctx.trace,
@@ -1513,8 +1532,6 @@ def _write_arm_overlap(
         )
         for name, table in tables.items():
             ctx.tables[name] = table
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Arm-overlap figures failed: {exc}[/yellow]")
 
 
 def _ctx_pareto_k(ctx: StatisticalFitContext) -> np.ndarray | None:
@@ -1541,7 +1558,10 @@ def _write_group_trajectory(
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
     from language_reading_predictors.statistical_models.measures import MEASURES
 
-    try:
+    with guard_optional(
+        ctx, "Group-trajectory figure",
+        filename="group_trajectory.png", kind="figure", verb="failed",
+    ):
         m = MEASURES[outcome_symbol]
         summary = _tp.write_group_arm_trajectory(
             ctx.output_dir,
@@ -1558,8 +1578,6 @@ def _write_group_trajectory(
             obs_node=obs_node,
         )
         ctx.tables["group_trajectory"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Group-trajectory figure failed: {exc}[/yellow]")
 
 
 def _write_child_fit(
@@ -1576,7 +1594,10 @@ def _write_child_fit(
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
     from language_reading_predictors.statistical_models.measures import MEASURES
 
-    try:
+    with guard_optional(
+        ctx, "Per-child fit figure",
+        filename="child_fit_panels.png", kind="figure", verb="failed",
+    ):
         m = MEASURES[outcome_symbol]
         summary = _tp.write_child_fit_obsid(
             ctx.output_dir,
@@ -1594,15 +1615,16 @@ def _write_child_fit(
             x_label=x_label,
         )
         ctx.tables["child_fit_panels"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Per-child fit figure failed: {exc}[/yellow]")
 
 
 def _write_panel_trajectory(ctx: StatisticalFitContext, *, latent_name: str) -> None:
     """Per-measure cohort growth-trajectory figure for a masked panel family (#317)."""
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
 
-    try:
+    with guard_optional(
+        ctx, "Cohort-trajectory figure",
+        filename="group_trajectory.png", kind="figure", verb="failed",
+    ):
         summary = _tp.write_outcome_trajectory(
             ctx.output_dir,
             ctx.trace,
@@ -1611,8 +1633,6 @@ def _write_panel_trajectory(ctx: StatisticalFitContext, *, latent_name: str) -> 
             ci_prob=ctx.reporting.ci_prob,
         )
         ctx.tables["group_trajectory"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Cohort-trajectory figure failed: {exc}[/yellow]")
 
 
 def _write_panel_child_fit(
@@ -1625,7 +1645,10 @@ def _write_panel_child_fit(
     """Per-child small multiples (one focal outcome) for a masked panel family (#317)."""
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
 
-    try:
+    with guard_optional(
+        ctx, "Per-child fit figure",
+        filename="child_fit_panels.png", kind="figure", verb="failed",
+    ):
         summary = _tp.write_child_fit_panel(
             ctx.output_dir,
             ctx.trace,
@@ -1638,13 +1661,14 @@ def _write_panel_child_fit(
             ci_prob=ctx.reporting.ci_prob,
         )
         ctx.tables["child_fit_panels"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Per-child fit figure failed: {exc}[/yellow]")
 
 
 def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
     """Heatmap of joint pairwise probability-scale AME ordering (#125 Area 4)."""
-    try:
+    with guard_optional(
+        ctx, "Contrast heatmap",
+        filename="contrast_heatmap.png", kind="figure", verb="failed",
+    ):
         import numpy as _np
 
         labels = list(contrast.index)
@@ -1663,8 +1687,6 @@ def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
         # ``save_styled_figure`` owns the layout engine. Switching engines after
         # a colorbar has been created raises on recent Matplotlib versions.
         save_styled_figure(ctx.output_dir, "contrast_heatmap", fig=fig)
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Contrast heatmap failed: {exc}[/yellow]")
 
 
 def _growth_contrast_pushforward_rows(
@@ -1750,8 +1772,7 @@ def _write_indicator_prior_check(
     if df.empty:
         rprint("[yellow]indicator prior check: no indicator nodes found[/yellow]")
         return
-    df.to_csv(os.path.join(ctx.output_dir, "indicator_prior_check.csv"), index=False)
-    ctx.tables["indicator_prior_check"] = df
+    save_table(ctx, "indicator_prior_check", df)
     print_table(
         ranked_dataframe_table(
             df,
@@ -1775,10 +1796,7 @@ def _write_prior_pushforward(
     ``status`` is ``unavailable`` carries the reason instead of being dropped.
     """
     df = pd.DataFrame(list(rows))
-    df.to_csv(os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False)
-    tables = getattr(ctx, "tables", None)
-    if tables is not None:
-        tables["prior_pushforward"] = df
+    save_table(ctx, "prior_pushforward", df)
 
 
 def _horseshoe_pushforward_rows(
@@ -1935,7 +1953,10 @@ def _emit_itt_extras(
     for the binary off-floor model. ``moderators`` carries any treatment
     interactions so the prior is pushed through the same full-contribution AME.
     """
-    try:
+    with guard_optional(
+        ctx, "prior pushforward",
+        filename="prior_pushforward.csv", kind="table", verb="skipped",
+    ):
         pf = _report.prior_pushforward(
             ctx.prior_samples,
             G=built.prepared.G,
@@ -1946,12 +1967,7 @@ def _emit_itt_extras(
             ci_prob=ctx.reporting.ci_prob,
             score_mean_link=score_mean_link,
         )
-        pd.DataFrame([pf]).to_csv(
-            os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
-        )
-        ctx.tables["prior_pushforward"] = pd.DataFrame([pf])
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]prior pushforward skipped: {exc}[/yellow]")
+        save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
     _save_forest_plot(ctx, [term])
     _diag.save_prior_posterior_plot(ctx, var_names=overlay_vars)
     _diag.run_psense(ctx, var_names=[term])
@@ -1970,7 +1986,9 @@ def _save_forest_plot(
     joint model the vector ``tau`` forests every outcome's effect in one panel —
     the single most communicative artifact for the suite. Guarded.
     """
-    try:
+    with guard_optional(
+        ctx, f"Forest plot ({name})", filename=name, kind="figure", verb="failed"
+    ):
         import arviz_plots as azp
 
         tr = _diag.thin_for_plots(ctx.trace)
@@ -1996,8 +2014,6 @@ def _save_forest_plot(
                 else "Effect posterior (forest, reference line at 0)"
             )
         save_plotcollection(pc, ctx.output_dir, name, suptitle=title)
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Forest plot ({name}) failed: {exc}[/yellow]")
 
 
 def _save_association_forest(
@@ -2236,34 +2252,27 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         + (["tau"] if use_treatment else [])
     )
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_rate_plot(
-        ctx, spec.outcome_symbol, node="y_event"
+    # Reference adoption of the shared primary-fit lifecycle (#394 design 2):
+    # the invariant sequence lives in ``stages.run_primary_fit`` and the family
+    # declares only its execution profile.
+    _shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=("y_event",),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_rate_plot(
+                c, spec.outcome_symbol, node="y_event"
+            ),
+            extended_term="tau" if use_treatment else None,
+        ),
     )
-
-    _run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    _run_ppc(ctx, var_names=["y_event"])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    if use_treatment:
-        _diag.run_extended_diagnostics(ctx, causal_term="tau")
-    _diag.save_trace(ctx)
 
     section_header("Off-floor hazard summary")
     summary = _survival_summary(
         ctx.trace, ci_prob=ctx.reporting.ci_prob, hazard_link=hazard_link,
         use_treatment=use_treatment,
     )
-    summary.to_csv(os.path.join(ctx.output_dir, "survival_summary.csv"), index=False)
-    ctx.tables["survival_summary"] = summary
+    save_table(ctx, "survival_summary", summary)
     print_table(
         ranked_dataframe_table(
             summary,
@@ -2374,8 +2383,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         score_mean_link=score_mean_link,
     )
     tau_df = pd.DataFrame([tau_s])
-    tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
-    ctx.tables["tau_summary"] = tau_df
+    save_table(ctx, "tau_summary", tau_df)
     print_table(
         metrics_table(
             [{"metric": k, "value": v} for k, v in tau_s.items()],
@@ -2405,8 +2413,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             score_mean_link=score_mean_link,
         )
         rope_df = pd.DataFrame([rope_s])
-        rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
-        ctx.tables["rope_summary"] = rope_df
+        save_table(ctx, "rope_summary", rope_df)
         print_table(
             metrics_table(
                 [{"metric": k, "value": v} for k, v in rope_s.items()],
@@ -2435,10 +2442,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             moderators=tau_moderators,
             score_mean_link=score_mean_link,
         )
-        sens_df.to_csv(
-            os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
-        )
-        ctx.tables["rope_sensitivity"] = sens_df
+        save_table(ctx, "rope_sensitivity", sens_df)
 
     # Predicted-scores contrast panel + icon array (#316): what the model says
     # about actual test scores for a new child, treated vs untreated. No child
@@ -2485,10 +2489,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     tau_mod_s = _report.tau_moderation_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
     if tau_mod_s:
         tau_mod_df = pd.DataFrame([tau_mod_s])
-        tau_mod_df.to_csv(
-            os.path.join(ctx.output_dir, "tau_moderation_summary.csv"), index=False
-        )
-        ctx.tables["tau_moderation_summary"] = tau_mod_df
+        save_table(ctx, "tau_moderation_summary", tau_mod_df)
 
     _write_run_metadata(
         ctx,
@@ -2541,21 +2542,11 @@ def _fit_itt_floor_rule(
     # registered loader retains missing pre-scores for P/N, so without this table
     # those children would disappear silently when np.isclose(NaN, floor) is false.
     eligibility = _floor.baseline_floor_eligibility_by_arm(prepared, own)
-    eligibility.to_csv(
-        os.path.join(ctx.output_dir, "baseline_floor_eligibility.csv"), index=False
-    )
-    ctx.tables["baseline_floor_eligibility"] = eligibility
+    save_table(ctx, "baseline_floor_eligibility", eligibility)
     eligibility_sensitivity = _floor.baseline_floor_status_bounds(prepared, own)
-    eligibility_sensitivity.to_csv(
-        os.path.join(ctx.output_dir, "floor_eligibility_sensitivity.csv"), index=False
-    )
-    ctx.tables["floor_eligibility_sensitivity"] = eligibility_sensitivity
+    save_table(ctx, "floor_eligibility_sensitivity", eligibility_sensitivity)
     transition_missingness = _floor.binary_transition_missingness_bounds(prepared, own)
-    transition_missingness.to_csv(
-        os.path.join(ctx.output_dir, "floor_transition_missingness_bounds.csv"),
-        index=False,
-    )
-    ctx.tables["floor_transition_missingness_bounds"] = transition_missingness
+    save_table(ctx, "floor_transition_missingness_bounds", transition_missingness)
     print_table(
         ranked_dataframe_table(
             eligibility,
@@ -2670,10 +2661,7 @@ def _fit_itt_floor_rule(
     off = _report.tau_summary_offfloor(
         ctx.trace, ci_prob=ctx.reporting.ci_prob, G=built.prepared.G
     )
-    pd.DataFrame([off]).to_csv(
-        os.path.join(ctx.output_dir, "tau_summary.csv"), index=False
-    )
-    ctx.tables["tau_summary"] = pd.DataFrame([off])
+    save_table(ctx, "tau_summary", pd.DataFrame([off]))
     print_table(
         metrics_table(
             [{"metric": k, "value": v} for k, v in off.items()],
@@ -2687,8 +2675,7 @@ def _fit_itt_floor_rule(
     )
 
     movers = _report.offfloor_mover_table(built.prepared, own)
-    movers.to_csv(os.path.join(ctx.output_dir, "offfloor_movers.csv"), index=False)
-    ctx.tables["offfloor_movers"] = movers
+    save_table(ctx, "offfloor_movers", movers)
     print_table(
         ranked_dataframe_table(
             movers,
@@ -2719,10 +2706,7 @@ def _fit_itt_floor_rule(
         )
         rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
         rope_s["delta_scale"] = "risk_difference"
-        pd.DataFrame([rope_s]).to_csv(
-            os.path.join(ctx.output_dir, "rope_summary.csv"), index=False
-        )
-        ctx.tables["rope_summary"] = pd.DataFrame([rope_s])
+        save_table(ctx, "rope_summary", pd.DataFrame([rope_s]))
         _save_rope_plot(
             ctx, own, built.prepared.G, 1, delta_prob, varying_term="", split=True
         )
@@ -2735,10 +2719,7 @@ def _fit_itt_floor_rule(
             deltas=ROPE_DELTA_PROB_GRID,
             varying_term="",
         )
-        sens_df.to_csv(
-            os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
-        )
-        ctx.tables["rope_sensitivity"] = sens_df
+        save_table(ctx, "rope_sensitivity", sens_df)
 
     # Paired off-floor probability display + risk-difference density + icon
     # array (#316): the floor rule's binary estimand drawn as two bars with
@@ -2832,10 +2813,7 @@ def _fit_itt_floor_rule(
         label=f"{spec.model_id} graded cross-check",
         trace_filename="trace_graded_secondary.nc",
     )
-    pd.DataFrame([graded]).to_csv(
-        os.path.join(ctx.output_dir, "tau_summary_graded.csv"), index=False
-    )
-    ctx.tables["tau_summary_graded"] = pd.DataFrame([graded])
+    save_table(ctx, "tau_summary_graded", pd.DataFrame([graded]))
 
     # ----- SECONDARY (flagged): graded contrast AMONG the off-floor children.
     # The #119 hurdle branch reads the graded score conditional on having come off
@@ -2867,10 +2845,7 @@ def _fit_itt_floor_rule(
         )
         hurdle["n_off_floor"] = int(off_floor_data.n_obs)
         hurdle["untruncated_proxy"] = True
-        pd.DataFrame([hurdle]).to_csv(
-            os.path.join(ctx.output_dir, "tau_summary_hurdle.csv"), index=False
-        )
-        ctx.tables["tau_summary_hurdle"] = pd.DataFrame([hurdle])
+        save_table(ctx, "tau_summary_hurdle", pd.DataFrame([hurdle]))
     else:
         rprint(
             f"[yellow]hurdle conditional-above-floor secondary skipped for {own}: "
@@ -2881,8 +2856,11 @@ def _fit_itt_floor_rule(
     # Beta-Binomial reproduces the observed floor.
     ppc0 = _report.proportion_at_zero_ppc(built_g.prepared, own, trace_g)
     _save_proportion_at_zero_plot(ctx, own, ppc0)
-    pd.DataFrame([{k: v for k, v in ppc0.items() if k != "rep"}]).to_csv(
-        os.path.join(ctx.output_dir, "proportion_at_zero_ppc.csv"), index=False
+    save_table(
+        ctx,
+        "proportion_at_zero_ppc",
+        pd.DataFrame([{k: v for k, v in ppc0.items() if k != "rep"}]),
+        register=False,
     )
 
     _write_run_metadata(
@@ -2995,12 +2973,9 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # even though the distribution overlay must be split per outcome (above). Emit
     # only the coverage CSV — the per-outcome overlays + calibration tables are the
     # joint-appropriate figure/table views, so no single pooled calibration panel.
-    try:
+    with guard_optional(ctx, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         _joint_cov = _report.ppc_interval_coverage(ctx.trace, node="y_post")
-        _joint_cov.to_csv(os.path.join(ctx.output_dir, "ppc_summary.csv"), index=False)
-        ctx.tables["ppc_summary"] = _joint_cov
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]ppc_summary.csv skipped: {exc}[/yellow]")
+        save_table(ctx, "ppc_summary", _joint_cov, required=False)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=_joint_vars)
@@ -3034,8 +3009,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ci_prob=ctx.reporting.ci_prob,
         G=built.prepared.G,
     )
-    tau_df.to_csv(os.path.join(ctx.output_dir, "tau_summary.csv"), index=False)
-    ctx.tables["tau_summary"] = tau_df
+    save_table(ctx, "tau_summary", tau_df)
     print_table(
         ranked_dataframe_table(
             tau_df,
@@ -3069,10 +3043,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         deltas=ROPE_DELTA,
         ci_prob=ctx.reporting.ci_prob,
     )
-    joint_marginal.to_csv(
-        os.path.join(ctx.output_dir, "joint_treatment_marginal.csv"), index=False
-    )
-    ctx.tables["joint_treatment_marginal"] = joint_marginal
+    save_table(ctx, "joint_treatment_marginal", joint_marginal)
 
     # Estimand-scale prior check, one row per outcome (#381). A joint fit has one
     # tau and one item denominator per outcome, so the single-row ITT schema
@@ -3100,17 +3071,13 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     contrast = _report.tau_contrast_matrix(
         ctx.trace, outcomes, G=built.prepared.G, scale="probability"
     )
-    contrast.to_csv(os.path.join(ctx.output_dir, "tau_contrast_matrix.csv"))
-    ctx.tables["tau_contrast_matrix"] = contrast
+    save_table(ctx, "tau_contrast_matrix", contrast, index=True)
     _save_contrast_heatmap(ctx, contrast)
 
     logit_contrast = _report.tau_contrast_matrix(
         ctx.trace, outcomes, G=built.prepared.G, scale="logit"
     )
-    logit_contrast.to_csv(
-        os.path.join(ctx.output_dir, "tau_contrast_matrix_logit.csv")
-    )
-    ctx.tables["tau_contrast_matrix_logit"] = logit_contrast
+    save_table(ctx, "tau_contrast_matrix_logit", logit_contrast, index=True)
 
     meta_extra: dict = {
         "loo_elpd": float(ctx.loo.elpd),
@@ -3135,8 +3102,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             metadata=spec.extra.get("difference_metadata"),
         )
         diff_df = pd.DataFrame([diff_s])
-        diff_df.to_csv(os.path.join(ctx.output_dir, "tau_difference.csv"), index=False)
-        ctx.tables["tau_difference"] = diff_df
+        save_table(ctx, "tau_difference", diff_df)
         print_table(
             metrics_table(
                 [{"metric": k, "value": v} for k, v in diff_s.items()],
@@ -3267,7 +3233,7 @@ def _did_analysis_contract(
         manifest["dose_treated_std"] = np.asarray(
             built.extras["dose_treated_std"], dtype=float
         )
-    manifest.to_csv(os.path.join(ctx.output_dir, "analysis_rows.csv"), index=False)
+    save_table(ctx, "analysis_rows", manifest, register=False)
 
     counts = (
         manifest.groupby([phase_name, "arm"], observed=True)
@@ -3410,10 +3376,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         node="y_offfloor" if off_floor else "y_post",
         ci_prob=ctx.reporting.ci_prob,
     )
-    did_cell_ppc.to_csv(
-        os.path.join(ctx.output_dir, "did_cell_ppc.csv"), index=False
-    )
-    ctx.tables["did_cell_ppc"] = did_cell_ppc
+    save_table(ctx, "did_cell_ppc", did_cell_ppc)
     _save_did_cell_ppc_plot(ctx, did_cell_ppc)
 
     section_header("Extended diagnostics")
@@ -3424,7 +3387,10 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.save_prior_posterior_plot(ctx, var_names=_did_diag_vars(spec))
     _diag.run_psense(ctx, var_names=list(plan.psense_terms))
     if not dose:
-        try:
+        with guard_optional(
+            ctx, "DiD prior pushforward",
+            filename="prior_pushforward.csv", kind="table", verb="skipped",
+        ):
             from language_reading_predictors.statistical_models.measures import MEASURES
 
             prior_pushforward = _report.prior_pushforward(
@@ -3438,12 +3404,9 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 row_mask=ctx.prepared.phase == 1,
             )
             prior_pushforward_df = pd.DataFrame([prior_pushforward])
-            prior_pushforward_df.to_csv(
-                os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
+            save_table(
+                ctx, "prior_pushforward", prior_pushforward_df, required=False
             )
-            ctx.tables["prior_pushforward"] = prior_pushforward_df
-        except Exception as exc:  # pragma: no cover
-            rprint(f"[yellow]DiD prior pushforward skipped: {exc}[/yellow]")
         _save_forest_plot(
             ctx,
             ["tau_t2", "arm_gap_t3", "delta_crossover"],
@@ -3488,8 +3451,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         wave=None if dose else ctx.prepared.phase,
     )
     did_df = pd.DataFrame([did_s])
-    did_df.to_csv(os.path.join(ctx.output_dir, "did_summary.csv"), index=False)
-    ctx.tables["did_summary"] = did_df
+    save_table(ctx, "did_summary", did_df)
     print_table(
         metrics_table(
             [{"metric": k, "value": v} for k, v in did_s.items()],
@@ -3568,10 +3530,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     if plan.use_varying_delta:
         section_header("Exploratory waitlist catch-up heterogeneity")
         het = _did_heterogeneity_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
-        pd.DataFrame([het]).to_csv(
-            os.path.join(ctx.output_dir, "heterogeneity_summary.csv"), index=False
-        )
-        ctx.tables["heterogeneity_summary"] = pd.DataFrame([het])
+        save_table(ctx, "heterogeneity_summary", pd.DataFrame([het]))
         print_table(
             metrics_table(
                 [{"metric": k, "value": v} for k, v in het.items()],
@@ -3783,7 +3742,10 @@ def _jm_marginal_ppc(
     deliberately: naming the residual there still conditioned on its posterior values,
     silently reproducing the conditional numbers under a marginal label.
     """
-    try:
+    with guard_optional(
+        ctx, "ppc_summary_marginal.csv",
+        filename="ppc_summary_marginal.csv", kind="table", verb="skipped",
+    ):
         post = ctx.trace.posterior
         required = {"eta", "u_resid", "sigma_u_resid", "rho_outcome"}
         if not required <= set(post.data_vars):
@@ -3844,12 +3806,7 @@ def _jm_marginal_ppc(
                 }
             )
         frame = pd.DataFrame(rows)
-        frame.to_csv(
-            os.path.join(ctx.output_dir, "ppc_summary_marginal.csv"), index=False
-        )
-        ctx.tables["ppc_summary_marginal"] = frame
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]ppc_summary_marginal.csv skipped: {exc}[/yellow]")
+        save_table(ctx, "ppc_summary_marginal", frame, required=False)
 
 
 def _jm_standard_artefacts(
@@ -3895,12 +3852,9 @@ def _jm_standard_artefacts(
     # denominator-agnostic — each flattened child x outcome cell is scored against
     # its own predictive draws — so it is well defined on the flattened ``y_post``
     # even though the distribution overlays must be split per outcome above.
-    try:
+    with guard_optional(ctx, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         coverage = _report.ppc_interval_coverage(ctx.trace, node="y_post")
-        coverage.to_csv(os.path.join(ctx.output_dir, "ppc_summary.csv"), index=False)
-        ctx.tables["ppc_summary"] = coverage
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]ppc_summary.csv skipped: {exc}[/yellow]")
+        save_table(ctx, "ppc_summary", coverage, required=False)
     if marginal_ppc:
         _jm_marginal_ppc(ctx, outcome_symbols=outcome_symbols)
 
@@ -3941,8 +3895,7 @@ def _jm_write_slopes(
         )
     if not (df["term"] == "delta_ls_decoding").any():
         raise ValueError("joint_mechanism_slopes has no delta_ls_decoding row")
-    df.to_csv(os.path.join(ctx.output_dir, "joint_mechanism_slopes.csv"), index=False)
-    ctx.tables["joint_mechanism_slopes"] = df
+    save_table(ctx, "joint_mechanism_slopes", df)
     print_table(
         metrics_table(
             df.to_dict("records"),
@@ -4157,10 +4110,7 @@ def _fit_joint_mechanism_levels(
     section_header("Decoding-specificity contrast and share retained")
     slopes_df = _jm_write_slopes(ctx, slope_rows, contrast=contrast)
     diagnostics_df = pd.DataFrame(diagnostic_rows)
-    diagnostics_df.to_csv(
-        os.path.join(ctx.output_dir, "joint_mechanism_fit_diagnostics.csv"), index=False
-    )
-    ctx.tables["joint_mechanism_fit_diagnostics"] = diagnostics_df
+    save_table(ctx, "joint_mechanism_fit_diagnostics", diagnostics_df)
     _plot_joint_mechanism_by_wave(ctx, slopes_df, ci)
 
     _write_run_metadata(
@@ -4490,10 +4440,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         section_header("Interaction summary")
         gi = _report.gamma_interaction_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
         gi_df = pd.DataFrame([gi])
-        gi_df.to_csv(
-            os.path.join(ctx.output_dir, "interaction_summary.csv"), index=False
-        )
-        ctx.tables["interaction_summary"] = gi_df
+        save_table(ctx, "interaction_summary", gi_df)
         print_table(
             metrics_table(
                 [{"metric": k, "value": v} for k, v in gi.items()],
@@ -4607,10 +4554,15 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     hi = np.quantile(f_ord, 0.945, axis=1)
     lo50 = np.quantile(f_ord, 0.25, axis=1)
     hi50 = np.quantile(f_ord, 0.75, axis=1)
-    pd.DataFrame(
-        {x_col: x, "f_mean": mean, "f_lo": lo, "f_hi": hi,
-         "f_lo50": lo50, "f_hi50": hi50}
-    ).to_csv(os.path.join(ctx.output_dir, "mechanism_curve.csv"), index=False)
+    save_table(
+        ctx,
+        "mechanism_curve",
+        pd.DataFrame(
+            {x_col: x, "f_mean": mean, "f_lo": lo, "f_hi": hi,
+             "f_lo50": lo50, "f_hi50": hi50}
+        ),
+        register=False,
+    )
     outcome = ctx.spec.outcome_symbol or "W"
 
     # Preserve a posterior end-to-end contrast on the outcome-items scale for
@@ -4670,10 +4622,7 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
             }
         ]
     )
-    mechanism_summary.to_csv(
-        os.path.join(ctx.output_dir, "mechanism_summary.csv"), index=False
-    )
-    ctx.tables["mechanism_summary"] = mechanism_summary
+    save_table(ctx, "mechanism_summary", mechanism_summary)
     plt.figure(figsize=FIGSIZE_LG)
     plt.plot(x, mean, color=COLOUR_BLUE, lw=2)
     plt.fill_between(x, lo, hi, color=COLOUR_BLUE, alpha=0.2)
@@ -4760,6 +4709,9 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
             exposure_label=exposure_label,
             ref_quantiles=ref_quantiles,
         )
+        # ``mechanism_curve_items.csv`` is written inside the helper (which takes
+        # an output directory, not a context); record it for the manifest.
+        record_artifact(ctx, "mechanism_curve_items", required=False)
         return worked
     except Exception as exc:  # pragma: no cover - defensive; logit curve stands alone
         rprint(f"[yellow]Items-scale mechanism curve failed: {exc}[/yellow]")
@@ -4854,10 +4806,11 @@ def _write_mechanism_prior_pushforward(
                 reason=str(exc),
             )
         ]
-    try:
+    with guard_optional(
+        ctx, "mechanism prior pushforward",
+        filename="prior_pushforward.csv", kind="table", verb="not written",
+    ):
         _write_prior_pushforward(ctx, rows)
-    except Exception as exc:  # noqa: BLE001 - see the docstring: never raises
-        rprint(f"[yellow]mechanism prior pushforward not written: {exc}[/yellow]")
 
 
 def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
@@ -4912,9 +4865,7 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
         x_obs = np.clip((N + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(N))
         x_label = f"{sym} (raw count, out of {N})"
 
-    pd.DataFrame([summary]).to_csv(
-        os.path.join(ctx.output_dir, "readiness_threshold.csv"), index=False
-    )
+    save_table(ctx, "readiness_threshold", pd.DataFrame([summary]), register=False)
 
     order = np.argsort(x_obs)
     x = x_obs[order]
@@ -5104,8 +5055,7 @@ def _write_dose_slope_summary(
     # new fits should be self-describing (#324).
     df["dose_mean_sessions"] = float(dose_scaler.mean)
     df["dose_sd_sessions"] = float(dose_scaler.sd)
-    df.to_csv(os.path.join(ctx.output_dir, "dose_slope_summary.csv"), index=False)
-    ctx.tables["dose_slope_summary"] = df
+    save_table(ctx, "dose_slope_summary", df)
 
     # Natural-scale average marginal association for the key-findings box
     # (#320): increase the standardised session dose by 1 on every fitted row,
@@ -5145,10 +5095,7 @@ def _write_dose_slope_summary(
             }
         ]
     )
-    marginal.to_csv(
-        os.path.join(ctx.output_dir, "dose_marginal_summary.csv"), index=False
-    )
-    ctx.tables["dose_marginal_summary"] = marginal
+    save_table(ctx, "dose_marginal_summary", marginal)
     print_table(
         metrics_table(
             [
@@ -5404,8 +5351,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         ci_prob=ctx.reporting.ci_prob,
         interventional=_interventional,
     )
-    med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
-    ctx.tables["mediation_summary"] = med_df
+    save_table(ctx, "mediation_summary", med_df)
     # Print the primary decomposition table before the (slow, ~21x-decompose) sensitivity
     # sweep, so the main NDE/NIE result shows under its own section header rather than
     # under the sensitivity header and only after the sweep finishes (#289 review).
@@ -5434,13 +5380,13 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         ci_prob=ctx.reporting.ci_prob,
         interventional=_interventional,
     )
-    sens_sweep.to_csv(
-        os.path.join(ctx.output_dir, "mediation_sensitivity.csv"), index=False
+    save_table(ctx, "mediation_sensitivity", sens_sweep)
+    save_table(
+        ctx,
+        "mediation_sensitivity_summary",
+        pd.DataFrame([sens_summary]),
+        register=False,
     )
-    pd.DataFrame([sens_summary]).to_csv(
-        os.path.join(ctx.output_dir, "mediation_sensitivity_summary.csv"), index=False
-    )
-    ctx.tables["mediation_sensitivity"] = sens_sweep
     if sens_summary["already_null_at_zero"]:
         rprint(
             "  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A "
@@ -5476,10 +5422,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         sensitivity_summary=sens_summary,
     )
     if is_calibration is not None:
-        is_calibration.to_csv(
-            os.path.join(ctx.output_dir, "mediation_is_calibration.csv"), index=False
-        )
-        ctx.tables["mediation_is_calibration"] = is_calibration
+        save_table(ctx, "mediation_is_calibration", is_calibration)
         cal = is_calibration.iloc[0]
         if cal["status"] == "ok":
             rprint(f"  IS calibration: {cal['verdict']} (delta={cal['delta_is_point']:.3f})")
@@ -5502,10 +5445,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             mediator_kind=mediator_kind,
             route_symbols=route_symbols,
         )
-        med_df_t3.to_csv(
-            os.path.join(ctx.output_dir, "mediation_summary_t3.csv"), index=False
-        )
-        ctx.tables["mediation_summary_t3"] = med_df_t3
+        save_table(ctx, "mediation_summary_t3", med_df_t3)
         print_table(
             ranked_dataframe_table(
                 med_df_t3,
@@ -5644,8 +5584,7 @@ def fit_mediation_period_stacked(
     med_df = _med.decompose_period_stacked(
         ctx.trace, med_data, ci_prob=ctx.reporting.ci_prob
     )
-    med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
-    ctx.tables["mediation_summary"] = med_df
+    save_table(ctx, "mediation_summary", med_df)
     print_table(
         ranked_dataframe_table(
             med_df,
@@ -5668,10 +5607,7 @@ def fit_mediation_period_stacked(
         ci_prob=ctx.reporting.ci_prob,
         row_mask=med_data.phase_idx == 0,
     )
-    med_df_p1.to_csv(
-        os.path.join(ctx.output_dir, "mediation_summary_p1.csv"), index=False
-    )
-    ctx.tables["mediation_summary_p1"] = med_df_p1
+    save_table(ctx, "mediation_summary_p1", med_df_p1)
     print_table(
         ranked_dataframe_table(
             med_df_p1,
@@ -5690,13 +5626,13 @@ def fit_mediation_period_stacked(
         decompose_fn=_med.decompose_period_stacked,
         interaction_name="b_trtM",
     )
-    sens_sweep.to_csv(
-        os.path.join(ctx.output_dir, "mediation_sensitivity.csv"), index=False
+    save_table(ctx, "mediation_sensitivity", sens_sweep)
+    save_table(
+        ctx,
+        "mediation_sensitivity_summary",
+        pd.DataFrame([sens_summary]),
+        register=False,
     )
-    pd.DataFrame([sens_summary]).to_csv(
-        os.path.join(ctx.output_dir, "mediation_sensitivity_summary.csv"), index=False
-    )
-    ctx.tables["mediation_sensitivity"] = sens_sweep
     if sens_summary["already_null_at_zero"]:
         rprint(
             "  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A "
@@ -5987,8 +5923,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         ctx.trace, _gf_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob,
         causal_terms=gf_causal_terms,
     )
-    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
-    ctx.tables["factor_summary"] = fs
+    save_table(ctx, "factor_summary", fs)
     _save_association_forest(ctx, _gf_coef_names(spec, adjust_for), gf_causal_terms)
     print_table(
         ranked_dataframe_table(
@@ -6045,10 +5980,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             ci_prob=ctx.reporting.ci_prob,
             row_mask=p1_mask,
         )
-        pd.DataFrame([tme]).to_csv(
-            os.path.join(ctx.output_dir, "treatment_marginal.csv"), index=False
-        )
-        ctx.tables["treatment_marginal"] = pd.DataFrame([tme])
+        save_table(ctx, "treatment_marginal", pd.DataFrame([tme]))
         meta_extra["treatment_marginal"] = tme
         print_table(
             metrics_table(
@@ -6059,18 +5991,15 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         )
 
         # Prior pushforward on the same scale (estimand-scale prior check, #125).
-        try:
+        with guard_optional(
+            ctx, "prior pushforward", filename="prior_pushforward.csv", kind="table"
+        ):
             pf = _report.prior_pushforward(
                 ctx.prior_samples, G=trt, n_trials=n_marg,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
                 ci_prob=ctx.reporting.ci_prob, row_mask=p1_mask,
             )
-            pd.DataFrame([pf]).to_csv(
-                os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
-            )
-            ctx.tables["prior_pushforward"] = pd.DataFrame([pf])
-        except Exception as exc:  # pragma: no cover
-            rprint(f"[yellow]prior pushforward skipped: {exc}[/yellow]")
+            save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
 
         # ROPE-anchored continuous report for the one causal term (beta_trt),
         # mirroring fit_itt (notes/202606261304-evidence-strength-and-rope-
@@ -6103,8 +6032,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 direction_from_ame=True,
             )
             rope_df = pd.DataFrame([rope_s])
-            rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
-            ctx.tables["rope_summary"] = rope_df
+            save_table(ctx, "rope_summary", rope_df)
             meta_extra["rope_summary"] = rope_s
             print_table(
                 metrics_table(
@@ -6131,10 +6059,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             )
             rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
             rope_s["delta_scale"] = "risk_difference"
-            pd.DataFrame([rope_s]).to_csv(
-                os.path.join(ctx.output_dir, "rope_summary.csv"), index=False
-            )
-            ctx.tables["rope_summary"] = pd.DataFrame([rope_s])
+            save_table(ctx, "rope_summary", pd.DataFrame([rope_s]))
             meta_extra["rope_summary"] = rope_s
             _save_rope_plot(
                 ctx, spec.outcome_symbol, trt, 1, delta_prob,
@@ -6148,10 +6073,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 term="beta_trt", varying_term="", moderators=trt_moderators,
                 row_mask=p1_mask,
             )
-            sens_df.to_csv(
-                os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
-            )
-            ctx.tables["rope_sensitivity"] = sens_df
+            save_table(ctx, "rope_sensitivity", sens_df)
 
         # Predicted-scores contrast panel + icon array (#316), averaged over the
         # same period-1 reference rows as treatment_marginal.csv and integrating
@@ -6206,10 +6128,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             ci_prob=ctx.reporting.ci_prob,
             row_mask=None,
         )
-        am.to_csv(
-            os.path.join(ctx.output_dir, "association_marginals.csv"), index=False
-        )
-        ctx.tables["association_marginals"] = am
+        save_table(ctx, "association_marginals", am)
         meta_extra["association_marginals"] = {
             "averaging_population": "all_stacked_rows",
             "k_items": 5,
@@ -6315,8 +6234,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     fs = _report.factor_summary(
         ctx.trace, _lf_coefs, ci_prob=ctx.reporting.ci_prob, causal_terms=causal
     )
-    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
-    ctx.tables["factor_summary"] = fs
+    save_table(ctx, "factor_summary", fs)
     _save_association_forest(ctx, _lf_coefs, causal)
     print_table(
         ranked_dataframe_table(
@@ -6408,10 +6326,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         except Exception as exc:
             rprint(f"[yellow]prior_pushforward skipped: {exc}[/yellow]")
         else:
-            pd.DataFrame([pf]).to_csv(
-                os.path.join(ctx.output_dir, "prior_pushforward.csv"), index=False
-            )
-            ctx.tables["prior_pushforward"] = pd.DataFrame([pf])
+            save_table(ctx, "prior_pushforward", pd.DataFrame([pf]))
             meta_extra["prior_pushforward"] = pf
         rope_s = _report.rope_card(
             contrast_draws, items, delta=delta, ci_prob=ctx.reporting.ci_prob
@@ -6420,8 +6335,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
             rope_s["delta_scale"] = "risk_difference"
         rope_df = pd.DataFrame([rope_s])
-        rope_df.to_csv(os.path.join(ctx.output_dir, "rope_summary.csv"), index=False)
-        ctx.tables["rope_summary"] = rope_df
+        save_table(ctx, "rope_summary", rope_df)
         meta_extra["rope_summary"] = rope_s
         print_table(
             metrics_table(
@@ -6451,10 +6365,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                     }
                 )
             sens_df = pd.DataFrame(sens_rows)
-            sens_df.to_csv(
-                os.path.join(ctx.output_dir, "rope_sensitivity.csv"), index=False
-            )
-            ctx.tables["rope_sensitivity"] = sens_df
+            save_table(ctx, "rope_sensitivity", sens_df)
 
     # Data-space figures (#317): population per-arm score trajectory (the crossover
     # picture — only the t2 gap is randomised) and per-child fitted-vs-observed panels.
@@ -6589,8 +6500,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
         ctx.trace, _bx_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob,
         causal_terms=(),
     )
-    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
-    ctx.tables["factor_summary"] = fs
+    save_table(ctx, "factor_summary", fs)
     _save_association_forest(ctx, _bx_coef_names(spec, adjust_for), ())
     print_table(
         ranked_dataframe_table(
@@ -6611,8 +6521,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
         n_trials=1 if off_floor else MEASURES[sym].n_trials,
     )
     bx_df = pd.DataFrame([bx_s])
-    bx_df.to_csv(os.path.join(ctx.output_dir, "block_exposure_summary.csv"), index=False)
-    ctx.tables["block_exposure_summary"] = bx_df
+    save_table(ctx, "block_exposure_summary", bx_df)
     print_table(
         metrics_table(
             [{"metric": k, "value": v} for k, v in bx_s.items()],
@@ -6717,8 +6626,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     fs = _report.factor_summary(
         ctx.trace, _al_coef_names(spec), ci_prob=ctx.reporting.ci_prob, causal_terms=()
     )
-    fs.to_csv(os.path.join(ctx.output_dir, "factor_summary.csv"), index=False)
-    ctx.tables["factor_summary"] = fs
+    save_table(ctx, "factor_summary", fs)
     # Per-protocol: every term is an association, so the forest shows them all.
     _save_association_forest(ctx, _al_coef_names(spec), ())
     print_table(
@@ -6742,10 +6650,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ctx.trace, trt=cohort, n_trials=n_marg, term="beta_cohort",
             ci_prob=ctx.reporting.ci_prob,
         )
-        pd.DataFrame([cme]).to_csv(
-            os.path.join(ctx.output_dir, "cohort_marginal.csv"), index=False
-        )
-        ctx.tables["cohort_marginal"] = pd.DataFrame([cme])
+        save_table(ctx, "cohort_marginal", pd.DataFrame([cme]))
         meta_extra["cohort_marginal"] = cme
         print_table(
             metrics_table(
@@ -6921,8 +6826,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         hdi_prob=ctx.reporting.ci_prob,
         order=tuple(spec.extra.get("order", ("L", "E"))),
     )
-    med_df.to_csv(os.path.join(ctx.output_dir, "mediation_summary.csv"), index=False)
-    ctx.tables["mediation_summary"] = med_df
+    save_table(ctx, "mediation_summary", med_df)
     print_table(
         ranked_dataframe_table(
             med_df,
@@ -6943,14 +6847,8 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         ci_prob=ctx.reporting.ci_prob,
         order=tuple(spec.extra.get("order", ("L", "E"))),
     )
-    sens_sweep.to_csv(
-        os.path.join(ctx.output_dir, "mediation_sensitivity.csv"), index=False
-    )
-    sens_summary.to_csv(
-        os.path.join(ctx.output_dir, "mediation_sensitivity_summary.csv"), index=False
-    )
-    ctx.tables["mediation_sensitivity"] = sens_sweep
-    ctx.tables["mediation_sensitivity_summary"] = sens_summary
+    save_table(ctx, "mediation_sensitivity", sens_sweep)
+    save_table(ctx, "mediation_sensitivity_summary", sens_summary)
     for row in sens_summary.to_dict("records"):
         mediator = row["mediator"]
         if row["already_null_at_zero"]:
@@ -6993,10 +6891,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             sens_summary,
             session_symbol=_calibration_symbol,
         )
-        calibration_df.to_csv(
-            os.path.join(ctx.output_dir, "mediation_is_calibration.csv"), index=False
-        )
-        ctx.tables["mediation_is_calibration"] = calibration_df
+        save_table(ctx, "mediation_is_calibration", calibration_df)
         for conclusion in calibration_df["conclusion"]:
             rprint(f"  {conclusion}")
 
@@ -7224,8 +7119,7 @@ def _write_loo_influence(ctx: StatisticalFitContext) -> pd.DataFrame | None:
     out = influence.copy()
     out["good_k_threshold"] = threshold
     out["loo_reliable"] = out["pareto_k"] <= threshold
-    out.to_csv(os.path.join(ctx.output_dir, "pareto_k.csv"), index=False)
-    ctx.tables["pareto_k"] = out
+    save_table(ctx, "pareto_k", out)
     return out
 
 
@@ -7320,8 +7214,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     section_header("Predictor ranking")
     ranking = _report.horseshoe_ranking(ctx.trace, delta=delta)
-    ranking.to_csv(os.path.join(ctx.output_dir, "predictor_ranking.csv"), index=False)
-    ctx.tables["predictor_ranking"] = ranking
+    save_table(ctx, "predictor_ranking", ranking)
     print_table(ranked_dataframe_table(ranking.head(10), title="Horseshoe predictor ranking (top 10)"))
     _write_prior_pushforward(ctx, _horseshoe_pushforward_rows(ctx, predictors, outcome))
 
@@ -7499,10 +7392,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _missing_mask = assoc_df["predictor"].astype(str).str.endswith("_missing")
     if _missing_mask.any():
         assoc_df = assoc_df[~_missing_mask].reset_index(drop=True)
-    assoc_df.to_csv(
-        os.path.join(ctx.output_dir, "predictor_associations.csv"), index=False
-    )
-    ctx.tables["predictor_associations"] = assoc_df
+    save_table(ctx, "predictor_associations", assoc_df)
     _pf_assoc = assoc_df
     # Estimand-scale prior check on the headline adjusted associations (#381).
     # Driven off the association table just written, not off ``headline``: the
@@ -7571,8 +7461,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 }
             )
     ps_df = pd.DataFrame(ps_rows)
-    ps_df.to_csv(os.path.join(ctx.output_dir, "prior_sensitivity.csv"), index=False)
-    ctx.tables["prior_sensitivity"] = ps_df
+    save_table(ctx, "prior_sensitivity", ps_df)
 
     # --- SES complete-case sensitivity -------------------------------------
     section_header("SES sensitivity (complete cases)")
@@ -7616,10 +7505,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             for k in ses_predictors
         ]
         ses_df = pd.DataFrame(ses_rows)
-        ses_df.to_csv(
-            os.path.join(ctx.output_dir, "ses_sensitivity.csv"), index=False
-        )
-        ctx.tables["ses_sensitivity"] = ses_df
+        save_table(ctx, "ses_sensitivity", ses_df)
         rprint(f"  SES sensitivity fit on {ses_n} complete-case children")
     except Exception as exc:  # pragma: no cover
         # Record the failure (type + message + traceback) rather than swallowing
@@ -7635,10 +7521,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # --- Natural-scale interpretation (predicted gain, in words) -----------
     section_header("Predicted gain on the natural (words) scale")
     words_df = _natural_scale_contrasts(ctx, ctx.prepared, headline, outcome, hdi)
-    words_df.to_csv(
-        os.path.join(ctx.output_dir, "predicted_gain_words.csv"), index=False
-    )
-    ctx.tables["predicted_gain_words"] = words_df
+    save_table(ctx, "predicted_gain_words", words_df)
     print_table(
         ranked_dataframe_table(
             words_df,
@@ -7659,8 +7542,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Influence (PSIS-LOO Pareto-k)")
     infl_df, k_thr, n_flagged = _influence_diagnostics(ctx)
     if infl_df is not None:
-        infl_df.to_csv(os.path.join(ctx.output_dir, "influence.csv"), index=False)
-        ctx.tables["influence"] = infl_df
+        save_table(ctx, "influence", infl_df)
         rprint(
             f"  max Pareto-k = {infl_df['pareto_k'].max():.2f}; "
             f"{n_flagged} of {len(infl_df)} children exceed k = {k_thr:.2f}"
@@ -7958,8 +7840,7 @@ def _write_concurrent_outputs(
         ("concurrent_marginals", marginal_df),
         ("concurrent_fit_diagnostics", diagnostic_df),
     ):
-        frame.to_csv(os.path.join(ctx.output_dir, f"{name}.csv"), index=False)
-        ctx.tables[name] = frame
+        save_table(ctx, name, frame)
 
     return association_df, marginal_df, diagnostic_df
 
@@ -8531,8 +8412,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         )
     coupling_df = pd.DataFrame(rows)
-    coupling_df.to_csv(os.path.join(ctx.output_dir, "coupling_summary.csv"), index=False)
-    ctx.tables["coupling_summary"] = coupling_df
+    save_table(ctx, "coupling_summary", coupling_df)
     print_table(
         ranked_dataframe_table(
             coupling_df,
@@ -8561,10 +8441,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 )
             )
         itt_df = pd.DataFrame(itt_rows)
-        itt_df.to_csv(
-            os.path.join(ctx.output_dir, "itt_window1_contrast.csv"), index=False
-        )
-        ctx.tables["itt_window1_contrast"] = itt_df
+        save_table(ctx, "itt_window1_contrast", itt_df)
         print_table(
             ranked_dataframe_table(
                 itt_df,
@@ -8606,10 +8483,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ),
         ]
         dom_df = pd.DataFrame(dom_rows)
-        dom_df.to_csv(
-            os.path.join(ctx.output_dir, "dominance_summary.csv"), index=False
-        )
-        ctx.tables["dominance_summary"] = dom_df
+        save_table(ctx, "dominance_summary", dom_df)
         print_table(
             ranked_dataframe_table(
                 dom_df,
@@ -8731,10 +8605,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # round out the trajectory characterisation. All adjusted associations.
     section_header("Non-verbal ability -> trajectory shape (Q5)")
     gs = _report.growth_association_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
-    gs.to_csv(
-        os.path.join(ctx.output_dir, "growth_association_summary.csv"), index=False
-    )
-    ctx.tables["growth_association_summary"] = gs
+    save_table(ctx, "growth_association_summary", gs)
     _save_forest_plot(ctx, ["gamma"], name="gamma_forest.png")
     print_table(
         ranked_dataframe_table(
@@ -8780,10 +8651,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "hi50": float(np.quantile(corr, 0.75)),
             "prob_pos": float(np.mean(corr > 0)),
         }
-        pd.DataFrame([tempo_corr]).to_csv(
-            os.path.join(ctx.output_dir, "growth_tempo_corr.csv"), index=False
-        )
-        ctx.tables["growth_tempo_corr"] = pd.DataFrame([tempo_corr])
+        save_table(ctx, "growth_tempo_corr", pd.DataFrame([tempo_corr]))
         rprint(
             f"[bold]blocks <-> growth-tempo residual corr:[/bold] {tempo_corr['median']:+.3f} "
             f"[{tempo_corr['lo']:+.3f}, {tempo_corr['hi']:+.3f}] "
@@ -8908,21 +8776,11 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     section_header("Growth summaries")
     measure_label = measures[measure].label
     baseline = _historical.observed_baseline(panel, measure, measure_label)
-    baseline.to_csv(
-        os.path.join(ctx.output_dir, "observed_complete_case_baseline.csv"),
-        index=False,
-    )
-    ctx.tables["observed_complete_case_baseline"] = baseline
+    save_table(ctx, "observed_complete_case_baseline", baseline)
     cells = _historical.cell_summary(ctx.trace, panel, measure, measure_label, baseline)
-    cells.to_csv(
-        os.path.join(ctx.output_dir, "posterior_cell_summary.csv"), index=False
-    )
-    ctx.tables["posterior_cell_summary"] = cells
+    save_table(ctx, "posterior_cell_summary", cells)
     growth = _historical.growth_summary(ctx.trace, panel, measure)
-    growth.to_csv(
-        os.path.join(ctx.output_dir, "posterior_growth_summary.csv"), index=False
-    )
-    ctx.tables["posterior_growth_summary"] = growth
+    save_table(ctx, "posterior_growth_summary", growth)
     _write_prior_pushforward(
         ctx, _growth_contrast_pushforward_rows(ctx, panel, measure)
     )
@@ -9138,10 +8996,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             }
         )
     assoc = pd.DataFrame(rows)
-    assoc.to_csv(
-        os.path.join(ctx.output_dir, "predictor_associations.csv"), index=False
-    )
-    ctx.tables["predictor_associations"] = assoc
+    save_table(ctx, "predictor_associations", assoc)
     _pf_assoc = assoc
     # Estimand-scale prior check on the headline adjusted associations (#381).
     # Driven off the association table just written, not off ``headline``: the
@@ -9182,10 +9037,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # --- Items-scale contrasts (the key-findings headline) ------------------
     section_header("Items-scale +1 SD contrasts")
     gain_words = _rlm_natural_scale_contrasts(ctx, frame, headline, hdi)
-    gain_words.to_csv(
-        os.path.join(ctx.output_dir, "predicted_gain_words.csv"), index=False
-    )
-    ctx.tables["predicted_gain_words"] = gain_words
+    save_table(ctx, "predicted_gain_words", gain_words)
 
     # --- Prior-sensitivity sweep over the slope sigma ------------------------
     section_header("Prior sensitivity (slope sigma)")
@@ -9214,8 +9066,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 }
             )
     sens = pd.DataFrame(sens_rows)
-    sens.to_csv(os.path.join(ctx.output_dir, "prior_sensitivity.csv"), index=False)
-    ctx.tables["prior_sensitivity"] = sens
+    save_table(ctx, "prior_sensitivity", sens)
 
     _write_run_metadata(
         ctx,
@@ -9310,8 +9161,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Predictor ranking")
     ranking = _report.horseshoe_ranking(ctx.trace, delta=delta)
-    ranking.to_csv(os.path.join(ctx.output_dir, "predictor_ranking.csv"), index=False)
-    ctx.tables["predictor_ranking"] = ranking
+    save_table(ctx, "predictor_ranking", ranking)
     print_table(
         ranked_dataframe_table(ranking, title="Horseshoe predictor ranking")
     )
@@ -9431,8 +9281,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     )
 
     load_df = _rlm_summaries.loadings_communalities_table(post, domains, lo_q=lo_q)
-    load_df.to_csv(os.path.join(ctx.output_dir, "loadings_summary.csv"), index=False)
-    ctx.tables["loadings_summary"] = load_df
+    save_table(ctx, "loadings_summary", load_df)
     print_table(
         ranked_dataframe_table(
             load_df,
@@ -9449,13 +9298,9 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     # --- Factor correlation matrix + per-pair summary ------------------------
     section_header("Factor correlation")
     corr_df = _rlm_summaries.factor_correlation_matrix(post)
-    corr_df.to_csv(os.path.join(ctx.output_dir, "factor_correlation.csv"))
-    ctx.tables["factor_correlation"] = corr_df
+    save_table(ctx, "factor_correlation", corr_df, index=True)
     corr_summary_df = _rlm_summaries.factor_correlation_pairs(post, lo_q=lo_q)
-    corr_summary_df.to_csv(
-        os.path.join(ctx.output_dir, "factor_correlation_summary.csv"), index=False
-    )
-    ctx.tables["factor_correlation_summary"] = corr_summary_df
+    save_table(ctx, "factor_correlation_summary", corr_summary_df)
     print_table(
         ranked_dataframe_table(
             corr_summary_df,
@@ -9581,8 +9426,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     corr_df = pd.DataFrame(
         corr_draws.mean(dim=("chain", "draw")).values, index=mnames, columns=mnames
     )
-    corr_df.to_csv(os.path.join(ctx.output_dir, "measure_correlation.csv"))
-    ctx.tables["measure_correlation"] = corr_df
+    save_table(ctx, "measure_correlation", corr_df, index=True)
     corr_stacked = corr_draws.stack(sample=("chain", "draw"))
     labels = {
         m: str(measures[m].label) if m in measures else m for m in mnames
@@ -9611,10 +9455,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                 }
             )
     corr_summary_df = pd.DataFrame(corr_rows)
-    corr_summary_df.to_csv(
-        os.path.join(ctx.output_dir, "measure_correlation_summary.csv"), index=False
-    )
-    ctx.tables["measure_correlation_summary"] = corr_summary_df
+    save_table(ctx, "measure_correlation_summary", corr_summary_df)
     print_table(
         ranked_dataframe_table(
             corr_summary_df,
@@ -9634,9 +9475,8 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     for m in measure_syms:
         label = measures[m].label
         baseline = _historical.observed_baseline(panel, m, label)
-        baseline.to_csv(
-            os.path.join(ctx.output_dir, f"observed_complete_case_baseline_{m}.csv"),
-            index=False,
+        save_table(
+            ctx, f"observed_complete_case_baseline_{m}", baseline, register=False
         )
         cells = _historical.cell_summary(
             ctx.trace,
@@ -9647,18 +9487,11 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             mean_var=f"mean_items_{m}",
             fitted_var=f"fitted_mean_items_obs_{m}",
         )
-        cells.to_csv(
-            os.path.join(ctx.output_dir, f"posterior_cell_summary_{m}.csv"),
-            index=False,
-        )
+        save_table(ctx, f"posterior_cell_summary_{m}", cells, register=False)
         growth = _historical.growth_summary(
             ctx.trace, panel, m, fitted_var=f"fitted_mean_items_obs_{m}"
         )
-        growth.to_csv(
-            os.path.join(ctx.output_dir, f"posterior_growth_summary_{m}.csv"),
-            index=False,
-        )
-        ctx.tables[f"posterior_growth_summary_{m}"] = growth
+        save_table(ctx, f"posterior_growth_summary_{m}", growth)
         _pf_rows.extend(
             _growth_contrast_pushforward_rows(
                 ctx,
@@ -9917,8 +9750,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     load_df = _cf_summaries.loadings_communalities_table(
         post, domains, lo_q=lo_q, loading_var="lambda_load"
     )
-    load_df.to_csv(os.path.join(ctx.output_dir, "loadings_summary.csv"), index=False)
-    ctx.tables["loadings_summary"] = load_df
+    save_table(ctx, "loadings_summary", load_df)
     print_table(
         ranked_dataframe_table(
             load_df,
@@ -9937,16 +9769,12 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     corr_df = _cf_summaries.factor_correlation_matrix(post)
     # Domain names are also used by the structural leg below (beta_factor dims).
     dnames = [str(d) for d in post["domain"].values]
-    corr_df.to_csv(os.path.join(ctx.output_dir, "factor_correlation.csv"))
-    ctx.tables["factor_correlation"] = corr_df
+    save_table(ctx, "factor_correlation", corr_df, index=True)
     # The bare mean matrix above is kept for the heatmap, but the house rule is
     # "never a bare point estimate": persist each unique off-diagonal pair with a
     # posterior mean, equal-tailed interval and tail probability alongside it.
     corr_summary_df = _cf_summaries.factor_correlation_pairs(post, lo_q=lo_q)
-    corr_summary_df.to_csv(
-        os.path.join(ctx.output_dir, "factor_correlation_summary.csv"), index=False
-    )
-    ctx.tables["factor_correlation_summary"] = corr_summary_df
+    save_table(ctx, "factor_correlation_summary", corr_summary_df)
 
     # --- Structural slopes: factor -> reading gain (adjusted associations) ---
     section_header("Structural slopes (factor -> gain)")
@@ -9965,8 +9793,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     )
     struct_rows += [_coef_row(t, post[t].values, hdi) for t in extra_terms]
     struct_df = pd.DataFrame(struct_rows)
-    struct_df.to_csv(os.path.join(ctx.output_dir, "structural_summary.csv"), index=False)
-    ctx.tables["structural_summary"] = struct_df
+    save_table(ctx, "structural_summary", struct_df)
     print_table(
         ranked_dataframe_table(
             struct_df,
@@ -10252,8 +10079,7 @@ def fit_longitudinal_corr_factor(
             }
         )
     load_df = pd.DataFrame(load_rows)
-    load_df.to_csv(os.path.join(ctx.output_dir, "loadings_summary.csv"), index=False)
-    ctx.tables["loadings_summary"] = load_df
+    save_table(ctx, "loadings_summary", load_df)
     print_table(
         ranked_dataframe_table(
             load_df,
@@ -10270,10 +10096,7 @@ def fit_longitudinal_corr_factor(
     # --- Per-wave latent factor correlations (the headline) ---
     section_header("Per-wave latent factor correlations")
     corr_df = _report.longitudinal_factor_correlations(ctx.trace, ci_prob=hdi)
-    corr_df.to_csv(
-        os.path.join(ctx.output_dir, "factor_correlation_by_wave.csv"), index=False
-    )
-    ctx.tables["factor_correlation_by_wave"] = corr_df
+    save_table(ctx, "factor_correlation_by_wave", corr_df)
     print_table(
         ranked_dataframe_table(
             corr_df,
@@ -10287,10 +10110,7 @@ def fit_longitudinal_corr_factor(
     # --- Conditional (partial) latent slopes ---
     section_header("Conditional latent slopes")
     slope_df = _report.longitudinal_conditional_slopes(ctx.trace, ci_prob=hdi)
-    slope_df.to_csv(
-        os.path.join(ctx.output_dir, "latent_conditional_slopes.csv"), index=False
-    )
-    ctx.tables["latent_conditional_slopes"] = slope_df
+    save_table(ctx, "latent_conditional_slopes", slope_df)
 
     # --- Trait / state (across-wave) structure ---
     section_header("Trait / state structure")
@@ -10306,17 +10126,13 @@ def fit_longitudinal_corr_factor(
             }
         )
     ts_df = pd.DataFrame(ts_rows)
-    ts_df.to_csv(os.path.join(ctx.output_dir, "trait_state_summary.csv"), index=False)
-    ctx.tables["trait_state_summary"] = ts_df
+    save_table(ctx, "trait_state_summary", ts_df)
 
     # --- Latent-versus-observed comparison (#312 triangulation anchor) --------
     section_header("Latent-versus-observed correlation comparison")
     obs_df = _lcf_observed_domain_corr(built)
     xcheck_df = _report.disattenuation_crosscheck(corr_df, obs_df)
-    xcheck_df.to_csv(
-        os.path.join(ctx.output_dir, "disattenuation_crosscheck.csv"), index=False
-    )
-    ctx.tables["disattenuation_crosscheck"] = xcheck_df
+    save_table(ctx, "disattenuation_crosscheck", xcheck_df)
     n_latent_below = int((~xcheck_df["latent_ge_observed"]).sum())
     n_latent_at_or_above = len(xcheck_df) - n_latent_below
     rprint(
@@ -10329,18 +10145,12 @@ def fit_longitudinal_corr_factor(
     # --- Items-scale translation for the headline pairs ---
     section_header("Items-scale translation (selected pairs)")
     items_df = _lcf_items_scale(ctx, built)
-    items_df.to_csv(
-        os.path.join(ctx.output_dir, "latent_items_slopes.csv"), index=False
-    )
-    ctx.tables["latent_items_slopes"] = items_df
+    save_table(ctx, "latent_items_slopes", items_df)
 
     # --- Directed comparison with matching concurrent associations (#312) ---
     section_header("Directed LCF-versus-concurrent comparison")
     concurrent_df = _lcf_concurrent_comparison(ctx, built)
-    concurrent_df.to_csv(
-        os.path.join(ctx.output_dir, "lcf_concurrent_comparison.csv"), index=False
-    )
-    ctx.tables["lcf_concurrent_comparison"] = concurrent_df
+    save_table(ctx, "lcf_concurrent_comparison", concurrent_df)
     n_ca_available = int(concurrent_df["ca_available"].sum())
     if n_ca_available < len(concurrent_df):
         rprint(
