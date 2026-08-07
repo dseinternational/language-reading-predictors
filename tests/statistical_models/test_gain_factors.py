@@ -324,6 +324,18 @@ def test_resolve_off_floor_sets_bernoulli_node_and_risk_difference():
     assert "risk difference" in plan.estimand
 
 
+def test_resolve_off_floor_estimand_is_status_not_transition():
+    """#490 review: the Bernoulli outcome is off-floor STATUS at the period end
+    (post > 0) — pooling moving off, staying above and returning to the floor —
+    not a move-off-the-floor transition. The persisted plan text (config.json and
+    model_recipe.md) must say so."""
+    plan = resolve_gain_factors_run_plan(_spec(likelihood="bernoulli_offfloor"))
+    assert "being off the floor at the period end" in plan.estimand
+    assert "off-floor status at the period end" in plan.design
+    assert "returning to it" in plan.design
+    assert "probability of moving off the floor" not in plan.estimand
+
+
 def test_resolve_splits_adjust_for_by_wave():
     # deapp_c (speech) is a language-proximal confounder → baseline (t1) timing;
     # hs (hearing) is exogenous → contemporaneous (post). Mirrors #247 timing.

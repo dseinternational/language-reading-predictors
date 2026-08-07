@@ -488,6 +488,20 @@ def _prior_table_overrides(
                 ),
             }
         )
+    elif spec.kind == "gain_factors" and spec.extra.get("moderation_variant", False):
+        # Moderation variants (#391 finding 3): beta_trt keeps the tau-tier prior
+        # but is never presented as causal — its interaction-aware marginal is
+        # model-dependent (the trt interactions are estimated on all stacked
+        # periods, partly post-crossover). The causal headline lives in the
+        # interaction-free primary; every artefact of a variant fit must agree.
+        role["beta_trt"] = "association"
+        rationale["beta_trt"] = (
+            "On-intervention log-odds contrast inside an explicitly associational "
+            "moderation variant: netted with the fitted treatment interactions it "
+            "is a model-dependent association, partly informed by post-crossover "
+            "data — read the randomised causal headline from the interaction-free "
+            "primary model."
+        )
     elif spec.kind == "did":
         # Time offsets and every post-crossover term are associations.  Only the
         # saturated arm-by-wave model's t2 arm gap is licensed by randomisation.
@@ -5946,14 +5960,21 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
-    _causal_gf = None if treated_only else "beta_trt"
+    # The diagnostic FOCAL term, not a causal designation: for a moderation
+    # variant beta_trt is still the term whose mixing, ESS evolution, forest and
+    # prior sensitivity a reader needs, but it is presented as a model-dependent
+    # association everywhere (factor_summary role, priors-table override, the
+    # results partial and the key-findings box all branch on moderation_variant)
+    # — the plot titles here are deliberately neutral ("Rank plot", "Effect
+    # posterior"), so focusing them on beta_trt asserts nothing causal.
+    _focal_gf = None if treated_only else "beta_trt"
     _diag.write_diagnostics_summary(ctx, var_names=_gf_diag_vars(spec, adjust_for))
-    _diag.run_extended_diagnostics(ctx, causal_term=_causal_gf)
+    _diag.run_extended_diagnostics(ctx, causal_term=_focal_gf)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_gf_diag_vars(spec, adjust_for))
-    if _causal_gf is not None:
-        _save_forest_plot(ctx, [_causal_gf])
-        _diag.run_psense(ctx, var_names=[_causal_gf])
+    if _focal_gf is not None:
+        _save_forest_plot(ctx, [_focal_gf])
+        _diag.run_psense(ctx, var_names=[_focal_gf])
 
     section_header("Factor summary")
     # A moderation variant's beta_trt is NOT flagged causal: its interaction-aware

@@ -148,6 +148,35 @@ def test_level_factor_prior_role_is_conservative_for_group_time_vector():
     assert "only b_grp_time[1]" in rationale["b_grp_time"]
 
 
+def test_gain_factor_moderation_variant_demotes_beta_trt_role():
+    """#490 review: a moderation variant's ``beta_trt`` must not reach the priors
+    table as "causal" — every artefact of a variant fit presents it as a
+    model-dependent association, priors_table.csv included. A headline primary is
+    untouched (no override entry), so its ``beta_trt`` keeps the causal role."""
+    from language_reading_predictors.statistical_models.pipeline import (
+        _prior_table_overrides,
+    )
+
+    variant = SimpleNamespace(
+        spec=SimpleNamespace(
+            kind="gain_factors",
+            outcome_symbol="W",
+            extra={"moderation_variant": True},
+        ),
+        model=None,
+    )
+    _ctor, role, rationale = _prior_table_overrides(variant)
+    assert role["beta_trt"] == "association"
+    assert "interaction-free" in rationale["beta_trt"]
+
+    primary = SimpleNamespace(
+        spec=SimpleNamespace(kind="gain_factors", outcome_symbol="W", extra={}),
+        model=None,
+    )
+    _ctor, role, _rationale = _prior_table_overrides(primary)
+    assert "beta_trt" not in role
+
+
 def test_priors_table_applies_rationale_overrides():
     model = SimpleNamespace(free_RVs=[_rv("b_grp_time")], deterministics=[])
     df = priors.priors_table(

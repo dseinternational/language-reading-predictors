@@ -3893,24 +3893,33 @@ def _kf_outcome_label(config: Mapping) -> str:
     return config.get("title") or symbol or "the outcome"
 
 
-def _kf_direction_words(prob_pos, *, is_rd: bool) -> str:
+def _kf_direction_words(
+    prob_pos, *, is_rd: bool, rd_event: str = "coming off the floor"
+) -> str:
     """The harm-aware confidence sentence body (#179): evidence for the
     *favoured* direction, so a clearly negative effect reads as evidence of harm
-    rather than 'inconclusive'."""
+    rather than 'inconclusive'.
+
+    ``rd_event`` names the risk-difference event so each family states its own
+    estimand: the default suits the ITT floored primaries (a genuine off-floor
+    *transition* among children observed at the baseline floor), while the
+    gain-family off-floor models pass "being off the floor at the period end" —
+    their Bernoulli outcome is post-period *status* (``post > 0``), pooling
+    moving off, staying above and returning to the floor (#391 review)."""
     p = _kf_float(prob_pos)
     fav = favoured_direction(p)
     label = fav["favoured_direction_label"]
     if fav["favoured_direction"] == "positive":
         sign_word = "positive"
         claim = (
-            "the intervention raises the chance of coming off the floor"
+            f"the intervention raises the chance of {rd_event}"
             if is_rd
             else "the intervention helps"
         )
     else:
         sign_word = "negative"
         claim = (
-            "the intervention lowers the chance of coming off the floor"
+            f"the intervention lowers the chance of {rd_event}"
             if is_rd
             else "the intervention is harmful"
         )
@@ -4386,8 +4395,9 @@ def _kf_build_gain_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
                 nd = 0 if is_rd else 1
                 med, lo, hi = (round(v, nd) or 0.0 for v in (med, lo, hi))
                 unit = (
-                    f"**{med:+.0f} percentage points** on the chance of moving "
-                    f"off the floor (89% credible range {lo:+.0f} to {hi:+.0f})"
+                    f"**{med:+.0f} percentage points** on the chance of being "
+                    f"off the floor at the period end (89% credible range "
+                    f"{lo:+.0f} to {hi:+.0f})"
                     if is_rd
                     else f"**{med:+.1f} items** (89% credible range {lo:+.1f} "
                     f"to {hi:+.1f})"
@@ -4424,7 +4434,16 @@ def _kf_build_gain_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
         headline, is_rd = _kf_headline_from_rope(rope, outcome_label, scope)
         sentences.append(_kf_sentence(headline, "headline"))
         sentences.append(
-            _kf_sentence(_kf_direction_words(rope["pd"], is_rd=is_rd), "confidence")
+            _kf_sentence(
+                # The gain-family off-floor outcome is post-period STATUS
+                # (post > 0), not an off-floor transition — say so (#391 review).
+                _kf_direction_words(
+                    rope["pd"],
+                    is_rd=is_rd,
+                    rd_event="being off the floor at the period end",
+                ),
+                "confidence",
+            )
         )
         sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
     else:

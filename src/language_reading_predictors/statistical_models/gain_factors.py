@@ -413,16 +413,18 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
 
     if off_floor:
         design = (
-            "Period-stacked off-floor transition model: a Bernoulli likelihood for "
-            "whether the child moves above their own baseline floor, with the binary "
-            "off-floor-at-pre indicator as the baseline main effect (#391 finding 2 "
-            "decision — the graded pre logit of a heavily-floored measure is a "
-            "near-degenerate spike, so the indicator is the honest functional form)."
+            "Period-stacked off-floor model: a Bernoulli likelihood on the child's "
+            "off-floor status at the period end (post > 0) — pooling moving off the "
+            "floor, staying above it and returning to it, not a move-off-the-floor "
+            "transition — with the binary off-floor-at-pre indicator as the baseline "
+            "main effect (#391 finding 2 decision — the graded pre logit of a "
+            "heavily-floored measure is a near-degenerate spike, so the indicator is "
+            "the honest functional form)."
         )
         estimand = (
             "Period-1 average marginal effect of random assignment on the "
-            "probability of moving off the floor (a risk difference), on the fitted "
-            "available-case sample."
+            "probability of being off the floor at the period end (a risk "
+            "difference), on the fitted available-case sample."
         )
     else:
         design = (

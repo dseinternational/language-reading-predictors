@@ -2012,6 +2012,25 @@ def test_moderation_variant_gain_factors_are_out_of_scope(tmp_path):
     assert not any("only potentially cause-and-effect" in t for t in texts)
 
 
+def test_gain_factors_off_floor_direction_words_state_status_not_transition(tmp_path):
+    """#490 review: the gain-family off-floor Bernoulli outcome is post-period
+    STATUS (post > 0) — pooling moving off, staying above and returning to the
+    floor — so the confidence sentence must not describe it as "coming off the
+    floor" (that phrasing belongs to the ITT floored primaries, whose estimand IS
+    a transition among children observed at the baseline floor)."""
+    d = _setup_dir(tmp_path, "gain_factors")
+    _write_csv(
+        d,
+        "rope_summary.csv",
+        _rope_row(delta_items=0.10, delta_scale="risk_difference"),
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    texts = _texts(payload)
+    assert "being off the floor at the period end" in texts
+    assert "coming off the floor" not in texts
+
+
 def test_each_family_reads_its_own_causal_term():
     """The gate must name the term the headline actually rests on.
 
