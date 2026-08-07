@@ -220,7 +220,9 @@ def test_pipeline_writes_tables_only_through_the_artifact_interface():
     so a regression back to the inline write-and-register idiom fails here
     rather than silently re-fragmenting the artefact record.
     """
+    import pathlib
+
     import language_reading_predictors.statistical_models.pipeline as pipeline_module
 
-    source = open(pipeline_module.__file__, encoding="utf-8").read()
+    source = pathlib.Path(pipeline_module.__file__).read_text(encoding="utf-8")
     assert ".to_csv(" not in source
