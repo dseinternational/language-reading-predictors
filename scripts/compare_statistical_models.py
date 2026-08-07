@@ -12,9 +12,13 @@ scripts/fit_statistical_model.py all``). Produces, under
   ordinary-logit outcomes W, R, E and L. Response-link-sensitive phoneme blending
   (B) is excluded; read its mandatory LRPITT08/LRPITT08B paired sensitivity instead.
 - ``triangulation_consistency.csv`` — per-outcome cross-*design* consistency of the
-  randomised on-intervention effect (single-outcome ITT ``tau`` vs waitlist-crossover
-  t2 arm contrast ``tau_t2`` vs gain-factor ``beta_trt``): whether the analyses agree
-  in direction and their intervals overlap on the shared logit scale. A consistency
+  randomised on-intervention effect on each family's **canonical items-scale AME**
+  (#391 finding 5): the single-outcome ITT t2 AME, the waitlist-crossover t2 arm-gap
+  items pushforward and the gain-factor period-1 marginal, with explicit
+  ``scale``/``population`` columns; whether the analyses agree in direction and
+  their intervals overlap. The raw logit coefficients survive only as clearly
+  labelled ``*_logit_*`` appendix columns — the non-collapsible logit makes a
+  conditional-vs-marginal magnitude comparison apples-to-oranges. A consistency
   check, never a pooled estimate — the analyses share the same trial data (issue #230
   §6). B is excluded because its mandatory response-link pair is the relevant
   sensitivity comparison.
@@ -50,6 +54,7 @@ from language_reading_predictors.statistical_models.definitions import (
     Status,
 )
 from language_reading_predictors.statistical_models.measures import (
+    MEASURES,
     ROPE_DELTA_PROB,
 )
 from language_reading_predictors.statistical_models.reporting import (
@@ -333,126 +338,204 @@ def _triangulation_outcomes() -> list[tuple[str, str, str, str]]:
 TRIANGULATION_OUTCOMES: list[tuple[str, str, str, str]] = _triangulation_outcomes()
 
 
-def _itt_effect(model_id: str, config: str) -> dict | None:
-    """Single-outcome ITT tau (logit) from ``tau_summary.csv``, or None if absent."""
+def _itt_effect(model_id: str, config: str, outcome: str) -> dict | None:
+    """Single-outcome ITT effect from ``tau_summary.csv``, or None if absent.
+
+    The primary block is the **items-scale AME** at the randomised t2
+    comparison: ``tau_prob_*`` is the probability-scale average marginal effect
+    (a per-draw average over the fitted rows, so multiplying by the measure's
+    item count is an exact per-draw linear transform of every quantile), and
+    ``prob_ame_pos`` its direction. The logit ``tau`` is retained as the
+    appendix block.
+    """
     p = os.path.join(_run_dir(model_id, config), "tau_summary.csv")
     if not os.path.exists(p):
         return None
     df = pd.read_csv(p)
-    return {
-        "term": "tau",
-        "median": float(df["tau_logit_median"].iloc[0]),
-        "lo": float(df["tau_logit_lo"].iloc[0]),
-        "hi": float(df["tau_logit_hi"].iloc[0]),
-        "prob_pos": float(df["prob_tau_pos"].iloc[0]),
+    row = df.iloc[0]
+    n_items = MEASURES[outcome].n_trials
+    out: dict = {
+        "estimand": "itt_t2_ame_items",
+        "scale": "items",
+        "population": "t2 available-case children (both arms)",
+        "logit_term": "tau",
+        "logit_median": float(row["tau_logit_median"]),
+        "logit_lo": float(row["tau_logit_lo"]),
+        "logit_hi": float(row["tau_logit_hi"]),
+        "logit_prob_pos": float(
+            row.get("prob_tau_logit_pos", row.get("prob_tau_pos"))
+        ),
     }
+    if "tau_prob_median" in df.columns:
+        out.update(
+            items_median=n_items * float(row["tau_prob_median"]),
+            items_lo=n_items * float(row["tau_prob_lo"]),
+            items_hi=n_items * float(row["tau_prob_hi"]),
+            prob_pos=float(row.get("prob_ame_pos", row.get("prob_tau_pos"))),
+        )
+    return out
 
 
 def _did_effect(model_id: str, config: str) -> dict | None:
     """Randomised t2 arm contrast from ``did_summary.csv``, or None.
 
-    New arm-by-wave fits report this as ``tau_t2``. The legacy ``delta`` fallback
-    keeps previously fitted artefacts readable; in that constrained model ``delta``
-    was forced to equal the t2 arm contrast, so it is labelled explicitly rather than
-    silently treated as a result from the redesigned model.
+    The primary block is the **items-scale t2 arm gap** (``tau_t2_items_*``, the
+    wave-standardised pushforward over the t2 rows of both arms); the logit
+    ``tau_t2`` is the appendix block. The legacy ``delta`` fallback keeps
+    previously fitted artefacts readable (logit-only — no items pushforward was
+    emitted, so such a design cannot enter the AME-scale verdict); in that
+    constrained model ``delta`` was forced to equal the t2 arm contrast, so it
+    is labelled explicitly rather than silently treated as a result from the
+    redesigned model.
     """
     p = os.path.join(_run_dir(model_id, config), "did_summary.csv")
     if not os.path.exists(p):
         return None
     df = pd.read_csv(p)
     if "tau_t2_median" in df.columns:
-        return {
-            "term": "tau_t2",
-            "median": float(df["tau_t2_median"].iloc[0]),
-            "lo": float(df["tau_t2_lo"].iloc[0]),
-            "hi": float(df["tau_t2_hi"].iloc[0]),
-            "prob_pos": float(df["prob_tau_t2_pos"].iloc[0]),
+        row = df.iloc[0]
+        out = {
+            "estimand": "did_t2_arm_gap_items",
+            "scale": "items",
+            "population": "t2 wave rows (both arms), arm-gap pushforward",
+            "logit_term": "tau_t2",
+            "logit_median": float(row["tau_t2_median"]),
+            "logit_lo": float(row["tau_t2_lo"]),
+            "logit_hi": float(row["tau_t2_hi"]),
+            "logit_prob_pos": float(row["prob_tau_t2_pos"]),
         }
+        if "tau_t2_items_median" in df.columns:
+            out.update(
+                items_median=float(row["tau_t2_items_median"]),
+                items_lo=float(row["tau_t2_items_lo"]),
+                items_hi=float(row["tau_t2_items_hi"]),
+                # The items pushforward is sign-matched to tau_t2 draw-by-draw
+                # (a monotone per-row expit contrast), so the logit direction
+                # probability is the items direction probability.
+                prob_pos=float(row["prob_tau_t2_pos"]),
+            )
+        return out
     return {
-        "term": "legacy_delta_constrained_to_t2",
-        "median": float(df["delta_median"].iloc[0]),
-        "lo": float(df["delta_lo"].iloc[0]),
-        "hi": float(df["delta_hi"].iloc[0]),
-        "prob_pos": float(df["prob_delta_pos"].iloc[0]),
+        "estimand": "did_t2_arm_gap_items",
+        "scale": "items",
+        "population": "t2 wave rows (both arms), arm-gap pushforward",
+        "logit_term": "legacy_delta_constrained_to_t2",
+        "logit_median": float(df["delta_median"].iloc[0]),
+        "logit_lo": float(df["delta_lo"].iloc[0]),
+        "logit_hi": float(df["delta_hi"].iloc[0]),
+        "logit_prob_pos": float(df["prob_delta_pos"].iloc[0]),
     }
 
 
 def _gain_factor_effect(model_id: str, config: str) -> dict | None:
-    """Gain-factor on-intervention ``beta_trt`` (logit) from ``factor_summary.csv``."""
-    p = os.path.join(_run_dir(model_id, config), "factor_summary.csv")
-    if not os.path.exists(p):
-        return None
-    df = pd.read_csv(p)
-    row = df[df["term"] == "beta_trt"]
-    if row.empty:
-        return None
-    return {
-        "term": "beta_trt",
-        "median": float(row["median"].iloc[0]),
-        "lo": float(row["lo"].iloc[0]),
-        "hi": float(row["hi"].iloc[0]),
-        "prob_pos": float(row["prob_positive"].iloc[0]),
+    """Gain-factor canonical estimand from ``treatment_marginal.csv``, or None.
+
+    #391 finding 5: the triangulation consumes the same canonical artefact the
+    model report headlines — the **period-1 items-scale average marginal
+    effect** (``trt_items_*``; since the finding 3 respecification the headline
+    is interaction-free, so its direction coincides with ``beta_trt``
+    draw-by-draw) — never the raw conditional coefficient. ``beta_trt`` from
+    ``factor_summary.csv`` is retained only as the appendix block; an old
+    artefact with no ``treatment_marginal.csv`` is logit-only and cannot enter
+    the AME-scale verdict.
+    """
+    run_dir = _run_dir(model_id, config)
+    out: dict = {
+        "estimand": "gf_period1_ame_items",
+        "scale": "items",
+        "population": "period-1 randomised transition rows (both arms)",
     }
+    tm_path = os.path.join(run_dir, "treatment_marginal.csv")
+    if os.path.exists(tm_path):
+        tm = pd.read_csv(tm_path)
+        row = tm.iloc[0]
+        out.update(
+            items_median=float(row["trt_items_median"]),
+            items_lo=float(row["trt_items_lo"]),
+            items_hi=float(row["trt_items_hi"]),
+            prob_pos=float(row["prob_trt_pos"]),
+        )
+    fs_path = os.path.join(run_dir, "factor_summary.csv")
+    if os.path.exists(fs_path):
+        fs = pd.read_csv(fs_path)
+        beta = fs[fs["term"] == "beta_trt"]
+        if not beta.empty:
+            out.update(
+                logit_term="beta_trt",
+                logit_median=float(beta["median"].iloc[0]),
+                logit_lo=float(beta["lo"].iloc[0]),
+                logit_hi=float(beta["hi"].iloc[0]),
+                logit_prob_pos=float(beta["prob_positive"].iloc[0]),
+            )
+    if "items_median" not in out and "logit_term" not in out:
+        return None
+    return out
 
 
 _TRIANGULATION_DESIGNS: tuple[tuple[str, str], ...] = (
-    ("itt", "ITT tau"),
-    ("did", "crossover-model t2 arm contrast"),
-    ("gf", "gain-factor beta_trt"),
+    ("itt", "ITT t2 items-scale AME"),
+    ("did", "crossover-model t2 arm-gap items"),
+    ("gf", "gain-factor period-1 items-scale AME"),
 )
 
 
 def build_triangulation(config: str) -> pd.DataFrame | None:
     """Per-outcome cross-design consistency of the randomised on-intervention effect.
 
-    For each shared graded outcome reads the logit-scale treatment effect from up to
-    three analyses — single-outcome ITT (``tau``), the waitlist-crossover model's
-    randomised t2 arm contrast (``tau_t2``), and gain-factor ANCOVA (``beta_trt``) — and
-    reports whether they **agree in direction** (all favour the same side of zero) and
-    whether their credible intervals **mutually overlap**. ``consistent`` is true when
-    both hold. The direction/overlap verdict is computed over the *converged* designs
-    (``diagnostics_summary.json`` gate PASS); it is left blank (``pd.NA``) when fewer
-    than two converged designs are available.
+    #391 finding 5 (decision 2026-07-22): the triangulation consumes each
+    family's **canonical items-scale average marginal effect over its randomised
+    comparison** — the single-outcome ITT t2 AME (``tau_prob_* x n_items``), the
+    crossover model's t2 arm-gap items pushforward (``tau_t2_items_*``) and the
+    gain-factor period-1 marginal (``trt_items_*`` from
+    ``treatment_marginal.csv``) — with explicit ``{design}_scale`` and
+    ``{design}_population`` columns, and reports whether they **agree in
+    direction** (all favour the same side of zero) and whether their credible
+    intervals **mutually overlap**. ``consistent`` is true when both hold. The
+    verdict is computed over the *converged* designs (``diagnostics_summary.json``
+    gate PASS) that carry an items-scale estimate; it is left blank (``pd.NA``)
+    when fewer than two such designs are available.
+
+    The raw logit coefficients survive only as the clearly-labelled
+    ``{design}_logit_*`` **appendix columns**, because the logit link is
+    **non-collapsible**: a more-adjusted conditional log-odds effect (the
+    gain-factor coefficient, with its child intercept, baseline, ability, skill
+    and confounder conditioning) is systematically larger in magnitude than the
+    marginal ITT ``tau`` even under an identical truth, so a logit-scale
+    magnitude comparison across these designs is apples-to-oranges no matter
+    which gain-factor column it reads. The marginal items quantities remove that
+    artefact; what remains is a *population* difference (the ITT and crossover
+    marginals average over t2 level rows, the gain-factor marginal over
+    period-1 transition rows), which the population columns state and which is
+    why the flags are still read qualitatively.
 
     This is a **consistency check, not a pooled estimate**: the three analyses share
     the same trial data, so their effects must never be averaged into one headline —
     the value is in whether distinct model specifications triangulate on the same story
     (issue #230 §6). Returns ``None`` if no outcome has at least two design summaries.
 
-    B is excluded even though all three ordinary-logit coefficients exist: the
+    B is excluded even though all three ordinary-logit fits exist: the
     phoneme-blending conclusion must first be read across the registered
     LRPITT08/LRPITT08B response-link pair. ``response_link_scope`` records this
     conservative scope in every emitted row.
 
-    Two interpretation caveats (#295 review), why the flags are read qualitatively:
-
-    - **The three logit effects are on the same *scale* but not the same conditioning
-      set.** ITT ``tau`` adjusts for own baseline + age; the gain-factor ``beta_trt``
-      additionally adjusts for ability, upstream DAG skills and the exogenous
-      confounders; the crossover model's ``tau_t2`` is the same randomised t2 arm
-      contrast estimated in a longitudinal arm-by-wave likelihood. Because the ITT
-      and crossover fits share the t2 comparison, agreement is a parameterisation
-      check rather than independent evidence.
-      Because the logit link is **non-collapsible**, a more-adjusted conditional
-      log-odds effect is expected to be systematically larger in magnitude even under an
-      identical truth. Direction agreement is robust to this, but ``intervals_overlap``
-      compares *magnitudes*, so a ``consistent = False`` driven by non-overlap can be a
-      conditioning-set artefact rather than a genuine design disagreement — read it
-      alongside the direction flag, not on its own.
-    - **Direction is a coarse sign check at the 0.5 boundary.** Two essentially-null
-      designs with opposite-sign medians (``prob_pos`` e.g. 0.55 and 0.45) are marked
-      ``direction_agree = False`` even though neither shows a real signal; a
-      ``direction_agree = False`` with wide, overlapping intervals is a null-result
-      artefact, not a contradiction. (``prob_pos == 0.5`` exactly is treated as agreeing
-      with either side, which is harmless.)
+    Direction remains a coarse sign check at the 0.5 boundary (#295 review): two
+    essentially-null designs with opposite-sign medians (``prob_pos`` e.g. 0.55
+    and 0.45) are marked ``direction_agree = False`` even though neither shows a
+    real signal; a ``direction_agree = False`` with wide, overlapping intervals
+    is a null-result artefact, not a contradiction. (``prob_pos == 0.5`` exactly
+    is treated as agreeing with either side, which is harmless.)
     """
-    readers = {"itt": _itt_effect, "did": _did_effect, "gf": _gain_factor_effect}
     rows: list[dict] = []
     for outcome, itt_id, did_id, gf_id in TRIANGULATION_OUTCOMES:
-        ids = {"itt": itt_id, "did": did_id, "gf": gf_id}
         ests: dict[str, dict] = {}
-        for key, model_id in ids.items():
-            e = readers[key](model_id, config)
+        for key, model_id in (("itt", itt_id), ("did", did_id), ("gf", gf_id)):
+            e = (
+                _itt_effect(model_id, config, outcome)
+                if key == "itt"
+                else _did_effect(model_id, config)
+                if key == "did"
+                else _gain_factor_effect(model_id, config)
+            )
             if e is not None:
                 e["source"] = model_id
                 e["converged"] = _gate_ok(model_id, config)
@@ -460,13 +543,20 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
         if len(ests) < 2:
             continue  # nothing to triangulate for this outcome
         converged = {k: v for k, v in ests.items() if v["converged"]}
-        assessable = len(converged) >= 2
-        use = converged if assessable else ests
-        probs = [v["prob_pos"] for v in use.values()]
-        los = [v["lo"] for v in use.values()]
-        his = [v["hi"] for v in use.values()]
-        direction_agree = all(p >= 0.5 for p in probs) or all(p <= 0.5 for p in probs)
-        intervals_overlap = max(los) <= min(his)
+        # The verdict pool: converged AND items-scale — a legacy artefact with no
+        # AME emission has nothing on the estimand scale to compare.
+        pool = {k: v for k, v in converged.items() if "items_median" in v}
+        assessable = len(pool) >= 2
+        direction_agree = pd.NA
+        intervals_overlap = pd.NA
+        if assessable:
+            probs = [v["prob_pos"] for v in pool.values()]
+            los = [v["items_lo"] for v in pool.values()]
+            his = [v["items_hi"] for v in pool.values()]
+            direction_agree = all(p >= 0.5 for p in probs) or all(
+                p <= 0.5 for p in probs
+            )
+            intervals_overlap = max(los) <= min(his)
         row: dict = {
             "config": config,
             "outcome": outcome,
@@ -474,19 +564,27 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
             "n_designs": len(ests),
             "n_converged": len(converged),
             "all_converged": len(converged) == len(ests),
-            "direction_agree": direction_agree if assessable else pd.NA,
-            "intervals_overlap": intervals_overlap if assessable else pd.NA,
+            "n_ame_verdict_pool": len(pool),
+            "direction_agree": direction_agree,
+            "intervals_overlap": intervals_overlap,
             "consistent": (direction_agree and intervals_overlap) if assessable else pd.NA,
         }
         for key, _label in _TRIANGULATION_DESIGNS:
             v = ests.get(key)
             row[f"{key}_source"] = v["source"] if v else ""
-            row[f"{key}_term"] = v["term"] if v else ""
-            row[f"{key}_median"] = v["median"] if v else pd.NA
-            row[f"{key}_lo"] = v["lo"] if v else pd.NA
-            row[f"{key}_hi"] = v["hi"] if v else pd.NA
-            row[f"{key}_prob_pos"] = v["prob_pos"] if v else pd.NA
+            row[f"{key}_estimand"] = v["estimand"] if v else ""
+            row[f"{key}_scale"] = v["scale"] if v else ""
+            row[f"{key}_population"] = v["population"] if v else ""
+            row[f"{key}_items_median"] = v.get("items_median", pd.NA) if v else pd.NA
+            row[f"{key}_items_lo"] = v.get("items_lo", pd.NA) if v else pd.NA
+            row[f"{key}_items_hi"] = v.get("items_hi", pd.NA) if v else pd.NA
+            row[f"{key}_prob_pos"] = v.get("prob_pos", pd.NA) if v else pd.NA
             row[f"{key}_converged"] = v["converged"] if v else pd.NA
+            row[f"{key}_logit_term"] = v.get("logit_term", "") if v else ""
+            row[f"{key}_logit_median"] = v.get("logit_median", pd.NA) if v else pd.NA
+            row[f"{key}_logit_lo"] = v.get("logit_lo", pd.NA) if v else pd.NA
+            row[f"{key}_logit_hi"] = v.get("logit_hi", pd.NA) if v else pd.NA
+            row[f"{key}_logit_prob_pos"] = v.get("logit_prob_pos", pd.NA) if v else pd.NA
         rows.append(row)
     return pd.DataFrame(rows) if rows else None
 
