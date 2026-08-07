@@ -169,16 +169,51 @@ def test_sampling_contract_rejects_config_mismatch(tmp_path):
 # --- attach_outcome_bundle ----------------------------------------------------
 
 
-def _cell_trace(sweep_dir: Path, token: str) -> tuple[str, str]:
-    """Write one digest-suffixed cell trace; return (relative name, sha256)."""
+_CELL_SAMPLING = {
+    "draws": 5,
+    "tune": 3,
+    "chains": 1,
+    "cores": 1,
+    "target_accept": 0.95,
+    "random_seed": 1,
+    "nuts_sampler": "nutpie",
+}
+
+
+def _cell_trace(sweep_dir: Path, token: str, *, provenance: dict) -> tuple[str, str]:
+    """One digest-suffixed, provenance-stamped cell trace (#489 review): the
+    attach step now opens each trace and verifies it identifies itself as this
+    cell of this primary's sweep, so an arbitrary NetCDF no longer attaches."""
+    from language_reading_predictors.statistical_models.sensitivity import (
+        STANDARD_SENSITIVITY_PROVENANCE_ATTR,
+    )
+
     traces = sweep_dir / "traces" / "level-reporting"
     traces.mkdir(parents=True, exist_ok=True)
     tmp = traces / f".tmp-{token}.nc"
-    cell = xr.Dataset(
-        {"x": (("chain", "draw"), np.random.default_rng(3).normal(size=(1, 5)))},
-        coords={"chain": np.arange(1), "draw": np.arange(5)},
+    rng = np.random.default_rng(3)
+    shape = (_CELL_SAMPLING["chains"], _CELL_SAMPLING["draws"])
+    posterior = xr.Dataset(
+        {
+            "alpha_offset": (("chain", "draw"), rng.normal(size=shape)),
+            "b_grp_time": (("chain", "draw", "phase"), rng.normal(size=(*shape, 4))),
+        },
+        coords={
+            "chain": np.arange(shape[0]),
+            "draw": np.arange(shape[1]),
+            "phase": np.arange(4),
+        },
     )
-    xr.DataTree.from_dict({"posterior": cell}).to_netcdf(tmp)
+    posterior.attrs[STANDARD_SENSITIVITY_PROVENANCE_ATTR] = json.dumps(
+        provenance, sort_keys=True, separators=(",", ":")
+    )
+    sample_stats = xr.Dataset(
+        {"diverging": (("chain", "draw"), np.zeros(shape, dtype=bool))},
+        coords={"chain": np.arange(shape[0]), "draw": np.arange(shape[1])},
+    )
+    xr.DataTree.from_dict(
+        {"posterior": posterior, "sample_stats": sample_stats}
+    ).to_netcdf(tmp)
     digest = sha256_file(tmp)
     final = traces / f"trace_W_tau-{token}-{digest[:12]}.nc"
     tmp.rename(final)
@@ -189,7 +224,21 @@ def _rows(primary: Path, sweep_dir: Path, **overrides) -> pd.DataFrame:
     ref = load_primary_level_reference(primary, "W", config_name="reporting")
     rows = []
     for token, sigma in (("0p25", 0.25), ("0p5", 0.5), ("0p75", 0.75)):
-        trace_file, digest = _cell_trace(sweep_dir, token)
+        provenance = {
+            "schema_version": 1,
+            "model_kind": "level_factors",
+            "config": "reporting",
+            "outcome": "W",
+            "focal_term": "b_grp_time[1]",
+            "sensitivity_axis": "tau",
+            "tau_sigma": sigma,
+            "primary_model_id": ref.model_id,
+            "primary_config_sha256": ref.config_sha256,
+            "primary_trace_sha256": ref.trace_sha256,
+            "free_variables": ["alpha_offset", "b_grp_time"],
+            "sampling": dict(_CELL_SAMPLING),
+        }
+        trace_file, digest = _cell_trace(sweep_dir, token, provenance=provenance)
         row = dict.fromkeys(_STANDARD_REQUIRED_COLUMNS, "")
         row.update(
             config="reporting",
@@ -199,6 +248,14 @@ def _rows(primary: Path, sweep_dir: Path, **overrides) -> pd.DataFrame:
             tau_sigma=sigma,
             converged=True,
             tau_logit_mean=0.2 + sigma / 10,
+            n_divergences=0,
+            sampling_draws=_CELL_SAMPLING["draws"],
+            sampling_tune=_CELL_SAMPLING["tune"],
+            sampling_chains=_CELL_SAMPLING["chains"],
+            sampling_cores=_CELL_SAMPLING["cores"],
+            sampling_target_accept=_CELL_SAMPLING["target_accept"],
+            sampling_random_seed=_CELL_SAMPLING["random_seed"],
+            sampling_nuts_sampler="nutpie",
             primary_model_id=ref.model_id,
             primary_config_sha256=ref.config_sha256,
             primary_trace_sha256=ref.trace_sha256,

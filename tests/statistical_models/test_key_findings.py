@@ -1694,8 +1694,10 @@ def _write_tau_sweep(d: Path, *, rows: list[dict] | None = None, outcome: str = 
     """A minimally valid attached treatment-prior sweep, bound to this fit.
 
     Carries the standard sweep's full column set (so a hand-rolled CSV of the same
-    name cannot pass), two prior scales, converged cells, matching primary hashes and
-    a stable effect sign. Individual tests break exactly one clause.
+    name cannot pass), two prior scales, converged cells, matching primary hashes,
+    a stable effect sign, and — per the level/did installer contract (#489) —
+    a real digest-matching cell-trace file beside the fit for every basename
+    ``trace_file``. Individual tests break exactly one clause.
     """
     from language_reading_predictors.statistical_models.sensitivity import (
         _STANDARD_REQUIRED_COLUMNS,
@@ -1717,9 +1719,15 @@ def _write_tau_sweep(d: Path, *, rows: list[dict] | None = None, outcome: str = 
             {"tau_sigma": 0.25, "tau_logit_mean": 0.31},
             {"tau_sigma": 0.5, "tau_logit_mean": 0.44},
         ]
-    pd.DataFrame([{**base, **row} for row in rows]).to_csv(
-        d / "tau_prior_sensitivity.csv", index=False
-    )
+    merged_rows = []
+    for index, row in enumerate(rows):
+        merged = {**base, **row}
+        name = f"trace_{outcome}_tau-{index}.nc"
+        (d / name).write_bytes(f"installed cell trace {index}".encode())
+        merged["trace_file"] = name
+        merged["trace_sha256"] = sha256_file(d / name)
+        merged_rows.append(merged)
+    pd.DataFrame(merged_rows).to_csv(d / "tau_prior_sensitivity.csv", index=False)
 
 
 def _prior_dominant_dir(tmp_path: Path) -> Path:
@@ -1784,6 +1792,27 @@ def test_an_unconverged_sweep_cell_is_not_evidence(tmp_path):
     payload = generate_key_findings(d)
     assert payload["status"] == "robustness_unresolved"
     assert "did not converge" in payload["reason"]
+
+
+def test_a_deleted_installed_trace_un_lifts_the_withhold(tmp_path):
+    """The level/did installers write basename ``trace_file`` entries beside the
+    fit; if such a trace later disappears (or is swapped), the manifest merely
+    *names* evidence and must stop lifting the gate (#489 review)."""
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(d)
+    (d / "trace_W_tau-0.nc").unlink()
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "no longer trace-backed" in payload["reason"]
+
+
+def test_a_swapped_installed_trace_un_lifts_the_withhold(tmp_path):
+    d = _prior_dominant_dir(tmp_path)
+    _write_tau_sweep(d)
+    (d / "trace_W_tau-0.nc").write_bytes(b"different bytes")
+    payload = generate_key_findings(d)
+    assert payload["status"] == "robustness_unresolved"
+    assert "recorded digest" in payload["reason"]
 
 
 def test_a_sweep_bound_to_a_different_fit_does_not_lift_the_withhold(tmp_path):

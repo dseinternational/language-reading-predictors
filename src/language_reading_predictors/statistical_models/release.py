@@ -370,6 +370,10 @@ def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool
     - its recorded ``primary_config_sha256`` / ``primary_trace_sha256`` match this
       directory's own ``config.json`` and ``trace.nc``, which is what binds the sweep
       to *this* fit rather than to some earlier one;
+    - every fit-locally installed cell trace (a basename ``trace_file``, the
+      level/did installers' contract) still exists beside the fit and matches its
+      recorded digest (#489 review); sweep-relative ITT paths are validated by the
+      sweep-level evaluator instead;
     - the sign of ``tau_logit_mean`` is the same in every cell.
 
     This deliberately does not call ``evaluate_standard_sensitivity``. That evaluator
@@ -437,6 +441,30 @@ def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool
             return False, (
                 "the attached treatment-prior sweep was computed against a different "
                 f"{artefact} than this fit's, so it is not this fit's evidence"
+            )
+
+    # Trace-backing (#489 review): the level/did installers rewrite
+    # ``trace_file`` to the digest-suffixed basename they copy beside the fit,
+    # so for those bundles a deleted or swapped cell trace must un-lift the
+    # gate rather than leave a manifest that merely *names* evidence. The ITT
+    # installer keeps sweep-directory-relative paths (its traces live in the
+    # sweep tree and are validated by ``evaluate_standard_sensitivity``'s
+    # provenance machinery), so path-bearing entries are not checked here —
+    # requiring them fit-locally would withhold every ITT fit.
+    for _, row in rows.iterrows():
+        name = str(row["trace_file"])
+        if "/" in name or "\\" in name:
+            continue
+        candidate = output_dir / name
+        if not candidate.is_file():
+            return False, (
+                "the attached treatment-prior sweep names an installed cell "
+                "trace that is missing, so the bundle is no longer trace-backed"
+            )
+        if sha256_file(candidate) != str(row["trace_sha256"]).strip().lower():
+            return False, (
+                "an installed cell trace does not match the attached "
+                "treatment-prior sweep's recorded digest"
             )
 
     signs = np.sign(

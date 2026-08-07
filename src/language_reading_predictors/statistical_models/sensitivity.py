@@ -896,6 +896,144 @@ def assert_primary_sampling_contract(
         )
 
 
+def _validate_cell_trace(
+    source: Path, row: Mapping[str, Any], *, reference: PrimaryStandardReference
+) -> None:
+    """Verify a cell trace *is* the evidence its manifest row claims (#489 review).
+
+    The digest check alone only proves the file matches the row's own recorded
+    hash — a circular fact if the row itself is wrong. This opens the trace and
+    cross-checks the provenance the runner stamped at fit time against both the
+    row and the freshly loaded primary reference: identity (outcome, primary
+    model id and artefact hashes, prior scale), the sampling contract
+    (draws/tune/chains/target-accept and the posterior's actual dimensions),
+    the recorded free variables, the focal term's presence, the divergence
+    count recomputed from ``sample_stats``, and — for a bare-name focal term —
+    the row's ``tau_logit_mean`` recomputed from the draws. (An indexed or
+    derived focal term such as the level family's ``b_grp_time[1]`` reports a
+    marginal-contrast summary that is not a raw coefficient mean, so only the
+    base variable's presence is checked there.)
+    """
+    import arviz as az
+
+    outcome = str(row["outcome"])
+    try:
+        trace = az.from_netcdf(source)
+    except Exception as exc:  # noqa: BLE001 - a corrupt cell trace is gate data
+        raise RuntimeError(
+            f"{outcome}: cell trace is not a readable NetCDF: {source}"
+        ) from exc
+    try:
+        posterior = getattr(trace, "posterior", None)
+        if posterior is None:
+            raise RuntimeError(f"{outcome}: cell trace has no posterior group: {source}")
+        raw = posterior.attrs.get(STANDARD_SENSITIVITY_PROVENANCE_ATTR)
+        if not raw:
+            raise RuntimeError(
+                f"{outcome}: cell trace carries no sweep provenance: {source}"
+            )
+        try:
+            provenance = json.loads(str(raw))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"{outcome}: cell trace provenance is not valid JSON: {source}"
+            ) from exc
+        identity = (
+            ("outcome", outcome, False),
+            ("primary_model_id", reference.model_id, False),
+            (
+                "primary_config_sha256",
+                str(row["primary_config_sha256"]).strip().lower(),
+                True,
+            ),
+            (
+                "primary_trace_sha256",
+                str(row["primary_trace_sha256"]).strip().lower(),
+                True,
+            ),
+        )
+        for key, expected, lower in identity:
+            recorded = str(provenance.get(key, "")).strip()
+            if lower:
+                recorded = recorded.lower()
+            if recorded != expected:
+                raise RuntimeError(
+                    f"{outcome}: cell trace provenance {key} does not match its "
+                    f"row ({recorded!r} != {expected!r})"
+                )
+        if not np.isclose(
+            float(provenance.get("tau_sigma", np.nan)),
+            float(row["tau_sigma"]),
+            rtol=0.0,
+            atol=1e-9,
+        ):
+            raise RuntimeError(
+                f"{outcome}: cell trace provenance names a different prior scale "
+                "than its row"
+            )
+        sampling = provenance.get("sampling") or {}
+        for key, column in (
+            ("draws", "sampling_draws"),
+            ("tune", "sampling_tune"),
+            ("chains", "sampling_chains"),
+            ("target_accept", "sampling_target_accept"),
+        ):
+            if not np.isclose(
+                float(sampling.get(key, np.nan)),
+                float(row[column]),
+                rtol=0.0,
+                atol=1e-9,
+            ):
+                raise RuntimeError(
+                    f"{outcome}: cell trace sampling provenance does not match "
+                    f"its row ({key})"
+                )
+        if int(posterior.sizes.get("chain", -1)) != int(row["sampling_chains"]) or int(
+            posterior.sizes.get("draw", -1)
+        ) != int(row["sampling_draws"]):
+            raise RuntimeError(
+                f"{outcome}: cell trace chain/draw dimensions do not match its row"
+            )
+        free = provenance.get("free_variables") or []
+        missing_vars = sorted(set(map(str, free)) - set(map(str, posterior.data_vars)))
+        if missing_vars:
+            raise RuntimeError(
+                f"{outcome}: cell trace posterior lacks its own recorded free "
+                f"variables ({missing_vars[:3]})"
+            )
+        focal = str(provenance.get("focal_term", ""))
+        base = focal.split("[", 1)[0]
+        if not base or base not in posterior.data_vars:
+            raise RuntimeError(
+                f"{outcome}: cell trace posterior lacks the focal term {focal!r}"
+            )
+        if "[" not in focal:
+            recomputed = float(np.asarray(posterior[base].values, dtype=float).mean())
+            if not np.isclose(
+                recomputed, float(row["tau_logit_mean"]), rtol=0.0, atol=1e-8
+            ):
+                raise RuntimeError(
+                    f"{outcome}: cell trace does not reproduce its row's focal "
+                    f"summary ({recomputed:.6f} != {float(row['tau_logit_mean']):.6f})"
+                )
+        sample_stats = getattr(trace, "sample_stats", None)
+        if sample_stats is None or "diverging" not in sample_stats:
+            raise RuntimeError(
+                f"{outcome}: cell trace lacks sample_stats.diverging, so its "
+                "convergence claim cannot be re-checked"
+            )
+        divergences = int(np.asarray(sample_stats["diverging"].values).sum())
+        if divergences != int(float(row["n_divergences"])):
+            raise RuntimeError(
+                f"{outcome}: cell trace divergence count does not match its row "
+                f"({divergences} != {row['n_divergences']})"
+            )
+    finally:
+        close = getattr(trace, "close", None)
+        if callable(close):
+            close()
+
+
 def attach_outcome_bundle(
     rows: pd.DataFrame,
     *,
@@ -916,14 +1054,19 @@ def attach_outcome_bundle(
     - its ``primary_config_sha256`` / ``primary_trace_sha256`` match the
       **current** primary artefacts (via the freshly loaded ``reference``);
     - each cell trace exists in the sweep directory, its sha256 matches the
-      manifest, and the copy installed beside the fit re-verifies after copy
-      (the release gate trusts the CSV, so the installer is where trace
-      integrity is enforced);
+      manifest, its **stamped provenance** identifies it as this cell of this
+      primary's sweep and reproduces the row's summaries
+      (:func:`_validate_cell_trace`, #489 review — the digest alone only
+      proves the bytes match the row's own claim), and the copy installed
+      beside the fit re-verifies after copy;
     - ``trace_file`` is rewritten to the installed digest-suffixed basename.
 
     The manifest lands via an atomic rename, and the release gate's own
     evidence check (``release._standard_sweep_evidence``) is run as a final
-    assert; any failure rolls the installed files back and raises.
+    assert. Any failure rolls back **this attempt only**: newly installed
+    traces are removed and a pre-existing manifest is restored rather than
+    destroyed (#489 review), so a failed replacement cannot delete previously
+    published evidence.
     """
     from language_reading_predictors.statistical_models.release import (
         _standard_sweep_evidence,
@@ -971,9 +1114,14 @@ def attach_outcome_bundle(
                 "re-run the sweep against the current fit"
             )
 
-    installed: list[Path] = []
+    installed_new: list[Path] = []
     staging = primary_dir / (STANDARD_SENSITIVITY_FILENAME + ".staging")
     destination = primary_dir / STANDARD_SENSITIVITY_FILENAME
+    # A failed replacement must restore, not destroy, previously published
+    # evidence (#489 review): snapshot any existing manifest before starting,
+    # and delete only the trace files this attempt itself created — a
+    # digest-named file that already exists belongs to the previous bundle.
+    previous_manifest = destination.read_bytes() if destination.is_file() else None
     try:
         for index, row in rows.iterrows():
             source = sensitivity_dir / str(row["trace_file"])
@@ -985,6 +1133,10 @@ def attach_outcome_bundle(
                     f"{outcome}: cell trace does not match its recorded sha256: "
                     f"{source}"
                 )
+            # The digest only proves the bytes match the row's own claim;
+            # verify the trace's stamped provenance says it is this cell of
+            # this primary's sweep, and that it reproduces the row (#489).
+            _validate_cell_trace(source, row, reference=reference)
             digest_suffix = f"-{trace_sha256[:12]}"
             name = (
                 source.name
@@ -992,12 +1144,19 @@ def attach_outcome_bundle(
                 else f"{source.stem}{digest_suffix}.nc"
             )
             target = primary_dir / name
-            shutil.copy2(source, target)
-            installed.append(target)
-            if sha256_file(target) != trace_sha256:
-                raise RuntimeError(
-                    f"{outcome}: installed trace changed during copy: {target}"
-                )
+            if target.exists():
+                if sha256_file(target) != trace_sha256:
+                    raise RuntimeError(
+                        f"{outcome}: an existing installed file blocks this cell "
+                        f"trace and does not match its digest: {target}"
+                    )
+            else:
+                shutil.copy2(source, target)
+                installed_new.append(target)
+                if sha256_file(target) != trace_sha256:
+                    raise RuntimeError(
+                        f"{outcome}: installed trace changed during copy: {target}"
+                    )
             rows.at[index, "trace_file"] = name
         rows.to_csv(staging, index=False)
         os.replace(staging, destination)
@@ -1008,10 +1167,15 @@ def attach_outcome_bundle(
                 f"evidence check ({reason})"
             )
     except BaseException:
-        for target in installed:
+        for target in installed_new:
             target.unlink(missing_ok=True)
         staging.unlink(missing_ok=True)
-        destination.unlink(missing_ok=True)
+        if previous_manifest is not None:
+            restore = primary_dir / (STANDARD_SENSITIVITY_FILENAME + ".restore")
+            restore.write_bytes(previous_manifest)
+            os.replace(restore, destination)
+        else:
+            destination.unlink(missing_ok=True)
         raise
     return destination
 

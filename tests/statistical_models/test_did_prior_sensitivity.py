@@ -237,15 +237,67 @@ def test_did_contract_rejects_config_mismatch(tmp_path):
 # --- attach: the same-outcome sibling-model refusal ---------------------------
 
 
-def _rows_for(reference, sweep_dir: Path) -> pd.DataFrame:
+_CELL_SAMPLING = {
+    "draws": 5,
+    "tune": 3,
+    "chains": 1,
+    "cores": 1,
+    "target_accept": 0.97,
+    "random_seed": 1,
+    "nuts_sampler": "nutpie",
+}
+
+
+def _rows_for(
+    reference,
+    sweep_dir: Path,
+    *,
+    provenance_overrides: dict | None = None,
+    divergences: int = 0,
+) -> pd.DataFrame:
+    from language_reading_predictors.statistical_models.sensitivity import (
+        STANDARD_SENSITIVITY_PROVENANCE_ATTR,
+    )
+
     rows = []
+    rng = np.random.default_rng(3)
+    shape = (_CELL_SAMPLING["chains"], _CELL_SAMPLING["draws"])
     for token, sigma in (("0p25", 0.25), ("0p5", 0.5), ("0p75", 0.75)):
-        cell = xr.Dataset(
-            {"x": (("chain", "draw"), np.random.default_rng(3).normal(size=(1, 5)))},
-            coords={"chain": np.arange(1), "draw": np.arange(5)},
+        tau_draws = rng.normal(0.2 + sigma / 10, 0.05, size=shape)
+        posterior = xr.Dataset(
+            {
+                "alpha_offset": (("chain", "draw"), rng.normal(size=shape)),
+                "tau_t2": (("chain", "draw"), tau_draws),
+            },
+            coords={"chain": np.arange(shape[0]), "draw": np.arange(shape[1])},
+        )
+        provenance = {
+            "schema_version": 1,
+            "model_kind": "did",
+            "config": "reporting",
+            "outcome": reference.outcome,
+            "model_id": reference.model_id,
+            "focal_term": "tau_t2",
+            "sensitivity_axis": "tau",
+            "tau_sigma": sigma,
+            "primary_model_id": reference.model_id,
+            "primary_config_sha256": reference.config_sha256,
+            "primary_trace_sha256": reference.trace_sha256,
+            "free_variables": ["alpha_offset", "tau_t2"],
+            "sampling": dict(_CELL_SAMPLING),
+        }
+        provenance.update(provenance_overrides or {})
+        posterior.attrs[STANDARD_SENSITIVITY_PROVENANCE_ATTR] = json.dumps(
+            provenance, sort_keys=True, separators=(",", ":")
+        )
+        diverging = np.zeros(shape, dtype=bool)
+        diverging.flat[:divergences] = True
+        sample_stats = xr.Dataset(
+            {"diverging": (("chain", "draw"), diverging)},
+            coords={"chain": np.arange(shape[0]), "draw": np.arange(shape[1])},
         )
         trace_file, digest = persist_sensitivity_trace(
-            _TraceLike(cell),
+            _TraceLike({"posterior": posterior, "sample_stats": sample_stats}),
             sensitivity_dir=sweep_dir,
             semantic_file=Path("traces")
             / "did-reporting"
@@ -259,7 +311,17 @@ def _rows_for(reference, sweep_dir: Path) -> pd.DataFrame:
             sensitivity_axis="tau",
             tau_sigma=sigma,
             converged=True,
-            tau_logit_mean=0.2 + sigma / 10,
+            # The attach validator recomputes a bare-name focal summary from
+            # the trace itself, so the row must carry the true draw mean.
+            tau_logit_mean=float(tau_draws.mean()),
+            n_divergences=0,
+            sampling_draws=_CELL_SAMPLING["draws"],
+            sampling_tune=_CELL_SAMPLING["tune"],
+            sampling_chains=_CELL_SAMPLING["chains"],
+            sampling_cores=_CELL_SAMPLING["cores"],
+            sampling_target_accept=_CELL_SAMPLING["target_accept"],
+            sampling_random_seed=_CELL_SAMPLING["random_seed"],
+            sampling_nuts_sampler="nutpie",
             primary_model_id=reference.model_id,
             primary_config_sha256=reference.config_sha256,
             primary_trace_sha256=reference.trace_sha256,
@@ -273,8 +335,8 @@ def _rows_for(reference, sweep_dir: Path) -> pd.DataFrame:
 class _TraceLike:
     """Just enough of an InferenceData for persist_sensitivity_trace."""
 
-    def __init__(self, dataset: xr.Dataset):
-        self._tree = xr.DataTree.from_dict({"posterior": dataset})
+    def __init__(self, groups: dict[str, xr.Dataset]):
+        self._tree = xr.DataTree.from_dict(groups)
 
     def to_netcdf(self, path):
         self._tree.to_netcdf(path)
@@ -325,6 +387,112 @@ def test_did_attach_refuses_sibling_w_model_rows(tmp_path):
     assert not (primary / STANDARD_SENSITIVITY_FILENAME).exists()
     assert not list(primary.glob("*.staging"))
     assert not list(primary.glob("trace_did-001_tau-*.nc"))
+
+
+# --- deep trace validation (#489 review) --------------------------------------
+
+
+def test_did_attach_refuses_foreign_provenance_trace(tmp_path):
+    """A digest-matching trace whose stamped provenance names a different cell
+    (here: another outcome) is not this bundle's evidence — the sha alone only
+    proves the file matches the row's own claim."""
+    primary = _fake_primary(tmp_path)
+    reference = load_primary_did_reference(
+        primary, "lrp-rli-did-001", config_name="reporting"
+    )
+    sweep = tmp_path / "sweep"
+    rows = _rows_for(reference, sweep, provenance_overrides={"outcome": "L"})
+    with pytest.raises(RuntimeError, match="provenance outcome does not match"):
+        attach_outcome_bundle(
+            rows,
+            outcome="W",
+            primary_dir=primary,
+            sensitivity_dir=sweep,
+            reference=reference,
+        )
+    assert not (primary / STANDARD_SENSITIVITY_FILENAME).exists()
+    assert not list(primary.glob("trace_did-001_tau-*.nc"))
+
+
+def test_did_attach_refuses_divergence_mismatch(tmp_path):
+    """The trace's own sample_stats must reproduce the row's divergence count:
+    a row claiming zero divergences over a diverging trace is not evidence."""
+    primary = _fake_primary(tmp_path)
+    reference = load_primary_did_reference(
+        primary, "lrp-rli-did-001", config_name="reporting"
+    )
+    sweep = tmp_path / "sweep"
+    rows = _rows_for(reference, sweep, divergences=2)
+    with pytest.raises(RuntimeError, match="divergence count does not match"):
+        attach_outcome_bundle(
+            rows,
+            outcome="W",
+            primary_dir=primary,
+            sensitivity_dir=sweep,
+            reference=reference,
+        )
+    assert not (primary / STANDARD_SENSITIVITY_FILENAME).exists()
+
+
+def test_did_attach_refuses_summary_mismatch(tmp_path):
+    """A bare-name focal summary is recomputed from the trace draws; a manifest
+    row whose tau_logit_mean does not reproduce is refused."""
+    primary = _fake_primary(tmp_path)
+    reference = load_primary_did_reference(
+        primary, "lrp-rli-did-001", config_name="reporting"
+    )
+    sweep = tmp_path / "sweep"
+    rows = _rows_for(reference, sweep)
+    rows.at[0, "tau_logit_mean"] = float(rows.at[0, "tau_logit_mean"]) + 0.01
+    with pytest.raises(RuntimeError, match="does not reproduce its row's focal"):
+        attach_outcome_bundle(
+            rows,
+            outcome="W",
+            primary_dir=primary,
+            sensitivity_dir=sweep,
+            reference=reference,
+        )
+    assert not (primary / STANDARD_SENSITIVITY_FILENAME).exists()
+
+
+def test_did_attach_failure_preserves_previous_bundle(tmp_path):
+    """A failed replacement must restore the previously published evidence, not
+    destroy it (#489 review): after a valid attach, a later corrupt attempt
+    leaves the old manifest and its installed traces exactly as they were."""
+    primary = _fake_primary(tmp_path)
+    reference = load_primary_did_reference(
+        primary, "lrp-rli-did-001", config_name="reporting"
+    )
+    sweep_a = tmp_path / "sweep-a"
+    destination = attach_outcome_bundle(
+        _rows_for(reference, sweep_a),
+        outcome="W",
+        primary_dir=primary,
+        sensitivity_dir=sweep_a,
+        reference=reference,
+    )
+    published = destination.read_bytes()
+    published_traces = sorted(primary.glob("trace_did-001_tau-*.nc"))
+    assert published_traces
+
+    sweep_b = tmp_path / "sweep-b"
+    bad = _rows_for(reference, sweep_b)
+    corrupt = sweep_b / str(bad.at[0, "trace_file"])
+    corrupt.write_bytes(corrupt.read_bytes() + b"x")
+    with pytest.raises(RuntimeError, match="does not match its recorded sha256"):
+        attach_outcome_bundle(
+            bad,
+            outcome="W",
+            primary_dir=primary,
+            sensitivity_dir=sweep_b,
+            reference=reference,
+        )
+    assert destination.read_bytes() == published
+    assert sorted(primary.glob("trace_did-001_tau-*.nc")) == published_traces
+    for trace in published_traces:
+        assert trace.is_file()
+    assert not list(primary.glob("*.staging"))
+    assert not list(primary.glob("*.restore"))
 
 
 # --- the runner's grid selection ----------------------------------------------
