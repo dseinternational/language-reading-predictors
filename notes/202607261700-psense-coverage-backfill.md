@@ -8,6 +8,9 @@
 > [!WARNING]
 > **Superseded in part on 2026-08-02.** The power-scaling coverage record remains valid, but sensitivity diagnostics cannot release scientific quantities from a failed sampling gate. The former `rlm-mm-001` exemption is retired, and posterior conclusions below from gate-failed measurement or horseshoe fits are withheld under `notes/202608021625-divergence-qualification-policy.md`.
 
+> [!WARNING]
+> **Superseded in part on 2026-08-07.** The statement below that "`rlm-mm-001` remains the one true exemption … its posterior has not converged" no longer holds: the model converges since the corr_factor `LKJCorr` repair and its reporting fit carries a measured `psense_summary.csv`. See the closing section "The `rlm-mm-001` exemption is closed".
+
 # Power-scaling sensitivity is now measured for 192 of 194 reporting fits (#381)
 
 **What changed (2026-07-26, #381):** every stored `--config reporting` fit whose trace carries the `log_prior` and `log_likelihood` groups now has a `psense_summary.csv` and `psense.png`, backfilled by `scripts/regenerate_psense.py` without refitting anything — coverage 86 → 170. A second pass the same day refitted the 21 fits whose traces predated that wiring, taking coverage to **192 of 194**; see the closing section for what that changed (nothing) and for the two that remain.
@@ -89,6 +92,10 @@ The follow-up left open above is done, and the diagnosis it rested on was right:
 **Verified end to end.** A `--config dev` fit of `lrp-rlm-jc-001` now emits `psense_summary.csv` and `psense.png` with no skipped-group warnings, covering all three headline `measure_corr_pairs` correlations alongside `eta_cell`, `sigma_subject` and `kappa`. The dev-tier _numbers_ are not reportable — the reporting artefact lands with the next reporting-tier fit — but the wiring is proven, so this is a coverage gap closed rather than deferred.
 
 One incidental corroboration worth carrying to #383, which proposes widening `sigma_subject` from `HalfNormal(0.5)` to `HalfNormal(1.0)` for exactly these high-variance measures: every one of the nine `sigma_subject[measure, group]` entries in the new dev-tier summary carries a flag, at prior sensitivities 0.21–0.52 — the largest values anywhere in that table. That is a dev fit and so is indicative only, but it is the first direct measurement on the parameter #383 names, and it points the same way.
+
+## The `rlm-mm-001` exemption is closed (2026-08-07, #383 follow-up)
+
+The one remaining "true exemption" above rested on a single ground — a non-converged posterior — and that ground is gone. The corr_factor `LKJCorr` repair showed the divergences were the discarded, unidentified `sd_dist` scales of `LKJCholeskyCov`, not near-singular geometry (see the supersession notices on `notes/202607241200-mm001-gate-exception.md`), and the current `rlm-mm-001` reporting fit passes the full gate: 0 divergences, max R-hat 1.0004, min ESS 5,183, BFMI ≥ 0.84 on every chain. The psense wiring for `fit_rlm_corr_factor` landed with #480, so the fit now carries a measured `psense_summary.csv`: 22 parameters, 18 clear, with 4 of the wave-3 `factor_corr_pairs` correlations at "potential prior-data conflict" — informational for a latent correlation under an LKJ prior at this sample size, and consistent with the family's standing fragility caveat. Both exemptions this note recorded (`rlm-jc-001`, `rlm-mm-001`) are therefore closed with measurements, not waivers.
 
 ## Not addressed here
 
