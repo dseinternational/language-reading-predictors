@@ -53,6 +53,18 @@ RECONCILED_FACTORY_DEFAULTS = [
     # #382 item 1: unset by default — only the LRPMM102 sensitivity companion
     # widens the focal beta_factor / beta_G pair to the N(0, 1) mechanism scale.
     (factories.build_correlated_factor_model, "focal_slope_sigma", None),
+    # #383 follow-up: the longitudinal CFA takes the pooled-budget communality
+    # parameterisation — communality ~ Beta(2, 2) with lambda / sigma derived so
+    # the model-implied POOLED indicator variance is exactly 1 (the exact budget
+    # is lambda**2 + sigma**2 = 1 / (1 + c V), V being the wave-mean spread, since
+    # pooled standardisation puts 5-18% of the unit variance between waves). The
+    # legacy free-pair knobs stay at the original HalfNormal(1) values so a
+    # geometry-only sensitivity contrast remains constructible.
+    (factories.build_longitudinal_corr_factor_model, "loading_prior", "communality"),
+    (factories.build_longitudinal_corr_factor_model, "comm_alpha", 2.0),
+    (factories.build_longitudinal_corr_factor_model, "comm_beta", 2.0),
+    (factories.build_longitudinal_corr_factor_model, "loading_sigma", 1.0),
+    (factories.build_longitudinal_corr_factor_model, "residual_sigma", 1.0),
     (factories.build_growth_model, "assoc_prior_sigma", 0.3),
     (factories.build_growth_model, "re_intercept_prior_sigma", 0.5),
 ]
@@ -113,3 +125,35 @@ def test_corr_factor_loading_settings_coherence(extra, match):
     )
     with pytest.raises(ValueError, match=match):
         fit_correlated_factor(spec, config="dev")
+
+
+@pytest.mark.parametrize(
+    "extra,match",
+    [
+        # Free-pair knobs under the (default) pooled-budget communality
+        # parameterisation would be silently ignored — reject before any IO
+        # (#383 follow-up; the lcf builder has no loading_mu knob).
+        ({"loading_sigma": 0.5}, "loading_prior='free'"),
+        ({"loading_prior": "communality", "residual_sigma": 0.5}, "loading_prior='free'"),
+        ({"loading_prior": "free", "comm_beta": 3.0}, "communality"),
+        ({"loading_prior": "bounded"}, "loading_prior"),
+    ],
+    ids=["sigma-under-communality", "residual-under-communality", "comm-under-free", "unknown-mode"],
+)
+def test_lcf_loading_settings_coherence(extra, match):
+    """fit_longitudinal_corr_factor rejects loading knobs its parameterisation
+    ignores, before make_context resets the output directory (#383 follow-up)."""
+    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.pipeline import (
+        fit_longitudinal_corr_factor,
+    )
+
+    spec = ModelSpec(
+        model_id="lrp-test-lcf-guard",
+        kind="long_corr_factor",
+        title="guard",
+        outcome_symbol=None,
+        extra=dict(extra),
+    )
+    with pytest.raises(ValueError, match=match):
+        fit_longitudinal_corr_factor(spec, config="dev")

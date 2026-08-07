@@ -27,6 +27,15 @@ factor scores are **marginalised out** of the Gaussian measurement likelihood (t
 mm-001 funnel fix — no per-child latent RV). Missing cells are masked, not dropped:
 one ``MvNormal`` per observed-cell pattern.
 
+**Measurement priors.** Since the #383 follow-up the loadings/residuals use the
+**pooled-budget communality parameterisation**: the free parameter is the within-wave
+communality ``c ~ Beta(2, 2)`` per indicator, with the loading/residual pair derived so
+the model-implied pooled indicator variance is exactly 1 — the longitudinal analogue of
+the cross-sectional ``mm`` family's exact λ²+σ²=1 budget, adjusted for the 5–18% of the
+pooled unit variance that between-wave growth carries here. The legacy free
+HalfNormal(1) pair (which implies an arcsine communality prior with Heywood-adjacent
+mass) remains available via ``loading_prior="free"``.
+
 **Stance.** A measurement / triangulation model, **not** causal: every latent
 correlation and slope is a descriptive association (#115 ID-2). At n ~ 54 a longitudinal
 latent model is fragile and prior-dependent - the wide intervals are the honest result,

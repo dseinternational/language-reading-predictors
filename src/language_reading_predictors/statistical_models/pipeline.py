@@ -10019,6 +10019,40 @@ def fit_longitudinal_corr_factor(
     """
     _require_spec(spec, "long_corr_factor")
 
+    # #383 settings coherence, checked BEFORE make_context resets the output
+    # directory (the #455 principle), mirroring fit_correlated_factor: each loading
+    # parameterisation has knobs the other would silently ignore, so a spec mixing
+    # them is declaring settings the fitted model does not use.
+    _loading_prior = str(
+        spec.extra.get(
+            "loading_prior",
+            _default_of(
+                _factories.build_longitudinal_corr_factor_model, "loading_prior"
+            ),
+        )
+    )
+    if _loading_prior not in {"communality", "free"}:
+        raise ValueError(
+            f"Spec {spec.model_id}: loading_prior must be 'communality' or 'free'; "
+            f"got {_loading_prior!r}"
+        )
+    _free_knobs = sorted(
+        k for k in ("loading_sigma", "residual_sigma") if k in spec.extra
+    )
+    _comm_knobs = sorted(k for k in ("comm_alpha", "comm_beta") if k in spec.extra)
+    if _loading_prior == "communality" and _free_knobs:
+        raise ValueError(
+            f"Spec {spec.model_id}: {_free_knobs} only apply to "
+            "loading_prior='free'; the communality parameterisation would silently "
+            "ignore them. Set loading_prior='free' or drop the knobs."
+        )
+    if _loading_prior == "free" and _comm_knobs:
+        raise ValueError(
+            f"Spec {spec.model_id}: {_comm_knobs} only apply to "
+            "loading_prior='communality'; the free parameterisation would silently "
+            "ignore them. Drop the knobs or use the default parameterisation."
+        )
+
     ctx = make_context(spec, config)
     # A small-n latent model; even fully marginalised a few boundary divergences can
     # survive at the tier default, so lift target_accept via the spec (as mm-001 does).
@@ -10037,6 +10071,15 @@ def fit_longitudinal_corr_factor(
     built = _factories.build_longitudinal_corr_factor_model(
         panel,
         domains=domains,
+        loading_prior=_loading_prior,
+        comm_alpha=spec.extra.get(
+            "comm_alpha",
+            _default_of(_factories.build_longitudinal_corr_factor_model, "comm_alpha"),
+        ),
+        comm_beta=spec.extra.get(
+            "comm_beta",
+            _default_of(_factories.build_longitudinal_corr_factor_model, "comm_beta"),
+        ),
         loading_sigma=spec.extra.get(
             "loading_sigma",
             _default_of(_factories.build_longitudinal_corr_factor_model, "loading_sigma"),
@@ -10073,9 +10116,16 @@ def fit_longitudinal_corr_factor(
 
     z_nodes = built.extras["z_nodes"]
     summary_vars = [
+        # ``communality`` is the free RV under the default pooled-budget
+        # parameterisation (#383 follow-up) and a Deterministic under the legacy
+        # free pair; either way it is a reported quantity, so gate it explicitly
+        # alongside the derived lambda_load / sigma_indicator. ``within_share``
+        # is the within-wave share of the pooled unit variance that the budget
+        # allocates (lambda**2 + sigma**2 in both modes).
         "lambda_load",
         "sigma_indicator",
         "communality",
+        "within_share",
         "trait_share",
         # The headline: gate exactly the released per-wave off-diagonal correlations
         # (the full matrix's constant unit diagonal has undefined R-hat).
@@ -10083,8 +10133,24 @@ def fit_longitudinal_corr_factor(
     ]
 
     section_header("Prior predictive")
-    prior_vars = [rv.name for rv in built.model.free_RVs]
-    prior_vars += ["communality", "factor_corr_pairs", *z_nodes]
+    # Dedupe: ``communality`` is itself a free RV under the default
+    # parameterisation, so appending it unconditionally would double it. The
+    # derived lambda_load / sigma_indicator / within_share are named explicitly —
+    # as Deterministics they are no longer covered by the free-RV listing, and the
+    # prior-vs-posterior overlay below needs their prior draws.
+    prior_vars = list(
+        dict.fromkeys(
+            [
+                *(rv.name for rv in built.model.free_RVs),
+                "communality",
+                "lambda_load",
+                "sigma_indicator",
+                "within_share",
+                "factor_corr_pairs",
+                *z_nodes,
+            ]
+        )
+    )
     _diag.run_prior_predictive(ctx, draws=1000, var_names=prior_vars)
     _diag.save_prior_predictive_dist_overlay(ctx)
 
@@ -10103,7 +10169,10 @@ def fit_longitudinal_corr_factor(
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
     _diag.run_extended_diagnostics(ctx, causal_term=None)
-    _diag.run_psense(ctx, var_names=["factor_corr_pairs", "trait_share"])
+    # ``communality`` joins the power-scaled set (#383 follow-up): under the
+    # pooled-budget parameterisation it is the free measurement parameter behind
+    # the reported loadings table, exactly the place a prior dependence would live.
+    _diag.run_psense(ctx, var_names=["factor_corr_pairs", "trait_share", "communality"])
     _diag.save_trace(ctx)
     # Indicator-scale prior check (#381), pooled across the missingness-pattern
     # blocks: each block is its own observed node but the indicators are shared.

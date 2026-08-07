@@ -314,13 +314,18 @@ def test_long_corr_factor_priors_have_roles_and_rationales(built_models):
     table = priors.priors_table(built_models["long_corr_factor"])
     assert set(table["role"]) <= {"association", "nuisance"}
     assert table["rationale"].str.strip().ne("").all()
+    # Under the pooled-budget communality parameterisation (#383 follow-up) the
+    # free measurement RV is the communality; lambda_load / sigma_indicator are
+    # derived Deterministics and so no longer appear in the free-RV priors table.
     assert {
-        "lambda_load",
-        "sigma_indicator",
+        "communality",
         "trait_share",
         "trait_corr_chol",
         "factor_mean",
     } <= set(table["parameter"])
+    assert not {"lambda_load", "sigma_indicator"} & set(table["parameter"])
+    by_param = {r["parameter"]: r for _, r in table.iterrows()}
+    assert by_param["communality"]["distribution"] == "Beta(2, 2)"
     state = table[table["parameter"].str.startswith("state_corr_chol_w")]
     assert len(state) == 4
     assert state["role"].eq("association").all()
