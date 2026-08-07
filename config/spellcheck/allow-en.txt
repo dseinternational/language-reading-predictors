@@ -409,6 +409,7 @@ hspace
 hyperparam
 hyperparameters
 hyperparams
+hyperpriors
 idxmin
 ignorability
 iloc

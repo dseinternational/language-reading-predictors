@@ -186,6 +186,9 @@ _DID = [
     # Exploratory unexplained variation in the waitlist arm's t3 catch-up. This is
     # not a random treatment-effect slope and cannot classify causal responders.
     _d("lrpdid13", "did", "Arm-by-wave crossover", Status.ASSOCIATION, "W", "exploratory waitlist t3 catch-up heterogeneity", base="lrpdid01"),
+    # #382 rec 3: the single causal term's prior widened N(0, 0.5) -> N(0, 1); the
+    # right-tail letter-sound tau_t2 is the attenuation test case.
+    _d("lrpdid102", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "L", "wide-tau_t2 prior sensitivity for LRPDID02", base="lrpdid02"),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------
@@ -305,8 +308,11 @@ _STRUCT = [
     _d("lrp83", "dose_response", "Dose-response", Status.ASSOCIATION, "L", "period-resolved intervention dose -> letter sounds"),
     _d("lrp84", "dose_response", "Dose-response", Status.ASSOCIATION, "B", "period-resolved intervention dose -> phoneme blending"),
     _d("lrpmm01", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "correlated-domain-factor measurement model (vocabulary / code / grammar)"),
-    _d("lrpmm101", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "prior sensitivity for LRPMM01 (recalibrated loading / residual priors)", base="lrpmm01"),
+    _d("lrpmm101", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "prior-geometry sensitivity for LRPMM01 (legacy free loading / residual pair, #383)", base="lrpmm01"),
     _d("lrpmm02", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "errors-in-variables code->word-reading mechanism slope (latent code factor, mech-058 adjustment)", base="lrpmm01"),
+    # #382 rec 1: the focal EiV slope's prior widened to the primary-mechanism
+    # N(0, 1); beta_G deliberately keeps the association scale.
+    _d("lrpmm102", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "focal-slope prior sensitivity for LRPMM02 (beta_code at N(0, 1))", base="lrpmm02"),
     _d("lrphs01", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading gain)"),
     _d("lrphs02", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading level)"),
     # Ranking cross-check for the flagship letter-sound outcome L (#228 item 3);
@@ -406,6 +412,9 @@ _BX = [
     _d("lrpbx02", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "TR2", "staggered block-2 exposure; association (parallel trends)"),
     _d("lrpbx03", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "UE2", "not-taught comparator (specificity)"),
     _d("lrpbx04", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "UR2", "not-taught comparator (specificity)"),
+    # #382 rec 4: the distal-tier delta prior widened N(0, 0.3) -> N(0, 0.5) on the
+    # one distal focal term without sweep evidence.
+    _d("lrpbx103", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "UE2", "wide-delta prior sensitivity for LRPBX03", base="lrpbx03"),
 ]
 
 # --- Concurrent conditional associations (#312, descriptive-association workstream #314)

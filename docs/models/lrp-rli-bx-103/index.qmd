@@ -1,0 +1,55 @@
+---
+title: "LRPBX103: Wide-delta prior sensitivity for block-2 not-taught expressive vocabulary (UE2)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPBX103 is the **wide-delta prior-sensitivity companion** to
+[LRPBX03](../lrp-rli-bx-003/). It is the same staggered block-active exposure model, the
+same data and the same sampler settings, differing in exactly one thing: the prior on
+the focal exposure effect.
+
+| | LRPBX03 (reference) | LRPBX103 (this model) |
+| --- | --- | --- |
+| exposure effect $\delta$ | $\mathcal{N}(0,\ 0.3)$ (distal tier) | $\mathcal{N}(0,\ 0.5)$ |
+| everything else | — | identical |
+
+## Why this model exists
+
+The distal-tier tightening (#141) prices broad standardised-transfer outcomes at
+$\tau \sim \mathcal{N}(0, 0.3)$, and UE2 is distal. The prior-critical review (#382,
+recommendation 4) asks for a single $\mathcal{N}(0, 0.5)$ check on the distal tier to
+confirm the tightening is not attenuating a real transfer effect. The ITT distal
+outcomes (R/E/UR/UE/T/F) are certified by the standard 44-cell treatment-prior sweep,
+and the aligned family's cohort contrast was never tiered — which leaves this
+block-exposure comparator as the one distal focal term without sensitivity evidence.
+
+If the reference $\delta$ is genuinely data-dominated, the posterior here should match
+it to within Monte-Carlo error; a materially larger effect under the wider prior would
+mean the distal scale is attenuating a real transfer signal.
+
+_Reading rules as LRPBX03:_ block 2 has no t1 baseline and no randomised contrast, so
+$\delta$ is an **adjusted association** under either prior. These words were not
+taught, so an effect ≈ 0 is the expected fidelity result, not a power failure.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_block_exposure.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

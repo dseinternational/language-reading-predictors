@@ -2140,6 +2140,37 @@ def test_correlated_factor_model_rejects_bad_loading_prior(tmp_path):
         build_correlated_factor_model(prep, loading_prior="bounded")
     with pytest.raises(ValueError, match="comm_alpha and comm_beta"):
         build_correlated_factor_model(prep, comm_alpha=0.0)
+    with pytest.raises(ValueError, match="focal_slope_sigma"):
+        build_correlated_factor_model(prep, focal_slope_sigma=0.0)
+
+
+def test_correlated_factor_focal_slope_sigma_widens_only_focal_terms(tmp_path):
+    """#382 item 1 (LRPMM102): focal_slope_sigma moves beta_factor and beta_G to
+    the primary-mechanism scale while every other slope keeps the association
+    scale — verified on the priors table the report publishes."""
+    from language_reading_predictors.statistical_models import priors as _priors_mod
+
+    p = _write_synthetic(tmp_path, n_children=30)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_correlated_factor_model(
+        prep,
+        outcome_symbol="W",
+        domains={"vocabulary": ("R", "E"), "code": ("L", "B"), "grammar": ("F", "T")},
+        structural_covariates=("blocks",),
+        structural_factors=("code",),
+        use_group=True,
+        focal_slope_sigma=1.0,
+    )
+    table = _priors_mod.priors_table(built.model)
+    dist = dict(zip(table["parameter"], table["distribution"], strict=False))
+    assert dist["beta_factor"] == "Normal(0, 1)"
+    # Non-focal slopes keep the association scale — including beta_G, which the
+    # review's recommendation 1 explicitly does NOT rescale (it is an
+    # arm-adjustment association covariate, not the mechanism).
+    assert dist["beta_G"] == "Normal(0, 0.3)"
+    assert dist["beta_age"] == "Normal(0, 0.3)"
+    assert dist["beta_blocks"] == "Normal(0, 0.3)"
 
 
 def test_correlated_factor_model_requires_two_indicators(tmp_path):

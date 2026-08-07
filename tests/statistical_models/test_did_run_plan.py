@@ -306,3 +306,36 @@ def test_every_registered_did_model_power_scales_its_variant_terms():
             )
         if plan.use_varying_delta:
             assert "sigma_delta" in plan.psense_terms, spec.model_id
+
+
+def test_tau_t2_prior_sigma_flows_to_factory_kwargs():
+    """#382 rec 3 (LRPDID102): the widened causal-term prior is a typed setting
+    that reaches build_did_model, and stays None on the reference model."""
+    from language_reading_predictors.statistical_models import lrp_rli_did_002, lrp_rli_did_102
+    from language_reading_predictors.statistical_models.did import resolve_did_run_plan
+
+    ref = resolve_did_run_plan(lrp_rli_did_002.SPEC)
+    wide = resolve_did_run_plan(lrp_rli_did_102.SPEC)
+    assert ref.factory_kwargs()["tau_t2_prior_sigma"] is None
+    assert wide.factory_kwargs()["tau_t2_prior_sigma"] == 1.0
+    # Identical apart from the sensitivity knob.
+    a, b = ref.factory_kwargs(), wide.factory_kwargs()
+    a.pop("tau_t2_prior_sigma"), b.pop("tau_t2_prior_sigma")
+    assert {k: v for k, v in a.items() if k != "outcome_symbol"} == {
+        k: v for k, v in b.items() if k != "outcome_symbol"
+    }
+
+
+def test_tau_t2_prior_sigma_rejected_on_dose_and_bad_values():
+    """A dose model has no tau_t2, so the setting is incoherent there; and the
+    scale must be a positive finite number (settings-time, before any IO)."""
+    import pytest
+
+    from language_reading_predictors.statistical_models.did import DiDModelSettings
+
+    with pytest.raises(ValueError, match="no tau_t2"):
+        DiDModelSettings(dose=True, tau_t2_prior_sigma=1.0)
+    with pytest.raises(ValueError, match="finite and positive"):
+        DiDModelSettings(tau_t2_prior_sigma=0.0)
+    with pytest.raises(ValueError, match="finite and positive"):
+        DiDModelSettings(tau_t2_prior_sigma=float("nan"))
