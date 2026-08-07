@@ -9,9 +9,61 @@ from types import SimpleNamespace
 
 from language_reading_predictors.statistical_models import stages
 from language_reading_predictors.statistical_models.stages import (
+    PrimaryFitPlan,
     SharedFitStages,
     StageHooks,
 )
+
+
+def _patch_primary_fit_diag(monkeypatch, events):
+    """Route every diagnostics call of the primary-fit lifecycle into ``events``."""
+    monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
+    monkeypatch.setattr(
+        stages._diag,
+        "run_prior_predictive",
+        lambda _ctx, *, draws: events.append(f"prior_predictive[{draws}]"),
+    )
+    monkeypatch.setattr(
+        stages._diag, "sample_posterior", lambda _ctx: events.append("sample")
+    )
+    monkeypatch.setattr(
+        stages._diag,
+        "compute_log_likelihood_and_loo",
+        lambda _ctx: events.append("loo"),
+    )
+    monkeypatch.setattr(
+        stages._report, "write_loo_summary", lambda _ctx: events.append("loo_summary")
+    )
+    monkeypatch.setattr(
+        stages._diag,
+        "summary_diagnostics",
+        lambda _ctx, *, var_names: events.append(f"summary{var_names}"),
+    )
+    monkeypatch.setattr(
+        stages._diag,
+        "run_psense",
+        lambda _ctx, *, var_names: events.append(f"psense{var_names}"),
+    )
+    monkeypatch.setattr(
+        stages._diag,
+        "sample_posterior_predictive",
+        lambda _ctx, *, var_names: events.append(f"ppc_sample{var_names}"),
+    )
+    monkeypatch.setattr(
+        stages._diag,
+        "write_diagnostics_summary",
+        lambda _ctx, *, var_names: events.append(f"gate{var_names}"),
+    )
+    monkeypatch.setattr(
+        stages._diag,
+        "run_extended_diagnostics",
+        lambda _ctx, *, causal_term, include_loo_pit: events.append(
+            f"extended[{causal_term},loo_pit={include_loo_pit}]"
+        ),
+    )
+    monkeypatch.setattr(
+        stages._diag, "save_trace", lambda _ctx: events.append("save_trace")
+    )
 
 
 def _stage_runner(events):
@@ -155,6 +207,84 @@ def test_posterior_predictive_uses_the_last_requested_node(monkeypatch):
 
     assert sampled == [["mediator_post", "y_post"]]
     assert saved == ["y_post"]
+
+
+def test_run_primary_fit_owns_the_invariant_sequence(monkeypatch):
+    """The primary-fit lifecycle order, expressed once (#394 acceptance criterion).
+
+    Prior predictive (with the family's figure) -> sampling -> LOO -> summary
+    diagnostics -> power-scaling sensitivity -> posterior predictive -> the
+    all-free-variable convergence gate -> extended diagnostics -> trace
+    persistence.
+    """
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace()
+    _patch_primary_fit_diag(monkeypatch, events)
+
+    plan = PrimaryFitPlan(
+        diagnostic_vars=("alpha", "tau"),
+        ppc_var_names=("y_event",),
+        plot_prior_predictive=lambda _ctx: events.append("plot_prior_predictive"),
+        extended_term="tau",
+    )
+    runner.run_primary_fit(ctx, plan)
+
+    assert events == [
+        "Prior predictive",
+        "prior_predictive[1000]",
+        "plot_prior_predictive",
+        "Sampling posterior (nutpie)",
+        "sample",
+        "LOO-PSIS",
+        "loo",
+        "loo_summary",
+        "influence",
+        "loo_row",
+        "Summary diagnostics",
+        "summary['alpha', 'tau']",
+        "psense['alpha', 'tau']",
+        "Posterior predictive",
+        "ppc_sample['y_event']",
+        "save_ppc",
+        "Extended diagnostics",
+        "gate['alpha', 'tau']",
+        "extended[tau,loo_pit=True]",
+        "save_trace",
+    ]
+
+
+def test_run_primary_fit_honours_the_genuine_family_differences(monkeypatch):
+    """No LOO (mediation), no extended term, distinct psense vars, no trace save —
+    the plan expresses each difference without changing the shared order."""
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace()
+    _patch_primary_fit_diag(monkeypatch, events)
+
+    plan = PrimaryFitPlan(
+        diagnostic_vars=("alpha",),
+        psense_vars=("tau",),
+        compute_loo=False,
+        extended_term=None,
+        save_trace=False,
+    )
+    runner.run_primary_fit(ctx, plan)
+
+    assert events == [
+        "Prior predictive",
+        "prior_predictive[1000]",
+        "Sampling posterior (nutpie)",
+        "sample",
+        "Summary diagnostics",
+        "summary['alpha']",
+        "psense['tau']",
+        "Posterior predictive",
+        "ppc_sample['y_post']",
+        "save_ppc",
+        "Extended diagnostics",
+        "gate['alpha']",
+    ]
 
 
 def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):

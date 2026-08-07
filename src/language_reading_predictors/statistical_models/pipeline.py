@@ -77,6 +77,7 @@ from language_reading_predictors.statistical_models.aligned import (
 )
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
+    record_artifact,
     save_table,
 )
 from language_reading_predictors.statistical_models.concurrent import (
@@ -130,6 +131,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     standardise,
 )
 from language_reading_predictors.statistical_models.stages import (
+    PrimaryFitPlan,
     SharedFitStages,
     StageHooks,
 )
@@ -932,15 +934,16 @@ def _prior_table_overrides(
 
 
 def _render_model_graph(context: StatisticalFitContext) -> None:
-    try:
+    with guard_optional(
+        context, "Graphviz render",
+        filename="model_graph.png", kind="figure", verb="failed",
+    ):
         g = _graphviz(context.model)
         g.render(
             filename=os.path.join(context.output_dir, "model_graph"),
             format="png",
             cleanup=True,
         )
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Graphviz render failed: {exc}[/yellow]")
 
 
 def _graphviz(model):
@@ -1006,11 +1009,12 @@ def _save_count_ppc(
     with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         cov = _report.ppc_interval_coverage(context.trace, node=node)
         save_table(context, "ppc_summary", cov, required=False)
-    try:
+    with guard_optional(
+        context, "PPC calibration figure",
+        filename="ppc_calibration.png", kind="figure", verb="skipped",
+    ):
         cal = _report.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
         _ppc_calibration_figure(context, symbol, cal)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC calibration figure skipped: {exc}[/yellow]")
     if kind in _PPC_FAMILY_OWN_OVERLAY_KINDS:
         rprint(
             f"[dim]PPC distribution overlay left to the '{kind}' family's own "
@@ -1085,13 +1089,14 @@ def _save_offfloor_ppc(
     with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         cov = _report.ppc_offfloor_rate_coverage(context.trace, node=node, group=group)
         save_table(context, "ppc_summary", cov, required=False)
-    try:
+    with guard_optional(
+        context, "PPC off-floor figure",
+        filename="posterior_predictive_check.png", kind="figure", verb="skipped",
+    ):
         cells = _report.ppc_offfloor_cell_table(
             context.trace, node=node, group=group, ci_prob=0.9
         )
         _ppc_offfloor_figure(context, symbol, cells)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC off-floor figure skipped: {exc}[/yellow]")
 
 
 def _offfloor_group_labels(context: StatisticalFitContext) -> np.ndarray | None:
@@ -1137,7 +1142,13 @@ def _ppc_overlay_figure(
     dataset is one posterior-predictive draw over all observations. Writes
     ``posterior_predictive_check.png`` (+ a density-band data CSV).
     """
-    try:
+    with guard_optional(
+        context,
+        "PPC overlay figure",
+        filename=f"{filename_stem}.png",
+        kind="figure",
+        verb="failed",
+    ):
         y_rep, y_obs = _report._ppc_node_arrays(context.trace, node)
         if row_mask is not None:
             # One measure's rows out of a stacked likelihood, selected by the
@@ -1181,8 +1192,6 @@ def _ppc_overlay_figure(
             }
         )
         save_styled_figure(context.output_dir, filename_stem, data=data)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC overlay figure failed: {exc}[/yellow]")
 
 
 def _ppc_calibration_figure(
@@ -1195,7 +1204,10 @@ def _ppc_calibration_figure(
     observations whose observed score falls outside the 90% range are flagged.
     Writes ``ppc_calibration.png`` (+ the per-observation data CSV).
     """
-    try:
+    with guard_optional(
+        context, "PPC calibration figure",
+        filename="ppc_calibration.png", kind="figure", verb="failed",
+    ):
         label, n_trials = _ppc_measure_label(symbol)
         obs = cal["observed"].to_numpy(float)
         med = cal["pp_median"].to_numpy(float)
@@ -1219,8 +1231,6 @@ def _ppc_calibration_figure(
         plt.title(f"Per-observation calibration: {label}")
         plt.legend(fontsize=8)
         save_styled_figure(context.output_dir, "ppc_calibration", data=cal)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC calibration figure failed: {exc}[/yellow]")
 
 
 def _ppc_offfloor_figure(
@@ -1232,7 +1242,10 @@ def _ppc_offfloor_figure(
     overlay: the observed rate should sit inside the model's predictive range for
     each cell) plus the per-cell data CSV.
     """
-    try:
+    with guard_optional(
+        context, "PPC off-floor figure",
+        filename="posterior_predictive_check.png", kind="figure", verb="failed",
+    ):
         label, _ = _ppc_measure_label(symbol)
         x = np.arange(len(cells))
         med = cells["pp_rate_median"].to_numpy(float)
@@ -1252,15 +1265,16 @@ def _ppc_offfloor_figure(
         plt.title(f"Off-floor rate posterior-predictive check: {label}")
         plt.legend(fontsize=8)
         save_styled_figure(context.output_dir, "posterior_predictive_check", data=cells)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]PPC off-floor figure failed: {exc}[/yellow]")
 
 
 def _save_legacy_ppc_overlay(context: StatisticalFitContext) -> None:
     # arviz 1.x removed az.plot_ppc; the equivalent is arviz_plots.plot_ppc_dist
     # (returns a PlotCollection with .savefig). Used for measurement / latent nodes
     # that have no single count outcome. Guarded — a PPC plot failure must not abort.
-    try:
+    with guard_optional(
+        context, "PPC plot",
+        filename="posterior_predictive_check.png", kind="figure", verb="failed",
+    ):
         import arviz_plots as azp
 
         pc = azp.plot_ppc_dist(context.trace)
@@ -1270,8 +1284,6 @@ def _save_legacy_ppc_overlay(context: StatisticalFitContext) -> None:
             "posterior_predictive_check.png",
             suptitle="Posterior-predictive vs observed",
         )
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]PPC plot failed: {exc}[/yellow]")
 
 
 def _draw_did_cell_panel(
@@ -1302,7 +1314,10 @@ def _save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) 
     """Cell-stratified DiD posterior-predictive checks as two individual figures:
     ``did_cell_ppc_mean`` (cell mean) and ``did_cell_ppc_zero_rate`` (proportion
     at zero)."""
-    try:
+    with guard_optional(
+        ctx, "DiD cell PPC plot",
+        filename="did_cell_ppc_mean.png", kind="figure", verb="failed",
+    ):
         for stem, ylabel, name in (
             ("mean", "cell mean", "did_cell_ppc_mean"),
             ("zero_rate", "proportion at zero", "did_cell_ppc_zero_rate"),
@@ -1314,15 +1329,16 @@ def _save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) 
             )
             fig.tight_layout()
             save_styled_figure(ctx.output_dir, name, fig=fig)
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]DiD cell PPC plot failed: {exc}[/yellow]")
 
 
 def _save_proportion_at_zero_plot(
     ctx: StatisticalFitContext, symbol: str, ppc0: dict
 ) -> None:
     """Plot the proportion-at-zero PPC: replicated distribution vs observed."""
-    try:
+    with guard_optional(
+        ctx, "Proportion-at-zero PPC plot",
+        filename="proportion_at_zero_ppc.png", kind="figure", verb="failed",
+    ):
         rep = ppc0["rep"]
         obs = ppc0["obs_prop_at_zero"]
         plt.figure(figsize=FIGSIZE_LG)
@@ -1338,8 +1354,6 @@ def _save_proportion_at_zero_plot(
         # Scalar PPC summary (rep excluded) is already written to CSV by the
         # graded/floor path, so no data= here — just the styled PNG + SVG.
         save_styled_figure(ctx.output_dir, "proportion_at_zero_ppc")
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Proportion-at-zero PPC plot failed: {exc}[/yellow]")
 
 
 def _save_rope_plot(
@@ -1370,7 +1384,10 @@ def _save_rope_plot(
     are written as individual files (``rope_summary`` + ``rope_benefit_curve``)
     rather than one combined figure.
     """
-    try:
+    with guard_optional(
+        ctx, "ROPE plot",
+        filename="rope_summary.png", kind="figure", verb="failed",
+    ):
         from language_reading_predictors.statistical_models.effect_plots import (
             write_rope_figures,
         )
@@ -1386,8 +1403,6 @@ def _save_rope_plot(
             ctx.output_dir, items, symbol=symbol, delta=delta,
             n_trials=n_trials, split=split,
         )
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]ROPE plot failed: {exc}[/yellow]")
 
 
 def _write_predicted_scores(
@@ -1423,7 +1438,10 @@ def _write_predicted_scores(
         write_predicted_scores_artifacts,
     )
 
-    try:
+    with guard_optional(
+        ctx, "Predicted-scores figures",
+        filename="predicted_scores.png", kind="figure", verb="failed",
+    ):
         summary = write_predicted_scores_artifacts(
             ctx.output_dir,
             ctx.trace,
@@ -1449,8 +1467,9 @@ def _write_predicted_scores(
             score_mean_link=score_mean_link,
         )
         ctx.tables["predicted_scores"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Predicted-scores figures failed: {exc}[/yellow]")
+        # ``predicted_scores.csv`` is written inside the helper (which takes an
+        # output directory, not a context); record it so the manifest lists it.
+        record_artifact(ctx, "predicted_scores", df=summary, required=False)
 
 
 def _write_arm_overlap(
@@ -1485,7 +1504,10 @@ def _write_arm_overlap(
     )
     from language_reading_predictors.statistical_models.measures import MEASURES
 
-    try:
+    with guard_optional(
+        ctx, "Arm-overlap figures",
+        filename="arm_overlap_mean.png", kind="figure", verb="failed",
+    ):
         tables = write_arm_overlap_artifacts(
             ctx.output_dir,
             ctx.trace,
@@ -1510,8 +1532,6 @@ def _write_arm_overlap(
         )
         for name, table in tables.items():
             ctx.tables[name] = table
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Arm-overlap figures failed: {exc}[/yellow]")
 
 
 def _ctx_pareto_k(ctx: StatisticalFitContext) -> np.ndarray | None:
@@ -1538,7 +1558,10 @@ def _write_group_trajectory(
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
     from language_reading_predictors.statistical_models.measures import MEASURES
 
-    try:
+    with guard_optional(
+        ctx, "Group-trajectory figure",
+        filename="group_trajectory.png", kind="figure", verb="failed",
+    ):
         m = MEASURES[outcome_symbol]
         summary = _tp.write_group_arm_trajectory(
             ctx.output_dir,
@@ -1555,8 +1578,6 @@ def _write_group_trajectory(
             obs_node=obs_node,
         )
         ctx.tables["group_trajectory"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Group-trajectory figure failed: {exc}[/yellow]")
 
 
 def _write_child_fit(
@@ -1573,7 +1594,10 @@ def _write_child_fit(
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
     from language_reading_predictors.statistical_models.measures import MEASURES
 
-    try:
+    with guard_optional(
+        ctx, "Per-child fit figure",
+        filename="child_fit_panels.png", kind="figure", verb="failed",
+    ):
         m = MEASURES[outcome_symbol]
         summary = _tp.write_child_fit_obsid(
             ctx.output_dir,
@@ -1591,15 +1615,16 @@ def _write_child_fit(
             x_label=x_label,
         )
         ctx.tables["child_fit_panels"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Per-child fit figure failed: {exc}[/yellow]")
 
 
 def _write_panel_trajectory(ctx: StatisticalFitContext, *, latent_name: str) -> None:
     """Per-measure cohort growth-trajectory figure for a masked panel family (#317)."""
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
 
-    try:
+    with guard_optional(
+        ctx, "Cohort-trajectory figure",
+        filename="group_trajectory.png", kind="figure", verb="failed",
+    ):
         summary = _tp.write_outcome_trajectory(
             ctx.output_dir,
             ctx.trace,
@@ -1608,8 +1633,6 @@ def _write_panel_trajectory(ctx: StatisticalFitContext, *, latent_name: str) -> 
             ci_prob=ctx.reporting.ci_prob,
         )
         ctx.tables["group_trajectory"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Cohort-trajectory figure failed: {exc}[/yellow]")
 
 
 def _write_panel_child_fit(
@@ -1622,7 +1645,10 @@ def _write_panel_child_fit(
     """Per-child small multiples (one focal outcome) for a masked panel family (#317)."""
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
 
-    try:
+    with guard_optional(
+        ctx, "Per-child fit figure",
+        filename="child_fit_panels.png", kind="figure", verb="failed",
+    ):
         summary = _tp.write_child_fit_panel(
             ctx.output_dir,
             ctx.trace,
@@ -1635,13 +1661,14 @@ def _write_panel_child_fit(
             ci_prob=ctx.reporting.ci_prob,
         )
         ctx.tables["child_fit_panels"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Per-child fit figure failed: {exc}[/yellow]")
 
 
 def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
     """Heatmap of joint pairwise probability-scale AME ordering (#125 Area 4)."""
-    try:
+    with guard_optional(
+        ctx, "Contrast heatmap",
+        filename="contrast_heatmap.png", kind="figure", verb="failed",
+    ):
         import numpy as _np
 
         labels = list(contrast.index)
@@ -1660,8 +1687,6 @@ def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
         # ``save_styled_figure`` owns the layout engine. Switching engines after
         # a colorbar has been created raises on recent Matplotlib versions.
         save_styled_figure(ctx.output_dir, "contrast_heatmap", fig=fig)
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Contrast heatmap failed: {exc}[/yellow]")
 
 
 def _growth_contrast_pushforward_rows(
@@ -1928,7 +1953,10 @@ def _emit_itt_extras(
     for the binary off-floor model. ``moderators`` carries any treatment
     interactions so the prior is pushed through the same full-contribution AME.
     """
-    try:
+    with guard_optional(
+        ctx, "prior pushforward",
+        filename="prior_pushforward.csv", kind="table", verb="skipped",
+    ):
         pf = _report.prior_pushforward(
             ctx.prior_samples,
             G=built.prepared.G,
@@ -1939,9 +1967,7 @@ def _emit_itt_extras(
             ci_prob=ctx.reporting.ci_prob,
             score_mean_link=score_mean_link,
         )
-        save_table(ctx, "prior_pushforward", pd.DataFrame([pf]))
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]prior pushforward skipped: {exc}[/yellow]")
+        save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
     _save_forest_plot(ctx, [term])
     _diag.save_prior_posterior_plot(ctx, var_names=overlay_vars)
     _diag.run_psense(ctx, var_names=[term])
@@ -1960,7 +1986,9 @@ def _save_forest_plot(
     joint model the vector ``tau`` forests every outcome's effect in one panel —
     the single most communicative artifact for the suite. Guarded.
     """
-    try:
+    with guard_optional(
+        ctx, f"Forest plot ({name})", filename=name, kind="figure", verb="failed"
+    ):
         import arviz_plots as azp
 
         tr = _diag.thin_for_plots(ctx.trace)
@@ -1986,8 +2014,6 @@ def _save_forest_plot(
                 else "Effect posterior (forest, reference line at 0)"
             )
         save_plotcollection(pc, ctx.output_dir, name, suptitle=title)
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]Forest plot ({name}) failed: {exc}[/yellow]")
 
 
 def _save_association_forest(
@@ -2226,26 +2252,20 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         + (["tau"] if use_treatment else [])
     )
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_rate_plot(
-        ctx, spec.outcome_symbol, node="y_event"
+    # Reference adoption of the shared primary-fit lifecycle (#394 design 2):
+    # the invariant sequence lives in ``stages.run_primary_fit`` and the family
+    # declares only its execution profile.
+    _shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=("y_event",),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_rate_plot(
+                c, spec.outcome_symbol, node="y_event"
+            ),
+            extended_term="tau" if use_treatment else None,
+        ),
     )
-
-    _run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    _run_ppc(ctx, var_names=["y_event"])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    if use_treatment:
-        _diag.run_extended_diagnostics(ctx, causal_term="tau")
-    _diag.save_trace(ctx)
 
     section_header("Off-floor hazard summary")
     summary = _survival_summary(
@@ -3367,7 +3387,10 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.save_prior_posterior_plot(ctx, var_names=_did_diag_vars(spec))
     _diag.run_psense(ctx, var_names=list(plan.psense_terms))
     if not dose:
-        try:
+        with guard_optional(
+            ctx, "DiD prior pushforward",
+            filename="prior_pushforward.csv", kind="table", verb="skipped",
+        ):
             from language_reading_predictors.statistical_models.measures import MEASURES
 
             prior_pushforward = _report.prior_pushforward(
@@ -3381,9 +3404,9 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 row_mask=ctx.prepared.phase == 1,
             )
             prior_pushforward_df = pd.DataFrame([prior_pushforward])
-            save_table(ctx, "prior_pushforward", prior_pushforward_df)
-        except Exception as exc:  # pragma: no cover
-            rprint(f"[yellow]DiD prior pushforward skipped: {exc}[/yellow]")
+            save_table(
+                ctx, "prior_pushforward", prior_pushforward_df, required=False
+            )
         _save_forest_plot(
             ctx,
             ["tau_t2", "arm_gap_t3", "delta_crossover"],
@@ -3719,7 +3742,10 @@ def _jm_marginal_ppc(
     deliberately: naming the residual there still conditioned on its posterior values,
     silently reproducing the conditional numbers under a marginal label.
     """
-    try:
+    with guard_optional(
+        ctx, "ppc_summary_marginal.csv",
+        filename="ppc_summary_marginal.csv", kind="table", verb="skipped",
+    ):
         post = ctx.trace.posterior
         required = {"eta", "u_resid", "sigma_u_resid", "rho_outcome"}
         if not required <= set(post.data_vars):
@@ -3780,9 +3806,7 @@ def _jm_marginal_ppc(
                 }
             )
         frame = pd.DataFrame(rows)
-        save_table(ctx, "ppc_summary_marginal", frame)
-    except Exception as exc:  # pragma: no cover - guarded
-        rprint(f"[yellow]ppc_summary_marginal.csv skipped: {exc}[/yellow]")
+        save_table(ctx, "ppc_summary_marginal", frame, required=False)
 
 
 def _jm_standard_artefacts(
@@ -4685,6 +4709,9 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
             exposure_label=exposure_label,
             ref_quantiles=ref_quantiles,
         )
+        # ``mechanism_curve_items.csv`` is written inside the helper (which takes
+        # an output directory, not a context); record it for the manifest.
+        record_artifact(ctx, "mechanism_curve_items", required=False)
         return worked
     except Exception as exc:  # pragma: no cover - defensive; logit curve stands alone
         rprint(f"[yellow]Items-scale mechanism curve failed: {exc}[/yellow]")
@@ -4779,10 +4806,11 @@ def _write_mechanism_prior_pushforward(
                 reason=str(exc),
             )
         ]
-    try:
+    with guard_optional(
+        ctx, "mechanism prior pushforward",
+        filename="prior_pushforward.csv", kind="table", verb="not written",
+    ):
         _write_prior_pushforward(ctx, rows)
-    except Exception as exc:  # noqa: BLE001 - see the docstring: never raises
-        rprint(f"[yellow]mechanism prior pushforward not written: {exc}[/yellow]")
 
 
 def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:

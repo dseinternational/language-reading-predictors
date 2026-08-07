@@ -46,6 +46,46 @@ class StageHooks:
 
 
 @dataclass(frozen=True, slots=True)
+class PrimaryFitPlan:
+    """The genuinely variable execution choices of a primary fit (#394 design 2).
+
+    Everything else about the primary-fit sequence — its order, its section
+    headers, which diagnostics run — is invariant and owned by
+    :meth:`SharedFitStages.run_primary_fit`. A family declares only what varies:
+    the curated diagnostic variables, the posterior-predictive nodes (the last
+    one is the primary outcome node), its prior-predictive figure, which
+    variables get power-scaling sensitivity, the term the extended diagnostics
+    focus on, and the LOO / LOO-PIT / trace-persistence policy. Deliberately a
+    flat value object rather than a base class with overridable methods: a
+    reader should be able to see a family's whole execution profile in one
+    declaration.
+    """
+
+    diagnostic_vars: tuple[str, ...]
+    """Curated variables for the human-readable summary and the convergence gate
+    (the gate itself widens to all free RVs via ``_gate_var_names``)."""
+
+    ppc_var_names: tuple[str, ...] = ("y_post",)
+    """Posterior-predictive nodes to draw; the last is the primary node."""
+
+    prior_predictive_draws: int = 1000
+
+    plot_prior_predictive: ContextHook | None = None
+    """Family-specific prior-predictive figure (rate plot, count panel, …)."""
+
+    psense_vars: tuple[str, ...] | None = None
+    """Power-scaling sensitivity variables; ``None`` means ``diagnostic_vars``."""
+
+    extended_term: str | None = None
+    """Focus term for the extended diagnostics (rank / ESS-evolution plots);
+    ``None`` skips the extended block (the gate still runs)."""
+
+    include_loo_pit: bool = True
+    compute_loo: bool = True
+    save_trace: bool = True
+
+
+@dataclass(frozen=True, slots=True)
 class SharedFitStages:
     """Behaviour-preserving stages common to every family pipeline."""
 
@@ -88,6 +128,49 @@ class SharedFitStages:
         names = list(var_names) if var_names else ["y_post"]
         _diag.sample_posterior_predictive(ctx, var_names=names)
         self.hooks.save_ppc(ctx, primary_node=names[-1])
+
+    def run_primary_fit(
+        self, ctx: StatisticalFitContext, plan: PrimaryFitPlan
+    ) -> None:
+        """Execute the invariant primary-fit sequence for a built, attached model.
+
+        Prior prediction, posterior sampling with optional PSIS-LOO, the
+        human-readable summary diagnostics, power-scaling sensitivity, posterior
+        prediction, the all-free-variable convergence gate, the extended
+        diagnostics, and trace persistence — in that order, once, for every
+        family that adopts a :class:`PrimaryFitPlan`. Family scientific
+        summaries and exceptional audits stay explicit in the family pipeline,
+        before and after this call.
+        """
+
+        diag_vars = list(plan.diagnostic_vars)
+
+        section_header("Prior predictive")
+        _diag.run_prior_predictive(ctx, draws=plan.prior_predictive_draws)
+        if plan.plot_prior_predictive is not None:
+            plan.plot_prior_predictive(ctx)
+
+        self.sample_and_loo(ctx, compute_loo=plan.compute_loo)
+
+        section_header("Summary diagnostics")
+        _diag.summary_diagnostics(ctx, var_names=diag_vars)
+        psense_vars = (
+            list(plan.psense_vars) if plan.psense_vars is not None else diag_vars
+        )
+        _diag.run_psense(ctx, var_names=psense_vars)
+
+        self.posterior_predictive(ctx, var_names=list(plan.ppc_var_names))
+
+        section_header("Extended diagnostics")
+        _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+        if plan.extended_term is not None:
+            _diag.run_extended_diagnostics(
+                ctx,
+                causal_term=plan.extended_term,
+                include_loo_pit=plan.include_loo_pit,
+            )
+        if plan.save_trace:
+            _diag.save_trace(ctx)
 
     def write_metadata(
         self,

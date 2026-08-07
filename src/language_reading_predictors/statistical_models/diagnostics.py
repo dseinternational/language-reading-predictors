@@ -55,6 +55,11 @@ from dse_research_utils.statistics.diagnostics import (
     write_diagnostics_summary as _shared_write_diagnostics_summary,
 )
 
+from language_reading_predictors.statistical_models.artifacts import (
+    guard_optional,
+    record_artifact,
+    save_table,
+)
 from language_reading_predictors.models._reporting import (
     print_table,
     ranked_dataframe_table,
@@ -375,8 +380,7 @@ def summary_diagnostics(
             ci_prob=context.reporting.ci_prob,
             ci_kind=context.reporting.interval_kind,
         )
-        summary.to_csv(os.path.join(out, "diagnostics.csv"))
-        context.tables["diagnostics"] = summary
+        save_table(context, "diagnostics", summary, index=True)
 
         ci_pct = int(round(context.reporting.ci_prob * 100))
         interval_cols = _interval_cols(summary.columns)
@@ -521,7 +525,12 @@ def _summarise_deterministics(
     context: StatisticalFitContext, scalar_var_names: list[str] | None
 ) -> None:
     """Write ``diagnostics_deterministics.csv`` for vector / GP-weight nodes."""
-    try:
+    with guard_optional(
+        context,
+        "deterministics summary",
+        filename="diagnostics_deterministics.csv",
+        kind="table",
+    ):
         scalar = set(scalar_var_names or [])
         det_names = [d.name for d in context.model.deterministics if d.name not in scalar]
         # Only summarise nodes actually present in the posterior, and skip the
@@ -536,10 +545,9 @@ def _summarise_deterministics(
         summary = az.summary(
             context.trace, var_names=present, round_to=3, ci_kind=context.reporting.interval_kind
         )
-        summary.to_csv(os.path.join(context.output_dir, "diagnostics_deterministics.csv"))
-        context.tables["diagnostics_deterministics"] = summary
-    except Exception as exc:  # pragma: no cover
-        rprint(f"[yellow]deterministics summary skipped: {exc}[/yellow]")
+        save_table(
+            context, "diagnostics_deterministics", summary, index=True, required=False
+        )
 
 
 def _gate_var_names(
@@ -1004,6 +1012,10 @@ def run_psense(
     df = psense_artifacts(context.trace, context.output_dir, var_names)
     if df is not None:
         context.tables["psense_summary"] = df
+        # The atomic temp-and-rename write stays with psense_artifacts (shared
+        # with the post-hoc regeneration script); record it here so the fit's
+        # manifest lists it as written rather than untracked.
+        record_artifact(context, "psense_summary", df=df)
 
 
 def sample_posterior_predictive(
@@ -1056,6 +1068,9 @@ def save_trace(context: StatisticalFitContext, filename: str = "trace.nc") -> st
     _attach_prior_groups(context)
     path = os.path.join(context.output_dir, filename)
     context.trace.to_netcdf(path)
+    record_artifact(
+        context, os.path.splitext(filename)[0], filename=filename, kind="netcdf"
+    )
     return path
 
 

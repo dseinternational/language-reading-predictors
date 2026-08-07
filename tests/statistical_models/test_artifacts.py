@@ -116,6 +116,15 @@ def test_guard_optional_swallows_warns_and_records(tmp_path, capsys):
     assert record.error == "no posterior predictive group"
 
 
+def test_guard_optional_verb_reproduces_the_historical_wording(tmp_path, capsys):
+    ctx = _ctx(tmp_path)
+    with guard_optional(ctx, "ROPE plot", filename="rope_summary.png", verb="failed"):
+        raise RuntimeError("no draws")
+
+    assert "ROPE plot failed: no draws" in capsys.readouterr().out
+    assert ctx.artifacts.records["rope_summary.png"].status == "skipped"
+
+
 def test_guard_optional_does_not_swallow_keyboard_interrupt(tmp_path):
     ctx = _ctx(tmp_path)
     with pytest.raises(KeyboardInterrupt):
@@ -161,6 +170,35 @@ def test_write_manifest_reconciles_recorded_and_untracked(tmp_path):
     assert "artifact_manifest.json" not in by_name
     on_disk = json.loads((tmp_path / "artifact_manifest.json").read_text("utf-8"))
     assert on_disk["n_written"] == 1
+
+
+def test_manifest_classifies_untracked_figure_data_csvs(tmp_path):
+    ctx = _ctx(tmp_path)
+    (tmp_path / "icon_array.png").write_bytes(b"png")
+    (tmp_path / "icon_array.csv").write_text("a\n1\n", encoding="utf-8")
+    (tmp_path / "analysis_rows.csv").write_text("a\n1\n", encoding="utf-8")
+
+    manifest = write_manifest(ctx)
+
+    by_name = {e["filename"]: e for e in manifest["artifacts"]}
+    assert by_name["icon_array.csv"]["kind"] == "figure_data"
+    assert by_name["analysis_rows.csv"]["kind"] == "table"
+
+
+def test_record_artifact_lists_an_externally_written_table(tmp_path):
+    ctx = _ctx(tmp_path)
+    from language_reading_predictors.statistical_models.artifacts import (
+        record_artifact,
+    )
+
+    df = _frame()
+    (tmp_path / "psense_summary.csv").write_text("x\n1\n", encoding="utf-8")
+    record_artifact(ctx, "psense_summary", df=df)
+
+    manifest = write_manifest(ctx)
+    by_name = {e["filename"]: e for e in manifest["artifacts"]}
+    assert by_name["psense_summary.csv"]["status"] == "written"
+    assert by_name["psense_summary.csv"]["n_rows"] == 2
 
 
 def test_write_manifest_marks_a_vanished_recorded_write_missing(tmp_path):

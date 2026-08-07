@@ -181,6 +181,41 @@ def save_table(
     return df
 
 
+def record_artifact(
+    ctx: Any,
+    name: str,
+    *,
+    filename: str | None = None,
+    kind: str = "table",
+    required: bool = True,
+    df: pd.DataFrame | None = None,
+) -> None:
+    """Record an artefact written by a writer this interface does not own.
+
+    Some writers deliberately keep their own write mechanics — the atomic
+    temp-file-and-rename writers shared with the post-hoc regeneration scripts
+    (``psense_summary.csv``), and helpers that take an output directory rather
+    than a fit context (``predicted_scores.csv``, ``mechanism_curve_items.csv``).
+    This records the artefact on the fit's log without writing anything, so the
+    manifest reports it as ``written`` (with shape when ``df`` is supplied)
+    instead of ``untracked``.
+    """
+    log = _log_of(ctx)
+    if log is None:
+        return
+    log.record(
+        ArtifactRecord(
+            name=name,
+            filename=filename if filename is not None else f"{name}.csv",
+            kind=kind,
+            required=required,
+            status="written",
+            n_rows=int(len(df)) if df is not None else None,
+            columns=tuple(str(c) for c in df.columns) if df is not None else None,
+        )
+    )
+
+
 @contextmanager
 def guard_optional(
     ctx: Any,
@@ -188,21 +223,24 @@ def guard_optional(
     *,
     filename: str | None = None,
     kind: str = "figure",
+    verb: str = "skipped",
 ) -> Iterator[None]:
     """Warn-and-continue guard for optional artefacts, recording any skip.
 
     Behaviour-preserving replacement for the pipeline's ad-hoc ``except
     Exception`` blocks: an expensive fit must never be lost to a plotting or
-    summary hiccup, so the failure prints the same ``[yellow]{label} skipped``
+    summary hiccup, so the failure prints the same ``[yellow]{label} {verb}``
     warning and the fit continues — but the failure type and message are now
-    persisted to the artefact manifest instead of scrolling away. Only
+    persisted to the artefact manifest instead of scrolling away. ``verb``
+    reproduces each historical guard's own wording ("skipped", "failed",
+    "not written") so converted sites stay message-identical. Only
     ``Exception`` is caught (``KeyboardInterrupt``/``SystemExit`` propagate),
     matching the guards this replaces.
     """
     try:
         yield
     except Exception as exc:  # noqa: BLE001 - an optional artefact must not fail a fit
-        rprint(f"[yellow]{label} skipped: {exc}[/yellow]")
+        rprint(f"[yellow]{label} {verb}: {exc}[/yellow]")
         log = _log_of(ctx)
         if log is not None:
             log.record(
@@ -246,6 +284,14 @@ def write_manifest(ctx: Any) -> dict[str, Any]:
     log = _log_of(ctx)
     records = dict(log.records) if log is not None else {}
     on_disk = _scan_output_dir(ctx.output_dir)
+    # Stems that have a figure file: an untracked CSV sharing a stem with a
+    # .png/.svg is that figure's data sidecar (``save_styled_figure(data=...)``),
+    # not a not-yet-migrated table, and is classified accordingly.
+    figure_stems = {
+        os.path.splitext(rel)[0]
+        for rel in on_disk
+        if os.path.splitext(rel)[1].lower() in {".png", ".svg"}
+    }
     entries: list[dict[str, Any]] = []
     for rel in on_disk:
         if rel == MANIFEST_FILENAME:
@@ -253,12 +299,16 @@ def write_manifest(ctx: Any) -> dict[str, Any]:
         if rel in records:
             entries.append(records.pop(rel).to_json_dict())
         else:
-            ext = os.path.splitext(rel)[1].lower()
+            stem, ext = os.path.splitext(rel)
+            ext = ext.lower()
+            kind = _KIND_BY_EXTENSION.get(ext, "other")
+            if ext == ".csv" and stem in figure_stems:
+                kind = "figure_data"
             entries.append(
                 {
                     "filename": rel,
                     "name": None,
-                    "kind": _KIND_BY_EXTENSION.get(ext, "other"),
+                    "kind": kind,
                     "required": None,
                     "status": "untracked",
                     "n_rows": None,
