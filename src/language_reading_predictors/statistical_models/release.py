@@ -51,8 +51,11 @@ adjusted associations, which their reports already label as such. A treated-only
 #392 reviewed ITT and left the mirroring onto the others to a follow-up; Frank ruled the
 uniform extension on 2026-08-05 after it was measured, because the case that never bit
 in ITT does bite outside it. **No ITT fit is prior-dominant; eight fits across ``did``,
-``gain_factors`` and ``level_factors`` are**, and every one of them was publishing an
-unqualified causal headline. Same defect, same treatment. ``joint`` was added in review:
+``gain_factors`` and ``level_factors`` were when the gate landed**, and every one of
+them was publishing an unqualified causal headline. Same defect, same treatment. The
+level (#389/#488) and did (#390) family sweeps have since attached trace-backed
+evidence that resolves their withholds to release/qualify; the two ``gain_factors``
+fits remain withheld pending #391's respecification. ``joint`` was added in review:
 it publishes a causal headline too, and its ``itt-012`` fit has three prior-attenuated
 outcomes that the box said nothing about.
 

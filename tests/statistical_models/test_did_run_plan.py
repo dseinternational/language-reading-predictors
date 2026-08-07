@@ -326,6 +326,35 @@ def test_tau_t2_prior_sigma_flows_to_factory_kwargs():
     }
 
 
+def test_use_intercept_anchor_flows_to_factory_kwargs():
+    """#390 P1 condition 1 (LRPDID101): the independent-prior intercept is a
+    typed setting that reaches build_did_model, and stays True (anchored) on
+    the reference model — with no other difference between the two specs."""
+    from language_reading_predictors.statistical_models import (
+        lrp_rli_did_001,
+        lrp_rli_did_101,
+    )
+    from language_reading_predictors.statistical_models.did import resolve_did_run_plan
+
+    ref = resolve_did_run_plan(lrp_rli_did_001.SPEC)
+    free = resolve_did_run_plan(lrp_rli_did_101.SPEC)
+    assert ref.factory_kwargs()["use_intercept_anchor"] is True
+    assert free.factory_kwargs()["use_intercept_anchor"] is False
+    assert free.effect_term == "tau_t2"
+    a, b = ref.factory_kwargs(), free.factory_kwargs()
+    a.pop("use_intercept_anchor"), b.pop("use_intercept_anchor")
+    assert a == b
+
+
+def test_use_intercept_anchor_rejected_on_dose_models():
+    """The dose variants already build a free intercept, so the companion
+    setting there would claim a change that is not one."""
+    from language_reading_predictors.statistical_models.did import DiDModelSettings
+
+    with pytest.raises(ValueError, match="free intercept"):
+        DiDModelSettings(dose=True, use_intercept_anchor=False)
+
+
 def test_tau_t2_prior_sigma_rejected_on_dose_and_bad_values():
     """A dose model has no tau_t2, so the setting is incoherent there; and the
     scale must be a positive finite number (settings-time, before any IO)."""

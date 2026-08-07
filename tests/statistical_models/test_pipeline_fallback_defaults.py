@@ -73,6 +73,11 @@ RECONCILED_FACTORY_DEFAULTS = [
     # (None = the outcome-tier default; only the treatment-prior sweep sets it).
     (factories.build_level_factors_model, "alpha_time_prior_sigma", 0.75),
     (factories.build_level_factors_model, "tau_prior_sigma", None),
+    # #390: the did sweep's focal-prior overrides. Both default to None (the
+    # registered tier/Normal(0, 1) scales); only the treatment-prior sweep and
+    # the LRPDID102 companion set them.
+    (factories.build_did_model, "tau_t2_prior_sigma", None),
+    (factories.build_did_model, "dose_slope_prior_sigma", None),
 ]
 
 

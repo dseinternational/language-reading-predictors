@@ -15,6 +15,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
+import tempfile
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -594,6 +597,28 @@ LEVEL_SENSITIVITY_MODEL_IDS = {
     "N": "lrp-rli-lf-011",
 }
 
+# The gate likewise covers ``did`` on the plan's focal term (``tau_t2``, or a
+# dose model's own slope — ``release.causal_term_for`` mirrors
+# ``DiDRunPlan.effect_term``). Unlike the ITT/level sweeps the did set is keyed
+# by **model id**, not outcome: two withheld fits share outcome W (the primary
+# arm-by-wave lrp-rli-did-001 and the varying-crossover lrp-rli-did-013), so an
+# outcome-keyed map cannot name them both. The tuple lists the fits whose
+# release decision is prior-dominant and therefore needs sweep evidence (#390);
+# extend it if power-scaling flags another did fit — lrp-rli-did-101 (the
+# independent-prior intercept companion) flags exactly as its anchored parent
+# does, which is itself evidence the anchor is not what makes tau_t2
+# prior-dominant. ``mu_dose`` rides its own grid around its ``Normal(0, 1)``
+# default with the same half/default/1.5x geometry as the proximal tau grid.
+
+DID_SENSITIVITY_MODEL_IDS = (
+    "lrp-rli-did-001",
+    "lrp-rli-did-003",
+    "lrp-rli-did-007",
+    "lrp-rli-did-013",
+    "lrp-rli-did-101",
+)
+DID_SENSITIVITY_MU_DOSE_SIGMAS = (0.5, 1.0, 1.5)
+
 
 def load_primary_level_reference(
     model_dir: str | Path,
@@ -704,6 +729,320 @@ def load_primary_level_reference(
         trace_sha256=sha256_file(trace_path),
         sampling=sampling,
     )
+
+
+def did_focal_term(resolved_run_plan: Mapping[str, Any]) -> str:
+    """The focal coefficient a did fit's release decision turns on.
+
+    Mirrors ``DiDRunPlan.effect_term`` / ``release.causal_term_for`` from the
+    *persisted* plan, so the sweep, the fit's own psense emission and the gate
+    cannot disagree about which term matters.
+    """
+    if resolved_run_plan.get("period_varying"):
+        return "mu_dose"
+    return "beta_dose" if resolved_run_plan.get("dose") else "tau_t2"
+
+
+def load_primary_did_reference(
+    model_dir: str | Path,
+    model_id: str,
+    *,
+    config_name: str,
+) -> PrimaryStandardReference:
+    """Load the current registered primary did identity for one swept model.
+
+    The did analogue of :func:`load_primary_level_reference`, keyed by **model
+    id** because two swept fits share outcome W. Same identity and binding
+    checks (model id, kind, data hash, sampling provenance, config/trace
+    sha256); the posterior contract requires the *plan's own* focal term
+    (``tau_t2``, or a dose model's slope) rather than a family-wide name.
+    """
+    import arviz as az
+
+    directory = Path(model_dir)
+    config_path = directory / "config.json"
+    trace_path = directory / "trace.nc"
+    if not config_path.is_file() or not trace_path.is_file():
+        raise FileNotFoundError(f"primary did fit is incomplete: {directory}")
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"primary config is not readable JSON: {config_path}") from exc
+    if model_id not in DID_SENSITIVITY_MODEL_IDS:
+        raise ValueError(f"unsupported did sensitivity model {model_id!r}")
+    if str(config.get("model_id")) != model_id:
+        raise ValueError(
+            f"primary model mismatch: expected {model_id}, got "
+            f"{config.get('model_id')!r}"
+        )
+    if str(config.get("kind")) != "did":
+        raise ValueError(
+            f"primary kind mismatch for {model_id}: {config.get('kind')!r}"
+        )
+    outcome = str(config.get("outcome_symbol") or "")
+    if not outcome:
+        raise ValueError(f"primary config lacks an outcome_symbol: {model_id}")
+    plan = config.get("resolved_run_plan")
+    if not isinstance(plan, dict):
+        raise ValueError(
+            f"primary config lacks a resolved run plan: {model_id}; the sweep "
+            "cannot determine the focal term"
+        )
+    focal = did_focal_term(plan)
+    data_sha256 = str(config.get("data_sha256", "")).strip().lower()
+    if not _is_sha256(data_sha256):
+        raise ValueError("primary config lacks a valid data_sha256")
+    n = _required_int(config.get("n_obs"), "primary n_obs", positive=True)
+    sampling_raw = config.get("sampling")
+    if not isinstance(sampling_raw, dict):
+        raise ValueError("primary config lacks sampling provenance")
+    sampling: dict[str, int | float] = {}
+    for key in _PRIMARY_SAMPLING_KEYS:
+        if key not in sampling_raw:
+            raise ValueError(f"primary sampling metadata lacks {key!r}")
+        if key == "target_accept":
+            value: int | float = _required_float(
+                sampling_raw[key], f"primary sampling {key}"
+            )
+            if not 0.0 < value <= 1.0:
+                raise ValueError(f"primary sampling metadata has invalid {key!r}")
+        else:
+            value = _required_int(
+                sampling_raw[key], f"primary sampling {key}", positive=True
+            )
+        sampling[key] = value
+
+    try:
+        trace = az.from_netcdf(trace_path)
+    except Exception as exc:  # noqa: BLE001 - corrupt primary artefact is gate data
+        raise ValueError(f"primary trace is not a readable NetCDF: {trace_path}") from exc
+    try:
+        posterior = getattr(trace, "posterior", None)
+        if posterior is None or not {"alpha", focal}.issubset(posterior.data_vars):
+            raise ValueError(
+                f"primary trace posterior lacks alpha or the focal term {focal!r}"
+            )
+        if (
+            int(posterior.sizes.get("chain", -1)) != sampling["chains"]
+            or int(posterior.sizes.get("draw", -1)) != sampling["draws"]
+        ):
+            raise ValueError(
+                "primary trace posterior chain/draw dimensions do not match config"
+            )
+        constant_data = getattr(trace, "constant_data", None)
+        if constant_data is None or "G" not in constant_data:
+            raise ValueError("primary trace constant_data lacks G")
+        G = np.asarray(constant_data["G"].values, dtype=float).reshape(-1)
+        if G.size != n or not np.isin(G, (0.0, 1.0)).all():
+            raise ValueError("primary trace treatment assignment is inconsistent")
+        n_intervention = int(np.sum(G == 1.0))
+        n_control = int(np.sum(G == 0.0))
+        if n_intervention <= 0 or n_control <= 0:
+            raise ValueError("primary trace must contain both randomised arms")
+    finally:
+        close = getattr(trace, "close", None)
+        if callable(close):
+            close()
+    return PrimaryStandardReference(
+        model_dir=directory,
+        config_name=str(config_name),
+        model_id=model_id,
+        outcome=outcome,
+        data_sha256=data_sha256,
+        n=n,
+        n_intervention=n_intervention,
+        n_control=n_control,
+        config_sha256=sha256_file(config_path),
+        trace_sha256=sha256_file(trace_path),
+        sampling=sampling,
+    )
+
+
+def assert_primary_sampling_contract(
+    sampling: Any,
+    reference: PrimaryStandardReference,
+    *,
+    config: str,
+    keys: tuple[str, ...] = _PRIMARY_MATCHED_SENSITIVITY_KEYS,
+    label: str | None = None,
+) -> None:
+    """Fail before fitting if the selected preset differs from the primary fit.
+
+    The primary may have been produced with a supported ``--target-accept``
+    override (or a different preset entirely); sweeping it with mismatched
+    sampling and attaching the result would bind evidence produced under a
+    different contract. Shared by the family sweep runners (#488 review):
+
+    - the level runner matches every key including ``target_accept`` (no level
+      primary carries an override, so any difference is a mistake);
+    - the did runner matches ``draws``/``tune``/``chains`` here and *adopts* the
+      primary's own recorded ``target_accept`` for its cells, because did-007's
+      registered spec legitimately overrides the preset (0.97) and a sweep of
+      that fit must reproduce its contract, not refuse it.
+    """
+    for key in keys:
+        observed = getattr(sampling, key)
+        if not np.isclose(
+            float(observed), float(reference.sampling[key]), rtol=0.0, atol=1e-12
+        ):
+            raise RuntimeError(
+                f"{label or reference.outcome} sensitivity sampling does not "
+                f"match its current {config} primary fit"
+            )
+    if reference.config_name != config:
+        raise RuntimeError(
+            f"{label or reference.outcome} sensitivity sampling does not "
+            f"match its current {config} primary fit"
+        )
+
+
+def attach_outcome_bundle(
+    rows: pd.DataFrame,
+    *,
+    outcome: str,
+    primary_dir: Path,
+    sensitivity_dir: Path,
+    reference: PrimaryStandardReference,
+) -> Path:
+    """Install one fit's **trace-backed** sweep bundle beside its primary.
+
+    Follows the floor installer's discipline so the report-local manifest is
+    never exposed without its evidence: every clause is verified *before* the
+    gate's filename exists —
+
+    - the manifest carries the standard sweep's full column set, only this
+      outcome's rows, one ``primary_model_id`` (the reference's own), >= 2 focal
+      prior scales, every cell converged, and one sign;
+    - its ``primary_config_sha256`` / ``primary_trace_sha256`` match the
+      **current** primary artefacts (via the freshly loaded ``reference``);
+    - each cell trace exists in the sweep directory, its sha256 matches the
+      manifest, and the copy installed beside the fit re-verifies after copy
+      (the release gate trusts the CSV, so the installer is where trace
+      integrity is enforced);
+    - ``trace_file`` is rewritten to the installed digest-suffixed basename.
+
+    The manifest lands via an atomic rename, and the release gate's own
+    evidence check (``release._standard_sweep_evidence``) is run as a final
+    assert; any failure rolls the installed files back and raises.
+    """
+    from language_reading_predictors.statistical_models.release import (
+        _standard_sweep_evidence,
+    )
+
+    rows = rows.reset_index(drop=True).copy()
+    if rows.empty:
+        raise RuntimeError(f"{outcome}: no sweep rows to attach")
+    missing = sorted(_STANDARD_REQUIRED_COLUMNS - set(rows.columns))
+    if missing:
+        raise RuntimeError(
+            f"{outcome}: sweep rows lack required columns: {missing[:4]}"
+        )
+    if set(rows["outcome"].astype(str)) != {outcome}:
+        raise RuntimeError(f"{outcome}: sweep rows mix outcomes")
+    # Two did fits share outcome W, so outcome identity alone cannot prove the
+    # rows belong to this primary; the model id must match too.
+    recorded_models = set(rows["primary_model_id"].astype(str))
+    if recorded_models != {reference.model_id}:
+        raise RuntimeError(
+            f"{outcome}: sweep rows name a different primary model "
+            f"({sorted(recorded_models)} != {reference.model_id})"
+        )
+    if rows["tau_sigma"].nunique() < 2:
+        raise RuntimeError(f"{outcome}: fewer than two tau scales")
+    if not rows["converged"].astype(bool).all():
+        raise RuntimeError(
+            f"{outcome}: refusing to attach — one or more cells failed the "
+            "convergence gate"
+        )
+    signs = set(np.sign(rows["tau_logit_mean"].astype(float)).tolist())
+    if len(signs) != 1:
+        raise RuntimeError(
+            f"{outcome}: the effect changes sign across the grid; the bundle is "
+            "reportable evidence of instability, not of stability — not attaching"
+        )
+    for column, expected in (
+        ("primary_config_sha256", reference.config_sha256),
+        ("primary_trace_sha256", reference.trace_sha256),
+    ):
+        recorded = {str(v).strip().lower() for v in rows[column]}
+        if recorded != {expected}:
+            raise RuntimeError(
+                f"{outcome}: sweep rows bind to a different primary {column}; "
+                "re-run the sweep against the current fit"
+            )
+
+    installed: list[Path] = []
+    staging = primary_dir / (STANDARD_SENSITIVITY_FILENAME + ".staging")
+    destination = primary_dir / STANDARD_SENSITIVITY_FILENAME
+    try:
+        for index, row in rows.iterrows():
+            source = sensitivity_dir / str(row["trace_file"])
+            trace_sha256 = str(row["trace_sha256"]).strip().lower()
+            if not source.is_file():
+                raise RuntimeError(f"{outcome}: missing cell trace {source}")
+            if sha256_file(source) != trace_sha256:
+                raise RuntimeError(
+                    f"{outcome}: cell trace does not match its recorded sha256: "
+                    f"{source}"
+                )
+            digest_suffix = f"-{trace_sha256[:12]}"
+            name = (
+                source.name
+                if source.stem.endswith(digest_suffix)
+                else f"{source.stem}{digest_suffix}.nc"
+            )
+            target = primary_dir / name
+            shutil.copy2(source, target)
+            installed.append(target)
+            if sha256_file(target) != trace_sha256:
+                raise RuntimeError(
+                    f"{outcome}: installed trace changed during copy: {target}"
+                )
+            rows.at[index, "trace_file"] = name
+        rows.to_csv(staging, index=False)
+        os.replace(staging, destination)
+        ready, reason = _standard_sweep_evidence(primary_dir, outcome)
+        if not ready:
+            raise RuntimeError(
+                f"{outcome}: installed bundle fails the release gate's own "
+                f"evidence check ({reason})"
+            )
+    except BaseException:
+        for target in installed:
+            target.unlink(missing_ok=True)
+        staging.unlink(missing_ok=True)
+        destination.unlink(missing_ok=True)
+        raise
+    return destination
+
+
+def persist_sensitivity_trace(
+    trace: Any, *, sensitivity_dir: Path, semantic_file: Path, label: str = "sensitivity"
+) -> tuple[Path, str]:
+    """Atomically install an immutable cell trace named by its content digest."""
+    trace_dir = sensitivity_dir / semantic_file.parent
+    trace_dir.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{semantic_file.stem}-", suffix=".nc", dir=trace_dir
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        trace.to_netcdf(temporary)
+        digest = sha256_file(temporary)
+        destination = trace_dir / f"{semantic_file.stem}-{digest[:12]}.nc"
+        if destination.exists():
+            if sha256_file(destination) != digest:
+                raise RuntimeError(
+                    f"{label} trace digest-prefix collision: {destination}"
+                )
+            temporary.unlink()
+        else:
+            os.replace(temporary, destination)
+        return destination.relative_to(sensitivity_dir), digest
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def _as_bool(value: Any) -> bool | None:

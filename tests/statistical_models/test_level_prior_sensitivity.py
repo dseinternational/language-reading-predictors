@@ -199,6 +199,7 @@ def _rows(primary: Path, sweep_dir: Path, **overrides) -> pd.DataFrame:
             tau_sigma=sigma,
             converged=True,
             tau_logit_mean=0.2 + sigma / 10,
+            primary_model_id=ref.model_id,
             primary_config_sha256=ref.config_sha256,
             primary_trace_sha256=ref.trace_sha256,
             trace_file=trace_file,
@@ -239,6 +240,7 @@ def test_attach_installs_trace_backed_bundle(tmp_path):
         ("unconverged", "failed the convergence gate"),
         ("sign_flip", "changes sign"),
         ("stale_primary", "different primary"),
+        ("wrong_model", "different primary model"),
         ("missing_column", "required columns"),
     ],
 )
@@ -257,6 +259,10 @@ def test_attach_refuses_and_rolls_back(tmp_path, corruption, match):
         rows.at[2, "tau_logit_mean"] = -0.4
     elif corruption == "stale_primary":
         rows["primary_trace_sha256"] = "b" * 64
+    elif corruption == "wrong_model":
+        # Rows from a sibling fit of the same outcome (the did family has two
+        # swept W fits) must not attach as this primary's evidence.
+        rows["primary_model_id"] = "lrp-rli-lf-999"
     elif corruption == "missing_column":
         rows = rows.drop(columns=["kappa_median"])
     with pytest.raises(RuntimeError, match=match):

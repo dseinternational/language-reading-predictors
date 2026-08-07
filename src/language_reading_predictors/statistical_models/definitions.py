@@ -186,6 +186,10 @@ _DID = [
     # Exploratory unexplained variation in the waitlist arm's t3 catch-up. This is
     # not a random treatment-effect slope and cannot classify causal responders.
     _d("lrpdid13", "did", "Arm-by-wave crossover", Status.ASSOCIATION, "W", "exploratory waitlist t3 catch-up heterogeneity", base="lrpdid01"),
+    # #390 P1 condition 1: the empirical-Bayes pooled-t1 intercept anchor replaced
+    # with a genuinely independent zero-centred Normal(0, 1.5); tau_t2 should match
+    # LRPDID01 to Monte-Carlo error if the anchor does no work beyond location.
+    _d("lrpdid101", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "W", "independent-prior intercept sensitivity for LRPDID01", base="lrpdid01"),
     # #382 rec 3: the single causal term's prior widened N(0, 0.5) -> N(0, 1); the
     # right-tail letter-sound tau_t2 is the attenuation test case.
     _d("lrpdid102", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "L", "wide-tau_t2 prior sensitivity for LRPDID02", base="lrpdid02"),

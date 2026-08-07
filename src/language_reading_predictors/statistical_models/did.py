@@ -46,6 +46,7 @@ _LEGACY_KEYS = frozenset(
         "use_child_re",
         "use_age",
         "use_varying_delta",
+        "use_intercept_anchor",
         "tau_t2_prior_sigma",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
@@ -96,6 +97,14 @@ class DiDModelSettings:
     use_child_re: bool = True
     use_age: bool = True
     use_varying_delta: bool = False
+    # #390 P1 (Frank's 2026-07-24 option-B ruling, condition 1): False replaces
+    # the empirical-Bayes pooled-t1 intercept anchor with a genuinely
+    # independent zero-centred Normal(0, alpha-tier) prior — not a wider sigma
+    # around the same anchor, whose mean would stay data-dependent. LRPDID101
+    # is the registered sensitivity companion. Arm-by-wave models only: the
+    # dose variants already build a free intercept, so False there would claim
+    # a change that is not one.
+    use_intercept_anchor: bool = True
     # #382 recommendation 3: a one-off wider prior on the single causal term.
     # None keeps the outcome-tier default (proximal 0.5 / distal 0.3); LRPDID102
     # sets 1.0 to test whether the right-tail letter-sound tau_t2 is
@@ -109,9 +118,22 @@ class DiDModelSettings:
         )
         object.__setattr__(self, "waves", _tuple_of_ints(self.waves, name="waves"))
         object.__setattr__(self, "periods", _tuple_of_ints(self.periods, name="periods"))
-        for flag in ("dose", "period_varying_dose", "use_child_re", "use_age", "use_varying_delta"):
+        for flag in (
+            "dose",
+            "period_varying_dose",
+            "use_child_re",
+            "use_age",
+            "use_varying_delta",
+            "use_intercept_anchor",
+        ):
             if not isinstance(getattr(self, flag), bool):
                 raise TypeError(f"{flag} must be bool")
+        if not self.use_intercept_anchor and self.dose:
+            raise ValueError(
+                "use_intercept_anchor=False is the arm-by-wave independent-prior "
+                "sensitivity; the dose models already build a free intercept, so "
+                "the setting would claim a change that is not one"
+            )
         if self.period_varying_dose and not self.dose:
             raise ValueError("period_varying_dose requires dose=True")
         if self.likelihood not in _LIKELIHOODS:
@@ -175,6 +197,7 @@ class DiDModelSettings:
             use_child_re=extra.get("use_child_re", True),
             use_age=extra.get("use_age", True),
             use_varying_delta=extra.get("use_varying_delta", False),
+            use_intercept_anchor=extra.get("use_intercept_anchor", True),
             tau_t2_prior_sigma=extra.get("tau_t2_prior_sigma"),
         )
 
@@ -196,6 +219,7 @@ class DiDRunPlan:
     use_child_re: bool
     use_age: bool
     use_varying_delta: bool
+    use_intercept_anchor: bool
     tau_t2_prior_sigma: float | None
     # Recorded audit metadata (#394 pillar 4).
     design: str
@@ -282,6 +306,7 @@ class DiDRunPlan:
             "dose": self.dose,
             "period_varying_dose": self.period_varying,
             "use_varying_delta": self.use_varying_delta,
+            "use_intercept_anchor": self.use_intercept_anchor,
             "likelihood": self.likelihood,
             "tau_t2_prior_sigma": self.tau_t2_prior_sigma,
         }
@@ -405,6 +430,7 @@ def resolve_did_run_plan(spec: ModelSpec) -> DiDRunPlan:
         use_child_re=settings.use_child_re,
         use_age=settings.use_age,
         use_varying_delta=settings.use_varying_delta,
+        use_intercept_anchor=settings.use_intercept_anchor,
         tau_t2_prior_sigma=settings.tau_t2_prior_sigma,
         design=design,
         estimand=estimand,

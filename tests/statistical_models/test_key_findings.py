@@ -1017,6 +1017,31 @@ def test_did_dose_companion_degrades_honestly(tmp_path):
     assert all(s["kind"] != "headline" for s in payload["sentences"])
 
 
+def test_did_period_varying_dose_companion_is_recognised(tmp_path):
+    """#390: the period-varying dose fit (LRPDID07) has no ``beta_dose`` column
+    at all — its did_summary carries the family's ``dose_interpretation``
+    marker — and must take the honest dose wording, not the stale-schema
+    unavailable path (which also dropped its release decision)."""
+    d = _setup_dir(tmp_path, "did")
+    _write_csv(
+        d,
+        "did_summary.csv",
+        {
+            "beta_period_median": 0.3,
+            "theta_treated_median": 0.2,
+            "dose_interpretation": (
+                "beta_dose is an observational intensive-margin association; "
+                "theta_treated is the model's treatment-presence term"
+            ),
+        },
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    texts = _texts(payload)
+    assert "observational association" in texts
+    assert all(s["kind"] != "headline" for s in payload["sentences"])
+
+
 # --- remaining family archetypes ------------------------------------------------
 
 

@@ -249,25 +249,27 @@ family: `lrp-rli-lf-001` `W`, `02` `R`, `03` `E`, `04` `L`, `05` `P` (off-floor)
 `07` `F`, `08` `T`, `09` `TR`, `10` `TE`, `11` `N` (off-floor).
 The gain-factors naming note applies here too: "factors" means observed regression covariates, not latent factors.
 
-### Waitlist-crossover arm-by-wave sensitivity — `lrp-rli-did-001–lrp-rli-did-013` (+ `lrp-rli-did-107`) (`kind="did"`)
+### Waitlist-crossover arm-by-wave sensitivity — `lrp-rli-did-001–lrp-rli-did-013` (+ `lrp-rli-did-101`, `lrp-rli-did-102`, `lrp-rli-did-107`) (`kind="did"`)
 
 **Purpose.** A longitudinal sensitivity analysis alongside the randomised ITT. The binary-treatment models jointly model bounded t1/t2/t3 levels with a separate immediate-minus-waitlist gap at each wave: `arm_gap_t1` checks baseline balance, `tau_t2` is the randomised causal contrast, `arm_gap_t3` is a post-crossover association and `delta_crossover = tau_t2 - arm_gap_t3` describes closure of the arm gap rather than a second treatment effect. A child random intercept partially pools stable between-child differences but does not make every child a fixed-effect control. No model conditions on each period's start outcome: t2 is already treatment-affected for the immediate arm when used as the P2 baseline. The heavily floored outcomes (`P`, `N`) use a Bernoulli on wave-specific off-floor status, so their contrasts concern off-floor **prevalence**, not coming off the floor. Dose variants retain the P1/P2 transition frame, adjust for randomised arm, current treatment, t1 outcome and t1 age, and estimate observational treated-centred session-dose associations. The current design decision is `notes/202607151800-did-arm-wave-redesign.md`; it supersedes the historical restricted-model decision in `notes/202606260702-did-crossover-design.md`.
 
-| Model             | Outcome | Purpose                                                                                                                   |
-| ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `lrp-rli-did-001` | `W`     | Arm-by-wave word-reading sensitivity; randomised t2 contrast plus post-crossover contrasts                                |
-| `lrp-rli-did-002` | `L`     | Arm-by-wave letter-sound sensitivity; randomised t2 contrast plus post-crossover contrasts                                |
-| `lrp-rli-did-003` | `B`     | Arm-by-wave phoneme-blending sensitivity; randomised t2 contrast plus post-crossover contrasts                            |
-| `lrp-rli-did-004` | `TE`    | Arm-by-wave taught-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                |
-| `lrp-rli-did-005` | `R`     | Arm-by-wave receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                        |
-| `lrp-rli-did-006` | `W`     | P1/P2 transition model with separate treatment-presence and pooled observational session-dose terms                       |
-| `lrp-rli-did-007` | `L`     | P1/P2 transition model with observational period-resolved session-dose slopes; `lrp-rli-did-107` is its pooled comparator |
-| `lrp-rli-did-008` | `TR`    | Arm-by-wave taught-receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                 |
-| `lrp-rli-did-009` | `E`     | Arm-by-wave standardised-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts          |
-| `lrp-rli-did-010` | `F`     | Arm-by-wave basic-concepts sensitivity; randomised t2 contrast plus post-crossover contrasts                              |
-| `lrp-rli-did-011` | `P`     | Arm-by-wave phonetic-spelling sensitivity on period-end off-floor prevalence                                              |
-| `lrp-rli-did-012` | `N`     | Arm-by-wave nonword-reading sensitivity on period-end off-floor prevalence                                                |
-| `lrp-rli-did-013` | `W`     | Exploratory waitlist-t3 catch-up heterogeneity; the variance component conflates response, maturation, history and noise  |
+| Model             | Outcome | Purpose                                                                                                                                                        |
+| ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-did-001` | `W`     | Arm-by-wave word-reading sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                     |
+| `lrp-rli-did-002` | `L`     | Arm-by-wave letter-sound sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                     |
+| `lrp-rli-did-003` | `B`     | Arm-by-wave phoneme-blending sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                 |
+| `lrp-rli-did-004` | `TE`    | Arm-by-wave taught-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                     |
+| `lrp-rli-did-005` | `R`     | Arm-by-wave receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                             |
+| `lrp-rli-did-006` | `W`     | P1/P2 transition model with separate treatment-presence and pooled observational session-dose terms                                                            |
+| `lrp-rli-did-007` | `L`     | P1/P2 transition model with observational period-resolved session-dose slopes; `lrp-rli-did-107` is its pooled comparator                                      |
+| `lrp-rli-did-008` | `TR`    | Arm-by-wave taught-receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                      |
+| `lrp-rli-did-009` | `E`     | Arm-by-wave standardised-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                               |
+| `lrp-rli-did-010` | `F`     | Arm-by-wave basic-concepts sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                   |
+| `lrp-rli-did-011` | `P`     | Arm-by-wave phonetic-spelling sensitivity on period-end off-floor prevalence                                                                                   |
+| `lrp-rli-did-012` | `N`     | Arm-by-wave nonword-reading sensitivity on period-end off-floor prevalence                                                                                     |
+| `lrp-rli-did-013` | `W`     | Exploratory waitlist-t3 catch-up heterogeneity; the variance component conflates response, maturation, history and noise                                       |
+| `lrp-rli-did-101` | `W`     | Independent-prior intercept sensitivity for `lrp-rli-did-001`: the empirical-Bayes t1 anchor replaced with a free zero-centred intercept (#390 P1 condition 1) |
+| `lrp-rli-did-102` | `L`     | Wide-`tau_t2` prior sensitivity for `lrp-rli-did-002`: the causal contrast's prior widened from the tier Normal(0, 0.5) to Normal(0, 1) (#382 rec 3)           |
 
 ### Aligned per-protocol — `lrp-rli-al-001–lrp-rli-al-008` (+ `lrp-rli-al-101`) (`kind="aligned"`)
 

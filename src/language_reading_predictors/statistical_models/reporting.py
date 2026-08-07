@@ -4406,8 +4406,16 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
     if did is None:
         raise _KeyFindingsUnavailable("did_summary.csv is not present")
     if "tau_t2_items_median" not in did:
-        if any(str(k).startswith("beta_dose") for k in did):
-            # Dose companion: no randomised t2 contrast to headline.
+        # Dose companion: no randomised t2 contrast to headline. The pooled
+        # variant summarises ``beta_dose``; the period-varying variant
+        # (LRPDID07) has no ``beta_dose`` at all — its slopes live in
+        # ``dose_slope_summary.csv`` — so detect the family's own
+        # ``dose_interpretation`` marker too, not just the pooled column
+        # (#390: the period-varying fit regenerated as "predates the
+        # arm-by-wave schema" and lost its release decision).
+        if "dose_interpretation" in did or any(
+            str(k).startswith("beta_dose") for k in did
+        ):
             return [
                 _kf_sentence(
                     "This companion model estimates how outcomes vary with the "
