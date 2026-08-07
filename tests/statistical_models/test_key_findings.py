@@ -2031,6 +2031,51 @@ def test_gain_factors_off_floor_direction_words_state_status_not_transition(tmp_
     assert "coming off the floor" not in texts
 
 
+def test_level_factors_off_floor_direction_words_state_status_not_transition(tmp_path):
+    """#490 review follow-up: the level-family off-floor Bernoulli outcome is
+    off-floor STATUS at each wave (score > 0) — per-wave prevalence, pooling
+    moving off, staying above and returning to the floor — so the t2 confidence
+    sentence must not describe it as "coming off the floor" (that phrasing
+    belongs to the ITT floored primaries, whose estimand IS a transition among
+    children observed at the baseline floor)."""
+    d = _setup_dir(tmp_path, "level_factors")
+    _write_csv(
+        d,
+        "rope_summary.csv",
+        _rope_row(delta_items=0.10, delta_scale="risk_difference"),
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    texts = _texts(payload)
+    assert "being off the floor at t2" in texts
+    assert "coming off the floor" not in texts
+
+
+def test_did_off_floor_direction_words_state_status_not_transition(tmp_path):
+    """The same rule for the arm-by-wave family: the off-floor DiD models fit
+    off-floor prevalence at each wave — their own report prose insists the
+    contrasts are "differences in *being* off floor" — so the tau_t2 confidence
+    sentence names the t2 status, not a floor-exit transition."""
+    d = _setup_dir(tmp_path, "did", config=_config("did", outcome_symbol="P"))
+    _write_csv(
+        d,
+        "did_summary.csv",
+        {
+            "tau_t2_items_median": 0.22,
+            "tau_t2_items_lo": 0.05,
+            "tau_t2_items_hi": 0.40,
+            "prob_tau_t2_pos": 0.99,
+            "off_floor": True,
+            "delta_crossover_items_available": False,
+        },
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    texts = _texts(payload)
+    assert "being off the floor at t2" in texts
+    assert "coming off the floor" not in texts
+
+
 def test_each_family_reads_its_own_causal_term():
     """The gate must name the term the headline actually rests on.
 
