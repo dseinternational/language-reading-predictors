@@ -40,6 +40,7 @@ from typing import Any
 import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pymc as pm
 import xarray as xr
 from pymc.stats import compute_log_likelihood, compute_log_prior
@@ -1315,7 +1316,7 @@ def save_prior_predictive_dist_overlay(
     The counterpart of the posterior side's generic overlay for models whose observed
     node is a multi-indicator matrix (the correlated-factor CFAs' standardised
     ``Z_obs`` / ``z_obs_*``). Those have no single count outcome, so
-    ``pipeline._save_ppc`` deliberately gives them the distribution overlay and **no**
+    ``ppc_artifacts.save_ppc`` deliberately gives them the distribution overlay and **no**
     coverage statistic; this keeps the prior end symmetric with that decision rather
     than inventing a coverage number for a latent measurement model. Pooling the
     indicators into one count histogram would be meaningless — they are standardised
@@ -1575,3 +1576,51 @@ def save_joint_loo_pit_plot(
         f"{filename_stem}.png",
         title=f"LOO-PIT calibration ({outcome_symbol})",
     )
+
+
+def influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
+    """Persistable PSIS-LOO Pareto-k values for the likelihood's LOO units.
+
+    Returns ``(dataframe, threshold, n_flagged)`` — the pointwise k values sorted
+    descending (aligned to ``subject_ids``), the ``good_k`` threshold, and how
+    many points exceed it. A point is one child in the single-period ITT/joint
+    families, but one child-by-period row in repeated-measures families. Returns
+    ``(None, None, None)`` if the LOO object exposes no aligned pointwise k.
+    """
+    if ctx.loo is None or getattr(ctx.loo, "pareto_k", None) is None:
+        return None, None, None
+    k = np.asarray(ctx.loo.pareto_k).ravel()
+    ids = np.asarray(ctx.prepared.subject_ids)
+    if len(k) != len(ids):
+        return None, None, None
+    thr = float(getattr(ctx.loo, "good_k", 0.7) or 0.7)
+    df = (
+        pd.DataFrame(
+            {
+                "observation_index": np.arange(len(k), dtype=int),
+                "subject_id": ids,
+                "pareto_k": k,
+            }
+        )
+        .sort_values("pareto_k", ascending=False)
+        .reset_index(drop=True)
+    )
+    return df, thr, int((k > thr).sum())
+
+
+def write_loo_influence(ctx: StatisticalFitContext) -> pd.DataFrame | None:
+    """Persist pointwise Pareto-k values and explicit reliability flags.
+
+    A sampler-convergence PASS does not guarantee that importance-sampled LOO is
+    reliable.  Persisting the values makes the ``k > good_k`` gate available to
+    report templates and downstream audits instead of leaving it visible only in
+    a plot or the free-text ArviZ summary.
+    """
+    influence, threshold, _ = influence_diagnostics(ctx)
+    if influence is None or threshold is None:
+        return None
+    out = influence.copy()
+    out["good_k_threshold"] = threshold
+    out["loo_reliable"] = out["pareto_k"] <= threshold
+    save_table(ctx, "pareto_k", out)
+    return out

@@ -156,7 +156,7 @@ def _regenerate_one(fit_dir: Path) -> str:
     tables = write_arm_overlap_artifacts(str(fit_dir), trace, **common, **strings)
 
     # ROPE effect + benefit-curve as individual files. Recompute the items-scale
-    # effect draws exactly as _save_rope_plot does at fit time.
+    # effect draws exactly as figure_artifacts.save_rope_plot does at fit time.
     _, ame_prob = _report._itt_ame_draws(
         trace, G=G, term="tau", varying_term="" if floored else "tau_i",
         score_mean_link=score_mean_link,

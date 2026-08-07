@@ -22,10 +22,18 @@ import pymc as pm
 import pytest
 import xarray as xr
 
-from language_reading_predictors.statistical_models import pipeline
+from language_reading_predictors.statistical_models import (
+    diagnostics as _diagnostics,
+    pipeline,
+    runtime,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import BuiltModel
 from language_reading_predictors.statistical_models.itt import IttModelSettings
+from language_reading_predictors.statistical_models.pipelines import (
+    itt as itt_pipeline,
+    joint as joint_pipeline,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
     Standardiser,
@@ -99,7 +107,7 @@ def test_write_loo_influence_persists_subject_and_reliability_gate(tmp_path):
         tables={},
     )
 
-    result = pipeline._write_loo_influence(ctx)
+    result = _diagnostics.write_loo_influence(ctx)
 
     assert result is not None
     assert result["subject_id"].tolist() == ["b", "c", "a"]
@@ -162,26 +170,46 @@ def fast_pipeline(monkeypatch, tmp_path):
         ctx.tables[Path(filename).stem] = table
         return table
 
-    monkeypatch.setattr(pipeline, "make_context", make_context)
-    monkeypatch.setattr(pipeline, "_run_sampling_and_loo", sample_and_loo)
-    monkeypatch.setattr(pipeline, "_run_ppc", lambda *args, **kwargs: None)
-    monkeypatch.setattr(pipeline, "_write_itt_analysis_audit", write_analysis_audit)
-    monkeypatch.setattr(pipeline, "_write_itt_ppc_calibration", write_ppc_audit)
-    monkeypatch.setattr(pipeline, "_finalize_report", lambda ctx: ctx)
+    # ``fit_itt`` and ``fit_joint`` own their own module namespaces (#394 step 5),
+    # so each stub is installed on the family module that resolves the name.
+    for module in (itt_pipeline, joint_pipeline):
+        monkeypatch.setattr(module, "make_context", make_context)
+        monkeypatch.setattr(module, "run_sampling_and_loo", sample_and_loo)
+        monkeypatch.setattr(module, "write_analysis_audit", write_analysis_audit)
+        monkeypatch.setattr(module, "write_ppc_calibration", write_ppc_audit)
+        monkeypatch.setattr(module, "finalize_report", lambda ctx: ctx)
+    monkeypatch.setattr(itt_pipeline, "run_ppc", lambda *args, **kwargs: None)
+    # ``emit_priors`` is reached through the shared stage binding, not the family
+    # module, so it is stubbed where ``shared_stages()`` resolves it.
+    monkeypatch.setattr(runtime, "emit_priors", lambda *args, **kwargs: None)
 
-    for name in (
-        "_print_header",
-        "_render_model_graph",
-        "_emit_priors",
-        "_emit_itt_extras",
-        "_save_rope_plot",
-        "_save_proportion_at_zero_plot",
-        "_save_forest_plot",
-        "_save_contrast_heatmap",
-        "print_table",
-        "section_header",
+    for module, names in (
+        (
+            itt_pipeline,
+            (
+                "print_header",
+                "render_model_graph",
+                "emit_itt_extras",
+                "save_rope_plot",
+                "save_proportion_at_zero_plot",
+                "save_forest_plot",
+                "print_table",
+                "section_header",
+            ),
+        ),
+        (
+            joint_pipeline,
+            (
+                "render_model_graph",
+                "save_forest_plot",
+                "save_contrast_heatmap",
+                "print_table",
+                "section_header",
+            ),
+        ),
     ):
-        monkeypatch.setattr(pipeline, name, lambda *args, **kwargs: None)
+        for name in names:
+            monkeypatch.setattr(module, name, lambda *args, **kwargs: None)
 
     for name in (
         "run_prior_predictive",
@@ -194,14 +222,14 @@ def fast_pipeline(monkeypatch, tmp_path):
         "run_extended_diagnostics",
         "save_prior_posterior_plot",
     ):
-        monkeypatch.setattr(pipeline._diag, name, lambda *args, **kwargs: None)
+        monkeypatch.setattr(itt_pipeline._diag, name, lambda *args, **kwargs: None)
 
     def save_trace(ctx):
         Path(ctx.output_dir, "trace.nc").write_text("mock primary trace\n")
 
-    monkeypatch.setattr(pipeline._diag, "save_trace", save_trace)
+    monkeypatch.setattr(itt_pipeline._diag, "save_trace", save_trace)
     monkeypatch.setattr(
-        pipeline._diag,
+        itt_pipeline._diag,
         "subfit_convergence",
         lambda *args, **kwargs: {
             "converged": True,
@@ -220,7 +248,7 @@ def fast_pipeline(monkeypatch, tmp_path):
     )
 
     monkeypatch.setattr(
-        pipeline._report,
+        itt_pipeline._report,
         "tau_summary_itt",
         lambda *args, **kwargs: {
             "tau_prob_median": 0.08,
@@ -232,7 +260,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         },
     )
     monkeypatch.setattr(
-        pipeline._report,
+        itt_pipeline._report,
         "tau_summary_offfloor",
         lambda *args, **kwargs: {
             "tau_prob_median": 0.10,
@@ -244,7 +272,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         },
     )
     monkeypatch.setattr(
-        pipeline._report,
+        itt_pipeline._report,
         "rope_summary",
         lambda *args, **kwargs: {
             "delta": kwargs["delta"],
@@ -252,7 +280,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         },
     )
     monkeypatch.setattr(
-        pipeline._report,
+        itt_pipeline._report,
         "rope_sensitivity",
         lambda *args, **kwargs: pd.DataFrame(
             {
@@ -261,9 +289,9 @@ def fast_pipeline(monkeypatch, tmp_path):
             }
         ),
     )
-    monkeypatch.setattr(pipeline._report, "tau_moderation_summary", lambda *args, **kwargs: {})
+    monkeypatch.setattr(itt_pipeline._report, "tau_moderation_summary", lambda *args, **kwargs: {})
     monkeypatch.setattr(
-        pipeline._report,
+        itt_pipeline._report,
         "proportion_at_zero_ppc",
         lambda *args, **kwargs: {
             "obs_prop_at_zero": 0.75,
@@ -313,13 +341,13 @@ def test_write_itt_analysis_audit_real_writer_for_single_outcome(tmp_path, monke
     )
     load_calls = []
     monkeypatch.setattr(
-        pipeline,
+        itt_pipeline,
         "load_and_prepare",
         lambda **kwargs: load_calls.append(kwargs) or archive,
     )
     ctx = SimpleNamespace(output_dir=str(tmp_path), tables={})
 
-    pipeline._write_itt_analysis_audit(ctx, fitted, (symbol,))
+    itt_pipeline.write_analysis_audit(ctx, fitted, (symbol,))
 
     assert load_calls == [
         {
@@ -373,13 +401,13 @@ def test_write_itt_analysis_audit_real_writer_maps_joint_outcomes(tmp_path, monk
     )
     load_calls = []
     monkeypatch.setattr(
-        pipeline,
+        itt_pipeline,
         "load_and_prepare",
         lambda **kwargs: load_calls.append(kwargs) or archive,
     )
     ctx = SimpleNamespace(output_dir=str(tmp_path), tables={})
 
-    pipeline._write_itt_analysis_audit(ctx, fitted, ("W", "L"))
+    itt_pipeline.write_analysis_audit(ctx, fitted, ("W", "L"))
 
     assert [call["outcomes"] for call in load_calls] == [("W",), ("L",)]
     assert all(call["pre_required"] == () for call in load_calls)
@@ -420,7 +448,7 @@ def test_write_itt_ppc_calibration_real_writer_maps_single_outcome(tmp_path):
     predictive = xr.Dataset({"y_post": (("chain", "draw", "obs_id"), replicated)})
     ctx = _ppc_context(tmp_path, predictive)
 
-    calibration = pipeline._write_itt_ppc_calibration(ctx, prepared, ("W",))
+    calibration = itt_pipeline.write_ppc_calibration(ctx, prepared, ("W",))
 
     assert (tmp_path / "posterior_predictive_calibration.csv").is_file()
     assert calibration["n"].sum() == prepared.n_obs
@@ -443,7 +471,7 @@ def test_write_itt_ppc_calibration_real_writer_maps_floor_indicator(tmp_path):
     predictive = xr.Dataset({"y_offfloor": (("chain", "draw", "obs_id"), replicated)})
     ctx = _ppc_context(tmp_path, predictive)
 
-    calibration = pipeline._write_itt_ppc_calibration(
+    calibration = itt_pipeline.write_ppc_calibration(
         ctx,
         prepared,
         ("P",),
@@ -486,7 +514,7 @@ def test_write_itt_ppc_calibration_real_writer_maps_joint_cells(tmp_path):
     )
     ctx = _ppc_context(tmp_path, predictive, constant)
 
-    calibration = pipeline._write_itt_ppc_calibration(ctx, prepared, ("W", "L"))
+    calibration = itt_pipeline.write_ppc_calibration(ctx, prepared, ("W", "L"))
 
     assert (tmp_path / "posterior_predictive_calibration.csv").is_file()
     assert (tmp_path / "posterior_predictive_shape_calibration.csv").is_file()
@@ -520,7 +548,7 @@ def test_tau_summary_itt_names_probability_scale_direction_and_keeps_alias():
         }
     )
 
-    result = pipeline._report.tau_summary_itt(
+    result = itt_pipeline._report.tau_summary_itt(
         SimpleNamespace(posterior=posterior),
         ci_prob=0.95,
         G=group,
@@ -545,7 +573,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
     load_calls = []
     build_calls = []
     monkeypatch.setattr(
-        pipeline,
+        itt_pipeline,
         "load_and_prepare",
         lambda **kwargs: load_calls.append(kwargs) or prepared,
     )
@@ -554,7 +582,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
         build_calls.append(kwargs)
         return BuiltModel(_FakeModel(), data)
 
-    monkeypatch.setattr(pipeline._factories, "build_itt_model", build)
+    monkeypatch.setattr(itt_pipeline._factories, "build_itt_model", build)
 
     spec = ModelSpec(
         model_id="lrp-rli-itt-901",
@@ -637,12 +665,12 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
 def test_fit_itt_rejects_an_invalid_plan_before_context_or_data(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        pipeline,
+        itt_pipeline,
         "make_context",
         lambda *args, **kwargs: calls.append("context"),
     )
     monkeypatch.setattr(
-        pipeline,
+        itt_pipeline,
         "load_and_prepare",
         lambda *args, **kwargs: calls.append("data"),
     )
@@ -676,7 +704,7 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
     load_calls = []
     likelihoods = []
     monkeypatch.setattr(
-        pipeline,
+        itt_pipeline,
         "load_and_prepare",
         lambda **kwargs: load_calls.append(kwargs) or prepared,
     )
@@ -708,7 +736,7 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
             names += ("kappa",)
         return BuiltModel(_FakeModel(names), data)
 
-    monkeypatch.setattr(pipeline._factories, "build_itt_model", build)
+    monkeypatch.setattr(itt_pipeline._factories, "build_itt_model", build)
 
     spec = ModelSpec(
         model_id="lrp-rli-itt-902",
@@ -801,7 +829,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
     contrast_scales = []
     difference_calls = []
     monkeypatch.setattr(
-        pipeline,
+        joint_pipeline,
         "load_and_prepare",
         lambda **kwargs: load_calls.append(kwargs) or prepared,
     )
@@ -817,9 +845,9 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
             },
         )
 
-    monkeypatch.setattr(pipeline._factories, "build_joint_model", build)
+    monkeypatch.setattr(itt_pipeline._factories, "build_joint_model", build)
     monkeypatch.setattr(
-        pipeline._report,
+        itt_pipeline._report,
         "tau_summary_joint",
         lambda *args, **kwargs: pd.DataFrame(
             {
@@ -845,7 +873,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
         )
 
     monkeypatch.setattr(
-        pipeline._report,
+        itt_pipeline._report,
         "joint_treatment_marginals",
         marginals,
     )
@@ -858,7 +886,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
             columns=["TE", "UE"],
         )
 
-    monkeypatch.setattr(pipeline._report, "tau_contrast_matrix", contrast)
+    monkeypatch.setattr(itt_pipeline._report, "tau_contrast_matrix", contrast)
 
     def difference(*args, **kwargs):
         difference_calls.append(kwargs)
@@ -871,7 +899,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
             **metadata,
         }
 
-    monkeypatch.setattr(pipeline._report, "tau_difference_summary", difference)
+    monkeypatch.setattr(itt_pipeline._report, "tau_difference_summary", difference)
 
     ctx = pipeline.fit_joint(SPEC, config="dev")
     out = Path(ctx.output_dir)
@@ -937,27 +965,27 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
         group=np.array([1] * 6 + [0] * 6),
         n_trials={"W": 79},
     )
-    monkeypatch.setattr(pipeline, "load_and_prepare", lambda **kwargs: prepared)
+    monkeypatch.setattr(itt_pipeline, "load_and_prepare", lambda **kwargs: prepared)
     monkeypatch.setattr(
-        pipeline._factories,
+        itt_pipeline._factories,
         "build_itt_model",
         lambda data, **kwargs: BuiltModel(_FakeModel(), data),
     )
 
     for module, name, label in (
-        (pipeline, "load_and_prepare", "prepare"),
-        (pipeline._factories, "build_itt_model", "build"),
-        (pipeline, "_emit_priors", "emit_priors"),
-        (pipeline._diag, "run_prior_predictive", "prior_predictive"),
-        (pipeline, "_run_sampling_and_loo", "sample+loo"),
-        (pipeline._diag, "summary_diagnostics", "summary"),
-        (pipeline, "_run_ppc", "posterior_predictive"),
-        (pipeline._diag, "write_diagnostics_summary", "convergence_gate"),
-        (pipeline._diag, "run_extended_diagnostics", "extended_diagnostics"),
-        (pipeline._diag, "save_trace", "persist_trace"),
-        (pipeline, "_emit_itt_extras", "sensitivity"),
-        (pipeline._report, "write_run_metadata", "metadata"),
-        (pipeline, "_finalize_report", "finalize"),
+        (itt_pipeline, "load_and_prepare", "prepare"),
+        (itt_pipeline._factories, "build_itt_model", "build"),
+        (runtime, "emit_priors", "emit_priors"),
+        (itt_pipeline._diag, "run_prior_predictive", "prior_predictive"),
+        (itt_pipeline, "run_sampling_and_loo", "sample+loo"),
+        (itt_pipeline._diag, "summary_diagnostics", "summary"),
+        (itt_pipeline, "run_ppc", "posterior_predictive"),
+        (itt_pipeline._diag, "write_diagnostics_summary", "convergence_gate"),
+        (itt_pipeline._diag, "run_extended_diagnostics", "extended_diagnostics"),
+        (itt_pipeline._diag, "save_trace", "persist_trace"),
+        (itt_pipeline, "emit_itt_extras", "sensitivity"),
+        (itt_pipeline._report, "write_run_metadata", "metadata"),
+        (itt_pipeline, "finalize_report", "finalize"),
     ):
         record(module, name, label)
 

@@ -6003,7 +6003,7 @@ def generate_key_findings(output_dir) -> dict:
         # mediation) share the outcome symbol but never write the CSV, and their
         # family builders never reach the catchable ``_KeyFindingsUnavailable`` that
         # ``_kf_build_itt`` raises — so hashing unconditionally killed those fits here
-        # in ``_finalize_report``, *after* sampling, discarding the staging directory.
+        # in ``runtime.finalize_report``, *after* sampling, discarding the staging directory.
         # Imports stay function-local: ``blending_sensitivity`` imports this module.
         from language_reading_predictors.statistical_models.blending_sensitivity import (
             BLENDING_LINK_MODELS,

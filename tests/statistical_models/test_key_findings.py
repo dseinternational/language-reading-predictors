@@ -649,7 +649,7 @@ def test_non_itt_blending_outcome_does_not_require_the_paired_bundle(tmp_path):
     ``lrp-rli-itt-108`` only, but nine further models across the aligned, concurrent,
     did, dose_response, gain_factors, level_factors and mediation families share the
     ``B`` outcome symbol. Stamping the bundle hash on outcome symbol alone raised
-    ``FileNotFoundError`` inside ``_finalize_report`` — after sampling, discarding the
+    ``FileNotFoundError`` inside ``runtime.finalize_report`` — after sampling, discarding the
     whole fit — because those families' builders never reach the catchable
     ``_KeyFindingsUnavailable`` that ``_kf_build_itt`` raises.
     """

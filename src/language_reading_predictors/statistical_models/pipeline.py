@@ -4,13 +4,19 @@
 """
 End-to-end fit pipeline for the statistical models.
 
-``fit_itt(spec, config)`` is the entry point for the ITT models.
-``fit_joint(spec, config)`` is the entry point for the joint models (LRPITT12, LRPITT15/15b).
 ``fit_did(spec, config)`` is the entry point for the waitlist-crossover / DiD models.
 ``fit_mechanism(spec, config)`` is the entry point for LRP56/57/58 and companions.
 ``fit_dose_response(spec, config)`` is the entry point for LRP77 variants.
 ``fit_gain_factors`` / ``fit_level_factors`` / ``fit_aligned`` cover the factor
 families, and ``fit_adjusted`` / ``fit_lcsm`` cover the LRP65/LRP67 companions.
+
+The ITT and joint families have moved to :mod:`pipelines.itt` and
+:mod:`pipelines.joint` (#394 step 5); ``fit_itt`` and ``fit_joint`` are
+re-exported here so model modules and tests keep their import path. The shared
+mechanics they used to carry inline now live in :mod:`runtime` (the stage
+binding and spec validation), :mod:`publication` (banners, report template,
+model graph), :mod:`prior_artifacts`, :mod:`ppc_artifacts` and
+:mod:`figure_artifacts`. The remaining families migrate in the same way.
 
 Each pipeline:
 
@@ -32,9 +38,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-import os
-import shutil
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -49,12 +53,9 @@ from scipy.special import expit
 
 from language_reading_predictors.models._reporting import (
     metrics_table,
-    print_panel,
     print_table,
     ranked_dataframe_table,
-    run_summary_panel,
     section_header,
-    stat_model_header_panel,
 )
 from language_reading_predictors.statistical_models import (
     datasets as _datasets,
@@ -69,7 +70,6 @@ from language_reading_predictors.statistical_models import (
     survival as _survival,
 )
 from language_reading_predictors.statistical_models.plotting import (
-    save_plotcollection,
     save_styled_figure,
 )
 from language_reading_predictors.statistical_models.aligned import (
@@ -91,7 +91,17 @@ from language_reading_predictors.statistical_models.context import (
 from language_reading_predictors.statistical_models.did import (
     resolve_did_run_plan,
 )
-from language_reading_predictors.statistical_models.environment import DOCS_DIR
+from language_reading_predictors.statistical_models.figure_artifacts import (
+    save_association_forest,
+    save_did_cell_ppc_plot,
+    save_forest_plot,
+    save_rope_plot,
+    write_child_fit,
+    write_group_trajectory,
+    write_panel_child_fit,
+    write_panel_trajectory,
+    write_predicted_scores,
+)
 from language_reading_predictors.statistical_models.gain_factors import (
     resolve_active_interactions,
     resolve_gain_factors_run_plan,
@@ -99,22 +109,32 @@ from language_reading_predictors.statistical_models.gain_factors import (
 from language_reading_predictors.statistical_models.growth import (
     resolve_growth_run_plan,
 )
-from language_reading_predictors.statistical_models.itt import (
-    IttRunPlan,
-    build_itt_from_plan,
-    itt_diagnostic_variables,
-    prepare_itt_data,
-    resolve_itt_run_plan,
-    write_itt_analysis_audit,
-    write_itt_ppc_calibration,
-)
 from language_reading_predictors.statistical_models.level_factors import (
     resolve_level_factors_run_plan,
 )
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
-    is_distal,
+)
+
+# Compatibility re-exports: these two families now live in ``pipelines/`` (#394
+# step 5). The ``x as x`` form marks them as deliberate re-exports rather than
+# unused imports, and keeps ``from ...pipeline import fit_itt`` working for every
+# model module and test until step 8 migrates the callers.
+from language_reading_predictors.statistical_models.pipelines.itt import (
+    fit_itt as fit_itt,
+)
+from language_reading_predictors.statistical_models.pipelines.joint import (
+    fit_joint as fit_joint,
+)
+from language_reading_predictors.statistical_models.prior_artifacts import (
+    growth_contrast_pushforward_rows,
+    horseshoe_pushforward_rows,
+    marginal_pushforward_rows,
+    pushforward_n_trials,
+    pushforward_outcome_label,
+    write_indicator_prior_check,
+    write_prior_pushforward,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
@@ -124,16 +144,26 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
     load_wave_panel,
     logit_safe,
-    restrict_to_baseline_floored,
-    restrict_to_off_floor,
     split_confounders_by_timing,
     split_covariates_by_wave,
     standardise,
 )
+from language_reading_predictors.statistical_models.publication import (
+    print_header,
+    print_loo_row,
+    render_model_graph,
+)
+from language_reading_predictors.statistical_models.runtime import (
+    attach_built,
+    finalize_report,
+    require_spec,
+    run_ppc,
+    run_sampling_and_loo,
+    shared_stages,
+    write_run_metadata,
+)
 from language_reading_predictors.statistical_models.stages import (
     PrimaryFitPlan,
-    SharedFitStages,
-    StageHooks,
 )
 
 
@@ -169,25 +199,6 @@ def _raw_covariate_confounders(confounders: Iterable[str]) -> tuple[str, ...]:
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     return tuple(c for c in confounders if c not in MEASURES)
-
-
-def _require_spec(
-    spec: ModelSpec,
-    kind: str,
-    *,
-    outcome: bool = False,
-    mechanism: bool = False,
-) -> None:
-    """Validate model specs at runtime; unlike ``assert``, this is never optimised away."""
-    if spec.kind != kind:
-        msg = f"{spec.model_id}: expected kind {kind!r}, got {spec.kind!r}"
-        raise ValueError(msg)
-    if outcome and spec.outcome_symbol is None:
-        msg = f"{spec.model_id}: outcome_symbol is required for {kind!r} models"
-        raise ValueError(msg)
-    if mechanism and spec.mechanism_symbol is None:
-        msg = f"{spec.model_id}: mechanism_symbol is required for {kind!r} models"
-        raise ValueError(msg)
 
 
 def _effective_adjustment(
@@ -317,1845 +328,6 @@ def _effective_adjustment(
     }
 
 
-def _print_header(ctx: StatisticalFitContext) -> None:
-    """Print the start-of-fit banner panel."""
-    spec = ctx.spec
-    prepared = ctx.prepared
-    rprint()
-    print_panel(
-        stat_model_header_panel(
-            model_id=spec.model_id,
-            title=spec.title,
-            kind=spec.kind,
-            config_name=ctx.reporting.config_name,
-            outcome_symbol=spec.outcome_symbol,
-            mechanism_symbol=spec.mechanism_symbol,
-            adjustment=spec.adjustment or None,
-            n_obs=prepared.n_obs if prepared else None,
-            n_children=prepared.n_children if prepared else None,
-            n_phases=prepared.n_phases if prepared else None,
-            n_waves=getattr(prepared, "n_waves", None) if prepared else None,
-        )
-    )
-
-
-def _print_footer(ctx: StatisticalFitContext) -> None:
-    """Print the end-of-fit banner panel."""
-    rprint()
-    print_panel(run_summary_panel(output_dir=ctx.output_dir))
-
-
-def _print_loo_row(ctx: StatisticalFitContext) -> None:
-    """Render the LOO ELPD / p / se summary as a small table.
-
-    arviz 1.x ``ELPDData`` exposes ``elpd`` / ``se`` / ``p`` (the 0.x
-    ``elpd_loo`` / ``p_loo`` / ``looic`` attributes were removed).
-    """
-    if ctx.loo is None:
-        return
-    rows = [
-        {"metric": "elpd_loo", "value": float(ctx.loo.elpd)},
-        {"metric": "se", "value": float(ctx.loo.se)},
-        {"metric": "p_loo", "value": float(ctx.loo.p)},
-    ]
-    print_table(
-        metrics_table(
-            rows,
-            title="LOO-PSIS",
-            columns=["metric", "value"],
-        )
-    )
-
-
-def _copy_report_template(context: StatisticalFitContext) -> None:
-    src = os.path.join(DOCS_DIR, "models", context.spec.model_id, "index.qmd")
-    dst = os.path.join(context.output_dir, "index.qmd")
-    if os.path.exists(src):
-        shutil.copy(src, dst)
-        if os.environ.get("LRP_OFFLINE_QUARTO") == "1":
-            _strip_quarto_code_links(dst)
-        rprint(f"  Report template copied to {dst}")
-    else:
-        rprint(f"  [yellow]No report template found at {src}[/yellow]")
-
-    # Copy the shared Quarto partials alongside the report so ``{{< include
-    # _partials/... >}}`` resolves at render time in the output dir (issue #125
-    # step 0a). Quarto resolves includes relative to the rendered file.
-    partials_src = os.path.join(DOCS_DIR, "models", "_partials")
-    partials_dst = os.path.join(context.output_dir, "_partials")
-    if os.path.isdir(partials_src):
-        shutil.copytree(partials_src, partials_dst, dirs_exist_ok=True)
-
-
-def _strip_quarto_code_links(path: str) -> None:
-    """Remove copied ``code-links: repo`` metadata for offline Quarto renders.
-
-    Quarto resolves ``code-links: repo`` by probing the GitHub remote, including
-    ``git ls-remote origin gh-pages``. In restricted reporting environments that
-    optional link can make an otherwise valid report render fail after all cells
-    execute. The source templates are left intact; only the copied output QMD is
-    made renderable when ``LRP_OFFLINE_QUARTO=1`` is set.
-    """
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
-    text = text.replace("    code-links:\n      - repo\n", "")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(text)
-
-
-def _emit_priors(context: StatisticalFitContext) -> None:
-    """Write the pruned prior panel + ``priors_table.csv`` (issue #125 Area 1).
-
-    Only the priors the model actually registered are panelled (no more 4–6 dead
-    panels per model), and ``priors_table.csv`` documents every parameter's
-    distribution, role (causal / precision / association / nuisance / GP) and
-    rationale, driven by the built model so it cannot drift from the source.
-    """
-    model = context.model
-    # Clear stale prior-PDF panels from a previous run so only the used set
-    # remains (one file per named prior; not the prior-predictive / overlay PNGs).
-    for key in _priors.ALL_PRIORS:
-        for ext in ("png", "svg"):
-            stale = os.path.join(context.output_dir, f"prior_{key}.{ext}")
-            try:
-                os.remove(stale)
-            except OSError:
-                pass
-    ctor_overrides, role_overrides, rationale_overrides = _prior_table_overrides(context)
-    _priors.save_shared_prior_panel(
-        context.output_dir,
-        used=_priors.used_prior_keys(model, ctor_overrides=ctor_overrides),
-    )
-    table = _priors.priors_table(
-        model,
-        ctor_overrides=ctor_overrides,
-        role_overrides=role_overrides,
-        rationale_overrides=rationale_overrides,
-    )
-    save_table(context, "priors_table", table)
-
-
-def _prior_table_overrides(
-    context: StatisticalFitContext,
-) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
-    """Context-specific prior-table corrections for reused RV names.
-
-    Some factories reuse a PyMC variable name with a different prior constructor
-    or a different reporting role. Keep the model code stable and teach the
-    artifact writer about those contextual meanings here.
-    """
-    ctor: dict[str, str] = {}
-    role: dict[str, str] = {}
-    rationale: dict[str, str] = {}
-    spec = context.spec
-
-    if spec.kind == "dose_response":
-        ctor.update(
-            {
-                "beta_dose": "beta_mech",
-                "beta_dose_phase": "beta_mech",
-                "mu_dose": "beta_mech",
-                "sigma_dose": "sigma_dose",
-            }
-        )
-        role.update(
-            {
-                "beta_dose": "association",
-                "beta_dose_phase": "association",
-                "mu_dose": "association",
-                "sigma_dose": "nuisance",
-                "beta_G": "association",
-            }
-        )
-        # role is demoted above, but without a rationale override each RV would
-        # inherit its reused constructor's docstring ("Treatment effect tau…" for
-        # beta_G, "Linear-mechanism slope beta_mech…" for the dose slopes).
-        rationale.update(
-            {
-                "beta_G": (
-                    "Intervention-arm (G) backdoor adjustment: the confounder of the "
-                    "dose->outcome edge; an adjusted association, not the randomised "
-                    "treatment effect."
-                ),
-                "mu_dose": (
-                    "Average (pooled) per-period dose-response slope; outcome-logit "
-                    "change per 1 SD of per-period dose — the model's focal "
-                    "adjusted-association estimand."
-                ),
-                "beta_dose_phase": (
-                    "Partial-pooled per-period dose-response slopes; each period's "
-                    "outcome-logit change per 1 SD of dose, an adjusted association."
-                ),
-                "beta_dose": (
-                    "Single pooled dose-response slope (no period variation); the "
-                    "comparator's focal adjusted-association estimand, not a mechanism "
-                    "slope."
-                ),
-            }
-        )
-    elif spec.kind == "gain_factors" and spec.extra.get("moderation_variant", False):
-        # Moderation variants (#391 finding 3): beta_trt keeps the tau-tier prior
-        # but is never presented as causal — its interaction-aware marginal is
-        # model-dependent (the trt interactions are estimated on all stacked
-        # periods, partly post-crossover). The causal headline lives in the
-        # interaction-free primary; every artefact of a variant fit must agree.
-        role["beta_trt"] = "association"
-        rationale["beta_trt"] = (
-            "On-intervention log-odds contrast inside an explicitly associational "
-            "moderation variant: netted with the fitted treatment interactions it "
-            "is a model-dependent association, partly informed by post-crossover "
-            "data — read the randomised causal headline from the interaction-free "
-            "primary model."
-        )
-    elif spec.kind == "did":
-        # Time offsets and every post-crossover term are associations.  Only the
-        # saturated arm-by-wave model's t2 arm gap is licensed by randomisation.
-        role["beta_period"] = "association"
-        role["arm_gap_t1"] = "association"
-        role["arm_gap_t3"] = "association"
-        role["delta_crossover"] = "association"
-        rationale["beta_period"] = (
-            "Wave/period offset; an age, maturation and treatment-history association, "
-            "not a randomised treatment effect."
-        )
-        rationale["arm_gap_t1"] = (
-            "Pre-randomisation immediate-minus-waitlist balance quantity; regularised "
-            "as an association, not interpreted as an effect."
-        )
-        rationale["tau_t2"] = (
-            "Immediate-minus-waitlist t2 contrast identified by the original "
-            "randomisation; the only causal coefficient in the binary crossover model."
-        )
-        rationale["arm_gap_t3"] = (
-            "Post-crossover immediate-minus-waitlist t3 association comparing different "
-            "treatment histories (approximately 40 versus 20 weeks)."
-        )
-        rationale["sigma_delta"] = (
-            "Exploratory between-waitlist-child SD of unexplained t3 catch-up; may mix "
-            "response, maturation, history, period shocks and measurement variation."
-        )
-        if not spec.extra.get("dose", False):
-            role["tau_t2"] = "causal"
-            if spec.extra.get("use_intercept_anchor", True):
-                role["alpha_offset"] = "nuisance"
-                # The empirical-Bayes sentence comes from ``priors`` rather than
-                # being written again here, so the family prose and the suite-wide
-                # label cannot drift (#390 P1, Frank's 2026-07-24 ruling, condition
-                # 2). Scoped to the *anchored* arm-by-wave models, which is correct
-                # rather than incidental: the dose variants and the LRPDID101
-                # independent-prior companion build an ordinary free
-                # ``alpha ~ Normal(0, 1.5)`` and have no anchor to label.
-                rationale["alpha_offset"] = (
-                    "Zero-centred offset around the pooled observed t1 logit anchor; "
-                    "the deterministic alpha is the anchored t1 level. "
-                    f"{_priors.EMPIRICAL_BAYES_SENTENCE}"
-                )
-        if spec.extra.get("dose", False):
-            role["beta_group"] = "association"
-            role["theta_treated"] = "association"
-            role["gamma_t1"] = "precision"
-            rationale["beta_group"] = (
-                "Randomised-arm and prior-treatment-history adjustment in the transition "
-                "dose model; not itself the t2 randomised arm contrast."
-            )
-            rationale["theta_treated"] = (
-                "Modelled current-treatment presence at the mean treated dose; a "
-                "crossover association, not a second randomised ITT effect."
-            )
-            rationale["gamma_t1"] = (
-                "Shared pre-randomisation t1 outcome precision term broadcast to both "
-                "period rows; never the treatment-affected t2 period-start score."
-            )
-            rationale["beta_dose"] = (
-                "Observational intensive-margin association per treated-row SD of raw "
-                "sessions, with untreated rows coded at zero intensity."
-            )
-            rationale["mu_dose"] = (
-                "Average observational intensive-margin session association across P1/P2."
-            )
-            rationale["beta_dose_phase"] = (
-                "Partial-pooled observational intensive-margin session associations by period."
-            )
-            # Dose slopes now share build_dose_response_model's ``beta_mech`` prior
-            # (Normal(0, 1)) so the shared summary compares like with like.
-            if spec.extra.get("period_varying_dose", False):
-                ctor.update(
-                    {
-                        "mu_dose": "beta_mech",
-                        "beta_dose_phase": "beta_mech",
-                        "sigma_dose": "sigma_dose",
-                    }
-                )
-                role.update(
-                    {
-                        "mu_dose": "association",
-                        "beta_dose_phase": "association",
-                        "sigma_dose": "nuisance",
-                    }
-                )
-            else:
-                ctor["beta_dose"] = "beta_mech"
-                role["beta_dose"] = "association"
-    elif spec.kind in ("mediation", "mediation_multi"):
-        # The mediation coefficients ``a_G`` (group→mediator) and ``b_G``
-        # (group→outcome direct path) reuse the ``tau`` constructor's scale but
-        # are structural building blocks of the g-formula, not the reported
-        # estimand: the NDE/NIE come from the counterfactual simulation
-        # (``mediation_summary.csv``), never a raw coefficient. Label them adjusted
-        # associations so the prior table does not imply a bare coefficient is the
-        # reported quantity. The simulated NDE/NIE are **not** causal either: they
-        # are not identified natural effects (latent GA confounds the
-        # mediator->outcome path, and dose ``IS`` is a treatment-induced
-        # mediator-outcome confounder). See the :mod:`mediation` module docstring.
-        role["a_G"] = "association"
-        role["b_G"] = "association"
-        rationale["a_G"] = (
-            "Group->mediator (a-path) coefficient (tau-scaled Normal(0, 0.5)); a "
-            "structural g-formula building block, an adjusted association, not the "
-            "reported estimand."
-        )
-        rationale["b_G"] = (
-            "Group->outcome direct-path (c') coefficient (tau-scaled Normal(0, 0.5)); "
-            "a structural g-formula building block, an adjusted association, not an "
-            "identified natural effect and not the reported estimand."
-        )
-        # B3 (review 2026-07-13; generalised #384). A confounder coefficient in the
-        # a-/b-legs is built from gamma_cross_prior (Normal(0, 0.3)); a genuine
-        # mediator b-path is b_path (Normal(0, 1)) and an own-baseline autoregression
-        # is gamma_own (Normal(1, 0.25)). Reused names are ctor-mapped by NAME to the
-        # wrong panel — b_E/b_B are globally mapped to b_path (mediators) yet are
-        # confounders in LRP66/75; a_L is mapped to gamma_own (own-baseline) yet is a
-        # cross-baseline confounder in LRP68/80 where the own-baseline is a_TE/a_TR —
-        # so the rationale + panel misreport them (the distribution column, read off
-        # the RV, stays correct). Detect confounders by their fitted scale and route
-        # to gamma_cross for BOTH kinds. a_G/b_G (tau, 0.5) and the reported b_M
-        # (b_path, 1.0) never match Normal(0, 0.3), so their explicit labels stand.
-        if context.model is not None:
-            for rv in context.model.free_RVs:
-                # Per-mediator group->mediator a-paths in the two-mediator model are
-                # named a{sym}_G (aL_G / aE_G / aB_G) rather than a_G; they are the
-                # tau-scaled a-paths and otherwise carry an empty rationale.
-                if (
-                    rv.name != "a_G"
-                    and rv.name.startswith("a")
-                    and rv.name.endswith("_G")
-                ):
-                    rationale.setdefault(
-                        rv.name,
-                        "Group->mediator (a-path) coefficient for one mediator "
-                        "(tau-scaled Normal(0, 0.5)); a structural g-formula building "
-                        "block, an adjusted association, not the reported estimand.",
-                    )
-                    continue
-                if rv.name in ("a_G", "b_G"):
-                    continue
-                if not (rv.name.startswith("a_") or rv.name.startswith("b_")):
-                    continue
-                dist = (_priors._dist_from_rv(rv) or "").replace(" ", "")
-                # Scale-string-fragile (#384 review, Frank, non-blocking): this keys
-                # the confounder reroute off the exact ``Normal(0, 0.3)`` scale. The
-                # explicit a_G/b_G (tau 0.5) and reported b_M (b_path 1.0) carve-outs
-                # above never match it, so it is correct today — but a future
-                # confounder built at a different scale, or a genuine reported path
-                # that happens to be Normal(0, 0.3), would be silently mislabelled.
-                # Labelling-only risk; no estimand is affected.
-                if dist == "Normal(0,0.3)":
-                    ctor[rv.name] = "gamma_cross"
-                    role[rv.name] = "association"
-                    rationale[rv.name] = (
-                        "Cross-baseline confounder coupling in the mediation legs "
-                        "(Normal(0, 0.3)); an adjusted association, not a mediator "
-                        "a-/b-path and not the reported estimand."
-                    )
-        # Period-stacked two-mediator model (med-092). b_trt (direct path, tau 0.5)
-        # and b_phase (per-phase offset, Normal(0, 0.5)) are not rerouted above (not
-        # 0.3) but would inherit empty/misleading rationales; b_trtM (exposure x
-        # mediator, gamma_cross 0.3) IS rerouted above but wants a specific
-        # description. These names are unique to med-092, so the overrides are inert
-        # on other models (no matching row). Set after the loop so b_trtM wins.
-        rationale["b_trt"] = (
-            "Per-period on-intervention direct-path coefficient (tau-scaled "
-            "Normal(0, 0.5)); a structural g-formula building block leaning on "
-            "gain-factor ignorability, an adjusted association, not a cross-baseline "
-            "coupling."
-        )
-        rationale["b_phase"] = (
-            "Per-phase intercept/period offset (Normal(0, 0.5)); an "
-            "age/maturation/period association, not a cross-baseline skill coupling."
-        )
-        rationale["b_trtM"] = (
-            "Exposure x mediator interaction (on-intervention x standardised "
-            "mediator; Normal(0, 0.3)); admits exposure-mediator interaction in the "
-            "g-formula, not a cross-baseline coupling."
-        )
-    elif spec.kind == "mechanism":
-        # ``beta_G`` reuses the tau constructor (its Normal(0, 0.5) scale) but here
-        # it is the group main effect entered as a DAG backdoor adjustment, not the
-        # randomised ITT effect — an adjusted association, not a causal term. The
-        # role is demoted but the rationale still inherits the tau docstring, so set
-        # it explicitly. ``f_mech__ell`` is built with ell_prior_mech() = IG(5, 5)
-        # (#265) but the ``__ell`` suffix routes it to the default ell constructor
-        # whose docstring says IG(3, 1); the distribution column (read off the RV)
-        # correctly shows IG(5, 5), so the rationale contradicts its own row.
-        role["beta_G"] = "association"
-        rationale["beta_G"] = (
-            "Group main effect entered as a DAG backdoor adjustment (reuses the tau "
-            "Normal(0, 0.5) scale); an adjusted association, not the randomised "
-            "treatment effect."
-        )
-        rationale["f_mech__ell"] = (
-            "Mechanism-curve GP lengthscale ell ~ InverseGamma(5, 5) on standardised "
-            "inputs (issue #265)."
-        )
-    elif spec.kind == "aligned":
-        ctor["beta_cohort"] = "tau"
-        role["beta_cohort"] = "association"
-        rationale["beta_cohort"] = (
-            "Per-protocol cohort contrast (immediate vs wait-list) at onset-aligned "
-            "endpoints; an adjusted association confounded by age-at-onset and "
-            "cohort/timing, never the randomised treatment effect."
-        )
-        rationale["gamma_ability"] = (
-            "Cognitive-ability (block design) covariate coupling ~ Normal(0, 0.3); an "
-            "adjusted association, not a cross-baseline coupling."
-        )
-        rationale["gamma_dose"] = (
-            "Within-arm cumulative-session dose coupling ~ Normal(0, 0.3); a "
-            "collider-adjusted sensitivity association, never a causal dose effect."
-        )
-    elif spec.kind == "adjusted" and context.model is not None:
-        for rv in context.model.free_RVs:
-            # Cohort group-nuisance dummies are classified as inline nuisances in
-            # priors.prior_info_for_rv (prefix match) — do not sweep them into the
-            # predictor-slope/association bucket here.
-            if rv.name.startswith("beta_group_nuisance"):
-                continue
-            # Missing-data indicators (beta_{cov}_missing) are handled by the
-            # universal missing-indicator sweep below (role nuisance, #384 review) —
-            # skip them here so they are not tagged as predictor-slope associations.
-            if rv.name.endswith("_missing"):
-                continue
-            if rv.name.startswith("beta_"):
-                ctor[rv.name] = "predictor_slope"
-                role[rv.name] = "association"
-    elif spec.kind == "growth":
-        # Baseline non-verbal ability -> trajectory shape (gamma on the growth rate,
-        # delta on the baseline level): adjusted, latent-GA-confounded associations,
-        # never causal — routed to the predictor-slope panel / association role.
-        # gamma_age (baseline-age main effect) and gamma_int (the #228 item-10
-        # baseline age x ability interaction) are also association slopes, but their
-        # names fall through the ``gamma`` prefix to the gamma_cross panel + its
-        # "cross-baseline coupling gamma_k" docstring — the wrong quantity.
-        for _rv in ("gamma", "delta", "gamma_age", "gamma_int"):
-            ctor[_rv] = "predictor_slope"
-            role[_rv] = "association"
-        rationale["gamma_age"] = (
-            "Baseline (t1) age main effect on the growth rate (gamma_age * age0); an "
-            "adjusted, GA-confounded association, not a cross-baseline coupling."
-        )
-        rationale["gamma_int"] = (
-            "Baseline age x ability interaction on the growth rate (the #228 item-10 "
-            "headline: older-and-more-able children grow faster than age and ability "
-            "predict separately); an adjusted, GA-confounded association, never "
-            "causal."
-        )
-        # ``loading`` (rank-1 growth-tempo factor loading) otherwise inherits the
-        # CFA test->domain measurement-loading fallback text, which is the wrong
-        # model — override the rationale (role/association already correct).
-        rationale["loading"] = (
-            "Positive loading (HalfNormal(0.5)) of the shared child-level "
-            "growth-tempo factor G onto measure k's growth rate; a rank-1 stand-in "
-            "for cross-measure slope covariation, not a CFA test->domain measurement "
-            "loading."
-        )
-    elif spec.kind == "level_factors" and spec.extra.get("group_by_time", True):
-        # The prior table is one row per RV, while ``b_grp_time`` is a vector whose
-        # elements have different interpretation: only b_grp_time[1] is the clean
-        # randomised t2 contrast. Keep the vector row conservative and let
-        # factor_summary.csv carry the element-level causal label.
-        role["b_grp_time"] = "association"
-        rationale["b_grp_time"] = (
-            "Level-model group-by-time vector; only b_grp_time[1] is the "
-            "randomised t2 contrast, while the vector row is documented "
-            "conservatively because other elements are pre-randomisation or "
-            "post-crossover associations."
-        )
-    elif spec.kind == "itt":
-        # adjust_for covariates are built as gamma_{covariate} from gamma_cross_prior,
-        # so they inherit the gamma_cross panel's "cross-baseline coupling gamma_k"
-        # rationale + association role. They are pre-randomisation adjustment/precision
-        # covariates, not cross-baseline skill couplings: under randomisation a
-        # baseline covariate is balanced across arms in expectation, so it cannot
-        # confound tau and only sharpens it — the definition of a precision covariate.
-        # ``blocks``/``area`` and the SES adjusters (parental education, age first
-        # exposed to books) are all documented "precision covariate" in their modules,
-        # so the role is quoted, not inferred (#384 review, Frank: promote SES to
-        # precision — identical causal status to blocks/area).
-        _quoted_precision = {"blocks", "area", "mumedupost16", "dadedupost16", "agebooks"}
-        for c in spec.extra.get("adjust_for", ()):
-            name = f"gamma_{c}"
-            if c in _quoted_precision:
-                role[name] = "precision"
-                rationale[name] = (
-                    f"Baseline adjustment/precision covariate ({c}) ~ Normal(0, 0.3); "
-                    "a pre-randomisation term that sharpens tau and cannot confound "
-                    "the randomised effect, not a cross-baseline coupling."
-                )
-            else:
-                rationale[name] = (
-                    f"Pre-randomisation adjustment covariate ({c}) ~ Normal(0, 0.3); "
-                    "a robustness adjustment that cannot confound the randomised "
-                    "effect (balanced across arms in expectation), not a "
-                    "cross-baseline coupling."
-                )
-    elif spec.kind == "corr_factor" and context.model is not None:
-        _rv_names = {rv.name for rv in context.model.free_RVs}
-        if "beta_G" in _rv_names:
-            # The randomised arm G enters mm-002 as a mech-058 backdoor covariate on
-            # the predictor_slope prior (Normal(0, 0.3)); it reuses the ``beta_G``
-            # name, so _RV_TO_CTOR maps it to ``tau`` (role causal + "Treatment
-            # effect tau" rationale) — the most severe mislabel, a causal claim the
-            # model explicitly disowns. Route to predictor_slope + association.
-            ctor["beta_G"] = "predictor_slope"
-            role["beta_G"] = "association"
-            rationale["beta_G"] = (
-                "Randomised arm G entered as an adjusted-association (mech-058) "
-                "backdoor covariate on the standardised predictor_slope prior, not "
-                "the randomised ITT effect (the causal claim lives in the ITT suite)."
-            )
-        if "factor_corr_chol" in _rv_names:
-            # ``factor_corr_chol``'s off-diagonals are the reported factor-correlation
-            # matrix (exposed as the ``factor_corr_pairs`` deterministic the strict
-            # gate evaluates), so it is an ``association`` — the same carve-out this
-            # branch already applies to ``measure_corr_chol`` / ``trait_corr_chol`` /
-            # ``state_corr_chol_w`` (#384 review, Frank: promote nuisance ->
-            # association).
-            #
-            # Formerly ``factor_cov``, an ``LKJCholeskyCov`` whose ``sd_dist`` scales
-            # were discarded. That observation — scale is carried by the loadings, so
-            # the sds do nothing — is exactly why they were unidentified, and why the
-            # all-free-RV gate failed on them while every reported quantity converged.
-            # The bare ``LKJCorr`` has no such component to leave dangling.
-            role["factor_corr_chol"] = "association"
-            rationale["factor_corr_chol"] = (
-                "LKJ(eta=2) prior on the domain-factor correlation matrix, sampled as "
-                "its Cholesky factor (R = L L'); scale is carried by the loadings. Its "
-                "off-diagonals are the reported factor-correlation matrix — the "
-                "study's headline descriptive association."
-            )
-    elif spec.kind == "concurrent" and context.model is not None:
-        # The focal concurrent skill coefficients are ``beta``/``beta_age``; every
-        # ``gamma_{c}`` is a trait-covariate adjustment (non-verbal ability, hearing,
-        # speech, phonological memory) built from predictor_slope_prior (Normal(0,
-        # 0.3)). The ``gamma`` prefix routes them to the gamma_cross panel + its
-        # "cross-baseline coupling" docstring — the wrong quantity.
-        for rv in context.model.free_RVs:
-            if rv.name.startswith("gamma_"):
-                ctor[rv.name] = "predictor_slope"
-                role[rv.name] = "association"
-                rationale[rv.name] = (
-                    "Trait-covariate adjustment slope (non-verbal ability / hearing / "
-                    "speech / phonological-memory t1 baseline; Normal(0, 0.3)); a "
-                    "regularised adjusted association, not a between-skill "
-                    "cross-baseline coupling."
-                )
-    elif spec.kind == "block_exposure":
-        # ``delta`` reuses the tau constructor (role causal), but it is the
-        # block-active exposure shift in the block-2 taught-vocabulary logit — a
-        # parallel-trends association, not a randomised treatment effect. Plain
-        # assignment (not setdefault) so the distal `is_distal` block below keeps its
-        # tau_distal *panel* for bx-003/004 while the role stays association.
-        role["delta"] = "association"
-        rationale["delta"] = (
-            "Block-active exposure shift in the block-2 taught-vocabulary logit; a "
-            "parallel-trends association ('block-2-active vs block-1-active'), not a "
-            "randomised treatment effect."
-        )
-    elif spec.kind == "survival":
-        # The cloglog survival models set causal_status='none' (by t4 both arms are
-        # treated), so ``tau`` is a prognostic association anchored on the immediate
-        # arm's randomised first interval, not a randomised treatment effect.
-        role["tau"] = "association"
-        rationale["tau"] = (
-            "Intervention-aligned treatment hazard shift; a prognostic association "
-            "anchored on the immediate arm's randomised first interval, not a "
-            "randomised treatment effect of record (both arms are treated by t4)."
-        )
-
-    # Distal outcomes take the tighter tau prior (issue #141): the factory built
-    # the single-outcome causal treatment term at Normal(0, 0.3), so route it to
-    # the ``tau_distal`` panel + distribution here so the report panel matches the
-    # fitted scale. Only the randomised treatment terms are listed (never the
-    # adjusted-association ``beta_G`` / ``beta_cohort``).
-    if is_distal(getattr(spec, "outcome_symbol", None)):
-        for _name in (
-            "tau",
-            "beta_trt",
-            "b_grp_time",
-            "beta_grp",
-            "delta",
-            "tau_t2",
-            "arm_gap_t3",
-            "theta_treated",
-        ):
-            ctor.setdefault(_name, "tau_distal")
-            role.setdefault(_name, "causal")
-        # The ANCOVA intercept is likewise tiered for distal outcomes (Normal(0,
-        # 1.0); prior-critical-review 2026-07-07, Finding 1). Route it to the
-        # ``alpha_distal`` panel so the report rationale matches the fitted scale
-        # (the distribution column already reads the true 1.0 off the built RV).
-        ctor.setdefault("alpha", "alpha_distal")
-        ctor.setdefault("alpha_offset", "alpha_distal")
-
-    # Missing-data-indicator coefficients (beta_{cov}_missing) are subgroup
-    # mean-offsets under the missing-indicator method — confounded with the constant
-    # fill value and well known to be uninterpretable as an effect (Greenland &
-    # Finkle 1995, Am J Epidemiol 142(12):1255-64; Groenwold et al. 2012, CMAJ
-    # 184(11):1265-9) — so they are nuisance, not predictor-slope associations, in
-    # every family that carries them (currently the adjusted LRP65 and the
-    # correlated-factor mm-002). Swept once here rather than per kind (#384 review,
-    # Frank). The distribution column, read off the RV, still shows the true
-    # predictor_slope Normal(0, 0.3). See also the predictor_associations.csv filter
-    # in the adjusted/RLM writers, which keeps the reported-associations table from
-    # contradicting this nuisance label.
-    if context.model is not None:
-        for rv in context.model.free_RVs:
-            if rv.name.startswith("beta_") and rv.name.endswith("_missing"):
-                ctor.setdefault(rv.name, "predictor_slope")
-                role[rv.name] = "nuisance"
-                rationale[rv.name] = (
-                    f"Missing-data indicator ({rv.name[len('beta_') :]} = 1 when the "
-                    "value is unknown/imputed); a subgroup mean-offset under the "
-                    "missing-indicator method, confounded with the fill value and not "
-                    "interpretable as a substantive standardised-trait association."
-                )
-
-    return ctor, role, rationale
-
-
-def _render_model_graph(context: StatisticalFitContext) -> None:
-    with guard_optional(
-        context, "Graphviz render",
-        filename="model_graph.png", kind="figure", verb="failed",
-    ):
-        g = _graphviz(context.model)
-        g.render(
-            filename=os.path.join(context.output_dir, "model_graph"),
-            format="png",
-            cleanup=True,
-        )
-
-
-def _graphviz(model):
-    import pymc as pm
-
-    g = pm.model_to_graphviz(model)
-    g.graph_attr["fontname"] = "Helvetica"
-    # Raster PNG output (not SVG): the DAG's many nodes/edges make a large SVG
-    # slow to browse, so render to PNG and bump DPI to keep the lightbox legible.
-    g.graph_attr["dpi"] = "150"
-    g.node_attr["fontname"] = "Helvetica"
-    g.edge_attr["fontname"] = "Helvetica"
-    return g
-
-
-# Posterior-predictive check suite (issue #318) --------------------------------
-# The stock ArviZ overlay pooled every likelihood node onto one unlabelled axis and
-# offered no verdict. The redesign emits, from the existing posterior_predictive
-# group (no new sampling): a computed coverage statement (ppc_summary.csv), a
-# per-observation calibration panel, and — for single-measure count families — a
-# relabelled distribution overlay. Floor-rule / binary nodes report off-floor RATE
-# coverage by group cell instead (per-observation 0/1 interval coverage is
-# degenerate). See notes/202607151942-ppc-coverage-redesign.md.
-
-# Families whose single likelihood node flattens several measures with different
-# denominators (6..170), so a shared count axis for the overlay would pool them —
-# the meaninglessness #271 item 2 flagged. They still get coverage + calibration.
-_PPC_MULTI_OUTCOME_KINDS = {"joint", "lcsm", "growth"}
-# Of those, ``joint`` splits its own per-outcome overlays and calibration tables in
-# ``fit_joint`` (``save_joint_posterior_predictive_plot``), so the generic
-# per-measure dispatch would only be overwritten by them.
-_PPC_FAMILY_OWN_OVERLAY_KINDS = {"joint"}
-# Binary / event nodes: off-floor rate coverage rather than count intervals.
-_PPC_BINARY_NODES = {"y_offfloor", "y_event"}
-# Bounded-count outcome nodes that take the count-interval treatment.
-_PPC_COUNT_NODES = {"y_post", "y_obs", "score"}
-
-
-def _save_ppc(context: StatisticalFitContext, *, primary_node: str = "y_post") -> None:
-    """Write the posterior-predictive coverage CSV + figures for the primary node.
-
-    ``primary_node`` is the outcome leg (the last node in every multi-node family's
-    ``var_names``). Routes by node kind; every sub-step is independently guarded so a
-    plotting hiccup never aborts the fit or loses the coverage CSV.
-    """
-    node = primary_node
-    symbol = context.spec.outcome_symbol
-    if node in _PPC_BINARY_NODES:
-        _save_offfloor_ppc(context, node, symbol)
-    elif node in _PPC_COUNT_NODES:
-        _save_count_ppc(context, node, symbol, context.spec.kind)
-    else:
-        # Measurement / latent nodes (corr-factor indicators, longitudinal z-patterns,
-        # a standalone mediator leg): no single count outcome, so keep the legacy
-        # overlay and emit no coverage statistic.
-        _save_legacy_ppc_overlay(context)
-
-
-def _save_count_ppc(
-    context: StatisticalFitContext, node: str, symbol: str | None, kind: str
-) -> None:
-    """Count-interval coverage CSV + calibration panel (+ overlay for single-measure)."""
-    with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
-        cov = _report.ppc_interval_coverage(context.trace, node=node)
-        save_table(context, "ppc_summary", cov, required=False)
-    with guard_optional(
-        context, "PPC calibration figure",
-        filename="ppc_calibration.png", kind="figure", verb="skipped",
-    ):
-        cal = _report.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
-        _ppc_calibration_figure(context, symbol, cal)
-    if kind in _PPC_FAMILY_OWN_OVERLAY_KINDS:
-        rprint(
-            f"[dim]PPC distribution overlay left to the '{kind}' family's own "
-            "per-outcome writer.[/dim]"
-        )
-    elif kind in _PPC_MULTI_OUTCOME_KINDS:
-        _save_multi_outcome_ppc_overlays(context, node, kind)
-    else:
-        _ppc_overlay_figure(context, node, symbol)
-
-
-def _save_multi_outcome_ppc_overlays(
-    context: StatisticalFitContext, node: str, kind: str
-) -> None:
-    """One overlay per measure for a stacked multi-outcome likelihood.
-
-    ``joint`` / ``lcsm`` / ``growth`` flatten every measure into a single likelihood
-    node, so a pooled overlay puts scales with different maxima on one axis and has
-    no interpretable predictive distribution. This was previously skipped outright
-    for those families; it is emitted per measure now that the factories persist a
-    cell map (``y_post_cell_outcome`` for the joint family, ``y_obs_cell_outcome``
-    for the stacked LCSM / growth likelihoods), which is the same selection the
-    prior-predictive checks use. The map is read back, never re-derived — a
-    reconstructed index is what silently misaligned those checks before.
-
-    The first measure keeps the unsuffixed filename the report partials expect;
-    the rest are suffixed. Falls back to the pooled overlay only when no map is
-    present, since that is a single-measure node reaching here by another route.
-    """
-    cd = getattr(context.trace, "constant_data", None)
-    key = next(
-        (k for k in (f"{node}_cell_outcome", "y_post_cell_outcome") if cd is not None and k in cd),
-        None,
-    )
-    outcomes = [str(o) for o in (context.spec.extra.get("outcomes") or ())]
-    if not outcomes:
-        plan = getattr(context, "resolved_plan", None)
-        outcomes = [str(o) for o in (getattr(plan, "outcomes", ()) or ())]
-    if key is None or not outcomes:
-        rprint(
-            f"[yellow]PPC per-measure overlay unavailable for '{kind}' "
-            f"(cell map={key!r}, outcomes={outcomes or None}); "
-            "falling back to the pooled overlay.[/yellow]"
-        )
-        _ppc_overlay_figure(context, node, context.spec.outcome_symbol)
-        return
-
-    idx = np.asarray(cd[key].values).ravel().astype(int)
-    for position, sym in enumerate(outcomes):
-        if not np.any(idx == position):
-            # A declared outcome with no rows in this fit's cell map. Skip rather
-            # than emit an empty overlay; ``ppc_summary.csv`` still counts the rest.
-            continue
-        _ppc_overlay_figure(
-            context,
-            node,
-            sym,
-            row_mask=(idx == position),
-            filename_stem=(
-                "posterior_predictive_check"
-                if position == 0
-                else f"posterior_predictive_check_{sym.lower()}"
-            ),
-        )
-
-
-def _save_offfloor_ppc(
-    context: StatisticalFitContext, node: str, symbol: str | None
-) -> None:
-    """Off-floor RATE coverage CSV + per-cell observed-vs-predicted rate figure."""
-    group = _offfloor_group_labels(context)
-    with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
-        cov = _report.ppc_offfloor_rate_coverage(context.trace, node=node, group=group)
-        save_table(context, "ppc_summary", cov, required=False)
-    with guard_optional(
-        context, "PPC off-floor figure",
-        filename="posterior_predictive_check.png", kind="figure", verb="skipped",
-    ):
-        cells = _report.ppc_offfloor_cell_table(
-            context.trace, node=node, group=group, ci_prob=0.9
-        )
-        _ppc_offfloor_figure(context, symbol, cells)
-
-
-def _offfloor_group_labels(context: StatisticalFitContext) -> np.ndarray | None:
-    """Arm (× wave, when present) cell labels for off-floor coverage, or None.
-
-    Reads ``prepared.G`` (0=waitlist, 1=immediate) and, when aligned, ``prepared.phase``
-    so the off-floor rate is checked by group × wave cell. Returns None when no group
-    is available (the coverage helper then uses one overall cell).
-    """
-    prep = context.prepared
-    G = getattr(prep, "G", None)
-    if G is None:
-        return None
-    G = np.asarray(G)
-    arm = np.where(G == 1, "immediate", "waitlist")
-    phase = getattr(prep, "phase", None)
-    if phase is not None and np.asarray(phase).shape[0] == G.shape[0]:
-        phase = np.asarray(phase)
-        return np.array([f"t{int(p) + 1}·{a}" for p, a in zip(phase, arm, strict=True)])
-    return arm
-
-
-def _ppc_measure_label(symbol: str | None) -> tuple[str, int | None]:
-    """Human label + denominator for the PPC axes (falls back gracefully)."""
-    measure = MEASURES.get(symbol) if symbol else None
-    if measure is not None:
-        return measure.label, int(measure.n_trials)
-    return (symbol or "outcome"), None
-
-
-def _ppc_overlay_figure(
-    context: StatisticalFitContext,
-    node: str,
-    symbol: str | None,
-    *,
-    row_mask: np.ndarray | None = None,
-    filename_stem: str = "posterior_predictive_check",
-) -> None:
-    """Relabelled observed-vs-simulated distribution overlay on a labelled items axis.
-
-    The observed count density (black) against the posterior-predictive band (blue:
-    pointwise 5-95% of replicate-dataset densities, plus the median). Each replicate
-    dataset is one posterior-predictive draw over all observations. Writes
-    ``posterior_predictive_check.png`` (+ a density-band data CSV).
-    """
-    with guard_optional(
-        context,
-        "PPC overlay figure",
-        filename=f"{filename_stem}.png",
-        kind="figure",
-        verb="failed",
-    ):
-        y_rep, y_obs = _report._ppc_node_arrays(context.trace, node)
-        if row_mask is not None:
-            # One measure's rows out of a stacked likelihood, selected by the
-            # factory-persisted cell map (never a re-derived index).
-            y_rep, y_obs = y_rep[row_mask], y_obs[row_mask]
-        finite = np.isfinite(y_obs)
-        y_rep, y_obs = y_rep[finite], y_obs[finite]
-        label, n_trials = _ppc_measure_label(symbol)
-        hi = int(n_trials) if n_trials else int(max(y_obs.max(), y_rep.max()))
-        bins = np.arange(0, hi + 2) - 0.5  # integer-centred bins
-        centers = 0.5 * (bins[:-1] + bins[1:])
-        obs_dens, _ = np.histogram(y_obs, bins=bins, density=True)
-        n_samples = y_rep.shape[1]
-        idx = np.unique(np.linspace(0, n_samples - 1, min(n_samples, 200)).astype(int))
-        rep_dens = np.stack(
-            [np.histogram(y_rep[:, s], bins=bins, density=True)[0] for s in idx]
-        )
-        lo_band = np.quantile(rep_dens, 0.05, axis=0)
-        hi_band = np.quantile(rep_dens, 0.95, axis=0)
-        med_band = np.median(rep_dens, axis=0)
-        plt.figure(figsize=FIGSIZE_LG)
-        plt.fill_between(
-            centers, lo_band, hi_band, color=COLOUR_BLUE, alpha=0.3,
-            label="posterior-predictive 90% band",
-        )
-        plt.plot(centers, med_band, color=COLOUR_BLUE, lw=1.2, alpha=0.85,
-                 label="posterior-predictive median")
-        plt.plot(centers, obs_dens, color="black", lw=2, label="observed")
-        axis_lbl = f"{label} — score (0–{hi} items)" if n_trials else f"{label} — score"
-        plt.xlabel(axis_lbl)
-        plt.ylabel("density")
-        plt.title(f"Posterior-predictive check: {label}")
-        plt.legend(fontsize=8)
-        data = pd.DataFrame(
-            {
-                "score": centers,
-                "observed_density": obs_dens,
-                "pp_density_median": med_band,
-                "pp_density_lo": lo_band,
-                "pp_density_hi": hi_band,
-            }
-        )
-        save_styled_figure(context.output_dir, filename_stem, data=data)
-
-
-def _ppc_calibration_figure(
-    context: StatisticalFitContext, symbol: str | None, cal: pd.DataFrame
-) -> None:
-    """Per-observation calibration panel: observed vs posterior-predictive median.
-
-    Observed score (x) against the predictive median with a 90% interval (y) and a
-    ``y = x`` diagonal; points off the diagonal are directly-readable mis-fits, and
-    observations whose observed score falls outside the 90% range are flagged.
-    Writes ``ppc_calibration.png`` (+ the per-observation data CSV).
-    """
-    with guard_optional(
-        context, "PPC calibration figure",
-        filename="ppc_calibration.png", kind="figure", verb="failed",
-    ):
-        label, n_trials = _ppc_measure_label(symbol)
-        obs = cal["observed"].to_numpy(float)
-        med = cal["pp_median"].to_numpy(float)
-        lo = cal["pp_lo"].to_numpy(float)
-        hi = cal["pp_hi"].to_numpy(float)
-        inside = cal["inside"].to_numpy(bool)
-        lim_hi = float(n_trials) if n_trials else float(max(obs.max(), hi.max()))
-        plt.figure(figsize=(5.5, 5.5))
-        plt.plot([0, lim_hi], [0, lim_hi], color="#888", ls="--", lw=1,
-                 label="perfect calibration (y = x)")
-        plt.errorbar(
-            obs, med, yerr=np.vstack((med - lo, hi - med)), fmt="none",
-            ecolor=COLOUR_BLUE, alpha=0.35, capsize=0, zorder=1,
-        )
-        plt.scatter(obs[inside], med[inside], s=18, color=COLOUR_BLUE,
-                    label="observed inside 90% range", zorder=2)
-        plt.scatter(obs[~inside], med[~inside], s=26, color=COLOUR_RED, marker="x",
-                    lw=1.6, label="observed outside 90% range", zorder=3)
-        plt.xlabel(f"observed {label} score")
-        plt.ylabel("posterior-predictive median (90% range)")
-        plt.title(f"Per-observation calibration: {label}")
-        plt.legend(fontsize=8)
-        save_styled_figure(context.output_dir, "ppc_calibration", data=cal)
-
-
-def _ppc_offfloor_figure(
-    context: StatisticalFitContext, symbol: str | None, cells: pd.DataFrame
-) -> None:
-    """Floor-rule PPC figure: observed off-floor rate vs its predictive rate by cell.
-
-    Writes ``posterior_predictive_check.png`` (the floor-rule analogue of the count
-    overlay: the observed rate should sit inside the model's predictive range for
-    each cell) plus the per-cell data CSV.
-    """
-    with guard_optional(
-        context, "PPC off-floor figure",
-        filename="posterior_predictive_check.png", kind="figure", verb="failed",
-    ):
-        label, _ = _ppc_measure_label(symbol)
-        x = np.arange(len(cells))
-        med = cells["pp_rate_median"].to_numpy(float)
-        lo = cells["pp_rate_lo"].to_numpy(float)
-        hi = cells["pp_rate_hi"].to_numpy(float)
-        obs = cells["observed_rate"].to_numpy(float)
-        plt.figure(figsize=(max(5.0, 1.6 * len(cells) + 2.0), 4))
-        plt.errorbar(
-            x, med, yerr=np.vstack((med - lo, hi - med)), fmt="o", color=COLOUR_BLUE,
-            capsize=4, label="posterior-predictive median and 90% range",
-        )
-        plt.scatter(x, obs, marker="x", s=60, lw=2, color=COLOUR_RED,
-                    label="observed", zorder=3)
-        plt.xticks(x, cells["cell"].tolist())
-        plt.ylabel("off-floor rate")
-        plt.ylim(-0.02, 1.02)
-        plt.title(f"Off-floor rate posterior-predictive check: {label}")
-        plt.legend(fontsize=8)
-        save_styled_figure(context.output_dir, "posterior_predictive_check", data=cells)
-
-
-def _save_legacy_ppc_overlay(context: StatisticalFitContext) -> None:
-    # arviz 1.x removed az.plot_ppc; the equivalent is arviz_plots.plot_ppc_dist
-    # (returns a PlotCollection with .savefig). Used for measurement / latent nodes
-    # that have no single count outcome. Guarded — a PPC plot failure must not abort.
-    with guard_optional(
-        context, "PPC plot",
-        filename="posterior_predictive_check.png", kind="figure", verb="failed",
-    ):
-        import arviz_plots as azp
-
-        pc = azp.plot_ppc_dist(context.trace)
-        save_plotcollection(
-            pc,
-            context.output_dir,
-            "posterior_predictive_check.png",
-            suptitle="Posterior-predictive vs observed",
-        )
-
-
-def _draw_did_cell_panel(
-    ax: "plt.Axes", cell_ppc: pd.DataFrame, *, stem: str, ylabel: str, title: str
-) -> None:
-    """One DiD cell-PPC panel: replicated median/interval vs observed, by cell."""
-    x = np.arange(len(cell_ppc))
-    labels = cell_ppc["cell"].str.replace("_", "\n").tolist()
-    centre = cell_ppc[f"replicated_{stem}_median"].to_numpy(float)
-    lo = cell_ppc[f"replicated_{stem}_lo"].to_numpy(float)
-    hi = cell_ppc[f"replicated_{stem}_hi"].to_numpy(float)
-    observed = cell_ppc[f"observed_{stem}"].to_numpy(float)
-    ax.errorbar(
-        x, centre, yerr=np.vstack((centre - lo, hi - centre)), fmt="o", capsize=4,
-        color=COLOUR_BLUE, label="posterior predictive median and 95% interval",
-    )
-    ax.scatter(x, observed, marker="x", s=55, linewidth=2, color=COLOUR_RED,
-               label="observed")
-    ax.set_ylabel(ylabel)
-    ax.grid(axis="y", alpha=0.2)
-    ax.set_xticks(x, labels)
-    ax.set_xlabel("fitted arm-by-time cell")
-    ax.set_title(title)
-    ax.legend(loc="best")
-
-
-def _save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) -> None:
-    """Cell-stratified DiD posterior-predictive checks as two individual figures:
-    ``did_cell_ppc_mean`` (cell mean) and ``did_cell_ppc_zero_rate`` (proportion
-    at zero)."""
-    with guard_optional(
-        ctx, "DiD cell PPC plot",
-        filename="did_cell_ppc_mean.png", kind="figure", verb="failed",
-    ):
-        for stem, ylabel, name in (
-            ("mean", "cell mean", "did_cell_ppc_mean"),
-            ("zero_rate", "proportion at zero", "did_cell_ppc_zero_rate"),
-        ):
-            fig, ax = plt.subplots(figsize=FIGSIZE_LG)
-            _draw_did_cell_panel(
-                ax, cell_ppc, stem=stem, ylabel=ylabel,
-                title=f"Cell-stratified PPC: {ylabel}",
-            )
-            fig.tight_layout()
-            save_styled_figure(ctx.output_dir, name, fig=fig)
-
-
-def _save_proportion_at_zero_plot(
-    ctx: StatisticalFitContext, symbol: str, ppc0: dict
-) -> None:
-    """Plot the proportion-at-zero PPC: replicated distribution vs observed."""
-    with guard_optional(
-        ctx, "Proportion-at-zero PPC plot",
-        filename="proportion_at_zero_ppc.png", kind="figure", verb="failed",
-    ):
-        rep = ppc0["rep"]
-        obs = ppc0["obs_prop_at_zero"]
-        plt.figure(figsize=FIGSIZE_LG)
-        plt.hist(rep, bins=30, color=COLOUR_BLUE, alpha=0.6, density=True)
-        plt.axvline(obs, color=COLOUR_RED, lw=2, label=f"observed = {obs:.2f}")
-        plt.xlabel(f"proportion of {symbol} post-scores at zero")
-        plt.ylabel("posterior-predictive density")
-        plt.title(
-            f"Proportion-at-zero PPC ({symbol}); two-sided tail = "
-            f"{ppc0['ppc_two_sided_tail']:.2f}"
-        )
-        plt.legend()
-        # Scalar PPC summary (rep excluded) is already written to CSV by the
-        # graded/floor path, so no data= here — just the styled PNG + SVG.
-        save_styled_figure(ctx.output_dir, "proportion_at_zero_ppc")
-
-
-def _save_rope_plot(
-    ctx: StatisticalFitContext,
-    symbol: str,
-    G: np.ndarray | None,
-    n_trials: int,
-    delta: float,
-    *,
-    term: str = "tau",
-    varying_term: str = "tau_i",
-    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
-    items: np.ndarray | None = None,
-    row_mask: np.ndarray | None = None,
-    split: bool = False,
-    score_mean_link: str = "logit",
-) -> None:
-    """ROPE-anchored figure for a randomised effect: the items-scale posterior with
-    the region of practical equivalence, and ``P(effect > delta)`` as the
-    minimally-important difference rises. Single-outcome version of the note figure
-    (notes/202606261304-evidence-strength-and-rope-reporting.md).
-
-    The ITT/gain path recomputes the items draws from ``_itt_ame_draws`` (``term`` /
-    ``varying_term`` / ``moderators`` / ``G`` select the effect, including any
-    treatment interactions); the level family passes its t2 contrast items draws
-    directly via ``items`` (its AME nets out a group×ability interaction the generic
-    core cannot reconstruct). With ``split=True`` (the ITT reports) the two panels
-    are written as individual files (``rope_summary`` + ``rope_benefit_curve``)
-    rather than one combined figure.
-    """
-    with guard_optional(
-        ctx, "ROPE plot",
-        filename="rope_summary.png", kind="figure", verb="failed",
-    ):
-        from language_reading_predictors.statistical_models.effect_plots import (
-            write_rope_figures,
-        )
-
-        if items is None:
-            _, ame_prob = _report._itt_ame_draws(
-                ctx.trace, G=G, term=term, varying_term=varying_term,
-                moderators=moderators, row_mask=row_mask,
-                score_mean_link=score_mean_link,
-            )
-            items = ame_prob * float(n_trials)
-        write_rope_figures(
-            ctx.output_dir, items, symbol=symbol, delta=delta,
-            n_trials=n_trials, split=split,
-        )
-
-
-def _write_predicted_scores(
-    ctx: StatisticalFitContext,
-    *,
-    outcome_symbol: str,
-    G: np.ndarray,
-    n_trials: int,
-    term: str,
-    varying_term: str = "tau_i",
-    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
-    row_mask: np.ndarray | None = None,
-    likelihood: str = "beta_binomial",
-    child_re: bool = False,
-    child_idx: np.ndarray | None = None,
-    delta: float | None = None,
-    population: str,
-    contrast_status: str,
-    event_label: str = "off the floor at follow-up",
-    split: bool = False,
-    score_mean_link: str = "logit",
-) -> None:
-    """Predicted-scores contrast panel, ROPE-triple density and icon array (#316).
-
-    Guarded like the other optional figure emitters: a plotting failure warns
-    rather than killing an expensive fit. The plotted AME draws reuse the exact
-    ``_itt_ame_draws`` arithmetic (guard-tested), so ``predicted_scores.csv``'s
-    ``average_marginal_effect`` row matches ``treatment_marginal.csv`` /
-    ``rope_summary.csv``.
-    """
-    from language_reading_predictors.statistical_models.measures import MEASURES
-    from language_reading_predictors.statistical_models.predicted_scores import (
-        write_predicted_scores_artifacts,
-    )
-
-    with guard_optional(
-        ctx, "Predicted-scores figures",
-        filename="predicted_scores.png", kind="figure", verb="failed",
-    ):
-        summary = write_predicted_scores_artifacts(
-            ctx.output_dir,
-            ctx.trace,
-            outcome_symbol=outcome_symbol,
-            item_label=MEASURES[outcome_symbol].label,
-            G=np.asarray(G, dtype=float),
-            n_trials=int(n_trials),
-            term=term,
-            varying_term=varying_term,
-            moderators=moderators,
-            row_mask=row_mask,
-            likelihood=likelihood,
-            child_effect_name="u_child" if child_re else None,
-            child_sd_name="sigma_child" if child_re else None,
-            child_idx=child_idx,
-            delta=delta,
-            ci_prob=ctx.reporting.ci_prob,
-            population=population,
-            contrast_status=contrast_status,
-            event_label=event_label,
-            random_seed=ctx.sampling.random_seed,
-            split=split,
-            score_mean_link=score_mean_link,
-        )
-        ctx.tables["predicted_scores"] = summary
-        # ``predicted_scores.csv`` is written inside the helper (which takes an
-        # output directory, not a context); record it so the manifest lists it.
-        record_artifact(ctx, "predicted_scores", df=summary, required=False)
-
-
-def _write_arm_overlap(
-    ctx: StatisticalFitContext,
-    *,
-    outcome_symbol: str,
-    G: np.ndarray,
-    n_trials: int,
-    term: str,
-    varying_term: str = "tau_i",
-    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
-    row_mask: np.ndarray | None = None,
-    likelihood: str = "beta_binomial",
-    child_re: bool = False,
-    child_idx: np.ndarray | None = None,
-    population: str,
-    contrast_status: str,
-    event_label: str = "off the floor at follow-up",
-    score_mean_link: str = "logit",
-) -> None:
-    """Intervention vs no-intervention posterior-overlap figures (two individual
-    files: ``arm_overlap_mean`` and, for graded outcomes, ``arm_overlap_predictive``).
-
-    Guarded like the other optional figure emitters. The contrast reuses the
-    exact ``counterfactual_predictive_contrast`` machinery behind
-    ``predicted_scores``, so the annotated average marginal effect matches
-    ``rope_summary.csv`` and the predictive curves are drawn from the same
-    simulated new-child scores.
-    """
-    from language_reading_predictors.statistical_models.arm_overlap import (
-        write_arm_overlap_artifacts,
-    )
-    from language_reading_predictors.statistical_models.measures import MEASURES
-
-    with guard_optional(
-        ctx, "Arm-overlap figures",
-        filename="arm_overlap_mean.png", kind="figure", verb="failed",
-    ):
-        tables = write_arm_overlap_artifacts(
-            ctx.output_dir,
-            ctx.trace,
-            outcome_symbol=outcome_symbol,
-            item_label=MEASURES[outcome_symbol].label,
-            G=np.asarray(G, dtype=float),
-            n_trials=int(n_trials),
-            term=term,
-            varying_term=varying_term,
-            moderators=moderators,
-            row_mask=row_mask,
-            likelihood=likelihood,
-            child_effect_name="u_child" if child_re else None,
-            child_sd_name="sigma_child" if child_re else None,
-            child_idx=child_idx,
-            ci_prob=ctx.reporting.ci_prob,
-            population=population,
-            contrast_status=contrast_status,
-            event_label=event_label,
-            random_seed=ctx.sampling.random_seed,
-            score_mean_link=score_mean_link,
-        )
-        for name, table in tables.items():
-            ctx.tables[name] = table
-
-
-def _ctx_pareto_k(ctx: StatisticalFitContext) -> np.ndarray | None:
-    """Per-observation Pareto-k vector from ``ctx.loo`` (``None`` when unavailable)."""
-    loo = getattr(ctx, "loo", None)
-    pk = getattr(loo, "pareto_k", None) if loo is not None else None
-    if pk is None:
-        return None
-    return np.asarray(getattr(pk, "values", pk), dtype=float)
-
-
-def _write_group_trajectory(
-    ctx: StatisticalFitContext,
-    *,
-    outcome_symbol: str,
-    arm: np.ndarray,
-    wave: np.ndarray,
-    child_idx: np.ndarray,
-    off_floor: bool,
-    obs_node: str = "y_post",
-    crossover_wave: int = 1,
-) -> None:
-    """Population per-arm score-trajectory figure (#317 fig 1). Guarded like the PPC."""
-    from language_reading_predictors.statistical_models import trajectory_plots as _tp
-    from language_reading_predictors.statistical_models.measures import MEASURES
-
-    with guard_optional(
-        ctx, "Group-trajectory figure",
-        filename="group_trajectory.png", kind="figure", verb="failed",
-    ):
-        m = MEASURES[outcome_symbol]
-        summary = _tp.write_group_arm_trajectory(
-            ctx.output_dir,
-            ctx.trace,
-            arm=np.asarray(arm, dtype=int),
-            wave=np.asarray(wave, dtype=int),
-            child_idx=np.asarray(child_idx, dtype=int),
-            n_trials=int(m.n_trials),
-            outcome_symbol=outcome_symbol,
-            item_label=m.label,
-            off_floor=off_floor,
-            ci_prob=ctx.reporting.ci_prob,
-            crossover_wave=crossover_wave,
-            obs_node=obs_node,
-        )
-        ctx.tables["group_trajectory"] = summary
-
-
-def _write_child_fit(
-    ctx: StatisticalFitContext,
-    *,
-    outcome_symbol: str,
-    wave: np.ndarray,
-    child_idx: np.ndarray,
-    off_floor: bool,
-    obs_node: str = "y_post",
-    x_label: str = "assessment wave",
-) -> None:
-    """Per-child fitted-vs-observed small multiples for an obs_id family (#317 fig 2)."""
-    from language_reading_predictors.statistical_models import trajectory_plots as _tp
-    from language_reading_predictors.statistical_models.measures import MEASURES
-
-    with guard_optional(
-        ctx, "Per-child fit figure",
-        filename="child_fit_panels.png", kind="figure", verb="failed",
-    ):
-        m = MEASURES[outcome_symbol]
-        summary = _tp.write_child_fit_obsid(
-            ctx.output_dir,
-            ctx.trace,
-            wave=np.asarray(wave, dtype=int),
-            child_idx=np.asarray(child_idx, dtype=int),
-            n_trials=int(m.n_trials),
-            outcome_symbol=outcome_symbol,
-            item_label=m.label,
-            off_floor=off_floor,
-            obs_node=obs_node,
-            pareto_k=_ctx_pareto_k(ctx),
-            seed=ctx.sampling.random_seed,
-            ci_prob=ctx.reporting.ci_prob,
-            x_label=x_label,
-        )
-        ctx.tables["child_fit_panels"] = summary
-
-
-def _write_panel_trajectory(ctx: StatisticalFitContext, *, latent_name: str) -> None:
-    """Per-measure cohort growth-trajectory figure for a masked panel family (#317)."""
-    from language_reading_predictors.statistical_models import trajectory_plots as _tp
-
-    with guard_optional(
-        ctx, "Cohort-trajectory figure",
-        filename="group_trajectory.png", kind="figure", verb="failed",
-    ):
-        summary = _tp.write_outcome_trajectory(
-            ctx.output_dir,
-            ctx.trace,
-            ctx.prepared,
-            latent_name=latent_name,
-            ci_prob=ctx.reporting.ci_prob,
-        )
-        ctx.tables["group_trajectory"] = summary
-
-
-def _write_panel_child_fit(
-    ctx: StatisticalFitContext,
-    *,
-    latent_name: str,
-    focal_symbol: str,
-    kappa_name: str = "kappa",
-) -> None:
-    """Per-child small multiples (one focal outcome) for a masked panel family (#317)."""
-    from language_reading_predictors.statistical_models import trajectory_plots as _tp
-
-    with guard_optional(
-        ctx, "Per-child fit figure",
-        filename="child_fit_panels.png", kind="figure", verb="failed",
-    ):
-        summary = _tp.write_child_fit_panel(
-            ctx.output_dir,
-            ctx.trace,
-            ctx.prepared,
-            latent_name=latent_name,
-            focal_symbol=focal_symbol,
-            kappa_name=kappa_name,
-            pareto_k=_ctx_pareto_k(ctx),
-            seed=ctx.sampling.random_seed,
-            ci_prob=ctx.reporting.ci_prob,
-        )
-        ctx.tables["child_fit_panels"] = summary
-
-
-def _save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
-    """Heatmap of joint pairwise probability-scale AME ordering (#125 Area 4)."""
-    with guard_optional(
-        ctx, "Contrast heatmap",
-        filename="contrast_heatmap.png", kind="figure", verb="failed",
-    ):
-        import numpy as _np
-
-        labels = list(contrast.index)
-        M = contrast.to_numpy(dtype=float)
-        fig, ax = plt.subplots(figsize=(1.1 + 0.6 * len(labels), 1.0 + 0.6 * len(labels)))
-        im = ax.imshow(M, cmap="RdBu_r", vmin=0.0, vmax=1.0)
-        ax.set_xticks(range(len(labels)), labels, rotation=45, ha="right", fontsize=8)
-        ax.set_yticks(range(len(labels)), labels, fontsize=8)
-        for i in range(len(labels)):
-            for j in range(len(labels)):
-                if _np.isfinite(M[i, j]):
-                    ax.text(j, i, f"{M[i, j]:.2f}", ha="center", va="center", fontsize=7)
-        ax.set_title("P(row AME > column AME)", fontsize=9)
-        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        cbar.set_label("P(row AME > column AME)", fontsize=8)
-        # ``save_styled_figure`` owns the layout engine. Switching engines after
-        # a colorbar has been created raises on recent Matplotlib versions.
-        save_styled_figure(ctx.output_dir, "contrast_heatmap", fig=fig)
-
-
-def _growth_contrast_pushforward_rows(
-    ctx: StatisticalFitContext,
-    panel,
-    measure: str,
-    *,
-    fitted_var: str = "fitted_mean_items_obs",
-    prefix: str = "",
-) -> list[dict[str, object]]:
-    """Prior pushforward for a historical-growth family's group contrasts (#381).
-
-    The reported estimands are the pairwise ``total_growth_X_minus_Y`` rows over
-    the common window — how much more a comparison group grows than the
-    Down-syndrome group across the whole observed span. Running
-    :func:`historical.growth_summary` on the ``prior`` group answers how much of
-    that difference the priors alone permit; the cohorts are not randomised, so
-    the rows are descriptive contrasts rather than effects.
-    """
-    from language_reading_predictors.statistical_models import historical as _hist
-
-    source = getattr(ctx, "prior_samples", None) or ctx.trace
-    try:
-        prior_growth = _hist.growth_summary(
-            source, panel, measure, fitted_var=fitted_var, group="prior"
-        )
-    except Exception as exc:  # noqa: BLE001 - absence must stay legible
-        return [
-            _report.unavailable_pushforward(
-                estimand=f"{prefix}total_growth",
-                estimand_label="the between-group total-growth contrasts",
-                role="descriptive",
-                reason=str(exc),
-            )
-        ]
-    contrasts = prior_growth[
-        prior_growth["quantity"].astype(str).str.startswith("total_growth")
-    ]
-    rows: list[dict[str, object]] = []
-    for _, r in contrasts.iterrows():
-        rows.append(
-            _report.labelled_pushforward(
-                {
-                    # The growth summary is already in items; there is no separate
-                    # linear-predictor contrast to report, since the quantity is a
-                    # difference of fitted means rather than a coefficient.
-                    "prior_logit_median": float("nan"),
-                    "prior_logit_lo": float("nan"),
-                    "prior_logit_hi": float("nan"),
-                    "prior_items_median": float(r["q50"]),
-                    "prior_items_lo50": float(r["q25"]),
-                    "prior_items_hi50": float(r["q75"]),
-                    "prior_items_lo": float(r["q_lo"]),
-                    "prior_items_hi": float(r["q_hi"]),
-                    "n_trials": 0,
-                },
-                estimand=f"{prefix}{r['quantity']}",
-                estimand_label=str(r["label"]),
-                role="descriptive",
-            )
-        )
-    return rows
-
-
-def _write_indicator_prior_check(
-    ctx: StatisticalFitContext, nodes: Sequence[str]
-) -> None:
-    """Write ``indicator_prior_check.csv`` for a measurement family (#381).
-
-    The CFA families have no outcome-scale estimand to push a prior through —
-    they report loadings, communalities and factor correlations — so #381 asks
-    them for this instead, on the scale they do observe: the standardised
-    indicator matrix. Without it these families were exempt from the coverage
-    guarantee by construction rather than by argument.
-    """
-    try:
-        df = _report.indicator_prior_check(
-            ctx.trace, nodes=list(nodes), ci_prob=ctx.reporting.ci_prob
-        )
-    except Exception as exc:  # noqa: BLE001 - a report extra must not fail a fit
-        rprint(f"[yellow]indicator prior check skipped: {exc}[/yellow]")
-        return
-    if df.empty:
-        rprint("[yellow]indicator prior check: no indicator nodes found[/yellow]")
-        return
-    save_table(ctx, "indicator_prior_check", df)
-    print_table(
-        ranked_dataframe_table(
-            df,
-            title="Indicator-scale prior check (SD ratio 1 = prior matches the data)",
-            columns=["indicator", "observed_sd", "prior_sd", "sd_ratio", "coverage_90", "verdict"],
-            rank_column=False,
-            precision=3,
-        )
-    )
-
-
-def _write_prior_pushforward(
-    ctx: StatisticalFitContext, rows: Sequence[Mapping[str, object]]
-) -> None:
-    """Write ``prior_pushforward.csv`` — including when the check is unavailable (#381).
-
-    The meta-finding behind #381 is that a *missing* artefact reads as a clean
-    one: a family that never emitted the estimand-scale prior check looked, in the
-    rendered report, exactly like one whose prior was checked and found harmless.
-    So every family that reaches this point writes the file, and a row whose
-    ``status`` is ``unavailable`` carries the reason instead of being dropped.
-    """
-    df = pd.DataFrame(list(rows))
-    save_table(ctx, "prior_pushforward", df)
-
-
-def _horseshoe_pushforward_rows(
-    ctx: StatisticalFitContext, predictors: Sequence[str], outcome: str
-) -> list[dict[str, object]]:
-    """Per-predictor prior pushforward for a horseshoe ranking fit (#381).
-
-    The horseshoe deliverable is a ranking by ``P(|beta| > delta)``, which the
-    prior-analysis review flagged as a direct function of ``tau0`` / ``slab_scale``
-    — so "no signal" and "shrunk to nothing by the prior" are the two readings that
-    have to be told apart. The ``prior_logit_*`` columns are the shrinkage prior's
-    own implied spread for a single coefficient, against which the ranking's
-    ``delta`` can be judged; the items columns put the same ``+1 SD`` shift on the
-    outcome scale. Every predictor shares the global-local prior, so the rows
-    differ only through each coefficient's own local scale draws.
-    """
-    n_trials = _pushforward_n_trials(ctx, outcome)
-    label = _pushforward_outcome_label(ctx, outcome)
-    return _marginal_pushforward_rows(
-        ctx,
-        [
-            (
-                "beta",
-                f"the shrunk association of +1 SD {p} with {label}",
-                {"predictor": p},
-            )
-            for p in predictors
-        ],
-        n_trials=n_trials,
-        convention="forward",
-    )
-
-
-def _pushforward_outcome_label(ctx: StatisticalFitContext, outcome: str) -> str:
-    """Reader-facing name for the pushforward's outcome, falling back to the symbol.
-
-    The rows are read by a science reader, not by whoever picked the symbols, so
-    ``W`` and ``basread`` should render as their measure labels. The study's own
-    measure table is the source: RLI symbols resolve through ``measures.MEASURES``
-    and the Byrne-cohort ones through their dataset's table, so neither study's
-    labels are hard-coded here.
-    """
-    from language_reading_predictors.statistical_models import datasets as _datasets
-    from language_reading_predictors.statistical_models.measures import MEASURES
-
-    if outcome in MEASURES:
-        return str(MEASURES[outcome].label)
-    try:
-        _, measures = _datasets.resolve_dataset(ctx.spec.extra.get("study_id", "rlm"))
-        return str(measures[outcome].label)
-    except Exception:  # noqa: BLE001 - a label is cosmetic; the symbol still names it
-        return outcome
-
-
-def _pushforward_n_trials(ctx: StatisticalFitContext, outcome: str) -> int:
-    """The pushforward's item denominator, or 1 when the fit carries none (#381).
-
-    Most families know their outcome's item ceiling and the check is most
-    readable in items. Where the fit does not carry one, return 1 rather than
-    inventing a denominator: the marginal is then a probability difference, and
-    :func:`reporting.pushforward_scale_for` labels it in percentage points off
-    that same 1 — one rule, so a denominator and its scale cannot disagree.
-    """
-    trials = getattr(ctx.prepared, "n_trials", None) or {}
-    try:
-        return int(trials[outcome])
-    except (KeyError, TypeError, ValueError):
-        return 1
-
-
-def _marginal_pushforward_rows(
-    ctx: StatisticalFitContext,
-    terms: Sequence[tuple],
-    *,
-    n_trials: int,
-    role: str = "association",
-    convention: str = "forward",
-    eta_name: str = "eta",
-    row_mask: np.ndarray | None = None,
-    scale: str | None = None,
-) -> list[dict[str, object]]:
-    """Build one labelled pushforward row per term (#381).
-
-    Each entry is ``(term, label)``, or ``(term, label, index)`` to select one
-    element of a vector-valued coefficient — ``("beta", "...", {"predictor":
-    "age"})`` for the horseshoe families, whose ``beta`` carries a labelled
-    predictor dimension.
-
-    ``convention`` is passed straight through to
-    :func:`reporting.marginal_prior_pushforward` and must match the convention the
-    family's own posterior marginal uses. A term the prior group does not carry
-    yields an ``unavailable`` row naming it, rather than a silently shorter table.
-    """
-    # ``prior_samples`` carries the prior group from ``run_prior_predictive``; the
-    # trace only carries it after ``save_trace`` grafts it on, so prefer the former
-    # and the call site stays free to sit either side of that step.
-    source = getattr(ctx, "prior_samples", None) or ctx.trace
-    rows: list[dict[str, object]] = []
-    for entry in terms:
-        term, label = entry[0], entry[1]
-        index = entry[2] if len(entry) > 2 else None
-        named = term if not index else f"{term}[{'/'.join(map(str, index.values()))}]"
-        try:
-            values = _report.marginal_prior_pushforward(
-                source,
-                term=term,
-                n_trials=n_trials,
-                eta_name=eta_name,
-                ci_prob=ctx.reporting.ci_prob,
-                convention=convention,
-                row_mask=row_mask,
-                term_index=index,
-            )
-        except Exception as exc:  # noqa: BLE001 - an absent term must stay legible
-            rows.append(
-                _report.unavailable_pushforward(
-                    estimand=named,
-                    estimand_label=label,
-                    role=role,
-                    reason=str(exc),
-                    scale=scale,
-                )
-            )
-        else:
-            rows.append(
-                _report.labelled_pushforward(
-                    values,
-                    estimand=named,
-                    estimand_label=label,
-                    role=role,
-                    scale=scale,
-                )
-            )
-    return rows
-
-
-def _emit_itt_extras(
-    ctx: StatisticalFitContext,
-    built,
-    *,
-    n_trials: int,
-    overlay_vars: list[str],
-    term: str = "tau",
-    varying_term: str = "tau_i",
-    moderators: Sequence[tuple[str, np.ndarray]] | None = None,
-    score_mean_link: str = "logit",
-) -> None:
-    """Area 1/4 extras for an ITT-style fit (issue #125).
-
-    Writes ``prior_pushforward.csv`` (the estimand-scale prior check), the causal
-    forest, the prior-vs-posterior overlay, and power-scaling sensitivity. Reads
-    the persisted ``prior`` group (on ``ctx.prior_samples``) and the full trace,
-    so call after ``save_trace``. ``n_trials=1`` gives the risk-difference scale
-    for the binary off-floor model. ``moderators`` carries any treatment
-    interactions so the prior is pushed through the same full-contribution AME.
-    """
-    with guard_optional(
-        ctx, "prior pushforward",
-        filename="prior_pushforward.csv", kind="table", verb="skipped",
-    ):
-        pf = _report.prior_pushforward(
-            ctx.prior_samples,
-            G=built.prepared.G,
-            n_trials=n_trials,
-            term=term,
-            varying_term=varying_term,
-            moderators=moderators,
-            ci_prob=ctx.reporting.ci_prob,
-            score_mean_link=score_mean_link,
-        )
-        save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
-    _save_forest_plot(ctx, [term])
-    _diag.save_prior_posterior_plot(ctx, var_names=overlay_vars)
-    _diag.run_psense(ctx, var_names=[term])
-
-
-def _save_forest_plot(
-    ctx: StatisticalFitContext,
-    var_names: list[str],
-    *,
-    name: str = "tau_forest.png",
-    title: str | None = None,
-) -> None:
-    """Forest plot of the causal term(s) with a reference line at 0 (#125 Area 4).
-
-    For a single-outcome model ``var_names=["tau"]`` shows the one effect; for the
-    joint model the vector ``tau`` forests every outcome's effect in one panel —
-    the single most communicative artifact for the suite. Guarded.
-    """
-    with guard_optional(
-        ctx, f"Forest plot ({name})", filename=name, kind="figure", verb="failed"
-    ):
-        import arviz_plots as azp
-
-        tr = _diag.thin_for_plots(ctx.trace)
-        # Equal-tailed nested bands (#177): inner central 50% + outer equal-tailed
-        # headline (89% house standard, from ctx.reporting.ci_prob), matching the
-        # reported interval convention rather than the arviz default (which can be
-        # an HDI, inconsistent with the prose).
-        pc = azp.plot_forest(
-            tr,
-            var_names=var_names,
-            combined=True,
-            ci_kind=ctx.reporting.interval_kind,
-            ci_probs=(0.5, ctx.reporting.ci_prob),
-        )
-        try:
-            azp.add_lines(pc, values=0)
-        except Exception:
-            pass  # the forest itself is the substantive output
-        if title is None:
-            title = (
-                "Adjusted-association coefficients (forest)"
-                if "association" in name
-                else "Effect posterior (forest, reference line at 0)"
-            )
-        save_plotcollection(pc, ctx.output_dir, name, suptitle=title)
-
-
-def _save_association_forest(
-    ctx: StatisticalFitContext,
-    coef_names: list[str],
-    causal_terms: tuple[str, ...],
-) -> None:
-    """Forest of a factor model's adjusted-association coefficients (#125 Area 4).
-
-    Companion to the single causal-term forest: shows every *non-randomised*
-    predictor's posterior coefficient (the adjusted associations) so the cross-skill
-    predictor->outcome relationships are visible, not only tabulated. Excludes any RV
-    that carries a causal element — e.g. the level model's ``b_grp_time`` vector, whose
-    t2 entry is the one randomised contrast — so the causal/association split stays
-    clean. Guarded via :func:`_save_forest_plot`.
-    """
-    assoc = [
-        c
-        for c in coef_names
-        if c in ctx.trace.posterior
-        and not any(ct == c or ct.startswith(c + "[") for ct in causal_terms)
-    ]
-    if assoc:
-        _save_forest_plot(ctx, assoc, name="association_forest.png")
-
-
-# ---------------------------------------------------------------------------
-# ITT pipeline (LRPITT suite + SES companions)
-# ---------------------------------------------------------------------------
-
-
-def _itt_diag_vars(
-    plan: IttRunPlan,
-    adjust_for: tuple[str, ...],
-    *,
-    likelihood: str = "beta_binomial",
-) -> list[str]:
-    """Compatibility wrapper for the ITT family's diagnostic contract."""
-
-    return itt_diagnostic_variables(plan, adjust_for, likelihood=likelihood)
-
-
-# ---------------------------------------------------------------------------
-# Shared pipeline phases (#82)
-#
-# Every fit_* pipeline runs the same scaffold: prepare -> build -> attach ->
-# prior predictive -> sample -> LOO -> summary -> posterior predictive ->
-# (model-specific summaries) -> metadata -> report. The phases that are
-# byte-identical across pipelines live here so a fix to one (the LOO sequence,
-# the PPC draw, the report tail) propagates to every model instead of drifting
-# per-pipeline (the failure mode behind #78). The genuinely per-model phases
-# (prepare, build, summary var_names, the headline summary tables) stay inline
-# in each fit_* function.
-# ---------------------------------------------------------------------------
-
-
-def _shared_stages() -> SharedFitStages:
-    """Bind shared execution stages to the current artifact implementations."""
-
-    return SharedFitStages(
-        StageHooks(
-            emit_priors=_emit_priors,
-            save_ppc=_save_ppc,
-            write_loo_influence=_write_loo_influence,
-            print_loo_row=_print_loo_row,
-            copy_report_template=_copy_report_template,
-            publish_output=lambda ctx: ctx.publish_output_dir(),
-            print_footer=_print_footer,
-        )
-    )
-
-
-def _attach_built(ctx: StatisticalFitContext, built) -> None:
-    """Compatibility wrapper for the shared attach stage."""
-
-    _shared_stages().attach_built(ctx, built)
-
-
-def _write_itt_analysis_audit(
-    ctx: StatisticalFitContext,
-    prepared,
-    outcomes: Sequence[str],
-) -> None:
-    """Compatibility wrapper for the ITT family's analysis-set audit."""
-
-    write_itt_analysis_audit(
-        ctx,
-        prepared,
-        outcomes,
-        loader=load_and_prepare,
-    )
-
-
-def _write_itt_ppc_calibration(
-    ctx: StatisticalFitContext,
-    prepared,
-    outcomes: Sequence[str],
-    *,
-    node: str = "y_post",
-    filename: str = "posterior_predictive_calibration.csv",
-) -> pd.DataFrame:
-    """Compatibility wrapper for the ITT family's PPC calibration audit."""
-
-    return write_itt_ppc_calibration(
-        ctx,
-        prepared,
-        outcomes,
-        node=node,
-        filename=filename,
-    )
-
-
-def _run_sampling_and_loo(
-    ctx: StatisticalFitContext, *, compute_loo: bool = True
-) -> None:
-    """Compatibility wrapper for posterior sampling and optional PSIS-LOO."""
-
-    _shared_stages().sample_and_loo(ctx, compute_loo=compute_loo)
-
-
-def _run_ppc(ctx: StatisticalFitContext, *, var_names: list[str] | None = None) -> None:
-    """Compatibility wrapper for the shared posterior-predictive stage."""
-
-    _shared_stages().posterior_predictive(ctx, var_names=var_names)
-
-
-def _write_run_metadata(
-    ctx: StatisticalFitContext,
-    *,
-    extra: dict | None = None,
-) -> None:
-    """Compatibility wrapper for the shared metadata stage."""
-
-    _shared_stages().write_metadata(ctx, extra=extra)
-
-
-def _finalize_report(ctx: StatisticalFitContext) -> StatisticalFitContext:
-    """Compatibility wrapper for the shared report-finalization stage."""
-
-    return _shared_stages().finalize_report(ctx)
-
-
 def _survival_summary(
     trace, *, ci_prob: float, hazard_link: str, use_treatment: bool
 ) -> pd.DataFrame:
@@ -2213,13 +385,13 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     rule to all four waves. Treatment enters as an intervention-aligned hazard shift;
     the estimand is prognostic (both arms are treated by t4).
     """
-    _require_spec(spec, "survival", outcome=True)
+    require_spec(spec, "survival", outcome=True)
     ctx = make_context(spec, config)
 
     section_header("Prepare data")
     panel = _survival.prepare_survival(spec.outcome_symbol)
     ctx.prepared = panel
-    _print_header(ctx)
+    print_header(ctx)
     rprint(
         f"  Survival at-risk set: {panel.n_at_risk_children} children at the "
         f"{spec.outcome_symbol} floor at t1 contribute {panel.n_obs} person-period rows; "
@@ -2243,8 +415,8 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     built = _survival.build_survival_model(
         panel, hazard_link=hazard_link, use_treatment=use_treatment
     )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
+    attach_built(ctx, built)
+    render_model_graph(ctx)
 
     diag_vars = (
         ["alpha"]
@@ -2255,7 +427,7 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Reference adoption of the shared primary-fit lifecycle (#394 design 2):
     # the invariant sequence lives in ``stages.run_primary_fit`` and the family
     # declares only its execution profile.
-    _shared_stages().run_primary_fit(
+    shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
             diagnostic_vars=tuple(diag_vars),
@@ -2286,7 +458,7 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     )
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
@@ -2296,830 +468,7 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         },
     )
 
-    return _finalize_report(ctx)
-
-
-def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    _require_spec(spec, "itt", outcome=True)
-
-    # Resolve and validate the family contract before the context resets an output
-    # directory or the loader reads any data. From this point onward preparation,
-    # factory arguments, diagnostics and the teaching recipe consume one plan.
-    plan = resolve_itt_run_plan(spec)
-    ctx = make_context(spec, config)
-    ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
-
-    section_header("Prepare data")
-    prepared, adjust_for = prepare_itt_data(plan, loader=load_and_prepare)
-    ctx.prepared = prepared
-
-    _print_header(ctx)
-
-    section_header("Build model")
-
-    # Heavily-floored outcomes (P, N) take the post-hoc, data-adaptive
-    # floor-rule branch in this reanalysis: a binary transition estimand as the
-    # exploratory headline plus graded secondary checks (#119/#341).
-    if plan.floor_rule:
-        return _fit_itt_floor_rule(ctx, spec, plan, prepared, adjust_for)
-
-    built = build_itt_from_plan(
-        plan,
-        prepared,
-        effective_adjustment=adjust_for,
-        builder=_factories.build_itt_model,
-    )
-    _attach_built(ctx, built)
-    _write_itt_analysis_audit(ctx, built.prepared, (spec.outcome_symbol,))
-
-    _render_model_graph(ctx)
-
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-
-    _run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_itt_diag_vars(plan, adjust_for))
-
-    _run_ppc(ctx)
-    _write_itt_ppc_calibration(ctx, built.prepared, (spec.outcome_symbol,))
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=_itt_diag_vars(plan, adjust_for))
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol)
-    _diag.run_extended_diagnostics(ctx, causal_term="tau")
-
-    _diag.save_trace(ctx)
-
-    # Area 1/4 extras that read the attached prior group or the full trace:
-    # the prior pushforward to the items scale (estimand-scale prior check), the
-    # tau forest, the prior-vs-posterior overlay, and power-scaling sensitivity.
-    # Net out the full per-row treatment contribution: the age-varying ``tau_i``
-    # is picked up automatically by the AME core; a linear tau moderator adds
-    # ``gamma_tau_int·z_M`` (Part B). Latent today — no registered ITT spec sets
-    # ``tau_moderator_symbol`` — but wired so a heterogeneity fit reports the
-    # model-implied effect, not ``tau`` alone.
-    tau_moderators = built.extras.get("tau_interaction_moderators", [])
-    score_mean_link = plan.score_mean_link
-    n_trials_own = int(built.prepared.n_trials[spec.outcome_symbol])
-    _emit_itt_extras(
-        ctx, built, n_trials=n_trials_own,
-        overlay_vars=_itt_diag_vars(plan, adjust_for),
-        moderators=tau_moderators,
-        score_mean_link=score_mean_link,
-    )
-
-    # Treatment-effect summary on both scales.
-    section_header("Treatment-effect summary")
-    tau_s = _report.tau_summary_itt(
-        ctx.trace,
-        ci_prob=ctx.reporting.ci_prob,
-        # built.prepared is the (possibly row-subset) frame the model was fit
-        # on, so G aligns with eta's obs_id axis (finding #2 in issue #78).
-        G=built.prepared.G,
-        moderators=tau_moderators,
-        score_mean_link=score_mean_link,
-    )
-    tau_df = pd.DataFrame([tau_s])
-    save_table(ctx, "tau_summary", tau_df)
-    print_table(
-        metrics_table(
-            [{"metric": k, "value": v} for k, v in tau_s.items()],
-            title=f"tau ({spec.outcome_symbol}) - {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)",
-            columns=["metric", "value"],
-        )
-    )
-
-    # ROPE-anchored continuous summary on the items scale
-    # (notes/202606261304-evidence-strength-and-rope-reporting.md). Emitted for
-    # graded outcomes with an agreed minimally-important difference (delta);
-    # floored outcomes (P/N) take the floor-rule path and a probability-scale delta.
-    from language_reading_predictors.statistical_models.measures import (
-        ROPE_DELTA,
-        rope_delta_grid,
-    )
-
-    delta_items = ROPE_DELTA.get(spec.outcome_symbol)
-    if delta_items is not None:
-        rope_s = _report.rope_summary(
-            ctx.trace,
-            G=built.prepared.G,
-            n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
-            delta=delta_items,
-            ci_prob=ctx.reporting.ci_prob,
-            moderators=tau_moderators,
-            score_mean_link=score_mean_link,
-        )
-        rope_df = pd.DataFrame([rope_s])
-        save_table(ctx, "rope_summary", rope_df)
-        print_table(
-            metrics_table(
-                [{"metric": k, "value": v} for k, v in rope_s.items()],
-                title=f"ROPE summary ({spec.outcome_symbol}, delta={delta_items:g} items)",
-                columns=["metric", "value"],
-            )
-        )
-        _save_rope_plot(
-            ctx,
-            spec.outcome_symbol,
-            built.prepared.G,
-            int(built.prepared.n_trials[spec.outcome_symbol]),
-            delta_items,
-            moderators=tau_moderators,
-            split=True,
-            score_mean_link=score_mean_link,
-        )
-
-        # δ-sensitivity sweep (issue #144): P(benefit ≥ δ) at the adopted δ and a
-        # stricter 2·δ (word reading at δ = 1 and 2), for every graded outcome.
-        sens_df = _report.rope_sensitivity(
-            ctx.trace,
-            G=built.prepared.G,
-            n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
-            deltas=rope_delta_grid(spec.outcome_symbol),
-            moderators=tau_moderators,
-            score_mean_link=score_mean_link,
-        )
-        save_table(ctx, "rope_sensitivity", sens_df)
-
-    # Predicted-scores contrast panel + icon array (#316): what the model says
-    # about actual test scores for a new child, treated vs untreated. No child
-    # random intercept in the single-outcome ITT, so the prediction population
-    # is the fitted sample's covariate profiles.
-    _write_predicted_scores(
-        ctx,
-        outcome_symbol=spec.outcome_symbol,
-        G=built.prepared.G,
-        n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
-        term="tau",
-        moderators=tau_moderators,
-        delta=delta_items,
-        population=(
-            "new child; covariate profiles drawn from the fitted ITT analysis rows"
-        ),
-        contrast_status="randomised contrast (ITT)",
-        split=True,
-        score_mean_link=score_mean_link,
-    )
-
-    # Intervention vs no-intervention overlap (two individual figures): the
-    # arm-mean expected-outcome posterior and the new-child predictive outcome,
-    # each drawn as smoothed overlapping density curves. Same reference rows and
-    # contrast arithmetic as the predicted-scores panel above.
-    _write_arm_overlap(
-        ctx,
-        outcome_symbol=spec.outcome_symbol,
-        G=built.prepared.G,
-        n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
-        term="tau",
-        moderators=tau_moderators,
-        population=(
-            "new child; covariate profiles drawn from the fitted ITT analysis rows"
-        ),
-        contrast_status="randomised contrast (ITT)",
-        score_mean_link=score_mean_link,
-    )
-
-    # Tau-moderator (Part B / HTE) summary: the effect-modification coefficient
-    # gamma_tau_int and the moderator main effect gamma_tau_mod, when a linear
-    # tau moderator was fit. Returns {} (nothing written) for the standard
-    # main-effect ITT models, so this is a no-op unless the moderator is present.
-    tau_mod_s = _report.tau_moderation_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
-    if tau_mod_s:
-        tau_mod_df = pd.DataFrame([tau_mod_s])
-        save_table(ctx, "tau_moderation_summary", tau_mod_df)
-
-    _write_run_metadata(
-        ctx,
-        extra={
-            "loo_elpd": float(ctx.loo.elpd),
-            "tau_summary": tau_s,
-            "adjust_for": list(adjust_for),
-        },
-    )
-
-    return _finalize_report(ctx)
-
-
-def _fit_itt_floor_rule(
-    ctx: StatisticalFitContext,
-    spec: ModelSpec,
-    plan: IttRunPlan,
-    prepared,
-    adjust_for: tuple[str, ...],
-) -> StatisticalFitContext:
-    """Floor-rule fit for heavily-floored outcomes P / N (#119).
-
-    Fits two age-only models: the post-hoc exploratory binary off-floor
-    transition (Bernoulli on ``post > 0`` among observed baseline zeros) and a
-    flagged, detection-limited secondary graded Beta-Binomial. Writes
-    ``tau_summary.csv`` (off-floor exploratory headline), the per-arm mover table,
-    the proportion-at-zero PPC, and ``tau_summary_graded.csv``. The floor rule is
-    post-hoc and data-adaptive in this reanalysis, although its mechanical gate is
-    applied arm-blind.
-    """
-    import pymc as pm
-
-    from language_reading_predictors.statistical_models import floor as _floor
-
-    own = plan.outcome_symbol
-
-    # Data-adaptive gate: the outcome must actually qualify (>= 40% at zero at
-    # t2). Applying it arm-blind avoids using treatment labels in this mechanical
-    # classification, but does not make the post-hoc choice pre-specified.
-    p0 = _floor.proportion_at_zero(prepared, own)
-    if not _floor.is_floored(prepared, own):
-        raise ValueError(
-            f"floor_rule set for {own!r}, but only {p0:.0%} of its post-scores "
-            f"are at zero at t2 (threshold {_floor.FLOOR_THRESHOLD:.0%}); the "
-            "post-hoc floor gate is arm-blind - remove floor_rule or "
-            "check the data."
-        )
-
-    # Make eligibility and its missingness visible before restricting. The
-    # registered loader retains missing pre-scores for P/N, so without this table
-    # those children would disappear silently when np.isclose(NaN, floor) is false.
-    eligibility = _floor.baseline_floor_eligibility_by_arm(prepared, own)
-    save_table(ctx, "baseline_floor_eligibility", eligibility)
-    eligibility_sensitivity = _floor.baseline_floor_status_bounds(prepared, own)
-    save_table(ctx, "floor_eligibility_sensitivity", eligibility_sensitivity)
-    transition_missingness = _floor.binary_transition_missingness_bounds(prepared, own)
-    save_table(ctx, "floor_transition_missingness_bounds", transition_missingness)
-    print_table(
-        ranked_dataframe_table(
-            eligibility,
-            title=f"Observed baseline-floor eligibility by arm ({own})",
-            columns=[
-                "arm",
-                "n_loaded",
-                "n_post_observed",
-                "n_pre_observed",
-                "n_pre_missing",
-                "n_pre_floor",
-                "n_pre_above_floor",
-                "n_exploratory_eligible",
-            ],
-            rank_column=False,
-            precision=0,
-        )
-    )
-
-    # Restrict the exploratory headline to children with an *observed* baseline
-    # score of zero. This targets Pr(post > 0 | observed pre == 0), rather than
-    # prevalence over everyone. Baseline status is pre-randomisation, so the arm
-    # contrast remains causally valid for this observed subgroup, subject to the
-    # missingness assumptions stated in the report.
-    at_risk = restrict_to_baseline_floored(prepared, own)
-    n_eligible = int(eligibility["n_exploratory_eligible"].sum())
-    # This equality relies on the single-outcome loader requiring this outcome's
-    # post-score; revisit it before applying the floor rule to a joint outcome load.
-    if at_risk.n_obs != n_eligible:
-        raise RuntimeError(
-            f"floor-rule eligibility count drift for {own!r}: restriction kept "
-            f"{at_risk.n_obs}, eligibility table reports {n_eligible}"
-        )
-    # Guard: the subgroup ITT is only identified if the at-risk subset keeps both
-    # arms and enough rows. If a future floored outcome had (say) all baseline-floored
-    # children in one arm, tau would be unidentified and the headline posterior
-    # degenerate — fail loudly rather than publish it (issue #267 review).
-    _n_arms = int(np.unique(at_risk.G).size)
-    if at_risk.n_obs < 10 or _n_arms < 2:
-        raise ValueError(
-            f"floor rule for {own!r}: the baseline-floored at-risk subset is "
-            f"degenerate (n={at_risk.n_obs}, arms present={_n_arms}) — the subgroup "
-            "contrast Pr(post>0 | observed pre==0) is not identified. Re-check "
-            "the floor rule / "
-            "data or fit a different estimand."
-        )
-    _write_itt_analysis_audit(ctx, at_risk, (own,))
-    missing_by_arm = ", ".join(
-        f"{row.arm}: {int(row.n_pre_missing)}"
-        for row in eligibility.itertuples(index=False)
-    )
-    rprint(
-        f"  Floor rule: {own} is {p0:.0%} floored at t2 "
-        f"(>= {_floor.FLOOR_THRESHOLD:.0%}); the post-hoc exploratory headline is "
-        f"Pr(off-floor at t2 | observed at floor at t1) on {at_risk.n_obs} "
-        f"eligible children (of {prepared.n_obs} with an available t2 outcome). "
-        f"Missing baseline eligibility by arm — {missing_by_arm}. A graded "
-        "Beta-Binomial over all children and a graded contrast among off-floor "
-        "children are flagged secondaries."
-    )
-
-    # ----- EXPLORATORY HEADLINE: binary transition among observed baseline zeros. -----
-    section_header(
-        "Build model (post-hoc headline: off-floor transition among observed "
-        "baseline-floor children)"
-    )
-    built = build_itt_from_plan(
-        plan,
-        at_risk,
-        effective_adjustment=adjust_for,
-        likelihood="bernoulli_offfloor",
-        builder=_factories.build_itt_model,
-    )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
-
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
-    _run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(
-        ctx,
-        var_names=_itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
-    )
-
-    _run_ppc(ctx, var_names=["y_offfloor"])
-    _write_itt_ppc_calibration(
-        ctx,
-        built.prepared,
-        (own,),
-        node="y_offfloor",
-    )
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(
-        ctx,
-        var_names=_itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
-    )
-    _diag.run_extended_diagnostics(ctx, causal_term="tau")
-    _diag.save_trace(ctx)
-
-    # Off-floor estimand is a risk difference (Pr off-floor), so the items scale is
-    # n_trials = 1; no age-varying term in the floor-rule model.
-    _emit_itt_extras(
-        ctx, built, n_trials=1, varying_term="",
-        overlay_vars=_itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
-    )
-
-    section_header("Off-floor treatment-effect summary (post-hoc exploratory headline)")
-    off = _report.tau_summary_offfloor(
-        ctx.trace, ci_prob=ctx.reporting.ci_prob, G=built.prepared.G
-    )
-    save_table(ctx, "tau_summary", pd.DataFrame([off]))
-    print_table(
-        metrics_table(
-            [{"metric": k, "value": v} for k, v in off.items()],
-            title=(
-                f"off-floor transition tau ({own}, observed baseline-floor subgroup) - "
-                f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed); positive = "
-                "intervention raises Pr(off-floor at t2 | observed at floor at t1)"
-            ),
-            columns=["metric", "value"],
-        )
-    )
-
-    movers = _report.offfloor_mover_table(built.prepared, own)
-    save_table(ctx, "offfloor_movers", movers)
-    print_table(
-        ranked_dataframe_table(
-            movers,
-            title=f"Off-floor movers by arm ({own})",
-            columns=["arm", "n", "off_floor", "at_floor", "prop_off_floor"],
-            rank_column=False,
-            precision=3,
-        )
-    )
-
-    # ROPE-anchored card on the off-floor RISK-DIFFERENCE scale (issue #125 Area 4;
-    # #130 follow-up). delta is a probability (risk difference), n_trials = 1; the
-    # 10 pp value is confirmed by the education lead (2026-07-01, issue #144).
-    from language_reading_predictors.statistical_models.measures import (
-        ROPE_DELTA_PROB,
-        ROPE_DELTA_PROB_GRID,
-    )
-
-    delta_prob = ROPE_DELTA_PROB.get(own)
-    if delta_prob is not None:
-        rope_s = _report.rope_summary(
-            ctx.trace,
-            G=built.prepared.G,
-            n_trials=1,
-            delta=delta_prob,
-            ci_prob=ctx.reporting.ci_prob,
-            varying_term="",
-        )
-        rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
-        rope_s["delta_scale"] = "risk_difference"
-        save_table(ctx, "rope_summary", pd.DataFrame([rope_s]))
-        _save_rope_plot(
-            ctx, own, built.prepared.G, 1, delta_prob, varying_term="", split=True
-        )
-
-        # δ-sensitivity sweep on the risk-difference scale (issue #144): 10/15/20 pp.
-        sens_df = _report.rope_sensitivity(
-            ctx.trace,
-            G=built.prepared.G,
-            n_trials=1,
-            deltas=ROPE_DELTA_PROB_GRID,
-            varying_term="",
-        )
-        save_table(ctx, "rope_sensitivity", sens_df)
-
-    # Paired off-floor probability display + risk-difference density + icon
-    # array (#316): the floor rule's binary estimand drawn as two bars with
-    # credible intervals rather than a score distribution.
-    _write_predicted_scores(
-        ctx,
-        outcome_symbol=own,
-        G=built.prepared.G,
-        n_trials=1,
-        term="tau",
-        varying_term="",
-        likelihood="bernoulli",
-        delta=delta_prob,
-        population=(
-            "new child; covariate profiles drawn from the baseline-floored "
-            "at-risk analysis rows"
-        ),
-        contrast_status="randomised contrast (floor-rule subgroup ITT)",
-        event_label="off the floor at t2",
-        split=True,
-    )
-
-    # Intervention vs no-intervention overlap: only the arm-mean off-floor
-    # probability posterior is meaningful here — a single binary outcome has no
-    # smooth predictive density, so the predictive figure is not emitted.
-    _write_arm_overlap(
-        ctx,
-        outcome_symbol=own,
-        G=built.prepared.G,
-        n_trials=1,
-        term="tau",
-        varying_term="",
-        likelihood="bernoulli",
-        population=(
-            "new child; covariate profiles drawn from the baseline-floored "
-            "at-risk analysis rows"
-        ),
-        contrast_status="randomised contrast (floor-rule subgroup ITT)",
-        event_label="off the floor at t2",
-    )
-
-    s = ctx.sampling
-
-    def _fit_secondary(built_x, *, label: str, trace_filename: str):
-        with built_x.model:
-            tr = pm.sample(
-                draws=s.draws,
-                tune=s.tune,
-                chains=s.chains,
-                cores=s.cores,
-                target_accept=s.target_accept,
-                nuts_sampler="nutpie",
-                return_inferencedata=True,
-                random_seed=s.random_seed,
-                progressbar=False,
-            )
-            tr = pm.sample_posterior_predictive(
-                tr,
-                var_names=["y_post"],
-                extend_inferencedata=True,
-                random_seed=s.random_seed,
-                progressbar=False,
-            )
-        # Gate every free variable: a well-mixed tau cannot rescue a non-mixing
-        # kappa/alpha/age term because those nuisance parameters determine the
-        # fitted mean and posterior predictive distribution (#341).
-        free_names = [rv.name for rv in built_x.model.free_RVs]
-        conv = _diag.subfit_convergence(tr, label=label, var_names=free_names)
-        summ = _report.tau_summary_itt(tr, ci_prob=ctx.reporting.ci_prob, G=built_x.prepared.G)
-        summ.update(conv)
-        # Secondary estimates are publication artefacts too. Persist the trace
-        # so every convergence value and posterior can be audited independently
-        # of the exploratory off-floor fit.
-        tr.to_netcdf(os.path.join(ctx.output_dir, trace_filename))
-        summ["trace_file"] = trace_filename
-        return tr, summ
-
-    # ----- SECONDARY (flagged cross-check): graded Beta-Binomial over ALL children.
-    # Not the exploratory headline — it mixes already-off-floor children into a mover analysis and
-    # is detection-limited; read only beside the mover table, never alone (#119).
-    section_header("Build model (SECONDARY cross-check: graded Beta-Binomial, all children)")
-    built_g = build_itt_from_plan(
-        plan,
-        prepared,
-        effective_adjustment=adjust_for,
-        likelihood="beta_binomial",
-        builder=_factories.build_itt_model,
-    )
-    trace_g, graded = _fit_secondary(
-        built_g,
-        label=f"{spec.model_id} graded cross-check",
-        trace_filename="trace_graded_secondary.nc",
-    )
-    save_table(ctx, "tau_summary_graded", pd.DataFrame([graded]))
-
-    # ----- SECONDARY (flagged): graded contrast AMONG the off-floor children.
-    # The #119 hurdle branch reads the graded score conditional on having come off
-    # the floor. Two caveats keep this honest: (1) conditioning on post>0 is
-    # POST-randomisation (selection on outcome), so the contrast is NOT a clean
-    # randomised effect; and (2) this fits a *plain* Beta-Binomial to the post>0
-    # subset — an untruncated proxy for the conditional-above-floor mean
-    # E[post | post>0], because a zero-truncated Beta-Binomial is not cleanly
-    # supported here (its vectorised logcdf is undefined); the untruncated fit
-    # slightly overstates the conditional mean (issue #267 review). Reported flagged,
-    # never as an ITT estimand.
-    hurdle = None
-    off_floor_data = restrict_to_off_floor(prepared, own)
-    if off_floor_data.n_obs >= 8 and int(np.unique(off_floor_data.G).size) == 2:
-        section_header(
-            "Build model (SECONDARY: graded contrast among off-floor children | post>0)"
-        )
-        built_h = build_itt_from_plan(
-            plan,
-            off_floor_data,
-            effective_adjustment=adjust_for,
-            likelihood="beta_binomial",
-            builder=_factories.build_itt_model,
-        )
-        _trace_h, hurdle = _fit_secondary(
-            built_h,
-            label=f"{spec.model_id} off-floor-subset graded contrast",
-            trace_filename="trace_hurdle_secondary.nc",
-        )
-        hurdle["n_off_floor"] = int(off_floor_data.n_obs)
-        hurdle["untruncated_proxy"] = True
-        save_table(ctx, "tau_summary_hurdle", pd.DataFrame([hurdle]))
-    else:
-        rprint(
-            f"[yellow]hurdle conditional-above-floor secondary skipped for {own}: "
-            f"only {off_floor_data.n_obs} off-floor rows (need >= 8, both arms).[/yellow]"
-        )
-
-    # Proportion-at-zero PPC on the graded model: assess whether the graded
-    # Beta-Binomial reproduces the observed floor.
-    ppc0 = _report.proportion_at_zero_ppc(built_g.prepared, own, trace_g)
-    _save_proportion_at_zero_plot(ctx, own, ppc0)
-    save_table(
-        ctx,
-        "proportion_at_zero_ppc",
-        pd.DataFrame([{k: v for k, v in ppc0.items() if k != "rep"}]),
-        register=False,
-    )
-
-    _write_run_metadata(
-        ctx,
-        extra={
-            "loo_elpd": float(ctx.loo.elpd),
-            "floor_rule": {
-                "outcome": own,
-                "proportion_at_zero": p0,
-                "threshold": _floor.FLOOR_THRESHOLD,
-                "status": "post_hoc_data_adaptive",
-                "arm_blind_gate": True,
-                "exploratory_estimand": (
-                    "Pr(off-floor at t2 | observed at floor at t1)"
-                ),
-                "at_risk_n": int(at_risk.n_obs),
-                "total_n": int(prepared.n_obs),
-                "baseline_missing_n": int(eligibility["n_pre_missing"].sum()),
-                "eligibility_by_arm": eligibility.to_dict(orient="records"),
-                "eligibility_status_sensitivity": eligibility_sensitivity.to_dict(
-                    orient="records"
-                ),
-                "transition_missingness_bounds": transition_missingness.to_dict(
-                    orient="records"
-                ),
-            },
-            "tau_offfloor_exploratory": off,
-            "tau_graded_secondary": graded,
-            "tau_hurdle_secondary": hurdle,
-            "proportion_at_zero_ppc": {k: v for k, v in ppc0.items() if k != "rep"},
-            "adjust_for": list(adjust_for),
-        },
-    )
-
-    return _finalize_report(ctx)
-
-
-# ---------------------------------------------------------------------------
-# Joint pipeline (LRPITT12 joint; LRPITT15/15b contrasts)
-# ---------------------------------------------------------------------------
-
-
-def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    _require_spec(spec, "joint")
-
-    ctx = make_context(spec, config)
-
-    section_header("Prepare data")
-    # A joint model may target an explicit outcome set (e.g. the taught-vs-not-
-    # taught contrast in LRPITT15/15b); load exactly those so the complete-case mask is
-    # not driven by the eight standardised outcomes. Defaults to ITT_OUTCOMES.
-    joint_outcomes = tuple(spec.extra.get("outcomes") or ITT_OUTCOMES)
-    if "outcomes" in spec.extra:
-        prepared = load_and_prepare(phase_mode="itt", outcomes=joint_outcomes)
-    else:
-        prepared = load_and_prepare(phase_mode="itt")
-    ctx.prepared = prepared
-
-    section_header("Build model")
-
-    built = _factories.build_joint_model(
-        prepared,
-        outcomes=joint_outcomes,
-        use_age_gp=spec.extra.get("use_age_gp", False),
-        partial_pool_age_gp=spec.extra.get("partial_pool_age_gp", True),
-        use_residual_correlation=spec.extra.get("use_residual_correlation", False),
-        use_cross_baselines=spec.extra.get("use_cross_baselines", True),
-        use_age_linear=spec.extra.get("use_age_linear", False),
-    )
-    _attach_built(ctx, built)
-    _write_itt_analysis_audit(ctx, built.prepared, joint_outcomes)
-
-    _render_model_graph(ctx)
-
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    for index, symbol in enumerate(joint_outcomes):
-        stem = (
-            "prior_predictive_check"
-            if index == 0
-            else f"prior_predictive_check_{symbol.lower()}"
-        )
-        _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
-
-    _run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
-    _joint_vars = ["alpha", "tau", "gamma_own", "kappa"]
-    if spec.extra.get("use_age_linear", False):
-        _joint_vars.append("gamma_A")
-    if spec.extra.get("use_residual_correlation", False):
-        _joint_vars.append("sigma_outcome")
-    _diag.summary_diagnostics(ctx, var_names=_joint_vars)
-
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
-    for index, symbol in enumerate(joint_outcomes):
-        stem = (
-            "posterior_predictive_check"
-            if index == 0
-            else f"posterior_predictive_check_{symbol.lower()}"
-        )
-        _diag.save_joint_posterior_predictive_plot(
-            ctx, symbol, filename_stem=stem
-        )
-    _write_itt_ppc_calibration(ctx, built.prepared, joint_outcomes)
-    # Coverage statistic (#318): per-observation interval coverage is denominator-
-    # agnostic (each flattened child × outcome cell is scored against its own
-    # predictive draws), so it is well-defined on the joint's flattened ``y_post``
-    # even though the distribution overlay must be split per outcome (above). Emit
-    # only the coverage CSV — the per-outcome overlays + calibration tables are the
-    # joint-appropriate figure/table views, so no single pooled calibration panel.
-    with guard_optional(ctx, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
-        _joint_cov = _report.ppc_interval_coverage(ctx.trace, node="y_post")
-        save_table(ctx, "ppc_summary", _joint_cov, required=False)
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=_joint_vars)
-    # The generic LOO-PIT would pool flattened cells from tests with different
-    # denominators. Save one calibrated plot per outcome instead.
-    _diag.run_extended_diagnostics(ctx, causal_term="tau", include_loo_pit=False)
-    for index, symbol in enumerate(joint_outcomes):
-        stem = "loo_pit" if index == 0 else f"loo_pit_{symbol.lower()}"
-        _diag.save_joint_loo_pit_plot(ctx, symbol, filename_stem=stem)
-    _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=_joint_vars)
-    # Power-scaling prior sensitivity (#381) on the causal term only, matching the
-    # ITT family this shares an estimand with — ``tau`` is vector-valued here, so
-    # psense expands it to one row per outcome and the report can say which of the
-    # jointly-fitted effects lean on the prior.
-    _diag.run_psense(ctx, var_names=["tau"])
-    # The probability-scale AMEs in tau_summary.csv are the headline effects. This
-    # forest is deliberately retained as an explicitly labelled secondary view of
-    # the conditional-logit coefficients.
-    _save_forest_plot(
-        ctx,
-        ["tau"],
-        title="Secondary conditional-logit coefficients (forest, reference line at 0)",
-    )
-
-    section_header("Treatment-effect summary")
-    outcomes = list(ctx.trace.posterior["outcome"].values)
-    tau_df = _report.tau_summary_joint(
-        ctx.trace,
-        outcomes,
-        ci_prob=ctx.reporting.ci_prob,
-        G=built.prepared.G,
-    )
-    save_table(ctx, "tau_summary", tau_df)
-    print_table(
-        ranked_dataframe_table(
-            tau_df,
-            title=(
-                "Probability-scale AME by outcome - "
-                f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
-            ),
-            columns=[
-                "outcome",
-                "ame_prob_median",
-                "ame_prob_lo",
-                "ame_prob_hi",
-                "prob_ame_pos",
-            ],
-            rank_column=False,
-        )
-    )
-
-    # Items-scale counterpart for the key-findings range-plus-count headline
-    # (#320).  The joint tau table is deliberately on the common logit scale;
-    # this separate counterfactual pushforward preserves comparability there
-    # while giving each outcome its own readable item-scale marginal and ROPE
-    # probabilities where a project-agreed minimally-important difference exists.
-    from language_reading_predictors.statistical_models.measures import ROPE_DELTA
-
-    joint_marginal = _report.joint_treatment_marginals(
-        ctx.trace,
-        outcomes=outcomes,
-        G=built.prepared.G,
-        n_trials=built.prepared.n_trials,
-        deltas=ROPE_DELTA,
-        ci_prob=ctx.reporting.ci_prob,
-    )
-    save_table(ctx, "joint_treatment_marginal", joint_marginal)
-
-    # Estimand-scale prior check, one row per outcome (#381). A joint fit has one
-    # tau and one item denominator per outcome, so the single-row ITT schema
-    # cannot describe it; the rows run through ``_joint_ame_draws``, the same core
-    # the posterior marginals above use.
-    try:
-        pf_rows = _report.joint_prior_pushforward(
-            ctx.prior_samples,
-            outcomes=outcomes,
-            G=built.prepared.G,
-            n_trials=built.prepared.n_trials,
-            ci_prob=ctx.reporting.ci_prob,
-        )
-    except Exception as exc:  # noqa: BLE001 - absence must stay legible
-        pf_rows = [
-            _report.unavailable_pushforward(
-                estimand="tau",
-                estimand_label="the per-outcome treatment effects",
-                role="causal",
-                reason=str(exc),
-            )
-        ]
-    _write_prior_pushforward(ctx, pf_rows)
-
-    contrast = _report.tau_contrast_matrix(
-        ctx.trace, outcomes, G=built.prepared.G, scale="probability"
-    )
-    save_table(ctx, "tau_contrast_matrix", contrast, index=True)
-    _save_contrast_heatmap(ctx, contrast)
-
-    logit_contrast = _report.tau_contrast_matrix(
-        ctx.trace, outcomes, G=built.prepared.G, scale="logit"
-    )
-    save_table(ctx, "tau_contrast_matrix_logit", logit_contrast, index=True)
-
-    meta_extra: dict = {
-        "loo_elpd": float(ctx.loo.elpd),
-        "joint_structure": built.extras.get("joint_dependence"),
-        "loo_unit": built.extras.get("loo_unit", "child"),
-        "outcomes": list(joint_outcomes),
-    }
-
-    # Two-outcome contrast (LRPITT15/15b/16). ``difference = (a, b)`` reports the
-    # headline probability-scale AME[a] - AME[b] and retains tau[a] - tau[b] as a
-    # secondary conditional-logit contrast.
-    difference = spec.extra.get("difference")
-    if difference is not None:
-        pair = tuple(difference)
-        section_header("Treatment-effect difference")
-        diff_s = _report.tau_difference_summary(
-            ctx.trace,
-            outcomes,
-            pair,
-            ci_prob=ctx.reporting.ci_prob,
-            G=built.prepared.G,
-            metadata=spec.extra.get("difference_metadata"),
-        )
-        diff_df = pd.DataFrame([diff_s])
-        save_table(ctx, "tau_difference", diff_df)
-        print_table(
-            metrics_table(
-                [{"metric": k, "value": v} for k, v in diff_s.items()],
-                title=(
-                    f"AME[{pair[0]}] - AME[{pair[1]}] (probability-scale headline; "
-                    f"logit secondary) - {int(ctx.reporting.ci_prob * 100)}% CI "
-                    "(equal-tailed)"
-                ),
-                columns=["metric", "value"],
-            )
-        )
-        meta_extra["tau_difference"] = diff_s
-        meta_extra["difference_metadata"] = spec.extra.get("difference_metadata")
-
-    _write_run_metadata(ctx, extra=meta_extra)
-
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -3318,7 +667,7 @@ def _did_analysis_contract(
 
 
 def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    _require_spec(spec, "did", outcome=True)
+    require_spec(spec, "did", outcome=True)
 
     # Resolve and validate the family contract before the context resets an output
     # directory or the loader reads any data (#394 pillar 4). One plan then drives
@@ -3340,12 +689,12 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     prepared = load_and_prepare(**plan.prepare_kwargs())
     ctx.prepared = prepared
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_did_model(prepared, **plan.factory_kwargs())
-    _attach_built(ctx, built)
-    _print_header(ctx)
+    attach_built(ctx, built)
+    print_header(ctx)
     did_contract = _did_analysis_contract(
         ctx,
         built,
@@ -3353,21 +702,21 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         loaded_prepared=prepared,
     )
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_did_diag_vars(spec))
 
     if off_floor:
-        _run_ppc(ctx, var_names=["y_offfloor"])
+        run_ppc(ctx, var_names=["y_offfloor"])
     else:
-        _run_ppc(ctx)
+        run_ppc(ctx)
     did_cell_ppc = _report.did_cell_ppc(
         ctx.trace,
         phase=ctx.prepared.phase,
@@ -3377,7 +726,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ci_prob=ctx.reporting.ci_prob,
     )
     save_table(ctx, "did_cell_ppc", did_cell_ppc)
-    _save_did_cell_ppc_plot(ctx, did_cell_ppc)
+    save_did_cell_ppc_plot(ctx, did_cell_ppc)
 
     section_header("Extended diagnostics")
     _did_effect = plan.effect_term
@@ -3407,7 +756,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             save_table(
                 ctx, "prior_pushforward", prior_pushforward_df, required=False
             )
-        _save_forest_plot(
+        save_forest_plot(
             ctx,
             ["tau_t2", "arm_gap_t3", "delta_crossover"],
             name="did_contrasts_forest.png",
@@ -3419,15 +768,15 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # shared writer; these do not reach it, so they emit it here.
         from language_reading_predictors.statistical_models.measures import MEASURES
 
-        _write_prior_pushforward(
+        write_prior_pushforward(
             ctx,
-            _marginal_pushforward_rows(
+            marginal_pushforward_rows(
                 ctx,
                 [
                     (
                         "beta_dose",
                         "the association of a +1 SD session-dose step with "
-                        f"{_pushforward_outcome_label(ctx, sym)}",
+                        f"{pushforward_outcome_label(ctx, sym)}",
                     )
                 ],
                 n_trials=1 if off_floor else MEASURES[sym].n_trials,
@@ -3473,7 +822,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ROPE_DELTA_PROB,
         )
 
-        _write_predicted_scores(
+        write_predicted_scores(
             ctx,
             outcome_symbol=sym,
             G=built.prepared.G,
@@ -3500,7 +849,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # per-child fitted-vs-observed panels. Only the binary t1--t3 levels model
         # carries a per-wave level; the dose companions are transition-frame and skip.
         _obs_node = "y_offfloor" if off_floor else "y_post"
-        _write_group_trajectory(
+        write_group_trajectory(
             ctx,
             outcome_symbol=sym,
             arm=built.prepared.G,
@@ -3509,7 +858,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             off_floor=off_floor,
             obs_node=_obs_node,
         )
-        _write_child_fit(
+        write_child_fit(
             ctx,
             outcome_symbol=sym,
             wave=built.prepared.phase,
@@ -3542,7 +891,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         )
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -3569,7 +918,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -3923,7 +1272,7 @@ def fit_joint_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     parameterisation it was originally computed on, with a bivariate child random
     intercept supplying the cross-outcome covariance.
     """
-    _require_spec(spec, "joint_mechanism")
+    require_spec(spec, "joint_mechanism")
     e = spec.extra
     design = str(e.get("design", "levels"))
     if design not in {"levels", "transition"}:
@@ -4028,7 +1377,7 @@ def _fit_joint_mechanism_levels(
     primary_wave = max(wave_built, key=lambda w: (wave_built[w].prepared.n_obs, w))
 
     ctx.prepared = wave_built[primary_wave].prepared
-    _print_header(ctx)
+    print_header(ctx)
 
     slope_rows: list[dict] = []
     diagnostic_rows: list[dict] = []
@@ -4038,8 +1387,8 @@ def _fit_joint_mechanism_levels(
         tp = w + 1
         if w == primary_wave:
             section_header(f"Build model (anchor wave t{tp})")
-            _attach_built(ctx, built)
-            _render_model_graph(ctx)
+            attach_built(ctx, built)
+            render_model_graph(ctx)
             section_header("Prior predictive")
             _diag.run_prior_predictive(ctx, draws=1000)
             for index, symbol in enumerate(outcome_symbols):
@@ -4049,7 +1398,7 @@ def _fit_joint_mechanism_levels(
                     else f"prior_predictive_check_{symbol.lower()}"
                 )
                 _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
-            _run_sampling_and_loo(ctx)
+            run_sampling_and_loo(ctx)
             trace = ctx.trace
             model_names = {rv.name for rv in ctx.model.free_RVs} | set(
                 ctx.trace.posterior.data_vars
@@ -4113,7 +1462,7 @@ def _fit_joint_mechanism_levels(
     save_table(ctx, "joint_mechanism_fit_diagnostics", diagnostics_df)
     _plot_joint_mechanism_by_wave(ctx, slopes_df, ci)
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "design": "levels",
@@ -4149,7 +1498,7 @@ def _fit_joint_mechanism_levels(
             "joint_mechanism_slopes": slopes_df.to_dict("records"),
         },
     )
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def _plot_joint_mechanism_by_wave(
@@ -4222,7 +1571,7 @@ def _fit_joint_mechanism_transition(
     # Drop any adjuster the loader dropped as constant on the fitted rows.
     adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_joint_mechanism_model(
@@ -4235,8 +1584,8 @@ def _fit_joint_mechanism_transition(
         confounder_symbols=s["confounder_symbols"],
         include_group=s["include_group"],
     )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
+    attach_built(ctx, built)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
@@ -4248,7 +1597,7 @@ def _fit_joint_mechanism_transition(
         )
         _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     model_names = {rv.name for rv in ctx.model.free_RVs} | set(
         ctx.trace.posterior.data_vars
@@ -4286,7 +1635,7 @@ def _fit_joint_mechanism_transition(
         contrast=contrast,
     )
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "design": "transition",
@@ -4311,7 +1660,7 @@ def _fit_joint_mechanism_transition(
             "joint_mechanism_slopes": slopes_df.to_dict("records"),
         },
     )
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -4320,7 +1669,7 @@ def _fit_joint_mechanism_transition(
 
 
 def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    _require_spec(spec, "mechanism", mechanism=True)
+    require_spec(spec, "mechanism", mechanism=True)
 
     ctx = make_context(spec, config)
     # Some mechanism fits keep the HSGP curve and need a higher target_accept for
@@ -4341,19 +1690,19 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     moderator_symbol = spec.extra.get("moderator_symbol")
     mechanism_is_covariate = bool(spec.extra.get("mechanism_is_covariate", False))
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _mechanism.build_mechanism_for_plan(plan)
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _mech_vars = ["alpha", "beta_G", "gamma_own", "kappa"]
@@ -4380,7 +1729,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         _mech_psense_vars += ["f_mech__eta", "f_mech__ell"]
     _diag.run_psense(ctx, var_names=_mech_psense_vars)
 
-    _run_ppc(ctx)
+    run_ppc(ctx)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=_mech_vars)
@@ -4458,7 +1807,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.save_prior_posterior_plot(ctx, var_names=_mech_vars)
 
     # Per-child fitted-vs-observed panels (#317 fig 2), one per period transition.
-    _write_child_fit(
+    write_child_fit(
         ctx,
         outcome_symbol=spec.outcome_symbol,
         wave=ctx.prepared.phase,
@@ -4468,9 +1817,9 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         x_label="period transition",
     )
 
-    _write_run_metadata(ctx, extra=meta_extra)
+    write_run_metadata(ctx, extra=meta_extra)
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
@@ -4715,7 +2064,7 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
         return worked
     except Exception as exc:  # pragma: no cover - defensive; logit curve stands alone
         rprint(f"[yellow]Items-scale mechanism curve failed: {exc}[/yellow]")
-        _write_prior_pushforward(
+        write_prior_pushforward(
             ctx,
             [
                 _report.unavailable_pushforward(
@@ -4810,7 +2159,7 @@ def _write_mechanism_prior_pushforward(
         ctx, "mechanism prior pushforward",
         filename="prior_pushforward.csv", kind="table", verb="not written",
     ):
-        _write_prior_pushforward(ctx, rows)
+        write_prior_pushforward(ctx, rows)
 
 
 def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
@@ -4902,7 +2251,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     per-period intervention **dose** (``attend``), entered with partial-pooled
     period-specific slopes. See :func:`factories.build_dose_response_model`.
     """
-    _require_spec(spec, "dose_response")
+    require_spec(spec, "dose_response")
 
     ctx = make_context(spec, config)
 
@@ -4919,7 +2268,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     )
     ctx.prepared = prepared
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
 
@@ -4940,15 +2289,15 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         adjust_age=adjust_age,
         ability_adjust_symbols=ability,
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     dose_vars = ["alpha", "gamma_own", "kappa"]
@@ -4969,7 +2318,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=dose_vars)
 
-    _run_ppc(ctx)
+    run_ppc(ctx)
 
     section_header("Extended diagnostics")
     _dose_effect = "mu_dose" if period_varying else "beta_dose"
@@ -4981,7 +2330,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=dose_vars)
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -4991,7 +2340,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def _summarise_draws(
@@ -5114,15 +2463,15 @@ def _write_dose_slope_summary(
     # family's overall slope, the same term ``dose_overall`` summarises above;
     # ``forward`` matches the ``expit(eta + delta) - expit(eta)`` marginal
     # computed a few lines up, so prior and estimate share one transform.
-    _write_prior_pushforward(
+    write_prior_pushforward(
         ctx,
-        _marginal_pushforward_rows(
+        marginal_pushforward_rows(
             ctx,
             [
                 (
                     "mu_dose" if period_varying else "beta_dose",
                     "the association of a +1 SD session-dose step with "
-                    f"{_pushforward_outcome_label(ctx, outcome)}",
+                    f"{pushforward_outcome_label(ctx, outcome)}",
                 )
             ],
             n_trials=int(ctx.prepared.n_trials[outcome]),
@@ -5214,7 +2563,7 @@ def prepare_mediation_data(spec: ModelSpec):
     Kept separate from sampling so reporting-only regenerators can reconstruct the
     mediation sample and its mediator standardiser without refitting the posterior.
     """
-    _require_spec(spec, "mediation")
+    require_spec(spec, "mediation")
     # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
     mediator_symbol = spec.mechanism_symbol or "L"
     # Drop the structural markers and the mediator's own baseline ({mediator}_t1,
@@ -5273,7 +2622,7 @@ def prepare_mediation_data(spec: ModelSpec):
 
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """ITT-phase mediation decomposition (LRP59): how much of G -> W flows via L."""
-    _require_spec(spec, "mediation")
+    require_spec(spec, "mediation")
     from language_reading_predictors.statistical_models import mediation as _med
 
     ctx = make_context(spec, config)
@@ -5284,7 +2633,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     prepared, confounders = prepare_mediation_data(spec)
     ctx.prepared = prepared
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
 
@@ -5307,7 +2656,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         route_symbols=route_symbols,
         outcome_kind=outcome_kind,
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
     # The mediator observed node differs by kind: Beta-Binomial "{mediator}_post"
     # vs the Gaussian composite "M_post".
@@ -5318,7 +2667,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # tracks the fitted confounder set instead of a hand-maintained constant.
     coef_vars = sorted(rv.name for rv in built.model.free_RVs if rv.ndim == 0)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
@@ -5326,7 +2675,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # explicitly — else the plot overlays mediator draws on the outcome's counts.
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W", node=outcome_node)
 
-    _run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=False)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
@@ -5335,7 +2684,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.compute_log_likelihood_and_prior(ctx, strict=False)
     _diag.run_psense(ctx, var_names=coef_vars)
 
-    _run_ppc(ctx, var_names=[mediator_node, outcome_node])
+    run_ppc(ctx, var_names=[mediator_node, outcome_node])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=coef_vars)
@@ -5482,9 +2831,9 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         _extra_meta["outcome_time"] = int(_outcome_time)
     if is_calibration is not None:
         _extra_meta["is_calibration"] = is_calibration.iloc[0].to_dict()
-    _write_run_metadata(ctx, extra=_extra_meta)
+    write_run_metadata(ctx, extra=_extra_meta)
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def fit_mediation_period_stacked(
@@ -5506,7 +2855,7 @@ def fit_mediation_period_stacked(
     treated-arm benchmark here would silently change its interpretation (#335
     placement decision).
     """
-    _require_spec(spec, "mediation")
+    require_spec(spec, "mediation")
     from language_reading_predictors.statistical_models import mediation as _med
 
     ctx = make_context(spec, config)
@@ -5540,7 +2889,7 @@ def fit_mediation_period_stacked(
         c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
     )
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built, med_data = _factories.build_period_stacked_mediation_model(
@@ -5549,7 +2898,7 @@ def fit_mediation_period_stacked(
         outcome_symbol=outcome_symbol,
         confounder_symbols=confounders,
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
     mediator_node = f"{mediator_symbol}_post"
     # Scalar coefficients from the model itself, plus the per-phase intercept
@@ -5557,13 +2906,13 @@ def fit_mediation_period_stacked(
     coef_vars = sorted(rv.name for rv in built.model.free_RVs if rv.ndim == 0)
     diag_vars = [*coef_vars, "a_phase", "b_phase"]
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome_symbol, node="y_post")
 
-    _run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=False)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
@@ -5572,7 +2921,7 @@ def fit_mediation_period_stacked(
     _diag.compute_log_likelihood_and_prior(ctx, strict=False)
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    _run_ppc(ctx, var_names=[mediator_node, "y_post"])
+    run_ppc(ctx, var_names=[mediator_node, "y_post"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -5653,7 +3002,7 @@ def fit_mediation_period_stacked(
     _requested_raw = _raw_covariate_confounders(
         s for s in spec.adjustment if s not in ("T", "A", "W_pre", f"{mediator_symbol}_pre")
     )
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "adjustment": spec.adjustment,
@@ -5666,7 +3015,7 @@ def fit_mediation_period_stacked(
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -5844,7 +3193,7 @@ def _gf_association_terms(
 
 
 def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    _require_spec(spec, "gain_factors", outcome=True)
+    require_spec(spec, "gain_factors", outcome=True)
 
     # Resolve and validate the family contract before the context resets an output
     # directory or the loader reads any data (#391 finding 6). One plan then drives
@@ -5874,26 +3223,26 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # loader and must not be built or reported as adjusted-for.
     adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     ctx.prepared = prepared
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_gain_factors_model(
         prepared, **plan.factory_kwargs(effective_adjustment=adjust_for)
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_gf_diag_vars(spec, adjust_for))
 
-    _run_ppc(ctx, var_names=[obs_node])
+    run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
     # The diagnostic FOCAL term, not a causal designation: for a moderation
@@ -5909,7 +3258,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_gf_diag_vars(spec, adjust_for))
     if _focal_gf is not None:
-        _save_forest_plot(ctx, [_focal_gf])
+        save_forest_plot(ctx, [_focal_gf])
         _diag.run_psense(ctx, var_names=[_focal_gf])
 
     section_header("Factor summary")
@@ -5924,7 +3273,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         causal_terms=gf_causal_terms,
     )
     save_table(ctx, "factor_summary", fs)
-    _save_association_forest(ctx, _gf_coef_names(spec, adjust_for), gf_causal_terms)
+    save_association_forest(ctx, _gf_coef_names(spec, adjust_for), gf_causal_terms)
     print_table(
         ranked_dataframe_table(
             fs,
@@ -6041,7 +3390,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                     columns=["metric", "value"],
                 )
             )
-            _save_rope_plot(
+            save_rope_plot(
                 ctx, spec.outcome_symbol, trt, n_marg, delta_items,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
                 row_mask=p1_mask, split=True,
@@ -6061,7 +3410,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             rope_s["delta_scale"] = "risk_difference"
             save_table(ctx, "rope_summary", pd.DataFrame([rope_s]))
             meta_extra["rope_summary"] = rope_s
-            _save_rope_plot(
+            save_rope_plot(
                 ctx, spec.outcome_symbol, trt, 1, delta_prob,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
                 row_mask=p1_mask, split=True,
@@ -6079,7 +3428,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         # same period-1 reference rows as treatment_marginal.csv and integrating
         # the child random intercept for a *new* typical child (the fitted
         # children's intercepts are swapped for fresh population draws).
-        _write_predicted_scores(
+        write_predicted_scores(
             ctx,
             outcome_symbol=spec.outcome_symbol,
             G=trt,
@@ -6145,7 +3494,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         )
 
     # Per-child fitted-vs-observed panels (#317 fig 2), one per period transition.
-    _write_child_fit(
+    write_child_fit(
         ctx,
         outcome_symbol=spec.outcome_symbol,
         wave=built.prepared.phase,
@@ -6155,12 +3504,12 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         x_label="period transition",
     )
 
-    _write_run_metadata(ctx, extra=meta_extra)
-    return _finalize_report(ctx)
+    write_run_metadata(ctx, extra=meta_extra)
+    return finalize_report(ctx)
 
 
 def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    _require_spec(spec, "level_factors", outcome=True)
+    require_spec(spec, "level_factors", outcome=True)
     # Resolve and validate the family contract before the context resets an output
     # directory or the loader reads any data (#389 finding 6). One plan then drives
     # preparation, factory arguments, the teaching recipe and config.json. The
@@ -6189,27 +3538,27 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # loader and must not be built or reported as adjusted-for.
     adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     ctx.prepared = prepared
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_level_factors_model(
         prepared, **plan.factory_kwargs(effective_adjustment=adjust_for)
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     _lf_diag = plan.diag_vars(effective_adjustment=adjust_for)
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_lf_diag)
 
-    _run_ppc(ctx, var_names=[obs_node])
+    run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
     # For the shipped group-by-time LF models the flagged-causal term is the t2
@@ -6223,7 +3572,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _diag.run_extended_diagnostics(ctx, causal_term=_causal_lf)
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag)
-    _save_forest_plot(ctx, [_causal_lf])
+    save_forest_plot(ctx, [_causal_lf])
     _diag.run_psense(ctx, var_names=[_causal_lf])
 
     section_header("Factor summary")
@@ -6235,7 +3584,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         ctx.trace, _lf_coefs, ci_prob=ctx.reporting.ci_prob, causal_terms=causal
     )
     save_table(ctx, "factor_summary", fs)
-    _save_association_forest(ctx, _lf_coefs, causal)
+    save_association_forest(ctx, _lf_coefs, causal)
     print_table(
         ranked_dataframe_table(
             fs,
@@ -6344,7 +3693,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                 columns=["metric", "value"],
             )
         )
-        _save_rope_plot(
+        save_rope_plot(
             ctx, spec.outcome_symbol, None, n_marg, delta, items=items, split=True
         )
         if _offfloor_card:
@@ -6369,7 +3718,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     # Data-space figures (#317): population per-arm score trajectory (the crossover
     # picture — only the t2 gap is randomised) and per-child fitted-vs-observed panels.
-    _write_group_trajectory(
+    write_group_trajectory(
         ctx,
         outcome_symbol=spec.outcome_symbol,
         arm=built.prepared.G,
@@ -6378,7 +3727,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         off_floor=off_floor,
         obs_node=obs_node,
     )
-    _write_child_fit(
+    write_child_fit(
         ctx,
         outcome_symbol=spec.outcome_symbol,
         wave=built.prepared.phase,
@@ -6387,8 +3736,8 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         obs_node=obs_node,
     )
 
-    _write_run_metadata(ctx, extra=meta_extra)
-    return _finalize_report(ctx)
+    write_run_metadata(ctx, extra=meta_extra)
+    return finalize_report(ctx)
 
 
 def _bx_coef_names(
@@ -6422,7 +3771,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     items-scale AME). ``delta`` is an association (parallel-trends), so the factor
     summary flags no causal term.
     """
-    _require_spec(spec, "block_exposure", outcome=True)
+    require_spec(spec, "block_exposure", outcome=True)
     ctx = make_context(spec, config)
     extra = spec.extra
 
@@ -6450,7 +3799,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     )
     adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
     ctx.prepared = prepared
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_block_exposure_model(
@@ -6465,20 +3814,20 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
             _default_of(_factories.build_block_exposure_model, "delta_prior_sigma"),
         ),
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, sym, node=obs_node)
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=_bx_diag_vars(spec, adjust_for))
 
-    _run_ppc(ctx, var_names=[obs_node])
+    run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
     # ``delta`` is the focal (association) effect — gets the prior-sensitivity +
@@ -6487,7 +3836,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     _diag.run_extended_diagnostics(ctx, causal_term="delta")
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_bx_diag_vars(spec, adjust_for))
-    _save_forest_plot(
+    save_forest_plot(
         ctx, ["delta"], name="delta_forest.png",
         title="Block-active exposure effect (forest, reference line at 0)",
     )
@@ -6501,7 +3850,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
         causal_terms=(),
     )
     save_table(ctx, "factor_summary", fs)
-    _save_association_forest(ctx, _bx_coef_names(spec, adjust_for), ())
+    save_association_forest(ctx, _bx_coef_names(spec, adjust_for), ())
     print_table(
         ranked_dataframe_table(
             fs,
@@ -6536,9 +3885,9 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     # Estimand-scale prior check (#381), through the same transform
     # ``block_exposure_summary`` uses for ``delta_items_*``: a forward shift from
     # the un-exposed linear predictor ``eta_base``, not the ITT net-out core.
-    _write_prior_pushforward(
+    write_prior_pushforward(
         ctx,
-        _marginal_pushforward_rows(
+        marginal_pushforward_rows(
             ctx,
             [("delta", "the block-active exposure association")],
             n_trials=1 if off_floor else MEASURES[sym].n_trials,
@@ -6547,11 +3896,11 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
         ),
     )
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={"loo_elpd": float(ctx.loo.elpd), "block_exposure_summary": bx_s},
     )
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def _al_coef_names(spec: ModelSpec) -> list[str]:
@@ -6575,7 +3924,7 @@ def _al_diag_vars(spec: ModelSpec) -> list[str]:
 
 
 def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    _require_spec(spec, "aligned", outcome=True)
+    require_spec(spec, "aligned", outcome=True)
     # Resolve and validate the family contract before the context resets an output
     # directory or the loader reads any data (#394 pillar 4). One plan drives
     # preparation, factory arguments, the teaching recipe and config.json.
@@ -6590,19 +3939,19 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Prepare data")
     prepared = load_and_prepare_aligned(**plan.prepare_kwargs())
     ctx.prepared = prepared
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_aligned_model(prepared, **plan.factory_kwargs())
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     # Deterministic for a given spec — compute once and reuse across the diagnostics,
@@ -6612,7 +3961,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=_al_vars)
 
-    _run_ppc(ctx, var_names=[obs_node])
+    run_ppc(ctx, var_names=[obs_node])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=_al_vars)
@@ -6628,7 +3977,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     save_table(ctx, "factor_summary", fs)
     # Per-protocol: every term is an association, so the forest shows them all.
-    _save_association_forest(ctx, _al_coef_names(spec), ())
+    save_association_forest(ctx, _al_coef_names(spec), ())
     print_table(
         ranked_dataframe_table(
             fs,
@@ -6688,9 +4037,9 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                     reason=str(exc),
                 )
             ]
-        _write_prior_pushforward(ctx, rows)
+        write_prior_pushforward(ctx, rows)
     else:
-        _write_prior_pushforward(
+        write_prior_pushforward(
             ctx,
             [
                 _report.unavailable_pushforward(
@@ -6705,8 +4054,8 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ],
         )
 
-    _write_run_metadata(ctx, extra=meta_extra)
-    return _finalize_report(ctx)
+    write_run_metadata(ctx, extra=meta_extra)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -6723,7 +4072,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     indirect effect as the headline plus the (ordering-dependent) path-specific
     indirect effects.
     """
-    _require_spec(spec, "mediation_multi")
+    require_spec(spec, "mediation_multi")
     from language_reading_predictors.statistical_models import mediation as _med
 
     ctx = make_context(spec, config)
@@ -6773,7 +4122,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     )
     ctx.prepared = prepared
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
 
@@ -6786,14 +4135,14 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         chain=bool(spec.extra.get("chain", False)),
         second_mediator_offfloor=second_offfloor,
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
     # Diagnose every scalar coefficient the model actually built, so the list
     # tracks the fitted confounder set instead of a hand-maintained constant
     # (mirrors fit_mediation).
     coef_vars = sorted(rv.name for rv in built.model.free_RVs if rv.ndim == 0)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
@@ -6801,7 +4150,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     # explicitly — else the plot overlays mediator draws on the outcome's counts.
     _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W", node="y_post")
 
-    _run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=False)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
@@ -6811,7 +4160,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.run_psense(ctx, var_names=coef_vars)
 
     _m2_node = f"{mediators[1]}_offfloor" if second_offfloor else f"{mediators[1]}_post"
-    _run_ppc(ctx, var_names=[f"{mediators[0]}_post", _m2_node, "y_post"])
+    run_ppc(ctx, var_names=[f"{mediators[0]}_post", _m2_node, "y_post"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=coef_vars)
@@ -6902,7 +4251,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         for s in spec.adjustment
         if s not in ("G", "A", "W_pre", *(f"{m}_t1" for m in mediators))
     )
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "adjustment": spec.adjustment,
@@ -6919,7 +4268,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -7075,54 +4424,6 @@ def _natural_scale_contrasts(
     return pd.DataFrame(rows)
 
 
-def _influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
-    """Persistable PSIS-LOO Pareto-k values for the likelihood's LOO units.
-
-    Returns ``(dataframe, threshold, n_flagged)`` — the pointwise k values sorted
-    descending (aligned to ``subject_ids``), the ``good_k`` threshold, and how
-    many points exceed it. A point is one child in the single-period ITT/joint
-    families, but one child-by-period row in repeated-measures families. Returns
-    ``(None, None, None)`` if the LOO object exposes no aligned pointwise k.
-    """
-    if ctx.loo is None or getattr(ctx.loo, "pareto_k", None) is None:
-        return None, None, None
-    k = np.asarray(ctx.loo.pareto_k).ravel()
-    ids = np.asarray(ctx.prepared.subject_ids)
-    if len(k) != len(ids):
-        return None, None, None
-    thr = float(getattr(ctx.loo, "good_k", 0.7) or 0.7)
-    df = (
-        pd.DataFrame(
-            {
-                "observation_index": np.arange(len(k), dtype=int),
-                "subject_id": ids,
-                "pareto_k": k,
-            }
-        )
-        .sort_values("pareto_k", ascending=False)
-        .reset_index(drop=True)
-    )
-    return df, thr, int((k > thr).sum())
-
-
-def _write_loo_influence(ctx: StatisticalFitContext) -> pd.DataFrame | None:
-    """Persist pointwise Pareto-k values and explicit reliability flags.
-
-    A sampler-convergence PASS does not guarantee that importance-sampled LOO is
-    reliable.  Persisting the values makes the ``k > good_k`` gate available to
-    report templates and downstream audits instead of leaving it visible only in
-    a plot or the free-text ArviZ summary.
-    """
-    influence, threshold, _ = _influence_diagnostics(ctx)
-    if influence is None or threshold is None:
-        return None
-    out = influence.copy()
-    out["good_k_threshold"] = threshold
-    out["loo_reliable"] = out["pareto_k"] <= threshold
-    save_table(ctx, "pareto_k", out)
-    return out
-
-
 def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """Regularized-horseshoe predictor-ranking fit (LRPHS, #116 Phase E).
 
@@ -7133,7 +4434,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     trace / diagnostics / LOO / PPC artefacts. Not causal — a which-predictors
     -carry-signal read to compare against the GB cluster ranking.
     """
-    _require_spec(spec, "horseshoe")
+    require_spec(spec, "horseshoe")
     e = spec.extra
     outcome = spec.outcome_symbol or "W"
     gain = bool(e.get("gain", True))
@@ -7167,7 +4468,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         covariates=covariates,
     )
     ctx.prepared = prepared
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_horseshoe_model(
@@ -7180,14 +4481,14 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         slab_df=slab_df,
         language_composite_symbols=lang_symbols,
     )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
+    attach_built(ctx, built)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome)
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     # Coupling term present in the model: gamma_own (gain) or the fixed age slope
     # gamma_A (level) — but the level model suppresses gamma_A when age is itself a
@@ -7204,7 +4505,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    _run_ppc(ctx)
+    run_ppc(ctx)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -7216,7 +4517,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     ranking = _report.horseshoe_ranking(ctx.trace, delta=delta)
     save_table(ctx, "predictor_ranking", ranking)
     print_table(ranked_dataframe_table(ranking.head(10), title="Horseshoe predictor ranking (top 10)"))
-    _write_prior_pushforward(ctx, _horseshoe_pushforward_rows(ctx, predictors, outcome))
+    write_prior_pushforward(ctx, horseshoe_pushforward_rows(ctx, predictors, outcome))
 
     meta_extra = {
         "framing": "gain" if gain else "level",
@@ -7232,9 +4533,9 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             "records"
         ),
     }
-    _write_run_metadata(ctx, extra=meta_extra)
+    write_run_metadata(ctx, extra=meta_extra)
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -7248,7 +4549,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ``prior_sensitivity.csv`` and ``ses_sensitivity.csv`` alongside the standard
     trace / diagnostics / LOO / PPC artefacts.
     """
-    _require_spec(spec, "adjusted")
+    require_spec(spec, "adjusted")
     e = spec.extra
     outcome = spec.outcome_symbol or "W"
     post_time = int(e.get("post_time", 4))
@@ -7295,7 +4596,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         + (["age"] if use_age else [])
         + covariates
     )
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_adjusted_model(
@@ -7305,15 +4606,15 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         language_composite_symbols=lang_symbols,
         predictor_slope_sigma=sigma0,
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome)
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     beta_names = [f"beta_{k}" for k in headline]
@@ -7321,7 +4622,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ctx, var_names=["alpha", "gamma_own", "kappa", *beta_names]
     )
 
-    _run_ppc(ctx)
+    run_ppc(ctx)
     _adjusted_diag_vars = ["alpha", "gamma_own", "kappa", *beta_names]
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=_adjusted_diag_vars)
@@ -7399,11 +4700,11 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # missing-data indicators are dropped from that table as nuisance
     # subgroup offsets, and a prior row for a term the report does not show
     # would contradict the nuisance labelling it was dropped for.
-    _pf_n = _pushforward_n_trials(ctx, outcome)
-    _pf_outcome = _pushforward_outcome_label(ctx, outcome)
-    _write_prior_pushforward(
+    _pf_n = pushforward_n_trials(ctx, outcome)
+    _pf_outcome = pushforward_outcome_label(ctx, outcome)
+    write_prior_pushforward(
         ctx,
-        _marginal_pushforward_rows(
+        marginal_pushforward_rows(
             ctx,
             [
                 (
@@ -7540,7 +4841,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     # --- Influence (does the fit rest on a few children?) ------------------
     section_header("Influence (PSIS-LOO Pareto-k)")
-    infl_df, k_thr, n_flagged = _influence_diagnostics(ctx)
+    infl_df, k_thr, n_flagged = _diag.influence_diagnostics(ctx)
     if infl_df is not None:
         save_table(ctx, "influence", infl_df)
         rprint(
@@ -7550,7 +4851,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     else:
         rprint("[yellow]Pareto-k unavailable from LOO; influence check skipped[/yellow]")
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
@@ -7572,7 +4873,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -7865,7 +5166,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     marginals (wave × predictor); ``concurrent_marginals.csv`` carries both fit kinds'
     detailed probability/items marginals (wave × predictor × {+1 SD, +k items}).
     """
-    _require_spec(spec, "concurrent", outcome=True)
+    require_spec(spec, "concurrent", outcome=True)
     # Resolve and validate the family contract before the context resets an output
     # directory or the loader reads any data (#394 pillar 4). One plan drives
     # preparation, the teaching recipe and config.json.
@@ -7934,7 +5235,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     # Provisional; replaced with the primary-wave subset once known so the report's
     # header / n_obs describe the gated fit.
     ctx.prepared = wave_subsets[primary_wave]
-    _print_header(ctx)
+    print_header(ctx)
 
     def _build(sub, preds, *, age, group):
         return _factories.build_concurrent_model(
@@ -7959,12 +5260,12 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         if w == primary_wave:
             section_header(f"Build model (primary wave t{tp})")
             built = _build(sub, preds, age=include_age, group=include_group)
-            _attach_built(ctx, built)
-            _render_model_graph(ctx)
+            attach_built(ctx, built)
+            render_model_graph(ctx)
             section_header("Prior predictive")
             _diag.run_prior_predictive(ctx, draws=1000)
             _diag.save_prior_predictive_plot(ctx, outcome)
-            _run_sampling_and_loo(ctx)
+            run_sampling_and_loo(ctx)
             trace = ctx.trace
             convergence = None  # populated below after the full primary gate
         else:
@@ -7992,7 +5293,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=diag_vars)
-    _run_ppc(ctx)
+    run_ppc(ctx)
     section_header("Extended diagnostics (primary wave)")
     _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
     _primary_conv = _diag.subfit_convergence(
@@ -8012,9 +5313,9 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     # (#381) — one row per predictor, on the same ``+1 SD`` forward-shift scale
     # ``concurrent_marginals`` reports below. Only the primary wave persists a
     # prior group; the other waves are refits sampled without one.
-    _write_prior_pushforward(
+    write_prior_pushforward(
         ctx,
-        _marginal_pushforward_rows(
+        marginal_pushforward_rows(
             ctx,
             [
                 (
@@ -8180,9 +5481,9 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             "contains both fit kinds for +1 SD and +k items"
         ),
     }
-    _write_run_metadata(ctx, extra=meta_extra)
+    write_run_metadata(ctx, extra=meta_extra)
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def _plot_concurrent(
@@ -8234,7 +5535,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ``lagged_change_couplings`` (LCSM-091, #229 spec 2) adds prior-transition
     latent-change terms (``h_{src}``) to the named targets' change equations.
     """
-    _require_spec(spec, "lcsm")
+    require_spec(spec, "lcsm")
 
     ctx = make_context(spec, config)
 
@@ -8272,7 +5573,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     ctx.prepared = panel
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_lcsm_model(
@@ -8290,9 +5591,9 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         use_process_noise=spec.extra.get("use_process_noise", True),
         shared_process_noise=spec.extra.get("shared_process_noise", False),
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     # Coupling parameter names mirror the factory's rule: single target keeps
     # LRP67's ``g_{src}``; multiple targets carry the target (``g_{src}_{tgt}``).
@@ -8333,14 +5634,14 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ),
         )
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    _run_ppc(ctx, var_names=["y_obs"])
+    run_ppc(ctx, var_names=["y_obs"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -8495,9 +5796,9 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
 
     # Per-child fitted-vs-observed panels (#317 fig 2) for the focal reading target.
-    _write_panel_child_fit(ctx, latent_name="x_latent", focal_symbol=reading_symbol)
+    write_panel_child_fit(ctx, latent_name="x_latent", focal_symbol=reading_symbol)
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -8516,7 +5817,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -8531,7 +5832,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     **adjusted, latent-GA-confounded association**, never causal (locked DAG,
     ``notes/202606231600-dag-revision-consolidated.md``).
     """
-    _require_spec(spec, "growth")
+    require_spec(spec, "growth")
 
     # Resolve and validate the family contract before the context resets an output
     # directory or the loader reads any data (#394 pillar 4). One plan drives
@@ -8550,13 +5851,13 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     panel = load_wave_panel(**plan.prepare_kwargs())
     ctx.prepared = panel
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_growth_model(panel, **plan.factory_kwargs())
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     diag_vars = [
         "gamma", "delta", "beta", "alpha", "sigma_slope", "sigma_intercept", "kappa"
@@ -8585,14 +5886,14 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ),
         )
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    _run_ppc(ctx, var_names=["y_obs"])
+    run_ppc(ctx, var_names=["y_obs"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -8606,7 +5907,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Non-verbal ability -> trajectory shape (Q5)")
     gs = _report.growth_association_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
     save_table(ctx, "growth_association_summary", gs)
-    _save_forest_plot(ctx, ["gamma"], name="gamma_forest.png")
+    save_forest_plot(ctx, ["gamma"], name="gamma_forest.png")
     print_table(
         ranked_dataframe_table(
             gs[gs["coefficient"] == "gamma"],
@@ -8661,10 +5962,10 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Data-space figures (#317): per-measure cohort trajectory (no arm — growth's
     # "arm" is a latent tempo, not an observed randomised arm) and per-child
     # fitted-vs-observed panels for a focal outcome.
-    _write_panel_trajectory(ctx, latent_name="theta")
-    _write_panel_child_fit(ctx, latent_name="theta", focal_symbol=outcomes[0])
+    write_panel_trajectory(ctx, latent_name="theta")
+    write_panel_child_fit(ctx, latent_name="theta", focal_symbol=outcomes[0])
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
@@ -8676,7 +5977,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -8694,7 +5995,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     **not** an intervention-effect model - ``group`` carries no treatment
     semantics (see :func:`factories.build_historical_growth_model`).
     """
-    _require_spec(spec, "historical_growth")
+    require_spec(spec, "historical_growth")
 
     ctx = make_context(spec, config)
 
@@ -8715,7 +6016,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     )
     ctx.prepared = panel
 
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_historical_growth_model(
@@ -8736,9 +6037,9 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
             _default_of(_factories.build_historical_growth_model, "kappa_prior_sigma"),
         ),
     )
-    _attach_built(ctx, built)
+    attach_built(ctx, built)
 
-    _render_model_graph(ctx)
+    render_model_graph(ctx)
 
     diag_vars = ["eta_cell", "sigma_subject", "kappa"]
     diag_vars += [
@@ -8755,14 +6056,14 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, measure, node="score")
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    _run_ppc(ctx, var_names=["score"])
+    run_ppc(ctx, var_names=["score"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -8781,8 +6082,8 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     save_table(ctx, "posterior_cell_summary", cells)
     growth = _historical.growth_summary(ctx.trace, panel, measure)
     save_table(ctx, "posterior_growth_summary", growth)
-    _write_prior_pushforward(
-        ctx, _growth_contrast_pushforward_rows(ctx, panel, measure)
+    write_prior_pushforward(
+        ctx, growth_contrast_pushforward_rows(ctx, panel, measure)
     )
     print_table(
         ranked_dataframe_table(
@@ -8797,7 +6098,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         )
     )
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
@@ -8814,7 +6115,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -8893,7 +6194,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         load_rlm_span_frame,
     )
 
-    _require_spec(spec, "adjusted")
+    require_spec(spec, "adjusted")
     e = spec.extra
     outcome = spec.outcome_symbol or "basread"
     predictor_measures = tuple(
@@ -8924,20 +6225,20 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     )
     ctx.prepared = frame
     headline = list(frame.predictors)
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_rlm_adjusted_model(
         frame, predictors=headline, predictor_slope_sigma=sigma0
     )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
+    attach_built(ctx, built)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     beta_names = [f"beta_{k}" for k in headline]
     nuisance = _rlm_nuisance_names(frame)
@@ -8947,7 +6248,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    _run_ppc(ctx)
+    run_ppc(ctx)
 
     section_header("Extended diagnostics")
     _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -9003,11 +6304,11 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # missing-data indicators are dropped from that table as nuisance
     # subgroup offsets, and a prior row for a term the report does not show
     # would contradict the nuisance labelling it was dropped for.
-    _pf_n = _pushforward_n_trials(ctx, outcome)
-    _pf_outcome = _pushforward_outcome_label(ctx, outcome)
-    _write_prior_pushforward(
+    _pf_n = pushforward_n_trials(ctx, outcome)
+    _pf_outcome = pushforward_outcome_label(ctx, outcome)
+    write_prior_pushforward(
         ctx,
-        _marginal_pushforward_rows(
+        marginal_pushforward_rows(
             ctx,
             [
                 (
@@ -9068,7 +6369,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     sens = pd.DataFrame(sens_rows)
     save_table(ctx, "prior_sensitivity", sens)
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "study_id": "rlm",
@@ -9081,7 +6382,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             "predictor_slope_sigma": sigma0,
         },
     )
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -9099,7 +6400,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         load_rlm_span_frame,
     )
 
-    _require_spec(spec, "horseshoe")
+    require_spec(spec, "horseshoe")
     e = spec.extra
     outcome = spec.outcome_symbol or "basread"
     predictor_measures = tuple(
@@ -9125,7 +6426,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     )
     ctx.prepared = frame
     predictors = list(frame.predictors)
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_rlm_horseshoe_model(
@@ -9135,14 +6436,14 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         slab_scale=slab_scale,
         slab_df=slab_df,
     )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
+    attach_built(ctx, built)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
 
-    _run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx)
 
     nuisance = _rlm_nuisance_names(frame)
     diag_vars = ["alpha", "gamma_own", "kappa", "hs_tau", "hs_c2", "beta", *nuisance]
@@ -9151,7 +6452,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    _run_ppc(ctx)
+    run_ppc(ctx)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -9165,9 +6466,9 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     print_table(
         ranked_dataframe_table(ranking, title="Horseshoe predictor ranking")
     )
-    _write_prior_pushforward(ctx, _horseshoe_pushforward_rows(ctx, predictors, outcome))
+    write_prior_pushforward(ctx, horseshoe_pushforward_rows(ctx, predictors, outcome))
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "study_id": "rlm",
@@ -9186,7 +6487,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             ),
         },
     )
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -9203,7 +6504,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         load_rlm_wave_battery,
     )
 
-    _require_spec(spec, "corr_factor")
+    require_spec(spec, "corr_factor")
     e = spec.extra
     wave = int(e.get("wave", 3))
     domains = {k: tuple(v) for k, v in e["domains"].items()}
@@ -9224,7 +6525,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     symbols = tuple(dict.fromkeys(s for syms in domains.values() for s in syms))
     battery = load_rlm_wave_battery(wave=wave, measure_symbols=symbols)
     ctx.prepared = battery
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_rlm_corr_factor_model(
@@ -9235,14 +6536,14 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         comm_beta=comm_beta,
         lkj_eta=lkj_eta,
     )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
+    attach_built(ctx, built)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_dist_overlay(ctx)
 
-    _run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=False)
 
     diag_vars = ["lambda_free", "sigma_free", "factor_corr_pairs"]
     section_header("Summary diagnostics")
@@ -9257,7 +6558,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.compute_log_likelihood_and_prior(ctx, strict=False)
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    _run_ppc(ctx, var_names=["Z_obs"])
+    run_ppc(ctx, var_names=["Z_obs"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -9269,7 +6570,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     # fit: called earlier, the check found no prior_predictive group and skipped
     # silently (#383) — the re-emitted reporting artefacts never showed it
     # because a reused trace arrives with its groups already on disk.
-    _write_indicator_prior_check(ctx, ["Z_obs"])
+    write_indicator_prior_check(ctx, ["Z_obs"])
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     post = ctx.trace.posterior
@@ -9311,7 +6612,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         )
     )
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "study_id": "rlm",
@@ -9322,7 +6623,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             "structural_leg": False,
         },
     )
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -9335,7 +6636,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     computed: the model has one likelihood node per measure, so a single
     pointwise PSIS-LOO is not defined for it (documented in the report).
     """
-    _require_spec(spec, "historical_joint")
+    require_spec(spec, "historical_joint")
     e = spec.extra
     study_id = e.get("study_id", spec.study_id)
     measure_syms = tuple(e.get("measures", ("basread", "bpvs", "basdig")))
@@ -9357,7 +6658,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         extension_waves=extension_waves,
     )
     ctx.prepared = panel
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_rlm_joint_growth_model(
@@ -9368,8 +6669,8 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         kappa_prior_sigma=e.get("kappa_prior_sigma", 50.0),
         lkj_eta=e.get("lkj_eta", 2.0),
     )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
+    attach_built(ctx, built)
+    render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
@@ -9385,7 +6686,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             filename_stem=f"prior_predictive_check_{_sym.lower()}",
         )
 
-    _run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=False)
 
     diag_vars = ["eta_cell", "sigma_subject", "kappa", "measure_corr_pairs"]
     section_header("Summary diagnostics")
@@ -9407,7 +6708,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     _diag.compute_log_likelihood_and_prior(ctx, strict=False)
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    _run_ppc(ctx, var_names=[f"score_{m}" for m in measure_syms])
+    run_ppc(ctx, var_names=[f"score_{m}" for m in measure_syms])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -9493,7 +6794,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         )
         save_table(ctx, f"posterior_growth_summary_{m}", growth)
         _pf_rows.extend(
-            _growth_contrast_pushforward_rows(
+            growth_contrast_pushforward_rows(
                 ctx,
                 panel,
                 m,
@@ -9501,9 +6802,9 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                 prefix=f"{m}:",
             )
         )
-    _write_prior_pushforward(ctx, _pf_rows)
+    write_prior_pushforward(ctx, _pf_rows)
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "study_id": study_id,
@@ -9515,7 +6816,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             "loo_elpd": None,
         },
     )
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -9540,7 +6841,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     A triangulation / measurement model, not causal (every factor->gain slope is a
     latent-ability-confounded adjusted association; #115 ID-2).
     """
-    _require_spec(spec, "corr_factor")
+    require_spec(spec, "corr_factor")
 
     # #383 settings coherence, checked BEFORE make_context resets the output
     # directory (the #455 principle): each loading parameterisation has knobs the
@@ -9615,7 +6916,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
             f"{list(_dropped_structural)} (not in prepared.covariates on the fitted "
             "rows).[/yellow]"
         )
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_correlated_factor_model(
@@ -9658,8 +6959,8 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
             _default_of(_factories.build_correlated_factor_model, "focal_slope_sigma"),
         ),
     )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
+    attach_built(ctx, built)
+    render_model_graph(ctx)
 
     summary_vars = [
         # ``communality`` is the free RV under the default communality
@@ -9702,7 +7003,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # a single-target PSIS-LOO ambiguous, so LOO is skipped here as in the
     # mediation family; this is a measurement / triangulation model, not a
     # predictive one, and #134 turns on the loadings / communalities, not on LOO.
-    _run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=False)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=summary_vars)
@@ -9719,7 +7020,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # ``y_post`` is a check of the structural leg *conditional on the observed
     # indicators*. Together they do not certify the joint model. See the
     # predictive-simulation caveat in ``build_correlated_factor_model``.
-    _run_ppc(ctx, var_names=["Z_obs", "y_post"])
+    run_ppc(ctx, var_names=["Z_obs", "y_post"])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
@@ -9730,7 +7031,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # prior-predictive plot above. AFTER save_trace, which is what attaches the
     # prior/prior_predictive groups to ctx.trace on a fresh fit: called earlier,
     # the check found no prior_predictive group and skipped silently (#383).
-    _write_indicator_prior_check(ctx, ["Z_obs"])
+    write_indicator_prior_check(ctx, ["Z_obs"])
     _diag.save_prior_posterior_plot(ctx, var_names=summary_vars)
 
     post = ctx.trace.posterior
@@ -9807,7 +7108,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         )
     )
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "domains": {k: list(v) for k, v in domains.items()},
@@ -9817,7 +7118,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -9863,7 +7164,7 @@ def _lcf_stitch_loo(ctx: StatisticalFitContext, built) -> None:
     ctx.trace["log_prior"] = _lcf_log_prior(ctx.trace, ctx.model)
     ctx.loo = az.loo(ctx.trace, var_name="lcf_child", pointwise=True)
     _report.write_loo_summary(ctx)
-    _print_loo_row(ctx)
+    print_loo_row(ctx)
 
 
 # LCF descriptive/comparison summaries live in ``lcf_summaries`` (#394 pillar 6);
@@ -9888,7 +7189,7 @@ def fit_longitudinal_corr_factor(
     aggregation and conditioning, so no magnitude ordering is required. A measurement
     / triangulation model — every quantity is a descriptive association, never causal.
     """
-    _require_spec(spec, "long_corr_factor")
+    require_spec(spec, "long_corr_factor")
 
     # #383 settings coherence, checked BEFORE make_context resets the output
     # directory (the #455 principle), mirroring fit_correlated_factor: each loading
@@ -9936,7 +7237,7 @@ def fit_longitudinal_corr_factor(
     indicators = tuple(dict.fromkeys(s for v in domains.values() for s in v))
     panel = load_wave_panel(outcomes=indicators)
     ctx.prepared = panel
-    _print_header(ctx)
+    print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_longitudinal_corr_factor_model(
@@ -9982,8 +7283,8 @@ def fit_longitudinal_corr_factor(
             ),
         ),
     )
-    _attach_built(ctx, built)
-    _render_model_graph(ctx)
+    attach_built(ctx, built)
+    render_model_graph(ctx)
 
     z_nodes = built.extras["z_nodes"]
     summary_vars = [
@@ -10027,7 +7328,7 @@ def fit_longitudinal_corr_factor(
 
     # Automatic single-target LOO is ambiguous with per-pattern observed nodes, so
     # sampling runs without it and the per-child stitch below computes LOO instead.
-    _run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=False)
 
     section_header("LOO-PSIS (per-child stitch)")
     _lcf_stitch_loo(ctx, built)
@@ -10035,7 +7336,7 @@ def fit_longitudinal_corr_factor(
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=summary_vars)
 
-    _run_ppc(ctx, var_names=z_nodes)
+    run_ppc(ctx, var_names=z_nodes)
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
@@ -10050,7 +7351,7 @@ def fit_longitudinal_corr_factor(
     # AFTER save_trace, which is what attaches the prior/prior_predictive groups
     # to ctx.trace on a fresh fit: called earlier, the check found no
     # prior_predictive group and skipped silently (#383).
-    _write_indicator_prior_check(ctx, z_nodes)
+    write_indicator_prior_check(ctx, z_nodes)
     _diag.save_prior_posterior_plot(ctx, var_names=summary_vars)
 
     post = ctx.trace.posterior
@@ -10160,7 +7461,7 @@ def fit_longitudinal_corr_factor(
             "to populate the missing side.[/yellow]"
         )
 
-    _write_run_metadata(
+    write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
@@ -10179,4 +7480,4 @@ def fit_longitudinal_corr_factor(
         },
     )
 
-    return _finalize_report(ctx)
+    return finalize_report(ctx)

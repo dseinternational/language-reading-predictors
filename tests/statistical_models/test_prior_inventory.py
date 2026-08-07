@@ -37,7 +37,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_mediation_model,
     build_two_mediator_model,
 )
-from language_reading_predictors.statistical_models.pipeline import (
+from language_reading_predictors.statistical_models.prior_artifacts import (
     _prior_table_overrides,
 )
 from language_reading_predictors.statistical_models.measures import (

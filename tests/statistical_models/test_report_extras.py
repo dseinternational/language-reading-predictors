@@ -30,8 +30,8 @@ from language_reading_predictors.statistical_models.reporting import (
     tau_summary_itt,
     unavailable_pushforward,
 )
-from language_reading_predictors.statistical_models.pipeline import (
-    _save_contrast_heatmap,
+from language_reading_predictors.statistical_models.figure_artifacts import (
+    save_contrast_heatmap,
 )
 
 
@@ -126,7 +126,7 @@ def test_probability_contrast_heatmap_saves_with_colorbar(tmp_path):
         columns=["TE", "TR"],
     )
 
-    _save_contrast_heatmap(SimpleNamespace(output_dir=str(tmp_path)), contrast)
+    save_contrast_heatmap(SimpleNamespace(output_dir=str(tmp_path)), contrast)
 
     assert (tmp_path / "contrast_heatmap.png").exists()
     assert (tmp_path / "contrast_heatmap.svg").exists()
