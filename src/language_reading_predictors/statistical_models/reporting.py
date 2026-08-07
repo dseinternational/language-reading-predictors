@@ -3905,7 +3905,10 @@ def _kf_direction_words(
     *transition* among children observed at the baseline floor), while the
     gain-family off-floor models pass "being off the floor at the period end" —
     their Bernoulli outcome is post-period *status* (``post > 0``), pooling
-    moving off, staying above and returning to the floor (#391 review)."""
+    moving off, staying above and returning to the floor (#391 review). The
+    level- and DiD-family off-floor models pass "being off the floor at t2"
+    for the same reason: they model per-wave off-floor *prevalence*, with the
+    randomised contrast read at the t2 wave (#490 review follow-up)."""
     p = _kf_float(prob_pos)
     fav = favoured_direction(p)
     label = fav["favoured_direction_label"]
@@ -4506,7 +4509,15 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
     # same thing twice and cost the reader the ROPE sentence, since the box caps at
     # five and ``rope`` is droppable — a size claim traded for a duplicated caution.
     sentences.append(
-        _kf_sentence(_kf_direction_words(rope["pd"], is_rd=is_rd), "confidence")
+        _kf_sentence(
+            # The level-family off-floor outcome is off-floor STATUS at each
+            # wave (score > 0) — prevalence, not a floor-exit transition — so
+            # the t2 sentence names the status estimand (#490 review follow-up).
+            _kf_direction_words(
+                rope["pd"], is_rd=is_rd, rd_event="being off the floor at t2"
+            ),
+            "confidence",
+        )
     )
     sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
     causal = (
@@ -4605,7 +4616,15 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
         )
     sentences.append(
         _kf_sentence(
-            _kf_direction_words(did["prob_tau_t2_pos"], is_rd=off_floor), "confidence"
+            # The off-floor DiD outcome is off-floor STATUS at each wave
+            # (score > 0) — prevalence, not a floor-exit transition — so the
+            # tau_t2 sentence names the status estimand (#490 review follow-up).
+            _kf_direction_words(
+                did["prob_tau_t2_pos"],
+                is_rd=off_floor,
+                rd_event="being off the floor at t2",
+            ),
+            "confidence",
         )
     )
     sentences.append(
